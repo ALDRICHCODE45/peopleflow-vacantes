@@ -32,4 +32,3 @@ node_modules/
 
 # AI tooling / local agent state (regenerable, not product code)
 .atl/
-.engram/
