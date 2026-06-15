@@ -1,7 +1,7 @@
 # Modelo de Datos — Proyecto 04: Plataforma Pública de Vacantes
 
 Base de datos: **PostgreSQL 16** (RDS Multi-AZ, vía RDS Proxy).
-Este documento consolida todas las decisiones de modelado y el DDL completo de las 9 tablas.
+Este documento consolida todas las decisiones de modelado y el DDL completo de las tablas (9 de entidad + el catálogo de referencia `industries`).
 
 Arquitectura de referencia: ver memoria `architecture/proyecto-04-vacantes-aws` y diagrama Excalidraw (https://app.excalidraw.com/s/9kHweo4tLb6/6VfQhv4lo5D).
 
@@ -16,6 +16,7 @@ Arquitectura de referencia: ver memoria `architecture/proyecto-04-vacantes-aws` 
 - **Por qué no UUID v4**: es aleatorio puro y fragmenta el índice B-tree (inserts en posiciones aleatorias del índice).
 - **Por qué v7**: no enumerable Y ordenado por tiempo, así que los índices se mantienen sanos.
 - **Por qué en Go y no en la DB**: encaja con arquitectura hexagonal — el dominio crea la entidad completa con su ID sin depender de un round-trip a la base.
+- **Excepción — tablas de catálogo/referencia**: `industries` usa una PK `TEXT` (slug estable, ej. `'technology'`) en vez de UUID. Razón: es un vocabulario controlado, chico y estable; el slug hace los FKs legibles (`companies.industry_id = 'technology'`) y se mantiene idéntico entre entornos (local/staging/prod), evitando sincronizar UUIDs aleatorios. La regla UUID v7 aplica a tablas de **entidad**, no de catálogo.
 
 ### 1.2 Estrategia de borrado diferenciada por tabla
 
@@ -27,6 +28,7 @@ No hay una política global; cada tabla usa la estrategia que corresponde a lo q
 | `applications` | Anonimización (`anonymized_at`) | PII de candidatos: la LFPDPPP (derechos ARCO, Cancelación) exige borrado real de datos personales. Se borra PII y CV de S3, se conserva la fila anonimizada para métricas |
 | `invitations` | Hard delete | Datos efímeros que expiran |
 | `audit_events` | Nunca se borra | Append-only; es evidencia de auditoría |
+| `industries` | Desactivación (`active`) | Catálogo de referencia: no se borra, se marca `active = false`; las empresas que ya lo referencian siguen apuntando a una fila válida |
 
 **Consecuencia del soft delete**: los `UNIQUE` se implementan como índices únicos **parciales** (`WHERE deleted_at IS NULL`) para que una fila borrada no bloquee el re-registro (mismo RFC, mismo email).
 
@@ -36,7 +38,8 @@ No hay una política global; cada tabla usa la estrategia que corresponde a lo q
 - **Por qué no ENUM nativo**: agregar un valor es fácil, pero renombrar o borrar uno es una migración dolorosa (crear tipo nuevo, migrar columna, dropear el viejo).
 - **Por qué no lookup tables**: se justifican cuando el negocio administra los valores en runtime. Aquí los estados son parte de la lógica de dominio (cambian con deploy de código, disparan eventos).
 - **Patrón**: Go define el vocabulario (constantes tipadas), Postgres lo hace cumplir (CHECK). Cambiar valores = migración trivial de drop/add constraint.
-- **Excepción**: `audit_events.event_type` no lleva CHECK — se agregan tipos de evento constantemente y no se quiere una migración por cada uno.
+- **Excepción `audit_events.event_type`**: no lleva CHECK — se agregan tipos de evento constantemente y no se quiere una migración por cada uno.
+- **Excepción `companies.industry_id` (lookup table)**: la industria SÍ se modela como tabla de referencia (`industries`) con FK, no como CHECK. Cumple el criterio que esta misma sección define: es un catálogo **administrado en runtime** por el negocio (un admin agrega/desactiva industrias sin deploy) y requiere metadata (label i18n es/en, orden de despliegue). Validación en capas: frontend ofrece las opciones (UX), Go valida contra el catálogo activo (dominio), el FK garantiza integridad (DB, última línea).
 
 ### 1.4 Timestamps
 
@@ -82,7 +85,7 @@ Basado en `docs/Estructura de Formulario de Candidato - Sistema de Reclutamiento
 ## 2. Diagrama de relaciones
 
 ```
-companies ──< company_members >── users ──1:1── candidate_profiles
+industries ──< companies ──< company_members >── users ──1:1── candidate_profiles
 companies ──< jobs ──< applications >── users (candidate)   users ──< candidate_languages
 companies ──< invitations
 audit_events (sin FKs — append-only, sobrevive a sus actores)
@@ -96,19 +99,21 @@ audit_events (sin FKs — append-only, sobrevive a sus actores)
 
 ```sql
 CREATE TABLE companies (
-    id          UUID PRIMARY KEY,
-    name        TEXT NOT NULL,
-    rfc         TEXT NOT NULL,
-    industry    TEXT,
-    website     TEXT,
-    logo_url    TEXT,
-    status      TEXT NOT NULL DEFAULT 'pending_verification'
+    id           UUID PRIMARY KEY,
+    name         TEXT NOT NULL,
+    rfc          TEXT NOT NULL,
+    industry_id  TEXT NOT NULL REFERENCES industries (id),
+    website      TEXT,
+    logo_url     TEXT,
+    status       TEXT NOT NULL DEFAULT 'pending_verification'
         CONSTRAINT companies_status_check
         CHECK (status IN ('pending_verification', 'active', 'suspended')),
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at  TIMESTAMPTZ
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at   TIMESTAMPTZ
 );
+
+CREATE INDEX companies_industry_id_idx ON companies (industry_id);
 
 CREATE UNIQUE INDEX companies_rfc_unique
     ON companies (rfc) WHERE deleted_at IS NULL;
@@ -117,6 +122,28 @@ CREATE UNIQUE INDEX companies_rfc_unique
 Notas:
 - `status` nace en `pending_verification`: onboarding self-service requiere verificación antes de publicar (anti empresas falsas).
 - Índice único parcial en `rfc`: la unicidad aplica solo entre empresas vivas.
+- `industry_id` es FK obligatoria a `industries` (catálogo, ver §3.1.1). `ON DELETE` por default (RESTRICT): no se puede borrar una industria en uso. El índice `companies_industry_id_idx` es manual porque Postgres **no** indexa automáticamente la columna que origina un FK (solo la PK referenciada).
+
+### 3.1.1 `industries` (catálogo de referencia)
+
+Tabla de catálogo administrada en runtime. **Se crea primero** (migración `00001`) por ser destino del FK de `companies`. PK `TEXT` (slug) — ver excepción en §1.1.
+
+```sql
+CREATE TABLE industries (
+    id          TEXT PRIMARY KEY,
+    label_es    TEXT NOT NULL,
+    label_en    TEXT NOT NULL,
+    sort_order  INTEGER NOT NULL DEFAULT 0,
+    active      BOOLEAN NOT NULL DEFAULT true,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+Notas:
+- **i18n**: `label_es` / `label_en` cubren es/en. Si se suman más idiomas, migrar a tabla `industry_translations`.
+- **Sin soft delete**: una industria no se borra, se marca `active = false` (ver §1.2). Desaparece del frontend pero las empresas que la referencian siguen válidas.
+- **Datos semilla** en la migración (9 industrias base: technology, retail, manufacturing, finance, healthcare, education, construction, hospitality, other). Son datos de catálogo que la app requiere; los admins agregan más en runtime.
 
 ### 3.2 `users`
 

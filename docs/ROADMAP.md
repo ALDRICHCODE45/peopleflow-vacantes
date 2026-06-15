@@ -4,42 +4,49 @@
 
 ## Dónde estamos
 
-Fase de **diseño cerrada**. Arrancando **implementación del backend**.
+**Backend: walking skeleton vivo + primera feature (`companies`) a medio camino.**
 
-- ✅ Arquitectura backend definida (`docs/arquitectura-backend-proyecto-04.md`)
-- ✅ Modelo de datos: 9 tablas con DDL (`docs/modelo-de-datos-proyecto-04.md`)
-- ✅ Hosting frontend: AWS Amplify (`docs/decision-frontend-hosting.md`)
-- ✅ Repo de código separado del repo de estrategia (`PeopleflowStrategy`)
-- ✅ Estructura monorepo creada: `backend/ frontend/ infra/ workers/ docs/`
+Infraestructura base (lista y compilando):
+
+- ✅ Módulo Go en `backend/go.mod` (módulo único; `api` y `workers` irán como binarios en `cmd/`).
+- ✅ Herramientas pineadas con `go tool` (no global): goose v3.27.1, sqlc v1.31.1.
+- ✅ `backend/docker-compose.yml`: Postgres **16** local con healthcheck (`pg_isready`).
+- ✅ Migraciones goose aplicadas (versión 2): `00001_create_industries` (catálogo + 9 filas semilla), `00002_create_companies` (con FK `industry_id`).
+- ✅ sqlc configurado (`backend/sqlc.yaml`: pgx/v5, override `uuid`→`google/uuid`) + código generado en `internal/db/`.
+- ✅ Queries en `backend/db/queries/companies.sql`: `CreateCompany`, `GetCompanyByID`.
+- ✅ Composition root `backend/cmd/api/main.go`: pool pgx + chi + `/healthz` (pinguea DB) + graceful shutdown. **Corre y responde 200.**
+
+Feature `companies` (arquitectura hexagonal):
+
+- ✅ **domain**: `entities.Company` + `NewCompany` (factory: arma VOs, genera UUID v7, status inicial `pending_verification`, timestamps). Value objects: `CompanyName`, `CompanyRfc`, `CompanyStatus` (enum int). `repositories.CompanyRepository` (puerto). Errores de dominio (`ErrCompanyNotFound`, `ErrEmptyIndustry`).
+- ✅ **application**: `dtos.CreateCompanyDto` + `usecases.CompanyService.CreateCompany` (DTO → entidad → repo).
+- 🔲 **infrastructure**: FALTA (es el próximo paso).
 
 ## QUÉ SIGUE (próximo paso inmediato)
 
-**Walking skeleton del backend, empezando por la capa de datos con sqlc + goose, usando la tabla `companies` como primera tabla para aprender el flujo.**
+**Capa de infraestructura de la feature `companies`** — es donde se conecta todo lo ya construido (pool pgx, `db.New`, código sqlc, `pgtype`):
 
-Aldrich es nuevo en sqlc → enseñar paso a paso el ciclo:
-`escribir SQL a mano → sqlc generate → código Go tipado`.
+1. **Repo Postgres** (`internal/features/companies/infrastructure/postgres/`): implementa `repositories.CompanyRepository` envolviendo el `db.Queries` de sqlc. Acá vive el mapeo **entidad ↔ sqlc**: `company.Name.Value()` → params, `*string ↔ pgtype.Text`, `company.Status.String()`, `uuid.UUID`. El `GetByID` devuelve `entities.ErrCompanyNotFound` cuando no hay fila.
+2. **Handlers HTTP** (`.../infrastructure/http/`): reciben JSON → arman `CreateCompanyDto` → llaman al use case → mapean la entidad a un **response DTO** (la entidad NO se serializa directo: los VOs tienen campo privado). Montados en chi.
+3. **Wiring en `cmd/api/main.go`**: `db.New(pool)` → repo Postgres → `NewCompanyService(repo)` → handler → router. Reemplaza el `_ = db.New(pool)` actual.
 
-Secuencia acordada para el backend:
+Pendiente menor: query `ListActiveIndustries` para exponer el catálogo de industrias al frontend.
 
-1. `go mod init github.com/aldrichcode45/peopleflow-vacantes` (module path en MINÚSCULAS).
-   - Decisión pendiente al scaffoldear: un solo módulo en la raíz vs módulo por deployable
-     (backend/workers). Afecta si workers puede importar `internal/` del backend.
-2. Setup **goose**: primera migración = schema de `companies` (ver DDL en modelo-de-datos §3.1).
-3. Setup **sqlc** (`sqlc.yaml`): schema desde las migraciones, queries en `.sql`.
-4. Escribir primeras queries de `companies` (CreateCompany, GetCompanyByID) → `sqlc generate`.
-5. Revisar juntos el código tipado generado (entender qué hace sqlc por nosotros).
-6. **docker-compose** con Postgres 16 local + correr goose para aplicar la migración end-to-end.
-7. `main.go` composition root mínimo + servidor chi con `/healthz`.
-
-Después: montar la primera feature completa (`identity` o `companies`) sobre el esqueleto.
+Decisión abierta para discutir cuando toque: ¿quién valida que `industry_id` exista? Hoy lo garantiza el FK (DB). Evaluar si además se valida contra el catálogo activo en la capa de aplicación.
 
 ## Stack decidido (no re-discutir)
 
 - Router: **chi** | Datos: **sqlc + pgx/v5** | DI: **manual** | Migraciones: **goose**
-- DB: PostgreSQL 16 | PK: UUID v7 generado en Go (`google/uuid`)
+- DB: PostgreSQL 16 | PK entidades: UUID v7 generado en Go (`google/uuid`) | PK catálogos: slug TEXT (ver §1.1 modelo de datos)
 
-## Herramientas a instalar en máquina nueva
+## Comandos útiles (recordatorio para máquina nueva)
 
-- Go (ya 1.26.1 en la máquina actual), Docker
-- `go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest`
-- `go install github.com/pressly/goose/v3/cmd/goose@latest`
+- **Herramientas**: ya están pineadas en `go.mod` con `go tool` → NO hay que instalar goose/sqlc global. Solo necesitás **Go 1.26+** y **Docker**.
+- Levantar DB: `cd backend && docker compose up -d`
+- Variables goose (export una vez por terminal):
+  - `export GOOSE_DRIVER=postgres`
+  - `export GOOSE_DBSTRING="postgres://admin:secreto@localhost:5432/peopleflow_vacancies?sslmode=disable"`
+  - `export GOOSE_MIGRATION_DIR=db/migrations`
+- Migrar: `go tool goose up` (status: `go tool goose status`)
+- Regenerar sqlc: `go tool sqlc generate`
+- Correr API: `export DATABASE_URL="postgres://admin:secreto@localhost:5432/peopleflow_vacancies?sslmode=disable"` → `go run ./cmd/api` → probar `curl -i localhost:8080/healthz`
