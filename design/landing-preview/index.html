@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PeopleFlow — El proceso de contratación que ves y controlas</title>
+  <title>PeopleFlow — Bolsa de trabajo y ATS, conectados</title>
 
   <!--
     Anti-flash inline script — MUST run before Tailwind processes and before
@@ -160,11 +160,10 @@
       <div class="reveal">
         <p class="eyebrow mb-6 font-mono text-[12px] font-semibold uppercase text-brand">Ecosistema de reclutamiento</p>
         <h1 class="font-display text-[64px] font-bold leading-[1.02] tracking-tight text-ink">
-          El proceso de contratación que ves y controlas.
+          Publica. Recibe. Contrata.
         </h1>
         <p class="mt-7 max-w-[520px] text-[17px] leading-relaxed text-muted">
-          Publica vacantes, gestiona candidatos y coordina a tu equipo desde un solo lugar.
-          Cada etapa del pipeline, visible y bajo control.
+          Publica tus vacantes en la bolsa de trabajo, recibe postulaciones y gestiona cada candidato en tu pipeline. La bolsa y el ATS, conectados de punta a punta.
         </p>
         <div class="mt-9 flex flex-wrap items-center gap-4">
           <a href="#" class="btn btn-primary rounded-xl bg-brand px-7 py-3.5 text-[15px] font-semibold text-white">Empezar gratis</a>
@@ -317,6 +316,69 @@
     </section>
   </div>
 
+  <!-- ================= DOS SISTEMAS ================= -->
+  <section class="relative z-10 mx-auto max-w-[1280px] px-8 py-24">
+    <div class="reveal mx-auto mb-16 max-w-[720px] text-center">
+      <p class="eyebrow mb-4 font-mono text-[12px] font-semibold uppercase text-glow">Un ecosistema, dos sistemas</p>
+      <h2 class="font-display text-[42px] font-bold leading-tight tracking-tight text-ink">La bolsa de trabajo y tu ATS, conectados.</h2>
+      <p class="mt-5 text-[18px] leading-relaxed text-muted">Publica una vacante en la bolsa y cada postulación entra sola a tu pipeline. Bolsa y ATS, el mismo ecosistema de principio a fin.</p>
+    </div>
+
+    <div class="grid items-stretch gap-6 lg:grid-cols-[1fr_auto_1fr]">
+
+      <!-- Sistema A — Bolsa de trabajo -->
+      <article class="card reveal relative flex h-full flex-col gap-5 overflow-hidden rounded-3xl border border-line bg-surface p-8 lg:p-9">
+        <span class="pointer-events-none absolute -top-24 -left-24 h-64 w-64 rounded-full" style="background:radial-gradient(closest-side, rgba(147,54,234,.22), transparent 70%); filter:blur(2px);"></span>
+        <div class="relative flex items-center justify-between">
+          <span class="grid h-11 w-11 place-items-center rounded-xl border border-brand/30 bg-base/40 text-brand">
+            <i data-lucide="megaphone" class="h-5 w-5"></i>
+          </span>
+          <span class="rounded-full overlay-soft px-3 py-1 text-[11px] font-mono font-semibold uppercase tracking-wide text-brand">Sistema A</span>
+        </div>
+        <div class="relative">
+          <h3 class="text-[24px] font-bold text-ink">Bolsa de trabajo</h3>
+          <p class="mt-2 max-w-[440px] text-[15px] leading-relaxed text-muted">Publica vacantes y llega a candidatos. Ellos buscan, filtran y se postulan desde tu bolsa pública.</p>
+        </div>
+        <ul class="relative mt-auto flex flex-col gap-3 pt-2 text-[14px] text-ink">
+          <li class="flex items-start gap-3"><i data-lucide="circle-check" class="mt-[3px] h-4 w-4 shrink-0 text-brand"></i><span>Publicación de vacantes en minutos</span></li>
+          <li class="flex items-start gap-3"><i data-lucide="circle-check" class="mt-[3px] h-4 w-4 shrink-0 text-brand"></i><span>Postulaciones self-service</span></li>
+          <li class="flex items-start gap-3"><i data-lucide="circle-check" class="mt-[3px] h-4 w-4 shrink-0 text-brand"></i><span>Página de marca empleadora</span></li>
+        </ul>
+      </article>
+
+      <!-- Conector A → B -->
+      <div class="reveal flex flex-col items-center justify-center gap-3">
+        <span class="rounded-full overlay-soft px-3 py-1 text-[11px] font-mono font-semibold uppercase tracking-wider text-ink">fluye a</span>
+        <span class="grid h-14 w-14 place-items-center rounded-full border border-brand/40 bg-base/70 text-brand" style="box-shadow:0 0 28px 0 rgba(147,54,234,.45);">
+          <i data-lucide="arrow-right" class="hidden h-6 w-6 lg:block"></i>
+          <i data-lucide="arrow-down" class="block h-6 w-6 lg:hidden"></i>
+        </span>
+        <span class="text-[11px] font-mono uppercase tracking-wider text-muted">en tiempo real</span>
+      </div>
+
+      <!-- Sistema B — ATS Pipeline -->
+      <article class="card reveal relative flex h-full flex-col gap-5 overflow-hidden rounded-3xl border border-line bg-surface p-8 lg:p-9">
+        <span class="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full" style="background:radial-gradient(closest-side, rgba(34,211,238,.18), transparent 70%); filter:blur(2px);"></span>
+        <div class="relative flex items-center justify-between">
+          <span class="grid h-11 w-11 place-items-center rounded-xl border border-cyan/30 bg-base/40 text-cyan">
+            <i data-lucide="git-branch" class="h-5 w-5"></i>
+          </span>
+          <span class="rounded-full overlay-soft px-3 py-1 text-[11px] font-mono font-semibold uppercase tracking-wide text-cyan">Sistema B</span>
+        </div>
+        <div class="relative">
+          <h3 class="text-[24px] font-bold text-ink">ATS · Pipeline</h3>
+          <p class="mt-2 max-w-[440px] text-[15px] leading-relaxed text-muted">Cada postulación entra directo a tu pipeline. Screening con IA, scoring, entrevistas y decisiones del equipo, todo en un solo lugar.</p>
+        </div>
+        <ul class="relative mt-auto flex flex-col gap-3 pt-2 text-[14px] text-ink">
+          <li class="flex items-start gap-3"><i data-lucide="circle-check" class="mt-[3px] h-4 w-4 shrink-0 text-cyan"></i><span>Screening con IA y scoring automático</span></li>
+          <li class="flex items-start gap-3"><i data-lucide="circle-check" class="mt-[3px] h-4 w-4 shrink-0 text-cyan"></i><span>Pipeline por etapas con drag &amp; drop</span></li>
+          <li class="flex items-start gap-3"><i data-lucide="circle-check" class="mt-[3px] h-4 w-4 shrink-0 text-cyan"></i><span>Coordinación y decisiones del equipo</span></li>
+        </ul>
+      </article>
+
+    </div>
+  </section>
+
   <!-- ================= VALUE PROPS ================= -->
   <section class="mx-auto max-w-[1280px] px-8 py-24">
     <!-- header -->
@@ -413,7 +475,7 @@
     <div class="reveal mx-auto mb-12 max-w-[660px] text-center">
       <p class="eyebrow mb-4 font-mono text-[12px] font-semibold uppercase text-brand">El producto</p>
       <h2 class="font-display text-[42px] font-bold leading-tight tracking-tight text-ink">Tu tablero, en acción</h2>
-      <p class="mt-4 text-[18px] leading-relaxed text-muted">Arrastrá candidatos entre etapas, dejá comentarios y decidí en equipo. Todo el proceso en una sola vista.</p>
+      <p class="mt-4 text-[18px] leading-relaxed text-muted">Arrastra candidatos entre etapas, deja comentarios y decide en equipo. Todo el proceso en una sola vista.</p>
     </div>
 
     <!-- window frame -->
@@ -505,8 +567,8 @@
     <div class="reveal relative overflow-hidden rounded-3xl border border-line bg-surface/50 px-8 py-20 text-center backdrop-blur-sm">
       <div class="glow-purple pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[720px] -translate-x-1/2 -translate-y-1/2"></div>
       <div class="relative">
-        <h2 class="font-display text-[46px] font-bold leading-tight tracking-tight text-ink">Empezá a ver todo tu proceso</h2>
-        <p class="mx-auto mt-4 max-w-[520px] text-[18px] leading-relaxed text-muted">Publicá tu primera vacante hoy y controlá cada etapa desde un solo lugar. Sin tarjeta, sin fricción.</p>
+        <h2 class="font-display text-[46px] font-bold leading-tight tracking-tight text-ink">Empieza a ver todo tu proceso</h2>
+        <p class="mx-auto mt-4 max-w-[560px] text-[18px] leading-relaxed text-muted">Publica tu primera vacante en la bolsa y sigue cada postulación en tu pipeline. Sin tarjeta, sin fricción.</p>
         <div class="mt-9 flex flex-wrap items-center justify-center gap-4">
           <a href="#" class="btn btn-primary rounded-xl bg-brand px-8 py-3.5 text-[15px] font-semibold text-white">Empezar gratis</a>
           <a href="#" class="btn btn-ghost rounded-xl border border-line bg-surface px-8 py-3.5 text-[15px] font-semibold text-ink">Agendar demo</a>
@@ -521,7 +583,7 @@
       <div class="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
         <div>
           <a href="#" class="select-none text-[22px]"><span class="font-display font-bold text-ink">people</span><span class="font-display italic text-brand">flow</span></a>
-          <p class="mt-4 max-w-[280px] text-[14px] leading-relaxed text-muted">El ecosistema de reclutamiento que tu equipo ve y controla, de la vacante a la contratación.</p>
+          <p class="mt-4 max-w-[280px] text-[14px] leading-relaxed text-muted">De la vacante publicada en la bolsa al candidato contratado en tu pipeline — un solo ecosistema.</p>
           <div class="mt-5 flex gap-3">
             <span class="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-muted transition hover:border-brand/50 hover:text-ink">in</span>
             <span class="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-muted transition hover:border-brand/50 hover:text-ink">X</span>
@@ -531,7 +593,7 @@
         <div>
           <p class="mb-4 text-[13px] font-semibold uppercase tracking-wide text-ink">Producto</p>
           <ul class="flex flex-col gap-2.5 text-[14px] text-muted">
-            <li><a href="#" class="transition hover:text-ink">Vacantes</a></li>
+            <li><a href="#" class="transition hover:text-ink">Bolsa de trabajo</a></li>
             <li><a href="#" class="transition hover:text-ink">Pipeline</a></li>
             <li><a href="#" class="transition hover:text-ink">Screening IA</a></li>
             <li><a href="#" class="transition hover:text-ink">Precios</a></li>
