@@ -14,36 +14,18 @@
 <body class="min-h-screen font-sans text-ink antialiased">
   <div class="grid min-h-screen lg:grid-cols-2">
 
-    <!-- Effect panel (left) -->
+    <!-- Effect panel (left) — animation only -->
     <div class="relative hidden overflow-hidden border-r border-line bg-base lg:block">
       <div id="floatingLines" class="absolute inset-0"></div>
-      <div class="pointer-events-none relative z-10 flex h-full flex-col justify-between p-12">
+      <div class="pointer-events-none relative z-10 p-12">
         <a href="../landing-preview/index.html" class="pointer-events-auto inline-block w-fit">
           <img src="assets/peopleflow-dark.webp" alt="PeopleFlow" class="h-7 w-auto" />
         </a>
-        <div class="max-w-[440px]">
-          <p class="eyebrow mb-5 font-mono text-[12px] font-semibold uppercase text-cyan">Acceso candidatos</p>
-          <h2 class="font-display text-[40px] font-bold leading-[1.08] tracking-tight text-ink">Tu próximo trabajo, con el proceso a la vista.</h2>
-          <p class="mt-5 text-[16px] leading-relaxed text-muted">Postúlate, sigue cada etapa y recibe feedback claro. Sin quedarte en la incertidumbre.</p>
-          <div class="mt-8 flex flex-col gap-3">
-            <div class="flex items-center gap-3 text-[14px] text-muted"><span class="h-2 w-2 rounded-full bg-cyan"></span> Postúlate en un clic</div>
-            <div class="flex items-center gap-3 text-[14px] text-muted"><span class="h-2 w-2 rounded-full bg-brand"></span> Sigue el estado de tus postulaciones</div>
-            <div class="flex items-center gap-3 text-[14px] text-muted"><span class="h-2 w-2 rounded-full bg-grass"></span> Feedback claro en cada etapa</div>
-          </div>
-        </div>
-        <div class="flex items-center gap-3 rounded-xl border border-line bg-surface/60 p-4 backdrop-blur-sm">
-          <div class="flex -space-x-2.5">
-            <span class="h-8 w-8 rounded-full ring-2 ring-surface" style="background:#22D3EE"></span>
-            <span class="h-8 w-8 rounded-full ring-2 ring-surface" style="background:#7C4DFF"></span>
-            <span class="h-8 w-8 rounded-full ring-2 ring-surface" style="background:#22C55E"></span>
-          </div>
-          <p class="text-[13px] text-muted">Miles de candidatos ya siguen su proceso aquí.</p>
-        </div>
       </div>
     </div>
 
     <!-- Form panel (right) -->
-    <div class="flex items-center justify-center px-6 py-12 sm:px-10">
+    <div class="flex items-center justify-center bg-surface px-6 py-12 sm:px-10">
       <div class="w-full max-w-[400px]">
         <a href="../landing-preview/index.html" class="mb-8 inline-block lg:hidden">
           <img src="assets/peopleflow-dark.webp" alt="PeopleFlow" class="h-7 w-auto" />
@@ -56,14 +38,14 @@
         <form class="mt-8 flex flex-col gap-5" onsubmit="return false">
           <div>
             <label class="mb-1.5 block text-[13px] font-medium text-ink">Email</label>
-            <input type="email" placeholder="tu@email.com" class="field w-full rounded-lg border border-line bg-surface px-4 py-3 text-[15px] text-ink placeholder:text-muted/70" />
+            <input type="email" placeholder="tu@email.com" class="field w-full rounded-lg border border-line bg-base px-4 py-3 text-[15px] text-ink placeholder:text-muted/70" />
           </div>
           <div>
             <div class="mb-1.5 flex items-center justify-between">
               <label class="block text-[13px] font-medium text-ink">Contraseña</label>
               <a href="#" class="text-[13px] text-cyan transition hover:text-ink">¿Olvidaste tu contraseña?</a>
             </div>
-            <input type="password" placeholder="••••••••" class="field w-full rounded-lg border border-line bg-surface px-4 py-3 text-[15px] text-ink placeholder:text-muted/70" />
+            <input type="password" placeholder="••••••••" class="field w-full rounded-lg border border-line bg-base px-4 py-3 text-[15px] text-ink placeholder:text-muted/70" />
           </div>
           <label class="flex cursor-pointer items-center gap-2.5 text-[13px] text-muted">
             <input type="checkbox" class="h-4 w-4 rounded border-line bg-surface accent-cyan" /> Mantener sesión iniciada
@@ -76,8 +58,8 @@
         </div>
 
         <div class="flex flex-col gap-3">
-          <button class="btn btn-ghost flex w-full items-center justify-center gap-2.5 rounded-lg border border-line bg-surface py-3 text-[14px] font-medium text-ink"><span class="font-mono text-[13px] text-muted">G</span> Continuar con Google</button>
-          <button class="btn btn-ghost flex w-full items-center justify-center gap-2.5 rounded-lg border border-line bg-surface py-3 text-[14px] font-medium text-ink"><span class="font-mono text-[13px] text-muted">in</span> Continuar con LinkedIn</button>
+          <button class="btn btn-ghost flex w-full items-center justify-center gap-2.5 rounded-lg border border-line bg-base py-3 text-[14px] font-medium text-ink"><span class="font-mono text-[13px] text-muted">G</span> Continuar con Google</button>
+          <button class="btn btn-ghost flex w-full items-center justify-center gap-2.5 rounded-lg border border-line bg-base py-3 text-[14px] font-medium text-ink"><span class="font-mono text-[13px] text-muted">in</span> Continuar con LinkedIn</button>
         </div>
 
         <p class="mt-8 text-center text-[14px] text-muted">¿No tienes perfil? <a href="#" class="font-semibold text-cyan transition hover:text-ink">Crea tu perfil</a></p>
