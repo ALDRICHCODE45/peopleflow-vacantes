@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PeopleFlow — El proceso de contratación que ves y controlas</title>
+
+  <!-- Fonts: Clash Display (Fontshare), Inter + JetBrains Mono (Google) -->
+  <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            base: '#0C0912',
+            surface: '#15121F',
+            surface2: '#171226',
+            elevated: '#1A1626',
+            line: '#262233',
+            ink: '#F6F2FF',
+            muted: '#A79FBF',
+            brand: '#9336EA',
+            glow: '#B266FF',
+            cyan: '#22D3EE',
+            grass: '#22C55E',
+            magenta: '#D946EF',
+          },
+          fontFamily: {
+            display: ['"Clash Display"', 'system-ui', 'sans-serif'],
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+          },
+        },
+      },
+    };
+  </script>
+
+  <style>
+    html { scroll-behavior: smooth; }
+    body { background-color: #0C0912; }
+
+    /* Ambient radial glow behind the hero pipeline */
+    .glow-purple {
+      background: radial-gradient(closest-side, rgba(147, 54, 234, 0.42), rgba(147, 54, 234, 0.10) 55%, transparent 78%);
+      filter: blur(4px);
+    }
+
+    /* Active node cyan ring pulse */
+    @keyframes pulseCyan {
+      0%, 100% { box-shadow: 0 0 0 1.5px rgba(34, 211, 238, 0.9), 0 0 22px 2px rgba(34, 211, 238, 0.45); }
+      50%      { box-shadow: 0 0 0 1.5px rgba(34, 211, 238, 1),   0 0 34px 6px rgba(34, 211, 238, 0.65); }
+    }
+    .node-active { animation: pulseCyan 2.6s ease-in-out infinite; }
+
+    /* Flowing dash on the connectors */
+    @keyframes dashFlow { to { stroke-dashoffset: -32; } }
+    .flow { stroke-dasharray: 6 8; animation: dashFlow 1.6s linear infinite; }
+
+    /* Soft float for the whole pipeline */
+    @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+    .floaty { animation: floaty 7s ease-in-out infinite; }
+
+    /* Reveal on scroll */
+    .reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s ease; }
+    .reveal.in { opacity: 1; transform: translateY(0); }
+
+    /* Eyebrow letterspacing */
+    .eyebrow { letter-spacing: 0.28em; }
+
+    /* Card hover lift + border glow */
+    .card { transition: transform .35s ease, border-color .35s ease, box-shadow .35s ease; }
+    .card:hover { transform: translateY(-4px); border-color: rgba(147,54,234,0.55); box-shadow: 0 18px 50px -20px rgba(147,54,234,0.45); }
+
+    /* Button shimmer/lift */
+    .btn { transition: transform .2s ease, box-shadow .3s ease, background-color .25s ease; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 14px 40px -12px rgba(147,54,234,0.75); }
+    .btn-ghost:hover { transform: translateY(-2px); border-color: rgba(246,242,255,0.35); background-color: rgba(255,255,255,0.04); }
+
+    .avatar-stack > * + * { margin-left: -10px; }
+    ::selection { background: rgba(147,54,234,0.4); color: #fff; }
+  </style>
+</head>
+
+<body class="font-sans text-ink antialiased overflow-x-hidden">
+
+  <!-- ================= NAV ================= -->
+  <header class="relative z-20">
+    <nav class="mx-auto flex max-w-[1280px] items-center justify-between px-8 py-5">
+      <div class="flex items-center gap-10">
+        <a href="#" class="select-none text-[22px] font-bold tracking-tight">
+          <span class="font-display font-bold text-ink">people</span><span class="font-display italic text-brand">flow</span>
+        </a>
+        <ul class="hidden items-center gap-8 text-[15px] text-muted md:flex">
+          <li><a href="#" class="transition hover:text-ink">Producto</a></li>
+          <li><a href="#" class="transition hover:text-ink">Soluciones</a></li>
+          <li><a href="#" class="transition hover:text-ink">Precios</a></li>
+          <li><a href="#" class="transition hover:text-ink">Recursos</a></li>
+        </ul>
+      </div>
+      <div class="flex items-center gap-6">
+        <a href="#" class="hidden text-[15px] text-muted transition hover:text-ink sm:block">Iniciar sesión</a>
+        <a href="#" class="btn btn-primary rounded-xl bg-brand px-5 py-2.5 text-[14px] font-semibold text-white">Empezar gratis</a>
+      </div>
+    </nav>
+  </header>
+
+  <!-- ================= HERO ================= -->
+  <section class="relative mx-auto max-w-[1280px] px-8 pt-16 pb-24">
+    <div class="grid items-center gap-10 lg:grid-cols-[minmax(0,540px)_minmax(0,1fr)]">
+
+      <!-- Hero copy -->
+      <div class="reveal">
+        <p class="eyebrow mb-6 font-mono text-[12px] font-semibold uppercase text-brand">Ecosistema de reclutamiento</p>
+        <h1 class="font-display text-[64px] font-bold leading-[1.02] tracking-tight text-ink">
+          El proceso de contratación que ves y controlas.
+        </h1>
+        <p class="mt-7 max-w-[520px] text-[17px] leading-relaxed text-muted">
+          Publica vacantes, gestiona candidatos y coordina a tu equipo desde un solo lugar.
+          Cada etapa del pipeline, visible y bajo control.
+        </p>
+        <div class="mt-9 flex flex-wrap items-center gap-4">
+          <a href="#" class="btn btn-primary rounded-xl bg-brand px-7 py-3.5 text-[15px] font-semibold text-white">Empezar gratis</a>
+          <a href="#" class="btn btn-ghost rounded-xl border border-line bg-surface px-7 py-3.5 text-[15px] font-semibold text-ink">Agendar demo</a>
+        </div>
+      </div>
+
+      <!-- Hero pipeline visual -->
+      <div class="reveal relative">
+        <div class="relative overflow-hidden rounded-3xl border border-line bg-surface/40 p-6" style="min-height:440px;">
+          <!-- ambient glow -->
+          <div class="glow-purple pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2"></div>
+
+          <div class="floaty relative h-full w-full" style="min-height:388px;">
+            <!-- SVG connectors -->
+            <svg class="absolute inset-0 h-full w-full" viewBox="0 0 560 388" fill="none" preserveAspectRatio="none">
+              <!-- Nueva vacante -> Screening -->
+              <path d="M196 208 H236" stroke="#7C4DFF" stroke-width="2" />
+              <path d="M196 208 H236" stroke="#22D3EE" stroke-width="2" class="flow" opacity="0.9" />
+              <!-- Screening -> Entrevista (up) -->
+              <path d="M404 194 H452 V118 H492" stroke="#6D3FE0" stroke-width="2" />
+              <!-- Screening -> Contratado (down) -->
+              <path d="M404 222 H452 V286 H492" stroke="#6D3FE0" stroke-width="2" />
+            </svg>
+
+            <!-- Nueva vacante -->
+            <div class="absolute" style="left:24px; top:180px;">
+              <div class="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-lg">
+                <span class="h-7 w-7 shrink-0 rounded-full" style="background:#9336EA; box-shadow:0 0 14px 1px rgba(147,54,234,.6)"></span>
+                <span><span class="block text-[14px] font-semibold text-ink">Nueva vacante</span><span class="block text-[12px] text-muted">Publicada</span></span>
+              </div>
+            </div>
+
+            <!-- Screening (active) -->
+            <div class="absolute" style="left:236px; top:180px;">
+              <div class="node-active flex items-center gap-3 rounded-xl border border-cyan/70 bg-surface2 px-4 py-3">
+                <span class="h-7 w-7 shrink-0 rounded-full" style="background:#9336EA; box-shadow:0 0 14px 1px rgba(147,54,234,.6)"></span>
+                <span><span class="block text-[14px] font-semibold text-ink">Screening</span><span class="block text-[12px] text-muted">IA + filtros</span></span>
+              </div>
+            </div>
+
+            <!-- Entrevista -->
+            <div class="absolute" style="left:452px; top:92px;">
+              <div class="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-lg">
+                <span class="h-7 w-7 shrink-0 rounded-full" style="background:#D946EF; box-shadow:0 0 14px 1px rgba(217,70,239,.55)"></span>
+                <span><span class="block text-[14px] font-semibold text-ink">Entrevista</span><span class="block text-[12px] text-muted">Agendada</span></span>
+              </div>
+            </div>
+
+            <!-- Contratado -->
+            <div class="absolute" style="left:452px; top:260px;">
+              <div class="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-lg">
+                <span class="h-7 w-7 shrink-0 rounded-full" style="background:#22C55E; box-shadow:0 0 14px 1px rgba(34,197,94,.55)"></span>
+                <span><span class="block text-[14px] font-semibold text-ink">Contratado</span><span class="block text-[12px] text-muted">Oferta enviada</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= VALUE PROPS ================= -->
+  <section class="mx-auto max-w-[1280px] px-8 py-24">
+    <!-- header -->
+    <div class="reveal mx-auto mb-14 max-w-[640px] text-center">
+      <h2 class="font-display text-[42px] font-bold leading-tight tracking-tight text-ink">Todo el proceso, bajo tu control</h2>
+      <p class="mt-4 text-[18px] leading-relaxed text-muted">Desde la vacante hasta la contratación, cada etapa es visible, medible y tuya.</p>
+    </div>
+
+    <!-- bento -->
+    <div class="grid gap-6 lg:grid-cols-2">
+
+      <!-- Big card: Pipeline visible -->
+      <div class="card reveal flex flex-col gap-6 rounded-3xl border border-line bg-surface p-8">
+        <div>
+          <h3 class="text-[24px] font-bold text-ink">Pipeline visible</h3>
+          <p class="mt-2 max-w-[440px] text-[15px] leading-relaxed text-muted">Mira a cada candidato avanzar por tus etapas en tiempo real. Sin hojas de cálculo, sin cajas negras.</p>
+        </div>
+
+        <!-- mini kanban -->
+        <div class="grid flex-1 grid-cols-3 gap-3">
+          <!-- col 1 -->
+          <div class="flex flex-col gap-2.5 rounded-2xl bg-base/70 p-3">
+            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-brand"></span><span class="text-[12px] font-semibold text-ink">Nueva vacante</span></div>
+            <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5"><span class="h-5 w-5 rounded-full" style="background:#7C4DFF"></span><span class="flex flex-col gap-1.5"><span class="block h-1.5 w-16 rounded bg-line"></span><span class="block h-1 w-10 rounded bg-line/70"></span></span></div>
+            <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5"><span class="h-5 w-5 rounded-full" style="background:#B266FF"></span><span class="flex flex-col gap-1.5"><span class="block h-1.5 w-14 rounded bg-line"></span><span class="block h-1 w-10 rounded bg-line/70"></span></span></div>
+            <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5"><span class="h-5 w-5 rounded-full" style="background:#9B6BFF"></span><span class="flex flex-col gap-1.5"><span class="block h-1.5 w-16 rounded bg-line"></span><span class="block h-1 w-9 rounded bg-line/70"></span></span></div>
+            <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5"><span class="h-5 w-5 rounded-full" style="background:#6D3FE0"></span><span class="flex flex-col gap-1.5"><span class="block h-1.5 w-12 rounded bg-line"></span><span class="block h-1 w-11 rounded bg-line/70"></span></span></div>
+          </div>
+          <!-- col 2 -->
+          <div class="flex flex-col gap-2.5 rounded-2xl bg-base/70 p-3">
+            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-cyan"></span><span class="text-[12px] font-semibold text-ink">Screening</span></div>
+            <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5"><span class="h-5 w-5 rounded-full" style="background:#22D3EE"></span><span class="flex flex-col gap-1.5"><span class="block h-1.5 w-16 rounded bg-line"></span><span class="block h-1 w-9 rounded bg-line/70"></span></span></div>
+            <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5"><span class="h-5 w-5 rounded-full" style="background:#1FC4DE"></span><span class="flex flex-col gap-1.5"><span class="block h-1.5 w-14 rounded bg-line"></span><span class="block h-1 w-9 rounded bg-line/70"></span></span></div>
+          </div>
+          <!-- col 3 -->
+          <div class="flex flex-col gap-2.5 rounded-2xl bg-base/70 p-3">
+            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-grass"></span><span class="text-[12px] font-semibold text-ink">Contratado</span></div>
+            <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5"><span class="h-5 w-5 rounded-full" style="background:#22C55E"></span><span class="flex flex-col gap-1.5"><span class="block h-1.5 w-14 rounded bg-line"></span><span class="block h-1 w-10 rounded bg-line/70"></span></span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right column -->
+      <div class="flex flex-col gap-6">
+
+        <!-- Screening con IA -->
+        <div class="card reveal flex flex-col gap-5 rounded-3xl border border-line bg-surface p-7">
+          <div>
+            <h3 class="text-[20px] font-bold text-ink">Screening con IA</h3>
+            <p class="mt-2 text-[14px] leading-relaxed text-muted">La IA filtra y ordena los mejores perfiles. La decisión final siempre es tuya.</p>
+          </div>
+          <div class="flex flex-col gap-2.5">
+            <!-- row -->
+            <div class="flex items-center gap-3 rounded-xl bg-base/70 p-3">
+              <span class="h-7 w-7 shrink-0 rounded-full" style="background:#7C4DFF"></span>
+              <span class="flex flex-1 flex-col gap-1.5"><span class="block h-2 w-24 rounded bg-line"></span><span class="block h-1.5 w-14 rounded bg-line/70"></span></span>
+              <span class="rounded-full px-2.5 py-1 text-[12px] font-bold" style="background:rgba(34,197,94,.16); color:#34D07A">94%</span>
+            </div>
+            <div class="flex items-center gap-3 rounded-xl bg-base/70 p-3">
+              <span class="h-7 w-7 shrink-0 rounded-full" style="background:#22D3EE"></span>
+              <span class="flex flex-1 flex-col gap-1.5"><span class="block h-2 w-20 rounded bg-line"></span><span class="block h-1.5 w-12 rounded bg-line/70"></span></span>
+              <span class="rounded-full px-2.5 py-1 text-[12px] font-bold" style="background:rgba(34,211,238,.16); color:#22D3EE">88%</span>
+            </div>
+            <div class="flex items-center gap-3 rounded-xl bg-base/70 p-3">
+              <span class="h-7 w-7 shrink-0 rounded-full" style="background:#B266FF"></span>
+              <span class="flex flex-1 flex-col gap-1.5"><span class="block h-2 w-24 rounded bg-line"></span><span class="block h-1.5 w-11 rounded bg-line/70"></span></span>
+              <span class="rounded-full px-2.5 py-1 text-[12px] font-bold" style="background:rgba(224,168,62,.16); color:#E0A83E">76%</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tu equipo, coordinado -->
+        <div class="card reveal flex flex-col gap-5 rounded-3xl border border-line bg-surface p-7">
+          <div>
+            <h3 class="text-[20px] font-bold text-ink">Tu equipo, coordinado</h3>
+            <p class="mt-2 text-[14px] leading-relaxed text-muted">Comentarios, evaluaciones y decisiones en un solo lugar. Todos alineados, sin correos perdidos.</p>
+          </div>
+          <div class="flex items-center gap-4 rounded-xl bg-base/70 p-4">
+            <div class="avatar-stack flex">
+              <span class="h-8 w-8 rounded-full ring-2 ring-surface" style="background:#7C4DFF"></span>
+              <span class="h-8 w-8 rounded-full ring-2 ring-surface" style="background:#22D3EE"></span>
+              <span class="h-8 w-8 rounded-full ring-2 ring-surface" style="background:#D946EF"></span>
+              <span class="h-8 w-8 rounded-full ring-2 ring-surface" style="background:#22C55E"></span>
+            </div>
+            <span class="flex flex-1 flex-col gap-1.5 rounded-lg bg-elevated p-3"><span class="block h-2 w-32 rounded bg-line"></span><span class="block h-1.5 w-20 rounded bg-line/70"></span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FOOTER (minimal placeholder) ================= -->
+  <footer class="mx-auto max-w-[1280px] px-8 pb-14 pt-4">
+    <div class="border-t border-line pt-8 text-[13px] text-muted">
+      © 2026 PeopleFlow — Ecosistema de reclutamiento.
+    </div>
+  </footer>
+
+  <script>
+    // Reveal on scroll
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
+    }, { threshold: 0.14 });
+    document.querySelectorAll('.reveal').forEach((el, i) => {
+      el.style.transitionDelay = (i % 4) * 80 + 'ms';
+      io.observe(el);
+    });
+  </script>
+</body>
+</html>
