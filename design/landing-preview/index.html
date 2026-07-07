@@ -167,47 +167,119 @@
           <div class="canvas-grid pointer-events-none absolute inset-0"></div>
           <div class="glow-purple pointer-events-none absolute left-1/2 top-1/2 h-[470px] w-[470px] -translate-x-1/2 -translate-y-1/2"></div>
 
-          <div class="floaty relative w-full" style="height:388px;">
-            <!-- SVG connectors -->
-            <svg class="absolute inset-0 h-full w-full" viewBox="0 0 560 388" fill="none" preserveAspectRatio="none">
-              <!-- Nueva vacante -> Screening -->
-              <path d="M196 208 H236" stroke="#8B5CF6" stroke-width="2.5" opacity="0.75" />
-              <path d="M196 208 H236" stroke="#22D3EE" stroke-width="2.5" class="flow" />
-              <!-- Screening -> Entrevista (up) -->
-              <path d="M404 194 H452 V118 H492" stroke="#8B5CF6" stroke-width="2.5" opacity="0.7" />
-              <!-- Screening -> Contratado (down) -->
-              <path d="M404 222 H452 V286 H492" stroke="#8B5CF6" stroke-width="2.5" opacity="0.7" />
-            </svg>
+          <div class="floaty relative w-full">
+            <div class="relative mx-auto" style="width:580px; height:420px;">
+              <!-- SVG connectors + traveling candidate -->
+              <svg class="absolute inset-0 h-full w-full overflow-visible" viewBox="0 0 580 420" fill="none">
+                <defs>
+                  <linearGradient id="linkGrad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0" stop-color="#8B5CF6" />
+                    <stop offset="1" stop-color="#22D3EE" />
+                  </linearGradient>
+                  <filter id="dotGlow" x="-300%" y="-300%" width="700%" height="700%">
+                    <feGaussianBlur stdDeviation="3.5" result="b" />
+                    <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+                  </filter>
+                </defs>
 
-            <!-- Nueva vacante -->
-            <div class="absolute" style="left:24px; top:180px;">
-              <div class="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-lg">
-                <span class="h-7 w-7 shrink-0 rounded-full" style="background:#9336EA; box-shadow:0 0 14px 1px rgba(147,54,234,.6)"></span>
-                <span><span class="block text-[14px] font-semibold text-ink">Nueva vacante</span><span class="block text-[12px] text-muted">Publicada</span></span>
+                <!-- base curved links -->
+                <path d="M170 210 H205" stroke="url(#linkGrad)" stroke-width="2" opacity="0.55" />
+                <path d="M375 210 C 398 210, 410 160, 410 108" stroke="url(#linkGrad)" stroke-width="2" opacity="0.55" />
+                <path d="M375 210 C 398 210, 410 262, 410 312" stroke="url(#linkGrad)" stroke-width="2" opacity="0.55" />
+
+                <!-- animated flow overlay -->
+                <path d="M170 210 H205" stroke="#22D3EE" stroke-width="2" class="flow" />
+                <path d="M375 210 C 398 210, 410 160, 410 108" stroke="#22D3EE" stroke-width="2" class="flow" />
+                <path d="M375 210 C 398 210, 410 262, 410 312" stroke="#22D3EE" stroke-width="2" class="flow" />
+
+                <!-- traveling candidate along the happy path -->
+                <circle r="4.5" fill="#22D3EE" filter="url(#dotGlow)">
+                  <animateMotion dur="5s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear"
+                    path="M170 210 H375 C 398 210 410 262 410 312 H 470" />
+                  <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;1;1;1;0" keyTimes="0;0.08;0.5;0.92;1" />
+                </circle>
+              </svg>
+
+              <!-- Nueva vacante -->
+              <div class="absolute" style="left:0px; top:171px;">
+                <div class="w-[170px] rounded-xl border border-line bg-surface/85 px-3.5 py-3 shadow-xl backdrop-blur-sm">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                      <span class="h-6 w-6 shrink-0 rounded-full" style="background:#9336EA; box-shadow:0 0 12px 1px rgba(147,54,234,.6)"></span>
+                      <span class="text-[13.5px] font-semibold text-ink">Nueva vacante</span>
+                    </div>
+                    <span class="rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-bold text-muted">24</span>
+                  </div>
+                  <div class="mt-2.5 flex items-center gap-2">
+                    <div class="avatar-stack flex">
+                      <span class="h-5 w-5 rounded-full ring-2 ring-surface" style="background:#7C4DFF"></span>
+                      <span class="h-5 w-5 rounded-full ring-2 ring-surface" style="background:#B266FF"></span>
+                      <span class="h-5 w-5 rounded-full ring-2 ring-surface" style="background:#9B6BFF"></span>
+                    </div>
+                    <span class="text-[11px] text-muted">+21</span>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <!-- Screening (active) -->
-            <div class="absolute" style="left:236px; top:180px;">
-              <div class="node-active flex items-center gap-3 rounded-xl border border-cyan/70 bg-surface2 px-4 py-3">
-                <span class="h-7 w-7 shrink-0 rounded-full" style="background:#9336EA; box-shadow:0 0 14px 1px rgba(147,54,234,.6)"></span>
-                <span><span class="block text-[14px] font-semibold text-ink">Screening</span><span class="block text-[12px] text-muted">IA + filtros</span></span>
+              <!-- Screening (active) -->
+              <div class="absolute" style="left:205px; top:171px;">
+                <div class="node-active w-[170px] rounded-xl border border-cyan/70 bg-surface2/90 px-3.5 py-3 backdrop-blur-sm">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                      <span class="h-6 w-6 shrink-0 rounded-full" style="background:#22D3EE; box-shadow:0 0 12px 1px rgba(34,211,238,.6)"></span>
+                      <span class="text-[13.5px] font-semibold text-ink">Screening</span>
+                    </div>
+                    <span class="rounded-md px-1.5 py-0.5 text-[11px] font-bold" style="background:rgba(34,211,238,.16); color:#22D3EE">8</span>
+                  </div>
+                  <div class="mt-2.5 flex items-center gap-2">
+                    <div class="avatar-stack flex">
+                      <span class="h-5 w-5 rounded-full ring-2 ring-surface2" style="background:#22D3EE"></span>
+                      <span class="h-5 w-5 rounded-full ring-2 ring-surface2" style="background:#7C4DFF"></span>
+                      <span class="h-5 w-5 rounded-full ring-2 ring-surface2" style="background:#1FC4DE"></span>
+                    </div>
+                    <span class="text-[11px] text-muted">IA + filtros</span>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <!-- Entrevista -->
-            <div class="absolute" style="left:452px; top:92px;">
-              <div class="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-lg">
-                <span class="h-7 w-7 shrink-0 rounded-full" style="background:#D946EF; box-shadow:0 0 14px 1px rgba(217,70,239,.55)"></span>
-                <span><span class="block text-[14px] font-semibold text-ink">Entrevista</span><span class="block text-[12px] text-muted">Agendada</span></span>
+              <!-- Entrevista -->
+              <div class="absolute" style="left:410px; top:66px;">
+                <div class="w-[170px] rounded-xl border border-line bg-surface/85 px-3.5 py-3 shadow-xl backdrop-blur-sm">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                      <span class="h-6 w-6 shrink-0 rounded-full" style="background:#D946EF; box-shadow:0 0 12px 1px rgba(217,70,239,.55)"></span>
+                      <span class="text-[13.5px] font-semibold text-ink">Entrevista</span>
+                    </div>
+                    <span class="rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[11px] font-bold text-muted">3</span>
+                  </div>
+                  <div class="mt-2.5 flex items-center gap-2">
+                    <div class="avatar-stack flex">
+                      <span class="h-5 w-5 rounded-full ring-2 ring-surface" style="background:#D946EF"></span>
+                      <span class="h-5 w-5 rounded-full ring-2 ring-surface" style="background:#B266FF"></span>
+                      <span class="h-5 w-5 rounded-full ring-2 ring-surface" style="background:#E879F9"></span>
+                    </div>
+                    <span class="text-[11px] text-muted">Agendadas</span>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <!-- Contratado -->
-            <div class="absolute" style="left:452px; top:260px;">
-              <div class="flex items-center gap-3 rounded-xl border border-line bg-surface px-4 py-3 shadow-lg">
-                <span class="h-7 w-7 shrink-0 rounded-full" style="background:#22C55E; box-shadow:0 0 14px 1px rgba(34,197,94,.55)"></span>
-                <span><span class="block text-[14px] font-semibold text-ink">Contratado</span><span class="block text-[12px] text-muted">Oferta enviada</span></span>
+              <!-- Contratado -->
+              <div class="absolute" style="left:410px; top:276px;">
+                <div class="w-[170px] rounded-xl border border-line bg-surface/85 px-3.5 py-3 shadow-xl backdrop-blur-sm">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                      <span class="h-6 w-6 shrink-0 rounded-full" style="background:#22C55E; box-shadow:0 0 12px 1px rgba(34,197,94,.55)"></span>
+                      <span class="text-[13.5px] font-semibold text-ink">Contratado</span>
+                    </div>
+                    <span class="rounded-md px-1.5 py-0.5 text-[11px] font-bold" style="background:rgba(34,197,94,.16); color:#34D07A">1</span>
+                  </div>
+                  <div class="mt-2.5 flex items-center gap-2">
+                    <div class="avatar-stack flex">
+                      <span class="h-5 w-5 rounded-full ring-2 ring-surface" style="background:#22C55E"></span>
+                    </div>
+                    <span class="text-[11px] text-muted">Oferta enviada</span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
