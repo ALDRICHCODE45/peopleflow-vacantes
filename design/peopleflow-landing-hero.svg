@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1440" height="718" viewBox="0 0 1440 718">
+  <defs>
+    <pattern id="img0" patternUnits="objectBoundingBox" width="1" height="1">
+      <image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAAtCAMAAAAwerGLAAAAD1BMVEX///+TNumTNuqUNuz///9iuYFBAAAAAXRSTlMAQObYZgAAAmlJREFUWMPtmNmShCAMRbnB///mcQOy4tJdrVRNHnpBIyfhBpCU/u3fBjHQ0wQ3LOeMpxmuGGZa5HGoQUQL7EDMMyotHynN5HkMUWNNLpVEP41zljmvasaa6KfFMW12cBdtikAu+G9gPoBGUQQGgm6lhzdU4SloaqVHb6jCU9BMES8QxzloJmPcSHTrwXRle1ctvq9xc4KQ6qiKRjfl7Wp94uQT+S1Tx/fwOXvtzdOGzXl2Icvl5JA4QFELy2/U6jjtLCvdTkiSucm7RoP6TR3o6Rxh5HsEveyTVqA1k5WTNmbsf9tEWNKf+9CTI9cenmx2pKIrRk7SLc+bXlBiKIku8LDQXJomWRzF4Lm+DJo9Ro58Q2qbU9q+MoumwOvSdmXr66Tlz/V1wlP4fO5oqE0mpT5rNDs8fGh/wI0oXWivNXgAGXWAC0ZMKvVevtSLfu9BB74hNFMHsXzWJrDBYBmHge5nWsV2N9NsMlPqEKs6UxChTIliqe9CBwNyGToJg6uOWpksCqrhyIVGAE6q4+RS67uC1hBazB1yWuOSpoV0D0sdi/hy0Di+PA981ZAVeLjQtaVpfD9bIHuUE3Rx2BKviJ1qVuqoazhpdbClZrlZvyN08tJHORWwVyQQW2mR8WQW8e1YJPnQdjN2HEboG4+GmSlIyYRtnkpBEoXQ4TbYjePANwihztJJQdfyK3g19f7Rk0qcczFu6fjK/9wLfNPPKEGMrm5DyX3n1fm9Yrd8IfbM7aeciWF+PAot3k7671ff7fgz6M/fvX8NjW9B/9L3K9C/Njx/BHbdaERoDKgOu/kZwkZM9Gf2B9GLHgRkTOjVAAAAAElFTkSuQmCC" width="120" height="30" preserveAspectRatio="xMidYMid meet"/>
+    </pattern>
+    <filter id="fx1">
+      <feGaussianBlur stdDeviation="60"/>
+    </filter>
+    <filter id="fx2">
+      <feDropShadow dx="0" dy="0" stdDeviation="11" flood-color="#22D3EE" flood-opacity="1"/>
+    </filter>
+  </defs>
+  <g>
+    <rect width="1440" height="704" fill="#0C0912"/>
+    <g>
+      <rect width="1440" height="72" fill="#0C0912"/>
+      <g transform="translate(48, 21)">
+        <rect width="120" height="30" fill="url(#img0)"/>
+      </g>
+      <g transform="translate(208, 27)">
+        <g>
+          <text x="0" y="15" font-family="Inter" font-size="15" fill="#A79FBF">Producto</text>
+        </g>
+        <g transform="translate(93, 0)">
+          <text x="0" y="15" font-family="Inter" font-size="15" fill="#A79FBF">Soluciones</text>
+        </g>
+        <g transform="translate(199, 0)">
+          <text x="0" y="15" font-family="Inter" font-size="15" fill="#A79FBF">Precios</text>
+        </g>
+        <g transform="translate(280, 0)">
+          <text x="0" y="15" font-family="Inter" font-size="15" fill="#A79FBF">Recursos</text>
+        </g>
+      </g>
+      <g transform="translate(1112, 27)">
+        <text x="0" y="15" font-family="Inter" font-size="15" fill="#A79FBF">Iniciar sesión</text>
+      </g>
+      <g transform="translate(1246, 17)">
+        <rect width="146" height="38" rx="10" ry="10" fill="#9336EA"/>
+        <g transform="translate(18, 10)">
+          <text x="0" y="15" font-family="Inter" font-size="15" font-weight="700" fill="#FFFFFF">Empezar gratis</text>
+        </g>
+      </g>
+    </g>
+    <g transform="translate(0, 72)">
+      <rect width="1440" height="632" fill="#0C0912"/>
+      <g transform="translate(96, 116.5)">
+        <g>
+          <text x="0" y="13" font-family="IBM Plex Mono" font-size="13" font-weight="500" fill="#B266FF">ECOSISTEMA DE RECLUTAMIENTO</text>
+        </g>
+        <g transform="translate(0, 43)">
+          <text x="0" y="56" font-family="Clash Display" font-size="56" font-weight="700" fill="#F6F2FF">El proceso de contratación que ves y controlas.</text>
+        </g>
+        <g transform="translate(0, 276)">
+          <text x="0" y="18" font-family="Noto Sans" font-size="18" fill="#A79FBF">Publica vacantes, gestiona candidatos y coordina a tu equipo desde un solo lugar. Cada etapa del pipeline, visible y bajo control.</text>
+        </g>
+        <g transform="translate(0, 352)">
+          <g>
+            <rect width="166" height="47" rx="12" ry="12" fill="#9336EA"/>
+            <g transform="translate(24, 14)">
+              <text x="0" y="16" font-family="Inter" font-size="16" font-weight="700" fill="#FFFFFF">Empezar gratis</text>
+            </g>
+          </g>
+          <g transform="translate(180, 0)">
+            <rect width="163" height="47" rx="12" ry="12" fill="#15121F"/>
+            <g transform="translate(24, 14)">
+              <text x="0" y="16" font-family="Inter" font-size="16" font-weight="700" fill="#F6F2FF">Agendar demo</text>
+            </g>
+          </g>
+        </g>
+      </g>
+      <g transform="translate(732, 96)">
+        <rect width="612" height="440" rx="20" ry="20" fill="#100A1A"/>
+        <g transform="translate(96, 10)" opacity="0.28" filter="url(#fx1)">
+          <ellipse cx="210" cy="210" rx="210" ry="210" fill="#9336EA"/>
+        </g>
+        <g transform="translate(192, 218)">
+          <rect width="23" height="3" fill="#9336EA"/>
+        </g>
+        <g transform="translate(387, 218)">
+          <rect width="16" height="3" fill="#9336EA"/>
+        </g>
+        <g transform="translate(402, 149)">
+          <rect width="3" height="143" fill="#9336EA"/>
+        </g>
+        <g transform="translate(403, 147)">
+          <rect width="17" height="3" fill="#9336EA"/>
+        </g>
+        <g transform="translate(403, 289)">
+          <rect width="17" height="3" fill="#9336EA"/>
+        </g>
+        <g transform="translate(20, 191)">
+          <rect width="172" height="58" rx="12" ry="12" fill="#171226"/>
+          <g transform="translate(12, 14)">
+            <rect width="30" height="30" rx="15" ry="15" fill="#9336EA"/>
+          </g>
+          <g transform="translate(54, 13.5)">
+            <g>
+              <text x="0" y="13" font-family="Inter" font-size="13" font-weight="700" fill="#F6F2FF">Nueva vacante</text>
+            </g>
+            <g transform="translate(0, 19)">
+              <text x="0" y="10" font-family="Inter" font-size="10" fill="#8B84A3">Publicada</text>
+            </g>
+          </g>
+        </g>
+        <g transform="translate(215, 191)" filter="url(#fx2)">
+          <rect width="172" height="58" rx="12" ry="12" fill="#171226" stroke="#22D3EE" stroke-width="1.5"/>
+          <g transform="translate(12, 14)">
+            <rect width="30" height="30" rx="15" ry="15" fill="#A855F7"/>
+          </g>
+          <g transform="translate(54, 13.5)">
+            <g>
+              <text x="0" y="13" font-family="Inter" font-size="13" font-weight="700" fill="#F6F2FF">Screening</text>
+            </g>
+            <g transform="translate(0, 19)">
+              <text x="0" y="10" font-family="Inter" font-size="10" fill="#8B84A3">IA + filtros</text>
+            </g>
+          </g>
+        </g>
+        <g transform="translate(420, 120)">
+          <rect width="172" height="58" rx="12" ry="12" fill="#171226"/>
+          <g transform="translate(12, 14)">
+            <rect width="30" height="30" rx="15" ry="15" fill="#D946EF"/>
+          </g>
+          <g transform="translate(54, 13.5)">
+            <g>
+              <text x="0" y="13" font-family="Inter" font-size="13" font-weight="700" fill="#F6F2FF">Entrevista</text>
+            </g>
+            <g transform="translate(0, 19)">
+              <text x="0" y="10" font-family="Inter" font-size="10" fill="#8B84A3">Agendada</text>
+            </g>
+          </g>
+        </g>
+        <g transform="translate(420, 262)">
+          <rect width="172" height="58" rx="12" ry="12" fill="#171226"/>
+          <g transform="translate(12, 14)">
+            <rect width="30" height="30" rx="15" ry="15" fill="#22C55E"/>
+          </g>
+          <g transform="translate(54, 13.5)">
+            <g>
+              <text x="0" y="13" font-family="Inter" font-size="13" font-weight="700" fill="#F6F2FF">Contratado</text>
+            </g>
+            <g transform="translate(0, 19)">
+              <text x="0" y="10" font-family="Inter" font-size="10" fill="#8B84A3">Oferta enviada</text>
+            </g>
+          </g>
+        </g>
+      </g>
+    </g>
+  </g>
+</svg>
