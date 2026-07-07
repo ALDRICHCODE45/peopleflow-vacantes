@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PeopleFlow — Postularme · Backend Developer (Senior)</title>
+
+  <!--
+    Anti-flash inline script — MUST run before Tailwind processes and before
+    first paint, so the persisted theme (or default 'dark') is already
+    applied when styles resolve. Keep this block FIRST in <head>.
+  -->
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('pf-theme');
+        var theme  = stored;
+        if (theme !== 'dark' && theme !== 'light') {
+          theme = (window.matchMedia &&
+                   window.matchMedia('(prefers-color-scheme: light)').matches)
+                    ? 'light' : 'dark';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (_e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+
+  <!-- Fonts -->
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+
+  <!--
+    Load order:
+      1. base.css first → CSS custom properties (theme tokens) exist before
+         Tailwind utilities resolve their `rgb(var(--token) / <alpha>)`.
+      2. Tailwind CDN
+      3. theme.js (configures Tailwind with semantic + accent tokens)
+      4. lucide UMD bundle
+  -->
+  <link rel="stylesheet" href="assets/base.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/theme.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  <style>
+    .nav-link { transition: color .2s ease; }
+    /* `ink` resolves to #F6F2FF in dark and to a deep #1A1626 in light. */
+    .nav-link:hover { color: rgb(var(--ink)); }
+    /* Form field: brand border stays fixed; field-focus veil flips with theme
+       (white in dark, black in light, see assets/base.css). */
+    .field { transition: border-color .2s ease, background-color .2s ease; }
+    .field:focus { outline: none; border-color: rgba(147,54,234,0.7); background-color: rgb(var(--overlay) / 0.02); }
+    /* Stepper */
+    .step-dot { transition: background-color .3s ease, border-color .3s ease, color .3s ease; }
+    .step-bar { transition: width .4s ease; }
+    /* Step panels */
+    .step-panel { display: none; }
+    .step-panel.active { display: block; animation: stepIn .35s ease; }
+    @keyframes stepIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    /* Dropzone */
+    .dropzone { transition: border-color .2s ease, background-color .2s ease; }
+    .dropzone:hover { border-color: rgba(147,54,234,0.55); background-color: rgba(147,54,234,0.05); }
+    /* Success check */
+    @keyframes popIn { 0% { transform: scale(.4); opacity: 0; } 60% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
+    .pop { animation: popIn .5s cubic-bezier(.2,.8,.3,1.2) both; }
+  </style>
+</head>
+
+<body class="min-h-screen bg-base font-sans text-ink antialiased">
+
+  <!-- Ambient background -->
+  <div class="pointer-events-none fixed inset-0 z-0">
+    <div class="absolute inset-0 top-glow"></div>
+    <div class="absolute inset-x-0 top-0 h-[420px] bg-grid"></div>
+  </div>
+
+  <div class="relative z-10">
+
+    <!-- ===== Public top nav ===== -->
+    <header class="sticky top-0 z-30 border-b border-line/70 bg-base/70 backdrop-blur-xl">
+      <div class="mx-auto flex h-16 max-w-6xl items-center gap-6 px-6">
+        <a href="../landing-preview/index.html" class="shrink-0" data-pf-logo>
+          <img src="assets/peopleflow-dark.webp"  alt="PeopleFlow" class="pf-logo-dark  h-6 w-auto" />
+          <img src="assets/peopleflow-light.webp" alt="PeopleFlow" class="pf-logo-light h-6 w-auto" />
+        </a>
+        <nav class="ml-2 hidden items-center gap-6 text-[14px] text-muted md:flex">
+          <a href="vacantes-listado.html" class="nav-link font-semibold text-ink">Vacantes</a>
+          <a href="#" class="nav-link">Empresas</a>
+          <a href="#" class="nav-link">Recursos</a>
+        </nav>
+        <div class="ml-auto flex items-center gap-3">
+          <!-- Theme toggle — left of "Ingresar", matching the public-nav layout used in vacantes-listado / vacante-detalle. -->
+          <button data-pf-theme-toggle
+                  type="button"
+                  aria-label="Cambiar tema"
+                  title="Cambiar tema"
+                  class="grid h-9 w-9 place-items-center rounded-lg border border-line bg-surface/40 text-muted transition hover:border-brand/60 hover:bg-surface/60 hover:text-ink">
+            <i data-lucide="moon" class="pf-icon-moon h-[18px] w-[18px]"></i>
+            <i data-lucide="sun"  class="pf-icon-sun  h-[18px] w-[18px]"></i>
+          </button>
+          <a href="login-candidato.html" class="hidden text-[14px] text-muted transition hover:text-ink sm:block">Ingresar</a>
+          <a href="login-empresa.html" class="btn btn-primary flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-[13.5px] font-semibold text-white">Publicar vacante</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- ===== Breadcrumb ===== -->
+    <div class="mx-auto max-w-5xl px-6 pt-6">
+      <a href="vacante-detalle.html" class="inline-flex items-center gap-1.5 text-[13px] text-muted transition hover:text-ink">
+        <i data-lucide="arrow-left" class="h-4 w-4"></i> Volver a la vacante
+      </a>
+    </div>
+
+    <!-- ===== Layout ===== -->
+    <section class="mx-auto max-w-5xl px-6 pb-24 pt-5">
+      <div class="grid gap-6 lg:grid-cols-[1fr_300px]">
+
+        <!-- ===== Form column ===== -->
+        <div>
+          <!-- Header + stepper -->
+          <div id="form-header" class="mb-6">
+            <h1 class="font-display text-[26px] font-bold tracking-tight text-ink md:text-[30px]">Postularme</h1>
+            <p class="mt-1 text-[14px] text-muted">Backend Developer (Senior) · Acme Technologies</p>
+
+            <!-- Stepper -->
+            <div class="mt-6">
+              <div class="flex items-center gap-2">
+                <!-- Step 1 -->
+                <div class="flex items-center gap-2.5">
+                  <span data-dot="1" class="step-dot grid h-8 w-8 place-items-center rounded-full border border-brand bg-brand text-[13px] font-bold text-white">1</span>
+                  <span data-label="1" class="hidden text-[13.5px] font-semibold text-ink sm:block">Tus datos</span>
+                </div>
+                <div class="relative mx-1 h-[2px] flex-1 rounded bg-line"><div data-bar="1" class="step-bar absolute inset-y-0 left-0 rounded bg-brand" style="width:0%"></div></div>
+                <!-- Step 2 -->
+                <div class="flex items-center gap-2.5">
+                  <span data-dot="2" class="step-dot grid h-8 w-8 place-items-center rounded-full border border-line bg-surface text-[13px] font-bold text-muted">2</span>
+                  <span data-label="2" class="hidden text-[13.5px] font-semibold text-muted sm:block">CV y experiencia</span>
+                </div>
+                <div class="relative mx-1 h-[2px] flex-1 rounded bg-line"><div data-bar="2" class="step-bar absolute inset-y-0 left-0 rounded bg-brand" style="width:0%"></div></div>
+                <!-- Step 3 -->
+                <div class="flex items-center gap-2.5">
+                  <span data-dot="3" class="step-dot grid h-8 w-8 place-items-center rounded-full border border-line bg-surface text-[13px] font-bold text-muted">3</span>
+                  <span data-label="3" class="hidden text-[13.5px] font-semibold text-muted sm:block">Revisar</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ===== STEP 1: Personal data ===== -->
+          <div class="step-panel active" data-step="1">
+            <div class="rounded-2xl border border-line bg-surface/40 p-6">
+              <h2 class="font-display text-[18px] font-semibold text-ink">Datos personales</h2>
+              <p class="mt-1 text-[13px] text-muted">Contanos quién sos para que la empresa pueda contactarte.</p>
+
+              <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label class="mb-1.5 block text-[13px] font-medium text-muted">Nombre</label>
+                  <input class="field w-full rounded-lg border border-line bg-base/60 px-3.5 py-2.5 text-[14.5px] text-ink placeholder:text-muted/60" placeholder="Sofía" />
+                </div>
+                <div>
+                  <label class="mb-1.5 block text-[13px] font-medium text-muted">Apellido</label>
+                  <input class="field w-full rounded-lg border border-line bg-base/60 px-3.5 py-2.5 text-[14.5px] text-ink placeholder:text-muted/60" placeholder="Ramírez" />
+                </div>
+                <div>
+                  <label class="mb-1.5 block text-[13px] font-medium text-muted">Email</label>
+                  <input type="email" class="field w-full rounded-lg border border-line bg-base/60 px-3.5 py-2.5 text-[14.5px] text-ink placeholder:text-muted/60" placeholder="sofia@email.com" />
+                </div>
+                <div>
+                  <label class="mb-1.5 block text-[13px] font-medium text-muted">Teléfono</label>
+                  <input class="field w-full rounded-lg border border-line bg-base/60 px-3.5 py-2.5 text-[14.5px] text-ink placeholder:text-muted/60" placeholder="+54 11 1234 5678" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="mb-1.5 block text-[13px] font-medium text-muted">Ubicación</label>
+                  <input class="field w-full rounded-lg border border-line bg-base/60 px-3.5 py-2.5 text-[14.5px] text-ink placeholder:text-muted/60" placeholder="Buenos Aires, Argentina" />
+                </div>
+                <div>
+                  <label class="mb-1.5 block text-[13px] font-medium text-muted">LinkedIn <span class="text-muted/50">(opcional)</span></label>
+                  <input class="field w-full rounded-lg border border-line bg-base/60 px-3.5 py-2.5 text-[14.5px] text-ink placeholder:text-muted/60" placeholder="linkedin.com/in/…" />
+                </div>
+                <div>
+                  <label class="mb-1.5 block text-[13px] font-medium text-muted">Portfolio / GitHub <span class="text-muted/50">(opcional)</span></label>
+                  <input class="field w-full rounded-lg border border-line bg-base/60 px-3.5 py-2.5 text-[14.5px] text-ink placeholder:text-muted/60" placeholder="github.com/…" />
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-5 flex items-center justify-between">
+              <a href="vacante-detalle.html" class="text-[14px] text-muted transition hover:text-ink">Cancelar</a>
+              <button onclick="goStep(2)" class="btn btn-primary flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-[14px] font-semibold text-white">Continuar <i data-lucide="arrow-right" class="h-4 w-4"></i></button>
+            </div>
+          </div>
+
+          <!-- ===== STEP 2: CV + experience ===== -->
+          <div class="step-panel" data-step="2">
+            <div class="rounded-2xl border border-line bg-surface/40 p-6">
+              <h2 class="font-display text-[18px] font-semibold text-ink">CV y experiencia</h2>
+              <p class="mt-1 text-[13px] text-muted">Subí tu CV y contanos por qué encajás en el rol.</p>
+
+              <!-- Dropzone -->
+              <div class="mt-5">
+                <label class="mb-1.5 block text-[13px] font-medium text-muted">Currículum (PDF)</label>
+                <div id="dropzone" onclick="fakeUpload()" class="dropzone grid cursor-pointer place-items-center rounded-xl border-2 border-dashed border-line bg-base/40 px-6 py-9 text-center">
+                  <span class="grid h-12 w-12 place-items-center rounded-full" style="background:rgba(147,54,234,.14)"><i data-lucide="upload-cloud" class="h-6 w-6 text-glow"></i></span>
+                  <p class="mt-3 text-[14px] font-medium text-ink">Arrastrá tu CV o hacé clic para subir</p>
+                  <p class="mt-1 text-[12.5px] text-muted">PDF hasta 5 MB</p>
+                </div>
+                <!-- Uploaded state (hidden until "upload") -->
+                <div id="uploaded" class="mt-3 hidden items-center gap-3 rounded-xl border border-line bg-base/50 p-3.5">
+                  <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg" style="background:rgba(217,70,239,.14)"><i data-lucide="file-text" class="h-5 w-5 text-magenta"></i></span>
+                  <div class="min-w-0 flex-1">
+                    <p class="truncate text-[13.5px] font-medium text-ink">CV_Sofia_Ramirez.pdf</p>
+                    <p class="text-[12px] text-muted">248 KB · subido</p>
+                  </div>
+                  <i data-lucide="check-circle-2" class="h-5 w-5 text-grass"></i>
+                  <button onclick="removeUpload(event)" class="grid h-8 w-8 place-items-center rounded-lg text-muted transition hover:text-ink"><i data-lucide="x" class="h-4 w-4"></i></button>
+                </div>
+              </div>
+
+              <!-- Cover message -->
+              <div class="mt-6">
+                <label class="mb-1.5 block text-[13px] font-medium text-muted">¿Por qué querés este puesto? <span class="text-muted/50">(opcional)</span></label>
+                <textarea rows="4" class="field w-full resize-none rounded-lg border border-line bg-base/60 px-3.5 py-3 text-[14.5px] text-ink placeholder:text-muted/60" placeholder="Contanos brevemente qué te motiva y por qué encajás con el equipo…"></textarea>
+              </div>
+
+              <!-- Experience quick fields -->
+              <div class="mt-5 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label class="mb-1.5 block text-[13px] font-medium text-muted">Años de experiencia</label>
+                  <select class="field w-full rounded-lg border border-line bg-base/60 px-3.5 py-2.5 text-[14.5px] text-ink">
+                    <option>Menos de 2</option><option>2 – 4</option><option selected>5 – 7</option><option>8+</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="mb-1.5 block text-[13px] font-medium text-muted">Disponibilidad</label>
+                  <select class="field w-full rounded-lg border border-line bg-base/60 px-3.5 py-2.5 text-[14.5px] text-ink">
+                    <option>Inmediata</option><option selected>En 2 semanas</option><option>En 1 mes</option><option>A convenir</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-5 flex items-center justify-between">
+              <button onclick="goStep(1)" class="btn btn-ghost flex items-center gap-2 rounded-xl border border-line px-5 py-3 text-[14px] font-semibold text-muted"><i data-lucide="arrow-left" class="h-4 w-4"></i> Atrás</button>
+              <button onclick="goStep(3)" class="btn btn-primary flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-[14px] font-semibold text-white">Continuar <i data-lucide="arrow-right" class="h-4 w-4"></i></button>
+            </div>
+          </div>
+
+          <!-- ===== STEP 3: Review ===== -->
+          <div class="step-panel" data-step="3">
+            <div class="rounded-2xl border border-line bg-surface/40 p-6">
+              <h2 class="font-display text-[18px] font-semibold text-ink">Revisá tu postulación</h2>
+              <p class="mt-1 text-[13px] text-muted">Verificá que todo esté correcto antes de enviar.</p>
+
+              <!-- Review: personal -->
+              <div class="mt-5 rounded-xl border border-line bg-base/40 p-4">
+                <div class="mb-3 flex items-center justify-between">
+                  <p class="text-[13px] font-semibold uppercase tracking-wide text-muted/80">Datos personales</p>
+                  <button onclick="goStep(1)" class="flex items-center gap-1 text-[12.5px] text-glow"><i data-lucide="pencil" class="h-3.5 w-3.5"></i> Editar</button>
+                </div>
+                <div class="grid gap-x-6 gap-y-2.5 text-[14px] sm:grid-cols-2">
+                  <div><span class="text-muted">Nombre:</span> <span class="text-ink">Sofía Ramírez</span></div>
+                  <div><span class="text-muted">Email:</span> <span class="text-ink">sofia@email.com</span></div>
+                  <div><span class="text-muted">Teléfono:</span> <span class="text-ink">+54 11 1234 5678</span></div>
+                  <div><span class="text-muted">Ubicación:</span> <span class="text-ink">Buenos Aires, Argentina</span></div>
+                </div>
+              </div>
+
+              <!-- Review: CV -->
+              <div class="mt-4 rounded-xl border border-line bg-base/40 p-4">
+                <div class="mb-3 flex items-center justify-between">
+                  <p class="text-[13px] font-semibold uppercase tracking-wide text-muted/80">CV y experiencia</p>
+                  <button onclick="goStep(2)" class="flex items-center gap-1 text-[12.5px] text-glow"><i data-lucide="pencil" class="h-3.5 w-3.5"></i> Editar</button>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="grid h-9 w-9 place-items-center rounded-lg" style="background:rgba(217,70,239,.14)"><i data-lucide="file-text" class="h-[18px] w-[18px] text-magenta"></i></span>
+                  <span class="text-[14px] text-ink">CV_Sofia_Ramirez.pdf</span>
+                </div>
+                <div class="mt-3 grid gap-x-6 gap-y-2.5 text-[14px] sm:grid-cols-2">
+                  <div><span class="text-muted">Experiencia:</span> <span class="text-ink">5 – 7 años</span></div>
+                  <div><span class="text-muted">Disponibilidad:</span> <span class="text-ink">En 2 semanas</span></div>
+                </div>
+              </div>
+
+              <!-- Consent -->
+              <label class="mt-5 flex cursor-pointer items-start gap-3 text-[13px] text-muted">
+                <span class="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded border border-brand bg-brand/20"><i data-lucide="check" class="h-3 w-3 text-glow"></i></span>
+                Acepto que PeopleFlow comparta mi información con Acme Technologies para este proceso de selección.
+              </label>
+            </div>
+
+            <div class="mt-5 flex items-center justify-between">
+              <button onclick="goStep(2)" class="btn btn-ghost flex items-center gap-2 rounded-xl border border-line px-5 py-3 text-[14px] font-semibold text-muted"><i data-lucide="arrow-left" class="h-4 w-4"></i> Atrás</button>
+              <button onclick="submitApp()" class="btn btn-primary flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-[14px] font-semibold text-white">Enviar postulación <i data-lucide="send" class="h-4 w-4"></i></button>
+            </div>
+          </div>
+
+          <!-- ===== SUCCESS ===== -->
+          <div class="step-panel" data-step="done">
+            <div class="rounded-2xl border border-grass/30 bg-surface/50 p-8 text-center">
+              <span class="pop mx-auto grid h-16 w-16 place-items-center rounded-full" style="background:rgba(34,197,94,.16)"><i data-lucide="check" class="h-8 w-8 text-grass"></i></span>
+              <h2 class="mt-5 font-display text-[24px] font-bold text-ink">¡Postulación enviada!</h2>
+              <p class="mx-auto mt-2 max-w-md text-[14.5px] leading-relaxed text-muted">
+                Tu postulación a <span class="font-semibold text-ink">Backend Developer (Senior)</span> en Acme Technologies fue recibida.
+                Vas a poder seguir tu proceso en tiempo real desde tu panel.
+              </p>
+              <div class="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <a href="login-candidato.html" class="btn btn-primary flex items-center gap-2 rounded-xl bg-brand px-6 py-3 text-[14px] font-semibold text-white">Ver mi panel <i data-lucide="arrow-right" class="h-4 w-4"></i></a>
+                <a href="vacantes-listado.html" class="btn btn-ghost flex items-center gap-2 rounded-xl border border-line px-6 py-3 text-[14px] font-semibold text-muted">Explorar más vacantes</a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== Vacancy summary (sticky) ===== -->
+        <aside id="side-summary">
+          <div class="sticky top-24 space-y-4">
+            <div class="rounded-2xl border border-line bg-surface/50 p-5">
+              <p class="text-[12px] font-semibold uppercase tracking-wide text-muted/70">Te postulás a</p>
+              <div class="mt-3 flex items-start gap-3">
+                <span class="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-[14px] font-bold text-white" style="background:linear-gradient(135deg,#9336EA,#22D3EE)">Ac</span>
+                <div>
+                  <p class="text-[15px] font-semibold leading-tight text-ink">Backend Developer (Senior)</p>
+                  <p class="mt-0.5 text-[13px] text-muted">Acme Technologies</p>
+                </div>
+              </div>
+              <div class="mt-4 space-y-2.5 border-t border-line/60 pt-4 text-[13px] text-muted">
+                <p class="flex items-center gap-2"><i data-lucide="globe" class="h-4 w-4"></i> Remoto</p>
+                <p class="flex items-center gap-2"><i data-lucide="briefcase" class="h-4 w-4"></i> Full-time</p>
+                <p class="flex items-center gap-2"><i data-lucide="wallet" class="h-4 w-4"></i> USD 4.000 – 5.500 / mes</p>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 rounded-xl border border-line bg-surface/30 px-4 py-3 text-[12.5px] text-muted">
+              <i data-lucide="lock" class="h-4 w-4 text-grass"></i> Tus datos están protegidos y solo se comparten con esta empresa.
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ===== Footer ===== -->
+    <footer class="border-t border-line/70">
+      <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 text-[13px] text-muted sm:flex-row">
+        <div class="flex items-center gap-2">
+          <span data-pf-logo class="inline-flex opacity-80">
+            <img src="assets/peopleflow-dark.webp"  alt="PeopleFlow" class="pf-logo-dark  h-5 w-auto" />
+            <img src="assets/peopleflow-light.webp" alt="PeopleFlow" class="pf-logo-light h-5 w-auto" />
+          </span>
+          <span>© 2026 PeopleFlow</span>
+        </div>
+        <div class="flex items-center gap-6">
+          <a href="#" class="nav-link">Sobre nosotros</a>
+          <a href="#" class="nav-link">Términos</a>
+          <a href="#" class="nav-link">Privacidad</a>
+        </div>
+      </div>
+    </footer>
+
+  </div>
+
+  <script>
+    lucide.createIcons();
+    /* Sync theme toggle UI (aria/label) AFTER lucide has rendered the icons,
+       so the title/tooltip stays in sync with the active theme. */
+    if (window.PFThemeSyncToggle) window.PFThemeSyncToggle();
+
+    let current = 1;
+    const totalSteps = 3;
+
+    function setDot(n, state) {
+      const dot = document.querySelector(`[data-dot="${n}"]`);
+      const label = document.querySelector(`[data-label="${n}"]`);
+      dot.className = 'step-dot grid h-8 w-8 place-items-center rounded-full text-[13px] font-bold';
+      if (state === 'done') {
+        dot.classList.add('border', 'border-brand', 'bg-brand', 'text-white');
+        dot.innerHTML = '<i data-lucide="check" class="h-4 w-4"></i>';
+      } else if (state === 'active') {
+        dot.classList.add('border', 'border-brand', 'bg-brand', 'text-white');
+        dot.textContent = n;
+      } else {
+        dot.classList.add('border', 'border-line', 'bg-surface', 'text-muted');
+        dot.textContent = n;
+      }
+      if (label) label.className = `hidden text-[13.5px] font-semibold sm:block ${state === 'pending' ? 'text-muted' : 'text-ink'}`;
+    }
+
+    function goStep(n) {
+      document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+      document.querySelector(`[data-step="${n}"]`).classList.add('active');
+      current = n;
+      // dots
+      for (let i = 1; i <= totalSteps; i++) {
+        setDot(i, i < n ? 'done' : i === n ? 'active' : 'pending');
+      }
+      // bars: bar k fills when we've passed step k
+      const b1 = document.querySelector('[data-bar="1"]');
+      const b2 = document.querySelector('[data-bar="2"]');
+      if (b1) b1.style.width = n >= 2 ? '100%' : '0%';
+      if (b2) b2.style.width = n >= 3 ? '100%' : '0%';
+      lucide.createIcons();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function fakeUpload() {
+      document.getElementById('dropzone').classList.add('hidden');
+      const up = document.getElementById('uploaded');
+      up.classList.remove('hidden');
+      up.classList.add('flex');
+      lucide.createIcons();
+    }
+    function removeUpload(e) {
+      e.stopPropagation();
+      const up = document.getElementById('uploaded');
+      up.classList.add('hidden');
+      up.classList.remove('flex');
+      document.getElementById('dropzone').classList.remove('hidden');
+    }
+
+    function submitApp() {
+      document.querySelectorAll('.step-panel').forEach(p => p.classList.remove('active'));
+      document.querySelector('[data-step="done"]').classList.add('active');
+      document.getElementById('form-header').style.display = 'none';
+      document.getElementById('side-summary').style.display = 'none';
+      lucide.createIcons();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  </script>
+  <script src="assets/theme-toggle.js"></script>
+</body>
+</html>

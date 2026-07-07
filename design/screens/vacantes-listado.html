@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PeopleFlow — Vacantes · Encontrá tu próximo trabajo</title>
+
+  <!--
+    Anti-flash inline script — MUST run before Tailwind processes and before
+    first paint, so the persisted theme (or default 'dark') is already
+    applied when styles resolve. Keep this block FIRST in <head>.
+  -->
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('pf-theme');
+        var theme  = stored;
+        if (theme !== 'dark' && theme !== 'light') {
+          theme = (window.matchMedia &&
+                   window.matchMedia('(prefers-color-scheme: light)').matches)
+                    ? 'light' : 'dark';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (_e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+
+  <!-- Fonts -->
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+
+  <!--
+    Load order:
+      1. base.css first → CSS custom properties (theme tokens) exist before
+         Tailwind utilities resolve their `rgb(var(--token) / <alpha>)`.
+      2. Tailwind CDN
+      3. theme.js (configures Tailwind with semantic + accent tokens)
+      4. lucide UMD bundle
+  -->
+  <link rel="stylesheet" href="assets/base.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/theme.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  <style>
+    .nav-link { transition: color .2s ease; }
+    .nav-link:hover { color: rgb(var(--ink)); }
+    .chip { transition: border-color .2s ease, background-color .2s ease, color .2s ease; }
+    .chip:hover { border-color: rgba(147,54,234,0.5); color: rgb(var(--ink)); }
+    .chip-active { background-color: rgba(147,54,234,0.16); border-color: rgba(147,54,234,0.55); color: rgb(var(--ink)); }
+    .job-card { transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease; }
+    .job-card:hover { transform: translateY(-3px); border-color: rgba(147,54,234,0.5); box-shadow: 0 16px 40px -20px rgba(147,54,234,0.5); }
+    .job-card:hover .apply-hint { opacity: 1; transform: translateX(0); }
+    .apply-hint { opacity: 0; transform: translateX(-6px); transition: opacity .25s ease, transform .25s ease; }
+  </style>
+</head>
+
+<body class="min-h-screen bg-base font-sans text-ink antialiased">
+
+  <!-- Ambient background -->
+  <div class="pointer-events-none fixed inset-0 z-0">
+    <div class="absolute inset-0 top-glow"></div>
+    <div class="absolute inset-x-0 top-0 h-[520px] bg-grid"></div>
+  </div>
+
+  <div class="relative z-10">
+
+    <!-- ===== Public top nav ===== -->
+    <header class="sticky top-0 z-30 border-b border-line/70 bg-base/70 backdrop-blur-xl">
+      <div class="mx-auto flex h-16 max-w-6xl items-center gap-6 px-6">
+        <a href="../landing-preview/index.html" class="shrink-0" data-pf-logo>
+          <img src="assets/peopleflow-dark.webp"  alt="PeopleFlow" class="pf-logo-dark  h-6 w-auto" />
+          <img src="assets/peopleflow-light.webp" alt="PeopleFlow" class="pf-logo-light h-6 w-auto" />
+        </a>
+        <nav class="ml-2 hidden items-center gap-6 text-[14px] text-muted md:flex">
+          <a href="vacantes-listado.html" class="nav-link font-semibold text-ink">Vacantes</a>
+          <a href="#" class="nav-link">Empresas</a>
+          <a href="#" class="nav-link">Recursos</a>
+        </nav>
+        <div class="ml-auto flex items-center gap-3">
+          <!-- Theme toggle (light/dark) — see assets/theme-toggle.html for reusability contract -->
+          <button data-pf-theme-toggle
+                  type="button"
+                  aria-label="Cambiar tema"
+                  title="Cambiar tema"
+                  class="grid h-9 w-9 place-items-center rounded-lg border border-line bg-surface/40 text-muted transition hover:border-brand/60 hover:bg-surface/60 hover:text-ink">
+            <i data-lucide="moon" class="pf-icon-moon h-[18px] w-[18px]"></i>
+            <i data-lucide="sun"  class="pf-icon-sun  h-[18px] w-[18px]"></i>
+          </button>
+          <a href="login-candidato.html" class="hidden text-[14px] text-muted transition hover:text-ink sm:block">Ingresar</a>
+          <a href="login-empresa.html" class="btn btn-primary flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-[13.5px] font-semibold text-white">Publicar vacante</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- ===== Search hero ===== -->
+    <section class="mx-auto max-w-6xl px-6 pb-8 pt-12 md:pt-16">
+      <p class="eyebrow mb-3 text-[12px] font-semibold uppercase text-glow">Bolsa de trabajo</p>
+      <h1 class="max-w-2xl font-display text-[34px] font-bold leading-[1.08] tracking-tight text-ink md:text-[44px]">
+        Encontrá tu próximo trabajo en tech
+      </h1>
+      <p class="mt-3 max-w-xl text-[15px] text-muted">
+        Vacantes reales de empresas que contratan hoy. Postulate en un clic y seguí tu proceso en tiempo real.
+      </p>
+
+      <!-- Search bar -->
+      <div class="mt-7 flex flex-col gap-3 rounded-2xl border border-line bg-surface/60 p-3 shadow-2xl shadow-black/40 md:flex-row md:items-center">
+        <div class="flex flex-1 items-center gap-2.5 rounded-xl bg-base/60 px-3.5 py-3">
+          <i data-lucide="search" class="h-[18px] w-[18px] text-muted"></i>
+          <input class="field w-full bg-transparent text-[14.5px] text-ink outline-none placeholder:text-muted/70" placeholder="Puesto, tecnología o empresa" value="Backend Developer" />
+        </div>
+        <div class="hidden h-8 w-px bg-line md:block"></div>
+        <div class="flex flex-1 items-center gap-2.5 rounded-xl bg-base/60 px-3.5 py-3">
+          <i data-lucide="map-pin" class="h-[18px] w-[18px] text-muted"></i>
+          <input class="field w-full bg-transparent text-[14.5px] text-ink outline-none placeholder:text-muted/70" placeholder="Ubicación o remoto" />
+        </div>
+        <button class="btn btn-primary flex items-center justify-center gap-2 rounded-xl bg-brand px-6 py-3 text-[14px] font-semibold text-white">
+          <i data-lucide="search" class="h-4 w-4"></i> Buscar
+        </button>
+      </div>
+
+      <!-- Quick filters -->
+      <div class="mt-5 flex flex-wrap items-center gap-2">
+        <button class="chip chip-active rounded-full border border-line px-3.5 py-1.5 text-[13px]">Todas</button>
+        <button class="chip rounded-full border border-line px-3.5 py-1.5 text-[13px] text-muted">Remoto</button>
+        <button class="chip rounded-full border border-line px-3.5 py-1.5 text-[13px] text-muted">Híbrido</button>
+        <button class="chip rounded-full border border-line px-3.5 py-1.5 text-[13px] text-muted">Full-time</button>
+        <button class="chip rounded-full border border-line px-3.5 py-1.5 text-[13px] text-muted">Semi Senior</button>
+        <button class="chip rounded-full border border-line px-3.5 py-1.5 text-[13px] text-muted">Senior</button>
+      </div>
+    </section>
+
+    <!-- ===== Body: filters + results ===== -->
+    <section class="mx-auto max-w-6xl px-6 pb-24">
+      <div class="grid gap-6 lg:grid-cols-[260px_1fr]">
+
+        <!-- Sidebar filters -->
+        <aside class="hidden lg:block">
+          <div class="sticky top-24 space-y-6 rounded-2xl border border-line bg-surface/40 p-5">
+            <div>
+              <h3 class="mb-3 text-[13px] font-semibold uppercase tracking-wide text-muted/80">Modalidad</h3>
+              <label class="mb-2.5 flex cursor-pointer items-center gap-2.5 text-[14px] text-muted"><span class="grid h-4 w-4 place-items-center rounded border border-brand bg-brand/20"><i data-lucide="check" class="h-3 w-3 text-glow"></i></span> Remoto</label>
+              <label class="mb-2.5 flex cursor-pointer items-center gap-2.5 text-[14px] text-muted"><span class="h-4 w-4 rounded border border-line"></span> Híbrido</label>
+              <label class="flex cursor-pointer items-center gap-2.5 text-[14px] text-muted"><span class="h-4 w-4 rounded border border-line"></span> Presencial</label>
+            </div>
+            <div class="h-px bg-line"></div>
+            <div>
+              <h3 class="mb-3 text-[13px] font-semibold uppercase tracking-wide text-muted/80">Seniority</h3>
+              <label class="mb-2.5 flex cursor-pointer items-center gap-2.5 text-[14px] text-muted"><span class="h-4 w-4 rounded border border-line"></span> Junior</label>
+              <label class="mb-2.5 flex cursor-pointer items-center gap-2.5 text-[14px] text-muted"><span class="h-4 w-4 rounded border border-line"></span> Semi Senior</label>
+              <label class="flex cursor-pointer items-center gap-2.5 text-[14px] text-muted"><span class="grid h-4 w-4 place-items-center rounded border border-brand bg-brand/20"><i data-lucide="check" class="h-3 w-3 text-glow"></i></span> Senior</label>
+            </div>
+            <div class="h-px bg-line"></div>
+            <div>
+              <h3 class="mb-3 text-[13px] font-semibold uppercase tracking-wide text-muted/80">Área</h3>
+              <label class="mb-2.5 flex cursor-pointer items-center gap-2.5 text-[14px] text-muted"><span class="h-4 w-4 rounded border border-line"></span> Frontend</label>
+              <label class="mb-2.5 flex cursor-pointer items-center gap-2.5 text-[14px] text-muted"><span class="h-4 w-4 rounded border border-line"></span> Backend</label>
+              <label class="mb-2.5 flex cursor-pointer items-center gap-2.5 text-[14px] text-muted"><span class="h-4 w-4 rounded border border-line"></span> DevOps</label>
+              <label class="flex cursor-pointer items-center gap-2.5 text-[14px] text-muted"><span class="h-4 w-4 rounded border border-line"></span> Data</label>
+            </div>
+            <button class="flex items-center gap-1.5 text-[13px] text-muted transition hover:text-ink"><i data-lucide="rotate-ccw" class="h-3.5 w-3.5"></i> Limpiar filtros</button>
+          </div>
+        </aside>
+
+        <!-- Results -->
+        <div>
+          <div class="mb-4 flex items-center justify-between">
+            <p class="text-[14px] text-muted"><span class="font-semibold text-ink">142</span> vacantes encontradas</p>
+            <button class="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] text-muted transition hover:text-ink">
+              <i data-lucide="arrow-up-down" class="h-3.5 w-3.5"></i> Más recientes
+            </button>
+          </div>
+
+          <div class="space-y-3">
+
+            <!-- Job card (featured) -->
+            <a href="vacante-detalle.html" class="job-card relative block overflow-hidden rounded-2xl border border-brand/40 bg-surface/70 p-5">
+              <span class="absolute right-5 top-5 rounded-full bg-brand/16 px-2.5 py-1 text-[11px] font-semibold text-glow">Destacada</span>
+              <div class="flex items-start gap-4">
+                <span class="grid h-12 w-12 shrink-0 place-items-center rounded-xl text-[16px] font-bold text-white" style="background:linear-gradient(135deg,#9336EA,#22D3EE)">Ac</span>
+                <div class="min-w-0 flex-1">
+                  <h2 class="text-[17px] font-semibold text-ink">Backend Developer (Senior)</h2>
+                  <p class="mt-0.5 text-[13.5px] text-muted">Acme Technologies · Buenos Aires, Argentina</p>
+                  <div class="mt-3 flex flex-wrap gap-1.5">
+                    <span class="flex items-center gap-1 rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted"><i data-lucide="globe" class="h-3.5 w-3.5"></i> Remoto</span>
+                    <span class="flex items-center gap-1 rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted"><i data-lucide="briefcase" class="h-3.5 w-3.5"></i> Full-time</span>
+                    <span class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted">Go</span>
+                    <span class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted">Kubernetes</span>
+                    <span class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted">PostgreSQL</span>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-4 flex items-center justify-between border-t border-line/60 pt-3.5">
+                <span class="text-[13px] text-muted"><span class="font-semibold text-ink">USD 4.000 – 5.500</span> / mes</span>
+                <div class="flex items-center gap-4">
+                  <span class="flex items-center gap-1 text-[12.5px] text-muted"><i data-lucide="clock" class="h-3.5 w-3.5"></i> hace 2h</span>
+                  <span class="apply-hint flex items-center gap-1 text-[13px] font-semibold text-glow">Ver vacante <i data-lucide="arrow-right" class="h-4 w-4"></i></span>
+                </div>
+              </div>
+            </a>
+
+            <!-- Job card -->
+            <a href="vacante-detalle.html" class="job-card block rounded-2xl border border-line bg-surface/60 p-5">
+              <div class="flex items-start gap-4">
+                <span class="grid h-12 w-12 shrink-0 place-items-center rounded-xl text-[16px] font-bold text-white" style="background:#7C4DFF">Nb</span>
+                <div class="min-w-0 flex-1">
+                  <h2 class="text-[17px] font-semibold text-ink">Frontend Engineer (React)</h2>
+                  <p class="mt-0.5 text-[13.5px] text-muted">Nimbus Labs · Córdoba, Argentina</p>
+                  <div class="mt-3 flex flex-wrap gap-1.5">
+                    <span class="flex items-center gap-1 rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted"><i data-lucide="building-2" class="h-3.5 w-3.5"></i> Híbrido</span>
+                    <span class="flex items-center gap-1 rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted"><i data-lucide="briefcase" class="h-3.5 w-3.5"></i> Full-time</span>
+                    <span class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted">React</span>
+                    <span class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted">TypeScript</span>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-4 flex items-center justify-between border-t border-line/60 pt-3.5">
+                <span class="text-[13px] text-muted"><span class="font-semibold text-ink">USD 3.000 – 4.200</span> / mes</span>
+                <div class="flex items-center gap-4">
+                  <span class="flex items-center gap-1 text-[12.5px] text-muted"><i data-lucide="clock" class="h-3.5 w-3.5"></i> hace 5h</span>
+                  <span class="apply-hint flex items-center gap-1 text-[13px] font-semibold text-glow">Ver vacante <i data-lucide="arrow-right" class="h-4 w-4"></i></span>
+                </div>
+              </div>
+            </a>
+
+            <!-- Job card -->
+            <a href="vacante-detalle.html" class="job-card block rounded-2xl border border-line bg-surface/60 p-5">
+              <div class="flex items-start gap-4">
+                <span class="grid h-12 w-12 shrink-0 place-items-center rounded-xl text-[16px] font-bold text-white" style="background:#22D3EE">Or</span>
+                <div class="min-w-0 flex-1">
+                  <h2 class="text-[17px] font-semibold text-ink">DevOps Engineer</h2>
+                  <p class="mt-0.5 text-[13.5px] text-muted">Orbital · Remoto (LATAM)</p>
+                  <div class="mt-3 flex flex-wrap gap-1.5">
+                    <span class="flex items-center gap-1 rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted"><i data-lucide="globe" class="h-3.5 w-3.5"></i> Remoto</span>
+                    <span class="flex items-center gap-1 rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted"><i data-lucide="briefcase" class="h-3.5 w-3.5"></i> Full-time</span>
+                    <span class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted">AWS</span>
+                    <span class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted">Terraform</span>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-4 flex items-center justify-between border-t border-line/60 pt-3.5">
+                <span class="text-[13px] text-muted"><span class="font-semibold text-ink">USD 4.500 – 6.000</span> / mes</span>
+                <div class="flex items-center gap-4">
+                  <span class="flex items-center gap-1 text-[12.5px] text-muted"><i data-lucide="clock" class="h-3.5 w-3.5"></i> hace 1d</span>
+                  <span class="apply-hint flex items-center gap-1 text-[13px] font-semibold text-glow">Ver vacante <i data-lucide="arrow-right" class="h-4 w-4"></i></span>
+                </div>
+              </div>
+            </a>
+
+            <!-- Job card -->
+            <a href="vacante-detalle.html" class="job-card block rounded-2xl border border-line bg-surface/60 p-5">
+              <div class="flex items-start gap-4">
+                <span class="grid h-12 w-12 shrink-0 place-items-center rounded-xl text-[16px] font-bold text-white" style="background:#D946EF">Fl</span>
+                <div class="min-w-0 flex-1">
+                  <h2 class="text-[17px] font-semibold text-ink">Fullstack Developer (Node + React)</h2>
+                  <p class="mt-0.5 text-[13.5px] text-muted">Flux Digital · Rosario, Argentina</p>
+                  <div class="mt-3 flex flex-wrap gap-1.5">
+                    <span class="flex items-center gap-1 rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted"><i data-lucide="building-2" class="h-3.5 w-3.5"></i> Híbrido</span>
+                    <span class="flex items-center gap-1 rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted"><i data-lucide="briefcase" class="h-3.5 w-3.5"></i> Full-time</span>
+                    <span class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted">Node</span>
+                    <span class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted">React</span>
+                    <span class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted">Semi Senior</span>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-4 flex items-center justify-between border-t border-line/60 pt-3.5">
+                <span class="text-[13px] text-muted"><span class="font-semibold text-ink">USD 2.800 – 3.800</span> / mes</span>
+                <div class="flex items-center gap-4">
+                  <span class="flex items-center gap-1 text-[12.5px] text-muted"><i data-lucide="clock" class="h-3.5 w-3.5"></i> hace 2d</span>
+                  <span class="apply-hint flex items-center gap-1 text-[13px] font-semibold text-glow">Ver vacante <i data-lucide="arrow-right" class="h-4 w-4"></i></span>
+                </div>
+              </div>
+            </a>
+
+            <!-- Job card -->
+            <a href="vacante-detalle.html" class="job-card block rounded-2xl border border-line bg-surface/60 p-5">
+              <div class="flex items-start gap-4">
+                <span class="grid h-12 w-12 shrink-0 place-items-center rounded-xl text-[16px] font-bold text-white" style="background:#22C55E">Ve</span>
+                <div class="min-w-0 flex-1">
+                  <h2 class="text-[17px] font-semibold text-ink">Data Engineer</h2>
+                  <p class="mt-0.5 text-[13.5px] text-muted">Vertex Analytics · Remoto (LATAM)</p>
+                  <div class="mt-3 flex flex-wrap gap-1.5">
+                    <span class="flex items-center gap-1 rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted"><i data-lucide="globe" class="h-3.5 w-3.5"></i> Remoto</span>
+                    <span class="flex items-center gap-1 rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted"><i data-lucide="briefcase" class="h-3.5 w-3.5"></i> Full-time</span>
+                    <span class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted">Python</span>
+                    <span class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted">Airflow</span>
+                    <span class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted">Senior</span>
+                  </div>
+                </div>
+              </div>
+              <div class="mt-4 flex items-center justify-between border-t border-line/60 pt-3.5">
+                <span class="text-[13px] text-muted"><span class="font-semibold text-ink">USD 4.200 – 5.800</span> / mes</span>
+                <div class="flex items-center gap-4">
+                  <span class="flex items-center gap-1 text-[12.5px] text-muted"><i data-lucide="clock" class="h-3.5 w-3.5"></i> hace 3d</span>
+                  <span class="apply-hint flex items-center gap-1 text-[13px] font-semibold text-glow">Ver vacante <i data-lucide="arrow-right" class="h-4 w-4"></i></span>
+                </div>
+              </div>
+            </a>
+
+          </div>
+
+          <!-- Pagination -->
+          <div class="mt-8 flex items-center justify-center gap-1.5">
+            <button class="grid h-9 w-9 place-items-center rounded-lg border border-line text-muted transition hover:text-ink"><i data-lucide="chevron-left" class="h-4 w-4"></i></button>
+            <button class="grid h-9 w-9 place-items-center rounded-lg border border-brand/55 bg-brand/16 text-[14px] font-semibold text-ink">1</button>
+            <button class="grid h-9 w-9 place-items-center rounded-lg border border-line text-[14px] text-muted transition hover:text-ink">2</button>
+            <button class="grid h-9 w-9 place-items-center rounded-lg border border-line text-[14px] text-muted transition hover:text-ink">3</button>
+            <span class="px-1 text-muted">…</span>
+            <button class="grid h-9 w-9 place-items-center rounded-lg border border-line text-[14px] text-muted transition hover:text-ink">12</button>
+            <button class="grid h-9 w-9 place-items-center rounded-lg border border-line text-muted transition hover:text-ink"><i data-lucide="chevron-right" class="h-4 w-4"></i></button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Footer ===== -->
+    <footer class="border-t border-line/70">
+      <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 text-[13px] text-muted sm:flex-row">
+        <div class="flex items-center gap-2">
+          <span data-pf-logo class="inline-flex opacity-80">
+            <img src="assets/peopleflow-dark.webp"  alt="PeopleFlow" class="pf-logo-dark  h-5 w-auto" />
+            <img src="assets/peopleflow-light.webp" alt="PeopleFlow" class="pf-logo-light h-5 w-auto" />
+          </span>
+          <span>© 2026 PeopleFlow</span>
+        </div>
+        <div class="flex items-center gap-6">
+          <a href="#" class="nav-link">Sobre nosotros</a>
+          <a href="#" class="nav-link">Términos</a>
+          <a href="#" class="nav-link">Privacidad</a>
+        </div>
+      </div>
+    </footer>
+
+  </div>
+
+  <script>
+    lucide.createIcons();
+    /* Sync theme toggle UI (aria/label) AFTER lucide has rendered the icons.
+       The handler in assets/theme-toggle.js also runs on DOMContentLoaded,
+       but doing it after icon replacement keeps the title/tooltip in sync
+       with the active theme regardless of when the script first ran. */
+    if (window.PFThemeSyncToggle) window.PFThemeSyncToggle();
+    // Soft Aurora — reuse landing effect if present
+  </script>
+  <script src="assets/theme-toggle.js"></script>
+</body>
+</html>
