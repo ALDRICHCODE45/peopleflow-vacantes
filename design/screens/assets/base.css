@@ -1,11 +1,98 @@
-/* PeopleFlow shared base styles for screen mockups */
-html { scroll-behavior: smooth; }
-body { background-color: #0C0912; }
+/* ==========================================================================
+   PeopleFlow shared base styles + design tokens (light/dark themable).
 
-.eyebrow { letter-spacing: 0.28em; }
+   Theme switch mechanism:
+   - The <html> element receives a `data-theme="dark"` or `data-theme="light"`
+     attribute. The anti-flash inline script in <head> sets it BEFORE first
+     paint to avoid a flash of the wrong theme.
+   - All semantic colors (base, surface, surface2, elevated, line, ink,
+     muted) and ambient helpers (overlay, shadow-color, grid alphas) are
+     defined per-theme as CSS custom properties on `:root[data-theme=".."]`.
+   - Semantic tokens are stored as SPACE-SEPARATED RGB CHANNELS (e.g.
+     `12 9 18`) so Tailwind's `rgb(var(--token) / <alpha-value>)` pattern
+     keeps alpha utilities working (`bg-base/40`, `text-muted/70`, etc.).
+   - Accent colors (brand, glow, cyan, grass, magenta) stay FIXED across
+     themes because they're identity — only the ambient container flips.
+   ========================================================================== */
+
+/* Theme tokens — DARK (preserve original palette exactly) */
+:root[data-theme="dark"] {
+  /* Semantic channels (R G B) */
+  --base:     12 9 18;       /* #0C0912 — page background */
+  --surface:  21 18 31;      /* #15121F — cards */
+  --surface2: 23 18 38;      /* #171226 — sidebar/filter */
+  --elevated: 26 22 38;      /* #1A1626 — popovers, chips */
+  --line:     38 34 51;      /* #262233 — borders, dividers */
+  --ink:      246 242 255;   /* #F6F2FF — primary text */
+  --muted:    167 159 191;   /* #A79FBF — secondary text */
+
+  /* Invertible overlay (used for `bg-white/[0.0x]` replacements).
+     In dark, overlay is WHITE so it acts as a lightening veil over surfaces. */
+  --overlay: 255 255 255;
+
+  /* Soft shadow color for hover lifts. Dark theme uses a near-black shadow
+     with brand-tinted glow, same as the original CSS. */
+  --shadow-color: 0 0 0;
+
+  /* Ambient grid alphas (radial dots + linear canvas lines) */
+  --grid-dot-alpha:  0.11;   /* purple radial dots in `.bg-grid` */
+  --grid-line-alpha: 0.035;  /* subtle white lines in `.canvas-grid` */
+  --top-glow-alpha:  0.22;   /* upper purple glow intensity */
+  --field-focus-tint-alpha: 0.02; /* input focus veil */
+  --ghost-hover-border-alpha: 0.28; /* ghost button hover border */
+}
+
+/* Theme tokens — LIGHT (calibrated for AA contrast, never pure white) */
+:root[data-theme="light"] {
+  /* Semantic channels (R G B) */
+  --base:     247 245 251;   /* #F7F5FB — page background, warm-tinted off-white */
+  --surface:  255 255 255;   /* #FFFFFF — primary surface */
+  --surface2: 241 238 247;   /* #F1EEF7 — sidebar/filter contrast */
+  --elevated: 255 255 255;   /* #FFFFFF — elevated */
+  --line:     228 223 240;   /* #E4DFF0 — borders, dividers (visible on white) */
+  --ink:      26 22 38;      /* #1A1626 — deep ink for AA contrast */
+  --muted:    107 100 128;   /* #6B6480 — secondary text (~5.12:1 on white) */
+
+  /* In light, overlay is BLACK so `.overlay-*` utilities act as a darkening
+     veil — same visual hierarchy as the white veil in dark. */
+  --overlay: 0 0 0;
+
+  /* Shadows in light are softer black (no purple tint needed; brand still
+     colors borders via `border-brand/*` utilities). */
+  --shadow-color: 26 22 38;
+
+  /* Ambient grid alphas — slightly louder so the texture stays visible on
+     a light surface, but still subtle. */
+  --grid-dot-alpha:  0.07;
+  --grid-line-alpha: 0.05;
+  --top-glow-alpha:  0.12;
+  --field-focus-tint-alpha: 0.04;
+  --ghost-hover-border-alpha: 0.18;
+}
+
+/* ==========================================================================
+   Base element styles
+   ========================================================================== */
+html { scroll-behavior: smooth; }
+body { background-color: rgb(var(--base)); color: rgb(var(--ink)); }
+
+/* Selection */
 ::selection { background: rgba(147, 54, 234, 0.4); color: #fff; }
 
-/* Soft Aurora canvas host */
+/* ==========================================================================
+   Overlay utilities — theme-aware replacements for `bg-white/[0.0x]`.
+   Use these EVERYWHERE a tint veil is needed so the design respects the theme.
+   ========================================================================== */
+.overlay-1   { background-color: rgb(var(--overlay) / 0.05); } /* light veil  */
+.overlay-2   { background-color: rgb(var(--overlay) / 0.08); }
+.overlay-3   { background-color: rgb(var(--overlay) / 0.12); }
+/* Soft and softer aliases (semantic naming kept for readability) */
+.overlay-soft   { background-color: rgb(var(--overlay) / 0.05); }
+.overlay-softer { background-color: rgb(var(--overlay) / 0.03); }
+
+/* ==========================================================================
+   Soft Aurora canvas host
+   ========================================================================== */
 .aurora {
   opacity: 0.9;
   -webkit-mask-image: radial-gradient(78% 70% at 50% 50%, #000 42%, transparent 88%);
@@ -13,47 +100,92 @@ body { background-color: #0C0912; }
 }
 .aurora canvas { display: block; width: 100% !important; height: 100% !important; }
 
-/* Ambient depth */
+/* ==========================================================================
+   Ambient depth — backgrounds now driven by theme variables.
+   ========================================================================== */
 .bg-grid {
-  background-image: radial-gradient(rgba(147, 54, 234, 0.11) 1px, transparent 1.4px);
+  background-image: radial-gradient(rgba(147, 54, 234, var(--grid-dot-alpha)) 1px, transparent 1.4px);
   background-size: 34px 34px;
   -webkit-mask-image: radial-gradient(74% 56% at 50% 0%, #000 28%, transparent 78%);
   mask-image: radial-gradient(74% 56% at 50% 0%, #000 28%, transparent 78%);
 }
-.top-glow { background: radial-gradient(56% 44% at 50% -6%, rgba(147, 54, 234, 0.22), rgba(147, 54, 234, 0.05) 46%, transparent 72%); }
+
+.top-glow {
+  background: radial-gradient(
+    56% 44% at 50% -6%,
+    rgba(147, 54, 234, var(--top-glow-alpha)),
+    rgba(147, 54, 234, calc(var(--top-glow-alpha) * 0.23)) 46%,
+    transparent 72%
+  );
+}
+
 .canvas-grid {
-  background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  /* `--overlay` flips with theme: white in dark, black in light, so this
+     grid line tint stays subtle-but-visible in both palettes. Dark
+     reproduces the original `rgba(255,255,255,0.035)` exactly. */
+  background-image:
+    linear-gradient(rgb(var(--overlay) / var(--grid-line-alpha)) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--overlay) / var(--grid-line-alpha)) 1px, transparent 1px);
   background-size: 26px 26px;
   -webkit-mask-image: radial-gradient(80% 80% at 50% 50%, #000 40%, transparent 85%);
   mask-image: radial-gradient(80% 80% at 50% 50%, #000 40%, transparent 85%);
 }
 
-/* Form fields */
+/* ==========================================================================
+   Form fields
+   ========================================================================== */
 .field { transition: border-color .2s ease, background-color .2s ease; }
-.field:focus { outline: none; border-color: rgba(147, 54, 234, 0.7); background-color: rgba(255, 255, 255, 0.02); }
+.field:focus {
+  outline: none;
+  border-color: rgba(147, 54, 234, 0.7);
+  background-color: rgb(var(--overlay) / var(--field-focus-tint-alpha));
+}
 
-/* Buttons */
+/* ==========================================================================
+   Buttons
+   ========================================================================== */
 .btn { transition: transform .2s ease, box-shadow .3s ease, background-color .2s ease, border-color .2s ease; }
-.btn-primary:hover { transform: translateY(-1px); box-shadow: 0 12px 34px -12px rgba(147, 54, 234, 0.75); }
-.btn-cyan:hover { transform: translateY(-1px); box-shadow: 0 12px 34px -12px rgba(34, 211, 238, 0.6); }
-.btn-ghost:hover { border-color: rgba(246, 242, 255, 0.28); background-color: rgba(255, 255, 255, 0.04); }
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 34px -12px rgba(147, 54, 234, 0.75);
+}
+.btn-cyan:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 34px -12px rgba(34, 211, 238, 0.6);
+}
+.btn-ghost:hover {
+  border-color: rgb(var(--ink) / var(--ghost-hover-border-alpha));
+  background-color: rgb(var(--overlay) / 0.04);
+}
 
-/* Cards */
+/* ==========================================================================
+   Cards
+   ========================================================================== */
 .card { transition: transform .35s ease, border-color .35s ease, box-shadow .35s ease; }
-.card-hover:hover { transform: translateY(-4px); border-color: rgba(147, 54, 234, 0.55); box-shadow: 0 18px 50px -20px rgba(147, 54, 234, 0.45); }
+.card-hover:hover {
+  transform: translateY(-4px);
+  border-color: rgba(147, 54, 234, 0.55);
+  box-shadow: 0 18px 50px -20px rgba(147, 54, 234, 0.45);
+}
 
-/* Reveal on scroll */
+/* ==========================================================================
+   Reveal on scroll
+   ========================================================================== */
 .reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s ease; }
 .reveal.in { opacity: 1; transform: translateY(0); }
 
-/* Active pipeline node pulse */
+/* ==========================================================================
+   Active pipeline node pulse
+   ========================================================================== */
 @keyframes pulseCyan {
   0%, 100% { box-shadow: 0 0 0 1.5px rgba(34, 211, 238, 0.9), 0 0 22px 2px rgba(34, 211, 238, 0.45); }
   50%      { box-shadow: 0 0 0 1.5px rgba(34, 211, 238, 1),   0 0 34px 6px rgba(34, 211, 238, 0.65); }
 }
 .node-active { animation: pulseCyan 2.6s ease-in-out infinite; }
 
-/* Connector flow */
+/* ==========================================================================
+   Connector flow + floaty decoration
+   ========================================================================== */
 @keyframes dashFlow { to { stroke-dashoffset: -32; } }
 .flow { stroke-dasharray: 6 8; animation: dashFlow 1.6s linear infinite; }
 
@@ -61,3 +193,40 @@ body { background-color: #0C0912; }
 .floaty { animation: floaty 7s ease-in-out infinite; }
 
 .avatar-stack > * + * { margin-left: -10px; }
+
+/* ==========================================================================
+   Theme toggle button — icon visibility per theme.
+   Markup contract: a button with `data-pf-theme-toggle` containing two
+   lucide icons, one with class `pf-icon-moon`, one with `pf-icon-sun`. By
+   default both are hidden, and the active one is un-hidden by a CSS rule
+   keyed off `:root[data-theme]`. No JS is required for display swapping —
+   only the click is wired in assets/theme-toggle.js.
+   ========================================================================== */
+[data-pf-theme-toggle] .pf-icon-sun,
+[data-pf-theme-toggle] .pf-icon-moon { display: none; }
+:root[data-theme="dark"]  [data-pf-theme-toggle] .pf-icon-sun  { display: block; }
+:root[data-theme="light"] [data-pf-theme-toggle] .pf-icon-moon { display: block; }
+
+/* ==========================================================================
+   Accent color overrides per theme — only the accent tokens that become
+   illegible on the OPPOSITE palette get a per-theme tweak. The original
+   hex stays for the OTHER theme so the dark look stays identical.
+   ========================================================================== */
+
+/* Glow on light: the bright #B266FF loses contrast on near-white;
+   darken to #7B22C9 for AA legibility. Dark keeps original #B266FF. */
+:root[data-theme="light"] .text-glow { color: #7B22C9; }
+
+/* ==========================================================================
+   Themed logo swap — the wordmark has two artworks:
+   - peopleflow-dark.webp  → white "people" for DARK backgrounds
+   - peopleflow-light.webp → black "people" for LIGHT backgrounds
+   Markup contract: a wrapper with `data-pf-logo` containing two <img>,
+   one with class `pf-logo-dark`, one with class `pf-logo-light`. The active
+   one is shown per theme via CSS — no JS needed. Both images should share
+   the same height utility so the swap is seamless.
+   ========================================================================== */
+[data-pf-logo] .pf-logo-dark,
+[data-pf-logo] .pf-logo-light { display: none; }
+:root[data-theme="dark"]  [data-pf-logo] .pf-logo-dark  { display: block; }
+:root[data-theme="light"] [data-pf-logo] .pf-logo-light { display: block; }

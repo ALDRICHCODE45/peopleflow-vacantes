@@ -1,17 +1,51 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PeopleFlow — Ingreso candidatos</title>
+
+  <!--
+    Anti-flash inline script — MUST run before Tailwind processes and before
+    first paint, so the persisted theme (or default 'dark') is already
+    applied when styles resolve. Keep this block FIRST in <head>.
+  -->
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('pf-theme');
+        var theme  = stored;
+        if (theme !== 'dark' && theme !== 'light') {
+          theme = (window.matchMedia &&
+                   window.matchMedia('(prefers-color-scheme: light)').matches)
+                    ? 'light' : 'dark';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (_e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+
+  <!-- Fonts -->
   <link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap" rel="stylesheet" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+
+  <!--
+    Load order:
+      1. base.css first → CSS custom properties (theme tokens) exist before
+         Tailwind utilities resolve their `rgb(var(--token) / <alpha>)`.
+      2. Tailwind CDN
+      3. theme.js (configures Tailwind with semantic + accent tokens)
+      4. lucide UMD bundle (needed for the theme-toggle icons)
+  -->
+  <link rel="stylesheet" href="assets/base.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="assets/theme.js"></script>
-  <link rel="stylesheet" href="assets/base.css" />
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 </head>
 
-<body class="min-h-screen font-sans text-ink antialiased">
+<body class="min-h-screen bg-base font-sans text-ink antialiased">
   <div class="grid min-h-screen lg:grid-cols-2">
 
     <!-- Effect panel (left) — animation only -->
@@ -25,10 +59,21 @@
     </div>
 
     <!-- Form panel (right) -->
-    <div class="flex items-center justify-center bg-surface px-6 py-12 sm:px-10">
+    <div class="relative flex items-center justify-center bg-surface px-6 py-12 sm:px-10">
+      <!-- Theme toggle — top-right corner of the form panel (shader lives on the left panel only) -->
+      <button data-pf-theme-toggle
+              type="button"
+              aria-label="Cambiar tema"
+              title="Cambiar tema"
+              class="absolute right-5 top-5 grid h-9 w-9 place-items-center rounded-lg border border-line bg-surface/40 text-muted transition hover:border-brand/60 hover:bg-surface/60 hover:text-ink">
+        <i data-lucide="moon" class="pf-icon-moon h-[18px] w-[18px]"></i>
+        <i data-lucide="sun"  class="pf-icon-sun  h-[18px] w-[18px]"></i>
+      </button>
+
       <div class="w-full max-w-[400px]">
-        <a href="../landing-preview/index.html" class="mb-8 inline-block lg:hidden">
-          <img src="assets/peopleflow-dark.webp" alt="PeopleFlow" class="h-7 w-auto" />
+        <a href="../landing-preview/index.html" class="mb-8 inline-block lg:hidden" data-pf-logo>
+          <img src="assets/peopleflow-dark.webp"  alt="PeopleFlow" class="pf-logo-dark  h-7 w-auto" />
+          <img src="assets/peopleflow-light.webp" alt="PeopleFlow" class="pf-logo-light h-7 w-auto" />
         </a>
 
         <p class="eyebrow mb-3 font-mono text-[11px] font-semibold uppercase text-cyan">Acceso candidatos</p>
@@ -68,7 +113,11 @@
     </div>
   </div>
 
-  <!-- FloatingLines (Three.js) — cyan variant, inlined for file:// portability -->
+  <!-- FloatingLines (Three.js) — cyan variant, inlined for file:// portability.
+       Theme adaptation: dark keeps `mixBlendMode: 'screen'` with the original
+       cyan→purple→grey gradient. Light switches to `multiply` so the lines
+       darken the page instead of glowing through white, AND swaps the
+       gradient for deeper colors so they remain legible on warm off-white. -->
   <script type="module">
     const THREE = await import('https://esm.sh/three@0.160.0');
     const container = document.getElementById('floatingLines');
@@ -100,8 +149,10 @@
       const scene=new THREE.Scene(); const cam=new THREE.OrthographicCamera(-1,1,1,-1,0,1); cam.position.z=1;
       const renderer=new THREE.WebGLRenderer({antialias:true,alpha:false}); renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,2));
       renderer.domElement.style.width='100%'; renderer.domElement.style.height='100%'; container.appendChild(renderer.domElement);
-      container.style.mixBlendMode='screen';
-      const grad=Array.from({length:8},()=>new THREE.Vector3(1,1,1)); cfg.linesGradient.forEach((h,i)=>{ const c=hex(h); grad[i].set(c.x,c.y,c.z); });
+      const grad=Array.from({length:8},()=>new THREE.Vector3(1,1,1));
+      /* Light-mode palette: deeper cyan + deeper purple so the lines remain
+         legible on warm off-white under multiply blend. */
+      const lightPalette = ['#0E8FA5', '#7B22C9', '#5B1899'];
       const u={ iTime:{value:0}, iResolution:{value:new THREE.Vector3(1,1,1)}, animationSpeed:{value:cfg.animationSpeed},
         topLineCount:{value:cfg.lineCount}, middleLineCount:{value:cfg.lineCount}, bottomLineCount:{value:cfg.lineCount},
         topLineDistance:{value:cfg.lineDistance}, middleLineDistance:{value:cfg.lineDistance}, bottomLineDistance:{value:cfg.lineDistance},
@@ -118,7 +169,33 @@
       container.addEventListener('pointerleave',()=>{ ti=0.0; });
       const loop=()=>{ requestAnimationFrame(loop); u.iTime.value=clock.getElapsedTime(); cm.lerp(tm,cfg.mouseDamping); u.iMouse.value.copy(cm); ci+=(ti-ci)*cfg.mouseDamping; u.bendInfluence.value=ci; cp.lerp(tp,cfg.mouseDamping); u.parallaxOffset.value.copy(cp); renderer.render(scene,cam); };
       loop();
+
+      /* Theme-aware blend mode + palette. See login-empresa.html comment
+         block for the rationale; identical strategy, different accent. */
+      const applyShaderTheme = (theme) => {
+        if (!container) return;
+        container.style.mixBlendMode = (theme === 'light') ? 'multiply' : 'screen';
+        const palette = (theme === 'light') ? lightPalette : cfg.linesGradient;
+        for (let i = 0; i < palette.length; i++) {
+          const c = hex(palette[i]);
+          grad[i].set(c.x, c.y, c.z);
+        }
+      };
+      const initialTheme = (window.PFTheme && window.PFTheme.current) ? window.PFTheme.current() : 'dark';
+      applyShaderTheme(initialTheme);
+      document.addEventListener('pf:themechange', (ev) => {
+        const t = (ev && ev.detail && ev.detail.theme) ? ev.detail.theme : 'dark';
+        applyShaderTheme(t);
+      });
     }
   </script>
+
+  <script>
+    /* Render toggle icons AFTER lucide has loaded. Sync aria/label with the
+       current theme so screen readers see the right copy on first paint. */
+    if (window.lucide) lucide.createIcons();
+    if (window.PFThemeSyncToggle) window.PFThemeSyncToggle();
+  </script>
+  <script src="assets/theme-toggle.js"></script>
 </body>
 </html>

@@ -1,0 +1,115 @@
+<!doctype html>
+<!--
+  ============================================================================
+  PeopleFlow theme toggle — reusable reference snippet for screen mockups.
+
+  Paste these three pieces into every screen that should support light/dark:
+
+    1) INLINE ANTI-FLASH SCRIPT   → inside <head>, BEFORE any other asset.
+    2) TOGGLE BUTTON MARKUP       → wherever you want the toggle (typically
+                                    inside the public nav header).
+    3) TOGGLE BEHAVIOR SCRIPT     → at the end of <body>, after your own
+                                    `lucide.createIcons()` call.
+
+  What this snippet does NOT cover:
+    - assets/theme.js (the Tailwind config) must still be loaded after the
+      Tailwind Play CDN and before the body.
+    - assets/base.css must be linked in <head> so CSS variables exist before
+      first paint.
+    - lucide CDN must be loaded so `<i data-lucide="..">` becomes an <svg>.
+  ============================================================================
+-->
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+
+  <!--
+    ================================================================
+    1) ANTI-FLASH INLINE SCRIPT — MUST be in <head>, MUST run before
+       Tailwind processes and BEFORE first paint. It reads the persisted
+       choice from localStorage and, if none is found, applies the default
+       (dark per the product brief). Prefers-color-scheme is used only as a
+       SECONDARY fallback after the default — the product default is dark,
+       so prefers-color-scheme only picks light for users with no stored
+       choice AND a system preference for light.
+
+       Why inline and not external: it must execute synchronously; the
+       browser will not wait for an external script before painting. Keep
+       this exact code at the top of <head>.
+    ================================================================
+  -->
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('pf-theme');
+        var theme  = stored;
+        if (theme !== 'dark' && theme !== 'light') {
+          // No stored preference → secondary fallback is prefers-color-scheme
+          // (product default remains 'dark' when both are absent).
+          theme = (window.matchMedia &&
+                   window.matchMedia('(prefers-color-scheme: light)').matches)
+                    ? 'light' : 'dark';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (_e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+
+  <!--
+    ================================================================
+    2) LOAD ORDER REFERENCE (keep this ordering across every screen):
+         - Inline anti-flash script (above)
+         - Tailwind Play CDN  (https://cdn.tailwindcss.com)
+         - assets/theme.js   (extends Tailwind config — depends on CDN)
+         - assets/base.css   (declares CSS variables, ambient utilities)
+         - lucide CDN        (https://unpkg.com/lucide@latest/dist/umd/lucide.js)
+       The CSS variables in base.css MUST exist by the time Tailwind applies
+       utility classes, so load base.css BEFORE the CDN — or at minimum
+       before the first lucide.createIcons() call.
+    ================================================================
+  -->
+  <link rel="stylesheet" href="assets/base.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/theme.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+</head>
+
+<body class="min-h-screen bg-base font-sans text-ink antialiased">
+
+  <!--
+    ====================================================================
+    3) TOGGLE BUTTON MARKUP — drop this anywhere you want the toggle.
+       The `data-pf-theme-toggle` attribute is the hook for the click
+       handler. Both `<i>` tags MUST contain lucide icons (moon + sun);
+       lucide replaces them with the matching <svg> when createIcons()
+       runs at the end of <body>.
+
+       Styling is theme-aware via Tailwind utility classes from the
+       shared theme.js palette. Add `aria-label` overrides here if you
+       want different copy per screen.
+
+       Example placement: in the public nav header, next to "Ingresar".
+    ====================================================================
+  -->
+  <button data-pf-theme-toggle
+          type="button"
+          aria-label="Cambiar tema"
+          title="Cambiar tema"
+          class="grid h-9 w-9 place-items-center rounded-lg border border-line bg-surface/40 text-muted transition hover:border-brand/60 hover:bg-surface/60 hover:text-ink">
+    <i data-lucide="moon" class="pf-icon-moon h-[18px] w-[18px]"></i>
+    <i data-lucide="sun"  class="pf-icon-sun  h-[18px] w-[18px]"></i>
+  </button>
+
+  <!--
+    ====================================================================
+    4) TOGGLE BEHAVIOR SCRIPT — load at end of <body>, AFTER your own
+       `lucide.createIcons()` call, so the click handler can also call
+       `window.PFThemeSyncToggle()` if you tweak icon markup later.
+    ====================================================================
+  -->
+  <script src="assets/theme-toggle.js"></script>
+</body>
+</html>
+
