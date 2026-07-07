@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PeopleFlow — Panel empresa · Pipeline</title>
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/theme.js"></script>
+  <link rel="stylesheet" href="assets/base.css" />
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <style>
+    .nav-item { transition: background-color .2s ease, color .2s ease; }
+    .nav-item:hover { background-color: rgba(255,255,255,0.04); color: #F6F2FF; }
+    .nav-active { background-color: rgba(147,54,234,0.14); color: #F6F2FF; box-shadow: inset 2px 0 0 #9336EA; }
+    .kcard { transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
+    .kcard:hover { transform: translateY(-2px); border-color: rgba(147,54,234,0.5); box-shadow: 0 12px 30px -14px rgba(147,54,234,0.5); }
+    .col-scroll::-webkit-scrollbar { width: 6px; }
+    .col-scroll::-webkit-scrollbar-thumb { background: #262233; border-radius: 99px; }
+  </style>
+</head>
+
+<body class="h-screen overflow-hidden bg-base font-sans text-ink antialiased">
+  <div class="flex h-full">
+
+    <!-- ===== Sidebar ===== -->
+    <aside class="hidden w-64 shrink-0 flex-col border-r border-line bg-surface/40 lg:flex">
+      <div class="flex h-16 items-center px-6">
+        <a href="../landing-preview/index.html" class="select-none text-[21px]"><span class="font-display font-bold text-ink">people</span><span class="font-display italic text-brand">flow</span></a>
+      </div>
+
+      <nav class="flex-1 space-y-1 px-3 py-4">
+        <p class="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted/70">Principal</p>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="layout-dashboard" class="h-[18px] w-[18px]"></i> Dashboard</a>
+        <a href="#" class="nav-item nav-active flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px]"><i data-lucide="briefcase" class="h-[18px] w-[18px]"></i> Vacantes</a>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="users" class="h-[18px] w-[18px]"></i> Candidatos</a>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="message-square" class="h-[18px] w-[18px]"></i> Mensajes</a>
+
+        <p class="px-3 pb-2 pt-5 text-[11px] font-semibold uppercase tracking-wider text-muted/70">Organización</p>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="user-cog" class="h-[18px] w-[18px]"></i> Equipo</a>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="bar-chart-3" class="h-[18px] w-[18px]"></i> Reportes</a>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="settings" class="h-[18px] w-[18px]"></i> Configuración</a>
+      </nav>
+
+      <div class="border-t border-line p-3">
+        <div class="flex items-center gap-3 rounded-lg px-2 py-2">
+          <span class="grid h-9 w-9 place-items-center rounded-full text-[13px] font-bold text-white" style="background:#9336EA">TR</span>
+          <div class="min-w-0 flex-1"><p class="truncate text-[13.5px] font-semibold text-ink">Tomás Ríos</p><p class="truncate text-[12px] text-muted">Talent Lead · Acme</p></div>
+          <i data-lucide="chevron-down" class="h-4 w-4 text-muted"></i>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ===== Main ===== -->
+    <div class="flex min-w-0 flex-1 flex-col">
+
+      <!-- Topbar -->
+      <header class="flex h-16 shrink-0 items-center gap-4 border-b border-line px-6">
+        <div class="flex items-center gap-2 text-[13px] text-muted">
+          <span>Vacantes</span><i data-lucide="chevron-right" class="h-4 w-4"></i>
+          <span class="font-semibold text-ink">Backend Developer (Senior)</span>
+          <span class="ml-1 rounded-full px-2 py-0.5 text-[11px] font-semibold" style="background:rgba(34,197,94,.16);color:#34D07A">Activa</span>
+        </div>
+
+        <div class="ml-auto flex items-center gap-3">
+          <div class="hidden items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-muted md:flex">
+            <i data-lucide="search" class="h-4 w-4"></i> <input class="w-40 bg-transparent outline-none placeholder:text-muted/70" placeholder="Buscar candidato" />
+          </div>
+          <button class="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-muted transition hover:text-ink"><i data-lucide="sliders-horizontal" class="h-4 w-4"></i> Filtros</button>
+          <button class="btn btn-primary flex items-center gap-2 rounded-lg bg-brand px-3.5 py-2 text-[13px] font-semibold text-white"><i data-lucide="plus" class="h-4 w-4"></i> Candidato</button>
+          <button class="relative grid h-9 w-9 place-items-center rounded-lg border border-line bg-surface text-muted transition hover:text-ink"><i data-lucide="bell" class="h-[18px] w-[18px]"></i><span class="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-magenta"></span></button>
+        </div>
+      </header>
+
+      <!-- Board header -->
+      <div class="flex flex-wrap items-center justify-between gap-4 px-6 pt-6">
+        <div>
+          <h1 class="font-display text-[26px] font-bold tracking-tight text-ink">Pipeline</h1>
+          <p class="mt-1 text-[13.5px] text-muted">Publicada hace 5 días · 8 candidatos en proceso · 6 miembros del equipo</p>
+        </div>
+        <div class="flex items-center gap-2 rounded-lg border border-line bg-surface p-1 text-[13px]">
+          <button class="flex items-center gap-1.5 rounded-md bg-white/[0.06] px-3 py-1.5 font-medium text-ink"><i data-lucide="columns-3" class="h-4 w-4"></i> Tablero</button>
+          <button class="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-muted transition hover:text-ink"><i data-lucide="list" class="h-4 w-4"></i> Lista</button>
+        </div>
+      </div>
+
+      <!-- Kanban board -->
+      <div class="col-scroll flex-1 overflow-x-auto px-6 py-5">
+        <div class="flex h-full min-w-max gap-4">
+
+          <!-- Column: Nueva -->
+          <section class="flex w-[300px] flex-col rounded-2xl bg-surface/40 p-3">
+            <div class="mb-3 flex items-center justify-between px-1">
+              <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-brand"></span><span class="text-[14px] font-semibold text-ink">Nueva vacante</span><span class="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-muted">24</span></div>
+              <i data-lucide="plus" class="h-4 w-4 text-muted"></i>
+            </div>
+            <div class="col-scroll flex flex-col gap-3 overflow-y-auto pr-1">
+              <article class="kcard cursor-pointer rounded-xl border border-line bg-surface p-3.5">
+                <div class="flex items-center gap-2.5"><span class="h-9 w-9 rounded-full" style="background:#7C4DFF"></span><div><p class="text-[14px] font-semibold text-ink">Sofía Ramírez</p><p class="text-[12px] text-muted">Frontend Engineer</p></div></div>
+                <div class="mt-3 flex flex-wrap gap-1.5"><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">React</span><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">TS</span><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">Remoto</span></div>
+                <div class="mt-3 flex items-center justify-between text-[11.5px] text-muted"><span class="flex items-center gap-1"><i data-lucide="message-circle" class="h-3.5 w-3.5"></i> 2</span><span class="flex items-center gap-1"><i data-lucide="clock" class="h-3.5 w-3.5"></i> hace 2h</span></div>
+              </article>
+              <article class="kcard cursor-pointer rounded-xl border border-line bg-surface p-3.5">
+                <div class="flex items-center gap-2.5"><span class="h-9 w-9 rounded-full" style="background:#B266FF"></span><div><p class="text-[14px] font-semibold text-ink">Diego Herrera</p><p class="text-[12px] text-muted">Backend Engineer</p></div></div>
+                <div class="mt-3 flex flex-wrap gap-1.5"><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">Go</span><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">Senior</span></div>
+                <div class="mt-3 flex items-center justify-between text-[11.5px] text-muted"><span class="flex items-center gap-1"><i data-lucide="message-circle" class="h-3.5 w-3.5"></i> 0</span><span class="flex items-center gap-1"><i data-lucide="clock" class="h-3.5 w-3.5"></i> hace 5h</span></div>
+              </article>
+              <article class="kcard cursor-pointer rounded-xl border border-line bg-surface p-3.5">
+                <div class="flex items-center gap-2.5"><span class="h-9 w-9 rounded-full" style="background:#9B6BFF"></span><div><p class="text-[14px] font-semibold text-ink">Valeria Cruz</p><p class="text-[12px] text-muted">Fullstack</p></div></div>
+                <div class="mt-3 flex flex-wrap gap-1.5"><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">Node</span><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">React</span></div>
+                <div class="mt-3 flex items-center justify-between text-[11.5px] text-muted"><span class="flex items-center gap-1"><i data-lucide="message-circle" class="h-3.5 w-3.5"></i> 1</span><span class="flex items-center gap-1"><i data-lucide="clock" class="h-3.5 w-3.5"></i> hace 1d</span></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- Column: Screening -->
+          <section class="flex w-[300px] flex-col rounded-2xl bg-surface/40 p-3">
+            <div class="mb-3 flex items-center justify-between px-1">
+              <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-cyan"></span><span class="text-[14px] font-semibold text-ink">Screening</span><span class="rounded-full px-2 py-0.5 text-[11px]" style="background:rgba(34,211,238,.16);color:#22D3EE">8</span></div>
+              <i data-lucide="sparkles" class="h-4 w-4 text-cyan"></i>
+            </div>
+            <div class="col-scroll flex flex-col gap-3 overflow-y-auto pr-1">
+              <article class="kcard cursor-pointer rounded-xl border border-cyan/30 bg-surface p-3.5">
+                <div class="flex items-center justify-between"><div class="flex items-center gap-2.5"><span class="h-9 w-9 rounded-full" style="background:#22D3EE"></span><div><p class="text-[14px] font-semibold text-ink">Mateo Gómez</p><p class="text-[12px] text-muted">Backend Engineer</p></div></div><span class="rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:rgba(34,197,94,.16);color:#34D07A">92%</span></div>
+                <div class="mt-3 flex flex-wrap gap-1.5"><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">Go</span><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">K8s</span><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">6 años</span></div>
+                <div class="mt-3 flex items-center justify-between text-[11.5px] text-muted"><span class="flex items-center gap-1"><i data-lucide="message-circle" class="h-3.5 w-3.5"></i> 4</span><span class="flex items-center gap-1"><i data-lucide="clock" class="h-3.5 w-3.5"></i> hace 3h</span></div>
+              </article>
+              <article class="kcard cursor-pointer rounded-xl border border-line bg-surface p-3.5">
+                <div class="flex items-center justify-between"><div class="flex items-center gap-2.5"><span class="h-9 w-9 rounded-full" style="background:#1FC4DE"></span><div><p class="text-[14px] font-semibold text-ink">Camila Ríos</p><p class="text-[12px] text-muted">DevOps</p></div></div><span class="rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:rgba(34,211,238,.16);color:#22D3EE">87%</span></div>
+                <div class="mt-3 flex flex-wrap gap-1.5"><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">AWS</span><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[11px] text-muted">Terraform</span></div>
+                <div class="mt-3 flex items-center justify-between text-[11.5px] text-muted"><span class="flex items-center gap-1"><i data-lucide="message-circle" class="h-3.5 w-3.5"></i> 2</span><span class="flex items-center gap-1"><i data-lucide="clock" class="h-3.5 w-3.5"></i> hace 6h</span></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- Column: Entrevista -->
+          <section class="flex w-[300px] flex-col rounded-2xl bg-surface/40 p-3">
+            <div class="mb-3 flex items-center justify-between px-1">
+              <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-magenta"></span><span class="text-[14px] font-semibold text-ink">Entrevista</span><span class="rounded-full px-2 py-0.5 text-[11px]" style="background:rgba(217,70,239,.16);color:#E879F9">2</span></div>
+              <i data-lucide="calendar" class="h-4 w-4 text-muted"></i>
+            </div>
+            <div class="col-scroll flex flex-col gap-3 overflow-y-auto pr-1">
+              <article class="kcard cursor-pointer rounded-xl border border-line bg-surface p-3.5">
+                <div class="flex items-center justify-between"><div class="flex items-center gap-2.5"><span class="h-9 w-9 rounded-full" style="background:#D946EF"></span><div><p class="text-[14px] font-semibold text-ink">Andrés Vega</p><p class="text-[12px] text-muted">Backend Engineer</p></div></div><span class="rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:rgba(34,197,94,.16);color:#34D07A">90%</span></div>
+                <div class="mt-3 flex items-center gap-2 rounded-lg bg-base/60 px-2.5 py-2 text-[11.5px] text-muted"><i data-lucide="calendar-clock" class="h-4 w-4 text-magenta"></i> Miércoles 15:00 · Video</div>
+                <div class="mt-2.5 flex items-center justify-between text-[11.5px] text-muted"><span class="flex items-center gap-1"><i data-lucide="message-circle" class="h-3.5 w-3.5"></i> 6</span><span class="flex items-center gap-1"><i data-lucide="user" class="h-3.5 w-3.5"></i> Tomás R.</span></div>
+              </article>
+              <article class="kcard cursor-pointer rounded-xl border border-line bg-surface p-3.5">
+                <div class="flex items-center justify-between"><div class="flex items-center gap-2.5"><span class="h-9 w-9 rounded-full" style="background:#E879F9"></span><div><p class="text-[14px] font-semibold text-ink">Lucía Peña</p><p class="text-[12px] text-muted">Frontend Engineer</p></div></div><span class="rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:rgba(34,211,238,.16);color:#22D3EE">88%</span></div>
+                <div class="mt-3 flex items-center gap-2 rounded-lg bg-base/60 px-2.5 py-2 text-[11.5px] text-muted"><i data-lucide="calendar-clock" class="h-4 w-4 text-magenta"></i> Jueves 11:30 · Presencial</div>
+                <div class="mt-2.5 flex items-center justify-between text-[11.5px] text-muted"><span class="flex items-center gap-1"><i data-lucide="message-circle" class="h-3.5 w-3.5"></i> 3</span><span class="flex items-center gap-1"><i data-lucide="user" class="h-3.5 w-3.5"></i> Ana G.</span></div>
+              </article>
+            </div>
+          </section>
+
+          <!-- Column: Contratado -->
+          <section class="flex w-[300px] flex-col rounded-2xl bg-surface/40 p-3">
+            <div class="mb-3 flex items-center justify-between px-1">
+              <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-grass"></span><span class="text-[14px] font-semibold text-ink">Contratado</span><span class="rounded-full px-2 py-0.5 text-[11px]" style="background:rgba(34,197,94,.16);color:#34D07A">1</span></div>
+              <i data-lucide="party-popper" class="h-4 w-4 text-grass"></i>
+            </div>
+            <div class="col-scroll flex flex-col gap-3 overflow-y-auto pr-1">
+              <article class="kcard cursor-pointer rounded-xl border border-grass/30 bg-surface p-3.5">
+                <div class="flex items-center justify-between"><div class="flex items-center gap-2.5"><span class="h-9 w-9 rounded-full" style="background:#22C55E"></span><div><p class="text-[14px] font-semibold text-ink">Javier Solís</p><p class="text-[12px] text-muted">Backend Engineer</p></div></div><i data-lucide="check-circle-2" class="h-5 w-5 text-grass"></i></div>
+                <div class="mt-3 flex items-center gap-2 rounded-lg bg-base/60 px-2.5 py-2 text-[11.5px] text-muted"><i data-lucide="badge-check" class="h-4 w-4 text-grass"></i> Oferta aceptada · Inicia 1 Ago</div>
+              </article>
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initAurora } from './assets/aurora.js';
+  </script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>
