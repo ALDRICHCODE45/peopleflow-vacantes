@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PeopleFlow — Panel empresa · Nueva vacante</title>
+
+  <!--
+    Anti-flash inline script — MUST run before Tailwind processes and before
+    first paint, so the persisted theme (or default 'dark') is already
+    applied when styles resolve. Keep this block FIRST in <head>.
+  -->
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('pf-theme');
+        var theme  = stored;
+        if (theme !== 'dark' && theme !== 'light') {
+          theme = (window.matchMedia &&
+                   window.matchMedia('(prefers-color-scheme: light)').matches)
+                    ? 'light' : 'dark';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (_e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+
+  <!-- Fonts -->
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+
+  <!-- Load order: base.css → Tailwind CDN → theme.js → lucide. -->
+  <link rel="stylesheet" href="assets/base.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/theme.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  <style>
+    .nav-item { transition: background-color .2s ease, color .2s ease; }
+    .nav-item:hover { background-color: rgb(var(--overlay) / 0.04); color: rgb(var(--ink)); }
+    .nav-active { background-color: rgba(147,54,234,0.14); color: rgb(var(--ink)); box-shadow: inset 2px 0 0 #9336EA; }
+    .col-scroll::-webkit-scrollbar { width: 6px; }
+    .col-scroll::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 99px; }
+    .field { transition: border-color .2s ease, background-color .2s ease; }
+    .field:focus { outline: none; border-color: rgba(147,54,234,0.7); background-color: rgb(var(--overlay) / 0.02); }
+    /* Segmented option pills (modality / seniority) */
+    .seg { transition: border-color .2s ease, background-color .2s ease, color .2s ease; }
+    .seg:hover { border-color: rgba(147,54,234,0.5); color: rgb(var(--ink)); }
+    .seg-active { background-color: rgba(147,54,234,0.16); border-color: rgba(147,54,234,0.55); color: rgb(var(--ink)); }
+    /* Removable skill chips */
+    .skill-chip { transition: border-color .2s ease; }
+  </style>
+</head>
+
+<body class="h-screen overflow-hidden bg-base font-sans text-ink antialiased">
+  <div class="flex h-full">
+
+    <!-- ===== Sidebar ===== -->
+    <aside class="hidden w-64 shrink-0 flex-col border-r border-line bg-surface/40 lg:flex">
+      <div class="flex h-16 items-center px-6">
+        <a href="../landing-preview/index.html" data-pf-logo>
+          <img src="assets/peopleflow-dark.webp"  alt="PeopleFlow" class="pf-logo-dark  h-6 w-auto" />
+          <img src="assets/peopleflow-light.webp" alt="PeopleFlow" class="pf-logo-light h-6 w-auto" />
+        </a>
+      </div>
+
+      <nav class="flex-1 space-y-1 px-3 py-4">
+        <p class="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted/70">Principal</p>
+        <a href="dashboard-empresa.html" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="layout-dashboard" class="h-[18px] w-[18px]"></i> Dashboard</a>
+        <a href="sistema-empresa.html" class="nav-item nav-active flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px]"><i data-lucide="briefcase" class="h-[18px] w-[18px]"></i> Vacantes</a>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="users" class="h-[18px] w-[18px]"></i> Candidatos</a>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="message-square" class="h-[18px] w-[18px]"></i> Mensajes</a>
+
+        <p class="px-3 pb-2 pt-5 text-[11px] font-semibold uppercase tracking-wider text-muted/70">Organización</p>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="user-cog" class="h-[18px] w-[18px]"></i> Equipo</a>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="bar-chart-3" class="h-[18px] w-[18px]"></i> Reportes</a>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="settings" class="h-[18px] w-[18px]"></i> Configuración</a>
+      </nav>
+
+      <div class="border-t border-line p-3">
+        <div class="flex items-center gap-3 rounded-lg px-2 py-2">
+          <span class="grid h-9 w-9 place-items-center rounded-full text-[13px] font-bold text-white" style="background:#9336EA">TR</span>
+          <div class="min-w-0 flex-1"><p class="truncate text-[13.5px] font-semibold text-ink">Tomás Ríos</p><p class="truncate text-[12px] text-muted">Talent Lead · Acme</p></div>
+          <i data-lucide="chevron-down" class="h-4 w-4 text-muted"></i>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ===== Main ===== -->
+    <div class="flex min-w-0 flex-1 flex-col">
+
+      <!-- Topbar -->
+      <header class="flex h-16 shrink-0 items-center gap-4 border-b border-line px-6">
+        <div class="flex items-center gap-2 text-[13px] text-muted">
+          <a href="sistema-empresa.html" class="transition hover:text-ink">Vacantes</a>
+          <i data-lucide="chevron-right" class="h-4 w-4"></i>
+          <span class="font-semibold text-ink">Nueva vacante</span>
+        </div>
+
+        <div class="ml-auto flex items-center gap-3">
+          <!-- Theme toggle -->
+          <button data-pf-theme-toggle type="button" aria-label="Cambiar tema" title="Cambiar tema"
+                  class="grid h-9 w-9 place-items-center rounded-lg border border-line bg-surface text-muted transition hover:border-brand/60 hover:text-ink">
+            <i data-lucide="moon" class="pf-icon-moon h-[18px] w-[18px]"></i>
+            <i data-lucide="sun"  class="pf-icon-sun  h-[18px] w-[18px]"></i>
+          </button>
+          <button class="relative grid h-9 w-9 place-items-center rounded-lg border border-line bg-surface text-muted transition hover:text-ink"><i data-lucide="bell" class="h-[18px] w-[18px]"></i><span class="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-magenta"></span></button>
+        </div>
+      </header>
+
+      <!-- Scrollable content -->
+      <div class="col-scroll flex-1 overflow-y-auto px-6 py-6">
+        <div class="mx-auto max-w-5xl">
+
+          <!-- Page header -->
+          <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1 class="font-display text-[26px] font-bold tracking-tight text-ink">Nueva vacante</h1>
+              <p class="mt-1 text-[13.5px] text-muted">Completá los datos y publicala en tu bolsa de trabajo.</p>
+            </div>
+            <div class="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-[12.5px] text-muted">
+              <i data-lucide="save" class="h-3.5 w-3.5"></i> Borrador guardado automáticamente
+            </div>
+          </div>
+
+          <div class="grid gap-6 lg:grid-cols-[1fr_320px]">
+
+            <!-- ===== Form column ===== -->
+            <div class="space-y-5">
+
+              <!-- Section: basic info -->
+              <section class="rounded-2xl border border-line bg-surface/40 p-6">
+                <div class="mb-5 flex items-center gap-2.5">
+                  <span class="grid h-8 w-8 place-items-center rounded-lg" style="background:rgba(147,54,234,.14)"><i data-lucide="file-text" class="h-[18px] w-[18px] text-glow"></i></span>
+                  <h2 class="font-display text-[17px] font-semibold text-ink">Información básica</h2>
+                </div>
+
+                <div class="space-y-4">
+                  <div>
+                    <label class="mb-1.5 block text-[13px] font-medium text-muted">Título del puesto</label>
+                    <input id="f-title" class="field w-full rounded-lg border border-line bg-base/60 px-3.5 py-2.5 text-[14.5px] text-ink placeholder:text-muted/60" placeholder="Ej: Backend Developer (Senior)" value="Backend Developer (Senior)" />
+                  </div>
+                  <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label class="mb-1.5 block text-[13px] font-medium text-muted">Área</label>
+                      <select class="field w-full rounded-lg border border-line bg-base/60 px-3.5 py-2.5 text-[14.5px] text-ink">
+                        <option selected>Backend</option><option>Frontend</option><option>Fullstack</option><option>DevOps</option><option>Data</option><option>Diseño</option><option>Producto</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label class="mb-1.5 block text-[13px] font-medium text-muted">Ubicación</label>
+                      <input class="field w-full rounded-lg border border-line bg-base/60 px-3.5 py-2.5 text-[14.5px] text-ink placeholder:text-muted/60" placeholder="Ej: Buenos Aires, Argentina" value="Buenos Aires, Argentina" />
+                    </div>
+                  </div>
+
+                  <!-- Modality -->
+                  <div>
+                    <label class="mb-2 block text-[13px] font-medium text-muted">Modalidad</label>
+                    <div class="flex flex-wrap gap-2">
+                      <button class="seg seg-active flex items-center gap-1.5 rounded-lg border border-line px-3.5 py-2 text-[13px]"><i data-lucide="globe" class="h-4 w-4"></i> Remoto</button>
+                      <button class="seg flex items-center gap-1.5 rounded-lg border border-line px-3.5 py-2 text-[13px] text-muted"><i data-lucide="building-2" class="h-4 w-4"></i> Híbrido</button>
+                      <button class="seg flex items-center gap-1.5 rounded-lg border border-line px-3.5 py-2 text-[13px] text-muted"><i data-lucide="building" class="h-4 w-4"></i> Presencial</button>
+                    </div>
+                  </div>
+
+                  <!-- Seniority + type -->
+                  <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label class="mb-2 block text-[13px] font-medium text-muted">Seniority</label>
+                      <div class="flex flex-wrap gap-2">
+                        <button class="seg rounded-lg border border-line px-3 py-1.5 text-[12.5px] text-muted">Junior</button>
+                        <button class="seg rounded-lg border border-line px-3 py-1.5 text-[12.5px] text-muted">Semi Sr</button>
+                        <button class="seg seg-active rounded-lg border border-line px-3 py-1.5 text-[12.5px]">Senior</button>
+                      </div>
+                    </div>
+                    <div>
+                      <label class="mb-2 block text-[13px] font-medium text-muted">Jornada</label>
+                      <div class="flex flex-wrap gap-2">
+                        <button class="seg seg-active rounded-lg border border-line px-3 py-1.5 text-[12.5px]">Full-time</button>
+                        <button class="seg rounded-lg border border-line px-3 py-1.5 text-[12.5px] text-muted">Part-time</button>
+                        <button class="seg rounded-lg border border-line px-3 py-1.5 text-[12.5px] text-muted">Contrato</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Section: description -->
+              <section class="rounded-2xl border border-line bg-surface/40 p-6">
+                <div class="mb-5 flex items-center gap-2.5">
+                  <span class="grid h-8 w-8 place-items-center rounded-lg" style="background:rgba(34,211,238,.14)"><i data-lucide="align-left" class="h-[18px] w-[18px] text-cyan"></i></span>
+                  <h2 class="font-display text-[17px] font-semibold text-ink">Descripción</h2>
+                </div>
+
+                <!-- Fake toolbar -->
+                <div class="mb-2 flex items-center gap-1 rounded-t-lg border border-line border-b-0 bg-base/40 px-2 py-1.5 text-muted">
+                  <button class="grid h-7 w-7 place-items-center rounded transition hover:text-ink"><i data-lucide="bold" class="h-4 w-4"></i></button>
+                  <button class="grid h-7 w-7 place-items-center rounded transition hover:text-ink"><i data-lucide="italic" class="h-4 w-4"></i></button>
+                  <button class="grid h-7 w-7 place-items-center rounded transition hover:text-ink"><i data-lucide="list" class="h-4 w-4"></i></button>
+                  <span class="mx-1 h-4 w-px bg-line"></span>
+                  <button class="grid h-7 w-7 place-items-center rounded transition hover:text-ink"><i data-lucide="link" class="h-4 w-4"></i></button>
+                </div>
+                <textarea rows="5" class="field w-full resize-none rounded-b-lg border border-line bg-base/60 px-3.5 py-3 text-[14.5px] leading-relaxed text-ink placeholder:text-muted/60" placeholder="Describí el rol, el equipo y el impacto del puesto…">Buscamos un Backend Developer Senior para liderar el diseño y la evolución de nuestros servicios core. Vas a trabajar en una plataforma que procesa millones de eventos por día, con foco en performance, observabilidad y calidad de código.</textarea>
+              </section>
+
+              <!-- Section: requirements + stack -->
+              <section class="rounded-2xl border border-line bg-surface/40 p-6">
+                <div class="mb-5 flex items-center gap-2.5">
+                  <span class="grid h-8 w-8 place-items-center rounded-lg" style="background:rgba(217,70,239,.14)"><i data-lucide="list-checks" class="h-[18px] w-[18px] text-magenta"></i></span>
+                  <h2 class="font-display text-[17px] font-semibold text-ink">Requisitos y stack</h2>
+                </div>
+
+                <div class="space-y-4">
+                  <div>
+                    <label class="mb-1.5 block text-[13px] font-medium text-muted">Requisitos (uno por línea)</label>
+                    <textarea rows="4" class="field w-full resize-none rounded-lg border border-line bg-base/60 px-3.5 py-3 text-[14.5px] leading-relaxed text-ink placeholder:text-muted/60">5+ años de experiencia en desarrollo backend
+Sólido dominio de Go y arquitecturas distribuidas
+Experiencia con Kubernetes en producción
+Inglés técnico (lectura y escritura)</textarea>
+                  </div>
+
+                  <!-- Stack chips -->
+                  <div>
+                    <label class="mb-1.5 block text-[13px] font-medium text-muted">Stack / tecnologías</label>
+                    <div class="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-base/60 p-2.5">
+                      <span class="skill-chip flex items-center gap-1.5 rounded-md border border-brand/40 bg-brand/10 px-2.5 py-1 text-[12.5px] text-ink">Go <i data-lucide="x" class="h-3 w-3 cursor-pointer text-muted"></i></span>
+                      <span class="skill-chip flex items-center gap-1.5 rounded-md border border-brand/40 bg-brand/10 px-2.5 py-1 text-[12.5px] text-ink">Kubernetes <i data-lucide="x" class="h-3 w-3 cursor-pointer text-muted"></i></span>
+                      <span class="skill-chip flex items-center gap-1.5 rounded-md border border-brand/40 bg-brand/10 px-2.5 py-1 text-[12.5px] text-ink">PostgreSQL <i data-lucide="x" class="h-3 w-3 cursor-pointer text-muted"></i></span>
+                      <span class="skill-chip flex items-center gap-1.5 rounded-md border border-brand/40 bg-brand/10 px-2.5 py-1 text-[12.5px] text-ink">gRPC <i data-lucide="x" class="h-3 w-3 cursor-pointer text-muted"></i></span>
+                      <input class="min-w-[120px] flex-1 bg-transparent px-1 py-1 text-[13px] text-ink outline-none placeholder:text-muted/60" placeholder="Agregar tecnología + Enter" />
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Section: compensation -->
+              <section class="rounded-2xl border border-line bg-surface/40 p-6">
+                <div class="mb-5 flex items-center gap-2.5">
+                  <span class="grid h-8 w-8 place-items-center rounded-lg" style="background:rgba(34,197,94,.14)"><i data-lucide="wallet" class="h-[18px] w-[18px] text-grass"></i></span>
+                  <h2 class="font-display text-[17px] font-semibold text-ink">Compensación</h2>
+                </div>
+
+                <div class="grid gap-4 sm:grid-cols-[110px_1fr_1fr]">
+                  <div>
+                    <label class="mb-1.5 block text-[13px] font-medium text-muted">Moneda</label>
+                    <select class="field w-full rounded-lg border border-line bg-base/60 px-3 py-2.5 text-[14.5px] text-ink">
+                      <option selected>USD</option><option>ARS</option><option>MXN</option><option>EUR</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="mb-1.5 block text-[13px] font-medium text-muted">Mínimo</label>
+                    <input class="field w-full rounded-lg border border-line bg-base/60 px-3.5 py-2.5 text-[14.5px] text-ink" value="4.000" />
+                  </div>
+                  <div>
+                    <label class="mb-1.5 block text-[13px] font-medium text-muted">Máximo</label>
+                    <input class="field w-full rounded-lg border border-line bg-base/60 px-3.5 py-2.5 text-[14.5px] text-ink" value="5.500" />
+                  </div>
+                </div>
+                <label class="mt-3 flex cursor-pointer items-center gap-2.5 text-[13px] text-muted">
+                  <span class="grid h-4 w-4 place-items-center rounded border border-brand bg-brand/20"><i data-lucide="check" class="h-3 w-3 text-glow"></i></span>
+                  Mostrar el salario en la publicación pública
+                </label>
+              </section>
+
+            </div>
+
+            <!-- ===== Sticky side: publish + preview ===== -->
+            <aside>
+              <div class="sticky top-0 space-y-4">
+
+                <!-- Publish options -->
+                <div class="rounded-2xl border border-line bg-surface/50 p-5">
+                  <h3 class="text-[13px] font-semibold uppercase tracking-wide text-muted/80">Publicación</h3>
+                  <div class="mt-3 space-y-2.5">
+                    <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-brand/40 bg-brand/10 p-3">
+                      <span class="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full border border-brand bg-brand"><span class="h-1.5 w-1.5 rounded-full bg-white"></span></span>
+                      <span><span class="block text-[13.5px] font-semibold text-ink">Bolsa de trabajo pública</span><span class="block text-[12px] text-muted">Visible en tu job board para cualquier candidato</span></span>
+                    </label>
+                    <label class="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-3">
+                      <span class="mt-0.5 h-4 w-4 shrink-0 rounded-full border border-line"></span>
+                      <span><span class="block text-[13.5px] font-semibold text-ink">Solo interna</span><span class="block text-[12px] text-muted">No aparece en el job board; la compartís por link</span></span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Public card preview -->
+                <div class="rounded-2xl border border-line bg-surface/50 p-5">
+                  <div class="mb-3 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-wide text-muted/70">
+                    <i data-lucide="eye" class="h-3.5 w-3.5"></i> Vista previa pública
+                  </div>
+                  <!-- mimics a job-card from vacantes-listado.html -->
+                  <div class="rounded-xl border border-line bg-base/50 p-4">
+                    <div class="flex items-start gap-3">
+                      <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-[13px] font-bold text-white" style="background:linear-gradient(135deg,#9336EA,#22D3EE)">Ac</span>
+                      <div class="min-w-0">
+                        <p class="text-[14px] font-semibold leading-tight text-ink">Backend Developer (Senior)</p>
+                        <p class="mt-0.5 text-[12px] text-muted">Acme Technologies · Buenos Aires</p>
+                      </div>
+                    </div>
+                    <div class="mt-3 flex flex-wrap gap-1.5">
+                      <span class="rounded-md overlay-soft px-2 py-0.5 text-[11px] text-muted">Remoto</span>
+                      <span class="rounded-md overlay-soft px-2 py-0.5 text-[11px] text-muted">Senior</span>
+                      <span class="rounded-md overlay-soft px-2 py-0.5 text-[11px] text-muted">Go</span>
+                    </div>
+                    <div class="mt-3 border-t border-line/60 pt-2.5 text-[12px] text-muted">
+                      <span class="font-semibold text-ink">USD 4.000 – 5.500</span> / mes
+                    </div>
+                  </div>
+                  <p class="mt-3 text-[11.5px] leading-relaxed text-muted">Así se verá tu vacante en la bolsa de trabajo.</p>
+                </div>
+
+                <!-- Actions -->
+                <div class="space-y-2.5">
+                  <button onclick="publishVacancy()" class="btn btn-primary flex w-full items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-[14.5px] font-semibold text-white">
+                    <i data-lucide="send" class="h-4 w-4"></i> Publicar vacante
+                  </button>
+                  <button class="btn btn-ghost flex w-full items-center justify-center gap-2 rounded-xl border border-line px-4 py-3 text-[14px] font-semibold text-muted">
+                    Guardar borrador
+                  </button>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Success toast (hidden) ===== -->
+  <div id="toast" class="pointer-events-none fixed bottom-6 right-6 z-50 flex translate-y-3 items-center gap-3 rounded-xl border border-grass/40 bg-surface px-4 py-3 opacity-0 shadow-2xl shadow-black/40 transition-all duration-300">
+    <span class="grid h-8 w-8 place-items-center rounded-full" style="background:rgba(34,197,94,.18)"><i data-lucide="check" class="h-4 w-4 text-grass"></i></span>
+    <div>
+      <p class="text-[13.5px] font-semibold text-ink">Vacante publicada</p>
+      <p class="text-[12px] text-muted">Ya está visible en tu bolsa de trabajo.</p>
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+    if (window.PFThemeSyncToggle) window.PFThemeSyncToggle();
+
+    // Segmented pill toggle (modality / seniority / jornada) — single select per group.
+    document.querySelectorAll('.seg').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.preventDefault();
+        var siblings = btn.parentElement.querySelectorAll('.seg');
+        siblings.forEach(function (s) { s.classList.remove('seg-active'); s.classList.add('text-muted'); });
+        btn.classList.add('seg-active');
+        btn.classList.remove('text-muted');
+      });
+    });
+
+    // Publish → show toast briefly, then go to the internal vacancies board.
+    function publishVacancy() {
+      var t = document.getElementById('toast');
+      t.classList.remove('opacity-0', 'translate-y-3');
+      setTimeout(function () {
+        window.location.href = 'sistema-empresa.html';
+      }, 1400);
+    }
+  </script>
+  <script src="assets/theme-toggle.js"></script>
+</body>
+</html>

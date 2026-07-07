@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PeopleFlow — Panel empresa · Dashboard</title>
+
+  <!--
+    Anti-flash inline script — MUST run before Tailwind processes and before
+    first paint, so the persisted theme (or default 'dark') is already
+    applied when styles resolve. Keep this block FIRST in <head>.
+  -->
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('pf-theme');
+        var theme  = stored;
+        if (theme !== 'dark' && theme !== 'light') {
+          theme = (window.matchMedia &&
+                   window.matchMedia('(prefers-color-scheme: light)').matches)
+                    ? 'light' : 'dark';
+        }
+        document.documentElement.setAttribute('data-theme', theme);
+      } catch (_e) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    })();
+  </script>
+
+  <!-- Fonts -->
+  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+
+  <!--
+    Load order: base.css → Tailwind CDN → theme.js → lucide. (see sistema-empresa.html)
+  -->
+  <link rel="stylesheet" href="assets/base.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="assets/theme.js"></script>
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  <style>
+    .nav-item { transition: background-color .2s ease, color .2s ease; }
+    .nav-item:hover { background-color: rgb(var(--overlay) / 0.04); color: rgb(var(--ink)); }
+    .nav-active { background-color: rgba(147,54,234,0.14); color: rgb(var(--ink)); box-shadow: inset 2px 0 0 #9336EA; }
+    .stat-card { transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease; }
+    .stat-card:hover { transform: translateY(-2px); border-color: rgba(147,54,234,0.5); box-shadow: 0 12px 30px -16px rgba(147,54,234,0.5); }
+    .col-scroll::-webkit-scrollbar { width: 6px; }
+    .col-scroll::-webkit-scrollbar-thumb { background: rgb(var(--line)); border-radius: 99px; }
+    /* Chart bars grow-in */
+    @keyframes barGrow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+    .bar { transform-origin: bottom; animation: barGrow .7s cubic-bezier(.2,.8,.3,1) both; }
+  </style>
+</head>
+
+<body class="h-screen overflow-hidden bg-base font-sans text-ink antialiased">
+  <div class="flex h-full">
+
+    <!-- ===== Sidebar ===== -->
+    <aside class="hidden w-64 shrink-0 flex-col border-r border-line bg-surface/40 lg:flex">
+      <div class="flex h-16 items-center px-6">
+        <a href="../landing-preview/index.html" data-pf-logo>
+          <img src="assets/peopleflow-dark.webp"  alt="PeopleFlow" class="pf-logo-dark  h-6 w-auto" />
+          <img src="assets/peopleflow-light.webp" alt="PeopleFlow" class="pf-logo-light h-6 w-auto" />
+        </a>
+      </div>
+
+      <nav class="flex-1 space-y-1 px-3 py-4">
+        <p class="px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wider text-muted/70">Principal</p>
+        <a href="dashboard-empresa.html" class="nav-item nav-active flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px]"><i data-lucide="layout-dashboard" class="h-[18px] w-[18px]"></i> Dashboard</a>
+        <a href="sistema-empresa.html" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="briefcase" class="h-[18px] w-[18px]"></i> Vacantes</a>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="users" class="h-[18px] w-[18px]"></i> Candidatos</a>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="message-square" class="h-[18px] w-[18px]"></i> Mensajes</a>
+
+        <p class="px-3 pb-2 pt-5 text-[11px] font-semibold uppercase tracking-wider text-muted/70">Organización</p>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="user-cog" class="h-[18px] w-[18px]"></i> Equipo</a>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="bar-chart-3" class="h-[18px] w-[18px]"></i> Reportes</a>
+        <a href="#" class="nav-item flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-muted"><i data-lucide="settings" class="h-[18px] w-[18px]"></i> Configuración</a>
+      </nav>
+
+      <div class="border-t border-line p-3">
+        <div class="flex items-center gap-3 rounded-lg px-2 py-2">
+          <span class="grid h-9 w-9 place-items-center rounded-full text-[13px] font-bold text-white" style="background:#9336EA">TR</span>
+          <div class="min-w-0 flex-1"><p class="truncate text-[13.5px] font-semibold text-ink">Tomás Ríos</p><p class="truncate text-[12px] text-muted">Talent Lead · Acme</p></div>
+          <i data-lucide="chevron-down" class="h-4 w-4 text-muted"></i>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ===== Main ===== -->
+    <div class="flex min-w-0 flex-1 flex-col">
+
+      <!-- Topbar -->
+      <header class="flex h-16 shrink-0 items-center gap-4 border-b border-line px-6">
+        <div class="flex items-center gap-2 text-[13px] text-muted">
+          <span class="font-semibold text-ink">Dashboard</span>
+        </div>
+
+        <div class="ml-auto flex items-center gap-3">
+          <div class="hidden items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-[13px] text-muted md:flex">
+            <i data-lucide="search" class="h-4 w-4"></i> <input class="w-40 bg-transparent outline-none placeholder:text-muted/70" placeholder="Buscar" />
+          </div>
+          <!-- Theme toggle -->
+          <button data-pf-theme-toggle type="button" aria-label="Cambiar tema" title="Cambiar tema"
+                  class="grid h-9 w-9 place-items-center rounded-lg border border-line bg-surface text-muted transition hover:border-brand/60 hover:text-ink">
+            <i data-lucide="moon" class="pf-icon-moon h-[18px] w-[18px]"></i>
+            <i data-lucide="sun"  class="pf-icon-sun  h-[18px] w-[18px]"></i>
+          </button>
+          <a href="crear-vacante.html" class="btn btn-primary flex items-center gap-2 rounded-lg bg-brand px-3.5 py-2 text-[13px] font-semibold text-white"><i data-lucide="plus" class="h-4 w-4"></i> Nueva vacante</a>
+          <button class="relative grid h-9 w-9 place-items-center rounded-lg border border-line bg-surface text-muted transition hover:text-ink"><i data-lucide="bell" class="h-[18px] w-[18px]"></i><span class="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-magenta"></span></button>
+        </div>
+      </header>
+
+      <!-- Scrollable content -->
+      <div class="col-scroll flex-1 overflow-y-auto px-6 py-6">
+
+        <!-- Greeting -->
+        <div class="mb-6">
+          <h1 class="font-display text-[26px] font-bold tracking-tight text-ink">Hola, Tomás 👋</h1>
+          <p class="mt-1 text-[13.5px] text-muted">Esto es lo que pasó en tus procesos esta semana.</p>
+        </div>
+
+        <!-- KPI cards -->
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div class="stat-card rounded-2xl border border-line bg-surface/50 p-5">
+            <div class="flex items-center justify-between">
+              <span class="grid h-10 w-10 place-items-center rounded-xl" style="background:rgba(147,54,234,.14)"><i data-lucide="briefcase" class="h-5 w-5 text-glow"></i></span>
+              <span class="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold" style="background:rgba(34,197,94,.16);color:#34D07A"><i data-lucide="trending-up" class="h-3 w-3"></i> +2</span>
+            </div>
+            <p class="mt-4 font-display text-[28px] font-bold text-ink">12</p>
+            <p class="text-[13px] text-muted">Vacantes activas</p>
+          </div>
+          <div class="stat-card rounded-2xl border border-line bg-surface/50 p-5">
+            <div class="flex items-center justify-between">
+              <span class="grid h-10 w-10 place-items-center rounded-xl" style="background:rgba(34,211,238,.14)"><i data-lucide="users" class="h-5 w-5 text-cyan"></i></span>
+              <span class="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold" style="background:rgba(34,197,94,.16);color:#34D07A"><i data-lucide="trending-up" class="h-3 w-3"></i> +18</span>
+            </div>
+            <p class="mt-4 font-display text-[28px] font-bold text-ink">86</p>
+            <p class="text-[13px] text-muted">Candidatos en proceso</p>
+          </div>
+          <div class="stat-card rounded-2xl border border-line bg-surface/50 p-5">
+            <div class="flex items-center justify-between">
+              <span class="grid h-10 w-10 place-items-center rounded-xl" style="background:rgba(217,70,239,.14)"><i data-lucide="calendar-clock" class="h-5 w-5 text-magenta"></i></span>
+              <span class="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold" style="background:rgba(217,70,239,.16);color:#E879F9">Hoy</span>
+            </div>
+            <p class="mt-4 font-display text-[28px] font-bold text-ink">5</p>
+            <p class="text-[13px] text-muted">Entrevistas agendadas</p>
+          </div>
+          <div class="stat-card rounded-2xl border border-line bg-surface/50 p-5">
+            <div class="flex items-center justify-between">
+              <span class="grid h-10 w-10 place-items-center rounded-xl" style="background:rgba(34,197,94,.14)"><i data-lucide="party-popper" class="h-5 w-5 text-grass"></i></span>
+              <span class="flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold" style="background:rgba(34,197,94,.16);color:#34D07A"><i data-lucide="trending-up" class="h-3 w-3"></i> +1</span>
+            </div>
+            <p class="mt-4 font-display text-[28px] font-bold text-ink">3</p>
+            <p class="text-[13px] text-muted">Contrataciones este mes</p>
+          </div>
+        </div>
+
+        <!-- Row: chart + pipeline funnel -->
+        <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+
+          <!-- Activity chart -->
+          <div class="rounded-2xl border border-line bg-surface/40 p-5 lg:col-span-2">
+            <div class="mb-5 flex items-center justify-between">
+              <div>
+                <h2 class="font-display text-[17px] font-semibold text-ink">Postulaciones</h2>
+                <p class="text-[12.5px] text-muted">Últimos 7 días</p>
+              </div>
+              <div class="flex items-center gap-2 rounded-lg border border-line bg-surface p-1 text-[12.5px]">
+                <button class="rounded-md overlay-2 px-2.5 py-1 font-medium text-ink">7d</button>
+                <button class="rounded-md px-2.5 py-1 text-muted transition hover:text-ink">30d</button>
+                <button class="rounded-md px-2.5 py-1 text-muted transition hover:text-ink">90d</button>
+              </div>
+            </div>
+            <!-- Bar chart (mock) -->
+            <div class="flex h-48 items-end justify-between gap-3">
+              <div class="flex flex-1 flex-col items-center gap-2">
+                <div class="bar w-full rounded-t-lg bg-brand/70" style="height:45%;animation-delay:.05s"></div>
+                <span class="text-[11.5px] text-muted">Lun</span>
+              </div>
+              <div class="flex flex-1 flex-col items-center gap-2">
+                <div class="bar w-full rounded-t-lg bg-brand/70" style="height:62%;animation-delay:.1s"></div>
+                <span class="text-[11.5px] text-muted">Mar</span>
+              </div>
+              <div class="flex flex-1 flex-col items-center gap-2">
+                <div class="bar w-full rounded-t-lg bg-brand/70" style="height:38%;animation-delay:.15s"></div>
+                <span class="text-[11.5px] text-muted">Mié</span>
+              </div>
+              <div class="flex flex-1 flex-col items-center gap-2">
+                <div class="bar w-full rounded-t-lg bg-brand" style="height:88%;animation-delay:.2s"></div>
+                <span class="text-[11.5px] font-medium text-ink">Jue</span>
+              </div>
+              <div class="flex flex-1 flex-col items-center gap-2">
+                <div class="bar w-full rounded-t-lg bg-brand/70" style="height:70%;animation-delay:.25s"></div>
+                <span class="text-[11.5px] text-muted">Vie</span>
+              </div>
+              <div class="flex flex-1 flex-col items-center gap-2">
+                <div class="bar w-full rounded-t-lg bg-brand/40" style="height:28%;animation-delay:.3s"></div>
+                <span class="text-[11.5px] text-muted">Sáb</span>
+              </div>
+              <div class="flex flex-1 flex-col items-center gap-2">
+                <div class="bar w-full rounded-t-lg bg-brand/40" style="height:22%;animation-delay:.35s"></div>
+                <span class="text-[11.5px] text-muted">Dom</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pipeline funnel -->
+          <div class="rounded-2xl border border-line bg-surface/40 p-5">
+            <h2 class="font-display text-[17px] font-semibold text-ink">Pipeline global</h2>
+            <p class="text-[12.5px] text-muted">Distribución de candidatos</p>
+            <div class="mt-5 space-y-4">
+              <div>
+                <div class="mb-1.5 flex items-center justify-between text-[13px]"><span class="flex items-center gap-2 text-muted"><span class="h-2.5 w-2.5 rounded-full bg-brand"></span> Nuevos</span><span class="font-semibold text-ink">42</span></div>
+                <div class="h-2 overflow-hidden rounded-full overlay-2"><div class="h-full rounded-full bg-brand" style="width:100%"></div></div>
+              </div>
+              <div>
+                <div class="mb-1.5 flex items-center justify-between text-[13px]"><span class="flex items-center gap-2 text-muted"><span class="h-2.5 w-2.5 rounded-full bg-cyan"></span> Screening</span><span class="font-semibold text-ink">28</span></div>
+                <div class="h-2 overflow-hidden rounded-full overlay-2"><div class="h-full rounded-full bg-cyan" style="width:67%"></div></div>
+              </div>
+              <div>
+                <div class="mb-1.5 flex items-center justify-between text-[13px]"><span class="flex items-center gap-2 text-muted"><span class="h-2.5 w-2.5 rounded-full bg-magenta"></span> Entrevista</span><span class="font-semibold text-ink">13</span></div>
+                <div class="h-2 overflow-hidden rounded-full overlay-2"><div class="h-full rounded-full bg-magenta" style="width:31%"></div></div>
+              </div>
+              <div>
+                <div class="mb-1.5 flex items-center justify-between text-[13px]"><span class="flex items-center gap-2 text-muted"><span class="h-2.5 w-2.5 rounded-full bg-grass"></span> Contratado</span><span class="font-semibold text-ink">3</span></div>
+                <div class="h-2 overflow-hidden rounded-full overlay-2"><div class="h-full rounded-full bg-grass" style="width:8%"></div></div>
+              </div>
+            </div>
+            <a href="sistema-empresa.html" class="mt-5 flex items-center justify-center gap-1.5 rounded-lg border border-line py-2.5 text-[13px] font-semibold text-muted transition hover:text-ink">Ver pipeline completo <i data-lucide="arrow-right" class="h-4 w-4"></i></a>
+          </div>
+        </div>
+
+        <!-- Row: active vacancies + recent activity -->
+        <div class="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+
+          <!-- Active vacancies -->
+          <div class="rounded-2xl border border-line bg-surface/40 p-5 lg:col-span-2">
+            <div class="mb-4 flex items-center justify-between">
+              <h2 class="font-display text-[17px] font-semibold text-ink">Vacantes activas</h2>
+              <a href="sistema-empresa.html" class="text-[13px] text-glow">Ver todas</a>
+            </div>
+            <div class="space-y-2.5">
+              <a href="sistema-empresa.html" class="flex items-center gap-4 rounded-xl border border-line bg-surface/50 p-3.5 transition hover:border-brand/50">
+                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-[13px] font-bold text-white" style="background:linear-gradient(135deg,#9336EA,#22D3EE)">Be</span>
+                <div class="min-w-0 flex-1">
+                  <p class="text-[14px] font-semibold text-ink">Backend Developer (Senior)</p>
+                  <p class="text-[12.5px] text-muted">8 candidatos · Publicada hace 5 días</p>
+                </div>
+                <span class="hidden items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold sm:flex" style="background:rgba(34,197,94,.16);color:#34D07A">Activa</span>
+                <i data-lucide="chevron-right" class="h-4 w-4 text-muted"></i>
+              </a>
+              <a href="sistema-empresa.html" class="flex items-center gap-4 rounded-xl border border-line bg-surface/50 p-3.5 transition hover:border-brand/50">
+                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-[13px] font-bold text-white" style="background:#7C4DFF">Fr</span>
+                <div class="min-w-0 flex-1">
+                  <p class="text-[14px] font-semibold text-ink">Frontend Engineer (React)</p>
+                  <p class="text-[12.5px] text-muted">15 candidatos · Publicada hace 2 días</p>
+                </div>
+                <span class="hidden items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold sm:flex" style="background:rgba(34,197,94,.16);color:#34D07A">Activa</span>
+                <i data-lucide="chevron-right" class="h-4 w-4 text-muted"></i>
+              </a>
+              <a href="sistema-empresa.html" class="flex items-center gap-4 rounded-xl border border-line bg-surface/50 p-3.5 transition hover:border-brand/50">
+                <span class="grid h-10 w-10 shrink-0 place-items-center rounded-lg text-[13px] font-bold text-white" style="background:#22D3EE">De</span>
+                <div class="min-w-0 flex-1">
+                  <p class="text-[14px] font-semibold text-ink">DevOps Engineer</p>
+                  <p class="text-[12.5px] text-muted">6 candidatos · Publicada hace 1 semana</p>
+                </div>
+                <span class="hidden items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold sm:flex" style="background:rgba(251,191,36,.16);color:#FBBF24">Pausada</span>
+                <i data-lucide="chevron-right" class="h-4 w-4 text-muted"></i>
+              </a>
+            </div>
+          </div>
+
+          <!-- Recent activity -->
+          <div class="rounded-2xl border border-line bg-surface/40 p-5">
+            <h2 class="mb-4 font-display text-[17px] font-semibold text-ink">Actividad reciente</h2>
+            <div class="space-y-4">
+              <div class="flex gap-3">
+                <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full" style="background:rgba(34,197,94,.14)"><i data-lucide="user-plus" class="h-4 w-4 text-grass"></i></span>
+                <div><p class="text-[13.5px] text-ink"><span class="font-semibold">Mateo Gómez</span> se postuló a Backend Developer</p><p class="text-[12px] text-muted">hace 20 min</p></div>
+              </div>
+              <div class="flex gap-3">
+                <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full" style="background:rgba(217,70,239,.14)"><i data-lucide="calendar-check" class="h-4 w-4 text-magenta"></i></span>
+                <div><p class="text-[13.5px] text-ink">Entrevista con <span class="font-semibold">Andrés Vega</span> confirmada</p><p class="text-[12px] text-muted">hace 1 h</p></div>
+              </div>
+              <div class="flex gap-3">
+                <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full" style="background:rgba(34,211,238,.14)"><i data-lucide="sparkles" class="h-4 w-4 text-cyan"></i></span>
+                <div><p class="text-[13.5px] text-ink">Screening completado para <span class="font-semibold">Camila Ríos</span> · 87%</p><p class="text-[12px] text-muted">hace 3 h</p></div>
+              </div>
+              <div class="flex gap-3">
+                <span class="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-full" style="background:rgba(34,197,94,.14)"><i data-lucide="badge-check" class="h-4 w-4 text-grass"></i></span>
+                <div><p class="text-[13.5px] text-ink"><span class="font-semibold">Javier Solís</span> aceptó la oferta</p><p class="text-[12px] text-muted">ayer</p></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script>
+    lucide.createIcons();
+    if (window.PFThemeSyncToggle) window.PFThemeSyncToggle();
+  </script>
+  <script src="assets/theme-toggle.js"></script>
+</body>
+</html>
