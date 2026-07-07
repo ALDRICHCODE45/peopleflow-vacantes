@@ -396,10 +396,160 @@
     </div>
   </section>
 
-  <!-- ================= FOOTER (minimal placeholder) ================= -->
-  <footer class="mx-auto max-w-[1280px] px-8 pb-14 pt-4">
-    <div class="border-t border-line pt-8 text-[13px] text-muted">
-      © 2026 PeopleFlow — Ecosistema de reclutamiento.
+  <!-- ================= SHOWCASE (Kanban board) ================= -->
+  <section class="relative z-10 mx-auto max-w-[1280px] px-8 py-24">
+    <div class="reveal mx-auto mb-12 max-w-[660px] text-center">
+      <p class="eyebrow mb-4 font-mono text-[12px] font-semibold uppercase text-brand">El producto</p>
+      <h2 class="font-display text-[42px] font-bold leading-tight tracking-tight text-ink">Tu tablero, en acción</h2>
+      <p class="mt-4 text-[18px] leading-relaxed text-muted">Arrastrá candidatos entre etapas, dejá comentarios y decidí en equipo. Todo el proceso en una sola vista.</p>
+    </div>
+
+    <!-- window frame -->
+    <div class="reveal card overflow-hidden rounded-2xl border border-line bg-surface/60 shadow-2xl backdrop-blur-sm">
+      <!-- top bar -->
+      <div class="flex items-center gap-3 border-b border-line px-5 py-3.5">
+        <span class="flex gap-2"><span class="h-3 w-3 rounded-full bg-[#ff5f57]"></span><span class="h-3 w-3 rounded-full bg-[#febc2e]"></span><span class="h-3 w-3 rounded-full bg-[#28c840]"></span></span>
+        <div class="ml-3 flex items-center gap-2 rounded-lg border border-line bg-base/60 px-3 py-1.5 text-[12px] text-muted">
+          <span class="h-2 w-2 rounded-full bg-brand"></span> Vacante · Backend Developer (Senior)
+        </div>
+        <div class="ml-auto hidden items-center gap-2 sm:flex">
+          <span class="rounded-md bg-white/[0.05] px-2.5 py-1 text-[12px] text-muted">Filtrar</span>
+          <span class="rounded-md bg-brand px-2.5 py-1 text-[12px] font-semibold text-white">+ Candidato</span>
+        </div>
+      </div>
+
+      <!-- board -->
+      <div class="grid grid-cols-2 gap-4 p-5 lg:grid-cols-4">
+        <!-- Column: Nueva vacante -->
+        <div class="flex flex-col gap-3 rounded-xl bg-base/50 p-3">
+          <div class="flex items-center justify-between px-1">
+            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-brand"></span><span class="text-[13px] font-semibold text-ink">Nueva vacante</span></div>
+            <span class="text-[12px] text-muted">3</span>
+          </div>
+          <!-- card -->
+          <div class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-brand/50">
+            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#7C4DFF"></span><span><span class="block text-[13px] font-semibold text-ink">Sofía Ramírez</span><span class="block text-[11px] text-muted">Frontend Engineer</span></span></div>
+            <div class="mt-3 flex flex-wrap gap-1.5"><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[10.5px] text-muted">React</span><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[10.5px] text-muted">Remoto</span></div>
+          </div>
+          <div class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-brand/50">
+            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#B266FF"></span><span><span class="block text-[13px] font-semibold text-ink">Diego Herrera</span><span class="block text-[11px] text-muted">Backend Engineer</span></span></div>
+            <div class="mt-3 flex flex-wrap gap-1.5"><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[10.5px] text-muted">Go</span><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[10.5px] text-muted">Senior</span></div>
+          </div>
+          <div class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-brand/50">
+            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#9B6BFF"></span><span><span class="block text-[13px] font-semibold text-ink">Valeria Cruz</span><span class="block text-[11px] text-muted">Fullstack</span></span></div>
+            <div class="mt-3 flex flex-wrap gap-1.5"><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[10.5px] text-muted">Node</span></div>
+          </div>
+        </div>
+
+        <!-- Column: Screening -->
+        <div class="flex flex-col gap-3 rounded-xl bg-base/50 p-3">
+          <div class="flex items-center justify-between px-1">
+            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-cyan"></span><span class="text-[13px] font-semibold text-ink">Screening</span></div>
+            <span class="text-[12px] text-muted">2</span>
+          </div>
+          <div class="rounded-xl border border-cyan/30 bg-surface p-3.5 transition hover:border-cyan/60">
+            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#22D3EE"></span><span><span class="block text-[13px] font-semibold text-ink">Mateo Gómez</span><span class="block text-[11px] text-muted">Backend Engineer</span></span></div>
+            <div class="mt-3 flex items-center justify-between"><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[10.5px] text-muted">Go · K8s</span><span class="rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:rgba(34,197,94,.16);color:#34D07A">92%</span></div>
+          </div>
+          <div class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-cyan/60">
+            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#1FC4DE"></span><span><span class="block text-[13px] font-semibold text-ink">Camila Ríos</span><span class="block text-[11px] text-muted">DevOps</span></span></div>
+            <div class="mt-3 flex items-center justify-between"><span class="rounded-md bg-white/[0.05] px-2 py-0.5 text-[10.5px] text-muted">AWS</span><span class="rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:rgba(34,211,238,.16);color:#22D3EE">87%</span></div>
+          </div>
+        </div>
+
+        <!-- Column: Entrevista -->
+        <div class="flex flex-col gap-3 rounded-xl bg-base/50 p-3">
+          <div class="flex items-center justify-between px-1">
+            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-magenta"></span><span class="text-[13px] font-semibold text-ink">Entrevista</span></div>
+            <span class="text-[12px] text-muted">2</span>
+          </div>
+          <div class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-magenta/50">
+            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#D946EF"></span><span><span class="block text-[13px] font-semibold text-ink">Andrés Vega</span><span class="block text-[11px] text-muted">Backend Engineer</span></span></div>
+            <div class="mt-3 flex items-center justify-between"><span class="text-[10.5px] text-muted">Mié · 15:00</span><span class="rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:rgba(34,197,94,.16);color:#34D07A">90%</span></div>
+          </div>
+          <div class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-magenta/50">
+            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#E879F9"></span><span><span class="block text-[13px] font-semibold text-ink">Lucía Peña</span><span class="block text-[11px] text-muted">Frontend Engineer</span></span></div>
+            <div class="mt-3 flex items-center justify-between"><span class="text-[10.5px] text-muted">Jue · 11:30</span><span class="rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:rgba(34,211,238,.16);color:#22D3EE">88%</span></div>
+          </div>
+        </div>
+
+        <!-- Column: Contratado -->
+        <div class="flex flex-col gap-3 rounded-xl bg-base/50 p-3">
+          <div class="flex items-center justify-between px-1">
+            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-grass"></span><span class="text-[13px] font-semibold text-ink">Contratado</span></div>
+            <span class="text-[12px] text-muted">1</span>
+          </div>
+          <div class="rounded-xl border border-grass/30 bg-surface p-3.5">
+            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#22C55E"></span><span><span class="block text-[13px] font-semibold text-ink">Javier Solís</span><span class="block text-[11px] text-muted">Backend Engineer</span></span></div>
+            <div class="mt-3 flex items-center justify-between"><span class="text-[10.5px] text-muted">Oferta aceptada</span><span class="rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:rgba(34,197,94,.16);color:#34D07A">✓</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CTA FINAL ================= -->
+  <section class="relative z-10 mx-auto max-w-[1280px] px-8 py-20">
+    <div class="reveal relative overflow-hidden rounded-3xl border border-line bg-surface/50 px-8 py-20 text-center backdrop-blur-sm">
+      <div class="glow-purple pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[720px] -translate-x-1/2 -translate-y-1/2"></div>
+      <div class="relative">
+        <h2 class="font-display text-[46px] font-bold leading-tight tracking-tight text-ink">Empezá a ver todo tu proceso</h2>
+        <p class="mx-auto mt-4 max-w-[520px] text-[18px] leading-relaxed text-muted">Publicá tu primera vacante hoy y controlá cada etapa desde un solo lugar. Sin tarjeta, sin fricción.</p>
+        <div class="mt-9 flex flex-wrap items-center justify-center gap-4">
+          <a href="#" class="btn btn-primary rounded-xl bg-brand px-8 py-3.5 text-[15px] font-semibold text-white">Empezar gratis</a>
+          <a href="#" class="btn btn-ghost rounded-xl border border-line bg-surface px-8 py-3.5 text-[15px] font-semibold text-ink">Agendar demo</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= FOOTER ================= -->
+  <footer class="relative z-10 border-t border-line">
+    <div class="mx-auto max-w-[1280px] px-8 py-14">
+      <div class="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
+        <div>
+          <a href="#" class="select-none text-[22px]"><span class="font-display font-bold text-ink">people</span><span class="font-display italic text-brand">flow</span></a>
+          <p class="mt-4 max-w-[280px] text-[14px] leading-relaxed text-muted">El ecosistema de reclutamiento que tu equipo ve y controla, de la vacante a la contratación.</p>
+          <div class="mt-5 flex gap-3">
+            <span class="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-muted transition hover:border-brand/50 hover:text-ink">in</span>
+            <span class="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-muted transition hover:border-brand/50 hover:text-ink">X</span>
+            <span class="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-muted transition hover:border-brand/50 hover:text-ink">IG</span>
+          </div>
+        </div>
+        <div>
+          <p class="mb-4 text-[13px] font-semibold uppercase tracking-wide text-ink">Producto</p>
+          <ul class="flex flex-col gap-2.5 text-[14px] text-muted">
+            <li><a href="#" class="transition hover:text-ink">Vacantes</a></li>
+            <li><a href="#" class="transition hover:text-ink">Pipeline</a></li>
+            <li><a href="#" class="transition hover:text-ink">Screening IA</a></li>
+            <li><a href="#" class="transition hover:text-ink">Precios</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="mb-4 text-[13px] font-semibold uppercase tracking-wide text-ink">Empresa</p>
+          <ul class="flex flex-col gap-2.5 text-[14px] text-muted">
+            <li><a href="#" class="transition hover:text-ink">Nosotros</a></li>
+            <li><a href="#" class="transition hover:text-ink">Clientes</a></li>
+            <li><a href="#" class="transition hover:text-ink">Contacto</a></li>
+          </ul>
+        </div>
+        <div>
+          <p class="mb-4 text-[13px] font-semibold uppercase tracking-wide text-ink">Recursos</p>
+          <ul class="flex flex-col gap-2.5 text-[14px] text-muted">
+            <li><a href="#" class="transition hover:text-ink">Blog</a></li>
+            <li><a href="#" class="transition hover:text-ink">Guías</a></li>
+            <li><a href="#" class="transition hover:text-ink">Soporte</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="mt-12 flex flex-col items-start justify-between gap-4 border-t border-line pt-6 text-[13px] text-muted sm:flex-row sm:items-center">
+        <span>© 2026 PeopleFlow — Todos los derechos reservados.</span>
+        <div class="flex gap-6">
+          <a href="#" class="transition hover:text-ink">Privacidad</a>
+          <a href="#" class="transition hover:text-ink">Términos</a>
+          <a href="#" class="transition hover:text-ink">Cookies</a>
+        </div>
+      </div>
     </div>
   </footer>
 
