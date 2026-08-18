@@ -11,8 +11,10 @@ import (
 )
 
 var (
-	ErrEmptyIndustry   = errors.New("industry is required")
-	ErrCompanyNotFound = errors.New("company not found")
+	ErrEmptyIndustry    = errors.New("industry is required")
+	ErrCompanyNotFound  = errors.New("company not found")
+	ErrDuplicateCompany = errors.New("a company with the same RFC already exists")
+	ErrIndustryNotFound = errors.New("industry does not exist")
 )
 
 type Company struct {

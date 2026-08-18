@@ -13,6 +13,10 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
+	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
+	industrieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/industries/infrastructure/http"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -50,8 +54,13 @@ func run() error {
 	}
 	slog.Info("connected to postgres")
 
-	// sqlc data layer wired to the pool. Unused until we build the first feature.
-	_ = db.New(pool)
+	// sqlc data layer wired to the pool.
+	queries := db.New(pool)
+
+	// Feature wiring: companies (adapter -> use case -> handler).
+	companyRepo := postgres.NewCompanyRepository(queries)
+	companyService := usecases.NewCompanyService(companyRepo)
+	companyHandler := companieshttp.NewCompanyHandler(companyService)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -68,6 +77,9 @@ func run() error {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
+
+	r.Mount("/companies", companyHandler.Routes())
+	r.Get("/industries", industrieshttp.ListIndustries(queries))
 
 	port := os.Getenv("PORT")
 	if port == "" {

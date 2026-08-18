@@ -13,6 +13,7 @@ import (
 type Querier interface {
 	CreateCompany(ctx context.Context, arg CreateCompanyParams) (Company, error)
 	GetCompanyByID(ctx context.Context, id uuid.UUID) (Company, error)
+	ListActiveIndustries(ctx context.Context) ([]Industry, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -3,7 +3,6 @@
 //   sqlc v1.31.1
 // source: companies.sql
 
-// Package db
 package db
 
 import (

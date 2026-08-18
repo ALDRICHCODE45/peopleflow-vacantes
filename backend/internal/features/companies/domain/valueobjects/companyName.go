@@ -6,6 +6,9 @@ import (
 	"strings"
 )
 
+// ErrCompanyNameTooShort is returned when the name has fewer than 4 characters.
+var ErrCompanyNameTooShort = errors.New("el nombre de la compañía no puede ser menor a 4 caracteres")
+
 type CompanyName struct {
 	value string
 }
@@ -14,7 +17,7 @@ func NewCompanyName(name string) (CompanyName, error) {
 	cleanName := strings.TrimSpace(name)
 
 	if len(cleanName) <= 3 {
-		return CompanyName{}, errors.New("el nombre de la compañía no puede ser menor a 4 caracteres")
+		return CompanyName{}, ErrCompanyNameTooShort
 	}
 
 	return CompanyName{value: cleanName}, nil
