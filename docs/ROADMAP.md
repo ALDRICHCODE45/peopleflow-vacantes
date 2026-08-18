@@ -58,13 +58,12 @@ Decisión abierta para discutir cuando toque: ¿quién valida que `industry_id` 
 
 ## Comandos útiles (recordatorio para máquina nueva)
 
-- **Herramientas**: ya están pineadas en `go.mod` con `go tool` → NO hay que instalar goose/sqlc global. Solo necesitás **Go 1.26+** y **Docker**.
-- Levantar DB: `cd backend && docker compose up -d`
-- Variables goose (export una vez por terminal):
-  - `export GOOSE_DRIVER=postgres`
-  - `export GOOSE_DBSTRING="postgres://admin:secreto@localhost:5432/peopleflow_vacancies?sslmode=disable"`
-  - `export GOOSE_MIGRATION_DIR=db/migrations`
-- Migrar: `go tool goose up` (status: `go tool goose status`)
-- Regenerar sqlc: `go tool sqlc generate`
-- Correr API: `export DATABASE_URL="postgres://admin:secreto@localhost:5432/peopleflow_vacancies?sslmode=disable"` → `go run ./cmd/api` → probar `curl -i localhost:8080/healthz`
-- Tests: `cd backend && go test ./... -count=1`
+Todo corre desde `backend/`. **No hay que exportar variables a mano** — viven en `backend/.env` (gitignored; `cp backend/.env.example backend/.env` la primera vez). Goose las auto-carga; el server las carga vía `godotenv`.
+
+- **Herramientas**: pineadas en `go.mod` con `go tool` → NO hay que instalar goose/sqlc global. Solo necesitás **Go 1.26+** y **Docker**.
+- DB: `make db-up` (baja: `make db-down`)
+- Migrar: `make db-migrate` (status: `make db-status`)
+- Regenerar sqlc: `make sqlc`
+- Correr API: `make run` → probar `curl -i localhost:8080/healthz`
+- Tests: `make test` (= `go test ./... -count=1`)
+- Targets equivalentes sin Makefile: `go tool goose up`, `go tool goose status`, `go tool sqlc generate`, `go run ./cmd/api`, `go test ./... -count=1`.

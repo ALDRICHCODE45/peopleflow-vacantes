@@ -20,6 +20,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -32,6 +33,12 @@ func main() {
 }
 
 func run() error {
+	// Local dev convenience: load .env from the working directory. godotenv.Load
+	// returns an error if .env is absent, which is the correct behavior in
+	// production (env vars are injected by ECS). In dev, the missing-file error
+	// is ignored so the binary still runs against a real environment when needed.
+	_ = godotenv.Load()
+
 	// Root context cancelled on SIGINT/SIGTERM. This is the graceful shutdown trigger.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
