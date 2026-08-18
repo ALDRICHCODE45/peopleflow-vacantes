@@ -70,11 +70,16 @@ type Company struct {
 	DeletedAt *time.Time
 }
 
-// NewCompany creates a new Company aggregate in its initial state. The required
-// fields (name, rfc, industry) are validated through their value objects; the
-// optional profile is copied verbatim. The caller is expected to have already
-// parsed string inputs into their VOs so the entity stays free of formatting
-// concerns.
+// NewCompany creates a new Company aggregate in its initial, publishable state.
+// The required fields (name, rfc, industry) are validated through their value
+// objects; the optional profile is copied verbatim. The caller is expected to
+// have already parsed string inputs into their VOs so the entity stays free of
+// formatting concerns.
+//
+// MVP decision: companies are born `active`. There is no verification pipeline
+// in the MVP, so `PendingVerification` is reserved vocabulary, not a starting
+// state (see docs/flujo-verificacion-empresas.md). The only anti-fraud lever is
+// manual suspension (`Suspended`), which a future admin flow will drive.
 func NewCompany(name, rfc, industryID string, p CompanyProfile) (*Company, error) {
 	companyName, err := valueobjects.NewCompanyName(name)
 	if err != nil {
@@ -101,7 +106,7 @@ func NewCompany(name, rfc, industryID string, p CompanyProfile) (*Company, error
 		ID:            id,
 		Name:          companyName,
 		Rfc:           companyRfc,
-		Status:        valueobjects.PendingVerification,
+		Status:        valueobjects.Active,
 		IndustryID:    industryID,
 		Website:       p.Website,
 		LogoURL:       p.LogoURL,

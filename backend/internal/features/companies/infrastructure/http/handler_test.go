@@ -120,7 +120,7 @@ func TestCreateCompany_ValidFullBody(t *testing.T) {
 	if got.Rfc != "AAA010101AAA" {
 		t.Errorf("Rfc: %q", got.Rfc)
 	}
-	if got.Status != "pending_verification" {
+	if got.Status != "active" {
 		t.Errorf("Status: %q", got.Status)
 	}
 	if got.Website == nil || *got.Website != "https://acme.com" {

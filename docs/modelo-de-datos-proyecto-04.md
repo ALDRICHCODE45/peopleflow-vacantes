@@ -105,7 +105,7 @@ CREATE TABLE companies (
     industry_id  TEXT NOT NULL REFERENCES industries (id),
     website      TEXT,
     logo_url     TEXT,
-    status       TEXT NOT NULL DEFAULT 'pending_verification'
+    status       TEXT NOT NULL DEFAULT 'active'
         CONSTRAINT companies_status_check
         CHECK (status IN ('pending_verification', 'active', 'suspended')),
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -120,7 +120,7 @@ CREATE UNIQUE INDEX companies_rfc_unique
 ```
 
 Notas:
-- `status` nace en `pending_verification`: onboarding self-service requiere verificación antes de publicar (anti empresas falsas).
+- `status` nace en `active` (decisión MVP): no hay pipeline de verificación en el primer funcional. La validación básica (name/rfc/industry) es el único gate. `suspended` es el takedown manual. `pending_verification` queda reservada para el flujo avanzado diferido — ver `docs/flujo-verificacion-empresas.md`.
 - Índice único parcial en `rfc`: la unicidad aplica solo entre empresas vivas.
 - `industry_id` es FK obligatoria a `industries` (catálogo, ver §3.1.1). `ON DELETE` por default (RESTRICT): no se puede borrar una industria en uso. El índice `companies_industry_id_idx` es manual porque Postgres **no** indexa automáticamente la columna que origina un FK (solo la PK referenciada).
 

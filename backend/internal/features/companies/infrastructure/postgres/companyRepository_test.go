@@ -93,25 +93,25 @@ func TestToEntity_NullableFieldsUnset(t *testing.T) {
 	now := time.Now().UTC()
 
 	row := db.Company{
-		ID:          id,
-		Name:        "Minimal SA",
-		Rfc:         "BBB020202BBB",
-		IndustryID:  "tech",
-		Website:     pgtype.Text{Valid: false},
-		LogoUrl:     pgtype.Text{Valid: false},
-		Status:      "pending_verification",
-		CreatedAt:   pgtype.Timestamptz{Time: now, Valid: true},
-		UpdatedAt:   pgtype.Timestamptz{Time: now, Valid: true},
-		DeletedAt:   pgtype.Timestamptz{Valid: false},
-		Description: pgtype.Text{Valid: false},
-		Size:        pgtype.Text{Valid: false},
-		FoundedYear: pgtype.Int2{Valid: false},
-		City:        pgtype.Text{Valid: false},
-		Country:     pgtype.Text{Valid: false},
-		LinkedinUrl: pgtype.Text{Valid: false},
-		InstagramUrl: pgtype.Text{Valid: false},
-		FacebookUrl: pgtype.Text{Valid: false},
-		TwitterUrl:  pgtype.Text{Valid: false},
+		ID:            id,
+		Name:          "Minimal SA",
+		Rfc:           "BBB020202BBB",
+		IndustryID:    "tech",
+		Website:       pgtype.Text{Valid: false},
+		LogoUrl:       pgtype.Text{Valid: false},
+		Status:        "pending_verification",
+		CreatedAt:     pgtype.Timestamptz{Time: now, Valid: true},
+		UpdatedAt:     pgtype.Timestamptz{Time: now, Valid: true},
+		DeletedAt:     pgtype.Timestamptz{Valid: false},
+		Description:   pgtype.Text{Valid: false},
+		Size:          pgtype.Text{Valid: false},
+		FoundedYear:   pgtype.Int2{Valid: false},
+		City:          pgtype.Text{Valid: false},
+		Country:       pgtype.Text{Valid: false},
+		LinkedinUrl:   pgtype.Text{Valid: false},
+		InstagramUrl:  pgtype.Text{Valid: false},
+		FacebookUrl:   pgtype.Text{Valid: false},
+		TwitterUrl:    pgtype.Text{Valid: false},
 		CoverImageUrl: pgtype.Text{Valid: false},
 	}
 
@@ -149,13 +149,13 @@ func TestToEntity_NullableFieldsUnset(t *testing.T) {
 
 func TestToEntity_InvalidStatus(t *testing.T) {
 	row := db.Company{
-		ID:        uuid.New(),
-		Name:      "Foo Bar Inc",
-		Rfc:       "CCC030303CCC",
+		ID:         uuid.New(),
+		Name:       "Foo Bar Inc",
+		Rfc:        "CCC030303CCC",
 		IndustryID: "tech",
-		Status:    "totally_made_up",
-		CreatedAt: pgtype.Timestamptz{Valid: true},
-		UpdatedAt: pgtype.Timestamptz{Valid: true},
+		Status:     "totally_made_up",
+		CreatedAt:  pgtype.Timestamptz{Valid: true},
+		UpdatedAt:  pgtype.Timestamptz{Valid: true},
 	}
 
 	_, err := toEntity(row)
@@ -185,7 +185,7 @@ func TestBuildCreateParams_FullEntity(t *testing.T) {
 		ID:            uuid.MustParse("33333333-3333-3333-3333-333333333333"),
 		Name:          valueobjects.CompanyName{},
 		Rfc:           valueobjects.CompanyRfc{},
-		Status:        valueobjects.PendingVerification,
+		Status:        valueobjects.Active,
 		IndustryID:    "tech",
 		Website:       &web,
 		LogoURL:       &logo,
@@ -330,7 +330,7 @@ func TestMapCreateError(t *testing.T) {
 	tests := []struct {
 		name    string
 		in      error
-		want    error // sentinel to assert via errors.Is
+		want    error  // sentinel to assert via errors.Is
 		wantMsg string // optional: if non-empty, also assert the returned error carries this message
 	}{
 		{

@@ -21,8 +21,8 @@ func TestNewCompany_RequiredFieldsOnly(t *testing.T) {
 	if c.Name.Value() != "Acme SA de CV" {
 		t.Errorf("expected name %q, got %q", "Acme SA de CV", c.Name.Value())
 	}
-	if c.Status != valueobjects.PendingVerification {
-		t.Errorf("expected status PendingVerification, got: %v", c.Status)
+	if c.Status != valueobjects.Active {
+		t.Errorf("expected status Active, got: %v", c.Status)
 	}
 	if c.Description != nil {
 		t.Errorf("expected nil Description when profile omitted, got: %+v", c.Description)
