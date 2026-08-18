@@ -32,6 +32,14 @@
       "sessions": 2,
       "memories": 9,
       "prompts": 17
+    },
+    {
+      "id": "b60fa929",
+      "created_by": "aldrich_coder45",
+      "created_at": "2026-08-18T22:08:24Z",
+      "sessions": 2,
+      "memories": 10,
+      "prompts": 6
     }
   ]
 }
