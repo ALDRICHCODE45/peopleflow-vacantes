@@ -35,13 +35,28 @@ func (h *CompanyHandler) Routes() chi.Router {
 	return r
 }
 
-// createCompanyRequest is the JSON body accepted by POST /companies.
+// createCompanyRequest is the JSON body accepted by POST /companies. Optional
+// profile fields stay as raw strings/numbers so the use case owns parsing
+// and validation against the domain value objects.
 type createCompanyRequest struct {
 	Name       string  `json:"name"`
 	Rfc        string  `json:"rfc"`
 	IndustryID string  `json:"industry_id"`
 	Website    *string `json:"website"`
 	LogoURL    *string `json:"logo_url"`
+
+	Description *string `json:"description"`
+	Size        *string `json:"size"`
+	FoundedYear *int    `json:"founded_year"`
+
+	City        *string `json:"city"`
+	Country     *string `json:"country"`
+	LinkedInURL *string `json:"linkedin_url"`
+
+	InstagramURL  *string `json:"instagram_url"`
+	FacebookURL   *string `json:"facebook_url"`
+	TwitterURL    *string `json:"twitter_url"`
+	CoverImageURL *string `json:"cover_image_url"`
 }
 
 // companyResponse is the JSON shape returned by the create endpoint. It is the
@@ -52,20 +67,50 @@ type companyResponse struct {
 	Rfc        string    `json:"rfc"`
 	IndustryID string    `json:"industry_id"`
 	Status     string    `json:"status"`
-	Website    *string   `json:"website,omitempty"`
-	LogoURL    *string   `json:"logo_url,omitempty"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+
+	Website *string `json:"website,omitempty"`
+	LogoURL *string `json:"logo_url,omitempty"`
+
+	Description *string `json:"description,omitempty"`
+	Size        *string `json:"size,omitempty"`
+	FoundedYear *int    `json:"founded_year,omitempty"`
+
+	City        *string `json:"city,omitempty"`
+	Country     *string `json:"country,omitempty"`
+	LinkedInURL *string `json:"linkedin_url,omitempty"`
+
+	InstagramURL  *string `json:"instagram_url,omitempty"`
+	FacebookURL   *string `json:"facebook_url,omitempty"`
+	TwitterURL    *string `json:"twitter_url,omitempty"`
+	CoverImageURL *string `json:"cover_image_url,omitempty"`
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // companyPublicResponse is the redacted JSON shape for the public company
-// profile (candidate-facing). It omits rfc (tax ID) and status (internal).
+// profile (candidate-facing). It omits rfc (tax ID) and status (internal)
+// but exposes all the public-facing profile fields.
 type companyPublicResponse struct {
-	ID         string  `json:"id"`
-	Name       string  `json:"name"`
-	IndustryID string  `json:"industry_id"`
-	Website    *string `json:"website,omitempty"`
-	LogoURL    *string `json:"logo_url,omitempty"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	IndustryID string `json:"industry_id"`
+
+	Website *string `json:"website,omitempty"`
+	LogoURL *string `json:"logo_url,omitempty"`
+
+	Description *string `json:"description,omitempty"`
+	Size        *string `json:"size,omitempty"`
+	FoundedYear *int    `json:"founded_year,omitempty"`
+
+	City        *string `json:"city,omitempty"`
+	Country     *string `json:"country,omitempty"`
+	LinkedInURL *string `json:"linkedin_url,omitempty"`
+
+	InstagramURL  *string `json:"instagram_url,omitempty"`
+	FacebookURL   *string `json:"facebook_url,omitempty"`
+	TwitterURL    *string `json:"twitter_url,omitempty"`
+	CoverImageURL *string `json:"cover_image_url,omitempty"`
 }
 
 func (h *CompanyHandler) createCompany(w http.ResponseWriter, r *http.Request) {
@@ -76,11 +121,21 @@ func (h *CompanyHandler) createCompany(w http.ResponseWriter, r *http.Request) {
 	}
 
 	company, err := h.service.CreateCompany(r.Context(), dtos.CreateCompanyDto{
-		Name:       req.Name,
-		Rfc:        req.Rfc,
-		IndustryID: req.IndustryID,
-		Website:    req.Website,
-		LogoURL:    req.LogoURL,
+		Name:          req.Name,
+		Rfc:           req.Rfc,
+		IndustryID:    req.IndustryID,
+		Website:       req.Website,
+		LogoURL:       req.LogoURL,
+		Description:   req.Description,
+		Size:          req.Size,
+		FoundedYear:   req.FoundedYear,
+		City:          req.City,
+		Country:       req.Country,
+		LinkedInURL:   req.LinkedInURL,
+		InstagramURL:  req.InstagramURL,
+		FacebookURL:   req.FacebookURL,
+		TwitterURL:    req.TwitterURL,
+		CoverImageURL: req.CoverImageURL,
 	})
 	if err != nil {
 		status, msg := classifyCreateCompanyError(err)
@@ -119,27 +174,71 @@ func (h *CompanyHandler) getCompany(w http.ResponseWriter, r *http.Request) {
 // toCompanyResponse maps the domain entity into the create response shape.
 func toCompanyResponse(c *entities.Company) companyResponse {
 	return companyResponse{
-		ID:         c.ID.String(),
-		Name:       c.Name.Value(),
-		Rfc:        c.Rfc.Value(),
-		IndustryID: c.IndustryID,
-		Status:     c.Status.String(),
-		Website:    c.Website,
-		LogoURL:    c.LogoURL,
-		CreatedAt:  c.CreatedAt,
-		UpdatedAt:  c.UpdatedAt,
+		ID:            c.ID.String(),
+		Name:          c.Name.Value(),
+		Rfc:           c.Rfc.Value(),
+		IndustryID:    c.IndustryID,
+		Status:        c.Status.String(),
+		Website:       c.Website,
+		LogoURL:       c.LogoURL,
+		Description:   descriptionToStringPtr(c.Description),
+		Size:          sizeToStringPtr(c.Size),
+		FoundedYear:   foundedYearToIntPtr(c.FoundedYear),
+		City:          c.City,
+		Country:       c.Country,
+		LinkedInURL:   c.LinkedInURL,
+		InstagramURL:  c.InstagramURL,
+		FacebookURL:   c.FacebookURL,
+		TwitterURL:    c.TwitterURL,
+		CoverImageURL: c.CoverImageURL,
+		CreatedAt:     c.CreatedAt,
+		UpdatedAt:     c.UpdatedAt,
 	}
 }
 
 // toCompanyPublicResponse maps the domain entity into the redacted public shape.
 func toCompanyPublicResponse(c *entities.Company) companyPublicResponse {
 	return companyPublicResponse{
-		ID:         c.ID.String(),
-		Name:       c.Name.Value(),
-		IndustryID: c.IndustryID,
-		Website:    c.Website,
-		LogoURL:    c.LogoURL,
+		ID:            c.ID.String(),
+		Name:          c.Name.Value(),
+		IndustryID:    c.IndustryID,
+		Website:       c.Website,
+		LogoURL:       c.LogoURL,
+		Description:   descriptionToStringPtr(c.Description),
+		Size:          sizeToStringPtr(c.Size),
+		FoundedYear:   foundedYearToIntPtr(c.FoundedYear),
+		City:          c.City,
+		Country:       c.Country,
+		LinkedInURL:   c.LinkedInURL,
+		InstagramURL:  c.InstagramURL,
+		FacebookURL:   c.FacebookURL,
+		TwitterURL:    c.TwitterURL,
+		CoverImageURL: c.CoverImageURL,
 	}
+}
+
+func descriptionToStringPtr(d *valueobjects.CompanyDescription) *string {
+	if d == nil {
+		return nil
+	}
+	v := d.Value()
+	return &v
+}
+
+func sizeToStringPtr(s *valueobjects.CompanySize) *string {
+	if s == nil {
+		return nil
+	}
+	v := s.String()
+	return &v
+}
+
+func foundedYearToIntPtr(y *valueobjects.FoundedYear) *int {
+	if y == nil {
+		return nil
+	}
+	v := y.Value()
+	return &v
 }
 
 // classifyCreateCompanyError maps a use-case error to an HTTP status and a
@@ -150,6 +249,9 @@ func classifyCreateCompanyError(err error) (int, string) {
 	case errors.Is(err, entities.ErrEmptyIndustry),
 		errors.Is(err, valueobjects.ErrCompanyNameTooShort),
 		errors.Is(err, valueobjects.ErrCompanyRfcInvalidLength),
+		errors.Is(err, valueobjects.ErrInvalidCompanySize),
+		errors.Is(err, valueobjects.ErrFoundedYearOutOfRange),
+		errors.Is(err, valueobjects.ErrCompanyDescriptionTooLong),
 		errors.Is(err, entities.ErrIndustryNotFound):
 		return http.StatusBadRequest, err.Error()
 	case errors.Is(err, entities.ErrDuplicateCompany):

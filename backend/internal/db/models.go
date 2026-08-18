@@ -10,16 +10,26 @@ import (
 )
 
 type Company struct {
-	ID         uuid.UUID          `json:"id"`
-	Name       string             `json:"name"`
-	Rfc        string             `json:"rfc"`
-	IndustryID string             `json:"industry_id"`
-	Website    pgtype.Text        `json:"website"`
-	LogoUrl    pgtype.Text        `json:"logo_url"`
-	Status     string             `json:"status"`
-	CreatedAt  pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
-	DeletedAt  pgtype.Timestamptz `json:"deleted_at"`
+	ID            uuid.UUID          `json:"id"`
+	Name          string             `json:"name"`
+	Rfc           string             `json:"rfc"`
+	IndustryID    string             `json:"industry_id"`
+	Website       pgtype.Text        `json:"website"`
+	LogoUrl       pgtype.Text        `json:"logo_url"`
+	Status        string             `json:"status"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	Description   pgtype.Text        `json:"description"`
+	Size          pgtype.Text        `json:"size"`
+	FoundedYear   pgtype.Int2        `json:"founded_year"`
+	City          pgtype.Text        `json:"city"`
+	Country       pgtype.Text        `json:"country"`
+	LinkedinUrl   pgtype.Text        `json:"linkedin_url"`
+	InstagramUrl  pgtype.Text        `json:"instagram_url"`
+	FacebookUrl   pgtype.Text        `json:"facebook_url"`
+	TwitterUrl    pgtype.Text        `json:"twitter_url"`
+	CoverImageUrl pgtype.Text        `json:"cover_image_url"`
 }
 
 type Industry struct {

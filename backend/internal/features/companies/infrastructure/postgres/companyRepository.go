@@ -31,14 +31,7 @@ var _ repositories.CompanyRepository = (*CompanyRepository)(nil)
 
 // Create persists a new company, mapping the entity's value objects into sqlc params.
 func (r *CompanyRepository) Create(ctx context.Context, company *entities.Company) error {
-	_, err := r.queries.CreateCompany(ctx, db.CreateCompanyParams{
-		ID:         company.ID,
-		Name:       company.Name.Value(),
-		Rfc:        company.Rfc.Value(),
-		IndustryID: company.IndustryID,
-		Website:    textPtrToPgText(company.Website),
-		LogoUrl:    textPtrToPgText(company.LogoURL),
-	})
+	_, err := r.queries.CreateCompany(ctx, buildCreateParams(company))
 	return mapCreateError(err)
 }
 
@@ -53,6 +46,46 @@ func (r *CompanyRepository) GetByID(ctx context.Context, id uuid.UUID) (*entitie
 	}
 
 	return toEntity(row)
+}
+
+// buildCreateParams translates an entity into the sqlc parameter struct. Every
+// optional field becomes an invalid pgtype (SQL NULL) when the entity
+// pointer is nil so the database CHECK constraints see the same shape the
+// domain validation produced.
+func buildCreateParams(c *entities.Company) db.CreateCompanyParams {
+	year := pgtype.Int2{}
+	if c.FoundedYear != nil {
+		year = pgtype.Int2{Int16: int16(c.FoundedYear.Value()), Valid: true}
+	}
+
+	var sizeStr string
+	if c.Size != nil {
+		sizeStr = c.Size.String()
+	}
+
+	var descStr string
+	if c.Description != nil {
+		descStr = c.Description.Value()
+	}
+
+	return db.CreateCompanyParams{
+		ID:            c.ID,
+		Name:          c.Name.Value(),
+		Rfc:           c.Rfc.Value(),
+		IndustryID:    c.IndustryID,
+		Website:       textPtrToPgText(c.Website),
+		LogoUrl:       textPtrToPgText(c.LogoURL),
+		Description:   pgtype.Text{String: descStr, Valid: c.Description != nil},
+		Size:          pgtype.Text{String: sizeStr, Valid: c.Size != nil},
+		FoundedYear:   year,
+		City:          textPtrToPgText(c.City),
+		Country:       textPtrToPgText(c.Country),
+		LinkedinUrl:   textPtrToPgText(c.LinkedInURL),
+		InstagramUrl:  textPtrToPgText(c.InstagramURL),
+		FacebookUrl:   textPtrToPgText(c.FacebookURL),
+		TwitterUrl:    textPtrToPgText(c.TwitterURL),
+		CoverImageUrl: textPtrToPgText(c.CoverImageURL),
+	}
 }
 
 // toEntity rebuilds the domain entity, reconstructing the value objects.
@@ -72,17 +105,54 @@ func toEntity(row db.Company) (*entities.Company, error) {
 		return nil, err
 	}
 
+	var description *valueobjects.CompanyDescription
+	if row.Description.Valid {
+		desc, err := valueobjects.NewCompanyDescription(row.Description.String)
+		if err != nil {
+			return nil, err
+		}
+		description = &desc
+	}
+
+	var size *valueobjects.CompanySize
+	if row.Size.Valid {
+		parsed, err := valueobjects.ParseCompanySize(row.Size.String)
+		if err != nil {
+			return nil, err
+		}
+		size = &parsed
+	}
+
+	var foundedYear *valueobjects.FoundedYear
+	if row.FoundedYear.Valid {
+		y, err := valueobjects.NewFoundedYear(int(row.FoundedYear.Int16))
+		if err != nil {
+			return nil, err
+		}
+		foundedYear = &y
+	}
+
 	return &entities.Company{
-		ID:         row.ID,
-		Name:       name,
-		Rfc:        rfc,
-		Status:     status,
-		IndustryID: row.IndustryID,
-		Website:    pgTextToTextPtr(row.Website),
-		LogoURL:    pgTextToTextPtr(row.LogoUrl),
-		CreatedAt:  row.CreatedAt.Time,
-		UpdatedAt:  row.UpdatedAt.Time,
-		DeletedAt:  pgTimestamptzToTimePtr(row.DeletedAt),
+		ID:            row.ID,
+		Name:          name,
+		Rfc:           rfc,
+		Status:        status,
+		IndustryID:    row.IndustryID,
+		Website:       pgTextToTextPtr(row.Website),
+		LogoURL:       pgTextToTextPtr(row.LogoUrl),
+		Description:   description,
+		Size:          size,
+		FoundedYear:   foundedYear,
+		City:          pgTextToTextPtr(row.City),
+		Country:       pgTextToTextPtr(row.Country),
+		LinkedInURL:   pgTextToTextPtr(row.LinkedinUrl),
+		InstagramURL:  pgTextToTextPtr(row.InstagramUrl),
+		FacebookURL:   pgTextToTextPtr(row.FacebookUrl),
+		TwitterURL:    pgTextToTextPtr(row.TwitterUrl),
+		CoverImageURL: pgTextToTextPtr(row.CoverImageUrl),
+		CreatedAt:     row.CreatedAt.Time,
+		UpdatedAt:     row.UpdatedAt.Time,
+		DeletedAt:     pgTimestamptzToTimePtr(row.DeletedAt),
 	}, nil
 }
 

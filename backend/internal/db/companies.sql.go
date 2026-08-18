@@ -13,18 +13,36 @@ import (
 )
 
 const createCompany = `-- name: CreateCompany :one
-INSERT INTO companies (id, name, rfc, industry_id, website, logo_url)
-VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, name, rfc, industry_id, website, logo_url, status, created_at, updated_at, deleted_at
+INSERT INTO companies (
+    id, name, rfc, industry_id, website, logo_url,
+    description, size, founded_year, city, country,
+    linkedin_url, instagram_url, facebook_url, twitter_url, cover_image_url
+)
+VALUES (
+    $1, $2, $3, $4, $5, $6,
+    $7, $8, $9, $10, $11,
+    $12, $13, $14, $15, $16
+)
+RETURNING id, name, rfc, industry_id, website, logo_url, status, created_at, updated_at, deleted_at, description, size, founded_year, city, country, linkedin_url, instagram_url, facebook_url, twitter_url, cover_image_url
 `
 
 type CreateCompanyParams struct {
-	ID         uuid.UUID   `json:"id"`
-	Name       string      `json:"name"`
-	Rfc        string      `json:"rfc"`
-	IndustryID string      `json:"industry_id"`
-	Website    pgtype.Text `json:"website"`
-	LogoUrl    pgtype.Text `json:"logo_url"`
+	ID            uuid.UUID   `json:"id"`
+	Name          string      `json:"name"`
+	Rfc           string      `json:"rfc"`
+	IndustryID    string      `json:"industry_id"`
+	Website       pgtype.Text `json:"website"`
+	LogoUrl       pgtype.Text `json:"logo_url"`
+	Description   pgtype.Text `json:"description"`
+	Size          pgtype.Text `json:"size"`
+	FoundedYear   pgtype.Int2 `json:"founded_year"`
+	City          pgtype.Text `json:"city"`
+	Country       pgtype.Text `json:"country"`
+	LinkedinUrl   pgtype.Text `json:"linkedin_url"`
+	InstagramUrl  pgtype.Text `json:"instagram_url"`
+	FacebookUrl   pgtype.Text `json:"facebook_url"`
+	TwitterUrl    pgtype.Text `json:"twitter_url"`
+	CoverImageUrl pgtype.Text `json:"cover_image_url"`
 }
 
 func (q *Queries) CreateCompany(ctx context.Context, arg CreateCompanyParams) (Company, error) {
@@ -35,6 +53,16 @@ func (q *Queries) CreateCompany(ctx context.Context, arg CreateCompanyParams) (C
 		arg.IndustryID,
 		arg.Website,
 		arg.LogoUrl,
+		arg.Description,
+		arg.Size,
+		arg.FoundedYear,
+		arg.City,
+		arg.Country,
+		arg.LinkedinUrl,
+		arg.InstagramUrl,
+		arg.FacebookUrl,
+		arg.TwitterUrl,
+		arg.CoverImageUrl,
 	)
 	var i Company
 	err := row.Scan(
@@ -48,12 +76,22 @@ func (q *Queries) CreateCompany(ctx context.Context, arg CreateCompanyParams) (C
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Description,
+		&i.Size,
+		&i.FoundedYear,
+		&i.City,
+		&i.Country,
+		&i.LinkedinUrl,
+		&i.InstagramUrl,
+		&i.FacebookUrl,
+		&i.TwitterUrl,
+		&i.CoverImageUrl,
 	)
 	return i, err
 }
 
 const getCompanyByID = `-- name: GetCompanyByID :one
-SELECT id, name, rfc, industry_id, website, logo_url, status, created_at, updated_at, deleted_at FROM companies 
+SELECT id, name, rfc, industry_id, website, logo_url, status, created_at, updated_at, deleted_at, description, size, founded_year, city, country, linkedin_url, instagram_url, facebook_url, twitter_url, cover_image_url FROM companies
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -71,6 +109,16 @@ func (q *Queries) GetCompanyByID(ctx context.Context, id uuid.UUID) (Company, er
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.Description,
+		&i.Size,
+		&i.FoundedYear,
+		&i.City,
+		&i.Country,
+		&i.LinkedinUrl,
+		&i.InstagramUrl,
+		&i.FacebookUrl,
+		&i.TwitterUrl,
+		&i.CoverImageUrl,
 	)
 	return i, err
 }
