@@ -53,3 +53,9 @@ goose down drops `jobs` + indexes. Routes removed in `main.go`. sqlc file delete
 2. **Pagination**: keyset on `(published_at, id)`.
 3. **`salary_currency`**: support BOTH `'USD'` and `'MXN'` — `CHECK (salary_currency IN ('USD','MXN'))`, no single-default lock-in. `GET /jobs` accepts an optional `currency` filter so viewers can choose. Currency **conversion (FX)** is DEFERRED (would need external rates).
 
+## Open Questions Resolved (2026-08-19 — WU6)
+
+1. **`salary_currency NOT NULL DEFAULT 'MXN'`** — added to migration 00007. Matches `candidates.salary_currency` and guarantees a non-null wire field; default `'MXN'` is a write-side convenience, not a lock-in. BOTH `'USD'` and `'MXN'` remain first-class via the CHECK constraint.
+2. **Published-status integrity guard** — `CHECK (status <> 'published' OR published_at IS NOT NULL)` lands in migration 00007. Defensive guard against a future `POST /jobs` write flow that forgets to set `published_at` atomically with `status='published'`. No 23514 on legitimate seed / publish paths.
+3. **`location` filter via `ILIKE` substring** — implemented as `j.location ILIKE '%' || @location::text || '%'`. Case-insensitive substring match, aligned with the design's "user types partial text, server is tolerant" posture. See design.md for the full predicate.
+

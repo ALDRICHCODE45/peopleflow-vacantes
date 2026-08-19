@@ -26,6 +26,9 @@ import (
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
 	industrieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/industries/infrastructure/http"
+	jobsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
+	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
+	jobspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -91,6 +94,17 @@ func run() error {
 	candidateService := candidatesusecases.NewCandidateService(candidateRepo, identityUserRepo)
 	candidateHandler := candidateshttp.NewCandidateHandler(candidateService)
 
+	// Jobs wiring: jobs repo (sqlc data layer over the same pool)
+	// -> service -> handler. Public read slice — no identity user
+	// repo, no JWT context, no RequireAuth (spec scenario "GET /jobs
+	// is public"). The repo takes the *db.Queries handle, not the
+	// raw pool, because the jobs read path is pure sqlc — no
+	// candidate-style atomic-replace transaction is needed for a
+	// read-only slice.
+	jobRepo := jobspostgres.NewJobRepository(queries)
+	jobService := jobsusecases.NewJobService(jobRepo)
+	jobHandler := jobshttp.NewJobHandler(jobService)
+
 	// Verifier wiring: build a real RSA verifier when IDENTITY_JWT_* env
 	// vars are set; fall back to a fail-closed verifier when they aren't.
 	// The fail-closed path keeps /me/* mounted behind RequireAuth so the
@@ -120,6 +134,12 @@ func run() error {
 
 	r.Mount("/companies", companyHandler.Routes())
 	r.Get("/industries", industrieshttp.ListIndustries(queries))
+
+	// /jobs is the public-read job board. Both routes (GET /jobs and
+	// GET /jobs/{id}) are reachable WITHOUT authentication: the spec
+	// scenario "GET /jobs is public" forbids auth here, so this mount
+	// lives outside the /me/* RequireAuth subtree.
+	r.Mount("/jobs", jobHandler.Routes())
 
 	// /me/* is the authenticated slice. RequireAuth runs first, so any
 	// request without a valid Bearer token is rejected pre-handler with

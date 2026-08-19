@@ -158,9 +158,9 @@ Additive migration on an empty table; no data migration. Rollback = `goose down`
 
 ## Open Questions
 
-- [ ] `salary_currency` spec omits `NOT NULL` (DEFAULT `MXN`); recommend adding `NOT NULL` to match `candidates`. Confirm before tasks.
-- [ ] `published_at` nullable for `published` rows only via future publish flow — add `CHECK (status <> 'published' OR published_at IS NOT NULL)`? Optional defensive guard.
-- [ ] `location` filter semantics unstated in spec — design uses `ILIKE` substring. Confirm.
+- [x] `salary_currency` spec omits `NOT NULL` (DEFAULT `MXN`); recommend adding `NOT NULL` to match `candidates`. **Resolved 2026-08-19 (WU6)**: `salary_currency TEXT NOT NULL DEFAULT 'MXN'` lands in migration 00007. CHECK constraint is `CHECK (salary_currency IN ('USD','MXN'))`. Both currencies are first-class; the default is a write-side convenience, not a lock-in. Verified by `TestJobsMigrationSalaryCurrencyDefaultsToMXN`.
+- [x] `published_at` nullable for `published` rows only via future publish flow — add `CHECK (status <> 'published' OR published_at IS NOT NULL)`? **Resolved 2026-08-19 (WU6)**: integrity guard `CHECK (status <> 'published' OR published_at IS NOT NULL)` lands in migration 00007. The defensive guard is included; the publish flow (future work) is the only legitimate producer of `status='published'` rows and is responsible for setting `published_at` in the same transaction. Verified by `TestJobsMigrationPublishedIntegrityGuard` (23514 on `status='published'` + `published_at IS NULL`).
+- [x] `location` filter semantics unstated in spec — design uses `ILIKE` substring. **Resolved 2026-08-19 (WU6)**: `location` filter is implemented as `j.location ILIKE '%' || @location::text || '%'` (case-insensitive substring match). This is a Postgres-side `ILIKE` over the optional `TEXT` column; empty/nil params skip the predicate via the `@location::text = '' OR …` sentinel pattern shared by every other filter.
 
 ## Risks
 
