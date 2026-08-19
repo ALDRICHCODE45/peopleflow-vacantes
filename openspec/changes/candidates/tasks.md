@@ -40,10 +40,10 @@ Suggested split: WU1 Foundation → WU2 Domain → WU3 Application → WU4 Infra
 
 ## Phase 4: Infrastructure (WU4)
 
-- [ ] 4.1 RED: `infrastructure/postgres/candidateRepository_test.go` (`integration` build; upsert, atomic replace, FK).
-- [ ] 4.2 GREEN: `infrastructure/postgres/candidateRepository.go` over `*pgxpool.Pool`; `ReplaceLanguagesByUserID` in one `pgx.Tx`.
-- [ ] 4.3 RED: `infrastructure/http/handler_test.go` (error→status 401/400/404/200).
-- [ ] 4.4 GREEN: `infrastructure/http/handler.go` `Routes()` (`/` + `/languages/`); map sentinels via `errors.Is`.
+- [x] 4.1 RED: `infrastructure/postgres/candidateRepository_test.go` (`integration` build; upsert, atomic replace, FK).
+- [x] 4.2 GREEN: `infrastructure/postgres/candidateRepository.go` over `*pgxpool.Pool`; `ReplaceLanguagesByUserID` in one `pgx.Tx`.
+- [x] 4.3 RED: `infrastructure/http/handler_test.go` (error→status 401/400/404/200).
+- [x] 4.4 GREEN: `infrastructure/http/handler.go` `Routes()` (`/` + `/languages/`); map sentinels via `errors.Is`.
 
 ## Phase 5: Auth Wiring (WU5)
 
