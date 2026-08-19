@@ -12,7 +12,6 @@ import (
 	"encoding/pem"
 	"math/big"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -146,7 +145,7 @@ func TestRsaVerifier_ValidToken(t *testing.T) {
 
 // TestRsaVerifier_TamperedSignature is the canary for the algorithm/confusion
 // attack surface: flipping a byte in the signature section must reject the
-// token.
+// token. We pick a guaranteed-different byte in the signature segment.
 func TestRsaVerifier_TamperedSignature(t *testing.T) {
 	v, err := NewRSAVerifier(publicJWK(t), testIssuer, testAud)
 	if err != nil {
@@ -154,12 +153,43 @@ func TestRsaVerifier_TamperedSignature(t *testing.T) {
 	}
 
 	tok := signToken(t, map[string]any{"sub": "abc"})
-	// Flip one byte in the last third of the string (the signature).
-	idx := len(tok) - 5
-	flipped := tok[:idx] + flipChar(tok[idx]) + tok[idx+1:]
+	// Find the third '.' (start of signature) and flip a byte a couple
+	// positions into the signature section.
+	dots := 0
+	sigStart := 0
+	for i, c := range tok {
+		if c == '.' {
+			dots++
+			if dots == 2 {
+				sigStart = i + 1
+				break
+			}
+		}
+	}
+	if sigStart == 0 || sigStart+2 >= len(tok) {
+		t.Fatalf("could not locate signature segment in token")
+	}
+
+	// Flip a byte in the middle of the signature, ensuring we pick a
+	// printable base64url char and replace it with a known-different one.
+	b := tok[sigStart+5]
+	var replacement byte
+	switch b {
+	case 'A':
+		replacement = 'B'
+	case 'a':
+		replacement = 'b'
+	default:
+		replacement = 'A'
+		if b == 'A' {
+			replacement = 'B'
+		}
+	}
+	flipped := tok[:sigStart+5] + string(replacement) + tok[sigStart+6:]
 
 	if _, err := v.Verify(context.Background(), flipped); err == nil {
-		t.Fatal("expected verify to fail for tampered signature, got nil")
+		t.Fatalf("expected verify to fail for tampered signature at byte %d (%q -> %q), got nil. token=%s",
+			sigStart+5, string(b), string(replacement), flipped)
 	}
 }
 
@@ -308,15 +338,6 @@ func TestRsaVerifier_MalformedToken(t *testing.T) {
 	if _, err := v.Verify(context.Background(), "not-a-jwt"); err == nil {
 		t.Fatal("expected verify to fail for garbage token, got nil")
 	}
-}
-
-// flipChar returns the next lexicographically-different byte for the input
-// character. Used to mutate a token byte while keeping the result valid base64.
-func flipChar(c byte) string {
-	if c == 'A' {
-		return "B"
-	}
-	return strings.ToLower(string(c))
 }
 
 // Compile-time guard that rsa.PublicKey implements the bits we depend on

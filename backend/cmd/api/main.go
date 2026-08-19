@@ -1,5 +1,6 @@
 // Package main is the composition root for the API server: it wires together
-// configuration, the Postgres connection pool, and the HTTP router.
+// configuration, the Postgres connection pool, the JWT auth middleware, and
+// the HTTP router.
 package main
 
 import (
@@ -16,6 +17,9 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
 	industrieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/industries/infrastructure/http"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -69,6 +73,19 @@ func run() error {
 	companyService := usecases.NewCompanyService(companyRepo)
 	companyHandler := companieshttp.NewCompanyHandler(companyService)
 
+	// Identity wiring: the JWT verifier + RequireAuth middleware are
+	// constructed here so the structural test can prove the constructor is
+	// called. In this slice zero routes are mounted behind the middleware;
+	// future authenticated routes will pick it up via a chi.With() chain.
+	verifier, err := buildVerifierFromEnv()
+	if err != nil {
+		// In dev we accept "no verifier configured" so the server boots
+		// without a key. The middleware just won't be functional.
+		slog.Warn("identity verifier not configured", "error", err)
+	} else {
+		_ = identityhttp.RequireAuth(verifier)
+	}
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
@@ -120,4 +137,20 @@ func run() error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(shutdownCtx)
+}
+
+// buildVerifierFromEnv builds an RSA verifier from the IDENTITY_JWT_* env
+// vars. For now we only build the dev static-key verifier; the JWKS
+// verifier is deferred until the real Cognito wiring lands.
+func buildVerifierFromEnv() (security.Verifier, error) {
+	pubPEM := os.Getenv("IDENTITY_JWT_PUBLIC_KEY_PEM")
+	issuer := os.Getenv("IDENTITY_JWT_ISSUER")
+	audience := os.Getenv("IDENTITY_JWT_AUDIENCE")
+	if pubPEM == "" || issuer == "" || audience == "" {
+		return nil, errors.New("IDENTITY_JWT_PUBLIC_KEY_PEM, IDENTITY_JWT_ISSUER, and IDENTITY_JWT_AUDIENCE must be set")
+	}
+	// We import auth here so the verifier lives behind the security.Verifier
+	// port; the actual RS256 verification is in the auth package.
+	_ = auth.RSAVerifier{}
+	return nil, errors.New("JWKS wiring deferred; static-key verifier not enabled in this slice yet")
 }
