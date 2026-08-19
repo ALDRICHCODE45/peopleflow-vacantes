@@ -54,7 +54,7 @@ Suggested split: WU1 Foundation → WU2 Domain → WU3 Application → WU4 Infra
 
 ## Phase 6: Tests & Verification (WU6)
 
-- [ ] 6.1 RED-first guard: re-run WU2/WU3/WU4 tests standalone before WU5 wiring.
-- [ ] 6.2 `cd backend && make test-integration` — migration applies, upsert idempotent, replace atomic.
-- [ ] 6.3 `go test ./cmd/api/...` passes W5 inversion; `go vet ./...` + `gofmt -l .` clean.
-- [ ] 6.4 Mark `[x]` only after each commit lands.
+- [x] 6.1 RED-first guard: re-run WU2/WU3/WU4 tests standalone before WU5 wiring.
+- [x] 6.2 `cd backend && make test-integration` — migration applies, upsert idempotent, replace atomic.
+- [x] 6.3 `go test ./cmd/api/...` passes W5 inversion; `go vet ./...` + `gofmt -l .` clean.
+- [x] 6.4 Mark `[x]` only after each commit lands.
