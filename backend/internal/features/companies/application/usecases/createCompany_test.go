@@ -18,12 +18,12 @@ import (
 // error is programmed into it. Tests use it to drive the use case through
 // its real branching without touching sqlc or Postgres.
 type stubCompanyRepository struct {
-	mu       sync.Mutex
-	saved    *entities.Company
-	saveErr  error
-	getByID  *entities.Company
-	getErr   error
-	calls    int
+	mu      sync.Mutex
+	saved   *entities.Company
+	saveErr error
+	getByID *entities.Company
+	getErr  error
+	calls   int
 }
 
 func (s *stubCompanyRepository) Create(_ context.Context, c *entities.Company) error {
