@@ -13,13 +13,13 @@ Authored ~1550 lines. Excluded: generated `internal/db/jobs.sql.go`, `models.go`
 
 ## Phase 1 — `00007_jobs.sql`
 
-- [ ] 1.1 (RED) `backend/internal/features/jobs/infrastructure/postgres/migration_00007_test.go` (skip no `DATABASE_URL`): table/4 CHECKs/`search_vector`/3 indexes exist after up; Down drops; NOT NULL rejects NULL; 23514 per out-of-enum; `salary_currency` defaults `'MXN'`; `status='published'` without `published_at` fails 23514.
-- [ ] 1.2 (GREEN) `backend/db/migrations/00007_jobs.sql` Up+Down per spec. Refinements: `salary_currency TEXT NOT NULL DEFAULT 'MXN'`; `CHECK (status <> 'published' OR published_at IS NOT NULL)`; `location` via `ILIKE`.
+- [x] 1.1 (RED) `backend/internal/features/jobs/infrastructure/postgres/migration_00007_test.go` (skip no `DATABASE_URL`): table/4 CHECKs/`search_vector`/3 indexes exist after up; Down drops; NOT NULL rejects NULL; 23514 per out-of-enum; `salary_currency` defaults `'MXN'`; `status='published'` without `published_at` fails 23514.
+- [x] 1.2 (GREEN) `backend/db/migrations/00007_jobs.sql` Up+Down per spec. Refinements: `salary_currency TEXT NOT NULL DEFAULT 'MXN'`; `CHECK (status <> 'published' OR published_at IS NOT NULL)`; `location` via `ILIKE`.
 
 ## Phase 2 — `00008_jobs_seed.sql`
 
-- [ ] 2.1 (RED) `migration_00008_test.go` (skip no `DATABASE_URL`): 3 active companies (fixed UUIDs); 6 published jobs (`published_at NOT NULL`, `deleted_at` NULL); rerun idempotent; Down removes seeded.
-- [ ] 2.2 (GREEN) `backend/db/migrations/00008_jobs_seed.sql`: `INSERT … ON CONFLICT (id) DO NOTHING` (3 companies + 6 jobs, fixed UUIDs). Down: delete by UUID.
+- [x] 2.1 (RED) `migration_00008_test.go` (skip no `DATABASE_URL`): 3 active companies (fixed UUIDs); 6 published jobs (`published_at NOT NULL`, `deleted_at` NULL); rerun idempotent; Down removes seeded.
+- [x] 2.2 (GREEN) `backend/db/migrations/00008_jobs_seed.sql`: `INSERT … ON CONFLICT (id) DO NOTHING` (3 companies + 6 jobs, fixed UUIDs). Down: delete by UUID.
 
 ## Phase 3 — sqlc
 
