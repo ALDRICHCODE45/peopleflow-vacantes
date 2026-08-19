@@ -74,6 +74,26 @@ type Industry struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
+type Job struct {
+	ID             uuid.UUID          `json:"id"`
+	CompanyID      uuid.UUID          `json:"company_id"`
+	Title          string             `json:"title"`
+	Description    string             `json:"description"`
+	WorkMode       string             `json:"work_mode"`
+	EmploymentType string             `json:"employment_type"`
+	Seniority      string             `json:"seniority"`
+	Status         string             `json:"status"`
+	Location       pgtype.Text        `json:"location"`
+	SalaryMin      pgtype.Int4        `json:"salary_min"`
+	SalaryMax      pgtype.Int4        `json:"salary_max"`
+	SalaryCurrency string             `json:"salary_currency"`
+	PublishedAt    pgtype.Timestamptz `json:"published_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
+	SearchVector   interface{}        `json:"search_vector"`
+}
+
 type User struct {
 	ID         uuid.UUID          `json:"id"`
 	CognitoSub string             `json:"cognito_sub"`

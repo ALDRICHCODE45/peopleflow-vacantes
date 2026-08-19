@@ -4,14 +4,14 @@
 
 ## Dónde estamos
 
-**Backend: walking skeleton vivo + 3 bounded contexts DELIVERED (`companies`, `identity`, `candidates`) + catálogo `industries`. Auth Cognito real (verifier RS256) montada en rutas autenticadas.**
+**Backend: walking skeleton vivo + 4 bounded contexts DELIVERED (`companies`, `identity`, `candidates`, `jobs`) + catálogo `industries`. Auth Cognito real (verifier RS256) montada en rutas autenticadas. Búsqueda full-text de vacantes viva.**
 
 ### Infraestructura base (lista y compilando)
 
 - ✅ Módulo Go en `backend/go.mod` (módulo único; `api` y `workers` irán como binarios en `cmd/`).
 - ✅ Herramientas pineadas con `go tool` (no global): goose v3.27.1, sqlc v1.31.1.
 - ✅ `backend/docker-compose.yml`: Postgres **16** local con healthcheck (`pg_isready`).
-- ✅ Migraciones goose aplicadas (versión 6): `00001_create_industries` (catálogo + 9 filas semilla), `00002_create_companies` (FK `industry_id`), `00003_companies_profile` (perfil rico, ~10 campos nullable), `00004_companies_active_default` (status nace `active` — decisión MVP), `00005_create_users` (puente Cognito), `00006_create_candidate_profiles` (+ `candidate_languages`).
+- ✅ Migraciones goose aplicadas (versión 8): `00001_create_industries` (catálogo + 9 filas semilla), `00002_create_companies` (FK `industry_id`), `00003_companies_profile` (perfil rico, ~10 campos nullable), `00004_companies_active_default` (status nace `active` — decisión MVP), `00005_create_users` (puente Cognito), `00006_create_candidate_profiles` (+ `candidate_languages`), `00007_jobs` (vacantes + `search_vector`), `00008_jobs_seed` (dev-only).
 - ✅ sqlc configurado (`backend/sqlc.yaml`: pgx/v5, override `uuid`→`google/uuid`) + código generado en `internal/db/`.
 - ✅ Queries en `backend/db/queries/companies.sql`: `CreateCompany`, `GetCompanyByID`.
 - ✅ Composition root `backend/cmd/api/main.go`: pool pgx + chi + `/healthz` (pinguea DB) + graceful shutdown. **Corre y responde 200.**
@@ -40,6 +40,13 @@
 - ✅ Endpoints autenticados: `GET/PUT /me/profile` + `/me/languages` (reemplazo atómico de idiomas en `pgx.Tx`).
 - ✅ `RequireAuth` montado en `/me/*`. 21/21 tareas, verify PASS WITH WARNINGS (18/18 escenarios, 0 CRITICAL).
 
+### Feature `jobs` (✅ DELIVERED — public-read slice)
+
+- ✅ Migración `00007`: tabla `jobs` (`status` `draft/published/closed`, nace `draft`; `work_mode`/`employment_type`/`seniority`/`salary_currency` con CHECK; `search_vector` STORED generado + GIN + índices). `00008`: seed dev-only (3 empresas `active` + 6 vacantes `published`, idempotente).
+- ✅ Búsqueda full-text `'spanish'` (`websearch_to_tsquery` + `ts_rank`) + filtros (`seniority`, `work_mode`, `employment_type`, `location`, `currency`) + paginación keyset 3-tuple `(ts_rank, published_at, id)`.
+- ✅ Endpoints públicos: `GET /jobs` + `GET /jobs/{id}` — solo vacantes `published` de empresas `active` (regla "solo empresa `active` publica", en lectura).
+- ✅ 36 tareas, verify PASS WITH WARNINGS (8/8 requisitos, 29/29 escenarios, 0 CRITICAL). Read-side con tests de integración (visibilidad/keyset/FTS/filtros, mutation-proven).
+
 ### Catálogo `industries` (✅)
 
 - ✅ `GET /industries` — handler fino (sin ceremonia hexagonal; es catálogo de referencia, no bounded context). Helpers JSON en `internal/shared/httpjson`.
@@ -58,8 +65,8 @@
 1. ✅ **Flujo de verificación de empresas (MVP)** — RESUELTO: las empresas nacen `active` (sin pipeline). Validación básica = `name`/`rfc`/`industry_id` + `rfc` único. `suspended` queda como takedown manual. El flujo avanzado (documentos, cola de aprobación, lookup RFC) queda DIFERIDO y documentado en `docs/flujo-verificacion-empresas.md`.
 2. ✅ **`identity`** — DELIVERED. Puente Cognito→Postgres (`users.cognito_sub`) + verifier RS256 + `RequireAuth`. Desbloqueó todo lo autenticado.
 3. ✅ **`candidates`** — DELIVERED. `candidate_profiles` (1:1 con `users`) + `candidate_languages` + self-service `/me/*`.
-4. **`jobs`** — vacantes con búsqueda full-text (`search_vector`). Regla: "solo empresa `active` publica". ← **PRÓXIMO**
-5. **`applications`** — postulaciones + pipeline del reclutador.
+4. ✅ **`jobs`** — DELIVERED (public-read). Vacantes con búsqueda full-text (`search_vector`). El lado de escritura (publicar) queda DIFERIDO junto con `company_members`.
+5. **`applications`** — postulaciones + pipeline del reclutador. ← **PRÓXIMO** (requiere `company_members` para el lado reclutador)
 6. **`audit_events`** — append-only.
 
 Decisión abierta para discutir cuando toque: ¿quién valida que `industry_id` exista? Hoy lo garantiza el FK (DB). Evaluar si además se valida contra el catálogo activo en la capa de aplicación.
@@ -76,6 +83,10 @@ Decisión abierta para discutir cuando toque: ¿quién valida que `industry_id` 
 - 🔲 **Frontend** (`Next.js`) — mockups HTML listos en `design/screens/`, sin código de app.
 - 🔲 **Lambda PostConfirmation** de Cognito → `users` (el backend ya es idempotente para recibirla).
 - 🔲 **`infra/` (Terraform)** y **`workers/`** — vacíos.
+- 🔲 **Escritura de `jobs`** — `POST /jobs`, `PUT /jobs/{id}`, publish/close (flujo `draft→published→closed`).
+- 🔲 **`company_members`** — ownership de empresa (prerequisito de la escritura de `jobs` y de `UpdateCompany`/`DeleteCompany`). Vive en el feature `companies`.
+- 🔲 **Enforcement "empresa `active`" en escritura** — hoy solo se aplica en lectura.
+- 🔲 **Conversión FX de salarios** — hoy el filtro `currency` es match exacto (USD/MXN first-class), sin conversión.
 
 ## Stack decidido (no re-discutir)
 

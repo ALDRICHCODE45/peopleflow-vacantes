@@ -144,3 +144,97 @@ func referencesIdentifier(call *ast.CallExpr, name string) bool {
 	})
 	return found
 }
+
+// TestJobsMount_PublicReadRoutes asserts the WU6 wiring of the jobs
+// public-read slice. Spec scenario "GET /jobs is public" forbids
+// auth on the mount; this test enforces the structural invariants
+// that make the route reachable:
+//
+//  1. NewJobHandler(...) is called at the composition root (the
+//     handler would not exist otherwise).
+//  2. r.Mount("/jobs", ...) is present at the composition root
+//     (the route would not be reachable otherwise).
+//
+// This is the post-WU6 guard. Pre-WU6 the test fails because the
+// mount + constructor are absent; once main.go is wired (9.1) the
+// test passes. The assertion style mirrors TestRequireAuth_
+// MountedOnMeRoutes (AST walk of main.go) so the two guards live
+// in the same idiom.
+func TestJobsMount_PublicReadRoutes(t *testing.T) {
+	const filePath = "main.go"
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		t.Skipf("cannot parse %s (run with cwd=backend/cmd/api): %v", filePath, err)
+	}
+
+	handlerCtor := 0
+	jobsMounts := 0
+
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if isJobsHandlerConstructorCall(call) {
+			handlerCtor++
+		}
+		if isJobsMountCall(call) {
+			jobsMounts++
+		}
+		return true
+	})
+
+	if handlerCtor < 1 {
+		t.Errorf("expected NewJobHandler() constructor call in main.go; got %d (the /jobs routes would never be served)", handlerCtor)
+	}
+	if jobsMounts < 1 {
+		t.Errorf("expected r.Mount(\"/jobs\", ...) in main.go; got %d mounts (GET /jobs and GET /jobs/{id} are unreachable)", jobsMounts)
+	}
+
+	t.Logf("parsed %s: %d NewJobHandler constructor calls, %d /jobs mounts",
+		filePath, handlerCtor, jobsMounts)
+}
+
+// isJobsHandlerConstructorCall returns true when the call is
+// `NewJobHandler(...)` or `pkg.NewJobHandler(...)`. The selector form
+// covers the alias `jobshttp.NewJobHandler` used at the composition
+// root.
+func isJobsHandlerConstructorCall(call *ast.CallExpr) bool {
+	switch fn := call.Fun.(type) {
+	case *ast.Ident:
+		return fn.Name == "NewJobHandler"
+	case *ast.SelectorExpr:
+		return fn.Sel.Name == "NewJobHandler"
+	}
+	return false
+}
+
+// isJobsMountCall returns true when the call is a chi `Mount(...)`
+// mutation whose first argument is the string literal "/jobs". Any
+// other mount prefix, or a non-string-literal first arg, fails the
+// check — the test is intentionally exact about the prefix so a
+// typo like `/job` or `/jobs/` is caught at unit-test time.
+func isJobsMountCall(call *ast.CallExpr) bool {
+	switch fn := call.Fun.(type) {
+	case *ast.Ident:
+		if fn.Name != "Mount" {
+			return false
+		}
+	case *ast.SelectorExpr:
+		if fn.Sel.Name != "Mount" {
+			return false
+		}
+	default:
+		return false
+	}
+	if len(call.Args) == 0 {
+		return false
+	}
+	bl, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || bl.Kind != token.STRING {
+		return false
+	}
+	return bl.Value == `"/jobs"`
+}
