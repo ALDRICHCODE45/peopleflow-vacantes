@@ -47,10 +47,10 @@ Suggested split: WU1 Foundation → WU2 Domain → WU3 Application → WU4 Infra
 
 ## Phase 5: Auth Wiring (WU5)
 
-- [ ] 5.1 `cmd/api/main.go` — finish `buildVerifierFromEnv` via `jwk.ParseKey([]byte(pubPEM), jwk.WithPEM(true))`; fail-closed when env unset.
-- [ ] 5.2 Mount `identityhttp.RequireAuth(v)` on `/me/*` via `r.Route("/me", r.Use(reqAuth); r.Mount("/profile", h.Routes()))`; wire identity repo + service + handler.
-- [ ] 5.3 Add `IDENTITY_JWT_PUBLIC_KEY_PEM/ISSUER/AUDIENCE` to `backend/.env.example`.
-- [ ] 5.4 `cmd/api/main_test.go` — rename guard to `TestRequireAuth_MountedOnMeRoutes`; assert ≥1 route ref.
+- [x] 5.1 `cmd/api/main.go` — finish `buildVerifierFromEnv` via `jwk.ParseKey([]byte(pubPEM), jwk.WithPEM(true))`; fail-closed when env unset.
+- [x] 5.2 Mount `identityhttp.RequireAuth(v)` on `/me/*` via `r.Route("/me", r.Use(reqAuth); r.Mount("/profile", h.Routes()))`; wire identity repo + service + handler.
+- [x] 5.3 Add `IDENTITY_JWT_PUBLIC_KEY_PEM/ISSUER/AUDIENCE` to `backend/.env.example`.
+- [x] 5.4 `cmd/api/main_test.go` — rename guard to `TestRequireAuth_MountedOnMeRoutes`; assert ≥1 route ref.
 
 ## Phase 6: Tests & Verification (WU6)
 
