@@ -160,7 +160,11 @@ The `q` parameter on `GET /jobs` MUST be matched against the stored `search_vect
 
 ### Requirement: Keyset Pagination
 
-`GET /jobs` MUST paginate with keyset (cursor) pagination on `(published_at, id)` ordered DESC. When more rows exist, the response MUST include a `next_cursor`; the client MAY pass `cursor` to fetch the next page. Rows with identical `published_at` MUST be tie-broken by `id` DESC. Pagination MUST be stable (no row duplication or loss across calls).
+`GET /jobs` MUST paginate with keyset (cursor) pagination on the 3-tuple `(ts_rank, published_at, id)` ordered DESC, matching the `ORDER BY` of the listing query. The cursor is opaque to the client (base64url JSON) and carries the same three components.
+
+The `ts_rank` component MUST be omitted from the cursor in browse mode (no `q`), where it is substituted with `0`. Because `ts_rank` against an empty tsquery is `0` for every row, the comparator degenerates to the 2-tuple `(published_at, id)` and browse-mode ordering is unchanged.
+
+When more rows exist, the response MUST include a `next_cursor`; the client MAY pass `cursor` to fetch the next page. Rows with identical `published_at` MUST be tie-broken by `id` DESC, and rows with identical `ts_rank` MUST fall through to `(published_at, id)` DESC. Pagination MUST be stable (no row duplication or loss across calls).
 
 #### Scenario: first page returns a cursor
 
@@ -173,6 +177,12 @@ The `q` parameter on `GET /jobs` MUST be matched against the stored `search_vect
 - GIVEN a `next_cursor` from a previous page
 - WHEN `GET /jobs?cursor=<cursor>` runs
 - THEN response is the next page with no overlap
+
+#### Scenario: search-mode pagination is stable across rank ties
+
+- GIVEN a `q` whose matching rows all score the same `ts_rank`
+- WHEN every page is walked via `next_cursor` until it is absent
+- THEN each matching row is returned exactly once, in the same order a single unpaginated query produces
 
 #### Scenario: cursor past the end returns empty
 

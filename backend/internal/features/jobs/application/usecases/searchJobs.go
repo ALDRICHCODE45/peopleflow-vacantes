@@ -9,6 +9,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/repositories"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
 )
 
 // DefaultPageLimit is the page size used when SearchJobsDto.Limit is
@@ -45,11 +46,11 @@ func (s *JobService) SearchJobs(ctx context.Context, in dtos.SearchJobsDto) (dto
 
 	params := repositories.SearchParams{
 		Q:              optString(in.Q),
-		Seniority:      optString(in.Seniority),
-		WorkMode:       optString(in.WorkMode),
-		EmploymentType: optString(in.EmploymentType),
+		Seniority:      optEnum(in.Seniority, valueobjects.ParseSeniority),
+		WorkMode:       optEnum(in.WorkMode, valueobjects.ParseWorkMode),
+		EmploymentType: optEnum(in.EmploymentType, valueobjects.ParseEmploymentType),
 		Location:       optString(in.Location),
-		SalaryCurrency: optString(in.SalaryCurrency),
+		SalaryCurrency: optEnum(in.SalaryCurrency, valueobjects.ParseSalaryCurrency),
 		Cursor:         cursor.Decode(derefString(in.Cursor)),
 		Limit:          pageLimit + 1, // +1 row drives the NextCursor decision
 	}
@@ -108,6 +109,48 @@ func derefString(p *string) string {
 		return ""
 	}
 	return *p
+}
+
+// wireEnum is the shape every closed-set value object in this slice
+// satisfies: `String()` returns the canonical wire/column form
+// ("senior", "full_time", "USD", …). It exists so `optEnum` can stay
+// generic over the five VO types without a type switch.
+type wireEnum interface{ String() string }
+
+// optEnum is the closed-set counterpart of `optString`. It enforces the
+// REQ-06 rule "invalid filter value is ignored": a filter whose value is
+// not a member of the value object's domain is DROPPED (nil), so the SQL
+// predicate degenerates to TRUE and the caller gets the UNFILTERED
+// listing.
+//
+// Why the use case and not the handler: the handler must not know the
+// closed sets (it would duplicate the domain), and the adapter is too
+// late — by then the value is already an opaque `pgtype.Text` bound for
+// `j.seniority = $n`. Forwarding an out-of-domain value produces a
+// predicate no row can satisfy (the DB CHECK constraint makes the value
+// unreachable), so the client would get an EMPTY page where the spec
+// demands the full listing.
+//
+// On success the CANONICAL form (`parsed.String()`) is forwarded, not
+// the raw input. `Parse*` deliberately tolerates case and surrounding
+// whitespace, so `?currency=usd` passes validation; forwarding it raw
+// would then hit `salary_currency = 'usd'` and match zero rows — the
+// exact "accepted input, empty page" defect this function exists to
+// prevent. Canonicalizing closes that gap in the same step.
+//
+// Free-text filters (`q`, `location`) are open sets and MUST NOT come
+// through here — they keep using `optString`.
+func optEnum[T wireEnum](p *string, parse func(string) (T, error)) *string {
+	s := optString(p)
+	if s == nil {
+		return nil
+	}
+	parsed, err := parse(*s)
+	if err != nil {
+		return nil // out of domain → treated as unfiltered (REQ-06)
+	}
+	canonical := parsed.String()
+	return &canonical
 }
 
 // publishedAt extracts the row's PublishedAt timestamp. The entity

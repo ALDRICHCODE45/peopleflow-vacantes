@@ -24,14 +24,21 @@ type SearchJobsDto struct {
 	// empty → no search predicate, browse mode.
 	Q *string
 
-	// Closed-set filters. Each maps to a domain VO; invalid values
-	// are ignored (spec scenario "invalid filter value is ignored"),
-	// which the use case handles by skipping them.
+	// Closed-set filters. Each maps to a domain VO; the use case runs
+	// the matching `valueobjects.Parse*` and DROPS the filter when the
+	// value is out of domain, so the request degenerates to unfiltered
+	// (spec scenario "invalid filter value is ignored") instead of
+	// matching zero rows. Accepted values are forwarded in their
+	// canonical form ("senior", "full_time", "USD", …).
 	Seniority      *string
 	WorkMode       *string
 	EmploymentType *string
-	Location       *string
 	SalaryCurrency *string
+
+	// Location is an OPEN set matched with an ILIKE substring
+	// predicate, so it is never enum-validated — any non-empty string
+	// reaches SQL as-is.
+	Location *string
 
 	// Cursor is the keyset anchor; nil on the first page.
 	Cursor *string

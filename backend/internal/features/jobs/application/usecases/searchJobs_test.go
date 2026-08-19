@@ -183,6 +183,154 @@ func TestSearchJobs_ValidFiltersMapToPointers(t *testing.T) {
 	}
 }
 
+// TestSearchJobs_InvalidEnumFilterIsDropped covers spec REQ-06 scenario
+// "invalid filter value is ignored": `?seniority=expert` MUST be treated
+// as UNFILTERED, not as a filter that matches nothing.
+//
+// Forwarding the raw value to SQL produces `j.seniority = 'expert'`,
+// which — because the CHECK constraint makes that value unreachable —
+// returns an EMPTY page instead of the full listing. The use case is
+// the only layer that knows the closed set, so it MUST drop the filter
+// (nil) when the value is not a member of the value object's domain.
+func TestSearchJobs_InvalidEnumFilterIsDropped(t *testing.T) {
+	tests := []struct {
+		name string
+		// build mutates the DTO with the invalid value under test.
+		build func(*dtos.SearchJobsDto)
+		// read pulls the corresponding filter off the recorded params.
+		read func(repositories.SearchParams) *string
+	}{
+		{
+			name:  "seniority out of domain",
+			build: func(d *dtos.SearchJobsDto) { d.Seniority = strPtr("expert") },
+			read:  func(p repositories.SearchParams) *string { return p.Seniority },
+		},
+		{
+			name:  "work_mode out of domain",
+			build: func(d *dtos.SearchJobsDto) { d.WorkMode = strPtr("telecommute") },
+			read:  func(p repositories.SearchParams) *string { return p.WorkMode },
+		},
+		{
+			name:  "employment_type out of domain",
+			build: func(d *dtos.SearchJobsDto) { d.EmploymentType = strPtr("freelance") },
+			read:  func(p repositories.SearchParams) *string { return p.EmploymentType },
+		},
+		{
+			name:  "salary_currency out of domain",
+			build: func(d *dtos.SearchJobsDto) { d.SalaryCurrency = strPtr("EUR") },
+			read:  func(p repositories.SearchParams) *string { return p.SalaryCurrency },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			repo := &stubJobRepository{}
+			svc := NewJobService(repo)
+
+			var in dtos.SearchJobsDto
+			tt.build(&in)
+
+			if _, err := svc.SearchJobs(context.Background(), in); err != nil {
+				t.Fatalf("SearchJobs: %v", err)
+			}
+			if repo.searchCalls != 1 {
+				t.Fatalf("expected 1 Search call, got %d", repo.searchCalls)
+			}
+			if got := tt.read(repo.searchParams[0]); got != nil {
+				t.Errorf("filter: want nil (invalid value treated as unfiltered), got %q", *got)
+			}
+		})
+	}
+}
+
+// TestSearchJobs_InvalidEnumFilterDoesNotDropSiblings pins the blast
+// radius: one bad filter MUST NOT wipe the valid ones. `?seniority=expert
+// &work_mode=remote` still filters by work_mode.
+func TestSearchJobs_InvalidEnumFilterDoesNotDropSiblings(t *testing.T) {
+	repo := &stubJobRepository{}
+	svc := NewJobService(repo)
+
+	_, err := svc.SearchJobs(context.Background(), dtos.SearchJobsDto{
+		Seniority: strPtr("expert"), // invalid → dropped
+		WorkMode:  strPtr("remote"), // valid  → kept
+	})
+	if err != nil {
+		t.Fatalf("SearchJobs: %v", err)
+	}
+	got := repo.searchParams[0]
+	if got.Seniority != nil {
+		t.Errorf("Seniority: want nil, got %q", *got.Seniority)
+	}
+	if got.WorkMode == nil || *got.WorkMode != "remote" {
+		t.Errorf("WorkMode: want %q, got %v", "remote", got.WorkMode)
+	}
+}
+
+// TestSearchJobs_ValidEnumFilterIsCanonicalized proves the flip side of
+// the drop rule: a value the VO ACCEPTS must reach SQL in the canonical
+// wire form the column stores. `Parse*` tolerates case and surrounding
+// whitespace, so forwarding the raw input would let `?currency=usd` pass
+// validation and then match zero rows (`salary_currency = 'usd'`) — the
+// same "valid input, empty page" defect the drop rule exists to kill.
+func TestSearchJobs_ValidEnumFilterIsCanonicalized(t *testing.T) {
+	repo := &stubJobRepository{}
+	svc := NewJobService(repo)
+
+	_, err := svc.SearchJobs(context.Background(), dtos.SearchJobsDto{
+		Seniority:      strPtr("Senior"),
+		WorkMode:       strPtr(" remote "),
+		EmploymentType: strPtr("FULL_TIME"),
+		SalaryCurrency: strPtr("usd"),
+	})
+	if err != nil {
+		t.Fatalf("SearchJobs: %v", err)
+	}
+	got := repo.searchParams[0]
+	for _, c := range []struct {
+		field string
+		got   *string
+		want  string
+	}{
+		{"Seniority", got.Seniority, "senior"},
+		{"WorkMode", got.WorkMode, "remote"},
+		{"EmploymentType", got.EmploymentType, "full_time"},
+		{"SalaryCurrency", got.SalaryCurrency, "USD"},
+	} {
+		if c.got == nil {
+			t.Errorf("%s: want %q, got nil", c.field, c.want)
+			continue
+		}
+		if *c.got != c.want {
+			t.Errorf("%s: want %q (canonical), got %q", c.field, c.want, *c.got)
+		}
+	}
+}
+
+// TestSearchJobs_FreeTextFiltersAreNotEnumValidated guards against
+// over-validation: `q` (full-text) and `location` (ILIKE substring) are
+// open sets. Values that would fail every enum parser MUST still reach
+// the repo untouched, otherwise search and location filtering break.
+func TestSearchJobs_FreeTextFiltersAreNotEnumValidated(t *testing.T) {
+	repo := &stubJobRepository{}
+	svc := NewJobService(repo)
+
+	_, err := svc.SearchJobs(context.Background(), dtos.SearchJobsDto{
+		Q:        strPtr("expert kubernetes"),
+		Location: strPtr("Guadalajara"),
+	})
+	if err != nil {
+		t.Fatalf("SearchJobs: %v", err)
+	}
+	got := repo.searchParams[0]
+	if got.Q == nil || *got.Q != "expert kubernetes" {
+		t.Errorf("Q: want %q (free text, never enum-validated), got %v", "expert kubernetes", got.Q)
+	}
+	if got.Location == nil || *got.Location != "Guadalajara" {
+		t.Errorf("Location: want %q (free text, never enum-validated), got %v", "Guadalajara", got.Location)
+	}
+}
+
 // TestSearchJobs_CursorDecodes covers the spec scenario "cursor advances
 // the page": a non-empty cursor string is forwarded to the repo as a
 // *repositories.Cursor with the parsed fields. Malformed cursors are
