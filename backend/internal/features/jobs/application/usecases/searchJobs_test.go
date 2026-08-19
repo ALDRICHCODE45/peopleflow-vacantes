@@ -258,8 +258,9 @@ func TestSearchJobs_LimitIsInflatedToPlusOne(t *testing.T) {
 
 // TestSearchJobs_LimitPlusOneHitsNextCursor is the keystone: when the
 // repo returns limit+1 rows, the use case (a) drops the extra row from
-// the visible page and (b) encodes the LAST returned row (the dropped
-// one) into NextCursor so the next page starts AFTER it.
+// the visible page and (b) encodes the LAST VISIBLE row (rows[limit-1])
+// into NextCursor so the next page starts strictly after it (the +1
+// sentinel row becomes the first row of the next page).
 func TestSearchJobs_LimitPlusOneHitsNextCursor(t *testing.T) {
 	repo := &stubJobRepository{}
 	svc := NewJobService(repo)
@@ -270,7 +271,7 @@ func TestSearchJobs_LimitPlusOneHitsNextCursor(t *testing.T) {
 		// stagger PublishedAt so the last row's anchor is unambiguous
 		pub := now.Add(time.Duration(i) * time.Minute)
 		var rank *float64
-		if i == 20 {
+		if i == 19 {
 			r := 0.5
 			rank = &r
 		}
@@ -290,18 +291,17 @@ func TestSearchJobs_LimitPlusOneHitsNextCursor(t *testing.T) {
 		t.Fatal("NextCursor: want non-nil on +1 row, got nil")
 	}
 
-	// The cursor must encode the LAST returned row from the repo
-	// (the dropped one), not the last visible item. Decoding it
-	// proves the contract.
+	// The cursor must encode the LAST VISIBLE row (rows[19]), not the
+	// +1 sentinel row (rows[20]). Decoding it proves the contract.
 	decoded := cursor.Decode(*res.NextCursor)
 	if decoded == nil {
 		t.Fatal("NextCursor did not round-trip")
 	}
-	if decoded.ID != rows[20].ID {
-		t.Errorf("NextCursor.ID: want %v (dropped row), got %v", rows[20].ID, decoded.ID)
+	if decoded.ID != rows[19].ID {
+		t.Errorf("NextCursor.ID: want %v (last visible row), got %v", rows[19].ID, decoded.ID)
 	}
-	if rows[20].PublishedAt == nil || !decoded.PublishedAt.Equal(*rows[20].PublishedAt) {
-		t.Errorf("NextCursor.PublishedAt: want %v, got %v", rows[20].PublishedAt, decoded.PublishedAt)
+	if rows[19].PublishedAt == nil || !decoded.PublishedAt.Equal(*rows[19].PublishedAt) {
+		t.Errorf("NextCursor.PublishedAt: want %v, got %v", rows[19].PublishedAt, decoded.PublishedAt)
 	}
 	if decoded.Rank == nil || *decoded.Rank != 0.5 {
 		t.Errorf("NextCursor.Rank: want 0.5 (search mode), got %v", decoded.Rank)

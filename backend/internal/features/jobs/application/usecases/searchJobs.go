@@ -62,14 +62,16 @@ func (s *JobService) SearchJobs(ctx context.Context, in dtos.SearchJobsDto) (dto
 	items := make([]dtos.SearchJobsItem, 0, pageLimit)
 	var nextCursor *string
 	if len(rows) > pageLimit {
-		// The (pageLimit)th row (zero-indexed) is the dropped sentinel:
-		// the visible page is rows[:pageLimit], and the cursor anchors
-		// on rows[pageLimit] so the next query skips it cleanly.
+		// len(rows) == pageLimit+1 → there is a next page. The visible
+		// page is rows[:pageLimit]; the cursor anchors on the LAST
+		// visible row (rows[pageLimit-1]) so the SQL `< cursor` keyset
+		// returns everything strictly after it — the +1 sentinel row
+		// becomes the first row of the next page (never skipped).
 		visible := rows[:pageLimit]
 		for _, j := range visible {
 			items = append(items, toItem(j))
 		}
-		anchor := rows[pageLimit]
+		anchor := rows[pageLimit-1]
 		encoded := cursor.Encode(&repositories.Cursor{
 			Rank:        anchor.Rank,
 			PublishedAt: publishedAt(anchor),
