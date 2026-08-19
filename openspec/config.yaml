@@ -1,0 +1,113 @@
+# openspec/config.yaml
+# Spec-Driven Development configuration for peopleflow-vacantes.
+# Persistence mode: openspec (file artifacts only — no Engram mirroring).
+schema: spec-driven
+
+# ----------------------------------------------------------------------------
+# Strict TDD
+# ----------------------------------------------------------------------------
+strict_tdd: true
+
+# ----------------------------------------------------------------------------
+# Project context (kept under 10 lines per sdd-init convention)
+# ----------------------------------------------------------------------------
+context: |
+  Tech stack: Go 1.23+ (backend/), chi router, pgx/v5 + sqlc, goose migrations, Postgres 16
+  Architecture: Hexagonal vertical slices under backend/internal/features/<domain>/
+  Persistence: Postgres (docker compose); sqlc-generated queries; goose for schema migrations
+  DI: Manual composition root at backend/cmd/api/main.go
+  Style: Clean architecture per feature (domain / application / infrastructure), stdlib testing
+  Existing features: companies (full hexagonal slice), industries (thin catalog handler)
+
+# ----------------------------------------------------------------------------
+# Testing capabilities (cached for sdd-apply / sdd-verify)
+# ----------------------------------------------------------------------------
+testing:
+  strict_tdd: true
+  runner:
+    command: "cd backend && go test ./..."
+    framework: "stdlib testing"
+    coverage_command: "cd backend && go test ./... -cover"
+  layers:
+    unit:
+      available: true
+      tool: "go test"
+    integration:
+      available: false
+      tool: "—"
+    e2e:
+      available: false
+      tool: "—"
+  quality:
+    linter:
+      available: false
+      tool: "—"
+    type_checker:
+      available: true
+      tool: "go vet"
+    formatter:
+      available: false
+      tool: "—"
+  notes: |
+    No test files exist yet (greenfield). Strict TDD applies from this point forward:
+    every production change MUST be introduced by a failing test that goes red, then green.
+    `go vet` is the only static-analysis gate wired today; `golangci-lint` and `gofmt -l`
+    SHOULD be added before the project scales beyond two features.
+
+# ----------------------------------------------------------------------------
+# Phase rules
+# ----------------------------------------------------------------------------
+rules:
+  proposal:
+    - Include a rollback plan for risky changes (schema migrations, breaking API surface)
+    - Reference affected features under backend/internal/features/<domain>/
+    - Call out any new dependency on infrastructure (DB, queue, external service)
+  specs:
+    - Use Given/When/Then for every scenario
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY) consistently
+    - Each requirement MUST belong to exactly one feature domain
+    - Delta specs MUST use ADDED / MODIFIED / REMOVED / RENAMED sections only
+  design:
+    - Document architectural decisions with rationale and alternatives considered
+    - Include sequence diagrams for any flow that crosses more than one layer
+    - Respect the existing hexagonal layout (domain → application → infrastructure)
+    - New sqlc queries MUST have a matching migration before any code change lands
+  tasks:
+    - Group by phase using hierarchical numbering (1.1, 1.2, ...)
+    - Each task MUST be completable in a single session
+    - RED tasks MUST precede their GREEN counterpart; REFACTOR is optional but tracked
+    - Mark tasks with [x] only after the corresponding commit lands, not after drafting
+  apply:
+    guidelines:
+      - Follow existing patterns under backend/internal/features/companies as the reference slice
+      - Keep the composition root in backend/cmd/api/main.go as the single wiring point
+      - Do not introduce global state, init() side effects, or hidden singletons
+    tdd: true
+    test_command: "cd backend && go test ./..."
+    red_green_refactor: true
+    commands:
+      red: "cd backend && go test ./..."
+      green: "cd backend && go test ./..."
+      refactor: "cd backend && go test ./..."
+  verify:
+    test_command: "cd backend && go test ./..."
+    build_command: "cd backend && go build ./..."
+    vet_command: "cd backend && go vet ./..."
+    coverage_command: "cd backend && go test ./... -cover"
+    coverage_threshold: 0
+    notes: |
+      Coverage threshold is 0 in the bootstrap; raise it deliberately as features mature.
+      Strict TDD implies RED-first verification: confirm tests existed before the
+      production code they exercise.
+  archive:
+    - Warn before merging destructive deltas (REMOVED requirements) into openspec/specs/
+    - Preserve the YYYY-MM-DD-{change-name}/ folder as an immutable audit trail
+    - Never delete or rewrite entries under openspec/changes/archive/
+
+# ----------------------------------------------------------------------------
+# Artifact roots
+# ----------------------------------------------------------------------------
+paths:
+  specs: openspec/specs
+  changes: openspec/changes
+  archive: openspec/changes/archive
