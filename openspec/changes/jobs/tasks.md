@@ -51,8 +51,9 @@ Authored ~1550 lines. Excluded: generated `internal/db/jobs.sql.go`, `models.go`
 
 ## Phase 7 — Postgres adapter
 
-- [ ] 7.1 (RED) `infrastructure/postgres/jobRepository_test.go` (build params: empty sentinels, nil cursor → invalid pgtypes; `toEntity`; `mapGetError` ErrNoRows→ErrJobNotFound; `Search` returns `NextCursor` only when +1 row).
-- [ ] 7.2 (GREEN) `jobRepository.go` — port impl; `toEntity(db.JobRow)` rebuilds `Job` + VOs (full/nullable/invalid/`search_vector` ignored); `Search` requests `limit+1`; rank-or-not per `Cursor.rank != nil`; `var _ repositories.JobRepository = (*jobRepository)(nil)`.
+- [ ] 7.0 (GREEN) Fix `backend/db/queries/jobs.sql` `SearchJobs`: add `ts_rank(j.search_vector, websearch_to_tsquery('spanish', COALESCE(sqlc.narg('q')::text,''))) AS search_rank` to the SELECT; replace the 2-tuple keyset with the unified 3-tuple `(ts_rank(...), j.published_at, j.id) < (COALESCE(sqlc.narg('cursor_rank')::float8, 0), sqlc.narg('cursor_ts')::timestamptz, sqlc.narg('cursor_id')::uuid)`; `ORDER BY search_rank DESC, j.published_at DESC, j.id DESC`. Regenerate sqlc. Rationale: ordering by rank first requires rank in the keyset.
+- [ ] 7.1 (RED) `infrastructure/postgres/jobRepository_test.go` (build params: empty sentinels, nil cursor → invalid pgtypes; `toEntity` incl. `search_rank`→`Job.Rank`; `mapGetError` ErrNoRows→ErrJobNotFound; `Search` returns `NextCursor` only when +1 row).
+- [ ] 7.2 (GREEN) `jobRepository.go` — port impl; `toEntity(db.JobRow)` rebuilds `Job` + VOs (full/nullable/invalid/`search_vector` ignored) and maps `search_rank`→`Job.Rank` (nil when browse/`Q` nil); `Search` requests `limit+1`; passes `cursor_rank = COALESCE(cursor.Rank, 0)`; `var _ repositories.JobRepository = (*jobRepository)(nil)`.
 
 ## Phase 8 — HTTP handler
 
