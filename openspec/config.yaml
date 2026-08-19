@@ -33,8 +33,8 @@ testing:
       available: true
       tool: "go test"
     integration:
-      available: false
-      tool: "—"
+      available: true
+      tool: "go test -tags=integration"
     e2e:
       available: false
       tool: "—"
@@ -46,12 +46,13 @@ testing:
       available: true
       tool: "go vet"
     formatter:
-      available: false
-      tool: "—"
+      available: true
+      tool: "gofmt"
   notes: |
-    No test files exist yet (greenfield). Strict TDD applies from this point forward:
-    every production change MUST be introduced by a failing test that goes red, then green.
-    `go vet` is the only static-analysis gate wired today; `golangci-lint` and `gofmt -l`
+    Integration tests run via `make test-integration` (sources .env for DATABASE_URL;
+    `go test` alone does not load .env, so the migration tests would otherwise skip).
+    Strict TDD applies: every production change MUST be introduced by a failing test
+    that goes red, then green. `go vet` and `gofmt` are wired; `golangci-lint`
     SHOULD be added before the project scales beyond two features.
 
 # ----------------------------------------------------------------------------

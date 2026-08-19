@@ -240,6 +240,88 @@ func TestUserRepository_GetByIDNotFound(t *testing.T) {
 	}
 }
 
+// TestUserRepository_CreateRefetchesOnConflict proves the idempotency path:
+// when the upsert hits the ON CONFLICT branch (surfacing as pgx.ErrNoRows),
+// the adapter re-fetches the existing row by cognito_sub and returns it
+// unchanged, rather than erroring or duplicating.
+func TestUserRepository_CreateRefetchesOnConflict(t *testing.T) {
+	existingID := uuid.New()
+	now := time.Now().UTC()
+	existing := makeUserRow(existingID, "sub-abc", "alice@example.com", "Alice Wonder", "candidate", now)
+
+	stub := &stubQuerier{
+		createFn: func(_ context.Context, _ db.CreateUserParams) (db.User, error) {
+			return db.User{}, pgxErrNoRows() // conflict path: zero rows returned
+		},
+		getBySub: func(_ context.Context, sub string) (db.User, error) {
+			if sub != "sub-abc" {
+				t.Errorf("expected re-fetch by sub %q, got %q", "sub-abc", sub)
+			}
+			return existing, nil
+		},
+	}
+	repo := NewUserRepository(stub)
+
+	email, _ := valueobjects.NewEmail("alice@example.com")
+	name, _ := valueobjects.NewFullName("Alice Wonder")
+	ut, _ := valueobjects.NewUserType("candidate")
+	got, err := repo.Create(context.Background(), &entities.User{
+		ID:         uuid.New(),
+		CognitoSub: "sub-abc",
+		Email:      email,
+		FullName:   name,
+		UserType:   ut,
+	})
+	if err != nil {
+		t.Fatalf("expected no error on conflict re-fetch, got: %v", err)
+	}
+	if got == nil || got.ID != existingID {
+		t.Errorf("expected re-fetched existing entity with id %v, got: %v", existingID, got)
+	}
+}
+
+// TestUserRepository_GetByCognitoSub proves the read path maps a found row to
+// an entity, and maps pgx.ErrNoRows to entities.ErrUserNotFound.
+func TestUserRepository_GetByCognitoSub(t *testing.T) {
+	id := uuid.New()
+	now := time.Now().UTC()
+
+	t.Run("found", func(t *testing.T) {
+		stub := &stubQuerier{
+			getBySub: func(_ context.Context, sub string) (db.User, error) {
+				if sub != "sub-abc" {
+					t.Errorf("unexpected sub %q", sub)
+				}
+				return makeUserRow(id, "sub-abc", "alice@example.com", "Alice Wonder", "candidate", now), nil
+			},
+		}
+		repo := NewUserRepository(stub)
+		got, err := repo.GetByCognitoSub(context.Background(), "sub-abc")
+		if err != nil {
+			t.Fatalf("expected no error, got: %v", err)
+		}
+		if got == nil || got.CognitoSub != "sub-abc" {
+			t.Errorf("expected entity with sub %q, got: %v", "sub-abc", got)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		stub := &stubQuerier{
+			getBySub: func(_ context.Context, _ string) (db.User, error) {
+				return db.User{}, pgxErrNoRows()
+			},
+		}
+		repo := NewUserRepository(stub)
+		_, err := repo.GetByCognitoSub(context.Background(), "missing")
+		if err == nil {
+			t.Fatal("expected ErrUserNotFound, got nil")
+		}
+		if !errors.Is(err, entities.ErrUserNotFound) {
+			t.Errorf("expected ErrUserNotFound, got: %v", err)
+		}
+	})
+}
+
 // pgxErrNoRows returns the real pgx.ErrNoRows through a wrapper so the
 // stub's signature is satisfied even if the package import is unused.
 func pgxErrNoRows() error {
