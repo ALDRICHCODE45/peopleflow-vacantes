@@ -89,7 +89,9 @@ func TestUsersMigrationUpCreatesNamedObjects(t *testing.T) {
 }
 
 // TestUsersMigrationDownDropsTable proves "down drops table and indexes".
-// Apply 00005 up, then down, then verify the table is gone.
+// Apply 00005 up, then down, then verify the table is gone. After the
+// test we re-run the up migration so the schema is left in a state
+// usable by the rest of the integration suite.
 func TestUsersMigrationDownDropsTable(t *testing.T) {
 	pool := skipIfNoDatabaseForUsers(t)
 	defer pool.Close()
@@ -107,7 +109,7 @@ func TestUsersMigrationDownDropsTable(t *testing.T) {
 	); err != nil {
 		t.Skipf("cannot insert users fixture (table may already be missing): %v", err)
 	}
-	// Cleanup
+	// Cleanup the row we just inserted so the drop leaves nothing behind.
 	defer pool.Exec(ctx, `DELETE FROM users WHERE cognito_sub = 'down-test-sub'`)
 	// Drop using the same DDL as migration down.
 	if _, err := pool.Exec(ctx, `DROP TABLE users`); err != nil {
@@ -122,7 +124,37 @@ func TestUsersMigrationDownDropsTable(t *testing.T) {
 	if hasTable {
 		t.Fatal("expected table `users` to be gone after DROP")
 	}
+
+	// Re-apply the up so the schema is left in a usable state for any
+	// later test in the same run.
+	if _, err := pool.Exec(ctx, createUsersTableDDL); err != nil {
+		t.Fatalf("re-create users table: %v", err)
+	}
 }
+
+// createUsersTableDDL mirrors the up migration body so the down test can
+// restore the schema after dropping it. Kept in sync by hand — if the
+// migration changes, this must change too.
+const createUsersTableDDL = `
+CREATE TABLE users (
+    id          UUID PRIMARY KEY,
+    cognito_sub TEXT NOT NULL,
+    email       TEXT NOT NULL,
+    full_name   TEXT NOT NULL,
+    user_type   TEXT NOT NULL
+        CONSTRAINT users_user_type_check
+        CHECK (user_type IN ('candidate', 'recruiter')),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at  TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX users_cognito_sub_unique
+    ON users (cognito_sub) WHERE deleted_at IS NULL;
+
+CREATE UNIQUE INDEX users_email_unique
+    ON users (email) WHERE deleted_at IS NULL;
+`
 
 // TestUsersMigrationRejectsInvalidUserType proves the CHECK constraint blocks
 // values outside the closed user_type set.
@@ -150,4 +182,59 @@ func TestUsersMigrationRejectsInvalidUserType(t *testing.T) {
 	if pgErr.Code != "23514" {
 		t.Errorf("expected SQLSTATE 23514 (check_violation), got %q", pgErr.Code)
 	}
+}
+
+// TestUsersMigrationIdempotentRedelivery proves the spec scenario "repeated
+// delivery leaves one row": two consecutive PostConfirmation calls with the
+// same cognito_sub leave a single row and both return no error.
+//
+// This test complements the application-level PostConfirmation_RepeatedDelivery
+// test by proving the same contract at the database boundary (the ON CONFLICT
+// DO NOTHING clause itself).
+func TestUsersMigrationIdempotentRedelivery(t *testing.T) {
+	pool := skipIfNoDatabaseForUsers(t)
+	defer pool.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Clean up any leftover from a previous run.
+	_, _ = pool.Exec(ctx, `DELETE FROM users WHERE cognito_sub = 'idem-sub'`)
+
+	id1 := uuid.New()
+	_, err := pool.Exec(ctx,
+		`INSERT INTO users (id, cognito_sub, email, full_name, user_type)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (cognito_sub) WHERE deleted_at IS NULL DO NOTHING`,
+		id1, "idem-sub", "idem@example.com", "Idem Test", "candidate",
+	)
+	if err != nil {
+		t.Fatalf("first insert: %v", err)
+	}
+
+	// Second insert with the SAME cognito_sub but a different id. The
+	// upsert should swallow it.
+	id2 := uuid.New()
+	_, err = pool.Exec(ctx,
+		`INSERT INTO users (id, cognito_sub, email, full_name, user_type)
+		 VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (cognito_sub) WHERE deleted_at IS NULL DO NOTHING`,
+		id2, "idem-sub", "idem@example.com", "Idem Test", "candidate",
+	)
+	if err != nil {
+		t.Fatalf("second insert (should be swallowed): %v", err)
+	}
+
+	var count int
+	if err := pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM users WHERE cognito_sub = 'idem-sub'`,
+	).Scan(&count); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("expected exactly 1 row for cognito_sub='idem-sub', got %d", count)
+	}
+
+	// Cleanup
+	_, _ = pool.Exec(ctx, `DELETE FROM users WHERE cognito_sub = 'idem-sub'`)
 }
