@@ -35,8 +35,8 @@ Suggested split: WU1 Foundation → WU2 Domain → WU3 Application → WU4 Infra
 
 ## Phase 3: Application (WU3)
 
-- [ ] 3.1 RED: `application/usecases/candidate_service_test.go` (fakes; GET, upsert, IDOR, dup-language 400, sub-not-found 401).
-- [ ] 3.2 GREEN: DTOs + `application/usecases/{GetMyProfile,UpsertMyProfile,ReplaceMyLanguages,ListMyLanguages}.go`; resolve `cognito_sub→users.id` via identity port.
+- [x] 3.1 RED: `application/usecases/candidate_service_test.go` (fakes; GET, upsert, IDOR, dup-language 400, sub-not-found 401).
+- [x] 3.2 GREEN: DTOs + `application/usecases/{GetMyProfile,UpsertMyProfile,ReplaceMyLanguages,ListMyLanguages}.go`; resolve `cognito_sub→users.id` via identity port.
 
 ## Phase 4: Infrastructure (WU4)
 
