@@ -23,8 +23,8 @@ Authored ~1550 lines. Excluded: generated `internal/db/jobs.sql.go`, `models.go`
 
 ## Phase 3 — sqlc
 
-- [ ] 3.1 (GREEN) `backend/db/queries/jobs.sql` with `SearchJobs :many` + `GetJobByID :one` per design.md (explicit cols, JOIN `companies`, `ORDER BY ts_rank DESC, j.published_at DESC, j.id DESC`, `LIMIT @limit + 1`, `sqlc.narg`).
-- [ ] 3.2 (GREEN) `make sqlc`. Verify `internal/db/jobs.sql.go` + `models.go` compile, no `interface{}` for `search_vector`.
+- [x] 3.1 (GREEN) `backend/db/queries/jobs.sql` with `SearchJobs :many` + `GetJobByID :one` per design.md (explicit cols, JOIN `companies`, `ORDER BY ts_rank DESC, j.published_at DESC, j.id DESC`, `LIMIT @limit + 1`, `sqlc.narg`).
+- [x] 3.2 (GREEN) `make sqlc`. Verify `internal/db/jobs.sql.go` + `models.go` compile, no `interface{}` for `search_vector`.
 
 ## Phase 4 — Domain VOs
 
