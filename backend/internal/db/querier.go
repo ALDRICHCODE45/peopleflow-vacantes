@@ -12,7 +12,15 @@ import (
 
 type Querier interface {
 	CreateCompany(ctx context.Context, arg CreateCompanyParams) (Company, error)
+	// Idempotent upsert keyed on the partial unique index `users_cognito_sub_unique`.
+	// The `WHERE deleted_at IS NULL` predicate is required: a bare `ON CONFLICT (cognito_sub)`
+	// would not match the partial index and would raise SQLSTATE 42P10.
+	// On conflict, `RETURNING *` produces zero rows so pgx returns pgx.ErrNoRows;
+	// the adapter re-fetches by cognito_sub to return the existing entity.
+	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	GetCompanyByID(ctx context.Context, id uuid.UUID) (Company, error)
+	GetUserByCognitoSub(ctx context.Context, cognitoSub string) (User, error)
+	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	ListActiveIndustries(ctx context.Context) ([]Industry, error)
 }
 

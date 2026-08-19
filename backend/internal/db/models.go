@@ -41,3 +41,14 @@ type Industry struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
+
+type User struct {
+	ID         uuid.UUID          `json:"id"`
+	CognitoSub string             `json:"cognito_sub"`
+	Email      string             `json:"email"`
+	FullName   string             `json:"full_name"`
+	UserType   string             `json:"user_type"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt  pgtype.Timestamptz `json:"deleted_at"`
+}
