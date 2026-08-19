@@ -97,7 +97,11 @@ SELECT
     j.published_at,
     j.deleted_at,
     c.id AS company_id,
-    c.name AS company_name
+    c.name AS company_name,
+    ts_rank(
+        j.search_vector,
+        websearch_to_tsquery('spanish', COALESCE($1::text, ''))
+    ) AS search_rank
 FROM jobs j
 JOIN companies c ON c.id = j.company_id
 WHERE j.status = 'published'
@@ -116,15 +120,19 @@ WHERE j.status = 'published'
   AND ($6::text IS NULL
        OR j.salary_currency = $6::text)
   AND ($7::timestamptz IS NULL
-       OR (j.published_at, j.id)
-          < ($7::timestamptz, $8::uuid))
-ORDER BY ts_rank(
-             j.search_vector,
-             websearch_to_tsquery('spanish', COALESCE($1::text, ''))
-         ) DESC,
+       OR (ts_rank(
+              j.search_vector,
+              websearch_to_tsquery('spanish', COALESCE($1::text, ''))
+           ),
+           j.published_at,
+           j.id)
+          < (COALESCE($8::float8, 0),
+             $7::timestamptz,
+             $9::uuid))
+ORDER BY search_rank DESC,
          j.published_at DESC,
          j.id DESC
-LIMIT $9::int
+LIMIT $10::int
 `
 
 type SearchJobsParams struct {
@@ -135,6 +143,7 @@ type SearchJobsParams struct {
 	Location       pgtype.Text        `json:"location"`
 	SalaryCurrency pgtype.Text        `json:"salary_currency"`
 	CursorTs       pgtype.Timestamptz `json:"cursor_ts"`
+	CursorRank     pgtype.Float8      `json:"cursor_rank"`
 	CursorID       pgtype.UUID        `json:"cursor_id"`
 	Limit          pgtype.Int4        `json:"limit"`
 }
@@ -155,6 +164,7 @@ type SearchJobsRow struct {
 	DeletedAt      pgtype.Timestamptz `json:"deleted_at"`
 	CompanyID      uuid.UUID          `json:"company_id"`
 	CompanyName    string             `json:"company_name"`
+	SearchRank     float32            `json:"search_rank"`
 }
 
 // Public read listing for jobs (§spec/jobs). The visibility rule
@@ -204,6 +214,7 @@ func (q *Queries) SearchJobs(ctx context.Context, arg SearchJobsParams) ([]Searc
 		arg.Location,
 		arg.SalaryCurrency,
 		arg.CursorTs,
+		arg.CursorRank,
 		arg.CursorID,
 		arg.Limit,
 	)
@@ -230,6 +241,7 @@ func (q *Queries) SearchJobs(ctx context.Context, arg SearchJobsParams) ([]Searc
 			&i.DeletedAt,
 			&i.CompanyID,
 			&i.CompanyName,
+			&i.SearchRank,
 		); err != nil {
 			return nil, err
 		}

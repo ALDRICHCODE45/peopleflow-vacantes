@@ -52,7 +52,11 @@ SELECT
     j.published_at,
     j.deleted_at,
     c.id AS company_id,
-    c.name AS company_name
+    c.name AS company_name,
+    ts_rank(
+        j.search_vector,
+        websearch_to_tsquery('spanish', COALESCE(sqlc.narg('q')::text, ''))
+    ) AS search_rank
 FROM jobs j
 JOIN companies c ON c.id = j.company_id
 WHERE j.status = 'published'
@@ -71,12 +75,16 @@ WHERE j.status = 'published'
   AND (sqlc.narg('salary_currency')::text IS NULL
        OR j.salary_currency = sqlc.narg('salary_currency')::text)
   AND (sqlc.narg('cursor_ts')::timestamptz IS NULL
-       OR (j.published_at, j.id)
-          < (sqlc.narg('cursor_ts')::timestamptz, sqlc.narg('cursor_id')::uuid))
-ORDER BY ts_rank(
-             j.search_vector,
-             websearch_to_tsquery('spanish', COALESCE(sqlc.narg('q')::text, ''))
-         ) DESC,
+       OR (ts_rank(
+              j.search_vector,
+              websearch_to_tsquery('spanish', COALESCE(sqlc.narg('q')::text, ''))
+           ),
+           j.published_at,
+           j.id)
+          < (COALESCE(sqlc.narg('cursor_rank')::float8, 0),
+             sqlc.narg('cursor_ts')::timestamptz,
+             sqlc.narg('cursor_id')::uuid))
+ORDER BY search_rank DESC,
          j.published_at DESC,
          j.id DESC
 LIMIT sqlc.narg('limit')::int;

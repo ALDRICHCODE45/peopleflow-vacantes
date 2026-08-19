@@ -44,9 +44,13 @@ type SearchJobsDto struct {
 
 // CompanyDto is the embedded company identity carried in every job
 // response: {id, name}. The use case fills it from Job.Company.
+//
+// Wire format is snake_case to match the rest of the public API; the
+// Go field names stay in CamelCase so the `entity → dto` projection
+// in `searchJobs.go` reads naturally.
 type CompanyDto struct {
-	ID   string
-	Name string
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // SearchJobsItem is one row in the GET /jobs items[] payload. Enum
@@ -56,26 +60,36 @@ type CompanyDto struct {
 // *time.Time so a missing publish timestamp renders as omitted — the
 // read path never returns a non-published row, but the shape matches
 // the column.
+//
+// `Company` is reused on the detail endpoint so list items and a
+// single-job response share the same wire shape (decisions 4 + 5).
 type SearchJobsItem struct {
-	ID             string
-	Title          string
-	Description    string
-	WorkMode       string
-	EmploymentType string
-	Seniority      string
-	Location       *string
-	SalaryMin      *int
-	SalaryMax      *int
-	SalaryCurrency string
-	PublishedAt    *time.Time
-	Company        CompanyDto
+	ID             string     `json:"id"`
+	Title          string     `json:"title"`
+	Description    string     `json:"description"`
+	WorkMode       string     `json:"work_mode"`
+	EmploymentType string     `json:"employment_type"`
+	Seniority      string     `json:"seniority"`
+	Location       *string    `json:"location,omitempty"`
+	SalaryMin      *int       `json:"salary_min,omitempty"`
+	SalaryMax      *int       `json:"salary_max,omitempty"`
+	SalaryCurrency string     `json:"salary_currency"`
+	PublishedAt    *time.Time `json:"published_at,omitempty"`
+	Company        CompanyDto `json:"company"`
 }
 
 // SearchJobsResult is the GET /jobs envelope. Items is always a
 // non-nil slice so JSON encoding produces `[]` rather than `null` on
-// an empty page. NextCursor is nil on the last page; otherwise it
-// holds the opaque base64url(JSON) cursor for the next page.
+// an empty page — the wire MUST always carry the `items` field, so
+// the `Items` tag intentionally omits `omitempty`. NextCursor is nil
+// on the last page; otherwise it holds the opaque base64url(JSON)
+// cursor for the next page.
+//
+// `next_cursor` carries `omitempty` so the envelope renders as
+// `{"items": [...], "next_cursor": "..."}` on a page with more rows
+// and `{"items": [...]}` on the last page — the spec scenario "cursor
+// past the end returns empty" treats null/missing identically.
 type SearchJobsResult struct {
-	Items      []SearchJobsItem
-	NextCursor *string
+	Items      []SearchJobsItem `json:"items"`
+	NextCursor *string          `json:"next_cursor,omitempty"`
 }
