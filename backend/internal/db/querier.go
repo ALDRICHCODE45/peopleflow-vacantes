@@ -21,6 +21,10 @@ type Querier interface {
 	DeleteCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) error
 	GetCandidateProfileByUserID(ctx context.Context, userID uuid.UUID) (CandidateProfile, error)
 	GetCompanyByID(ctx context.Context, id uuid.UUID) (Company, error)
+	// Public detail endpoint. Same visibility rule as SearchJobs, plus the
+	// positional `$1` id. Explicit column list keeps `search_vector` out of
+	// the scan and matches the embedded `{company: {id, name}}` shape.
+	GetJobByID(ctx context.Context, id uuid.UUID) (GetJobByIDRow, error)
 	GetUserByCognitoSub(ctx context.Context, cognitoSub string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	// Used inside the atomic replace transaction. Composite PK (user_id, language)
@@ -29,6 +33,45 @@ type Querier interface {
 	InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error
 	ListActiveIndustries(ctx context.Context) ([]Industry, error)
 	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error)
+	// Public read listing for jobs (§spec/jobs). The visibility rule
+	// (§Read-Side Visibility Rule) is enforced here, not in Go: a row
+	// surfaces only when `jobs.status='published'`, `jobs.deleted_at IS NULL`,
+	// and the owning company is `active`. The column list is explicit (not
+	// `SELECT *`) so the STORED generated `search_vector` (sqlc would map it
+	// to `interface{}`) never enters the scan — every field on the row is
+	// typed (uuid.UUID, string, pgtype.Text, pgtype.Int4, pgtype.Timestamptz).
+	// `companies.{id,name}` are joined in the same query (zero extra round
+	// trip) to embed `{company: {id, name}}` in the API response.
+	//
+	// All optional inputs use `sqlc.narg` (nullable named params). When the
+	// adapter doesn't pass a value, the predicate degenerates to TRUE — the
+	// same query serves both search and browse modes without a branch in Go.
+	//
+	// FTS uses `websearch_to_tsquery` (safe parser; never throws on
+	// malformed input — matches spec scenario "malformed q does not 500").
+	// The tsquery is computed in WHERE and again in ORDER BY; Postgres CSEs
+	// it in the planner, so the cost is negligible. `COALESCE(..., '')` on
+	// the ORDER BY side is what makes browse-mode safe: when `q` is NULL,
+	// `websearch_to_tsquery('spanish', '')` yields an empty tsquery and
+	// `ts_rank` returns 0 for every row, degenerating the ORDER BY to
+	// `published_at DESC, id DESC` exactly as the spec requires.
+	//
+	// Keyset pagination (Decision 3): cursor = opaque base64url(JSON). When
+	// the adapter passes `cursor_ts` + `cursor_id`, the row-tuple predicate
+	// `(published_at, id) < (cursor_ts, cursor_id)` narrows to the next
+	// page; otherwise the predicate degenerates to TRUE (first page).
+	//
+	// `LIMIT @limit+1` from the adapter — the +1 row is dropped in Go and
+	// its presence signals "has more" (see Decision 3).
+	//
+	// Dropped `j.company_id` from the SELECT (redundant with
+	// `c.id AS company_id` via the JOIN on this same column — keeping it
+	// would produce two columns with the same output name, which sqlc
+	// cannot map to a single struct field) to keep all output column names
+	// unique. `j.status` and `j.deleted_at` are included so the adapter
+	// can assert visibility at the row level; they are not exposed in the
+	// API response per spec.
+	SearchJobs(ctx context.Context, arg SearchJobsParams) ([]SearchJobsRow, error)
 	// Idempotent upsert keyed on the PK (user_id). First PUT creates the row;
 	// subsequent PUTs overwrite the editable columns. search_vector is a STORED
 	// generated column owned by Postgres and MUST NOT be touched here.
