@@ -9,6 +9,38 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CandidateLanguage struct {
+	UserID   uuid.UUID `json:"user_id"`
+	Language string    `json:"language"`
+	Level    string    `json:"level"`
+}
+
+type CandidateProfile struct {
+	UserID               uuid.UUID          `json:"user_id"`
+	Phone                pgtype.Text        `json:"phone"`
+	LinkedinUrl          pgtype.Text        `json:"linkedin_url"`
+	PortfolioUrl         pgtype.Text        `json:"portfolio_url"`
+	ProfessionalTitle    pgtype.Text        `json:"professional_title"`
+	CurrentCompany       pgtype.Text        `json:"current_company"`
+	YearsOfExperience    pgtype.Int2        `json:"years_of_experience"`
+	ProfileSummary       pgtype.Text        `json:"profile_summary"`
+	BirthDate            pgtype.Date        `json:"birth_date"`
+	City                 pgtype.Text        `json:"city"`
+	Country              pgtype.Text        `json:"country"`
+	EducationLevel       pgtype.Text        `json:"education_level"`
+	FieldOfStudy         pgtype.Text        `json:"field_of_study"`
+	Skills               []string           `json:"skills"`
+	CurrentSalaryGross   pgtype.Int4        `json:"current_salary_gross"`
+	CurrentSalaryNet     pgtype.Int4        `json:"current_salary_net"`
+	ExpectedSalary       pgtype.Int4        `json:"expected_salary"`
+	SalaryCurrency       string             `json:"salary_currency"`
+	ExpectedSalaryPeriod pgtype.Text        `json:"expected_salary_period"`
+	CvS3Key              pgtype.Text        `json:"cv_s3_key"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	SearchVector         interface{}        `json:"search_vector"`
+}
+
 type Company struct {
 	ID            uuid.UUID          `json:"id"`
 	Name          string             `json:"name"`

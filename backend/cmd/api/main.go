@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -14,17 +15,22 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
+	candidatesusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/usecases"
+	candidateshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http"
+	candidatespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/postgres"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
+	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
 	industrieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/industries/infrastructure/http"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
 func main() {
@@ -73,17 +79,28 @@ func run() error {
 	companyService := usecases.NewCompanyService(companyRepo)
 	companyHandler := companieshttp.NewCompanyHandler(companyService)
 
-	// Identity wiring: the JWT verifier + RequireAuth middleware are
-	// constructed here so the structural test can prove the constructor is
-	// called. In this slice zero routes are mounted behind the middleware;
-	// future authenticated routes will pick it up via a chi.With() chain.
-	verifier, err := buildVerifierFromEnv()
-	if err != nil {
-		// In dev we accept "no verifier configured" so the server boots
-		// without a key. The middleware just won't be functional.
-		slog.Warn("identity verifier not configured", "error", err)
+	// Identity wiring: the postgres adapter for repositories.UserRepository.
+	// The candidates use case needs GetByCognitoSub to resolve the JWT
+	// subject to a stable users.id (IDOR-resistant boundary).
+	identityUserRepo := identitypostgres.NewUserRepository(queries)
+
+	// Candidates wiring: candidates repo (pgxpool for the atomic
+	// language-replace tx) -> service (uses identity user repo) ->
+	// handler (reads JWT subject from context).
+	candidateRepo := candidatespostgres.NewCandidateRepository(pool)
+	candidateService := candidatesusecases.NewCandidateService(candidateRepo, identityUserRepo)
+	candidateHandler := candidateshttp.NewCandidateHandler(candidateService)
+
+	// Verifier wiring: build a real RSA verifier when IDENTITY_JWT_* env
+	// vars are set; fall back to a fail-closed verifier when they aren't.
+	// The fail-closed path keeps /me/* mounted behind RequireAuth so the
+	// middleware always runs — there is no code path that lets an
+	// unauthenticated request reach the candidate handler.
+	verifier, verifierErr := buildVerifierFromEnv()
+	if verifierErr != nil {
+		slog.Warn("identity verifier not configured; /me/* will reject every request with 401", "error", verifierErr)
 	} else {
-		_ = identityhttp.RequireAuth(verifier)
+		slog.Info("identity verifier ready")
 	}
 
 	r := chi.NewRouter()
@@ -95,7 +112,6 @@ func run() error {
 	r.Get("/healthz", func(w http.ResponseWriter, req *http.Request) {
 		if err := pool.Ping(req.Context()); err != nil {
 			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
-
 			return
 		}
 		w.WriteHeader(http.StatusOK)
@@ -104,6 +120,16 @@ func run() error {
 
 	r.Mount("/companies", companyHandler.Routes())
 	r.Get("/industries", industrieshttp.ListIndustries(queries))
+
+	// /me/* is the authenticated slice. RequireAuth runs first, so any
+	// request without a valid Bearer token is rejected pre-handler with
+	// 401 — the candidate handler is never invoked. With the fail-closed
+	// verifier in place (env not set), every request still hits 401, not
+	// 404, so the surface can't be probed by accident.
+	r.Route("/me", func(r chi.Router) {
+		r.Use(identityhttp.RequireAuth(verifier))
+		r.Mount("/profile", candidateHandler.Routes())
+	})
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -139,18 +165,47 @@ func run() error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-// buildVerifierFromEnv builds an RSA verifier from the IDENTITY_JWT_* env
-// vars. For now we only build the dev static-key verifier; the JWKS
-// verifier is deferred until the real Cognito wiring lands.
+// buildVerifierFromEnv returns a security.Verifier built from the
+// IDENTITY_JWT_* env vars. When the env is fully populated, it parses
+// IDENTITY_JWT_PUBLIC_KEY_PEM (accepting both PKCS#1 and PKIX via
+// jwk.WithPEM(true)) and returns a real auth.RSAVerifier pinned to
+// the configured issuer and audience. When any of the three env vars
+// is unset, it returns a fail-closed denyAllVerifier so the
+// /me/* route chain still mounts behind RequireAuth — every request
+// is rejected with a sentinel error, never silently admitted.
 func buildVerifierFromEnv() (security.Verifier, error) {
 	pubPEM := os.Getenv("IDENTITY_JWT_PUBLIC_KEY_PEM")
 	issuer := os.Getenv("IDENTITY_JWT_ISSUER")
 	audience := os.Getenv("IDENTITY_JWT_AUDIENCE")
 	if pubPEM == "" || issuer == "" || audience == "" {
-		return nil, errors.New("IDENTITY_JWT_PUBLIC_KEY_PEM, IDENTITY_JWT_ISSUER, and IDENTITY_JWT_AUDIENCE must be set")
+		return denyAllVerifier{}, errors.New("IDENTITY_JWT_PUBLIC_KEY_PEM, IDENTITY_JWT_ISSUER, and IDENTITY_JWT_AUDIENCE must be set")
 	}
-	// We import auth here so the verifier lives behind the security.Verifier
-	// port; the actual RS256 verification is in the auth package.
-	_ = auth.RSAVerifier{}
-	return nil, errors.New("JWKS wiring deferred; static-key verifier not enabled in this slice yet")
+	// jwk.ParseKey with WithPEM(true) accepts both PKCS#1 (header
+	// "RSA PUBLIC KEY") and PKIX (header "PUBLIC KEY") PEM blocks; the
+	// constructor pins the algorithm to RS256 to block the HS256
+	// algorithm-confusion attack class.
+	key, err := jwk.ParseKey([]byte(pubPEM), jwk.WithPEM(true))
+	if err != nil {
+		return nil, fmt.Errorf("parse IDENTITY_JWT_PUBLIC_KEY_PEM: %w", err)
+	}
+	return auth.NewRSAVerifier(key, issuer, audience)
 }
+
+// errFailClosedVerifier is the sentinel a denyAllVerifier surfaces for
+// every token. It is intentionally distinct from a real verification
+// error so logs can be filtered cleanly.
+var errFailClosedVerifier = errors.New("identity verifier is fail-closed: IDENTITY_JWT_* env vars are not configured")
+
+// denyAllVerifier is the fail-closed security.Verifier returned by
+// buildVerifierFromEnv when IDENTITY_JWT_* env vars are missing. It
+// rejects every token with errFailClosedVerifier, so /me/* mounted
+// behind RequireAuth never admits a request by accident even when
+// the operator hasn't provisioned the JWT signing key yet.
+type denyAllVerifier struct{}
+
+func (denyAllVerifier) Verify(_ context.Context, _ string) (security.Claims, error) {
+	return security.Claims{}, errFailClosedVerifier
+}
+
+// Compile-time assertion that denyAllVerifier satisfies the port.
+var _ security.Verifier = denyAllVerifier{}

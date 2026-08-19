@@ -109,8 +109,23 @@ func TestUsersMigrationDownDropsTable(t *testing.T) {
 	); err != nil {
 		t.Skipf("cannot insert users fixture (table may already be missing): %v", err)
 	}
-	// Cleanup the row we just inserted so the drop leaves nothing behind.
+	// Cleanup the row we just inserted. After the drop + recreate below,
+	// this DELETE no-ops against the recreated users table, which is harmless.
 	defer pool.Exec(ctx, `DELETE FROM users WHERE cognito_sub = 'down-test-sub'`)
+
+	// Migration 00006 added FK references from `candidate_profiles` and
+	// `candidate_languages` to `users(id)`. Goose runs downs in reverse
+	// migration order, so 00006's down drops those tables BEFORE 00005's
+	// down drops `users`. This test must mirror that order, otherwise
+	// PostgreSQL returns SQLSTATE 2BP01 ("cannot drop table users because
+	// other objects depend on it"). Use IF EXISTS so a partial-schema DB
+	// state (e.g. a fresh checkout before migrations run) does not fail.
+	if _, err := pool.Exec(ctx, `DROP TABLE IF EXISTS candidate_languages`); err != nil {
+		t.Fatalf("drop candidate_languages: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DROP TABLE IF EXISTS candidate_profiles`); err != nil {
+		t.Fatalf("drop candidate_profiles: %v", err)
+	}
 	// Drop using the same DDL as migration down.
 	if _, err := pool.Exec(ctx, `DROP TABLE users`); err != nil {
 		t.Fatalf("drop table: %v", err)
@@ -126,9 +141,18 @@ func TestUsersMigrationDownDropsTable(t *testing.T) {
 	}
 
 	// Re-apply the up so the schema is left in a usable state for any
-	// later test in the same run.
+	// later test in the same run. We must also re-create the dependent
+	// tables introduced by migration 00006 — otherwise the rest of the
+	// integration suite (candidates repository tests in particular)
+	// would find `candidate_profiles` / `candidate_languages` missing.
 	if _, err := pool.Exec(ctx, createUsersTableDDL); err != nil {
 		t.Fatalf("re-create users table: %v", err)
+	}
+	if _, err := pool.Exec(ctx, createCandidateProfilesDDL); err != nil {
+		t.Fatalf("re-create candidate_profiles table: %v", err)
+	}
+	if _, err := pool.Exec(ctx, createCandidateLanguagesDDL); err != nil {
+		t.Fatalf("re-create candidate_languages table: %v", err)
 	}
 }
 
@@ -154,6 +178,67 @@ CREATE UNIQUE INDEX users_cognito_sub_unique
 
 CREATE UNIQUE INDEX users_email_unique
     ON users (email) WHERE deleted_at IS NULL;
+`
+
+// createCandidateProfilesDDL mirrors the candidate_profiles portion of
+// migration 00006's up body. The down test in this file must recreate the
+// table after dropping `users` so the rest of the integration suite
+// (candidates repository tests) still finds the schema it expects.
+// Kept in sync with backend/db/migrations/00006_create_candidate_profiles.sql
+// — if that file changes, this constant must change too.
+const createCandidateProfilesDDL = `
+CREATE TABLE candidate_profiles (
+    user_id                 UUID PRIMARY KEY REFERENCES users (id),
+    phone                   TEXT,
+    linkedin_url            TEXT,
+    portfolio_url           TEXT,
+    professional_title      TEXT,
+    current_company         TEXT,
+    years_of_experience     SMALLINT,
+    profile_summary         TEXT,
+    birth_date              DATE,
+    city                    TEXT,
+    country                 TEXT,
+    education_level         TEXT
+        CONSTRAINT candidate_profiles_education_check
+        CHECK (education_level IN ('high_school', 'bachelor', 'master', 'phd')),
+    field_of_study          TEXT,
+    skills                  TEXT[] NOT NULL DEFAULT '{}',
+    current_salary_gross    INTEGER,
+    current_salary_net      INTEGER,
+    expected_salary         INTEGER,
+    salary_currency         TEXT NOT NULL DEFAULT 'MXN',
+    expected_salary_period  TEXT
+        CONSTRAINT candidate_profiles_salary_period_check
+        CHECK (expected_salary_period IN ('monthly', 'annual')),
+    cv_s3_key               TEXT,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    search_vector           tsvector GENERATED ALWAYS AS (
+        setweight(to_tsvector('spanish', coalesce(professional_title, '')), 'A') ||
+        setweight(to_tsvector('spanish', coalesce(profile_summary, '')), 'B')
+    ) STORED
+);
+
+CREATE INDEX candidate_profiles_skills_idx
+    ON candidate_profiles USING GIN (skills);
+CREATE INDEX candidate_profiles_search_idx
+    ON candidate_profiles USING GIN (search_vector);
+CREATE INDEX candidate_profiles_city_idx
+    ON candidate_profiles (city);
+`
+
+// createCandidateLanguagesDDL mirrors the candidate_languages portion of
+// migration 00006's up body. See createCandidateProfilesDDL for rationale.
+const createCandidateLanguagesDDL = `
+CREATE TABLE candidate_languages (
+    user_id     UUID NOT NULL REFERENCES users (id),
+    language    TEXT NOT NULL,
+    level       TEXT NOT NULL
+        CONSTRAINT candidate_languages_level_check
+        CHECK (level IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
+    PRIMARY KEY (user_id, language)
+);
 `
 
 // TestUsersMigrationRejectsInvalidUserType proves the CHECK constraint blocks

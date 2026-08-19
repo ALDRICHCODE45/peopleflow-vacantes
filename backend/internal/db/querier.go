@@ -18,10 +18,21 @@ type Querier interface {
 	// On conflict, `RETURNING *` produces zero rows so pgx returns pgx.ErrNoRows;
 	// the adapter re-fetches by cognito_sub to return the existing entity.
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) error
+	GetCandidateProfileByUserID(ctx context.Context, userID uuid.UUID) (CandidateProfile, error)
 	GetCompanyByID(ctx context.Context, id uuid.UUID) (Company, error)
 	GetUserByCognitoSub(ctx context.Context, cognitoSub string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	// Used inside the atomic replace transaction. Composite PK (user_id, language)
+	// prevents duplicate languages for the same user — the adapter surfaces a
+	// 23505 as ErrDuplicateLanguage.
+	InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error
 	ListActiveIndustries(ctx context.Context) ([]Industry, error)
+	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error)
+	// Idempotent upsert keyed on the PK (user_id). First PUT creates the row;
+	// subsequent PUTs overwrite the editable columns. search_vector is a STORED
+	// generated column owned by Postgres and MUST NOT be touched here.
+	UpsertCandidateProfile(ctx context.Context, arg UpsertCandidateProfileParams) (CandidateProfile, error)
 }
 
 var _ Querier = (*Queries)(nil)

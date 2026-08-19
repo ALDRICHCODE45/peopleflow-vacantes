@@ -144,7 +144,8 @@ The domain MUST export distinct sentinels `ErrEmptyCognitoSub`, `ErrInvalidEmail
 
 ### Requirement: JWT Middleware
 
-The middleware MUST verify an RS256-signed JWT against the configured key source (local dev key in this slice; JWKS deferred), validate `iss`/`aud`/`exp`, place `sub` and `cognito:groups` into the request context, reject with 401 on tampered signature / past `exp` / wrong `iss` / wrong `aud` / non-RS256 algorithm, and MUST be registered in `cmd/api/main.go` but NOT attached to any route in this slice.
+The middleware MUST verify an RS256-signed JWT against the configured key source (local dev key in this slice; JWKS deferred), validate `iss`/`aud`/`exp`, place `sub` and `cognito:groups` into the request context, reject with 401 on tampered signature / past `exp` / wrong `iss` / wrong `aud` / non-RS256 algorithm, and MUST be attached to the `/me/*` route subtree in `cmd/api/main.go`.
+(Previously: middleware was registered in `cmd/api/main.go` but NOT attached to any route in this slice.)
 
 #### Scenario: valid token populates claims
 
@@ -158,8 +159,8 @@ The middleware MUST verify an RS256-signed JWT against the configured key source
 - WHEN the middleware processes the request
 - THEN response is `401` and the handler is not invoked
 
-#### Scenario: zero routes wrapped
+#### Scenario: /me/* route subtree is wrapped
 
 - GIVEN a static scan of `main.go`
-- WHEN every `chi.Mount`/`With`/`Use` is checked
-- THEN zero routes pass through the JWT middleware
+- WHEN every `chi.Mount`/`With`/`Use` on `/me/*` paths is checked
+- THEN at least one route under `/me/*` passes through the JWT middleware

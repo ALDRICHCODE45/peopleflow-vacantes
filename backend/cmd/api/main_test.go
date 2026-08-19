@@ -8,12 +8,21 @@ import (
 	"testing"
 )
 
-// TestRequireAuth_ConstructedButNotMounted asserts the spec scenario
-// "zero routes wrapped": the middleware constructor is called in
-// main.go, but no chi Use/With/Group/Mount/Route call references it.
-// This is a static guard so the route mounting can't drift back in
-// without being caught in CI.
-func TestRequireAuth_ConstructedButNotMounted(t *testing.T) {
+// TestRequireAuth_MountedOnMeRoutes asserts the spec scenario
+// "Authentication Required": RequireAuth is referenced in at least
+// one chi route mutation (Use/With/Group/Mount/Route) so the
+// /me/* candidate routes cannot be reached without going through
+// the middleware. This is the inverted W5 guard — it fails the
+// moment main.go drops the mount, preventing the regression where
+// the candidates profile is reachable unauthenticated.
+//
+// Pre-WU5 the test was TestRequireAuth_ConstructedButNotMounted
+// (asserted zero references). Post-WU5 the guard is positive: the
+// mount must exist, exactly mirroring the spec scenario
+// "missing Authorization header is rejected" — the only way the
+// rejection can fire is if the middleware is actually wired into
+// the route chain.
+func TestRequireAuth_MountedOnMeRoutes(t *testing.T) {
 	const filePath = "main.go"
 
 	fset := token.NewFileSet()
@@ -64,8 +73,13 @@ func TestRequireAuth_ConstructedButNotMounted(t *testing.T) {
 	if constructorCalls < 1 {
 		t.Errorf("expected at least 1 RequireAuth constructor call")
 	}
-	if routeReferences != 0 {
-		t.Errorf("expected 0 chi route references to RequireAuth, got %d (of %d chi calls)",
+	// Inverted guard: RequireAuth MUST appear in at least one chi
+	// route mutation (Use/With/Group/Mount/Route) so the /me/* chain
+	// can't be reached without going through the middleware. The
+	// previous (pre-WU5) guard asserted == 0; the post-WU5 guard
+	// asserts >= 1. They flip atomically with the mount.
+	if routeReferences < 1 {
+		t.Errorf("expected >=1 chi route references to RequireAuth (RequireAuth must be wired into the /me/* route chain), got %d (of %d chi calls)",
 			routeReferences, chiMutationCalls)
 	}
 
