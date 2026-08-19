@@ -62,11 +62,11 @@ type createCompanyRequest struct {
 // companyResponse is the JSON shape returned by the create endpoint. It is the
 // full record (including rfc/status) because the creator just submitted it.
 type companyResponse struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Rfc        string    `json:"rfc"`
-	IndustryID string    `json:"industry_id"`
-	Status     string    `json:"status"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	Rfc        string `json:"rfc"`
+	IndustryID string `json:"industry_id"`
+	Status     string `json:"status"`
 
 	Website *string `json:"website,omitempty"`
 	LogoURL *string `json:"logo_url,omitempty"`
