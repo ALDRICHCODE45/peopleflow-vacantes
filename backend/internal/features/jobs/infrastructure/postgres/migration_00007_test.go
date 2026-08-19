@@ -470,6 +470,46 @@ func TestJobsMigrationSalaryCurrencyDefaultsToMXN(t *testing.T) {
 	}
 }
 
+// TestJobsMigrationStatusDefaultsToDraft proves that omitting status
+// produces a row with the 'draft' default (REQ-04 "born draft").
+func TestJobsMigrationStatusDefaultsToDraft(t *testing.T) {
+	pool := skipIfNoDatabaseForJobs(t)
+	defer pool.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var companyID uuid.UUID
+	if err := pool.QueryRow(ctx, `SELECT id FROM companies LIMIT 1`).Scan(&companyID); err != nil {
+		t.Skipf("no companies row to satisfy FK: %v", err)
+	}
+
+	id := uuid.New()
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO jobs
+		    (id, company_id, title, description, work_mode,
+		     employment_type, seniority)
+		 VALUES ($1, $2, 't', 'd', 'remote',
+		         'full_time', 'senior')`,
+		id, companyID,
+	); err != nil {
+		t.Fatalf("insert row: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM jobs WHERE id = $1`, id)
+	})
+
+	var got string
+	if err := pool.QueryRow(ctx,
+		`SELECT status FROM jobs WHERE id = $1`, id,
+	).Scan(&got); err != nil {
+		t.Fatalf("read status: %v", err)
+	}
+	if got != "draft" {
+		t.Errorf("expected status='draft' (default), got %q", got)
+	}
+}
+
 // TestJobsMigrationPublishedIntegrityGuard proves the integrity guard
 // `status <> 'published' OR published_at IS NOT NULL` rejects a row in
 // status='published' without a published_at.
