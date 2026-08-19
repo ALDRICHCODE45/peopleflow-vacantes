@@ -17,11 +17,11 @@ var _ UserRepository = (*fakeUserRepository)(nil)
 // fakeUserRepository is a hand-rolled stub used solely to lock the port
 // signature down. The application tests will reuse the same pattern.
 type fakeUserRepository struct {
-	mu       sync.Mutex
-	createIn *entities.User
-	createOK error
-	getByID  *entities.User
-	getErr   error
+	mu          sync.Mutex
+	createIn    *entities.User
+	createOK    error
+	getByID     *entities.User
+	getErr      error
 	createCalls int
 }
 

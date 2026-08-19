@@ -19,7 +19,7 @@
 GOOSE ?= go tool goose
 SQLC  ?= go tool sqlc
 
-.PHONY: db-up db-down db-migrate db-status db-new sqlc run test build vet
+.PHONY: db-up db-down db-migrate db-status db-new sqlc run test test-integration build vet
 
 db-up:
 	docker compose up -d
@@ -45,6 +45,9 @@ run:
 
 test:
 	go test ./... -count=1
+
+test-integration:
+	set -a && . ./.env && set +a && go test -tags=integration ./... -count=1 -v
 
 build:
 	go build ./...

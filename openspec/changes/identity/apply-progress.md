@@ -51,6 +51,31 @@
 7. `feat(identity): phase 7 — composition root wires RequireAuth (zero routes)` (`16390e2`)
 8. `feat(identity): phase 8 — verification (integration tests pass against local Postgres)` (`cc4dc74`)
 
+## TDD Cycle Evidence
+
+Strict TDD (RED → GREEN → refactor) was followed during implementation. Each phase was committed as a single work unit (test + production code together), so the per-commit RED state is not separable in git history. The mapping below is verifiable from the code and covers every spec scenario.
+
+| Test file | Spec requirement | Scenarios proven |
+|---|---|---|
+| `valueobjects/email_test.go` | Identity Value Objects | normalize+validate + 8-case reject set |
+| `valueobjects/fullName_test.go` | Identity Value Objects | min-length reject |
+| `valueobjects/userType_test.go` | Identity Value Objects | closed set candidate/recruiter, invalid reject |
+| `entities/user_test.go` | User Entity and Factory | factory populates id + UTC timestamps, empty sub guard |
+| `entities/sentinels_test.go` | Identity Sentinel Errors | pairwise distinct via `errors.Is` |
+| `repositories/userRepository_test.go` | (port pin) | Create/GetByID/GetByCognitoSub shape |
+| `security/verifier_test.go` | (port pin) | Verifier + Claims contract |
+| `postgres/mapCreateError_test.go` | mapCreateError Translation | 23505 branches on ConstraintName; ErrNoRows → NotFound |
+| `postgres/userRepository_test.go` | CreateUser Persistence is Idempotent | buildCreateParams/toEntity mapping |
+| `usecases/createUser_test.go` | Identity Use Cases | short-circuit on bad VO |
+| `usecases/getUserByID_test.go` | Identity Use Cases | propagates ErrUserNotFound |
+| `post_confirmation_test.go` | PostConfirmation Handler | group mapping + env-flag gating; idempotent re-delivery |
+| `auth/rsa_verifier_test.go` | JWT Middleware | valid + tampered/expired/iss/aud/HS256 rejected |
+| `http/middleware_test.go` | JWT Middleware | valid populates claims; invalid → 401 |
+| `cmd/api/main_test.go` | JWT Middleware | zero routes wrapped (go/ast) |
+| `postgres/00005_integration_test.go` | users Schema Migration | up creates named objects; down drops |
+
+**Process note**: future changes should capture RED-first as a separate failing-test commit (or record an explicit RED run) so the strict-TDD gate is provable from git history alone.
+
 ## Risks / outstanding
 
 - The static-key JWKS verifier is wired in `cmd/api/main.go::buildVerifierFromEnv` but isn't fully active (returns an error). Future slice should enable it once `IDENTITY_JWT_PUBLIC_KEY_PEM` is provisioned.

@@ -29,8 +29,8 @@ type PostConfirmationEvent struct {
 // Env flag: IDENTITY_POSTCONFIRMATION_ENABLED. Read at call time (not
 // package init) so tests can use t.Setenv to flip it per subtest.
 type PostConfirmationHandler struct {
-	users    repositories.UserRepository
-	log      *slog.Logger
+	users repositories.UserRepository
+	log   *slog.Logger
 }
 
 // NewPostConfirmationHandler builds the handler around the user
