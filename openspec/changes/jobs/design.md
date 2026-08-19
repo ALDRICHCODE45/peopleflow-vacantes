@@ -99,8 +99,8 @@ Notes: `@`/`sqlc.narg` named params map to positional `$n`; empty-string sentine
 
 ## Keyset Predicate (Decision 3)
 
-- Cursor = `base64url(JSON)`. Browse: `{"t":"<published_at RFC3339Nano>","i":"<uuid>"}`. Search (`q` present): prepend `"r":<ts_rank float>` and compare `(ts_rank, published_at, id) < (…, …)`. Rank is stable per `(doc, query)`, and the client naturally reuses the same `q`.
-- Page size `20`; `LIMIT @limit + 1` in the adapter — return first `limit`, set `next_cursor` from the last returned row only if the `n+1`th exists. Row comparison uses the partial `jobs_public_listing_idx (published_at DESC)`.
+- Cursor = `base64url(JSON)`. Browse: `{"t":"<published_at RFC3339Nano>","i":"<uuid>"}` (rank nil). Search (`q` present): `{"r":<ts_rank float>,"t":…,"i":…}`. Keyset predicate is a UNIFIED 3-tuple: `(ts_rank(...), published_at, id) < (COALESCE(cursor_rank,0), cursor_ts, cursor_id)`. In browse mode `ts_rank` is 0 for every row (empty tsquery), so the 3-tuple degenerates to `(published_at, id)`. The `SearchJobs` SELECT MUST include `ts_rank(...) AS search_rank` so the adapter can populate `Job.Rank`. **(Corrected 2026-08-19: a 2-tuple keyset while ordering by `ts_rank DESC` first would skip/duplicate rows when rank changes across pages.)**
+- Page size `20`; `LIMIT @limit + 1` in the adapter — return first `limit`, set `next_cursor` from the last returned row only if the `n+1`th exists.
 
 ## Seed (Decision 7)
 
