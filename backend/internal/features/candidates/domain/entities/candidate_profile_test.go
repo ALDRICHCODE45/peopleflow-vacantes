@@ -98,7 +98,7 @@ func TestNewCandidateProfile_RejectsInvalidEducationLevel(t *testing.T) {
 func TestNewCandidateProfile_RejectsInvalidSalaryPeriod(t *testing.T) {
 	_, err := NewCandidateProfile("user-123", CandidateProfileInput{
 		ExpectedSalaryPeriod: "weekly",
-		Skills:              []string{},
+		Skills:               []string{},
 	})
 	if err == nil {
 		t.Fatal("expected error for invalid salary period, got nil")

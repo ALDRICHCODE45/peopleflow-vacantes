@@ -34,9 +34,9 @@ func TestEducationLevel_ParseValid(t *testing.T) {
 		{"bachelor", Bachelor},
 		{"master", Master},
 		{"phd", PhD},
-		{"HIGH_SCHOOL", HighSchool},   // case-insensitive
-		{" Bachelor ", Bachelor},       // whitespace trimmed
-		{"PhD", PhD},                   // canonical lowercase form
+		{"HIGH_SCHOOL", HighSchool}, // case-insensitive
+		{" Bachelor ", Bachelor},    // whitespace trimmed
+		{"PhD", PhD},                // canonical lowercase form
 	}
 	for _, tc := range cases {
 		t.Run(tc.raw, func(t *testing.T) {

@@ -58,3 +58,18 @@ Suggested split: WU1 Foundation → WU2 Domain → WU3 Application → WU4 Infra
 - [x] 6.2 `cd backend && make test-integration` — migration applies, upsert idempotent, replace atomic.
 - [x] 6.3 `go test ./cmd/api/...` passes W5 inversion; `go vet ./...` + `gofmt -l .` clean.
 - [x] 6.4 Mark `[x]` only after each commit lands.
+
+## TDD Cycle Evidence
+
+RED → GREEN per work unit. WU1 (migration + sqlc) is schema generation
+with no unit-testable behavior; its evidence lives in the WU4/WU6
+integration tests that exercise the schema (see WU4 below and the
+`TestUsersMigrationDownDropsTable` fix in WU6).
+
+| Phase | RED (test first) | GREEN (production) |
+|-------|------------------|--------------------|
+| WU2 Domain | `domain/valueobjects/*_test.go` + `domain/entities/candidate_profile_test.go` (invalid enums, lowercasing, factory) | VOs + entity + port |
+| WU3 Application | `application/usecases/candidate_service_test.go` (fakes: GET, upsert, IDOR, dup-language, sub-not-found) | DTOs + 4 use cases |
+| WU4 Infra | `infrastructure/postgres/candidateRepository_test.go` (integration) + `infrastructure/http/handler_test.go` (error→status) | postgres adapter + handler |
+| WU5 Auth | inverted structural guard `TestRequireAuth_MountedOnMeRoutes` (failed: 0 route refs) | `main.go` wiring + `/me` mount |
+| WU6 Verify | reproduced 2BP01 in `TestUsersMigrationDownDropsTable` | drop-dependents-first fix |
