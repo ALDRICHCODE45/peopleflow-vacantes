@@ -62,14 +62,14 @@ Authored ~1550 lines. Excluded: generated `internal/db/jobs.sql.go`, `models.go`
 
 ## Phase 9 — Wiring
 
-- [ ] 9.1 (GREEN) Edit `backend/cmd/api/main.go`: import `jobshttp`/`jobspostgres`/`jobsusecases`; build repo→service→handler; `r.Mount("/jobs", handler.Routes())`.
-- [ ] 9.2 (RED) Extend `cmd/api/main_test.go` asserting `/jobs` + `/jobs/{id}` reachable.
-- [ ] 9.3 (GREEN) `go build ./...` + `go vet ./...` clean.
+- [x] 9.1 (GREEN) Edit `backend/cmd/api/main.go`: import `jobshttp`/`jobspostgres`/`jobsusecases`; build repo→service→handler; `r.Mount("/jobs", handler.Routes())`.
+- [x] 9.2 (RED) Extend `cmd/api/main_test.go` asserting `/jobs` + `/jobs/{id}` reachable.
+- [x] 9.3 (GREEN) `go build ./...` + `go vet ./...` clean.
 
 ## Phase 10 — Verify prep
 
-- [ ] 10.1 `gofmt -l .` empty; `go vet ./...` clean; `go test ./...` green; `go test -tags=integration ./...` against `make db-up` green.
-- [ ] 10.2 Mark resolved in `proposal.md`/`design.md` open-questions: `salary_currency NOT NULL DEFAULT 'MXN'`; `CHECK (status<>'published' OR published_at IS NOT NULL)`; `location ILIKE`.
+- [x] 10.1 `gofmt -l .` empty; `go vet ./...` clean; `go test ./...` green; `go test -tags=integration ./...` against `make db-up` green.
+- [x] 10.2 Mark resolved in `proposal.md`/`design.md` open-questions: `salary_currency NOT NULL DEFAULT 'MXN'`; `CHECK (status<>'published' OR published_at IS NOT NULL)`; `location ILIKE`.
 
 ## Acceptance
 
