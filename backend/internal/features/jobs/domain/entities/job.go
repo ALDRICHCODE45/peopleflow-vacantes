@@ -62,5 +62,13 @@ type Job struct {
 	// pointer shape matches the column).
 	PublishedAt *time.Time
 
+	// Rank is the ts_rank score from the full-text search predicate.
+	// Populated only by JobRepository.Search when `q` is non-empty,
+	// so the application layer can encode it into the keyset cursor
+	// (Decision 3: search-mode cursor is (rank, published_at, id)).
+	// Nil for GetByID and for browse-mode (q absent) Search calls,
+	// where the cursor narrows on (published_at, id) only.
+	Rank *float64
+
 	Company CompanyRef
 }
