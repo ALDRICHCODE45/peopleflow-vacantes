@@ -34,21 +34,33 @@ import (
 type stubMemberRepositoryForHandler struct {
 	mu sync.Mutex
 
-	getByUserOut *entities.CompanyMember
-	getByUserErr error
-	listOut      []entities.CompanyMember
-	listErr      error
+	getByUserOut   *entities.CompanyMember
+	getByUserErr   error
+	getByUserCalls int
 
-	createErr error
-	created   *entities.CompanyMember
+	listOut           []entities.CompanyMember
+	listErr           error
+	listCalls         int
+	lastListCompanyID uuid.UUID
+
+	createErr   error
+	createCalls int
+	created     *entities.CompanyMember
 
 	updateErr error
 	removeErr error
+
+	updateCalls         int
+	lastUpdateCompanyID uuid.UUID
+
+	removeCalls         int
+	lastRemoveCompanyID uuid.UUID
 }
 
 func (s *stubMemberRepositoryForHandler) Create(_ context.Context, m *entities.CompanyMember) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.createCalls++
 	if s.createErr != nil {
 		return s.createErr
 	}
@@ -59,6 +71,7 @@ func (s *stubMemberRepositoryForHandler) Create(_ context.Context, m *entities.C
 func (s *stubMemberRepositoryForHandler) GetMembershipByUserID(_ context.Context, _ uuid.UUID) (*entities.CompanyMember, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.getByUserCalls++
 	if s.getByUserErr != nil {
 		return nil, s.getByUserErr
 	}
@@ -69,9 +82,11 @@ func (s *stubMemberRepositoryForHandler) GetMembershipByUserID(_ context.Context
 	return nil, entities.ErrNotAMember
 }
 
-func (s *stubMemberRepositoryForHandler) ListByCompanyID(_ context.Context, _ uuid.UUID) ([]entities.CompanyMember, error) {
+func (s *stubMemberRepositoryForHandler) ListByCompanyID(_ context.Context, companyID uuid.UUID) ([]entities.CompanyMember, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.listCalls++
+	s.lastListCompanyID = companyID
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
@@ -83,11 +98,19 @@ func (s *stubMemberRepositoryForHandler) ListByCompanyID(_ context.Context, _ uu
 	return out, nil
 }
 
-func (s *stubMemberRepositoryForHandler) UpdateRole(_ context.Context, _, _ uuid.UUID, _ valueobjects.MemberRole) error {
+func (s *stubMemberRepositoryForHandler) UpdateRole(_ context.Context, _, companyID uuid.UUID, _ valueobjects.MemberRole) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.updateCalls++
+	s.lastUpdateCompanyID = companyID
 	return s.updateErr
 }
 
-func (s *stubMemberRepositoryForHandler) Remove(_ context.Context, _, _ uuid.UUID) error {
+func (s *stubMemberRepositoryForHandler) Remove(_ context.Context, _, companyID uuid.UUID) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.removeCalls++
+	s.lastRemoveCompanyID = companyID
 	return s.removeErr
 }
 
@@ -95,11 +118,13 @@ type stubUserRepositoryForHandler struct {
 	mu         sync.Mutex
 	resolved   *identityentities.User
 	resolveErr error
+	getCalls   int
 }
 
 func (s *stubUserRepositoryForHandler) GetByCognitoSub(_ context.Context, _ string) (*identityentities.User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.getCalls++
 	if s.resolveErr != nil {
 		return nil, s.resolveErr
 	}
@@ -154,19 +179,33 @@ func newMemberHandlerService(
 }
 
 // newMemberRouter mounts MemberHandler.Routes() at /me/company with a
-// middleware that injects the supplied subject into the request context,
-// so the handler reads it via security.ClaimsFromContext.
-func newMemberRouter(t *testing.T, service *usecases.CompanyMemberService, sub string) http.Handler {
+// middleware that injects the supplied subject (Claims) AND/OR the
+// supplied CompanyContext into the request context, so the handler reads
+// whichever it needs via security.* helpers. The production wiring injects
+// both (RequireAuth injects Claims, then RequireCompanyRole injects
+// CompanyContext on the gated routes); this helper simulates both with
+// one call.
+//
+// sub == "" and cc == identitysecurity.CompanyContext{} both skip their
+// injection so each test can drive the exact combination it needs (the
+// ungated getMyMembership path needs Claims; the gated path needs
+// CompanyContext; the "missing CompanyContext is server error" path
+// needs neither).
+func newMemberRouter(t *testing.T, service *usecases.CompanyMemberService, sub string, cc identitysecurity.CompanyContext) http.Handler {
 	t.Helper()
 	h := NewMemberHandler(service)
 
 	r := chi.NewRouter()
-	if sub != "" {
-		// Simulate the production wiring where RequireAuth injects
-		// Claims into the context BEFORE the handler runs.
+	if sub != "" || cc.CompanyID != uuid.Nil || cc.Role != valueobjects.UnknownMemberRole {
 		r.Use(func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				ctx := identitysecurity.ContextWithClaims(req.Context(), identitysecurity.Claims{Subject: sub})
+				ctx := req.Context()
+				if sub != "" {
+					ctx = identitysecurity.ContextWithClaims(ctx, identitysecurity.Claims{Subject: sub})
+				}
+				if cc.CompanyID != uuid.Nil {
+					ctx = identitysecurity.ContextWithCompanyContext(ctx, cc)
+				}
 				next.ServeHTTP(w, req.WithContext(ctx))
 			})
 		})
@@ -225,7 +264,10 @@ func doReq(t *testing.T, router http.Handler, method, path, body string) *httpte
 
 // TestGetMyCompany_OwnerReturns200 covers the spec scenario "owner gets
 // their membership": a caller who is owner of company X must get a 200
-// response with their (company_id, role) and the company record.
+// response with their (company_id, role) and the company record. This is
+// the UNGATED endpoint — it reads the JWT subject (Claims) and calls the
+// service with sub; CompanyContext is NOT present (the route has no role
+// gate).
 func TestGetMyCompany_OwnerReturns200(t *testing.T) {
 	userID := uuid.New()
 	companyID := uuid.New()
@@ -235,7 +277,7 @@ func TestGetMyCompany_OwnerReturns200(t *testing.T) {
 	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-owner"}}
 	cRepo := &stubMemberCompanyRepositoryForHandler{getByID: company}
 	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub-owner")
+	router := newMemberRouter(t, svc, "sub-owner", identitysecurity.CompanyContext{})
 
 	rec := doReq(t, router, http.MethodGet, "/me/company", "")
 	if rec.Code != http.StatusOK {
@@ -267,7 +309,7 @@ func TestGetMyCompany_NonMemberReturns404(t *testing.T) {
 	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-stranger"}}
 	cRepo := &stubMemberCompanyRepositoryForHandler{}
 	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub-stranger")
+	router := newMemberRouter(t, svc, "sub-stranger", identitysecurity.CompanyContext{})
 
 	rec := doReq(t, router, http.MethodGet, "/me/company", "")
 	if rec.Code != http.StatusNotFound {
@@ -284,7 +326,7 @@ func TestGetMyCompany_UnknownSubReturns401(t *testing.T) {
 	uRepo := &stubUserRepositoryForHandler{resolveErr: identityentities.ErrUserNotFound}
 	cRepo := &stubMemberCompanyRepositoryForHandler{}
 	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub-missing")
+	router := newMemberRouter(t, svc, "sub-missing", identitysecurity.CompanyContext{})
 
 	rec := doReq(t, router, http.MethodGet, "/me/company", "")
 	if rec.Code != http.StatusUnauthorized {
@@ -296,11 +338,12 @@ func TestGetMyCompany_UnknownSubReturns401(t *testing.T) {
 
 // TestListMembers_OwnerReturns200 covers the spec scenario "members are
 // listed": an owner of a company with N members must get a 200 response
-// listing exactly N members with roles.
+// listing exactly N members with roles. The handler reads the caller's
+// company_id from the injected CompanyContext (design D6 — "resolves
+// once") and MUST NOT re-resolve the JWT sub → users.id → company_members
+// chain (the user repo is never invoked).
 func TestListMembers_OwnerReturns200(t *testing.T) {
-	userID := uuid.New()
 	companyID := uuid.New()
-	caller, _ := makeMemberAndCompany(userID, companyID, valueobjects.OwnerRole)
 
 	rows := []entities.CompanyMember{
 		*mustMember(uuid.New(), companyID, valueobjects.OwnerRole),
@@ -308,14 +351,14 @@ func TestListMembers_OwnerReturns200(t *testing.T) {
 		*mustMember(uuid.New(), companyID, valueobjects.RecruiterRole),
 	}
 
-	mRepo := &stubMemberRepositoryForHandler{
-		getByUserOut: caller,
-		listOut:      rows,
-	}
-	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-owner"}}
+	mRepo := &stubMemberRepositoryForHandler{listOut: rows}
+	uRepo := &stubUserRepositoryForHandler{}
 	cRepo := &stubMemberCompanyRepositoryForHandler{}
 	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub-owner")
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	})
 
 	rec := doReq(t, router, http.MethodGet, "/me/company/members", "")
 	if rec.Code != http.StatusOK {
@@ -338,45 +381,85 @@ func TestListMembers_OwnerReturns200(t *testing.T) {
 			t.Errorf("members[%d].company_id: want %v, got %v", i, companyID, m.CompanyID)
 		}
 	}
+	if mRepo.lastListCompanyID != companyID {
+		t.Errorf("ListByCompanyID: want companyID %v, got %v (must be the injected CompanyContext ID, not a re-resolved sub)", companyID, mRepo.lastListCompanyID)
+	}
+	if uRepo.getCalls != 0 {
+		t.Errorf("userRepo.GetByCognitoSub must NOT be called by gated handlers (D6 — resolves once), got %d calls", uRepo.getCalls)
+	}
 }
 
-// TestListMembers_NonMemberReturns403 covers the spec scenario
-// "non-member is rejected": a caller with no membership row sees 403
-// (not 404 — the route is gated by membership, so missing-membership is
-// a forbidden-state, not a not-found-resource).
+// TestListMembers_NoReResolveWithCompanyContext is the D6 conformance
+// proof: when CompanyContext is in the context, the handler MUST NOT
+// consult the user repo at all. A future refactor that re-introduced
+// sub-based resolution would trip this assertion.
 //
-// This test demonstrates the role-gate invariant at the handler layer;
-// the production wiring gates this route with RequireCompanyRole, which
-// is the more robust boundary (WU4). Here we exercise the route with a
-// fake sub whose membership lookup returns ErrNotAMember and assert the
-// handler returns 403 — same outcome as the middleware would.
-func TestListMembers_NonMemberReturns403(t *testing.T) {
-	userID := uuid.New()
+// This replaces the pre-refactor `TestListMembers_NonMemberReturns403`
+// test, which exercised the in-handler ErrNotAMember → 403 remap. After
+// the refactor, the service no longer returns ErrNotAMember for the
+// gated use cases (no resolver path), so that remap is dead code and
+// the "non-member is rejected" scenario is now exclusively covered by
+// the middleware tests (`identity/http/requireCompanyRole_test.go`).
+func TestListMembers_NoReResolveWithCompanyContext(t *testing.T) {
+	companyID := uuid.New()
 
-	mRepo := &stubMemberRepositoryForHandler{getByUserErr: entities.ErrNotAMember}
-	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-stranger"}}
+	mRepo := &stubMemberRepositoryForHandler{listOut: nil}
+	uRepo := &stubUserRepositoryForHandler{}
 	cRepo := &stubMemberCompanyRepositoryForHandler{}
 	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub-stranger")
+	router := newMemberRouter(t, svc, "sub-owner", identitysecurity.CompanyContext{
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	})
 
 	rec := doReq(t, router, http.MethodGet, "/me/company/members", "")
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if uRepo.getCalls != 0 {
+		t.Errorf("userRepo.GetByCognitoSub MUST NOT be called when CompanyContext is injected (D6 — resolves once), got %d calls", uRepo.getCalls)
+	}
+	if mRepo.getByUserCalls != 0 {
+		t.Errorf("memberRepo.GetMembershipByUserID MUST NOT be called when CompanyContext is injected (D6 — resolves once), got %d calls", mRepo.getByUserCalls)
+	}
+}
+
+// TestListMembers_MissingCompanyContextIsServerError is the fail-closed
+// invariant: if a gated handler is reached without CompanyContext in the
+// request (routing misconfiguration), the handler MUST short-circuit
+// with 500 and NEVER invoke the service. A bare 401 here would mislead
+// clients into re-authenticating; the real failure is internal.
+func TestListMembers_MissingCompanyContextIsServerError(t *testing.T) {
+	mRepo := &stubMemberRepositoryForHandler{}
+	uRepo := &stubUserRepositoryForHandler{}
+	cRepo := &stubMemberCompanyRepositoryForHandler{}
+	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
+	// Inject NO Claims and NO CompanyContext — simulates a misconfigured
+	// route that bypassed the RequireCompanyRole gate.
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{})
+
+	rec := doReq(t, router, http.MethodGet, "/me/company/members", "")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500 (fail-closed), got %d: %s", rec.Code, rec.Body.String())
+	}
+	if mRepo.listCalls != 0 {
+		t.Errorf("service.ListMembers must NOT be invoked when CompanyContext is missing, got %d calls", mRepo.listCalls)
 	}
 }
 
 // TestListMembers_EmptyListIsEmptyJSONArray guards the "non-nil empty
 // slice" invariant at the wire level: a JSON `[]`, not `null`.
 func TestListMembers_EmptyListIsEmptyJSONArray(t *testing.T) {
-	userID := uuid.New()
 	companyID := uuid.New()
-	caller, _ := makeMemberAndCompany(userID, companyID, valueobjects.OwnerRole)
 
-	mRepo := &stubMemberRepositoryForHandler{getByUserOut: caller, listOut: nil}
-	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-owner"}}
+	mRepo := &stubMemberRepositoryForHandler{listOut: nil}
+	uRepo := &stubUserRepositoryForHandler{}
 	cRepo := &stubMemberCompanyRepositoryForHandler{}
 	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub-owner")
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	})
 
 	rec := doReq(t, router, http.MethodGet, "/me/company/members", "")
 	if rec.Code != http.StatusOK {
@@ -391,17 +474,20 @@ func TestListMembers_EmptyListIsEmptyJSONArray(t *testing.T) {
 // --- POST /me/company/members (task 3.5) ----------------------------------
 
 // TestAddMember_OwnerReturns201 covers the spec scenario "owner adds a
-// recruiter": a 201 with the new row.
+// recruiter": a 201 with the new row. The handler reads the caller's
+// company_id from the injected CompanyContext; the user repo is never
+// invoked (D6 — resolves once).
 func TestAddMember_OwnerReturns201(t *testing.T) {
-	userID := uuid.New()
 	companyID := uuid.New()
-	caller, _ := makeMemberAndCompany(userID, companyID, valueobjects.OwnerRole)
 
-	mRepo := &stubMemberRepositoryForHandler{getByUserOut: caller}
-	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-owner"}}
+	mRepo := &stubMemberRepositoryForHandler{}
+	uRepo := &stubUserRepositoryForHandler{}
 	cRepo := &stubMemberCompanyRepositoryForHandler{}
 	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub-owner")
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	})
 
 	targetID := uuid.New()
 	body := `{"user_id":"` + targetID.String() + `","role":"recruiter"}`
@@ -420,23 +506,35 @@ func TestAddMember_OwnerReturns201(t *testing.T) {
 	if resp.Role != "recruiter" {
 		t.Errorf("role: want recruiter, got %q", resp.Role)
 	}
+	if resp.CompanyID != companyID.String() {
+		t.Errorf("created row company_id: want %v (injected), got %v", companyID, resp.CompanyID)
+	}
+	if mRepo.created == nil {
+		t.Fatal("expected repository.Create to be called")
+	}
+	if mRepo.created.CompanyID != companyID {
+		t.Errorf("created row CompanyID: want %v (injected), got %v (must come from CompanyContext, not body or sub)", companyID, mRepo.created.CompanyID)
+	}
+	if uRepo.getCalls != 0 {
+		t.Errorf("userRepo.GetByCognitoSub must NOT be called by gated handlers (D6 — resolves once), got %d calls", uRepo.getCalls)
+	}
 }
 
 // TestAddMember_DuplicateReturns409 covers the spec scenario "duplicate
 // user is rejected": the repo returns 23505 → ErrMemberExists → 409.
 func TestAddMember_DuplicateReturns409(t *testing.T) {
-	userID := uuid.New()
 	companyID := uuid.New()
-	caller, _ := makeMemberAndCompany(userID, companyID, valueobjects.OwnerRole)
 
 	mRepo := &stubMemberRepositoryForHandler{
-		getByUserOut: caller,
-		createErr:    entities.ErrMemberExists,
+		createErr: entities.ErrMemberExists,
 	}
-	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-owner"}}
+	uRepo := &stubUserRepositoryForHandler{}
 	cRepo := &stubMemberCompanyRepositoryForHandler{}
 	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub-owner")
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	})
 
 	targetID := uuid.New()
 	body := `{"user_id":"` + targetID.String() + `","role":"recruiter"}`
@@ -449,15 +547,16 @@ func TestAddMember_DuplicateReturns409(t *testing.T) {
 // TestAddMember_InvalidRoleReturns400 — validation surfaces as
 // ErrInvalidMemberRole → 400.
 func TestAddMember_InvalidRoleReturns400(t *testing.T) {
-	userID := uuid.New()
 	companyID := uuid.New()
-	caller, _ := makeMemberAndCompany(userID, companyID, valueobjects.OwnerRole)
 
-	mRepo := &stubMemberRepositoryForHandler{getByUserOut: caller}
-	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-owner"}}
+	mRepo := &stubMemberRepositoryForHandler{}
+	uRepo := &stubUserRepositoryForHandler{}
 	cRepo := &stubMemberCompanyRepositoryForHandler{}
 	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub-owner")
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	})
 
 	targetID := uuid.New()
 	body := `{"user_id":"` + targetID.String() + `","role":"admin"}`
@@ -469,15 +568,16 @@ func TestAddMember_InvalidRoleReturns400(t *testing.T) {
 
 // TestAddMember_InvalidJSONReturns400 covers the malformed-body branch.
 func TestAddMember_InvalidJSONReturns400(t *testing.T) {
-	userID := uuid.New()
 	companyID := uuid.New()
-	caller, _ := makeMemberAndCompany(userID, companyID, valueobjects.OwnerRole)
 
-	mRepo := &stubMemberRepositoryForHandler{getByUserOut: caller}
-	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-owner"}}
+	mRepo := &stubMemberRepositoryForHandler{}
+	uRepo := &stubUserRepositoryForHandler{}
 	cRepo := &stubMemberCompanyRepositoryForHandler{}
 	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub-owner")
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	})
 
 	rec := doReq(t, router, http.MethodPost, "/me/company/members", "{not json")
 	if rec.Code != http.StatusBadRequest {
@@ -488,17 +588,20 @@ func TestAddMember_InvalidJSONReturns400(t *testing.T) {
 // --- PATCH /me/company/members/{id} (task 3.5) ----------------------------
 
 // TestUpdateMemberRole_PromotesRecruiterToOwner covers the spec scenario
-// "owner promotes a recruiter": 200 with the updated row.
+// "owner promotes a recruiter": 200 with the updated row. The handler
+// passes the injected CompanyContext.CompanyID to the service; the user
+// repo is never invoked (D6 — resolves once).
 func TestUpdateMemberRole_PromotesRecruiterToOwner(t *testing.T) {
-	userID := uuid.New()
 	companyID := uuid.New()
-	caller, _ := makeMemberAndCompany(userID, companyID, valueobjects.OwnerRole)
 
-	mRepo := &stubMemberRepositoryForHandler{getByUserOut: caller}
-	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-owner"}}
+	mRepo := &stubMemberRepositoryForHandler{}
+	uRepo := &stubUserRepositoryForHandler{}
 	cRepo := &stubMemberCompanyRepositoryForHandler{}
 	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub-owner")
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	})
 
 	targetID := uuid.New()
 	body := `{"role":"owner"}`
@@ -506,24 +609,28 @@ func TestUpdateMemberRole_PromotesRecruiterToOwner(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
 	}
+	if mRepo.lastUpdateCompanyID != companyID {
+		t.Errorf("UpdateRole company_id: want %v (injected), got %v", companyID, mRepo.lastUpdateCompanyID)
+	}
+	if uRepo.getCalls != 0 {
+		t.Errorf("userRepo.GetByCognitoSub must NOT be called by gated handlers (D6 — resolves once), got %d calls", uRepo.getCalls)
+	}
 }
 
 // TestUpdateMemberRole_CrossCompanyReturns404 covers the spec scenario
 // "cross-company target is rejected": the service propagates
 // ErrMemberNotFound → 404.
 func TestUpdateMemberRole_CrossCompanyReturns404(t *testing.T) {
-	userID := uuid.New()
 	companyID := uuid.New()
-	caller, _ := makeMemberAndCompany(userID, companyID, valueobjects.OwnerRole)
 
-	mRepo := &stubMemberRepositoryForHandler{
-		getByUserOut: caller,
-		updateErr:    entities.ErrMemberNotFound,
-	}
-	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-owner"}}
+	mRepo := &stubMemberRepositoryForHandler{updateErr: entities.ErrMemberNotFound}
+	uRepo := &stubUserRepositoryForHandler{}
 	cRepo := &stubMemberCompanyRepositoryForHandler{}
 	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub-owner")
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	})
 
 	targetID := uuid.New()
 	body := `{"role":"owner"}`
@@ -536,17 +643,20 @@ func TestUpdateMemberRole_CrossCompanyReturns404(t *testing.T) {
 // --- DELETE /me/company/members/{id} (task 3.5) ---------------------------
 
 // TestRemoveMember_OwnerReturns204 covers the spec scenario "owner
-// removes a member": 204 with no body.
+// removes a member": 204 with no body. The handler passes the injected
+// CompanyContext.CompanyID to the service; the user repo is never
+// invoked (D6 — resolves once).
 func TestRemoveMember_OwnerReturns204(t *testing.T) {
-	userID := uuid.New()
 	companyID := uuid.New()
-	caller, _ := makeMemberAndCompany(userID, companyID, valueobjects.OwnerRole)
 
-	mRepo := &stubMemberRepositoryForHandler{getByUserOut: caller}
-	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-owner"}}
+	mRepo := &stubMemberRepositoryForHandler{}
+	uRepo := &stubUserRepositoryForHandler{}
 	cRepo := &stubMemberCompanyRepositoryForHandler{}
 	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub-owner")
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	})
 
 	targetID := uuid.New()
 	rec := doReq(t, router, http.MethodDelete, "/me/company/members/"+targetID.String(), "")
@@ -556,19 +666,26 @@ func TestRemoveMember_OwnerReturns204(t *testing.T) {
 	if rec.Body.Len() != 0 {
 		t.Errorf("204 body should be empty, got %q", rec.Body.String())
 	}
+	if mRepo.lastRemoveCompanyID != companyID {
+		t.Errorf("Remove company_id: want %v (injected), got %v", companyID, mRepo.lastRemoveCompanyID)
+	}
+	if uRepo.getCalls != 0 {
+		t.Errorf("userRepo.GetByCognitoSub must NOT be called by gated handlers (D6 — resolves once), got %d calls", uRepo.getCalls)
+	}
 }
 
 // TestRemoveMember_InvalidUUIDReturns400 covers the path-uuid branch.
 func TestRemoveMember_InvalidUUIDReturns400(t *testing.T) {
-	userID := uuid.New()
 	companyID := uuid.New()
-	caller, _ := makeMemberAndCompany(userID, companyID, valueobjects.OwnerRole)
 
-	mRepo := &stubMemberRepositoryForHandler{getByUserOut: caller}
-	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-owner"}}
+	mRepo := &stubMemberRepositoryForHandler{}
+	uRepo := &stubUserRepositoryForHandler{}
 	cRepo := &stubMemberCompanyRepositoryForHandler{}
 	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub-owner")
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	})
 
 	rec := doReq(t, router, http.MethodDelete, "/me/company/members/not-a-uuid", "")
 	if rec.Code != http.StatusBadRequest {

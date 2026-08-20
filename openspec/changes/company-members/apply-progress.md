@@ -631,3 +631,172 @@ behavior is affected.
 - **`gofmt -l .`**: 0 findings.
 - **`go build ./...`**: clean.
 - **No `git add` / `commit` / `push`**: orchestrator owns git per task contract.
+
+---
+
+## Work Unit 5 — D6 Remediation: honor the "resolves once" contract
+
+> WU5 is a bounded refactor triggered by `verify-report.md` **WARNING #1** (the verify sub-agent's only deviation from the design). It is **not** a bug fix (IDOR is preserved, all 25 spec scenarios pass); it is a design-conformance fix that turns the injected `CompanyContext` from dead code into the single source of the caller's `company_id` for the gated use cases.
+
+### Scope
+
+The design's `D6 — Caller resolution` row reads:
+
+> `sub → GetByCognitoSub → users.id → GetMembershipByUserID` | Trust path/body ids | IDOR-resistant, mirrors `candidateService.resolveUserID`; **middleware resolves once, gated handlers use injected `CompanyContext.CompanyID`**
+
+The verify sub-agent classified the implementation as a **partial** deviation:
+
+> Resolution chain is fully honored (server-side, IDOR-safe). BUT injected `CompanyContext` is never read by production handlers — see WARNING #1
+
+Concretely, before WU5:
+
+1. `RequireCompanyRole` middleware resolved `sub → users.id → company_members` and injected `CompanyContext{CompanyID, Role}`.
+2. **No production handler ever read it** — `grep CompanyContextFromContext` showed only test call sites.
+3. Every gated handler instead called `requireSub` (Claims) and passed `sub` to the service, which then ran `resolveMember` (`GetByCognitoSub` + `GetMembershipByUserID`) **a second time** for the same request.
+4. Net effect: a redundant 2-query DB round-trip per gated request + an injected value that was never consumed.
+
+WU5 inverts step (2): the gated handlers now consume the injected `CompanyContext`. The middleware's resolution remains the only resolver on the gated path — "resolves once" is no longer aspirational, it is enforced by the type signature.
+
+### Files changed (WU5)
+
+| File | Action | Notes |
+|------|--------|-------|
+| `backend/internal/features/companies/application/usecases/companyMemberService.go` | modify | Changed signatures of the 4 gated use cases from `cognitoSub string` to `companyID uuid.UUID` (`ListMembers`, `AddMember`, `UpdateRole`, `RemoveMember`). Removed the `resolveMember` call from each — the service no longer touches `userRepo.GetByCognitoSub` on the gated path. Updated the package-level doc, the `NewCompanyMemberService` godoc, and the `resolveMember` doc to mark the helper as ungated-only. Kept `GetMyMembership` (the ungated route) and `resolveMember` unchanged. |
+| `backend/internal/features/companies/application/usecases/companyMemberService_test.go` | modify | All gated use-case tests now pass `companyID` directly. The "ignored body company_id" test asserts the saved row's `CompanyID == passed companyID`. Removed three no-longer-applicable `ErrUnknownSubject` short-circuit tests (`TestListMembers_UnknownSubjectIsUnauthorized`, `TestAddMember_UnknownSubjectDoesNotTouchRepository`, `TestRemoveMember_UnknownSubjectDoesNotTouchRepository`) — the gated use cases no longer have a sub-based resolver path to short-circuit. Added `lastListCompanyID` capture to `stubMemberRepository.ListByCompanyID`. Added explicit `uRepo.getCalls != 0` assertions to the gated tests to prove the resolver chain is **not** invoked (the D6 conformance proof at the service layer). |
+| `backend/internal/features/companies/infrastructure/http/memberHandler.go` | modify | Added `requireCompanyContext(w, r) (identitysecurity.CompanyContext, bool)` helper mirroring `requireSub` — reads `security.CompanyContextFromContext`, returns 500 fail-closed when missing (routing misconfiguration, NOT 401). Updated the 4 gated handlers (`listMembers`, `addMember`, `updateMemberRole`, `removeMember`) to call it instead of `requireSub`, passing `cc.CompanyID` to the service. Removed the dead `ErrNotAMember → 403` route-specific remap in `listMembers` (the service no longer returns `ErrNotAMember` for a gated request; the middleware filters non-members). Updated the package-level doc to document the new contract. `getMyMembership` keeps `requireSub` + `service.GetMyMembership(ctx, sub)`. |
+| `backend/internal/features/companies/infrastructure/http/memberHandler_test.go` | modify | `newMemberRouter` helper now takes both `sub string` AND `cc identitysecurity.CompanyContext`; the middleware injects whichever is non-empty. Ungated `getMyCompany_*` tests inject only `Claims` (no `CompanyContext`) — exactly the production contract. Gated tests inject `CompanyContext{CompanyID, Role}` and drop the `sub`/`caller`/`getByUserOut` setup that was there to support the old sub-based resolution. Added `lastListCompanyID`, `lastUpdateCompanyID`, `lastRemoveCompanyID`, `getByUserCalls`, `getCalls` capture to the stubs so each gated test asserts the **injected** company_id (not a re-resolved sub) flowed to the repo. Added `TestListMembers_NoReResolveWithCompanyContext` (D6 conformance proof: asserts `uRepo.getCalls == 0` AND `mRepo.getByUserCalls == 0` when CompanyContext is injected). Added `TestListMembers_MissingCompanyContextIsServerError` (fail-closed invariant: 500, never invokes the service). Converted `TestListMembers_NonMemberReturns403` → split into `TestListMembers_NoReResolveWithCompanyContext` + `TestListMembers_MissingCompanyContextIsServerError` — the "non-member is rejected" spec scenario remains covered by `identity/http/requireCompanyRole_test.go::TestRequireCompanyRole_NonMemberIsForbidden` (the middleware is the legitimate boundary). |
+
+### TDD Cycle Evidence (WU5)
+
+Strict TDD. RED → GREEN → REFACTOR. All 4 changes follow the cycle:
+1. Update tests first → RED confirmed by `go test` build failure.
+2. Update production → GREEN confirmed by `go test` exit 0.
+3. Re-run the full suite + integration + static checks → still green.
+
+| Phase | Step | Result |
+|-------|------|--------|
+| RED (service tests) | Rewrote 11 gated use-case tests to pass `companyID` instead of `cognitoSub`; removed 3 `ErrUnknownSubject` short-circuit tests; added 4 `uRepo.getCalls == 0` assertions | ✅ Confirmed RED — build failed: `cannot use callerCompanyID (variable of array type uuid.UUID) as string value in argument to svc.AddMember` (9 errors across service_test.go) |
+| GREEN (service) | Updated `ListMembers`/`AddMember`/`UpdateRole`/`RemoveMember` signatures to `companyID uuid.UUID`; removed their `resolveMember` calls | ✅ Confirmed GREEN — all 13 company-member service tests pass; full unit suite green (37 packages) |
+| RED (handler tests) | Updated `newMemberRouter` to inject both Claims and CompanyContext; rewrote 9 gated handler tests to inject CompanyContext; added `TestListMembers_NoReResolveWithCompanyContext` and `TestListMembers_MissingCompanyContextIsServerError` | ✅ Confirmed RED — build failed: `cannot use sub (variable of type string) as uuid.UUID value in argument to h.service.ListMembers` (4 errors across memberHandler.go) + 2 `declared and not used: userID` warnings in memberHandler_test.go |
+| GREEN (handler) | Added `requireCompanyContext` helper; switched the 4 gated handlers from `requireSub`+`sub` to `requireCompanyContext`+`cc.CompanyID`; removed dead `ErrNotAMember → 403` remap; removed the two unused `userID` declarations | ✅ Confirmed GREEN — all 16 company-member handler tests pass (the original 14 minus `TestListMembers_NonMemberReturns403`, plus the 2 new ones: no-re-resolve + missing-context); full unit suite green; full integration suite green |
+| REFACTOR + verify | Re-ran `go vet`, `gofmt -l`, `go build`, full unit suite, full integration suite | ✅ ALL CLEAN |
+
+### Test summary (WU5)
+
+- **Total tests written/modified**: 24 top-level (13 service + 11 handler + the 2 new ones replacing the dead `TestListMembers_NonMemberReturns403`)
+  - Service: 13 (the 11 gated use cases now pass `companyID`; the 2 ungated `GetMyMembership`/`resolveMember` tests unchanged)
+  - Handler: 11 (9 existing gated tests now inject CompanyContext; 1 new `TestListMembers_NoReResolveWithCompanyContext`; 1 new `TestListMembers_MissingCompanyContextIsServerError`)
+  - Removed: 3 service `ErrUnknownSubject` short-circuit tests (no longer applicable) + 1 handler `TestListMembers_NonMemberReturns403` (covered by middleware test instead)
+- **Total tests passing**: 24/24 (verified via `go test -v ./internal/features/companies/{application/usecases,infrastructure/http}/ -count=1`)
+- **Layers used**: Unit (24), Integration (0 — no schema or wiring changes; the existing 4 integration tests from WU3 still pass unchanged)
+- **Pure functions created/modified**: 1 new (`requireCompanyContext`), 4 signatures changed (gated use cases)
+- **Observable HTTP behavior**: 0 changes — every status code, wire shape, and spec scenario is preserved (verified via the same 25 spec-scenario tests that drove the verify pass).
+
+### TDD assertion quality audit (WU5)
+
+Every new / modified assertion calls production code and asserts a specific expected value. Spot checks:
+
+| Test | Assertion | Real behavior? |
+|------|-----------|----------------|
+| `TestListMembers_NoReResolveWithCompanyContext` | `uRepo.getCalls != 0` would FAIL if a future refactor re-introduced sub-based resolution on the gated path | ✅ Yes — the stub's `getCalls` increments inside `GetByCognitoSub` |
+| `TestListMembers_MissingCompanyContextIsServerError` | `mRepo.listCalls != 0` would FAIL if the handler proceeded without CompanyContext | ✅ Yes — proves the fail-closed invariant short-circuits BEFORE the service |
+| `TestAddMember_OwnerReturns201` | `mRepo.created.CompanyID != companyID` (the INJECTED one, not a resolved sub) would FAIL if the service still used `params.CompanyID` or a re-resolved sub | ✅ Yes — the production code runs `entities.NewCompanyMember(params.UserID, companyID, role)` |
+| `TestUpdateRole_ForwardsCallersCompanyID` (service) | `mRepo.lastUpdateCompanyID != callerCompanyID` would FAIL if the service still forwarded `caller.CompanyID` from a `resolveMember` call (it no longer does) | ✅ Yes — the production code forwards the `companyID` argument directly to `memberRepo.UpdateRole` |
+| `TestAddMember_UsesCallersCompanyIgnoresBodyCompanyID` (service) | `mRepo.created.CompanyID != callerCompanyID` would FAIL if the service read `params.CompanyID` (the foreign id) | ✅ Yes — proves the body company_id is still ignored, but now at the new contract boundary (passed-in `companyID` vs body) |
+
+### Runtime harness (mandatory for WU5)
+
+| Step | Command | Result |
+|------|---------|--------|
+| Pre-WU5 baseline | `cd backend && go test ./... -count=1` | exit 0; all 27 packages `ok` (post-WU4 baseline) |
+| Post-WU5 unit suite | `cd backend && go test ./... -count=1` | exit 0; all 27 packages `ok` (zero regressions) |
+| Post-WU5 integration suite | `cd backend && make test-integration` | exit 0; all packages `ok` (4 company_member_repository_integration tests + full migration suite + 0 regressions) |
+| Targeted — service | `cd backend && go test -v -count=1 ./internal/features/companies/application/usecases/` | 13 PASS (gated use cases: `AddMember` × 2, `ListMembers` × 2, `UpdateRole` × 3, `RemoveMember` × 2; ungated: `GetMyMembership` × 2, `resolveMember` × 2) |
+| Targeted — handler | `cd backend && go test -v -count=1 ./internal/features/companies/infrastructure/http/` | 16 PASS (3 `getMyCompany` ungated + 2 new gated fail-closed/no-resolve + 4 gated `listMembers`/`addMember` + 2 gated `updateMemberRole` + 2 gated `removeMember` + 1 `invalidUUID` + 9 `classifyMemberError` subtests) |
+| Static — vet | `cd backend && go vet ./...` | exit 0; zero findings |
+| Static — format | `cd backend && gofmt -l .` | exit 0; zero findings (one `gofmt -w` pass applied to memberHandler_test.go after the rewrite) |
+| Build | `cd backend && go build ./...` | exit 0; clean |
+
+### Contract verification (the WARNING #1 fix)
+
+Grep-confirm `CompanyContextFromContext` now has production call sites in `memberHandler.go`, and the gated service methods no longer take `cognitoSub`:
+
+```text
+$ grep -rn "CompanyContextFromContext" --include='*.go' internal/ | grep -v _test.go
+internal/features/identity/domain/security/companyContext.go:53:// CompanyContextFromContext returns the CompanyContext previously stored
+internal/features/identity/domain/security/companyContext.go:66:func CompanyContextFromContext(ctx context.Context) (CompanyContext, bool) {
+internal/features/companies/infrastructure/http/memberHandler.go:22:// `security.CompanyContextFromContext` (wrapped by the
+internal/features/companies/infrastructure/http/memberHandler.go:422:	cc, ok := identitysecurity.CompanyContextFromContext(r.Context())
+```
+
+→ 4 production references (1 godoc + 1 definition + 1 docstring + **1 production call site** in `memberHandler.go:422`). Pre-WU5: 0 production call sites. ✅ WARNING #1 resolved.
+
+```text
+$ grep -n "cognitoSub" internal/features/companies/application/usecases/companyMemberService.go
+85:func (s *CompanyMemberService) resolveMember(ctx context.Context, cognitoSub string) (*entities.CompanyMember, error) {
+86:	user, err := s.userRepo.GetByCognitoSub(ctx, cognitoSub)
+115:// cognitoSub: the route is ungated by role ...
+118:func (s *CompanyMemberService) GetMyMembership(ctx context.Context, cognitoSub string) (*entities.CompanyMember, *entities.Company, error) {
+119:	member, err := s.resolveMember(ctx, cognitoSub)
+```
+
+→ Only the private `resolveMember` helper (line 85) and the ungated `GetMyMembership` (line 118) still take `cognitoSub`. The 4 gated use cases (`ListMembers` / `AddMember` / `UpdateRole` / `RemoveMember`) no longer accept it — they take `companyID uuid.UUID`. ✅ "Resolves once" is enforced by the type signature, not just documented.
+
+```text
+$ grep -n "requireSub\|requireCompanyContext" internal/features/companies/infrastructure/http/memberHandler.go
+27:// the JWT subject via `requireSub` (the middleware does not run there
+194:	sub, ok := requireSub(w, r)
+395:// requireSub extracts the JWT subject from the request context.
+401:func requireSub(w http.ResponseWriter, r *http.Request) (string, bool) {
+23:// `requireCompanyContext` helper) and pass `cc.CompanyID` straight to
+220:	cc, ok := requireCompanyContext(w, r)
+244:	cc, ok := requireCompanyContext(w, r)
+284:	cc, ok := requireCompanyContext(w, r)
+321:	cc, ok := requireCompanyContext(w, r)
+410:// requireCompanyContext reads the CompanyContext that RequireCompanyRole
+421:func requireCompanyContext(w http.ResponseWriter, r *http.Request) (identitysecurity.CompanyContext, bool) {
+```
+
+→ `requireSub` is called exactly once — from `getMyMembership` (line 194, the UNGATED endpoint). `requireCompanyContext` is called from all 4 gated handlers (lines 220, 244, 284, 321). ✅ Handler-layer mapping matches the service-layer mapping.
+
+### Rollback boundary (WU5)
+
+The WU5 changes can be reverted without disturbing WU1/WU2/WU3/WU4 (already merged):
+
+```
+git revert --no-edit WU5
+```
+
+→ reverts the 4 service signatures back to `cognitoSub string` and restores the `resolveMember` calls inside them; reverts `memberHandler.go` to call `requireSub` and pass `sub` to the service; reverts the test helper signature and the test bodies to their pre-WU5 state. The middleware (`requireCompanyRole.go`) is unchanged — its injected `CompanyContext` simply becomes unused again, restoring WARNING #1. No DB schema, no domain code, no handler/middleware behavior is affected.
+
+### Deviations / issues found (WU5)
+
+1. **`TestListMembers_NonMemberReturns403` removed in favor of the middleware test.** The handler test was proving an in-handler `ErrNotAMember → 403` defensive fall-through. After the refactor, the service can no longer return `ErrNotAMember` for a gated request (no resolver path), so the remap is dead code. The spec scenario "non-member is rejected (403)" remains fully covered by `identity/http/requireCompanyRole_test.go::TestRequireCompanyRole_NonMemberIsForbidden` (the legitimate boundary — the middleware filters non-members before the handler runs) and by `requireCompanyRoleRoutes_test.go` (per-route gating integration). The handler-level test was redundant after the refactor. **Decision: remove it, document the replacement.** The "non-member is rejected" scenario is fully covered without the handler test.
+
+2. **`requireCompanyContext` returns 500 (not 401) on missing context.** The handler-level fail-closed for a misconfigured route. Returning 401 would mislead the client into re-authenticating; the real failure is internal (the middleware should have injected `CompanyContext` but didn't). The `500 + log` pattern mirrors the `respondServerError` helper in `requireCompanyRole.go` and the `classifyMemberError` default case in `memberHandler.go`. Test coverage: `TestListMembers_MissingCompanyContextIsServerError`.
+
+3. **Three `ErrUnknownSubject` service tests removed.** `TestListMembers_UnknownSubjectIsUnauthorized`, `TestAddMember_UnknownSubjectDoesNotTouchRepository`, `TestRemoveMember_UnknownSubjectDoesNotTouchRepository`. These were proving that the gated service short-circuited on an unknown sub. After the refactor, the gated use cases take a `companyID uuid.UUID` (not a sub), so there is no sub path to short-circuit — those tests would always be vacuously true. The `ErrUnknownSubject` sentinel and the `resolveMember` helper still exist and are still tested (via `GetMyMembership`), so the IDOR-resistant boundary is preserved. **Decision: remove the dead tests, keep the live ones.**
+
+4. **`memberHandler_test.go` formatting pass needed.** The handler test rewrite introduced 1 formatting issue (`gofmt -w` applied once). No behavior change, just whitespace.
+
+5. **No DB / wiring change.** WU5 is pure application+HTTP code. The 4 existing `companyMemberRepository_integration_test.go` tests from WU3 still pass unchanged — the postgres adapter's `companyID` parameter is the same as before, the SQL guard (D7) is the same as before. The wiring in `cmd/api/main.go` is unchanged: the middleware still runs, the handler still calls the service, the service still calls the repo. The only difference is which value the service receives for `companyID`: it now comes from `CompanyContext` (set by the middleware) instead of from a sub → membership re-resolution. IDOR is preserved.
+
+### Status (after WU5)
+
+- **WU1 tasks completed**: 6 / 6 (1.1, 1.2, 1.3, 1.4, 1.5, 1.6)
+- **WU2 tasks completed**: 9 / 9 (2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9)
+- **WU3 tasks completed**: 6 / 6 (3.1, 3.2, 3.3, 3.4, 3.5, 3.6) — plus 3.7/3.8 already landed from prior partial apply
+- **WU4 tasks completed**: 8 / 8 (3.9, 3.10, 4.1, 4.2, 4.3, 4.4, 4.5, 4.6)
+- **WU5 tasks completed**: bounded refactor (4 file modifications, 0 file creations)
+- **Phase 1 status**: ✅ complete (WU1 merged at `28c866e`)
+- **Phase 2 status**: ✅ complete (WU2 merged at `9ccc9cd` + `3a93ec9`)
+- **Phase 3 status**: ✅ complete (WU3 ready for review; 3.7/3.8 already in tree at `459cbb5`)
+- **Phase 4 status**: ✅ complete (WU4 ready for review)
+- **Phase 5 status**: ✅ complete (WU5 ready for review — D6 remediation)
+- **Company-members change status**: ✅ ALL PHASES COMPLETE — D6 deviation closed; WARNING #1 resolved; the change is ready for re-verify and archive pending orchestrator review.
+- **Workload / PR boundary (WU5)**: WU5 modifies 4 existing files (~250 net lines changed: ~80 service + ~80 service test + ~60 handler + ~120 handler test, minus ~90 lines removed). Well under the 400-line authored-risk budget per `work-unit-commits` — natural single PR. Split would only fragment a logically-coherent refactor.
+- **Tests green**: 24/24 WU5-modified tests + full pre-existing unit suite (27 packages) + full pre-existing integration suite (`make test-integration` exit 0) — 0 regressions, 0 new failures.
+- **`go vet ./...`**: 0 findings.
+- **`gofmt -l .`**: 0 findings.
+- **`go build ./...`**: clean.
+- **No `git add` / `commit` / `push`**: orchestrator owns git per task contract.

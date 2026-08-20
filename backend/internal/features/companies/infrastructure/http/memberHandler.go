@@ -7,22 +7,25 @@
 // directly against the repository (the service owns the IDOR-resistant
 // `sub → users.id → company_members` resolver chain — design D6).
 //
-// Authorization layering (production wiring, WU4):
+// Authorization layering (production wiring):
 //
-//	GET    /me/company           — behind RequireAuth only
-//	GET    /me/company/members   — behind RequireAuth + RequireCompanyRole(recruiter)
-//	POST   /me/company/members   — behind RequireAuth + RequireCompanyRole(owner)
-//	PATCH  /me/company/members/{id} — behind RequireAuth + RequireCompanyRole(owner)
-//	DELETE /me/company/members/{id} — behind RequireAuth + RequireCompanyRole(owner)
+//	GET    /me/company              — behind RequireAuth only (UNGATED)
+//	GET    /me/company/members      — behind RequireAuth + RequireCompanyRole(recruiter) (GATED)
+//	POST   /me/company/members      — behind RequireAuth + RequireCompanyRole(owner)      (GATED)
+//	PATCH  /me/company/members/{id} — behind RequireAuth + RequireCompanyRole(owner)      (GATED)
+//	DELETE /me/company/members/{id} — behind RequireAuth + RequireCompanyRole(owner)      (GATED)
 //
-// The handler itself does NOT inspect `sub` membership — it reads the
-// JWT subject from security.ClaimsFromContext, hands it to the service,
-// and translates domain errors to HTTP statuses via classifyMemberError.
-// The role gate that turns missing-membership into 403 on the mutations
-// is the middleware's job (3.9/3.10 in WU4); here we map ErrNotAMember
-// to 404 in GetMyMembership and 403 in the list endpoint (matching the
-// spec scenarios) so the handler tests can prove the behavior without
-// the middleware in front.
+// D6 — "resolves once" contract: the middleware resolves the
+// `sub → users.id → company_members` chain ONCE per request and injects
+// the result as `security.CompanyContext{company_id, role}` into the
+// request context. The four GATED handlers read it via
+// `security.CompanyContextFromContext` (wrapped by the
+// `requireCompanyContext` helper) and pass `cc.CompanyID` straight to
+// the service — the JWT subject is NEVER consulted again on the gated
+// path, so the gated use cases no longer need (and no longer accept)
+// a `cognitoSub` argument. The UNGATED `getMyMembership` handler reads
+// the JWT subject via `requireSub` (the middleware does not run there
+// — no role gate).
 package http
 
 import (
@@ -207,29 +210,21 @@ func (h *MemberHandler) getMyMembership(w http.ResponseWriter, r *http.Request) 
 }
 
 // listMembers implements GET /me/company/members. The production
-// wiring (WU4) layers RequireCompanyRole(recruiter) on this route, so
-// non-members never reach the handler. The handler still maps
-// ErrNotAMember to 403 as a defensive fall-through so a misconfigured
-// production wiring (e.g. middleware skipped in a test) still produces
-// a sensible status.
+// wiring layers RequireCompanyRole(recruiter) on this route, so
+// non-members never reach the handler. The handler reads the
+// caller's company_id from the CompanyContext that the middleware
+// injected (design D6 — "resolves once") and passes it to the
+// service; the JWT sub is NEVER consulted here (the middleware has
+// already done the resolver chain).
 func (h *MemberHandler) listMembers(w http.ResponseWriter, r *http.Request) {
-	sub, ok := requireSub(w, r)
+	cc, ok := requireCompanyContext(w, r)
 	if !ok {
 		return
 	}
 
-	members, err := h.service.ListMembers(r.Context(), sub)
+	members, err := h.service.ListMembers(r.Context(), cc.CompanyID)
 	if err != nil {
 		status, msg := classifyMemberError(err)
-		// ListMembers maps ErrNotAMember to 403 (the spec scenario
-		// "non-member is rejected") rather than the default 404.
-		// classifyMemberError is a flat dispatcher; the route-specific
-		// remap happens here so the table-driven mapping test can
-		// assert the default view without per-route coupling.
-		if errors.Is(err, entities.ErrNotAMember) {
-			status = http.StatusForbidden
-			msg = "not a member of any company"
-		}
 		if status == http.StatusInternalServerError {
 			slog.Error("list members failed", "error", err)
 		}
@@ -242,9 +237,11 @@ func (h *MemberHandler) listMembers(w http.ResponseWriter, r *http.Request) {
 
 // addMember implements POST /me/company/members. The body company_id is
 // IGNORED (spec scenario "body company_id is ignored"): the service
-// resolves company_id from the caller's membership row.
+// uses the callerCompanyID passed in (sourced from the CompanyContext
+// the middleware injected — design D6 "resolves once") to attach the
+// new member row.
 func (h *MemberHandler) addMember(w http.ResponseWriter, r *http.Request) {
-	sub, ok := requireSub(w, r)
+	cc, ok := requireCompanyContext(w, r)
 	if !ok {
 		return
 	}
@@ -261,7 +258,7 @@ func (h *MemberHandler) addMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	created, err := h.service.AddMember(r.Context(), sub, dtos.AddMemberDto{
+	created, err := h.service.AddMember(r.Context(), cc.CompanyID, dtos.AddMemberDto{
 		UserID: userID,
 		Role:   req.Role,
 	})
@@ -279,10 +276,12 @@ func (h *MemberHandler) addMember(w http.ResponseWriter, r *http.Request) {
 
 // updateMemberRole implements PATCH /me/company/members/{id}. The
 // target id comes from the URL path; the company_id comes from the
-// caller's membership row. A foreign target (cross-company) surfaces
-// as ErrMemberNotFound → 404.
+// CompanyContext that the middleware injected (design D6 — "resolves
+// once"). A foreign target (cross-company) surfaces as
+// ErrMemberNotFound → 404 (the repository's same-company SQL guard,
+// design D7).
 func (h *MemberHandler) updateMemberRole(w http.ResponseWriter, r *http.Request) {
-	sub, ok := requireSub(w, r)
+	cc, ok := requireCompanyContext(w, r)
 	if !ok {
 		return
 	}
@@ -299,7 +298,7 @@ func (h *MemberHandler) updateMemberRole(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := h.service.UpdateRole(r.Context(), sub, memberID, dtos.UpdateMemberRoleDto{
+	if err := h.service.UpdateRole(r.Context(), cc.CompanyID, memberID, dtos.UpdateMemberRoleDto{
 		Role: req.Role,
 	}); err != nil {
 		status, msg := classifyMemberError(err)
@@ -315,9 +314,11 @@ func (h *MemberHandler) updateMemberRole(w http.ResponseWriter, r *http.Request)
 
 // removeMember implements DELETE /me/company/members/{id}. The same
 // IDOR-resistant boundary as updateMemberRole: the target id is from
-// the path; the company_id is from the caller's membership row.
+// the path; the company_id is from the CompanyContext that the
+// middleware injected (design D6 — "resolves once"). A foreign target
+// surfaces as ErrMemberNotFound → 404.
 func (h *MemberHandler) removeMember(w http.ResponseWriter, r *http.Request) {
-	sub, ok := requireSub(w, r)
+	cc, ok := requireCompanyContext(w, r)
 	if !ok {
 		return
 	}
@@ -328,7 +329,7 @@ func (h *MemberHandler) removeMember(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.RemoveMember(r.Context(), sub, memberID); err != nil {
+	if err := h.service.RemoveMember(r.Context(), cc.CompanyID, memberID); err != nil {
 		status, msg := classifyMemberError(err)
 		if status == http.StatusInternalServerError {
 			slog.Error("remove member failed", "error", err)
@@ -404,6 +405,26 @@ func requireSub(w http.ResponseWriter, r *http.Request) (string, bool) {
 		return "", false
 	}
 	return claims.Subject, true
+}
+
+// requireCompanyContext reads the CompanyContext that RequireCompanyRole
+// injected after resolving `sub → users.id → company_members` (design
+// D6 — "resolves once"). It is the entry guard for every GATED use case
+// in this file: the four use cases that take `companyID uuid.UUID` in
+// the service layer.
+//
+// If CompanyContext is missing from the request context, the handler
+// has been reached without going through the middleware — a routing
+// misconfiguration. We short-circuit fail-closed with 500 (NOT 401):
+// a 401 would mislead the client into re-authenticating; the real
+// failure is internal and should be loud.
+func requireCompanyContext(w http.ResponseWriter, r *http.Request) (identitysecurity.CompanyContext, bool) {
+	cc, ok := identitysecurity.CompanyContextFromContext(r.Context())
+	if !ok {
+		httpjson.WriteError(w, http.StatusInternalServerError, "internal server error")
+		return identitysecurity.CompanyContext{}, false
+	}
+	return cc, true
 }
 
 // classifyMemberError is the flat errors.Is dispatcher for every domain

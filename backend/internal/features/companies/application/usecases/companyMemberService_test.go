@@ -1,3 +1,20 @@
+// Package usecases orchestrates the companies application logic. The
+// CompanyMemberService is the composition target for the company_membership
+// subdomain: it owns the per-request resolver chain for the UNGATED
+// `GetMyMembership` endpoint (`sub → users.id → company_members`) and the
+// four GATED use cases (ListMembers / AddMember / UpdateRole / RemoveMember)
+// that consume the caller's company_id directly from the request context
+// (design D6 — "resolves once").
+//
+// The four gated use cases take a `companyID uuid.UUID` as the second
+// argument — the value already resolved by the `RequireCompanyRole`
+// middleware (sub → users.id → company_members, design D6). The service
+// no longer re-resolves that chain on the gated path: that would be a
+// redundant 2-query DB round-trip per request, and the design explicitly
+// forbad it. GetMyMembership is ungated (no role gate, no CompanyContext
+// in the request context), so it keeps the sub-based resolver — the
+// only legitimate place a gated-by-no-role endpoint can see a JWT
+// subject.
 package usecases
 
 import (
@@ -33,6 +50,7 @@ type stubMemberRepository struct {
 	listOut             []entities.CompanyMember
 	listErr             error
 	listCalls           int
+	lastListCompanyID   uuid.UUID
 	lastUpdateID        uuid.UUID
 	lastUpdateCompanyID uuid.UUID
 	lastUpdateRole      valueobjects.MemberRole
@@ -70,10 +88,11 @@ func (s *stubMemberRepository) GetMembershipByUserID(_ context.Context, _ uuid.U
 	return nil, entities.ErrNotAMember
 }
 
-func (s *stubMemberRepository) ListByCompanyID(_ context.Context, _ uuid.UUID) ([]entities.CompanyMember, error) {
+func (s *stubMemberRepository) ListByCompanyID(_ context.Context, companyID uuid.UUID) ([]entities.CompanyMember, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.listCalls++
+	s.lastListCompanyID = companyID
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
@@ -253,22 +272,20 @@ func TestResolveMember_NoMembershipIsNotAMember(t *testing.T) {
 // --- tests: AddMember ignores body company_id (task 2.7) ------------------
 
 // TestAddMember_UsesCallersCompanyIgnoresBodyCompanyID covers the spec
-// scenario "body company_id is ignored": a caller who is owner of company
-// X MUST have the new member row attached to X even when the body
-// explicitly carries company_id = Y. This is the IDOR-resistant boundary
-// the design D6 calls out.
+// scenario "body company_id is ignored": the use case MUST attach the new
+// member row to the companyID passed in (the caller's, from the
+// CompanyContext the middleware injected) even when the body explicitly
+// carries company_id = Y. This is the IDOR-resistant boundary the design
+// D6 calls out — and in the new contract the caller-supplied companyID
+// comes straight from the middleware, so a body company_id can never
+// redirect the row to a foreign company.
 func TestAddMember_UsesCallersCompanyIgnoresBodyCompanyID(t *testing.T) {
-	callerUserID := uuid.New()
 	callerCompanyID := uuid.New()
 	foreignCompanyID := uuid.New()
 	targetUserID := uuid.New()
 
-	callerMembership, err := entities.NewCompanyMember(callerUserID, callerCompanyID, valueobjects.OwnerRole)
-	if err != nil {
-		t.Fatalf("setup: NewCompanyMember: %v", err)
-	}
-	mRepo := &stubMemberRepository{getByUserOut: callerMembership}
-	uRepo := &stubUserRepository{resolved: makeUser(callerUserID, "sub-owner")}
+	mRepo := &stubMemberRepository{}
+	uRepo := &stubUserRepository{}
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
@@ -278,7 +295,7 @@ func TestAddMember_UsesCallersCompanyIgnoresBodyCompanyID(t *testing.T) {
 		CompanyID: &foreignCompanyID, // body carries Y; service MUST ignore it.
 	}
 
-	got, err := svc.AddMember(context.Background(), "sub-owner", dto)
+	got, err := svc.AddMember(context.Background(), callerCompanyID, dto)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -289,7 +306,7 @@ func TestAddMember_UsesCallersCompanyIgnoresBodyCompanyID(t *testing.T) {
 		t.Fatal("expected repository.Create to be called")
 	}
 	if mRepo.created.CompanyID != callerCompanyID {
-		t.Errorf("created row CompanyID: want %v (caller's), got %v (body's — IGNORED)", callerCompanyID, mRepo.created.CompanyID)
+		t.Errorf("created row CompanyID: want %v (passed-in), got %v (body's — IGNORED)", callerCompanyID, mRepo.created.CompanyID)
 	}
 	if mRepo.created.UserID != targetUserID {
 		t.Errorf("created row UserID: want %v, got %v", targetUserID, mRepo.created.UserID)
@@ -297,22 +314,23 @@ func TestAddMember_UsesCallersCompanyIgnoresBodyCompanyID(t *testing.T) {
 	if mRepo.created.Role != valueobjects.RecruiterRole {
 		t.Errorf("created row Role: want RecruiterRole, got %v", mRepo.created.Role)
 	}
+	if uRepo.getCalls != 0 {
+		t.Errorf("userRepo.GetByCognitoSub must NOT be called by gated use cases (D6 — resolves once), got %d calls", uRepo.getCalls)
+	}
 }
 
 // TestAddMember_InvalidRoleDoesNotTouchRepository is the defense-in-depth
 // companion: the use case rejects an invalid role BEFORE any DB write.
 // The repository must not be invoked.
 func TestAddMember_InvalidRoleDoesNotTouchRepository(t *testing.T) {
-	callerUserID := uuid.New()
-	callerCompanyID := uuid.New()
+	companyID := uuid.New()
 
-	callerMembership, _ := entities.NewCompanyMember(callerUserID, callerCompanyID, valueobjects.OwnerRole)
-	mRepo := &stubMemberRepository{getByUserOut: callerMembership}
-	uRepo := &stubUserRepository{resolved: makeUser(callerUserID, "sub-owner")}
+	mRepo := &stubMemberRepository{}
+	uRepo := &stubUserRepository{}
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
-	_, err := svc.AddMember(context.Background(), "sub-owner", dtos.AddMemberDto{
+	_, err := svc.AddMember(context.Background(), companyID, dtos.AddMemberDto{
 		UserID: uuid.New(),
 		Role:   "admin",
 	})
@@ -321,27 +339,6 @@ func TestAddMember_InvalidRoleDoesNotTouchRepository(t *testing.T) {
 	}
 	if mRepo.createCalls != 0 {
 		t.Errorf("repository.Create must not be invoked on invalid role, got %d calls", mRepo.createCalls)
-	}
-}
-
-// TestAddMember_UnknownSubjectDoesNotTouchRepository proves the resolve
-// chain short-circuits when the sub is unknown — same invariant as the
-// candidates service (no row read with a stale sub).
-func TestAddMember_UnknownSubjectDoesNotTouchRepository(t *testing.T) {
-	mRepo := &stubMemberRepository{}
-	uRepo := &stubUserRepository{resolveErr: identityentities.ErrUserNotFound}
-	cRepo := &stubMemberCompanyRepository{}
-	svc := newSvc(mRepo, uRepo, cRepo)
-
-	_, err := svc.AddMember(context.Background(), "missing-sub", dtos.AddMemberDto{
-		UserID: uuid.New(),
-		Role:   "recruiter",
-	})
-	if !errors.Is(err, entities.ErrUnknownSubject) {
-		t.Errorf("expected ErrUnknownSubject, got: %v", err)
-	}
-	if mRepo.createCalls != 0 {
-		t.Errorf("repository.Create must not be invoked when sub is unknown, got %d calls", mRepo.createCalls)
 	}
 }
 
@@ -405,28 +402,26 @@ func TestGetMyMembership_CompanyRepoFailurePropagates(t *testing.T) {
 
 // TestListMembers_ReturnsAllMembers covers the spec scenario "members are
 // listed": GET /me/company/members with N members MUST return exactly N
-// rows. The repository is invoked with the CALLER's company_id (resolved
-// from the membership), never any path or body value.
+// rows. The repository is invoked with the callerCompanyID passed in by
+// the handler (from the injected CompanyContext, design D6 — "resolves
+// once"), never any path or body value. The service does NOT consult
+// the user repo: the middleware already resolved the chain before this
+// use case runs.
 func TestListMembers_ReturnsAllMembers(t *testing.T) {
-	userID := uuid.New()
 	companyID := uuid.New()
 
-	callerMembership, _ := entities.NewCompanyMember(userID, companyID, valueobjects.OwnerRole)
 	rows := []entities.CompanyMember{
 		*makeMember(uuid.New(), companyID, valueobjects.OwnerRole),
 		*makeMember(uuid.New(), companyID, valueobjects.RecruiterRole),
 		*makeMember(uuid.New(), companyID, valueobjects.RecruiterRole),
 	}
 
-	mRepo := &stubMemberRepository{
-		getByUserOut: callerMembership,
-		listOut:      rows,
-	}
-	uRepo := &stubUserRepository{resolved: makeUser(userID, "sub-owner")}
+	mRepo := &stubMemberRepository{listOut: rows}
+	uRepo := &stubUserRepository{}
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
-	got, err := svc.ListMembers(context.Background(), "sub-owner")
+	got, err := svc.ListMembers(context.Background(), companyID)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -436,21 +431,25 @@ func TestListMembers_ReturnsAllMembers(t *testing.T) {
 	if mRepo.listCalls != 1 {
 		t.Errorf("expected exactly 1 ListByCompanyID call, got %d", mRepo.listCalls)
 	}
+	if mRepo.lastListCompanyID != companyID {
+		t.Errorf("ListByCompanyID: want companyID %v, got %v (must forward the injected CompanyID, not re-resolve)", companyID, mRepo.lastListCompanyID)
+	}
+	if uRepo.getCalls != 0 {
+		t.Errorf("userRepo.GetByCognitoSub must NOT be called by gated use cases (D6 — resolves once), got %d calls", uRepo.getCalls)
+	}
 }
 
 // TestListMembers_EmptyIsNotNil covers the "empty list, not nil" invariant:
 // JSON encoding must produce `[]`, not `null`, when there are zero members.
 func TestListMembers_EmptyIsNotNil(t *testing.T) {
-	userID := uuid.New()
 	companyID := uuid.New()
-	callerMembership, _ := entities.NewCompanyMember(userID, companyID, valueobjects.OwnerRole)
 
-	mRepo := &stubMemberRepository{getByUserOut: callerMembership, listOut: nil}
-	uRepo := &stubUserRepository{resolved: makeUser(userID, "sub-owner")}
+	mRepo := &stubMemberRepository{listOut: nil}
+	uRepo := &stubUserRepository{}
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
-	got, err := svc.ListMembers(context.Background(), "sub-owner")
+	got, err := svc.ListMembers(context.Background(), companyID)
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -460,22 +459,8 @@ func TestListMembers_EmptyIsNotNil(t *testing.T) {
 	if len(got) != 0 {
 		t.Errorf("expected 0 members, got %d", len(got))
 	}
-}
-
-// TestListMembers_UnknownSubjectIsUnauthorized: the resolve chain
-// short-circuits before ListByCompanyID — no DB read with a stale sub.
-func TestListMembers_UnknownSubjectIsUnauthorized(t *testing.T) {
-	mRepo := &stubMemberRepository{}
-	uRepo := &stubUserRepository{resolveErr: identityentities.ErrUserNotFound}
-	cRepo := &stubMemberCompanyRepository{}
-	svc := newSvc(mRepo, uRepo, cRepo)
-
-	_, err := svc.ListMembers(context.Background(), "missing-sub")
-	if !errors.Is(err, entities.ErrUnknownSubject) {
-		t.Errorf("expected ErrUnknownSubject, got: %v", err)
-	}
-	if mRepo.listCalls != 0 {
-		t.Errorf("repository.ListByCompanyID must not be called when sub is unknown, got %d calls", mRepo.listCalls)
+	if mRepo.lastListCompanyID != companyID {
+		t.Errorf("ListByCompanyID: want companyID %v, got %v", companyID, mRepo.lastListCompanyID)
 	}
 }
 
@@ -486,19 +471,14 @@ func TestListMembers_UnknownSubjectIsUnauthorized(t *testing.T) {
 // entities.ErrMemberNotFound. The use case MUST propagate it unchanged
 // so the HTTP layer can map to 404.
 func TestUpdateRole_CrossCompanyTargetPropagatesNotFound(t *testing.T) {
-	callerUserID := uuid.New()
 	callerCompanyID := uuid.New()
-	callerMembership, _ := entities.NewCompanyMember(callerUserID, callerCompanyID, valueobjects.OwnerRole)
 
-	mRepo := &stubMemberRepository{
-		getByUserOut: callerMembership,
-		updateErr:    entities.ErrMemberNotFound,
-	}
-	uRepo := &stubUserRepository{resolved: makeUser(callerUserID, "sub-owner")}
+	mRepo := &stubMemberRepository{updateErr: entities.ErrMemberNotFound}
+	uRepo := &stubUserRepository{}
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
-	err := svc.UpdateRole(context.Background(), "sub-owner", uuid.New(), dtos.UpdateMemberRoleDto{Role: "owner"})
+	err := svc.UpdateRole(context.Background(), callerCompanyID, uuid.New(), dtos.UpdateMemberRoleDto{Role: "owner"})
 	if !errors.Is(err, entities.ErrMemberNotFound) {
 		t.Errorf("expected ErrMemberNotFound, got: %v", err)
 	}
@@ -506,52 +486,55 @@ func TestUpdateRole_CrossCompanyTargetPropagatesNotFound(t *testing.T) {
 		t.Errorf("expected exactly 1 UpdateRole call, got %d", mRepo.updateCalls)
 	}
 	if mRepo.lastUpdateCompanyID != callerCompanyID {
-		t.Errorf("UpdateRole must be called with caller's company_id (%v), got %v", callerCompanyID, mRepo.lastUpdateCompanyID)
+		t.Errorf("UpdateRole must be called with passed-in company_id (%v), got %v", callerCompanyID, mRepo.lastUpdateCompanyID)
+	}
+	if uRepo.getCalls != 0 {
+		t.Errorf("userRepo.GetByCognitoSub must NOT be called by gated use cases (D6 — resolves once), got %d calls", uRepo.getCalls)
 	}
 }
 
 // TestUpdateRole_ForwardsCallersCompanyID covers the spec invariant that
 // UpdateRole is the same-company guard at the use-case layer too: the
 // target ID comes from the URL path, but the company_id MUST come from
-// the caller's membership row, never from any payload.
+// the passed-in caller company_id (the CompanyContext the middleware
+// injected), never from any payload.
 func TestUpdateRole_ForwardsCallersCompanyID(t *testing.T) {
-	callerUserID := uuid.New()
 	callerCompanyID := uuid.New()
-	callerMembership, _ := entities.NewCompanyMember(callerUserID, callerCompanyID, valueobjects.OwnerRole)
 
-	mRepo := &stubMemberRepository{getByUserOut: callerMembership}
-	uRepo := &stubUserRepository{resolved: makeUser(callerUserID, "sub-owner")}
+	mRepo := &stubMemberRepository{}
+	uRepo := &stubUserRepository{}
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
 	targetID := uuid.New()
-	if err := svc.UpdateRole(context.Background(), "sub-owner", targetID, dtos.UpdateMemberRoleDto{Role: "recruiter"}); err != nil {
+	if err := svc.UpdateRole(context.Background(), callerCompanyID, targetID, dtos.UpdateMemberRoleDto{Role: "recruiter"}); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 	if mRepo.lastUpdateID != targetID {
 		t.Errorf("UpdateRole id: want %v, got %v", targetID, mRepo.lastUpdateID)
 	}
 	if mRepo.lastUpdateCompanyID != callerCompanyID {
-		t.Errorf("UpdateRole company_id: want %v (caller's), got %v", callerCompanyID, mRepo.lastUpdateCompanyID)
+		t.Errorf("UpdateRole company_id: want %v (passed-in), got %v", callerCompanyID, mRepo.lastUpdateCompanyID)
 	}
 	if mRepo.lastUpdateRole != valueobjects.RecruiterRole {
 		t.Errorf("UpdateRole role: want RecruiterRole, got %v", mRepo.lastUpdateRole)
+	}
+	if uRepo.getCalls != 0 {
+		t.Errorf("userRepo.GetByCognitoSub must NOT be called by gated use cases (D6 — resolves once), got %d calls", uRepo.getCalls)
 	}
 }
 
 // TestUpdateRole_InvalidRoleDoesNotTouchRepository is the validation
 // guard: bad input must short-circuit BEFORE the repository is invoked.
 func TestUpdateRole_InvalidRoleDoesNotTouchRepository(t *testing.T) {
-	callerUserID := uuid.New()
-	callerCompanyID := uuid.New()
-	callerMembership, _ := entities.NewCompanyMember(callerUserID, callerCompanyID, valueobjects.OwnerRole)
+	companyID := uuid.New()
 
-	mRepo := &stubMemberRepository{getByUserOut: callerMembership}
-	uRepo := &stubUserRepository{resolved: makeUser(callerUserID, "sub-owner")}
+	mRepo := &stubMemberRepository{}
+	uRepo := &stubUserRepository{}
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
-	err := svc.UpdateRole(context.Background(), "sub-owner", uuid.New(), dtos.UpdateMemberRoleDto{Role: "admin"})
+	err := svc.UpdateRole(context.Background(), companyID, uuid.New(), dtos.UpdateMemberRoleDto{Role: "admin"})
 	if !errors.Is(err, valueobjects.ErrInvalidMemberRole) {
 		t.Errorf("expected ErrInvalidMemberRole, got: %v", err)
 	}
@@ -565,19 +548,14 @@ func TestUpdateRole_InvalidRoleDoesNotTouchRepository(t *testing.T) {
 // guard affects 0 rows when the target belongs to a different company,
 // and the use case propagates entities.ErrMemberNotFound unchanged.
 func TestRemoveMember_CrossCompanyTargetPropagatesNotFound(t *testing.T) {
-	callerUserID := uuid.New()
 	callerCompanyID := uuid.New()
-	callerMembership, _ := entities.NewCompanyMember(callerUserID, callerCompanyID, valueobjects.OwnerRole)
 
-	mRepo := &stubMemberRepository{
-		getByUserOut: callerMembership,
-		removeErr:    entities.ErrMemberNotFound,
-	}
-	uRepo := &stubUserRepository{resolved: makeUser(callerUserID, "sub-owner")}
+	mRepo := &stubMemberRepository{removeErr: entities.ErrMemberNotFound}
+	uRepo := &stubUserRepository{}
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
-	err := svc.RemoveMember(context.Background(), "sub-owner", uuid.New())
+	err := svc.RemoveMember(context.Background(), callerCompanyID, uuid.New())
 	if !errors.Is(err, entities.ErrMemberNotFound) {
 		t.Errorf("expected ErrMemberNotFound, got: %v", err)
 	}
@@ -585,48 +563,35 @@ func TestRemoveMember_CrossCompanyTargetPropagatesNotFound(t *testing.T) {
 		t.Errorf("expected exactly 1 Remove call, got %d", mRepo.removeCalls)
 	}
 	if mRepo.lastRemoveCompanyID != callerCompanyID {
-		t.Errorf("Remove must be called with caller's company_id (%v), got %v", callerCompanyID, mRepo.lastRemoveCompanyID)
+		t.Errorf("Remove must be called with passed-in company_id (%v), got %v", callerCompanyID, mRepo.lastRemoveCompanyID)
+	}
+	if uRepo.getCalls != 0 {
+		t.Errorf("userRepo.GetByCognitoSub must NOT be called by gated use cases (D6 — resolves once), got %d calls", uRepo.getCalls)
 	}
 }
 
 // TestRemoveMember_ForwardsCallersCompanyID is the Remove companion to
 // TestUpdateRole_ForwardsCallersCompanyID — same invariant, different verb.
 func TestRemoveMember_ForwardsCallersCompanyID(t *testing.T) {
-	callerUserID := uuid.New()
 	callerCompanyID := uuid.New()
-	callerMembership, _ := entities.NewCompanyMember(callerUserID, callerCompanyID, valueobjects.OwnerRole)
 
-	mRepo := &stubMemberRepository{getByUserOut: callerMembership}
-	uRepo := &stubUserRepository{resolved: makeUser(callerUserID, "sub-owner")}
+	mRepo := &stubMemberRepository{}
+	uRepo := &stubUserRepository{}
 	cRepo := &stubMemberCompanyRepository{}
 	svc := newSvc(mRepo, uRepo, cRepo)
 
 	targetID := uuid.New()
-	if err := svc.RemoveMember(context.Background(), "sub-owner", targetID); err != nil {
+	if err := svc.RemoveMember(context.Background(), callerCompanyID, targetID); err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 	if mRepo.lastRemoveID != targetID {
 		t.Errorf("Remove id: want %v, got %v", targetID, mRepo.lastRemoveID)
 	}
 	if mRepo.lastRemoveCompanyID != callerCompanyID {
-		t.Errorf("Remove company_id: want %v (caller's), got %v", callerCompanyID, mRepo.lastRemoveCompanyID)
+		t.Errorf("Remove company_id: want %v (passed-in), got %v", callerCompanyID, mRepo.lastRemoveCompanyID)
 	}
-}
-
-// TestRemoveMember_UnknownSubjectDoesNotTouchRepository: same short-circuit
-// invariant as AddMember / ListMembers — no DB read on a stale sub.
-func TestRemoveMember_UnknownSubjectDoesNotTouchRepository(t *testing.T) {
-	mRepo := &stubMemberRepository{}
-	uRepo := &stubUserRepository{resolveErr: identityentities.ErrUserNotFound}
-	cRepo := &stubMemberCompanyRepository{}
-	svc := newSvc(mRepo, uRepo, cRepo)
-
-	err := svc.RemoveMember(context.Background(), "missing-sub", uuid.New())
-	if !errors.Is(err, entities.ErrUnknownSubject) {
-		t.Errorf("expected ErrUnknownSubject, got: %v", err)
-	}
-	if mRepo.removeCalls != 0 {
-		t.Errorf("repository.Remove must not be called when sub is unknown, got %d calls", mRepo.removeCalls)
+	if uRepo.getCalls != 0 {
+		t.Errorf("userRepo.GetByCognitoSub must NOT be called by gated use cases (D6 — resolves once), got %d calls", uRepo.getCalls)
 	}
 }
 
