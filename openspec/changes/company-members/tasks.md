@@ -56,8 +56,8 @@ Chain strategy: size-exception
 - [ ] 3.4 RED: `companies/infrastructure/http/memberHandler_test.go` (httptest) — `classifyMemberError` mapping: 401/404/409/404/400 per design table.
 - [ ] 3.5 RED: handler tests — `GET /me/company` 200 owner, 404 non-member, 401 unknown sub; `GET /me/company/members` 200 lists N, 403 non-member; `POST` 201 owner / 409 duplicate; `PATCH` promotes; `DELETE` 204.
 - [ ] 3.6 GREEN: `companies/infrastructure/http/memberHandler.go` — handlers + `classifyMemberError` + routes.
-- [ ] 3.7 RED: `identity/domain/security/companyContext_test.go` — inject/read `CompanyContext`, missing context returns not-ok.
-- [ ] 3.8 GREEN: `identity/domain/security/companyContext.go` — `CompanyContext` + ctx helpers.
+- [x] 3.7 RED: `identity/domain/security/companyContext_test.go` — inject/read `CompanyContext`, missing context returns not-ok.
+- [x] 3.8 GREEN: `identity/domain/security/companyContext.go` — `CompanyContext` + ctx helpers.
 - [ ] 3.9 RED: `identity/infrastructure/http/requireCompanyRole_test.go` with fake repos — owner passes `minRole=recruiter`; recruiter under `minRole=owner` → 403 handler not invoked; non-member → 403; unknown sub → 401 (spec: RequireCompanyRole, 4 scenarios).
 - [ ] 3.10 GREEN: `identity/infrastructure/http/requireCompanyRole.go` — port-only imports, resolves once, injects `CompanyContext`.
 
