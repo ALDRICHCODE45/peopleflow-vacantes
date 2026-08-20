@@ -32,7 +32,7 @@ var _ repositories.CompanyRepository = (*CompanyRepository)(nil)
 // Create persists a new company, mapping the entity's value objects into sqlc params.
 func (r *CompanyRepository) Create(ctx context.Context, company *entities.Company) error {
 	_, err := r.queries.CreateCompany(ctx, buildCreateParams(company))
-	return mapCreateError(err)
+	return mapCompanyCreateError(err)
 }
 
 // GetByID fetches a company and rebuilds the domain entity from the sqlc row.
@@ -179,9 +179,15 @@ func pgTimestamptzToTimePtr(t pgtype.Timestamptz) *time.Time {
 	return &t.Time
 }
 
-// mapCreateError translates Postgres constraint violations into domain errors
-// so the HTTP layer can return 4xx instead of leaking 500s for client errors.
-func mapCreateError(err error) error {
+// mapCompanyCreateError translates Postgres constraint violations on the
+// `companies` table into domain errors so the HTTP layer can return 4xx
+// instead of leaking 500s for client errors.
+//
+// The member repository (companyMemberRepository.go) defines its own
+// mapCreateError with a SQLSTATE → sentinel mapping specific to the
+// `company_members` table; do not collapse them — same SQLSTATE codes
+// mean different domain errors on different tables.
+func mapCompanyCreateError(err error) error {
 	if err == nil {
 		return nil
 	}

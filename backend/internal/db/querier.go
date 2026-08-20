@@ -49,7 +49,7 @@ type Querier interface {
 	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error)
 	// Same-company guard (design D7) — see UpdateMemberRole for rationale.
 	// HARD DELETE (design D2) frees `user_id` for re-assignment.
-	RemoveCompanyMember(ctx context.Context, arg RemoveCompanyMemberParams) error
+	RemoveCompanyMember(ctx context.Context, arg RemoveCompanyMemberParams) (int64, error)
 	// Public read listing for jobs (§spec/jobs). The visibility rule
 	// (§Read-Side Visibility Rule) is enforced here, not in Go: a row
 	// surfaces only when `jobs.status='published'`, `jobs.deleted_at IS NULL`,
@@ -94,7 +94,7 @@ type Querier interface {
 	// UpdateRole. 0 rows affected → ErrMemberNotFound in the adapter.
 	// `updated_at` is touched here so downstream callers never have to remember
 	// to do it.
-	UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) error
+	UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) (int64, error)
 	// Idempotent upsert keyed on the PK (user_id). First PUT creates the row;
 	// subsequent PUTs overwrite the editable columns. search_vector is a STORED
 	// generated column owned by Postgres and MUST NOT be touched here.

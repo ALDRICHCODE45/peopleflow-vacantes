@@ -108,7 +108,7 @@ func (q *Queries) ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]C
 	return items, nil
 }
 
-const removeCompanyMember = `-- name: RemoveCompanyMember :exec
+const removeCompanyMember = `-- name: RemoveCompanyMember :execrows
 DELETE FROM company_members
 WHERE id = $1 AND company_id = $2
 `
@@ -120,12 +120,15 @@ type RemoveCompanyMemberParams struct {
 
 // Same-company guard (design D7) — see UpdateMemberRole for rationale.
 // HARD DELETE (design D2) frees `user_id` for re-assignment.
-func (q *Queries) RemoveCompanyMember(ctx context.Context, arg RemoveCompanyMemberParams) error {
-	_, err := q.db.Exec(ctx, removeCompanyMember, arg.ID, arg.CompanyID)
-	return err
+func (q *Queries) RemoveCompanyMember(ctx context.Context, arg RemoveCompanyMemberParams) (int64, error) {
+	result, err := q.db.Exec(ctx, removeCompanyMember, arg.ID, arg.CompanyID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
-const updateMemberRole = `-- name: UpdateMemberRole :exec
+const updateMemberRole = `-- name: UpdateMemberRole :execrows
 UPDATE company_members
 SET role = $3, updated_at = now()
 WHERE id = $1 AND company_id = $2
@@ -142,7 +145,10 @@ type UpdateMemberRoleParams struct {
 // UpdateRole. 0 rows affected → ErrMemberNotFound in the adapter.
 // `updated_at` is touched here so downstream callers never have to remember
 // to do it.
-func (q *Queries) UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) error {
-	_, err := q.db.Exec(ctx, updateMemberRole, arg.ID, arg.CompanyID, arg.Role)
-	return err
+func (q *Queries) UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateMemberRole, arg.ID, arg.CompanyID, arg.Role)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

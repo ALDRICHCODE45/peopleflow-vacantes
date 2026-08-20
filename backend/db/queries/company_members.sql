@@ -28,7 +28,7 @@ WHERE company_id = $1
 ORDER BY created_at ASC, id ASC;
 
 
--- name: UpdateMemberRole :exec
+-- name: UpdateMemberRole :execrows
 -- Same-company guard (design D7): the SQL predicate
 -- `id = $1 AND company_id = $2` is the race-free, IDOR-proof boundary for
 -- UpdateRole. 0 rows affected → ErrMemberNotFound in the adapter.
@@ -39,7 +39,7 @@ SET role = $3, updated_at = now()
 WHERE id = $1 AND company_id = $2;
 
 
--- name: RemoveCompanyMember :exec
+-- name: RemoveCompanyMember :execrows
 -- Same-company guard (design D7) — see UpdateMemberRole for rationale.
 -- HARD DELETE (design D2) frees `user_id` for re-assignment.
 DELETE FROM company_members
