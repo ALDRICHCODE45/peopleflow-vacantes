@@ -50,12 +50,12 @@ Chain strategy: size-exception
 
 ## Phase 3: Wiring — Adapter, Handler, Middleware
 
-- [ ] 3.1 RED: integration test for `companyMemberRepository` — `mapCreateError` maps 23505 → `ErrMemberExists`, 23503 → `ErrUserNotFound`.
-- [ ] 3.2 RED: integration test — `UpdateRole`/`Remove` with a foreign `company_id` affect 0 rows → `ErrMemberNotFound` (spec: cross-company target rejected).
-- [ ] 3.3 GREEN: `companies/infrastructure/postgres/companyMemberRepository.go` — adapter + `mapCreateError`.
-- [ ] 3.4 RED: `companies/infrastructure/http/memberHandler_test.go` (httptest) — `classifyMemberError` mapping: 401/404/409/404/400 per design table.
-- [ ] 3.5 RED: handler tests — `GET /me/company` 200 owner, 404 non-member, 401 unknown sub; `GET /me/company/members` 200 lists N, 403 non-member; `POST` 201 owner / 409 duplicate; `PATCH` promotes; `DELETE` 204.
-- [ ] 3.6 GREEN: `companies/infrastructure/http/memberHandler.go` — handlers + `classifyMemberError` + routes.
+- [x] 3.1 RED: integration test for `companyMemberRepository` — `mapCreateError` maps 23505 → `ErrMemberExists`, 23503 → `ErrUserNotFound`.
+- [x] 3.2 RED: integration test — `UpdateRole`/`Remove` with a foreign `company_id` affect 0 rows → `ErrMemberNotFound` (spec: cross-company target rejected).
+- [x] 3.3 GREEN: `companies/infrastructure/postgres/companyMemberRepository.go` — adapter + `mapCreateError`.
+- [x] 3.4 RED: `companies/infrastructure/http/memberHandler_test.go` (httptest) — `classifyMemberError` mapping: 401/404/409/404/400 per design table.
+- [x] 3.5 RED: handler tests — `GET /me/company` 200 owner, 404 non-member, 401 unknown sub; `GET /me/company/members` 200 lists N, 403 non-member; `POST` 201 owner / 409 duplicate; `PATCH` promotes; `DELETE` 204.
+- [x] 3.6 GREEN: `companies/infrastructure/http/memberHandler.go` — handlers + `classifyMemberError` + routes.
 - [x] 3.7 RED: `identity/domain/security/companyContext_test.go` — inject/read `CompanyContext`, missing context returns not-ok.
 - [x] 3.8 GREEN: `identity/domain/security/companyContext.go` — `CompanyContext` + ctx helpers.
 - [ ] 3.9 RED: `identity/infrastructure/http/requireCompanyRole_test.go` with fake repos — owner passes `minRole=recruiter`; recruiter under `minRole=owner` → 403 handler not invoked; non-member → 403; unknown sub → 401 (spec: RequireCompanyRole, 4 scenarios).

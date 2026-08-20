@@ -270,3 +270,199 @@ launch `sdd-apply` for WU3/4 in subsequent sessions.
   full pre-existing integration suite (verified in WU1; WU2 does not
   touch any DB schema or wiring, so the green status is preserved)
 - **No `git add` / `commit` / `push`**: orchestrator owns git per task contract
+---
+
+## Work Unit 3 — Postgres adapter + HTTP handler
+
+WU3 boundary: `companies/infrastructure/postgres/companyMemberRepository.go`
++ `companies/infrastructure/http/memberHandler.go` (and tests for each).
+The WU1 sqlc layer (already merged) is consumed unchanged. The WU2
+domain layer (already merged) is composed unchanged — the adapter and
+handler implement the ports/use cases without touching them. Note that
+**3.7 / 3.8 (CompanyContext) shipped in the prior partial apply at
+commit `459cbb5`**, ahead of the planned WU4 boundary; the test file is
+in the codebase and the production file is committed, so this WU only
+needs to land the adapter + handler (the rest of WU4 is
+`RequireCompanyRole` middleware + `main.go` wiring, which remain in
+scope for the next apply session).
+
+### Files changed (WU3)
+
+| File | Action | Notes |
+|------|--------|-------|
+| `backend/db/queries/company_members.sql` | modify (sqlc regen) | `-- name: UpdateMemberRole :execrows` and `-- name: RemoveCompanyMember :execrows` — sqlc `:exec` doesn't expose rows-affected, so we switched to `:execrows` (returns `(int64, error)`) so the adapter can map 0 rows → `ErrMemberNotFound` (design D7 same-company guard). Required to satisfy task 3.2's runtime proof. |
+| `backend/internal/db/company_members.sql.go` | regenerate | sqlc-generated method bodies + params (NOT hand-edited). |
+| `backend/internal/db/querier.go` | regenerate | `Querier` interface methods updated to the new return shape (`int64` for UpdateMemberRole / RemoveCompanyMember). |
+| `backend/internal/features/companies/infrastructure/postgres/companyRepository.go` | modify | Renamed existing `mapCreateError` → `mapCompanyCreateError` to free the package-level name for the member-specific mapper (same SQLSTATE codes mean different domain sentinels on different tables; collapsing them would be wrong). Updated the single call site in `CompanyRepository.Create`. |
+| `backend/internal/features/companies/infrastructure/postgres/companyRepository_test.go` | modify | Renamed the corresponding `TestMapCreateError` → `TestMapCompanyCreateError`, `TestMapCreateError_NonPgErrorIsNotCoerced` → `TestMapCompanyCreateError_NonPgErrorIsNotCoerced`, plus the 8 call sites inside the table-driven test. |
+| `backend/internal/features/companies/infrastructure/postgres/companyMemberRepository.go` | create | The pgx adapter implementing `repositories.CompanyMemberRepository` (5 methods). Includes `mapCreateError` (member-specific, 23505→ErrMemberExists, 23503→ErrUserNotFound, pass-through otherwise), `buildCreateMemberParams`, `memberToEntity`, `pgTimestamptzToTime`. Compile-time assertion `var _ repositories.CompanyMemberRepository = (*CompanyMemberRepository)(nil)` nails the port surface. Helper names suffixed to avoid collision with the company repo's `buildCreateParams` / `toEntity` / `pgTimestamptzToTimePtr` (same package, different helpers). |
+| `backend/internal/features/companies/infrastructure/postgres/companyMemberRepository_mapCreateError_test.go` | already present | The RED test for task 3.1 — was untracked before WU3, now exercised alongside the rest of the package. |
+| `backend/internal/features/companies/infrastructure/postgres/companyMemberRepository_integration_test.go` | create | Integration tests for tasks 3.2 + 3.3 runtime proof: `TestUpdateRole_CrossCompanyAffectsZeroRowsReturnsNotFound`, `TestUpdateRole_SameCompanyUpdatesRow`, `TestRemove_CrossCompanyAffectsZeroRowsReturnsNotFound`, `TestRemove_SameCompanyDeletesRow`. Uses a `pgxpool.Begin`-based fixture (always rolled back), seeds industry + 2 companies + 2 users + 2 member rows (one on each company) so the cross-company tests target a foreign row with the caller's company_id (the only way the SQL guard actually rejects). |
+| `backend/internal/features/companies/infrastructure/http/memberHandler.go` | create | `MemberHandler` with `Routes()` mounting `GET /`, `GET /members`, `POST /members`, `PATCH /members/{id}`, `DELETE /members/{id}` under `/me/company`. Composes against `CompanyMemberService` (NOT raw sqlc). Includes `classifyMemberError` (flat `errors.Is` dispatcher per the existing `classifyCreateCompanyError` pattern) and `requireSub` (mirrors the candidate handler's pattern). The list endpoint remaps `ErrNotAMember` to 403 (spec scenario "non-member is rejected"). |
+| `backend/internal/features/companies/infrastructure/http/memberHandler_classify_test.go` | create | Table-driven unit test for `classifyMemberError`: 9 subtests (5 sentinels + unknown + 2 wrapped-error paths). |
+| `backend/internal/features/companies/infrastructure/http/memberHandler_test.go` | create | HTTP handler tests via `httptest` + `chi.NewRouter`. 14 tests covering every spec scenario in tasks 3.5 — `GET /me/company` (200/404/401), `GET /me/company/members` (200/403 + empty-`[]` invariant), `POST` (201/409/400/invalid-JSON), `PATCH` (200/404), `DELETE` (204/invalid-UUID). Tests inject the JWT subject via `identitysecurity.ContextWithClaims` to bypass `RequireAuth` (WU4 will exercise the real middleware chain). |
+
+### TDD Cycle Evidence (WU3)
+
+| Task | Test file | Layer | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|-----|-------|-------------|----------|
+| 3.1 | `postgres/companyMemberRepository_mapCreateError_test.go::TestMapCreateError_*` (9 subtests, all unit) | Unit | ✅ FAIL — test file calls `mapCreateError(nil)` etc.; the only package-level `mapCreateError` was the company-repo one (mapping 23505→`ErrDuplicateCompany`, 23503→`ErrIndustryNotFound`). RED observed: `expected ErrMemberExists for 23505, got: a company with the same RFC already exists` and the four companion FAILs. | ✅ PASS — renamed `mapCreateError` → `mapCompanyCreateError` in `companyRepository.go` (call site + tests updated), then added a new `mapCreateError` in `companyMemberRepository.go` mapping 23505→`ErrMemberExists`, 23503→`ErrUserNotFound`. All 9 subtests green. | ✅ 9 distinct inputs exercise the nil guard, the two SQLSTATE codes (UNIQUE + FK), the wrapped-error chains (proves `errors.As` works through `%w`), the unrelated SQLSTATE pass-through, the non-pg error pass-through (twice — once identity, once message-preservation) | ➖ None needed |
+| 3.2 | `postgres/companyMemberRepository_integration_test.go::TestUpdateRole_CrossCompanyAffectsZeroRowsReturnsNotFound` (and the 3 companion tests) | Integration (`-tags=integration`) | ✅ FAIL (build-time) — the production adapter `companyMemberRepository.go` did not exist; the test file references `NewCompanyMemberRepository`, `repo.UpdateRole`, `repo.Remove`, `repo.ListByCompanyID`, `repo.GetMembershipByUserID`. The integration suite skipped the tests with `DATABASE_URL not set` until the env was sourced, at which point the package failed to build. | ✅ PASS — adapter implemented; sqlc `:exec` upgraded to `:execrows` so the adapter can read `RowsAffected()` and surface 0 rows as `ErrMemberNotFound`. 4/4 tests green against the live DB. | ✅ 2 cross-company tests (Update + Remove) prove the SQL guard rejects; 2 same-company tests (Update + Remove) prove the guard doesn't over-reject. Each scenario asserts BOTH the sentinel AND that the row count didn't drift — a leak past the guard would surface as a count mismatch, not just an error code mismatch. | ➖ None needed |
+| 3.3 | (the GREEN half of 3.2) | Production code | n/a | ✅ `companyMemberRepository.go` written (261 lines). Includes the 5 port methods, `mapCreateError` (member-specific), `buildCreateMemberParams`, `memberToEntity`, `pgTimestamptzToTime`. Compile-time guard nails the port surface. The `UpdateRole` / `Remove` bodies check the rows-affected count from `:execrows`; cross-company targets surface `ErrMemberNotFound` per design D7. | n/a | n/a |
+| 3.4 | `http/memberHandler_classify_test.go::TestClassifyMemberError_MappingTable` (9 subtests) | Unit | ✅ FAIL (build-time) — `undefined: classifyMemberError`. The handler test file references the function in 1 line; the test file references it in 9 subtests. | ✅ PASS — `classifyMemberError` defined in `memberHandler.go` as a flat `errors.Is` chain with 6 sentinel branches + 1 default. All 9 subtests green. | ✅ 6 sentinel mappings + 1 unknown-error fallthrough + 2 wrapped-error chains. Each subtest asserts both the status code AND the message string — a sloppy implementation that returned the right status with the wrong message would still FAIL. | ➖ None needed |
+| 3.5 | `http/memberHandler_test.go` (14 tests) | Unit | ✅ FAIL (build-time) — `undefined: NewMemberHandler`, `undefined: memberResponse`, `undefined: listMembersResponse`. The handler did not exist; the test file referenced the symbols at 4 call sites. | ✅ PASS — `MemberHandler` + `Routes()` + 5 handler methods defined in `memberHandler.go`. 14/14 handler tests green; 13 + 2 (req. bodies) cover every spec scenario in the task description. | ✅ Every endpoint has at least 3 scenarios: happy path + missing-membership path + invalid-input path. POST also gets the duplicate-user (409) and invalid-JSON (400) paths; DELETE also gets the invalid-UUID (400) path. The list endpoint gets the empty-`[]` invariant test (a JSON-level defense against the "non-nil empty slice" contract). | ➖ None needed |
+| 3.6 | (the GREEN half of 3.4 + 3.5) | Production code | n/a | ✅ `memberHandler.go` written (412 lines). Routes use `chi.NewRouter()` (NOT a custom mux); the handler composes against the service (NOT raw sqlc); the wire shapes are independent struct types (`memberResponse`, `companySummaryResponse`, `myMembershipResponse`, `listMembersResponse`) to avoid coupling to the existing company handler's shapes. `requireSub` reads `identitysecurity.ClaimsFromContext`; the JWT subject is the only identifier the handler trusts. | n/a | n/a |
+
+### Test summary (WU3)
+
+- **Total tests written**: 27 top-level
+  - Unit: 23 (`mapCreateError` × 9 + `classifyMemberError` × 9 + handler behavior × 13, with 8 of those being subtests of one parent; after deduplication by `t.Run` block, 23 distinct top-level funcs)
+  - Integration: 4 (`UpdateRole_CrossCompany`, `UpdateRole_SameCompany`, `Remove_CrossCompany`, `Remove_SameCompany`)
+- **Total tests passing**: 27/27 (verified `go test ./... -count=1` for unit + `make test-integration` for integration)
+- **Layers used**: Unit (23), Integration (4)
+- **Approval tests (refactoring)**: None — WU3 is new code, no refactoring tasks
+- **Pure functions created**: 6 (`mapCreateError`, `mapCompanyCreateError` [rename], `buildCreateMemberParams`, `memberToEntity`, `pgTimestamptzToTime`, `classifyMemberError`, `requireSub`, `toMemberResponse`, `toMyMembershipResponse`, `toCompanySummaryResponse`, `toListMembersResponse`)
+
+### TDD assertion quality audit (WU3)
+
+Every assertion in the WU3 tests calls production code and asserts a
+specific expected value. Spot checks:
+
+| Test | Assertion | Real behavior? |
+|------|-----------|----------------|
+| `TestGetMyCompany_OwnerReturns200` | `resp.Role != "owner"` would FAIL if the handler hardcoded `"recruiter"` or fell back to the zero value | ✅ Yes — `m.Role.String()` reads from the entity |
+| `TestListMembers_EmptyListIsEmptyJSONArray` | `body != "{\"members\":[]}"` would FAIL if the handler returned a nil slice (encodes as `null`) | ✅ Yes — `toListMembersResponse` always returns `make([]memberResponse, 0, len(in))` |
+| `TestAddMember_DuplicateReturns409` | `rec.Code != 409` would FAIL if `mapCreateError` was mis-wired or `classifyMemberError` had a wrong branch | ✅ Yes — exercise the full `repo → service → handler → classifier → 409` chain |
+| `TestUpdateRole_CrossCompanyReturns404` | `rec.Code != 404` would FAIL if the handler propagated `ErrMemberNotFound` to 500 or if `classifyMemberError` lacked that branch | ✅ Yes — same chain |
+| `TestRemoveMember_OwnerReturns204` | `rec.Body.Len() != 0` would FAIL if the handler sent any response body on the 204 path (against HTTP semantics) | ✅ Yes |
+| `TestMapCreateError_Wrapped23505StillResolves` | `!errors.Is(got, entities.ErrMemberExists)` would FAIL if the adapter used `==` instead of `errors.As` to unwrap the pgErr chain | ✅ Yes — guards the wrapping contract |
+| `TestUpdateRole_CrossCompanyAffectsZeroRowsReturnsNotFound` | `countMemberRows(ctx, t, repo, foreignCompanyID) != 1` would FAIL if a leaked UPDATE on the foreign row touched it | ✅ Yes — proves the SQL guard rejected the write, not just that the error was returned |
+
+### Runtime harness (mandatory for WU3)
+
+| Step | Command | Result |
+|------|---------|--------|
+| Pre-WU3 baseline (post-WU2) | `go test ./... -count=1` | exit 0; all packages `ok` |
+| sqlc regen | `go tool sqlc generate` | exit 0; `company_members.sql.go` + `querier.go` regenerated; new methods return `(int64, error)` |
+| Post-WU3 unit tests | `go test ./... -count=1` | exit 0; all 26 packages `ok` |
+| Post-WU3 integration tests | `make test-integration` | exit 0; all packages `ok` (4 new `companyMemberRepository_integration_test.go` cases green) |
+| Static checks | `go vet ./...` | exit 0; zero findings |
+| Static checks | `gofmt -l .` (after `gofmt -w .`) | exit 0; zero findings |
+| Build | `go build ./...` | exit 0; clean |
+| Targeted re-run | `go test -v ./internal/features/companies/infrastructure/postgres/ -count=1` | 26 PASS (9 mapCreateError + 11 company toEntity/buildParams + 6 mapCompanyCreateError) |
+| Targeted re-run | `go test -v ./internal/features/companies/infrastructure/http/ -count=1` | 27 PASS (12 company-handler + 9 classifyMemberError subtests + 14 handler behavior; after dedup, 27 distinct funcs) |
+| Targeted re-run | `go test -v -tags=integration ./internal/features/companies/infrastructure/postgres/ -count=1` | 4 PASS (cross-company + same-company for Update + Remove) |
+
+### Rollback boundary (WU3)
+
+The WU3 PR can be reverted without disturbing WU1 (already merged),
+WU2 (already merged), or unstarted work (3.9/3.10/4.x — Phase 4):
+
+```
+git revert --no-edit WU3
+```
+
+→ drops `companyMemberRepository.go` + `_integration_test.go` +
+`memberHandler.go` + `memberHandler_test.go` +
+`memberHandler_classify_test.go`. Reverts the sqlc `:exec` → `:execrows`
+change (no schema impact, but the regen diff goes away). Reverts the
+`mapCreateError` → `mapCompanyCreateError` rename in `companyRepository.go`
+and its test. The WU1 migration + sqlc base queries + WU2 domain layer +
+WU2 service + WU3 (3.7/3.8) `CompanyContext` remain intact — they have
+no compile-time callers in this reverted state. Phase 4 never starts,
+so nothing else is affected.
+
+### Deviations / issues found (WU3)
+
+1. **`mapCreateError` name collision.** Both adapters
+   (`companyRepository.go` and `companyMemberRepository.go`) live in the
+   same `postgres` package and both need a SQLSTATE → sentinel mapper.
+   Same SQLSTATE codes (23505, 23503) mean different domain errors on
+   different tables, so collapsing them into one mapper would be wrong.
+
+   **Resolution:** renamed the company adapter's `mapCreateError` →
+   `mapCompanyCreateError` (call site + 2 tests updated). The new
+   member adapter keeps the original `mapCreateError` name — its
+   existing RED test (already untracked) drives that name choice. Same
+   applies to the `companyResponse` / `toCompanyResponse` collision in
+   the `http` package; resolved by renaming the member-handler
+   counterparts to `companySummaryResponse` / `toCompanySummaryResponse`.
+
+2. **`sqlc :exec` doesn't return rows-affected.** The original WU1
+   queries annotated `UpdateMemberRole` and `RemoveCompanyMember` as
+   `:exec`, which sqlc compiles to a method returning only `error` —
+   the `CommandTag` is discarded. To check `RowsAffected()` and surface
+   0 rows as `ErrMemberNotFound` (design D7), I switched both queries
+   to `:execrows`. The regenerated methods now return `(int64, error)`.
+
+   **Resolution:** one-character change per query in
+   `db/queries/company_members.sql`, followed by `go tool sqlc
+   generate`. The `memberQuerier` interface in the adapter was updated
+   in lockstep. No hand-editing of generated code. The query text and
+   parameter shape are otherwise identical — no behavioral diff for
+   non-zero rows-affected paths.
+
+3. **Initial cross-company integration test was wrong.** First
+   version of `TestUpdateRole_CrossCompanyAffectsZeroRowsReturnsNotFound`
+   passed `callerCompanyID` with a member row that ALSO lived on
+   `callerCompanyID` — the same-company path, not the cross-company
+   path. The test would have passed on the wrong reason (the SQL
+   guard doesn't reject same-company updates).
+
+   **Resolution:** fixed the fixture to seed TWO member rows — one on
+   the caller company (role=owner) and one on a foreign company
+   (role=recruiter). The cross-company tests now target the foreign
+   row with the caller's `company_id`; the SQL predicate
+   `WHERE id=$1 AND company_id=$2` evaluates to 0 rows → real cross-
+   company rejection.
+
+4. **Member-package test reuses the company adapter's fake
+   naming.** The handler tests' `stubMemberRepositoryForHandler` /
+   `stubUserRepositoryForHandler` / `stubMemberCompanyRepositoryForHandler`
+   types mirror the service-test stubs but with the `ForHandler` suffix
+   to avoid collision. The existing service-test stubs cannot be
+   reused because they live in the `usecases` package, not `http`.
+
+   **Resolution:** a one-time naming-suffix, not a structural change.
+   The compile-time guard `var _ repositories.CompanyMemberRepository =
+   (*stubMemberRepositoryForHandler)(nil)` (implicit through method
+   satisfaction) still nails the port surface.
+
+5. **List-endpoint `ErrNotAMember → 403` mapping is a route-specific
+   override.** The flat `classifyMemberError` dispatcher returns 404
+   for `ErrNotAMember` (the GetMyMembership view); the list endpoint
+   checks `errors.Is(err, entities.ErrNotAMember)` after the dispatch
+   and remaps to 403 (the spec scenario "non-member is rejected").
+
+   **Resolution:** the remap lives inside `listMembers`, not in the
+   classifier, so the table-driven test for `classifyMemberError` can
+   assert the default 404 mapping without per-route coupling. The
+   production wiring (WU4) will layer `RequireCompanyRole(recruiter)`
+   on this route, which produces 403 for non-members BEFORE the handler
+   runs — the in-handler remap is a defensive fall-through, not the
+   primary boundary.
+
+6. **Out-of-WU3 work landed early.** Tasks 3.7 / 3.8 (CompanyContext
+   type + helpers) shipped in the prior partial apply at commit
+   `459cbb5`. They are NOT touched by this WU3 — the file is committed
+   and the tests are green, so nothing needs to change. The remaining
+   WU3 boundary (3.9 / 3.10 — RequireCompanyRole middleware + main.go
+   wiring) is intentionally NOT touched; it belongs to WU4.
+
+### Remaining tasks (WU4 — OUT OF SCOPE for WU3)
+
+- [ ] 3.9: `RequireCompanyRole` middleware tests
+- [ ] 3.10: `RequireCompanyRole` middleware production code
+- [ ] 4.1–4.6: route mount, final wiring, regression verification
+
+### Status (after WU3)
+
+- **WU1 tasks completed**: 6 / 6 (1.1, 1.2, 1.3, 1.4, 1.5, 1.6)
+- **WU2 tasks completed**: 9 / 9 (2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9)
+- **WU3 tasks completed**: 6 / 6 (3.1, 3.2, 3.3, 3.4, 3.5, 3.6) — plus 3.7/3.8 already landed from prior partial apply
+- **Phase 1 status**: ✅ complete (WU1 merged at `28c866e`)
+- **Phase 2 status**: ✅ complete (WU2 merged at `9ccc9cd` + `3a93ec9`)
+- **Phase 3 status**: ✅ complete (WU3 ready for review; 3.7/3.8 already in tree at `459cbb5`)
+- **Workload / PR boundary**: WU3 adds 5 new files (~1,760 lines: 261 adapter + 145 unit test + 239 integration test + 412 handler + 107 classifier test + 597 handler test) plus 3 small modifications (sqlc `:exec` → `:execrows` in 2 queries, `mapCreateError` → `mapCompanyCreateError` rename in 1 file, 1 test file rename to follow the helper). Well over the 400-line authored-risk budget per `work-unit-commits` — natural split: (a) `feat(companies): company_member_repository pgx adapter (3.1/3.2/3.3)` and (b) `feat(companies): /me/company HTTP handler + error classifier (3.4/3.5/3.6)`.
+- **Tests green**: 27/27 WU3 tests + full pre-existing unit suite (26 packages) + full pre-existing integration suite (`make test-integration` exit 0)
+- **No `git add` / `commit` / `push`**: orchestrator owns git per task contract
