@@ -38,15 +38,15 @@ Chain strategy: size-exception
 
 ## Phase 2: Core — Domain & Service
 
-- [ ] 2.1 RED: `companies/domain/valueobjects/memberRole_test.go` — parse `owner|recruiter`, reject `admin` with `ErrInvalidMemberRole`, assert ordinal ranking `Owner > Recruiter > Unknown`.
-- [ ] 2.2 GREEN: `companies/domain/valueobjects/memberRole.go` — ordinal enum + `ParseMemberRole` + `String`.
-- [ ] 2.3 RED: `companies/domain/entities/companyMember_test.go` — factory sets id/timestamps, rejects invalid role.
-- [ ] 2.4 GREEN: `companies/domain/entities/companyMember.go` — `CompanyMember` + sentinels (`ErrUnknownSubject`, `ErrNotAMember`, `ErrMemberExists`, `ErrMemberNotFound`, `ErrUserNotFound`).
-- [ ] 2.5 GREEN: `companies/domain/repositories/companyMemberRepository.go` — port per design Interfaces.
-- [ ] 2.6 RED: `companies/application/usecases/companyMemberService_test.go` with fake repos — `resolveMember` maps unknown sub → `ErrUnknownSubject`, no row → `ErrNotAMember` (spec: Membership Resolution).
-- [ ] 2.7 RED: service tests — `AddMember` uses caller's `company_id`, ignoring body `company_id=Y` (spec: body company_id is ignored).
-- [ ] 2.8 RED: service tests — `GetMyMembership` returns `(company_id, role)`+company; `ListMembers` returns N members; `UpdateRole`/`RemoveMember` propagate `ErrMemberNotFound` for cross-company targets.
-- [ ] 2.9 GREEN: `companies/application/usecases/companyMemberService.go` — the five use cases + `resolveMember`.
+- [x] 2.1 RED: `companies/domain/valueobjects/memberRole_test.go` — parse `owner|recruiter`, reject `admin` with `ErrInvalidMemberRole`, assert ordinal ranking `Owner > Recruiter > Unknown`.
+- [x] 2.2 GREEN: `companies/domain/valueobjects/memberRole.go` — ordinal enum + `ParseMemberRole` + `String`.
+- [x] 2.3 RED: `companies/domain/entities/companyMember_test.go` — factory sets id/timestamps, rejects invalid role.
+- [x] 2.4 GREEN: `companies/domain/entities/companyMember.go` — `CompanyMember` + sentinels (`ErrUnknownSubject`, `ErrNotAMember`, `ErrMemberExists`, `ErrMemberNotFound`, `ErrUserNotFound`).
+- [x] 2.5 GREEN: `companies/domain/repositories/companyMemberRepository.go` — port per design Interfaces.
+- [x] 2.6 RED: `companies/application/usecases/companyMemberService_test.go` with fake repos — `resolveMember` maps unknown sub → `ErrUnknownSubject`, no row → `ErrNotAMember` (spec: Membership Resolution).
+- [x] 2.7 RED: service tests — `AddMember` uses caller's `company_id`, ignoring body `company_id=Y` (spec: body company_id is ignored).
+- [x] 2.8 RED: service tests — `GetMyMembership` returns `(company_id, role)`+company; `ListMembers` returns N members; `UpdateRole`/`RemoveMember` propagate `ErrMemberNotFound` for cross-company targets.
+- [x] 2.9 GREEN: `companies/application/usecases/companyMemberService.go` — the five use cases + `resolveMember`.
 
 ## Phase 3: Wiring — Adapter, Handler, Middleware
 
