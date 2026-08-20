@@ -114,12 +114,17 @@ func TestUsersMigrationDownDropsTable(t *testing.T) {
 	defer pool.Exec(ctx, `DELETE FROM users WHERE cognito_sub = 'down-test-sub'`)
 
 	// Migration 00006 added FK references from `candidate_profiles` and
-	// `candidate_languages` to `users(id)`. Goose runs downs in reverse
-	// migration order, so 00006's down drops those tables BEFORE 00005's
-	// down drops `users`. This test must mirror that order, otherwise
-	// PostgreSQL returns SQLSTATE 2BP01 ("cannot drop table users because
-	// other objects depend on it"). Use IF EXISTS so a partial-schema DB
-	// state (e.g. a fresh checkout before migrations run) does not fail.
+	// `candidate_languages` to `users(id)`. Migration 00009 added a FK
+	// reference from `company_members` to `users(id)`. Goose runs downs in
+	// reverse migration order, so 00009's down drops `company_members`
+	// (and 00006's down drops the candidate tables) BEFORE 00005's down
+	// drops `users`. This test must mirror that order, otherwise PostgreSQL
+	// returns SQLSTATE 2BP01 ("cannot drop table users because other
+	// objects depend on it"). Use IF EXISTS so a partial-schema DB state
+	// (e.g. a fresh checkout before migrations run) does not fail.
+	if _, err := pool.Exec(ctx, `DROP TABLE IF EXISTS company_members`); err != nil {
+		t.Fatalf("drop company_members: %v", err)
+	}
 	if _, err := pool.Exec(ctx, `DROP TABLE IF EXISTS candidate_languages`); err != nil {
 		t.Fatalf("drop candidate_languages: %v", err)
 	}
@@ -145,6 +150,9 @@ func TestUsersMigrationDownDropsTable(t *testing.T) {
 	// tables introduced by migration 00006 — otherwise the rest of the
 	// integration suite (candidates repository tests in particular)
 	// would find `candidate_profiles` / `candidate_languages` missing.
+	// Migration 00009 added another dependent (`company_members`); it
+	// must be re-created too, otherwise the 00009 migration tests (which
+	// run after this one in the same suite) would find the table missing.
 	if _, err := pool.Exec(ctx, createUsersTableDDL); err != nil {
 		t.Fatalf("re-create users table: %v", err)
 	}
@@ -153,6 +161,9 @@ func TestUsersMigrationDownDropsTable(t *testing.T) {
 	}
 	if _, err := pool.Exec(ctx, createCandidateLanguagesDDL); err != nil {
 		t.Fatalf("re-create candidate_languages table: %v", err)
+	}
+	if _, err := pool.Exec(ctx, createCompanyMembersDDL); err != nil {
+		t.Fatalf("re-create company_members table: %v", err)
 	}
 }
 
@@ -239,6 +250,31 @@ CREATE TABLE candidate_languages (
         CHECK (level IN ('A1', 'A2', 'B1', 'B2', 'C1', 'C2')),
     PRIMARY KEY (user_id, language)
 );
+`
+
+// createCompanyMembersDDL mirrors the up body of 00009_create_company_members.sql.
+// The down test must recreate the table after dropping `users` so the
+// migration 00009 tests (which run after in the same suite) find the table
+// they assert against. Kept in sync with
+// backend/db/migrations/00009_create_company_members.sql — if that file
+// changes, this constant must change too.
+const createCompanyMembersDDL = `
+CREATE TABLE company_members (
+    id          UUID PRIMARY KEY,
+    user_id     UUID NOT NULL REFERENCES users (id),
+    company_id  UUID NOT NULL REFERENCES companies (id),
+    role        TEXT NOT NULL
+        CONSTRAINT company_members_role_check
+        CHECK (role IN ('owner', 'recruiter')),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX company_members_user_id_unique
+    ON company_members (user_id);
+
+CREATE INDEX company_members_company_id_idx
+    ON company_members (company_id);
 `
 
 // TestUsersMigrationRejectsInvalidUserType proves the CHECK constraint blocks

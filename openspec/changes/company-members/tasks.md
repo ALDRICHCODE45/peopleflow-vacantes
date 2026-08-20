@@ -29,12 +29,12 @@ Chain strategy: size-exception
 
 ## Phase 1: Foundation — Schema & Queries
 
-- [ ] 1.1 RED: integration test `db/migrations/migrations_test.go` asserting `00009` up creates `company_members`, `UNIQUE(user_id)`, `company_members_role_check` (spec: up creates named objects).
-- [ ] 1.2 RED: integration test asserting `goose down` drops `company_members` (spec: down drops the table).
-- [ ] 1.3 RED: integration tests asserting `role='admin'` insert fails and a second `user_id` insert fails (spec: invalid role / second membership).
-- [ ] 1.4 GREEN: write `backend/db/migrations/00009_create_company_members.sql` (table, named CHECK, `UNIQUE(user_id)`, `company_id` index, up+down).
-- [ ] 1.5 GREEN: write `backend/db/queries/company_members.sql` — Create, GetMembershipByUserID, ListByCompanyID, UpdateRole (`WHERE id=$1 AND company_id=$2`), Remove (same guard).
-- [ ] 1.6 GREEN: run `sqlc generate`; commit regenerated `backend/internal/db/*.sql.go` unedited.
+- [x] 1.1 RED: integration test `db/migrations/migrations_test.go` asserting `00009` up creates `company_members`, `UNIQUE(user_id)`, `company_members_role_check` (spec: up creates named objects).
+- [x] 1.2 RED: integration test asserting `goose down` drops `company_members` (spec: down drops the table).
+- [x] 1.3 RED: integration tests asserting `role='admin'` insert fails and a second `user_id` insert fails (spec: invalid role / second membership).
+- [x] 1.4 GREEN: write `backend/db/migrations/00009_create_company_members.sql` (table, named CHECK, `UNIQUE(user_id)`, `company_id` index, up+down).
+- [x] 1.5 GREEN: write `backend/db/queries/company_members.sql` — Create, GetMembershipByUserID, ListByCompanyID, UpdateRole (`WHERE id=$1 AND company_id=$2`), Remove (same guard).
+- [x] 1.6 GREEN: run `sqlc generate`; commit regenerated `backend/internal/db/*.sql.go` unedited.
 
 ## Phase 2: Core — Domain & Service
 
