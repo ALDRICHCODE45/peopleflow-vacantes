@@ -19,6 +19,7 @@ import (
 	candidateshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http"
 	candidatespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/postgres"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
@@ -77,15 +78,25 @@ func run() error {
 	// sqlc data layer wired to the pool.
 	queries := db.New(pool)
 
+	// Identity wiring: the postgres adapter for repositories.UserRepository.
+	// The candidates use case needs GetByCognitoSub to resolve the JWT
+	// subject to a stable users.id (IDOR-resistant boundary).
+	identityUserRepo := identitypostgres.NewUserRepository(queries)
+
 	// Feature wiring: companies (adapter -> use case -> handler).
 	companyRepo := postgres.NewCompanyRepository(queries)
 	companyService := usecases.NewCompanyService(companyRepo)
 	companyHandler := companieshttp.NewCompanyHandler(companyService)
 
-	// Identity wiring: the postgres adapter for repositories.UserRepository.
-	// The candidates use case needs GetByCognitoSub to resolve the JWT
-	// subject to a stable users.id (IDOR-resistant boundary).
-	identityUserRepo := identitypostgres.NewUserRepository(queries)
+	// Feature wiring: company_members (adapter -> use case -> handler).
+	// The membership service needs the same identity user repo as the
+	// candidates slice so it can resolve the JWT subject per request
+	// (design D6 — IDOR-resistant boundary). The companies repo is the
+	// existing one above; the member handler's GetMyMembership fetches
+	// the company record through it.
+	memberRepo := postgres.NewCompanyMemberRepository(queries)
+	memberService := usecases.NewCompanyMemberService(memberRepo, identityUserRepo, companyRepo)
+	memberHandler := companieshttp.NewMemberHandler(memberService)
 
 	// Candidates wiring: candidates repo (pgxpool for the atomic
 	// language-replace tx) -> service (uses identity user repo) ->
@@ -149,6 +160,49 @@ func run() error {
 	r.Route("/me", func(r chi.Router) {
 		r.Use(identityhttp.RequireAuth(verifier))
 		r.Mount("/profile", candidateHandler.Routes())
+
+		// /me/company is the company_membership subtree (WU4). The
+		// /me Route group already gated with RequireAuth above; here
+		// we layer per-route RequireCompanyRole gates on top of the
+		// MemberHandler endpoints:
+		//
+		//   GET    /me/company               — UNGATED by role (the spec
+		//                                      scenario "non-member gets
+		//                                      404" returns 404, not 403,
+		//                                      so this route MUST NOT be
+		//                                      behind a role gate).
+		//   GET    /me/company/members       — minRole=recruiter.
+		//   POST   /me/company/members       — minRole=owner.
+		//   PATCH  /me/company/members/{id}  — minRole=owner.
+		//   DELETE /me/company/members/{id}  — minRole=owner.
+		//
+		// Each gate uses the same (users, members) pair as the rest of
+		// the company_membership slice; the gate resolves the caller's
+		// (company_id, role) per request and injects CompanyContext for
+		// the handler.
+		requireOwner := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, valueobjects.OwnerRole)
+		requireRecruiter := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, valueobjects.RecruiterRole)
+
+		// Per-method handler accessors (added in WU4) — they let us
+		// apply different gates to different (method, path) pairs,
+		// which a single chi.Mount(Routes()) subrouter can't do because
+		// the gate would apply uniformly to all sub-routes.
+		handlers := memberHandler.MemberHandlers()
+
+		// GET /me/company — UNGATED by role (spec scenario "non-member
+		// gets 404" requires 404, not 403; a role gate would turn it
+		// into 403).
+		r.Get("/company", handlers.GetMyMembership)
+
+		// GET /me/company/members — recruiter+ can read.
+		r.With(requireRecruiter).Get("/company/members", handlers.ListMembers)
+
+		// POST /me/company/members — owner only.
+		r.With(requireOwner).Post("/company/members", handlers.AddMember)
+
+		// PATCH/DELETE /me/company/members/{id} — owner only.
+		r.With(requireOwner).Patch("/company/members/{id}", handlers.UpdateMemberRole)
+		r.With(requireOwner).Delete("/company/members/{id}", handlers.RemoveMember)
 	})
 
 	port := os.Getenv("PORT")

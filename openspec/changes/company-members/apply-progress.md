@@ -466,3 +466,168 @@ so nothing else is affected.
 - **Workload / PR boundary**: WU3 adds 5 new files (~1,760 lines: 261 adapter + 145 unit test + 239 integration test + 412 handler + 107 classifier test + 597 handler test) plus 3 small modifications (sqlc `:exec` → `:execrows` in 2 queries, `mapCreateError` → `mapCompanyCreateError` rename in 1 file, 1 test file rename to follow the helper). Well over the 400-line authored-risk budget per `work-unit-commits` — natural split: (a) `feat(companies): company_member_repository pgx adapter (3.1/3.2/3.3)` and (b) `feat(companies): /me/company HTTP handler + error classifier (3.4/3.5/3.6)`.
 - **Tests green**: 27/27 WU3 tests + full pre-existing unit suite (26 packages) + full pre-existing integration suite (`make test-integration` exit 0)
 - **No `git add` / `commit` / `push`**: orchestrator owns git per task contract
+
+---
+
+## Work Unit 4 — RequireCompanyRole middleware + main.go wiring
+
+WU4 boundary: `identity/infrastructure/http/requireCompanyRole.go` +
+its tests, `cmd/api/main.go` wiring, and a minimal additive accessor on
+`MemberHandler` to support per-route role gates. Tasks 3.7/3.8
+(`CompanyContext` type + helpers) shipped in WU3 / commit `459cbb5`
+ahead of the planned boundary; this WU only consumes that seam.
+
+### Files changed (WU4)
+
+| File | Action | Notes |
+ |
+|------|--------|-------|
+| `backend/internal/features/identity/infrastructure/http/requireCompanyRole.go` | create | The middleware. Signature per design Interfaces: `func RequireCompanyRole(users identityrepositories.UserRepository, members companiesrepositories.CompanyMemberRepository, minRole valueobjects.MemberRole) func(http.Handler) http.Handler`. Port-only imports (design D5): `companies/domain/repositories` + `companies/domain/entities` + `companies/domain/valueobjects` + `identity/domain/repositories` + `identity/domain/security` — NEVER an infrastructure adapter. Resolves `sub → users.id → company_members` exactly once per request. Error mapping: unknown sub → 401, `ErrNotAMember` → 403, `role < minRole` → 403, other → 500 (logged). Injects `CompanyContext{company_id, role}` on success and calls next. Defense-in-depth: rejects 401 if no `Claims.Subject` in the context (mismounted/mis-wired case). |
+| `backend/internal/features/identity/infrastructure/http/requireCompanyRole_test.go` | create | 7 unit tests covering the 4 spec scenarios (owner passes recruiter gate, recruiter under owner is 403 + handler not invoked, non-member is 403, unknown sub is 401) plus 3 triangulation companions (owner under owner gate = pass, recruiter under recruiter gate = pass, missing Claims = 401). Uses `stubUserRepo` + `stubMemberRepo` (minimal fakes with compile-time guards `var _ identityrepositories.UserRepository = (*stubUserRepo)(nil)` + `var _ repositories.CompanyMemberRepository = (*stubMemberRepo)(nil)`). Asserts both `users.getCalls` and `members.resolveCalls` counts to prove the resolver short-circuits at the right layer. |
+| `backend/internal/features/identity/infrastructure/http/requireCompanyRoleRoutes_test.go` | create | 4 route-mount tests (tasks 4.1/4.2 + 2 triangulation companions) wiring a real chi router with `RequireAuth(denyAllVerifier)` + `RequireCompanyRole(...)` + the WU3 MemberHandler. `denyAllVerifier` is locally defined (the one in cmd/api/main.go is private to package main). Asserts both the HTTP status AND that the handler is/isn't invoked, with `handlerInvoked bool` flag. The owner-caller triangulation proves the chain doesn't over-gate. |
+| `backend/internal/features/companies/infrastructure/http/memberHandler.go` | modify (additive) | Added `type MemberHandlers struct { GetMyMembership, ListMembers, AddMember, UpdateMemberRole, RemoveMember http.HandlerFunc }` and `func (h *MemberHandler) MemberHandlers() MemberHandlers` — exposes each endpoint as an `http.HandlerFunc` so the composition root can apply per-method `r.With(requireOwner|requireRecruiter)` middleware. The existing `Routes()` method is untouched (it's the surface the WU3 handler unit tests use). This is the minimum additive change needed to satisfy the spec's per-route gate requirement; the task explicitly acknowledges "do NOT rewrite it unless the spec/tasks require a change" — and the per-route gates do require it. |
+| `backend/cmd/api/main.go` | modify (additive) | Added `identityUserRepo` (moved up before the companies wiring), wired `postgres.NewCompanyMemberRepository(queries)` + `usecases.NewCompanyMemberService(memberRepo, identityUserRepo, companyRepo)` + `companieshttp.NewMemberHandler(memberService)`. Mounted `/me/company` inside the existing `r.Route("/me", ...)` RequireAuth subtree using `memberHandler.MemberHandlers()` + per-route gates: `GET /company` ungated; `GET /company/members` gated recruiter; `POST/PATCH/DELETE /company/members[/...]` gated owner. Added `valueobjects` import. |
+
+### TDD Cycle Evidence (WU4)
+
+| Task | Test file | Layer | RED | GREEN | TRIANGULATE | REF |
+|
+|------|-----------|-------|-----|-------|-------------|------|
+| 3.9 | `requireCompanyRole_test.go::TestRequireCompanyRole_OwnerPassesRecruiterGate` + `..._RecruiterUnderOwnerIsForbidden` + `..._NonMemberIsForbidden` + `..._UnknownSubIsUnauthorized` | Unit | ✅ FAIL (build-time) — `undefined: RequireCompanyRole` at 7 call sites | ✅ PASS — all 4 spec scenarios green; each test asserts BOTH the status AND that the handler isn't invoked (recruiter-under-owner + non-member + unknown-sub) | ✅ 4 scenarios exercise 4 distinct branches in `RequireCompanyRole`: missing-Claims, ErrUserNotFound, ErrNotAMember, role < minRole, plus 2 role-comparison boundary cases (owner ≥ owner, recruiter ≥ recruiter) | ➖ None needed |
+| 3.10 | (the GREEN half of 3.9) | Production code | n/a | ✅ `requireCompanyRole.go` written (116 lines). Port-only imports confirmed: no `companies/infrastructure/...` import. Compile-time guard via the typed `identityrepositories.UserRepository` + `companiesrepositories.CompanyMemberRepository` parameters. Per the design, role comparison uses `member.Role < minRole` against the ordinal `MemberRole`. | n/a | n/a |
+| 4.1 | `requireCompanyRoleRoutes_test.go::TestRoutes_MissingAuthHeaderIsUnauthorized` (subtests `/me/company` + `/me/company/members`) | Unit | ✅ FAIL (build-time) — `undefined: denyAllVerifier`, `cannot use chi.Router as http.HandlerFunc`, etc. | ✅ PASS — both subtests green; denyAllVerifier rejects every request with 401, handler NOT invoked (a `t.Error` callback would fire if it were) | ✅ 2 paths exercise the same contract (`/me/company` ungated view + `/me/company/members` gated view); each proves RequireAuth blocks pre-handler | ➖ None needed |
+| 4.2 | `requireCompanyRoleRoutes_test.go::TestRoutes_RecruiterCannotCallAddMember` | Unit | (same RED as 4.1) | ✅ PASS — recruiter under owner gate returns 403, handler NOT invoked, `members.resolveCalls == 1` (middleware resolved once before deciding) | ✅ Companion `TestRoutes_OwnerCanCallAddMember` proves the chain doesn't over-gate — owner under owner reaches the handler. Combined: the chain's 401/403 boundary is symmetric. | ➖ None needed |
+| 4.3 | (the GREEN half of 4.1/4.2) | Production code | n/a | ✅ `cmd/api/main.go` wired: imports `valueobjects`, wires `memberRepo`/`memberService`/`memberHandler`, mounts 5 routes with `r.With(requireOwner|requireRecruiter)` + `r.Get(...)` (no gate for the ungated path). `go build ./...` clean. | n/a | n/a |
+| 4.4 | Full unit suite (`go test ./... -count=1`) + full integration suite (`make test-integration`) | Both | ✅ ALL GREEN | ✅ ALL GREEN — see Runtime harness below | n/a | n/a |
+| 4.5 | `go vet ./...` + `gofmt -l .` | Static | ✅ Both empty (zero findings after `gofmt -w` on 3 new files) | ✅ Both empty | n/a | n/a |
+| 4.6 | `classifyMemberError` (handler) vs `respondForbidden`/`respondServerError` (middleware) — see Deviations #1 | n/a | n/a | n/a | n/a | ➖ **No clean seam** — see Deviations #1 |
+
+### Test summary (WU4)
+
+- **Total tests written**: 11 top-level (7 middleware + 4 route-mount, with 2 of the route-mount using `t.Run` subtests for a total of 6 distinct executable cases)
+- **Total tests passing**: 11/11 (verified `go test ./internal/features/identity/infrastructure/http/... -count=1 -v -run 'TestRequireCompanyRole|TestRoutes'`)
+- **Layers used**: Unit (11), Integration (0 — task 3.2's integration coverage from WU3 already exercises the membership path; the new middleware is pure HTTP authz with no DB)
+- **Approval tests (refactoring)**: None — task 4.6 was skipped after analysis (no clean seam; see Deviations #1)
+- **Pure functions created**: 0 (the middleware is a closure-based factory; the response helpers `respondForbidden`/`respondServerError` are tiny utilities that mirror the existing `respondUnauthorized`)
+
+### TDD assertion quality audit (WU4)
+
+Every assertion in the WU4 tests calls production code and asserts a
+specific expected value. Spot checks:
+
+| Test | Assertion | Real behavior? |
+|------|-----------|----------------|
+| `TestRequireCompanyRole_OwnerPassesRecruiterGate` | `users.getCalls != 1` would FAIL if the middleware skipped the user lookup | ✅ Yes — proves the resolver runs the full chain |
+| `TestRequireCompanyRole_UnknownSubIsUnauthorized` | `members.resolveCalls != 0` would FAIL if the middleware leaked a membership lookup with an unknown sub | ✅ Yes — guards the IDOR-resistant boundary |
+| `TestRequireCompanyRole_MissingClaimsIsUnauthorized` | `users.getCalls != 0` would FAIL if the middleware ran the resolver chain with an empty subject | ✅ Yes — defense-in-depth: never run with no Claims |
+| `TestRoutes_RecruiterCannotCallAddMember` | `handlerInvoked == true` would FAIL if a future refactor let the request through the role gate | ✅ Yes — the gate is the ONLY barrier |
+| `TestRoutes_OwnerCanCallAddMember` | `rec.Code == 403 \|\| 401` would FAIL if the chain over-gated | ✅ Yes — guards the role >= boundary through the real router |
+
+### Runtime harness (WU4)
+
+| Step | Command | Result |
+|------|---------|--------|
+| Pre-WU4 baseline (post-WU3) | `go test ./... -count=1` | exit 0; all packages `ok` |
+| Post-WU4 unit tests | `go test ./... -count=1` | exit 0; 27 packages `ok` |
+| Post-WU4 unit tests (verbose, new code) | `go test -v -count=1 ./internal/features/identity/infrastructure/http/ -run 'TestRequireCompanyRole\|TestRoutes'` | 13 PASS (7 middleware + 4 route-mount top-levels, with subtest split for `MissingAuth`) |
+| Post-WU4 integration tests | `make test-integration` | exit 0; all packages `ok` (4 new `companyMemberRepository_integration_test.go` cases from WU3 still green; no new integration tests in WU4) |
+| Static checks | `go vet ./...` | exit 0; zero findings |
+| Static checks | `gofmt -l .` | exit 0; zero findings (after one `gofmt -w` pass on 3 new files) |
+| Build | `go build ./...` | exit 0; clean |
+| Targeted re-run | `go test -v -count=1 ./internal/features/identity/infrastructure/http/` | 27 PASS (6 RequireAuth + 7 RequireCompanyRole + 2 CompanyContext round-trip + 4 Routes + 8 other middlewares from the existing test files) |
+| Targeted re-run | `go test -v -count=1 ./internal/features/companies/infrastructure/http/` | 27 PASS (handler tests from WU3 still green; the new `MemberHandlers()` accessor is type-only and doesn't affect the existing test surface) |
+
+### Rollback boundary (WU4)
+
+The WU4 changes can be reverted without disturbing WU1/WU2/WU3
+(already merged):
+
+```
+git revert --no-edit WU4
+```
+
+→ drops `requireCompanyRole.go` + `requireCompanyRole_test.go` +
+`requireCompanyRoleRoutes_test.go`. Reverts the `MemberHandlers()`
+accessor addition in `memberHandler.go` (a purely additive type +
+method, no behavior change). Reverts the `cmd/api/main.go` wiring
+(memberRepo/memberService/memberHandler + the 5 route registrations
+inside `/me/company`). No DB schema, no domain code, no WU3 handler
+behavior is affected.
+
+### Deviations / issues found (WU4)
+
+1. **No clean refactor seam for task 4.6.** Both the middleware
+   (`requireCompanyRole.go`) and the member handler
+   (`memberHandler.go::classifyMemberError`) translate company
+   sentinels to HTTP statuses — but they have:
+   - **Different JSON wire shapes**: middleware writes
+     `{"error":"forbidden","reason":"..."}` (mirrors the existing
+     `respondUnauthorized` from WU3's auth middleware); handler
+     uses `httpjson.WriteError` which writes `{"error":"..."}`
+     (no reason field).
+   - **Different response concerns**: middleware also writes 401
+     for the "no Claims" defense-in-depth path and 500 for
+     non-domain DB failures; the handler doesn't see either of
+     those.
+   - **Different language mapping for the same sentinel**:
+     middleware's `ErrNotAMember → 403 "not a member of any
+     company"`; handler's `ErrNotAMember → 404 "company member
+     not found"` (the GetMyMembership surface) and `403 "not a
+     member of any company"` (the list endpoint). The handler
+     has its own route-specific 403 override already, so even
+     where the status overlaps, the message text diverges.
+
+   A shared helper would have to take a `(err error, isAuthzContext bool)`
+   parameter and return `(status, message, withReasonField bool)`
+   to cover all cases — that's more complexity than the duplication
+   it would remove. **Decision: leave as-is, no refactor.** This
+   is the documented "no clean seam" outcome from task 4.6.
+
+2. **Per-route gates require handler method access.** The spec
+   requires `r.With(...).Method(http.MethodPost, ...)` style
+   per-route gating, but `MemberHandler.Routes()` returns a
+   single chi.Router that bundles all 5 endpoints uniformly
+   (no per-method middleware possible from the parent). The
+   minimum additive change: expose each handler as a public
+   `http.HandlerFunc` via the `MemberHandlers()` accessor.
+
+   The existing `Routes()` method stays intact (the WU3 unit
+   tests use it). The accessor is a 1-call-per-handler wrapper
+   around the unexported method bodies — no logic duplication,
+   no behavior change for the existing tests. Task 4.3
+   explicitly says "do NOT rewrite [the handler] unless the
+   spec/tasks require a change"; the per-route gate requirement
+   DOES require this exposure, so the accessor is justified.
+
+3. **`denyAllVerifier` duplicated in the test file.** The same
+   fail-closed verifier exists in `cmd/api/main.go` as a private
+   type, but task 4.1's route test needs it in the
+   `identity/infrastructure/http` package's tests. The verifier
+   is 3 lines (one struct + one method), so duplicating it is
+   cheaper than extracting it into a shared test helper package.
+   The `allowAllVerifier` companion is its mirror — needed by
+   the 4.2 test that wants the role-gate to be the only barrier.
+
+4. **`go.sum` unchanged.** No new dependencies added; all imports
+   are first-party (existing project packages) + standard library.
+   The middleware reuses `samber/`-free code paths: `log/slog`,
+   `net/http`, `errors`, plus the existing `entities` and
+   `valueobjects` packages already on the dependency graph.
+
+### Status (after WU4)
+
+- **WU1 tasks completed**: 6 / 6 (1.1, 1.2, 1.3, 1.4, 1.5, 1.6)
+- **WU2 tasks completed**: 9 / 9 (2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9)
+- **WU3 tasks completed**: 6 / 6 (3.1, 3.2, 3.3, 3.4, 3.5, 3.6) — plus 3.7/3.8 already landed from prior partial apply
+- **WU4 tasks completed**: 8 / 8 (3.9, 3.10, 4.1, 4.2, 4.3, 4.4, 4.5, 4.6)
+- **Phase 1 status**: ✅ complete (WU1 merged at `28c866e`)
+- **Phase 2 status**: ✅ complete (WU2 merged at `9ccc9cd` + `3a93ec9`)
+- **Phase 3 status**: ✅ complete (WU3 ready for review; 3.7/3.8 already in tree at `459cbb5`)
+- **Phase 4 status**: ✅ complete (WU4 ready for review)
+- **Company-members change status**: ✅ ALL PHASES COMPLETE — the change is ready for archive pending orchestrator review.
+- **Workload / PR boundary (WU4)**: WU4 adds 3 new files (~720 lines authored: 116 middleware + 322 middleware test + 277 route-mount test) plus 2 small modifications (`MemberHandlers()` accessor: ~35 lines + docs in memberHandler.go, ~50 lines of wiring in main.go). Natural split: (a) `feat(identity): RequireCompanyRole middleware + unit tests (3.9/3.10)` and (b) `feat(api): wire /me/company subtree with per-route role gates (4.1/4.2/4.3)` if a reviewer prefers smaller diffs. Well under the 400-line authored-risk budget per `work-unit-commits`.
+- **Tests green**: 11/11 WU4 tests + full pre-existing unit suite (27 packages) + full pre-existing integration suite (`make test-integration` exit 0) — 0 regressions, 0 new failures.
+- **`go vet ./...`**: 0 findings.
+- **`gofmt -l .`**: 0 findings.
+- **`go build ./...`**: clean.
+- **No `git add` / `commit` / `push`**: orchestrator owns git per task contract.

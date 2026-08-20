@@ -80,6 +80,43 @@ func (h *MemberHandler) Routes() chi.Router {
 	return r
 }
 
+// MemberHandlers exposes each endpoint as a public http.HandlerFunc so
+// the composition root (cmd/api/main.go, WU4) can apply per-method
+// middleware — specifically, the per-route RequireCompanyRole gates
+// the spec demands. The chi subrouter returned by Routes() bundles all
+// five endpoints with NO gates; that surface is exercised by the
+// handler-level unit tests where the test injects the JWT subject
+// directly into the context. The production wiring layers
+// `r.With(requireOwner)` (or recruiter) at the parent for each method.
+//
+// Each field is a thin http.HandlerFunc adapter over the unexported
+// method body; the unexported bodies stay in this file so the handler
+// stays the single source of truth for endpoint logic. Tests that need
+// to call an individual handler directly use these adapters instead
+// of poking at unexported methods.
+type MemberHandlers struct {
+	GetMyMembership  http.HandlerFunc
+	ListMembers      http.HandlerFunc
+	AddMember        http.HandlerFunc
+	UpdateMemberRole http.HandlerFunc
+	RemoveMember     http.HandlerFunc
+}
+
+// MemberHandlers returns the per-endpoint http.HandlerFunc surface for
+// main.go to mount with per-method middleware. The returned struct
+// shares state with the receiver — calling any of its handler funcs
+// is exactly equivalent to calling the corresponding unexported
+// method body.
+func (h *MemberHandler) MemberHandlers() MemberHandlers {
+	return MemberHandlers{
+		GetMyMembership:  http.HandlerFunc(h.getMyMembership),
+		ListMembers:      http.HandlerFunc(h.listMembers),
+		AddMember:        http.HandlerFunc(h.addMember),
+		UpdateMemberRole: http.HandlerFunc(h.updateMemberRole),
+		RemoveMember:     http.HandlerFunc(h.removeMember),
+	}
+}
+
 // --- request / response shapes ---------------------------------------------
 
 // addMemberRequest is the JSON body accepted by POST /me/company/members.

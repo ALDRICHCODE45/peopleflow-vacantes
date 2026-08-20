@@ -58,14 +58,14 @@ Chain strategy: size-exception
 - [x] 3.6 GREEN: `companies/infrastructure/http/memberHandler.go` — handlers + `classifyMemberError` + routes.
 - [x] 3.7 RED: `identity/domain/security/companyContext_test.go` — inject/read `CompanyContext`, missing context returns not-ok.
 - [x] 3.8 GREEN: `identity/domain/security/companyContext.go` — `CompanyContext` + ctx helpers.
-- [ ] 3.9 RED: `identity/infrastructure/http/requireCompanyRole_test.go` with fake repos — owner passes `minRole=recruiter`; recruiter under `minRole=owner` → 403 handler not invoked; non-member → 403; unknown sub → 401 (spec: RequireCompanyRole, 4 scenarios).
-- [ ] 3.10 GREEN: `identity/infrastructure/http/requireCompanyRole.go` — port-only imports, resolves once, injects `CompanyContext`.
+- [x] 3.9 RED: `identity/infrastructure/http/requireCompanyRole_test.go` with fake repos — owner passes `minRole=recruiter`; recruiter under `minRole=owner` → 403 handler not invoked; non-member → 403; unknown sub → 401 (spec: RequireCompanyRole, 4 scenarios).
+- [x] 3.10 GREEN: `identity/infrastructure/http/requireCompanyRole.go` — port-only imports, resolves once, injects `CompanyContext`.
 
 ## Phase 4: Testing — HTTP Surface & Regression
 
-- [ ] 4.1 RED: route test — `/me/company/*` without `Authorization` → 401, handler not invoked (spec: routes mounted behind auth).
-- [ ] 4.2 RED: route test — recruiter calling `POST /me/company/members` → 403 via `RequireCompanyRole("owner")` (spec: mutations enforce owner).
-- [ ] 4.3 GREEN: `backend/cmd/api/main.go` — wire member repo/service/handler; mount `/me/company` under `RequireAuth`; `r.With(RequireCompanyRole(...))` per-route (`GET /me/company` ungated, list = recruiter, mutations = owner).
-- [ ] 4.4 Run `cd backend && go test ./...` and `make test-integration`; both MUST be green.
-- [ ] 4.5 Run `cd backend && go vet ./...` and `gofmt -l .`; zero findings.
-- [ ] 4.6 REFACTOR (optional): dedupe error-classification helpers between handler and middleware; re-run 4.4.
+- [x] 4.1 RED: route test — `/me/company/*` without `Authorization` → 401, handler not invoked (spec: routes mounted behind auth).
+- [x] 4.2 RED: route test — recruiter calling `POST /me/company/members` → 403 via `RequireCompanyRole("owner")` (spec: mutations enforce owner).
+- [x] 4.3 GREEN: `backend/cmd/api/main.go` — wire member repo/service/handler; mount `/me/company` under `RequireAuth`; `r.With(RequireCompanyRole(...))` per-route (`GET /me/company` ungated, list = recruiter, mutations = owner).
+- [x] 4.4 Run `cd backend && go test ./...` and `make test-integration`; both MUST be green.
+- [x] 4.5 Run `cd backend && go vet ./...` and `gofmt -l .`; zero findings.
+- [x] 4.6 REFACTOR (optional): dedupe error-classification helpers between handler and middleware; re-run 4.4. **No clean seam** — see apply-progress.md for details.
