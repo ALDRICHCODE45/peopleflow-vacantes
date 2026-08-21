@@ -296,15 +296,15 @@ func TestBuildCreateParams_NilProfileFields(t *testing.T) {
 // TestMapCreateError drives the pg-error → domain-error classifier through a
 // table of synthetic *pgconn.PgError values and asserts the exact domain
 // sentinel each one resolves to. This is the test the verify report flagged as
-// missing: mapCreateError is a pure function but it sat at 0% coverage because
+// missing: mapCompanyCreateError is a pure function but it sat at 0% coverage because
 // it only runs when Postgres rejects a row.
 //
 // Sentinels must match the public contract documented in
 // infrastructure/http/handler.go::classifyCreateCompanyError — if a new pg code
 // is mapped here, the HTTP classifier must learn about it in lockstep.
-func TestMapCreateError(t *testing.T) {
+func TestMapCompanyCreateError(t *testing.T) {
 	// uniqueSentinel and fkSentinel are declared once so we can capture the
-	// exact instance mapCreateError is expected to return; the assertion is
+	// exact instance mapCompanyCreateError is expected to return; the assertion is
 	// pointer-equality via errors.Is, which also exercises the wrapped-error
 	// branch in the table below.
 	uniqueSentinel := &pgconn.PgError{
@@ -322,7 +322,7 @@ func TestMapCreateError(t *testing.T) {
 		Message: "relation \"missing\" does not exist",
 	}
 	// nonPg captures the "not a PgError at all" branch (e.g. driver connection
-	// error, context cancellation). mapCreateError must hand the original
+	// error, context cancellation). mapCompanyCreateError must hand the original
 	// error back so callers can log/inspect it; it must never coerce it into
 	// a domain sentinel that would mislead the HTTP layer.
 	nonPg := errors.New("dial tcp: connection refused")
@@ -380,7 +380,7 @@ func TestMapCreateError(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := mapCreateError(tc.in)
+			got := mapCompanyCreateError(tc.in)
 
 			if tc.want == nil {
 				if got != nil {
@@ -403,14 +403,14 @@ func TestMapCreateError(t *testing.T) {
 	}
 }
 
-// Ensure mapCreateError preserves the original non-pg error (no domain
+// Ensure mapCompanyCreateError preserves the original non-pg error (no domain
 // coercion). This is the regression guard for the "do not coerce non-pg
 // errors" invariant: a previous refactor accidentally wrapped every error into
 // a generic sentinel and the HTTP layer started returning 500s with messages
 // that meant nothing to the operator.
-func TestMapCreateError_NonPgErrorIsNotCoerced(t *testing.T) {
+func TestMapCompanyCreateError_NonPgErrorIsNotCoerced(t *testing.T) {
 	original := errors.New("driver: connection reset by peer")
-	got := mapCreateError(original)
+	got := mapCompanyCreateError(original)
 
 	if got == nil {
 		t.Fatal("expected the original error back, got nil")

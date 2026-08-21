@@ -64,6 +64,15 @@ type Company struct {
 	CoverImageUrl pgtype.Text        `json:"cover_image_url"`
 }
 
+type CompanyMember struct {
+	ID        uuid.UUID          `json:"id"`
+	UserID    uuid.UUID          `json:"user_id"`
+	CompanyID uuid.UUID          `json:"company_id"`
+	Role      string             `json:"role"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Industry struct {
 	ID        string             `json:"id"`
 	LabelEs   string             `json:"label_es"`

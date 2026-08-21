@@ -12,6 +12,12 @@ import (
 
 type Querier interface {
 	CreateCompany(ctx context.Context, arg CreateCompanyParams) (Company, error)
+	// Adds a row to `company_members`. UNIQUE(user_id) means a second insert with
+	// the same user_id surfaces SQLSTATE 23505 to the adapter (mapped to
+	// ErrMemberExists in the companies/infrastructure layer); FK violations on
+	// user_id / company_id surface SQLSTATE 23503 (mapped to ErrUserNotFound /
+	// ErrCompanyNotFound).
+	CreateCompanyMember(ctx context.Context, arg CreateCompanyMemberParams) (CompanyMember, error)
 	// Idempotent upsert keyed on the partial unique index `users_cognito_sub_unique`.
 	// The `WHERE deleted_at IS NULL` predicate is required: a bare `ON CONFLICT (cognito_sub)`
 	// would not match the partial index and would raise SQLSTATE 42P10.
@@ -25,6 +31,11 @@ type Querier interface {
 	// positional `$1` id. Explicit column list keeps `search_vector` out of
 	// the scan and matches the embedded `{company: {id, name}}` shape.
 	GetJobByID(ctx context.Context, id uuid.UUID) (GetJobByIDRow, error)
+	// Single membership lookup for the membership-resolver chain
+	// (`sub → users.id → company_members`) — see design D6. Returns
+	// pgx.ErrNoRows when the user has no membership, which the service maps to
+	// ErrNotAMember.
+	GetMembershipByUserID(ctx context.Context, userID uuid.UUID) (CompanyMember, error)
 	GetUserByCognitoSub(ctx context.Context, cognitoSub string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	// Used inside the atomic replace transaction. Composite PK (user_id, language)
@@ -32,7 +43,13 @@ type Querier interface {
 	// 23505 as ErrDuplicateLanguage.
 	InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error
 	ListActiveIndustries(ctx context.Context) ([]Industry, error)
+	// All members of a company (GET /me/company/members). Ordered by created_at
+	// for stable rendering; backed by the `company_members_company_id_idx` B-tree.
+	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]CompanyMember, error)
 	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error)
+	// Same-company guard (design D7) — see UpdateMemberRole for rationale.
+	// HARD DELETE (design D2) frees `user_id` for re-assignment.
+	RemoveCompanyMember(ctx context.Context, arg RemoveCompanyMemberParams) (int64, error)
 	// Public read listing for jobs (§spec/jobs). The visibility rule
 	// (§Read-Side Visibility Rule) is enforced here, not in Go: a row
 	// surfaces only when `jobs.status='published'`, `jobs.deleted_at IS NULL`,
@@ -72,6 +89,12 @@ type Querier interface {
 	// can assert visibility at the row level; they are not exposed in the
 	// API response per spec.
 	SearchJobs(ctx context.Context, arg SearchJobsParams) ([]SearchJobsRow, error)
+	// Same-company guard (design D7): the SQL predicate
+	// `id = $1 AND company_id = $2` is the race-free, IDOR-proof boundary for
+	// UpdateRole. 0 rows affected → ErrMemberNotFound in the adapter.
+	// `updated_at` is touched here so downstream callers never have to remember
+	// to do it.
+	UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) (int64, error)
 	// Idempotent upsert keyed on the PK (user_id). First PUT creates the row;
 	// subsequent PUTs overwrite the editable columns. search_vector is a STORED
 	// generated column owned by Postgres and MUST NOT be touched here.

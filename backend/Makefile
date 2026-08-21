@@ -47,7 +47,7 @@ test:
 	go test ./... -count=1
 
 test-integration:
-	set -a && . ./.env && set +a && go test -tags=integration ./... -count=1 -v
+	set -a && . ./.env && set +a && go test -tags=integration -p 1 ./... -count=1 -v
 
 build:
 	go build ./...
