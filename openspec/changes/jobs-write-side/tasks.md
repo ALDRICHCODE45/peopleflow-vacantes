@@ -116,14 +116,14 @@ Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql
 - CAS compare: `ifUnmodifiedSince.Equal(current.UpdatedAt)` matching → proceeds; stale → `(view, ErrConcurrencyConflict)`; zero token (`time.Time{}`) → `ErrConcurrencyConflict`.
 - `EditJob` steps (D5 §4.3): GetForUpdate `ErrJobNotFound` → propagated (404); CAS mismatch → non-nil view + `ErrConcurrencyConflict`; closed-terminal any body → `ErrInvalidStatusTransition`; illegal transitions (draft→closed, published→draft) → `ErrInvalidStatusTransition`; empty-after-trim title/description → `ErrEmptyTitle`/`ErrEmptyDescription`; both-present non-null `salary_min > salary_max` → `ErrInvalidSalaryRange`; unknown VO values → respective VO sentinels; null location → patch `Optional{Set:true,Valid:false}` vs absent → `Set:false` (assert the built `UpdatePatch`); status-only PATCH → 200 view with zero field changes (D9); success → re-read `GetForUpdate` called again + 200 view; `Update` returns `ErrJobNotFound` → re-read succeeds → `(view, ErrConcurrencyConflict)`; re-read also `ErrJobNotFound` → `(nil, ErrJobNotFound)`.
 
-- Verify: `cd backend && go test ./internal/features/jobs/application/usecases/ -run 'EditJob|IsTransitionAllowed|Optional'` → **RED** (compile error: `EditJob`/`isTransitionAllowed` missing). <!-- sdd-owner: implementation -->
+- Verify: `cd backend && go test ./internal/features/jobs/application/usecases/ -run 'EditJob|IsTransitionAllowed|Optional'` → **RED** (compile error: `EditJob`/`isTransitionAllowed` missing). [x] <!-- sdd-owner: implementation -->
 
 ### 4.4 GREEN — implement `EditJob`
 
 - `backend/internal/features/jobs/application/usecases/updateJob.go` (new): `EditJob(ctx, companyID, jobID uuid.UUID, in dtos.UpdateJobDto, ifUnmodifiedSince time.Time) (*dtos.JobEditorViewDto, error)` implementing the 8-step flow in D5 §4.3 exactly (read → CAS compare → VO parse → transition check with closed-terminal-first rule → validation → build patch with trimmed title/description → `Update` with 0-rows re-read → re-read + `toEditorView`). Include pure helper `isTransitionAllowed(from, to)` per D5 and `toEditorView(*entities.JobForUpdate) dtos.JobEditorViewDto` (the single projection shared by 200 and 409 paths).
 - `backend/internal/features/jobs/application/usecases/jobService.go` (MOD): add the `EditJob` method on `JobService` (single composition target).
 
-- Verify: 4.3 tests pass; `cd backend && go test ./internal/features/jobs/...`. Rollback: revert 4.3+4.4 together. <!-- sdd-owner: implementation -->
+- Verify: 4.3 tests pass; `cd backend && go test ./internal/features/jobs/...`. Rollback: revert 4.3+4.4 together. [x] <!-- sdd-owner: implementation -->
 
 ### 4.5 REFACTOR (optional, tracked)
 
