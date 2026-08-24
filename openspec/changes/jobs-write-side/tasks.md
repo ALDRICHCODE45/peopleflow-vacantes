@@ -172,13 +172,13 @@ Extend `backend/internal/features/jobs/infrastructure/http/handler_test.go` (or 
 
 `backend/internal/features/jobs/infrastructure/postgres/jobRepository_write_integration_test.go` (new, `//go:build integration`, transaction-rollback isolation, skip when `DATABASE_URL` unset — mirror `jobRepository_integration_test.go`): exercise the D3 SQL through the adapter: `GetForUpdate` returns draft/closed/non-active-company rows; cross-company → `ErrJobNotFound`; soft-deleted → `ErrJobNotFound`; non-existent → `ErrJobNotFound`. `Update` (via `repositories.UpdatePatch`): partial update leaves absent columns intact; explicit null clears location/salary; CAS mismatch (`casUpdatedAt` ≠ row) → 0 rows → `ErrJobNotFound`; `draft → published` sets `published_at` within the request window (CHECK holds); `published → published` preserves `published_at`; `published → closed` keeps `published_at`; cross-company guard → 0 rows; immutable columns (id/company_id/created_at) untouched.
 
-- Verify: `cd backend && make test-integration` (sources `.env`; needs Postgres up + migrated; skips when `DATABASE_URL` unset) — all new tests pass and the pre-existing read-path integration tests stay green. Rollback: delete the test file. <!-- sdd-owner: implementation -->
+- Verify: `cd backend && make test-integration` (sources `.env`; needs Postgres up + migrated; skips when `DATABASE_URL` unset) — all new tests pass and the pre-existing read-path integration tests stay green. Rollback: delete the test file. [x] <!-- sdd-owner: implementation -->
 
 ### 7.2 — Full-suite gate
 
 Run the complete verification set for the whole change.
 
-- Verify: `cd backend && go test ./...` (unit, strict-TDD green), `cd backend && go vet ./...` clean, `gofmt -l backend/` clean (or `gofmt -w` applied and re-verified), `cd backend && go build ./...`. Optionally re-run `make test-integration`. <!-- sdd-owner: implementation -->
+- Verify: `cd backend && go test ./...` (unit, strict-TDD green), `cd backend && go vet ./...` clean, `gofmt -l backend/` clean (or `gofmt -w` applied and re-verified), `cd backend && go build ./...`. Optionally re-run `make test-integration`. [x] <!-- sdd-owner: implementation -->
 
 ---
 
