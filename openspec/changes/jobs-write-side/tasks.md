@@ -34,24 +34,28 @@ Rationale: the honest authored estimate is 4–6× the 400-line budget (8-step u
 ## Phase 1 — Domain core: tri-state Optional, write projection, port (RED → GREEN)
 
 ### 1.1 RED — tri-state `Optional[T]` decode tests
+- [x] 1.1 RED — tri-state `Optional[T]` decode tests
 
 `backend/internal/features/jobs/domain/valueobjects/optional_test.go` (new): table-driven tests for `Optional[T].UnmarshalJSON` (D2 §3.3): absent key → `Set=false, Valid=false`; explicit `null` → `Set=true, Valid=false`; value → `Set=true, Valid=true, Value` populated; wrong JSON type (e.g. `"abc"` into `Optional[int]`) → error. Test both `Optional[string]` and `Optional[int]`.
 
 - Verify: `cd backend && go test ./internal/features/jobs/domain/valueobjects/ -run Optional` → **RED** (does not compile: `Optional` missing). [x] <!-- sdd-owner: implementation -->
 
 ### 1.2 GREEN — implement `Optional[T]`
+- [x] 1.2 GREEN — implement `Optional[T]`
 
 `backend/internal/features/jobs/domain/valueobjects/optional.go` (new): generic `Optional[T] struct { Set, Valid bool; Value T }` with `UnmarshalJSON` exactly per D2 §3.3 (`bytes.Equal(bytes.TrimSpace(data), []byte("null"))` → `Valid=false`; else `json.Unmarshal` into `T`). Doc comment must state the tri-state contract (absent / null / value). No other package changes.
 
 - Verify: 1.1 tests pass; `cd backend && go build ./...`. [x] <!-- sdd-owner: implementation -->
 
 ### 1.3 RED — extend `repositories.JobRepository` (compile break IS the RED)
+- [x] 1.3 RED — extend `repositories.JobRepository` (compile break IS the RED)
 
 `backend/internal/features/jobs/domain/repositories/jobRepository.go` (MOD): add `GetForUpdate(ctx context.Context, id, companyID uuid.UUID) (*entities.JobForUpdate, error)` and `Update(ctx context.Context, id, companyID uuid.UUID, patch UpdatePatch, casUpdatedAt time.Time) error` to the interface, plus the `UpdatePatch` struct (D2 §3.4: pointer fields for title/description/closed-set VOs/status; `valueobjects.Optional[T]` for Location/SalaryMin/SalaryMax). **Do NOT** yet implement `entities.JobForUpdate` and **do NOT** touch any stub.
 
 - Verify: `cd backend && go test ./internal/features/jobs/...` → **RED** (compile errors: `JobForUpdate` undefined; `stubRepo` in `infrastructure/http/handler_test.go`, `stubJobRepository` in `application/usecases/searchJobs_test.go`, and `stubJobRepo` in `domain/repositories/jobRepository_test.go` no longer satisfy the port). The compile failure is the accepted RED per design §9. [x] <!-- sdd-owner: implementation -->
 
 ### 1.4 GREEN — write projection entity, sentinels, `UpdatePatch`, stub repairs
+- [x] 1.4 GREEN — write projection entity, sentinels, `UpdatePatch`, stub repairs
 
 - `backend/internal/features/jobs/domain/entities/jobForUpdate.go` (new): `JobForUpdate` per D1 §3.1 (ID, Title, Description, WorkMode, EmploymentType, Seniority, JobStatus, Location `*string`, SalaryMin/SalaryMax `*int`, SalaryCurrency, PublishedAt `*time.Time`, UpdatedAt `time.Time`, Company `CompanyRef`). Doc comment: deliberately NOT the read `Job` (company-scoped, non-visibility-narrowed, carries `UpdatedAt`, no `Rank`).
 - `backend/internal/features/jobs/domain/entities/job.go` (MOD): add sentinels per D5 §3.2 — `ErrConcurrencyConflict`, `ErrInvalidStatusTransition`, `ErrEmptyTitle`, `ErrEmptyDescription`, `ErrInvalidSalaryRange` (distinct, `errors.New`).
@@ -63,12 +67,14 @@ Rationale: the honest authored estimate is 4–6× the 400-line budget (8-step u
 ## Phase 2 — Persistence seed: sqlc queries + regen (pinned D3 SQL; generated code)
 
 ### 2.1 — Author the two write queries
+- [x] 2.1 — Author the two write queries
 
 `backend/db/queries/jobs.sql` (MOD): append exactly the D3 queries. `GetJobForUpdate :one` (D3 §5.1): explicit column list incl. `j.company_id`, `j.updated_at`, `c.name AS company_name`; `JOIN companies c ON c.id = j.company_id`; `WHERE j.id = $1 AND j.company_id = $2 AND j.deleted_at IS NULL` — **no** `status='published'`, **no** `c.status='active'` (drafts/closed/non-active companies must be visible to the write path). `UpdateJob :execrows` (D3 §5.2): `COALESCE(sqlc.narg(...)::text, col)` SET for title/description/work_mode/employment_type/seniority/salary_currency; `CASE WHEN sqlc.arg('set_<field>')::boolean THEN sqlc.narg(...)::text/int ELSE col END` for location/salary_min/salary_max; `status = COALESCE(sqlc.narg('status')::text, status)`; `published_at = CASE WHEN sqlc.narg('status')::text = 'published' THEN COALESCE(published_at, now()) ELSE published_at END`; `updated_at = now()`; `WHERE id/company_id/deleted_at IS NULL/updated_at = sqlc.arg('cas_token')::timestamptz`. Must never touch `search_vector`, `company_id`, `created_at`, `id`, `deleted_at`. Existing `SearchJobs`/`GetJobByID` stay byte-identical.
 
 - Verify: `cd backend && go tool sqlc generate` succeeds (see 2.2 for full check). Rollback: remove the two query blocks. [x] <!-- sdd-owner: implementation -->
 
 ### 2.2 — Regenerate and verify the generated seam
+- [x] 2.2 — Regenerate and verify the generated seam
 
 Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql.go` gained `GetJobForUpdateRow`, `GetJobForUpdate`, `UpdateJobParams` (field order per D3 §5.2: Title, Description, WorkMode, EmploymentType, Seniority, SalaryCurrency, SetLocation, Location, SetSalaryMin, SalaryMin, SetSalaryMax, SalaryMax, Status, ID, CompanyID, CasToken), and `UpdateJob` (returns `(int64, error)`). **Generated file — do not hand-edit.**
 
@@ -77,6 +83,7 @@ Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql
 ## Phase 3 — Infrastructure: postgres adapter (RED → GREEN)
 
 ### 3.1 RED — adapter helper unit tests
+- [x] 3.1 RED — adapter helper unit tests
 
 `backend/internal/features/jobs/infrastructure/postgres/jobRepository_test.go` (MOD) or a new `updateJobRepository_test.go` (test file named after source file): table-driven tests for the new helpers, all DB-free:
 - `buildUpdateJobParams` (D4): absent vs null vs value for each of the nullable trio → correct `SetLocation`/`SetSalaryMin`/`SetSalaryMax` flag + `pgtype.Text/Int4` (Valid=false on null); status absent → `Status` invalid; status present → valid canonical string; `Title`/`Description`/closed-set VOs → `pgtype.Text` valid when set, invalid when nil; `ID`/`CompanyID`/`CasToken` always populated.
@@ -86,6 +93,7 @@ Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql
 - Verify: `cd backend && go test ./internal/features/jobs/infrastructure/postgres/ -run 'BuildUpdateJobParams|ToJobForUpdateEntity|MapUpdateError'` → **RED** (compile error: helpers missing). [x] <!-- sdd-owner: implementation -->
 
 ### 3.2 GREEN — implement the adapter write methods
+- [x] 3.2 GREEN — implement the adapter write methods
 
 `backend/internal/features/jobs/infrastructure/postgres/jobRepository.go` (MOD): per D4 §6.1 —
 - `GetForUpdate(ctx, id, companyID)`: `queries.GetJobForUpdate`; `pgx.ErrNoRows` → `entities.ErrJobNotFound` (via `mapGetError` or inline); else `toJobForUpdateEntity`.
@@ -97,12 +105,14 @@ Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql
 ## Phase 4 — Application: DTOs + `EditJob` use case (RED → GREEN)
 
 ### 4.1 RED — `UpdateJobDto` decode tests
+- [x] 4.1 RED — `UpdateJobDto` decode tests
 
 `backend/internal/features/jobs/application/dtos/updateJobDto_test.go` (new): decode JSON into `UpdateJobDto` (D7 §4.1): unknown immutable keys (`id`, `company_id`, `created_at`, `published_at`, `search_vector`, `deleted_at`, `updated_at`) are dropped; `location`/`salary_min`/`salary_max` absent vs `null` vs value map to `Optional` tri-state; `status`/`title` pointers set when present, nil when absent; wrong JSON type for `salary_min` → decode error.
 
 - Verify: `cd backend && go test ./internal/features/jobs/application/dtos/ -run UpdateJobDto` → **RED** (does not compile: DTO missing). <!-- sdd-owner: implementation -->
 
 ### 4.2 GREEN — implement the two DTOs
+- [x] 4.2 GREEN — implement the two DTOs
 
 - `backend/internal/features/jobs/application/dtos/updateJobDto.go` (new): `UpdateJobDto` per D7 §4.1 (raw `*string` fields, `valueobjects.Optional[string]` for Location, `Optional[int]` for SalaryMin/SalaryMax; NO `company_id`, NO `updated_at`).
 - `backend/internal/features/jobs/application/dtos/jobEditorViewDto.go` (new): `JobEditorViewDto` per D7 §4.2 — all public-read fields, `Status string`, `UpdatedAt time.Time` (RFC 3339Nano on the wire), embedded `CompanyDto` (reuse from `searchJobsDto.go`); `omitempty` on Location/SalaryMin/SalaryMax/PublishedAt.
@@ -110,6 +120,7 @@ Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql
 - Verify: 4.1 tests pass; `cd backend && go build ./...`. <!-- sdd-owner: implementation -->
 
 ### 4.3 RED — transition table, CAS compare, `EditJob` flow tests
+- [x] 4.3 RED — transition table, CAS compare, `EditJob` flow tests
 
 `backend/internal/features/jobs/application/usecases/updateJob_test.go` (new), using an extended stub repo in-package (add `GetForUpdate`/`Update` to the usecase stub from Phase 1.4 or define a dedicated write stub):
 - `isTransitionAllowed`: all 9 cells of the D5/D9 transition table (draft→{draft,published}, published→{published,closed}, all `closed → *` false) + the terminal rule (a `closed` row rejects ANY body, even with no status).
@@ -119,6 +130,7 @@ Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql
 - Verify: `cd backend && go test ./internal/features/jobs/application/usecases/ -run 'EditJob|IsTransitionAllowed|Optional'` → **RED** (compile error: `EditJob`/`isTransitionAllowed` missing). [x] <!-- sdd-owner: implementation -->
 
 ### 4.4 GREEN — implement `EditJob`
+- [x] 4.4 GREEN — implement `EditJob`
 
 - `backend/internal/features/jobs/application/usecases/updateJob.go` (new): `EditJob(ctx, companyID, jobID uuid.UUID, in dtos.UpdateJobDto, ifUnmodifiedSince time.Time) (*dtos.JobEditorViewDto, error)` implementing the 8-step flow in D5 §4.3 exactly (read → CAS compare → VO parse → transition check with closed-terminal-first rule → validation → build patch with trimmed title/description → `Update` with 0-rows re-read → re-read + `toEditorView`). Include pure helper `isTransitionAllowed(from, to)` per D5 and `toEditorView(*entities.JobForUpdate) dtos.JobEditorViewDto` (the single projection shared by 200 and 409 paths).
 - `backend/internal/features/jobs/application/usecases/jobService.go` (MOD): add the `EditJob` method on `JobService` (single composition target).
@@ -126,6 +138,7 @@ Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql
 - Verify: 4.3 tests pass; `cd backend && go test ./internal/features/jobs/...`. Rollback: revert 4.3+4.4 together. [x] <!-- sdd-owner: implementation -->
 
 ### 4.5 REFACTOR (optional, tracked)
+- [x] 4.5 REFACTOR (optional, tracked)
 
 Sweep `updateJob.go` + `jobRepository.go` for duplication: confirm `toEditorView` is the ONLY editor projection (no second projection in the handler), the pgtype helpers are reused (no new copies), and error propagation never double-wraps sentinels.
 
@@ -134,6 +147,7 @@ Sweep `updateJob.go` + `jobRepository.go` for duplication: confirm `toEditorView
 ## Phase 5 — HTTP: handler, classify, security boundary (RED → GREEN)
 
 ### 5.1 RED — handler + route-boundary tests
+- [x] 5.1 RED — handler + route-boundary tests
 
 Extend `backend/internal/features/jobs/infrastructure/http/handler_test.go` (or add `updateJobHandler_test.go`, named after the source file) with a `newUpdateJobRouter` helper that mounts the gated PATCH and injects `security.CompanyContext` via middleware (mirror `newMemberRouter` in `companies/.../memberHandler_test.go`):
 - Business scenarios (CompanyContext injected directly): missing CompanyContext → **500** fail-closed; invalid `{id}` → 400 `invalid job id`; malformed JSON body → 400; cross-company/soft-deleted/non-existent → 404 via `ErrJobNotFound` from stub; CAS mismatch → **409** whose body decodes as `JobEditorViewDto` carrying `status` + `updated_at`; closed-terminal → 400; unknown VO → 400; empty title → 400; null-vs-absent (stub records the `UpdatePatch` built); status-only PATCH → 200 view; success → 200 view with status + updated_at; owner passes (CompanyContext `Role=OwnerRole` → handler forwards `cc.CompanyID`; the role-ordinal gate itself is middleware behavior already covered by identity tests); body `company_id` ignored (stub receives the CompanyContext company, never the body value).
@@ -143,6 +157,7 @@ Extend `backend/internal/features/jobs/infrastructure/http/handler_test.go` (or 
 - Verify: `cd backend && go test ./internal/features/jobs/infrastructure/http/ -run 'UpdateJob|Classify'` → **RED** (compile error: `updateJob`/`JobHandlers`/`parseIfUnmodifiedSince` missing). [x] <!-- sdd-owner: implementation -->
 
 ### 5.2 GREEN — implement the handler surface
+- [x] 5.2 GREEN — implement the handler surface
 
 `backend/internal/features/jobs/infrastructure/http/jobHandler.go` (MOD): per D6 §6.2 —
 - `JobHandlers` struct (`ListJobs`, `GetJob`, `UpdateJob`) + `JobHandlers()` accessor mirroring `MemberHandlers()`.
@@ -155,12 +170,14 @@ Extend `backend/internal/features/jobs/infrastructure/http/handler_test.go` (or 
 ## Phase 6 — Composition root: `main.go` + AST guards (RED → GREEN)
 
 ### 6.1 RED — extend the composition-root guards
+- [x] 6.1 RED — extend the composition-root guards
 
 `backend/cmd/api/main_test.go` (MOD): (a) update `TestRequireAuth_MountedOnMeRoutes` so the chi-mutation identifier check also recognizes the hoisted variables `requireAuth`/`requireRecruiter` (the D8 hoist moves the constructor call out of the route-mutation argument list; the guard must accept the variable form or it will fail on a correct implementation); (b) add `TestJobsWriteRoute_MountedBehindGates` asserting an AST walk finds a chi `Patch("/jobs/{id}")` mutation whose `With(...)` argument list references BOTH `requireAuth` and `requireRecruiter`, while `TestJobsMount_PublicReadRoutes` (public `Mount("/jobs", ...)`) still passes unchanged.
 
 - Verify: `cd backend/cmd/api && go test .` → **RED** (new guard fails: no gated PATCH route in main.go yet). [x] <!-- sdd-owner: implementation -->
 
 ### 6.2 GREEN — rewire `main.go` per D8
+- [x] 6.2 GREEN — rewire `main.go` per D8
 
 `backend/cmd/api/main.go` (MOD): hoist `requireAuth := identityhttp.RequireAuth(verifier)` and `requireRecruiter := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, valueobjects.RecruiterRole)` to `run()` scope (after `identityUserRepo`/`memberRepo` are wired; keep `requireOwner` local to `/me`); keep `r.Mount("/jobs", jobHandler.Routes())` public and unchanged; add `jobHandlers := jobHandler.JobHandlers()` + `r.With(requireAuth, requireRecruiter).Patch("/jobs/{id}", jobHandlers.UpdateJob)`; inside the `/me` block reuse hoisted `requireAuth` in `r.Use(requireAuth)` and hoisted `requireRecruiter` in the members gates, dropping the inline `requireRecruiter := …` line. The public mount MUST NOT gain the write route (chi matches PATCH against the gated `r.With(...).Patch(...)` only).
 
@@ -169,12 +186,14 @@ Extend `backend/internal/features/jobs/infrastructure/http/handler_test.go` (or 
 ## Phase 7 — Integration & final verification
 
 ### 7.1 — Build-tagged write-path integration tests
+- [x] 7.1 — Build-tagged write-path integration tests
 
 `backend/internal/features/jobs/infrastructure/postgres/jobRepository_write_integration_test.go` (new, `//go:build integration`, transaction-rollback isolation, skip when `DATABASE_URL` unset — mirror `jobRepository_integration_test.go`): exercise the D3 SQL through the adapter: `GetForUpdate` returns draft/closed/non-active-company rows; cross-company → `ErrJobNotFound`; soft-deleted → `ErrJobNotFound`; non-existent → `ErrJobNotFound`. `Update` (via `repositories.UpdatePatch`): partial update leaves absent columns intact; explicit null clears location/salary; CAS mismatch (`casUpdatedAt` ≠ row) → 0 rows → `ErrJobNotFound`; `draft → published` sets `published_at` within the request window (CHECK holds); `published → published` preserves `published_at`; `published → closed` keeps `published_at`; cross-company guard → 0 rows; immutable columns (id/company_id/created_at) untouched.
 
 - Verify: `cd backend && make test-integration` (sources `.env`; needs Postgres up + migrated; skips when `DATABASE_URL` unset) — all new tests pass and the pre-existing read-path integration tests stay green. Rollback: delete the test file. [x] <!-- sdd-owner: implementation -->
 
 ### 7.2 — Full-suite gate
+- [x] 7.2 — Full-suite gate
 
 Run the complete verification set for the whole change.
 
@@ -184,5 +203,5 @@ Run the complete verification set for the whole change.
 
 ## Post-apply (parent-owned)
 
-- [ ] Start or reuse bounded review of the merged change (trace tasks to commits; confirm `[x]` only on landed commits, D1–D10 honored, and the size-exception record if single-pr was kept). <!-- sdd-owner: parent -->
-- [ ] Lifecycle gate: close the change (or route to `openspec/changes/archive/`) only after Phase 7.2 is green and the review above is resolved. <!-- sdd-owner: parent -->
+- Start or reuse bounded review of the merged change (trace tasks to commits; confirm `[x]` only on landed commits, D1–D10 honored, and the size-exception record if single-pr was kept). <!-- sdd-owner: parent -->
+- Lifecycle gate: close the change (or route to `openspec/changes/archive/`) only after Phase 7.2 is green and the review above is resolved. <!-- sdd-owner: parent -->
