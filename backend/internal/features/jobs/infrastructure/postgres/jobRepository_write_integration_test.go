@@ -61,11 +61,11 @@ import (
 // reuse the suspended-company ids from the read fixture (which would
 // short-circuit to ErrJobNotFound on the company scope check).
 var (
-	wpDraftID    = uuid.MustParse("018f0000-0000-7000-8000-0000000000d1") // draft, Acme SA
-	wpClosedID   = uuid.MustParse("018f0000-0000-7000-8000-0000000000d2") // closed, Acme SA
-	wpDeletedID  = uuid.MustParse("018f0000-0000-7000-8000-0000000000d3") // soft-deleted, Acme SA
+	wpDraftID     = uuid.MustParse("018f0000-0000-7000-8000-0000000000d1") // draft, Acme SA
+	wpClosedID    = uuid.MustParse("018f0000-0000-7000-8000-0000000000d2") // closed, Acme SA
+	wpDeletedID   = uuid.MustParse("018f0000-0000-7000-8000-0000000000d3") // soft-deleted, Acme SA
 	wpPublishedID = uuid.MustParse("018f0000-0000-7000-8000-0000000000d4") // published, Acme SA
-	wpCrossCoID  = uuid.MustParse("018f0000-0000-7000-8000-0000000000d5") // published, Globex
+	wpCrossCoID   = uuid.MustParse("018f0000-0000-7000-8000-0000000000d5") // published, Globex
 )
 
 // writePathFixtureSQL adds, on top of the 00008 seed:
