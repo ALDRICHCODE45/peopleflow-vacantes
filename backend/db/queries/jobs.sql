@@ -115,3 +115,99 @@ WHERE j.id = $1
   AND j.status = 'published'
   AND j.deleted_at IS NULL
   AND c.status = 'active';
+
+-- name: GetJobForUpdate :one
+-- Write-path read for the gated PATCH /jobs/{id} endpoint (design D3).
+-- NON-visibility-narrowed: the write path MUST see drafts (so a
+-- recruiter can publish them) and closed rows (so the use case can
+-- reject them with the terminal-rule 400). Only the company scope and
+-- `deleted_at IS NULL` apply.
+--
+-- Joined to `companies` for `name` only - the editor view embeds
+-- `{id, name}` (design D7), so one round-trip is enough.
+--
+-- The explicit column list keeps `search_vector` (STORED generated)
+-- and every other internal column OUT of the scan. `j.status` is
+-- included so the use case can run the transition table; `j.updated_at`
+-- so the use case can CAS-compare against `If-Unmodified-Since`.
+SELECT
+    j.id,
+    j.title,
+    j.description,
+    j.location,
+    j.work_mode,
+    j.employment_type,
+    j.seniority,
+    j.salary_min,
+    j.salary_max,
+    j.salary_currency,
+    j.status,
+    j.published_at,
+    j.updated_at,
+    j.company_id,
+    c.name AS company_name
+FROM jobs j
+JOIN companies c ON c.id = j.company_id
+WHERE j.id = $1
+  AND j.company_id = $2
+  AND j.deleted_at IS NULL;
+
+
+-- name: UpdateJob :execrows
+-- Atomic partial update + CAS for PATCH /jobs/{id} (design D3).
+--
+-- Three column-update shapes:
+--   - COALESCE(sqlc.narg(...), col)  for the five closed-set + text
+--     fields: nullable text param, default = column value (untouched).
+--   - CASE WHEN sqlc.arg('set_<field>')::boolean THEN sqlc.narg(...)
+--     ELSE col END  for the three nullable columns (location,
+--     salary_min, salary_max): the boolean flag toggles "write this
+--     column"; the value NULL clears, a real value sets.
+--   - status = COALESCE(sqlc.narg('status')::text, status): nullable
+--     text param, default = current column value.
+--
+-- Side effect on `published_at` (atomic in the same statement so the
+-- `jobs_published_integrity_check` always holds):
+--     published_at = CASE WHEN sqlc.narg('status')::text = 'published'
+--                         THEN COALESCE(published_at, now())
+--                         ELSE published_at END
+--   - draft -> published   : sets published_at = now() (was NULL).
+--   - published -> published: preserves the existing published_at.
+--   - published -> closed   : preserves the existing published_at.
+--   - any other transition : leaves published_at alone.
+--
+-- CAS in the WHERE clause: `updated_at = sqlc.arg('cas_token')` -
+-- this is the atomic race-free guard. Two writers holding the same
+-- CAS: only one UPDATE returns 1 row; the other returns 0 rows. The
+-- adapter maps 0 rows to entities.ErrJobNotFound; the use case
+-- re-interprets it as ErrConcurrencyConflict because it already read
+-- the row via GetForUpdate.
+--
+-- Never touched: search_vector (STORED generated), company_id,
+-- created_at, id, deleted_at.
+UPDATE jobs
+SET
+    title           = COALESCE(sqlc.narg('title')::text,           title),
+    description     = COALESCE(sqlc.narg('description')::text,     description),
+    work_mode       = COALESCE(sqlc.narg('work_mode')::text,       work_mode),
+    employment_type = COALESCE(sqlc.narg('employment_type')::text, employment_type),
+    seniority       = COALESCE(sqlc.narg('seniority')::text,       seniority),
+    salary_currency = COALESCE(sqlc.narg('salary_currency')::text, salary_currency),
+    location        = CASE WHEN sqlc.arg('set_location')::boolean
+                            THEN sqlc.narg('location')::text
+                            ELSE location END,
+    salary_min      = CASE WHEN sqlc.arg('set_salary_min')::boolean
+                            THEN sqlc.narg('salary_min')::int
+                            ELSE salary_min END,
+    salary_max      = CASE WHEN sqlc.arg('set_salary_max')::boolean
+                            THEN sqlc.narg('salary_max')::int
+                            ELSE salary_max END,
+    status          = COALESCE(sqlc.narg('status')::text, status),
+    published_at    = CASE WHEN sqlc.narg('status')::text = 'published'
+                            THEN COALESCE(published_at, now())
+                            ELSE published_at END,
+    updated_at      = now()
+WHERE id         = sqlc.arg('id')::uuid
+  AND company_id = sqlc.arg('company_id')::uuid
+  AND deleted_at IS NULL
+  AND updated_at = sqlc.arg('cas_token')::timestamptz;

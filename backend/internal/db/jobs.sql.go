@@ -81,6 +81,89 @@ func (q *Queries) GetJobByID(ctx context.Context, id uuid.UUID) (GetJobByIDRow, 
 	return i, err
 }
 
+const getJobForUpdate = `-- name: GetJobForUpdate :one
+SELECT
+    j.id,
+    j.title,
+    j.description,
+    j.location,
+    j.work_mode,
+    j.employment_type,
+    j.seniority,
+    j.salary_min,
+    j.salary_max,
+    j.salary_currency,
+    j.status,
+    j.published_at,
+    j.updated_at,
+    j.company_id,
+    c.name AS company_name
+FROM jobs j
+JOIN companies c ON c.id = j.company_id
+WHERE j.id = $1
+  AND j.company_id = $2
+  AND j.deleted_at IS NULL
+`
+
+type GetJobForUpdateParams struct {
+	ID        uuid.UUID `json:"id"`
+	CompanyID uuid.UUID `json:"company_id"`
+}
+
+type GetJobForUpdateRow struct {
+	ID             uuid.UUID          `json:"id"`
+	Title          string             `json:"title"`
+	Description    string             `json:"description"`
+	Location       pgtype.Text        `json:"location"`
+	WorkMode       string             `json:"work_mode"`
+	EmploymentType string             `json:"employment_type"`
+	Seniority      string             `json:"seniority"`
+	SalaryMin      pgtype.Int4        `json:"salary_min"`
+	SalaryMax      pgtype.Int4        `json:"salary_max"`
+	SalaryCurrency string             `json:"salary_currency"`
+	Status         string             `json:"status"`
+	PublishedAt    pgtype.Timestamptz `json:"published_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	CompanyID      uuid.UUID          `json:"company_id"`
+	CompanyName    string             `json:"company_name"`
+}
+
+// Write-path read for the gated PATCH /jobs/{id} endpoint (design D3).
+// NON-visibility-narrowed: the write path MUST see drafts (so a
+// recruiter can publish them) and closed rows (so the use case can
+// reject them with the terminal-rule 400). Only the company scope and
+// `deleted_at IS NULL` apply.
+//
+// Joined to `companies` for `name` only - the editor view embeds
+// `{id, name}` (design D7), so one round-trip is enough.
+//
+// The explicit column list keeps `search_vector` (STORED generated)
+// and every other internal column OUT of the scan. `j.status` is
+// included so the use case can run the transition table; `j.updated_at`
+// so the use case can CAS-compare against `If-Unmodified-Since`.
+func (q *Queries) GetJobForUpdate(ctx context.Context, arg GetJobForUpdateParams) (GetJobForUpdateRow, error) {
+	row := q.db.QueryRow(ctx, getJobForUpdate, arg.ID, arg.CompanyID)
+	var i GetJobForUpdateRow
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Description,
+		&i.Location,
+		&i.WorkMode,
+		&i.EmploymentType,
+		&i.Seniority,
+		&i.SalaryMin,
+		&i.SalaryMax,
+		&i.SalaryCurrency,
+		&i.Status,
+		&i.PublishedAt,
+		&i.UpdatedAt,
+		&i.CompanyID,
+		&i.CompanyName,
+	)
+	return i, err
+}
+
 const searchJobs = `-- name: SearchJobs :many
 SELECT
     j.id,
@@ -251,4 +334,109 @@ func (q *Queries) SearchJobs(ctx context.Context, arg SearchJobsParams) ([]Searc
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateJob = `-- name: UpdateJob :execrows
+UPDATE jobs
+SET
+    title           = COALESCE($1::text,           title),
+    description     = COALESCE($2::text,     description),
+    work_mode       = COALESCE($3::text,       work_mode),
+    employment_type = COALESCE($4::text, employment_type),
+    seniority       = COALESCE($5::text,       seniority),
+    salary_currency = COALESCE($6::text, salary_currency),
+    location        = CASE WHEN $7::boolean
+                            THEN $8::text
+                            ELSE location END,
+    salary_min      = CASE WHEN $9::boolean
+                            THEN $10::int
+                            ELSE salary_min END,
+    salary_max      = CASE WHEN $11::boolean
+                            THEN $12::int
+                            ELSE salary_max END,
+    status          = COALESCE($13::text, status),
+    published_at    = CASE WHEN $13::text = 'published'
+                            THEN COALESCE(published_at, now())
+                            ELSE published_at END,
+    updated_at      = now()
+WHERE id         = $14::uuid
+  AND company_id = $15::uuid
+  AND deleted_at IS NULL
+  AND updated_at = $16::timestamptz
+`
+
+type UpdateJobParams struct {
+	Title          pgtype.Text        `json:"title"`
+	Description    pgtype.Text        `json:"description"`
+	WorkMode       pgtype.Text        `json:"work_mode"`
+	EmploymentType pgtype.Text        `json:"employment_type"`
+	Seniority      pgtype.Text        `json:"seniority"`
+	SalaryCurrency pgtype.Text        `json:"salary_currency"`
+	SetLocation    bool               `json:"set_location"`
+	Location       pgtype.Text        `json:"location"`
+	SetSalaryMin   bool               `json:"set_salary_min"`
+	SalaryMin      pgtype.Int4        `json:"salary_min"`
+	SetSalaryMax   bool               `json:"set_salary_max"`
+	SalaryMax      pgtype.Int4        `json:"salary_max"`
+	Status         pgtype.Text        `json:"status"`
+	ID             uuid.UUID          `json:"id"`
+	CompanyID      uuid.UUID          `json:"company_id"`
+	CasToken       pgtype.Timestamptz `json:"cas_token"`
+}
+
+// Atomic partial update + CAS for PATCH /jobs/{id} (design D3).
+//
+// Three column-update shapes:
+//   - COALESCE(sqlc.narg(...), col)  for the five closed-set + text
+//     fields: nullable text param, default = column value (untouched).
+//   - CASE WHEN sqlc.arg('set_<field>')::boolean THEN sqlc.narg(...)
+//     ELSE col END  for the three nullable columns (location,
+//     salary_min, salary_max): the boolean flag toggles "write this
+//     column"; the value NULL clears, a real value sets.
+//   - status = COALESCE(sqlc.narg('status')::text, status): nullable
+//     text param, default = current column value.
+//
+// Side effect on `published_at` (atomic in the same statement so the
+// `jobs_published_integrity_check` always holds):
+//
+//	  published_at = CASE WHEN sqlc.narg('status')::text = 'published'
+//	                      THEN COALESCE(published_at, now())
+//	                      ELSE published_at END
+//	- draft -> published   : sets published_at = now() (was NULL).
+//	- published -> published: preserves the existing published_at.
+//	- published -> closed   : preserves the existing published_at.
+//	- any other transition : leaves published_at alone.
+//
+// CAS in the WHERE clause: `updated_at = sqlc.arg('cas_token')` -
+// this is the atomic race-free guard. Two writers holding the same
+// CAS: only one UPDATE returns 1 row; the other returns 0 rows. The
+// adapter maps 0 rows to entities.ErrJobNotFound; the use case
+// re-interprets it as ErrConcurrencyConflict because it already read
+// the row via GetForUpdate.
+//
+// Never touched: search_vector (STORED generated), company_id,
+// created_at, id, deleted_at.
+func (q *Queries) UpdateJob(ctx context.Context, arg UpdateJobParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateJob,
+		arg.Title,
+		arg.Description,
+		arg.WorkMode,
+		arg.EmploymentType,
+		arg.Seniority,
+		arg.SalaryCurrency,
+		arg.SetLocation,
+		arg.Location,
+		arg.SetSalaryMin,
+		arg.SalaryMin,
+		arg.SetSalaryMax,
+		arg.SalaryMax,
+		arg.Status,
+		arg.ID,
+		arg.CompanyID,
+		arg.CasToken,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
