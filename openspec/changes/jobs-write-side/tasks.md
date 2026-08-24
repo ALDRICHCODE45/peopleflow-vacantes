@@ -158,13 +158,13 @@ Extend `backend/internal/features/jobs/infrastructure/http/handler_test.go` (or 
 
 `backend/cmd/api/main_test.go` (MOD): (a) update `TestRequireAuth_MountedOnMeRoutes` so the chi-mutation identifier check also recognizes the hoisted variables `requireAuth`/`requireRecruiter` (the D8 hoist moves the constructor call out of the route-mutation argument list; the guard must accept the variable form or it will fail on a correct implementation); (b) add `TestJobsWriteRoute_MountedBehindGates` asserting an AST walk finds a chi `Patch("/jobs/{id}")` mutation whose `With(...)` argument list references BOTH `requireAuth` and `requireRecruiter`, while `TestJobsMount_PublicReadRoutes` (public `Mount("/jobs", ...)`) still passes unchanged.
 
-- Verify: `cd backend/cmd/api && go test .` → **RED** (new guard fails: no gated PATCH route in main.go yet). <!-- sdd-owner: implementation -->
+- Verify: `cd backend/cmd/api && go test .` → **RED** (new guard fails: no gated PATCH route in main.go yet). [x] <!-- sdd-owner: implementation -->
 
 ### 6.2 GREEN — rewire `main.go` per D8
 
 `backend/cmd/api/main.go` (MOD): hoist `requireAuth := identityhttp.RequireAuth(verifier)` and `requireRecruiter := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, valueobjects.RecruiterRole)` to `run()` scope (after `identityUserRepo`/`memberRepo` are wired; keep `requireOwner` local to `/me`); keep `r.Mount("/jobs", jobHandler.Routes())` public and unchanged; add `jobHandlers := jobHandler.JobHandlers()` + `r.With(requireAuth, requireRecruiter).Patch("/jobs/{id}", jobHandlers.UpdateJob)`; inside the `/me` block reuse hoisted `requireAuth` in `r.Use(requireAuth)` and hoisted `requireRecruiter` in the members gates, dropping the inline `requireRecruiter := …` line. The public mount MUST NOT gain the write route (chi matches PATCH against the gated `r.With(...).Patch(...)` only).
 
-- Verify: `cd backend/cmd/api && go test .` green (both AST guards); `cd backend && go build ./...`; `go vet ./...`. Rollback: revert 6.1+6.2 together; reverting only `main.go` removes the PATCH route while reads keep working. <!-- sdd-owner: implementation -->
+- Verify: `cd backend/cmd/api && go test .` green (both AST guards); `cd backend && go build ./...`; `go vet ./...`. Rollback: revert 6.1+6.2 together; reverting only `main.go` removes the PATCH route while reads keep working. [x] <!-- sdd-owner: implementation -->
 
 ## Phase 7 — Integration & final verification
 
