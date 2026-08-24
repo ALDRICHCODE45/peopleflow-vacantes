@@ -21,6 +21,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -86,21 +87,67 @@ func (r *JobRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.Jo
 	return &j, nil
 }
 
-// GetForUpdate fetches a single job for the gated write path. The real
-// implementation is wired in Phase 3.2 (it depends on the sqlc-generated
-// types from Phase 2). Until then, this stub returns ErrJobNotFound so
-// the port compiles and any accidental call site fails loud (no row
-// should ever reach the write path before Phase 2/3 land).
+// GetForUpdate fetches a single job for the gated write path. The
+// visibility rule is INTENTIONALLY OMITTED — the write path must see
+// drafts (so a recruiter can publish them) and closed rows (so the
+// use case can reject them with the terminal-rule 400). Only the
+// company scope and `deleted_at IS NULL` apply, exactly as the D3 SQL
+// pins.
+//
+// 0 rows (non-existent, cross-company, soft-deleted) all surface as
+// entities.ErrJobNotFound — the use case treats them indistinguishably
+// per the same-company invariant (design D4, spec scenarios
+// "cross-company id returns 404" / "soft-deleted id returns 404" /
+// "non-existent id returns 404").
+//
+// The returned JobForUpdate is rebuilt by `toJobForUpdateEntity` from
+// the sqlc row. VOs are parsed via Parse* so an unrecognized DB value
+// fails loud (defense-in-depth — the DB CHECK should make this
+// unreachable). UpdatedAt comes back as a non-pointer time.Time
+// because the row's `updated_at` is NOT NULL.
 func (r *JobRepository) GetForUpdate(ctx context.Context, id, companyID uuid.UUID) (*entities.JobForUpdate, error) {
-	return nil, entities.ErrJobNotFound
+	row, err := r.queries.GetJobForUpdate(ctx, db.GetJobForUpdateParams{
+		ID:        id,
+		CompanyID: companyID,
+	})
+	if err != nil {
+		return nil, mapGetError(err)
+	}
+	j, err := toJobForUpdateEntity(row)
+	if err != nil {
+		return nil, err
+	}
+	return &j, nil
 }
 
-// Update applies the patch atomically. The real implementation is
-// wired in Phase 3.2. Until then, this stub returns ErrJobNotFound so
-// the port compiles; Phase 3.2 replaces the body with the
-// sqlc-call + mapUpdateError pipeline.
+// Update applies the patch atomically, guarded by (id, company_id,
+// deleted_at IS NULL) and CAS `updated_at = casUpdatedAt`. The D3 SQL
+// sets `updated_at = now()` on a successful update, so the
+// authoritative post-write value is the next GetForUpdate's result
+// (the use case re-reads to obtain it — design D5 step 8).
+//
+// Returns:
+//
+//   - nil                  on success (1 row affected)
+//   - entities.ErrJobNotFound  on 0 rows (CAS lost OR row gone)
+//   - entities.ErrInvalidStatusTransition on SQLSTATE 23514 (CHECK
+//     violation — defense-in-depth; unreachable via the designed flow)
+//   - other error          propagated untouched (HTTP 500)
+//
+// The adapter is intentionally dumb on the 0-rows case: it does NOT
+// distinguish "CAS lost" from "row deleted between read and write".
+// The use case has already read the row, so 0 rows can only mean the
+// row changed; it re-interprets ErrJobNotFound as ErrConcurrencyConflict
+// after a re-read (design D4).
 func (r *JobRepository) Update(ctx context.Context, id, companyID uuid.UUID, patch repositories.UpdatePatch, casUpdatedAt time.Time) error {
-	return entities.ErrJobNotFound
+	rows, err := r.queries.UpdateJob(ctx, buildUpdateJobParams(id, companyID, patch, casUpdatedAt))
+	if err != nil {
+		return mapUpdateError(err)
+	}
+	if rows == 0 {
+		return entities.ErrJobNotFound
+	}
+	return nil
 }
 
 // buildSearchParams translates the domain SearchParams into the sqlc
@@ -310,6 +357,202 @@ func mapGetError(err error) error {
 	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return entities.ErrJobNotFound
+	}
+	return err
+}
+
+// --- write-path helpers (Phase 3.2, design D4) ----------------------------
+
+// buildUpdateJobParams translates the domain UpdatePatch into the sqlc
+// `UpdateJobParams` struct. Three field shapes per the D3 SQL:
+//
+//   - Pointer-typed field (Title, Description, WorkMode, EmploymentType,
+//     Seniority, SalaryCurrency, Status): nil pointer → invalid pgtype
+//     (COALESCE branch degenerates to column value); non-nil → valid
+//     pgtype carrying the canonical String() form.
+//   - Optional[T] for the nullable trio: Set=false → flag false AND
+//     value invalid (untouched); Set=true,Valid=false → flag true AND
+//     value invalid (clear to NULL); Set=true,Valid=true → flag true
+//     AND value valid (set to value).
+//   - Identity columns (ID, CompanyID, CasToken) are always populated.
+func buildUpdateJobParams(id, companyID uuid.UUID, patch repositories.UpdatePatch, casUpdatedAt time.Time) db.UpdateJobParams {
+	return db.UpdateJobParams{
+		Title:          strPtrToText(patch.Title),
+		Description:    strPtrToText(patch.Description),
+		WorkMode:       workModeToText(patch.WorkMode),
+		EmploymentType: employmentTypeToText(patch.EmploymentType),
+		Seniority:      seniorityToText(patch.Seniority),
+		SalaryCurrency: salaryCurrencyToText(patch.SalaryCurrency),
+
+		SetLocation:  patch.Location.Set,
+		Location:     optionalStringToText(patch.Location),
+		SetSalaryMin: patch.SalaryMin.Set,
+		SalaryMin:    optionalIntToInt4(patch.SalaryMin),
+		SetSalaryMax: patch.SalaryMax.Set,
+		SalaryMax:    optionalIntToInt4(patch.SalaryMax),
+
+		Status:    jobStatusToText(patch.Status),
+		ID:        id,
+		CompanyID: companyID,
+		CasToken:  pgtype.Timestamptz{Time: casUpdatedAt, Valid: true},
+	}
+}
+
+// strPtrToText folds `*string` into a `pgtype.Text`. Valid=false when
+// nil so the SQL `COALESCE(NULL, col)` degenerates to the column.
+// (Reused by the write-path buildUpdateJobParams; the read path's
+// buildSearchParams uses it the same way.)
+
+// workModeToText is the VO-typed wrapper around strPtrToText: a
+// non-nil *valueobjects.WorkMode canonicalizes via .String() so the
+// adapter never serializes an iota int to SQL.
+func workModeToText(w *valueobjects.WorkMode) pgtype.Text {
+	if w == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: w.String(), Valid: true}
+}
+
+func employmentTypeToText(e *valueobjects.EmploymentType) pgtype.Text {
+	if e == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: e.String(), Valid: true}
+}
+
+func seniorityToText(s *valueobjects.Seniority) pgtype.Text {
+	if s == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: s.String(), Valid: true}
+}
+
+func salaryCurrencyToText(c *valueobjects.SalaryCurrency) pgtype.Text {
+	if c == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: c.String(), Valid: true}
+}
+
+func jobStatusToText(s *valueobjects.JobStatus) pgtype.Text {
+	if s == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: s.String(), Valid: true}
+}
+
+// optionalStringToText renders the tri-state Optional[string] into a
+// pgtype.Text. The Set flag drives the SQL CASE branch; the Valid
+// flag drives the actual column value.
+func optionalStringToText(o valueobjects.Optional[string]) pgtype.Text {
+	if !o.Set {
+		return pgtype.Text{}
+	}
+	if !o.Valid {
+		return pgtype.Text{Valid: false}
+	}
+	return pgtype.Text{String: o.Value, Valid: true}
+}
+
+func optionalIntToInt4(o valueobjects.Optional[int]) pgtype.Int4 {
+	if !o.Set {
+		return pgtype.Int4{}
+	}
+	if !o.Valid {
+		return pgtype.Int4{Valid: false}
+	}
+	return pgtype.Int4{Int32: int32(o.Value), Valid: true}
+}
+
+// toJobForUpdateEntity rebuilds a domain JobForUpdate from the sqlc
+// row. VOs are parsed through the closed-set codecs so an
+// unrecognized DB value (which would only happen if someone bypassed
+// the CHECK constraint) FAILS LOUD rather than silently zeroing — a
+// corrupted row never reaches the wire.
+//
+// Optional DB columns (Location, SalaryMin, SalaryMax, PublishedAt)
+// translate to pointers through the pgtype `Valid` flag. `UpdatedAt`
+// is the NOT-NULL column at the bottom of the row; we defensively
+// return the zero time on !Valid but this is unreachable for the
+// `jobs` table.
+func toJobForUpdateEntity(row db.GetJobForUpdateRow) (entities.JobForUpdate, error) {
+	wm, err := valueobjects.ParseWorkMode(row.WorkMode)
+	if err != nil {
+		return entities.JobForUpdate{}, err
+	}
+	et, err := valueobjects.ParseEmploymentType(row.EmploymentType)
+	if err != nil {
+		return entities.JobForUpdate{}, err
+	}
+	sn, err := valueobjects.ParseSeniority(row.Seniority)
+	if err != nil {
+		return entities.JobForUpdate{}, err
+	}
+	st, err := valueobjects.ParseJobStatus(row.Status)
+	if err != nil {
+		return entities.JobForUpdate{}, err
+	}
+	cur, err := valueobjects.ParseSalaryCurrency(row.SalaryCurrency)
+	if err != nil {
+		return entities.JobForUpdate{}, err
+	}
+
+	return entities.JobForUpdate{
+		ID:             row.ID,
+		Title:          row.Title,
+		Description:    row.Description,
+		WorkMode:       wm,
+		EmploymentType: et,
+		Seniority:      sn,
+		JobStatus:      st,
+		Location:       pgTextToStringPtr(row.Location),
+		SalaryMin:      pgInt4ToIntPtr(row.SalaryMin),
+		SalaryMax:      pgInt4ToIntPtr(row.SalaryMax),
+		SalaryCurrency: cur,
+		PublishedAt:    pgTimestamptzToTimePtr(row.PublishedAt),
+		UpdatedAt:      pgTimestamptzToTime(row.UpdatedAt),
+		Company: entities.CompanyRef{
+			ID:   row.CompanyID,
+			Name: row.CompanyName,
+		},
+	}, nil
+}
+
+// pgTimestamptzToTime extracts a non-pointer time.Time from a
+// pgtype.Timestamptz, returning the zero value on !Valid. Mirrors the
+// companies adapter; defined here too to avoid a cross-feature import.
+func pgTimestamptzToTime(t pgtype.Timestamptz) time.Time {
+	if !t.Valid {
+		return time.Time{}
+	}
+	return t.Time
+}
+
+// mapUpdateError translates Postgres errors surfaced by UpdateJob
+// into domain sentinels. The visibility/scope rule is in the SQL
+// `WHERE`, so the only mapping the adapter applies is SQLSTATE 23514
+// (check_violation) → ErrInvalidStatusTransition as defense-in-depth.
+//
+// Mapping contract:
+//
+//   - nil                                → nil (pass-through)
+//   - 23514 (check_violation on
+//     jobs_published_integrity_check)    → entities.ErrInvalidStatusTransition
+//   - Any other PgError (unknown code)   → pass-through (HTTP 500)
+//   - Any non-pg error (connection, ctx) → pass-through (HTTP 500)
+//
+// 23503 (FK violation) is not applicable — UpdateJob does not insert
+// or reassign `company_id`. The adapter is intentionally narrow.
+func mapUpdateError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23514":
+			return entities.ErrInvalidStatusTransition
+		}
 	}
 	return err
 }
