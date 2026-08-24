@@ -83,7 +83,7 @@ Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql
 - `toJobForUpdateEntity` (D4): full row → all fields mapped (VOs parsed, `pgtype` optionals → pointers, `UpdatedAt`, `Company{ID,Name}`); invalid enum value fails loud with the VO sentinel (mirrors existing `toEntity` tests).
 - `mapUpdateError` (D4): nil → nil; `*pgconn.PgError` code `23514` → `ErrInvalidStatusTransition`; unknown PgError → passthrough; non-pg error → passthrough.
 
-- Verify: `cd backend && go test ./internal/features/jobs/infrastructure/postgres/ -run 'BuildUpdateJobParams|ToJobForUpdateEntity|MapUpdateError'` → **RED** (compile error: helpers missing). <!-- sdd-owner: implementation -->
+- Verify: `cd backend && go test ./internal/features/jobs/infrastructure/postgres/ -run 'BuildUpdateJobParams|ToJobForUpdateEntity|MapUpdateError'` → **RED** (compile error: helpers missing). [x] <!-- sdd-owner: implementation -->
 
 ### 3.2 GREEN — implement the adapter write methods
 
@@ -92,7 +92,7 @@ Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql
 - `Update(ctx, id, companyID, patch, casUpdatedAt)`: `queries.UpdateJob(ctx, buildUpdateJobParams(...))`; SQL error → `mapUpdateError`; `rows == 0` → `entities.ErrJobNotFound` (the adapter is dumb; the use case re-interprets as concurrency conflict — D4).
 - `mapUpdateError`, `toJobForUpdateEntity`, `buildUpdateJobParams` as pinned. Reuse the existing `pgTextToStringPtr`/`pgInt4ToIntPtr`/`pgTimestamptzToTimePtr` helpers — do not duplicate.
 
-- Verify: 3.1 tests pass; `cd backend && go build ./...`. Rollback: revert 3.1+3.2 together. <!-- sdd-owner: implementation -->
+- Verify: 3.1 tests pass; `cd backend && go build ./...`. Rollback: revert 3.1+3.2 together. [x] <!-- sdd-owner: implementation -->
 
 ## Phase 4 — Application: DTOs + `EditJob` use case (RED → GREEN)
 
