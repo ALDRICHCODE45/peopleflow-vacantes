@@ -20,7 +20,6 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -697,10 +696,6 @@ func identityRequireAuth(verifier identitysecurity.Verifier) func(http.Handler) 
 		})
 	}
 }
-
-// ensureBufferBytes keeps the bytes import alive for any future test
-// that needs to set a body directly without strings.NewReader.
-var _ = bytes.NewReader
 
 // makeJobForUpdate is a tiny helper to construct a JobForUpdate in
 // the stub queue. Defaults to a Draft row with a known updated_at.

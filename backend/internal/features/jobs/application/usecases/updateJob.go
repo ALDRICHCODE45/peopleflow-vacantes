@@ -85,11 +85,9 @@ func (s *JobService) EditJob(
 
 	// 3. VO parse. Any unknown value surfaces the matching VO sentinel.
 	patch := repositories.UpdatePatch{
-		Title:       nilIfEmpty(trimmed(in.Title)),
-		Description: nilIfEmpty(trimmed(in.Description)),
-		Location:    in.Location,
-		SalaryMin:   in.SalaryMin,
-		SalaryMax:   in.SalaryMax,
+		Location:  in.Location,
+		SalaryMin: in.SalaryMin,
+		SalaryMax: in.SalaryMax,
 	}
 	if in.Title != nil {
 		t := strings.TrimSpace(*in.Title)
@@ -173,9 +171,6 @@ func (s *JobService) EditJob(
 		}
 	}
 
-	// 6. (patch already built above via the VO parsing step.)
-	_ = patch
-
 	// 7. Update — adapter returns ErrJobNotFound on 0 rows (CAS lost
 	// or row gone between read and write). On 0 rows the use case
 	// re-reads (step 8 acts as both the conflict and the success path
@@ -236,33 +231,4 @@ func toEditorView(j *entities.JobForUpdate) *dtos.JobEditorViewDto {
 			Name: j.Company.Name,
 		},
 	}
-}
-
-// nilIfEmpty is a tiny helper kept here (instead of inlined into the
-// patch construction above) so the code reads top-to-bottom without
-// a one-line conditional per field. Currently unused (we trim and
-// re-assign in the Title/Description branches directly); reserved
-// for future expansion if a field needs a "trim-or-drop" rule.
-func nilIfEmpty[T ~string](s *T) *T {
-	if s == nil {
-		return nil
-	}
-	t := strings.TrimSpace(string(*s))
-	if t == "" {
-		return nil
-	}
-	out := T(t)
-	return &out
-}
-
-// trimmed returns the trimmed copy of s when s is non-nil, otherwise
-// nil. Used by future fields that need a "trim-or-untouched" rule
-// (today title/description have stricter validation; location/salary
-// preserve their values verbatim per design §4.3).
-func trimmed(s *string) *string {
-	if s == nil {
-		return nil
-	}
-	t := strings.TrimSpace(*s)
-	return &t
 }

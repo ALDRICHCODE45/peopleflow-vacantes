@@ -61,19 +61,3 @@ func (o *Optional[T]) UnmarshalJSON(data []byte) error {
 	o.Value = v
 	return nil
 }
-
-// MarshalJSON renders the tri-state back to JSON so the DTO can be
-// round-tripped through encoding. We emit `null` for the absent case
-// only when the caller asks for it explicitly via the second receiver
-// form; by default the zero value is omitted by encoding/json when the
-// field tag has `omitempty`. We provide the symmetric round-trip for
-// completeness even though the PATCH input DTO does not need it.
-func (o Optional[T]) MarshalJSON() ([]byte, error) {
-	if !o.Set {
-		return []byte("null"), nil
-	}
-	if !o.Valid {
-		return []byte("null"), nil
-	}
-	return json.Marshal(o.Value)
-}
