@@ -140,7 +140,7 @@ Extend `backend/internal/features/jobs/infrastructure/http/handler_test.go` (or 
 - Route-boundary scenarios (D6/D8 security): mount `identityhttp.RequireAuth(failVerifier)` (tiny local `security.Verifier` returning an error) ahead of the PATCH handler → request without `Authorization` → **401**; PATCH sent through the PUBLIC `h.Routes()` mount under `/jobs` → **not matched** (chi 404), proving the public mount never serves the write route.
 - `classifyError` extension: each new sentinel maps per the D6 §6.2 table (404 job not found; 400 invalid status transition; 400 field-naming validation messages; 500 default; the 409 view path is special-cased before `classifyAndWriteError`).
 
-- Verify: `cd backend && go test ./internal/features/jobs/infrastructure/http/ -run 'UpdateJob|Classify'` → **RED** (compile error: `updateJob`/`JobHandlers`/`parseIfUnmodifiedSince` missing). <!-- sdd-owner: implementation -->
+- Verify: `cd backend && go test ./internal/features/jobs/infrastructure/http/ -run 'UpdateJob|Classify'` → **RED** (compile error: `updateJob`/`JobHandlers`/`parseIfUnmodifiedSince` missing). [x] <!-- sdd-owner: implementation -->
 
 ### 5.2 GREEN — implement the handler surface
 
@@ -150,7 +150,7 @@ Extend `backend/internal/features/jobs/infrastructure/http/handler_test.go` (or 
 - Helpers: `parseIfUnmodifiedSince` (RFC 3339 via `time.Parse`; absent/malformed → `time.Time{}`), `requireCompanyContext` (mirrors the companies helper, fail-closed 500).
 - Extend `classifyError` with the new branches per D6 §6.2 (keep the flat `errors.Is` dispatch).
 
-- Verify: 5.1 tests pass; `cd backend && go test ./internal/features/jobs/...`. Rollback: revert 5.1+5.2 together. <!-- sdd-owner: implementation -->
+- Verify: 5.1 tests pass; `cd backend && go test ./internal/features/jobs/...`. Rollback: revert 5.1+5.2 together. [x] <!-- sdd-owner: implementation -->
 
 ## Phase 6 — Composition root: `main.go` + AST guards (RED → GREEN)
 
