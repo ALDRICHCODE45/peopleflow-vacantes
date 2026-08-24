@@ -62,6 +62,20 @@ func (s *stubJobRepository) GetByID(_ context.Context, id uuid.UUID) (*entities.
 	return nil, entities.ErrJobNotFound
 }
 
+// GetForUpdate is a port-method stub (Phase 1.4 stub repair). The
+// default ErrJobNotFound return keeps existing search/get tests green;
+// Phase 4's EditJob tests extend the stub with configurable surfaces.
+func (s *stubJobRepository) GetForUpdate(_ context.Context, _, _ uuid.UUID) (*entities.JobForUpdate, error) {
+	return nil, entities.ErrJobNotFound
+}
+
+// Update is a port-method stub (Phase 1.4 stub repair). Default nil
+// keeps the package compilable; Phase 4's EditJob tests assert on a
+// captured Update call.
+func (s *stubJobRepository) Update(_ context.Context, _, _ uuid.UUID, _ repositories.UpdatePatch, _ time.Time) error {
+	return nil
+}
+
 // Compile-time guard: the stub satisfies the same surface the
 // postgres adapter will (so wiring changes later cannot break us).
 var _ repositories.JobRepository = (*stubJobRepository)(nil)

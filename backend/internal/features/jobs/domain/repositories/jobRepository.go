@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/entities"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
 	"github.com/google/uuid"
 )
 
@@ -61,13 +62,74 @@ type SearchParams struct {
 	Limit int
 }
 
-// JobRepository is the persistence port for the public-read jobs
-// slice. Search returns visible jobs (status='published',
-// deleted_at IS NULL, owning company.status='active') sorted by
-// (rank DESC, published_at DESC, id DESC). GetByID returns the same
-// visibility-narrowed view by id. Errors.Is(entities.ErrJobNotFound)
-// signals "no such visible job" so the HTTP layer can map to 404.
+// UpdatePatch is the column patch the use case builds and hands to the
+// repository's Update method. Three presence states are pinned per field
+// so the SQL can express them without a separate flags map:
+//
+//   - Pointer-typed field (Title, Description, WorkMode, EmploymentType,
+//     Seniority, SalaryCurrency, Status): pointer-nil means "leave the
+//     column untouched". Pointing at a value means "set this value".
+//     Status is a *valueobjects.JobStatus so a parsed value is always
+//     canonical.
+//   - Optional[T] field (Location, SalaryMin, SalaryMax): the tri-state
+//     codec (design D2) distinguishes absent (Set=false, leave column
+//     untouched) from explicit null (Set=true,Valid=false, clear to SQL
+//     NULL) from a real value (Set=true,Valid=true,Value).
+//
+// The use case is the single producer of this struct; the adapter is
+// the single consumer. No other package touches it.
+type UpdatePatch struct {
+	Title          *string
+	Description    *string
+	WorkMode       *valueobjects.WorkMode
+	EmploymentType *valueobjects.EmploymentType
+	Seniority      *valueobjects.Seniority
+	SalaryCurrency *valueobjects.SalaryCurrency
+	Location       valueobjects.Optional[string]
+	SalaryMin      valueobjects.Optional[int]
+	SalaryMax      valueobjects.Optional[int]
+	Status         *valueobjects.JobStatus
+}
+
+// JobRepository is the persistence port for the jobs slice. It exposes
+// the read surface (visibility-narrowed) and the write surface
+// (company-scoped, non-visibility-narrowed, gated by design D1-D10).
+//
+// Read methods:
+//
+//	Search    — public listing (status='published', deleted_at IS NULL,
+//	            owning company.status='active'), keyset-paginated.
+//	GetByID   — public detail by id (same visibility rule).
+//
+// Write methods:
+//
+//	GetForUpdate — non-visibility-narrowed, company-scoped read used
+//	               ONLY by the gated write path. 0 rows (non-existent,
+//	               cross-company, soft-deleted) → entities.ErrJobNotFound.
+//	Update       — applies the patch atomically, guarded by
+//	               (id, company_id, deleted_at IS NULL) and a CAS
+//	               `updated_at = casUpdatedAt` in the WHERE clause.
+//	               0 rows → entities.ErrJobNotFound (the adapter is
+//	               dumb); the use case re-interprets that as
+//	               ErrConcurrencyConflict because it already read the
+//	               row via GetForUpdate (design D4).
+//
+// Errors.Is(entities.ErrJobNotFound) is the single "no such row" signal
+// every method emits, so the HTTP layer can map to 404 with a single
+// branch.
 type JobRepository interface {
 	Search(ctx context.Context, p SearchParams) ([]entities.Job, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.Job, error)
+
+	// GetForUpdate is the non-visibility-narrowed, company-scoped read
+	// used ONLY by the gated write path (design D1). 0 rows (non-existent,
+	// cross-company, soft-deleted) → entities.ErrJobNotFound.
+	GetForUpdate(ctx context.Context, id, companyID uuid.UUID) (*entities.JobForUpdate, error)
+
+	// Update applies the patch atomically, guarded by (id, company_id,
+	// deleted_at IS NULL) and CAS `updated_at = casUpdatedAt`. 0 rows
+	// → entities.ErrJobNotFound (the adapter is dumb); the use case
+	// re-interprets that as ErrConcurrencyConflict because it already
+	// read the row via GetForUpdate.
+	Update(ctx context.Context, id, companyID uuid.UUID, patch UpdatePatch, casUpdatedAt time.Time) error
 }

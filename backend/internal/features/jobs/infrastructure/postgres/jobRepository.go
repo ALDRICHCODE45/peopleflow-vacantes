@@ -86,6 +86,23 @@ func (r *JobRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.Jo
 	return &j, nil
 }
 
+// GetForUpdate fetches a single job for the gated write path. The real
+// implementation is wired in Phase 3.2 (it depends on the sqlc-generated
+// types from Phase 2). Until then, this stub returns ErrJobNotFound so
+// the port compiles and any accidental call site fails loud (no row
+// should ever reach the write path before Phase 2/3 land).
+func (r *JobRepository) GetForUpdate(ctx context.Context, id, companyID uuid.UUID) (*entities.JobForUpdate, error) {
+	return nil, entities.ErrJobNotFound
+}
+
+// Update applies the patch atomically. The real implementation is
+// wired in Phase 3.2. Until then, this stub returns ErrJobNotFound so
+// the port compiles; Phase 3.2 replaces the body with the
+// sqlc-call + mapUpdateError pipeline.
+func (r *JobRepository) Update(ctx context.Context, id, companyID uuid.UUID, patch repositories.UpdatePatch, casUpdatedAt time.Time) error {
+	return entities.ErrJobNotFound
+}
+
 // buildSearchParams translates the domain SearchParams into the sqlc
 // `SearchJobsParams` struct. Every optional input collapses to an
 // invalid pgtype (SQL NULL) when the caller passed nil/empty so the

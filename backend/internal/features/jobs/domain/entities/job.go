@@ -19,7 +19,54 @@ import (
 // ErrJobNotFound is returned by the persistence port when no visible
 // row exists for the requested id. The HTTP layer maps this to 404
 // per the spec scenario "GET /jobs/{id} hides non-visible jobs".
+//
+// For the write path (GetForUpdate / Update), ErrJobNotFound surfaces
+// non-existent, cross-company, and soft-deleted rows indistinguishably
+// per the same-company invariant (D4). The 0-rows case of Update is
+// re-interpreted by the use case as ErrConcurrencyConflict, NOT as
+// ErrJobNotFound.
 var ErrJobNotFound = errors.New("job not found")
+
+// ErrConcurrencyConflict is returned by the EditJob use case when the
+// `If-Unmodified-Since` header does not match the row's current
+// `updated_at`, OR when the in-flight Update returned 0 rows because
+// the row changed between read and write (CAS mismatch in SQL).
+//
+// The HTTP layer special-cases this sentinel BEFORE classifyError so the
+// 409 body is the editor view of the latest row (not a generic 409
+// error envelope). The body MUST use the same shape as the 200 response
+// so the client can re-read without a second round-trip.
+var ErrConcurrencyConflict = errors.New("concurrency conflict")
+
+// ErrInvalidStatusTransition is returned by the EditJob use case when
+// the requested `status` is not reachable from the current `status`
+// (the D5 transition table) OR when the row is already closed (the
+// closed-terminal rule: a closed row rejects ANY body, even with no
+// status field).
+//
+// The HTTP layer maps this sentinel to 400 with the message
+// "invalid status transition". The DB CHECK (jobs_published_integrity)
+// ALSO produces this sentinel via SQLSTATE 23514 in `mapUpdateError`
+// as defense-in-depth: the use case blocks illegal transitions before
+// the SQL runs, so this branch is unreachable via the designed flow.
+var ErrInvalidStatusTransition = errors.New("invalid status transition")
+
+// ErrEmptyTitle is returned by EditJob when the body's `title` (when
+// present) is empty after trim. The HTTP layer maps to 400 with the
+// message "title must not be empty". The DB does NOT enforce this rule
+// (no schema hardening in this change); the use case is the single
+// validation gate.
+var ErrEmptyTitle = errors.New("title must not be empty")
+
+// ErrEmptyDescription mirrors ErrEmptyTitle for the `description` field.
+var ErrEmptyDescription = errors.New("description must not be empty")
+
+// ErrInvalidSalaryRange is returned by EditJob when BOTH `salary_min`
+// and `salary_max` are present and non-null and `salary_min > salary_max`.
+// The HTTP layer maps to 400 with the message
+// "salary_min must be less than or equal to salary_max". The DB does
+// NOT enforce this rule; the use case is the single validation gate.
+var ErrInvalidSalaryRange = errors.New("salary_min must be less than or equal to salary_max")
 
 // CompanyRef is the embedded company identity carried in every job
 // response: {id, name}. The adapter joins `companies` in the same

@@ -36,6 +36,20 @@ func (s *stubJobRepo) GetByID(_ context.Context, id uuid.UUID) (*entities.Job, e
 	return s.getResult, s.getErr
 }
 
+// GetForUpdate is a port-method stub (Phase 1.4 stub repair). Returns
+// ErrJobNotFound so the package compiles; Phase 4's EditJob tests
+// extend this stub via dedicated write-side test fixtures.
+func (s *stubJobRepo) GetForUpdate(_ context.Context, _, _ uuid.UUID) (*entities.JobForUpdate, error) {
+	return nil, entities.ErrJobNotFound
+}
+
+// Update is a port-method stub (Phase 1.4 stub repair). Default nil
+// keeps the package compilable; Phase 4's EditJob tests assert on a
+// captured Update call.
+func (s *stubJobRepo) Update(_ context.Context, _, _ uuid.UUID, _ UpdatePatch, _ time.Time) error {
+	return nil
+}
+
 // TestJobRepository_StubSatisfiesPort is the compile-time + runtime
 // assertion that the JobRepository port is well-formed: the stub
 // implements both methods without compile errors and is assignable to
