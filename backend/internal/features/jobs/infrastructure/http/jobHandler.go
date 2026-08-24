@@ -1,29 +1,37 @@
 // Package http exposes the jobs bounded-context HTTP handlers.
 //
-// The jobs slice is read-only: the only public endpoints are
-// `GET /jobs` (search + filters + keyset pagination) and
-// `GET /jobs/{id}` (detail). Both routes are PUBLIC — no auth
-// middleware is layered in here; an `Authorization` header is ignored
-// per the spec scenario "GET /jobs is public".
+// The jobs slice exposes three endpoints:
 //
-// Wire format matches the design envelope exactly: the list endpoint
-// returns `{items: [...], next_cursor: string|null}` and the detail
-// endpoint returns the same item shape (Decision 4 + 5). Invalid or
-// unknown query params are silently ignored (spec scenarios "unknown
-// query param is ignored" / "invalid filter value is ignored"); the
-// underlying `websearch_to_tsquery` is a safe parser so a malformed
-// `q` is also tolerated (spec scenario "malformed q does not 500").
+//	GET  /jobs       — public search + filters + keyset pagination
+//	GET  /jobs/{id}  — public detail
+//	PATCH /jobs/{id} — gated write path (RequireAuth + RequireCompanyRole)
+//
+// The first two are mounted via the public `Routes()` accessor; the
+// third is mounted on a per-method `r.With(...).Patch(...)` line in
+// the composition root, mirroring the companies' `MemberHandlers()`
+// split-mounting pattern (see
+// backend/internal/features/companies/infrastructure/http/memberHandler.go).
+//
+// Wire format matches the design envelope exactly: list returns
+// `{items: [...], next_cursor: string|null}`, detail returns the same
+// item shape (Decision 4 + 5), and the editor view
+// (JobEditorViewDto) carries `status` + `updated_at` plus the
+// embedded `{company: {id, name}}`.
 package http
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/entities"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
+	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -42,15 +50,49 @@ func NewJobHandler(service *usecases.JobService) *JobHandler {
 	return &JobHandler{service: service}
 }
 
-// Routes returns the feature-scoped router, mounted under `/jobs`.
-// Both routes are public — no `RequireAuth` middleware is applied;
-// the spec scenario "GET /jobs is public" forbids auth here.
+// Routes returns the feature-scoped PUBLIC router, mounted under
+// `/jobs`. Both routes are public — no `RequireAuth` middleware is
+// applied; the spec scenario "GET / jobs is public" forbids auth here.
+//
+// The gated PATCH route lives OUTSIDE this mount: composition root
+// uses `r.With(requireAuth, requireRecruiter).Patch("/jobs/{id}",
+// jobHandlers.UpdateJob)` after pulling the handler out via
+// `JobHandlers()`. The split is structural — a future refactor that
+// adds the PATCH to `Routes()` would silently expose the write path
+// to anonymous requests, which the route-boundary tests guard against.
 func (h *JobHandler) Routes() chi.Router {
 	r := chi.NewRouter()
 	r.Get("/", h.listJobs)
 	r.Get("/{id}", h.getJob)
 	return r
 }
+
+// JobHandlers exposes each endpoint as a public http.HandlerFunc so
+// the composition root (cmd/api/main.go) can apply per-method
+// middleware — specifically, the per-route RequireAuth + RequireCompanyRole
+// gates for PATCH /jobs/{id}. Mirrors MemberHandlers() in
+// companies/.../memberHandler.go.
+//
+// Each field is a thin http.HandlerFunc adapter over the unexported
+// method body; the unexported bodies stay in this file so the
+// handler stays the single source of truth for endpoint logic.
+type JobHandlers struct {
+	ListJobs  http.HandlerFunc
+	GetJob    http.HandlerFunc
+	UpdateJob http.HandlerFunc
+}
+
+// JobHandlers returns the per-endpoint http.HandlerFunc surface for
+// main.go to mount with per-method middleware.
+func (h *JobHandler) JobHandlers() JobHandlers {
+	return JobHandlers{
+		ListJobs:  http.HandlerFunc(h.listJobs),
+		GetJob:    http.HandlerFunc(h.getJob),
+		UpdateJob: http.HandlerFunc(h.updateJob),
+	}
+}
+
+// --- handlers ------------------------------------------------------------
 
 // listJobs implements `GET /jobs`. It parses the query string into a
 // `SearchJobsDto`, asks the use case to search, and writes the envelope.
@@ -68,8 +110,6 @@ func (h *JobHandler) listJobs(w http.ResponseWriter, r *http.Request) {
 
 	limit, ok := parseLimit(q.Get("limit"))
 	if !ok {
-		// Spec: bad input is silently ignored, no 400. Let the use
-		// case handle the zero-default.
 		_ = limit
 	}
 
@@ -95,8 +135,7 @@ func (h *JobHandler) listJobs(w http.ResponseWriter, r *http.Request) {
 
 // getJob implements `GET /jobs/{id}`. The response body is the bare
 // job (no envelope), which is the same shape a list item carries
-// (Decision 4). The detail endpoint reuses `SearchJobsItem` so list
-// and detail share one wire shape.
+// (Decision 4).
 func (h *JobHandler) getJob(w http.ResponseWriter, r *http.Request) {
 	raw := chi.URLParam(r, "id")
 	id, err := uuid.Parse(raw)
@@ -114,10 +153,71 @@ func (h *JobHandler) getJob(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, toDetailResponse(job))
 }
 
-// classifyAndWriteError centralizes the ErrJobNotFound → 404 /
-// any-other → 500 mapping that both handlers need. The real error
+// updateJob implements `PATCH /jobs/{id}` (design D6). It is mounted
+// in main.go behind `r.With(requireAuth, requireRecruiter).Patch(...)`.
+//
+// Flow:
+//   1. requireCompanyContext (fail-closed 500 if missing — a routing
+//      misconfiguration must be loud, not a misleading 401).
+//   2. Parse the path `{id}` as UUID (400 on malformed).
+//   3. Decode the body as UpdateJobDto (400 on malformed JSON).
+//   4. Parse `If-Unmodified-Since` (RFC 3339; absent/malformed → zero
+//      time, which the use case treats as a CAS mismatch).
+//   5. Invoke EditJob.
+//   6. ErrConcurrencyConflict → write the editor view directly with 409
+//      (the 409 body MUST be the same shape as a 200; design D6).
+//   7. Else → classifyAndWriteError (the dispatcher covers 400/404/500).
+//
+// The handler is intentionally thin: the use case owns the
+// validation, transition table, and CAS logic. The handler's only
+// "smart" decisions are (a) the 500-on-missing-context fail-closed
+// check, (b) the 409-with-view special-case (because classifyError
+// alone would render a generic {"error":"conflict"} body).
+func (h *JobHandler) updateJob(w http.ResponseWriter, r *http.Request) {
+	cc, ok := requireCompanyContext(w, r)
+	if !ok {
+		return
+	}
+
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, "invalid job id")
+		return
+	}
+
+	var in dtos.UpdateJobDto
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	ifUnmodifiedSince := parseIfUnmodifiedSince(r.Header.Get("If-Unmodified-Since"))
+
+	view, err := h.service.EditJob(r.Context(), cc.CompanyID, id, in, ifUnmodifiedSince)
+	if err != nil {
+		if errors.Is(err, entities.ErrConcurrencyConflict) {
+			// The 409 body MUST be the editor view of the latest row
+			// (spec requirement: 409 body uses the same shape as 200).
+			// We special-case this BEFORE classifyAndWriteError so the
+			// generic {"error":"conflict"} envelope is not written.
+			httpjson.WriteJSON(w, http.StatusConflict, view)
+			return
+		}
+		h.classifyAndWriteError(w, r, err)
+		return
+	}
+
+	httpjson.WriteJSON(w, http.StatusOK, view)
+}
+
+// --- classification & helpers -------------------------------------------
+
+// classifyAndWriteError centralizes the ErrJobNotFound → 404 / any
+// other → 500 mapping that both read handlers need. The real error
 // is logged at error severity so an operator can correlate with the
-// generic 5xx response the client sees.
+// generic 5xx response the client sees. `classifyError` is the flat
+// dispatcher that knows every domain sentinel the use cases can
+// surface.
 func (h *JobHandler) classifyAndWriteError(w http.ResponseWriter, r *http.Request, err error) {
 	status, msg := classifyError(err)
 	if status == http.StatusInternalServerError {
@@ -127,15 +227,94 @@ func (h *JobHandler) classifyAndWriteError(w http.ResponseWriter, r *http.Reques
 }
 
 // classifyError maps a use-case error into an HTTP status + a
-// client-safe message. `ErrJobNotFound` is the only domain sentinel
-// 4xx the read path can produce (the visibility rule is enforced in
-// SQL, so even draft/closed/soft-deleted/non-active-company rows
-// surface as ErrJobNotFound, not 400). Anything else is a 500.
+// client-safe message. The dispatcher is a flat `errors.Is` chain:
+//
+//	ErrJobNotFound              → 404 "job not found"
+//	ErrConcurrencyConflict      → 409 "conflict"          (fallback; updateJob writes view first)
+//	ErrInvalidStatusTransition  → 400 "invalid status transition"
+//	ErrEmptyTitle               → 400 "title must not be empty"
+//	ErrEmptyDescription         → 400 "description must not be empty"
+//	ErrInvalidSalaryRange       → 400 "salary_min must be less than or equal to salary_max"
+//	ErrInvalidWorkMode          → 400 "invalid work_mode"
+//	ErrInvalidEmploymentType    → 400 "invalid employment_type"
+//	ErrInvalidSeniority         → 400 "invalid seniority"
+//	ErrInvalidSalaryCurrency    → 400 "invalid salary_currency"
+//	ErrInvalidJobStatus         → 400 "invalid status"
+//	default                     → 500 "internal server error"
+//
+// Adding a new sentinel means adding one branch here; no other call
+// site needs to change.
 func classifyError(err error) (int, string) {
-	if errors.Is(err, entities.ErrJobNotFound) {
+	switch {
+	case errors.Is(err, entities.ErrJobNotFound):
 		return http.StatusNotFound, "job not found"
+	case errors.Is(err, entities.ErrConcurrencyConflict):
+		return http.StatusConflict, "conflict"
+	case errors.Is(err, entities.ErrInvalidStatusTransition):
+		return http.StatusBadRequest, "invalid status transition"
+	case errors.Is(err, entities.ErrEmptyTitle):
+		return http.StatusBadRequest, "title must not be empty"
+	case errors.Is(err, entities.ErrEmptyDescription):
+		return http.StatusBadRequest, "description must not be empty"
+	case errors.Is(err, entities.ErrInvalidSalaryRange):
+		return http.StatusBadRequest, "salary_min must be less than or equal to salary_max"
+	case errors.Is(err, valueobjects.ErrInvalidWorkMode):
+		return http.StatusBadRequest, "invalid work_mode"
+	case errors.Is(err, valueobjects.ErrInvalidEmploymentType):
+		return http.StatusBadRequest, "invalid employment_type"
+	case errors.Is(err, valueobjects.ErrInvalidSeniority):
+		return http.StatusBadRequest, "invalid seniority"
+	case errors.Is(err, valueobjects.ErrInvalidSalaryCurrency):
+		return http.StatusBadRequest, "invalid salary_currency"
+	case errors.Is(err, valueobjects.ErrInvalidJobStatus):
+		return http.StatusBadRequest, "invalid status"
+	default:
+		return http.StatusInternalServerError, "internal server error"
 	}
-	return http.StatusInternalServerError, "internal server error"
+}
+
+// requireCompanyContext reads the CompanyContext that
+// RequireCompanyRole injected after resolving
+// `sub → users.id → company_members` (design D6 — "resolves once").
+// It is the entry guard for every gated handler in this file.
+//
+// If CompanyContext is missing from the request context, the handler
+// has been reached without going through the middleware — a routing
+// misconfiguration. We short-circuit fail-closed with 500 (NOT 401):
+// a 401 would mislead the client into re-authenticating; the real
+// failure is internal and should be loud. This mirrors the
+// companies-side `requireCompanyContext` in memberHandler.go.
+func requireCompanyContext(w http.ResponseWriter, r *http.Request) (identitysecurity.CompanyContext, bool) {
+	cc, ok := identitysecurity.CompanyContextFromContext(r.Context())
+	if !ok {
+		httpjson.WriteError(w, http.StatusInternalServerError, "internal server error")
+		return identitysecurity.CompanyContext{}, false
+	}
+	return cc, true
+}
+
+// parseIfUnmodifiedSince parses the `If-Unmodified-Since` header
+// value as RFC 3339. Absent or malformed headers collapse to the
+// zero `time.Time{}` so the use case's CAS compare sees a guaranteed
+// mismatch (the row's real UpdatedAt can never equal zero time) —
+// same outcome as a stale CAS, which is exactly the spec scenario
+// "missing If-Unmodified-Since returns 409".
+//
+// We use `time.Parse(time.RFC3339, …)` (whole-second precision in the
+// RFC spec) for INCOMING headers — Go's parser is the inverse of
+// Go's RFC 3339Nano marshaler, so a CAS round-trip
+// `client.Marshal → server.Parse → server.Cmp` is exact when the
+// client uses `time.RFC3339Nano` (which Go's default `time.Time`
+// MarshalJSON does).
+func parseIfUnmodifiedSince(raw string) time.Time {
+	if raw == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
 }
 
 // parseLimit parses the `limit` query param into a non-negative int.
