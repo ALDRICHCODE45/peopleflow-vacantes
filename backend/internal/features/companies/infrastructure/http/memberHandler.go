@@ -181,7 +181,28 @@ type myMembershipResponse struct {
 // The slice is always non-nil so JSON encoding produces `[]` not `null`
 // — clients depend on the array shape.
 type listMembersResponse struct {
-	Members []memberResponse `json:"members"`
+	Members []memberListItemResponse `json:"members"`
+}
+
+// memberListItemResponse is the wire shape for one entry in the list
+// endpoint. It carries the member's own fields plus a nested `user`
+// (id, full_name, email); `user` is null when the member's user can't
+// be resolved.
+type memberListItemResponse struct {
+	ID        string          `json:"id"`
+	CompanyID string          `json:"company_id"`
+	Role      string          `json:"role"`
+	CreatedAt string          `json:"created_at"`
+	UpdatedAt string          `json:"updated_at"`
+	User      *userSummaryDTO `json:"user"`
+}
+
+// userSummaryDTO is the public identity of a member's user on the list
+// endpoint. It intentionally omits cognito_sub and user_type.
+type userSummaryDTO struct {
+	ID       string `json:"id"`
+	FullName string `json:"full_name"`
+	Email    string `json:"email"`
 }
 
 // --- handlers --------------------------------------------------------------
@@ -382,14 +403,33 @@ func toMemberResponse(m *entities.CompanyMember) memberResponse {
 	}
 }
 
-// toListMembersResponse maps a slice of member entities into the wire
-// shape for GET /me/company/members.
-func toListMembersResponse(in []entities.CompanyMember) listMembersResponse {
-	out := listMembersResponse{Members: make([]memberResponse, 0, len(in))}
+// toListMembersResponse maps a slice of member read-model rows into the
+// wire shape for GET /me/company/members.
+func toListMembersResponse(in []entities.MemberListRow) listMembersResponse {
+	out := listMembersResponse{Members: make([]memberListItemResponse, 0, len(in))}
 	for _, m := range in {
-		out.Members = append(out.Members, toMemberResponse(&m))
+		out.Members = append(out.Members, memberListItemResponse{
+			ID:        m.ID.String(),
+			CompanyID: m.CompanyID.String(),
+			Role:      m.Role,
+			CreatedAt: m.CreatedAt,
+			UpdatedAt: m.UpdatedAt,
+			User:      toUserSummary(m.User),
+		})
 	}
 	return out
+}
+
+// toUserSummary maps a member's user (or nil) into the nested wire shape.
+func toUserSummary(u *entities.MemberUser) *userSummaryDTO {
+	if u == nil {
+		return nil
+	}
+	return &userSummaryDTO{
+		ID:       u.ID.String(),
+		FullName: u.FullName,
+		Email:    u.Email,
+	}
 }
 
 // requireSub extracts the JWT subject from the request context. The

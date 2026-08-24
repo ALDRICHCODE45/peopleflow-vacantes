@@ -43,9 +43,13 @@ type Querier interface {
 	// 23505 as ErrDuplicateLanguage.
 	InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error
 	ListActiveIndustries(ctx context.Context) ([]Industry, error)
-	// All members of a company (GET /me/company/members). Ordered by created_at
-	// for stable rendering; backed by the `company_members_company_id_idx` B-tree.
-	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]CompanyMember, error)
+	// All members of a company (GET /me/company/members), enriched with the
+	// user's public identity (full_name, email) via LEFT JOIN. A member whose
+	// user can't be resolved (deleted / missing) still surfaces with NULL user
+	// columns, so the adapter can render `user: null` instead of dropping the
+	// row. Ordered by created_at for stable rendering; backed by
+	// `company_members_company_id_idx` B-tree.
+	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]ListByCompanyIDRow, error)
 	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error)
 	// Same-company guard (design D7) — see UpdateMemberRole for rationale.
 	// HARD DELETE (design D2) frees `user_id` for re-assignment.

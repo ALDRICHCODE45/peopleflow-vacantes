@@ -48,7 +48,7 @@ type stubMemberRepository struct {
 	getByUserOut        *entities.CompanyMember
 	getByUserErr        error
 	getByUserCalls      int
-	listOut             []entities.CompanyMember
+	listOut             []entities.MemberListRow
 	listErr             error
 	listCalls           int
 	lastListCompanyID   uuid.UUID
@@ -89,7 +89,7 @@ func (s *stubMemberRepository) GetMembershipByUserID(_ context.Context, _ uuid.U
 	return nil, entities.ErrNotAMember
 }
 
-func (s *stubMemberRepository) ListByCompanyID(_ context.Context, companyID uuid.UUID) ([]entities.CompanyMember, error) {
+func (s *stubMemberRepository) ListByCompanyID(_ context.Context, companyID uuid.UUID) ([]entities.MemberListRow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.listCalls++
@@ -98,9 +98,9 @@ func (s *stubMemberRepository) ListByCompanyID(_ context.Context, companyID uuid
 		return nil, s.listErr
 	}
 	if s.listOut == nil {
-		return []entities.CompanyMember{}, nil
+		return []entities.MemberListRow{}, nil
 	}
-	out := make([]entities.CompanyMember, len(s.listOut))
+	out := make([]entities.MemberListRow, len(s.listOut))
 	copy(out, s.listOut)
 	return out, nil
 }
@@ -435,10 +435,10 @@ func TestGetMyMembership_CompanyRepoFailurePropagates(t *testing.T) {
 func TestListMembers_ReturnsAllMembers(t *testing.T) {
 	companyID := uuid.New()
 
-	rows := []entities.CompanyMember{
-		*makeMember(uuid.New(), companyID, valueobjects.OwnerRole),
-		*makeMember(uuid.New(), companyID, valueobjects.RecruiterRole),
-		*makeMember(uuid.New(), companyID, valueobjects.RecruiterRole),
+	rows := []entities.MemberListRow{
+		{ID: uuid.New(), CompanyID: companyID, Role: "owner"},
+		{ID: uuid.New(), CompanyID: companyID, Role: "recruiter"},
+		{ID: uuid.New(), CompanyID: companyID, Role: "recruiter"},
 	}
 
 	mRepo := &stubMemberRepository{listOut: rows}

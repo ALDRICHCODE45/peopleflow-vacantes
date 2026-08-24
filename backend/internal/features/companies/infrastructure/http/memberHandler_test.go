@@ -39,7 +39,7 @@ type stubMemberRepositoryForHandler struct {
 	getByUserErr   error
 	getByUserCalls int
 
-	listOut           []entities.CompanyMember
+	listOut           []entities.MemberListRow
 	listErr           error
 	listCalls         int
 	lastListCompanyID uuid.UUID
@@ -83,7 +83,7 @@ func (s *stubMemberRepositoryForHandler) GetMembershipByUserID(_ context.Context
 	return nil, entities.ErrNotAMember
 }
 
-func (s *stubMemberRepositoryForHandler) ListByCompanyID(_ context.Context, companyID uuid.UUID) ([]entities.CompanyMember, error) {
+func (s *stubMemberRepositoryForHandler) ListByCompanyID(_ context.Context, companyID uuid.UUID) ([]entities.MemberListRow, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.listCalls++
@@ -92,9 +92,9 @@ func (s *stubMemberRepositoryForHandler) ListByCompanyID(_ context.Context, comp
 		return nil, s.listErr
 	}
 	if s.listOut == nil {
-		return []entities.CompanyMember{}, nil
+		return []entities.MemberListRow{}, nil
 	}
-	out := make([]entities.CompanyMember, len(s.listOut))
+	out := make([]entities.MemberListRow, len(s.listOut))
 	copy(out, s.listOut)
 	return out, nil
 }
@@ -360,10 +360,10 @@ func TestGetMyCompany_UnknownSubReturns401(t *testing.T) {
 func TestListMembers_OwnerReturns200(t *testing.T) {
 	companyID := uuid.New()
 
-	rows := []entities.CompanyMember{
-		*mustMember(uuid.New(), companyID, valueobjects.OwnerRole),
-		*mustMember(uuid.New(), companyID, valueobjects.RecruiterRole),
-		*mustMember(uuid.New(), companyID, valueobjects.RecruiterRole),
+	rows := []entities.MemberListRow{
+		{ID: uuid.New(), CompanyID: companyID, Role: "owner", User: &entities.MemberUser{ID: uuid.New(), FullName: "Alice", Email: "alice@x.com"}},
+		{ID: uuid.New(), CompanyID: companyID, Role: "recruiter", User: &entities.MemberUser{ID: uuid.New(), FullName: "Bob", Email: "bob@x.com"}},
+		{ID: uuid.New(), CompanyID: companyID, Role: "recruiter", User: &entities.MemberUser{ID: uuid.New(), FullName: "Carla", Email: "carla@x.com"}},
 	}
 
 	mRepo := &stubMemberRepositoryForHandler{listOut: rows}
@@ -394,6 +394,13 @@ func TestListMembers_OwnerReturns200(t *testing.T) {
 		}
 		if m.CompanyID != companyID.String() {
 			t.Errorf("members[%d].company_id: want %v, got %v", i, companyID, m.CompanyID)
+		}
+		if m.User == nil {
+			t.Errorf("members[%d].user: want non-nil, got nil", i)
+			continue
+		}
+		if m.User.FullName == "" || m.User.Email == "" {
+			t.Errorf("members[%d].user: expected full_name+email, got %+v", i, m.User)
 		}
 	}
 	if mRepo.lastListCompanyID != companyID {

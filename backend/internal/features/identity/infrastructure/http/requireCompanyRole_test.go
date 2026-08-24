@@ -104,7 +104,7 @@ func (s *stubMemberRepo) Create(_ context.Context, _ *entities.CompanyMember) er
 	return errors.New("stubMemberRepo.Create: not used by middleware tests")
 }
 
-func (s *stubMemberRepo) ListByCompanyID(_ context.Context, _ uuid.UUID) ([]entities.CompanyMember, error) {
+func (s *stubMemberRepo) ListByCompanyID(_ context.Context, _ uuid.UUID) ([]entities.MemberListRow, error) {
 	return nil, errors.New("stubMemberRepo.ListByCompanyID: not used by middleware tests")
 }
 

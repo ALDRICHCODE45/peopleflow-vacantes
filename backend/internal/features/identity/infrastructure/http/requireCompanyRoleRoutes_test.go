@@ -120,7 +120,7 @@ func (s *rtStubMemberRepo) GetMembershipByUserID(_ context.Context, _ uuid.UUID)
 
 func (s *rtStubMemberRepo) Create(_ context.Context, _ *entities.CompanyMember) error { return nil }
 
-func (s *rtStubMemberRepo) ListByCompanyID(_ context.Context, _ uuid.UUID) ([]entities.CompanyMember, error) {
+func (s *rtStubMemberRepo) ListByCompanyID(_ context.Context, _ uuid.UUID) ([]entities.MemberListRow, error) {
 	return nil, nil
 }
 

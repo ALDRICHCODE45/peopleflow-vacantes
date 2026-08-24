@@ -20,12 +20,25 @@ WHERE user_id = $1;
 
 
 -- name: ListByCompanyID :many
--- All members of a company (GET /me/company/members). Ordered by created_at
--- for stable rendering; backed by the `company_members_company_id_idx` B-tree.
-SELECT id, user_id, company_id, role, created_at, updated_at
-FROM company_members
-WHERE company_id = $1
-ORDER BY created_at ASC, id ASC;
+-- All members of a company (GET /me/company/members), enriched with the
+-- user's public identity (full_name, email) via LEFT JOIN. A member whose
+-- user can't be resolved (deleted / missing) still surfaces with NULL user
+-- columns, so the adapter can render `user: null` instead of dropping the
+-- row. Ordered by created_at for stable rendering; backed by
+-- `company_members_company_id_idx` B-tree.
+SELECT
+    cm.id,
+    cm.company_id,
+    cm.role,
+    cm.created_at,
+    cm.updated_at,
+    u.id AS user_id,
+    u.full_name AS user_full_name,
+    u.email AS user_email
+FROM company_members cm
+LEFT JOIN users u ON u.id = cm.user_id AND u.deleted_at IS NULL
+WHERE cm.company_id = $1
+ORDER BY cm.created_at ASC, cm.id ASC;
 
 
 -- name: UpdateMemberRole :execrows

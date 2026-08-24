@@ -31,11 +31,12 @@ type CompanyMemberRepository interface {
 	// UNIQUE(user_id) so the caller can assume at most one result.
 	GetMembershipByUserID(ctx context.Context, userID uuid.UUID) (*entities.CompanyMember, error)
 
-	// ListByCompanyID returns every member of the given company. Empty
-	// result is a non-nil empty slice. Order is adapter-defined; the
-	// postgres adapter returns ORDER BY created_at ASC, id ASC for stable
-	// rendering.
-	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]entities.CompanyMember, error)
+	// ListByCompanyID returns every member of the given company, enriched with
+	// the member's user identity (id, full_name, email). Each row's User is nil
+	// when the member's user can't be resolved (deleted/missing). Empty result
+	// is a non-nil empty slice. Order is adapter-defined; the postgres adapter
+	// returns ORDER BY created_at ASC, id ASC for stable rendering.
+	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]entities.MemberListRow, error)
 
 	// UpdateRole replaces the target member's role. The (id, companyID)
 	// pair is the same-company guard (design D7): cross-company targets

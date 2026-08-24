@@ -9,6 +9,7 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createCompanyMember = `-- name: CreateCompanyMember :one
@@ -73,30 +74,56 @@ func (q *Queries) GetMembershipByUserID(ctx context.Context, userID uuid.UUID) (
 }
 
 const listByCompanyID = `-- name: ListByCompanyID :many
-SELECT id, user_id, company_id, role, created_at, updated_at
-FROM company_members
-WHERE company_id = $1
-ORDER BY created_at ASC, id ASC
+SELECT
+    cm.id,
+    cm.company_id,
+    cm.role,
+    cm.created_at,
+    cm.updated_at,
+    u.id AS user_id,
+    u.full_name AS user_full_name,
+    u.email AS user_email
+FROM company_members cm
+LEFT JOIN users u ON u.id = cm.user_id AND u.deleted_at IS NULL
+WHERE cm.company_id = $1
+ORDER BY cm.created_at ASC, cm.id ASC
 `
 
-// All members of a company (GET /me/company/members). Ordered by created_at
-// for stable rendering; backed by the `company_members_company_id_idx` B-tree.
-func (q *Queries) ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]CompanyMember, error) {
+type ListByCompanyIDRow struct {
+	ID           uuid.UUID          `json:"id"`
+	CompanyID    uuid.UUID          `json:"company_id"`
+	Role         string             `json:"role"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	UserID       pgtype.UUID        `json:"user_id"`
+	UserFullName pgtype.Text        `json:"user_full_name"`
+	UserEmail    pgtype.Text        `json:"user_email"`
+}
+
+// All members of a company (GET /me/company/members), enriched with the
+// user's public identity (full_name, email) via LEFT JOIN. A member whose
+// user can't be resolved (deleted / missing) still surfaces with NULL user
+// columns, so the adapter can render `user: null` instead of dropping the
+// row. Ordered by created_at for stable rendering; backed by
+// `company_members_company_id_idx` B-tree.
+func (q *Queries) ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]ListByCompanyIDRow, error) {
 	rows, err := q.db.Query(ctx, listByCompanyID, companyID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CompanyMember
+	var items []ListByCompanyIDRow
 	for rows.Next() {
-		var i CompanyMember
+		var i ListByCompanyIDRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.UserID,
 			&i.CompanyID,
 			&i.Role,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.UserID,
+			&i.UserFullName,
+			&i.UserEmail,
 		); err != nil {
 			return nil, err
 		}

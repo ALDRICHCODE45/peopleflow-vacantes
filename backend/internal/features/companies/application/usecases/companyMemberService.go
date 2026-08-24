@@ -140,13 +140,13 @@ func (s *CompanyMemberService) GetMyMembership(ctx context.Context, cognitoSub s
 //
 // Empty result is a non-nil empty slice so JSON encoding produces `[]`
 // rather than `null` — the same invariant ListMyLanguages enforces.
-func (s *CompanyMemberService) ListMembers(ctx context.Context, companyID uuid.UUID) ([]entities.CompanyMember, error) {
+func (s *CompanyMemberService) ListMembers(ctx context.Context, companyID uuid.UUID) ([]entities.MemberListRow, error) {
 	got, err := s.memberRepo.ListByCompanyID(ctx, companyID)
 	if err != nil {
 		return nil, err
 	}
 	if got == nil {
-		return []entities.CompanyMember{}, nil
+		return []entities.MemberListRow{}, nil
 	}
 	return got, nil
 }

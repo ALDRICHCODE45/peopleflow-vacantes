@@ -51,7 +51,7 @@ import (
 type memberQuerier interface {
 	CreateCompanyMember(ctx context.Context, arg db.CreateCompanyMemberParams) (db.CompanyMember, error)
 	GetMembershipByUserID(ctx context.Context, userID uuid.UUID) (db.CompanyMember, error)
-	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]db.CompanyMember, error)
+	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]db.ListByCompanyIDRow, error)
 	UpdateMemberRole(ctx context.Context, arg db.UpdateMemberRoleParams) (int64, error)
 	RemoveCompanyMember(ctx context.Context, arg db.RemoveCompanyMemberParams) (int64, error)
 }
@@ -118,21 +118,19 @@ func (r *CompanyMemberRepository) GetMembershipByUserID(ctx context.Context, use
 	return memberToEntity(row)
 }
 
-// ListByCompanyID returns every member of the given company. Empty
-// result is a non-nil empty slice so JSON encoding produces `[]` rather
-// than `null`. Order is the sqlc-generated ORDER BY created_at ASC, id ASC.
-func (r *CompanyMemberRepository) ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]entities.CompanyMember, error) {
+// ListByCompanyID returns every member of the given company, enriched with
+// the member's user identity. The LEFT JOIN leaves `user_id` (and thus
+// full_name/email) NULL when a member's user can't be resolved; in that case
+// the row's User is nil (the HTTP layer renders `user: null`). Empty result
+// is a non-nil empty slice so JSON encoding produces `[]`.
+func (r *CompanyMemberRepository) ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]entities.MemberListRow, error) {
 	rows, err := r.queries.ListByCompanyID(ctx, companyID)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]entities.CompanyMember, 0, len(rows))
+	out := make([]entities.MemberListRow, 0, len(rows))
 	for _, row := range rows {
-		m, err := memberToEntity(row)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, *m)
+		out = append(out, memberListRowToEntity(row))
 	}
 	return out, nil
 }
@@ -221,6 +219,28 @@ func pgTimestamptzToTime(t pgtype.Timestamptz) time.Time {
 		return time.Time{}
 	}
 	return t.Time
+}
+
+// memberListRowToEntity maps a ListByCompanyIDRow (member LEFT JOIN user)
+// into the list read-model projection. When the LEFT JOIN found no live user
+// (user_id is SQL NULL), the projection's User is nil so the HTTP layer
+// renders `user: null` for that member rather than dropping it.
+func memberListRowToEntity(row db.ListByCompanyIDRow) entities.MemberListRow {
+	item := entities.MemberListRow{
+		ID:        row.ID,
+		CompanyID: row.CompanyID,
+		Role:      row.Role,
+		CreatedAt: pgTimestamptzToTime(row.CreatedAt).UTC().Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: pgTimestamptzToTime(row.UpdatedAt).UTC().Format("2006-01-02T15:04:05Z07:00"),
+	}
+	if row.UserID.Valid {
+		item.User = &entities.MemberUser{
+			ID:       row.UserID.Bytes,
+			FullName: row.UserFullName.String,
+			Email:    row.UserEmail.String,
+		}
+	}
+	return item
 }
 
 // mapCreateError translates Postgres constraint violations on the
