@@ -2,15 +2,15 @@
 //
 // EditJob implements the 8-step flow pinned by design D5:
 //
-//   1. Read for update         (GetForUpdate)
-//   2. CAS compare             (If-Unmodified-Since)
-//   3. VO parse                (closed-set fields, status)
-//   4. Transition check        (closed-terminal rule + transition table)
-//   5. Validation              (title/description non-empty,
-//                                salary_min <= salary_max)
-//   6. Build patch             (UpdatePatch)
-//   7. Update                  (adapter; 0 rows → re-read)
-//   8. Re-read + project       (editor view for 200 / 409 body)
+//  1. Read for update         (GetForUpdate)
+//  2. CAS compare             (If-Unmodified-Since)
+//  3. VO parse                (closed-set fields, status)
+//  4. Transition check        (closed-terminal rule + transition table)
+//  5. Validation              (title/description non-empty,
+//     salary_min <= salary_max)
+//  6. Build patch             (UpdatePatch)
+//  7. Update                  (adapter; 0 rows → re-read)
+//  8. Re-read + project       (editor view for 200 / 409 body)
 //
 // Return contract:
 //
@@ -85,11 +85,11 @@ func (s *JobService) EditJob(
 
 	// 3. VO parse. Any unknown value surfaces the matching VO sentinel.
 	patch := repositories.UpdatePatch{
-		Title:          nilIfEmpty(trimmed(in.Title)),
-		Description:    nilIfEmpty(trimmed(in.Description)),
-		Location:       in.Location,
-		SalaryMin:      in.SalaryMin,
-		SalaryMax:      in.SalaryMax,
+		Title:       nilIfEmpty(trimmed(in.Title)),
+		Description: nilIfEmpty(trimmed(in.Description)),
+		Location:    in.Location,
+		SalaryMin:   in.SalaryMin,
+		SalaryMax:   in.SalaryMax,
 	}
 	if in.Title != nil {
 		t := strings.TrimSpace(*in.Title)

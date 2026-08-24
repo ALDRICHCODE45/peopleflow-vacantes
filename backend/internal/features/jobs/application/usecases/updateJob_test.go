@@ -3,14 +3,14 @@
 // EditJob is the application-layer orchestrator for PATCH /jobs/{id}.
 // It owns the 8-step flow pinned in design D5:
 //
-//   1. GetForUpdate                          → ErrJobNotFound → (nil, Err)
-//   2. CAS compare                            → mismatch → (view, ErrConflict)
-//   3. VO parse                               → bad VO → (nil, Err)
-//   4. transition check (closed-terminal first)
-//   5. validation                             → bad field → (nil, Err)
-//   6. build UpdatePatch
-//   7. Update                                 → ErrJobNotFound → re-read
-//   8. re-read + toEditorView                 → (view, nil)
+//  1. GetForUpdate                          → ErrJobNotFound → (nil, Err)
+//  2. CAS compare                            → mismatch → (view, ErrConflict)
+//  3. VO parse                               → bad VO → (nil, Err)
+//  4. transition check (closed-terminal first)
+//  5. validation                             → bad field → (nil, Err)
+//  6. build UpdatePatch
+//  7. Update                                 → ErrJobNotFound → re-read
+//  8. re-read + toEditorView                 → (view, nil)
 //
 // The tests pin every cell of the transition table, every validation
 // branch, the CAS compare behavior (matching / stale / zero-token),

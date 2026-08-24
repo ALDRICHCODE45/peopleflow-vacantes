@@ -105,11 +105,11 @@ func TestUpdateJobDto_ClosedSetFieldsArePointers(t *testing.T) {
 // columns' tri-state decode through valueobjects.Optional[T].
 func TestUpdateJobDto_LocationTriState(t *testing.T) {
 	tests := []struct {
-		name     string
-		body     string
-		wantSet  bool
-		wantVal  bool
-		wantStr  string
+		name    string
+		body    string
+		wantSet bool
+		wantVal bool
+		wantStr string
 	}{
 		{name: "absent", body: `{}`, wantSet: false},
 		{name: "null clears", body: `{"location":null}`, wantSet: true, wantVal: false},
@@ -137,13 +137,13 @@ func TestUpdateJobDto_LocationTriState(t *testing.T) {
 // TestUpdateJobDto_SalaryMinMaxTriState covers the int pair tri-state.
 func TestUpdateJobDto_SalaryMinMaxTriState(t *testing.T) {
 	tests := []struct {
-		name    string
-		body    string
-		minSet  bool
-		minVal  bool
-		minInt  int
-		maxSet  bool
-		maxVal  bool
+		name   string
+		body   string
+		minSet bool
+		minVal bool
+		minInt int
+		maxSet bool
+		maxVal bool
 	}{
 		{
 			name:   "both absent",

@@ -35,14 +35,14 @@ import (
 // Unknown / wrong-type JSON keys surface as encoding/json errors
 // which the handler maps to 400.
 type UpdateJobDto struct {
-	Title          *string `json:"title"`
-	Description    *string `json:"description"`
-	WorkMode       *string `json:"work_mode"`
-	EmploymentType *string `json:"employment_type"`
-	Seniority      *string `json:"seniority"`
+	Title          *string                       `json:"title"`
+	Description    *string                       `json:"description"`
+	WorkMode       *string                       `json:"work_mode"`
+	EmploymentType *string                       `json:"employment_type"`
+	Seniority      *string                       `json:"seniority"`
 	Location       valueobjects.Optional[string] `json:"location"`
 	SalaryMin      valueobjects.Optional[int]    `json:"salary_min"`
 	SalaryMax      valueobjects.Optional[int]    `json:"salary_max"`
-	SalaryCurrency *string                      `json:"salary_currency"`
-	Status         *string                      `json:"status"`
+	SalaryCurrency *string                       `json:"salary_currency"`
+	Status         *string                       `json:"status"`
 }

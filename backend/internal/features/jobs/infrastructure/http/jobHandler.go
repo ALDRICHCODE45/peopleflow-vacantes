@@ -27,11 +27,11 @@ import (
 	"strconv"
 	"time"
 
+	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
-	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -157,16 +157,16 @@ func (h *JobHandler) getJob(w http.ResponseWriter, r *http.Request) {
 // in main.go behind `r.With(requireAuth, requireRecruiter).Patch(...)`.
 //
 // Flow:
-//   1. requireCompanyContext (fail-closed 500 if missing — a routing
-//      misconfiguration must be loud, not a misleading 401).
-//   2. Parse the path `{id}` as UUID (400 on malformed).
-//   3. Decode the body as UpdateJobDto (400 on malformed JSON).
-//   4. Parse `If-Unmodified-Since` (RFC 3339; absent/malformed → zero
-//      time, which the use case treats as a CAS mismatch).
-//   5. Invoke EditJob.
-//   6. ErrConcurrencyConflict → write the editor view directly with 409
-//      (the 409 body MUST be the same shape as a 200; design D6).
-//   7. Else → classifyAndWriteError (the dispatcher covers 400/404/500).
+//  1. requireCompanyContext (fail-closed 500 if missing — a routing
+//     misconfiguration must be loud, not a misleading 401).
+//  2. Parse the path `{id}` as UUID (400 on malformed).
+//  3. Decode the body as UpdateJobDto (400 on malformed JSON).
+//  4. Parse `If-Unmodified-Since` (RFC 3339; absent/malformed → zero
+//     time, which the use case treats as a CAS mismatch).
+//  5. Invoke EditJob.
+//  6. ErrConcurrencyConflict → write the editor view directly with 409
+//     (the 409 body MUST be the same shape as a 200; design D6).
+//  7. Else → classifyAndWriteError (the dispatcher covers 400/404/500).
 //
 // The handler is intentionally thin: the use case owns the
 // validation, transition table, and CAS logic. The handler's only

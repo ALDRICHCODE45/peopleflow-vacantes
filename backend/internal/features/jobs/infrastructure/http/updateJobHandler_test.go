@@ -9,10 +9,10 @@
 //  2. Route-boundary scenarios — the gated PATCH is mounted behind
 //     `identityhttp.RequireAuth(failVerifier)` ahead of the handler
 //     to prove that:
-//        - a request without `Authorization` → 401 (not 404 / 403);
-//        - a PATCH sent through the PUBLIC `h.Routes()` mount under
-//          `/jobs` is NOT matched (chi 404), proving the public mount
-//          never serves the write route.
+//     - a request without `Authorization` → 401 (not 404 / 403);
+//     - a PATCH sent through the PUBLIC `h.Routes()` mount under
+//     `/jobs` is NOT matched (chi 404), proving the public mount
+//     never serves the write route.
 //
 // The `classifyError` extension lives in jobHandler.go and is exercised
 // indirectly via these tests; a future separate unit-test file could
@@ -32,13 +32,13 @@ import (
 	"testing"
 	"time"
 
+	companiesvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
-	companiesvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
-	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -65,11 +65,11 @@ type writeStubHandlerRepo struct {
 	lastGetForUpdateID      uuid.UUID
 	lastGetForUpdateCompany uuid.UUID
 
-	updateCalls      int
-	lastUpdatePatch  repositories.UpdatePatch
-	lastUpdateCas    time.Time
-	lastUpdateID     uuid.UUID
-	lastUpdateCompa  uuid.UUID
+	updateCalls     int
+	lastUpdatePatch repositories.UpdatePatch
+	lastUpdateCas   time.Time
+	lastUpdateID    uuid.UUID
+	lastUpdateCompa uuid.UUID
 }
 
 func (s *writeStubHandlerRepo) Search(_ context.Context, _ repositories.SearchParams) ([]entities.Job, error) {
@@ -399,11 +399,11 @@ func TestUpdateJob_NullVsAbsentOnLocation(t *testing.T) {
 	rowTS := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 
 	tests := []struct {
-		name     string
-		body     string
-		wantSet  bool
-		wantVal  bool
-		wantStr  string
+		name    string
+		body    string
+		wantSet bool
+		wantVal bool
+		wantStr string
 	}{
 		{
 			name:    "absent leaves location untouched",

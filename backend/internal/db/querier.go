@@ -31,6 +31,20 @@ type Querier interface {
 	// positional `$1` id. Explicit column list keeps `search_vector` out of
 	// the scan and matches the embedded `{company: {id, name}}` shape.
 	GetJobByID(ctx context.Context, id uuid.UUID) (GetJobByIDRow, error)
+	// Write-path read for the gated PATCH /jobs/{id} endpoint (design D3).
+	// NON-visibility-narrowed: the write path MUST see drafts (so a
+	// recruiter can publish them) and closed rows (so the use case can
+	// reject them with the terminal-rule 400). Only the company scope and
+	// `deleted_at IS NULL` apply.
+	//
+	// Joined to `companies` for `name` only - the editor view embeds
+	// `{id, name}` (design D7), so one round-trip is enough.
+	//
+	// The explicit column list keeps `search_vector` (STORED generated)
+	// and every other internal column OUT of the scan. `j.status` is
+	// included so the use case can run the transition table; `j.updated_at`
+	// so the use case can CAS-compare against `If-Unmodified-Since`.
+	GetJobForUpdate(ctx context.Context, arg GetJobForUpdateParams) (GetJobForUpdateRow, error)
 	// Single membership lookup for the membership-resolver chain
 	// (`sub → users.id → company_members`) — see design D6. Returns
 	// pgx.ErrNoRows when the user has no membership, which the service maps to
@@ -93,6 +107,38 @@ type Querier interface {
 	// can assert visibility at the row level; they are not exposed in the
 	// API response per spec.
 	SearchJobs(ctx context.Context, arg SearchJobsParams) ([]SearchJobsRow, error)
+	// Atomic partial update + CAS for PATCH /jobs/{id} (design D3).
+	//
+	// Three column-update shapes:
+	//   - COALESCE(sqlc.narg(...), col)  for the five closed-set + text
+	//     fields: nullable text param, default = column value (untouched).
+	//   - CASE WHEN sqlc.arg('set_<field>')::boolean THEN sqlc.narg(...)
+	//     ELSE col END  for the three nullable columns (location,
+	//     salary_min, salary_max): the boolean flag toggles "write this
+	//     column"; the value NULL clears, a real value sets.
+	//   - status = COALESCE(sqlc.narg('status')::text, status): nullable
+	//     text param, default = current column value.
+	//
+	// Side effect on `published_at` (atomic in the same statement so the
+	// `jobs_published_integrity_check` always holds):
+	//     published_at = CASE WHEN sqlc.narg('status')::text = 'published'
+	//                         THEN COALESCE(published_at, now())
+	//                         ELSE published_at END
+	//   - draft -> published   : sets published_at = now() (was NULL).
+	//   - published -> published: preserves the existing published_at.
+	//   - published -> closed   : preserves the existing published_at.
+	//   - any other transition : leaves published_at alone.
+	//
+	// CAS in the WHERE clause: `updated_at = sqlc.arg('cas_token')` -
+	// this is the atomic race-free guard. Two writers holding the same
+	// CAS: only one UPDATE returns 1 row; the other returns 0 rows. The
+	// adapter maps 0 rows to entities.ErrJobNotFound; the use case
+	// re-interprets it as ErrConcurrencyConflict because it already read
+	// the row via GetForUpdate.
+	//
+	// Never touched: search_vector (STORED generated), company_id,
+	// created_at, id, deleted_at.
+	UpdateJob(ctx context.Context, arg UpdateJobParams) (int64, error)
 	// Same-company guard (design D7): the SQL predicate
 	// `id = $1 AND company_id = $2` is the race-free, IDOR-proof boundary for
 	// UpdateRole. 0 rows affected → ErrMemberNotFound in the adapter.
