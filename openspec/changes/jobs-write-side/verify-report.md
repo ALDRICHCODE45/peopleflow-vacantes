@@ -1,6 +1,22 @@
+```yaml
+schema: gentle-ai.verify-result/v1
+evidence_revision: sha256:b73179ef6383ee6766c48dfd20a3b691120a5942e96dede1e1ad55fa4a656e2d
+verdict: pass_with_warnings
+blockers: 0
+critical_findings: 0
+requirements: 9/9
+scenarios: 39/39
+test_command: cd backend && go test ./... -count=1
+test_exit_code: 0
+test_output_hash: sha256:4248e99fd272d77383a92bcefbaa71ffdd941c854832fb659c5f4063570ff83b
+build_command: cd backend && go build ./...
+build_exit_code: 0
+build_output_hash: sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+```
+
 # Verify Report: `jobs-write-side`
 
-- **evidence_revision**: `dade41d580b9afc871c8bedfe512a58751f6f0584f652a532c990d7851126817` (sha256 of HEAD commit sha1-string `686428bfaa181b8561e64fcd2c8d17b6dbb8fcd1`)
+- **evidence_revision**: `b73179ef6383ee6766c48dfd20a3b691120a5942e96dede1e1ad55fa4a656e2d` (sha256 of HEAD commit sha1-string `d6e41b8fa05ac00e7283f312e7dcbc9482bac742`)
 - **verdict**: `pass_with_warnings`
 - **requirements covered**: 9/9
 - **scenarios**: 39/39
