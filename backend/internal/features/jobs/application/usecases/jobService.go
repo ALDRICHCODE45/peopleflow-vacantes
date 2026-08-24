@@ -15,7 +15,12 @@
 package usecases
 
 import (
+	"context"
+	"time"
+
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/repositories"
+	"github.com/google/uuid"
 )
 
 // JobService bundles the jobs use cases that share the same
@@ -31,4 +36,21 @@ type JobService struct {
 // postgres impl in WU7) or test stub that satisfies it can be wired.
 func NewJobService(repo repositories.JobRepository) *JobService {
 	return &JobService{repo: repo}
+}
+
+// Compile-time guard: the EditJob method exists on *JobService.
+var _ EditJob = (*JobService)(nil)
+
+// EditJob is the bundle of write-side methods the JobService exposes.
+// Defining it here (and not as an ad-hoc check inside updateJob.go)
+// keeps the port-style seam explicit: a future refactor that wants to
+// swap a different orchestrator in just needs to satisfy this
+// interface, not reach for the concrete struct.
+type EditJob interface {
+	EditJob(
+		ctx context.Context,
+		companyID, jobID uuid.UUID,
+		in dtos.UpdateJobDto,
+		ifUnmodifiedSince time.Time,
+	) (*dtos.JobEditorViewDto, error)
 }
