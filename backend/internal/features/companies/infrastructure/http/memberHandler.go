@@ -462,6 +462,8 @@ func classifyMemberError(err error) (int, string) {
 		return http.StatusNotFound, "company member not found"
 	case errors.Is(err, entities.ErrUserNotFound):
 		return http.StatusNotFound, "user not found"
+	case errors.Is(err, entities.ErrTargetNotRecruiter):
+		return http.StatusBadRequest, "target user is not a recruiter"
 	case errors.Is(err, valueobjects.ErrInvalidMemberRole):
 		return http.StatusBadRequest, "invalid member role"
 	default:

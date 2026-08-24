@@ -68,6 +68,12 @@ func TestClassifyMemberError_MappingTable(t *testing.T) {
 			wantMsg:  "user not found",
 		},
 		{
+			name:     "ErrTargetNotRecruiter maps to 400 bad request",
+			err:      entities.ErrTargetNotRecruiter,
+			wantCode: 400,
+			wantMsg:  "target user is not a recruiter",
+		},
+		{
 			name:     "ErrInvalidMemberRole maps to 400 bad request",
 			err:      valueobjects.ErrInvalidMemberRole,
 			wantCode: 400,

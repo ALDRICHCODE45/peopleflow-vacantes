@@ -42,6 +42,10 @@ var (
 	// does not match any live users row (FK violation 23503). The HTTP
 	// layer maps this to 404.
 	ErrUserNotFound = errors.New("user not found")
+	// ErrTargetNotRecruiter is returned by AddMember when the target user
+	// exists but its user_type is not 'recruiter' (e.g. a candidate). Only
+	// recruiters can be company members; the HTTP layer maps this to 400.
+	ErrTargetNotRecruiter = errors.New("target user is not a recruiter")
 )
 
 // CompanyMember is one user's membership in one company. The aggregate root

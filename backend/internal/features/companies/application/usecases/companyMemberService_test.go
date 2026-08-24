@@ -30,6 +30,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identityrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/repositories"
+	identityvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/valueobjects"
 	"github.com/google/uuid"
 )
 
@@ -125,12 +126,22 @@ func (s *stubMemberRepository) Remove(_ context.Context, id, companyID uuid.UUID
 
 // stubUserRepository is the in-memory identity UserRepository used by
 // these tests. The companies slice's service needs it to resolve the JWT
-// sub → users.id at the edge (mirrors candidateService).
+// sub → users.id at the edge (mirrors candidateService), and now also to
+// validate the target's user_type on AddMember (business rule: only a
+// recruiter can be added as a company member).
 type stubUserRepository struct {
 	mu         sync.Mutex
 	resolved   *identityentities.User
 	resolveErr error
 	getCalls   int
+
+	// byID / byIDErr drive GetByID, which AddMember now calls to check the
+	// target user's type. When byID is nil and byIDErr is nil, GetByID
+	// returns a default recruiter so the existing AddMember tests (which
+	// add recruiters) keep passing without per-test wiring.
+	byIDCalls int
+	byID      *identityentities.User
+	byIDErr   error
 }
 
 func (s *stubUserRepository) GetByCognitoSub(_ context.Context, _ string) (*identityentities.User, error) {
@@ -146,15 +157,29 @@ func (s *stubUserRepository) GetByCognitoSub(_ context.Context, _ string) (*iden
 	return s.resolved, nil
 }
 
-// Create and GetByID are not exercised by the membership use cases; the
-// stub returns "not implemented" so any accidental call surfaces as a
-// test failure rather than a silent nil dereference.
-func (s *stubUserRepository) Create(_ context.Context, _ *identityentities.User) (*identityentities.User, error) {
-	return nil, errors.New("stubUserRepository.Create: not used by company-member tests")
+func (s *stubUserRepository) GetByID(_ context.Context, _ uuid.UUID) (*identityentities.User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.byIDCalls++
+	if s.byIDErr != nil {
+		return nil, s.byIDErr
+	}
+	if s.byID != nil {
+		return s.byID, nil
+	}
+	// Default: a recruiter, so AddMember's user_type gate accepts the target
+	// unless a test explicitly points at a candidate via byID.
+	return &identityentities.User{
+		ID:       uuid.New(),
+		UserType: identityvalueobjects.UserRecruiter,
+	}, nil
 }
 
-func (s *stubUserRepository) GetByID(_ context.Context, _ uuid.UUID) (*identityentities.User, error) {
-	return nil, errors.New("stubUserRepository.GetByID: not used by company-member tests")
+// Create is not exercised by the membership use cases; the stub returns
+// "not implemented" so any accidental call surfaces as a test failure
+// rather than a silent nil dereference.
+func (s *stubUserRepository) Create(_ context.Context, _ *identityentities.User) (*identityentities.User, error) {
+	return nil, errors.New("stubUserRepository.Create: not used by company-member tests")
 }
 
 // stubMemberCompanyRepository is the in-memory companies CompanyRepository

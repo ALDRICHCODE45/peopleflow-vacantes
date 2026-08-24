@@ -31,6 +31,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identityrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/repositories"
+	identityvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/valueobjects"
 	"github.com/google/uuid"
 )
 
@@ -172,15 +173,27 @@ func (s *CompanyMemberService) AddMember(ctx context.Context, companyID uuid.UUI
 		return nil, err
 	}
 
-	target, err := entities.NewCompanyMember(params.UserID, companyID, role)
+	// Business rule 3a: only a recruiter may be added as a company member.
+	// Resolve the target user and refuse a candidate (or any non-recruiter)
+	// before touching the membership repository, so a cross-type row is never
+	// written.
+	target, err := s.userRepo.GetByID(ctx, params.UserID)
+	if err != nil {
+		return nil, err
+	}
+	if target.UserType != identityvalueobjects.UserRecruiter {
+		return nil, entities.ErrTargetNotRecruiter
+	}
+
+	member, err := entities.NewCompanyMember(params.UserID, companyID, role)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := s.memberRepo.Create(ctx, target); err != nil {
+	if err := s.memberRepo.Create(ctx, member); err != nil {
 		return nil, err
 	}
-	return target, nil
+	return member, nil
 }
 
 // UpdateRole replaces the target member's role. The target id comes from

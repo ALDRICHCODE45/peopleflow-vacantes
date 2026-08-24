@@ -17,6 +17,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	identityvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/valueobjects"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -119,6 +120,12 @@ type stubUserRepositoryForHandler struct {
 	resolved   *identityentities.User
 	resolveErr error
 	getCalls   int
+
+	// byID / byIDErr drive GetByID, which AddMember now calls to validate
+	// the target's user_type. Default (both nil) returns a recruiter so the
+	// existing AddMember handler tests keep passing.
+	byID    *identityentities.User
+	byIDErr error
 }
 
 func (s *stubUserRepositoryForHandler) GetByCognitoSub(_ context.Context, _ string) (*identityentities.User, error) {
@@ -140,7 +147,15 @@ func (s *stubUserRepositoryForHandler) Create(_ context.Context, _ *identityenti
 }
 
 func (s *stubUserRepositoryForHandler) GetByID(_ context.Context, _ uuid.UUID) (*identityentities.User, error) {
-	return nil, errors.New("not used by handler tests")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.byIDErr != nil {
+		return nil, s.byIDErr
+	}
+	if s.byID != nil {
+		return s.byID, nil
+	}
+	return &identityentities.User{UserType: identityvalueobjects.UserRecruiter}, nil
 }
 
 type stubMemberCompanyRepositoryForHandler struct {
@@ -560,6 +575,30 @@ func TestAddMember_InvalidRoleReturns400(t *testing.T) {
 
 	targetID := uuid.New()
 	body := `{"user_id":"` + targetID.String() + `","role":"admin"}`
+	rec := doReq(t, router, http.MethodPost, "/me/company/members", body)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// TestAddMember_CandidateReturns400 covers business rule 3a at the transport:
+// a target with user_type=candidate surfaces 400 (not a silent 201).
+func TestAddMember_CandidateReturns400(t *testing.T) {
+	companyID := uuid.New()
+
+	mRepo := &stubMemberRepositoryForHandler{}
+	uRepo := &stubUserRepositoryForHandler{
+		byID: &identityentities.User{UserType: identityvalueobjects.UserCandidate},
+	}
+	cRepo := &stubMemberCompanyRepositoryForHandler{}
+	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	})
+
+	targetID := uuid.New()
+	body := `{"user_id":"` + targetID.String() + `","role":"recruiter"}`
 	rec := doReq(t, router, http.MethodPost, "/me/company/members", body)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
