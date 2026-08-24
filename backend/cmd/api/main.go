@@ -131,6 +131,13 @@ func run() error {
 		slog.Info("identity verifier ready")
 	}
 
+	// Phase 6 D8 hoist: requireAuth + requireRecruiter are now used by
+	// BOTH the /me/* subtree AND the jobs write route (PATCH /jobs/{id}),
+	// so they're hoisted to run() scope. requireOwner stays local to the
+	// /me block (only used by member-mutation routes).
+	requireAuth := identityhttp.RequireAuth(verifier)
+	requireRecruiter := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, valueobjects.RecruiterRole)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
@@ -171,13 +178,22 @@ func run() error {
 	// lives outside the /me/* RequireAuth subtree.
 	r.Mount("/jobs", jobHandler.Routes())
 
+	// Phase 6 D8: gated write path for PATCH /jobs/{id}. The route is
+	// mounted on the ROOT router (outside the public /jobs mount) so a
+	// future refactor that adds the PATCH to `Routes()` cannot silently
+	// expose the write path. The route shares `/jobs/{id}` with the
+	// public GET — chi routes by method, so GET hits the public mount
+	// and PATCH hits this gated line.
+	jobHandlers := jobHandler.JobHandlers()
+	r.With(requireAuth, requireRecruiter).Patch("/jobs/{id}", jobHandlers.UpdateJob)
+
 	// /me/* is the authenticated slice. RequireAuth runs first, so any
 	// request without a valid Bearer token is rejected pre-handler with
 	// 401 — the candidate handler is never invoked. With the fail-closed
 	// verifier in place (env not set), every request still hits 401, not
 	// 404, so the surface can't be probed by accident.
 	r.Route("/me", func(r chi.Router) {
-		r.Use(identityhttp.RequireAuth(verifier))
+		r.Use(requireAuth)
 		r.Mount("/profile", candidateHandler.Routes())
 
 		// /me/company is the company_membership subtree (WU4). The
@@ -198,9 +214,10 @@ func run() error {
 		// Each gate uses the same (users, members) pair as the rest of
 		// the company_membership slice; the gate resolves the caller's
 		// (company_id, role) per request and injects CompanyContext for
-		// the handler.
+		// the handler. requireRecruiter is the hoisted variable
+		// (Phase 6 D8); only requireOwner stays in this block because it
+		// is only used here.
 		requireOwner := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, valueobjects.OwnerRole)
-		requireRecruiter := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, valueobjects.RecruiterRole)
 
 		// Per-method handler accessors (added in WU4) — they let us
 		// apply different gates to different (method, path) pairs,

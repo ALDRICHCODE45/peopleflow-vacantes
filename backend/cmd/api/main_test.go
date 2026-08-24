@@ -60,7 +60,12 @@ func TestRequireAuth_MountedOnMeRoutes(t *testing.T) {
 		// Detect chi Route mutation.
 		if isChiRouteMutationCall(call) {
 			chiMutationCalls++
-			if referencesIdentifier(call, "RequireAuth") {
+			// Accept both the constructor form (RequireAuth) and the
+			// hoisted-variable form (requireAuth). The Phase 6 hoist
+			// moves the constructor call out of the route-mutation
+			// argument list; the route arguments now reference the
+			// hoisted `requireAuth` variable instead.
+			if referencesIdentifier(call, "RequireAuth") || referencesIdentifier(call, "requireAuth") {
 				routeReferences++
 			}
 		}
@@ -237,4 +242,115 @@ func isJobsMountCall(call *ast.CallExpr) bool {
 		return false
 	}
 	return bl.Value == `"/jobs"`
+}
+
+// TestJobsWriteRoute_MountedBehindGates asserts the Phase 6 D8 wiring:
+// the gated `PATCH /jobs/{id}` route is mounted on the composition
+// root with BOTH `requireAuth` AND `requireRecruiter` as middleware
+// arguments on a chi `With(...).Patch(...)` mutation. The test scans
+// main.go's AST and finds:
+//
+//  1. A chi mutation whose method is `Patch` and whose first string
+//     argument is the path template `/jobs/{id}`.
+//  2. The same mutation's argument list contains BOTH identifiers
+//     `requireAuth` and `requireRecruiter` (the hoisted variables).
+//
+// The existing TestJobsMount_PublicReadRoutes keeps passing unchanged
+// (the public mount stays public); TestRequireAuth_MountedOnMeRoutes
+// now also recognizes the hoisted `requireAuth` variable.
+//
+// The guard fails the moment the PATCH route is moved out from
+// behind the gates (a regression where the write path becomes
+// reachable unauthenticated).
+func TestJobsWriteRoute_MountedBehindGates(t *testing.T) {
+	const filePath = "main.go"
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		t.Skipf("cannot parse %s (run with cwd=backend/cmd/api): %v", filePath, err)
+	}
+
+	var patchRoutes []string              // path templates of found Patch calls
+	var properlyGatedPatchRoutes []string // subset that has BOTH gates
+
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		// We look for `r.With(...).Patch("/jobs/{id}", …)` chained
+		// calls. AST shape:
+		//   outer CallExpr.Fun = SelectorExpr{
+		//       X:  CallExpr{Fun: SelectorExpr{r, With}, Args: [requireAuth, requireRecruiter]},
+		//       Sel: Patch,
+		//   }
+		//   outer CallExpr.Args = ["/jobs/{id}", jobHandlers.UpdateJob]
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Patch" {
+			return true
+		}
+		// The X side of the selector must be a With(...) CallExpr.
+		inner, ok := sel.X.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !isWithCall(inner) {
+			return true
+		}
+		// First arg must be the path template "/jobs/{id}".
+		path, ok := patchPathLiteral(call)
+		if !ok || path != `"/jobs/{id}"` {
+			return true
+		}
+		patchRoutes = append(patchRoutes, path)
+		// The inner With(...) call must reference BOTH requireAuth
+		// AND requireRecruiter in its argument list.
+		if referencesIdentifier(inner, "requireAuth") &&
+			referencesIdentifier(inner, "requireRecruiter") {
+			properlyGatedPatchRoutes = append(properlyGatedPatchRoutes, path)
+		}
+		return true
+	})
+
+	if len(properlyGatedPatchRoutes) < 1 {
+		t.Fatalf("expected at least one `With(requireAuth, requireRecruiter).Patch(\"/jobs/{id}\", ...)` mutation in main.go; got %d (found %d PATCH /jobs/{id} calls without both gates)",
+			len(properlyGatedPatchRoutes), len(patchRoutes))
+	}
+
+	t.Logf("parsed %s: %d PATCH /jobs/{id} routes total, %d gated behind both requireAuth+requireRecruiter",
+		filePath, len(patchRoutes), len(properlyGatedPatchRoutes))
+}
+
+// isWithCall returns true if the call is `With(...)` (bare identifier
+// OR selector, e.g. r.With). We narrow to `With` rather than the full
+// mutation set so the guard targets the exact pattern D8 produces:
+// a `r.With(requireAuth, requireRecruiter).Patch("/jobs/{id}", …)`.
+func isWithCall(call *ast.CallExpr) bool {
+	switch fn := call.Fun.(type) {
+	case *ast.Ident:
+		return fn.Name == "With"
+	case *ast.SelectorExpr:
+		return fn.Sel.Name == "With"
+	}
+	return false
+}
+
+// patchPathLiteral returns the string literal of a `Patch("<path>", …)`
+// call's first argument (path template) and a `true` second value when
+// the call is shaped exactly that way. Used by
+// TestJobsWriteRoute_MountedBehindGates to find the gated write route.
+func patchPathLiteral(call *ast.CallExpr) (string, bool) {
+	fn, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || fn.Sel.Name != "Patch" {
+		return "", false
+	}
+	if len(call.Args) == 0 {
+		return "", false
+	}
+	bl, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || bl.Kind != token.STRING {
+		return "", false
+	}
+	return bl.Value, true
 }
