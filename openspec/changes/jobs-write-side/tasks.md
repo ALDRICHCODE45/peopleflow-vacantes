@@ -66,13 +66,13 @@ Rationale: the honest authored estimate is 4–6× the 400-line budget (8-step u
 
 `backend/db/queries/jobs.sql` (MOD): append exactly the D3 queries. `GetJobForUpdate :one` (D3 §5.1): explicit column list incl. `j.company_id`, `j.updated_at`, `c.name AS company_name`; `JOIN companies c ON c.id = j.company_id`; `WHERE j.id = $1 AND j.company_id = $2 AND j.deleted_at IS NULL` — **no** `status='published'`, **no** `c.status='active'` (drafts/closed/non-active companies must be visible to the write path). `UpdateJob :execrows` (D3 §5.2): `COALESCE(sqlc.narg(...)::text, col)` SET for title/description/work_mode/employment_type/seniority/salary_currency; `CASE WHEN sqlc.arg('set_<field>')::boolean THEN sqlc.narg(...)::text/int ELSE col END` for location/salary_min/salary_max; `status = COALESCE(sqlc.narg('status')::text, status)`; `published_at = CASE WHEN sqlc.narg('status')::text = 'published' THEN COALESCE(published_at, now()) ELSE published_at END`; `updated_at = now()`; `WHERE id/company_id/deleted_at IS NULL/updated_at = sqlc.arg('cas_token')::timestamptz`. Must never touch `search_vector`, `company_id`, `created_at`, `id`, `deleted_at`. Existing `SearchJobs`/`GetJobByID` stay byte-identical.
 
-- Verify: `cd backend && go tool sqlc generate` succeeds (see 2.2 for full check). Rollback: remove the two query blocks. <!-- sdd-owner: implementation -->
+- Verify: `cd backend && go tool sqlc generate` succeeds (see 2.2 for full check). Rollback: remove the two query blocks. [x] <!-- sdd-owner: implementation -->
 
 ### 2.2 — Regenerate and verify the generated seam
 
 Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql.go` gained `GetJobForUpdateRow`, `GetJobForUpdate`, `UpdateJobParams` (field order per D3 §5.2: Title, Description, WorkMode, EmploymentType, Seniority, SalaryCurrency, SetLocation, Location, SetSalaryMin, SalaryMin, SetSalaryMax, SalaryMax, Status, ID, CompanyID, CasToken), and `UpdateJob` (returns `(int64, error)`). **Generated file — do not hand-edit.**
 
-- Verify: `cd backend && go build ./...` compiles (generated code adds no call sites yet). Note for the reviewer: strict-TDD RED for this SQL is realized by the build-tagged integration suite in 7.1, which is written against the D3-pinned contract and must pass before ship; Go unit tests cannot compile against generated types before regen, so query authoring precedes the test proof (standard sqlc workflow, consistent with the existing read-path integration tests). <!-- sdd-owner: implementation -->
+- Verify: `cd backend && go build ./...` compiles (generated code adds no call sites yet). Note for the reviewer: strict-TDD RED for this SQL is realized by the build-tagged integration suite in 7.1, which is written against the D3-pinned contract and must pass before ship; Go unit tests cannot compile against generated types before regen, so query authoring precedes the test proof (standard sqlc workflow, consistent with the existing read-path integration tests). [x] <!-- sdd-owner: implementation -->
 
 ## Phase 3 — Infrastructure: postgres adapter (RED → GREEN)
 
