@@ -12,6 +12,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -33,6 +34,27 @@ func (h *CompanyHandler) Routes() chi.Router {
 	r.Post("/", h.createCompany)
 	r.Get("/{id}", h.getCompany)
 	return r
+}
+
+// CompanyHandlers exposes each endpoint as a public http.HandlerFunc so the
+// composition root (cmd/api/main.go) can apply per-method middleware. This
+// mirrors the MemberHandlers pattern in memberHandler.go: the company write
+// (POST) needs RequireAuth to resolve the creator subject, while the read
+// (GET) stays public, so a single chi.Mount(Routes()) subrouter can't express
+// the split — the parent must mount each handler with its own gate.
+type CompanyHandlers struct {
+	CreateCompany http.HandlerFunc
+	GetCompany    http.HandlerFunc
+}
+
+// CompanyHandlers returns the per-endpoint http.HandlerFunc surface for
+// main.go to mount with per-method middleware. The returned struct shares
+// state with the receiver.
+func (h *CompanyHandler) CompanyHandlers() CompanyHandlers {
+	return CompanyHandlers{
+		CreateCompany: http.HandlerFunc(h.createCompany),
+		GetCompany:    http.HandlerFunc(h.getCompany),
+	}
 }
 
 // createCompanyRequest is the JSON body accepted by POST /companies. Optional
@@ -114,13 +136,23 @@ type companyPublicResponse struct {
 }
 
 func (h *CompanyHandler) createCompany(w http.ResponseWriter, r *http.Request) {
+	// The company creator is the authenticated subject; RequireAuth (mounted in
+	// main.go) has already placed Claims into the request context. A missing
+	// subject means the middleware was mis-wired — refuse rather than create an
+	// ownerless company.
+	claims := security.ClaimsFromContext(r.Context())
+	if claims.Subject == "" {
+		httpjson.WriteError(w, http.StatusUnauthorized, "missing authenticated subject")
+		return
+	}
+
 	var req createCompanyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpjson.WriteError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 
-	company, err := h.service.CreateCompany(r.Context(), dtos.CreateCompanyDto{
+	company, err := h.service.CreateCompanyWithOwner(r.Context(), claims.Subject, dtos.CreateCompanyDto{
 		Name:          req.Name,
 		Rfc:           req.Rfc,
 		IndustryID:    req.IndustryID,
@@ -246,6 +278,8 @@ func foundedYearToIntPtr(y *valueobjects.FoundedYear) *int {
 // → 500 with a generic message (the real error is logged separately).
 func classifyCreateCompanyError(err error) (int, string) {
 	switch {
+	case errors.Is(err, entities.ErrUnknownSubject):
+		return http.StatusUnauthorized, err.Error()
 	case errors.Is(err, entities.ErrEmptyIndustry),
 		errors.Is(err, valueobjects.ErrCompanyNameTooShort),
 		errors.Is(err, valueobjects.ErrCompanyRfcInvalidLength),

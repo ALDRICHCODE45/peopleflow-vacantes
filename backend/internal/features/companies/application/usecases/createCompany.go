@@ -13,17 +13,7 @@ import (
 // errors from any VO constructor are returned unchanged so the HTTP layer can
 // translate them into 4xx responses.
 func (s *CompanyService) CreateCompany(ctx context.Context, params dtos.CreateCompanyDto) (*entities.Company, error) {
-	profile, err := buildCompanyProfile(params)
-	if err != nil {
-		return nil, err
-	}
-
-	company, err := entities.NewCompany(
-		params.Name,
-		params.Rfc,
-		params.IndustryID,
-		profile,
-	)
+	company, err := buildCompany(params)
 	if err != nil {
 		return nil, err
 	}
@@ -33,6 +23,23 @@ func (s *CompanyService) CreateCompany(ctx context.Context, params dtos.CreateCo
 	}
 
 	return company, nil
+}
+
+// buildCompany parses the DTO into a Company aggregate without persisting it.
+// It is shared by CreateCompany (legacy) and CreateCompanyWithOwner (bootstrap)
+// so both flows enforce the identical entity validation.
+func buildCompany(params dtos.CreateCompanyDto) (*entities.Company, error) {
+	profile, err := buildCompanyProfile(params)
+	if err != nil {
+		return nil, err
+	}
+
+	return entities.NewCompany(
+		params.Name,
+		params.Rfc,
+		params.IndustryID,
+		profile,
+	)
 }
 
 // buildCompanyProfile turns the raw DTO inputs into the typed entity profile.

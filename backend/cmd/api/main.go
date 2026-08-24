@@ -84,8 +84,11 @@ func run() error {
 	identityUserRepo := identitypostgres.NewUserRepository(queries)
 
 	// Feature wiring: companies (adapter -> use case -> handler).
+	// The bootstrap repository opens the transaction that creates a company
+	// AND its founding owner atomically (business rule: the creator is owner).
 	companyRepo := postgres.NewCompanyRepository(queries)
-	companyService := usecases.NewCompanyService(companyRepo)
+	companyBootstrapRepo := postgres.NewCompanyBootstrapRepository(pool)
+	companyService := usecases.NewCompanyServiceWithBootstrap(companyRepo, identityUserRepo, companyBootstrapRepo)
 	companyHandler := companieshttp.NewCompanyHandler(companyService)
 
 	// Feature wiring: company_members (adapter -> use case -> handler).
@@ -143,7 +146,23 @@ func run() error {
 		_, _ = w.Write([]byte("ok"))
 	})
 
-	r.Mount("/companies", companyHandler.Routes())
+	r.Mount("/industries", industrieshttp.ListIndustries(queries))
+
+	// /companies is split across two auth planes because its two verbs have
+	// different visibility:
+	//   - GET  /companies/{id} — public profile (candidate-facing), like GET /jobs.
+	//   - POST /companies       — authenticated: the creator becomes owner, so the
+	//                             handler needs the JWT subject.
+	// Because CompanyHandler.Routes() mounts both verbs under one subrouter,
+	// we split them here so GET stays public while POST sits behind RequireAuth.
+	{
+		companyHandlers := companyHandler.CompanyHandlers()
+		// Public read slice: the bare {id} lookup (candidate-facing).
+		r.Get("/companies/{id}", companyHandlers.GetCompany)
+		// Authenticated write: RequireAuth injects Claims the createCompany
+		// handler reads to resolve the subject → users.id.
+		r.With(identityhttp.RequireAuth(verifier)).Post("/companies", companyHandlers.CreateCompany)
+	}
 	r.Get("/industries", industrieshttp.ListIndustries(queries))
 
 	// /jobs is the public-read job board. Both routes (GET /jobs and

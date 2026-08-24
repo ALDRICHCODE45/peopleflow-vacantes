@@ -15,6 +15,8 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -54,8 +56,62 @@ func (r *stubRepo) GetByID(_ context.Context, id uuid.UUID) (*entities.Company, 
 	return nil, entities.ErrCompanyNotFound
 }
 
+// stubBootstrapRepo and stubUserRepo back the CreateCompanyWithOwner flow in
+// the HTTP tests. The handler now resolves the subject → users.id and persists
+// company + owner atomically, so the test doubles must implement those ports.
+type stubBootstrapRepo struct {
+	mu        sync.Mutex
+	company   *entities.Company
+	owner     *entities.CompanyMember
+	createErr error
+}
+
+func (r *stubBootstrapRepo) CreateWithOwner(_ context.Context, c *entities.Company, m *entities.CompanyMember) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.createErr != nil {
+		return r.createErr
+	}
+	r.company = c
+	r.owner = m
+	return nil
+}
+
+// stubUserRepo resolves a fixed sub to a users.id (or returns
+// identityentities.ErrUserNotFound).
+type stubUserRepo struct {
+	mu       sync.Mutex
+	resolved *identityentities.User
+	resErr   error
+}
+
+func (r *stubUserRepo) GetByCognitoSub(_ context.Context, _ string) (*identityentities.User, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.resErr != nil {
+		return nil, r.resErr
+	}
+	if r.resolved == nil {
+		return nil, identityentities.ErrUserNotFound
+	}
+	return r.resolved, nil
+}
+
+func (r *stubUserRepo) Create(_ context.Context, _ *identityentities.User) (*identityentities.User, error) {
+	return nil, errors.New("stubUserRepo.Create: not used")
+}
+
+func (r *stubUserRepo) GetByID(_ context.Context, _ uuid.UUID) (*identityentities.User, error) {
+	return nil, errors.New("stubUserRepo.GetByID: not used")
+}
+
 func newTestHandler(repo *stubRepo) *CompanyHandler {
-	svc := usecases.NewCompanyService(repo)
+	return newTestHandlerWithBootstrap(repo, &stubBootstrapRepo{})
+}
+
+func newTestHandlerWithBootstrap(repo *stubRepo, bootstrap *stubBootstrapRepo) *CompanyHandler {
+	users := &stubUserRepo{resolved: &identityentities.User{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), CognitoSub: "test-sub"}}
+	svc := usecases.NewCompanyServiceWithBootstrap(repo, users, bootstrap)
 	return NewCompanyHandler(svc)
 }
 
@@ -69,6 +125,9 @@ func doPost(t *testing.T, router http.Handler, body string) *httptest.ResponseRe
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/companies", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	// RequireAuth would inject Claims in production; the handler reads them.
+	ctx := security.ContextWithClaims(req.Context(), security.Claims{Subject: "test-sub"})
+	req = req.WithContext(ctx)
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	return rec
@@ -257,8 +316,9 @@ func TestCreateCompany_EmptyIndustry(t *testing.T) {
 }
 
 func TestCreateCompany_Duplicate(t *testing.T) {
-	repo := &stubRepo{cErr: entities.ErrDuplicateCompany}
-	router := newTestRouter(newTestHandler(repo))
+	repo := &stubRepo{}
+	bootstrap := &stubBootstrapRepo{createErr: entities.ErrDuplicateCompany}
+	router := newTestRouter(newTestHandlerWithBootstrap(repo, bootstrap))
 
 	body := `{"name":"Acme SA de CV","rfc":"AAA010101AAA","industry_id":"tech"}`
 	rec := doPost(t, router, body)
@@ -275,6 +335,21 @@ func TestCreateCompany_InvalidJSON(t *testing.T) {
 	rec := doPost(t, router, "{not json")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d", rec.Code)
+	}
+}
+
+func TestCreateCompany_MissingSubject(t *testing.T) {
+	repo := &stubRepo{}
+	router := newTestRouter(newTestHandler(repo))
+
+	// Simulate a request that bypassed RequireAuth: no Claims in context.
+	req := httptest.NewRequest(http.MethodPost, "/companies", strings.NewReader(`{"name":"Acme SA de CV","rfc":"AAA010101AAA","industry_id":"tech"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d: %s", rec.Code, rec.Body.String())
 	}
 }
 
