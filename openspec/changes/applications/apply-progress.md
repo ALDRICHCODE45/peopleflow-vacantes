@@ -21,6 +21,7 @@ Phase: apply. Strict TDD. Single-pr delivery (size-exception accepted).
 - **Commit C** — `feat(applications): repository port, DTOs, and five use cases` (Phase 3: tasks 3.1–3.3)
 - **Commit D** — `feat(applications): sqlc queries, regen, and postgres adapter` (Phase 4: tasks 4.1–4.4)
 - **Commit E** — `test(applications): SQL-level integration coverage (migration + adapter)` (Phase 5: tasks 5.1–5.2)
+- **Commit F** — `feat(applications): HTTP handler and error classification` (Phase 6: tasks 6.1–6.3)
 
 ## Phase 1 — Domain VOs + entities (Commit A)
 
@@ -45,8 +46,6 @@ Phase: apply. Strict TDD. Single-pr delivery (size-exception accepted).
 
 ### Remaining tasks
 
-- 5.1 / 5.2 (Commit E) — SQL integration  *(landed)*
-- 6.1 / 6.2 (Commit F) — HTTP handler
 - 7.1 / 7.2 (Commit G) — composition root + AST guards
 - 8.1 — full-suite gate
 
