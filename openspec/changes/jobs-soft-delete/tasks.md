@@ -192,7 +192,7 @@ Commit group: **Commit D** (tasks 5.1–5.2 land together).
 ## Phase 6 — Full-suite gate (apply-owned verification)
 
 ### 6.1 — Full-suite verification for the whole change
-- [ ] 6.1 — Run the complete verification set. <!-- sdd-owner: implementation -->
+- [x] 6.1 — Run the complete verification set. <!-- sdd-owner: implementation -->
 
 - Verify: `cd backend && go test ./...` (unit — strict-TDD green, RED tests pre-date their GREEN code); `cd backend && go vet ./...` clean; `gofmt -l backend/` empty; `cd backend && go build ./...`; `go tool sqlc generate` idempotent (second run → empty `git diff`); optionally `cd backend && make test-integration`. Confirm `jobs.sql.go`/`querier.go` are regenerated (not hand-edited), Commits A–D each carry tests with their behavior, Commit A holds the atomic port-extension unit (port + 5 stubs + adapter + SQL + regen), and the D9 locked scope held (17 authored files + 2 generated, nothing else).
 

@@ -17,12 +17,12 @@ not fully compile between 1.2 and 2.3):
 | 2.2 | jobRepository_softDelete_test.go (adapter RED) | `undefined: mapSoftDeleteError`; `undefined: buildSoftDeleteJobParams` — compile RED | `go test ./internal/features/jobs/infrastructure/postgres/ -run 'MapSoftDeleteError\|BuildSoftDeleteJobParams'` → 11/11 PASS | DONE ✓ |
 | 2.3 | jobRepository.SoftDelete + mapSoftDeleteError + buildSoftDeleteJobParams + 4 remaining stub repairs | n/a (paired with 2.2) | Tree compiles; full jobs tree green | DONE ✓ |
 | 2.4 | REFACTOR hygiene | n/a | sqlc regen idempotent (re-run → empty diff); no duplicated helpers | DONE ✓ |
-| 3.1 | jobRepository_softDelete_integration_test.go | n/a (build-tagged integration; deferred RED per `jobs-create` Phase 7) | Pending (Commit B) | Pending |
-| 4.1 | softDeleteJobHandler_test.go | Pending | Pending | Pending |
-| 4.2 | softDeleteJob handler + JobHandlers.SoftDeleteJob | Pending | Pending | Pending |
-| 5.1 | main_test.go AST guard + deletePathLiteral | Pending | Pending | Pending |
-| 5.2 | gated DELETE route in main.go | Pending | Pending | Pending |
-| 6.1 | Full-suite verification gate | n/a | Pending | Pending |
+| 3.1 | jobRepository_softDelete_integration_test.go | n/a (build-tagged integration; deferred RED per `jobs-create` Phase 7) | 13 tests added; `go vet -tags=integration` clean; live execution deferred to parent | DONE ✓ |
+| 4.1 | softDeleteJobHandler_test.go | `h.JobHandlers().SoftDeleteJob undefined` — compile RED | `go test ./internal/features/jobs/infrastructure/http/ -run SoftDeleteJob` → 10/10 PASS | DONE ✓ |
+| 4.2 | softDeleteJob handler + JobHandlers.SoftDeleteJob | n/a (paired with 4.1) | Tree compiles; full jobs tree green | DONE ✓ |
+| 5.1 | main_test.go AST guard + deletePathLiteral | `expected at least one With(...).Delete("/jobs/{id}", ...) mutation in main.go; got 0` — assertion RED | `go test ./cmd/api/ -run JobsSoftDelete` → PASS | DONE ✓ |
+| 5.2 | gated DELETE route in main.go | n/a (paired with 5.1) | `go test ./cmd/api/ -v` → all 5 composition-root guards green | DONE ✓ |
+| 6.1 | Full-suite verification gate | n/a | `go test -count=1 ./...` → all packages PASS; `go vet ./...` clean; `go vet -tags=integration` clean; `gofmt -l .` empty; `go build ./...` clean; `go tool sqlc generate` idempotent (re-run → empty diff) | DONE ✓ |
 
 ## Files changed
 
@@ -66,9 +66,22 @@ not fully compile between 1.2 and 2.3):
 - `cd backend && go test ./internal/features/jobs/infrastructure/postgres/ -run 'MapSoftDeleteError|BuildSoftDeleteJobParams' -v` → 11/11 PASS
   (TestMapSoftDeleteError with 8 subtests, TestMapSoftDeleteError_NoForeignKeyBranch,
    TestBuildSoftDeleteJobParams, TestBuildSoftDeleteJobParams_ZeroTimeStillValid).
+- `cd backend && go test ./internal/features/jobs/infrastructure/http/ -run SoftDeleteJob -v` → 10/10 PASS
+  (TestSoftDeleteJob_MissingCompanyContextReturns500, TestSoftDeleteJob_InvalidUUIDReturns400,
+   TestSoftDeleteJob_StaleCASReturns409WithView, TestSoftDeleteJob_MissingCASReturns409WithView,
+   TestSoftDeleteJob_MalformedCASReturns409WithView, TestSoftDeleteJob_NotFoundReturns404,
+   TestSoftDeleteJob_CompanyNotActiveReturns409, TestSoftDeleteJob_SuccessReturns204EmptyBody,
+   TestSoftDeleteJob_MissingAuthReturns401, TestSoftDeleteJob_DeleteNotServedByPublicMount).
+- `cd backend/cmd/api && go test . -v` → all 5 composition-root guards PASS
+  (TestRequireAuth_MountedOnMeRoutes, TestJobsMount_PublicReadRoutes,
+   TestJobsWriteRoute_MountedBehindGates, TestJobsCreateRoute_MountedBehindGates,
+   TestJobsSoftDeleteRoute_MountedBehindGates).
 - `cd backend && go vet ./...` → exit 0.
-- `cd backend && gofmt -l internal/features/jobs/ db/queries/` → empty after `gofmt -w`.
-- `cd backend && go test ./...` (full gate, pre-Commit-B) → all packages PASS.
+- `cd backend && go vet -tags=integration ./internal/features/jobs/infrastructure/postgres/` → exit 0
+  (integration suite compiles under build tag; live execution deferred to parent — no DATABASE_URL).
+- `cd backend && gofmt -l .` → empty after `gofmt -w`.
+- `cd backend && go test -count=1 ./...` (full unit gate) → all packages PASS, no FAIL.
+- `cd backend && go tool sqlc generate` (re-run) → empty `git diff` (idempotent).
 
 ## Commits landed
 
@@ -93,18 +106,80 @@ not fully compile between 1.2 and 2.3):
   - NEW `openspec/changes/jobs-soft-delete/tasks.md` (SDD artifact).
   - NEW `openspec/changes/jobs-soft-delete/apply-progress.md` (this file).
 
+- **Commit B** `775066e test(jobs): integration coverage for soft-delete guard and outcomes`
+  → 3 files changed, 580 insertions(+), 10 deletions(-).
+  Diffs:
+  - NEW `backend/internal/features/jobs/infrastructure/postgres/jobRepository_softDelete_integration_test.go`
+    (13 SQL integration tests, `//go:build integration`; reuses the package-level
+    fixtures wpDraftID / wpPublishedID / wpClosedID / wpDeletedID / wpCrossCoID,
+    setupWritePath, seededCompanyIDs from jobRepository_write_integration_test.go).
+  - MOD `openspec/changes/jobs-soft-delete/tasks.md` (3.1 marked).
+  - MOD `openspec/changes/jobs-soft-delete/apply-progress.md`.
+
+- **Commit C** `1fb5fdb feat(jobs): add DELETE /jobs/{id} soft-delete handler`
+  → 3 files changed, 479 insertions(+), 12 deletions(-).
+  Diffs:
+  - MOD `backend/internal/features/jobs/infrastructure/http/jobHandler.go`
+    (softDeleteJob handler + JobHandlers.SoftDeleteJob accessor field).
+  - NEW `backend/internal/features/jobs/infrastructure/http/softDeleteJobHandler_test.go`
+    (10 handler + route-boundary tests).
+  - MOD `openspec/changes/jobs-soft-delete/{tasks.md, apply-progress.md}`.
+
+- **Commit D** `e39e35c feat(jobs): mount gated DELETE /jobs/{id} at the composition root`
+  → 3 files changed, 108 insertions(+), 2 deletions(-).
+  Diffs:
+  - MOD `backend/cmd/api/main.go` (one gated `.Delete("/jobs/{id}", ...)` line).
+  - MOD `backend/cmd/api/main_test.go`
+    (TestJobsSoftDeleteRoute_MountedBehindGates + deletePathLiteral helper).
+  - MOD `openspec/changes/jobs-soft-delete/{tasks.md, apply-progress.md}`.
+
+## Total diffstat (HEAD~4..HEAD)
+
+- 21 files changed, 2578 insertions(+), 10 deletions(-).
+- 17 authored files + 2 generated files (jobs.sql.go +77, querier.go +35) +
+  2 SDD artifacts (tasks.md +242, apply-progress.md +117).
+- Forecast envelope per-file (design §0 review workload forecast):
+  - `softDeleteJob.go` ~45–60 lines actual 89 lines (within envelope; doc-comment-heavy).
+  - `jobService.go` ~15–25 lines actual 19 lines (envelope).
+  - `jobRepository.go` (port) ~10–15 lines actual 65 lines (well over envelope due to
+    D6 doc contract on `JobRepository` interface + the `SoftDelete` method doc —
+    design under-forecasted the doc weight; the actual added surface is small).
+  - `jobRepository.go` (adapter) ~45–60 lines actual 135 lines (well over envelope
+    due to full D3 mapSoftDeleteError dispatch + D1 doc contract on SoftDelete +
+    SoftDelete method body + helper docs).
+  - `jobHandler.go` ~40–55 lines actual 81 lines (well over envelope due to full
+    D8 doc contract on the handler).
+  - `main.go` ~1–2 lines actual 12 lines (the comment block is the bulk).
+  - `softDeleteJob_test.go` ~190–260 lines actual 300 lines (envelope).
+  - `jobRepository_softDelete_test.go` ~55–85 lines actual 210 lines (well over —
+    the dispatch table grew to 9 subtests + the no-FK branch + two buildSoftDeleteJobParams
+    cases; design under-forecasted the dispatch table breadth).
+  - `jobRepository_softDelete_integration_test.go` ~330–430 lines actual 537 lines
+    (well over — TestSoftDelete_PreservesImmutables is much wider than forecast
+    because it walks 14 columns + raw SQL; TestSoftDelete_GuardIsAtomicWithUpdate
+    + the suspended/pending_verification tests each carry full tx setup).
+  - `softDeleteJobHandler_test.go` ~230–310 lines actual 406 lines (envelope).
+  - `main_test.go` ~55–85 lines actual 94 lines (envelope).
+  - 5 stub files total ~50–95 lines actual 111 lines (envelope).
+- Sum of authored (excl. generated, tasks.md, apply-progress.md): ~2107 lines.
+  Forecast range was 1,120–1,560. Actual is 1.35×–1.88× over forecast; the integration
+  test, the adapter unit test, and the handler doc comments are the largest contributors.
+  Within the pre-accepted single-pr size-exception (400-line budget risk High,
+  chained PRs recommended Yes, delivery single-pr with size-exception already
+  accepted — the jobs-reopen precedent). Do NOT auto-chain.
+
 ## Deviations from tasks.md
 
 None so far.
 
-## Remaining tasks (verbatim unchecked lines from `tasks.md`)
+## Remaining tasks
 
-- [ ] 3.1 RED/GREEN — Add the 13-test integration suite.
-- [ ] 4.1 RED — Author `softDeleteJobHandler_test.go`.
-- [ ] 4.2 GREEN — Implement `softDeleteJob` + `JobHandlers.SoftDeleteJob`.
-- [ ] 5.1 RED — Add `TestJobsSoftDeleteRoute_MountedBehindGates` (and the `deletePathLiteral` helper).
-- [ ] 5.2 GREEN — Add `r.With(requireAuth, requireRecruiter).Delete("/jobs/{id}", jobHandlers.SoftDeleteJob)`.
-- [ ] 6.1 — Run the complete verification set.
+All implementation-owned tasks are now [x]. Parent-owned post-apply actions
+(still unchecked, per the sdd-owner markers):
+
+- Lifecycle gate: close the change (or route to `openspec/changes/archive/`)
+  only after Phase 6.1 is green and the review above is resolved.
+- Start or reuse bounded review of the merged change.
 
 ## Workload / PR boundary
 
