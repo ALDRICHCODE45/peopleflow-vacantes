@@ -210,15 +210,15 @@ func TestSoftDelete_PreservesImmutables(t *testing.T) {
 	}
 
 	var (
-		id, companyID                 uuid.UUID
-		title, description, workMode  string
-		employmentType, seniority     string
-		salaryCurrency                string
-		status                        string
-		location                      *string
-		salaryMin, salaryMax          *int32
-		publishedAt, deletedAt        *time.Time
-		createdAt                     time.Time
+		id, companyID                uuid.UUID
+		title, description, workMode string
+		employmentType, seniority    string
+		salaryCurrency               string
+		status                       string
+		location                     *string
+		salaryMin, salaryMax         *int32
+		publishedAt, deletedAt       *time.Time
+		createdAt                    time.Time
 	)
 	if err := tx.QueryRow(ctx,
 		`SELECT id, company_id, title, description, work_mode, employment_type,
