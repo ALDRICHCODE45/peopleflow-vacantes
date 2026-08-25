@@ -180,7 +180,7 @@ Confirm `toEditorView` is the ONLY editor projection (createJob.go calls the `up
 ## Phase 7 — Integration & final verification
 
 ### 7.1 — Build-tagged create integration tests (deferred RED for the D1/D2/D3 SQL)
-- [ ] 7.1 — Build-tagged integration suite for `CreateJob`. <!-- sdd-owner: implementation -->
+- [x] 7.1 — Build-tagged integration suite for `CreateJob`. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/infrastructure/postgres/jobRepository_create_integration_test.go` (new, `//go:build integration`, transaction-rollback isolation, skip when `DATABASE_URL` unset — mirror `jobRepository_write_integration_test.go`):
 - Active company: `repo.Create` → re-read via `GetForUpdate` shows `status='draft'`, `published_at IS NULL`, `updated_at` set within the request window, `company{id,name}` populated; optional fields nil → NULL columns; set values round-trip; `salary_currency` omitted in params → `'MXN'` (D5).
@@ -192,7 +192,7 @@ Confirm `toEditorView` is the ONLY editor projection (createJob.go calls the `up
 - Verify: `cd backend && make test-integration` (sources `.env`; needs Postgres up + migrated; skips when `DATABASE_URL` unset) — new tests pass and the pre-existing read/write integration suites stay green. Rollback: delete the test file.
 
 ### 7.2 — Full-suite gate
-- [ ] 7.2 — Full-suite verification for the whole change. <!-- sdd-owner: implementation -->
+- [x] 7.2 — Full-suite verification for the whole change. <!-- sdd-owner: implementation -->
 
 Run the complete verification set for the entire change.
 
