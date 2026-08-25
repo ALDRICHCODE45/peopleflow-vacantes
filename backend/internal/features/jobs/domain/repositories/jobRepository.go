@@ -91,6 +91,26 @@ type UpdatePatch struct {
 	Status         *valueobjects.JobStatus
 }
 
+// CreateJobParams is the validated, parsed input the use case hands to
+// JobRepository.Create. The use case owns UUID generation (id) and VO
+// parsing; the adapter maps VOs to canonical wire strings and optional
+// pointers to nullable pgtypes.
+//
+// SalaryCurrency is always non-nil (the use case defaults nil → MXN per
+// design D5); the adapter writes an explicit canonical string and never
+// relies on the DB DEFAULT.
+type CreateJobParams struct {
+	Title          string
+	Description    string
+	WorkMode       valueobjects.WorkMode
+	EmploymentType valueobjects.EmploymentType
+	Seniority      valueobjects.Seniority
+	Location       *string
+	SalaryMin      *int
+	SalaryMax      *int
+	SalaryCurrency valueobjects.SalaryCurrency
+}
+
 // JobRepository is the persistence port for the jobs slice. It exposes
 // the read surface (visibility-narrowed) and the write surface
 // (company-scoped, non-visibility-narrowed, gated by design D1-D10).
@@ -113,10 +133,16 @@ type UpdatePatch struct {
 //	               dumb); the use case re-interprets that as
 //	               ErrConcurrencyConflict because it already read the
 //	               row via GetForUpdate (design D4).
+//	Create       — atomically inserts a draft job owned by companyID,
+//	               guarded by the active-company predicate inside the
+//	               same SQL statement (no TOCTOU). The use case owns
+//	               UUID generation; the adapter maps VOs to canonical
+//	               wire strings and optional pointers to pgtypes.
 //
 // Errors.Is(entities.ErrJobNotFound) is the single "no such row" signal
-// every method emits, so the HTTP layer can map to 404 with a single
-// branch.
+// every READ method emits, so the HTTP layer can map to 404 with a
+// single branch. The Create method emits a distinct sentinel pair
+// (entities.ErrCompanyNotActive / entities.ErrCompanyGone) per design D7.
 type JobRepository interface {
 	Search(ctx context.Context, p SearchParams) ([]entities.Job, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.Job, error)
@@ -129,7 +155,41 @@ type JobRepository interface {
 	// Update applies the patch atomically, guarded by (id, company_id,
 	// deleted_at IS NULL) and CAS `updated_at = casUpdatedAt`. 0 rows
 	// → entities.ErrJobNotFound (the adapter is dumb); the use case
-	// re-interprets that as ErrConcurrencyConflict because it already
-	// read the row via GetForUpdate.
+	// re-interprets that as ErrConcurrencyConflict because it already read
+	// the row via GetForUpdate.
 	Update(ctx context.Context, id, companyID uuid.UUID, patch UpdatePatch, casUpdatedAt time.Time) error
+
+	// Create atomically inserts a draft job owned by `companyID`,
+	// guarded by the active-company predicate inside the same SQL
+	// statement (design D1/D2/D3). The use case owns UUID generation
+	// (id) and VO parsing; the adapter maps parsed VOs to canonical
+	// wire strings and optional pointers to nullable pgtypes.
+	//
+	// Returns the created row mapped to *entities.JobForUpdate so the
+	// use case can reuse `toEditorView` verbatim (design D2 — no
+	// parallel projection).
+	//
+	// Error contract:
+	//
+	//   - entities.ErrCompanyNotActive       on 0 rows (non-active or
+	//                                          — defensively — missing
+	//                                          company; the CTE guard
+	//                                          surfaces pgx.ErrNoRows
+	//                                          and the adapter maps it
+	//                                          here).
+	//   - entities.ErrCompanyGone            on SQLSTATE 23503 (FK
+	//                                          violation on
+	//                                          jobs.company_id;
+	//                                          defense-in-depth —
+	//                                          unreachable via the
+	//                                          designed flow).
+	//   - entities.ErrInvalidStatusTransition on SQLSTATE 23514
+	//                                          (CHECK violation;
+	//                                          defense-in-depth — use
+	//                                          case parses VOs before
+	//                                          SQL).
+	//   - any other error                    propagated untouched
+	//                                          (HTTP 500).
+	Create(ctx context.Context, id, companyID uuid.UUID, params CreateJobParams) (*entities.JobForUpdate, error)
 }
+

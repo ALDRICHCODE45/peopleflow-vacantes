@@ -34,6 +34,13 @@ type stubJobRepository struct {
 	// searchCalls / searchParams mirror every call the use case made.
 	searchCalls  int
 	searchParams []repositories.SearchParams
+
+	// Create (port-method stub added in jobs-create Phase 1.2 atomic
+	// stub repair). Default ErrCompanyNotActive keeps existing
+	// search/get tests green; Phase 4 CreateJob tests program this
+	// directly via the dedicated writeStubRepo fixture
+	// (updateJob_test.go).
+	createErr error
 }
 
 func (s *stubJobRepository) Search(_ context.Context, p repositories.SearchParams) ([]entities.Job, error) {
@@ -74,6 +81,15 @@ func (s *stubJobRepository) GetForUpdate(_ context.Context, _, _ uuid.UUID) (*en
 // captured Update call.
 func (s *stubJobRepository) Update(_ context.Context, _, _ uuid.UUID, _ repositories.UpdatePatch, _ time.Time) error {
 	return nil
+}
+
+// Create is a port-method stub (Phase 1.2 stub repair). Default
+// ErrCompanyNotActive keeps the package compilable and matches the
+// postgres adapter's 0-rows response; Phase 4 CreateJob tests program
+// this directly via the dedicated writeStubRepo fixture
+// (updateJob_test.go).
+func (s *stubJobRepository) Create(_ context.Context, _, _ uuid.UUID, _ repositories.CreateJobParams) (*entities.JobForUpdate, error) {
+	return nil, s.createErr
 }
 
 // Compile-time guard: the stub satisfies the same surface the

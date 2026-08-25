@@ -24,6 +24,13 @@ type stubJobRepo struct {
 
 	gotParams SearchParams
 	gotID     uuid.UUID
+
+	// Create (port-method stub added in jobs-create Phase 1.2 atomic
+	// stub repair). Default returns ErrCompanyNotActive so the port is
+	// satisfied and the existing read tests stay green; Phase 4 use-case
+	// tests program this method directly via the dedicated
+	// writeStubRepo fixture (updateJob_test.go).
+	createErr error
 }
 
 func (s *stubJobRepo) Search(_ context.Context, p SearchParams) ([]entities.Job, error) {
@@ -48,6 +55,14 @@ func (s *stubJobRepo) GetForUpdate(_ context.Context, _, _ uuid.UUID) (*entities
 // captured Update call.
 func (s *stubJobRepo) Update(_ context.Context, _, _ uuid.UUID, _ UpdatePatch, _ time.Time) error {
 	return nil
+}
+
+// Create is a port-method stub (Phase 1.2 stub repair). Default
+// ErrCompanyNotActive keeps the package compilable and matches the
+// "no row inserted on the active-company guard" semantics the
+// postgres adapter returns when the company is non-active.
+func (s *stubJobRepo) Create(_ context.Context, _, _ uuid.UUID, _ CreateJobParams) (*entities.JobForUpdate, error) {
+	return nil, s.createErr
 }
 
 // TestJobRepository_StubSatisfiesPort is the compile-time + runtime

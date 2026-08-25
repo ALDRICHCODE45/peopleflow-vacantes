@@ -41,6 +41,13 @@ type stubRepo struct {
 	lastGetByID  uuid.UUID
 	getByIDOut   *entities.Job
 	getByIDErr   error
+
+	// Create (port-method stub added in jobs-create Phase 1.2 atomic
+	// stub repair). Default ErrCompanyNotActive keeps the existing
+	// list/detail tests passing; Phase 5's create handler tests
+	// program this method via the dedicated writeStubHandlerRepo
+	// fixture (updateJobHandler_test.go).
+	createErr error
 }
 
 func (r *stubRepo) Search(_ context.Context, p repositories.SearchParams) ([]entities.Job, error) {
@@ -80,6 +87,15 @@ func (r *stubRepo) GetForUpdate(_ context.Context, _, _ uuid.UUID) (*entities.Jo
 // captured Update call.
 func (r *stubRepo) Update(_ context.Context, _, _ uuid.UUID, _ repositories.UpdatePatch, _ time.Time) error {
 	return nil
+}
+
+// Create is a port-method stub (Phase 1.2 stub repair). Default
+// ErrCompanyNotActive keeps the package compilable and matches the
+// postgres adapter's 0-rows response; Phase 5's create handler tests
+// program this method via the dedicated writeStubHandlerRepo
+// fixture (updateJobHandler_test.go).
+func (r *stubRepo) Create(_ context.Context, _, _ uuid.UUID, _ repositories.CreateJobParams) (*entities.JobForUpdate, error) {
+	return nil, r.createErr
 }
 
 // Compile-time guard against accidental port drift.

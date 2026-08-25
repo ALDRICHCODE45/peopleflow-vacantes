@@ -49,6 +49,11 @@ import (
 // supports a queued-response pattern (similar to the usecase test
 // stub) so a single test can drive the read → update → re-read
 // sequence without any real database.
+//
+// Phase 1.2 stub repair (jobs-create): the Create method gains a
+// programmable surface (createOut / createErr + captured lastCreateID /
+// lastCreateCompany / lastCreateParams) because the Phase 5.1 create
+// handler tests assert on what the use case forwards to the repo.
 type writeStubHandlerRepo struct {
 	mu sync.Mutex
 
@@ -69,6 +74,23 @@ type writeStubHandlerRepo struct {
 	lastUpdateCas   time.Time
 	lastUpdateID    uuid.UUID
 	lastUpdateCompa uuid.UUID
+
+	// --- Create (jobs-create Phase 1.2 + 5.1) -------------------------
+
+	// createOut is the entity the stub returns from Create. nil +
+	// createErr drives the error path (the use case propagates the
+	// sentinel untouched per design D7).
+	createOut *entities.JobForUpdate
+	// createErr is the error returned by Create when createOut is nil.
+	createErr error
+
+	// createCalls / lastCreateID / lastCreateCompany / lastCreateParams
+	// record what the use case forwarded to the repo on the most recent
+	// Create call.
+	createCalls       int
+	lastCreateID      uuid.UUID
+	lastCreateCompany uuid.UUID
+	lastCreateParams  repositories.CreateJobParams
 }
 
 func (s *writeStubHandlerRepo) Search(_ context.Context, _ repositories.SearchParams) ([]entities.Job, error) {
@@ -102,6 +124,27 @@ func (s *writeStubHandlerRepo) Update(_ context.Context, id, companyID uuid.UUID
 	s.lastUpdatePatch = patch
 	s.lastUpdateCas = casUpdatedAt
 	return s.updateErr
+}
+
+// Create is a port-method stub (jobs-create Phase 1.2). Default
+// behavior matches the postgres adapter's success path: when createOut
+// is set, the stub returns it; otherwise it surfaces createErr (which
+// defaults to nil). Phase 5.1 create handler tests program both knobs.
+func (s *writeStubHandlerRepo) Create(_ context.Context, id, companyID uuid.UUID, params repositories.CreateJobParams) (*entities.JobForUpdate, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.createCalls++
+	s.lastCreateID = id
+	s.lastCreateCompany = companyID
+	s.lastCreateParams = params
+	if s.createOut != nil {
+		j := *s.createOut
+		return &j, nil
+	}
+	if s.createErr != nil {
+		return nil, s.createErr
+	}
+	return nil, nil
 }
 
 // Compile-time guard.

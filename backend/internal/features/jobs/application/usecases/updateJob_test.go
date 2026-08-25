@@ -39,6 +39,11 @@ import (
 // can pin what the use case forwarded, and it lets each test program
 // the response shape (next GetForUpdate return, next Update return,
 // re-read return on the second GetForUpdate call).
+//
+// Phase 1.2 stub repair (jobs-create): the Create method gets a
+// programmable surface (createOut / createErr + captured lastCreateID /
+// lastCreateCompany / lastCreateParams) because the Phase 4.3 CreateJob
+// tests assert on what the use case forwards to the repo.
 type writeStubRepo struct {
 	// GetForUpdate call counter — first call is the initial read,
 	// second call is the re-read after a 0-rows Update.
@@ -66,6 +71,23 @@ type writeStubRepo struct {
 	lastUpdateCompany uuid.UUID
 	lastUpdatePatch   repositories.UpdatePatch
 	lastUpdateCas     time.Time
+
+	// --- Create (jobs-create Phase 1.2 + 4.3) -------------------------
+
+	// createOut is the entity the stub returns from Create. nil +
+	// createErr drives the error path (the use case propagates the
+	// sentinel untouched per design D7).
+	createOut *entities.JobForUpdate
+	// createErr is the error returned by Create when createOut is nil.
+	createErr error
+
+	// createCalls / lastCreateID / lastCreateCompany / lastCreateParams
+	// record what the use case forwarded to the repo on the most recent
+	// Create call.
+	createCalls        int
+	lastCreateID       uuid.UUID
+	lastCreateCompany  uuid.UUID
+	lastCreateParams   repositories.CreateJobParams
 }
 
 type getForUpdateResponse struct {
@@ -103,6 +125,26 @@ func (s *writeStubRepo) Update(_ context.Context, id, companyID uuid.UUID, patch
 	s.lastUpdatePatch = patch
 	s.lastUpdateCas = casUpdatedAt
 	return s.updateErr
+}
+
+// Create is a port-method stub (jobs-create Phase 1.2). The default
+// behavior mirrors the postgres adapter's success path: when createOut
+// is set, the stub returns it; otherwise it surfaces createErr (which
+// defaults to nil so the package compiles and pre-Phase-4.3 tests are
+// not surprised). The Phase 4.3 CreateJob tests program both knobs.
+func (s *writeStubRepo) Create(_ context.Context, id, companyID uuid.UUID, params repositories.CreateJobParams) (*entities.JobForUpdate, error) {
+	s.createCalls++
+	s.lastCreateID = id
+	s.lastCreateCompany = companyID
+	s.lastCreateParams = params
+	if s.createOut != nil {
+		j := *s.createOut
+		return &j, nil
+	}
+	if s.createErr != nil {
+		return nil, s.createErr
+	}
+	return nil, nil
 }
 
 // Compile-time guard: the stub satisfies the domain port.

@@ -68,6 +68,20 @@ var ErrEmptyDescription = errors.New("description must not be empty")
 // NOT enforce this rule; the use case is the single validation gate.
 var ErrInvalidSalaryRange = errors.New("salary_min must be less than or equal to salary_max")
 
+// ErrCompanyNotActive is returned when the owning company is not `active`
+// at INSERT time (suspended / pending_verification) or — defensively —
+// when the atomic guard yields zero rows because the company is missing.
+// The HTTP layer maps this to 409 Conflict ("company is not active").
+var ErrCompanyNotActive = errors.New("company is not active")
+
+// ErrCompanyGone is the defense-in-depth sentinel for SQLSTATE 23503
+// (foreign_key_violation on jobs.company_id). It is unreachable via the
+// designed flow: the `active` CTE filters by `companies.id = $company_id`,
+// so a missing company yields zero rows (→ ErrCompanyNotActive), never a
+// FK violation. It exists to keep the adapter boundary typed if a future
+// query shape drifts. The HTTP layer maps it to 409 Conflict.
+var ErrCompanyGone = errors.New("company is gone")
+
 // CompanyRef is the embedded company identity carried in every job
 // response: {id, name}. The adapter joins `companies` in the same
 // query (Decision 5) so this comes back populated in every row.
