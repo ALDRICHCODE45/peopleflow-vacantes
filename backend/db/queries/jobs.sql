@@ -211,3 +211,80 @@ WHERE id         = sqlc.arg('id')::uuid
   AND company_id = sqlc.arg('company_id')::uuid
   AND deleted_at IS NULL
   AND updated_at = sqlc.arg('cas_token')::timestamptz;
+
+-- name: CreateJob :one
+-- Atomic create for POST /jobs (design D1/D2/D3).
+--
+-- Two guarantees live in this single statement:
+--   1. Active-company gate: the `active` CTE selects the owning company
+--      ONLY when status='active'. A suspended / pending_verification /
+--      missing company yields zero rows in `active`, so `ins` inserts
+--      zero rows and the final SELECT returns zero rows -> the adapter
+--      maps pgx.ErrNoRows -> entities.ErrCompanyNotActive (the
+--      predicate and the write are the same statement -- no TOCTOU
+--      window).
+--   2. Single-round-trip editor view: the final SELECT joins `ins`
+--      back to `active` to carry company_name, so the output column
+--      set is EXACTLY the GetJobForUpdate column set and the adapter
+--      reuses toJobForUpdateEntity via a thin row lift.
+--
+-- status is written explicitly as 'draft' (locked decision #1): the
+-- row is born hidden from the public read path (status='published'
+-- predicate) and the explicit value is immune to a future DEFAULT drift.
+--
+-- salary_currency is always supplied by the use case (nil -> MXN in Go),
+-- so it is a required arg, never NULL. location / salary_min /
+-- salary_max are nullable (sqlc.narg).
+--
+-- search_vector (STORED generated) is EXCLUDED from BOTH the INSERT
+-- column list and every output list -- a `RETURNING *` would map
+-- tsvector to interface{} and a generated column rejects explicit
+-- writes (D3).
+WITH active AS (
+    SELECT id, name
+    FROM companies
+    WHERE id = sqlc.arg('company_id')::uuid
+      AND status = 'active'
+),
+ins AS (
+    INSERT INTO jobs (
+        id, company_id, title, description, work_mode, employment_type,
+        seniority, status, location, salary_min, salary_max, salary_currency
+    )
+    SELECT
+        sqlc.arg('id')::uuid,
+        active.id,
+        sqlc.arg('title')::text,
+        sqlc.arg('description')::text,
+        sqlc.arg('work_mode')::text,
+        sqlc.arg('employment_type')::text,
+        sqlc.arg('seniority')::text,
+        'draft',
+        sqlc.narg('location')::text,
+        sqlc.narg('salary_min')::int,
+        sqlc.narg('salary_max')::int,
+        sqlc.arg('salary_currency')::text
+    FROM active
+    RETURNING
+        id, title, description, location, work_mode, employment_type,
+        seniority, salary_min, salary_max, salary_currency, status,
+        published_at, updated_at, company_id
+)
+SELECT
+    ins.id,
+    ins.title,
+    ins.description,
+    ins.location,
+    ins.work_mode,
+    ins.employment_type,
+    ins.seniority,
+    ins.salary_min,
+    ins.salary_max,
+    ins.salary_currency,
+    ins.status,
+    ins.published_at,
+    ins.updated_at,
+    ins.company_id,
+    active.name AS company_name
+FROM ins
+JOIN active ON active.id = ins.company_id;

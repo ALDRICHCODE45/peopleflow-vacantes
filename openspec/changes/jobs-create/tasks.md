@@ -53,7 +53,7 @@ Rationale: the honest authored estimate is 5–6× the 400-line budget. The slic
 ## Phase 2 — Persistence: `CreateJob` query + regen (pinned D1/D2/D3 SQL; generated code)
 
 ### 2.1 — Author `CreateJob :one` (D1/D2/D3)
-- [ ] 2.1 — Author the `CreateJob :one` query. <!-- sdd-owner: implementation -->
+- [x] 2.1 — Author the `CreateJob :one` query. <!-- sdd-owner: implementation -->
 
 `backend/db/queries/jobs.sql` (MOD): append exactly the design §5.1 query — the nested CTE `WITH active AS (SELECT id, name FROM companies WHERE id = sqlc.arg('company_id')::uuid AND status = 'active'), ins AS (INSERT INTO jobs (id, company_id, title, description, work_mode, employment_type, seniority, status, location, salary_min, salary_max, salary_currency) SELECT … FROM active RETURNING …) SELECT … FROM ins JOIN active ON active.id = ins.company_id`. Pinned points:
 - Atomic active-company guard inside the same statement (D1 — no TOCTOU); 0 rows on a non-active/missing company → `pgx.ErrNoRows` at the adapter.
@@ -66,7 +66,7 @@ Rationale: the honest authored estimate is 5–6× the 400-line budget. The slic
 - Verify: `cd backend && go tool sqlc generate` succeeds (see 2.2 for the full check). Rollback: remove the `CreateJob` block.
 
 ### 2.2 — Regenerate and verify the generated seam (D5 §5.2)
-- [ ] 2.2 — Regen via `go tool sqlc generate`; confirm the generated seam. <!-- sdd-owner: implementation -->
+- [x] 2.2 — Regen via `go tool sqlc generate`; confirm the generated seam. <!-- sdd-owner: implementation -->
 
 Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql.go` gained `CreateJobParams` (fields named from the `sqlc.arg`/`sqlc.narg` names: CompanyID, ID, Title, Description, WorkMode, EmploymentType, Seniority, Location `pgtype.Text`, SalaryMin `pgtype.Int4`, SalaryMax `pgtype.Int4`, SalaryCurrency — exact order confirmed at regen time), `CreateJobRow` (15 fields matching `GetJobForUpdateRow`), and `CreateJob(ctx, arg CreateJobParams) (CreateJobRow, error)`. The existing four queries are unchanged. **Generated file — do not hand-edit.**
 

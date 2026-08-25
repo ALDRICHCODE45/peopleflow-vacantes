@@ -12,6 +12,151 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createJob = `-- name: CreateJob :one
+WITH active AS (
+    SELECT id, name
+    FROM companies
+    WHERE id = $1::uuid
+      AND status = 'active'
+),
+ins AS (
+    INSERT INTO jobs (
+        id, company_id, title, description, work_mode, employment_type,
+        seniority, status, location, salary_min, salary_max, salary_currency
+    )
+    SELECT
+        $2::uuid,
+        active.id,
+        $3::text,
+        $4::text,
+        $5::text,
+        $6::text,
+        $7::text,
+        'draft',
+        $8::text,
+        $9::int,
+        $10::int,
+        $11::text
+    FROM active
+    RETURNING
+        id, title, description, location, work_mode, employment_type,
+        seniority, salary_min, salary_max, salary_currency, status,
+        published_at, updated_at, company_id
+)
+SELECT
+    ins.id,
+    ins.title,
+    ins.description,
+    ins.location,
+    ins.work_mode,
+    ins.employment_type,
+    ins.seniority,
+    ins.salary_min,
+    ins.salary_max,
+    ins.salary_currency,
+    ins.status,
+    ins.published_at,
+    ins.updated_at,
+    ins.company_id,
+    active.name AS company_name
+FROM ins
+JOIN active ON active.id = ins.company_id
+`
+
+type CreateJobParams struct {
+	CompanyID      uuid.UUID   `json:"company_id"`
+	ID             uuid.UUID   `json:"id"`
+	Title          string      `json:"title"`
+	Description    string      `json:"description"`
+	WorkMode       string      `json:"work_mode"`
+	EmploymentType string      `json:"employment_type"`
+	Seniority      string      `json:"seniority"`
+	Location       pgtype.Text `json:"location"`
+	SalaryMin      pgtype.Int4 `json:"salary_min"`
+	SalaryMax      pgtype.Int4 `json:"salary_max"`
+	SalaryCurrency string      `json:"salary_currency"`
+}
+
+type CreateJobRow struct {
+	ID             uuid.UUID          `json:"id"`
+	Title          string             `json:"title"`
+	Description    string             `json:"description"`
+	Location       pgtype.Text        `json:"location"`
+	WorkMode       string             `json:"work_mode"`
+	EmploymentType string             `json:"employment_type"`
+	Seniority      string             `json:"seniority"`
+	SalaryMin      pgtype.Int4        `json:"salary_min"`
+	SalaryMax      pgtype.Int4        `json:"salary_max"`
+	SalaryCurrency string             `json:"salary_currency"`
+	Status         string             `json:"status"`
+	PublishedAt    pgtype.Timestamptz `json:"published_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	CompanyID      uuid.UUID          `json:"company_id"`
+	CompanyName    string             `json:"company_name"`
+}
+
+// Atomic create for POST /jobs (design D1/D2/D3).
+//
+// Two guarantees live in this single statement:
+//  1. Active-company gate: the `active` CTE selects the owning company
+//     ONLY when status='active'. A suspended / pending_verification /
+//     missing company yields zero rows in `active`, so `ins` inserts
+//     zero rows and the final SELECT returns zero rows -> the adapter
+//     maps pgx.ErrNoRows -> entities.ErrCompanyNotActive (the
+//     predicate and the write are the same statement -- no TOCTOU
+//     window).
+//  2. Single-round-trip editor view: the final SELECT joins `ins`
+//     back to `active` to carry company_name, so the output column
+//     set is EXACTLY the GetJobForUpdate column set and the adapter
+//     reuses toJobForUpdateEntity via a thin row lift.
+//
+// status is written explicitly as 'draft' (locked decision #1): the
+// row is born hidden from the public read path (status='published'
+// predicate) and the explicit value is immune to a future DEFAULT drift.
+//
+// salary_currency is always supplied by the use case (nil -> MXN in Go),
+// so it is a required arg, never NULL. location / salary_min /
+// salary_max are nullable (sqlc.narg).
+//
+// search_vector (STORED generated) is EXCLUDED from BOTH the INSERT
+// column list and every output list -- a `RETURNING *` would map
+// tsvector to interface{} and a generated column rejects explicit
+// writes (D3).
+func (q *Queries) CreateJob(ctx context.Context, arg CreateJobParams) (CreateJobRow, error) {
+	row := q.db.QueryRow(ctx, createJob,
+		arg.CompanyID,
+		arg.ID,
+		arg.Title,
+		arg.Description,
+		arg.WorkMode,
+		arg.EmploymentType,
+		arg.Seniority,
+		arg.Location,
+		arg.SalaryMin,
+		arg.SalaryMax,
+		arg.SalaryCurrency,
+	)
+	var i CreateJobRow
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Description,
+		&i.Location,
+		&i.WorkMode,
+		&i.EmploymentType,
+		&i.Seniority,
+		&i.SalaryMin,
+		&i.SalaryMax,
+		&i.SalaryCurrency,
+		&i.Status,
+		&i.PublishedAt,
+		&i.UpdatedAt,
+		&i.CompanyID,
+		&i.CompanyName,
+	)
+	return i, err
+}
+
 const getJobByID = `-- name: GetJobByID :one
 SELECT
     j.id,
