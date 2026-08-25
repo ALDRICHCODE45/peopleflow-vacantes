@@ -17,6 +17,7 @@ Phase: apply. Strict TDD. Single-pr delivery (size-exception accepted).
 ## Commits landed
 
 - **Commit A** — `feat(applications): status/source value objects and domain entities` (Phase 1: tasks 1.1–1.3)
+- **Commit B** — `feat(applications): migration 00010 applications table` (Phase 2: task 2.1)
 
 ## Phase 1 — Domain VOs + entities (Commit A)
 
@@ -41,7 +42,6 @@ Phase: apply. Strict TDD. Single-pr delivery (size-exception accepted).
 
 ### Remaining tasks
 
-- 2.1 (Commit B) — migration `00010_create_applications.sql`
 - 3.1 / 3.2 (Commit C) — port, DTOs, stubs, use cases
 - 4.1 / 4.2 / 4.3 (Commit D) — sqlc queries + regen + adapter
 - 5.1 / 5.2 (Commit E) — SQL integration
