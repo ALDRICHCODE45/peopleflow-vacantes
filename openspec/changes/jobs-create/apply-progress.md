@@ -43,5 +43,65 @@ Phase 7 (integration + full gate):
 
 ## Files Changed
 
-(See commits for exact line counts per change.)
+Final tally (relative to jobs-write-side base `9ae1f50`):
+
+| Path | Additions | Notes |
+|------|-----------|-------|
+| backend/internal/features/jobs/domain/entities/job.go | +14 | 2 new sentinels (ErrCompanyNotActive, ErrCompanyGone). |
+| backend/internal/features/jobs/domain/repositories/jobRepository.go | +66 | CreateJobParams type + Create port method. |
+| backend/internal/features/jobs/domain/repositories/jobRepository_test.go | +15 | stubJobRepo.Create stub. |
+| backend/internal/features/jobs/application/dtos/createJobDto.go | +40 | D6 input shape. |
+| backend/internal/features/jobs/application/dtos/createJobDto_test.go | +206 | D6 decode tests. |
+| backend/internal/features/jobs/application/usecases/createJob.go | +137 | D8 8-step use case. |
+| backend/internal/features/jobs/application/usecases/createJob_test.go | +565 | use case tests. |
+| backend/internal/features/jobs/application/usecases/jobService.go | +16 | CreateJobUseCase interface + guard. |
+| backend/internal/features/jobs/application/usecases/searchJobs_test.go | +16 | stubJobRepository.Create stub. |
+| backend/internal/features/jobs/application/usecases/updateJob_test.go | +42 | writeStubRepo programmable surface. |
+| backend/internal/features/jobs/infrastructure/http/jobHandler.go | +57 | createJob handler + JobHandlers.CreateJob + 2 classify branches. |
+| backend/internal/features/jobs/infrastructure/http/handler_test.go | +16 | stubRepo.Create stub. |
+| backend/internal/features/jobs/infrastructure/http/createJobHandler_test.go | +499 | handler + route-boundary tests. |
+| backend/internal/features/jobs/infrastructure/http/updateJobHandler_test.go | +43 | writeStubHandlerRepo programmable surface. |
+| backend/internal/features/jobs/infrastructure/postgres/jobRepository.go | +162 | Create + 4 helpers. |
+| backend/internal/features/jobs/infrastructure/postgres/createJobRepository_test.go | +406 | adapter helper unit tests. |
+| backend/internal/features/jobs/infrastructure/postgres/jobRepository_create_integration_test.go | +483 | build-tagged integration suite (skips without DATABASE_URL). |
+| backend/db/queries/jobs.sql | +77 | CreateJob :one atomic CTE. |
+| backend/internal/db/jobs.sql.go | generated | sqlc regen: CreateJob + CreateJobParams + CreateJobRow. |
+| backend/internal/db/querier.go | generated | sqlc regen: Querier interface gained CreateJob. |
+| backend/cmd/api/main.go | +11 | r.With(requireAuth, requireRecruiter).Post("/jobs", ...). |
+| backend/cmd/api/main_test.go | +87 | TestJobsCreateRoute_MountedBehindGates AST guard. |
+
+**Totals: 2,951 insertions, 6 deletions across 20 source files** (plus 2 generated
+sqlc files). Within the design's ~1,900-2,600 estimated authored range plus the
+~250-line sqlc regen delta. Single-pr delivery honored per the accepted
+size-exception record.
+
+## Verification
+
+- `cd backend && go test ./...` → 25 packages PASS, 0 FAIL (exit 0)
+- `cd backend && go test -tags=integration -count=1 ./...` → 13 new CreateJob integration tests
+  skip cleanly when DATABASE_URL is unset; pre-existing read/write integration
+  tests also skip cleanly
+- `cd backend && go vet ./...` → clean
+- `cd backend && go build ./...` → clean
+- `gofmt -l .` → empty (formatted clean after the style commit)
+- `go tool sqlc generate` → idempotent (no further changes)
+- All 17 implementation tasks in `openspec/changes/jobs-create/tasks.md` marked
+  `[x]` after the corresponding commit landed; both post-apply `parent`-owned
+  rows left for the lifecycle owner.
+
+## Commits
+
+```
+20a876d style(jobs): gofmt -w normalization for jobs-create files
+213f9e3 test(jobs): add build-tagged CreateJob integration suite (D1/D2/D3/D4/D5)
+71089d3 feat(jobs): wire gated POST /jobs route + AST guard (D9 §6.3)
+5c2fd28 feat(jobs): implement POST /jobs handler + JobHandlers.CreateJob (D9)
+6566b9b feat(jobs): add CreateJobDto + CreateJob use case (D5/D6/D8)
+26f41a6 feat(jobs): implement postgres adapter Create + helpers (D7)
+4de7ec1 feat(jobs): author CreateJob :one atomic CTE query + sqlc regen (D1/D2/D3)
+8759c9b feat(jobs): extend JobRepository port with Create + atomic 5-stub repair
+```
+
+8 commits, all on `main`. No pushes, no PRs (delivery strategy: single-pr with
+size-exception, maintainer pushes per the orchestrator note).
 
