@@ -11,12 +11,12 @@ not fully compile between 1.2 and 2.3):
 
 | Step | Task | RED evidence (compile / outcome) | GREEN evidence | Status |
 |------|------|---------------------------------|----------------|--------|
-| 1.1 | softDeleteJob_test.go (use-case RED) | `*JobService has no field or method SoftDeleteJob`; `*writeStubRepo has no field or method softDeleteCalls / lastSoftDeleteID / lastSoftDeleteCompany / lastSoftDeleteCas` — compile RED | Pending (Commit A GREEN) | RED ✓ |
-| 1.2 | softDeleteJob.go + jobService.go seam + port SoftDelete + writeStubRepo repair | n/a (paired with 1.1) | Pending | Pending |
-| 2.1 | db/queries/jobs.sql SoftDeleteJob :one + sqlc regen | n/a (sqlc regen produces `SoftDeleteJobParams{CompanyID,ID,CasToken}`, `SoftDeleteJobRow{GuardPassed,DeletedCount}`, `Querier.SoftDeleteJob` — confirmed at regen time) | Done (sqlc regen idempotent) | RED ✓ |
-| 2.2 | jobRepository_softDelete_test.go (adapter RED) | `undefined: mapSoftDeleteError`; `undefined: buildSoftDeleteJobParams` — compile RED | Pending (Commit A GREEN) | RED ✓ |
-| 2.3 | jobRepository.SoftDelete + mapSoftDeleteError + buildSoftDeleteJobParams + 4 remaining stub repairs | n/a (paired with 2.2) | Pending | Pending |
-| 2.4 | REFACTOR hygiene | n/a | Pending | Pending |
+| 1.1 | softDeleteJob_test.go (use-case RED) | `*JobService has no field or method SoftDeleteJob`; `*writeStubRepo has no field or method softDeleteCalls / lastSoftDeleteID / lastSoftDeleteCompany / lastSoftDeleteCas` — compile RED | `go test ./internal/features/jobs/application/usecases/ -run SoftDeleteJob` → 7/7 PASS | DONE ✓ |
+| 1.2 | softDeleteJob.go + jobService.go seam + port SoftDelete + writeStubRepo repair | n/a (paired with 1.1) | Tree compiles; full jobs tree green | DONE ✓ |
+| 2.1 | db/queries/jobs.sql SoftDeleteJob :one + sqlc regen | n/a (sqlc regen produces `SoftDeleteJobParams{CompanyID,ID,CasToken}`, `SoftDeleteJobRow{GuardPassed,DeletedCount}`, `Querier.SoftDeleteJob` — confirmed at regen time) | Done (sqlc regen idempotent, 77+35 generated lines) | DONE ✓ |
+| 2.2 | jobRepository_softDelete_test.go (adapter RED) | `undefined: mapSoftDeleteError`; `undefined: buildSoftDeleteJobParams` — compile RED | `go test ./internal/features/jobs/infrastructure/postgres/ -run 'MapSoftDeleteError\|BuildSoftDeleteJobParams'` → 11/11 PASS | DONE ✓ |
+| 2.3 | jobRepository.SoftDelete + mapSoftDeleteError + buildSoftDeleteJobParams + 4 remaining stub repairs | n/a (paired with 2.2) | Tree compiles; full jobs tree green | DONE ✓ |
+| 2.4 | REFACTOR hygiene | n/a | sqlc regen idempotent (re-run → empty diff); no duplicated helpers | DONE ✓ |
 | 3.1 | jobRepository_softDelete_integration_test.go | n/a (build-tagged integration; deferred RED per `jobs-create` Phase 7) | Pending (Commit B) | Pending |
 | 4.1 | softDeleteJobHandler_test.go | Pending | Pending | Pending |
 | 4.2 | softDeleteJob handler + JobHandlers.SoftDeleteJob | Pending | Pending | Pending |
@@ -56,6 +56,42 @@ not fully compile between 1.2 and 2.3):
 - `cd backend && go test ./internal/features/jobs/infrastructure/postgres/ -run 'MapSoftDeleteError|BuildSoftDeleteJobParams'`
   → RED (compile): `undefined: mapSoftDeleteError`, `undefined: buildSoftDeleteJobParams`.
 - `cd backend && go tool sqlc generate` → exit 0, idempotent (re-run → empty diff).
+- `cd backend && go build ./...` → exit 0.
+- `cd backend && go test ./internal/features/jobs/...` → all 8 packages PASS.
+- `cd backend && go test ./internal/features/jobs/application/usecases/ -run SoftDeleteJob -v` → 7/7 PASS
+  (TestSoftDeleteJob_SuccessCallsSoftDeleteWithCAS, TestSoftDeleteJob_StatusAgnostic with 3 subtests,
+   TestSoftDeleteJob_CASMismatchReturnsConflictWithView, TestSoftDeleteJob_ZeroTokenReturnsConflict,
+   TestSoftDeleteJob_GetForUpdateNotFoundPropagates, TestSoftDeleteJob_SoftDeleteErrCompanyNotActivePropagates,
+   TestSoftDeleteJob_SoftDeleteErrJobNotFoundPropagatesNoReread).
+- `cd backend && go test ./internal/features/jobs/infrastructure/postgres/ -run 'MapSoftDeleteError|BuildSoftDeleteJobParams' -v` → 11/11 PASS
+  (TestMapSoftDeleteError with 8 subtests, TestMapSoftDeleteError_NoForeignKeyBranch,
+   TestBuildSoftDeleteJobParams, TestBuildSoftDeleteJobParams_ZeroTimeStillValid).
+- `cd backend && go vet ./...` → exit 0.
+- `cd backend && gofmt -l internal/features/jobs/ db/queries/` → empty after `gofmt -w`.
+- `cd backend && go test ./...` (full gate, pre-Commit-B) → all packages PASS.
+
+## Commits landed
+
+- **Commit A** `cc9eb11 feat(jobs): soft-delete port contract, guard SQL, adapter, and use case`
+  → 16 files changed, 1425 insertions(+).
+  Diffs:
+  - NEW `backend/internal/features/jobs/application/usecases/softDeleteJob.go` (D4/D5 flow + package doc).
+  - NEW `backend/internal/features/jobs/application/usecases/softDeleteJob_test.go` (7 use-case tests).
+  - NEW `backend/internal/features/jobs/infrastructure/postgres/jobRepository_softDelete_test.go` (3 adapter tests).
+  - MOD `backend/db/queries/jobs.sql` (D1 SoftDeleteJob :one CTE guard appended).
+  - MOD `backend/internal/db/jobs.sql.go` (sqlc regen: +77 lines, never hand-edited).
+  - MOD `backend/internal/db/querier.go` (sqlc regen: +35 lines, never hand-edited).
+  - MOD `backend/internal/features/jobs/application/usecases/jobService.go` (SoftDeleteJobUseCase seam + var _ assertion).
+  - MOD `backend/internal/features/jobs/domain/repositories/jobRepository.go` (port SoftDelete + doc contract).
+  - MOD `backend/internal/features/jobs/infrastructure/postgres/jobRepository.go` (SoftDelete + buildSoftDeleteJobParams + mapSoftDeleteError).
+  - MOD 5 stub files (atomic D6 / jobs-create D10):
+    - `backend/internal/features/jobs/domain/repositories/jobRepository_test.go` (stubJobRepo.SoftDelete, default nil).
+    - `backend/internal/features/jobs/application/usecases/searchJobs_test.go` (stubJobRepository.SoftDelete, default nil).
+    - `backend/internal/features/jobs/application/usecases/updateJob_test.go` (writeStubRepo.SoftDelete, programmable surface: softDeleteErr + softDeleteCalls / lastSoftDeleteID / lastSoftDeleteCompany / lastSoftDeleteCas).
+    - `backend/internal/features/jobs/infrastructure/http/handler_test.go` (stubRepo.SoftDelete, default nil).
+    - `backend/internal/features/jobs/infrastructure/http/updateJobHandler_test.go` (writeStubHandlerRepo.SoftDelete, programmable surface).
+  - NEW `openspec/changes/jobs-soft-delete/tasks.md` (SDD artifact).
+  - NEW `openspec/changes/jobs-soft-delete/apply-progress.md` (this file).
 
 ## Deviations from tasks.md
 
@@ -63,9 +99,6 @@ None so far.
 
 ## Remaining tasks (verbatim unchecked lines from `tasks.md`)
 
-- [ ] 1.2 GREEN — Author `softDeleteJob.go`, the `jobService.go` seam, the port `SoftDelete`, and the `writeStubRepo` repair.
-- [ ] 2.3 GREEN — Implement `SoftDelete`, `buildSoftDeleteJobParams`, `mapSoftDeleteError`; repair the four remaining stubs.
-- [ ] 2.4 REFACTOR — Confirm generated-not-hand-edited and no duplicated helpers.
 - [ ] 3.1 RED/GREEN — Add the 13-test integration suite.
 - [ ] 4.1 RED — Author `softDeleteJobHandler_test.go`.
 - [ ] 4.2 GREEN — Implement `softDeleteJob` + `JobHandlers.SoftDeleteJob`.

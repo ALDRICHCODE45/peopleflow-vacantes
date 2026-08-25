@@ -113,7 +113,7 @@ File: `backend/internal/features/jobs/infrastructure/postgres/jobRepository_soft
 Commit group: **Commit B** (task 3.1 lands alone; RED and GREEN coincide — deferred RED for the D1 SQL, exactly as `jobs-create` Phase 7 did).
 
 ### 3.1 RED/GREEN — Guard outcomes, CAS, immutability, atomicity at the SQL level (S16–S27, S30, S31)
-- [ ] 3.1 RED/GREEN — Add the 13-test integration suite. <!-- sdd-owner: implementation -->
+- [x] 3.1 RED/GREEN — Add the 13-test integration suite. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/infrastructure/postgres/jobRepository_softDelete_integration_test.go` (NEW, `//go:build integration`, transaction-rollback isolation, skip when `DATABASE_URL` unset — reuses package-level fixtures `wpDraftID`/`wpPublishedID`/`wpClosedID`/`wpDeletedID`/`wpCrossCoID`, `setupWritePath`, `seededCompanyIDs`; mirror `jobRepository_create_integration_test.go`'s new-file precedent). Tests (design §7 items 11–23):
 - `TestSoftDelete_DraftRowDeletes` — `SoftDelete(wpDraftID)` → `nil`; raw SQL asserts `deleted_at IS NOT NULL`; `repo.GetByID` → `ErrJobNotFound` (read invisibility).
