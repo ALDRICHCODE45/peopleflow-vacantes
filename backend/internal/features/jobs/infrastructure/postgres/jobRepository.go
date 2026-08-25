@@ -120,31 +120,40 @@ func (r *JobRepository) GetForUpdate(ctx context.Context, id, companyID uuid.UUI
 	return &j, nil
 }
 
-// Update applies the patch atomically, guarded by (id, company_id,
-// deleted_at IS NULL) and CAS `updated_at = casUpdatedAt`. The D3 SQL
-// sets `updated_at = now()` on a successful update, so the
+// Update applies the patch atomically, guarded by the active-company
+// CTE (D1/D2), the row predicates (id, company_id, deleted_at IS NULL),
+// and CAS `updated_at = casUpdatedAt`. The D1 SQL is `:one` and emits a
+// scalar SELECT returning {guard_passed, updated_count}, which the
+// adapter inspects to distinguish the three outcomes:
+//   - guard_passed = false → ErrCompanyNotActive (suspended /
+//     pending_verification / missing company). The row is NOT updated.
+//   - guard_passed = true, updated_count = 0 → ErrJobNotFound (CAS lost
+//     OR cross-company OR soft-delete race WITH an active company — D3).
+//     The use case re-reads and re-interprets as ErrConcurrencyConflict.
+//   - guard_passed = true, updated_count = 1 → success (1 row affected).
+//
+// The D1 SQL sets `updated_at = now()` on a successful update, so the
 // authoritative post-write value is the next GetForUpdate's result
 // (the use case re-reads to obtain it — design D5 step 8).
 //
 // Returns:
 //
-//   - nil                  on success (1 row affected)
-//   - entities.ErrJobNotFound  on 0 rows (CAS lost OR row gone)
-//   - entities.ErrInvalidStatusTransition on SQLSTATE 23514 (CHECK
-//     violation — defense-in-depth; unreachable via the designed flow)
-//   - other error          propagated untouched (HTTP 500)
-//
-// The adapter is intentionally dumb on the 0-rows case: it does NOT
-// distinguish "CAS lost" from "row deleted between read and write".
-// The use case has already read the row, so 0 rows can only mean the
-// row changed; it re-interprets ErrJobNotFound as ErrConcurrencyConflict
-// after a re-read (design D4).
+//   - nil                                  on success (guard passed, 1 row)
+//   - entities.ErrCompanyNotActive         on guard miss (suspended/pending/missing)
+//   - entities.ErrJobNotFound              on CAS lost / cross-company / soft-delete race
+//   - entities.ErrInvalidStatusTransition  on SQLSTATE 23514 (CHECK violation
+//     — defense-in-depth; unreachable
+//     via the designed flow)
+//   - other error                          propagated untouched (HTTP 500)
 func (r *JobRepository) Update(ctx context.Context, id, companyID uuid.UUID, patch repositories.UpdatePatch, casUpdatedAt time.Time) error {
-	rows, err := r.queries.UpdateJob(ctx, buildUpdateJobParams(id, companyID, patch, casUpdatedAt))
+	row, err := r.queries.UpdateJob(ctx, buildUpdateJobParams(id, companyID, patch, casUpdatedAt))
 	if err != nil {
 		return mapUpdateError(err)
 	}
-	if rows == 0 {
+	if !row.GuardPassed {
+		return entities.ErrCompanyNotActive
+	}
+	if row.UpdatedCount == 0 {
 		return entities.ErrJobNotFound
 	}
 	return nil
@@ -568,15 +577,33 @@ func pgTimestamptzToTime(t pgtype.Timestamptz) time.Time {
 }
 
 // mapUpdateError translates Postgres errors surfaced by UpdateJob
-// into domain sentinels. The visibility/scope rule is in the SQL
-// `WHERE`, so the only mapping the adapter applies is SQLSTATE 23514
-// (check_violation) → ErrInvalidStatusTransition as defense-in-depth.
+// into domain sentinels. The active-company guard is in the SQL CTE
+// (D1), and the guard outcome is observable via the row's GuardPassed
+// flag (the designed path). pgx.ErrNoRows is unreachable via the
+// designed flow (the :one scalar SELECT always returns exactly one
+// row), but it is mapped to ErrCompanyNotActive as defense-in-depth
+// — mirrors mapCreateError and satisfies the locked
+// "pgx.ErrNoRows → ErrCompanyNotActive" contract if the query shape
+// ever drifts.
+//
+// Ordering vs the existing 23514 branch: pgx.ErrNoRows is checked
+// BEFORE the errors.As into *pgconn.PgError so the two checks
+// coexist (pgx.ErrNoRows is not a *pgconn.PgError, so there is no
+// precedence conflict).
 //
 // Mapping contract:
 //
 //   - nil                                → nil (pass-through)
+//   - pgx.ErrNoRows                      → entities.ErrCompanyNotActive
+//     (defense-in-depth; unreachable
+//     via the designed flow — the
+//     :one scalar SELECT always
+//     yields one row)
 //   - 23514 (check_violation on
 //     jobs_published_integrity_check)    → entities.ErrInvalidStatusTransition
+//     (defense-in-depth; unreachable
+//     via the designed flow — the
+//     use case parses VOs before SQL)
 //   - Any other PgError (unknown code)   → pass-through (HTTP 500)
 //   - Any non-pg error (connection, ctx) → pass-through (HTTP 500)
 //
@@ -585,6 +612,13 @@ func pgTimestamptzToTime(t pgtype.Timestamptz) time.Time {
 func mapUpdateError(err error) error {
 	if err == nil {
 		return nil
+	}
+	// Defense-in-depth: pgx.ErrNoRows → ErrCompanyNotActive. Mirrors
+	// mapCreateError; unreachable on the designed flow but kept so a
+	// future query-shape drift doesn't silently leak a 500 to the HTTP
+	// layer (the active-company gate must produce 409, not 500).
+	if errors.Is(err, pgx.ErrNoRows) {
+		return entities.ErrCompanyNotActive
 	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {

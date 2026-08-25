@@ -8,6 +8,7 @@ package postgres
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -398,5 +400,32 @@ func TestMapUpdateError_NonPgErrorPassesThrough(t *testing.T) {
 	got := mapUpdateError(plain)
 	if !errors.Is(got, plain) {
 		t.Errorf("want passthrough (errors.Is plain), got %v", got)
+	}
+}
+
+// TestMapUpdateError_ErrNoRowsMapsToErrCompanyNotActive covers the
+// active-company guard's defense-in-depth branch: a bare pgx.ErrNoRows
+// surfaces from the adapter as entities.ErrCompanyNotActive. The
+// designed flow on the D1 SQL never returns ErrNoRows (the :one
+// scalar SELECT always yields one row), but the branch must still map
+// the sentinel so a future query-shape drift doesn't silently leak the
+// raw error to the HTTP layer (which would 500 instead of 409).
+// Ordering mirrors mapCreateError: ErrNoRows is checked BEFORE the
+// errors.As into *pgconn.PgError so the two checks coexist.
+func TestMapUpdateError_ErrNoRowsMapsToErrCompanyNotActive(t *testing.T) {
+	got := mapUpdateError(pgx.ErrNoRows)
+	if !errors.Is(got, entities.ErrCompanyNotActive) {
+		t.Errorf("want ErrCompanyNotActive, got %v", got)
+	}
+}
+
+// TestMapUpdateError_WrappedErrNoRowsStillMaps covers the wrapped case
+// (e.g. fmt.Errorf("...: %w", pgx.ErrNoRows)): errors.Is must reach
+// the sentinel through the chain so the mapping still fires.
+func TestMapUpdateError_WrappedErrNoRowsStillMaps(t *testing.T) {
+	wrapped := fmt.Errorf("driver: %w", pgx.ErrNoRows)
+	got := mapUpdateError(wrapped)
+	if !errors.Is(got, entities.ErrCompanyNotActive) {
+		t.Errorf("want ErrCompanyNotActive, got %v", got)
 	}
 }

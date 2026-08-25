@@ -98,14 +98,14 @@ Files: `backend/internal/features/jobs/infrastructure/postgres/updateJobReposito
 Commit group: **Commit B** (tasks 2.1–2.3 land together — 2.2 and 2.3 MUST be the same commit; the package is compile-broken between regen and the `Update` rewrite).
 
 ### 2.1 RED — `mapUpdateError` gains the `pgx.ErrNoRows` branch (D2)
-- [ ] 2.1 RED — Add the two `ErrNoRows` mapping tests. <!-- sdd-owner: implementation -->
+- [x] 2.1 RED — Add the two `ErrNoRows` mapping tests. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/infrastructure/postgres/updateJobRepository_test.go` (MOD): add table-driven cases to the existing `mapUpdateError` suite — bare `pgx.ErrNoRows` → `entities.ErrCompanyNotActive`; wrapped `fmt.Errorf("...: %w", pgx.ErrNoRows)` → `entities.ErrCompanyNotActive` (errors.Is path). Existing cases (nil → nil; `23514` direct + wrapped → `ErrInvalidStatusTransition`; unknown `PgError` → pass-through; non-pg error → pass-through) stay untouched and green.
 
 - Verify: `cd backend && go test ./internal/features/jobs/infrastructure/postgres/ -run MapUpdateError` → **RED** (new cases fail: no `ErrNoRows` branch yet). Rollback: revert the test hunk.
 
 ### 2.2 RED (compile) — Author `UpdateJob :one` and regenerate (D1, D7)
-- [ ] 2.2 RED — Author the D1 CTE guard; run sqlc; watch the adapter compile break. <!-- sdd-owner: implementation -->
+- [x] 2.2 RED — Author the D1 CTE guard; run sqlc; watch the adapter compile break. <!-- sdd-owner: implementation -->
 
 `backend/db/queries/jobs.sql` (MOD): transform `UpdateJob` exactly per design §5.2/D1 — (a) `:execrows` → `:one`; (b) prepend the `active` CTE (`SELECT id FROM companies WHERE id = sqlc.arg('company_id')::uuid AND status = 'active'`); (c) wrap the existing UPDATE (SET list and `published_at` CASE **byte-for-byte unchanged**) in a `upd` CTE with `RETURNING id`; (d) append `AND EXISTS (SELECT 1 FROM active)` to the WHERE (row-narrowing predicates `id`, `company_id`, `deleted_at IS NULL`, `updated_at = cas_token` unchanged — D3); (e) replace the terminator with the scalar `SELECT EXISTS(SELECT 1 FROM active) AS guard_passed, (SELECT count(*) FROM upd) AS updated_count;` (always exactly one row — `pgx.ErrNoRows` unreachable on the designed path). No new `sqlc.arg` — `UpdateJobParams` stays unchanged. Refresh the query doc comment to describe the guard/observability shape. `CreateJob`, `SearchJobs`, `GetJobByID`, `GetJobForUpdate` stay byte-identical.
 
@@ -114,7 +114,7 @@ Then run `cd backend && go tool sqlc generate` (Makefile alias `make sqlc`): `ba
 - Verify: `cd backend && go build ./...` → **RED (compile)** — `jobRepository.go:143`'s `rows, err := r.queries.UpdateJob(...)` then `rows == 0` no longer compiles against `(UpdateJobRow, error)`. The compile break is the accepted RED (design §6 item 8). Do NOT fix the adapter yet — 2.3 is the same commit. Rollback: revert the `jobs.sql` hunk + regen together.
 
 ### 2.3 GREEN — Rewrite `Update` + `mapUpdateError` (D2/D3)
-- [ ] 2.3 GREEN — Implement the guard-outcome inspection and the ErrNoRows defense branch. <!-- sdd-owner: implementation -->
+- [x] 2.3 GREEN — Implement the guard-outcome inspection and the ErrNoRows defense branch. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/infrastructure/postgres/jobRepository.go` (MOD): `Update` becomes — `row, err := r.queries.UpdateJob(ctx, buildUpdateJobParams(id, companyID, patch, casUpdatedAt))`; `err != nil` → `mapUpdateError(err)`; `!row.GuardPassed` → `entities.ErrCompanyNotActive` (designed path, D2); `row.UpdatedCount == 0` → `entities.ErrJobNotFound` (CAS lost / cross-company / soft-delete race with active company — D3); else `nil`. Refresh the `Update` doc comment (guard semantics + result matrix). `mapUpdateError` gains, BEFORE the `errors.As` block: `if errors.Is(err, pgx.ErrNoRows) { return entities.ErrCompanyNotActive }` documented as defense-in-depth (mirrors `mapCreateError`; unreachable via the designed flow — design §5.3). The `23514 → ErrInvalidStatusTransition` branch and pass-through are unchanged. `buildUpdateJobParams`, `toJobForUpdateEntity`, and the `var _ repositories.JobRepository = (*JobRepository)(nil)` assertion are untouched.
 

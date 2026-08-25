@@ -100,6 +100,54 @@ No D8 inventory drift (only `updateJob.go` + its test file).
 
 ---
 
-## Commit B — pending (Phase 7 work-unit: SQL guard + adapter + sqlc regen, ATOMIC)
+## Commit B — `feat(jobs): gate PATCH updates on company activity via atomic UpdateJob guard`
+
+**Files changed:**
+- `backend/db/queries/jobs.sql` (D1 `:one` + CTE guard + scalar SELECT)
+- `backend/internal/features/jobs/infrastructure/postgres/jobRepository.go` (D2 Update + ErrNoRows branch in mapUpdateError)
+- `backend/internal/features/jobs/infrastructure/postgres/updateJobRepository_test.go` (2 new mapUpdateError cases)
+- `backend/internal/db/jobs.sql.go` (regen — `UpdateJobRow { GuardPassed bool; UpdatedCount int64 }`)
+- `backend/internal/db/querier.go` (regen — `UpdateJob` signature `(UpdateJobRow, error)`)
+
+**TDD evidence (focused runs):**
+
+RED for 2.1 — before 2.3 GREEN:
+```
+=== RUN   TestMapUpdateError_ErrNoRowsMapsToErrCompanyNotActive
+    updateJobRepository_test.go:418: want ErrCompanyNotActive, got no rows in result set
+--- FAIL: TestMapUpdateError_ErrNoRowsMapsToErrCompanyNotActive (0.00s)
+=== RUN   TestMapUpdateError_WrappedErrNoRowsStillMaps
+    updateJobRepository_test.go:429: want ErrCompanyNotActive, got driver: no rows in result set
+--- FAIL: TestMapUpdateError_WrappedErrNoRowsStillMaps (0.00s)
+```
+
+RED (compile) for 2.2 — after jobs.sql + sqlc regen, BEFORE 2.3:
+```
+internal/features/jobs/infrastructure/postgres/jobRepository.go:147:13: invalid operation: rows == 0 (mismatched types db.UpdateJobRow and untyped int)
+```
+The accepted RED compile break (design §6 item 8); the adapter `Update` no longer compiles against the new `(UpdateJobRow, error)` signature. `UpdateJobParams` is unchanged; only `UpdateJob`'s return type changed.
+
+GREEN after 2.3 — Update inspects `GuardPassed` + `UpdatedCount`; mapUpdateError adds the ErrNoRows defense branch:
+```
+ok      github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres       0.003s
+```
+
+Pre-existing mapUpdateError tests that stay green (proves 2.3 doesn't regress the existing behavior):
+```
+PASS: TestMapUpdateError_NilReturnsNil
+PASS: TestMapUpdateError_CheckViolationMapsToErrInvalidStatusTransition
+PASS: TestMapUpdateError_WrappedPgErrorStillMaps
+PASS: TestMapUpdateError_UnknownPgCodePassesThrough
+PASS: TestMapUpdateError_NonPgErrorPassesThrough
+```
+
+Full suite after Commit B: every package green (no test files in `industries/infrastructure/http` and `shared/httpjson` are expected — pre-existing).
+`go vet ./...` clean. `gofmt -l` on touched Go files: empty. `go tool sqlc generate` second run → no diff (idempotent — design D7).
+
+**Rollback boundary:** revert Commit B. `jobs.sql` restores the pre-guard `:execrows` UPDATE; the two generated files revert to the pre-guard `int64` return; `jobRepository.go`'s `Update` reverts to `rows == 0 → ErrJobNotFound`; `mapUpdateError` loses the ErrNoRows defense branch.
+
+**Decisions honored:** D1 (`:one` scalar SELECT `{guard_passed, updated_count}` — the central, non-negotiable decision; not a naive `AND EXISTS` on the existing `:execrows`), D2 (adapter inspects `GuardPassed=false → ErrCompanyNotActive`; mapUpdateError gains `pgx.ErrNoRows → ErrCompanyNotActive` BEFORE the errors.As, mirroring mapCreateError), D3 (CAS / same-company / soft-delete predicates unchanged; `updated_count=0` with `guard_passed=true` → ErrJobNotFound), D7 (regen touches BOTH generated files; UpdateJobParams unchanged). D8 inventory held: 3 authored files + 2 generated files.
+
+---
 
 ## Commit C — pending (Phase 7 work-unit: integration coverage for re-open + active-company gate)

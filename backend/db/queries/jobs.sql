@@ -153,10 +153,11 @@ WHERE j.id = $1
   AND j.deleted_at IS NULL;
 
 
--- name: UpdateJob :execrows
--- Atomic partial update + CAS for PATCH /jobs/{id} (design D3).
+-- name: UpdateJob :one
+-- Atomic partial update + CAS + active-company guard for PATCH /jobs/{id}
+-- (design D1/D2/D3, jobs-reopen slice).
 --
--- Three column-update shapes:
+-- Three column-update shapes (unchanged from the pre-guard statement):
 --   - COALESCE(sqlc.narg(...), col)  for the five closed-set + text
 --     fields: nullable text param, default = column value (untouched).
 --   - CASE WHEN sqlc.arg('set_<field>')::boolean THEN sqlc.narg(...)
@@ -174,43 +175,84 @@ WHERE j.id = $1
 --   - draft -> published   : sets published_at = now() (was NULL).
 --   - published -> published: preserves the existing published_at.
 --   - published -> closed   : preserves the existing published_at.
+--   - closed -> published   : preserves the existing published_at (D6
+--                             — audit history; the row was previously
+--                             published, so published_at is non-NULL
+--                             and COALESCE keeps it).
 --   - any other transition : leaves published_at alone.
 --
--- CAS in the WHERE clause: `updated_at = sqlc.arg('cas_token')` -
--- this is the atomic race-free guard. Two writers holding the same
--- CAS: only one UPDATE returns 1 row; the other returns 0 rows. The
--- adapter maps 0 rows to entities.ErrJobNotFound; the use case
--- re-interprets it as ErrConcurrencyConflict because it already read
--- the row via GetForUpdate.
+-- Active-company guard (D1/D2):
+--   - The `active` CTE selects the owning company ONLY when
+--     companies.status = 'active'. A suspended / pending_verification
+--     / missing company yields zero rows in `active`, so the UPDATE
+--     inside `upd` matches zero rows AND the final SELECT reports
+--     guard_passed = false.
+--   - The UPDATE's WHERE clause adds `AND EXISTS (SELECT 1 FROM active)`
+--     so the guard and the write are the same statement — no TOCTOU
+--     window between a separate check and the UPDATE.
+--   - The final scalar SELECT returns
+--     `EXISTS (SELECT 1 FROM active) AS guard_passed,
+--      (SELECT count(*) FROM upd) AS updated_count`
+--     so the adapter can distinguish:
+--       guard_passed = false, updated_count = 0
+--         → ErrCompanyNotActive (suspended/pending/missing company)
+--       guard_passed = true,  updated_count = 0
+--         → ErrJobNotFound (CAS lost / cross-company / soft-delete race
+--           with active company — D3; use case re-reads)
+--       guard_passed = true,  updated_count = 1
+--         → success (1 row affected)
+--
+-- CAS in the UPDATE WHERE: `updated_at = sqlc.arg('cas_token')` -
+-- the atomic race-free guard for the row predicates
+-- (id, company_id, deleted_at IS NULL). Two writers holding the same
+-- CAS: only one UPDATE returns 1 row in `upd`; the other returns 0.
+--
+-- The final SELECT is scalar (no FROM, no WHERE), so it ALWAYS returns
+-- exactly one row. `pgx.ErrNoRows` is therefore unreachable via the
+-- designed flow — the `pgx.ErrNoRows → ErrCompanyNotActive` branch in
+-- `mapUpdateError` is defense-in-depth (mirrors `mapCreateError`).
 --
 -- Never touched: search_vector (STORED generated), company_id,
 -- created_at, id, deleted_at.
-UPDATE jobs
-SET
-    title           = COALESCE(sqlc.narg('title')::text,           title),
-    description     = COALESCE(sqlc.narg('description')::text,     description),
-    work_mode       = COALESCE(sqlc.narg('work_mode')::text,       work_mode),
-    employment_type = COALESCE(sqlc.narg('employment_type')::text, employment_type),
-    seniority       = COALESCE(sqlc.narg('seniority')::text,       seniority),
-    salary_currency = COALESCE(sqlc.narg('salary_currency')::text, salary_currency),
-    location        = CASE WHEN sqlc.arg('set_location')::boolean
-                            THEN sqlc.narg('location')::text
-                            ELSE location END,
-    salary_min      = CASE WHEN sqlc.arg('set_salary_min')::boolean
-                            THEN sqlc.narg('salary_min')::int
-                            ELSE salary_min END,
-    salary_max      = CASE WHEN sqlc.arg('set_salary_max')::boolean
-                            THEN sqlc.narg('salary_max')::int
-                            ELSE salary_max END,
-    status          = COALESCE(sqlc.narg('status')::text, status),
-    published_at    = CASE WHEN sqlc.narg('status')::text = 'published'
-                            THEN COALESCE(published_at, now())
-                            ELSE published_at END,
-    updated_at      = now()
-WHERE id         = sqlc.arg('id')::uuid
-  AND company_id = sqlc.arg('company_id')::uuid
-  AND deleted_at IS NULL
-  AND updated_at = sqlc.arg('cas_token')::timestamptz;
+WITH active AS (
+    SELECT id
+    FROM companies
+    WHERE id = sqlc.arg('company_id')::uuid
+      AND status = 'active'
+),
+upd AS (
+    UPDATE jobs
+    SET
+        title           = COALESCE(sqlc.narg('title')::text,           title),
+        description     = COALESCE(sqlc.narg('description')::text,     description),
+        work_mode       = COALESCE(sqlc.narg('work_mode')::text,       work_mode),
+        employment_type = COALESCE(sqlc.narg('employment_type')::text, employment_type),
+        seniority       = COALESCE(sqlc.narg('seniority')::text,       seniority),
+        salary_currency = COALESCE(sqlc.narg('salary_currency')::text, salary_currency),
+        location        = CASE WHEN sqlc.arg('set_location')::boolean
+                                THEN sqlc.narg('location')::text
+                                ELSE location END,
+        salary_min      = CASE WHEN sqlc.arg('set_salary_min')::boolean
+                                THEN sqlc.narg('salary_min')::int
+                                ELSE salary_min END,
+        salary_max      = CASE WHEN sqlc.arg('set_salary_max')::boolean
+                                THEN sqlc.narg('salary_max')::int
+                                ELSE salary_max END,
+        status          = COALESCE(sqlc.narg('status')::text, status),
+        published_at    = CASE WHEN sqlc.narg('status')::text = 'published'
+                                THEN COALESCE(published_at, now())
+                                ELSE published_at END,
+        updated_at      = now()
+    WHERE id         = sqlc.arg('id')::uuid
+      AND company_id = sqlc.arg('company_id')::uuid
+      AND deleted_at IS NULL
+      AND updated_at = sqlc.arg('cas_token')::timestamptz
+      AND EXISTS (SELECT 1 FROM active)
+    RETURNING id
+)
+SELECT
+    EXISTS (SELECT 1 FROM active) AS guard_passed,
+    (SELECT count(*) FROM upd)    AS updated_count;
 
 -- name: CreateJob :one
 -- Atomic create for POST /jobs (design D1/D2/D3).
