@@ -187,6 +187,15 @@ func run() error {
 	jobHandlers := jobHandler.JobHandlers()
 	r.With(requireAuth, requireRecruiter).Patch("/jobs/{id}", jobHandlers.UpdateJob)
 
+	// Phase 6 D9 (jobs-create): gated create path for POST /jobs. The
+	// route is mounted on the ROOT router (outside the public /jobs
+	// mount) for the same reason as the PATCH: a future refactor that
+	// adds the POST to `Routes()` cannot silently expose the write
+	// path. The AST guard TestJobsCreateRoute_MountedBehindGates pins
+	// both `requireAuth` AND `requireRecruiter` on this line; the public
+	// /jobs mount stays GET-only (same routing-split defense as PATCH).
+	r.With(requireAuth, requireRecruiter).Post("/jobs", jobHandlers.CreateJob)
+
 	// /me/* is the authenticated slice. RequireAuth runs first, so any
 	// request without a valid Bearer token is rejected pre-handler with
 	// 401 — the candidate handler is never invoked. With the fail-closed

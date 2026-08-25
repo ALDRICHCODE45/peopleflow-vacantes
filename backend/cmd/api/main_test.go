@@ -354,3 +354,90 @@ func patchPathLiteral(call *ast.CallExpr) (string, bool) {
 	}
 	return bl.Value, true
 }
+
+// TestJobsCreateRoute_MountedBehindGates asserts the Phase 6 D9 wiring
+// for POST /jobs (jobs-create). It mirrors TestJobsWriteRoute_
+// MountedBehindGates: an AST walk finds a chi `Post("/jobs", …)`
+// mutation whose inner `With(...)` argument list references BOTH
+// `requireAuth` AND `requireRecruiter` (the hoisted variables). The
+// guard fails the moment the POST route is moved out from behind the
+// gates (a regression where the write path becomes reachable
+// unauthenticated).
+func TestJobsCreateRoute_MountedBehindGates(t *testing.T) {
+	const filePath = "main.go"
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		t.Skipf("cannot parse %s (run with cwd=backend/cmd/api): %v", filePath, err)
+	}
+
+	var postRoutes []string              // path templates of found Post calls
+	var properlyGatedPostRoutes []string // subset that has BOTH gates
+
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		// We look for `r.With(...).Post("/jobs", ...)` chained calls.
+		// AST shape:
+		//   outer CallExpr.Fun = SelectorExpr{
+		//       X:  CallExpr{Fun: SelectorExpr{r, With}, Args: [requireAuth, requireRecruiter]},
+		//       Sel: Post,
+		//   }
+		//   outer CallExpr.Args = ["/jobs", jobHandlers.CreateJob]
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Post" {
+			return true
+		}
+		// The X side of the selector must be a With(...) CallExpr.
+		inner, ok := sel.X.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !isWithCall(inner) {
+			return true
+		}
+		// First arg must be the path template "/jobs".
+		path, ok := postPathLiteral(call)
+		if !ok || path != `"/jobs"` {
+			return true
+		}
+		postRoutes = append(postRoutes, path)
+		// The inner With(...) call must reference BOTH requireAuth
+		// AND requireRecruiter in its argument list.
+		if referencesIdentifier(inner, "requireAuth") &&
+			referencesIdentifier(inner, "requireRecruiter") {
+			properlyGatedPostRoutes = append(properlyGatedPostRoutes, path)
+		}
+		return true
+	})
+
+	if len(properlyGatedPostRoutes) < 1 {
+		t.Fatalf("expected at least one `With(requireAuth, requireRecruiter).Post(\"/jobs\", ...)` mutation in main.go; got %d (found %d POST /jobs calls without both gates)",
+			len(properlyGatedPostRoutes), len(postRoutes))
+	}
+
+	t.Logf("parsed %s: %d POST /jobs routes total, %d gated behind both requireAuth+requireRecruiter",
+		filePath, len(postRoutes), len(properlyGatedPostRoutes))
+}
+
+// postPathLiteral is the Post-route companion to patchPathLiteral. It
+// returns the string literal of a `Post("<path>", …)` call's first
+// argument and a `true` second value when the call is shaped exactly
+// that way.
+func postPathLiteral(call *ast.CallExpr) (string, bool) {
+	fn, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || fn.Sel.Name != "Post" {
+		return "", false
+	}
+	if len(call.Args) == 0 {
+		return "", false
+	}
+	bl, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || bl.Kind != token.STRING {
+		return "", false
+	}
+	return bl.Value, true
+}

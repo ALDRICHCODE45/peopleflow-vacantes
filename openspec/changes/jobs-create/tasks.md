@@ -164,14 +164,14 @@ Confirm `toEditorView` is the ONLY editor projection (createJob.go calls the `up
 ## Phase 6 — Composition root: `main.go` + AST guard (RED → GREEN)
 
 ### 6.1 RED — Extend the composition-root guards (D9 §6.3)
-- [ ] 6.1 RED — Add the gated-POST AST guard. <!-- sdd-owner: implementation -->
+- [x] 6.1 RED — Add the gated-POST AST guard. <!-- sdd-owner: implementation -->
 
 `backend/cmd/api/main_test.go` (MOD): add `TestJobsCreateRoute_MountedBehindGates` mirroring `TestJobsWriteRoute_MountedBehindGates` — an AST walk finds a chi `Post("/jobs", …)` mutation whose inner `With(...)` argument list references BOTH `requireAuth` and `requireRecruiter` (reuse `isWithCall`/`referencesIdentifier`; generalize `patchPathLiteral` to `pathLiteral(call, method)` or add a `postPathLiteral` sibling). `TestJobsWriteRoute_MountedBehindGates`, `TestJobsMount_PublicReadRoutes`, and `TestRequireAuth_MountedOnMeRoutes` keep passing unchanged (the public mount must not gain POST).
 
 - Verify: `cd backend/cmd/api && go test .` → **RED** (new guard fails: no gated POST route in main.go yet).
 
 ### 6.2 GREEN — Add the gated POST route (D9 §6.3)
-- [ ] 6.2 GREEN — Add `r.With(requireAuth, requireRecruiter).Post("/jobs", …)`. <!-- sdd-owner: implementation -->
+- [x] 6.2 GREEN — Add `r.With(requireAuth, requireRecruiter).Post("/jobs", …)`. <!-- sdd-owner: implementation -->
 
 `backend/cmd/api/main.go` (MOD): add one line next to the existing gated PATCH — `r.With(requireAuth, requireRecruiter).Post("/jobs", jobHandlers.CreateJob)` — reusing the already-hoisted `requireAuth`/`requireRecruiter` and the existing `jobHandlers := jobHandler.JobHandlers()` line (no new wiring). The public `r.Mount("/jobs", jobHandler.Routes())` MUST NOT gain POST (same routing-split defense as PATCH: the per-method accessor + the explicit gated `Post(...)` line is the structural guarantee).
 
