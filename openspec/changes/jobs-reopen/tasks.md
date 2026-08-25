@@ -84,7 +84,7 @@ Commit group: **Commit A** (tasks 1.1–1.6 land together as one work-unit commi
 - Verify: tasks 1.1–1.5 tests pass; `cd backend && go test ./internal/features/jobs/application/usecases/` green — `TestEditJob_UnknownStatusDefaultsFor` and ALL pre-existing draft/published tests stay green (regression net proving D4/D5 relax nothing else); `cd backend && go build ./...`. Commit **A** lands here. Rollback: revert Commit A (or `updateJob.go` alone) — closed terminality restored.
 
 ### 1.7 REFACTOR (optional, tracked) — Sweep the use-case surface
-- [ ] 1.7 REFACTOR — Confirm no behavioral leakage outside D4/D5. <!-- sdd-owner: implementation -->
+- [x] 1.7 REFACTOR — Confirm no behavioral leakage outside D4/D5. <!-- sdd-owner: implementation -->
 
 Re-read `updateJob.go` (MOD): `default: return false` still rejects unknown from-statuses; the bypass applies ONLY when `newStatus != nil` and `*newStatus` is Draft/Published (field-only and `closed→closed` still 400); `ErrCompanyNotActive` propagation relies on the existing fall-through (no new special-case). No change to `jobService.go`, DTOs, or the port.
 
@@ -121,7 +121,7 @@ Then run `cd backend && go tool sqlc generate` (Makefile alias `make sqlc`): `ba
 - Verify: 2.1 tests pass; `cd backend && go test ./internal/features/jobs/...` green end-to-end (tree compiles again); `cd backend && go build ./...`. Commit **B** lands here (2.1–2.3 atomically). Rollback: revert Commit B (with Commit A reverted if mid-sequence) — `jobs.sql` + `jobRepository.go` + the two generated files revert in lockstep.
 
 ### 2.4 REFACTOR (optional, tracked) — Adapter hygiene
-- [ ] 2.4 REFACTOR — Confirm generated-not-hand-edited and no duplicated helpers. <!-- sdd-owner: implementation -->
+- [x] 2.4 REFACTOR — Confirm generated-not-hand-edited and no duplicated helpers. <!-- sdd-owner: implementation -->
 
 `git diff --stat backend/internal/db/` to confirm `jobs.sql.go`/`querier.go` changes are exactly the regen (no hand-edit); confirm `mapUpdateError`'s new branch does not duplicate `mapCreateError` logic beyond the shared `errors.Is` idiom; `Update`'s guard inspection has no dead branches per the D1 result matrix.
 
@@ -167,7 +167,7 @@ Commit group: **Commit C** (tasks 3.1–3.4 land together — one work-unit comm
 ## Phase 4 — Full-suite gate (apply-owned verification)
 
 ### 4.1 — Full-suite verification for the whole change
-- [ ] 4.1 — Run the complete verification set. <!-- sdd-owner: implementation -->
+- [x] 4.1 — Run the complete verification set. <!-- sdd-owner: implementation -->
 
 - Verify: `cd backend && go test ./...` (unit — strict-TDD green, RED tests pre-date their GREEN code); `cd backend && go vet ./...` clean; `gofmt -l backend/` empty (or `gofmt -w` applied and re-verified); `cd backend && go build ./...`; `go tool sqlc generate` idempotent (second run → empty `git diff`); optionally `cd backend && make test-integration`. Confirm `jobs.sql.go`/`querier.go` are regenerated (not hand-edited), Commit A/B/C each carry tests with their behavior, and the D8 locked scope held (6 files changed, nothing else).
 
