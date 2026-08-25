@@ -62,7 +62,7 @@ import (
 //	cs — suspended company (the "non-active" gate)
 //	cp — pending_verification company (the second non-active gate)
 var (
-	createPathActiveID   = uuid.MustParse("018f0000-0000-7000-8000-0000000000ca")
+	createPathActiveID    = uuid.MustParse("018f0000-0000-7000-8000-0000000000ca")
 	createPathSuspendedID = uuid.MustParse("018f0000-0000-7000-8000-0000000000cb")
 	createPathPendingID   = uuid.MustParse("018f0000-0000-7000-8000-0000000000cc")
 )

@@ -204,4 +204,3 @@ func TestCreateJobDto_RequiredFieldsDefaultToEmptyString(t *testing.T) {
 		t.Errorf("Seniority: want empty, got %q", in.Seniority)
 	}
 }
-

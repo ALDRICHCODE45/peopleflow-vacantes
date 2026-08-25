@@ -192,4 +192,3 @@ type JobRepository interface {
 	//                                          (HTTP 500).
 	Create(ctx context.Context, id, companyID uuid.UUID, params CreateJobParams) (*entities.JobForUpdate, error)
 }
-

@@ -18,6 +18,34 @@ type Querier interface {
 	// user_id / company_id surface SQLSTATE 23503 (mapped to ErrUserNotFound /
 	// ErrCompanyNotFound).
 	CreateCompanyMember(ctx context.Context, arg CreateCompanyMemberParams) (CompanyMember, error)
+	// Atomic create for POST /jobs (design D1/D2/D3).
+	//
+	// Two guarantees live in this single statement:
+	//   1. Active-company gate: the `active` CTE selects the owning company
+	//      ONLY when status='active'. A suspended / pending_verification /
+	//      missing company yields zero rows in `active`, so `ins` inserts
+	//      zero rows and the final SELECT returns zero rows -> the adapter
+	//      maps pgx.ErrNoRows -> entities.ErrCompanyNotActive (the
+	//      predicate and the write are the same statement -- no TOCTOU
+	//      window).
+	//   2. Single-round-trip editor view: the final SELECT joins `ins`
+	//      back to `active` to carry company_name, so the output column
+	//      set is EXACTLY the GetJobForUpdate column set and the adapter
+	//      reuses toJobForUpdateEntity via a thin row lift.
+	//
+	// status is written explicitly as 'draft' (locked decision #1): the
+	// row is born hidden from the public read path (status='published'
+	// predicate) and the explicit value is immune to a future DEFAULT drift.
+	//
+	// salary_currency is always supplied by the use case (nil -> MXN in Go),
+	// so it is a required arg, never NULL. location / salary_min /
+	// salary_max are nullable (sqlc.narg).
+	//
+	// search_vector (STORED generated) is EXCLUDED from BOTH the INSERT
+	// column list and every output list -- a `RETURNING *` would map
+	// tsvector to interface{} and a generated column rejects explicit
+	// writes (D3).
+	CreateJob(ctx context.Context, arg CreateJobParams) (CreateJobRow, error)
 	// Idempotent upsert keyed on the partial unique index `users_cognito_sub_unique`.
 	// The `WHERE deleted_at IS NULL` predicate is required: a bare `ON CONFLICT (cognito_sub)`
 	// would not match the partial index and would raise SQLSTATE 42P10.

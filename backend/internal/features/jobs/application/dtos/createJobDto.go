@@ -38,4 +38,3 @@ type CreateJobDto struct {
 	SalaryMax      *int    `json:"salary_max"`
 	SalaryCurrency *string `json:"salary_currency"`
 }
-

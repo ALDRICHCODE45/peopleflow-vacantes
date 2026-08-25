@@ -163,20 +163,20 @@ func (r *JobRepository) Update(ctx context.Context, id, companyID uuid.UUID, pat
 // Error contract:
 //
 //   - entities.ErrCompanyNotActive       on 0 rows (the CTE guard
-//                                          matches no active company;
-//                                          pgx.ErrNoRows → here).
+//     matches no active company;
+//     pgx.ErrNoRows → here).
 //   - entities.ErrCompanyGone            on SQLSTATE 23503 (FK
-//                                          violation on
-//                                          jobs.company_id; defense-
-//                                          in-depth — the CTE
-//                                          filters to existing
-//                                          active companies).
+//     violation on
+//     jobs.company_id; defense-
+//     in-depth — the CTE
+//     filters to existing
+//     active companies).
 //   - entities.ErrInvalidStatusTransition on SQLSTATE 23514 (CHECK
-//                                          violation; defense-in-
-//                                          depth — the use case
-//                                          parses VOs before SQL).
+//     violation; defense-in-
+//     depth — the use case
+//     parses VOs before SQL).
 //   - other error                         propagated untouched
-//                                          (HTTP 500).
+//     (HTTP 500).
 func (r *JobRepository) Create(ctx context.Context, id, companyID uuid.UUID, params repositories.CreateJobParams) (*entities.JobForUpdate, error) {
 	row, err := r.queries.CreateJob(ctx, buildCreateJobParams(id, companyID, params))
 	if err != nil {
@@ -680,21 +680,21 @@ func createRowToGetForUpdateRow(row db.CreateJobRow) db.GetJobForUpdateRow {
 //
 //   - nil                                → nil (pass-through)
 //   - pgx.ErrNoRows                      → entities.ErrCompanyNotActive
-//                                          (0 rows on the active guard;
-//                                          the only designed path)
+//     (0 rows on the active guard;
+//     the only designed path)
 //   - 23503 (foreign_key_violation on
 //     jobs.company_id)                   → entities.ErrCompanyGone
-//                                          (defense-in-depth;
-//                                          unreachable via the
-//                                          designed flow — the CTE
-//                                          filters by companies.id)
+//     (defense-in-depth;
+//     unreachable via the
+//     designed flow — the CTE
+//     filters by companies.id)
 //   - 23514 (check_violation on
 //     jobs_*_check constraints)          → entities.ErrInvalidStatusTransition
-//                                          (defense-in-depth;
-//                                          unreachable via the
-//                                          designed flow — the use
-//                                          case parses VOs before
-//                                          SQL)
+//     (defense-in-depth;
+//     unreachable via the
+//     designed flow — the use
+//     case parses VOs before
+//     SQL)
 //   - Any other PgError (unknown code)   → pass-through (HTTP 500)
 //   - Any non-pg error (connection, ctx) → pass-through (HTTP 500)
 //

@@ -404,4 +404,3 @@ func TestCreate_RowMappingExercisesToJobForUpdateEntity(t *testing.T) {
 		t.Errorf("Company.Name: want %q, got %q", "Acme SA", got.Company.Name)
 	}
 }
-

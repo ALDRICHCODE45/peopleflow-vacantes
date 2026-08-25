@@ -11,20 +11,20 @@
 //  5. uuid.NewV7() for id                       (D4)
 //  6. build repositories.CreateJobParams
 //  7. repo.Create                              (propagate
-//                                               ErrCompanyNotActive /
-//                                               ErrCompanyGone /
-//                                               ErrInvalidStatusTransition
-//                                               untouched)
+//     ErrCompanyNotActive /
+//     ErrCompanyGone /
+//     ErrInvalidStatusTransition
+//     untouched)
 //  8. project toEditorView                     (reuses the
-//                                               package-private helper
-//                                               from updateJob.go -- D2
-//                                               no parallel projection)
+//     package-private helper
+//     from updateJob.go -- D2
+//     no parallel projection)
 //
 // Return contract:
 //
 //   - success                                  -> (view, nil)
 //   - ErrEmptyTitle / ErrEmptyDescription / VO sentinel
-//                                             -> (nil, err)
+//     -> (nil, err)
 //   - ErrCompanyNotActive / ErrCompanyGone     -> (nil, err)        (HTTP 409)
 //   - ErrInvalidStatusTransition               -> (nil, err)        (HTTP 400, defense-in-depth)
 //   - any other error                          -> (nil, err)        (HTTP 500)
@@ -135,4 +135,3 @@ func (s *JobService) CreateJob(
 	// verbatim -- D2 forbids a parallel projection.
 	return toEditorView(row), nil
 }
-

@@ -84,10 +84,10 @@ type writeStubRepo struct {
 	// createCalls / lastCreateID / lastCreateCompany / lastCreateParams
 	// record what the use case forwarded to the repo on the most recent
 	// Create call.
-	createCalls        int
-	lastCreateID       uuid.UUID
-	lastCreateCompany  uuid.UUID
-	lastCreateParams   repositories.CreateJobParams
+	createCalls       int
+	lastCreateID      uuid.UUID
+	lastCreateCompany uuid.UUID
+	lastCreateParams  repositories.CreateJobParams
 }
 
 type getForUpdateResponse struct {

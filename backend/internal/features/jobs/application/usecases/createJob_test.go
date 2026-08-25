@@ -563,4 +563,3 @@ func makeStubForUpdate(id, companyID uuid.UUID, updated time.Time) *entities.Job
 
 // Compile-time guard against an accidental port drift.
 var _ repositories.JobRepository = (*writeStubRepo)(nil)
-
