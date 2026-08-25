@@ -3,10 +3,12 @@ package usecases
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
 	applicationsvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/valueobjects"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	"github.com/google/uuid"
 )
@@ -80,6 +82,63 @@ func TestApplyJob_Success(t *testing.T) {
 	// UUID v7 — version nibble = 7.
 	if got.ID.Version() != 7 {
 		t.Errorf("Application.ID: want UUID v7, got version %d", got.ID.Version())
+	}
+}
+
+// --- TestApplyJob_PassesSubmittedEvent -------------------------------------
+
+// TestApplyJob_PassesSubmittedEvent pins D7's event-intent flow: ApplyJob
+// builds the ApplicationSubmitted event and hands it to repo.Create. The stub
+// captures lastCreateEvent, proving the use case (not the adapter) owns the
+// actor + metadata resolution: ActorType=user, ActorID=candidateID (the
+// resolved users.id), EventType=ApplicationSubmitted, EntityType=application,
+// EntityID=appID (the created row id), and the PII-free {job_id, source}
+// metadata when a source is present.
+func TestApplyJob_PassesSubmittedEvent(t *testing.T) {
+	repo := &stubApplicationRepo{}
+	userRepo := &stubUserRepo{}
+	candidateID := makeCandidateID()
+	makeUserStub(t, userRepo, "sub-1", candidateID)
+
+	jobID := makeJobID()
+	source := "linkedin"
+	svc := NewApplicationService(repo, userRepo)
+
+	got, err := svc.ApplyJob(context.Background(), "sub-1", jobID, applyJobDto(&source, nil))
+	if err != nil {
+		t.Fatalf("ApplyJob: unexpected err %v", err)
+	}
+	if got == nil {
+		t.Fatal("ApplyJob: want non-nil application")
+	}
+	if repo.createCalls != 1 {
+		t.Fatalf("Create calls: want 1, got %d", repo.createCalls)
+	}
+	if repo.lastCreateEvent == nil {
+		t.Fatal("lastCreateEvent: want non-nil (the use case must pass an event)")
+	}
+	e := repo.lastCreateEvent
+	if e.ActorType != auditentities.ActorTypeUser {
+		t.Errorf("ActorType: want %q, got %q", auditentities.ActorTypeUser, e.ActorType)
+	}
+	if e.ActorID == nil || *e.ActorID != candidateID {
+		t.Errorf("ActorID: want %v (resolved candidate users.id), got %v", candidateID, e.ActorID)
+	}
+	if e.EventType != auditentities.EventApplicationSubmitted {
+		t.Errorf("EventType: want %q, got %q", auditentities.EventApplicationSubmitted, e.EventType)
+	}
+	if e.EntityType != auditentities.EntityApplication {
+		t.Errorf("EntityType: want %q, got %q", auditentities.EntityApplication, e.EntityType)
+	}
+	if repo.lastCreate == nil {
+		t.Fatal("lastCreate: want non-nil")
+	}
+	if e.EntityID != repo.lastCreate.ID {
+		t.Errorf("EntityID: want %v (the created app id), got %v", repo.lastCreate.ID, e.EntityID)
+	}
+	wantMeta := map[string]string{"job_id": jobID.String(), "source": "linkedin"}
+	if !reflect.DeepEqual(e.Metadata, wantMeta) {
+		t.Errorf("Metadata: want %v, got %v", wantMeta, e.Metadata)
 	}
 }
 

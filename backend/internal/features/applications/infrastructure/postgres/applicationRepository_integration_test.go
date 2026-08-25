@@ -4,7 +4,8 @@
 //
 // The unit tests in `applicationRepository_test.go` cover the deterministic
 // Go helpers (`mapCreateError`, `mapTransitionError`, `mapGetError`, the
-// builders, the `to*` mappers) with a stub `Querier`; they cannot cover what
+// builders, the `to*` mappers) — the old stub `Querier` seam was removed with
+// the D5 pool-owning adapter; they cannot cover what
 // actually decides the slice's behavior — the SQL in
 // `db/queries/applications.sql` (design D1/D3/D5) plus the migrated schema
 // (00010). Everything asserted here is what only Postgres can prove:
@@ -46,32 +47,41 @@
 // `TestTransitionApplication_IllegalMatrix` (use-case layer) and the handler
 // `_IllegalTransition400`.
 //
-// Isolation: every test runs inside a transaction that is ALWAYS rolled
-// back. The fixture seeds its own companies/jobs/users/candidate_profiles
-// universe (fixed UUIDs under 01900000-…) and DELETEs every `applications`
-// row inside that transaction so assertions can be exact ID lists without
-// fuzzy counts. Tests do not call t.Parallel(), so the fixture transactions
-// never contend with each other or with the migration tests.
+// Isolation: every test runs against COMMITTED state (design D10 fixture
+// migration). The fixture seeds its own companies/jobs/users/candidate_profiles
+// universe (fixed UUIDs under 01900000-…, ON CONFLICT DO NOTHING) plus
+// per-test rows with unique ids; each test registers the rows it created and
+// t.Cleanup runs targeted DELETEs (applications + their audit_events rows,
+// bulk users, bulk jobs) so sibling tests and re-runs never collide on
+// UNIQUE(job_id, candidate_id) or leave audit residue. The pool-owning
+// adapter opens its OWN transaction per write (pool.Begin), so a shared
+// rollback fixture would be invisible to it — this is why the suite migrated
+// to the committed-fixture pattern (companyBootstrapRepository precedent).
+// Tests do not call t.Parallel(), so the committed writes never contend with
+// each other or with the migration tests.
 //
 // Skips (never fails) when DATABASE_URL is unset, via the package helper
 // `skipIfNoDatabaseForApplications` from migration_00010_test.go. Assumes
-// `make db-migrate` has applied 00001..00010; the fixture re-applies its own
+// `make db-migrate` has applied 00001..00011; the fixture re-applies its own
 // seed so it also works right after a down/up migration test.
 package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
-	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/repositories"
 	applicationsvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/valueobjects"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
+	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // --- fixture identities ---------------------------------------------------
@@ -193,11 +203,22 @@ VALUES
 ON CONFLICT (user_id) DO NOTHING;
 `
 
-// applicationFixture is the per-test fixture handle: the adapter bound to the
-// rolled-back transaction plus the fixed UUIDs the assertions reference.
+// applicationFixture is the per-test fixture handle: the pool-owning adapter
+// (which opens its OWN co-write transaction per write) plus the fixed UUIDs
+// the assertions reference. Every row the test creates is registered in the
+// tracking slices so t.Cleanup can DELETE exactly what this test added — the
+// committed-fixture contract (design D10): never touch sibling rows, never
+// leave residue that breaks UNIQUE(job_id, candidate_id) or audit counts on
+// re-runs.
 type applicationFixture struct {
+	pool *pgxpool.Pool
 	repo *ApplicationRepository
-	tx   pgx.Tx
+
+	// Rows this test created, deleted by t.Cleanup (audit_events rows are
+	// deleted together with their application via entity_id).
+	createdAppIDs  []uuid.UUID
+	createdUserIDs []uuid.UUID
+	createdJobIDs  []uuid.UUID
 
 	coActive1      uuid.UUID
 	coActive2      uuid.UUID
@@ -217,12 +238,19 @@ type applicationFixture struct {
 	userC3         uuid.UUID
 }
 
+// trackApp registers an application row (and its audit_events rows, which
+// share the entity_id) for t.Cleanup deletion.
+func (f *applicationFixture) trackApp(id uuid.UUID) { f.createdAppIDs = append(f.createdAppIDs, id) }
+
 // setupApplicationFixture is the SetupTest-style helper every test here
-// starts with. It skips without a database, opens a transaction that is
-// ALWAYS rolled back, probes the migrated schema, applies the fixture seed,
-// and DELETEs every pre-existing `applications` row inside the transaction
-// so assertions can be exact ID lists instead of fuzzy counts (the jobs /
-// membership suites use the same destructive-but-rolled-back pattern).
+// starts with. It skips without a database, probes the migrated schema,
+// applies the fixture seed ON CONFLICT DO NOTHING (idempotent), and builds
+// the pool-owning adapter with the stateless audit adapter (the co-write
+// contract: Create/Transition open their own pool.Begin).
+//
+// Cleanup: t.Cleanup DELETEs exactly the rows this test registered — never a
+// blanket table prune (the seed rows are shared/idempotent; sibling tests'
+// committed rows must survive).
 //
 // Returns the test context (30s timeout) and the fixture handle.
 func setupApplicationFixture(t *testing.T) (context.Context, *applicationFixture) {
@@ -234,28 +262,20 @@ func setupApplicationFixture(t *testing.T) (context.Context, *applicationFixture
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	t.Cleanup(cancel)
 
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		t.Fatalf("begin fixture transaction: %v", err)
-	}
-	// Rollback unconditionally: the fixture is destructive by design (it
-	// DELETEs applications rows) and must never touch committed state.
-	t.Cleanup(func() { _ = tx.Rollback(context.Background()) })
+	requireApplicationsSchema(ctx, t, pool)
 
-	requireApplicationsSchema(ctx, t, tx)
-
-	if _, err := tx.Exec(ctx, applicationFixtureSQL); err != nil {
+	if _, err := pool.Exec(ctx, applicationFixtureSQL); err != nil {
 		t.Fatalf("apply applications fixture: %v", err)
 	}
 
-	// Keep only rows this test seeds. Safe: we are inside the rollback.
-	if _, err := tx.Exec(ctx, `DELETE FROM applications`); err != nil {
-		t.Fatalf("prune applications: %v", err)
-	}
+	// D5 wiring: the pool-owning adapter + the stateless audit adapter; the
+	// co-write transaction is opened inside the adapter, so the fixture seeds
+	// through the pool directly (committed).
+	repo := NewApplicationRepository(pool, auditpostgres.NewAuditEventRepository())
 
 	f := &applicationFixture{
-		repo:           NewApplicationRepository(db.New(tx)),
-		tx:             tx,
+		pool:           pool,
+		repo:           repo,
 		coActive1:      appCoActive1,
 		coActive2:      appCoActive2,
 		coSuspended:    appCoSuspended,
@@ -273,17 +293,63 @@ func setupApplicationFixture(t *testing.T) (context.Context, *applicationFixture
 		userC2:         appUserC2,
 		userC3:         appUserC3,
 	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		for _, id := range f.createdAppIDs {
+			// audit_events rows reference the application via entity_id (no FK,
+			// by design) — delete them first so the count-based assertions in
+			// sibling/re-run tests see only their own rows.
+			if _, err := pool.Exec(cleanupCtx, `DELETE FROM audit_events WHERE entity_id = $1`, id); err != nil {
+				t.Errorf("cleanup audit_events for %s: %v", id, err)
+			}
+			if _, err := pool.Exec(cleanupCtx, `DELETE FROM applications WHERE id = $1`, id); err != nil {
+				t.Errorf("cleanup application %s: %v", id, err)
+			}
+		}
+		for _, id := range f.createdUserIDs {
+			// Bulk candidates may own untracked application rows (the Cap100
+			// tests insert them inline) — remove those (and their audit rows)
+			// before the user, satisfying applications_candidate_id_fkey.
+			if _, err := pool.Exec(cleanupCtx,
+				`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM applications WHERE candidate_id = $1)`, id); err != nil {
+				t.Errorf("cleanup audit_events for candidate %s: %v", id, err)
+			}
+			if _, err := pool.Exec(cleanupCtx, `DELETE FROM applications WHERE candidate_id = $1`, id); err != nil {
+				t.Errorf("cleanup applications for candidate %s: %v", id, err)
+			}
+			if _, err := pool.Exec(cleanupCtx, `DELETE FROM users WHERE id = $1`, id); err != nil {
+				t.Errorf("cleanup user %s: %v", id, err)
+			}
+		}
+		for _, id := range f.createdJobIDs {
+			// Bulk jobs may own untracked application rows (the Cap100 tests
+			// insert them inline) — remove those (and their audit rows) before
+			// the job, satisfying applications_job_id_fkey.
+			if _, err := pool.Exec(cleanupCtx,
+				`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM applications WHERE job_id = $1)`, id); err != nil {
+				t.Errorf("cleanup audit_events for job %s: %v", id, err)
+			}
+			if _, err := pool.Exec(cleanupCtx, `DELETE FROM applications WHERE job_id = $1`, id); err != nil {
+				t.Errorf("cleanup applications for job %s: %v", id, err)
+			}
+			if _, err := pool.Exec(cleanupCtx, `DELETE FROM jobs WHERE id = $1`, id); err != nil {
+				t.Errorf("cleanup job %s: %v", id, err)
+			}
+		}
+	})
 	return ctx, f
 }
 
 // requireApplicationsSchema fails loudly (rather than silently passing) when
 // the migrations have not been applied — a green run against a missing table
-// would be a false negative for every scenario in this file.
-func requireApplicationsSchema(ctx context.Context, t *testing.T, tx pgx.Tx) {
+// would be a false negative for every scenario in this file. audit_events is
+// included because the co-write tests cannot pass without migration 00011.
+func requireApplicationsSchema(ctx context.Context, t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	for _, table := range []string{"applications", "jobs", "companies", "users", "candidate_profiles"} {
+	for _, table := range []string{"applications", "audit_events", "jobs", "companies", "users", "candidate_profiles"} {
 		var hasTable bool
-		if err := tx.QueryRow(ctx,
+		if err := pool.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)`, table,
 		).Scan(&hasTable); err != nil {
 			t.Fatalf("probe %s table: %v", table, err)
@@ -298,15 +364,17 @@ func requireApplicationsSchema(ctx context.Context, t *testing.T, tx pgx.Tx) {
 
 // seedApplication inserts an application row directly (status = DB default
 // 'submitted', server timestamps), bypassing the atomic gate — the gate is
-// the code under test, so seeding through Create would re-enter it.
-func seedApplication(ctx context.Context, t *testing.T, tx pgx.Tx, id, jobID, candidateID uuid.UUID) {
+// the code under test, so seeding through Create would re-enter it. The row is
+// committed immediately (pool) and registered for t.Cleanup deletion.
+func seedApplication(ctx context.Context, t *testing.T, f *applicationFixture, id, jobID, candidateID uuid.UUID) {
 	t.Helper()
-	if _, err := tx.Exec(ctx,
+	if _, err := f.pool.Exec(ctx,
 		`INSERT INTO applications (id, job_id, candidate_id) VALUES ($1, $2, $3)`,
 		id, jobID, candidateID,
 	); err != nil {
 		t.Fatalf("seed application %s: %v", id, err)
 	}
+	f.trackApp(id)
 }
 
 // seedApplicationAt inserts an application row with an explicit status and
@@ -315,33 +383,36 @@ func seedApplication(ctx context.Context, t *testing.T, tx pgx.Tx, id, jobID, ca
 // lets the transition tests start from in_review without going through the
 // use case. The transition tests pass a deliberately OLD timestamp so the
 // `updated_at = now()` write (transaction-time) is provably AFTER it.
-func seedApplicationAt(ctx context.Context, t *testing.T, tx pgx.Tx, id, jobID, candidateID uuid.UUID, status string, at time.Time) {
+func seedApplicationAt(ctx context.Context, t *testing.T, f *applicationFixture, id, jobID, candidateID uuid.UUID, status string, at time.Time) {
 	t.Helper()
-	if _, err := tx.Exec(ctx,
+	if _, err := f.pool.Exec(ctx,
 		`INSERT INTO applications (id, job_id, candidate_id, status, created_at, updated_at)
 		 VALUES ($1, $2, $3, $4, $5, $5)`,
 		id, jobID, candidateID, status, at,
 	); err != nil {
 		t.Fatalf("seed application %s (status=%s): %v", id, status, err)
 	}
+	f.trackApp(id)
 }
 
 // seedBulkCandidates inserts n fresh candidate users and returns their ids.
 // Used by the LIMIT-100 tests, which need more distinct (job, candidate)
-// pairs than the fixed fixture universe provides.
-func seedBulkCandidates(ctx context.Context, t *testing.T, tx pgx.Tx, prefix string, n int) []uuid.UUID {
+// pairs than the fixed fixture universe provides. The users are registered
+// for t.Cleanup deletion (their applications ride along via the app ids).
+func seedBulkCandidates(ctx context.Context, t *testing.T, f *applicationFixture, prefix string, n int) []uuid.UUID {
 	t.Helper()
 	ids := make([]uuid.UUID, 0, n)
 	for i := 0; i < n; i++ {
 		id := uuid.New()
 		sub := fmt.Sprintf("%s-%d", prefix, i)
-		if _, err := tx.Exec(ctx,
+		if _, err := f.pool.Exec(ctx,
 			`INSERT INTO users (id, cognito_sub, email, full_name, user_type)
 			 VALUES ($1, $2, $3, $4, 'candidate')`,
 			id, sub, sub+"@example.com", "Bulk Candidate",
 		); err != nil {
 			t.Fatalf("seed bulk candidate %d: %v", i, err)
 		}
+		f.createdUserIDs = append(f.createdUserIDs, id)
 		ids = append(ids, id)
 	}
 	return ids
@@ -349,14 +420,15 @@ func seedBulkCandidates(ctx context.Context, t *testing.T, tx pgx.Tx, prefix str
 
 // seedBulkJobs inserts n published jobs owned by companyID and returns their
 // ids in insertion order. published_at is required by
-// jobs_published_integrity_check for status='published' rows.
-func seedBulkJobs(ctx context.Context, t *testing.T, tx pgx.Tx, companyID uuid.UUID, prefix string, n int) []uuid.UUID {
+// jobs_published_integrity_check for status='published' rows. The jobs (and
+// their applications, tracked by the caller) are cleaned up per-test.
+func seedBulkJobs(ctx context.Context, t *testing.T, f *applicationFixture, companyID uuid.UUID, prefix string, n int) []uuid.UUID {
 	t.Helper()
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	ids := make([]uuid.UUID, 0, n)
 	for i := 0; i < n; i++ {
 		jobID := uuid.New()
-		if _, err := tx.Exec(ctx,
+		if _, err := f.pool.Exec(ctx,
 			`INSERT INTO jobs
 			    (id, company_id, title, description, work_mode, employment_type,
 			     seniority, status, location, salary_min, salary_max, salary_currency,
@@ -368,16 +440,17 @@ func seedBulkJobs(ctx context.Context, t *testing.T, tx pgx.Tx, companyID uuid.U
 		); err != nil {
 			t.Fatalf("seed bulk job %d: %v", i, err)
 		}
+		f.createdJobIDs = append(f.createdJobIDs, jobID)
 		ids = append(ids, jobID)
 	}
 	return ids
 }
 
 // countApplications probes the number of rows matching (job_id, candidate_id).
-func countApplications(ctx context.Context, t *testing.T, tx pgx.Tx, jobID, candidateID uuid.UUID) int {
+func countApplications(ctx context.Context, t *testing.T, f *applicationFixture, jobID, candidateID uuid.UUID) int {
 	t.Helper()
 	var n int
-	if err := tx.QueryRow(ctx,
+	if err := f.pool.QueryRow(ctx,
 		`SELECT COUNT(*) FROM applications WHERE job_id = $1 AND candidate_id = $2`,
 		jobID, candidateID,
 	).Scan(&n); err != nil {
@@ -387,15 +460,385 @@ func countApplications(ctx context.Context, t *testing.T, tx pgx.Tx, jobID, cand
 }
 
 // rowExists probes whether an application row with the given id exists.
-func rowExists(ctx context.Context, t *testing.T, tx pgx.Tx, id uuid.UUID) bool {
+func rowExists(ctx context.Context, t *testing.T, f *applicationFixture, id uuid.UUID) bool {
 	t.Helper()
 	var exists bool
-	if err := tx.QueryRow(ctx,
+	if err := f.pool.QueryRow(ctx,
 		`SELECT EXISTS (SELECT 1 FROM applications WHERE id = $1)`, id,
 	).Scan(&exists); err != nil {
 		t.Fatalf("probe application row %s: %v", id, err)
 	}
 	return exists
+}
+
+// countAuditRowsForEntity probes the number of audit_events rows pointing at
+// the given entity_id — the co-write tests' exact-one-event-per-commit and
+// no-event-on-non-write assertions.
+func countAuditRowsForEntity(ctx context.Context, t *testing.T, f *applicationFixture, entityID uuid.UUID) int {
+	t.Helper()
+	var n int
+	if err := f.pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM audit_events WHERE entity_id = $1`, entityID,
+	).Scan(&n); err != nil {
+		t.Fatalf("count audit_events for %s: %v", entityID, err)
+	}
+	return n
+}
+
+// submittedAuditEvent builds the ApplicationSubmitted event value the adapter
+// appends (D6: the adapter is dumb — it appends whatever event it is given,
+// so these tests construct the full shape the use cases build in production).
+func submittedAuditEvent(eventID, entityID, actorID, jobID uuid.UUID, source *string) auditentities.AuditEvent {
+	meta := map[string]string{"job_id": jobID.String()}
+	if source != nil {
+		meta["source"] = *source
+	}
+	actor := actorID
+	return auditentities.AuditEvent{
+		ID: eventID, ActorType: auditentities.ActorTypeUser, ActorID: &actor,
+		EventType: auditentities.EventApplicationSubmitted, EntityType: auditentities.EntityApplication,
+		EntityID: entityID, Metadata: meta,
+	}
+}
+
+// transitionedAuditEvent builds the ApplicationTransitioned event value the
+// adapter appends.
+func transitionedAuditEvent(eventID, entityID, actorID, jobID uuid.UUID, from, to applicationsvalueobjects.ApplicationStatus) auditentities.AuditEvent {
+	actor := actorID
+	return auditentities.AuditEvent{
+		ID: eventID, ActorType: auditentities.ActorTypeUser, ActorID: &actor,
+		EventType: auditentities.EventApplicationTransitioned, EntityType: auditentities.EntityApplication,
+		EntityID: entityID, Metadata: map[string]string{
+			"job_id":      jobID.String(),
+			"from_status": from.String(),
+			"to_status":   to.String(),
+		},
+	}
+}
+
+// createAuditEventsTableDDL mirrors the 00011 up migration body so the
+// audit-failure tests can DROP the table, force the co-write to fail, and
+// restore it in t.Cleanup. Kept in sync by hand (createApplicationsTableDDL
+// precedent).
+const createAuditEventsTableDDL = `
+CREATE TABLE audit_events (
+    id           UUID PRIMARY KEY,
+    occurred_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    actor_id     UUID,
+    actor_type   TEXT NOT NULL
+        CONSTRAINT audit_events_actor_type_check
+        CHECK (actor_type IN ('user', 'system')),
+    event_type   TEXT NOT NULL,
+    entity_type  TEXT NOT NULL,
+    entity_id    UUID NOT NULL,
+    metadata     JSONB NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX audit_events_entity_idx
+    ON audit_events (entity_type, entity_id, occurred_at DESC);
+`
+
+// --- Co-write (design D5 / D6 / D10) ----------------------------------------
+
+// TestCreate_CoWritesApplicationAndAuditEvent pins the fail-closed co-write
+// contract end to end: a successful Create commits exactly ONE audit_events
+// row with event_type='ApplicationSubmitted', entity_type='application',
+// entity_id=<appID>, actor_type='user', actor_id=<candidateID>, and the
+// PII-free metadata {job_id} / {job_id, source}.
+func TestCreate_CoWritesApplicationAndAuditEvent(t *testing.T) {
+	ctx, f := setupApplicationFixture(t)
+
+	// Part A — nil source: metadata is exactly {job_id}.
+	appIDA := uuid.New()
+	if _, err := f.repo.Create(ctx, repositories.CreateParams{
+		ID:          appIDA,
+		JobID:       f.jobPublished,
+		CandidateID: f.userC1,
+	}, submittedAuditEvent(uuid.New(), appIDA, f.userC1, f.jobPublished, nil)); err != nil {
+		t.Fatalf("Create (no source): %v", err)
+	}
+	f.trackApp(appIDA)
+
+	if n := countAuditRowsForEntity(ctx, t, f, appIDA); n != 1 {
+		t.Fatalf("want exactly 1 audit row for entity_id %v, got %d", appIDA, n)
+	}
+	var (
+		actorType, eventType, entityType string
+		actorID                          uuid.UUID
+		metadata                         []byte
+	)
+	if err := f.pool.QueryRow(ctx,
+		`SELECT actor_type, actor_id, event_type, entity_type, metadata
+		 FROM audit_events WHERE entity_id = $1`, appIDA,
+	).Scan(&actorType, &actorID, &eventType, &entityType, &metadata); err != nil {
+		t.Fatalf("read audit row: %v", err)
+	}
+	if actorType != "user" {
+		t.Errorf("actor_type: want user, got %q", actorType)
+	}
+	if actorID != f.userC1 {
+		t.Errorf("actor_id: want %v (candidate users.id), got %v", f.userC1, actorID)
+	}
+	if eventType != auditentities.EventApplicationSubmitted {
+		t.Errorf("event_type: want %q, got %q", auditentities.EventApplicationSubmitted, eventType)
+	}
+	if entityType != auditentities.EntityApplication {
+		t.Errorf("entity_type: want %q, got %q", auditentities.EntityApplication, entityType)
+	}
+	var metaA map[string]string
+	if err := json.Unmarshal(metadata, &metaA); err != nil {
+		t.Fatalf("unmarshal metadata: %v", err)
+	}
+	if want := map[string]string{"job_id": f.jobPublished.String()}; !reflect.DeepEqual(metaA, want) {
+		t.Errorf("metadata (no source): want %v, got %v", want, metaA)
+	}
+
+	// Part B — sourced: metadata is {job_id, source}.
+	src := applicationsvalueobjects.LinkedIn
+	srcStr := "linkedin"
+	appIDB := uuid.New()
+	if _, err := f.repo.Create(ctx, repositories.CreateParams{
+		ID:          appIDB,
+		JobID:       f.jobPublished2,
+		CandidateID: f.userC2,
+		Source:      &src,
+	}, submittedAuditEvent(uuid.New(), appIDB, f.userC2, f.jobPublished2, &srcStr)); err != nil {
+		t.Fatalf("Create (sourced): %v", err)
+	}
+	f.trackApp(appIDB)
+
+	if n := countAuditRowsForEntity(ctx, t, f, appIDB); n != 1 {
+		t.Fatalf("want exactly 1 audit row for entity_id %v, got %d", appIDB, n)
+	}
+	if err := f.pool.QueryRow(ctx,
+		`SELECT metadata FROM audit_events WHERE entity_id = $1`, appIDB,
+	).Scan(&metadata); err != nil {
+		t.Fatalf("read audit metadata: %v", err)
+	}
+	var metaB map[string]string
+	if err := json.Unmarshal(metadata, &metaB); err != nil {
+		t.Fatalf("unmarshal metadata: %v", err)
+	}
+	if want := map[string]string{"job_id": f.jobPublished2.String(), "source": "linkedin"}; !reflect.DeepEqual(metaB, want) {
+		t.Errorf("metadata (sourced): want %v, got %v", want, metaB)
+	}
+}
+
+// TestCreate_AuditFailureRollsBackApplication pins the fail-closed guarantee:
+// when the audit INSERT cannot run (the table is dropped), Create returns an
+// error AND the already-inserted application row is rolled back — no orphan
+// row, no event (the co-write is all-or-nothing).
+func TestCreate_AuditFailureRollsBackApplication(t *testing.T) {
+	ctx, f := setupApplicationFixture(t)
+
+	// Sabotage the co-write: drop audit_events so the append INSERT fails
+	// (undefined_table 42P01). Restore via t.Cleanup with the inline DDL.
+	if _, err := f.pool.Exec(ctx, `DROP TABLE IF EXISTS audit_events`); err != nil {
+		t.Fatalf("drop audit_events: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := f.pool.Exec(context.Background(), createAuditEventsTableDDL); err != nil {
+			t.Errorf("recreate audit_events: %v", err)
+		}
+	})
+
+	appID := uuid.New()
+	_, err := f.repo.Create(ctx, repositories.CreateParams{
+		ID:          appID,
+		JobID:       f.jobPublished,
+		CandidateID: f.userC1,
+	}, submittedAuditEvent(uuid.New(), appID, f.userC1, f.jobPublished, nil))
+	if err == nil {
+		t.Fatal("expected co-write error when audit_events is missing, got nil")
+	}
+	if rowExists(ctx, t, f, appID) {
+		t.Error("the application write must roll back when the audit append fails (fail-closed)")
+	}
+}
+
+// TestCreate_NonWriteOutcomeNoEvent pins the ordering guarantee: a mapped
+// non-write sentinel (gate miss / duplicate) is returned BEFORE any append,
+// so zero audit rows exist for that entity_id.
+func TestCreate_NonWriteOutcomeNoEvent(t *testing.T) {
+	ctx, f := setupApplicationFixture(t)
+
+	// Gate miss (draft job) → ErrJobNotApplicable, no row, no event.
+	gateAppID := uuid.New()
+	_, err := f.repo.Create(ctx, repositories.CreateParams{
+		ID:          gateAppID,
+		JobID:       f.jobDraft,
+		CandidateID: f.userC2,
+	}, submittedAuditEvent(uuid.New(), gateAppID, f.userC2, f.jobDraft, nil))
+	if !errors.Is(err, entities.ErrJobNotApplicable) {
+		t.Fatalf("gate miss: want ErrJobNotApplicable, got %v", err)
+	}
+	if n := countAuditRowsForEntity(ctx, t, f, gateAppID); n != 0 {
+		t.Errorf("gate miss must append no event; got %d audit rows", n)
+	}
+
+	// Duplicate (jobPublished, userC1): first Create commits (and appends one
+	// event); the second surfaces ErrAlreadyApplied with NO event of its own.
+	firstID := uuid.New()
+	if _, err := f.repo.Create(ctx, repositories.CreateParams{
+		ID:          firstID,
+		JobID:       f.jobPublished,
+		CandidateID: f.userC1,
+	}, submittedAuditEvent(uuid.New(), firstID, f.userC1, f.jobPublished, nil)); err != nil {
+		t.Fatalf("first create: %v", err)
+	}
+	f.trackApp(firstID)
+
+	dupID := uuid.New()
+	_, err = f.repo.Create(ctx, repositories.CreateParams{
+		ID:          dupID,
+		JobID:       f.jobPublished,
+		CandidateID: f.userC1,
+	}, submittedAuditEvent(uuid.New(), dupID, f.userC1, f.jobPublished, nil))
+	if !errors.Is(err, entities.ErrAlreadyApplied) {
+		t.Fatalf("duplicate: want ErrAlreadyApplied, got %v", err)
+	}
+	if n := countAuditRowsForEntity(ctx, t, f, dupID); n != 0 {
+		t.Errorf("duplicate Create must append no event; got %d audit rows", n)
+	}
+	// The first create's own event is present (exactly one).
+	if n := countAuditRowsForEntity(ctx, t, f, firstID); n != 1 {
+		t.Errorf("first create: want exactly 1 audit row, got %d", n)
+	}
+}
+
+// TestTransition_CoWritesTransitionedEvent pins the transition co-write: a
+// successful Transition commits exactly ONE ApplicationTransitioned row with
+// actor_type='user', actor_id=<recruiterID>, entity_id=<appID>, and metadata
+// {job_id, from_status, to_status}.
+func TestTransition_CoWritesTransitionedEvent(t *testing.T) {
+	ctx, f := setupApplicationFixture(t)
+
+	seedTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	appID := uuid.New()
+	seedApplicationAt(ctx, t, f, appID, f.jobPublished, f.userC1, "submitted", seedTime)
+	recruiterID := uuid.New()
+
+	got, err := f.repo.Transition(ctx, appID, f.jobPublished, f.coActive1,
+		applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview,
+		transitionedAuditEvent(uuid.New(), appID, recruiterID, f.jobPublished,
+			applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview),
+	)
+	if err != nil {
+		t.Fatalf("Transition: %v", err)
+	}
+	if got.Status != applicationsvalueobjects.InReview {
+		t.Errorf("Status: want InReview, got %v", got.Status)
+	}
+
+	if n := countAuditRowsForEntity(ctx, t, f, appID); n != 1 {
+		t.Fatalf("want exactly 1 audit row for entity_id %v, got %d", appID, n)
+	}
+	var (
+		actorType, eventType string
+		actorID              uuid.UUID
+		metadata             []byte
+	)
+	if err := f.pool.QueryRow(ctx,
+		`SELECT actor_type, actor_id, event_type, metadata
+		 FROM audit_events WHERE entity_id = $1`, appID,
+	).Scan(&actorType, &actorID, &eventType, &metadata); err != nil {
+		t.Fatalf("read audit row: %v", err)
+	}
+	if actorType != "user" {
+		t.Errorf("actor_type: want user, got %q", actorType)
+	}
+	if actorID != recruiterID {
+		t.Errorf("actor_id: want %v (CompanyContext.UserID), got %v", recruiterID, actorID)
+	}
+	if eventType != auditentities.EventApplicationTransitioned {
+		t.Errorf("event_type: want %q, got %q", auditentities.EventApplicationTransitioned, eventType)
+	}
+	var meta map[string]string
+	if err := json.Unmarshal(metadata, &meta); err != nil {
+		t.Fatalf("unmarshal metadata: %v", err)
+	}
+	want := map[string]string{
+		"job_id":      f.jobPublished.String(),
+		"from_status": "submitted",
+		"to_status":   "in_review",
+	}
+	if !reflect.DeepEqual(meta, want) {
+		t.Errorf("metadata: want %v, got %v", want, meta)
+	}
+}
+
+// TestTransition_LostRaceNoEvent pins the no-event-on-non-write contract for
+// the transition path: the loser of a lost race gets ErrApplicationNotFound
+// and appends nothing (the winner's single event is the only row).
+func TestTransition_LostRaceNoEvent(t *testing.T) {
+	ctx, f := setupApplicationFixture(t)
+
+	seedTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	appID := uuid.New()
+	seedApplicationAt(ctx, t, f, appID, f.jobPublished, f.userC1, "submitted", seedTime)
+
+	// Writer 1 wins: submitted → in_review, commits its event.
+	if _, err := f.repo.Transition(ctx, appID, f.jobPublished, f.coActive1,
+		applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview,
+		transitionedAuditEvent(uuid.New(), appID, f.userC1, f.jobPublished,
+			applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview),
+	); err != nil {
+		t.Fatalf("first transition: %v", err)
+	}
+
+	// Writer 2 holds the stale view (from_status='submitted') → 0 rows.
+	_, err := f.repo.Transition(ctx, appID, f.jobPublished, f.coActive1,
+		applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview,
+		transitionedAuditEvent(uuid.New(), appID, f.userC1, f.jobPublished,
+			applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview),
+	)
+	if !errors.Is(err, entities.ErrApplicationNotFound) {
+		t.Errorf("err: want ErrApplicationNotFound (lost race), got %v", err)
+	}
+
+	// Exactly the winner's one event — the loser appended nothing.
+	if n := countAuditRowsForEntity(ctx, t, f, appID); n != 1 {
+		t.Errorf("lost-race transition must append no event; want 1 audit row, got %d", n)
+	}
+}
+
+// TestTransition_AuditFailureRollsBackStatus pins the fail-closed guarantee
+// on the transition path: when the audit append fails, the status change is
+// rolled back (the row stays at its previous status) and no event exists.
+func TestTransition_AuditFailureRollsBackStatus(t *testing.T) {
+	ctx, f := setupApplicationFixture(t)
+
+	if _, err := f.pool.Exec(ctx, `DROP TABLE IF EXISTS audit_events`); err != nil {
+		t.Fatalf("drop audit_events: %v", err)
+	}
+	t.Cleanup(func() {
+		if _, err := f.pool.Exec(context.Background(), createAuditEventsTableDDL); err != nil {
+			t.Errorf("recreate audit_events: %v", err)
+		}
+	})
+
+	seedTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
+	appID := uuid.New()
+	seedApplicationAt(ctx, t, f, appID, f.jobPublished, f.userC1, "submitted", seedTime)
+
+	_, err := f.repo.Transition(ctx, appID, f.jobPublished, f.coActive1,
+		applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview,
+		transitionedAuditEvent(uuid.New(), appID, f.userC1, f.jobPublished,
+			applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview),
+	)
+	if err == nil {
+		t.Fatal("expected co-write error when audit_events is missing, got nil")
+	}
+
+	var status string
+	if err := f.pool.QueryRow(ctx,
+		`SELECT status FROM applications WHERE id = $1`, appID,
+	).Scan(&status); err != nil {
+		t.Fatalf("raw read: %v", err)
+	}
+	if status != "submitted" {
+		t.Errorf("status must be rolled back to submitted on audit failure, got %q", status)
+	}
 }
 
 // --- Create (design D1 / D2) ----------------------------------------------
@@ -416,10 +859,11 @@ func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 		ID:          appIDA,
 		JobID:       f.jobPublished,
 		CandidateID: f.userC1,
-	})
+	}, submittedAuditEvent(uuid.New(), appIDA, f.userC1, f.jobPublished, nil))
 	if err != nil {
 		t.Fatalf("Create(no optionals): %v", err)
 	}
+	f.trackApp(appIDA)
 	if gotA.ID != appIDA {
 		t.Errorf("ID: want %v, got %v", appIDA, gotA.ID)
 	}
@@ -449,7 +893,7 @@ func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 	var status string
 	var dbSource, dbCover, dbCVKey *string
 	var dbAnonymizedAt *time.Time
-	if err := f.tx.QueryRow(ctx,
+	if err := f.pool.QueryRow(ctx,
 		`SELECT status, source, cover_letter, cv_s3_key, anonymized_at
 		 FROM applications WHERE id = $1`, appIDA,
 	).Scan(&status, &dbSource, &dbCover, &dbCVKey, &dbAnonymizedAt); err != nil {
@@ -470,6 +914,7 @@ func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 
 	// Part B — present optionals → stored + surfaced (S20).
 	src := applicationsvalueobjects.Referral
+	srcStr := "referral"
 	cover := "I am a great fit for this role."
 	appIDB := uuid.New()
 	gotB, err := f.repo.Create(ctx, repositories.CreateParams{
@@ -478,10 +923,11 @@ func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 		CandidateID: f.userC1,
 		Source:      &src,
 		CoverLetter: &cover,
-	})
+	}, submittedAuditEvent(uuid.New(), appIDB, f.userC1, f.jobPublished2, &srcStr))
 	if err != nil {
 		t.Fatalf("Create(with optionals): %v", err)
 	}
+	f.trackApp(appIDB)
 	if gotB.Status != applicationsvalueobjects.Submitted {
 		t.Errorf("Status: want Submitted, got %v", gotB.Status)
 	}
@@ -493,7 +939,7 @@ func TestCreate_PublishedActiveJobSuccess(t *testing.T) {
 	}
 
 	var dbSourceB, dbCoverB *string
-	if err := f.tx.QueryRow(ctx,
+	if err := f.pool.QueryRow(ctx,
 		`SELECT source, cover_letter FROM applications WHERE id = $1`, appIDB,
 	).Scan(&dbSourceB, &dbCoverB); err != nil {
 		t.Fatalf("raw read (part B): %v", err)
@@ -531,11 +977,11 @@ func TestCreate_NotApplicable(t *testing.T) {
 				ID:          appID,
 				JobID:       tc.jobID,
 				CandidateID: f.userC2,
-			})
+			}, submittedAuditEvent(uuid.New(), appID, f.userC2, tc.jobID, nil))
 			if !errors.Is(err, entities.ErrJobNotApplicable) {
 				t.Errorf("err: want ErrJobNotApplicable, got %v", err)
 			}
-			if rowExists(ctx, t, f.tx, appID) {
+			if rowExists(ctx, t, f, appID) {
 				t.Error("gate miss must not insert a row")
 			}
 		})
@@ -554,26 +1000,33 @@ func TestCreate_DuplicateReturnsAlreadyApplied(t *testing.T) {
 		ID:          appID,
 		JobID:       f.jobPublished,
 		CandidateID: f.userC1,
-	}); err != nil {
+	}, submittedAuditEvent(uuid.New(), appID, f.userC1, f.jobPublished, nil)); err != nil {
 		t.Fatalf("first create: %v", err)
 	}
+	f.trackApp(appID)
 
 	// Verify exactly one row BEFORE the duplicate attempt. The second Create
-	// below violates the UNIQUE(job_id, candidate_id) guard, which PostgreSQL
-	// aborts the shared fixture transaction (SQLSTATE 25P02 on any later query
-	// on the same tx). Counting after the violation would fail on the aborted
-	// tx, not on the actual invariant — so we assert the count first.
-	if n := countApplications(ctx, t, f.tx, f.jobPublished, f.userC1); n != 1 {
+	// violates the UNIQUE(job_id, candidate_id) guard inside its OWN adapter
+	// transaction, which aborts only that transaction (25P02 is contained) and
+	// returns the mapped 23505 sentinel; the pool stays usable afterwards.
+	if n := countApplications(ctx, t, f, f.jobPublished, f.userC1); n != 1 {
 		t.Errorf("row count after first create: want 1, got %d", n)
 	}
 
+	dupAppID := uuid.New()
 	_, err := f.repo.Create(ctx, repositories.CreateParams{
-		ID:          uuid.New(),
+		ID:          dupAppID,
 		JobID:       f.jobPublished,
 		CandidateID: f.userC1,
-	})
+	}, submittedAuditEvent(uuid.New(), dupAppID, f.userC1, f.jobPublished, nil))
 	if !errors.Is(err, entities.ErrAlreadyApplied) {
 		t.Errorf("err: want ErrAlreadyApplied (23505), got %v", err)
+	}
+	if n := countApplications(ctx, t, f, f.jobPublished, f.userC1); n != 1 {
+		t.Errorf("row count after duplicate: want still 1, got %d", n)
+	}
+	if n := countAuditRowsForEntity(ctx, t, f, dupAppID); n != 0 {
+		t.Errorf("duplicate Create must not append an audit event; got %d rows for entity_id %v", n, dupAppID)
 	}
 }
 
@@ -584,17 +1037,19 @@ func TestCreate_CrossJobAllowed(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
 
 	for _, jobID := range []uuid.UUID{f.jobPublished, f.jobPublished2} {
+		appID := uuid.New()
 		if _, err := f.repo.Create(ctx, repositories.CreateParams{
-			ID:          uuid.New(),
+			ID:          appID,
 			JobID:       jobID,
 			CandidateID: f.userC1,
-		}); err != nil {
+		}, submittedAuditEvent(uuid.New(), appID, f.userC1, jobID, nil)); err != nil {
 			t.Fatalf("create on job %v: %v", jobID, err)
 		}
+		f.trackApp(appID)
 	}
 
 	var n int
-	if err := f.tx.QueryRow(ctx,
+	if err := f.pool.QueryRow(ctx,
 		`SELECT COUNT(*) FROM applications WHERE candidate_id = $1`, f.userC1,
 	).Scan(&n); err != nil {
 		t.Fatalf("count applications: %v", err)
@@ -615,7 +1070,7 @@ func TestCreate_GateIsAtomicWithInsert(t *testing.T) {
 	// concurrent suspension — otherwise the test would pass on the wrong
 	// reason.
 	var status string
-	if err := f.tx.QueryRow(ctx,
+	if err := f.pool.QueryRow(ctx,
 		`SELECT status FROM companies WHERE id = $1`, f.coActive1,
 	).Scan(&status); err != nil {
 		t.Fatalf("read company status: %v", err)
@@ -624,25 +1079,37 @@ func TestCreate_GateIsAtomicWithInsert(t *testing.T) {
 		t.Fatalf("precondition: company must start active, got %q", status)
 	}
 
-	// Suspend in-transaction — simulates the state change between the
-	// middleware-level gate and the INSERT arriving at the SQL layer.
-	if _, err := f.tx.Exec(ctx,
+	// Suspend the company (committed — the adapter's own tx sees it),
+	// simulating the state change between the middleware-level gate and the
+	// INSERT arriving at the SQL layer. Restore it in t.Cleanup so sibling
+	// tests keep seeing appCoActive1 as active.
+	if _, err := f.pool.Exec(ctx,
 		`UPDATE companies SET status = 'suspended' WHERE id = $1`, f.coActive1,
 	); err != nil {
 		t.Fatalf("suspend company mid-transaction: %v", err)
 	}
+	t.Cleanup(func() {
+		if _, err := f.pool.Exec(context.Background(),
+			`UPDATE companies SET status = 'active' WHERE id = $1`, f.coActive1,
+		); err != nil {
+			t.Errorf("restore company %s to active: %v", f.coActive1, err)
+		}
+	})
 
 	appID := uuid.New()
 	_, err := f.repo.Create(ctx, repositories.CreateParams{
 		ID:          appID,
 		JobID:       f.jobPublished,
 		CandidateID: f.userC1,
-	})
+	}, submittedAuditEvent(uuid.New(), appID, f.userC1, f.jobPublished, nil))
 	if !errors.Is(err, entities.ErrJobNotApplicable) {
 		t.Errorf("err: want ErrJobNotApplicable (atomic gate wins), got %v", err)
 	}
-	if rowExists(ctx, t, f.tx, appID) {
+	if rowExists(ctx, t, f, appID) {
 		t.Error("atomic gate miss must not insert a row")
+	}
+	if n := countAuditRowsForEntity(ctx, t, f, appID); n != 0 {
+		t.Errorf("gate miss must not append an audit event; got %d rows", n)
 	}
 }
 
@@ -655,11 +1122,12 @@ func TestCreate_GateIsAtomicWithInsert(t *testing.T) {
 func TestCreate_InvalidCandidateReference(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
 
+	ghostCandidate := uuid.New() // no users row
 	_, err := f.repo.Create(ctx, repositories.CreateParams{
 		ID:          uuid.New(),
 		JobID:       f.jobPublished,
-		CandidateID: uuid.New(), // no users row
-	})
+		CandidateID: ghostCandidate,
+	}, submittedAuditEvent(uuid.New(), uuid.New(), ghostCandidate, f.jobPublished, nil))
 	if !errors.Is(err, entities.ErrInvalidApplicationReference) {
 		t.Errorf("err: want ErrInvalidApplicationReference (23503), got %v", err)
 	}
@@ -676,14 +1144,18 @@ func TestCreate_InvalidSourceCheckViolation(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
 
 	badSource := applicationsvalueobjects.ApplicationSource(99) // String() = "unknown_source"
+	appID := uuid.New()
 	_, err := f.repo.Create(ctx, repositories.CreateParams{
-		ID:          uuid.New(),
+		ID:          appID,
 		JobID:       f.jobPublished,
 		CandidateID: f.userC2,
 		Source:      &badSource,
-	})
+	}, submittedAuditEvent(uuid.New(), appID, f.userC2, f.jobPublished, nil))
 	if !errors.Is(err, applicationsvalueobjects.ErrInvalidStatusTransition) {
 		t.Errorf("err: want ErrInvalidStatusTransition (23514), got %v", err)
+	}
+	if n := countAuditRowsForEntity(ctx, t, f, appID); n != 0 {
+		t.Errorf("CHECK violation must not append an audit event; got %d rows", n)
 	}
 }
 
@@ -697,7 +1169,7 @@ func TestGetByID_OwnCompany(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
 
 	appID := uuid.New()
-	seedApplication(ctx, t, f.tx, appID, f.jobPublished, f.userC1)
+	seedApplication(ctx, t, f, appID, f.jobPublished, f.userC1)
 
 	got, err := f.repo.GetByID(ctx, appID, f.jobPublished, f.coActive1)
 	if err != nil {
@@ -721,7 +1193,7 @@ func TestGetByID_OwnCompany(t *testing.T) {
 	// non-vacuous.
 	var gross *int
 	var birth *time.Time
-	if err := f.tx.QueryRow(ctx,
+	if err := f.pool.QueryRow(ctx,
 		`SELECT current_salary_gross, birth_date FROM candidate_profiles WHERE user_id = $1`,
 		f.userC1,
 	).Scan(&gross, &birth); err != nil {
@@ -756,7 +1228,7 @@ func TestGetByID_CrossCompany404(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
 
 	appID := uuid.New()
-	seedApplication(ctx, t, f.tx, appID, f.jobPublished, f.userC1)
+	seedApplication(ctx, t, f, appID, f.jobPublished, f.userC1)
 
 	_, err := f.repo.GetByID(ctx, appID, f.jobPublished, f.coActive2)
 	if !errors.Is(err, entities.ErrApplicationNotFound) {
@@ -770,7 +1242,7 @@ func TestGetByID_MismatchedJobID404(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
 
 	appID := uuid.New()
-	seedApplication(ctx, t, f.tx, appID, f.jobPublished, f.userC1)
+	seedApplication(ctx, t, f, appID, f.jobPublished, f.userC1)
 
 	// jobPublished2 is owned by the same company but has no applications —
 	// the (id, job_id, company_id) scope must still reject the pair.
@@ -797,7 +1269,7 @@ func TestGetByID_SoftDeletedJobStillVisible(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
 
 	appID := uuid.New()
-	seedApplication(ctx, t, f.tx, appID, f.jobSoftDeleted, f.userC1)
+	seedApplication(ctx, t, f, appID, f.jobSoftDeleted, f.userC1)
 
 	got, err := f.repo.GetByID(ctx, appID, f.jobSoftDeleted, f.coActive1)
 	if err != nil {
@@ -818,7 +1290,7 @@ func TestGetByID_CandidateWithoutProfile(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
 
 	appID := uuid.New()
-	seedApplication(ctx, t, f.tx, appID, f.jobPublished, f.userC2)
+	seedApplication(ctx, t, f, appID, f.jobPublished, f.userC2)
 
 	got, err := f.repo.GetByID(ctx, appID, f.jobPublished, f.coActive1)
 	if err != nil {
@@ -868,9 +1340,9 @@ func TestListByJob_WithRowsDescOrder(t *testing.T) {
 	appOld := uuid.New() // userC1 applied first
 	appMid := uuid.New() // userC2
 	appNew := uuid.New() // userC3 applied last
-	seedApplicationAt(ctx, t, f.tx, appOld, f.jobPublished, f.userC1, "submitted", base)
-	seedApplicationAt(ctx, t, f.tx, appMid, f.jobPublished, f.userC2, "submitted", base.Add(time.Hour))
-	seedApplicationAt(ctx, t, f.tx, appNew, f.jobPublished, f.userC3, "submitted", base.Add(2*time.Hour))
+	seedApplicationAt(ctx, t, f, appOld, f.jobPublished, f.userC1, "submitted", base)
+	seedApplicationAt(ctx, t, f, appMid, f.jobPublished, f.userC2, "submitted", base.Add(time.Hour))
+	seedApplicationAt(ctx, t, f, appNew, f.jobPublished, f.userC3, "submitted", base.Add(2*time.Hour))
 
 	got, err := f.repo.ListByJob(ctx, f.jobPublished, f.coActive1)
 	if err != nil {
@@ -923,8 +1395,8 @@ func TestListByJob_SoftDeletedVisible(t *testing.T) {
 
 	app1 := uuid.New()
 	app2 := uuid.New()
-	seedApplication(ctx, t, f.tx, app1, f.jobSoftDeleted, f.userC1)
-	seedApplication(ctx, t, f.tx, app2, f.jobSoftDeleted, f.userC2)
+	seedApplication(ctx, t, f, app1, f.jobSoftDeleted, f.userC1)
+	seedApplication(ctx, t, f, app2, f.jobSoftDeleted, f.userC2)
 
 	got, err := f.repo.ListByJob(ctx, f.jobSoftDeleted, f.coActive1)
 	if err != nil {
@@ -945,13 +1417,13 @@ func TestListByJob_SoftDeletedVisible(t *testing.T) {
 func TestListByJob_Cap100(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
 
-	users := seedBulkCandidates(ctx, t, f.tx, "app-recruiter-cap", 105)
+	users := seedBulkCandidates(ctx, t, f, "app-recruiter-cap", 105)
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	appIDs := make([]uuid.UUID, 0, len(users))
 	for i, userID := range users {
 		appID := uuid.New()
 		ts := base.Add(time.Duration(i) * time.Minute) // oldest first
-		if _, err := f.tx.Exec(ctx,
+		if _, err := f.pool.Exec(ctx,
 			`INSERT INTO applications (id, job_id, candidate_id, created_at, updated_at)
 			 VALUES ($1, $2, $3, $4, $4)`,
 			appID, f.jobPublished2, userID, ts,
@@ -994,11 +1466,11 @@ func TestListByCandidate_OwnRowsDesc(t *testing.T) {
 
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	// userC1's three applications, oldest → newest.
-	seedApplicationAt(ctx, t, f.tx, uuid.New(), f.jobPublished, f.userC1, "submitted", base)
-	seedApplicationAt(ctx, t, f.tx, uuid.New(), f.jobPublished2, f.userC1, "submitted", base.Add(time.Hour))
-	seedApplicationAt(ctx, t, f.tx, uuid.New(), f.jobForeign, f.userC1, "submitted", base.Add(2*time.Hour))
+	seedApplicationAt(ctx, t, f, uuid.New(), f.jobPublished, f.userC1, "submitted", base)
+	seedApplicationAt(ctx, t, f, uuid.New(), f.jobPublished2, f.userC1, "submitted", base.Add(time.Hour))
+	seedApplicationAt(ctx, t, f, uuid.New(), f.jobForeign, f.userC1, "submitted", base.Add(2*time.Hour))
 	// userC2's application on a DIFFERENT job must NOT appear in C1's list.
-	seedApplication(ctx, t, f.tx, uuid.New(), f.jobPublished3, f.userC2)
+	seedApplication(ctx, t, f, uuid.New(), f.jobPublished3, f.userC2)
 
 	got, err := f.repo.ListByCandidate(ctx, f.userC1)
 	if err != nil {
@@ -1053,7 +1525,7 @@ func TestListByCandidate_EmptyNonNil(t *testing.T) {
 func TestListByCandidate_SoftDeletedJobHistoryPreserved(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
 
-	seedApplication(ctx, t, f.tx, uuid.New(), f.jobSoftDeleted, f.userC1)
+	seedApplication(ctx, t, f, uuid.New(), f.jobSoftDeleted, f.userC1)
 
 	got, err := f.repo.ListByCandidate(ctx, f.userC1)
 	if err != nil {
@@ -1078,13 +1550,13 @@ func TestListByCandidate_SoftDeletedJobHistoryPreserved(t *testing.T) {
 func TestListByCandidate_Cap100(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
 
-	jobs := seedBulkJobs(ctx, t, f.tx, f.coActive1, "app-candidate-cap", 105)
+	jobs := seedBulkJobs(ctx, t, f, f.coActive1, "app-candidate-cap", 105)
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	appIDs := make([]uuid.UUID, 0, len(jobs))
 	for i, jobID := range jobs {
 		appID := uuid.New()
 		ts := base.Add(time.Duration(i) * time.Minute) // oldest first
-		if _, err := f.tx.Exec(ctx,
+		if _, err := f.pool.Exec(ctx,
 			`INSERT INTO applications (id, job_id, candidate_id, created_at, updated_at)
 			 VALUES ($1, $2, $3, $4, $4)`,
 			appID, jobID, f.userC1, ts,
@@ -1128,10 +1600,12 @@ func TestTransition_SubmittedToInReview(t *testing.T) {
 
 	seedTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	appID := uuid.New()
-	seedApplicationAt(ctx, t, f.tx, appID, f.jobPublished, f.userC1, "submitted", seedTime)
+	seedApplicationAt(ctx, t, f, appID, f.jobPublished, f.userC1, "submitted", seedTime)
 
 	got, err := f.repo.Transition(ctx, appID, f.jobPublished, f.coActive1,
 		applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview,
+		transitionedAuditEvent(uuid.New(), appID, f.userC1, f.jobPublished,
+			applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview),
 	)
 	if err != nil {
 		t.Fatalf("Transition(submitted→in_review): %v", err)
@@ -1147,7 +1621,7 @@ func TestTransition_SubmittedToInReview(t *testing.T) {
 	}
 
 	var status string
-	if err := f.tx.QueryRow(ctx,
+	if err := f.pool.QueryRow(ctx,
 		`SELECT status FROM applications WHERE id = $1`, appID,
 	).Scan(&status); err != nil {
 		t.Fatalf("raw read: %v", err)
@@ -1164,10 +1638,12 @@ func TestTransition_InReviewToRejected(t *testing.T) {
 
 	seedTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	appID := uuid.New()
-	seedApplicationAt(ctx, t, f.tx, appID, f.jobPublished, f.userC2, "in_review", seedTime)
+	seedApplicationAt(ctx, t, f, appID, f.jobPublished, f.userC2, "in_review", seedTime)
 
 	got, err := f.repo.Transition(ctx, appID, f.jobPublished, f.coActive1,
 		applicationsvalueobjects.InReview, applicationsvalueobjects.Rejected,
+		transitionedAuditEvent(uuid.New(), appID, f.userC2, f.jobPublished,
+			applicationsvalueobjects.InReview, applicationsvalueobjects.Rejected),
 	)
 	if err != nil {
 		t.Fatalf("Transition(in_review→rejected): %v", err)
@@ -1187,10 +1663,12 @@ func TestTransition_InReviewToHired(t *testing.T) {
 
 	seedTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	appID := uuid.New()
-	seedApplicationAt(ctx, t, f.tx, appID, f.jobPublished, f.userC3, "in_review", seedTime)
+	seedApplicationAt(ctx, t, f, appID, f.jobPublished, f.userC3, "in_review", seedTime)
 
 	got, err := f.repo.Transition(ctx, appID, f.jobPublished, f.coActive1,
 		applicationsvalueobjects.InReview, applicationsvalueobjects.Hired,
+		transitionedAuditEvent(uuid.New(), appID, f.userC3, f.jobPublished,
+			applicationsvalueobjects.InReview, applicationsvalueobjects.Hired),
 	)
 	if err != nil {
 		t.Fatalf("Transition(in_review→hired): %v", err)
@@ -1210,22 +1688,33 @@ func TestTransition_LostRaceNotFound(t *testing.T) {
 
 	seedTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	appID := uuid.New()
-	seedApplicationAt(ctx, t, f.tx, appID, f.jobPublished, f.userC1, "submitted", seedTime)
+	seedApplicationAt(ctx, t, f, appID, f.jobPublished, f.userC1, "submitted", seedTime)
 
 	// Writer 1 wins the race.
 	if _, err := f.repo.Transition(ctx, appID, f.jobPublished, f.coActive1,
 		applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview,
+		transitionedAuditEvent(uuid.New(), appID, f.userC1, f.jobPublished,
+			applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview),
 	); err != nil {
 		t.Fatalf("first transition: %v", err)
 	}
 
 	// Writer 2 holds a stale view (from_status='submitted'); the guard sees
-	// the now-in_review row → 0 rows → ErrApplicationNotFound.
+	// the now-in_review row → 0 rows → ErrApplicationNotFound. The loser's
+	// event must NOT be appended (the append happens only after a successful
+	// UPDATE, strictly before commit).
 	_, err := f.repo.Transition(ctx, appID, f.jobPublished, f.coActive1,
 		applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview,
+		transitionedAuditEvent(uuid.New(), appID, f.userC1, f.jobPublished,
+			applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview),
 	)
 	if !errors.Is(err, entities.ErrApplicationNotFound) {
 		t.Errorf("err: want ErrApplicationNotFound (lost race), got %v", err)
+	}
+
+	// Exactly ONE audit row: the winner's Transitioned event only.
+	if n := countAuditRowsForEntity(ctx, t, f, appID); n != 1 {
+		t.Errorf("lost-race transition must not append an event; want 1 audit row, got %d", n)
 	}
 
 	// The row is unchanged AND still readable — the recruiter re-fetches and
@@ -1247,17 +1736,23 @@ func TestTransition_CrossCompany404(t *testing.T) {
 
 	seedTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	appID := uuid.New()
-	seedApplicationAt(ctx, t, f.tx, appID, f.jobPublished, f.userC1, "submitted", seedTime)
+	seedApplicationAt(ctx, t, f, appID, f.jobPublished, f.userC1, "submitted", seedTime)
 
 	_, err := f.repo.Transition(ctx, appID, f.jobPublished, f.coActive2,
 		applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview,
+		transitionedAuditEvent(uuid.New(), appID, f.userC1, f.jobPublished,
+			applicationsvalueobjects.Submitted, applicationsvalueobjects.InReview),
 	)
 	if !errors.Is(err, entities.ErrApplicationNotFound) {
 		t.Errorf("err: want ErrApplicationNotFound, got %v", err)
 	}
 
+	if n := countAuditRowsForEntity(ctx, t, f, appID); n != 0 {
+		t.Errorf("cross-company transition must not append an event; got %d audit rows", n)
+	}
+
 	var status string
-	if err := f.tx.QueryRow(ctx,
+	if err := f.pool.QueryRow(ctx,
 		`SELECT status FROM applications WHERE id = $1`, appID,
 	).Scan(&status); err != nil {
 		t.Fatalf("raw read: %v", err)
@@ -1275,10 +1770,12 @@ func TestTransition_SoftDeletedJobStillTransitionable(t *testing.T) {
 
 	seedTime := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	appID := uuid.New()
-	seedApplicationAt(ctx, t, f.tx, appID, f.jobSoftDeleted, f.userC1, "in_review", seedTime)
+	seedApplicationAt(ctx, t, f, appID, f.jobSoftDeleted, f.userC1, "in_review", seedTime)
 
 	got, err := f.repo.Transition(ctx, appID, f.jobSoftDeleted, f.coActive1,
 		applicationsvalueobjects.InReview, applicationsvalueobjects.Hired,
+		transitionedAuditEvent(uuid.New(), appID, f.userC1, f.jobSoftDeleted,
+			applicationsvalueobjects.InReview, applicationsvalueobjects.Hired),
 	)
 	if err != nil {
 		t.Fatalf("Transition(soft-deleted job): %v", err)

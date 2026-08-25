@@ -15,6 +15,7 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/valueobjects"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/google/uuid"
 )
 
@@ -53,13 +54,18 @@ type CreateParams struct {
 //	                                  (Create + Transition — use case parses VOs first)
 type ApplicationRepository interface {
 	// Create atomically inserts an application guarded by the eligibility
-	// predicate (published + deleted_at IS NULL + active company). Errors:
+	// predicate (published + deleted_at IS NULL + active company) and, in the
+	// SAME transaction, appends the supplied audit event (D6 — the event is a
+	// value param, so presence is compile-enforced: there is no "no event"
+	// write path). The audit append runs strictly AFTER a successful insert
+	// and strictly BEFORE tx.Commit; an append failure rolls the application
+	// write back (fail-closed co-write, D5). Errors:
 	//
 	//   entities.ErrJobNotApplicable            (gate miss, pgx.ErrNoRows)
 	//   entities.ErrAlreadyApplied              (23505 unique)
 	//   entities.ErrInvalidApplicationReference (23503, defense-in-depth)
 	//   valueobjects.ErrInvalidStatusTransition (23514, defense-in-depth)
-	Create(ctx context.Context, params CreateParams) (*entities.Application, error)
+	Create(ctx context.Context, params CreateParams, event auditentities.AuditEvent) (*entities.Application, error)
 
 	// GetByID scopes by (id, job_id, company_id) and returns the row +
 	// PII-minimized candidate snippet. 0 rows → entities.ErrApplicationNotFound.
@@ -77,12 +83,17 @@ type ApplicationRepository interface {
 	ListByCandidate(ctx context.Context, candidateID uuid.UUID) ([]entities.MyApplication, error)
 
 	// Transition advances the row from `from` to `to`, guarded by
-	// (id, job_id, company_id, status = from). 0 rows →
+	// (id, job_id, company_id, status = from), and in the SAME transaction
+	// appends the supplied audit event (D6 — value param, presence
+	// compile-enforced). The audit append runs strictly AFTER a successful
+	// UPDATE and strictly BEFORE tx.Commit; an append failure rolls the status
+	// change back (fail-closed co-write, D5). 0 rows →
 	// entities.ErrApplicationNotFound (lost race / cross-company /
 	// non-existent / mismatched job — indistinguishable, 404).
 	Transition(
 		ctx context.Context,
 		id, jobID, companyID uuid.UUID,
 		from, to valueobjects.ApplicationStatus,
+		event auditentities.AuditEvent,
 	) (*entities.Application, error)
 }

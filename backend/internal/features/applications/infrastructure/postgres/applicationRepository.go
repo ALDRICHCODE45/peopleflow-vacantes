@@ -8,54 +8,51 @@
 // entities, VOs, and the `ApplicationRepository` port stay free of
 // generated SQL types.
 //
-// A narrow `Querier` interface (D13) keeps the adapter's dependency on
-// the *db package minimal and lets the adapter tests stub the surface
-// without spinning up Postgres. `*db.Queries` satisfies `Querier` at
-// compile time (`var _ Querier = (*db.Queries)(nil)`).
+// The adapter owns the *pgxpool.Pool (design D5) so the two write paths
+// (Create / Transition) can open their own transaction and co-write the
+// application write + the audit event append atomically — the fail-closed
+// contract of the audit_events slice (both commit or both roll back). The
+// narrow `Querier` seam of the previous slice is REMOVED: reads use the
+// canonical `db.New(r.pool)` idiom (candidates precedent), writes use
+// `db.New(tx)` inside the adapter-owned transaction.
 package postgres
 
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/repositories"
 	applicationsvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/valueobjects"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
+	auditrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Querier is the narrow sqlc-generated surface the adapter needs.
-// Defining it here (mirroring identity and company_member) lets the
-// adapter tests stub the surface without spinning up Postgres.
-type Querier interface {
-	CreateApplication(ctx context.Context, arg db.CreateApplicationParams) (db.CreateApplicationRow, error)
-	GetApplicationByID(ctx context.Context, arg db.GetApplicationByIDParams) (db.GetApplicationByIDRow, error)
-	ListApplicationsByJob(ctx context.Context, arg db.ListApplicationsByJobParams) ([]db.ListApplicationsByJobRow, error)
-	ListMyApplications(ctx context.Context, candidateID uuid.UUID) ([]db.ListMyApplicationsRow, error)
-	TransitionStatus(ctx context.Context, arg db.TransitionStatusParams) (db.TransitionStatusRow, error)
-	GetJobForApplicationsScope(ctx context.Context, arg db.GetJobForApplicationsScopeParams) (uuid.UUID, error)
-}
-
-// Compile-time assertion that *db.Queries satisfies the adapter's seam.
-var _ Querier = (*db.Queries)(nil)
-
 // ApplicationRepository is the PostgreSQL adapter for
-// repositories.ApplicationRepository.
+// repositories.ApplicationRepository. It holds the connection pool so the
+// write paths can open the co-write transaction, and the stateless audit
+// adapter through which the audit event is appended inside that transaction
+// (D4/D5: Append never begins or commits a transaction of its own).
 type ApplicationRepository struct {
-	queries Querier
+	pool  *pgxpool.Pool
+	audit auditrepositories.AuditEventRepository
 }
 
-// NewApplicationRepository wraps the (typed) sqlc-generated data layer.
-// The parameter type is the narrow `Querier` seam — the composition root
-// passes `*db.Queries` (which satisfies the seam at compile time) and the
-// unit tests pass the stubQuerier from applicationRepository_test.go.
-func NewApplicationRepository(queries Querier) *ApplicationRepository {
-	return &ApplicationRepository{queries: queries}
+// NewApplicationRepository wraps the connection pool + the stateless audit
+// adapter. The pool is retained so Create/Transition can open transactions
+// directly via pool.Begin(ctx); the audit adapter appends the event inside
+// the caller-owned transaction (mirrors candidates / company-bootstrap pool
+// pattern).
+func NewApplicationRepository(pool *pgxpool.Pool, audit auditrepositories.AuditEventRepository) *ApplicationRepository {
+	return &ApplicationRepository{pool: pool, audit: audit}
 }
 
 // Compile-time assertion that the adapter satisfies the domain port.
@@ -76,25 +73,53 @@ var (
 // --- Create --------------------------------------------------------------
 
 // Create atomically inserts an application guarded by the eligibility
-// predicate (design D1). On success the returned *entities.Application is
-// the persisted row mapped from the sqlc CreateApplicationRow (status is
-// the DB-default 'submitted').
+// predicate (design D1) AND appends the supplied audit event in the SAME
+// transaction (design D5/D6 fail-closed co-write):
 //
-// On failure mapCreateError translates the pgx / pgconn error into the
-// domain sentinel the HTTP classifier dispatches on (404 / 409 / 400).
+//  1. pool.Begin — the adapter owns the transaction.
+//  2. db.New(tx).CreateApplication — the atomic gate INSERT.
+//  3. mapCreateError — a gate miss / duplicate / FK / CHECK violation
+//     returns the mapped sentinel BEFORE any append and rolls back (no event).
+//  4. toApplication — row → domain entity.
+//  5. r.audit.Append(ctx, tx, event) — the audit INSERT runs strictly AFTER
+//     the successful application write and strictly BEFORE tx.Commit; an
+//     append failure aborts the whole transaction (no row, no event → 500).
+//  6. tx.Commit — both writes become visible atomically.
+//
+// The event is built by the use case (D7 — single source of truth); the
+// adapter only appends it.
 func (r *ApplicationRepository) Create(
 	ctx context.Context,
 	p repositories.CreateParams,
+	event auditentities.AuditEvent,
 ) (*entities.Application, error) {
-	row, err := r.queries.CreateApplication(ctx, buildCreateApplicationParams(
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin create tx: %w", err)
+	}
+	// defer Rollback is a no-op after Commit succeeds; on any error path
+	// below it sends the ROLLBACK to the server.
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	row, err := db.New(tx).CreateApplication(ctx, buildCreateApplicationParams(
 		p.ID, p.JobID, p.CandidateID, p.Source, p.CoverLetter,
 	))
 	if err != nil {
-		return nil, mapCreateError(err)
+		return nil, mapCreateError(err) // gate miss / duplicate / FK / CHECK → 404/409/400, no event
 	}
+
 	app, err := toApplication(row)
 	if err != nil {
-		return nil, err
+		return nil, err // rollback via defer
+	}
+
+	// Fail-closed: an audit INSERT failure aborts the whole transaction.
+	if err := r.audit.Append(ctx, tx, event); err != nil {
+		return nil, fmt.Errorf("co-write audit: %w", err) // → 500, no row, no event
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit create tx: %w", err)
 	}
 	return &app, nil
 }
@@ -107,7 +132,7 @@ func (r *ApplicationRepository) GetByID(
 	ctx context.Context,
 	id, jobID, companyID uuid.UUID,
 ) (*entities.ApplicationWithCandidate, error) {
-	row, err := r.queries.GetApplicationByID(ctx, db.GetApplicationByIDParams{
+	row, err := db.New(r.pool).GetApplicationByID(ctx, db.GetApplicationByIDParams{
 		ID:        id,
 		JobID:     jobID,
 		CompanyID: companyID,
@@ -133,13 +158,13 @@ func (r *ApplicationRepository) ListByJob(
 	ctx context.Context,
 	jobID, companyID uuid.UUID,
 ) ([]entities.ApplicationWithCandidate, error) {
-	if _, err := r.queries.GetJobForApplicationsScope(ctx, db.GetJobForApplicationsScopeParams{
+	if _, err := db.New(r.pool).GetJobForApplicationsScope(ctx, db.GetJobForApplicationsScopeParams{
 		JobID:     jobID,
 		CompanyID: companyID,
 	}); err != nil {
 		return nil, mapGetError(err)
 	}
-	rows, err := r.queries.ListApplicationsByJob(ctx, db.ListApplicationsByJobParams{
+	rows, err := db.New(r.pool).ListApplicationsByJob(ctx, db.ListApplicationsByJobParams{
 		JobID:     jobID,
 		CompanyID: companyID,
 	})
@@ -166,7 +191,7 @@ func (r *ApplicationRepository) ListByCandidate(
 	ctx context.Context,
 	candidateID uuid.UUID,
 ) ([]entities.MyApplication, error) {
-	rows, err := r.queries.ListMyApplications(ctx, candidateID)
+	rows, err := db.New(r.pool).ListMyApplications(ctx, candidateID)
 	if err != nil {
 		return nil, err
 	}
@@ -184,23 +209,41 @@ func (r *ApplicationRepository) ListByCandidate(
 // --- Transition ----------------------------------------------------------
 
 // Transition advances the row from `from` to `to`, guarded by (id,
-// job_id, company_id, status = from) inside the UPDATE WHERE (D3). 0 rows
-// (lost race / cross-company / non-existent / mismatched job) →
-// ErrApplicationNotFound (404).
+// job_id, company_id, status = from), AND appends the supplied audit event
+// in the SAME transaction (design D5/D6 fail-closed co-write — the exact
+// Create shape: Begin → guarded UPDATE → mapTransitionError → mapper →
+// audit.Append → Commit). 0 rows (lost race / cross-company / non-existent
+// / mismatched job) → ErrApplicationNotFound (404), NO event.
 func (r *ApplicationRepository) Transition(
 	ctx context.Context,
 	id, jobID, companyID uuid.UUID,
 	from, to applicationsvalueobjects.ApplicationStatus,
+	event auditentities.AuditEvent,
 ) (*entities.Application, error) {
-	row, err := r.queries.TransitionStatus(ctx, buildTransitionParams(
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin transition tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	row, err := db.New(tx).TransitionStatus(ctx, buildTransitionParams(
 		id, jobID, companyID, from, to,
 	))
 	if err != nil {
-		return nil, mapTransitionError(err)
+		return nil, mapTransitionError(err) // 0 rows → ErrApplicationNotFound, no event
 	}
 	app, err := toApplicationFromTransitionRow(row)
 	if err != nil {
-		return nil, err
+		return nil, err // rollback via defer
+	}
+
+	// Fail-closed: an audit INSERT failure aborts the whole transaction.
+	if err := r.audit.Append(ctx, tx, event); err != nil {
+		return nil, fmt.Errorf("co-write audit: %w", err) // → 500, status unchanged, no event
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit transition tx: %w", err)
 	}
 	return &app, nil
 }

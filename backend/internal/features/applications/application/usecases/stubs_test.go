@@ -8,6 +8,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/valueobjects"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identityrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/repositories"
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ import (
 //
 //	createCalls         int
 //	lastCreateParams    *repositories.CreateParams
+//	lastCreateEvent     *auditentities.AuditEvent
 //	getByIDCalls        int
 //	lastGetByIDIDs      struct{ ID, JobID, CompanyID uuid.UUID }
 //	listByJobCalls      int
@@ -29,6 +31,7 @@ import (
 //	lastListByCandidateID uuid.UUID
 //	transitionCalls     int
 //	lastTransitionArgs  struct{ ID, JobID, CompanyID uuid.UUID; From, To valueobjects.ApplicationStatus }
+//	lastTransitionEvent *auditentities.AuditEvent
 //
 // The error fields default to nil so a fresh stub is a happy-path stub;
 // tests override one error field at a time to drive the dispatcher.
@@ -40,6 +43,9 @@ type stubApplicationRepo struct {
 	createApp   *entities.Application
 	createCalls int
 	lastCreate  *repositories.CreateParams
+	// lastCreateEvent is the AuditEvent the use case passed to Create on the
+	// most recent invocation (D7 event-intent pin).
+	lastCreateEvent *auditentities.AuditEvent
 
 	getByIDErr   error
 	getByIDApp   *entities.ApplicationWithCandidate
@@ -63,13 +69,18 @@ type stubApplicationRepo struct {
 		ID, JobID, CompanyID uuid.UUID
 		From, To             valueobjects.ApplicationStatus
 	}
+	// lastTransitionEvent is the AuditEvent the use case passed to Transition
+	// on the most recent invocation (D7/D8 event-intent pin).
+	lastTransitionEvent *auditentities.AuditEvent
 }
 
-func (s *stubApplicationRepo) Create(ctx context.Context, p repositories.CreateParams) (*entities.Application, error) {
+func (s *stubApplicationRepo) Create(ctx context.Context, p repositories.CreateParams, event auditentities.AuditEvent) (*entities.Application, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.createCalls++
 	s.lastCreate = &p
+	ev := event
+	s.lastCreateEvent = &ev
 	if s.createErr != nil {
 		return nil, s.createErr
 	}
@@ -130,7 +141,7 @@ func (s *stubApplicationRepo) ListByCandidate(ctx context.Context, candidateID u
 	return s.listByCandidateApps, nil
 }
 
-func (s *stubApplicationRepo) Transition(ctx context.Context, id, jobID, companyID uuid.UUID, from, to valueobjects.ApplicationStatus) (*entities.Application, error) {
+func (s *stubApplicationRepo) Transition(ctx context.Context, id, jobID, companyID uuid.UUID, from, to valueobjects.ApplicationStatus, event auditentities.AuditEvent) (*entities.Application, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.transitionCalls++
@@ -139,6 +150,8 @@ func (s *stubApplicationRepo) Transition(ctx context.Context, id, jobID, company
 	s.lastTransition.CompanyID = companyID
 	s.lastTransition.From = from
 	s.lastTransition.To = to
+	ev := event
+	s.lastTransitionEvent = &ev
 	if s.transitionErr != nil {
 		return nil, s.transitionErr
 	}

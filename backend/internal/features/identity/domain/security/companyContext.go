@@ -30,6 +30,14 @@ type CompanyContext struct {
 	// path or body company_id is ignored (spec scenario "body company_id
 	// is ignored").
 	CompanyID uuid.UUID
+	// UserID is the caller's users.id — the stable identity the resolver
+	// chain produced BEFORE the membership lookup. Additive (D8): it lets
+	// the transition handler record the acting recruiter as the audit
+	// event actor (ApplicationTransitioned → actor_id = CompanyContext.UserID).
+	// The middleware always resolves a real users.id, so a zero UserID is
+	// unreachable via the designed flow; the use case guards uuid.Nil
+	// fail-closed anyway.
+	UserID uuid.UUID
 	// Role is the caller's role on CompanyID. The middleware already
 	// verified `role >= minRole` before injecting, so the handler can
 	// trust whatever Role it reads back.

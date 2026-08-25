@@ -56,7 +56,7 @@ func skipIfNoDatabaseForApplications(t *testing.T) *pgxpool.Pool {
 // must exist.
 func TestMigration00010_UpCreatesNamedObjects(t *testing.T) {
 	pool := skipIfNoDatabaseForApplications(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -129,7 +129,7 @@ func TestMigration00010_UpCreatesNamedObjects(t *testing.T) {
 // TestMigration00010_DownDropsTableAndIndexes — spec scenario S2.
 func TestMigration00010_DownDropsTableAndIndexes(t *testing.T) {
 	pool := skipIfNoDatabaseForApplications(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -184,7 +184,7 @@ CREATE INDEX applications_by_candidate_idx
 // TestApplications_RequiredFieldsRejectNull — spec scenario S3.
 func TestApplications_RequiredFieldsRejectNull(t *testing.T) {
 	pool := skipIfNoDatabaseForApplications(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -239,7 +239,7 @@ func TestApplications_RequiredFieldsRejectNull(t *testing.T) {
 // TestApplications_StatusDefaultsSubmitted — spec scenario S4.
 func TestApplications_StatusDefaultsSubmitted(t *testing.T) {
 	pool := skipIfNoDatabaseForApplications(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -287,7 +287,7 @@ func TestApplications_StatusDefaultsSubmitted(t *testing.T) {
 // TestApplications_StatusCheckRejectsUnknown — spec scenario S5.
 func TestApplications_StatusCheckRejectsUnknown(t *testing.T) {
 	pool := skipIfNoDatabaseForApplications(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -324,7 +324,7 @@ func TestApplications_StatusCheckRejectsUnknown(t *testing.T) {
 // TestApplications_SourceCheckRejectsUnknown — spec scenario S6.
 func TestApplications_SourceCheckRejectsUnknown(t *testing.T) {
 	pool := skipIfNoDatabaseForApplications(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -361,7 +361,7 @@ func TestApplications_SourceCheckRejectsUnknown(t *testing.T) {
 // TestApplications_UniqueJobCandidate — spec scenario S7.
 func TestApplications_UniqueJobCandidate(t *testing.T) {
 	pool := skipIfNoDatabaseForApplications(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -409,7 +409,7 @@ func TestApplications_UniqueJobCandidate(t *testing.T) {
 // TestApplications_CvS3KeyAnonymizedAtNullable — spec scenarios S8, S9.
 func TestApplications_CvS3KeyAnonymizedAtNullable(t *testing.T) {
 	pool := skipIfNoDatabaseForApplications(t)
-	defer pool.Close()
+	t.Cleanup(pool.Close)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

@@ -19,6 +19,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/valueobjects"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identityrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/repositories"
 	"github.com/google/uuid"
@@ -30,13 +31,21 @@ import (
 // for the same condition (mirrors the candidates `ErrUnknownSubject`).
 var ErrUnknownSubject = errors.New("unknown JWT subject")
 
+// ErrMissingActorIdentity is returned when the transition use case receives
+// uuid.Nil as the actor identity (CompanyContext.UserID). Fail-closed 500:
+// no status change, no audit event (D8). Unreachable via the designed flow —
+// RequireCompanyRole always resolves a real users.id — so this guard is
+// defense-in-depth for a mis-wired/middleware-bypassed route.
+var ErrMissingActorIdentity = errors.New("missing actor identity")
+
 // ApplicationRepoPort is the slice of the applications repository port the
 // service actually uses. It mirrors domain/repositories.ApplicationRepository
-// so the use case can be wired against either the real adapter or a test
-// stub that satisfies the same surface (the test stub is
-// stubApplicationRepo in stubs_test.go).
+// (including the D6 AuditEvent value param on the two write paths) so the use
+// case can be wired against either the real adapter or a test stub that
+// satisfies the same surface (the test stub is stubApplicationRepo in
+// stubs_test.go).
 type ApplicationRepoPort interface {
-	Create(ctx context.Context, p repositories.CreateParams) (*entities.Application, error)
+	Create(ctx context.Context, p repositories.CreateParams, event auditentities.AuditEvent) (*entities.Application, error)
 	GetByID(ctx context.Context, id, jobID, companyID uuid.UUID) (*entities.ApplicationWithCandidate, error)
 	ListByJob(ctx context.Context, jobID, companyID uuid.UUID) ([]entities.ApplicationWithCandidate, error)
 	ListByCandidate(ctx context.Context, candidateID uuid.UUID) ([]entities.MyApplication, error)
@@ -44,6 +53,7 @@ type ApplicationRepoPort interface {
 		ctx context.Context,
 		id, jobID, companyID uuid.UUID,
 		from, to valueobjects.ApplicationStatus,
+		event auditentities.AuditEvent,
 	) (*entities.Application, error)
 }
 

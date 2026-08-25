@@ -37,8 +37,8 @@ import (
 //     IDOR leak from probing membership rows with a bogus sub).
 //   - users.id → members.GetMembershipByUserID. Missing row maps to
 //     403; role < minRole maps to 403 (per design D4 / spec scenarios).
-//   - On success, CompanyContext{company_id, role} is injected and the
-//     downstream handler runs.
+//   - On success, CompanyContext{company_id, user_id, role} is injected and
+//     the downstream handler runs.
 //
 // Port-only imports (design D5): this package imports the companies
 // domain port + entities + valueobjects, NEVER the postgres adapter.
@@ -91,6 +91,7 @@ func RequireCompanyRole(
 
 			ctx := security.ContextWithCompanyContext(r.Context(), security.CompanyContext{
 				CompanyID: member.CompanyID,
+				UserID:    user.ID,
 				Role:      member.Role,
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))

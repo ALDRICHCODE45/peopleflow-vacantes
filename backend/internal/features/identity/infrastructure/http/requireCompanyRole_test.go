@@ -306,6 +306,49 @@ func TestRequireCompanyRole_UnknownSubIsUnauthorized(t *testing.T) {
 
 // --- triangulation companions --------------------------------------------
 
+// TestRequireCompanyRole_InjectsUserID pins D8: RequireCompanyRole carries
+// the resolved users.id into CompanyContext.UserID so the transition use
+// case can record the acting recruiter as the audit event actor. The
+// injection must happen on the same success path that injects CompanyID/Role.
+func TestRequireCompanyRole_InjectsUserID(t *testing.T) {
+	userID := uuid.New()
+	companyID := uuid.New()
+	member := &entities.CompanyMember{
+		ID:        uuid.New(),
+		UserID:    userID,
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	}
+	users := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-recruiter"}}
+	members := &stubMemberRepo{resolvedMember: member}
+
+	var gotUserID uuid.UUID
+	invoked := false
+	h := RequireCompanyRole(users, members, valueobjects.RecruiterRole)(
+		http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			invoked = true
+			cc, ok := identitysecurity.CompanyContextFromContext(r.Context())
+			if !ok {
+				t.Fatal("CompanyContext not injected")
+			}
+			gotUserID = cc.UserID
+		}),
+	)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, reqWithSub(http.MethodGet, "/jobs/x/applications/y/transition", "sub-recruiter"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !invoked {
+		t.Fatal("handler not invoked")
+	}
+	if gotUserID != userID {
+		t.Errorf("CompanyContext.UserID: want %v (the resolved users.id), got %v", userID, gotUserID)
+	}
+}
+
 // TestRequireCompanyRole_OwnerOwnerIsSelfPass covers the boundary
 // owner >= owner: an owner caller under RequireCompanyRole("owner")
 // MUST still pass. This guards the ordinal comparison from a future

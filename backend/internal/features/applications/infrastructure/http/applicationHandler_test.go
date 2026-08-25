@@ -32,6 +32,7 @@ import (
 	applicationsentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/entities"
 	applicationsrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/repositories"
 	applicationsvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/valueobjects"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/go-chi/chi/v5"
@@ -66,9 +67,13 @@ type handlerStubRepo struct {
 	transitionErr   error
 	transitionApp   *applicationsentities.Application
 	transitionCalls int
+	// lastTransitionEvent is the AuditEvent the use case passed to Transition
+	// on the most recent invocation — the handler tests assert the actor came
+	// from CompanyContext.UserID, not from any body field.
+	lastTransitionEvent *auditentities.AuditEvent
 }
 
-func (s *handlerStubRepo) Create(ctx context.Context, p applicationsrepositories.CreateParams) (*applicationsentities.Application, error) {
+func (s *handlerStubRepo) Create(ctx context.Context, p applicationsrepositories.CreateParams, event auditentities.AuditEvent) (*applicationsentities.Application, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.createCalls++
@@ -127,10 +132,12 @@ func (s *handlerStubRepo) ListByCandidate(ctx context.Context, candidateID uuid.
 	return s.listByCandidateApps, nil
 }
 
-func (s *handlerStubRepo) Transition(ctx context.Context, id, jobID, companyID uuid.UUID, from, to applicationsvalueobjects.ApplicationStatus) (*applicationsentities.Application, error) {
+func (s *handlerStubRepo) Transition(ctx context.Context, id, jobID, companyID uuid.UUID, from, to applicationsvalueobjects.ApplicationStatus, event auditentities.AuditEvent) (*applicationsentities.Application, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.transitionCalls++
+	ev := event
+	s.lastTransitionEvent = &ev
 	if s.transitionErr != nil {
 		return nil, s.transitionErr
 	}
@@ -220,6 +227,13 @@ func withCompanyContext(r *http.Request, cc identitysecurity.CompanyContext) *ht
 // fixedTime returns a stable time.Time so JSON assertions are deterministic.
 func fixedTime() time.Time {
 	return time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+}
+
+// makeRecruiterID returns a stable, non-nil actor id for the transition-path
+// CompanyContext literals (D8: the handler must pass cc.UserID through to the
+// use case so the Transitioned audit event records the acting recruiter).
+func makeRecruiterID() uuid.UUID {
+	return uuid.MustParse("018f0000-0000-7000-8000-0000000000dd")
 }
 
 // --- apply tests ----------------------------------------------------------
@@ -545,7 +559,7 @@ func TestListJobApplications_InvalidJobID400(t *testing.T) {
 	h := newHarness()
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/jobs/not-a-uuid/applications", nil)
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
@@ -561,7 +575,7 @@ func TestListJobApplications_CrossCompany404(t *testing.T) {
 	h.repo.listByJobErr = applicationsentities.ErrApplicationNotFound
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/jobs/"+uuid.New().String()+"/applications", nil)
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusNotFound {
@@ -577,7 +591,7 @@ func TestListJobApplications_Empty200(t *testing.T) {
 	h.repo.listByJobApps = nil // adapter normalizes to non-nil empty
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/jobs/"+uuid.New().String()+"/applications", nil)
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -606,7 +620,7 @@ func TestListJobApplications_ItemShapeHasCandidateSnippet(t *testing.T) {
 	}
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/jobs/"+uuid.New().String()+"/applications", nil)
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
@@ -643,7 +657,7 @@ func TestGetApplication_InvalidJobID400(t *testing.T) {
 	h := newHarness()
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/jobs/not-a-uuid/applications/"+uuid.New().String(), nil)
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
@@ -654,7 +668,7 @@ func TestGetApplication_InvalidAppID400(t *testing.T) {
 	h := newHarness()
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/jobs/"+uuid.New().String()+"/applications/not-a-uuid", nil)
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
@@ -669,7 +683,7 @@ func TestGetApplication_CrossCompany404(t *testing.T) {
 	h.repo.getByIDErr = applicationsentities.ErrApplicationNotFound
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String(), nil)
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("want 404, got %d", w.Code)
@@ -681,7 +695,7 @@ func TestGetApplication_NonExistent404(t *testing.T) {
 	h.repo.getByIDErr = applicationsentities.ErrApplicationNotFound
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String(), nil)
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("want 404, got %d", w.Code)
@@ -701,7 +715,7 @@ func TestGetApplication_Success200(t *testing.T) {
 	}
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String(), nil)
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d (body %s)", w.Code, w.Body.String())
@@ -730,7 +744,7 @@ func TestGetApplication_CandidateSnippetPII(t *testing.T) {
 	}
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String(), nil)
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d", w.Code)
@@ -754,7 +768,7 @@ func TestTransitionApplication_InvalidJobID400(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("PATCH", "/jobs/not-a-uuid/applications/"+uuid.New().String()+"/transition",
 		strings.NewReader(`{"status":"in_review"}`))
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
@@ -766,7 +780,7 @@ func TestTransitionApplication_InvalidAppID400(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/not-a-uuid/transition",
 		strings.NewReader(`{"status":"in_review"}`))
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
@@ -778,7 +792,7 @@ func TestTransitionApplication_InvalidJSON400(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String()+"/transition",
 		strings.NewReader("{not json"))
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
@@ -790,7 +804,7 @@ func TestTransitionApplication_MissingStatus400(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String()+"/transition",
 		strings.NewReader(`{}`))
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
@@ -805,7 +819,7 @@ func TestTransitionApplication_UnknownStatus400(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String()+"/transition",
 		strings.NewReader(`{"status":"withdrawn"}`))
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
@@ -824,7 +838,7 @@ func TestTransitionApplication_IllegalTransition400(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String()+"/transition",
 		strings.NewReader(`{"status":"rejected"}`))
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
@@ -852,7 +866,7 @@ func TestTransitionApplication_Success200(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String()+"/transition",
 		strings.NewReader(`{"status":"in_review"}`))
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d (body %s)", w.Code, w.Body.String())
@@ -872,7 +886,7 @@ func TestTransitionApplication_CrossCompany404(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String()+"/transition",
 		strings.NewReader(`{"status":"in_review"}`))
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("want 404, got %d", w.Code)
@@ -892,10 +906,77 @@ func TestTransitionApplication_LostRace404(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String()+"/transition",
 		strings.NewReader(`{"status":"in_review"}`))
-	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 	h.router.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("want 404, got %d", w.Code)
+	}
+}
+
+// TestTransitionApplication_MissingUserIDReturns500 pins D8's fail-closed
+// wire contract: a CompanyContext with zero UserID (middleware bypassed or
+// mis-wired) → 500 internal server error, and the transition is never
+// attempted (no status change, no event).
+func TestTransitionApplication_MissingUserIDReturns500(t *testing.T) {
+	h := newHarness()
+	h.repo.getByIDApp = &applicationsentities.ApplicationWithCandidate{
+		Application: applicationsentities.Application{
+			Status: applicationsvalueobjects.Submitted,
+		},
+	}
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String()+"/transition",
+		strings.NewReader(`{"status":"in_review"}`))
+	// Note: UserID deliberately omitted → zero value uuid.Nil.
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New()})
+	h.router.ServeHTTP(w, req)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("want 500, got %d (body %s)", w.Code, w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "internal server error") {
+		t.Errorf("want generic 500 body, got %s", w.Body.String())
+	}
+	if h.repo.transitionCalls != 0 {
+		t.Errorf("Transition MUST NOT be called when CompanyContext.UserID is missing; got %d calls", h.repo.transitionCalls)
+	}
+}
+
+// TestTransitionApplication_BodyActorIDIgnored pins D8's actor provenance:
+// the wire body may smuggle an actor_id, but encoding/json ignores it (the
+// DTO has no such field) and the use case records the CompanyContext.UserID
+// as the event actor — never the body value.
+func TestTransitionApplication_BodyActorIDIgnored(t *testing.T) {
+	h := newHarness()
+	h.repo.getByIDApp = &applicationsentities.ApplicationWithCandidate{
+		Application: applicationsentities.Application{
+			Status: applicationsvalueobjects.Submitted,
+		},
+	}
+	h.repo.transitionApp = &applicationsentities.Application{
+		ID: uuid.New(), JobID: uuid.New(), CandidateID: uuid.New(),
+		Status: applicationsvalueobjects.InReview, CreatedAt: fixedTime(), UpdatedAt: fixedTime(),
+	}
+	w := httptest.NewRecorder()
+	bodyActor := uuid.New().String()
+	req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String()+"/transition",
+		strings.NewReader(`{"status":"in_review","actor_id":"`+bodyActor+`"}`))
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
+	h.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d (body %s)", w.Code, w.Body.String())
+	}
+	if h.repo.lastTransitionEvent == nil {
+		t.Fatal("lastTransitionEvent: want non-nil (the use case must pass an event)")
+	}
+	if h.repo.lastTransitionEvent.ActorID == nil {
+		t.Fatal("ActorID: want non-nil")
+	}
+	if *h.repo.lastTransitionEvent.ActorID != makeRecruiterID() {
+		t.Errorf("ActorID: want CompanyContext.UserID %v, got %v (body actor_id must be ignored)",
+			makeRecruiterID(), *h.repo.lastTransitionEvent.ActorID)
+	}
+	if strings.Contains(w.Body.String(), bodyActor) {
+		t.Errorf("the body actor_id %q must never reach the wire or the event", bodyActor)
 	}
 }
 

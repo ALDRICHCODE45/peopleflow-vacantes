@@ -18,6 +18,7 @@ import (
 	applicationsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/usecases"
 	applicationshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http"
 	applicationspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres"
+	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	candidatesusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/usecases"
 	candidateshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http"
 	candidatespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/postgres"
@@ -122,13 +123,15 @@ func run() error {
 	jobService := jobsusecases.NewJobService(jobRepo)
 	jobHandler := jobshttp.NewJobHandler(jobService)
 
-	// Applications wiring: applications repo (sqlc data layer over the same
-	// queries handle — the atomic apply-gate joins jobs + companies inside
-	// its own SQL, so the jobs port is NOT extended) -> service (uses the
-	// identity user repo for the cognitoSub → users.id resolution seam) ->
-	// handler (per-method accessor so the composition root can gate
-	// candidate-apply and recruiter routes differently).
-	applicationRepo := applicationspostgres.NewApplicationRepository(queries)
+	// Applications wiring: the pool-owning applications repo (D5/D9) + the
+	// stateless audit adapter. Create/Transition open their own pool.Begin
+	// and co-write the application write + the audit event append atomically
+	// (fail-closed: an audit failure rolls the write back). The service uses
+	// the identity user repo for the cognitoSub → users.id resolution seam;
+	// the handler's per-method accessor lets the composition root gate
+	// candidate-apply and recruiter routes differently.
+	auditRepo := auditpostgres.NewAuditEventRepository()
+	applicationRepo := applicationspostgres.NewApplicationRepository(pool, auditRepo)
 	applicationService := applicationsusecases.NewApplicationService(applicationRepo, identityUserRepo)
 	applicationHandler := applicationshttp.NewApplicationHandler(applicationService)
 	applicationHandlers := applicationHandler.ApplicationHandlers()

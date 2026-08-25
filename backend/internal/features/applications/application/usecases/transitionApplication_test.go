@@ -3,13 +3,23 @@ package usecases
 import (
 	"context"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/valueobjects"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/google/uuid"
 )
+
+// makeRecruiterID returns a stable UUID for the transition actor (the
+// CompanyContext.UserID the handler passes through). Non-nil by construction
+// so transition tests exercise the happy path; the missing-actor case passes
+// uuid.Nil explicitly.
+func makeRecruiterID() uuid.UUID {
+	return uuid.MustParse("018e0000-0000-7000-8000-000000000333")
+}
 
 // transitionRequestBuilder returns the in-package DTO type via a thin
 // accessor (defined in transitionApplication.go) so the test file does not
@@ -27,6 +37,93 @@ func makeTransitionDetail(status valueobjects.ApplicationStatus) *entities.Appli
 	}
 }
 
+// --- TestTransitionApplication_PassesTransitionedEvent ---------------------
+
+// TestTransitionApplication_PassesTransitionedEvent pins D7/D8's event-intent
+// flow: the use case builds the ApplicationTransitioned event (actor =
+// CompanyContext.UserID) and hands it to repo.Transition. The stub captures
+// lastTransitionEvent: ActorType=user, ActorID=userID, EntityType=application,
+// EntityID=applicationID, metadata {job_id, from_status, to_status}.
+func TestTransitionApplication_PassesTransitionedEvent(t *testing.T) {
+	repo := &stubApplicationRepo{}
+	userRepo := &stubUserRepo{}
+	repo.getByIDApp = makeTransitionDetail(valueobjects.Submitted)
+	svc := NewApplicationService(repo, userRepo)
+
+	companyID := uuid.New()
+	userID := makeRecruiterID()
+	jobID := makeJobID()
+	applicationID := uuid.New()
+
+	got, err := svc.TransitionApplication(
+		context.Background(), companyID, userID, jobID, applicationID,
+		transitionRequestDtoFromStatus("in_review"),
+	)
+	if err != nil {
+		t.Fatalf("TransitionApplication: unexpected err %v", err)
+	}
+	if got == nil {
+		t.Fatal("want non-nil application")
+	}
+	if repo.transitionCalls != 1 {
+		t.Fatalf("Transition calls: want 1, got %d", repo.transitionCalls)
+	}
+	if repo.lastTransitionEvent == nil {
+		t.Fatal("lastTransitionEvent: want non-nil (the use case must pass an event)")
+	}
+	e := repo.lastTransitionEvent
+	if e.ActorType != auditentities.ActorTypeUser {
+		t.Errorf("ActorType: want %q, got %q", auditentities.ActorTypeUser, e.ActorType)
+	}
+	if e.ActorID == nil || *e.ActorID != userID {
+		t.Errorf("ActorID: want %v (CompanyContext.UserID), got %v", userID, e.ActorID)
+	}
+	if e.EventType != auditentities.EventApplicationTransitioned {
+		t.Errorf("EventType: want %q, got %q", auditentities.EventApplicationTransitioned, e.EventType)
+	}
+	if e.EntityType != auditentities.EntityApplication {
+		t.Errorf("EntityType: want %q, got %q", auditentities.EntityApplication, e.EntityType)
+	}
+	if e.EntityID != applicationID {
+		t.Errorf("EntityID: want %v, got %v", applicationID, e.EntityID)
+	}
+	wantMeta := map[string]string{
+		"job_id":      jobID.String(),
+		"from_status": "submitted",
+		"to_status":   "in_review",
+	}
+	if !reflect.DeepEqual(e.Metadata, wantMeta) {
+		t.Errorf("Metadata: want %v, got %v", wantMeta, e.Metadata)
+	}
+}
+
+// --- TestTransitionApplication_MissingUserIDFailsClosed --------------------
+
+// TestTransitionApplication_MissingUserIDFailsClosed pins D8's fail-closed
+// guard: userID == uuid.Nil (unreachable via the designed flow — the
+// middleware always resolves a real users.id) → ErrMissingActorIdentity, and
+// repo.Transition is NOT called — no status change, no event append.
+func TestTransitionApplication_MissingUserIDFailsClosed(t *testing.T) {
+	repo := &stubApplicationRepo{}
+	userRepo := &stubUserRepo{}
+	repo.getByIDApp = makeTransitionDetail(valueobjects.Submitted)
+	svc := NewApplicationService(repo, userRepo)
+
+	got, err := svc.TransitionApplication(
+		context.Background(), uuid.New(), uuid.Nil, makeJobID(), uuid.New(),
+		transitionRequestDtoFromStatus("in_review"),
+	)
+	if !errors.Is(err, ErrMissingActorIdentity) {
+		t.Errorf("want ErrMissingActorIdentity, got %v", err)
+	}
+	if got != nil {
+		t.Errorf("want nil application, got %v", got)
+	}
+	if repo.transitionCalls != 0 {
+		t.Errorf("Transition MUST NOT be called on missing actor identity; got %d calls", repo.transitionCalls)
+	}
+}
+
 // --- TestTransitionApplication_MissingStatus ----------------------------
 
 // TestTransitionApplication_MissingStatus: empty status → ErrStatusRequired.
@@ -36,7 +133,7 @@ func TestTransitionApplication_MissingStatus(t *testing.T) {
 	userRepo := &stubUserRepo{}
 	svc := NewApplicationService(repo, userRepo)
 
-	got, err := svc.TransitionApplication(context.Background(), uuid.New(), uuid.New(), uuid.New(), transitionRequestDtoFromStatus(""))
+	got, err := svc.TransitionApplication(context.Background(), uuid.New(), makeRecruiterID(), uuid.New(), uuid.New(), transitionRequestDtoFromStatus(""))
 	if !errors.Is(err, entities_ErrStatusRequired()) {
 		t.Errorf("want ErrStatusRequired, got %v", err)
 	}
@@ -58,7 +155,7 @@ func TestTransitionApplication_WhitespaceOnlyStatus(t *testing.T) {
 	userRepo := &stubUserRepo{}
 	svc := NewApplicationService(repo, userRepo)
 
-	got, err := svc.TransitionApplication(context.Background(), uuid.New(), uuid.New(), uuid.New(), transitionRequestDtoFromStatus("   "))
+	got, err := svc.TransitionApplication(context.Background(), uuid.New(), makeRecruiterID(), uuid.New(), uuid.New(), transitionRequestDtoFromStatus("   "))
 	if !errors.Is(err, entities_ErrStatusRequired()) {
 		t.Errorf("want ErrStatusRequired on whitespace, got %v", err)
 	}
@@ -76,7 +173,7 @@ func TestTransitionApplication_UnknownStatus(t *testing.T) {
 	userRepo := &stubUserRepo{}
 	svc := NewApplicationService(repo, userRepo)
 
-	got, err := svc.TransitionApplication(context.Background(), uuid.New(), uuid.New(), uuid.New(), transitionRequestDtoFromStatus("withdrawn"))
+	got, err := svc.TransitionApplication(context.Background(), uuid.New(), makeRecruiterID(), uuid.New(), uuid.New(), transitionRequestDtoFromStatus("withdrawn"))
 	if !errors.Is(err, valueobjects_ErrInvalidStatusTransition()) {
 		t.Errorf("want ErrInvalidStatusTransition, got %v", err)
 	}
@@ -118,7 +215,7 @@ func TestTransitionApplication_IllegalMatrix(t *testing.T) {
 			svc := NewApplicationService(repo, userRepo)
 
 			got, err := svc.TransitionApplication(
-				context.Background(), uuid.New(), uuid.New(), uuid.New(),
+				context.Background(), uuid.New(), makeRecruiterID(), uuid.New(), uuid.New(),
 				transitionRequestDtoFromStatus(c.to.String()),
 			)
 			if !errors.Is(err, valueobjects_ErrInvalidStatusTransition()) {
@@ -162,7 +259,7 @@ func TestTransitionApplication_LegalMatrix(t *testing.T) {
 			svc := NewApplicationService(repo, userRepo)
 
 			got, err := svc.TransitionApplication(
-				context.Background(), uuid.New(), uuid.New(), uuid.New(),
+				context.Background(), uuid.New(), makeRecruiterID(), uuid.New(), uuid.New(),
 				transitionRequestDtoFromStatus(c.to.String()),
 			)
 			if err != nil {
@@ -199,7 +296,7 @@ func TestTransitionApplication_GetByIDNotFoundPropagates(t *testing.T) {
 	svc := NewApplicationService(repo, userRepo)
 
 	got, err := svc.TransitionApplication(
-		context.Background(), uuid.New(), uuid.New(), uuid.New(),
+		context.Background(), uuid.New(), makeRecruiterID(), uuid.New(), uuid.New(),
 		transitionRequestDtoFromStatus("in_review"),
 	)
 	if !errors.Is(err, entities_ErrApplicationNotFound()) {
@@ -227,7 +324,7 @@ func TestTransitionApplication_TransitionLostRacePropagates(t *testing.T) {
 	svc := NewApplicationService(repo, userRepo)
 
 	got, err := svc.TransitionApplication(
-		context.Background(), uuid.New(), uuid.New(), uuid.New(),
+		context.Background(), uuid.New(), makeRecruiterID(), uuid.New(), uuid.New(),
 		transitionRequestDtoFromStatus("in_review"),
 	)
 	if !errors.Is(err, entities_ErrApplicationNotFound()) {

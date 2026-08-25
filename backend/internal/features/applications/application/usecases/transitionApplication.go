@@ -20,15 +20,21 @@ import (
 //  3. repo.GetByID (404 on cross-company / non-existent / mismatched job).
 //  4. Matrix enforcement: from.CanTransitionTo(to) → wrapped
 //     ErrInvalidStatusTransition with the "<from> -> <to>" body.
-//  5. repo.Transition (guarded write; lost race → ErrApplicationNotFound → 404).
+//  5. D8 actor guard: userID == uuid.Nil → ErrMissingActorIdentity (fail-closed
+//     500 — no status change, no audit event). Unreachable via the designed
+//     flow: RequireCompanyRole always resolves a real users.id.
+//  6. repo.Transition (guarded write + co-write audit append; lost race →
+//     ErrApplicationNotFound → 404).
 //
 // Validation order rationale: the request shape (status required +
 // parseable) is checked BEFORE the DB read so a malformed request never
 // costs a query and never leaks whether the target exists. 400 is not
-// existence-leaking, so this ordering is safe.
+// existence-leaking, so this ordering is safe. The actor guard sits after
+// the matrix so an illegal transition 400 is never masked by a 500 — the
+// matrix is reachable with the same actor in production.
 func (s *ApplicationService) TransitionApplication(
 	ctx context.Context,
-	companyID, jobID, applicationID uuid.UUID,
+	companyID, userID, jobID, applicationID uuid.UUID,
 	in dtos.TransitionRequestDto,
 ) (*entities.Application, error) {
 	if strings.TrimSpace(in.Status) == "" {
@@ -56,5 +62,20 @@ func (s *ApplicationService) TransitionApplication(
 			valueobjects.ErrInvalidStatusTransition, from, to)
 	}
 
-	return s.repo.Transition(ctx, applicationID, jobID, companyID, from, to)
+	// D8 fail-closed actor guard: no status change, no event.
+	if userID == uuid.Nil {
+		return nil, ErrMissingActorIdentity
+	}
+
+	// D7 event intent: the audit event id is a fresh UUID v7 owned by the use
+	// case; the actor is the CompanyContext.UserID; the metadata is PII-free
+	// ({job_id, from_status, to_status}). The adapter only appends the event
+	// inside the co-write transaction.
+	eventID, err := uuid.NewV7()
+	if err != nil {
+		return nil, err
+	}
+	event := newTransitionedEvent(eventID, applicationID, userID, jobID, from, to)
+
+	return s.repo.Transition(ctx, applicationID, jobID, companyID, from, to, event)
 }

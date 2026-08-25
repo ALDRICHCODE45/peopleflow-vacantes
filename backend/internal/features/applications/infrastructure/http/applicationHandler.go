@@ -250,7 +250,7 @@ func (h *ApplicationHandler) transitionApplication(w http.ResponseWriter, r *htt
 		return
 	}
 
-	app, err := h.service.TransitionApplication(r.Context(), cc.CompanyID, jobID, appID, in)
+	app, err := h.service.TransitionApplication(r.Context(), cc.CompanyID, cc.UserID, jobID, appID, in)
 	if err != nil {
 		h.classifyAndWriteError(w, r, err)
 		return
@@ -292,6 +292,8 @@ func (h *ApplicationHandler) classifyAndWriteError(w http.ResponseWriter, r *htt
 //	ErrCoverLetterTooLong            → 400 "cover_letter must be at most 2000 characters"
 //	ErrInvalidSource                 → 400 "invalid source"
 //	ErrInvalidApplicationReference   → 400 "invalid application reference"
+//	ErrMissingActorIdentity          → 500 "internal server error" (fail-closed:
+//	                                              no status change, no event)
 //	default                          → 500 "internal server error"
 func classifyApplicationError(err error) (int, string) {
 	switch {
@@ -319,6 +321,10 @@ func classifyApplicationError(err error) (int, string) {
 		return http.StatusBadRequest, "invalid source"
 	case errors.Is(err, applicationsentities.ErrInvalidApplicationReference):
 		return http.StatusBadRequest, "invalid application reference"
+	case errors.Is(err, applicationsusecases.ErrMissingActorIdentity):
+		// Fail-closed 500: a missing CompanyContext.UserID must never
+		// surface as 4xx (no existence leak) and never write (D8).
+		return http.StatusInternalServerError, "internal server error"
 	default:
 		return http.StatusInternalServerError, "internal server error"
 	}

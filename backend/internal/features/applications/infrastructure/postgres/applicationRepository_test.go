@@ -2,18 +2,17 @@
 // deterministic Go code (mapCreateError, mapTransitionError, mapGetError,
 // buildCreateApplicationParams, buildTransitionParams, toApplication,
 // toApplicationWithCandidate, toMyApplication) without touching a real
-// database. The full SQL coverage lives in the
+// database. The full SQL + co-write coverage lives in the
 // `//go:build integration` test files.
 //
-// The adapter is seam-tested via a narrow `stubQuerier` (programmable
-// per-query returns/errors). This pins the D5 two-step scope-check
-// behavior (scope-miss → ErrApplicationNotFound; scope-hit + empty →
-// non-nil empty slice) and the D2 mapping ordering (pgx.ErrNoRows BEFORE
-// errors.As) without spinning up Postgres.
+// The old narrow `stubQuerier` seam (and the three TestListByJob_* tests that
+// exercised the two-step scope check through it) is REMOVED with the D5 seam
+// change: the pool-owning adapter's reads go through db.New(r.pool), which a
+// stub cannot replace without spinning up Postgres — that coverage now lives
+// in the integration suite (ListByJob scope-miss/hit/cap scenarios).
 package postgres
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -26,82 +25,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
-
-// --- stubQuerier ---------------------------------------------------------
-
-// stubQuerier implements the narrow Querier seam the adapter defines. Each
-// method is independently programmable: set the `*Return` field for a
-// success, set the `*Err` field for a failure. The default zero value
-// returns pgx.ErrNoRows (because the underlying type-level zero for the
-// return values is the zero value of the type, but we wrap it explicitly
-// so the test can reason about the seam).
-type stubQuerier struct {
-	createApplicationReturn db.CreateApplicationRow
-	createApplicationErr    error
-	createApplicationCalls  int
-	lastCreateApplication   db.CreateApplicationParams
-
-	getApplicationByIDReturn db.GetApplicationByIDRow
-	getApplicationByIDErr    error
-	getApplicationByIDCalls  int
-	lastGetApplicationByID   db.GetApplicationByIDParams
-
-	listApplicationsByJobReturn []db.ListApplicationsByJobRow
-	listApplicationsByJobErr    error
-	listApplicationsByJobCalls  int
-	lastListApplicationsByJob   db.ListApplicationsByJobParams
-
-	listMyApplicationsReturn []db.ListMyApplicationsRow
-	listMyApplicationsErr    error
-	listMyApplicationsCalls  int
-	lastListMyApplications   uuid.UUID
-
-	transitionStatusReturn db.TransitionStatusRow
-	transitionStatusErr    error
-	transitionStatusCalls  int
-	lastTransitionStatus   db.TransitionStatusParams
-
-	getJobForApplicationsScopeReturn uuid.UUID
-	getJobForApplicationsScopeErr    error
-	getJobForApplicationsScopeCalls  int
-	lastGetJobForApplicationsScope   db.GetJobForApplicationsScopeParams
-}
-
-func (s *stubQuerier) CreateApplication(ctx context.Context, arg db.CreateApplicationParams) (db.CreateApplicationRow, error) {
-	s.createApplicationCalls++
-	s.lastCreateApplication = arg
-	return s.createApplicationReturn, s.createApplicationErr
-}
-
-func (s *stubQuerier) GetApplicationByID(ctx context.Context, arg db.GetApplicationByIDParams) (db.GetApplicationByIDRow, error) {
-	s.getApplicationByIDCalls++
-	s.lastGetApplicationByID = arg
-	return s.getApplicationByIDReturn, s.getApplicationByIDErr
-}
-
-func (s *stubQuerier) ListApplicationsByJob(ctx context.Context, arg db.ListApplicationsByJobParams) ([]db.ListApplicationsByJobRow, error) {
-	s.listApplicationsByJobCalls++
-	s.lastListApplicationsByJob = arg
-	return s.listApplicationsByJobReturn, s.listApplicationsByJobErr
-}
-
-func (s *stubQuerier) ListMyApplications(ctx context.Context, candidateID uuid.UUID) ([]db.ListMyApplicationsRow, error) {
-	s.listMyApplicationsCalls++
-	s.lastListMyApplications = candidateID
-	return s.listMyApplicationsReturn, s.listMyApplicationsErr
-}
-
-func (s *stubQuerier) TransitionStatus(ctx context.Context, arg db.TransitionStatusParams) (db.TransitionStatusRow, error) {
-	s.transitionStatusCalls++
-	s.lastTransitionStatus = arg
-	return s.transitionStatusReturn, s.transitionStatusErr
-}
-
-func (s *stubQuerier) GetJobForApplicationsScope(ctx context.Context, arg db.GetJobForApplicationsScopeParams) (uuid.UUID, error) {
-	s.getJobForApplicationsScopeCalls++
-	s.lastGetJobForApplicationsScope = arg
-	return s.getJobForApplicationsScopeReturn, s.getJobForApplicationsScopeErr
-}
 
 // --- TestMapCreateError --------------------------------------------------
 
@@ -272,92 +195,6 @@ func TestMapGetError(t *testing.T) {
 			}
 			t.Fatalf("test case %q: no assertion branch picked", tc.name)
 		})
-	}
-}
-
-// --- TestListByJob_ScopeMissReturnsNotFound ------------------------------
-
-// TestListByJob_ScopeMissReturnsNotFound pins D5: when the scope-check
-// returns pgx.ErrNoRows (cross-company / non-existent job), ListByJob
-// MUST surface ErrApplicationNotFound and MUST NOT call the list query.
-func TestListByJob_ScopeMissReturnsNotFound(t *testing.T) {
-	q := &stubQuerier{
-		getJobForApplicationsScopeErr: pgx.ErrNoRows,
-	}
-	repo := NewApplicationRepository(q)
-
-	jobID := uuid.MustParse("018e0000-0000-7000-8000-000000000001")
-	companyID := uuid.MustParse("018f0000-0000-7000-8000-000000000002")
-
-	got, err := repo.ListByJob(context.Background(), jobID, companyID)
-	if !errors.Is(err, sentinelApplicationNotFound) {
-		t.Errorf("ListByJob scope-miss: want ErrApplicationNotFound, got %v", err)
-	}
-	if got != nil {
-		t.Errorf("want nil on scope miss, got %v", got)
-	}
-	if q.getJobForApplicationsScopeCalls != 1 {
-		t.Errorf("scope-check calls: want 1, got %d", q.getJobForApplicationsScopeCalls)
-	}
-	if q.listApplicationsByJobCalls != 0 {
-		t.Errorf("ListApplicationsByJob MUST NOT be called on scope miss; got %d calls", q.listApplicationsByJobCalls)
-	}
-}
-
-// --- TestListByJob_ScopeHitEmptyListNonNil -------------------------------
-
-// TestListByJob_ScopeHitEmptyListNonNil: scope check passes, list query
-// returns empty → non-nil empty slice (JSON `[]` not `null`).
-func TestListByJob_ScopeHitEmptyListNonNil(t *testing.T) {
-	q := &stubQuerier{
-		getJobForApplicationsScopeReturn: uuid.MustParse("018e0000-0000-7000-8000-0000000000aa"),
-		listApplicationsByJobReturn:      nil, // explicit nil — adapter MUST normalize
-	}
-	repo := NewApplicationRepository(q)
-
-	got, err := repo.ListByJob(context.Background(), uuid.New(), uuid.New())
-	if err != nil {
-		t.Fatalf("ListByJob: unexpected err %v", err)
-	}
-	if got == nil {
-		t.Error("want non-nil empty slice, got nil")
-	}
-	if len(got) != 0 {
-		t.Errorf("want empty slice, got %d items", len(got))
-	}
-	if q.listApplicationsByJobCalls != 1 {
-		t.Errorf("list calls: want 1, got %d", q.listApplicationsByJobCalls)
-	}
-}
-
-// --- TestListByJob_ScopeHitWithRows --------------------------------------
-
-// TestListByJob_ScopeHitWithRows: scope check passes, list query returns
-// rows → mapped to []ApplicationWithCandidate with the snippet populated.
-func TestListByJob_ScopeHitWithRows(t *testing.T) {
-	q := &stubQuerier{
-		getJobForApplicationsScopeReturn: uuid.MustParse("018e0000-0000-7000-8000-0000000000aa"),
-		listApplicationsByJobReturn: []db.ListApplicationsByJobRow{
-			makeListByJobRow(),
-		},
-	}
-	repo := NewApplicationRepository(q)
-
-	got, err := repo.ListByJob(context.Background(), uuid.New(), uuid.New())
-	if err != nil {
-		t.Fatalf("ListByJob: unexpected err %v", err)
-	}
-	if len(got) != 1 {
-		t.Fatalf("want 1 item, got %d", len(got))
-	}
-	if got[0].Candidate.FullName != "Test Candidate" {
-		t.Errorf("snippet full_name: want %q, got %q", "Test Candidate", got[0].Candidate.FullName)
-	}
-	if got[0].Candidate.ProfessionalTitle == nil || *got[0].Candidate.ProfessionalTitle != "Engineer" {
-		t.Errorf("snippet professional_title: want Engineer, got %v", got[0].Candidate.ProfessionalTitle)
-	}
-	if got[0].Candidate.YearsOfExperience == nil || *got[0].Candidate.YearsOfExperience != 7 {
-		t.Errorf("snippet years_of_experience: want 7, got %v", got[0].Candidate.YearsOfExperience)
 	}
 }
 
@@ -624,28 +461,5 @@ func TestToMyApplication(t *testing.T) {
 	}
 	if got.Job.CompanyName != "Acme SA" {
 		t.Errorf("Job.CompanyName: want %q, got %q", "Acme SA", got.Job.CompanyName)
-	}
-}
-
-// --- helpers -------------------------------------------------------------
-
-// makeListByJobRow returns a fully-populated row for the scope-hit-with-rows
-// test.
-func makeListByJobRow() db.ListApplicationsByJobRow {
-	id := uuid.MustParse("018e0000-0000-7000-8000-000000000161")
-	jobID := uuid.MustParse("018e0000-0000-7000-8000-000000000162")
-	candidateID := uuid.MustParse("018e0000-0000-7000-8000-000000000163")
-	pub := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
-
-	return db.ListApplicationsByJobRow{
-		ID:                         id,
-		JobID:                      jobID,
-		CandidateID:                candidateID,
-		Status:                     "submitted",
-		CreatedAt:                  pgtype.Timestamptz{Time: pub, Valid: true},
-		UpdatedAt:                  pgtype.Timestamptz{Time: pub, Valid: true},
-		CandidateFullName:          "Test Candidate",
-		CandidateProfessionalTitle: pgtype.Text{String: "Engineer", Valid: true},
-		CandidateYearsOfExperience: pgtype.Int2{Int16: 7, Valid: true},
 	}
 }

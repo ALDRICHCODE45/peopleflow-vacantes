@@ -107,13 +107,24 @@ func (s *ApplicationService) ApplyJob(
 		return nil, err
 	}
 
+	// D7 event intent: the audit event id is a fresh UUID v7 owned by the use
+	// case (the DB has no id default — D1). The actor is the resolved
+	// candidate users.id; the metadata is PII-free by construction
+	// (eventIntent.go is the only place the keys are assembled). The adapter
+	// only appends the event inside the co-write transaction.
+	eventID, err := uuid.NewV7()
+	if err != nil {
+		return nil, err
+	}
+	event := newSubmittedEvent(eventID, id, candidateID, jobID, source)
+
 	return s.repo.Create(ctx, repositories.CreateParams{
 		ID:          id,
 		JobID:       jobID,
 		CandidateID: candidateID,
 		Source:      source,
 		CoverLetter: cover,
-	})
+	}, event)
 }
 
 // normalizeCoverLetter trims the input cover_letter and applies the

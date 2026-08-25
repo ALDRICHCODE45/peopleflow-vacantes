@@ -52,6 +52,25 @@ func TestCompanyContext_RecruiterRoleRoundTrip(t *testing.T) {
 	}
 }
 
+// TestCompanyContext_UserIDRoundTrip pins the D8 additive field: the
+// middleware-resolved users.id must survive the context round trip exactly
+// like CompanyID and Role — the transition handler reads cc.UserID back to
+// build the audit actor.
+func TestCompanyContext_UserIDRoundTrip(t *testing.T) {
+	userID := uuid.New()
+	want := CompanyContext{CompanyID: uuid.New(), UserID: userID, Role: valueobjects.RecruiterRole}
+
+	ctx := ContextWithCompanyContext(context.Background(), want)
+
+	got, ok := CompanyContextFromContext(ctx)
+	if !ok {
+		t.Fatal("expected ok=true when CompanyContext was previously injected")
+	}
+	if got.UserID != userID {
+		t.Errorf("UserID: want %v, got %v", userID, got.UserID)
+	}
+}
+
 // TestCompanyContext_MissingReturnsNotOk nails the spec scenario the
 // middleware guard relies on: a handler reached WITHOUT the
 // RequireCompanyRole middleware in front of it (or one that has been
