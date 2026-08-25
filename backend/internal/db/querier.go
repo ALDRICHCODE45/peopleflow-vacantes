@@ -11,6 +11,27 @@ import (
 )
 
 type Querier interface {
+	// Atomic apply + eligibility gate for POST /jobs/{jobId}/applications
+	// (design D1).
+	//
+	// The visibility predicate lives entirely in SQL (no Go-level read
+	// between middleware and INSERT). A zero-row outcome (draft / closed /
+	// soft-deleted job, suspended / pending_verification / missing company,
+	// or non-existent job) surfaces as pgx.ErrNoRows and the adapter maps
+	// it to ErrJobNotApplicable (404 "job not applicable" — single body
+	// shape, no leak).
+	//
+	// status is NOT inserted: the DB DEFAULT 'submitted' applies, so the
+	// row is born in the closed vocabulary's start state and no client write
+	// path can set a different value on create.
+	//
+	// cv_s3_key and anonymized_at are NOT in the INSERT column list and
+	// NOT in the RETURNING list — the reserved columns stay NULL and never
+	// reach the wire (D11).
+	//
+	// source / cover_letter are sqlc.narg (nullable): absent on the wire →
+	// SQL NULL.
+	CreateApplication(ctx context.Context, arg CreateApplicationParams) (CreateApplicationRow, error)
 	CreateCompany(ctx context.Context, arg CreateCompanyParams) (Company, error)
 	// Adds a row to `company_members`. UNIQUE(user_id) means a second insert with
 	// the same user_id surfaces SQLSTATE 23505 to the adapter (mapped to
@@ -53,12 +74,27 @@ type Querier interface {
 	// the adapter re-fetches by cognito_sub to return the existing entity.
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) error
+	// Recruiter detail endpoint (design D5 / spec scenario "recruiter gets
+	// an application's detail"). Scopes by (id, job_id, company_id) and
+	// joins users (full_name) + candidate_profiles (LEFT JOIN — professional
+	// title + years_of_experience ONLY for PII minimization, D12).
+	//
+	// 0 rows → pgx.ErrNoRows → entities.ErrApplicationNotFound (404).
+	GetApplicationByID(ctx context.Context, arg GetApplicationByIDParams) (GetApplicationByIDRow, error)
 	GetCandidateProfileByUserID(ctx context.Context, userID uuid.UUID) (CandidateProfile, error)
 	GetCompanyByID(ctx context.Context, id uuid.UUID) (Company, error)
 	// Public detail endpoint. Same visibility rule as SearchJobs, plus the
 	// positional `$1` id. Explicit column list keeps `search_vector` out of
 	// the scan and matches the embedded `{company: {id, name}}` shape.
 	GetJobByID(ctx context.Context, id uuid.UUID) (GetJobByIDRow, error)
+	// Same-company scope check for the recruiter list (design D5). Reads
+	// jobs directly (cross-feature SQL in the applications adapter; the
+	// jobs port is NOT extended). No deleted_at / status filter: soft-
+	// deleted jobs remain recruiter-accessible.
+	//
+	// 0 rows → pgx.ErrNoRows → ErrApplicationNotFound (cross-company /
+	// non-existent).
+	GetJobForApplicationsScope(ctx context.Context, arg GetJobForApplicationsScopeParams) (uuid.UUID, error)
 	// Write-path read for the gated PATCH /jobs/{id} endpoint (design D3).
 	// NON-visibility-narrowed: the write path MUST see drafts (so a
 	// recruiter can publish them) and closed rows (so the use case can
@@ -85,6 +121,13 @@ type Querier interface {
 	// 23505 as ErrDuplicateLanguage.
 	InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error
 	ListActiveIndustries(ctx context.Context) ([]Industry, error)
+	// Recruiter queue read (design D5 second step). Same-company scope
+	// enforced inside the same statement. NO deleted_at / status filter on
+	// jobs: soft-deleted jobs' applications remain recruiter-accessible
+	// (locked decision).
+	//
+	// Hard cap 100 (no pagination in this slice).
+	ListApplicationsByJob(ctx context.Context, arg ListApplicationsByJobParams) ([]ListApplicationsByJobRow, error)
 	// All members of a company (GET /me/company/members), enriched with the
 	// user's public identity (full_name, email) via LEFT JOIN. A member whose
 	// user can't be resolved (deleted / missing) still surfaces with NULL user
@@ -93,6 +136,13 @@ type Querier interface {
 	// `company_members_company_id_idx` B-tree.
 	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]ListByCompanyIDRow, error)
 	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error)
+	// Candidate's GET /me/applications list. Joins jobs (title) + companies
+	// (id, name) to render the embedded job summary. NOT redacted by
+	// jobs.deleted_at on purpose: the candidate's own history persists
+	// even if the job has since been soft-deleted (locked decision).
+	//
+	// Hard cap 100 (no pagination in this slice).
+	ListMyApplications(ctx context.Context, candidateID uuid.UUID) ([]ListMyApplicationsRow, error)
 	// Same-company guard (design D7) — see UpdateMemberRole for rationale.
 	// HARD DELETE (design D2) frees `user_id` for re-assignment.
 	RemoveCompanyMember(ctx context.Context, arg RemoveCompanyMemberParams) (int64, error)
@@ -170,6 +220,16 @@ type Querier interface {
 	// ALWAYS returns exactly one row, so pgx.ErrNoRows is unreachable via the
 	// designed flow (mapSoftDeleteError keeps it as defense-in-depth).
 	SoftDeleteJob(ctx context.Context, arg SoftDeleteJobParams) (SoftDeleteJobRow, error)
+	// Recruiter transition with the same-company invariant + the lost-race
+	// status guard (no CAS — design D3). The WHERE narrows to (id, job_id,
+	// status = expected_from) and scopes the owning job to the caller's
+	// company via EXISTS. 0 rows → pgx.ErrNoRows → ErrApplicationNotFound
+	// (lost race / cross-company / non-existent / mismatched job —
+	// indistinguishable, 404).
+	//
+	// No deleted_at / status filter on jobs: transitions on soft-deleted
+	// jobs' applications remain legal (historical pipeline).
+	TransitionStatus(ctx context.Context, arg TransitionStatusParams) (TransitionStatusRow, error)
 	// Atomic partial update + CAS + active-company guard for PATCH /jobs/{id}
 	// (design D1/D2/D3, jobs-reopen slice).
 	//

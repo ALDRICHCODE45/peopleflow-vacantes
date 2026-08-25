@@ -9,6 +9,19 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Application struct {
+	ID           uuid.UUID          `json:"id"`
+	JobID        uuid.UUID          `json:"job_id"`
+	CandidateID  uuid.UUID          `json:"candidate_id"`
+	Status       string             `json:"status"`
+	Source       pgtype.Text        `json:"source"`
+	CoverLetter  pgtype.Text        `json:"cover_letter"`
+	CvS3Key      pgtype.Text        `json:"cv_s3_key"`
+	AnonymizedAt pgtype.Timestamptz `json:"anonymized_at"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
 type CandidateLanguage struct {
 	UserID   uuid.UUID `json:"user_id"`
 	Language string    `json:"language"`
