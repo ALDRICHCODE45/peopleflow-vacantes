@@ -75,7 +75,7 @@ Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql
 ## Phase 3 — Infrastructure: postgres adapter (RED → GREEN)
 
 ### 3.1 RED — Adapter helper unit tests (D7 §6.1)
-- [ ] 3.1 RED — Write the create-helper unit tests. <!-- sdd-owner: implementation -->
+- [x] 3.1 RED — Write the create-helper unit tests. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/infrastructure/postgres/createJobRepository_test.go` (new; named after the source file per repo convention, mirroring `updateJobRepository_test.go`), all DB-free:
 - `buildCreateJobParams`: VOs → canonical `.String()` wire strings; Location/SalaryMin/SalaryMax nil → invalid pgtype, set → valid (`intPtrToInt4` carries the Int32); `SalaryCurrency` always valid canonical string (D5); `ID`/`CompanyID` always populated.
@@ -86,7 +86,7 @@ Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql
 - Verify: `cd backend && go test ./internal/features/jobs/infrastructure/postgres/ -run 'BuildCreateJobParams|IntPtrToInt4|CreateRowToGetForUpdateRow|MapCreateError'` → **RED** (compile error: helpers missing).
 
 ### 3.2 GREEN — Implement adapter `Create` + helpers (D7 §6.1)
-- [ ] 3.2 GREEN — Implement `Create`, `mapCreateError`, `buildCreateJobParams`, `intPtrToInt4`, `createRowToGetForUpdateRow`. <!-- sdd-owner: implementation -->
+- [x] 3.2 GREEN — Implement `Create`, `mapCreateError`, `buildCreateJobParams`, `intPtrToInt4`, `createRowToGetForUpdateRow`. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/infrastructure/postgres/jobRepository.go` (MOD): per D7 §6.1 —
 - `Create(ctx, id, companyID, params)`: `row, err := r.queries.CreateJob(ctx, buildCreateJobParams(id, companyID, params))`; err → `mapCreateError`; else `j, err := toJobForUpdateEntity(createRowToGetForUpdateRow(row))` then `return &j, nil` — **reuses `toJobForUpdateEntity` verbatim** (D2; no parallel projection, no `entities.CreatedJob`).

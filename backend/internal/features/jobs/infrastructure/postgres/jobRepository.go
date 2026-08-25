@@ -150,6 +150,45 @@ func (r *JobRepository) Update(ctx context.Context, id, companyID uuid.UUID, pat
 	return nil
 }
 
+// Create atomically inserts a draft job owned by `companyID`, guarded
+// by the active-company predicate inside the same SQL statement
+// (design D1/D2/D3). The use case owns UUID generation (id) and VO
+// parsing; the adapter maps parsed VOs to canonical wire strings and
+// optional pointers to nullable pgtypes.
+//
+// On success the returned *entities.JobForUpdate lets the use case
+// reuse `toEditorView` verbatim — no parallel projection is needed
+// (D2: the row set CreateJob emits matches GetJobForUpdate's 15 cols).
+//
+// Error contract:
+//
+//   - entities.ErrCompanyNotActive       on 0 rows (the CTE guard
+//                                          matches no active company;
+//                                          pgx.ErrNoRows → here).
+//   - entities.ErrCompanyGone            on SQLSTATE 23503 (FK
+//                                          violation on
+//                                          jobs.company_id; defense-
+//                                          in-depth — the CTE
+//                                          filters to existing
+//                                          active companies).
+//   - entities.ErrInvalidStatusTransition on SQLSTATE 23514 (CHECK
+//                                          violation; defense-in-
+//                                          depth — the use case
+//                                          parses VOs before SQL).
+//   - other error                         propagated untouched
+//                                          (HTTP 500).
+func (r *JobRepository) Create(ctx context.Context, id, companyID uuid.UUID, params repositories.CreateJobParams) (*entities.JobForUpdate, error) {
+	row, err := r.queries.CreateJob(ctx, buildCreateJobParams(id, companyID, params))
+	if err != nil {
+		return nil, mapCreateError(err)
+	}
+	j, err := toJobForUpdateEntity(createRowToGetForUpdateRow(row))
+	if err != nil {
+		return nil, err
+	}
+	return &j, nil
+}
+
 // buildSearchParams translates the domain SearchParams into the sqlc
 // `SearchJobsParams` struct. Every optional input collapses to an
 // invalid pgtype (SQL NULL) when the caller passed nil/empty so the
@@ -550,6 +589,129 @@ func mapUpdateError(err error) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		switch pgErr.Code {
+		case "23514":
+			return entities.ErrInvalidStatusTransition
+		}
+	}
+	return err
+}
+
+// --- create-path helpers (Phase 3.2, design D7) ---------------------------
+
+// buildCreateJobParams translates the domain CreateJobParams into the
+// sqlc `CreateJobParams` struct. Three field shapes per the D1 SQL:
+//
+//   - Closed-set VOs (WorkMode, EmploymentType, Seniority,
+//     SalaryCurrency): canonicalize via .String() so the adapter
+//     never serializes an iota int to SQL. The use case parsed via
+//     Parse* so the incoming VOs are always valid (we trust them).
+//   - Optional[T]-free pointers (Location, SalaryMin, SalaryMax):
+//     nil pointer → invalid pgtype (SQL NULL); non-nil pointer → valid
+//     pgtype carrying the value. NO tri-state on create (plain
+//     pointers, no Optional — D6: absent == null == SQL NULL).
+//   - Identity columns (ID, CompanyID) are always populated by the
+//     use case (uuid.NewV7 for ID, the middleware-injected CompanyID
+//     for CompanyID).
+func buildCreateJobParams(id, companyID uuid.UUID, p repositories.CreateJobParams) db.CreateJobParams {
+	return db.CreateJobParams{
+		CompanyID:      companyID,
+		ID:             id,
+		Title:          p.Title,
+		Description:    p.Description,
+		WorkMode:       p.WorkMode.String(),
+		EmploymentType: p.EmploymentType.String(),
+		Seniority:      p.Seniority.String(),
+		Location:       strPtrToText(p.Location),
+		SalaryMin:      intPtrToInt4(p.SalaryMin),
+		SalaryMax:      intPtrToInt4(p.SalaryMax),
+		SalaryCurrency: p.SalaryCurrency.String(),
+	}
+}
+
+// intPtrToInt4 lifts a *int into a pgtype.Int4. nil → invalid (SQL
+// NULL); non-nil → valid (Int32=*v). The reverse direction
+// `pgInt4ToIntPtr` already exists in the read path; this helper is
+// the only *int→Int4 translator in the write path (the existing
+// optionalIntToInt4 reads from a tri-state Optional and is NOT reused
+// — D6 keeps create plain pointers, no Optional).
+func intPtrToInt4(v *int) pgtype.Int4 {
+	if v == nil {
+		return pgtype.Int4{}
+	}
+	return pgtype.Int4{Int32: int32(*v), Valid: true}
+}
+
+// createRowToGetForUpdateRow projects a `db.CreateJobRow` onto the
+// `db.GetJobForUpdateRow` shape so the existing `toJobForUpdateEntity`
+// can run unchanged (design D2: no parallel projection, no
+// `entities.CreatedJob`). sqlc always emits per-query row types even
+// when the column lists overlap, so the adapter adds this thin lift
+// (mirroring `getByIDToSearchRow` on the read path). Every field is
+// lifted verbatim — the two structs have an identical 15-column
+// layout per D2.
+func createRowToGetForUpdateRow(row db.CreateJobRow) db.GetJobForUpdateRow {
+	return db.GetJobForUpdateRow{
+		ID:             row.ID,
+		Title:          row.Title,
+		Description:    row.Description,
+		Location:       row.Location,
+		WorkMode:       row.WorkMode,
+		EmploymentType: row.EmploymentType,
+		Seniority:      row.Seniority,
+		SalaryMin:      row.SalaryMin,
+		SalaryMax:      row.SalaryMax,
+		SalaryCurrency: row.SalaryCurrency,
+		Status:         row.Status,
+		PublishedAt:    row.PublishedAt,
+		UpdatedAt:      row.UpdatedAt,
+		CompanyID:      row.CompanyID,
+		CompanyName:    row.CompanyName,
+	}
+}
+
+// mapCreateError translates Postgres errors surfaced by CreateJob
+// into domain sentinels. The active-company gate is in the SQL CTE,
+// so the adapter's job is to surface pgx.ErrNoRows as
+// ErrCompanyNotActive (the designed path) plus a small
+// defense-in-depth pair for SQLSTATEs the CTE should already prevent
+// (23503 → ErrCompanyGone, 23514 → ErrInvalidStatusTransition).
+//
+// Mapping contract:
+//
+//   - nil                                → nil (pass-through)
+//   - pgx.ErrNoRows                      → entities.ErrCompanyNotActive
+//                                          (0 rows on the active guard;
+//                                          the only designed path)
+//   - 23503 (foreign_key_violation on
+//     jobs.company_id)                   → entities.ErrCompanyGone
+//                                          (defense-in-depth;
+//                                          unreachable via the
+//                                          designed flow — the CTE
+//                                          filters by companies.id)
+//   - 23514 (check_violation on
+//     jobs_*_check constraints)          → entities.ErrInvalidStatusTransition
+//                                          (defense-in-depth;
+//                                          unreachable via the
+//                                          designed flow — the use
+//                                          case parses VOs before
+//                                          SQL)
+//   - Any other PgError (unknown code)   → pass-through (HTTP 500)
+//   - Any non-pg error (connection, ctx) → pass-through (HTTP 500)
+//
+// NO 23505 (unique_violation) mapping — locked decision #4: no
+// business dedupe on jobs beyond the app-generated UUID v7 PK.
+func mapCreateError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return entities.ErrCompanyNotActive
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23503":
+			return entities.ErrCompanyGone
 		case "23514":
 			return entities.ErrInvalidStatusTransition
 		}
