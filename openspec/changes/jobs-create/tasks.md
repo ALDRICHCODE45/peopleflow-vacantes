@@ -98,21 +98,21 @@ Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql
 ## Phase 4 — Application: `CreateJobDto` + `CreateJob` use case (RED → GREEN)
 
 ### 4.1 RED — `CreateJobDto` decode tests (D6 §4.1)
-- [ ] 4.1 RED — Write the DTO decode tests. <!-- sdd-owner: implementation -->
+- [x] 4.1 RED — Write the DTO decode tests. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/application/dtos/createJobDto_test.go` (new): decode JSON into `CreateJobDto` — required strings decode; optional `*string`/`*int` decode to values; **absent and JSON `null` on optional fields both → nil** (no tri-state on create — spec §8.1, D6); immutable keys `id`/`company_id`/`status`/`created_at`/`updated_at`/`published_at`/`deleted_at`/`search_vector` are silently dropped (spec scenario "server-managed fields are not in the DTO"); wrong JSON type (`salary_min:"abc"`) → decode error (the handler 400 path).
 
 - Verify: `cd backend && go test ./internal/features/jobs/application/dtos/ -run CreateJobDto` → **RED** (does not compile: `CreateJobDto` missing).
 
 ### 4.2 GREEN — Implement `CreateJobDto` (D6 §4.1)
-- [ ] 4.2 GREEN — Implement the input DTO. <!-- sdd-owner: implementation -->
+- [x] 4.2 GREEN — Implement the input DTO. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/application/dtos/createJobDto.go` (new): exact struct per D6 §4.1 — `Title`, `Description`, `WorkMode`, `EmploymentType`, `Seniority` as non-pointer `string` (json tags `title`, `description`, `work_mode`, `employment_type`, `seniority`); `Location *string`, `SalaryMin *int`, `SalaryMax *int`, `SalaryCurrency *string`. **No `id`, no `company_id`, no `status`, no timestamps** (encoding/json drops them — the middleware is the single source of `company_id`). Doc comment: plain pointers, `Optional[T]` intentionally not reused (PATCH-only codec), absent == null == SQL NULL on create.
 
 - Verify: 4.1 tests pass; `cd backend && go build ./...`.
 
 ### 4.3 RED — `CreateJob` use case tests (D8 flow, D5)
-- [ ] 4.3 RED — Write the use case tests pinning the 8-step flow. <!-- sdd-owner: implementation -->
+- [x] 4.3 RED — Write the use case tests pinning the 8-step flow. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/application/usecases/createJob_test.go` (new; extend `writeStubRepo` from updateJob_test.go with `createOut *entities.JobForUpdate` / `createErr error` + captured `lastCreateID`/`lastCreateCompany`/`lastCreateParams`, or add a dedicated create stub):
 - Step 1 (trim + non-empty, first-match ordering): whitespace/empty `title` → `ErrEmptyTitle`; empty `description` → `ErrEmptyDescription`.
@@ -125,7 +125,7 @@ Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql
 - Verify: `cd backend && go test ./internal/features/jobs/application/usecases/ -run CreateJob` → **RED** (compile error: `CreateJob` method missing on `*JobService`).
 
 ### 4.4 GREEN — Implement `CreateJob` (D8 §4.2)
-- [ ] 4.4 GREEN — Implement the use case and the service seam. <!-- sdd-owner: implementation -->
+- [x] 4.4 GREEN — Implement the use case and the service seam. <!-- sdd-owner: implementation -->
 
 - `backend/internal/features/jobs/application/usecases/createJob.go` (new): `func (s *JobService) CreateJob(ctx context.Context, companyID uuid.UUID, in dtos.CreateJobDto) (*dtos.JobEditorViewDto, error)` implementing the exact D8 8-step flow in the pinned order: 1) trim + non-empty title/description → `ErrEmptyTitle`/`ErrEmptyDescription`; 2) `ParseWorkMode`/`ParseEmploymentType`/`ParseSeniority` → VO sentinels; 3) `salary_currency` nil → `valueobjects.MXN` else `ParseSalaryCurrency` (D5); 4) both-present `salary_min > salary_max` → `ErrInvalidSalaryRange`; 5) `id, err := uuid.NewV7()` (D4 — same call as `entities.NewCompany`); 6) build `repositories.CreateJobParams`; 7) `row, err := s.repo.Create(ctx, id, companyID, params)` — propagate `ErrCompanyNotActive`/`ErrCompanyGone` (409), `ErrInvalidStatusTransition` (400), other (500); 8) `return toEditorView(row), nil` — reuses the package-private projection from `updateJob.go` verbatim (D2). No CAS, no status transition (a new row is always born draft).
 - `backend/internal/features/jobs/application/usecases/jobService.go` (MOD): add the `CreateJob` method, `var _ CreateJobUseCase = (*JobService)(nil)`, and the `CreateJobUseCase` interface next to `EditJob`; `NewJobService` signature unchanged (D8/D9).
@@ -133,7 +133,7 @@ Run `cd backend && go tool sqlc generate`; confirm `backend/internal/db/jobs.sql
 - Verify: 4.3 tests pass; `cd backend && go test ./internal/features/jobs/...`. Rollback: revert 4.3+4.4 together.
 
 ### 4.5 REFACTOR (optional, tracked)
-- [ ] 4.5 REFACTOR — Sweep the create path for duplication. <!-- sdd-owner: implementation -->
+- [x] 4.5 REFACTOR — Sweep the create path for duplication. <!-- sdd-owner: implementation -->
 
 Confirm `toEditorView` is the ONLY editor projection (createJob.go calls the `updateJob.go` helper — no copy); the new adapter helpers reuse `strPtrToText` and do not duplicate `optionalIntToInt4`/`mapUpdateError`; error propagation never double-wraps sentinels; the five repaired stubs share the file-local stub style (no cross-file copy-paste drift).
 

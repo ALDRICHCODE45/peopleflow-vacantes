@@ -54,3 +54,19 @@ type EditJob interface {
 		ifUnmodifiedSince time.Time,
 	) (*dtos.JobEditorViewDto, error)
 }
+
+// Compile-time guard: the CreateJob method exists on *JobService.
+var _ CreateJobUseCase = (*JobService)(nil)
+
+// CreateJobUseCase is the bundle of create-side methods the JobService
+// exposes (added in jobs-create / design D8). The interface lives
+// next to EditJob so a future refactor that swaps a different
+// orchestrator in only needs to satisfy this seam, not reach for the
+// concrete struct.
+type CreateJobUseCase interface {
+	CreateJob(
+		ctx context.Context,
+		companyID uuid.UUID,
+		in dtos.CreateJobDto,
+	) (*dtos.JobEditorViewDto, error)
+}
