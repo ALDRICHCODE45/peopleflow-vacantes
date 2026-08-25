@@ -174,14 +174,14 @@ Files: `backend/cmd/api/main_test.go` (MOD), `backend/cmd/api/main.go` (MOD).
 Commit group: **Commit D** (tasks 5.1–5.2 land together).
 
 ### 5.1 RED — Add the gated-DELETE AST guard (design §7 item 34)
-- [ ] 5.1 RED — Add `TestJobsSoftDeleteRoute_MountedBehindGates` (and the `deletePathLiteral` test helper it needs). <!-- sdd-owner: implementation -->
+- [x] 5.1 RED — Add `TestJobsSoftDeleteRoute_MountedBehindGates` (and the `deletePathLiteral` test helper it needs). <!-- sdd-owner: implementation -->
 
 `backend/cmd/api/main_test.go` (MOD): add `TestJobsSoftDeleteRoute_MountedBehindGates` mirroring `TestJobsWriteRoute_MountedBehindGates`/`TestJobsCreateRoute_MountedBehindGates` — an AST walk finds a chi `Delete("/jobs/{id}", …)` mutation whose inner `With(...)` argument list references BOTH `requireAuth` and `requireRecruiter` (reuse `isWithCall`/`referencesIdentifier`; add a `deletePathLiteral` helper alongside the existing `patchPathLiteral`/`postPathLiteral` — test-side tooling, lands with the RED hunk so the RED is an assertion failure, not a compile error). Before the route line exists, the walk finds zero gated `Delete("/jobs/{id}")` mutations.
 
 - Verify: `cd backend/cmd/api && go test .` → **RED** (the new guard fails: no gated DELETE route in `main.go` yet; existing guards stay green). Rollback: revert the test hunk.
 
 ### 5.2 GREEN — Add the gated DELETE route (D8)
-- [ ] 5.2 GREEN — Add `r.With(requireAuth, requireRecruiter).Delete("/jobs/{id}", jobHandlers.SoftDeleteJob)`. <!-- sdd-owner: implementation -->
+- [x] 5.2 GREEN — Add `r.With(requireAuth, requireRecruiter).Delete("/jobs/{id}", jobHandlers.SoftDeleteJob)`. <!-- sdd-owner: implementation -->
 
 `backend/cmd/api/main.go` (MOD): one line below the existing PATCH/POST on the gated subtree — `r.With(requireAuth, requireRecruiter).Delete("/jobs/{id}", jobHandlers.SoftDeleteJob)`. `requireAuth` and `requireRecruiter` are already hoisted at `run()` scope. The public `r.Mount("/jobs", jobHandler.Routes())` MUST NOT gain the DELETE (same routing-split defense as PATCH/POST — a DELETE to the public mount is not matched → chi 404).
 

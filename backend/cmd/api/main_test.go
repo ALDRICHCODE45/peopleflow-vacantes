@@ -441,3 +441,97 @@ func postPathLiteral(call *ast.CallExpr) (string, bool) {
 	}
 	return bl.Value, true
 }
+
+// TestJobsSoftDeleteRoute_MountedBehindGates asserts the jobs-soft-
+// delete slice wiring: a chi `Delete("/jobs/{id}", …)` mutation whose
+// inner `With(...)` argument list references BOTH `requireAuth` AND
+// `requireRecruiter` (the hoisted variables, design D8). The guard
+// fails the moment the DELETE route is moved out from behind the
+// gates (a regression where the soft-delete write path becomes
+// reachable unauthenticated).
+//
+// Mirrors TestJobsWriteRoute_MountedBehindGates (PATCH) and
+// TestJobsCreateRoute_MountedBehindGates (POST): the three
+// composition-root guards share the same idiom so a future refactor
+// that touches the gate wiring fails all three tests in lockstep
+// (rather than leaving one verb ungated by accident).
+func TestJobsSoftDeleteRoute_MountedBehindGates(t *testing.T) {
+	const filePath = "main.go"
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		t.Skipf("cannot parse %s (run with cwd=backend/cmd/api): %v", filePath, err)
+	}
+
+	var deleteRoutes []string              // path templates of found Delete calls
+	var properlyGatedDeleteRoutes []string // subset that has BOTH gates
+
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		// We look for `r.With(...).Delete("/jobs/{id}", …)` chained
+		// calls. AST shape:
+		//   outer CallExpr.Fun = SelectorExpr{
+		//       X:  CallExpr{Fun: SelectorExpr{r, With}, Args: [requireAuth, requireRecruiter]},
+		//       Sel: Delete,
+		//   }
+		//   outer CallExpr.Args = ["/jobs/{id}", jobHandlers.SoftDeleteJob]
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Delete" {
+			return true
+		}
+		// The X side of the selector must be a With(...) CallExpr.
+		inner, ok := sel.X.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if !isWithCall(inner) {
+			return true
+		}
+		// First arg must be the path template "/jobs/{id}".
+		path, ok := deletePathLiteral(call)
+		if !ok || path != `"/jobs/{id}"` {
+			return true
+		}
+		deleteRoutes = append(deleteRoutes, path)
+		// The inner With(...) call must reference BOTH requireAuth
+		// AND requireRecruiter in its argument list.
+		if referencesIdentifier(inner, "requireAuth") &&
+			referencesIdentifier(inner, "requireRecruiter") {
+			properlyGatedDeleteRoutes = append(properlyGatedDeleteRoutes, path)
+		}
+		return true
+	})
+
+	if len(properlyGatedDeleteRoutes) < 1 {
+		t.Fatalf("expected at least one `With(requireAuth, requireRecruiter).Delete(\"/jobs/{id}\", ...)` mutation in main.go; got %d (found %d DELETE /jobs/{id} calls without both gates)",
+			len(properlyGatedDeleteRoutes), len(deleteRoutes))
+	}
+
+	t.Logf("parsed %s: %d DELETE /jobs/{id} routes total, %d gated behind both requireAuth+requireRecruiter",
+		filePath, len(deleteRoutes), len(properlyGatedDeleteRoutes))
+}
+
+// deletePathLiteral is the Delete-route companion to patchPathLiteral
+// and postPathLiteral. It returns the string literal of a
+// `Delete("<path>", …)` call's first argument and a `true` second
+// value when the call is shaped exactly that way. Used by
+// TestJobsSoftDeleteRoute_MountedBehindGates to find the gated DELETE
+// route.
+func deletePathLiteral(call *ast.CallExpr) (string, bool) {
+	fn, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || fn.Sel.Name != "Delete" {
+		return "", false
+	}
+	if len(call.Args) == 0 {
+		return "", false
+	}
+	bl, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || bl.Kind != token.STRING {
+		return "", false
+	}
+	return bl.Value, true
+}

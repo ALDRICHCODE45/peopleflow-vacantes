@@ -196,6 +196,18 @@ func run() error {
 	// /jobs mount stays GET-only (same routing-split defense as PATCH).
 	r.With(requireAuth, requireRecruiter).Post("/jobs", jobHandlers.CreateJob)
 
+	// jobs-soft-delete slice: gated soft-delete path for DELETE
+	// /jobs/{id}. The route is mounted on the ROOT router (outside the
+	// public /jobs mount) for the same reason as PATCH/POST: a future
+	// refactor that adds the DELETE to `Routes()` cannot silently
+	// expose the write path. The AST guard
+	// TestJobsSoftDeleteRoute_MountedBehindGates pins both
+	// `requireAuth` AND `requireRecruiter` on this line; the public
+	// /jobs mount stays GET-only (same routing-split defense as PATCH
+	// and POST). The handler returns 204 No Content on success and
+	// 409 + editor view on stale/missing/malformed CAS (design D4/D8).
+	r.With(requireAuth, requireRecruiter).Delete("/jobs/{id}", jobHandlers.SoftDeleteJob)
+
 	// /me/* is the authenticated slice. RequireAuth runs first, so any
 	// request without a valid Bearer token is rejected pre-handler with
 	// 401 — the candidate handler is never invoked. With the fail-closed
