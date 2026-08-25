@@ -176,7 +176,7 @@ Commit group: **Commit C** (tasks 3.1–3.4 land together — one work-unit comm
 ## Phase 5 — Optional cosmetic cleanup
 
 ### 5.1 REFACTOR (optional, tracked) — Stale sentinel doc comment (design §3 cosmetic note)
-- [ ] 5.1 REFACTOR — Refresh the `entities.ErrInvalidStatusTransition` doc comment. <!-- sdd-owner: implementation -->
+- [x] 5.1 REFACTOR — Refresh the `entities.ErrInvalidStatusTransition` doc comment. **DECIDED-SKIP: reconciled — skip confirmed by apply-progress §Deviations and verify-report (compliant skip per locked D8 inventory; `entities/job.go` is UNCHANGED). No code change.** <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/domain/entities/job.go` (MOD — **comment-only, optional**): the sentinel's doc comment ("the closed-terminal rule… rejects ANY body") is stale under D5. If refreshed, it is a separate comment-only commit that does not alter the compiled surface; the D8 inventory lists this file as UNCHANGED, so skipping this task is fully compliant — do it only to keep the codebase's docs honest.
 
