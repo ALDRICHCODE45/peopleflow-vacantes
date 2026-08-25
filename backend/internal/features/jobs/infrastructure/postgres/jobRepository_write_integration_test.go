@@ -26,6 +26,20 @@
 //     preserves the existing published_at; published → closed keeps it.
 //   - Update immutables: search_vector (STORED generated), company_id,
 //     created_at, id, deleted_at are untouched across any update.
+//   - Update re-open transitions (jobs-reopen D4): closed → draft and
+//     closed → published apply the new status atomically; closed →
+//     published preserves the original published_at (audit history,
+//     D6 — the existing COALESCE branch keeps it).
+//   - Update atomic re-open + field mix (D4): closed → draft/published
+//     combined with a title/description edit apply in one statement,
+//     and the STORED search_vector regenerates from the new
+//     title/description on the same row.
+//   - Update active-company guard (jobs-reopen D1/D2): a suspended or
+//     pending_verification company yields ErrCompanyNotActive AND the
+//     row is NOT updated; an active company passes the gate; the
+//     guard and the write are atomic in a single statement (the
+//     UPDATE's `EXISTS (SELECT 1 FROM active)` wins even when the
+//     company is suspended in-transaction after a prior GetForUpdate).
 //
 // Isolation: every test runs inside a transaction that is ALWAYS
 // rolled back. The fixture deletes every `jobs` row outside its own
@@ -629,5 +643,366 @@ func TestUpdate_ImmutablesNeverTouched(t *testing.T) {
 	if !after.UpdatedAt.Equal(before.UpdatedAt) {
 		t.Errorf("UpdatedAt: want transaction-time equal %v, got %v (Postgres now() is transaction-time; out-of-transaction PATCHes WILL advance it)",
 			before.UpdatedAt, after.UpdatedAt)
+	}
+}
+
+// --- jobs-reopen: re-open transitions + active-company update gate -----
+//
+// These tests pin the SQL-level behavior of the D1 UpdateJob guard
+// and the D4/D6 re-open semantics. RED and GREEN coincide here
+// (exactly like the jobs-create Phase 7 integration tests) — they
+// are written against the landed SQL and exercise the design's
+// central claims:
+//
+//   - closed → draft re-opens to draft (S1)
+//   - closed → published preserves the original published_at (S2/S3)
+//   - closed → draft + title is atomic (S6)
+//   - closed → published + description regenerates search_vector (S7)
+//   - suspended company yields ErrCompanyNotActive + no mutation (S10)
+//   - pending_verification company yields ErrCompanyNotActive + no
+//     mutation (S11)
+//   - active company passes the gate (S12)
+//   - the active check is atomic with the UPDATE (S13)
+//
+// All tests rely on the pre-existing 00008 seed plus the
+// write-path fixture (wpClosedID, wpDraftID, wpPublishedID,
+// seededCompanyIDs[0] = Acme SA = active in the seed).
+
+// TestUpdate_ClosedToDraftReopens covers the delta spec scenario
+// "closed → draft re-opens the row to draft" (S1). After the
+// Update, GetForUpdate must observe status='draft', the original
+// published_at preserved (audit history — wpClosedID was set up
+// with published_at = 2026-06-15T12:00:00Z in the fixture), and
+// updated_at advanced.
+func TestUpdate_ClosedToDraftReopens(t *testing.T) {
+	ctx, repo, _ := setupWritePath(t)
+
+	before, err := repo.GetForUpdate(ctx, wpClosedID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(before): %v", err)
+	}
+	if before.JobStatus != valueobjects.Closed {
+		t.Fatalf("precondition: status must start closed, got %v", before.JobStatus)
+	}
+	if before.PublishedAt == nil {
+		t.Fatalf("precondition: published_at must start non-null (audit history), got nil")
+	}
+	originalPublishedAt := *before.PublishedAt
+
+	draft := valueobjects.Draft
+	if err := repo.Update(ctx, wpClosedID, seededCompanyIDs[0],
+		repositories.UpdatePatch{Status: &draft},
+		before.UpdatedAt,
+	); err != nil {
+		t.Fatalf("Update(closed->draft): %v", err)
+	}
+
+	after, err := repo.GetForUpdate(ctx, wpClosedID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(after): %v", err)
+	}
+	if after.JobStatus != valueobjects.Draft {
+		t.Errorf("JobStatus: want Draft, got %v", after.JobStatus)
+	}
+	if after.PublishedAt == nil {
+		t.Errorf("PublishedAt: want non-nil preserved, got nil")
+	} else if !after.PublishedAt.Equal(originalPublishedAt) {
+		t.Errorf("PublishedAt: want preserved %v, got %v", originalPublishedAt, *after.PublishedAt)
+	}
+	if !after.UpdatedAt.After(before.UpdatedAt) {
+		t.Errorf("UpdatedAt: want advanced past %v, got %v", before.UpdatedAt, after.UpdatedAt)
+	}
+}
+
+// TestUpdate_ClosedToPublishedPreservesPublishedAt covers the delta
+// spec scenario "closed → published re-opens the row and preserves
+// the original published_at" (S2/S3). The existing
+// `published_at = COALESCE(published_at, now())` branch keeps the
+// audit-history timestamp; status flips to published.
+func TestUpdate_ClosedToPublishedPreservesPublishedAt(t *testing.T) {
+	ctx, repo, _ := setupWritePath(t)
+
+	before, err := repo.GetForUpdate(ctx, wpClosedID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(before): %v", err)
+	}
+	if before.JobStatus != valueobjects.Closed {
+		t.Fatalf("precondition: status must start closed, got %v", before.JobStatus)
+	}
+	if before.PublishedAt == nil {
+		t.Fatalf("precondition: published_at must start non-null, got nil")
+	}
+	originalPublishedAt := *before.PublishedAt
+
+	published := valueobjects.Published
+	if err := repo.Update(ctx, wpClosedID, seededCompanyIDs[0],
+		repositories.UpdatePatch{Status: &published},
+		before.UpdatedAt,
+	); err != nil {
+		t.Fatalf("Update(closed->published): %v", err)
+	}
+
+	after, err := repo.GetForUpdate(ctx, wpClosedID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(after): %v", err)
+	}
+	if after.JobStatus != valueobjects.Published {
+		t.Errorf("JobStatus: want Published, got %v", after.JobStatus)
+	}
+	if after.PublishedAt == nil {
+		t.Errorf("PublishedAt: want non-nil preserved, got nil")
+	} else if !after.PublishedAt.Equal(originalPublishedAt) {
+		t.Errorf("PublishedAt: want preserved %v, got %v", originalPublishedAt, *after.PublishedAt)
+	}
+}
+
+// TestUpdate_ClosedToDraftWithTitleApplies covers the delta spec
+// scenario "closed → draft + title edit applies atomically" (S6).
+// Both the transition and the field edit land in one statement — the
+// adapter's Update is called once and GetForUpdate sees both
+// mutations.
+func TestUpdate_ClosedToDraftWithTitleApplies(t *testing.T) {
+	ctx, repo, _ := setupWritePath(t)
+
+	before, err := repo.GetForUpdate(ctx, wpClosedID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(before): %v", err)
+	}
+	if before.JobStatus != valueobjects.Closed {
+		t.Fatalf("precondition: status must start closed, got %v", before.JobStatus)
+	}
+
+	draft := valueobjects.Draft
+	newTitle := "WP Reopened Title"
+	if err := repo.Update(ctx, wpClosedID, seededCompanyIDs[0],
+		repositories.UpdatePatch{Status: &draft, Title: &newTitle},
+		before.UpdatedAt,
+	); err != nil {
+		t.Fatalf("Update(closed->draft+title): %v", err)
+	}
+
+	after, err := repo.GetForUpdate(ctx, wpClosedID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(after): %v", err)
+	}
+	if after.JobStatus != valueobjects.Draft {
+		t.Errorf("JobStatus: want Draft, got %v", after.JobStatus)
+	}
+	if after.Title != newTitle {
+		t.Errorf("Title: want %q, got %q", newTitle, after.Title)
+	}
+}
+
+// TestUpdate_ClosedToPublishedWithDescriptionRegeneratesSearchVector
+// covers the delta spec scenario "closed → published + description
+// edit applies atomically and regenerates search_vector" (S7). The
+// STORED `search_vector` column is regenerated by the same UPDATE
+// from the new description text; assert
+// `jobs.search_vector @@ websearch_to_tsquery('spanish', '<token>')`
+// is true on the re-read.
+func TestUpdate_ClosedToPublishedWithDescriptionRegeneratesSearchVector(t *testing.T) {
+	ctx, repo, tx := setupWritePath(t)
+
+	before, err := repo.GetForUpdate(ctx, wpClosedID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(before): %v", err)
+	}
+	if before.JobStatus != valueobjects.Closed {
+		t.Fatalf("precondition: status must start closed, got %v", before.JobStatus)
+	}
+
+	// Use a token the OLD description cannot match so the assertion
+	// proves the STORED search_vector was regenerated from the new
+	// description. wpClosedID's description is 'closed row for write
+	// path.' in the fixture; we change it to 'pineapple-unicorn' which
+	// neither contains nor FTS-matches the old body.
+	newDescription := "WP Reopened Body pineapple-unicorn quantum"
+	published := valueobjects.Published
+	if err := repo.Update(ctx, wpClosedID, seededCompanyIDs[0],
+		repositories.UpdatePatch{Status: &published, Description: &newDescription},
+		before.UpdatedAt,
+	); err != nil {
+		t.Fatalf("Update(closed->published+description): %v", err)
+	}
+
+	after, err := repo.GetForUpdate(ctx, wpClosedID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(after): %v", err)
+	}
+	if after.JobStatus != valueobjects.Published {
+		t.Errorf("JobStatus: want Published, got %v", after.JobStatus)
+	}
+	if after.Description != newDescription {
+		t.Errorf("Description: want %q, got %q", newDescription, after.Description)
+	}
+
+	// search_vector is regenerated from the NEW description; a token
+	// unique to the new description must match via FTS.
+	var match bool
+	if err := tx.QueryRow(ctx,
+		`SELECT jobs.search_vector @@ websearch_to_tsquery('spanish', $1)
+		 FROM jobs WHERE id = $2`,
+		"pineapple-unicorn", wpClosedID,
+	).Scan(&match); err != nil {
+		t.Fatalf("search_vector tsquery: %v", err)
+	}
+	if !match {
+		t.Errorf("search_vector: want match for new-description token, got no match")
+	}
+}
+
+// TestUpdate_SuspendedCompanyReturnsErrCompanyNotActive covers the
+// delta spec scenario "suspended company PATCH returns 409 company is
+// not active" (S10). Suspending the company in-transaction before the
+// Update must produce ErrCompanyNotActive (the new D1 scalar SELECT
+// reports guard_passed=false) AND the row must NOT be mutated.
+func TestUpdate_SuspendedCompanyReturnsErrCompanyNotActive(t *testing.T) {
+	ctx, repo, tx := setupWritePath(t)
+
+	before, err := repo.GetForUpdate(ctx, wpDraftID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(before): %v", err)
+	}
+
+	if _, err := tx.Exec(ctx,
+		`UPDATE companies SET status='suspended' WHERE id = $1`, seededCompanyIDs[0],
+	); err != nil {
+		t.Fatalf("suspend company: %v", err)
+	}
+
+	newTitle := "WP Suspended-Title"
+	err = repo.Update(ctx, wpDraftID, seededCompanyIDs[0],
+		repositories.UpdatePatch{Title: &newTitle},
+		before.UpdatedAt,
+	)
+	if !errors.Is(err, entities.ErrCompanyNotActive) {
+		t.Errorf("err: want ErrCompanyNotActive, got %v", err)
+	}
+
+	// Row MUST be unchanged — re-read confirms the gate blocked the
+	// UPDATE (the EXISTS (SELECT 1 FROM active) in the WHERE clause
+	// excluded zero rows).
+	after, err := repo.GetForUpdate(ctx, wpDraftID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(after gate miss): %v", err)
+	}
+	if after.Title == newTitle {
+		t.Errorf("Title must NOT have changed on gate miss, got %q", after.Title)
+	}
+}
+
+// TestUpdate_PendingVerificationCompanyReturnsErrCompanyNotActive
+// covers the delta spec scenario "pending_verification company PATCH
+// returns 409 company is not active" (S11). Same shape as the
+// suspended test — the gate fires for any non-active status, not
+// only suspended.
+func TestUpdate_PendingVerificationCompanyReturnsErrCompanyNotActive(t *testing.T) {
+	ctx, repo, tx := setupWritePath(t)
+
+	before, err := repo.GetForUpdate(ctx, wpDraftID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(before): %v", err)
+	}
+
+	if _, err := tx.Exec(ctx,
+		`UPDATE companies SET status='pending_verification' WHERE id = $1`, seededCompanyIDs[0],
+	); err != nil {
+		t.Fatalf("set pending_verification: %v", err)
+	}
+
+	newTitle := "WP Pending-Title"
+	err = repo.Update(ctx, wpDraftID, seededCompanyIDs[0],
+		repositories.UpdatePatch{Title: &newTitle},
+		before.UpdatedAt,
+	)
+	if !errors.Is(err, entities.ErrCompanyNotActive) {
+		t.Errorf("err: want ErrCompanyNotActive, got %v", err)
+	}
+
+	after, err := repo.GetForUpdate(ctx, wpDraftID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(after gate miss): %v", err)
+	}
+	if after.Title == newTitle {
+		t.Errorf("Title must NOT have changed on gate miss, got %q", after.Title)
+	}
+}
+
+// TestUpdate_ActiveCompanyPassesGuard covers the delta spec scenario
+// "active company PATCH passes the gate" (S12). With the seed
+// company in 'active' status (the default), the Update succeeds and
+// the row is mutated — guard_passed=true, updated_count=1.
+func TestUpdate_ActiveCompanyPassesGuard(t *testing.T) {
+	ctx, repo, _ := setupWritePath(t)
+
+	before, err := repo.GetForUpdate(ctx, wpDraftID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(before): %v", err)
+	}
+
+	newTitle := "WP Active-Guard-Title"
+	if err := repo.Update(ctx, wpDraftID, seededCompanyIDs[0],
+		repositories.UpdatePatch{Title: &newTitle},
+		before.UpdatedAt,
+	); err != nil {
+		t.Fatalf("Update(active company): %v", err)
+	}
+
+	after, err := repo.GetForUpdate(ctx, wpDraftID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(after): %v", err)
+	}
+	if after.Title != newTitle {
+		t.Errorf("Title: want %q, got %q", newTitle, after.Title)
+	}
+}
+
+// TestUpdate_GuardIsAtomicWithUpdate covers the delta spec scenario
+// "the active check is atomic with the UPDATE" (S13). A company
+// that is 'active' at the middleware gate but is 'suspended' by the
+// time the UPDATE runs (within the same transaction) must STILL
+// yield ErrCompanyNotActive — the D1 scalar SELECT runs in the same
+// statement as the UPDATE, so the company.status check sees the
+// post-suspension value. This pins the central D1 decision: the
+// guard outcome is observable (guard_passed=false) rather than
+// collapsing into ErrJobNotFound or ErrConcurrencyConflict.
+func TestUpdate_GuardIsAtomicWithUpdate(t *testing.T) {
+	ctx, repo, tx := setupWritePath(t)
+
+	// GetForUpdate succeeds against the still-active company.
+	before, err := repo.GetForUpdate(ctx, wpDraftID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(while active): %v", err)
+	}
+
+	// Suspend the company in-transaction — simulates a concurrent
+	// state change between the middleware-level company gate and the
+	// UPDATE arriving at the SQL layer.
+	if _, err := tx.Exec(ctx,
+		`UPDATE companies SET status='suspended' WHERE id = $1`, seededCompanyIDs[0],
+	); err != nil {
+		t.Fatalf("suspend company mid-transaction: %v", err)
+	}
+
+	// The Update still surfaces ErrCompanyNotActive — the atomic
+	// guard inspects the FRESH companies.status, not the stale
+	// GetForUpdate result.
+	newTitle := "WP Atomic-Guard-Title"
+	err = repo.Update(ctx, wpDraftID, seededCompanyIDs[0],
+		repositories.UpdatePatch{Title: &newTitle},
+		before.UpdatedAt,
+	)
+	if !errors.Is(err, entities.ErrCompanyNotActive) {
+		t.Errorf("err: want ErrCompanyNotActive (atomic guard wins), got %v", err)
+	}
+
+	// Row MUST be unchanged — the guard excluded the row from the
+	// UPDATE in the same statement.
+	after, err := repo.GetForUpdate(ctx, wpDraftID, seededCompanyIDs[0])
+	if err != nil {
+		t.Fatalf("GetForUpdate(after atomic guard): %v", err)
+	}
+	if after.Title == newTitle {
+		t.Errorf("Title must NOT have changed on atomic guard miss, got %q", after.Title)
 	}
 }

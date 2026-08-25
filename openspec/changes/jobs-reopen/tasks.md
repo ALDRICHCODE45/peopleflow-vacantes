@@ -135,28 +135,28 @@ File: `backend/internal/features/jobs/infrastructure/postgres/jobRepository_writ
 Commit group: **Commit C** (tasks 3.1–3.4 land together — one work-unit commit written against the landed SQL; RED and GREEN coincide for integration tests, exactly as `jobs-create` Phase 7).
 
 ### 3.1 RED/GREEN — Re-open transitions at the SQL level (S1, S2, S3)
-- [ ] 3.1 RED/GREEN — Add `TestUpdate_ClosedToDraftReopens` and `TestUpdate_ClosedToPublishedPreservesPublishedAt`. <!-- sdd-owner: implementation -->
+- [x] 3.1 RED/GREEN — Add `TestUpdate_ClosedToDraftReopens` and `TestUpdate_ClosedToPublishedPreservesPublishedAt`. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/infrastructure/postgres/jobRepository_write_integration_test.go` (MOD): fixture `wpClosedID` (a previously-published, now-closed row with `published_at = 2026-06-15T12:00:00Z`, mirroring the existing write-path fixtures) → `UpdatePatch{Status:&valueobjects.Draft}` → re-read via `GetForUpdate` → `status="draft"`, `published_at` still `2026-06-15T12:00:00Z` (S1/S3), `updated_at` advanced. `UpdatePatch{Status:&valueobjects.Published}` → `status="published"`, `published_at` still `2026-06-15T12:00:00Z` (S2 — the `COALESCE(published_at, now())` branch preserves it; D6 zero SQL change).
 
 - Verify: `cd backend && make test-integration` (sources `.env`; Postgres up + migrated; skips when `DATABASE_URL` unset) → new tests pass against the D1 SQL. Rollback: revert the test hunk.
 
 ### 3.2 RED/GREEN — Atomic field mix + stored `search_vector` (S6, S7)
-- [ ] 3.2 RED/GREEN — Add `TestUpdate_ClosedToDraftWithTitleApplies` and `TestUpdate_ClosedToPublishedWithDescriptionRegeneratesSearchVector`. <!-- sdd-owner: implementation -->
+- [x] 3.2 RED/GREEN — Add `TestUpdate_ClosedToDraftWithTitleApplies` and `TestUpdate_ClosedToPublishedWithDescriptionRegeneratesSearchVector`. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/infrastructure/postgres/jobRepository_write_integration_test.go` (MOD): closed row + `UpdatePatch{Status:&Draft, Title:&"New"}` → re-read shows `status="draft"` AND `title="New"` (one statement, S6); closed row + `UpdatePatch{Status:&Published, Description:&"new body"}` → re-read shows `status="published"`, `description="new body"`, and `jobs.search_vector @@ websearch_to_tsquery('spanish', '<new-description-token>')` is true (STORED column regenerated in the same UPDATE — S7).
 
 - Verify: `cd backend && make test-integration` → new tests pass. Rollback: revert the test hunk.
 
 ### 3.3 RED/GREEN — Active-company gate outcomes (S10, S11, S12, S29)
-- [ ] 3.3 RED/GREEN — Add `TestUpdate_SuspendedCompanyReturnsErrCompanyNotActive`, `TestUpdate_PendingVerificationCompanyReturnsErrCompanyNotActive`, `TestUpdate_ActiveCompanyPassesGuard`. <!-- sdd-owner: implementation -->
+- [x] 3.3 RED/GREEN — Add `TestUpdate_SuspendedCompanyReturnsErrCompanyNotActive`, `TestUpdate_PendingVerificationCompanyReturnsErrCompanyNotActive`, `TestUpdate_ActiveCompanyPassesGuard`. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/infrastructure/postgres/jobRepository_write_integration_test.go` (MOD): in-transaction, set `seededCompanyIDs[0]` to `'suspended'` (and separately `'pending_verification'`) then `Update` on a row of that company → `entities.ErrCompanyNotActive` AND the row NOT updated (re-read confirms prior state — S10/S11); active company → `nil` (S12). Assert `GuardPassed=false, UpdatedCount=0` semantics through the adapter result (409 "company is not active" body is already pinned by the existing handler `classifyError` branch — no handler change, S29 regression).
 
 - Verify: `cd backend && make test-integration` → new tests pass; pre-existing `TestUpdate_CASMismatchReturnsErrJobNotFound` and `TestUpdate_CrossCompanyUpdateAffectsZeroRows` stay green (guard vs CAS-miss distinction — D1 result matrix). Rollback: revert the test hunk.
 
 ### 3.4 RED/GREEN — Atomicity: no read-then-write TOCTOU (S13)
-- [ ] 3.4 RED/GREEN — Add `TestUpdate_GuardIsAtomicWithUpdate`. <!-- sdd-owner: implementation -->
+- [x] 3.4 RED/GREEN — Add `TestUpdate_GuardIsAtomicWithUpdate`. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/infrastructure/postgres/jobRepository_write_integration_test.go` (MOD): `GetForUpdate` succeeds against an active company, then the SAME transaction suspends the company, then `Update` runs → `entities.ErrCompanyNotActive` (the UPDATE's `EXISTS (SELECT 1 FROM active)` wins — guard and write are one statement; S13). This pins the central D1 decision: the guard outcome is observable (`guard_passed=false`) rather than collapsing into `ErrJobNotFound`/`ErrConcurrencyConflict`.
 

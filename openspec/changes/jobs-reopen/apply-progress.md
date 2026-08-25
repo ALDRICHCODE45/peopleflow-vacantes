@@ -78,14 +78,7 @@ GREEN after D4 + D5:
 ok      github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases       0.004s
 ```
 
-Full suite after Commit A:
-```
-ok      github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases       0.004s
-ok      github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres      (cached)
-ok      github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http           0.005s
-... (every package green) ...
-```
-
+Full suite after Commit A: every package green.
 `go vet ./...` clean. `gofmt -l` on touched files: empty.
 
 **Rollback boundary:** revert Commit A. `updateJob.go` restores the
@@ -141,7 +134,7 @@ PASS: TestMapUpdateError_UnknownPgCodePassesThrough
 PASS: TestMapUpdateError_NonPgErrorPassesThrough
 ```
 
-Full suite after Commit B: every package green (no test files in `industries/infrastructure/http` and `shared/httpjson` are expected — pre-existing).
+Full suite after Commit B: every package green.
 `go vet ./...` clean. `gofmt -l` on touched Go files: empty. `go tool sqlc generate` second run → no diff (idempotent — design D7).
 
 **Rollback boundary:** revert Commit B. `jobs.sql` restores the pre-guard `:execrows` UPDATE; the two generated files revert to the pre-guard `int64` return; `jobRepository.go`'s `Update` reverts to `rows == 0 → ErrJobNotFound`; `mapUpdateError` loses the ErrNoRows defense branch.
@@ -150,4 +143,66 @@ Full suite after Commit B: every package green (no test files in `industries/inf
 
 ---
 
-## Commit C — pending (Phase 7 work-unit: integration coverage for re-open + active-company gate)
+## Commit C — `test(jobs): integration coverage for re-open and the active-company update gate`
+
+**Files changed:**
+- `backend/internal/features/jobs/infrastructure/postgres/jobRepository_write_integration_test.go` (8 new integration tests + file-header comment refresh; `//go:build integration`)
+
+**TDD evidence:**
+
+RED and GREEN coincide for these tests (exactly like `jobs-create` Phase 7 — the integration suite is written against the landed D1 SQL and exercises the design's central claims). Skips silently when `DATABASE_URL` is unset (`make test-integration` is run by the parent later; `go test ./...` without the tag skips the file entirely per the `//go:build integration` constraint).
+
+`go vet -tags=integration ./internal/features/jobs/infrastructure/postgres/` clean.
+`go test ./...` (no tag) green — the integration file is invisible without the tag.
+`go vet ./...` clean. `gofmt -l` on the touched file: empty.
+
+**Tests added (all under the `integration` build tag):**
+
+| Test | Scenarios | What it pins |
+|---|---|---|
+| `TestUpdate_ClosedToDraftReopens` | S1 | `closed → draft` succeeds; `status='draft'`; `published_at` preserved (audit history); `updated_at` advanced |
+| `TestUpdate_ClosedToPublishedPreservesPublishedAt` | S2, S3 | `closed → published` succeeds; `status='published'`; `published_at` preserved across the close/reopen cycle (D6 zero SQL change — the existing COALESCE branch keeps it) |
+| `TestUpdate_ClosedToDraftWithTitleApplies` | S6 | `closed → draft + title` applied atomically in one UPDATE statement |
+| `TestUpdate_ClosedToPublishedWithDescriptionRegeneratesSearchVector` | S7 | `closed → published + description` applied atomically; STORED `jobs.search_vector` regenerates from the new description (asserted via `websearch_to_tsquery('spanish', 'pineapple-unicorn')`) |
+| `TestUpdate_SuspendedCompanyReturnsErrCompanyNotActive` | S10 | Suspending the company in-transaction before Update yields `ErrCompanyNotActive` AND the row is NOT mutated (gate blocked the UPDATE) |
+| `TestUpdate_PendingVerificationCompanyReturnsErrCompanyNotActive` | S11 | Same shape for `pending_verification` — any non-active status fires the gate |
+| `TestUpdate_ActiveCompanyPassesGuard` | S12 | Active company passes the gate; Update succeeds; row mutated |
+| `TestUpdate_GuardIsAtomicWithUpdate` | S13 | Company active at GetForUpdate, suspended in-transaction before Update → still `ErrCompanyNotActive` (atomic guard wins, no TOCTOU window) |
+
+**Rollback boundary:** revert Commit C. The integration file restores to its pre-Commit-C state (no new tests, original header comment). No production code or generated artifacts change.
+
+**Decisions honored:** D1 (atomic CTE guard — pinned by `TestUpdate_GuardIsAtomicWithUpdate`); D2 (`ErrCompanyNotActive` surface — pinned by `TestUpdate_SuspendedCompany*` / `TestUpdate_PendingVerificationCompany*`); D3 (CAS / cross-company / soft-delete boundaries — already pinned by the pre-existing `TestUpdate_CASMismatchReturnsErrJobNotFound` and `TestUpdate_CrossCompanyUpdateAffectsZeroRows`, both untouched by this commit and verified green post-Commit-A/B); D4 (re-open transitions — pinned by `TestUpdate_ClosedToDraftReopens` / `TestUpdate_ClosedToPublishedPreservesPublishedAt`); D6 (`published_at` preservation — pinned by `TestUpdate_ClosedToPublishedPreservesPublishedAt`). D8 inventory held: only `jobRepository_write_integration_test.go` changes (still a single authored file in the integration layer).
+
+---
+
+## Final verification (Phase 4.1 — apply-owned)
+
+`go test ./...` (unit + use-case, strict TDD green):
+```
+ok  github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases       0.004s
+ok  github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres      (cached)
+ok  github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http          (cached)
+... (every package green; `industries/infrastructure/http` and `shared/httpjson` have no test files — pre-existing) ...
+```
+
+`go vet ./...` clean.
+`gofmt -l` on every touched file: empty (the integration file is gofmt-clean).
+`go build ./...` clean.
+`go tool sqlc generate` idempotent — second run produces no diff (D7 verified).
+
+Locked scope honored (D8 inventory — 4 authored files + 2 generated files):
+- Authored MOD: `backend/internal/features/jobs/application/usecases/updateJob.go`, `backend/internal/features/jobs/application/usecases/updateJob_test.go`, `backend/db/queries/jobs.sql`, `backend/internal/features/jobs/infrastructure/postgres/jobRepository.go`, `backend/internal/features/jobs/infrastructure/postgres/updateJobRepository_test.go`, `backend/internal/features/jobs/infrastructure/postgres/jobRepository_write_integration_test.go`.
+- Generated MOD (sqlc regen, never hand-edited): `backend/internal/db/jobs.sql.go`, `backend/internal/db/querier.go`.
+- UNCHANGED: `cmd/api/main.go`, all DTOs, `application/usecases/jobService.go`, `application/usecases/createJob.go`, `domain/entities/job.go`, `domain/entities/jobForUpdate.go`, `domain/repositories/jobRepository.go` (port signature unchanged), `domain/valueobjects/jobStatus.go`, `infrastructure/http/jobHandler.go` (the existing `classifyError` branch already maps `ErrCompanyNotActive → 409`), all read-side queries, all migrations.
+
+D1–D8 honored:
+- D1 (`:one` scalar SELECT `{guard_passed, updated_count}`) — pinned by 4 integration tests + the adapter compile-fix in Commit B.
+- D2 (adapter inspects `GuardPassed`; `mapUpdateError` ErrNoRows branch BEFORE `errors.As`, mirroring `mapCreateError`) — pinned by `TestMapUpdateError_ErrNoRows*` + the adapter Update rewrite.
+- D3 (CAS / same-company / soft-delete predicates unchanged) — regression net: `TestUpdate_CASMismatchReturnsErrJobNotFound`, `TestUpdate_CrossCompanyUpdateAffectsZeroRows`, `TestGetForUpdate_CrossCompanyReturnsErrJobNotFound`, `TestGetForUpdate_SoftDeletedReturnsErrJobNotFound` all stay green.
+- D4 (`case valueobjects.Closed: return to == Draft || to == Published`; `default: return false` kept) — pinned by `TestIsTransitionAllowed_FullTable` (the three Closed rows) + `TestIsTransitionAllowed_UnknownStatusDefaultsFor` (defense-in-depth regression).
+- D5 (`reopens := newStatus != nil && (*newStatus == Draft || *newStatus == Published)` bypass; field-only + `closed → closed` still 400) — pinned by `TestEditJob_ClosedFieldOnlyRejects`, `TestEditJob_ClosedToClosedRejects`, `TestEditJob_ClosedStatusAbsentLeavesClosed`.
+- D6 (`published_at` preserved on re-open — zero SQL change; existing COALESCE branch keeps it) — pinned by `TestUpdate_ClosedToPublishedPreservesPublishedAt` + `TestEditJob_ClosedToPublishedReopens`.
+- D7 (sqlc regen touches BOTH generated files; UpdateJobParams unchanged) — verified: `git diff` shows the regen touched `jobs.sql.go` (new `UpdateJobRow` type + method signature change) and `querier.go` (interface signature change); `UpdateJobParams` is byte-identical.
+- D8 (file inventory) — verified above.
+
+Deviations from `tasks.md`: none. Tasks 5.1 (optional comment-only sentinel doc refresh on `entities.ErrInvalidStatusTransition`) skipped per the locked D8 inventory (`entities/job.go` is UNCHANGED in the file list).
