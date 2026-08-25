@@ -22,6 +22,17 @@ type Application struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+type AuditEvent struct {
+	ID         uuid.UUID          `json:"id"`
+	OccurredAt pgtype.Timestamptz `json:"occurred_at"`
+	ActorID    pgtype.UUID        `json:"actor_id"`
+	ActorType  string             `json:"actor_type"`
+	EventType  string             `json:"event_type"`
+	EntityType string             `json:"entity_type"`
+	EntityID   uuid.UUID          `json:"entity_id"`
+	Metadata   []byte             `json:"metadata"`
+}
+
 type CandidateLanguage struct {
 	UserID   uuid.UUID `json:"user_id"`
 	Language string    `json:"language"`
