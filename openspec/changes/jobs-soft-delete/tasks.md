@@ -160,7 +160,7 @@ Commit group: **Commit C** (tasks 4.1–4.2 land together).
 - Verify: 4.1 tests pass; `cd backend && go test ./internal/features/jobs/...`. Commit **C** lands here. Rollback: revert 4.1+4.2 together.
 
 ### 4.3 REFACTOR (optional, tracked) — Handler hygiene
-- [ ] 4.3 REFACTOR — Confirm no parallel projections or duplicated classification. <!-- sdd-owner: implementation -->
+- [x] 4.3 REFACTOR — Confirm no parallel projections or duplicated classification. <!-- sdd-owner: implementation -->
 
 Confirm the 409-with-view body is the DTO returned by the use case (no handler-side re-read/projection); `classifyError` gained no new branches; `parseIfUnmodifiedSince` is the single RFC 3339 parser.
 
