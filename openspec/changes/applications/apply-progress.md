@@ -18,6 +18,7 @@ Phase: apply. Strict TDD. Single-pr delivery (size-exception accepted).
 
 - **Commit A** — `feat(applications): status/source value objects and domain entities` (Phase 1: tasks 1.1–1.3)
 - **Commit B** — `feat(applications): migration 00010 applications table` (Phase 2: task 2.1)
+- **Commit C** — `feat(applications): repository port, DTOs, and five use cases` (Phase 3: tasks 3.1–3.3)
 
 ## Phase 1 — Domain VOs + entities (Commit A)
 
@@ -42,7 +43,6 @@ Phase: apply. Strict TDD. Single-pr delivery (size-exception accepted).
 
 ### Remaining tasks
 
-- 3.1 / 3.2 (Commit C) — port, DTOs, stubs, use cases
 - 4.1 / 4.2 / 4.3 (Commit D) — sqlc queries + regen + adapter
 - 5.1 / 5.2 (Commit E) — SQL integration
 - 6.1 / 6.2 (Commit F) — HTTP handler
