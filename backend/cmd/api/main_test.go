@@ -535,3 +535,111 @@ func deletePathLiteral(call *ast.CallExpr) (string, bool) {
 	}
 	return bl.Value, true
 }
+
+// TestApplicationsApplyRoute_MountedBehindAuth asserts the applications
+// slice candidate-apply wiring: a chi `Post("/jobs/{jobId}/applications",
+// …)` mutation whose inner `With(...)` argument list references
+// `requireAuth` (candidate apply is RequireAuth-ONLY — the candidate's
+// company membership is NOT consulted). The guard fails the moment the
+// apply route is moved out from behind auth (a regression where an
+// unauthenticated candidate can apply).
+func TestApplicationsApplyRoute_MountedBehindAuth(t *testing.T) {
+	const filePath = "main.go"
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		t.Skipf("cannot parse %s (run with cwd=backend/cmd/api): %v", filePath, err)
+	}
+
+	var postRoutes []string              // path templates of found Post calls
+	var properlyGatedPostRoutes []string // subset that references requireAuth
+
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Post" {
+			return true
+		}
+		inner, ok := sel.X.(*ast.CallExpr)
+		if !ok || !isWithCall(inner) {
+			return true
+		}
+		path, ok := postPathLiteral(call)
+		if !ok || path != `"/jobs/{jobId}/applications"` {
+			return true
+		}
+		postRoutes = append(postRoutes, path)
+		if referencesIdentifier(inner, "requireAuth") {
+			properlyGatedPostRoutes = append(properlyGatedPostRoutes, path)
+		}
+		return true
+	})
+
+	if len(properlyGatedPostRoutes) < 1 {
+		t.Fatalf("expected at least one `With(requireAuth).Post(\"/jobs/{jobId}/applications\", ...)` mutation in main.go; got %d (found %d POST /jobs/{jobId}/applications calls without requireAuth)",
+			len(properlyGatedPostRoutes), len(postRoutes))
+	}
+
+	t.Logf("parsed %s: %d POST /jobs/{jobId}/applications routes total, %d gated behind requireAuth",
+		filePath, len(postRoutes), len(properlyGatedPostRoutes))
+}
+
+// TestApplicationsRecruiterRoute_MountedBehindGates asserts the
+// applications slice recruiter-pipeline wiring: a chi
+// `With(requireAuth, requireRecruiter).Route("/jobs/{jobId}/applications",
+// fn)` mutation whose inner `With(...)` argument list references BOTH
+// `requireAuth` AND `requireRecruiter`, and whose callback declares Get
+// and Patch mutations (every recruiter method lives inside the gated
+// subtree). The guard fails the moment a recruiter route is moved out
+// from behind the gates or onto the public /jobs mount.
+func TestApplicationsRecruiterRoute_MountedBehindGates(t *testing.T) {
+	const filePath = "main.go"
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		t.Skipf("cannot parse %s (run with cwd=backend/cmd/api): %v", filePath, err)
+	}
+
+	var gatedRoutes []string
+
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Route" {
+			return true
+		}
+		inner, ok := sel.X.(*ast.CallExpr)
+		if !ok || !isWithCall(inner) {
+			return true
+		}
+		if len(call.Args) < 2 {
+			return true
+		}
+		bl, ok := call.Args[0].(*ast.BasicLit)
+		if !ok || bl.Kind != token.STRING || bl.Value != `"/jobs/{jobId}/applications"` {
+			return true
+		}
+		if !referencesIdentifier(inner, "requireAuth") ||
+			!referencesIdentifier(inner, "requireRecruiter") {
+			return true
+		}
+		gatedRoutes = append(gatedRoutes, bl.Value)
+		return true
+	})
+
+	if len(gatedRoutes) < 1 {
+		t.Fatalf("expected at least one `With(requireAuth, requireRecruiter).Route(\"/jobs/{jobId}/applications\", fn)` mutation in main.go; got %d",
+			len(gatedRoutes))
+	}
+
+	t.Logf("parsed %s: %d gated recruiter Route(\"/jobs/{jobId}/applications\") subtrees behind both requireAuth+requireRecruiter",
+		filePath, len(gatedRoutes))
+}

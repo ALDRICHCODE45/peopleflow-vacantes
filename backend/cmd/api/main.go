@@ -15,6 +15,9 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
+	applicationsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/usecases"
+	applicationshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http"
+	applicationspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres"
 	candidatesusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/usecases"
 	candidateshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http"
 	candidatespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/postgres"
@@ -119,6 +122,17 @@ func run() error {
 	jobService := jobsusecases.NewJobService(jobRepo)
 	jobHandler := jobshttp.NewJobHandler(jobService)
 
+	// Applications wiring: applications repo (sqlc data layer over the same
+	// queries handle — the atomic apply-gate joins jobs + companies inside
+	// its own SQL, so the jobs port is NOT extended) -> service (uses the
+	// identity user repo for the cognitoSub → users.id resolution seam) ->
+	// handler (per-method accessor so the composition root can gate
+	// candidate-apply and recruiter routes differently).
+	applicationRepo := applicationspostgres.NewApplicationRepository(queries)
+	applicationService := applicationsusecases.NewApplicationService(applicationRepo, identityUserRepo)
+	applicationHandler := applicationshttp.NewApplicationHandler(applicationService)
+	applicationHandlers := applicationHandler.ApplicationHandlers()
+
 	// Verifier wiring: build a real RSA verifier when IDENTITY_JWT_* env
 	// vars are set; fall back to a fail-closed verifier when they aren't.
 	// The fail-closed path keeps /me/* mounted behind RequireAuth so the
@@ -208,6 +222,20 @@ func run() error {
 	// 409 + editor view on stale/missing/malformed CAS (design D4/D8).
 	r.With(requireAuth, requireRecruiter).Delete("/jobs/{id}", jobHandlers.SoftDeleteJob)
 
+	// Applications — candidate apply + recruiter pipeline. The apply route
+	// is RequireAuth ONLY (the candidate's company membership is NOT
+	// consulted); the recruiter subtree is RequireAuth + RequireCompanyRole
+	// (recruiter). Both live on the ROOT router so the public /jobs mount
+	// (GET-only) can never serve them — same routing-split defense as the
+	// jobs write routes. GET /me/applications mounts inside the /me subtree
+	// below.
+	r.With(requireAuth).Post("/jobs/{jobId}/applications", applicationHandlers.ApplyToJob)
+	r.With(requireAuth, requireRecruiter).Route("/jobs/{jobId}/applications", func(r chi.Router) {
+		r.Get("/", applicationHandlers.ListJobApplications)
+		r.Get("/{id}", applicationHandlers.GetApplication)
+		r.Patch("/{id}/transition", applicationHandlers.TransitionApplication)
+	})
+
 	// /me/* is the authenticated slice. RequireAuth runs first, so any
 	// request without a valid Bearer token is rejected pre-handler with
 	// 401 — the candidate handler is never invoked. With the fail-closed
@@ -216,6 +244,11 @@ func run() error {
 	r.Route("/me", func(r chi.Router) {
 		r.Use(requireAuth)
 		r.Mount("/profile", candidateHandler.Routes())
+
+		// GET /me/applications — the candidate's own applications. Inherits
+		// requireAuth from the /me subtree; identity resolves candidate_id
+		// from the JWT sub (no IDOR).
+		r.Get("/applications", applicationHandlers.ListMyApplications)
 
 		// /me/company is the company_membership subtree (WU4). The
 		// /me Route group already gated with RequireAuth above; here

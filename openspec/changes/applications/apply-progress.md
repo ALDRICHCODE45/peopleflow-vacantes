@@ -52,3 +52,23 @@ Phase: apply. Strict TDD. Single-pr delivery (size-exception accepted).
 ## Workload / PR boundary
 
 Single-pr delivery (size-exception accepted). Commit A accounts for ~13.7 KB of authored code across 6 new files (3 production + 3 tests).
+
+## Commit G — composition root + AST guards (completed by parent orchestration)
+
+The apply subagent timed out during Commit D; commits A–F landed before the timeout. The parent completed Commit G inline:
+
+- `backend/cmd/api/main.go` — applications wiring (repo → service → handler + `ApplicationHandlers()` accessor) + three route blocks: `With(requireAuth).Post("/jobs/{jobId}/applications", ...)` (candidate apply, RequireAuth-ONLY), `With(requireAuth, requireRecruiter).Route("/jobs/{jobId}/applications", ...)` (recruiter subtree: Get list, Get detail, Patch transition), and `r.Get("/applications", ...)` inside the existing `/me` subtree (ListMyApplications).
+- `backend/cmd/api/main_test.go` — two new AST guards: `TestApplicationsApplyRoute_MountedBehindAuth` (POST apply behind requireAuth) and `TestApplicationsRecruiterRoute_MountedBehindGates` (recruiter Route behind both gates).
+
+### Phase 8 — full-suite gate (completed by parent orchestration)
+
+- `cd backend && go test -count=1 ./...` → 32 packages ok, 0 FAIL
+- `cd backend && go vet ./...` → exit 0
+- `cd backend && go vet -tags=integration ./internal/features/applications/...` → exit 0 (integration suite compiles)
+- `cd backend && gofmt -l internal/features/applications/ cmd/` → empty
+- `cd backend && go build ./...` → ok
+- `cd backend && go tool sqlc generate` → idempotent (no diff from regen)
+
+### Deviations from tasks.md
+
+- None on scope. The apply subagent's timeout delayed Commit G; the parent executed it against the exact design §5.4 wiring (lines 514–539) and the tasks.md 7.1/7.2 spec.
