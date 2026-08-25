@@ -492,7 +492,7 @@ upd AS (
     UPDATE jobs
     SET
         deleted_at = now(),
-        updated_at = now()
+        updated_at = clock_timestamp()
     WHERE id         = $2::uuid
       AND company_id = $1::uuid
       AND deleted_at IS NULL
@@ -587,7 +587,7 @@ upd AS (
         published_at    = CASE WHEN $14::text = 'published'
                                 THEN COALESCE(published_at, now())
                                 ELSE published_at END,
-        updated_at      = now()
+        updated_at      = clock_timestamp()
     WHERE id         = $15::uuid
       AND company_id = $1::uuid
       AND deleted_at IS NULL

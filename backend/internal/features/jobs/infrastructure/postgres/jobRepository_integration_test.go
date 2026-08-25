@@ -144,6 +144,14 @@ func setupReadPath(t *testing.T) (context.Context, *JobRepository) {
 	// Prune anything outside the fixture universe so every assertion
 	// below can be an exact ID list. Safe: we are inside the rollback.
 	universe := append(append([]uuid.UUID{}, visibleJobIDsDesc...), hiddenJobIDs...)
+	// Migration 00010 added a FK from `applications(job_id)` to `jobs(id)`.
+	// Drop dependent applications rows first, otherwise the prune DELETE
+	// below fails with SQLSTATE 23503 when the shared dev DB still holds
+	// applications rows pointing at jobs outside this fixture's universe.
+	// Safe: this runs inside a rollback transaction.
+	if _, err := tx.Exec(ctx, `DELETE FROM applications`); err != nil {
+		t.Fatalf("prune applications: %v", err)
+	}
 	if _, err := tx.Exec(ctx,
 		`DELETE FROM jobs WHERE id <> ALL($1::uuid[])`, universe,
 	); err != nil {

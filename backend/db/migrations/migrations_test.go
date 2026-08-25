@@ -101,6 +101,19 @@ func gooseUpTo(t *testing.T, db *sql.DB, version int64) {
 	}
 }
 
+// gooseUpAll applies every pending migration, restoring the schema to its
+// highest applied version. Used by cleanups that must leave the shared dev DB
+// in a fully-migrated state for the suites that run afterwards.
+func gooseUpAll(t *testing.T, db *sql.DB) {
+	t.Helper()
+	if err := goose.SetDialect("postgres"); err != nil {
+		t.Fatalf("goose SetDialect: %v", err)
+	}
+	if err := goose.Up(db, "."); err != nil {
+		t.Fatalf("goose Up(all): %v", err)
+	}
+}
+
 // gooseDownTo reverts migrations down to `version` (inclusive stays applied).
 func gooseDownTo(t *testing.T, db *sql.DB, version int64) {
 	t.Helper()
@@ -287,7 +300,11 @@ func TestMigration00009DownDropsTable(t *testing.T) {
 			return
 		}
 		defer db2.Close()
-		gooseUpTo(t, db2, 9)
+		// Restore every migration, not just 00009: a later migration
+		// (00010 applications) may already be applied, and goose reflects
+		// the highest applied version. Subbing only to 9 would leave
+		// `applications` dropped for the suites that run after this one.
+		gooseUpAll(t, db2)
 	})
 
 	var hasTableAfterDown bool

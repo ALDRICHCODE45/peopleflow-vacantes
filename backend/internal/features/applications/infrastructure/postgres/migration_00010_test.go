@@ -189,6 +189,8 @@ func TestApplications_RequiredFieldsRejectNull(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	clearApplications(ctx, t, pool)
+
 	// Need a real job + user to satisfy the FKs; skip if the seed didn't run.
 	jobID, err := pickFirstJobID(ctx, pool)
 	if err != nil {
@@ -200,22 +202,25 @@ func TestApplications_RequiredFieldsRejectNull(t *testing.T) {
 	}
 
 	cases := []struct {
-		name string
-		sql  string
+		name    string
+		sql     string
+		buildFn func(id uuid.UUID) []any
 	}{
 		{
 			"job_id NULL",
 			`INSERT INTO applications (id, job_id, candidate_id) VALUES ($1, NULL, $2)`,
+			func(id uuid.UUID) []any { return []any{id, candidateID} },
 		},
 		{
 			"candidate_id NULL",
 			`INSERT INTO applications (id, job_id, candidate_id) VALUES ($1, $2, NULL)`,
+			func(id uuid.UUID) []any { return []any{id, jobID} },
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			id := uuid.New()
-			_, err := pool.Exec(ctx, tc.sql, id, jobID, candidateID)
+			_, err := pool.Exec(ctx, tc.sql, tc.buildFn(id)...)
 			if err == nil {
 				_, _ = pool.Exec(ctx, `DELETE FROM applications WHERE id = $1`, id)
 				t.Fatalf("expected NOT NULL violation, got nil")
@@ -238,6 +243,8 @@ func TestApplications_StatusDefaultsSubmitted(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	clearApplications(ctx, t, pool)
 
 	jobID, err := pickFirstJobID(ctx, pool)
 	if err != nil {
@@ -285,6 +292,8 @@ func TestApplications_StatusCheckRejectsUnknown(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	clearApplications(ctx, t, pool)
+
 	jobID, err := pickFirstJobID(ctx, pool)
 	if err != nil {
 		t.Skipf("no jobs row: %v", err)
@@ -320,6 +329,8 @@ func TestApplications_SourceCheckRejectsUnknown(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	clearApplications(ctx, t, pool)
+
 	jobID, err := pickFirstJobID(ctx, pool)
 	if err != nil {
 		t.Skipf("no jobs row: %v", err)
@@ -354,6 +365,8 @@ func TestApplications_UniqueJobCandidate(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	clearApplications(ctx, t, pool)
 
 	jobID, err := pickFirstJobID(ctx, pool)
 	if err != nil {
@@ -401,6 +414,8 @@ func TestApplications_CvS3KeyAnonymizedAtNullable(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	clearApplications(ctx, t, pool)
+
 	jobID, err := pickFirstJobID(ctx, pool)
 	if err != nil {
 		t.Skipf("no jobs row: %v", err)
@@ -442,6 +457,19 @@ func TestApplications_CvS3KeyAnonymizedAtNullable(t *testing.T) {
 // constraint can be satisfied. If no jobs row exists, returns an error
 // so the test can t.Skip — this avoids flake when the test suite runs
 // without the seed.
+// clearApplications empties the applications table so the UNIQUE(job_id,
+// candidate_id) guard in these schema tests never collides with a row left
+// behind by a previous run or sibling test. The schema tests use the first
+// job/user row (pickFirst*) and therefore share the same FK pair; a stale
+// row would surface as an unrelated SQLSTATE 23505. Safe: applications has
+// no FK dependents in this slice, and these tests only prove constraints.
+func clearApplications(ctx context.Context, t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	if _, err := pool.Exec(ctx, `DELETE FROM applications`); err != nil {
+		t.Fatalf("clear applications: %v", err)
+	}
+}
+
 func pickFirstJobID(ctx context.Context, pool *pgxpool.Pool) (uuid.UUID, error) {
 	var id uuid.UUID
 	err := pool.QueryRow(ctx, `SELECT id FROM jobs LIMIT 1`).Scan(&id)

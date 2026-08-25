@@ -161,6 +161,14 @@ func setupWritePath(t *testing.T) (context.Context, *JobRepository, pgx.Tx) {
 		jobBackendGoID, jobFrontendID, jobDataEngID,
 		jobMLEngID, jobJuniorQAID, jobDevOpsIntern,
 	}
+	// Migration 00010 added a FK from `applications(job_id)` to `jobs(id)`.
+	// Drop dependent applications rows first, otherwise the prune DELETE
+	// below fails with SQLSTATE 23503 when the shared dev DB still holds
+	// applications rows pointing at jobs outside this fixture's universe.
+	// Safe: this runs inside a rollback transaction.
+	if _, err := tx.Exec(ctx, `DELETE FROM applications`); err != nil {
+		t.Fatalf("prune applications: %v", err)
+	}
 	if _, err := tx.Exec(ctx,
 		`DELETE FROM jobs WHERE id <> ALL($1::uuid[])`, universe,
 	); err != nil {
@@ -640,9 +648,12 @@ func TestUpdate_ImmutablesNeverTouched(t *testing.T) {
 	if after.Company.ID != before.Company.ID {
 		t.Errorf("Company.ID: want unchanged %v, got %v", before.Company.ID, after.Company.ID)
 	}
-	if !after.UpdatedAt.Equal(before.UpdatedAt) {
-		t.Errorf("UpdatedAt: want transaction-time equal %v, got %v (Postgres now() is transaction-time; out-of-transaction PATCHes WILL advance it)",
-			before.UpdatedAt, after.UpdatedAt)
+	// updated_at is NOT an immutable — it advances on every write so the
+	// CAS token refreshes. The immutables are id / company_id / created_at /
+	// deleted_at, all asserted above. With clock_timestamp() (transaction
+	// progress, not transaction start) it is strictly greater than before.
+	if !after.UpdatedAt.After(before.UpdatedAt) {
+		t.Errorf("UpdatedAt: want strictly after %v, got %v", before.UpdatedAt, after.UpdatedAt)
 	}
 }
 

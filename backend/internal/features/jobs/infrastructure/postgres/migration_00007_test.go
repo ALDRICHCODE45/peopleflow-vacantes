@@ -132,6 +132,15 @@ func TestJobsMigrationDownDropsTable(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Migration 00010 added a FK reference from `applications(job_id)` to
+	// `jobs(id)`. Goose runs downs in reverse migration order, so 00010's
+	// down drops `applications` BEFORE 00007's down drops `jobs`. This test
+	// must mirror that order, otherwise PostgreSQL returns SQLSTATE 2BP01
+	// ("cannot drop table jobs because other objects depend on it"). Use
+	// IF EXISTS so a partial-schema DB state does not fail.
+	if _, err := pool.Exec(ctx, `DROP TABLE IF EXISTS applications`); err != nil {
+		t.Fatalf("drop applications: %v", err)
+	}
 	// Drop using the same DDL as migration down.
 	if _, err := pool.Exec(ctx, `DROP TABLE IF EXISTS jobs`); err != nil {
 		t.Fatalf("drop jobs table: %v", err)
@@ -147,9 +156,15 @@ func TestJobsMigrationDownDropsTable(t *testing.T) {
 	}
 
 	// Re-apply the up so the schema is left in a usable state for any
-	// later test in the same run.
+	// later test in the same run. We must also re-create the dependent
+	// table introduced by migration 00010 — otherwise the rest of the
+	// integration suite (applications repository tests) would find
+	// `applications` missing.
 	if _, err := pool.Exec(ctx, createJobsTableDDL); err != nil {
 		t.Fatalf("re-create jobs table: %v", err)
+	}
+	if _, err := pool.Exec(ctx, createApplicationsTableDDL); err != nil {
+		t.Fatalf("re-create applications table: %v", err)
 	}
 }
 
@@ -199,6 +214,36 @@ CREATE INDEX jobs_company_id_idx
 CREATE INDEX jobs_public_listing_idx
     ON jobs (published_at DESC) WHERE status = 'published' AND deleted_at IS NULL;
 `
+
+// createApplicationsTableDDL mirrors the up body of migration 00010 so the
+// 00007 down test can restore the dependent table after dropping `jobs`.
+// Kept in sync with backend/db/migrations/00010_create_applications.sql —
+// if that file changes, this constant must change too.
+const createApplicationsTableDDL = `
+    CREATE TABLE applications (
+        id            UUID PRIMARY KEY,
+        job_id        UUID NOT NULL REFERENCES jobs (id),
+        candidate_id  UUID NOT NULL REFERENCES users (id),
+        status        TEXT NOT NULL DEFAULT 'submitted'
+            CONSTRAINT applications_status_check
+            CHECK (status IN ('submitted', 'in_review', 'rejected', 'hired')),
+        source        TEXT
+            CONSTRAINT applications_source_check
+            CHECK (source IN ('referral', 'linkedin', 'job_board', 'direct', 'other')),
+        cover_letter  TEXT,
+        cv_s3_key     TEXT,
+        anonymized_at TIMESTAMPTZ,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+        CONSTRAINT applications_job_candidate_unique UNIQUE (job_id, candidate_id)
+    );
+
+    CREATE INDEX applications_by_job_idx
+        ON applications (job_id, status, created_at DESC);
+    CREATE INDEX applications_by_candidate_idx
+        ON applications (candidate_id, created_at DESC);
+    `
 
 // TestJobsMigrationRejectsNullRequiredField proves the NOT NULL
 // constraints on title, description, work_mode, employment_type, and

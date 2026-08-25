@@ -558,6 +558,15 @@ func TestCreate_DuplicateReturnsAlreadyApplied(t *testing.T) {
 		t.Fatalf("first create: %v", err)
 	}
 
+	// Verify exactly one row BEFORE the duplicate attempt. The second Create
+	// below violates the UNIQUE(job_id, candidate_id) guard, which PostgreSQL
+	// aborts the shared fixture transaction (SQLSTATE 25P02 on any later query
+	// on the same tx). Counting after the violation would fail on the aborted
+	// tx, not on the actual invariant — so we assert the count first.
+	if n := countApplications(ctx, t, f.tx, f.jobPublished, f.userC1); n != 1 {
+		t.Errorf("row count after first create: want 1, got %d", n)
+	}
+
 	_, err := f.repo.Create(ctx, repositories.CreateParams{
 		ID:          uuid.New(),
 		JobID:       f.jobPublished,
@@ -565,10 +574,6 @@ func TestCreate_DuplicateReturnsAlreadyApplied(t *testing.T) {
 	})
 	if !errors.Is(err, entities.ErrAlreadyApplied) {
 		t.Errorf("err: want ErrAlreadyApplied (23505), got %v", err)
-	}
-
-	if n := countApplications(ctx, t, f.tx, f.jobPublished, f.userC1); n != 1 {
-		t.Errorf("row count: want 1, got %d", n)
 	}
 }
 

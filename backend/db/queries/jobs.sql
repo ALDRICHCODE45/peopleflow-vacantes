@@ -242,7 +242,7 @@ upd AS (
         published_at    = CASE WHEN sqlc.narg('status')::text = 'published'
                                 THEN COALESCE(published_at, now())
                                 ELSE published_at END,
-        updated_at      = now()
+        updated_at      = clock_timestamp()
     WHERE id         = sqlc.arg('id')::uuid
       AND company_id = sqlc.arg('company_id')::uuid
       AND deleted_at IS NULL
@@ -299,7 +299,7 @@ upd AS (
     UPDATE jobs
     SET
         deleted_at = now(),
-        updated_at = now()
+        updated_at = clock_timestamp()
     WHERE id         = sqlc.arg('id')::uuid
       AND company_id = sqlc.arg('company_id')::uuid
       AND deleted_at IS NULL

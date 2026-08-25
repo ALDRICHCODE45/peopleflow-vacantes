@@ -122,6 +122,9 @@ func TestUsersMigrationDownDropsTable(t *testing.T) {
 	// returns SQLSTATE 2BP01 ("cannot drop table users because other
 	// objects depend on it"). Use IF EXISTS so a partial-schema DB state
 	// (e.g. a fresh checkout before migrations run) does not fail.
+	if _, err := pool.Exec(ctx, `DROP TABLE IF EXISTS applications`); err != nil {
+		t.Fatalf("drop applications: %v", err)
+	}
 	if _, err := pool.Exec(ctx, `DROP TABLE IF EXISTS company_members`); err != nil {
 		t.Fatalf("drop company_members: %v", err)
 	}
@@ -164,6 +167,12 @@ func TestUsersMigrationDownDropsTable(t *testing.T) {
 	}
 	if _, err := pool.Exec(ctx, createCompanyMembersDDL); err != nil {
 		t.Fatalf("re-create company_members table: %v", err)
+	}
+	// Migration 00010 added a FK reference from `applications(candidate_id)`
+	// to `users(id)`; re-create it so the applications repository tests (which
+	// run after this one) still find the table present.
+	if _, err := pool.Exec(ctx, createApplicationsTableDDL); err != nil {
+		t.Fatalf("re-create applications table: %v", err)
 	}
 }
 
@@ -359,3 +368,33 @@ func TestUsersMigrationIdempotentRedelivery(t *testing.T) {
 	// Cleanup
 	_, _ = pool.Exec(ctx, `DELETE FROM users WHERE cognito_sub = 'idem-sub'`)
 }
+
+// createApplicationsTableDDL mirrors the up body of 00010_create_applications.sql
+// so the 00005 down test can restore the dependent table after dropping `users`.
+// Kept in sync with backend/db/migrations/00010_create_applications.sql — if
+// that file changes, this constant must change too.
+const createApplicationsTableDDL = `
+CREATE TABLE applications (
+    id            UUID PRIMARY KEY,
+    job_id        UUID NOT NULL REFERENCES jobs (id),
+    candidate_id  UUID NOT NULL REFERENCES users (id),
+    status        TEXT NOT NULL DEFAULT 'submitted'
+        CONSTRAINT applications_status_check
+        CHECK (status IN ('submitted', 'in_review', 'rejected', 'hired')),
+    source        TEXT
+        CONSTRAINT applications_source_check
+        CHECK (source IN ('referral', 'linkedin', 'job_board', 'direct', 'other')),
+    cover_letter  TEXT,
+    cv_s3_key     TEXT,
+    anonymized_at TIMESTAMPTZ,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT applications_job_candidate_unique UNIQUE (job_id, candidate_id)
+);
+
+CREATE INDEX applications_by_job_idx
+    ON applications (job_id, status, created_at DESC);
+CREATE INDEX applications_by_candidate_idx
+    ON applications (candidate_id, created_at DESC);
+`

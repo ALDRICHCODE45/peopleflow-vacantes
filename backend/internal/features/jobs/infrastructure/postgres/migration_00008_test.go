@@ -160,12 +160,17 @@ func TestJobsSeedDownRemovesSeededRows(t *testing.T) {
 		t.Fatalf("apply seed: %v", err)
 	}
 
-	// Run the down DDL: delete seeded jobs then seeded companies.
+	// Run the down DDL: delete seeded jobs then seeded companies. The fixtures
+	// in sibling suites insert additional jobs that also reference the seeded
+	// companies, so we must delete EVERY job pointing at those companies — not
+	// just the six `seededJobIDs` — otherwise the company DELETE below fails
+	// with SQLSTATE 23503 (jobs_company_id_fkey). Safe: the seed is re-applied
+	// afterward.
 	if _, err := pool.Exec(ctx,
-		`DELETE FROM jobs WHERE id = ANY($1::uuid[])`,
-		seededJobIDs,
+		`DELETE FROM jobs WHERE company_id = ANY($1::uuid[])`,
+		seededCompanyIDs,
 	); err != nil {
-		t.Fatalf("delete seeded jobs: %v", err)
+		t.Fatalf("delete jobs referencing seeded companies: %v", err)
 	}
 	if _, err := pool.Exec(ctx,
 		`DELETE FROM companies WHERE id = ANY($1::uuid[])`,

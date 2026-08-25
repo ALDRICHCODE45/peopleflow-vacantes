@@ -114,6 +114,14 @@ func setupCreatePath(t *testing.T) (context.Context, *JobRepository, pgx.Tx) {
 	universe := append([]uuid.UUID{
 		createPathActiveID, createPathSuspendedID, createPathPendingID,
 	}, seededJobIDs...)
+	// Migration 00010 added a FK from `applications(job_id)` to `jobs(id)`.
+	// Drop dependent applications rows first, otherwise the prune DELETE
+	// below fails with SQLSTATE 23503 when the shared dev DB still holds
+	// applications rows pointing at jobs outside this fixture's universe.
+	// Safe: this runs inside a rollback transaction.
+	if _, err := tx.Exec(ctx, `DELETE FROM applications`); err != nil {
+		t.Fatalf("prune applications: %v", err)
+	}
 	if _, err := tx.Exec(ctx,
 		`DELETE FROM jobs WHERE id <> ALL($1::uuid[])`, universe,
 	); err != nil {
@@ -347,12 +355,19 @@ func TestCreate_SalaryCurrencyDefaultsToMXNWhenOmitted(t *testing.T) {
 
 // --- UUID v7 (D4) --------------------------------------------------
 
-// TestCreate_IDIsUUIDv7 pins D4: the use case calls uuid.NewV7()
-// and the persisted row's id has version nibble 7.
+// TestCreate_IDIsUUIDv7 pins D4: the use case calls uuid.NewV7() and the
+// adapter persists that id unchanged. The repository does NOT generate the id
+// — it forwards whatever the use case supplies — so we pass a v7 id here to
+// mirror what CreateJob hands the port on a real request.
 func TestCreate_IDIsUUIDv7(t *testing.T) {
 	ctx, repo, _ := setupCreatePath(t)
 
-	row, err := repo.Create(ctx, uuid.New(), createPathActiveID, repositories.CreateJobParams{
+	v7ID, err := uuid.NewV7()
+	if err != nil {
+		t.Fatalf("uuid.NewV7: %v", err)
+	}
+
+	row, err := repo.Create(ctx, v7ID, createPathActiveID, repositories.CreateJobParams{
 		Title:          "CP UUIDv7 Engineer",
 		Description:    "uuid v7 round-trip.",
 		WorkMode:       valueobjects.Remote,
