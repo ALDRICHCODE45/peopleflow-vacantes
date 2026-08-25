@@ -138,11 +138,27 @@ type CreateJobParams struct {
 //	               same SQL statement (no TOCTOU). The use case owns
 //	               UUID generation; the adapter maps VOs to canonical
 //	               wire strings and optional pointers to pgtypes.
+//	SoftDelete   — tombstones the row (deleted_at = now()) atomically,
+//	               guarded by the active-company CTE (D1/D2), the row
+//	               predicates (id, company_id, deleted_at IS NULL), and
+//	               CAS `updated_at = casUpdatedAt`. The SQL is `:one`
+//	               and emits {guard_passed, deleted_count}; the adapter
+//	               inspects it to distinguish the three outcomes:
+//
+//	               guard_passed=false → entities.ErrCompanyNotActive
+//	               guard_passed=true, deleted_count=0 → entities.ErrJobNotFound
+//	               guard_passed=true, deleted_count=1 → nil (success)
+//
+//	               The minimal SET list (`deleted_at`, `updated_at`)
+//	               preserves every other column as audit history.
 //
 // Errors.Is(entities.ErrJobNotFound) is the single "no such row" signal
 // every READ method emits, so the HTTP layer can map to 404 with a
 // single branch. The Create method emits a distinct sentinel pair
 // (entities.ErrCompanyNotActive / entities.ErrCompanyGone) per design D7.
+// SoftDelete emits entities.ErrCompanyNotActive / entities.ErrJobNotFound
+// / entities.ErrInvalidStatusTransition (defense-in-depth) per design
+// D3.
 type JobRepository interface {
 	Search(ctx context.Context, p SearchParams) ([]entities.Job, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.Job, error)
@@ -191,4 +207,53 @@ type JobRepository interface {
 	//   - any other error                    propagated untouched
 	//                                          (HTTP 500).
 	Create(ctx context.Context, id, companyID uuid.UUID, params CreateJobParams) (*entities.JobForUpdate, error)
+
+	// SoftDelete tombstones the row (`deleted_at = now()`) atomically,
+	// guarded by the active-company CTE (D1/D2), the row predicates
+	// (id, company_id, deleted_at IS NULL), and CAS
+	// `updated_at = casUpdatedAt`. The D1 SQL is `:one` and emits a
+	// scalar SELECT returning {guard_passed, deleted_count}; the
+	// adapter inspects it to distinguish the three outcomes:
+	//
+	//   - guard_passed=false              → entities.ErrCompanyNotActive
+	//                                       (suspended / pending /
+	//                                       missing company). The row is
+	//                                       NOT tombstoned.
+	//   - guard_passed=true, deleted_count=0 → entities.ErrJobNotFound
+	//                                       (CAS lost / already-soft-deleted
+	//                                       / cross-company race with an
+	//                                       active company — D2 residual
+	//                                       race; the use case does NOT
+	//                                       re-read, mapped to 404).
+	//   - guard_passed=true, deleted_count=1 → nil (success).
+	//
+	// The minimal SET list (`deleted_at`, `updated_at`) preserves every
+	// other column as audit history (design D1); `published_at`,
+	// `title`, `description`, `status`, `work_mode`, `employment_type`,
+	// `seniority`, `location`, `salary_min`, `salary_max`,
+	// `salary_currency`, `company_id`, `created_at`, `id` are NOT
+	// touched. `search_vector` (STORED generated) is naturally
+	// unchanged because its inputs (`title`, `description`) are not
+	// touched.
+	//
+	// Error contract:
+	//
+	//   - entities.ErrCompanyNotActive         on guard miss (suspended /
+	//                                          pending / missing company).
+	//   - entities.ErrJobNotFound              on guard_passed=true but
+	//                                          deleted_count=0 (CAS lost
+	//                                          / already-soft-deleted /
+	//                                          cross-company race with an
+	//                                          active company).
+	//   - entities.ErrInvalidStatusTransition  on SQLSTATE 23514 (CHECK
+	//                                          violation; defense-in-depth
+	//                                          — the minimal SET list
+	//                                          cannot trip a CHECK on the
+	//                                          designed flow).
+	//   - any other error                      propagated untouched
+	//                                          (HTTP 500).
+	//
+	// The port extension breaks every implementer in lockstep; the
+	// 5-stub atomic repair is the D6 / jobs-create D10 unit.
+	SoftDelete(ctx context.Context, id, companyID uuid.UUID, casUpdatedAt time.Time) error
 }

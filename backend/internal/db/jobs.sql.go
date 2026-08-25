@@ -481,6 +481,83 @@ func (q *Queries) SearchJobs(ctx context.Context, arg SearchJobsParams) ([]Searc
 	return items, nil
 }
 
+const softDeleteJob = `-- name: SoftDeleteJob :one
+WITH active AS (
+    SELECT id
+    FROM companies
+    WHERE id = $1::uuid
+      AND status = 'active'
+),
+upd AS (
+    UPDATE jobs
+    SET
+        deleted_at = now(),
+        updated_at = now()
+    WHERE id         = $2::uuid
+      AND company_id = $1::uuid
+      AND deleted_at IS NULL
+      AND updated_at = $3::timestamptz
+      AND EXISTS (SELECT 1 FROM active)
+    RETURNING id
+)
+SELECT
+    EXISTS (SELECT 1 FROM active) AS guard_passed,
+    (SELECT count(*) FROM upd)    AS deleted_count
+`
+
+type SoftDeleteJobParams struct {
+	CompanyID uuid.UUID          `json:"company_id"`
+	ID        uuid.UUID          `json:"id"`
+	CasToken  pgtype.Timestamptz `json:"cas_token"`
+}
+
+type SoftDeleteJobRow struct {
+	GuardPassed  bool  `json:"guard_passed"`
+	DeletedCount int64 `json:"deleted_count"`
+}
+
+// Atomic soft-delete + CAS + active-company guard for DELETE /jobs/{id}
+// (design D1/D2/D3, jobs-soft-delete slice).
+//
+// Minimal SET list: ONLY deleted_at = now() and updated_at = now().
+// published_at / title / description / status / work_mode /
+// employment_type / seniority / location / salary_min / salary_max /
+// salary_currency are PRESERVED as audit history. search_vector (STORED
+// generated) is naturally unchanged because its inputs (title,
+// description) are not touched; the partial index jobs_public_listing_idx
+// (predicated on deleted_at IS NULL) drops the row automatically.
+//
+// Active-company guard (mirrors UpdateJob D1):
+//   - the `active` CTE selects the owning company ONLY when
+//     companies.status = 'active'. suspended / pending_verification /
+//     missing company yields zero rows in `active`, so the UPDATE inside
+//     `upd` matches zero rows AND the final SELECT reports
+//     guard_passed = false.
+//   - the UPDATE's WHERE adds `AND EXISTS (SELECT 1 FROM active)` so the
+//     guard and the write are the same statement — no TOCTOU window.
+//
+// Outcome matrix (adapter D2):
+//
+//	guard_passed = false, deleted_count = 0
+//	  → ErrCompanyNotActive (suspended/pending/missing company)
+//	guard_passed = true,  deleted_count = 0
+//	  → ErrJobNotFound (CAS lost / already-soft-deleted / cross-company
+//	    race with an active company; the use case already CAS-compared,
+//	    so this is a residual tight race — mapped to 404, no re-read)
+//	guard_passed = true,  deleted_count = 1
+//	  → success (1 row tombstoned)
+//
+// CAS in the UPDATE WHERE: `updated_at = sqlc.arg('cas_token')` — the
+// atomic race-free guard. The final scalar SELECT (no FROM, no WHERE)
+// ALWAYS returns exactly one row, so pgx.ErrNoRows is unreachable via the
+// designed flow (mapSoftDeleteError keeps it as defense-in-depth).
+func (q *Queries) SoftDeleteJob(ctx context.Context, arg SoftDeleteJobParams) (SoftDeleteJobRow, error) {
+	row := q.db.QueryRow(ctx, softDeleteJob, arg.CompanyID, arg.ID, arg.CasToken)
+	var i SoftDeleteJobRow
+	err := row.Scan(&i.GuardPassed, &i.DeletedCount)
+	return i, err
+}
+
 const updateJob = `-- name: UpdateJob :one
 WITH active AS (
     SELECT id

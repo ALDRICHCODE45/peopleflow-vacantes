@@ -91,6 +91,21 @@ type writeStubHandlerRepo struct {
 	lastCreateID      uuid.UUID
 	lastCreateCompany uuid.UUID
 	lastCreateParams  repositories.CreateJobParams
+
+	// --- SoftDelete (jobs-soft-delete Phase 1.2) ---------------------
+
+	// softDeleteErr is the error SoftDelete returns. Default nil =
+	// success path. Phase 4's soft-delete handler tests program this
+	// to drive ErrCompanyNotActive / ErrJobNotFound branches.
+	softDeleteErr error
+
+	// softDeleteCalls / lastSoftDeleteID / lastSoftDeleteCompany /
+	// lastSoftDeleteCas record what the use case forwarded to the
+	// repo on the most recent SoftDelete call.
+	softDeleteCalls       int
+	lastSoftDeleteID      uuid.UUID
+	lastSoftDeleteCompany uuid.UUID
+	lastSoftDeleteCas     time.Time
 }
 
 func (s *writeStubHandlerRepo) Search(_ context.Context, _ repositories.SearchParams) ([]entities.Job, error) {
@@ -145,6 +160,23 @@ func (s *writeStubHandlerRepo) Create(_ context.Context, id, companyID uuid.UUID
 		return nil, s.createErr
 	}
 	return nil, nil
+}
+
+// SoftDelete is a port-method stub (jobs-soft-delete Phase 1.2). The
+// default behavior matches the postgres adapter's success path:
+// returns softDeleteErr (default nil). Phase 4's soft-delete handler
+// tests program softDeleteErr to drive the ErrCompanyNotActive /
+// ErrJobNotFound branches, and assert on softDeleteCalls /
+// lastSoftDeleteID / lastSoftDeleteCompany / lastSoftDeleteCas to pin
+// what the use case forwarded to the repo.
+func (s *writeStubHandlerRepo) SoftDelete(_ context.Context, id, companyID uuid.UUID, casUpdatedAt time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.softDeleteCalls++
+	s.lastSoftDeleteID = id
+	s.lastSoftDeleteCompany = companyID
+	s.lastSoftDeleteCas = casUpdatedAt
+	return s.softDeleteErr
 }
 
 // Compile-time guard.

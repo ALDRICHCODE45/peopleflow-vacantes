@@ -70,3 +70,22 @@ type CreateJobUseCase interface {
 		in dtos.CreateJobDto,
 	) (*dtos.JobEditorViewDto, error)
 }
+
+// Compile-time guard: the SoftDeleteJob method exists on *JobService
+// (added in jobs-soft-delete / design D4).
+var _ SoftDeleteJobUseCase = (*JobService)(nil)
+
+// SoftDeleteJobUseCase is the bundle of soft-delete-side methods the
+// JobService exposes. The interface lives next to EditJob and
+// CreateJobUseCase so a future refactor that swaps a different
+// orchestrator in only needs to satisfy this seam, not reach for the
+// concrete struct. The (view, error) tuple is the D4 contract — the
+// 409-with-view CAS body needs the view alongside the sentinel so the
+// handler can write it without a separate read passthrough.
+type SoftDeleteJobUseCase interface {
+	SoftDeleteJob(
+		ctx context.Context,
+		companyID, jobID uuid.UUID,
+		ifUnmodifiedSince time.Time,
+	) (*dtos.JobEditorViewDto, error)
+}

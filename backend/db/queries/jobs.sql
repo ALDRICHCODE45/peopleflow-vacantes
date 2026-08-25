@@ -254,6 +254,64 @@ SELECT
     EXISTS (SELECT 1 FROM active) AS guard_passed,
     (SELECT count(*) FROM upd)    AS updated_count;
 
+-- name: SoftDeleteJob :one
+-- Atomic soft-delete + CAS + active-company guard for DELETE /jobs/{id}
+-- (design D1/D2/D3, jobs-soft-delete slice).
+--
+-- Minimal SET list: ONLY deleted_at = now() and updated_at = now().
+-- published_at / title / description / status / work_mode /
+-- employment_type / seniority / location / salary_min / salary_max /
+-- salary_currency are PRESERVED as audit history. search_vector (STORED
+-- generated) is naturally unchanged because its inputs (title,
+-- description) are not touched; the partial index jobs_public_listing_idx
+-- (predicated on deleted_at IS NULL) drops the row automatically.
+--
+-- Active-company guard (mirrors UpdateJob D1):
+--   - the `active` CTE selects the owning company ONLY when
+--     companies.status = 'active'. suspended / pending_verification /
+--     missing company yields zero rows in `active`, so the UPDATE inside
+--     `upd` matches zero rows AND the final SELECT reports
+--     guard_passed = false.
+--   - the UPDATE's WHERE adds `AND EXISTS (SELECT 1 FROM active)` so the
+--     guard and the write are the same statement — no TOCTOU window.
+--
+-- Outcome matrix (adapter D2):
+--   guard_passed = false, deleted_count = 0
+--     → ErrCompanyNotActive (suspended/pending/missing company)
+--   guard_passed = true,  deleted_count = 0
+--     → ErrJobNotFound (CAS lost / already-soft-deleted / cross-company
+--       race with an active company; the use case already CAS-compared,
+--       so this is a residual tight race — mapped to 404, no re-read)
+--   guard_passed = true,  deleted_count = 1
+--     → success (1 row tombstoned)
+--
+-- CAS in the UPDATE WHERE: `updated_at = sqlc.arg('cas_token')` — the
+-- atomic race-free guard. The final scalar SELECT (no FROM, no WHERE)
+-- ALWAYS returns exactly one row, so pgx.ErrNoRows is unreachable via the
+-- designed flow (mapSoftDeleteError keeps it as defense-in-depth).
+WITH active AS (
+    SELECT id
+    FROM companies
+    WHERE id = sqlc.arg('company_id')::uuid
+      AND status = 'active'
+),
+upd AS (
+    UPDATE jobs
+    SET
+        deleted_at = now(),
+        updated_at = now()
+    WHERE id         = sqlc.arg('id')::uuid
+      AND company_id = sqlc.arg('company_id')::uuid
+      AND deleted_at IS NULL
+      AND updated_at = sqlc.arg('cas_token')::timestamptz
+      AND EXISTS (SELECT 1 FROM active)
+    RETURNING id
+)
+SELECT
+    EXISTS (SELECT 1 FROM active) AS guard_passed,
+    (SELECT count(*) FROM upd)    AS deleted_count;
+
+
 -- name: CreateJob :one
 -- Atomic create for POST /jobs (design D1/D2/D3).
 --

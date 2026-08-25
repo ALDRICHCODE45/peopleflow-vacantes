@@ -159,6 +159,56 @@ func (r *JobRepository) Update(ctx context.Context, id, companyID uuid.UUID, pat
 	return nil
 }
 
+// SoftDelete tombstones the row (`deleted_at = now()`) atomically,
+// guarded by the active-company CTE (D1/D2), the row predicates
+// (id, company_id, deleted_at IS NULL), and CAS
+// `updated_at = casUpdatedAt`. The D1 SQL is `:one` and emits a
+// scalar SELECT returning {guard_passed, deleted_count}; the adapter
+// inspects it to distinguish the three outcomes (design D2):
+//
+//   - guard_passed = false → entities.ErrCompanyNotActive
+//     (suspended / pending / missing company). The row is NOT
+//     tombstoned.
+//   - guard_passed = true,  deleted_count = 0
+//     → entities.ErrJobNotFound (CAS lost / already-soft-deleted /
+//     cross-company race with an active company — D2 residual race;
+//     the use case does NOT re-read, mapped to 404).
+//   - guard_passed = true,  deleted_count = 1 → nil (success: 1 row
+//     tombstoned).
+//
+// The minimal SET list (`deleted_at`, `updated_at`) preserves every
+// other column as audit history (design D1): `published_at`,
+// `title`, `description`, `status`, `work_mode`, `employment_type`,
+// `seniority`, `location`, `salary_min`, `salary_max`,
+// `salary_currency`, `company_id`, `created_at`, `id` are NOT touched.
+// `search_vector` (STORED generated) is naturally unchanged because
+// its inputs (`title`, `description`) are not touched.
+//
+// Returns:
+//
+//   - nil                                  on success (guard passed, 1 row)
+//   - entities.ErrCompanyNotActive         on guard miss (suspended / pending / missing)
+//   - entities.ErrJobNotFound              on guard passed but 0 rows affected
+//     (D2 residual race — mapped to 404, no re-read)
+//   - entities.ErrInvalidStatusTransition  on SQLSTATE 23514 (CHECK violation —
+//     defense-in-depth; the minimal SET
+//     list cannot trip a CHECK on the
+//     designed flow)
+//   - other error                          propagated untouched (HTTP 500)
+func (r *JobRepository) SoftDelete(ctx context.Context, id, companyID uuid.UUID, casUpdatedAt time.Time) error {
+	row, err := r.queries.SoftDeleteJob(ctx, buildSoftDeleteJobParams(id, companyID, casUpdatedAt))
+	if err != nil {
+		return mapSoftDeleteError(err)
+	}
+	if !row.GuardPassed {
+		return entities.ErrCompanyNotActive
+	}
+	if row.DeletedCount == 0 {
+		return entities.ErrJobNotFound
+	}
+	return nil
+}
+
 // Create atomically inserts a draft job owned by `companyID`, guarded
 // by the active-company predicate inside the same SQL statement
 // (design D1/D2/D3). The use case owns UUID generation (id) and VO
@@ -615,6 +665,91 @@ func mapUpdateError(err error) error {
 	}
 	// Defense-in-depth: pgx.ErrNoRows → ErrCompanyNotActive. Mirrors
 	// mapCreateError; unreachable on the designed flow but kept so a
+	// future query-shape drift doesn't silently leak a 500 to the HTTP
+	// layer (the active-company gate must produce 409, not 500).
+	if errors.Is(err, pgx.ErrNoRows) {
+		return entities.ErrCompanyNotActive
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23514":
+			return entities.ErrInvalidStatusTransition
+		}
+	}
+	return err
+}
+
+// --- soft-delete helpers (jobs-soft-delete slice, design D1/D3) -------------
+
+// buildSoftDeleteJobParams translates the soft-delete input
+// `(id, companyID, casUpdatedAt)` into the sqlc `SoftDeleteJobParams`
+// struct. The arg order is pinned by first textual appearance in the
+// D1 SQL:
+//
+//   - `company_id` first appears in the `active` CTE,
+//   - `id` next in the UPDATE `WHERE`,
+//   - `cas_token` last in the UPDATE `WHERE`.
+//
+// The generated struct mirrors this order; a SQL drift fails the
+// adapter compile (D7). `CasToken` is unconditionally wrapped as
+// `Valid=true` so the SQL WHERE receives a real timestamptz even when
+// the use case falls through with a zero time (the use case's CAS
+// compare would have caught the zero token earlier as a 409, but the
+// adapter must not silently substitute NULL on this path — D2 contract
+// is "the adapter is dumb and surfaces the row outcome as-is").
+func buildSoftDeleteJobParams(id, companyID uuid.UUID, casUpdatedAt time.Time) db.SoftDeleteJobParams {
+	return db.SoftDeleteJobParams{
+		CompanyID: companyID,
+		ID:        id,
+		CasToken:  pgtype.Timestamptz{Time: casUpdatedAt, Valid: true},
+	}
+}
+
+// mapSoftDeleteError translates Postgres errors surfaced by SoftDeleteJob
+// into domain sentinels. Mirrors `mapUpdateError` exactly (the
+// soft-delete query is an `UPDATE`, not an `INSERT`, so it inherits
+// Update's error surface, not Create's). The minimal SET list
+// (`deleted_at`, `updated_at`) cannot trip the
+// `jobs_published_integrity_check` on the designed flow, so `23514` is
+// defense-in-depth kept to mirror `mapUpdateError`.
+//
+// Ordering vs the existing `23514` branch: `pgx.ErrNoRows` is checked
+// BEFORE the `errors.As` into `*pgconn.PgError` so the two checks
+// coexist (pgx.ErrNoRows is not a *pgconn.PgError, so there is no
+// precedence conflict).
+//
+// Mapping contract:
+//
+//   - nil                                → nil (pass-through)
+//   - pgx.ErrNoRows                      → entities.ErrCompanyNotActive
+//     (defense-in-depth;
+//     unreachable via the
+//     designed flow — the
+//     :one scalar SELECT
+//     always yields one row)
+//   - 23514 (check_violation on
+//     jobs_*_check constraints)          → entities.ErrInvalidStatusTransition
+//     (defense-in-depth;
+//     unreachable via the
+//     designed flow — the
+//     minimal SET list
+//     touches neither
+//     `status` nor
+//     `published_at`)
+//   - Any other PgError (unknown code)   → pass-through (HTTP 500)
+//   - Any non-pg error (connection, ctx) → pass-through (HTTP 500)
+//
+// NO `23503` (foreign_key_violation on jobs.company_id) mapping — D3:
+// soft-delete never inserts or reassigns `company_id`; a FK violation
+// on `company_id` is impossible on this path. (Update is similarly
+// silent on 23503; only Create maps it to ErrCompanyGone.)
+func mapSoftDeleteError(err error) error {
+	if err == nil {
+		return nil
+	}
+	// Defense-in-depth: pgx.ErrNoRows → ErrCompanyNotActive. Mirrors
+	// mapUpdateError; unreachable on the designed flow but kept so a
 	// future query-shape drift doesn't silently leak a 500 to the HTTP
 	// layer (the active-company gate must produce 409, not 500).
 	if errors.Is(err, pgx.ErrNoRows) {

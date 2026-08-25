@@ -88,6 +88,23 @@ type writeStubRepo struct {
 	lastCreateID      uuid.UUID
 	lastCreateCompany uuid.UUID
 	lastCreateParams  repositories.CreateJobParams
+
+	// --- SoftDelete (jobs-soft-delete Phase 1.2) ---------------------
+
+	// softDeleteErr is the error returned by SoftDelete. Default nil =
+	// success path. The Phase 1 use-case tests program this field to
+	// drive ErrCompanyNotActive / ErrJobNotFound propagation paths.
+	softDeleteErr error
+
+	// softDeleteCalls / lastSoftDeleteID / lastSoftDeleteCompany /
+	// lastSoftDeleteCas record what the use case forwarded to the repo
+	// on the most recent SoftDelete call. The CAS pin proves the use
+	// case forwarded `current.UpdatedAt` (read at step 1) as the
+	// cas_token, not the original `ifUnmodifiedSince` header value.
+	softDeleteCalls       int
+	lastSoftDeleteID      uuid.UUID
+	lastSoftDeleteCompany uuid.UUID
+	lastSoftDeleteCas     time.Time
 }
 
 type getForUpdateResponse struct {
@@ -145,6 +162,22 @@ func (s *writeStubRepo) Create(_ context.Context, id, companyID uuid.UUID, param
 		return nil, s.createErr
 	}
 	return nil, nil
+}
+
+// SoftDelete is a port-method stub (jobs-soft-delete Phase 1.2). The
+// default behavior mirrors the postgres adapter's success path: returns
+// softDeleteErr (default nil) so the package compiles and pre-Phase-1
+// tests are not surprised. The Phase 1 SoftDeleteJob tests program
+// softDeleteErr to drive the ErrCompanyNotActive / ErrJobNotFound
+// propagation paths, and assert on softDeleteCalls / lastSoftDeleteID /
+// lastSoftDeleteCompany / lastSoftDeleteCas to pin what the use case
+// forwarded to the repo.
+func (s *writeStubRepo) SoftDelete(_ context.Context, id, companyID uuid.UUID, casUpdatedAt time.Time) error {
+	s.softDeleteCalls++
+	s.lastSoftDeleteID = id
+	s.lastSoftDeleteCompany = companyID
+	s.lastSoftDeleteCas = casUpdatedAt
+	return s.softDeleteErr
 }
 
 // Compile-time guard: the stub satisfies the domain port.

@@ -31,6 +31,13 @@ type stubJobRepo struct {
 	// tests program this method directly via the dedicated
 	// writeStubRepo fixture (updateJob_test.go).
 	createErr error
+
+	// SoftDelete (port-method stub added in jobs-soft-delete Phase 1.2
+	// atomic stub repair). Default nil keeps the port compilable and the
+	// existing read tests green; Phase 1 use-case tests program this
+	// method directly via the dedicated writeStubRepo fixture
+	// (updateJob_test.go).
+	softDeleteErr error
 }
 
 func (s *stubJobRepo) Search(_ context.Context, p SearchParams) ([]entities.Job, error) {
@@ -63,6 +70,14 @@ func (s *stubJobRepo) Update(_ context.Context, _, _ uuid.UUID, _ UpdatePatch, _
 // postgres adapter returns when the company is non-active.
 func (s *stubJobRepo) Create(_ context.Context, _, _ uuid.UUID, _ CreateJobParams) (*entities.JobForUpdate, error) {
 	return nil, s.createErr
+}
+
+// SoftDelete is a port-method stub (jobs-soft-delete Phase 1.2 atomic
+// stub repair). Default nil keeps the package compilable; the Phase 1
+// use-case tests assert on a dedicated writeStubRepo fixture
+// (updateJob_test.go) so this stub intentionally stays dumb.
+func (s *stubJobRepo) SoftDelete(_ context.Context, _, _ uuid.UUID, _ time.Time) error {
+	return s.softDeleteErr
 }
 
 // TestJobRepository_StubSatisfiesPort is the compile-time + runtime
