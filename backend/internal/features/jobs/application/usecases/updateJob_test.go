@@ -184,14 +184,19 @@ func mustUUID(s string) uuid.UUID {
 	return uuid.MustParse(s)
 }
 
-// --- isTransitionAllowed (design D5) ------------------------------------
+// --- isTransitionAllowed (design D4/D5) ----------------------------------
 
 // TestIsTransitionAllowed_FullTable covers every cell of the 3x3
 // transition matrix:
 //
-//	draft     → {draft, published}    (allowed)
-//	published → {published, closed}   (allowed)
-//	closed    → nothing               (rejected; closed is terminal)
+//	draft     → {draft, published}        (allowed)
+//	published → {published, closed}       (allowed)
+//	closed    → {draft, published}        (allowed — re-open)
+//	closed    → closed                    (rejected — no-op write)
+//
+// Re-open semantics are pinned by the jobs-reopen delta spec (S24/S25).
+// The matrix keeps `closed → closed` rejected (S4) so the no-op write
+// still surfaces as 400.
 func TestIsTransitionAllowed_FullTable(t *testing.T) {
 	tests := []struct {
 		from valueobjects.JobStatus
@@ -204,8 +209,10 @@ func TestIsTransitionAllowed_FullTable(t *testing.T) {
 		{valueobjects.Published, valueobjects.Draft, false},
 		{valueobjects.Published, valueobjects.Published, true},
 		{valueobjects.Published, valueobjects.Closed, true},
-		{valueobjects.Closed, valueobjects.Draft, false},
-		{valueobjects.Closed, valueobjects.Published, false},
+		// Closed → {Draft, Published} are the two re-open transitions
+		// (S24, S25). Closed → Closed is the rejected no-op (S4).
+		{valueobjects.Closed, valueobjects.Draft, true},
+		{valueobjects.Closed, valueobjects.Published, true},
 		{valueobjects.Closed, valueobjects.Closed, false},
 	}
 	for _, tt := range tests {
@@ -346,10 +353,14 @@ func TestEditJob_NotFoundPropagates(t *testing.T) {
 
 // --- closed terminal rule (design D5) -----------------------------------
 
-// TestEditJob_ClosedTerminalAnyBodyRejects covers the spec scenario
-// "closed is terminal": a row in `closed` status rejects ANY body —
-// even field-only edits with no status field.
-func TestEditJob_ClosedTerminalAnyBodyRejects(t *testing.T) {
+// TestEditJob_ClosedFieldOnlyRejects covers the delta spec scenario
+// "field-only PATCH on a closed row returns 400 invalid status transition"
+// (S8). A closed row is frozen for content: the only escape is an
+// explicit `closed → {draft, published}` transition. This test used to
+// pin the obsolete "closed is terminal" rule; under the jobs-reopen
+// delta, the rejection is narrowed to the field-only case (no `status`
+// key in the body) — a re-open with `status="draft"` is ALLOWED (S24).
+func TestEditJob_ClosedFieldOnlyRejects(t *testing.T) {
 	jobID := uuid.New()
 	companyID := uuid.New()
 	current := time.Now().UTC()
@@ -368,17 +379,22 @@ func TestEditJob_ClosedTerminalAnyBodyRejects(t *testing.T) {
 		t.Fatalf("err: want ErrInvalidStatusTransition, got %v", err)
 	}
 	if view != nil {
-		t.Errorf("view: want nil on closed-terminal rejection, got %+v", view)
+		t.Errorf("view: want nil on closed-field-only rejection, got %+v", view)
 	}
 	if repo.updateCalls != 0 {
-		t.Errorf("Update must NOT be called on closed-terminal rejection, got %d", repo.updateCalls)
+		t.Errorf("Update must NOT be called on closed-field-only rejection, got %d", repo.updateCalls)
 	}
 }
 
-// TestEditJob_ClosedTerminalStatusAnyRejected explicitly tries a
-// status transition from closed (any target is illegal per the
-// transition table).
-func TestEditJob_ClosedTerminalStatusAnyRejected(t *testing.T) {
+// TestEditJob_ClosedToClosedRejects covers the delta spec scenario
+// "closed → closed (no-op) returns 400 invalid status transition" (S4).
+// A no-op write against a closed row is meaningless; the transition
+// table rejects it even though `closed → closed` would otherwise
+// collapse to the same status. The closed-terminal early-return is
+// bypassed only when the body explicitly sets `status` to draft or
+// published — `status="closed"` is neither, so it falls through to the
+// transition table's `Closed → Closed = false` branch.
+func TestEditJob_ClosedToClosedRejects(t *testing.T) {
 	jobID := uuid.New()
 	companyID := uuid.New()
 	current := time.Now().UTC()
@@ -391,10 +407,13 @@ func TestEditJob_ClosedTerminalStatusAnyRejected(t *testing.T) {
 	svc := NewJobService(repo)
 
 	_, err := svc.EditJob(context.Background(), companyID, jobID, dtos.UpdateJobDto{
-		Status: dtosString("draft"),
+		Status: dtosString("closed"),
 	}, current)
 	if !errors.Is(err, entities.ErrInvalidStatusTransition) {
 		t.Fatalf("err: want ErrInvalidStatusTransition, got %v", err)
+	}
+	if repo.updateCalls != 0 {
+		t.Errorf("Update must NOT be called on closed->closed rejection, got %d", repo.updateCalls)
 	}
 }
 
@@ -835,4 +854,271 @@ func TestEditJob_UseCaseReceivesCompanyIDFromCaller(t *testing.T) {
 	// Sanity: bodyCompany was NEVER seen by the repo (proves the DTO does
 	// not surface any company_id field).
 	_ = bodyCompany
+}
+
+// --- re-open transitions (jobs-reopen delta, design D4/D5) ----------------
+
+// TestEditJob_ClosedToDraftReopens covers the delta spec scenario
+// "closed → draft re-opens the row to draft" (S1, S24). The use case
+// must bypass the closed-terminal early-return and forward `Status:
+// Draft` to the adapter; the success path re-reads and returns the
+// authoritative view.
+func TestEditJob_ClosedToDraftReopens(t *testing.T) {
+	jobID := uuid.New()
+	companyID := uuid.New()
+	current := time.Now().UTC()
+
+	// First GetForUpdate returns the closed row; the second returns the
+	// post-update authoritative view (draft).
+	repo := &writeStubRepo{
+		getForUpdateResponses: []getForUpdateResponse{
+			{job: makeJobForUpdate(jobID, companyID, valueobjects.Closed, current)},
+			{job: makeJobForUpdate(jobID, companyID, valueobjects.Draft, current.Add(time.Second))},
+		},
+	}
+	svc := NewJobService(repo)
+
+	view, err := svc.EditJob(context.Background(), companyID, jobID, dtos.UpdateJobDto{
+		Status: dtosString("draft"),
+	}, current)
+	if err != nil {
+		t.Fatalf("EditJob: want nil on closed->draft re-open, got %v", err)
+	}
+	if view == nil {
+		t.Fatal("view: want non-nil on success, got nil")
+	}
+	if view.Status != "draft" {
+		t.Errorf("Status: want \"draft\", got %q", view.Status)
+	}
+	if repo.updateCalls != 1 {
+		t.Errorf("Update calls: want 1, got %d", repo.updateCalls)
+	}
+	if repo.lastUpdatePatch.Status == nil {
+		t.Fatal("Update patch.Status: want non-nil pointer, got nil")
+	}
+	if *repo.lastUpdatePatch.Status != valueobjects.Draft {
+		t.Errorf("Update patch.Status: want Draft, got %v", *repo.lastUpdatePatch.Status)
+	}
+}
+
+// TestEditJob_ClosedToPublishedReopens covers the delta spec scenario
+// "closed → published re-opens the row and preserves the original
+// published_at" (S2, S25). The use case must forward `Status:
+// Published`; the SQL guard preserves `published_at` as audit history
+// (verified at the integration layer; here we pin the use case's
+// transition + patch shape).
+func TestEditJob_ClosedToPublishedReopens(t *testing.T) {
+	jobID := uuid.New()
+	companyID := uuid.New()
+	current := time.Now().UTC()
+
+	repo := &writeStubRepo{
+		getForUpdateResponses: []getForUpdateResponse{
+			{job: makeJobForUpdate(jobID, companyID, valueobjects.Closed, current)},
+			{job: makeJobForUpdate(jobID, companyID, valueobjects.Published, current.Add(time.Second))},
+		},
+	}
+	svc := NewJobService(repo)
+
+	view, err := svc.EditJob(context.Background(), companyID, jobID, dtos.UpdateJobDto{
+		Status: dtosString("published"),
+	}, current)
+	if err != nil {
+		t.Fatalf("EditJob: want nil on closed->published re-open, got %v", err)
+	}
+	if view == nil {
+		t.Fatal("view: want non-nil on success, got nil")
+	}
+	if view.Status != "published" {
+		t.Errorf("Status: want \"published\", got %q", view.Status)
+	}
+	if repo.updateCalls != 1 {
+		t.Errorf("Update calls: want 1, got %d", repo.updateCalls)
+	}
+	if repo.lastUpdatePatch.Status == nil {
+		t.Fatal("Update patch.Status: want non-nil pointer, got nil")
+	}
+	if *repo.lastUpdatePatch.Status != valueobjects.Published {
+		t.Errorf("Update patch.Status: want Published, got %v", *repo.lastUpdatePatch.Status)
+	}
+}
+
+// TestEditJob_ClosedStatusAbsentLeavesClosed covers the delta spec
+// scenario "PATCH with status absent on a closed row leaves status
+// unchanged" (S9). A field-only body (no `status` key) against a closed
+// row is rejected with 400 (the closed-terminal early-return bypasses
+// only when the patch explicitly sets `status`); `Update` is NOT called
+// so the row's status remains `"closed"` (proved by the no-call pin).
+func TestEditJob_ClosedStatusAbsentLeavesClosed(t *testing.T) {
+	jobID := uuid.New()
+	companyID := uuid.New()
+	current := time.Now().UTC()
+
+	repo := &writeStubRepo{
+		getForUpdateResponses: []getForUpdateResponse{
+			{job: makeJobForUpdate(jobID, companyID, valueobjects.Closed, current)},
+		},
+	}
+	svc := NewJobService(repo)
+
+	view, err := svc.EditJob(context.Background(), companyID, jobID, dtos.UpdateJobDto{
+		Description: dtosString("New body"), // field-only, no status
+	}, current)
+	if !errors.Is(err, entities.ErrInvalidStatusTransition) {
+		t.Fatalf("err: want ErrInvalidStatusTransition, got %v", err)
+	}
+	if view != nil {
+		t.Errorf("view: want nil on closed field-only rejection, got %+v", view)
+	}
+	if repo.updateCalls != 0 {
+		t.Errorf("Update must NOT be called when status absent on closed row, got %d", repo.updateCalls)
+	}
+}
+
+// --- atomic re-open + field mix (design D4/D5, S6/S7/S19) ----------------
+
+// TestEditJob_ClosedToDraftWithTitleApplies covers the delta spec
+// scenario "closed → draft + title edit applies atomically" (S6).
+// The use case must build a single UpdatePatch carrying BOTH `Status:
+// Draft` AND `Title`, then call Update exactly once — the transition
+// and the field edit are applied in the same SQL UPDATE.
+func TestEditJob_ClosedToDraftWithTitleApplies(t *testing.T) {
+	jobID := uuid.New()
+	companyID := uuid.New()
+	current := time.Now().UTC()
+
+	repo := &writeStubRepo{
+		getForUpdateResponses: []getForUpdateResponse{
+			{job: makeJobForUpdate(jobID, companyID, valueobjects.Closed, current)},
+			{job: makeJobForUpdate(jobID, companyID, valueobjects.Draft, current.Add(time.Second))},
+		},
+	}
+	svc := NewJobService(repo)
+
+	_, err := svc.EditJob(context.Background(), companyID, jobID, dtos.UpdateJobDto{
+		Status: dtosString("draft"),
+		Title:  dtosString("New"),
+	}, current)
+	if err != nil {
+		t.Fatalf("EditJob: want nil on atomic closed->draft+title, got %v", err)
+	}
+	if repo.updateCalls != 1 {
+		t.Errorf("Update calls: want exactly 1 (atomic), got %d", repo.updateCalls)
+	}
+	if repo.lastUpdatePatch.Status == nil || *repo.lastUpdatePatch.Status != valueobjects.Draft {
+		t.Errorf("Update patch.Status: want Draft, got %v", repo.lastUpdatePatch.Status)
+	}
+	if repo.lastUpdatePatch.Title == nil || *repo.lastUpdatePatch.Title != "New" {
+		t.Errorf("Update patch.Title: want \"New\", got %v", repo.lastUpdatePatch.Title)
+	}
+}
+
+// TestEditJob_ClosedToPublishedWithDescriptionApplies covers the
+// delta spec scenario "closed → published + description edit applies
+// atomically and regenerates search_vector" (S7). The use case must
+// build a single UpdatePatch carrying BOTH `Status: Published` AND
+// `Description`; the SQL UPDATE sets status, description, and the
+// STORED search_vector in one statement.
+func TestEditJob_ClosedToPublishedWithDescriptionApplies(t *testing.T) {
+	jobID := uuid.New()
+	companyID := uuid.New()
+	current := time.Now().UTC()
+
+	repo := &writeStubRepo{
+		getForUpdateResponses: []getForUpdateResponse{
+			{job: makeJobForUpdate(jobID, companyID, valueobjects.Closed, current)},
+			{job: makeJobForUpdate(jobID, companyID, valueobjects.Published, current.Add(time.Second))},
+		},
+	}
+	svc := NewJobService(repo)
+
+	_, err := svc.EditJob(context.Background(), companyID, jobID, dtos.UpdateJobDto{
+		Status:      dtosString("published"),
+		Description: dtosString("new body"),
+	}, current)
+	if err != nil {
+		t.Fatalf("EditJob: want nil on atomic closed->published+description, got %v", err)
+	}
+	if repo.updateCalls != 1 {
+		t.Errorf("Update calls: want exactly 1 (atomic), got %d", repo.updateCalls)
+	}
+	if repo.lastUpdatePatch.Status == nil || *repo.lastUpdatePatch.Status != valueobjects.Published {
+		t.Errorf("Update patch.Status: want Published, got %v", repo.lastUpdatePatch.Status)
+	}
+	if repo.lastUpdatePatch.Description == nil || *repo.lastUpdatePatch.Description != "new body" {
+		t.Errorf("Update patch.Description: want \"new body\", got %v", repo.lastUpdatePatch.Description)
+	}
+}
+
+// --- re-open CAS + gate propagation (S14, S28, S29) ----------------------
+
+// TestEditJob_ClosedReopenStaleCASReturnsConflict covers the delta spec
+// scenario "re-open with a stale If-Unmodified-Since returns 409 with
+// the latest editor view" (S14). The CAS compare fires BEFORE the
+// transition check (step 2 precedes step 4), so a stale token on a
+// closed row is rejected with `(latestEditorView, ErrConcurrencyConflict)`
+// and `Update` is NOT called — the same shape as the pre-existing
+// `TestEditJob_CASMismatchReturnsConflict`.
+func TestEditJob_ClosedReopenStaleCASReturnsConflict(t *testing.T) {
+	jobID := uuid.New()
+	companyID := uuid.New()
+	current := time.Now().UTC()
+
+	repo := &writeStubRepo{
+		getForUpdateResponses: []getForUpdateResponse{
+			{job: makeJobForUpdate(jobID, companyID, valueobjects.Closed, current)},
+		},
+	}
+	svc := NewJobService(repo)
+
+	view, err := svc.EditJob(context.Background(), companyID, jobID, dtos.UpdateJobDto{
+		Status: dtosString("draft"),
+	}, current.Add(-1*time.Hour)) // stale
+	if !errors.Is(err, entities.ErrConcurrencyConflict) {
+		t.Fatalf("err: want ErrConcurrencyConflict, got %v", err)
+	}
+	if view == nil {
+		t.Fatal("view: want non-nil on CAS conflict, got nil")
+	}
+	if repo.updateCalls != 0 {
+		t.Errorf("Update must NOT be called on stale-CAS re-open, got %d", repo.updateCalls)
+	}
+}
+
+// TestEditJob_UpdateErrCompanyNotActivePropagates covers the delta spec
+// scenario "409 for a non-active company carries 'company is not
+// active'" (S29). The new atomic active-company SQL guard surfaces
+// ErrCompanyNotActive from the adapter; the use case must propagate it
+// UNTOUCHED (no `ErrJobNotFound` re-read special-case fires), and must
+// NOT re-read (the row is unchanged by the gate miss).
+func TestEditJob_UpdateErrCompanyNotActivePropagates(t *testing.T) {
+	jobID := uuid.New()
+	companyID := uuid.New()
+	current := time.Now().UTC()
+
+	repo := &writeStubRepo{
+		getForUpdateResponses: []getForUpdateResponse{
+			{job: makeJobForUpdate(jobID, companyID, valueobjects.Closed, current)},
+		},
+		updateErr: entities.ErrCompanyNotActive,
+	}
+	svc := NewJobService(repo)
+
+	view, err := svc.EditJob(context.Background(), companyID, jobID, dtos.UpdateJobDto{
+		Status: dtosString("draft"),
+	}, current)
+	if !errors.Is(err, entities.ErrCompanyNotActive) {
+		t.Fatalf("err: want ErrCompanyNotActive, got %v", err)
+	}
+	if view != nil {
+		t.Errorf("view: want nil on ErrCompanyNotActive propagation, got %+v", view)
+	}
+	if repo.updateCalls != 1 {
+		t.Errorf("Update calls: want exactly 1 (gate evaluated), got %d", repo.updateCalls)
+	}
+	// Gate error must NOT trigger the ErrJobNotFound re-read: getForUpdateCalls
+	// stays at 1 (the initial read), not 2.
+	if repo.getForUpdateCalls != 1 {
+		t.Errorf("GetForUpdate calls: want 1 (no re-read on gate miss), got %d", repo.getForUpdateCalls)
+	}
 }

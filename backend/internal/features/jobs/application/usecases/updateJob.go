@@ -5,7 +5,7 @@
 //  1. Read for update         (GetForUpdate)
 //  2. CAS compare             (If-Unmodified-Since)
 //  3. VO parse                (closed-set fields, status)
-//  4. Transition check        (closed-terminal rule + transition table)
+//  4. Transition check        (closed-terminal bypass + transition table)
 //  5. Validation              (title/description non-empty,
 //     salary_min <= salary_max)
 //  6. Build patch             (UpdatePatch)
@@ -35,21 +35,30 @@ import (
 	"github.com/google/uuid"
 )
 
-// isTransitionAllowed encodes the D5/D9 transition table as a pure
-// helper (unit-tested in updateJob_test.go). The "closed is terminal"
-// rule is enforced as a separate early branch in EditJob so it
-// rejects ANY body on a closed row — including field-only edits with
-// no `status` field (the spec scenario "closed is terminal").
+// isTransitionAllowed encodes the transition table as a pure helper
+// (unit-tested in updateJob_test.go). The table has three from-rows:
 //
-// Closed status also returns false here, so the closed-terminal rule
-// and the transition table cover the same case from different angles
-// (defense-in-depth).
+//	draft     → {draft, published}        (allowed)
+//	published → {published, closed}       (allowed)
+//	closed    → {draft, published}        (allowed — re-open)
+//
+// `closed → closed` is intentionally NOT in the table (returns false)
+// so the no-op write is rejected (spec S4). The `default: return false`
+// branch is preserved: it catches unknown from-statuses (defense-in-
+// depth against `JobStatus(99)`-style values that the DB CHECK should
+// already prevent) and must NOT be relaxed.
+//
+// The closed-terminal early-return that rejects field-only PATCHes on
+// a closed row lives separately in EditJob (D5); it bypasses ONLY when
+// the patch explicitly sets `status` to draft or published.
 func isTransitionAllowed(from, to valueobjects.JobStatus) bool {
 	switch from {
 	case valueobjects.Draft:
 		return to == valueobjects.Draft || to == valueobjects.Published
 	case valueobjects.Published:
 		return to == valueobjects.Published || to == valueobjects.Closed
+	case valueobjects.Closed:
+		return to == valueobjects.Draft || to == valueobjects.Published
 	default:
 		return false
 	}
@@ -150,11 +159,20 @@ func (s *JobService) EditJob(
 		patch.Status = &st
 	}
 
-	// 4. Transition check — closed-terminal rule first (the spec
-	// scenario "closed is terminal" rejects ANY body, even field-only
-	// edits with no status field). Then the transition table.
+	// 4. Transition check — closed-terminal rule first, but a closed
+	// row may re-open when the patch explicitly sets `status` to draft
+	// or published (jobs-reopen slice). Everything else on a closed row
+	// stays rejected:
+	//   - field-only body (no `status` key)  → 400 invalid status transition (S8, S9)
+	//   - status="closed"                     → 400 invalid status transition (S4)
+	//   - status="draft" or "published"       → bypass → transition table allows (S24, S25)
+	//   - draft / published + any status      → closed branch skipped → transition table runs
 	if current.JobStatus == valueobjects.Closed {
-		return nil, entities.ErrInvalidStatusTransition
+		reopens := newStatus != nil &&
+			(*newStatus == valueobjects.Draft || *newStatus == valueobjects.Published)
+		if !reopens {
+			return nil, entities.ErrInvalidStatusTransition
+		}
 	}
 	if newStatus != nil && !isTransitionAllowed(current.JobStatus, *newStatus) {
 		return nil, entities.ErrInvalidStatusTransition
