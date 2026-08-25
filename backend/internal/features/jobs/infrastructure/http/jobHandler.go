@@ -70,8 +70,8 @@ func (h *JobHandler) Routes() chi.Router {
 // JobHandlers exposes each endpoint as a public http.HandlerFunc so
 // the composition root (cmd/api/main.go) can apply per-method
 // middleware — specifically, the per-route RequireAuth + RequireCompanyRole
-// gates for PATCH /jobs/{id}. Mirrors MemberHandlers() in
-// companies/.../memberHandler.go.
+// gates for PATCH /jobs/{id} and POST /jobs. Mirrors MemberHandlers()
+// in companies/.../memberHandler.go.
 //
 // Each field is a thin http.HandlerFunc adapter over the unexported
 // method body; the unexported bodies stay in this file so the
@@ -80,6 +80,7 @@ type JobHandlers struct {
 	ListJobs  http.HandlerFunc
 	GetJob    http.HandlerFunc
 	UpdateJob http.HandlerFunc
+	CreateJob http.HandlerFunc
 }
 
 // JobHandlers returns the per-endpoint http.HandlerFunc surface for
@@ -89,6 +90,7 @@ func (h *JobHandler) JobHandlers() JobHandlers {
 		ListJobs:  http.HandlerFunc(h.listJobs),
 		GetJob:    http.HandlerFunc(h.getJob),
 		UpdateJob: http.HandlerFunc(h.updateJob),
+		CreateJob: http.HandlerFunc(h.createJob),
 	}
 }
 
@@ -210,6 +212,44 @@ func (h *JobHandler) updateJob(w http.ResponseWriter, r *http.Request) {
 	httpjson.WriteJSON(w, http.StatusOK, view)
 }
 
+// createJob implements `POST /jobs` (design D9). It is mounted in
+// main.go behind `r.With(requireAuth, requireRecruiter).Post(...)`.
+//
+// Flow:
+//  1. requireCompanyContext (fail-closed 500 if missing -- same
+//     invariant as updateJob; a routing misconfiguration must be
+//     loud, not a misleading 401).
+//  2. Decode the body as CreateJobDto (400 on malformed JSON).
+//  3. Invoke CreateJob with the caller's CompanyID.
+//  4. classifyAndWriteError on err (the dispatcher covers 400/409/500).
+//  5. Success -> 201 + JobEditorViewDto.
+//
+// No path `{id}`, no `If-Unmodified-Since` parse -- create has no
+// CAS. `company_id` comes exclusively from `requireCompanyContext`
+// (the middleware injected `CompanyContext`); the DTO has no
+// `company_id` field, so any body value is silently dropped by
+// encoding/json (spec scenario "company_id from body is ignored").
+func (h *JobHandler) createJob(w http.ResponseWriter, r *http.Request) {
+	cc, ok := requireCompanyContext(w, r)
+	if !ok {
+		return
+	}
+
+	var in dtos.CreateJobDto
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	view, err := h.service.CreateJob(r.Context(), cc.CompanyID, in)
+	if err != nil {
+		h.classifyAndWriteError(w, r, err)
+		return
+	}
+
+	httpjson.WriteJSON(w, http.StatusCreated, view)
+}
+
 // --- classification & helpers -------------------------------------------
 
 // classifyAndWriteError centralizes the ErrJobNotFound → 404 / any
@@ -232,6 +272,8 @@ func (h *JobHandler) classifyAndWriteError(w http.ResponseWriter, r *http.Reques
 //	ErrJobNotFound              → 404 "job not found"
 //	ErrConcurrencyConflict      → 409 "conflict"          (fallback; updateJob writes view first)
 //	ErrInvalidStatusTransition  → 400 "invalid status transition"
+//	ErrCompanyNotActive         → 409 "company is not active"   (POST /jobs)
+//	ErrCompanyGone              → 409 "company is gone"         (POST /jobs, defense-in-depth)
 //	ErrEmptyTitle               → 400 "title must not be empty"
 //	ErrEmptyDescription         → 400 "description must not be empty"
 //	ErrInvalidSalaryRange       → 400 "salary_min must be less than or equal to salary_max"
@@ -244,6 +286,13 @@ func (h *JobHandler) classifyAndWriteError(w http.ResponseWriter, r *http.Reques
 //
 // Adding a new sentinel means adding one branch here; no other call
 // site needs to change.
+//
+// Both ErrCompanyNotActive and ErrCompanyGone map to 409: the caller
+// is already an admitted member (RequireCompanyRole resolved a real
+// membership), so the reject is a server-side company-state conflict
+// — never 403 (membership is fine) and never 404 (would leak
+// company/row existence). ErrCompanyGone is unreachable and shares
+// the 409 class with ErrCompanyNotActive (design D9 §6.2).
 func classifyError(err error) (int, string) {
 	switch {
 	case errors.Is(err, entities.ErrJobNotFound):
@@ -252,6 +301,10 @@ func classifyError(err error) (int, string) {
 		return http.StatusConflict, "conflict"
 	case errors.Is(err, entities.ErrInvalidStatusTransition):
 		return http.StatusBadRequest, "invalid status transition"
+	case errors.Is(err, entities.ErrCompanyNotActive):
+		return http.StatusConflict, "company is not active"
+	case errors.Is(err, entities.ErrCompanyGone):
+		return http.StatusConflict, "company is gone"
 	case errors.Is(err, entities.ErrEmptyTitle):
 		return http.StatusBadRequest, "title must not be empty"
 	case errors.Is(err, entities.ErrEmptyDescription):

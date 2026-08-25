@@ -142,7 +142,7 @@ Confirm `toEditorView` is the ONLY editor projection (createJob.go calls the `up
 ## Phase 5 — HTTP: `createJob` handler + `classifyError` (RED → GREEN)
 
 ### 5.1 RED — Handler + route-boundary tests (D9 §6.2, spec "Create Route Security Boundary")
-- [ ] 5.1 RED — Write the handler and route-boundary tests. <!-- sdd-owner: implementation -->
+- [x] 5.1 RED — Write the handler and route-boundary tests. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/infrastructure/http/createJobHandler_test.go` (new; mirror `newUpdateJobRouter` in updateJobHandler_test.go → a `newCreateJobRouter(repo, cc)` mounting `h.JobHandlers().CreateJob` at `r.Post("/jobs", …)` with CompanyContext injection):
 - Business scenarios: missing CompanyContext → **500** fail-closed; malformed JSON → 400 `{"error":"invalid JSON body"}`; success → **201** with the body decoding as `dtos.JobEditorViewDto` carrying `status="draft"`, a server-set `updated_at`, and `company{id,name}` (spec "Create Response"); stub returns `ErrCompanyNotActive` → **409** `{"error":"company is not active"}`; empty title / unknown VO / salary range (stub-driven) → 400; body `company_id` ignored (stub records the CompanyContext id, never the body value — spec "company_id from body is ignored"); body `{"status":"published"}` → still 201 with `status="draft"` (spec "status field is not accepted on create").
@@ -152,7 +152,7 @@ Confirm `toEditorView` is the ONLY editor projection (createJob.go calls the `up
 - Verify: `cd backend && go test ./internal/features/jobs/infrastructure/http/ -run 'CreateJob|Classify'` → **RED** (compile error: `createJob`/`JobHandlers.CreateJob` missing).
 
 ### 5.2 GREEN — Implement the handler surface (D9 §6.2)
-- [ ] 5.2 GREEN — Implement `createJob`, the accessor field, and the classify branches. <!-- sdd-owner: implementation -->
+- [x] 5.2 GREEN — Implement `createJob`, the accessor field, and the classify branches. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/infrastructure/http/jobHandler.go` (MOD): per D9 §6.2 —
 - `createJob`: `requireCompanyContext` (fail-closed 500 if absent — the existing helper) → `json.NewDecoder(r.Body).Decode(&in)` into `dtos.CreateJobDto` (400 `invalid JSON body` on error) → `view, err := h.service.CreateJob(r.Context(), cc.CompanyID, in)` → `classifyAndWriteError` on err, else `httpjson.WriteJSON(w, http.StatusCreated, view)`. No path `{id}`, no `If-Unmodified-Since` parse (create has no CAS).
