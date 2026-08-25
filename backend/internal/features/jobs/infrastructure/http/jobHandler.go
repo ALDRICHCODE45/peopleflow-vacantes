@@ -70,27 +70,29 @@ func (h *JobHandler) Routes() chi.Router {
 // JobHandlers exposes each endpoint as a public http.HandlerFunc so
 // the composition root (cmd/api/main.go) can apply per-method
 // middleware — specifically, the per-route RequireAuth + RequireCompanyRole
-// gates for PATCH /jobs/{id} and POST /jobs. Mirrors MemberHandlers()
-// in companies/.../memberHandler.go.
+// gates for PATCH /jobs/{id}, POST /jobs, and DELETE /jobs/{id}.
+// Mirrors MemberHandlers() in companies/.../memberHandler.go.
 //
 // Each field is a thin http.HandlerFunc adapter over the unexported
 // method body; the unexported bodies stay in this file so the
 // handler stays the single source of truth for endpoint logic.
 type JobHandlers struct {
-	ListJobs  http.HandlerFunc
-	GetJob    http.HandlerFunc
-	UpdateJob http.HandlerFunc
-	CreateJob http.HandlerFunc
+	ListJobs      http.HandlerFunc
+	GetJob        http.HandlerFunc
+	UpdateJob     http.HandlerFunc
+	CreateJob     http.HandlerFunc
+	SoftDeleteJob http.HandlerFunc
 }
 
 // JobHandlers returns the per-endpoint http.HandlerFunc surface for
 // main.go to mount with per-method middleware.
 func (h *JobHandler) JobHandlers() JobHandlers {
 	return JobHandlers{
-		ListJobs:  http.HandlerFunc(h.listJobs),
-		GetJob:    http.HandlerFunc(h.getJob),
-		UpdateJob: http.HandlerFunc(h.updateJob),
-		CreateJob: http.HandlerFunc(h.createJob),
+		ListJobs:      http.HandlerFunc(h.listJobs),
+		GetJob:        http.HandlerFunc(h.getJob),
+		UpdateJob:     http.HandlerFunc(h.updateJob),
+		CreateJob:     http.HandlerFunc(h.createJob),
+		SoftDeleteJob: http.HandlerFunc(h.softDeleteJob),
 	}
 }
 
@@ -248,6 +250,65 @@ func (h *JobHandler) createJob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpjson.WriteJSON(w, http.StatusCreated, view)
+}
+
+// softDeleteJob implements `DELETE /jobs/{id}` (jobs-soft-delete
+// slice, design D8). It is mounted in main.go behind
+// `r.With(requireAuth, requireRecruiter).Delete(...)`.
+//
+// Flow:
+//  1. requireCompanyContext (fail-closed 500 if missing — same
+//     invariant as updateJob / createJob; a routing misconfiguration
+//     must be loud, not a misleading 401).
+//  2. Parse the path `{id}` as UUID (400 on malformed).
+//  3. Parse `If-Unmodified-Since` (RFC 3339; absent/malformed → zero
+//     time, which the use case treats as a CAS mismatch).
+//  4. Invoke SoftDeleteJob with the caller's CompanyID.
+//  5. ErrConcurrencyConflict → write the editor view directly with 409
+//     (the 409 body MUST be the same shape as the PATCH 200 — design
+//     D4/D8).
+//  6. Else → classifyAndWriteError (the dispatcher covers
+//     400/404/409/500; ErrCompanyNotActive → 409 "company is not
+//     active", ErrJobNotFound → 404 "job not found").
+//  7. Success → 204 No Content with empty body (no editor view — the
+//     post-delete row's deleted_at is not representable in the DTO
+//     and the success path has no body by definition; design D2).
+//
+// The handler is intentionally thin: the use case owns the
+// read-for-delete, the CAS compare, and the SoftDelete call. The
+// handler's only "smart" decisions are (a) the 500-on-missing-
+// context fail-closed check and (b) the 409-with-view special-case
+// (because classifyError alone would render a generic {"error":
+// "conflict"} body — same shape the PATCH handler uses).
+func (h *JobHandler) softDeleteJob(w http.ResponseWriter, r *http.Request) {
+	cc, ok := requireCompanyContext(w, r)
+	if !ok {
+		return
+	}
+
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, "invalid job id")
+		return
+	}
+
+	ifUnmodifiedSince := parseIfUnmodifiedSince(r.Header.Get("If-Unmodified-Since"))
+
+	view, err := h.service.SoftDeleteJob(r.Context(), cc.CompanyID, id, ifUnmodifiedSince)
+	if err != nil {
+		if errors.Is(err, entities.ErrConcurrencyConflict) {
+			// The 409 body MUST be the editor view of the latest row
+			// (spec requirement: 409 body uses the same shape as 200).
+			// We special-case this BEFORE classifyAndWriteError so the
+			// generic {"error":"conflict"} envelope is not written.
+			httpjson.WriteJSON(w, http.StatusConflict, view)
+			return
+		}
+		h.classifyAndWriteError(w, r, err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // --- classification & helpers -------------------------------------------

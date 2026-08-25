@@ -138,7 +138,7 @@ Files: `backend/internal/features/jobs/infrastructure/http/softDeleteJobHandler_
 Commit group: **Commit C** (tasks 4.1–4.2 land together).
 
 ### 4.1 RED — Handler + route-boundary tests (design §7 items 24–33; D8)
-- [ ] 4.1 RED — Author `softDeleteJobHandler_test.go`. <!-- sdd-owner: implementation -->
+- [x] 4.1 RED — Author `softDeleteJobHandler_test.go`. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/infrastructure/http/softDeleteJobHandler_test.go` (NEW; mirror `newUpdateJobRouter` in `updateJobHandler_test.go` → a `newSoftDeleteJobRouter(repo, cc)` mounting `h.JobHandlers().SoftDeleteJob` at `r.Delete("/jobs/{id}", …)` with CompanyContext injection; drive `writeStubHandlerRepo` — its programmable `SoftDelete` surface landed in Commit A):
 - `TestSoftDeleteJob_MissingCompanyContextReturns500` — no `CompanyContext` → 500, `SoftDelete` NOT called.
@@ -153,7 +153,7 @@ Commit group: **Commit C** (tasks 4.1–4.2 land together).
 - Verify: `cd backend && go test ./internal/features/jobs/infrastructure/http/ -run SoftDeleteJob` → **RED** (compile: `softDeleteJob`/`JobHandlers.SoftDeleteJob` missing). Rollback: revert the test hunk.
 
 ### 4.2 GREEN — Implement the handler surface (D8)
-- [ ] 4.2 GREEN — Implement `softDeleteJob` + `JobHandlers.SoftDeleteJob`. <!-- sdd-owner: implementation -->
+- [x] 4.2 GREEN — Implement `softDeleteJob` + `JobHandlers.SoftDeleteJob`. <!-- sdd-owner: implementation -->
 
 `backend/internal/features/jobs/infrastructure/http/jobHandler.go` (MOD): `softDeleteJob` per design §3 D8 — `requireCompanyContext` (fail-closed 500), `uuid.Parse(chi.URLParam(r, "id"))` → 400 `"invalid job id"`, `parseIfUnmodifiedSince(r.Header.Get("If-Unmodified-Since"))` (reused verbatim), `h.service.SoftDeleteJob(...)`; the `errors.Is(err, entities.ErrConcurrencyConflict)` special-case writes the returned view as 409 (same branch `updateJob` has); otherwise `classifyAndWriteError` (unchanged); success → `w.WriteHeader(http.StatusNoContent)`. `JobHandlers` gains `SoftDeleteJob http.HandlerFunc`; the accessor adds `SoftDeleteJob: http.HandlerFunc(h.softDeleteJob)`. `classifyError` / `requireCompanyContext` / `parseIfUnmodifiedSince` unchanged.
 
