@@ -55,9 +55,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	sharedvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -834,5 +837,91 @@ func assertCompanyTombstoned(t *testing.T, ctx context.Context, pool *pgxpool.Po
 	}
 	if deletedAt == nil {
 		t.Errorf("expected company %v to be tombstoned, got deleted_at = NULL", id)
+	}
+}
+
+// stubIdentityUserRepo is the minimal identity UserRepository test double
+// for the membership-read regression test below: GetByCognitoSub resolves
+// the fixed sub → userID; the other port methods are never called by
+// GetMyMembership.
+type stubIdentityUserRepo struct {
+	sub    string
+	userID uuid.UUID
+}
+
+func (s stubIdentityUserRepo) Create(context.Context, *identityentities.User) (*identityentities.User, error) {
+	return nil, errors.New("stubIdentityUserRepo.Create not used")
+}
+
+func (s stubIdentityUserRepo) GetByID(context.Context, uuid.UUID) (*identityentities.User, error) {
+	return nil, errors.New("stubIdentityUserRepo.GetByID not used")
+}
+
+func (s stubIdentityUserRepo) GetByCognitoSub(_ context.Context, sub string) (*identityentities.User, error) {
+	if sub != s.sub {
+		return nil, identityentities.ErrUserNotFound
+	}
+	return &identityentities.User{ID: s.userID}, nil
+}
+
+// TestGetMyMembership_HidesTombstonedCompany is the spec R7-S3 regression
+// test (2026-08-26 correction): the owner-facing membership read resolves
+// the company through GetCompanyByID (WHERE deleted_at IS NULL), so a
+// soft-deleted company surfaces as ErrCompanyNotFound — GET /me/company
+// returns 404, NOT a 200-with-archive view. The company_members row
+// survives in the DB as audit history; only the company projection is
+// hidden. The service is wired with the REAL postgres adapters for the
+// membership + company ports and a stub identity repo for the sub
+// resolution.
+func TestGetMyMembership_HidesTombstonedCompany(t *testing.T) {
+	pool := skipIfNoDatabase(t)
+	t.Cleanup(func() { pool.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	fixtureSeed(t, ctx, pool) // seeds the tombstoned company T (writeCoT)
+
+	userID := uuid.New()
+	memberID := uuid.New()
+	const sub = "sub-tombstone-owner"
+
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO users (id, cognito_sub, email, full_name, user_type)
+		 VALUES ($1, $2, 'tombstone-owner@example.com', 'Tombstone Owner', 'recruiter')
+		 ON CONFLICT (id) DO NOTHING`, userID, sub); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO company_members (id, user_id, company_id, role)
+		 VALUES ($1, $2, $3, 'owner')
+		 ON CONFLICT (id) DO NOTHING`, memberID, userID, writeCoT); err != nil {
+		t.Fatalf("seed membership: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `DELETE FROM company_members WHERE id = $1`, memberID)
+		_, _ = pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, userID)
+		cleanupCompanies(t, pool)
+	})
+
+	companyRepo := NewCompanyRepository(pool)
+	memberRepo := NewCompanyMemberRepository(db.New(pool))
+	svc := usecases.NewCompanyMemberService(memberRepo, stubIdentityUserRepo{sub: sub, userID: userID}, companyRepo)
+
+	if _, _, err := svc.GetMyMembership(ctx, sub); !errors.Is(err, entities.ErrCompanyNotFound) {
+		t.Fatalf("expected ErrCompanyNotFound for tombstoned company on the membership read, got: %v", err)
+	}
+
+	// The membership row itself survives as audit history (soft-delete
+	// does NOT touch company_members) — re-query directly to prove the
+	// tombstone is hidden only at the company-projection layer.
+	var role string
+	if err := pool.QueryRow(ctx,
+		`SELECT role FROM company_members WHERE id = $1`, memberID,
+	).Scan(&role); err != nil {
+		t.Fatalf("membership row should survive the soft-delete: %v", err)
+	}
+	if role != "owner" {
+		t.Errorf("expected membership role 'owner' to survive, got %q", role)
 	}
 }
