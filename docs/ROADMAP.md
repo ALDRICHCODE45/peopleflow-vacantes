@@ -4,7 +4,7 @@
 
 ## Dónde estamos
 
-**Backend: walking skeleton vivo + 4 bounded contexts DELIVERED (`companies`, `identity`, `candidates`, `jobs`) + catálogo `industries`. Auth Cognito real (verifier RS256) montada en rutas autenticadas. Búsqueda full-text de vacantes viva.**
+**Backend: walking skeleton vivo + 8 bounded contexts DELIVERED (`companies` incl. membership, `identity`, `candidates`, `jobs` incl. write-side, `applications`, `audit_events`, `company-membership`) + catálogo `industries`. Auth Cognito real (verifier RS256) montada en rutas autenticadas. Búsqueda full-text de vacantes viva. Lado escritura de empresas (owner-only) entregado.**
 
 ### Infraestructura base (lista y compilando)
 
@@ -21,7 +21,7 @@
 - ✅ **domain**: `entities.Company` + `NewCompany` (factory: arma VOs, genera UUID v7, status inicial `active` — sin verificación en el MVP, ver `docs/flujo-verificacion-empresas.md` —, timestamps) + `CompanyProfile` (perfil rico). Value objects: `CompanyName`, `CompanyRfc`, `CompanyStatus`, `CompanyDescription`, `CompanySize`, `FoundedYear`. `repositories.CompanyRepository` (puerto). Errores de dominio (`ErrCompanyNotFound`, `ErrEmptyIndustry`, `ErrDuplicateCompany`, `ErrIndustryNotFound`).
 - ✅ **application**: `dtos.CreateCompanyDto` + `usecases.CompanyService` (`CreateCompany`, `GetCompanyByID`).
 - ✅ **infrastructure**: repo Postgres (mapeo entidad↔sqlc) + handler HTTP + wiring en `main.go`.
-- ✅ **Endpoints**: `POST /companies`, `GET /companies/{id}` (response redactado sin `rfc`/`status`).
+- ✅ **Endpoints**: `POST /companies`, `GET /companies/{id}` (response redactado sin `rfc`/`status`). Escritura owner-only entregada (2026-08-26): `PATCH /me/company` (parcial + CAS) y `DELETE /me/company` (soft-delete + cierre transaccional de vacantes).
 - ✅ **Perfil rico** (migración `00003`): `description`, `size` (TEXT+CHECK: startup/small/medium/large/enterprise), `founded_year` (SMALLINT+CHECK 1800–2200, regla autoritativa en el VO), `city`, `country`, `linkedin_url`, `instagram_url`, `facebook_url`, `twitter_url`, `cover_image_url`.
 - ✅ **Error mapping pgconn**: SQLSTATE → sentinel de dominio → HTTP (23505→409 Conflict, 23503→400 Bad Request).
 - ✅ **Tests**: 50 verdes (`go test ./... -count=1`), strict TDD. Build/vet/race limpios.
@@ -65,9 +65,10 @@
 1. ✅ **Flujo de verificación de empresas (MVP)** — RESUELTO: las empresas nacen `active` (sin pipeline). Validación básica = `name`/`rfc`/`industry_id` + `rfc` único. `suspended` queda como takedown manual. El flujo avanzado (documentos, cola de aprobación, lookup RFC) queda DIFERIDO y documentado en `docs/flujo-verificacion-empresas.md`.
 2. ✅ **`identity`** — DELIVERED. Puente Cognito→Postgres (`users.cognito_sub`) + verifier RS256 + `RequireAuth`. Desbloqueó todo lo autenticado.
 3. ✅ **`candidates`** — DELIVERED. `candidate_profiles` (1:1 con `users`) + `candidate_languages` + self-service `/me/*`.
-4. ✅ **`jobs`** — DELIVERED (public-read). Vacantes con búsqueda full-text (`search_vector`). El lado de escritura (publicar) queda DIFERIDO junto con `company_members`.
-5. **`applications`** — postulaciones + pipeline del reclutador. ← **PRÓXIMO** (requiere `company_members` para el lado reclutador)
-6. **`audit_events`** — append-only.
+4. ✅ **`jobs`** — DELIVERED (public-read + write-side). Lectura con búsqueda full-text (`search_vector`). Escritura entregada en 3 ciclos: `jobs-create` (POST /jobs draft), `jobs-reopen` (CAS + transiciones), `jobs-soft-delete` (tombstone + read-side). Gate `RequireCompanyRole(recruiter)` vía `company_members`.
+5. ✅ **`applications`** — DELIVERED. Postulaciones + pipeline del reclutador (apply + list + transition), `GET /me/applications` del candidato.
+6. ✅ **`audit_events`** — DELIVERED. Append-only en los write paths de applications (co-write atómico fail-closed). Migración `00011`.
+7. ✅ **`companies-write`** — DELIVERED (2026-08-26). `PATCH /me/company` (parcial + CAS If-Unmodified-Since, rfc/industry inmutables) y `DELETE /me/company` (soft-delete + cierre transaccional de vacantes), ambos owner-only. Spec canónica `companies` creada (9 req / 45 escenarios).
 
 Decisión abierta para discutir cuando toque: ¿quién valida que `industry_id` exista? Hoy lo garantiza el FK (DB). Evaluar si además se valida contra el catálogo activo en la capa de aplicación.
 
@@ -75,16 +76,20 @@ Decisión abierta para discutir cuando toque: ¿quién valida que `industry_id` 
 
 > Items chicos no-bloqueantes acumulados entre ciclos. Atacarlos cuando haya un hueco; no dejar que se pierdan.
 
+- ✅ **`UpdateCompany` / `DeleteCompany`** — ENTREGADO (2026-08-26, `companies-write`): `PATCH/DELETE /me/company` owner-only, soft-delete + cierre transaccional de vacantes. Ownership resuelto: la empresa se edita/borra a sí misma vía `RequireCompanyRole(owner)`.
+- ✅ **Escritura de `jobs`** — ENTREGADO (`jobs-create`/`jobs-reopen`/`jobs-soft-delete`).
+- ✅ **`company_members`** — ENTREGADO (ciclo `company-members`): ownership de empresa + roles owner/recruiter, endpoints `/me/company/members`.
+- 🔲 **Follow-ups de verify de `companies-write` (W1–W6, archivado)**: test live-DB de rollback del inline-close (hoy `t.Skip`); tests de CAS ausente/malformado en PATCH; assertion multi-campo en PATCH; test de carrera concurrente; paridad de redacción del body 409 de PATCH; pin de no-audit.
 - 🔲 **Unificar idioma de strings de error** en `companies/` (hoy mezcla es/en).
 - 🔲 **Cobertura `Create`/`GetByID` del repo `companies`** (requiere Postgres vivo — hoy solo hay unit tests con stub).
 - 🔲 **Test de CHECK constraints a nivel DB** (además del VO) en `companies` (`size`, `founded_year`) — evidencia por `information_schema`, no inspección estática.
-- 🔲 **`UpdateCompany` / `DeleteCompany`** — ahora desbloqueados con `identity`. Definir ownership: ¿la empresa se edita/borra a sí misma (claim `company_id` en el token) o lo hace un admin?
 - 🔲 **Separar commits RED de GREEN** en ciclos futuros (práctica; hoy el TDD RED-first no es git-reconstruible).
 - 🔲 **Frontend** (`Next.js`) — mockups HTML listos en `design/screens/`, sin código de app.
 - 🔲 **Lambda PostConfirmation** de Cognito → `users` (el backend ya es idempotente para recibirla).
+- 🔲 **Audit events para companies** — `CompanyUpdated`/`CompanyDeleted` (diferido en `companies-write`; helper `Append(ctx, tx)` ya reusable).
+- 🔲 **Hardening read-side `c.deleted_at IS NULL`** en queries públicas de jobs (diferido en `companies-write`; el inline-close ya tapa la fuga).
+- 🔲 **Restore/undelete de empresa** — el mecanismo inverso del soft-delete (fuera de scope de `companies-write`).
 - 🔲 **`infra/` (Terraform)** y **`workers/`** — vacíos.
-- 🔲 **Escritura de `jobs`** — `POST /jobs`, `PUT /jobs/{id}`, publish/close (flujo `draft→published→closed`).
-- 🔲 **`company_members`** — ownership de empresa (prerequisito de la escritura de `jobs` y de `UpdateCompany`/`DeleteCompany`). Vive en el feature `companies`.
 - 🔲 **Enforcement "empresa `active`" en escritura** — hoy solo se aplica en lectura.
 - 🔲 **Conversión FX de salarios** — hoy el filtro `currency` es match exacto (USD/MXN first-class), sin conversión.
 
