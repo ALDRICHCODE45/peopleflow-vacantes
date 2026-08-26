@@ -90,7 +90,13 @@ func run() error {
 	// Feature wiring: companies (adapter -> use case -> handler).
 	// The bootstrap repository opens the transaction that creates a company
 	// AND its founding owner atomically (business rule: the creator is owner).
-	companyRepo := postgres.NewCompanyRepository(queries)
+	//
+	// Companies-write WU3 (design D15): NewCompanyRepository now takes the
+	// pool, not a *db.Queries handle — the adapter is pool-owning so the
+	// write paths (`UpdateCompany`, `SoftDeleteCompany`) can open their own
+	// pgx.Tx for the inline close. The read paths borrow `db.New(r.pool)`
+	// per call (semantically identical to the pre-WU3 `*db.Queries` shape).
+	companyRepo := postgres.NewCompanyRepository(pool)
 	companyBootstrapRepo := postgres.NewCompanyBootstrapRepository(pool)
 	companyService := usecases.NewCompanyServiceWithBootstrap(companyRepo, identityUserRepo, companyBootstrapRepo)
 	companyHandler := companieshttp.NewCompanyHandler(companyService)

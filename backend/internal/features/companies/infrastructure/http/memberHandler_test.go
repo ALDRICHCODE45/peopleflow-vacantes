@@ -14,6 +14,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
@@ -162,6 +163,15 @@ type stubMemberCompanyRepositoryForHandler struct {
 	mu      sync.Mutex
 	getByID *entities.Company
 	getErr  error
+
+	getForUpdateOut *entities.Company
+	getForUpdateErr error
+
+	updateCalls int
+	updateErr   error
+
+	softDeleteCalls int
+	softDeleteErr   error
 }
 
 func (s *stubMemberCompanyRepositoryForHandler) Create(_ context.Context, _ *entities.Company) error {
@@ -179,6 +189,34 @@ func (s *stubMemberCompanyRepositoryForHandler) GetByID(_ context.Context, _ uui
 		return &copy, nil
 	}
 	return nil, entities.ErrCompanyNotFound
+}
+
+// GetCompanyForUpdate mirrors GetByID's default return shape so legacy
+// member-handler tests stay green (they do not exercise the new method).
+func (s *stubMemberCompanyRepositoryForHandler) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.getForUpdateErr != nil {
+		return nil, s.getForUpdateErr
+	}
+	if s.getForUpdateOut != nil {
+		return s.getForUpdateOut, nil
+	}
+	return nil, entities.ErrCompanyNotFound
+}
+
+func (s *stubMemberCompanyRepositoryForHandler) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.updateCalls++
+	return s.updateErr
+}
+
+func (s *stubMemberCompanyRepositoryForHandler) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.softDeleteCalls++
+	return s.softDeleteErr
 }
 
 // --- helpers ---------------------------------------------------------------

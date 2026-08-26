@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
@@ -136,6 +137,24 @@ func (rtStubCompanyRepo) Create(_ context.Context, _ *entities.Company) error { 
 
 func (rtStubCompanyRepo) GetByID(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
 	return nil, entities.ErrCompanyNotFound
+}
+
+// WU3 stub repair (companies-write slice, design D16): the port gained
+// three methods (`GetCompanyForUpdate`, `UpdateCompany`,
+// `SoftDeleteCompany`); the route-test stub gains no-op defaults so the
+// compile guard holds. None of the route tests exercise these methods
+// — they only test the middleware dispatch order (401 → 403 →
+// handler) — so a no-op / "not found" default is the correct shape.
+func (rtStubCompanyRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
+	return nil, entities.ErrCompanyNotFound
+}
+
+func (rtStubCompanyRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time) error {
+	return nil
+}
+
+func (rtStubCompanyRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time) error {
+	return nil
 }
 
 // Compile-time guards: the route-test fakes satisfy the exact port

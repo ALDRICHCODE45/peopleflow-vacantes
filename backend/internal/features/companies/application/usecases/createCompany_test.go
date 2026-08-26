@@ -10,6 +10,7 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	"github.com/google/uuid"
 )
@@ -17,6 +18,14 @@ import (
 // stubCompanyRepository captures the last saved company and returns whatever
 // error is programmed into it. Tests use it to drive the use case through
 // its real branching without touching sqlc or Postgres.
+//
+// WU3 stub repair (companies-write slice, design D16): the port gained
+// three methods (`GetCompanyForUpdate`, `UpdateCompany`,
+// `SoftDeleteCompany`); the stub gains the same three so the compile
+// guard holds. The defaults are the "never called by legacy use cases"
+// shape (`GetCompanyForUpdate` → `ErrCompanyNotFound`; `UpdateCompany` /
+// `SoftDeleteCompany` → nil). Tests that need different behavior
+// program the new fields directly (WU4 onward).
 type stubCompanyRepository struct {
 	mu      sync.Mutex
 	saved   *entities.Company
@@ -24,6 +33,15 @@ type stubCompanyRepository struct {
 	getByID *entities.Company
 	getErr  error
 	calls   int
+
+	getForUpdateOut *entities.Company
+	getForUpdateErr error
+
+	updateCalls int
+	updateErr   error
+
+	softDeleteCalls int
+	softDeleteErr   error
 }
 
 func (s *stubCompanyRepository) Create(_ context.Context, c *entities.Company) error {
@@ -45,6 +63,33 @@ func (s *stubCompanyRepository) GetByID(_ context.Context, id uuid.UUID) (*entit
 		return s.getByID, nil
 	}
 	return nil, entities.ErrCompanyNotFound
+}
+
+// GetCompanyForUpdate mirrors GetByID's default return shape so legacy
+// CreateCompany / CreateCompanyWithOwner tests stay green (they do not
+// exercise the new method).
+func (s *stubCompanyRepository) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
+	if s.getForUpdateErr != nil {
+		return nil, s.getForUpdateErr
+	}
+	if s.getForUpdateOut != nil {
+		return s.getForUpdateOut, nil
+	}
+	return nil, entities.ErrCompanyNotFound
+}
+
+func (s *stubCompanyRepository) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.updateCalls++
+	return s.updateErr
+}
+
+func (s *stubCompanyRepository) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.softDeleteCalls++
+	return s.softDeleteErr
 }
 
 func TestCreateCompany_RequiredFields(t *testing.T) {

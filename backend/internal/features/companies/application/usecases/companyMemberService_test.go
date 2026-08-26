@@ -34,6 +34,11 @@ import (
 	"github.com/google/uuid"
 )
 
+// _ keeps the imports referenced even on a no-op test file that only
+// uses the helpers below. Removes the unused-import linter pressure
+// without polluting the test surface.
+var _ = entities.ErrCompanyNotFound
+
 // --- fakes -----------------------------------------------------------------
 
 // stubMemberRepository is the in-memory CompanyMemberRepository used by
@@ -187,10 +192,29 @@ func (s *stubUserRepository) Create(_ context.Context, _ *identityentities.User)
 // touches it (ListMembers / AddMember / UpdateRole / RemoveMember don't
 // need the company row) but the compile-time guard requires us to wire
 // one in when the service composition calls for it.
+//
+// WU3 stub repair (companies-write slice, design D16): the port gained
+// three methods (`GetCompanyForUpdate`, `UpdateCompany`,
+// `SoftDeleteCompany`); the stub gains the same three so the compile
+// guard holds. The defaults are the "never called by legacy use cases"
+// shape:
+//   - GetCompanyForUpdate returns `ErrCompanyNotFound` (mirrors GetByID's
+//     default; legacy GetMyMembership use case ignores it).
+//   - UpdateCompany / SoftDeleteCompany return nil (no legacy caller
+//     exercises them; WU4 + WU5 tests program their own behavior).
 type stubMemberCompanyRepository struct {
 	mu      sync.Mutex
 	getByID *entities.Company
 	getErr  error
+
+	getForUpdateOut *entities.Company
+	getForUpdateErr error
+
+	updateCalls int
+	updateErr   error
+
+	softDeleteCalls int
+	softDeleteErr   error
 }
 
 func (s *stubMemberCompanyRepository) Create(_ context.Context, _ *entities.Company) error {
@@ -208,6 +232,37 @@ func (s *stubMemberCompanyRepository) GetByID(_ context.Context, _ uuid.UUID) (*
 		return &copy, nil
 	}
 	return nil, entities.ErrCompanyNotFound
+}
+
+// GetCompanyForUpdate mirrors GetByID's default return shape so the
+// legacy GetMyMembership use case (which does not exercise this method)
+// stays green. Tests that need different behavior program
+// getForUpdateOut / getForUpdateErr directly (WU4 onward).
+func (s *stubMemberCompanyRepository) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.getForUpdateErr != nil {
+		return nil, s.getForUpdateErr
+	}
+	if s.getForUpdateOut != nil {
+		copy := *s.getForUpdateOut
+		return &copy, nil
+	}
+	return nil, entities.ErrCompanyNotFound
+}
+
+func (s *stubMemberCompanyRepository) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.updateCalls++
+	return s.updateErr
+}
+
+func (s *stubMemberCompanyRepository) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.softDeleteCalls++
+	return s.softDeleteErr
 }
 
 // Compile-time guards: the fakes satisfy the exact port surfaces the

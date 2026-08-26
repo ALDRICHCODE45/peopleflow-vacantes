@@ -14,6 +14,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
@@ -24,6 +25,14 @@ import (
 // stubRepo is a hand-rolled stub of repositories.CompanyRepository. It records
 // the last Create input and returns whatever is programmed into it. We keep it
 // in this package so HTTP tests don't have to depend on anything outside.
+//
+// WU3 stub repair (companies-write slice, design D16): the port gained
+// three methods (`GetCompanyForUpdate`, `UpdateCompany`,
+// `SoftDeleteCompany`); the stub gains the same three so the compile
+// guard holds. The defaults are the "never called by legacy handler
+// tests" shape (`GetCompanyForUpdate` → `ErrCompanyNotFound`;
+// `UpdateCompany` / `SoftDeleteCompany` → nil). Tests that need
+// different behavior program the new fields directly (WU6 onward).
 type stubRepo struct {
 	mu      sync.Mutex
 	created *entities.Company
@@ -31,6 +40,15 @@ type stubRepo struct {
 	getID   uuid.UUID
 	getOut  *entities.Company
 	getErr  error
+
+	getForUpdateOut *entities.Company
+	getForUpdateErr error
+
+	updateCalls int
+	updateErr   error
+
+	softDeleteCalls int
+	softDeleteErr   error
 }
 
 func (r *stubRepo) Create(_ context.Context, c *entities.Company) error {
@@ -54,6 +72,34 @@ func (r *stubRepo) GetByID(_ context.Context, id uuid.UUID) (*entities.Company, 
 		return r.getOut, nil
 	}
 	return nil, entities.ErrCompanyNotFound
+}
+
+// GetCompanyForUpdate mirrors GetByID's default return shape so legacy
+// handler tests stay green (they do not exercise the new method).
+func (r *stubRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.getForUpdateErr != nil {
+		return nil, r.getForUpdateErr
+	}
+	if r.getForUpdateOut != nil {
+		return r.getForUpdateOut, nil
+	}
+	return nil, entities.ErrCompanyNotFound
+}
+
+func (r *stubRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.updateCalls++
+	return r.updateErr
+}
+
+func (r *stubRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.softDeleteCalls++
+	return r.softDeleteErr
 }
 
 // stubBootstrapRepo and stubUserRepo back the CreateCompanyWithOwner flow in

@@ -14,30 +14,59 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // CompanyRepository is the PostgreSQL adapter for the repositories.CompanyRepository port.
+//
+// Companies-write WU3 (design D15): the adapter is now POOL-OWNING.
+// It holds a `*pgxpool.Pool` (not a `*db.Queries` handle) and the
+// transactional write paths (`UpdateCompany`, `SoftDeleteCompany`)
+// open their own `pgx.Tx` via `r.pool.Begin(ctx)` and own the
+// `defer tx.Rollback(ctx)` / `tx.Commit(ctx)` lifecycle. Reads
+// (`GetByID`, `Create`, `GetCompanyForUpdate`) borrow a per-call
+// `db.New(r.pool)` so the read path is semantically identical to the
+// pre-WU3 behavior (same SQL, same `*db.Queries` mapping).
+//
+// The full body of `UpdateCompany` / `SoftDeleteCompany` lands in WU5;
+// WU3 only needs the signatures + the `var _` assertion to compile.
+// The WU3 stubs are intentionally `return nil` so legacy tests
+// (which never exercise the new methods) stay green through the
+// atomic compile-break repair.
 type CompanyRepository struct {
-	queries *db.Queries
+	pool *pgxpool.Pool
 }
 
-// NewCompanyRepository wraps the sqlc-generated data layer.
-func NewCompanyRepository(queries *db.Queries) *CompanyRepository {
-	return &CompanyRepository{queries: queries}
+// NewCompanyRepository wraps the pgxpool.Pool. The adapter owns its
+// own transactions for the write paths (companies-write slice, design
+// D15) so the constructor takes a pool, not a `*db.Queries` handle.
+// Composition root: `postgres.NewCompanyRepository(pool)` (D15).
+func NewCompanyRepository(pool *pgxpool.Pool) *CompanyRepository {
+	return &CompanyRepository{pool: pool}
 }
 
-// Compile-time assertion: the adapter satisfies the domain port.
+// Compile-time assertion: the adapter satisfies the domain port. If a
+// future refactor drifts the surface, this line refuses to compile
+// rather than waiting for a wiring/runtime surprise in `cmd/api/main.go`.
 var _ repositories.CompanyRepository = (*CompanyRepository)(nil)
 
 // Create persists a new company, mapping the entity's value objects into sqlc params.
+//
+// WU3 (D15): the read path borrows `db.New(r.pool)` per call instead
+// of holding a `*db.Queries` field; the SQL is byte-for-byte
+// identical to the pre-WU3 path so legacy behavior is preserved.
 func (r *CompanyRepository) Create(ctx context.Context, company *entities.Company) error {
-	_, err := r.queries.CreateCompany(ctx, buildCreateParams(company))
+	_, err := db.New(r.pool).CreateCompany(ctx, buildCreateParams(company))
 	return mapCompanyCreateError(err)
 }
 
 // GetByID fetches a company and rebuilds the domain entity from the sqlc row.
+//
+// WU3 (D15): the read path borrows `db.New(r.pool)` per call; the
+// SQL is byte-for-byte identical to the pre-WU3 path so legacy
+// behavior is preserved.
 func (r *CompanyRepository) GetByID(ctx context.Context, id uuid.UUID) (*entities.Company, error) {
-	row, err := r.queries.GetCompanyByID(ctx, id)
+	row, err := db.New(r.pool).GetCompanyByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, entities.ErrCompanyNotFound
@@ -46,6 +75,53 @@ func (r *CompanyRepository) GetByID(ctx context.Context, id uuid.UUID) (*entitie
 	}
 
 	return toEntity(row)
+}
+
+// GetCompanyForUpdate is the write-path read seam (companies-write
+// slice, design D2). The visibility rule is byte-for-byte identical to
+// `GetCompanyByID`: `WHERE id = $1 AND deleted_at IS NULL` (no status
+// filter — the write path must see active, suspended, and
+// pending_verification companies, and must NOT see tombstoned ones).
+//
+// `pgx.ErrNoRows → ErrCompanyNotFound`; any other error propagates.
+//
+// The SQL is reused verbatim from `GetCompanyByID` rather than a
+// dedicated `GetCompanyForUpdate :one` query (D1 / D2 rationale:
+// the column list and predicates are identical; a dedicated query
+// would only add a generated row type + interface method with zero
+// semantic value). The dedicated port method gives a future drift
+// point (e.g. `FOR UPDATE` locking, distinct columns) without
+// overloading the public read.
+func (r *CompanyRepository) GetCompanyForUpdate(ctx context.Context, companyID uuid.UUID) (*entities.Company, error) {
+	row, err := db.New(r.pool).GetCompanyByID(ctx, companyID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, entities.ErrCompanyNotFound
+		}
+		return nil, err
+	}
+	return toEntity(row)
+}
+
+// UpdateCompany applies the patch atomically, guarded by CAS
+// `updated_at = casUpdatedAt` and the row predicates (id, deleted_at IS NULL).
+//
+// WU3 stub: the full body lands in WU5 (transactional pool-based UPDATE +
+// rowcount dispatch). The stub keeps the port satisfied so the atomic
+// compile-break repair stays green; legacy tests never exercise it.
+func (r *CompanyRepository) UpdateCompany(ctx context.Context, companyID uuid.UUID, patch repositories.UpdateCompanyPatch, casUpdatedAt time.Time) error {
+	return nil
+}
+
+// SoftDeleteCompany tombstones the row AND transactionally closes every
+// non-closed, non-tombstoned job of the company in ONE pgx.Tx.
+//
+// WU3 stub: the full body lands in WU5 (pool.Begin → soft-delete → inline
+// close → commit; deferred rollback on any error). The stub keeps the port
+// satisfied so the atomic compile-break repair stays green; legacy tests
+// never exercise it.
+func (r *CompanyRepository) SoftDeleteCompany(ctx context.Context, companyID uuid.UUID, casUpdatedAt time.Time) error {
+	return nil
 }
 
 // buildCreateParams translates an entity into the sqlc parameter struct. Every
@@ -202,3 +278,5 @@ func mapCompanyCreateError(err error) error {
 	}
 	return err
 }
+
+// --- write-path helpers (companies-write slice, design D10 / D13) ----------
