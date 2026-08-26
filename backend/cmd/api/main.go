@@ -250,6 +250,16 @@ func run() error {
 	// 401 — the candidate handler is never invoked. With the fail-closed
 	// verifier in place (env not set), every request still hits 401, not
 	// 404, so the surface can't be probed by accident.
+	//
+	// The companies-write handlers (WU6) live here too: the
+	// `companyHandlers` struct is hoisted from the public /companies
+	// block above so the /me subtree can mount the PATCH/DELETE
+	// endpoints next to the membership routes. The handlers are
+	// per-method `http.HandlerFunc` adapters (the CompanyHandlers()
+	// accessor) so the chi subtree can apply per-method gates.
+	companyHandlers := companyHandler.CompanyHandlers()
+	_ = companyHandlers // referenced in the /me subtree below
+
 	r.Route("/me", func(r chi.Router) {
 		r.Use(requireAuth)
 		r.Mount("/profile", candidateHandler.Routes())
@@ -302,6 +312,16 @@ func run() error {
 		// PATCH/DELETE /me/company/members/{id} — owner only.
 		r.With(requireOwner).Patch("/company/members/{id}", handlers.UpdateMemberRole)
 		r.With(requireOwner).Delete("/company/members/{id}", handlers.RemoveMember)
+
+		// Companies-write (WU6): the two owner-only write endpoints
+		// live next to the membership routes. They reuse the
+		// hoisted `requireOwner` gate (the /me subtree already has
+		// `r.Use(requireAuth)`). The composition-root guard
+		// TestCompanyWriteRoutes_MountedBehindGates pins both
+		// routes behind `requireOwner` and asserts there is no
+		// shadowing `chi.Mount("/me/company", ...)` subrouter.
+		r.With(requireOwner).Patch("/company", companyHandlers.UpdateCompany)
+		r.With(requireOwner).Delete("/company", companyHandlers.DeleteCompany)
 	})
 
 	port := os.Getenv("PORT")

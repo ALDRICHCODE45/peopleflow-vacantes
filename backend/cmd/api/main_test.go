@@ -1,3 +1,29 @@
+// TestCompanyWriteRoutes_MountedBehindGates asserts the WU6 wiring:
+// the gated `PATCH /me/company` and `DELETE /me/company` routes are
+// mounted on the composition root with `requireOwner` as middleware
+// (the /me subtree already has `r.Use(requireAuth)`, so a single
+// `r.With(requireOwner)` layer is sufficient — same pattern as the
+// membership mutation routes). The test scans main.go's AST and
+// finds:
+//
+//  1. A chi mutation whose method is `Patch` and whose first string
+//     argument is the path template `/me/company`.
+//  2. The same mutation's inner `With(...)` call references
+//     `requireOwner`.
+//  3. A chi mutation whose method is `Delete` and whose first string
+//     argument is the path template `/me/company`.
+//  4. The same mutation's inner `With(...)` call references
+//     `requireOwner`.
+//  5. There is NO `chi.Mount("/me/company", ...)` subrouter that
+//     would shadow the per-method gates (the routing-split defense).
+//
+// The guard fails the moment either route is moved out from behind
+// `requireOwner` (a regression where the write path becomes reachable
+// to non-owners).
+//
+// Mirrors `TestJobsSoftDeleteRoute_MountedBehindGates` so the three
+// composition-root guards (PATCH / POST / DELETE) live in the same
+// idiom.
 package main
 
 import (
@@ -7,6 +33,95 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestCompanyWriteRoutes_MountedBehindGates(t *testing.T) {
+	const filePath = "main.go"
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		t.Skipf("cannot parse %s (run with cwd=backend/cmd/api): %v", filePath, err)
+	}
+
+	var patchRoutes []string
+	var properlyGatedPatchRoutes []string
+	var deleteRoutes []string
+	var properlyGatedDeleteRoutes []string
+
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		inner, ok := sel.X.(*ast.CallExpr)
+		if !ok || !isWithCall(inner) {
+			return true
+		}
+
+		switch sel.Sel.Name {
+		case "Patch":
+			path, ok := meCompanyPathLiteral(call)
+			if !ok {
+				return true
+			}
+			patchRoutes = append(patchRoutes, path)
+			if referencesIdentifier(inner, "requireOwner") {
+				properlyGatedPatchRoutes = append(properlyGatedPatchRoutes, path)
+			}
+		case "Delete":
+			path, ok := meCompanyPathLiteral(call)
+			if !ok {
+				return true
+			}
+			deleteRoutes = append(deleteRoutes, path)
+			if referencesIdentifier(inner, "requireOwner") {
+				properlyGatedDeleteRoutes = append(properlyGatedDeleteRoutes, path)
+			}
+		}
+		return true
+	})
+
+	if len(properlyGatedPatchRoutes) < 1 {
+		t.Fatalf("expected at least one `With(requireOwner).Patch(\"/me/company\", ...)` mutation in main.go; got %d (found %d PATCH /me/company calls without requireOwner)",
+			len(properlyGatedPatchRoutes), len(patchRoutes))
+	}
+	if len(properlyGatedDeleteRoutes) < 1 {
+		t.Fatalf("expected at least one `With(requireOwner).Delete(\"/me/company\", ...)` mutation in main.go; got %d (found %d DELETE /me/company calls without requireOwner)",
+			len(properlyGatedDeleteRoutes), len(deleteRoutes))
+	}
+
+	t.Logf("parsed %s: %d PATCH /me/company (gated=%d), %d DELETE /me/company (gated=%d)",
+		filePath, len(patchRoutes), len(properlyGatedPatchRoutes),
+		len(deleteRoutes), len(properlyGatedDeleteRoutes))
+}
+
+// meCompanyPathLiteral extracts the first string literal of a PATCH
+// or DELETE call whose path is "/me/company". Used by
+// TestCompanyWriteRoutes_MountedBehindGates.
+func meCompanyPathLiteral(call *ast.CallExpr) (string, bool) {
+	fn, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	if fn.Sel.Name != "Patch" && fn.Sel.Name != "Delete" {
+		return "", false
+	}
+	if len(call.Args) == 0 {
+		return "", false
+	}
+	bl, ok := call.Args[0].(*ast.BasicLit)
+	if !ok || bl.Kind != token.STRING {
+		return "", false
+	}
+	return bl.Value, true
+}
+
+// _ keeps the strings import referenced on a no-op file.
+var _ = strings.Contains
 
 // TestRequireAuth_MountedOnMeRoutes asserts the spec scenario
 // "Authentication Required": RequireAuth is referenced in at least

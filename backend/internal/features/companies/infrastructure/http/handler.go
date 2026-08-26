@@ -42,9 +42,16 @@ func (h *CompanyHandler) Routes() chi.Router {
 // (POST) needs RequireAuth to resolve the creator subject, while the read
 // (GET) stays public, so a single chi.Mount(Routes()) subrouter can't express
 // the split — the parent must mount each handler with its own gate.
+//
+// Companies-write (WU6) adds the two owner-only write endpoints behind
+// `r.With(requireOwner)` (see cmd/api/main.go). They share the existing
+// `requireCompanyContext` helper (memberHandler.go, same package — no
+// duplication per design D14) and the per-method gating style.
 type CompanyHandlers struct {
 	CreateCompany http.HandlerFunc
 	GetCompany    http.HandlerFunc
+	UpdateCompany http.HandlerFunc
+	DeleteCompany http.HandlerFunc
 }
 
 // CompanyHandlers returns the per-endpoint http.HandlerFunc surface for
@@ -54,6 +61,8 @@ func (h *CompanyHandler) CompanyHandlers() CompanyHandlers {
 	return CompanyHandlers{
 		CreateCompany: http.HandlerFunc(h.createCompany),
 		GetCompany:    http.HandlerFunc(h.getCompany),
+		UpdateCompany: http.HandlerFunc(h.updateCompany),
+		DeleteCompany: http.HandlerFunc(h.deleteCompany),
 	}
 }
 
@@ -294,3 +303,213 @@ func classifyCreateCompanyError(err error) (int, string) {
 		return http.StatusInternalServerError, "internal server error"
 	}
 }
+
+// --- WU6: PATCH / DELETE /me/company handlers + helpers ---------------------
+
+// updateCompany implements PATCH /me/company (companies-write slice,
+// design D12 PATCH flow + D14 wiring). It is mounted in main.go
+// behind `r.With(requireOwner).Patch("/me/company", ...)`.
+//
+// Flow (mirrors the jobs PATCH handler):
+//  1. requireCompanyContext (fail-closed 500 if missing).
+//  2. Decode the body as dtos.UpdateCompanyDto (400 on malformed JSON).
+//  3. Parse `If-Unmodified-Since` via parseIfUnmodifiedSince (RFC
+//     3339; absent/malformed → zero time.Time{}).
+//  4. Invoke CompanyService.UpdateCompany.
+//  5. ErrConcurrencyConflict → re-project via toCompanyEditorView
+//     and write 409 with the editor view as the body (spec R3 —
+//     the 409 body MUST use the same shape as the 200).
+//  6. Success → 200 + the editor view.
+//  7. Other errors → classifyUpdateCompanyError (D14 mapping).
+//
+// The handler is intentionally thin: the use case owns the
+// validation, transition table, and CAS logic.
+func (h *CompanyHandler) updateCompany(w http.ResponseWriter, r *http.Request) {
+	cc, ok := requireCompanyContext(w, r)
+	if !ok {
+		return
+	}
+
+	var in dtos.UpdateCompanyDto
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		httpjson.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+
+	ifUnmodifiedSince := parseIfUnmodifiedSince(r.Header.Get("If-Unmodified-Since"))
+
+	view, err := h.service.UpdateCompany(r.Context(), cc.CompanyID, in, ifUnmodifiedSince)
+	if err != nil {
+		if errors.Is(err, entities.ErrConcurrencyConflict) {
+			// The 409 body MUST use the same wire shape as the 200
+			// (spec R3 / D8): the editor view derived from the LATEST
+			// row the use case saw. The use case already projects
+			// toCompanyEditorView on the CAS-mismatch path; the
+			// handler forwards it unchanged.
+			httpjson.WriteJSON(w, http.StatusConflict, view)
+			return
+		}
+		status, msg := classifyUpdateCompanyError(err)
+		if status == http.StatusInternalServerError {
+			slog.Error("update company failed", "company_id", cc.CompanyID, "error", err)
+		}
+		httpjson.WriteError(w, status, msg)
+		return
+	}
+
+	httpjson.WriteJSON(w, http.StatusOK, view)
+}
+
+// deleteCompany implements DELETE /me/company (companies-write slice,
+// design D12 DELETE flow + D14 wiring). It is mounted in main.go
+// behind `r.With(requireOwner).Delete("/me/company", ...)`.
+//
+// Flow:
+//  1. requireCompanyContext (fail-closed 500 if missing).
+//  2. Parse `If-Unmodified-Since` (RFC 3339; absent/malformed →
+//     zero time.Time{}, which the CAS compare treats as a
+//     guaranteed mismatch).
+//  3. Invoke CompanyService.SoftDeleteCompany.
+//  4. ErrConcurrencyConflict → 409 with EMPTY body (spec R4 / D12
+//     DELETE asymmetry: PATCH 409 carries the editor view; DELETE
+//     409 is intentionally empty because the success path is 204
+//     and a structured 409 body would only add transient state to
+//     the wire).
+//  5. Success → 204 No Content with empty body (no editor view
+//     projected — D12 step 4).
+//  6. Other errors → classifyDeleteCompanyError.
+func (h *CompanyHandler) deleteCompany(w http.ResponseWriter, r *http.Request) {
+	cc, ok := requireCompanyContext(w, r)
+	if !ok {
+		return
+	}
+
+	ifUnmodifiedSince := parseIfUnmodifiedSince(r.Header.Get("If-Unmodified-Since"))
+
+	if err := h.service.SoftDeleteCompany(r.Context(), cc.CompanyID, ifUnmodifiedSince); err != nil {
+		if errors.Is(err, entities.ErrConcurrencyConflict) {
+			// 409 with EMPTY body (spec R4 / D12 DELETE asymmetry):
+			// the wire contract on DELETE 409 is INTENTIONALLY empty
+			// because the success path is 204 (no body) and a
+			// structured 409 body would only add transient state to
+			// the wire. We special-case this BEFORE
+			// classifyDeleteCompanyError so the generic
+			// {"error":"conflict"} envelope is never written.
+			//
+			// We write the status directly via WriteHeader + an
+			// empty body — httpjson.WriteError would write the
+			// envelope, which the spec forbids.
+			w.WriteHeader(http.StatusConflict)
+			return
+		}
+		status, msg := classifyDeleteCompanyError(err)
+		if status == http.StatusInternalServerError {
+			slog.Error("delete company failed", "company_id", cc.CompanyID, "error", err)
+		}
+		httpjson.WriteError(w, status, msg)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// parseIfUnmodifiedSince parses the `If-Unmodified-Since` header
+// value as RFC 3339 (companies-write slice, design D14).
+//
+// Absent or malformed headers collapse to the zero `time.Time{}` so
+// the use case's CAS compare sees a guaranteed mismatch (a zero
+// token never equals a real row's `UpdatedAt`) — same outcome as a
+// stale CAS, which is exactly the spec scenarios "missing
+// If-Unmodified-Since returns 409" and "malformed If-Unmodified-Since
+// returns 409".
+//
+// The function is intentionally duplicated from
+// `jobs/infrastructure/http/jobHandler.go::parseIfUnmodifiedSince`
+// (~10 lines, RFC 3339 whole-second parse). The companies handler
+// MUST NOT import the jobs handler across the jobs/companies
+// boundary — per design D14, the duplication keeps each slice
+// self-contained.
+func parseIfUnmodifiedSince(raw string) time.Time {
+	if raw == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
+// classifyUpdateCompanyError is the PATCH handler's flat
+// `errors.Is` dispatcher (design D14). Status mapping:
+//
+//	ErrConcurrencyConflict           → 409 "conflict"
+//	                                       (the handler special-cases
+//	                                       the 409-with-view path
+//	                                       BEFORE the classifier;
+//	                                       this branch is the
+//	                                       fallback if a future
+//	                                       refactor drops the
+//	                                       special-case)
+//	ErrCompanyNameTooShort           → 400
+//	ErrInvalidCompanySize            → 400
+//	ErrFoundedYearOutOfRange         → 400
+//	ErrCompanyDescriptionTooLong     → 400
+//	ErrInvalidCompanyStatusTransition → 400 (defense-in-depth)
+//	ErrCompanyNotFound               → 404
+//	default                          → 500
+//
+// ErrConcurrencyConflict is mapped here for completeness but the
+// handler intercepts it first (the 409-with-view path); the
+// classifier is the fallback.
+func classifyUpdateCompanyError(err error) (int, string) {
+	switch {
+	case errors.Is(err, entities.ErrConcurrencyConflict):
+		return http.StatusConflict, "conflict"
+	case errors.Is(err, entities.ErrCompanyNotFound):
+		return http.StatusNotFound, "company not found"
+	case errors.Is(err, valueobjects.ErrCompanyNameTooShort),
+		errors.Is(err, valueobjects.ErrInvalidCompanySize),
+		errors.Is(err, valueobjects.ErrFoundedYearOutOfRange),
+		errors.Is(err, valueobjects.ErrCompanyDescriptionTooLong),
+		errors.Is(err, entities.ErrInvalidCompanyStatusTransition):
+		return http.StatusBadRequest, err.Error()
+	default:
+		return http.StatusInternalServerError, "internal server error"
+	}
+}
+
+// classifyDeleteCompanyError is the DELETE handler's flat
+// `errors.Is` dispatcher (design D14). Status mapping:
+//
+//	ErrConcurrencyConflict           → 409 (the handler
+//	                                       special-cases the
+//	                                       409-empty-body path
+//	                                       BEFORE the classifier;
+//	                                       this branch is the
+//	                                       fallback)
+//	ErrInvalidCompanyStatusTransition → 400 (defense-in-depth;
+//	                                        SQLSTATE 23514 is
+//	                                        unreachable via the
+//	                                        designed flow)
+//	ErrCompanyNotFound               → 404
+//	default                          → 500
+func classifyDeleteCompanyError(err error) (int, string) {
+	switch {
+	case errors.Is(err, entities.ErrConcurrencyConflict):
+		return http.StatusConflict, "conflict"
+	case errors.Is(err, entities.ErrCompanyNotFound):
+		return http.StatusNotFound, "company not found"
+	case errors.Is(err, entities.ErrInvalidCompanyStatusTransition):
+		return http.StatusBadRequest, err.Error()
+	default:
+		return http.StatusInternalServerError, "internal server error"
+	}
+}
+
+// requireCompanyContext is intentionally NOT defined here — it
+// already lives in memberHandler.go (the same package) and is
+// shared by both the membership subtree handlers and the new
+// companies-write PATCH/DELETE handlers (design D14 — same
+// package, no duplication). The compile-time assertion in the
+// package file (memberHandler.go) holds.
