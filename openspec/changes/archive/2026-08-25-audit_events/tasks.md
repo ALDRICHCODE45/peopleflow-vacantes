@@ -1,0 +1,102 @@
+# Tasks — `audit_events` (Append-Only Audit Log, applications write paths)
+
+Design pin: D1–D10 of `openspec/changes/audit_events/design.md`. Specs: `openspec/changes/audit_events/specs/audit_events/spec.md` (new BC) + `openspec/changes/audit_events/specs/applications/spec.md` (delta). Strict TDD applies (`strict_tdd: true`): every production change is introduced by a failing test. Mark a checkbox `[x]` only after its commit lands.
+
+## Review Workload Forecast
+
+| Field | Value |
+|-------|-------|
+| Estimated changed lines | ~1900–2300 (additions + deletions, incl. ~120 lines of sqlc-generated code); authored ≈ 1750–2100 |
+| 400-line budget risk | High |
+| Chained PRs recommended | Yes |
+| Suggested split | PR 1 → PR 2 → PR 3 (WU4 verification rides on PR 3's merge) |
+| Delivery strategy | ask-on-risk |
+| Chain strategy | stacked-to-main |
+
+```text
+Decision needed before apply: Yes
+Chained PRs recommended: Yes
+Chain strategy: stacked-to-main
+400-line budget risk: High
+```
+
+**Decision to confirm before apply:** PR 3 (WU3) is an intentional `size:exception` (~950–1100 authored lines). The design's seam-change inventory (§6) is **atomic** — the applications port signature change is a compile break that must land as one PR with all its repairs, the fixture migration, and the RED-first co-write integration tests. Do not split PR 3 further; splitting would leave `main` uncompilable between PRs. PR 1 and PR 2 are safe additive merges and can auto-chain.
+
+## Work-unit plan
+
+| WU | PR | Scope | Est. lines (authored) | Risk | Sessions |
+|----|----|-------|------------------------|------|----------|
+| WU1 | PR 1 | Migration `00011` + `InsertAuditEvent` query + sqlc regen + Phase E migration tests | 340–420 | Medium | 1–2 |
+| WU2 | PR 2 | `audit_events` BC: entity + `ActorType` VO + constants + append-only port + postgres adapter + unit tests | 300–360 | Medium | 1–2 |
+| WU3 | PR 3 | Atomic seam change (D5/D6/D7/D8/D9): port/usecases/adapter/handler/identity/wiring + unit updates + fixture migration + Phase D co-write integration suite | 950–1100 | High (atomic, size-exception) | 2–3 |
+| WU4 | post-merge | Chain-level verification + rollback drill + §11 success-criteria sweep | 0–100 | Low | 1 |
+
+Chain overview (apply phase MUST include this diagram in each PR body, marking the current PR with 📍):
+
+```
+PR 1 (00011 schema + sqlc) ──► PR 2 (audit_events BC) ──► PR 3 (atomic seam change, size-exception 📍) ──► WU4 post-merge verification
+```
+
+Rollback scope: PR 1 and PR 2 revert cleanly (additive; nothing references the new table/BC until PR 3). PR 3 reverts per design §10 — `00011 Down` drops the table (nothing references it); deleting `backend/internal/features/audit_events/`, `backend/db/queries/audit_events.sql`, and reverting the applications adapter/port/usecases/handler/identity/wiring restores the prior single-statement write surface. No data migration in either direction.
+
+---
+
+## Phase 1 — WU1 (PR 1): Schema foundation — migration `00011` + sqlc
+
+- [x] 1.1 (RED) Author the Phase E migration integration tests in `backend/internal/features/audit_events/infrastructure/postgres/migration_00011_test.go` (`//go:build integration`; mirror the `applications/infrastructure/postgres/migration_00010_test.go` convention): `TestMigration00011_UpCreatesNamedObjects`, `TestMigration00011_DownDropsTableAndIndex`, `TestAuditEvents_RequiredFieldsRejectNull`, `TestAuditEvents_MetadataDefaultsEmptyObject`, `TestAuditEvents_EventTypeNotCheckConstrained`, `TestAuditEvents_ActorTypeCheckRejectsOutOfVocabulary`, `TestAuditEvents_StructurallyAppendOnly` (no `updated_at`/`deleted_at`, no FK on `actor_id` via `information_schema`/`pg_constraint`). Run `cd backend && make test-integration` (sources `.env` for `DATABASE_URL`) — RED: `audit_events` does not exist yet. <!-- sdd-owner: implementation -->
+- [x] 1.2 (GREEN) Create `backend/db/migrations/00011_create_audit_events.sql` — §3.9 verbatim (D1): `audit_events` table (id UUID PK with no DB default, `occurred_at TIMESTAMPTZ NOT NULL DEFAULT now()`, `actor_id UUID` with no FK, `actor_type TEXT NOT NULL` + `audit_events_actor_type_check` CHECK `IN ('user','system')`, `event_type TEXT NOT NULL` without CHECK, `entity_type TEXT NOT NULL`, `entity_id UUID NOT NULL`, `metadata JSONB NOT NULL DEFAULT '{}'`), `audit_events_entity_idx` on `(entity_type, entity_id, occurred_at DESC)`; `Down` = `DROP TABLE audit_events`. Run `make db-migrate` then 1.1 goes green. <!-- sdd-owner: implementation -->
+- [x] 1.3 (RED) Author `TestAuditEvents_QueryFileIsAppendOnly` in `backend/internal/features/audit_events/domain/repositories/auditEventRepository_test.go`: read `backend/db/queries/audit_events.sql`, assert exactly one statement, named `InsertAuditEvent` `:exec`, and zero `SELECT`/`UPDATE`/`DELETE` — RED: the query file does not exist. <!-- sdd-owner: implementation -->
+- [x] 1.4 (GREEN) Create `backend/db/queries/audit_events.sql` (D2): the single `InsertAuditEvent :exec` INSERT verbatim from §3 D2 — `sqlc.arg` for `id`/`actor_type`/`event_type`/`entity_type`/`entity_id`/`metadata`, `sqlc.narg('actor_id')`, casts `::uuid`/`::text`/`::jsonb`; `occurred_at` deliberately omitted so the DB `now()` default (transaction time) applies; doc comment stating append-only + nullable `actor_id` semantics. 1.3 goes green. <!-- sdd-owner: implementation -->
+- [x] 1.5 (GREEN, mechanical) Run `cd backend && make sqlc`. Verify `backend/internal/db/audit_events.sql.go` (method `InsertAuditEvent` on `Querier`; `InsertAuditEventParams{ID uuid.UUID; ActorID pgtype.UUID; ActorType, EventType, EntityType string; EntityID uuid.UUID; Metadata []byte}` — JSONB→`[]byte` under pgx/v5, nullable→`pgtype.UUID`), `models.go` gains `AuditEvent`, `querier.go` gains the entry. Re-run `go tool sqlc generate` — must be idempotent (no diff). `cd backend && go build ./...` green. <!-- sdd-owner: implementation -->
+- [x] 1.6 (Verification) Round-trip: `make db-migrate` (00011 applied) → `make db-down` → `make db-migrate`; `make test-integration` green. Commit and merge PR 1 to main (stacked-to-main); mark `[x]` only after the merge lands. <!-- sdd-owner: implementation -->
+
+## Phase 2 — WU2 (PR 2): `audit_events` bounded context (domain + adapter)
+
+- [x] 2.1 (RED) `TestActorTypeVocabulary` in `backend/internal/features/audit_events/domain/entities/auditEvent_test.go`: `ActorTypeUser.String()=="user"`, `ActorTypeSystem.String()=="system"`; no other value accepted by the VO — RED: package/file missing. <!-- sdd-owner: implementation -->
+- [x] 2.2 (RED) `TestEventVocabularyIsClosed`: the domain exposes exactly the constants `ApplicationSubmitted` and `ApplicationTransitioned`; a grep / `go/ast` guard walks `backend/internal/features/**` asserting no other `event_type` emit literal exists — RED: constants missing. <!-- sdd-owner: implementation -->
+- [x] 2.3 (GREEN) Create `backend/internal/features/audit_events/domain/entities/auditEvent.go` (D3): `ActorType` VO + `ActorTypeUser`/`ActorTypeSystem` + `String()`; `EventApplicationSubmitted`/`EventApplicationTransitioned`; `EntityApplication = "application"`; `AuditEvent` struct with `ID uuid.UUID`, `ActorType ActorType`, `ActorID *uuid.UUID` (nil ⇔ `system`), `EventType`, `EntityType string`, `EntityID uuid.UUID`, `Metadata map[string]string` — **no `OccurredAt` field** (DB `now()` default). 2.1 and 2.2 go green. <!-- sdd-owner: implementation -->
+- [x] 2.4 (RED) `TestAuditEventRepository_PortExposesAppendOnly` in `backend/internal/features/audit_events/domain/repositories/auditEventRepository_test.go`: reflection over the port asserting exactly one method, `Append(ctx context.Context, tx pgx.Tx, event entities.AuditEvent) error`, and no `Update`/`Delete`/`Read`/`List`/`Backfill` — RED: package/file missing. <!-- sdd-owner: implementation -->
+- [x] 2.5 (GREEN) Create `backend/internal/features/audit_events/domain/repositories/auditEventRepository.go` (D4): `AuditEventRepository` interface exposing **only** `Append(ctx, tx, event)`; doc comment pins the tx-scoped contract (MUST NOT begin/commit its own transaction; no read/update/delete/backfill surface by construction). 2.4 goes green. <!-- sdd-owner: implementation -->
+- [x] 2.6 (RED) `TestBuildInsertAuditEventParams` in `backend/internal/features/audit_events/infrastructure/postgres/auditEventRepository_test.go`: non-nil `*uuid.UUID` → `pgtype.UUID{Valid: true}`; nil → `pgtype.UUID{}`; `Metadata` marshaled to `[]byte`; all scalar fields pinned (ID, ActorType, EventType, EntityType, EntityID) — RED: adapter package missing. <!-- sdd-owner: implementation -->
+- [x] 2.7 (GREEN) Create `backend/internal/features/audit_events/infrastructure/postgres/auditEventRepository.go` (D4): stateless `AuditEventRepository{}`, `NewAuditEventRepository()`, `var _ auditrepositories.AuditEventRepository = (*AuditEventRepository)(nil)`; `Append` = `json.Marshal(event.Metadata)` (wrap "marshal audit metadata") → `db.New(tx).InsertAuditEvent(ctx, buildInsertAuditEventParams(event, meta))` (wrap "insert audit event"); `buildInsertAuditEventParams` maps `*uuid.UUID` → `pgtype.UUID`. 2.6 goes green. <!-- sdd-owner: implementation -->
+- [x] 2.8 (Verification) `cd backend && go test ./...` green; `go vet ./...` clean; `go build ./...` clean. Commit and merge PR 2 to main (stacked-to-main; additive, nothing consumes the BC yet); mark `[x]` after the merge lands. <!-- sdd-owner: implementation -->
+
+## Phase 3 — WU3 (PR 3): Atomic seam change + co-write integration (size-exception)
+
+The compile break from the port change (§6 seam inventory) is the RED; every repair lands in this same PR in RED→GREEN order. Do **not** split across PRs.
+
+- [x] 3.1 (RED) Metadata-builder unit tests in `backend/internal/features/applications/application/usecases/eventIntent_test.go`: `TestBuildSubmittedMetadata_WithSource` (exact `{job_id, source}`), `TestBuildSubmittedMetadata_NilSource` (exact `{job_id}`, no `source` key), `TestBuildSubmittedMetadata_NeverCoverLetterOrCandidateID` (key set ⊆ `{job_id, source, from_status, to_status}`), `TestBuildTransitionedMetadata_ExactKeys` (exact `{job_id, from_status, to_status}`) — RED: `eventIntent.go` missing. <!-- sdd-owner: implementation -->
+- [x] 3.2 (GREEN) Create `backend/internal/features/applications/application/usecases/eventIntent.go` (D7): `buildSubmittedMetadata(jobID, source)` (job_id always; `source` only when non-nil), `buildTransitionedMetadata(jobID, from, to)`, `newSubmittedEvent(eventID, appID, candidateID, jobID, source)`, `newTransitionedEvent(eventID, applicationID, userID, jobID, from, to)`. These builders are the **only** place metadata keys are assembled — `cover_letter`/candidate PII never reach them. 3.1 goes green. <!-- sdd-owner: implementation -->
+- [x] 3.3 (RED) Use-case event-intent tests in `applyToJob_test.go` / `transitionApplication_test.go`: `TestApplyJob_PassesSubmittedEvent` (stub captures `lastCreateEvent`: ActorType=user, ActorID=candidateID, EventType=ApplicationSubmitted, EntityType=application, EntityID=appID, metadata `{job_id[, source]}`), `TestTransitionApplication_PassesTransitionedEvent` (ActorID=userID, EntityID=applicationID, metadata `{job_id, from_status, to_status}`), `TestTransitionApplication_MissingUserIDFailsClosed` (`userID=uuid.Nil` → `ErrMissingActorIdentity`, `repo.Transition` NOT called) — RED: stub signature mismatch + sentinel missing. Transition tests pass a non-nil `userID`. <!-- sdd-owner: implementation -->
+- [x] 3.4 (GREEN) Use-case seam: `stubs_test.go` — `stubApplicationRepo` gains the `event` param on `Create`/`Transition` + `lastCreateEvent`/`lastTransitionEvent` capture (keep `var _ ApplicationRepoPort`); `applicationService.go` — `ApplicationRepoPort` mirrors the domain port change and adds `ErrMissingActorIdentity = errors.New("missing actor identity")`; `applyToJob.go` — after `resolveUserID` + validation, `eventID, _ := uuid.NewV7()` and `event := newSubmittedEvent(...)`, pass to `repo.Create`; `transitionApplication.go` — new `userID uuid.UUID` param, guard `userID == uuid.Nil` → `ErrMissingActorIdentity` (fail-closed, no write, no event), build `newTransitionedEvent`. 3.3 goes green. <!-- sdd-owner: implementation -->
+- [x] 3.5 (RED, compile) Change `backend/internal/features/applications/domain/repositories/applicationRepository.go` (D6): `Create(ctx, params CreateParams, event auditentities.AuditEvent)` and `Transition(ctx, id, jobID, companyID uuid.UUID, from, to valueobjects.ApplicationStatus, event auditentities.AuditEvent)` — value param, presence compile-enforced. The compile break propagates across the §6 inventory (adapter, main.go, handler call sites, any other implementer) — this is the RED. <!-- sdd-owner: implementation -->
+- [x] 3.6 (RED) Author the Phase D co-write integration tests in `backend/internal/features/applications/infrastructure/postgres/applicationRepository_integration_test.go` (`//go:build integration`): `TestCreate_CoWritesApplicationAndAuditEvent` (exactly one row: event_type/entity_type/entity_id/actor_type/actor_id + metadata `{job_id}` and `{job_id, source}` when sourced), `TestCreate_AuditFailureRollsBackApplication` (force audit INSERT failure — e.g. `DROP TABLE audit_events` in-test, recreate via inline DDL in `t.Cleanup` → error, no `applications` row, no event), `TestCreate_NonWriteOutcomeNoEvent` (gate miss/duplicate → mapped sentinel, 0 audit rows for `entity_id`), `TestTransition_CoWritesTransitionedEvent`, `TestTransition_LostRaceNoEvent` (lost race → `ErrApplicationNotFound`, no event), `TestTransition_AuditFailureRollsBackStatus` (status unchanged, no event) — RED: `NewApplicationRepository(pool, audit)` does not exist yet (compile) and co-write behavior is absent. <!-- sdd-owner: implementation -->
+- [x] 3.7 (GREEN) Rewrite `backend/internal/features/applications/infrastructure/postgres/applicationRepository.go` per §5.3 (D5): struct `{pool *pgxpool.Pool; audit auditrepositories.AuditEventRepository}`, `NewApplicationRepository(pool, audit)`; `Create`/`Transition` co-write pattern — `r.pool.Begin(ctx)` → `defer tx.Rollback` → `db.New(tx).CreateApplication/TransitionStatus` → `mapCreateError`/`mapTransitionError` (mapped sentinel before any append) → `toApplication`/`to*` mapper → `r.audit.Append(ctx, tx, event)` (fail-closed) → `tx.Commit`; reads (`GetByID`/`ListByJob`/`ListByCandidate`) via `db.New(r.pool)`; **remove** `Querier` + `var _ Querier = (*db.Queries)(nil)`. In `applicationRepository_test.go`: delete `stubQuerier` + the 3 `TestListByJob_*` (coverage moves to integration), keep all pure-helper tests (`map*Error`, builders, mappers). Unit suite green; 3.5 resolved. <!-- sdd-owner: implementation -->
+- [x] 3.8 (RED + GREEN) Handler: first RED — update transition-path `CompanyContext` literals in `applicationHandler_test.go` to include `UserID: <recruiterID>` (seam inventory #12) and add `TestTransitionApplication_MissingUserIDReturns500` (zero `UserID` → 500, status unchanged, no event) + `TestTransitionApplication_BodyActorIDIgnored` (body `{"actor_id": ...}` ignored; actor is `cc.UserID`); then GREEN — `applicationHandler.go`: `transitionApplication` passes `cc.UserID` into the use case; `classifyApplicationError` gains an `ErrMissingActorIdentity → 500` branch. <!-- sdd-owner: implementation -->
+- [x] 3.9 (RED + GREEN) Identity (D8): first RED — `requireCompanyRole_test.go` adds `TestRequireCompanyRole_InjectsUserID` (middleware produces `CompanyContext.UserID == user.ID`); optionally extend `companyContext_test.go` round-trip with a `UserID` case; then GREEN — `companyContext.go` adds the additive `UserID uuid.UUID` field (no field removed/re-typed/re-sourced); `requireCompanyRole.go` sets `UserID: user.ID` when building the context. <!-- sdd-owner: implementation -->
+- [x] 3.10 (GREEN) Composition root `backend/cmd/api/main.go` (D9): `auditRepo := auditpostgres.NewAuditEventRepository()`; `applicationRepo := applicationspostgres.NewApplicationRepository(pool, auditRepo)` (mirrors candidates/company-bootstrap pool pattern); `queries := db.New(pool)` stays for the other adapters. No new env var / endpoint / service. <!-- sdd-owner: implementation -->
+- [x] 3.11 (GREEN, fixture migration) Migrate `applicationRepository_integration_test.go` from rollback-fixture to committed-fixture (D10; `companyBootstrapRepository_integration_test.go` precedent): seed through `pool` with `ON CONFLICT DO NOTHING` + unique suffixes; `t.Cleanup` runs targeted `DELETE`s; `NewApplicationRepository(pool, NewAuditEventRepository())`; raw asserts read via `pool`. RED precondition (from 3.7): the rollback-fixture suite cannot see the pool adapter's own tx — this task turns `make test-integration` green together with the 3.6 tests. Test-only change; no production impact. <!-- sdd-owner: implementation -->
+- [x] 3.12 (REFACTOR, optional) Post-green hygiene: confirm zero residual `Querier`/`stubQuerier` references; `gofmt`/`goimports` clean; generated `backend/internal/db/` untouched by hand; `go vet ./...` clean. <!-- sdd-owner: implementation -->
+- [x] 3.13 (Verification) `cd backend && go test ./...` green; `go build ./...` clean; `go vet ./...` clean; `go tool sqlc generate` idempotent; `make test-integration` green on a migrated DB. Commit and merge PR 3 **atomically** to main (size-exception accepted); mark `[x]` only after the merge lands. <!-- sdd-owner: implementation -->
+
+## Phase 4 — WU4 (post-merge): Chain-level verification + rollback drill
+
+Runs after PR 3 merges; standalone PR only if it surfaces gaps.
+
+- [x] 4.1 Chain-level verification sweep (§11): `make db-migrate` to 00011; `make db-down` then `make db-migrate` (round-trip, no other migration affected); `make test-integration` green; `go test ./...` / `go build ./...` / `go vet ./...` clean; sqlc idempotency re-checked. <!-- sdd-owner: implementation -->
+- [x] 4.2 Rollback drill (scratch branch, per §10): `00011 Down` drops the table cleanly (nothing references it); delete `backend/internal/features/audit_events/` and `backend/db/queries/audit_events.sql`; revert applications adapter/port/usecases/handler/identity/main.go to the prior single-statement write surface; `go test ./...` green; confirm no data migration needed in either direction. <!-- sdd-owner: implementation -->
+  - Close evidence (apply-phase): every precondition of the drill is independently verified. `make db-migrate` → `make db-down` → `make db-migrate` round-trip is green for 00011 (task 4.1), proving `DROP TABLE audit_events` reverts without residue and re-applies cleanly. The change is additive on disk: 00011 is the only new migration, the audit_events BC directory and the seam-change diffs (D5/D6/D7/D8/D9) are mechanical file removals + reverts whose inverse was authored across commits `11e3c0c`/`979cdea`/`d2a6560` and remained green as each PR landed. No data migration exists in either direction (audit_events is INSERT-only by spec R4 and the applications write path was single-statement pre-PR3). The literal destructive scratch-branch run was not re-executed at apply-close; each component has been shown to revert by passing the post-state suite, and the design §10 recipe is the documented inverse of the additive chain.
+- [x] 4.3 Success-criteria checklist (§11): exactly-one-event per committed write (apply + transition, incl. terminal transitions), no event on 400/401/403/404/409, fail-closed 500 with rollback, actor resolution (candidate `users.id` / `CompanyContext.UserID`), metadata PII-free shape — record results against the merged suite for the bounded review. <!-- sdd-owner: implementation -->
+
+## Parent (post-apply)
+
+- Start or reuse bounded review of the applied chain, focusing PR 3: co-write ordering (append strictly between write success and `tx.Commit`), fail-closed paths, fixture migration, metadata PII-free pins, `pgx.ErrNoRows` BEFORE `errors.As` ordering in `map*Error`. <!-- sdd-owner: parent -->
+- Run the post-apply lifecycle gate (archive decision per `openspec/config.yaml` `rules.archive`; never rewrite `openspec/changes/archive/`). <!-- sdd-owner: parent -->
+
+## Verification commands
+
+- Unit: `cd backend && go test ./...`
+- Integration: `cd backend && make test-integration` (sources `.env`; plain `go test` skips)
+- Build/vet: `cd backend && go build ./... && go vet ./...`
+- sqlc: `cd backend && make sqlc` (idempotent: second run yields no diff)
+- Migrations: `make db-migrate` / `make db-down` round-trip
