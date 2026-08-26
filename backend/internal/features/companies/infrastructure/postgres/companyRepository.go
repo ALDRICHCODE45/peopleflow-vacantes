@@ -4,9 +4,12 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
+	auditrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
@@ -29,21 +32,29 @@ import (
 // `db.New(r.pool)` so the read path is semantically identical to the
 // pre-WU3 behavior (same SQL, same `*db.Queries` mapping).
 //
-// The full body of `UpdateCompany` / `SoftDeleteCompany` lands in WU5;
-// WU3 only needs the signatures + the `var _` assertion to compile.
-// The WU3 stubs are intentionally `return nil` so legacy tests
-// (which never exercise the new methods) stay green through the
-// atomic compile-break repair.
+// companies-audit WU2 (design D4/D9): the adapter now also holds the
+// stateless audit adapter (`auditrepositories.AuditEventRepository`)
+// so the write paths can co-write the domain write + the audit event
+// append atomically. The audit append runs INSIDE the adapter-owned
+// `pgx.Tx`, AFTER the domain write succeeds, and BEFORE `tx.Commit`;
+// an audit failure wraps to `co-write audit: <err>` and aborts the
+// transaction via the deferred `tx.Rollback` (fail-closed — no
+// domain write without its audit trail). The adapter NEVER builds
+// the event — the use case is the single source of truth (the event
+// arrives through the port signature as the LAST value param, D3).
 type CompanyRepository struct {
-	pool *pgxpool.Pool
+	pool  *pgxpool.Pool
+	audit auditrepositories.AuditEventRepository
 }
 
-// NewCompanyRepository wraps the pgxpool.Pool. The adapter owns its
-// own transactions for the write paths (companies-write slice, design
-// D15) so the constructor takes a pool, not a `*db.Queries` handle.
-// Composition root: `postgres.NewCompanyRepository(pool)` (D15).
-func NewCompanyRepository(pool *pgxpool.Pool) *CompanyRepository {
-	return &CompanyRepository{pool: pool}
+// NewCompanyRepository wraps the pgxpool.Pool + the stateless audit
+// adapter. Pool first, audit second — mirror of
+// `NewApplicationRepository(pool, audit)` (companies-audit design
+// D4). The composition root hoists the `auditRepo` declaration
+// above the `companyRepo` construction so the `auditRepo` variable
+// is in scope when this constructor runs.
+func NewCompanyRepository(pool *pgxpool.Pool, audit auditrepositories.AuditEventRepository) *CompanyRepository {
+	return &CompanyRepository{pool: pool, audit: audit}
 }
 
 // Compile-time assertion: the adapter satisfies the domain port. If a
@@ -106,21 +117,21 @@ func (r *CompanyRepository) GetCompanyForUpdate(ctx context.Context, companyID u
 
 // UpdateCompany applies the patch atomically, guarded by CAS
 // `updated_at = casUpdatedAt` and the row predicates
-// (id, deleted_at IS NULL). The D3 SQL is `:one` and emits a scalar
-// SELECT returning a single int64 (sqlc flattens single-column :one
-// queries — see apply-progress.md "sqlc-generated deviation").
+// (id, deleted_at IS NULL), AND co-writes the supplied audit event
+// inside the SAME `pgx.Tx` (companies-audit design D9 — fail-closed
+// co-write, mirror of the applications slice).
 //
-// Outcome matrix (adapter D3 + D11):
-//   updated_count = 0  → entities.ErrCompanyNotFound (CAS lost /
-//                          already-soft-deleted / cross-company /
-//                          non-existent — indistinguishable by
-//                          design; the use case re-reads and either
-//                          maps to 404 or 409-with-view).
-//   updated_count = 1  → nil (success: 1 row patched).
-//
-// `defer tx.Rollback` covers every error path between
-// `r.pool.Begin(ctx)` and `tx.Commit(ctx)` — the soft-delete write
-// is not on this path, but the defer is canonical and harmless.
+// Operation order (D9):
+//  1. pool.Begin
+//  2. defer tx.Rollback (canonical; covers every error path below)
+//  3. db.New(tx).UpdateCompany — SQL UPDATE
+//  4. mapUpdateCompanyError — 23514 → size/founded_year VO sentinel
+//  5. if updated == 0 → return ErrCompanyNotFound (NO append; the
+//     use case re-reads and either maps to 404 or 409-with-view)
+//  6. r.audit.Append(ctx, tx, event) — audit INSERT inside the
+//     same tx; an append failure wraps to "co-write audit: <err>"
+//     and aborts the tx via the deferred Rollback
+//  7. tx.Commit — both writes become visible atomically
 //
 // The D3 SQL sets `updated_at = clock_timestamp()` on a successful
 // update, so the authoritative post-write value is the next
@@ -128,12 +139,14 @@ func (r *CompanyRepository) GetCompanyForUpdate(ctx context.Context, companyID u
 // — design D12 step 7).
 //
 // Returns:
-//   nil                                  on success (1 row affected)
-//   entities.ErrCompanyNotFound          on 0 rows affected
-//                                        (CAS lost / cross-company /
-//                                        soft-delete race)
-//   other error                          propagated unchanged (HTTP 500)
-func (r *CompanyRepository) UpdateCompany(ctx context.Context, companyID uuid.UUID, patch repositories.UpdateCompanyPatch, casUpdatedAt time.Time) error {
+//
+//	nil                                  on success (1 row affected +
+//	                                     1 audit row appended)
+//	entities.ErrCompanyNotFound          on 0 rows affected
+//	                                     (CAS lost / cross-company /
+//	                                     soft-delete race — NO append)
+//	other error                          propagated unchanged (HTTP 500)
+func (r *CompanyRepository) UpdateCompany(ctx context.Context, companyID uuid.UUID, patch repositories.UpdateCompanyPatch, casUpdatedAt time.Time, event auditentities.AuditEvent) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -147,41 +160,64 @@ func (r *CompanyRepository) UpdateCompany(ctx context.Context, companyID uuid.UU
 	if updated == 0 {
 		return entities.ErrCompanyNotFound
 	}
+
+	// Fail-closed: an audit INSERT failure aborts the whole transaction
+	// (the deferred Rollback restores pre-state; no company mutation
+	// is visible).
+	if err := r.audit.Append(ctx, tx, event); err != nil {
+		return fmt.Errorf("co-write audit: %w", err)
+	}
+
 	return tx.Commit(ctx)
 }
 
 // SoftDeleteCompany tombstones the row (`deleted_at = now()`,
 // `updated_at = clock_timestamp()`) AND transactionally closes every
 // non-closed, non-tombstoned job of the company in ONE pgx.Tx
-// (design D4 / D5). The minimal SET list preserves every other
-// column as audit history (`rfc`, `industry_id`, `status`,
-// `created_at`, `id`, the 12 profile columns); the partial unique
-// index `companies_rfc_unique ON (rfc) WHERE deleted_at IS NULL`
-// permits RFC reuse after the tombstone.
+// (design D4 / D5), AND co-writes the supplied audit event inside
+// the SAME tx with the `jobs_closed` rowcount finalized into the
+// metadata (companies-audit design D1 / D9 — the post-write scalar
+// that only the adapter can observe). The minimal SET list
+// preserves every other column as audit history (`rfc`, `industry_id`,
+// `status`, `created_at`, `id`, the 12 profile columns); the
+// partial unique index `companies_rfc_unique ON (rfc) WHERE
+// deleted_at IS NULL` permits RFC reuse after the tombstone.
 //
-// Outcome matrix (adapter D4 + D11):
-//   deleted_count = 0  → entities.ErrCompanyNotFound (CAS lost /
-//                          already-soft-deleted / cross-company /
-//                          non-existent — indistinguishable by
-//                          design).
-//   deleted_count = 1  → nil; on success, the inline close runs in
-//                          the SAME tx. The adapter captures the
-//                          close rowcount as telemetry but NEVER
-//                          branches on it (`0 rows closed` is a
-//                          legitimate success path — "company had no
-//                          non-closed jobs at delete time").
+// Operation order (D9):
+//  1. pool.Begin
+//  2. defer tx.Rollback (covers every error path below)
+//  3. db.New(tx).SoftDeleteCompany — SQL UPDATE
+//  4. mapSoftDeleteCompanyError — 23514 → ErrInvalidCompanyStatusTransition
+//  5. if deleted == 0 → return ErrCompanyNotFound (NO append; NO inline close)
+//  6. db.New(tx).CloseCompanyJobs — inline close; the rowcount
+//     becomes the `jobs_closed` metadata value via
+//     `auditentities.CompanyDeletedMetadata(int(closedCount))`
+//  7. finalize event.Metadata (the use case built the event with
+//     `Metadata: nil` — the explicit "finalize me" handshake, D1)
+//  8. r.audit.Append(ctx, tx, event) — audit INSERT; failure wraps
+//     to "co-write audit: <err>" and aborts the tx
+//  9. tx.Commit — all three writes (soft-delete + inline close +
+//     audit append) become visible atomically
 //
-// On any inline-close error the deferred `tx.Rollback` undoes the
-// soft-delete write too — both writes either commit atomically or
-// neither is visible. Spec R6 + design §14.12 five-invariant
-// inline-close assertion.
+// The inline close rowcount IS now branched on (D1 — was "telemetry
+// only" in companies-write D5; companies-audit promotes it to the
+// single source of `jobs_closed`). The rowcount of zero is a
+// legitimate success path; `CompanyDeletedMetadata(0)` returns
+// `{"jobs_closed": "0"}` (the always-present key invariant — pinned
+// by `TestCompanyDeletedMetadata_AlwaysPresentKey` at the domain
+// layer).
 //
 // Returns:
-//   nil                                  on success (soft-delete +
-//                                        inline close committed)
-//   entities.ErrCompanyNotFound          on 0 rows affected
-//   other error                          propagated unchanged (HTTP 500)
-func (r *CompanyRepository) SoftDeleteCompany(ctx context.Context, companyID uuid.UUID, casUpdatedAt time.Time) error {
+//
+//	nil                                  on success (soft-delete +
+//	                                     inline close + audit append
+//	                                     committed)
+//	entities.ErrCompanyNotFound          on 0 rows affected
+//	                                     (CAS lost / cross-company /
+//	                                     already-soft-deleted — NO
+//	                                     append, NO inline close)
+//	other error                          propagated unchanged (HTTP 500)
+func (r *CompanyRepository) SoftDeleteCompany(ctx context.Context, companyID uuid.UUID, casUpdatedAt time.Time, event auditentities.AuditEvent) error {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -196,18 +232,31 @@ func (r *CompanyRepository) SoftDeleteCompany(ctx context.Context, companyID uui
 		return entities.ErrCompanyNotFound
 	}
 
-	// Inline close — runs in the same tx. Rowcount is captured but
-	// never branched on (D5: "0 rows closed is a legitimate success
-	// path"; the adapter is dumb and surfaces the row outcome as-is).
+	// Inline close — runs in the same tx. The rowcount becomes the
+	// `jobs_closed` metadata value (D1 / D9).
 	closedCount, err := db.New(tx).CloseCompanyJobs(ctx, companyID)
 	if err != nil {
 		// mapSoftDeleteCompanyError maps SQLSTATE 23514 → entities
 		// .ErrInvalidCompanyStatusTransition; pgx.ErrNoRows is
 		// unreachable (the :execrows UPDATE always emits a tag);
-		// unknown errors pass through.
+		// unknown errors pass through. The deferred tx.Rollback
+		// undoes the soft-delete write too.
 		return mapSoftDeleteCompanyError(err)
 	}
-	_ = closedCount // telemetry only — NEVER branch on it (D5).
+
+	// Finalize the event's `jobs_closed` metadata via the
+	// domain-owned pure builder. The use case built the event with
+	// `Metadata: nil` — this is the explicit "finalize me"
+	// handshake (D1). closedCount is the `int64` rowcount from
+	// `db.New(tx).CloseCompanyJobs`; the builder takes a Go `int`.
+	event.Metadata = auditentities.CompanyDeletedMetadata(int(closedCount))
+
+	// Fail-closed: an audit INSERT failure aborts the whole
+	// transaction. The deferred Rollback restores pre-state; no
+	// soft-delete, no job close, no audit row is visible.
+	if err := r.audit.Append(ctx, tx, event); err != nil {
+		return fmt.Errorf("co-write audit: %w", err)
+	}
 
 	return tx.Commit(ctx)
 }
@@ -390,33 +439,33 @@ func mapCompanyCreateError(err error) error {
 // name/description are the trimmed raw values.
 func buildUpdateCompanyParams(companyID uuid.UUID, patch repositories.UpdateCompanyPatch, casUpdatedAt time.Time) db.UpdateCompanyParams {
 	return db.UpdateCompanyParams{
-		Name:          textPtrToPgText(patch.Name),
-		SetWebsite:    patch.Website.Set,
-		Website:       optionalStringToPgText(patch.Website),
-		SetLogoUrl:    patch.LogoURL.Set,
-		LogoUrl:       optionalStringToPgText(patch.LogoURL),
-		SetDescription: patch.Description.Set,
-		Description:   optionalStringToPgText(patch.Description),
-		SetSize:       patch.Size.Set,
-		Size:          optionalStringToPgText(patch.Size),
-		SetFoundedYear: patch.FoundedYear.Set,
-		FoundedYear:   optionalIntToPgInt2(patch.FoundedYear),
-		SetCity:       patch.City.Set,
-		City:          optionalStringToPgText(patch.City),
-		SetCountry:    patch.Country.Set,
-		Country:       optionalStringToPgText(patch.Country),
-		SetLinkedinUrl: patch.LinkedInURL.Set,
-		LinkedinUrl:   optionalStringToPgText(patch.LinkedInURL),
-		SetInstagramUrl: patch.InstagramURL.Set,
-		InstagramUrl:  optionalStringToPgText(patch.InstagramURL),
-		SetFacebookUrl: patch.FacebookURL.Set,
-		FacebookUrl:   optionalStringToPgText(patch.FacebookURL),
-		SetTwitterUrl:  patch.TwitterURL.Set,
-		TwitterUrl:    optionalStringToPgText(patch.TwitterURL),
+		Name:             textPtrToPgText(patch.Name),
+		SetWebsite:       patch.Website.Set,
+		Website:          optionalStringToPgText(patch.Website),
+		SetLogoUrl:       patch.LogoURL.Set,
+		LogoUrl:          optionalStringToPgText(patch.LogoURL),
+		SetDescription:   patch.Description.Set,
+		Description:      optionalStringToPgText(patch.Description),
+		SetSize:          patch.Size.Set,
+		Size:             optionalStringToPgText(patch.Size),
+		SetFoundedYear:   patch.FoundedYear.Set,
+		FoundedYear:      optionalIntToPgInt2(patch.FoundedYear),
+		SetCity:          patch.City.Set,
+		City:             optionalStringToPgText(patch.City),
+		SetCountry:       patch.Country.Set,
+		Country:          optionalStringToPgText(patch.Country),
+		SetLinkedinUrl:   patch.LinkedInURL.Set,
+		LinkedinUrl:      optionalStringToPgText(patch.LinkedInURL),
+		SetInstagramUrl:  patch.InstagramURL.Set,
+		InstagramUrl:     optionalStringToPgText(patch.InstagramURL),
+		SetFacebookUrl:   patch.FacebookURL.Set,
+		FacebookUrl:      optionalStringToPgText(patch.FacebookURL),
+		SetTwitterUrl:    patch.TwitterURL.Set,
+		TwitterUrl:       optionalStringToPgText(patch.TwitterURL),
 		SetCoverImageUrl: patch.CoverImageURL.Set,
-		CoverImageUrl: optionalStringToPgText(patch.CoverImageURL),
-		CompanyID:     companyID,
-		CasToken:      pgtype.Timestamptz{Time: casUpdatedAt, Valid: true},
+		CoverImageUrl:    optionalStringToPgText(patch.CoverImageURL),
+		CompanyID:        companyID,
+		CasToken:         pgtype.Timestamptz{Time: casUpdatedAt, Valid: true},
 	}
 }
 
@@ -467,15 +516,16 @@ func optionalIntToPgInt2(o sharedvalueobjects.Optional[int]) pgtype.Int2 {
 // *pgconn.PgError).
 //
 // Mapping contract:
-//   nil                            → nil (pass-through)
-//   pgx.ErrNoRows                  → entities.ErrCompanyNotFound
-//                                    (defense-in-depth; the :one
-//                                    scalar SELECT always yields
-//                                    one row)
-//   23514 + companies_size_check   → valueobjects.ErrInvalidCompanySize
-//   23514 + companies_founded_year_check → valueobjects.ErrFoundedYearOutOfRange
-//   any other PgError               → pass-through (HTTP 500)
-//   any non-pg error                → pass-through (HTTP 500)
+//
+//	nil                            → nil (pass-through)
+//	pgx.ErrNoRows                  → entities.ErrCompanyNotFound
+//	                                 (defense-in-depth; the :one
+//	                                 scalar SELECT always yields
+//	                                 one row)
+//	23514 + companies_size_check   → valueobjects.ErrInvalidCompanySize
+//	23514 + companies_founded_year_check → valueobjects.ErrFoundedYearOutOfRange
+//	any other PgError               → pass-through (HTTP 500)
+//	any non-pg error                → pass-through (HTTP 500)
 //
 // NO branch for `ErrCompanyNameTooShort` or `ErrCompanyDescriptionTooLong`
 // (D13 — those are VO-level and the use case fires them before SQL;
@@ -511,16 +561,17 @@ func mapUpdateCompanyError(err error) error {
 // checks coexist.
 //
 // Mapping contract:
-//   nil                            → nil (pass-through)
-//   pgx.ErrNoRows                  → entities.ErrCompanyNotFound
-//                                    (defense-in-depth)
-//   23514                          → entities.ErrInvalidCompanyStatusTransition
-//                                    (defense-in-depth; the only
-//                                    plausible CHECK is
-//                                    jobs_status_check and 'closed'
-//                                    satisfies it)
-//   any other PgError               → pass-through (HTTP 500)
-//   any non-pg error                → pass-through (HTTP 500)
+//
+//	nil                            → nil (pass-through)
+//	pgx.ErrNoRows                  → entities.ErrCompanyNotFound
+//	                                 (defense-in-depth)
+//	23514                          → entities.ErrInvalidCompanyStatusTransition
+//	                                 (defense-in-depth; the only
+//	                                 plausible CHECK is
+//	                                 jobs_status_check and 'closed'
+//	                                 satisfies it)
+//	any other PgError               → pass-through (HTTP 500)
+//	any non-pg error                → pass-through (HTTP 500)
 //
 // NO 23503 mapping (D13 — soft-delete never reassigns FKs).
 func mapSoftDeleteCompanyError(err error) error {

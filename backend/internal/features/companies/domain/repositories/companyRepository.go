@@ -5,8 +5,9 @@ import (
 	"context"
 	"time"
 
-	sharedvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
+	sharedvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
 	"github.com/google/uuid"
 )
 
@@ -52,7 +53,7 @@ type UpdateCompanyPatch struct {
 
 // CompanyRepository is the persistence port for the companies aggregate.
 // Three methods cover the owner-only write surface (companies-write
-// slice, design D2/D12):
+// slice, design D2/D12 + companies-audit WU2 D3):
 //
 //   - GetCompanyForUpdate is the read-for-update / read-for-delete seam
 //     for the gated write paths. It reuses `GetCompanyByID`'s visibility
@@ -67,20 +68,27 @@ type UpdateCompanyPatch struct {
 //     `updated_at = casUpdatedAt` and the row predicates
 //     (id, deleted_at IS NULL). On 0 rows affected → `ErrCompanyNotFound`
 //     (the use case re-reads and either maps to 404 or 409-with-view).
-//     On 1 row affected → nil.
+//     On 1 row affected → the adapter appends the supplied audit
+//     event IN THE SAME `pgx.Tx` (design D9 — fail-closed co-write,
+//     mirror of the applications slice). The `event` parameter is the
+//     LAST position on the port signature (D3 — mirror of
+//     `applications.Transition(..., event)`); value-not-pointer.
 //
 //   - SoftDeleteCompany tombstones the row atomically (`deleted_at =
 //     now()`, `updated_at = clock_timestamp()`) and inline-closes every
 //     non-closed, non-tombstoned job of the company in the SAME
-//     `pgx.Tx` (design D5). On 0 rows → `ErrCompanyNotFound`. On
-//     1 row → nil. The inline close's rowcount is captured as
-//     telemetry but NEVER branched on (`0 rows closed` is a
-//     legitimate success path).
+//     `pgx.Tx` (design D5). The inline close's rowcount is finalized
+//     into the event's `jobs_closed` metadata via
+//     `auditentities.CompanyDeletedMetadata(int)` (D1 — the use case
+//     cannot observe the count at build time), then the audit append
+//     runs strictly AFTER `deleted == 1` + the successful inline
+//     close and strictly BEFORE `tx.Commit`. On 0 rows →
+//     `ErrCompanyNotFound` (no append). On 1 row → nil.
 type CompanyRepository interface {
 	Create(ctx context.Context, company *entities.Company) error
 	GetByID(ctx context.Context, id uuid.UUID) (*entities.Company, error)
 
 	GetCompanyForUpdate(ctx context.Context, companyID uuid.UUID) (*entities.Company, error)
-	UpdateCompany(ctx context.Context, companyID uuid.UUID, patch UpdateCompanyPatch, casUpdatedAt time.Time) error
-	SoftDeleteCompany(ctx context.Context, companyID uuid.UUID, casUpdatedAt time.Time) error
+	UpdateCompany(ctx context.Context, companyID uuid.UUID, patch UpdateCompanyPatch, casUpdatedAt time.Time, event auditentities.AuditEvent) error
+	SoftDeleteCompany(ctx context.Context, companyID uuid.UUID, casUpdatedAt time.Time, event auditentities.AuditEvent) error
 }

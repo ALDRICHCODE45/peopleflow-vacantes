@@ -62,13 +62,24 @@ func TestEventVocabularyIsClosed(t *testing.T) {
 		t.Error("the two event-type constants must be distinct")
 	}
 
-	// The untyped string-constant surface of this package is exactly the two
-	// event types plus EntityApplication. A third event constant would fail
+	// The untyped string-constant surface of this package is exactly the four
+	// event types plus two entity types. A new event constant would fail
 	// here — the closed set for this cycle is a deliberate code change.
+	//
+	// companies-audit WU1 (design D7 / D11): the closed set expands from
+	// two events to four (`ApplicationSubmitted`, `ApplicationTransitioned`,
+	// `CompanyUpdated`, `CompanyDeleted`); the entity types expand from one
+	// (`application`) to two (`application`, `company`). The future-only
+	// constants (`EventCompanyCreated`, `CompanyRestored`,
+	// `CompanySoftDeleted`) stay deferred — adding one would violate the
+	// closed-vocabulary invariant.
 	want := map[string]bool{
 		EventApplicationSubmitted:    true,
 		EventApplicationTransitioned: true,
+		EventCompanyUpdated:          true,
+		EventCompanyDeleted:          true,
 		EntityApplication:            true,
+		EntityCompany:                true,
 	}
 	got := stringConstantValues(t)
 	if len(got) != len(want) {
@@ -190,9 +201,17 @@ const featuresRootFromEntities = "../../.."
 
 // eventTypeEmitLiteralsOutsideEntities walks backend/internal/features/**
 // parsing every non-test Go file and returns the source position of any
-// "ApplicationSubmitted" / "ApplicationTransitioned" string literal found
-// outside this package (audit_events/domain/entities), i.e. any emit call
-// site that is not the constants declaration itself.
+// company-emit literal ("CompanyUpdated" / "CompanyDeleted" / "company")
+// found outside this package (audit_events/domain/entities), i.e. any emit
+// call site that is not the constants declaration itself.
+//
+// companies-audit WU1: the audit_events vocabulary now also forbids emit
+// literals for the company events anywhere except this package — the
+// closed-vocabulary invariant is enforced for ALL four events + the
+// "company" entity type. (Application emit literals remain enforced by
+// usage — every caller references the constants, never the literal — but
+// the AST walk stays focused on the company additions to keep the
+// regression signal tight.)
 func eventTypeEmitLiteralsOutsideEntities(t *testing.T) []string {
 	t.Helper()
 	entitiesDir := filepath.Join(featuresRootFromEntities, "audit_events", "domain", "entities")
@@ -233,7 +252,7 @@ func eventTypeEmitLiteralsOutsideEntities(t *testing.T) []string {
 			if uerr != nil {
 				return true
 			}
-			if value == "ApplicationSubmitted" || value == "ApplicationTransitioned" {
+			if value == "CompanyUpdated" || value == "CompanyDeleted" || value == "company" {
 				violations = append(violations, fset.Position(lit.Pos()).String())
 			}
 			return true
@@ -264,4 +283,47 @@ func sortedKeys(m map[string]bool) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// --- companies-audit WU1: CompanyDeletedMetadata pinned at the domain layer ---
+
+// TestCompanyDeletedMetadata_AlwaysPresentKey pins the spec invariant that
+// the `jobs_closed` key is ALWAYS present in the CompanyDeleted metadata
+// map, even when the integer rowcount is zero (a legitimate success path —
+// "company had no non-closed jobs at delete time"). The shape is stable so
+// consumers can rely on a fixed schema rather than a present-or-absent
+// branch (audit_events spec §"Metadata Shape (PII-Free)" — Scenario
+// "CompanyDeleted metadata always carries jobs_closed, even when zero").
+//
+// The test pins three values (0, 1, 5) to confirm the strconv.Itoa
+// semantics — the wire form is the stringified integer, NOT the bare int
+// and NOT a fmt.Sprintf("%v") variant.
+func TestCompanyDeletedMetadata_AlwaysPresentKey(t *testing.T) {
+	cases := []struct {
+		name    string
+		closed  int
+		wantVal string
+	}{
+		{"zero closes → jobs_closed=\"0\"", 0, "0"},
+		{"one close → jobs_closed=\"1\"", 1, "1"},
+		{"five closes → jobs_closed=\"5\"", 5, "5"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := CompanyDeletedMetadata(tc.closed)
+			if got == nil {
+				t.Fatal("CompanyDeletedMetadata: want non-nil map, got nil")
+			}
+			if len(got) != 1 {
+				t.Errorf("CompanyDeletedMetadata(%d): want exactly 1 key, got %d (%v)", tc.closed, len(got), got)
+			}
+			gotVal, ok := got["jobs_closed"]
+			if !ok {
+				t.Errorf("CompanyDeletedMetadata(%d): missing key %q", tc.closed, "jobs_closed")
+			}
+			if gotVal != tc.wantVal {
+				t.Errorf("CompanyDeletedMetadata(%d): want jobs_closed=%q, got %q", tc.closed, tc.wantVal, gotVal)
+			}
+		})
+	}
 }

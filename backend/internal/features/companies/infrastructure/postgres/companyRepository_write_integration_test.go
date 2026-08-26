@@ -56,6 +56,8 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
+	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
@@ -65,6 +67,55 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// newTestCompanyRepository is a package-local helper that mirrors the
+// production constructor's (pool, audit) signature with a fresh
+// stateless audit adapter. The 7 integration call sites use this
+// helper so the `auditpostgres` import is added once instead of at
+// every site (companies-audit design D4 — "the helper form to avoid
+// 7 duplicated imports of the audit postgres package").
+func newTestCompanyRepository(pool *pgxpool.Pool) *CompanyRepository {
+	return NewCompanyRepository(pool, auditpostgres.NewAuditEventRepository())
+}
+
+// writeAuditEvent assembles a minimal AuditEvent value the integration
+// tests hand to `repo.UpdateCompany` / `repo.SoftDeleteCompany`. The
+// tests don't run through the use case (they exercise the ADAPTER
+// directly), so the event has to be built inline. The shape mirrors
+// what the use case WOULD build:
+//
+//   - eventID: a fresh UUIDv7
+//   - actorType: ActorTypeUser
+//   - actorID: writeOwnerUserID (seeded per-fixture below)
+//   - eventType: EventCompanyUpdated or EventCompanyDeleted
+//   - entityType: EntityCompany
+//   - entityID: the company under test (caller-supplied)
+//   - metadata: empty object for PATCH; nil for DELETE (the adapter
+//     finalizes the jobs_closed scalar via CompanyDeletedMetadata)
+//
+// The tests' existing assertions (row counts, the +1 CompanyDeleted
+// audit row, the jobs_closed value) are pinned by WU3 (commit C);
+// the helper exists so WU2's atomic seam compiles AND so WU3 can
+// simply extend the assertion blocks.
+func writeAuditEvent(eventType string, companyID uuid.UUID) auditentities.AuditEvent {
+	eventID, _ := uuid.NewV7()
+	actor := writeOwnerUserID
+	return auditentities.AuditEvent{
+		ID:         eventID,
+		ActorType:  auditentities.ActorTypeUser,
+		ActorID:    &actor,
+		EventType:  eventType,
+		EntityType: auditentities.EntityCompany,
+		EntityID:   companyID,
+		Metadata:   map[string]string{},
+	}
+}
+
+func writeDeleteAuditEvent(companyID uuid.UUID) auditentities.AuditEvent {
+	e := writeAuditEvent(auditentities.EventCompanyDeleted, companyID)
+	e.Metadata = nil // adapter finalizes via CompanyDeletedMetadata(closedCount)
+	return e
+}
 
 // --- fixture identities ----------------------------------------------------
 //
@@ -78,6 +129,17 @@ var (
 	writeCoB    = uuid.MustParse("01910000-0000-7000-8000-00000000000c") // foreign company (for cross-company assertions)
 	writeIndID  = "companies-write-test-industry"
 	writeIndID2 = "companies-write-test-industry-2"
+
+	// writeOwnerUserID is the deterministic users.id the integration
+	// tests stamp as the actor on the audit_events rows the WU2 / WU3
+	// atomic seam produces. companies-audit (WU3 task 3.1): the
+	// test fixture MUST seed a real `users` row + a `company_members`
+	// row linking that user to `writeCoA` with `role='owner'`, so
+	// `actor_id` can be asserted as a real `users.id`. The seed is
+	// installed by `seedOwnerUser` (called from each test that
+	// produces an audit row). The id is fixed under the 01910000
+	// namespace so cleanup can target it deterministically.
+	writeOwnerUserID = uuid.MustParse("01910000-0000-7000-8000-0000000000e1")
 )
 
 // fixtureSeed inserts the deterministic fixture universe (industry + 3
@@ -211,6 +273,50 @@ func cleanupCompanyAJobs(t *testing.T, pool *pgxpool.Pool) {
 	}
 }
 
+// seedOwnerUser installs a deterministic `users` row + a
+// `company_members` row linking that user to `writeCoA` with
+// `role='owner'`. companies-audit WU3: the new production emission
+// (CompanyDeleted) carries `actor_id=<writeOwnerUserID>` so the
+// integration test asserts `actor_id == users.id` (a real FK
+// reference, not a synthetic UUID). The seed is idempotent
+// (`ON CONFLICT DO NOTHING`) so re-runs do not collide. Cleanup
+// runs in t.Cleanup via `cleanupOwnerUser` so a test that fails
+// mid-flight still leaves the database in a re-runnable state.
+func seedOwnerUser(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
+	t.Helper()
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO users (id, cognito_sub, email, full_name, user_type)
+		 VALUES ($1, 'sub-companies-audit-write-owner', 'write-owner@example.com', 'Write Owner', 'recruiter')
+		 ON CONFLICT (id) DO NOTHING`,
+		writeOwnerUserID); err != nil {
+		t.Fatalf("seed owner user: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO company_members (id, user_id, company_id, role)
+		 VALUES (gen_random_uuid(), $1, $2, 'owner')
+		 ON CONFLICT (user_id) DO NOTHING`,
+		writeOwnerUserID, writeCoA); err != nil {
+		t.Fatalf("seed company_members: %v", err)
+	}
+}
+
+// cleanupOwnerUser removes the owner user + the membership row the
+// seed inserted. Uses a fresh background context (the test's
+// primary ctx is canceled by the time t.Cleanup runs).
+func cleanupOwnerUser(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if _, err := pool.Exec(ctx,
+		`DELETE FROM company_members WHERE user_id = $1`, writeOwnerUserID); err != nil {
+		t.Logf("cleanup company_members: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`DELETE FROM users WHERE id = $1`, writeOwnerUserID); err != nil {
+		t.Logf("cleanup users: %v", err)
+	}
+}
+
 // cleanupCompanies removes the three companies + audit events + industries
 // the fixture inserted. Safe to call multiple times (idempotent).
 // Uses a fresh background context (the test's primary ctx is canceled
@@ -221,8 +327,13 @@ func cleanupCompanies(t *testing.T, pool *pgxpool.Pool) {
 	defer cancel()
 	// Delete audit_events that reference fixture entity_ids (entity_id
 	// is NOT NULL and has no FK; we created them as part of the seed).
+	// companies-audit WU3 (cleanup widening): the seed row uses the
+	// plural legacy literal `entity_type='companies'`; the production
+	// emission uses the singular `entity_type='company'`. The
+	// predicate widens to BOTH literals so cleanup is defensive against
+	// both the legacy seed and the new production emission.
 	if _, err := pool.Exec(ctx,
-		`DELETE FROM audit_events WHERE entity_type = 'companies' AND entity_id = ANY($1::uuid[])`,
+		`DELETE FROM audit_events WHERE entity_type IN ('companies', 'company') AND entity_id = ANY($1::uuid[])`,
 		[]uuid.UUID{writeCoA, writeCoT, writeCoB}); err != nil {
 		t.Logf("cleanup audit_events: %v", err)
 	}
@@ -243,14 +354,15 @@ func cleanupCompanies(t *testing.T, pool *pgxpool.Pool) {
 // TestUpdateCompany_PartialUpdateAndCAS proves three SQL invariants
 // in one test (kept as a single scenario so the pre/post snapshots
 // share a connection):
-//   (i)  patch one field (website); the row's website is updated;
-//        `updated_at` advances to a value strictly greater than the
-//        pre-patch value.
-//   (ii) a stale CAS (the original updated_at) returns
-//        ErrCompanyNotFound and the row is NOT mutated (second write).
-//   (iii) the absent fields (city, description, logo_url) keep
-//         their pre-patch values; explicit JSON null clears a text
-//         column to SQL NULL (per design D7 tri-state).
+//
+//	(i)  patch one field (website); the row's website is updated;
+//	     `updated_at` advances to a value strictly greater than the
+//	     pre-patch value.
+//	(ii) a stale CAS (the original updated_at) returns
+//	     ErrCompanyNotFound and the row is NOT mutated (second write).
+//	(iii) the absent fields (city, description, logo_url) keep
+//	      their pre-patch values; explicit JSON null clears a text
+//	      column to SQL NULL (per design D7 tri-state).
 func TestUpdateCompany_PartialUpdateAndCAS(t *testing.T) {
 	pool := skipIfNoDatabase(t)
 	t.Cleanup(func() { pool.Close() })
@@ -265,12 +377,12 @@ func TestUpdateCompany_PartialUpdateAndCAS(t *testing.T) {
 		cleanupCompanies(t, pool)
 	})
 
-	repo := NewCompanyRepository(pool)
+	repo := newTestCompanyRepository(pool)
 
 	// Snapshot the pre-update row + updated_at.
 	var (
-		preWebsite    *string
-		preUpdatedAt  time.Time
+		preWebsite   *string
+		preUpdatedAt time.Time
 	)
 	if err := pool.QueryRow(ctx,
 		`SELECT website, updated_at FROM companies WHERE id = $1`, writeCoA,
@@ -282,13 +394,13 @@ func TestUpdateCompany_PartialUpdateAndCAS(t *testing.T) {
 	newWebsite := "https://write-co.example.com"
 	if err := repo.UpdateCompany(ctx, writeCoA, repositories.UpdateCompanyPatch{
 		Website: sharedvalueobjects.Optional[string]{Set: true, Valid: true, Value: newWebsite},
-	}, preUpdatedAt); err != nil {
+	}, preUpdatedAt, writeAuditEvent(auditentities.EventCompanyUpdated, writeCoA)); err != nil {
 		t.Fatalf("UpdateCompany: %v", err)
 	}
 
 	// (i) Post-update: website updated, updated_at advanced.
 	var (
-		postWebsite  *string
+		postWebsite   *string
 		postUpdatedAt time.Time
 	)
 	if err := pool.QueryRow(ctx,
@@ -307,7 +419,7 @@ func TestUpdateCompany_PartialUpdateAndCAS(t *testing.T) {
 	//      no mutation.
 	if err := repo.UpdateCompany(ctx, writeCoA, repositories.UpdateCompanyPatch{
 		Website: sharedvalueobjects.Optional[string]{Set: true, Valid: true, Value: "https://other.example.com"},
-	}, preUpdatedAt); !errors.Is(err, entities.ErrCompanyNotFound) {
+	}, preUpdatedAt, writeAuditEvent(auditentities.EventCompanyUpdated, writeCoA)); !errors.Is(err, entities.ErrCompanyNotFound) {
 		t.Errorf("stale CAS: want ErrCompanyNotFound, got: %v", err)
 	}
 	var staleWebsite *string
@@ -331,7 +443,7 @@ func TestUpdateCompany_PartialUpdateAndCAS(t *testing.T) {
 	if err := repo.UpdateCompany(ctx, writeCoA, repositories.UpdateCompanyPatch{
 		City:    sharedvalueobjects.Optional[string]{Set: true, Valid: true, Value: newCity},
 		LogoURL: sharedvalueobjects.Optional[string]{Set: true, Valid: false}, // explicit null
-	}, postUpdatedAt); err != nil {
+	}, postUpdatedAt, writeAuditEvent(auditentities.EventCompanyUpdated, writeCoA)); err != nil {
 		t.Fatalf("UpdateCompany #2: %v", err)
 	}
 	var (
@@ -386,10 +498,10 @@ func TestUpdateCompany_TextNullClearsColumn(t *testing.T) {
 		t.Fatalf("snapshot: %v", err)
 	}
 
-	repo := NewCompanyRepository(pool)
+	repo := newTestCompanyRepository(pool)
 	if err := repo.UpdateCompany(ctx, writeCoA, repositories.UpdateCompanyPatch{
 		Website: sharedvalueobjects.Optional[string]{Set: true, Valid: false}, // JSON null
-	}, preUpdatedAt); err != nil {
+	}, preUpdatedAt, writeAuditEvent(auditentities.EventCompanyUpdated, writeCoA)); err != nil {
 		t.Fatalf("UpdateCompany null: %v", err)
 	}
 
@@ -409,18 +521,18 @@ func TestUpdateCompany_TextNullClearsColumn(t *testing.T) {
 // TestSoftDeleteCompany_TombstonesAndClosesJobs is the §14.12
 // five-invariant assertion (spec R6 + R9 + D17 (a-e)). The test:
 //
-//   (a) BEFORE: company A has 1 draft + 1 published + 1 closed +
-//       1 soft-deleted job; one application per draft/published.
-//   (b) AFTER: the draft and published jobs are `closed` with a
-//       FRESH updated_at (> pre-call); the already-closed job's
-//       `status` / `updated_at` are unchanged (NOT bumped); the
-//       soft-deleted job is untouched (deleted_at stays NOT NULL,
-//       status stays 'closed').
-//   (c) company_members row count + roles unchanged (we seed two
-//       members and assert both remain).
-//   (d) applications row count + statuses unchanged.
-//   (e) audit_events row count unchanged (the spec R9 invariant
-//       "successful DELETE does NOT add an audit_events row").
+//	(a) BEFORE: company A has 1 draft + 1 published + 1 closed +
+//	    1 soft-deleted job; one application per draft/published.
+//	(b) AFTER: the draft and published jobs are `closed` with a
+//	    FRESH updated_at (> pre-call); the already-closed job's
+//	    `status` / `updated_at` are unchanged (NOT bumped); the
+//	    soft-deleted job is untouched (deleted_at stays NOT NULL,
+//	    status stays 'closed').
+//	(c) company_members row count + roles unchanged (we seed two
+//	    members and assert both remain).
+//	(d) applications row count + statuses unchanged.
+//	(e) audit_events row count unchanged (the spec R9 invariant
+//	    "successful DELETE does NOT add an audit_events row").
 //
 // This single test pins the deliverable behavior the spec requires.
 func TestSoftDeleteCompany_TombstonesAndClosesJobs(t *testing.T) {
@@ -432,8 +544,10 @@ func TestSoftDeleteCompany_TombstonesAndClosesJobs(t *testing.T) {
 
 	fixtureSeed(t, ctx, pool)
 	seedCompanyAJobs(t, ctx, pool)
+	seedOwnerUser(t, ctx, pool) // companies-audit WU3: deterministic actor for the audit row assertion
 	t.Cleanup(func() {
 		cleanupCompanyAJobs(t, pool)
+		cleanupOwnerUser(t, pool)
 		cleanupCompanies(t, pool)
 	})
 
@@ -473,9 +587,9 @@ func TestSoftDeleteCompany_TombstonesAndClosesJobs(t *testing.T) {
 
 	// Pre-call counts: company_members, applications, audit_events.
 	var (
-		preMembersCount    int
+		preMembersCount      int
 		preApplicationsCount int
-		preAuditCount      int
+		preAuditCount        int
 	)
 	if err := pool.QueryRow(ctx,
 		`SELECT count(*) FROM company_members WHERE company_id = $1`, writeCoA,
@@ -495,8 +609,8 @@ func TestSoftDeleteCompany_TombstonesAndClosesJobs(t *testing.T) {
 	// ACT: soft-delete company A. The adapter opens its own tx
 	// (pool.Begin) and commits the soft-delete + the inline close
 	// atomically.
-	repo := NewCompanyRepository(pool)
-	if err := repo.SoftDeleteCompany(ctx, writeCoA, preUpdatedAt); err != nil {
+	repo := newTestCompanyRepository(pool)
+	if err := repo.SoftDeleteCompany(ctx, writeCoA, preUpdatedAt, writeDeleteAuditEvent(writeCoA)); err != nil {
 		t.Fatalf("SoftDeleteCompany: %v", err)
 	}
 
@@ -517,9 +631,9 @@ func TestSoftDeleteCompany_TombstonesAndClosesJobs(t *testing.T) {
 
 	// (b.ii) draft job → closed, with a fresh updated_at.
 	var (
-		draftStatus     string
-		draftUpdatedAt  time.Time
-		draftDeletedAt  *time.Time
+		draftStatus    string
+		draftUpdatedAt time.Time
+		draftDeletedAt *time.Time
 	)
 	if err := pool.QueryRow(ctx,
 		`SELECT status, updated_at, deleted_at FROM jobs WHERE id = $1`, writeJobDraft,
@@ -535,7 +649,7 @@ func TestSoftDeleteCompany_TombstonesAndClosesJobs(t *testing.T) {
 
 	// (b.iii) published job → closed, with a fresh updated_at.
 	var (
-		publishedStatus     string
+		publishedStatus    string
 		publishedUpdatedAt time.Time
 	)
 	if err := pool.QueryRow(ctx,
@@ -565,8 +679,8 @@ func TestSoftDeleteCompany_TombstonesAndClosesJobs(t *testing.T) {
 
 	// (b.v) soft-deleted job: status + deleted_at unchanged.
 	var (
-		postDeletedJobStatus     string
-		postDeletedJobDeletedAt  time.Time
+		postDeletedJobStatus    string
+		postDeletedJobDeletedAt time.Time
 	)
 	if err := pool.QueryRow(ctx,
 		`SELECT status, deleted_at FROM jobs WHERE id = $1`, writeJobDeleted,
@@ -603,15 +717,52 @@ func TestSoftDeleteCompany_TombstonesAndClosesJobs(t *testing.T) {
 		t.Errorf("applications: want count unchanged (%d), got %d", preApplicationsCount, postApplicationsCount)
 	}
 
-	// (e) audit_events: row count unchanged (spec R9 — no audit
-	// emission for company writes).
+	// (e) audit_events: row count is `preAuditCount + 1` AND the new
+	// row carries the expected CompanyDeleted event shape. The legacy
+	// spec R9 invariant ("companies-write MUST NOT emit audit events")
+	// is retired by companies-audit (design D7 / spec "Audit Events
+	// for Companies" — the new emission contract asserts +1 row with
+	// event_type='CompanyDeleted', entity_type='company', actor_type=
+	// 'user', actor_id=<seeded owner user>, metadata->>'jobs_closed'
+	// = '<closedCount>').
 	var postAuditCount int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events`).Scan(&postAuditCount); err != nil {
 		t.Fatalf("post audit count: %v", err)
 	}
-	if postAuditCount != preAuditCount {
-		t.Errorf("audit_events: want count unchanged (%d), got %d (spec R9 — companies-write MUST NOT emit audit events)",
-			preAuditCount, postAuditCount)
+	if postAuditCount != preAuditCount+1 {
+		t.Errorf("audit_events: want count %d (preAuditCount+1), got %d (companies-audit spec — DELETE success appends exactly one CompanyDeleted row)",
+			preAuditCount+1, postAuditCount)
+	}
+	// Inspect the new row.
+	var (
+		evType       string
+		evEntityType string
+		evActorType  string
+		evActorID    *uuid.UUID
+		evMetaRaw    []byte
+	)
+	if err := pool.QueryRow(ctx,
+		`SELECT event_type, entity_type, actor_type, actor_id, metadata::text::bytea
+		 FROM audit_events
+		 WHERE entity_type = 'company' AND entity_id = $1 AND event_type = 'CompanyDeleted'`,
+		writeCoA,
+	).Scan(&evType, &evEntityType, &evActorType, &evActorID, &evMetaRaw); err != nil {
+		t.Fatalf("query CompanyDeleted audit row: %v", err)
+	}
+	if evType != "CompanyDeleted" {
+		t.Errorf("audit event_type: want CompanyDeleted, got %q", evType)
+	}
+	if evEntityType != "company" {
+		t.Errorf("audit entity_type: want company (singular), got %q", evEntityType)
+	}
+	if evActorType != "user" {
+		t.Errorf("audit actor_type: want user, got %q", evActorType)
+	}
+	if evActorID == nil || *evActorID != writeOwnerUserID {
+		t.Errorf("audit actor_id: want %v, got %v", writeOwnerUserID, evActorID)
+	}
+	if string(evMetaRaw) != `{"jobs_closed": "2"}` {
+		t.Errorf("audit metadata: want {\"jobs_closed\": \"2\"}, got %s", string(evMetaRaw))
 	}
 
 	// Cross-company sanity: company B is untouched.
@@ -623,6 +774,112 @@ func TestSoftDeleteCompany_TombstonesAndClosesJobs(t *testing.T) {
 	}
 	if coBUpdatedAt.After(postUpdatedAt) {
 		t.Errorf("company B.updated_at must not advance (cross-company isolation), got %v", coBUpdatedAt)
+	}
+}
+
+// --- 2b. UpdateCompany produces a CompanyUpdated audit row (companies-audit) ---
+
+// TestUpdateCompany_ProducesCompanyUpdatedAuditRow pins the PATCH
+// side of the new emission contract (companies-audit design D7 /
+// spec "Audit Events for Companies" — the parallel PATCH +1 test
+// to the DELETE invariant-(e) flip in TestSoftDeleteCompany_TombstonesAndClosesJobs).
+// A successful PATCH appends EXACTLY ONE row to audit_events with:
+//
+//   - event_type = 'CompanyUpdated'
+//   - entity_type = 'company' (singular)
+//   - entity_id = <the company>
+//   - actor_type = 'user'
+//   - actor_id = <writeOwnerUserID> (seeded by `seedOwnerUser`)
+//   - metadata = '{}' (the empty JSON object — pinned by
+//     `TestNewCompanyUpdatedEvent_Shape` at the use-case layer; the
+//     PATCH event carries no profile diff)
+func TestUpdateCompany_ProducesCompanyUpdatedAuditRow(t *testing.T) {
+	pool := skipIfNoDatabase(t)
+	t.Cleanup(func() { pool.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	fixtureSeed(t, ctx, pool)
+	seedOwnerUser(t, ctx, pool)
+	t.Cleanup(func() {
+		cleanupOwnerUser(t, pool)
+		cleanupCompanies(t, pool)
+	})
+
+	repo := newTestCompanyRepository(pool)
+
+	// Snapshot pre-call state (audit count + the row's updated_at).
+	var preAuditCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events`).Scan(&preAuditCount); err != nil {
+		t.Fatalf("pre audit count: %v", err)
+	}
+	var preUpdatedAt time.Time
+	if err := pool.QueryRow(ctx,
+		`SELECT updated_at FROM companies WHERE id = $1`, writeCoA,
+	).Scan(&preUpdatedAt); err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+
+	// Patch one field (website) with a matching CAS.
+	newWebsite := "https://audit-row.example.com"
+	if err := repo.UpdateCompany(ctx, writeCoA, repositories.UpdateCompanyPatch{
+		Website: sharedvalueobjects.Optional[string]{Set: true, Valid: true, Value: newWebsite},
+	}, preUpdatedAt, writeAuditEvent(auditentities.EventCompanyUpdated, writeCoA)); err != nil {
+		t.Fatalf("UpdateCompany: %v", err)
+	}
+
+	// (1) The company row was updated.
+	var postWebsite *string
+	if err := pool.QueryRow(ctx,
+		`SELECT website FROM companies WHERE id = $1`, writeCoA,
+	).Scan(&postWebsite); err != nil {
+		t.Fatalf("post website: %v", err)
+	}
+	if postWebsite == nil || *postWebsite != newWebsite {
+		t.Errorf("website: want %q, got %v", newWebsite, postWebsite)
+	}
+
+	// (2) Exactly one new audit_events row was appended.
+	var postAuditCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events`).Scan(&postAuditCount); err != nil {
+		t.Fatalf("post audit count: %v", err)
+	}
+	if postAuditCount != preAuditCount+1 {
+		t.Errorf("audit_events: want count %d (preAuditCount+1), got %d (PATCH success appends exactly one CompanyUpdated row)",
+			preAuditCount+1, postAuditCount)
+	}
+
+	// (3) The new row carries the expected CompanyUpdated event shape.
+	var (
+		evType       string
+		evEntityType string
+		evActorType  string
+		evActorID    *uuid.UUID
+		evMetaRaw    []byte
+	)
+	if err := pool.QueryRow(ctx,
+		`SELECT event_type, entity_type, actor_type, actor_id, metadata::text::bytea
+		 FROM audit_events
+		 WHERE entity_type = 'company' AND entity_id = $1 AND event_type = 'CompanyUpdated'`,
+		writeCoA,
+	).Scan(&evType, &evEntityType, &evActorType, &evActorID, &evMetaRaw); err != nil {
+		t.Fatalf("query CompanyUpdated audit row: %v", err)
+	}
+	if evType != "CompanyUpdated" {
+		t.Errorf("audit event_type: want CompanyUpdated, got %q", evType)
+	}
+	if evEntityType != "company" {
+		t.Errorf("audit entity_type: want company (singular), got %q", evEntityType)
+	}
+	if evActorType != "user" {
+		t.Errorf("audit actor_type: want user, got %q", evActorType)
+	}
+	if evActorID == nil || *evActorID != writeOwnerUserID {
+		t.Errorf("audit actor_id: want %v, got %v", writeOwnerUserID, evActorID)
+	}
+	if string(evMetaRaw) != `{}` {
+		t.Errorf("audit metadata: want {} (empty object), got %s", string(evMetaRaw))
 	}
 }
 
@@ -694,7 +951,7 @@ func TestGetCompanyForUpdate_HidesTombstoned(t *testing.T) {
 	fixtureSeed(t, ctx, pool)
 	t.Cleanup(func() { cleanupCompanies(t, pool) })
 
-	repo := NewCompanyRepository(pool)
+	repo := newTestCompanyRepository(pool)
 
 	_, err := repo.GetCompanyForUpdate(ctx, writeCoT) // tombstoned
 	if !errors.Is(err, entities.ErrCompanyNotFound) {
@@ -715,9 +972,10 @@ func TestGetCompanyForUpdate_HidesTombstoned(t *testing.T) {
 	if coTDeletedAt == nil {
 		t.Fatal("precondition: company T must be tombstoned")
 	}
-	if err := repo.SoftDeleteCompany(ctx, writeCoT, coTUpdatedAt); !errors.Is(err, entities.ErrCompanyNotFound) {
+	if err := repo.SoftDeleteCompany(ctx, writeCoT, coTUpdatedAt, writeDeleteAuditEvent(writeCoT)); !errors.Is(err, entities.ErrCompanyNotFound) {
 		t.Errorf("second DELETE on tombstoned: want ErrCompanyNotFound, got: %v", err)
 	}
+
 }
 
 // TestSoftDeleteCompany_StaleCASReturnsErrCompanyNotFound pins the
@@ -735,7 +993,7 @@ func TestSoftDeleteCompany_StaleCASReturnsErrCompanyNotFound(t *testing.T) {
 	fixtureSeed(t, ctx, pool)
 	t.Cleanup(func() { cleanupCompanies(t, pool) })
 
-	repo := NewCompanyRepository(pool)
+	repo := newTestCompanyRepository(pool)
 
 	// Snapshot the current updated_at (the "fresh" token).
 	var freshUpdatedAt time.Time
@@ -748,7 +1006,7 @@ func TestSoftDeleteCompany_StaleCASReturnsErrCompanyNotFound(t *testing.T) {
 	// Stale token: any timestamp strictly before the row's
 	// updated_at guarantees 0 rows.
 	staleToken := freshUpdatedAt.Add(-1 * time.Hour)
-	if err := repo.SoftDeleteCompany(ctx, writeCoA, staleToken); !errors.Is(err, entities.ErrCompanyNotFound) {
+	if err := repo.SoftDeleteCompany(ctx, writeCoA, staleToken, writeDeleteAuditEvent(writeCoA)); !errors.Is(err, entities.ErrCompanyNotFound) {
 		t.Errorf("stale CAS: want ErrCompanyNotFound, got: %v", err)
 	}
 
@@ -767,7 +1025,7 @@ func TestSoftDeleteCompany_StaleCASReturnsErrCompanyNotFound(t *testing.T) {
 	// The valid CAS soft-deletes the company (this also exercises
 	// the adapter's success path; the inline close runs in the
 	// SAME tx and is a no-op because company A has no jobs).
-	if err := repo.SoftDeleteCompany(ctx, writeCoA, freshUpdatedAt); err != nil {
+	if err := repo.SoftDeleteCompany(ctx, writeCoA, freshUpdatedAt, writeDeleteAuditEvent(writeCoA)); err != nil {
 		t.Fatalf("fresh CAS: %v", err)
 	}
 	if err := pool.QueryRow(ctx,
@@ -812,11 +1070,11 @@ func TestUpdateCompany_SQLCHECKViolationMapsToSizeVO(t *testing.T) {
 	// the use case's VO gate. The adapter's helper builds the
 	// pgtype.Text directly, so the SQL CASE branch will set the
 	// column and trip `companies_size_check`.
-	repo := NewCompanyRepository(pool)
+	repo := newTestCompanyRepository(pool)
 	patch := repositories.UpdateCompanyPatch{
 		Size: sharedvalueobjects.Optional[string]{Set: true, Valid: true, Value: "gigantic"},
 	}
-	err := repo.UpdateCompany(ctx, writeCoA, patch, preUpdatedAt)
+	err := repo.UpdateCompany(ctx, writeCoA, patch, preUpdatedAt, writeAuditEvent(auditentities.EventCompanyUpdated, writeCoA))
 	if !errors.Is(err, valueobjects.ErrInvalidCompanySize) {
 		t.Errorf("SQL CHECK size: want ErrInvalidCompanySize, got: %v", err)
 	}
@@ -904,7 +1162,7 @@ func TestGetMyMembership_HidesTombstonedCompany(t *testing.T) {
 		cleanupCompanies(t, pool)
 	})
 
-	companyRepo := NewCompanyRepository(pool)
+	companyRepo := newTestCompanyRepository(pool)
 	memberRepo := NewCompanyMemberRepository(db.New(pool))
 	svc := usecases.NewCompanyMemberService(memberRepo, stubIdentityUserRepo{sub: sub, userID: userID}, companyRepo)
 

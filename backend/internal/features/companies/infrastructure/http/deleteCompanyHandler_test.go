@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
@@ -51,6 +52,7 @@ type stubDeleteServiceRepo struct {
 	softDeleteCalls int
 	softDeleteID    uuid.UUID
 	softDeleteCas   time.Time
+	softDeleteEvent auditentities.AuditEvent
 	softDeleteErr   error
 }
 
@@ -67,17 +69,18 @@ func (s *stubDeleteServiceRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UU
 	return nil, entities.ErrCompanyNotFound
 }
 
-func (s *stubDeleteServiceRepo) SoftDeleteCompany(_ context.Context, id uuid.UUID, cas time.Time) error {
+func (s *stubDeleteServiceRepo) SoftDeleteCompany(_ context.Context, id uuid.UUID, cas time.Time, event auditentities.AuditEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.softDeleteCalls++
 	s.softDeleteID = id
 	s.softDeleteCas = cas
+	s.softDeleteEvent = event
 	return s.softDeleteErr
 }
 
 // UpdateCompany must not be called by the DELETE handler.
-func (s *stubDeleteServiceRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time) error {
+func (s *stubDeleteServiceRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time, _ auditentities.AuditEvent) error {
 	return errors.New("stubDeleteServiceRepo.UpdateCompany: DELETE handler must not call UpdateCompany")
 }
 
@@ -114,6 +117,31 @@ func doDelete(t *testing.T, router http.Handler, casHeader string, cc identityse
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, r)
 	return rec
+}
+
+// --- 0. missing actor (uuid.Nil) fails closed with 500 via classifier --------
+
+// TestDeleteCompanyHandler_MissingUserIDReturns500 pins the spec
+// scenario "uuid.Nil actor fails closed with 500 and appends zero
+// audit rows" (companies-audit design D6). The handler passes
+// CompanyContext.UserID to the use case; when the use case receives
+// `userID == uuid.Nil`, its FIRST-step guard returns
+// `ErrMissingActorIdentity`; the classifier maps the sentinel to 500
+// with a generic body.
+func TestDeleteCompanyHandler_MissingUserIDReturns500(t *testing.T) {
+	repo := &stubDeleteServiceRepo{}
+	companyID := uuid.New()
+	cc := identitysecurity.CompanyContext{CompanyID: companyID, UserID: uuid.Nil, Role: valueobjects.OwnerRole}
+	router := newDeleteRouter(t, repo, cc)
+
+	rec := doDelete(t, router, "", cc)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500 (fail-closed), got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.softDeleteCalls != 0 {
+		t.Errorf("repo.SoftDeleteCompany MUST NOT be called on missing actor, got %d calls", repo.softDeleteCalls)
+	}
 }
 
 // --- 1. missing CompanyContext fails closed with 500 -------------------------
@@ -200,6 +228,76 @@ func TestDeleteCompanyHandler_SuccessReturns204(t *testing.T) {
 	}
 	if !repo.softDeleteCas.Equal(row.UpdatedAt) {
 		t.Errorf("service received cas: want %v, got %v", row.UpdatedAt, repo.softDeleteCas)
+	}
+}
+
+// --- 3b. handler passes a fully-built CompanyDeleted event to the repo --------
+
+// TestDeleteCompanyHandler_PassesCompanyDeletedEvent pins the
+// transport contract: the handler does NOT build the AuditEvent
+// value — the use case is the single source of truth (companies-audit
+// design D5). The use case builds the CompanyDeleted event via
+// `newCompanyDeletedEvent(eventID, companyID, userID)` with
+// `Metadata: nil` (the explicit "finalize me" handshake — the
+// adapter finalizes the `jobs_closed` scalar after the inline
+// `CloseCompanyJobs` returns). The handler-level assertion covers the
+// event STRUCTURE; the `jobs_closed` finalization is asserted in the
+// unit test for `auditentities.CompanyDeletedMetadata` and the
+// integration test for `SoftDeleteCompany`.
+//
+// The stub's `softDeleteEvent` capture field MUST carry the forwarded
+// event with the expected shape:
+//
+//   - EventType == EventCompanyDeleted
+//   - EntityType == EntityCompany (singular)
+//   - EntityID == cc.CompanyID
+//   - ActorType == ActorTypeUser
+//   - ActorID != nil && *ActorID == cc.UserID
+//   - Metadata == nil (the use case builds with nil; the adapter
+//     finalizes inside the tx)
+func TestDeleteCompanyHandler_PassesCompanyDeletedEvent(t *testing.T) {
+	companyID := uuid.New()
+	userID := uuid.New()
+	updatedAt := time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC)
+	row := mustCompany(companyID)
+	row.UpdatedAt = updatedAt
+	repo := &stubDeleteServiceRepo{
+		getForUpdateOut: row,
+	}
+	cc := identitysecurity.CompanyContext{CompanyID: companyID, UserID: userID, Role: valueobjects.OwnerRole}
+	router := newDeleteRouter(t, repo, cc)
+
+	casHeader := updatedAt.Format(time.RFC3339)
+	rec := doDelete(t, router, casHeader, cc)
+
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("want 204, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.softDeleteCalls != 1 {
+		t.Fatalf("repo.SoftDeleteCompany calls: want 1, got %d", repo.softDeleteCalls)
+	}
+
+	got := repo.softDeleteEvent
+	if got.EventType != "CompanyDeleted" {
+		t.Errorf("EventType: want CompanyDeleted, got %q", got.EventType)
+	}
+	if got.EntityType != "company" {
+		t.Errorf("EntityType: want company (singular), got %q", got.EntityType)
+	}
+	if got.EntityID != companyID {
+		t.Errorf("EntityID: want %v, got %v", companyID, got.EntityID)
+	}
+	if got.ActorType.String() != "user" {
+		t.Errorf("ActorType: want user, got %q", got.ActorType.String())
+	}
+	if got.ActorID == nil {
+		t.Fatalf("ActorID: want non-nil (user actor)")
+	}
+	if *got.ActorID != userID {
+		t.Errorf("ActorID: want %v, got %v", userID, *got.ActorID)
+	}
+	if got.Metadata != nil {
+		t.Errorf("Metadata at build time: want nil (adapter finalizes), got %v", got.Metadata)
 	}
 }
 

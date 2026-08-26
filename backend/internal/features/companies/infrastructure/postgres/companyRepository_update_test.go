@@ -107,7 +107,7 @@ func TestBuildUpdateCompanyParams_ProfileTriState(t *testing.T) {
 	patch := repositories.UpdateCompanyPatch{
 		Website:     sharedvalueobjects.Optional[string]{Set: true, Valid: true, Value: "https://x.example.com"},
 		LogoURL:     sharedvalueobjects.Optional[string]{Set: true, Valid: false}, // JSON null
-		Description: sharedvalueobjects.Optional[string]{Set: false},            // absent
+		Description: sharedvalueobjects.Optional[string]{Set: false},              // absent
 		Size:        sharedvalueobjects.Optional[string]{Set: true, Valid: true, Value: "small"},
 		FoundedYear: sharedvalueobjects.Optional[int]{Set: true, Valid: true, Value: yearValue},
 	}

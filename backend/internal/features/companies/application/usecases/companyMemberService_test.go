@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
@@ -251,14 +252,14 @@ func (s *stubMemberCompanyRepository) GetCompanyForUpdate(_ context.Context, _ u
 	return nil, entities.ErrCompanyNotFound
 }
 
-func (s *stubMemberCompanyRepository) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time) error {
+func (s *stubMemberCompanyRepository) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time, _ auditentities.AuditEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.updateCalls++
 	return s.updateErr
 }
 
-func (s *stubMemberCompanyRepository) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time) error {
+func (s *stubMemberCompanyRepository) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time, _ auditentities.AuditEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.softDeleteCalls++

@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/google/uuid"
@@ -45,6 +46,7 @@ type stubDeleteRepo struct {
 	softDeleteCalls int
 	softDeleteID    uuid.UUID
 	softDeleteCas   time.Time
+	softDeleteEvent auditentities.AuditEvent
 	softDeleteErr   error
 }
 
@@ -61,12 +63,13 @@ func (s *stubDeleteRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*e
 	return nil, entities.ErrCompanyNotFound
 }
 
-func (s *stubDeleteRepo) SoftDeleteCompany(_ context.Context, id uuid.UUID, cas time.Time) error {
+func (s *stubDeleteRepo) SoftDeleteCompany(_ context.Context, id uuid.UUID, cas time.Time, event auditentities.AuditEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.softDeleteCalls++
 	s.softDeleteID = id
 	s.softDeleteCas = cas
+	s.softDeleteEvent = event
 	return s.softDeleteErr
 }
 
@@ -76,11 +79,35 @@ func (s *stubDeleteRepo) Create(_ context.Context, _ *entities.Company) error { 
 func (s *stubDeleteRepo) GetByID(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
 	return nil, entities.ErrCompanyNotFound
 }
-func (s *stubDeleteRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time) error {
+func (s *stubDeleteRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time, _ auditentities.AuditEvent) error {
 	return nil
 }
 
 var _ repositories.CompanyRepository = (*stubDeleteRepo)(nil)
+
+// --- 0. Missing actor (uuid.Nil) fails closed with ErrMissingActorIdentity ---
+
+// TestSoftDeleteCompany_MissingUserIDFailsClosed pins the spec scenario
+// "uuid.Nil actor fails closed with 500" (companies-audit design D6).
+// The FIRST-step guard MUST fire BEFORE GetCompanyForUpdate (no DB
+// query) and BEFORE the CAS compare, and MUST short-circuit with the
+// ErrMissingActorIdentity sentinel. The repo's SoftDeleteCompany is
+// NEVER called; no audit append is attempted; the row is untouched.
+func TestSoftDeleteCompany_MissingUserIDFailsClosed(t *testing.T) {
+	companyID := uuid.New()
+
+	repo := &stubDeleteRepo{}
+	svc := NewCompanyService(repo)
+
+	err := svc.SoftDeleteCompany(context.Background(), companyID, uuid.Nil, time.Time{})
+
+	if !errors.Is(err, ErrMissingActorIdentity) {
+		t.Fatalf("want ErrMissingActorIdentity, got: %v", err)
+	}
+	if repo.softDeleteCalls != 0 {
+		t.Errorf("repo.SoftDeleteCompany MUST NOT be called on a missing actor, got %d calls", repo.softDeleteCalls)
+	}
+}
 
 // --- 1. CAS mismatch returns ErrConcurrencyConflict without touching the repo ---
 
@@ -101,7 +128,7 @@ func TestSoftDeleteCompany_CASMismatchReturnsConflictNoView(t *testing.T) {
 
 	headerToken := time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC) // stale
 
-	err := svc.SoftDeleteCompany(context.Background(), companyID, headerToken)
+	err := svc.SoftDeleteCompany(context.Background(), companyID, uuid.New(), headerToken)
 
 	if !errors.Is(err, entities.ErrConcurrencyConflict) {
 		t.Fatalf("want ErrConcurrencyConflict, got: %v", err)
@@ -128,7 +155,7 @@ func TestSoftDeleteCompany_ZeroTokenReturnsConflict(t *testing.T) {
 	repo := &stubDeleteRepo{getForUpdateOut: stored}
 	svc := NewCompanyService(repo)
 
-	err := svc.SoftDeleteCompany(context.Background(), companyID, time.Time{}) // zero token
+	err := svc.SoftDeleteCompany(context.Background(), companyID, uuid.New(), time.Time{}) // zero token
 
 	if !errors.Is(err, entities.ErrConcurrencyConflict) {
 		t.Fatalf("want ErrConcurrencyConflict on zero CAS token, got: %v", err)
@@ -152,7 +179,7 @@ func TestSoftDeleteCompany_NotFound(t *testing.T) {
 	repo := &stubDeleteRepo{getForUpdateErr: entities.ErrCompanyNotFound}
 	svc := NewCompanyService(repo)
 
-	err := svc.SoftDeleteCompany(context.Background(), companyID, time.Time{})
+	err := svc.SoftDeleteCompany(context.Background(), companyID, uuid.New(), time.Time{})
 
 	if !errors.Is(err, entities.ErrCompanyNotFound) {
 		t.Fatalf("want ErrCompanyNotFound, got: %v", err)
@@ -180,7 +207,7 @@ func TestSoftDeleteCompany_SuccessNoReread(t *testing.T) {
 	}
 	svc := NewCompanyService(repo)
 
-	err := svc.SoftDeleteCompany(context.Background(), companyID, rowUpdatedAt)
+	err := svc.SoftDeleteCompany(context.Background(), companyID, uuid.New(), rowUpdatedAt)
 
 	if err != nil {
 		t.Fatalf("want no error on success, got: %v", err)
@@ -229,7 +256,7 @@ func (s *countingGetRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*
 	return nil, entities.ErrCompanyNotFound
 }
 
-func (s *countingGetRepo) SoftDeleteCompany(_ context.Context, id uuid.UUID, cas time.Time) error {
+func (s *countingGetRepo) SoftDeleteCompany(_ context.Context, id uuid.UUID, cas time.Time, _ auditentities.AuditEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.softDeleteCalls++
@@ -242,7 +269,7 @@ func (s *countingGetRepo) Create(_ context.Context, _ *entities.Company) error {
 func (s *countingGetRepo) GetByID(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
 	return nil, entities.ErrCompanyNotFound
 }
-func (s *countingGetRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time) error {
+func (s *countingGetRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time, _ auditentities.AuditEvent) error {
 	return nil
 }
 
@@ -266,7 +293,7 @@ func TestSoftDeleteCompany_RepoErrPropagates(t *testing.T) {
 	}
 	svc := NewCompanyService(repo)
 
-	err := svc.SoftDeleteCompany(context.Background(), companyID, rowUpdatedAt)
+	err := svc.SoftDeleteCompany(context.Background(), companyID, uuid.New(), rowUpdatedAt)
 
 	if !errors.Is(err, repoErr) {
 		t.Errorf("want repoErr %v to propagate, got: %v", repoErr, err)

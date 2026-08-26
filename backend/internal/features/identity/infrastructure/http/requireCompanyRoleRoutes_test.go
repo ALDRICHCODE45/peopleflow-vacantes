@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
@@ -145,15 +146,20 @@ func (rtStubCompanyRepo) GetByID(_ context.Context, _ uuid.UUID) (*entities.Comp
 // compile guard holds. None of the route tests exercise these methods
 // — they only test the middleware dispatch order (401 → 403 →
 // handler) — so a no-op / "not found" default is the correct shape.
+//
+// companies-audit WU2 (design D3): the port signature gained an
+// `event auditentities.AuditEvent` value param on `UpdateCompany` and
+// `SoftDeleteCompany` (last position; value-not-pointer). The stub
+// ignores the param — these tests do not exercise the audit append.
 func (rtStubCompanyRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
 	return nil, entities.ErrCompanyNotFound
 }
 
-func (rtStubCompanyRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time) error {
+func (rtStubCompanyRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time, _ auditentities.AuditEvent) error {
 	return nil
 }
 
-func (rtStubCompanyRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time) error {
+func (rtStubCompanyRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time, _ auditentities.AuditEvent) error {
 	return nil
 }
 

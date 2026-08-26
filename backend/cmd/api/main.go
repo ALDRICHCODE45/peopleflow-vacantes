@@ -87,6 +87,16 @@ func run() error {
 	// subject to a stable users.id (IDOR-resistant boundary).
 	identityUserRepo := identitypostgres.NewUserRepository(queries)
 
+	// Stateless audit adapter (companies-audit WU2 / design D4 hoist).
+	// The companies slice now also takes the audit adapter as the
+	// second constructor argument so the write paths can co-write the
+	// CompaniesUpdated / CompaniesDeleted events inside the same
+	// pgx.Tx as the domain write. `auditRepo` MUST be constructed
+	// before `companyRepo` (it was previously constructed down by
+	// the applications wiring block); the applications wiring block
+	// below now references the hoisted variable.
+	auditRepo := auditpostgres.NewAuditEventRepository()
+
 	// Feature wiring: companies (adapter -> use case -> handler).
 	// The bootstrap repository opens the transaction that creates a company
 	// AND its founding owner atomically (business rule: the creator is owner).
@@ -96,7 +106,16 @@ func run() error {
 	// write paths (`UpdateCompany`, `SoftDeleteCompany`) can open their own
 	// pgx.Tx for the inline close. The read paths borrow `db.New(r.pool)`
 	// per call (semantically identical to the pre-WU3 `*db.Queries` shape).
-	companyRepo := postgres.NewCompanyRepository(pool)
+	//
+	// companies-audit WU2 (design D4): the constructor now also takes the
+	// stateless audit adapter as the second argument; the audit append
+	// runs inside the same `pgx.Tx` as the domain write (fail-closed
+	// co-write). The `auditRepo` declaration was HOISTED above this
+	// block (it used to live down by the applications wiring block)
+	// so the constructor call has the variable in scope. The
+	// applications wiring block continues to reference the same
+	// `auditRepo` variable.
+	companyRepo := postgres.NewCompanyRepository(pool, auditRepo)
 	companyBootstrapRepo := postgres.NewCompanyBootstrapRepository(pool)
 	companyService := usecases.NewCompanyServiceWithBootstrap(companyRepo, identityUserRepo, companyBootstrapRepo)
 	companyHandler := companieshttp.NewCompanyHandler(companyService)
@@ -129,14 +148,17 @@ func run() error {
 	jobService := jobsusecases.NewJobService(jobRepo)
 	jobHandler := jobshttp.NewJobHandler(jobService)
 
-	// Applications wiring: the pool-owning applications repo (D5/D9) + the
-	// stateless audit adapter. Create/Transition open their own pool.Begin
-	// and co-write the application write + the audit event append atomically
-	// (fail-closed: an audit failure rolls the write back). The service uses
-	// the identity user repo for the cognitoSub → users.id resolution seam;
-	// the handler's per-method accessor lets the composition root gate
-	// candidate-apply and recruiter routes differently.
-	auditRepo := auditpostgres.NewAuditEventRepository()
+	// Applications wiring: the pool-owning applications repo (D5/D9) +
+	// the stateless audit adapter (already constructed above, before
+	// the companies wiring block so the `companyRepo` constructor
+	// could take it as its second arg — companies-audit WU2 / D4
+	// hoist). Create/Transition open their own pool.Begin and co-write
+	// the application write + the audit event append atomically
+	// (fail-closed: an audit failure rolls the write back). The
+	// service uses the identity user repo for the cognitoSub →
+	// users.id resolution seam; the handler's per-method accessor
+	// lets the composition root gate candidate-apply and recruiter
+	// routes differently.
 	applicationRepo := applicationspostgres.NewApplicationRepository(pool, auditRepo)
 	applicationService := applicationsusecases.NewApplicationService(applicationRepo, identityUserRepo)
 	applicationHandler := applicationshttp.NewApplicationHandler(applicationService)

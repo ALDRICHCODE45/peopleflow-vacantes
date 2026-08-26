@@ -2,11 +2,11 @@
 
 ## Purpose
 
-The `companies` bounded context owns the company aggregate and its write surface. A `companies` row is the canonical company record (name, RFC, industry, profile fields, status) materialized by migrations `00002_create_companies.sql` + `00003_companies_profile.sql` and exposed on the public read path through `GET /companies/{id}`. This slice covers the **owner-only write surface** that closes the MVP write loop: `POST /companies` (create with founder as owner, delivered by the existing slice), `PATCH /me/company` (owner-only partial update of the owner's company — the centerpiece of this delta), and `DELETE /me/company` (owner-only soft-delete that transactionally closes every non-closed job of the company). The read side (`GET /companies/{id}`, `GET /me/company`, `GET /me/company/members`, the membership mutations) is unchanged in shape and behavior — the soft-delete write sets `companies.deleted_at` and the existing `deleted_at IS NULL` read-side predicates hide the row from public visibility. The bounded context owns the table, the use cases, the transactional multi-write path (soft-delete + inline close), the wire DTOs, and the gate; it does NOT own the `audit_events` table (audit emission is deferred — see `No Audit Events for Companies`), the `jobs` write surface (job status moves are owned by the `jobs` bounded context), the `company_members` write surface (membership mutations stay as audit history — the soft-delete write does NOT touch them), or the candidate-facing read surface (candidates are a separate bounded context). The `audit_events` row count MUST NOT change as a result of any company write path in this slice.
+The `companies` bounded context owns the company aggregate and its write surface. A `companies` row is the canonical company record (name, RFC, industry, profile fields, status) materialized by migrations `00002_create_companies.sql` + `00003_companies_profile.sql` and exposed on the public read path through `GET /companies/{id}`. This slice covers the **owner-only write surface** that closes the MVP write loop: `POST /companies` (create with founder as owner, delivered by the existing slice), `PATCH /me/company` (owner-only partial update of the owner's company — the centerpiece of this delta), and `DELETE /me/company` (owner-only soft-delete that transactionally closes every non-closed job of the company). The read side (`GET /companies/{id}`, `GET /me/company`, `GET /me/company/members`, the membership mutations) is unchanged in shape and behavior — the soft-delete write sets `companies.deleted_at` and the existing `deleted_at IS NULL` read-side predicates hide the row from public visibility. The bounded context owns the table, the use cases, the transactional multi-write path (soft-delete + inline close + co-write audit append), the wire DTOs, and the gate; it does NOT own the `audit_events` table schema (the audit row is co-written inside the same `pgx.Tx` — see `Audit Events for Companies` for the emission contract), the `jobs` write surface (job status moves are owned by the `jobs` bounded context), the `company_members` write surface (membership mutations stay as audit history — the soft-delete write does NOT touch them), or the candidate-facing read surface (candidates are a separate bounded context). A successful `PATCH /me/company` adds exactly one `CompanyUpdated` row to `audit_events`; a successful `DELETE /me/company` adds exactly one `CompanyDeleted` row.
 
 ## Out of scope (deferred)
 
-This specification does NOT cover: company `status` field manipulation (the field is owned by the manual takedown flow pinned in `docs/flujo-verificacion-empresas.md` — `status` is NOT in the `PATCH /me/company` DTO; no API path changes it); `industry_id` field change after creation (the `PATCH /me/company` DTO has NO `industry_id` field — clients sending it are silently ignored; a future "industry migration" feature is a separate concern); `rfc` field change after creation (the `PATCH /me/company` DTO has NO `rfc` field — clients sending it are silently ignored; the partial unique index `companies_rfc_unique ON (rfc) WHERE deleted_at IS NULL` is a write-time guard at INSERT only and is NOT re-checked on PATCH); hard delete (`DELETE FROM companies` is out of scope forever — bypasses audit and breaks the soft-delete + close invariant); restore / undelete (`POST /me/company/restore` or `PATCH /me/company {"deleted_at": null}` is out of scope — the soft-delete + inline close cycle is one-way; a future restore endpoint operates on the intact member + applications data and re-opens the inline close); notification / event publishing (no outbox, no SNS/SQS, no webhooks — the slice stays synchronous); bulk operations (`PATCH /me/companies?ids=...` or `DELETE /me/companies?ids=...` is out of scope — one company per request); the read-side hardening delta for jobs queries (the new `AND c.deleted_at IS NULL` predicate on `SearchJobs` and `GetJobByID` is deferred to a follow-up cycle — the inline close removes the leak today; the predicate is defense-in-depth for a future code path that writes a `'published'` job while the company is tombstoned); `audit_events` integration for `CompanyUpdated` / `CompanyDeleted` / `CompanySoftDeleted` (deferred to a follow-up cycle — this slice does NOT extend the `audit_events` port, query file, or entity; the `audit_events` bounded context stays applications-only); a `deleted_by_user_id` column or a `deleted_reason` column on `companies` (`companies.deleted_at` IS the audit timestamp; no extra audit columns in this slice); `PUT /me/company` (full replacement, no CAS, no field-mutability distinction — out of scope); admin / system takedown routes (the MVP takedown flow is manual — a future admin slice adds `POST /companies/{id}/suspend`, etc.); cross-company write paths (no `PATCH /companies/{id}` or `DELETE /companies/{id}` — both writes live exclusively under `/me/company`); frontend, SQS worker, email, FX conversion, and CV / S3 storage.
+This specification does NOT cover: company `status` field manipulation (the field is owned by the manual takedown flow pinned in `docs/flujo-verificacion-empresas.md` — `status` is NOT in the `PATCH /me/company` DTO; no API path changes it); `industry_id` field change after creation (the `PATCH /me/company` DTO has NO `industry_id` field — clients sending it are silently ignored; a future "industry migration" feature is a separate concern); `rfc` field change after creation (the `PATCH /me/company` DTO has NO `rfc` field — clients sending it are silently ignored; the partial unique index `companies_rfc_unique ON (rfc) WHERE deleted_at IS NULL` is a write-time guard at INSERT only and is NOT re-checked on PATCH); hard delete (`DELETE FROM companies` is out of scope forever — bypasses audit and breaks the soft-delete + close invariant); restore / undelete (`POST /me/company/restore` or `PATCH /me/company {"deleted_at": null}` is out of scope — the soft-delete + inline close cycle is one-way; a future restore endpoint operates on the intact member + applications data and re-opens the inline close); notification / event publishing (no outbox, no SNS/SQS, no webhooks — the slice stays synchronous); bulk operations (`PATCH /me/companies?ids=...` or `DELETE /me/companies?ids=...` is out of scope — one company per request); the read-side hardening delta for jobs queries (the new `AND c.deleted_at IS NULL` predicate on `SearchJobs` and `GetJobByID` is deferred to a follow-up cycle — the inline close removes the leak today; the predicate is defense-in-depth for a future code path that writes a `'published'` job while the company is tombstoned); a `deleted_by_user_id` column or a `deleted_reason` column on `companies` (`companies.deleted_at` IS the audit timestamp; no extra audit columns in this slice); `PUT /me/company` (full replacement, no CAS, no field-mutability distinction — out of scope); admin / system takedown routes (the MVP takedown flow is manual — a future admin slice adds `POST /companies/{id}/suspend`, etc.); cross-company write paths (no `PATCH /companies/{id}` or `DELETE /companies/{id}` — both writes live exclusively under `/me/company`); frontend, SQS worker, email, FX conversion, and CV / S3 storage.
 
 ## Requirements
 
@@ -305,20 +305,92 @@ The `PATCH /me/company` and `DELETE /me/company` routes MUST share the same auth
 - WHEN the handler runs
 - THEN the response is `500 Internal Server Error` and no row is touched (the `requireCompanyContext` helper fails closed; mirroring the canonical invariant from the `jobs` slice and the `company_membership` subtree)
 
-### Requirement: No Audit Events for Companies (Deferred)
+### Requirement: Audit Events for Companies
 
-The `PATCH /me/company` and `DELETE /me/company` write paths MUST NOT emit any `audit_events` rows. A successful PATCH and a successful DELETE MUST leave the `audit_events` table row count unchanged (no `CompanyUpdated`, `CompanyDeleted`, `CompanySoftDeleted`, or `CompanyRestored` events). The `audit_events` bounded context — its schema (migration `00011_create_audit_events.sql`), its port, its query file (`backend/db/queries/audit_events.sql`), its adapter, and its domain entity — MUST remain applications-only and MUST NOT be extended by this change. Audit emission for company writes is explicitly deferred to a follow-up cycle; the follow-up cycle will (a) decide on the company event-type catalog (`CompanyUpdated`, `CompanyDeleted`, future `CompanySuspended`, future `CompanyRestored`); (b) extend the `audit_events` query file with the per-event INSERT; (c) update the port and the `events` JSON shape; (d) extend `audit_events.spec.md` with the company-event requirements. This requirement is an explicit non-goal of the present change, pinned here as a behavioral contract — the `audit_events` table row count is a stable observation that the slice's tests assert.
+The system MUST emit exactly one `audit_events` row per successful owner-only write path on `companies`:
 
-#### Scenario: a successful PATCH does NOT add an audit_events row
+- A successful `PATCH /me/company` (HTTP `200 OK`) MUST append exactly one row carrying `event_type='CompanyUpdated'`, `entity_type='company'`, `entity_id=<company.id>`, `actor_type='user'`, `actor_id=<CompanyContext.UserID>`, `metadata='{}'` (the empty JSON object).
+- A successful `DELETE /me/company` (HTTP `204 No Content`) MUST append exactly one row carrying `event_type='CompanyDeleted'`, `entity_type='company'`, `entity_id=<company.id>`, `actor_type='user'`, `actor_id=<CompanyContext.UserID>`, `metadata='{"jobs_closed": "<n>"}'`, where `<n>` is the stringified integer rowcount of the inline `CloseCompanyJobs` UPDATE; the `jobs_closed` key MUST be present even when `<n>` is `"0"` (stable shape).
 
-- GIVEN a baseline row count `N` of `audit_events`
-- WHEN `PATCH /me/company` is sent by the owner with a valid body and a matching `If-Unmodified-Since`
+The audit append MUST run inside the same `pgx.Tx` as the domain write (co-write atomicity — mirror of the applications slice); an append failure MUST abort the domain write via the deferred `tx.Rollback` (fail-closed — no write without its audit trail). The `audit_events` row count MUST change by exactly `+1` for each successful write; pre-write failures and any non-`200` / non-`204` outcome MUST append zero rows (see the no-emission matrix in the scenarios below). The `PATCH /me/company` DTO MUST NOT carry an `actor_id` field; the actor provenance is `CompanyContext.UserID` exclusively (`encoding/json` drops any smuggled actor — same IDOR defense as the applications handler).
+
+The event MUST be built in the application layer (the use case is the single source of truth for the event shape and metadata); the handler MUST NOT build the event and MUST pass `CompanyContext.UserID` to the use case. The use case MUST be called with a non-zero `userID`; `userID == uuid.Nil` MUST fail closed with `ErrMissingActorIdentity` (HTTP `500 internal server error`, no write, no event) as the FIRST step of the use case — before `GetCompanyForUpdate` and before the CAS compare — so the audit append is never even attempted for a zero-actor request.
+
+#### Scenario: PATCH success appends exactly one CompanyUpdated row with empty metadata
+
+- GIVEN an owner of company `A` with a baseline `N` rows in `audit_events`
+- WHEN `PATCH /me/company` is sent with a valid body and a matching `If-Unmodified-Since`
 - AND the response is `200 OK`
-- THEN the row count of `audit_events` is still `N` after the call (no `CompanyUpdated` event is appended; the `audit_events` slice is untouched)
+- THEN `audit_events` has `N+1` rows, with one new row carrying `event_type='CompanyUpdated'`, `entity_type='company'`, `entity_id=<A>`, `actor_type='user'`, `actor_id=<CompanyContext.UserID>`, `metadata='{}'`
 
-#### Scenario: a successful DELETE does NOT add an audit_events row
+#### Scenario: DELETE success appends exactly one CompanyDeleted row with jobs_closed
 
-- GIVEN a baseline row count `N` of `audit_events`
-- WHEN `DELETE /me/company` is sent by the owner with a matching `If-Unmodified-Since`
+- GIVEN an owner of company `A` with a baseline `N` rows in `audit_events` and `N_jobs` non-closed jobs at delete time (where `N_jobs` is the rowcount the adapter will return from `CloseCompanyJobs`)
+- WHEN `DELETE /me/company` is sent with a matching `If-Unmodified-Since`
 - AND the response is `204 No Content`
-- THEN the row count of `audit_events` is still `N` after the call (no `CompanyDeleted` / `CompanySoftDeleted` event is appended; the soft-delete + inline close happen without a co-write audit append; the audit follow-up cycle adds the event-type catalog in a later change)
+- THEN `audit_events` has `N+1` rows, with one new row carrying `event_type='CompanyDeleted'`, `entity_type='company'`, `entity_id=<A>`, `actor_type='user'`, `actor_id=<CompanyContext.UserID>`, `metadata='{"jobs_closed": "<N_jobs>"}'`
+
+#### Scenario: DELETE on a company with no non-closed jobs still records jobs_closed="0"
+
+- GIVEN an owner of company `A` whose inline `CloseCompanyJobs` UPDATE affected `0` rows (the company had no `draft` or `published` jobs at delete time)
+- WHEN `DELETE /me/company` is sent with a matching `If-Unmodified-Since`
+- AND the response is `204 No Content`
+- THEN the `CompanyDeleted` event has `metadata={"jobs_closed": "0"}` (the key is always present — stable shape; the empty-inline-close case is a legitimate success path, not an error)
+
+#### Scenario: jobs_closed is the stringified rowcount of CloseCompanyJobs
+
+- GIVEN a successful `DELETE /me/company` whose inline `CloseCompanyJobs` UPDATE affected exactly `2` rows
+- WHEN the `CompanyDeleted` event is built
+- THEN `metadata.jobs_closed` is the string `"2"` (the integer rowcount converted via `strconv.Itoa`, not the bare integer and not the rowcount of the soft-delete write itself)
+
+#### Scenario: PATCH 400 on VO rejection or malformed JSON appends zero audit rows
+
+- GIVEN an owner of company `A` with a baseline `N` rows in `audit_events`
+- WHEN `PATCH /me/company` is sent with a body that fails a value-object constructor (`CompanyNameTooShort` / `InvalidCompanySize` / `FoundedYearOutOfRange` / `CompanyDescriptionTooLong`) or with malformed JSON
+- AND the response is `400 Bad Request`
+- THEN `audit_events` has `N` rows (no new row appended; the use case never invoked `repo.UpdateCompany`)
+
+#### Scenario: PATCH or DELETE 404 on not-found, cross-company, or already-soft-deleted appends zero audit rows
+
+- GIVEN an owner of company `A` with a baseline `N` rows in `audit_events` and `A` either non-existent, cross-company, or already soft-deleted (`deleted_at IS NOT NULL`)
+- WHEN `PATCH /me/company` or `DELETE /me/company` is sent
+- AND the response is `404 company not found`
+- THEN `audit_events` has `N` rows (no new row appended; the read-for-update `GetCompanyForUpdate` failed BEFORE the adapter write)
+
+#### Scenario: PATCH or DELETE 409 on CAS mismatch appends zero audit rows
+
+- GIVEN an owner of company `A` with a baseline `N` rows in `audit_events`
+- WHEN `PATCH /me/company` or `DELETE /me/company` is sent with a stale, missing, or malformed `If-Unmodified-Since`
+- AND the response is `409 Conflict`
+- THEN `audit_events` has `N` rows (no new row appended; the CAS compare in the use case failed BEFORE the adapter write — the audit append is not reached)
+
+#### Scenario: PATCH lost-race appends zero audit rows
+
+- GIVEN an owner of company `A` and a concurrent writer that bumped `A.updated_at` between use-case `GetCompanyForUpdate` and the SQL UPDATE
+- WHEN `PATCH /me/company` is sent and the adapter `UpdateCompany` returns `updated == 0`
+- THEN the use case maps the zero-row outcome to a `404` (or re-reads and maps to `409`); no audit append is attempted; `audit_events` row count is unchanged
+
+#### Scenario: 401 or 403 short-circuits before the use case and appends zero audit rows
+
+- GIVEN an unauthenticated `PATCH /me/company` or `DELETE /me/company` request (no `Authorization` header), OR an authenticated non-owner (recruiter — role `< owner`) member, OR an authenticated user with no `company_members` row
+- WHEN the request reaches the gated write route
+- AND the response is `401 Unauthorized` or `403 Forbidden`
+- THEN `audit_events` row count is unchanged (the middleware short-circuits BEFORE the handler / use case / adapter runs)
+
+#### Scenario: uuid.Nil actor fails closed with 500 and appends zero audit rows
+
+- GIVEN a request that reaches the use case with `userID == uuid.Nil` (a mis-wired route or middleware bypass)
+- WHEN `PATCH /me/company` or `DELETE /me/company` would otherwise run
+- THEN the use case returns `ErrMissingActorIdentity` as its FIRST step (before `GetCompanyForUpdate` and before the CAS compare); the handler classifier maps it to `500 internal server error`; no domain write happens; no audit append is attempted; `audit_events` row count is unchanged
+
+#### Scenario: audit INSERT failure rolls back the domain write (fail-closed co-write)
+
+- GIVEN the `audit_events` INSERT inside the co-write `pgx.Tx` fails mid-transaction
+- WHEN `PATCH /me/company` or `DELETE /me/company` is sent
+- THEN the deferred `tx.Rollback` aborts the domain write too; no `companies` row is mutated (PATCH) and no `companies.deleted_at` is set (DELETE), no `jobs.status` is changed (DELETE), and no `audit_events` row is visible after the failure; the response is `500 Internal Server Error`
+
+#### Scenario: handler does not build the event; use case is the single source of truth
+
+- GIVEN the companies HTTP handler for `PATCH /me/company` or `DELETE /me/company`
+- WHEN the handler code is inspected
+- THEN it does NOT construct an `auditentities.AuditEvent` value, does NOT call `audit.Append`, and does NOT carry an `actor_id` from the request body — it only passes `cc.UserID` and the request inputs to the use case, which builds the event and passes it to the repository port

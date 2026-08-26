@@ -45,17 +45,42 @@ import (
 )
 
 // UpdateCompany is the PATCH /me/company use case. The caller passes
-// `companyID` from `security.CompanyContext` (the middleware injects
-// it); the body NEVER carries company_id. `ifUnmodifiedSince` is the
-// parsed RFC 3339 header value (zero `time.Time{}` when the header
-// is missing or malformed — the CAS compare then mismatches
-// deterministically and the use case returns ErrConcurrencyConflict).
+// `companyID` AND `userID` from `security.CompanyContext` (the
+// middleware injects both); the body NEVER carries company_id or
+// actor_id (IDOR defense + use-case single-source-of-truth for the
+// event). `ifUnmodifiedSince` is the parsed RFC 3339 header value
+// (zero `time.Time{}` when the header is missing or malformed — the
+// CAS compare then mismatches deterministically and the use case
+// returns ErrConcurrencyConflict).
+//
+// companies-audit WU2 (design D2/D5/D6/D7):
+//   - `userID` sits immediately after `companyID` (identity-pair
+//     grouping, mirror of `applications.TransitionApplication`).
+//   - the FIRST-step guard (before `GetCompanyForUpdate` and before
+//     the CAS compare) returns ErrMissingActorIdentity on a zero
+//     actor — no DB read, no audit append, no event is ever
+//     attempted for a mis-wired request (the handler classifier
+//     maps the sentinel to 500 with a generic body).
+//   - on the success path the use case mints `eventID` via
+//     `uuid.NewV7()` and builds the event via
+//     `newCompanyUpdatedEvent(...)`; the event is the LAST argument
+//     to `repo.UpdateCompany` (mirror of
+//     `applications.Create(..., event)`).
 func (s *CompanyService) UpdateCompany(
 	ctx context.Context,
-	companyID uuid.UUID,
+	companyID, userID uuid.UUID,
 	in dtos.UpdateCompanyDto,
 	ifUnmodifiedSince time.Time,
 ) (*dtos.CompanyEditorViewDto, error) {
+	// 0. FIRST-step guard (companies-audit design D6): zero actor →
+	//    ErrMissingActorIdentity. Fires BEFORE any DB query and
+	//    BEFORE the CAS compare; the audit append is NEVER attempted
+	//    for a mis-wired request. The handler classifier maps the
+	//    sentinel to 500 with a generic body (no existence leak).
+	if userID == uuid.Nil {
+		return nil, ErrMissingActorIdentity
+	}
+
 	// 1. Read for update — non-visibility-narrowed (suspended /
 	//    pending_verification are visible; tombstoned are NOT).
 	//    0 rows collapse to ErrCompanyNotFound → handler 404.
@@ -149,8 +174,19 @@ func (s *CompanyService) UpdateCompany(
 		patch.FoundedYear.Value = v
 	}
 
-	// 5. Update — adapter returns ErrCompanyNotFound on 0 rows.
-	if err := s.repository.UpdateCompany(ctx, companyID, patch, current.UpdatedAt); err != nil {
+	// 5. Build the audit event the adapter will append in the same
+	//    `pgx.Tx` after the SQL UPDATE and before `tx.Commit` (D7 /
+	//    D9). The event ID is a fresh UUIDv7; the adapter does NOT
+	//    regenerate it. The metadata is the empty object (`{}`) — the
+	//    PATCH event carries no profile diff (the 200 OK body already
+	//    carries the post-write state, and a diff would leak free-text
+	//    PII).
+	eventID, _ := uuid.NewV7()
+	event := newCompanyUpdatedEvent(eventID, companyID, userID)
+
+	// 6. Update — adapter returns ErrCompanyNotFound on 0 rows AND
+	//    appends the event inside the SAME tx (fail-closed co-write).
+	if err := s.repository.UpdateCompany(ctx, companyID, patch, current.UpdatedAt, event); err != nil {
 		if errors.Is(err, entities.ErrCompanyNotFound) {
 			// 6. Re-read for the latest view (or 404 if the row is
 			//    gone — soft-deleted between the use-case
@@ -193,18 +229,18 @@ func (s *CompanyService) UpdateCompany(
 // layer needs it.
 func toCompanyEditorView(c *entities.Company) *dtos.CompanyEditorViewDto {
 	view := &dtos.CompanyEditorViewDto{
-		ID:              c.ID.String(),
-		Name:            c.Name.Value(),
-		UpdatedAt:       c.UpdatedAt,
-		Website:         c.Website,
-		LogoURL:         c.LogoURL,
-		City:            c.City,
-		Country:         c.Country,
-		LinkedInURL:     c.LinkedInURL,
-		InstagramURL:    c.InstagramURL,
-		FacebookURL:     c.FacebookURL,
-		TwitterURL:      c.TwitterURL,
-		CoverImageURL:   c.CoverImageURL,
+		ID:            c.ID.String(),
+		Name:          c.Name.Value(),
+		UpdatedAt:     c.UpdatedAt,
+		Website:       c.Website,
+		LogoURL:       c.LogoURL,
+		City:          c.City,
+		Country:       c.Country,
+		LinkedInURL:   c.LinkedInURL,
+		InstagramURL:  c.InstagramURL,
+		FacebookURL:   c.FacebookURL,
+		TwitterURL:    c.TwitterURL,
+		CoverImageURL: c.CoverImageURL,
 	}
 	if c.Description != nil {
 		v := c.Description.Value()

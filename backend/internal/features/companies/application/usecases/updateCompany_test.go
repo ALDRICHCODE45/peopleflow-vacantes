@@ -24,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
@@ -54,6 +55,7 @@ type stubUpdateRepo struct {
 	updateID    uuid.UUID
 	updatePatch repositories.UpdateCompanyPatch
 	updateCas   time.Time
+	updateEvent auditentities.AuditEvent
 	updateErr   error
 }
 
@@ -74,17 +76,24 @@ func (s *stubUpdateRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*e
 	return nil, entities.ErrCompanyNotFound
 }
 
-// UpdateCompany captures (id, patch, cas) and returns updateErr (nil
+// UpdateCompany captures (id, patch, cas, event) and returns updateErr (nil
 // by default — the use case treats 0 rows as ErrCompanyNotFound, but
 // a successful 1-row UPDATE just returns nil so the use case can
 // re-read for the authoritative updated_at).
-func (s *stubUpdateRepo) UpdateCompany(_ context.Context, id uuid.UUID, patch repositories.UpdateCompanyPatch, cas time.Time) error {
+//
+// companies-audit (D3 / WU2 atomic stub repair): the port signature gained
+// the `event auditentities.AuditEvent` value param; the stub captures it
+// for handler-level assertions that prove the use case forwarded the
+// event the use case built (single source of truth — handler does not
+// build the event).
+func (s *stubUpdateRepo) UpdateCompany(_ context.Context, id uuid.UUID, patch repositories.UpdateCompanyPatch, cas time.Time, event auditentities.AuditEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.updateCalls++
 	s.updateID = id
 	s.updatePatch = patch
 	s.updateCas = cas
+	s.updateEvent = event
 	return s.updateErr
 }
 
@@ -94,7 +103,9 @@ func (s *stubUpdateRepo) Create(_ context.Context, _ *entities.Company) error { 
 func (s *stubUpdateRepo) GetByID(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
 	return nil, entities.ErrCompanyNotFound
 }
-func (s *stubUpdateRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time) error { return nil }
+func (s *stubUpdateRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time, _ auditentities.AuditEvent) error {
+	return nil
+}
 
 // Compile-time guard: stubUpdateRepo satisfies the port.
 var _ repositories.CompanyRepository = (*stubUpdateRepo)(nil)
@@ -117,6 +128,33 @@ func makeStoredCompany(t *testing.T, id uuid.UUID, updatedAt time.Time) *entitie
 	}
 }
 
+// --- 0. Missing actor (uuid.Nil) fails closed with ErrMissingActorIdentity ---
+
+// TestUpdateCompany_MissingUserIDFailsClosed pins the spec scenario
+// "uuid.Nil actor fails closed with 500" (companies-audit design D6).
+// The FIRST-step guard MUST fire BEFORE GetCompanyForUpdate (no DB
+// query) and BEFORE the CAS compare, and MUST short-circuit with the
+// ErrMissingActorIdentity sentinel. The repo's UpdateCompany is
+// NEVER called; no audit append is attempted; the row is untouched.
+func TestUpdateCompany_MissingUserIDFailsClosed(t *testing.T) {
+	companyID := uuid.New()
+
+	repo := &stubUpdateRepo{} // default behavior: GetCompanyForUpdate → ErrCompanyNotFound
+	svc := NewCompanyService(repo)
+
+	view, err := svc.UpdateCompany(context.Background(), companyID, uuid.Nil, dtos.UpdateCompanyDto{}, time.Time{})
+
+	if !errors.Is(err, ErrMissingActorIdentity) {
+		t.Fatalf("want ErrMissingActorIdentity, got: %v", err)
+	}
+	if view != nil {
+		t.Errorf("view: want nil on guard failure, got %+v", view)
+	}
+	if repo.updateCalls != 0 {
+		t.Errorf("repo.UpdateCompany MUST NOT be called on a missing actor, got %d calls", repo.updateCalls)
+	}
+}
+
 // --- 1. CAS mismatch returns the latest view and ErrConcurrencyConflict ---
 
 // TestUpdateCompany_CASMismatchReturnsViewAndConflict pins the
@@ -134,7 +172,7 @@ func TestUpdateCompany_CASMismatchReturnsViewAndConflict(t *testing.T) {
 	svc := NewCompanyService(repo)
 
 	headerToken := time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC) // stale
-	view, err := svc.UpdateCompany(context.Background(), companyID, dtos.UpdateCompanyDto{}, headerToken)
+	view, err := svc.UpdateCompany(context.Background(), companyID, uuid.New(), dtos.UpdateCompanyDto{}, headerToken)
 
 	if !errors.Is(err, entities.ErrConcurrencyConflict) {
 		t.Fatalf("want ErrConcurrencyConflict, got: %v", err)
@@ -162,7 +200,7 @@ func TestUpdateCompany_NotFound(t *testing.T) {
 	repo := &stubUpdateRepo{getForUpdateErr: entities.ErrCompanyNotFound}
 	svc := NewCompanyService(repo)
 
-	_, err := svc.UpdateCompany(context.Background(), companyID, dtos.UpdateCompanyDto{}, time.Time{})
+	_, err := svc.UpdateCompany(context.Background(), companyID, uuid.New(), dtos.UpdateCompanyDto{}, time.Time{})
 	if !errors.Is(err, entities.ErrCompanyNotFound) {
 		t.Fatalf("want ErrCompanyNotFound, got: %v", err)
 	}
@@ -184,7 +222,7 @@ func TestUpdateCompany_NameTooShort(t *testing.T) {
 	svc := NewCompanyService(repo)
 
 	shortName := "AB"
-	_, err := svc.UpdateCompany(context.Background(), companyID, dtos.UpdateCompanyDto{
+	_, err := svc.UpdateCompany(context.Background(), companyID, uuid.New(), dtos.UpdateCompanyDto{
 		Name: &shortName,
 	}, rowUpdatedAt)
 
@@ -211,7 +249,7 @@ func TestUpdateCompany_DescriptionTooLong(t *testing.T) {
 
 	longDesc := strings.Repeat("a", 3001)
 	descOpt := sharedvalueobjects.Optional[string]{Set: true, Valid: true, Value: longDesc}
-	_, err := svc.UpdateCompany(context.Background(), companyID, dtos.UpdateCompanyDto{
+	_, err := svc.UpdateCompany(context.Background(), companyID, uuid.New(), dtos.UpdateCompanyDto{
 		Description: descOpt,
 	}, rowUpdatedAt)
 
@@ -238,7 +276,7 @@ func TestUpdateCompany_FoundedYearOutOfRange(t *testing.T) {
 
 	badYear := 1500
 	yearOpt := sharedvalueobjects.Optional[int]{Set: true, Valid: true, Value: badYear}
-	_, err := svc.UpdateCompany(context.Background(), companyID, dtos.UpdateCompanyDto{
+	_, err := svc.UpdateCompany(context.Background(), companyID, uuid.New(), dtos.UpdateCompanyDto{
 		FoundedYear: yearOpt,
 	}, rowUpdatedAt)
 
@@ -264,7 +302,7 @@ func TestUpdateCompany_InvalidSize(t *testing.T) {
 
 	badSize := "gigantic"
 	sizeOpt := sharedvalueobjects.Optional[string]{Set: true, Valid: true, Value: badSize}
-	_, err := svc.UpdateCompany(context.Background(), companyID, dtos.UpdateCompanyDto{
+	_, err := svc.UpdateCompany(context.Background(), companyID, uuid.New(), dtos.UpdateCompanyDto{
 		Size: sizeOpt,
 	}, rowUpdatedAt)
 
@@ -309,7 +347,7 @@ func TestUpdateCompany_UpdateLostRaceRereadsAsConflict(t *testing.T) {
 	}
 	svc := NewCompanyService(customRepo)
 
-	view, err := svc.UpdateCompany(context.Background(), companyID, dtos.UpdateCompanyDto{}, rowUpdatedAt)
+	view, err := svc.UpdateCompany(context.Background(), companyID, uuid.New(), dtos.UpdateCompanyDto{}, rowUpdatedAt)
 
 	if !errors.Is(err, entities.ErrConcurrencyConflict) {
 		t.Fatalf("want ErrConcurrencyConflict on lost race re-read, got: %v", err)
@@ -354,7 +392,7 @@ func (s *sequentialRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*e
 	return nil, entities.ErrCompanyNotFound
 }
 
-func (s *sequentialRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time) error {
+func (s *sequentialRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time, _ auditentities.AuditEvent) error {
 	return entities.ErrCompanyNotFound
 }
 
@@ -362,7 +400,9 @@ func (s *sequentialRepo) Create(_ context.Context, _ *entities.Company) error { 
 func (s *sequentialRepo) GetByID(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
 	return nil, entities.ErrCompanyNotFound
 }
-func (s *sequentialRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time) error { return nil }
+func (s *sequentialRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time, _ auditentities.AuditEvent) error {
+	return nil
+}
 
 var _ repositories.CompanyRepository = (*sequentialRepo)(nil)
 
@@ -385,7 +425,7 @@ func TestUpdateCompany_UpdateLostRaceRereadEmpty(t *testing.T) {
 	}
 	svc := NewCompanyService(repo)
 
-	_, err := svc.UpdateCompany(context.Background(), companyID, dtos.UpdateCompanyDto{}, rowUpdatedAt)
+	_, err := svc.UpdateCompany(context.Background(), companyID, uuid.New(), dtos.UpdateCompanyDto{}, rowUpdatedAt)
 
 	if !errors.Is(err, entities.ErrCompanyNotFound) {
 		t.Fatalf("want ErrCompanyNotFound on lost race + re-read empty, got: %v", err)
@@ -417,7 +457,7 @@ func TestUpdateCompany_AbsentFieldsLeavePatchUntouched(t *testing.T) {
 	svc := NewCompanyService(customRepo)
 
 	newName := "Acme Rebranded SA de CV"
-	view, err := svc.UpdateCompany(context.Background(), companyID, dtos.UpdateCompanyDto{
+	view, err := svc.UpdateCompany(context.Background(), companyID, uuid.New(), dtos.UpdateCompanyDto{
 		Name: &newName,
 	}, rowUpdatedAt)
 
@@ -495,7 +535,7 @@ func (s *sequentialSuccessRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UU
 	return nil, entities.ErrCompanyNotFound
 }
 
-func (s *sequentialSuccessRepo) UpdateCompany(_ context.Context, id uuid.UUID, patch repositories.UpdateCompanyPatch, cas time.Time) error {
+func (s *sequentialSuccessRepo) UpdateCompany(_ context.Context, id uuid.UUID, patch repositories.UpdateCompanyPatch, cas time.Time, _ auditentities.AuditEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.updateCalls++
@@ -533,7 +573,9 @@ func (s *sequentialSuccessRepo) Create(_ context.Context, _ *entities.Company) e
 func (s *sequentialSuccessRepo) GetByID(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
 	return nil, entities.ErrCompanyNotFound
 }
-func (s *sequentialSuccessRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time) error { return nil }
+func (s *sequentialSuccessRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time, _ auditentities.AuditEvent) error {
+	return nil
+}
 
 var _ repositories.CompanyRepository = (*sequentialSuccessRepo)(nil)
 
@@ -557,7 +599,7 @@ func TestUpdateCompany_SuccessRereadsAndProjects(t *testing.T) {
 	svc := NewCompanyService(repo)
 
 	newName := "Renamed Co"
-	view, err := svc.UpdateCompany(context.Background(), companyID, dtos.UpdateCompanyDto{
+	view, err := svc.UpdateCompany(context.Background(), companyID, uuid.New(), dtos.UpdateCompanyDto{
 		Name: &newName,
 	}, rowUpdatedAt)
 

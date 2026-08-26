@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
@@ -62,9 +63,10 @@ type stubUpdateServiceRepo struct {
 	updateID    uuid.UUID
 	updatePatch repositories.UpdateCompanyPatch
 	updateCas   time.Time
+	updateEvent auditentities.AuditEvent
 	updateErr   error
 
-	updateView *dtos.CompanyEditorViewDto
+	updateView   *dtos.CompanyEditorViewDto
 	updateRetErr error
 }
 
@@ -81,20 +83,21 @@ func (s *stubUpdateServiceRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UU
 	return nil, entities.ErrCompanyNotFound
 }
 
-func (s *stubUpdateServiceRepo) UpdateCompany(_ context.Context, companyID uuid.UUID, patch repositories.UpdateCompanyPatch, cas time.Time) error {
+func (s *stubUpdateServiceRepo) UpdateCompany(_ context.Context, companyID uuid.UUID, patch repositories.UpdateCompanyPatch, cas time.Time, event auditentities.AuditEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.updateCalls++
 	s.updateID = companyID
 	s.updatePatch = patch
 	s.updateCas = cas
+	s.updateEvent = event
 	return s.updateErr
 }
 
 // SoftDeleteCompany is not exercised by the PATCH tests; the stub
 // returns ErrCompanyNotFound so the handler can never accidentally
 // route to it (the handler is PATCH-only).
-func (s *stubUpdateServiceRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time) error {
+func (s *stubUpdateServiceRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time, _ auditentities.AuditEvent) error {
 	return errors.New("stubUpdateServiceRepo.SoftDeleteCompany: PATCH handler must not call SoftDeleteCompany")
 }
 
@@ -142,6 +145,37 @@ func doPatch(t *testing.T, router http.Handler, body, casHeader string, cc ident
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, r)
 	return rec
+}
+
+// --- 0. missing actor (uuid.Nil) fails closed with 500 via classifier --------
+
+// TestUpdateCompanyHandler_MissingUserIDReturns500 pins the spec
+// scenario "uuid.Nil actor fails closed with 500 and appends zero
+// audit rows" (companies-audit design D6). The handler MUST pass the
+// injected CompanyContext.UserID to the use case (NOT silently drop
+// it). When the use case receives `userID == uuid.Nil`, its FIRST-step
+// guard returns `ErrMissingActorIdentity`; the classifier maps the
+// sentinel to 500 with a generic body (no existence leak).
+//
+// The stub's `updateEvent` capture field MUST remain zero-value (the
+// use case never reaches `repo.UpdateCompany` on the guard path; the
+// adapter would NEVER build the event either way because the use case
+// does).
+func TestUpdateCompanyHandler_MissingUserIDReturns500(t *testing.T) {
+	repo := &stubUpdateServiceRepo{}
+	companyID := uuid.New()
+	// UserID is uuid.Nil — the FIRST-step guard fires.
+	cc := identitysecurity.CompanyContext{CompanyID: companyID, UserID: uuid.Nil, Role: valueobjects.OwnerRole}
+	router := newUpdateRouter(t, repo, cc)
+
+	rec := doPatch(t, router, `{"name":"Acme"}`, "", cc)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500 (fail-closed), got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.updateCalls != 0 {
+		t.Errorf("repo.UpdateCompany MUST NOT be called on missing actor, got %d calls", repo.updateCalls)
+	}
 }
 
 // --- 1. missing CompanyContext fails closed with 500 -------------------------
@@ -362,6 +396,10 @@ func TestUpdateCompanyHandler_SuccessReturns200(t *testing.T) {
 // sequentialUpdateRepo is the success-path stub: returns preUpdate
 // on the first GetCompanyForUpdate call, postUpdate on the second;
 // UpdateCompany returns nil and captures the patch.
+//
+// companies-audit WU2: also captures the audit event the use case
+// forwarded (the handler-level "PassesCompanyUpdatedEvent" test
+// asserts the captured event shape).
 type sequentialUpdateRepo struct {
 	preUpdate  *entities.Company
 	postUpdate *entities.Company
@@ -372,6 +410,7 @@ type sequentialUpdateRepo struct {
 	updateID          uuid.UUID
 	updatePatch       repositories.UpdateCompanyPatch
 	updateCas         time.Time
+	updateEvent       auditentities.AuditEvent
 }
 
 func (s *sequentialUpdateRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
@@ -389,13 +428,14 @@ func (s *sequentialUpdateRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUI
 	return nil, entities.ErrCompanyNotFound
 }
 
-func (s *sequentialUpdateRepo) UpdateCompany(_ context.Context, id uuid.UUID, patch repositories.UpdateCompanyPatch, cas time.Time) error {
+func (s *sequentialUpdateRepo) UpdateCompany(_ context.Context, id uuid.UUID, patch repositories.UpdateCompanyPatch, cas time.Time, event auditentities.AuditEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.updateCalls++
 	s.updateID = id
 	s.updatePatch = patch
 	s.updateCas = cas
+	s.updateEvent = event
 	return nil
 }
 
@@ -403,9 +443,96 @@ func (s *sequentialUpdateRepo) Create(_ context.Context, _ *entities.Company) er
 func (s *sequentialUpdateRepo) GetByID(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
 	return nil, entities.ErrCompanyNotFound
 }
-func (s *sequentialUpdateRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time) error { return nil }
+func (s *sequentialUpdateRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time, _ auditentities.AuditEvent) error {
+	return nil
+}
 
 var _ repositories.CompanyRepository = (*sequentialUpdateRepo)(nil)
+
+// --- 5b. handler passes a fully-built CompanyUpdated event to the repo --------
+
+// TestUpdateCompanyHandler_PassesCompanyUpdatedEvent pins the
+// transport contract: the handler does NOT build the AuditEvent
+// value — the use case is the single source of truth (companies-audit
+// design D5; spec scenario "handler does not build the event; use
+// case is the single source of truth"). The handler passes
+// CompanyContext.UserID and the request inputs to the use case; the
+// use case builds the event via `newCompanyUpdatedEvent(eventID,
+// companyID, userID)` and forwards it to `repo.UpdateCompany`. The
+// stub captures the forwarded event; the test asserts the captured
+// event has the expected shape:
+//
+//   - EventType == EventCompanyUpdated
+//   - EntityType == EntityCompany (singular)
+//   - EntityID == cc.CompanyID
+//   - ActorType == ActorTypeUser
+//   - ActorID != nil && *ActorID == cc.UserID
+//   - Metadata is non-nil AND empty (the PATCH event carries no
+//     diff; the 200 OK body already carries the post-write state)
+func TestUpdateCompanyHandler_PassesCompanyUpdatedEvent(t *testing.T) {
+	companyID := uuid.New()
+	userID := uuid.New()
+	updatedAt := time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC)
+	row := &entities.Company{
+		ID:         companyID,
+		Name:       mustHandlerName(t, "Acme SA de CV"),
+		Rfc:        mustHandlerRfc(t, "AAA010101AAA"),
+		Status:     valueobjects.Active,
+		IndustryID: "tech",
+		UpdatedAt:  updatedAt,
+		CreatedAt:  updatedAt.Add(-24 * time.Hour),
+	}
+	repo := &sequentialUpdateRepo{
+		preUpdate:  row,
+		postUpdate: row,
+	}
+	svc := usecases.NewCompanyService(repo)
+	h := NewCompanyHandler(svc)
+	handlers := h.CompanyHandlers()
+	r := chi.NewRouter()
+	r.Route("/me/company", func(r chi.Router) {
+		r.Patch("/", handlers.UpdateCompany)
+	})
+
+	cc := identitysecurity.CompanyContext{CompanyID: companyID, UserID: userID, Role: valueobjects.OwnerRole}
+	body := `{"name":"Renamed Co"}`
+	casHeader := updatedAt.Format(time.RFC3339)
+	rec := doPatch(t, r, body, casHeader, cc)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	if repo.updateCalls != 1 {
+		t.Fatalf("repo.UpdateCompany calls: want 1, got %d", repo.updateCalls)
+	}
+
+	got := repo.updateEvent
+	if got.EventType != "CompanyUpdated" {
+		t.Errorf("EventType: want CompanyUpdated, got %q", got.EventType)
+	}
+	if got.EntityType != "company" {
+		t.Errorf("EntityType: want company (singular), got %q", got.EntityType)
+	}
+	if got.EntityID != companyID {
+		t.Errorf("EntityID: want %v, got %v", companyID, got.EntityID)
+	}
+	if got.ActorType.String() != "user" {
+		t.Errorf("ActorType: want user, got %q", got.ActorType.String())
+	}
+	if got.ActorID == nil {
+		t.Fatalf("ActorID: want non-nil (user actor)")
+	}
+	if *got.ActorID != userID {
+		t.Errorf("ActorID: want %v, got %v", userID, *got.ActorID)
+	}
+	if got.Metadata == nil {
+		t.Fatal("Metadata: want non-nil empty map (JSONB `{}` invariant), got nil")
+	}
+	if len(got.Metadata) != 0 {
+		t.Errorf("Metadata: want empty (len == 0), got %d keys: %v", len(got.Metadata), got.Metadata)
+	}
+}
 
 // --- 6. company_id in body is ignored (IDOR defense) -------------------------
 

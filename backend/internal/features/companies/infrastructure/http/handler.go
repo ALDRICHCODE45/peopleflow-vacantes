@@ -315,7 +315,10 @@ func classifyCreateCompanyError(err error) (int, string) {
 //  2. Decode the body as dtos.UpdateCompanyDto (400 on malformed JSON).
 //  3. Parse `If-Unmodified-Since` via parseIfUnmodifiedSince (RFC
 //     3339; absent/malformed → zero time.Time{}).
-//  4. Invoke CompanyService.UpdateCompany.
+//  4. Invoke CompanyService.UpdateCompany — passing `cc.UserID` as
+//     the second argument so the use case can build the
+//     CompanyUpdated audit event with the right actor
+//     (companies-audit design D2 / D7).
 //  5. ErrConcurrencyConflict → re-project via toCompanyEditorView
 //     and write 409 with the editor view as the body (spec R3 —
 //     the 409 body MUST use the same shape as the 200).
@@ -323,7 +326,9 @@ func classifyCreateCompanyError(err error) (int, string) {
 //  7. Other errors → classifyUpdateCompanyError (D14 mapping).
 //
 // The handler is intentionally thin: the use case owns the
-// validation, transition table, and CAS logic.
+// validation, transition table, CAS logic, and audit event building.
+// The handler NEVER builds an `AuditEvent`; the `cc.UserID` is the
+// sole actor provenance the use case sees.
 func (h *CompanyHandler) updateCompany(w http.ResponseWriter, r *http.Request) {
 	cc, ok := requireCompanyContext(w, r)
 	if !ok {
@@ -338,7 +343,7 @@ func (h *CompanyHandler) updateCompany(w http.ResponseWriter, r *http.Request) {
 
 	ifUnmodifiedSince := parseIfUnmodifiedSince(r.Header.Get("If-Unmodified-Since"))
 
-	view, err := h.service.UpdateCompany(r.Context(), cc.CompanyID, in, ifUnmodifiedSince)
+	view, err := h.service.UpdateCompany(r.Context(), cc.CompanyID, cc.UserID, in, ifUnmodifiedSince)
 	if err != nil {
 		if errors.Is(err, entities.ErrConcurrencyConflict) {
 			// The 409 body MUST use the same wire shape as the 200
@@ -369,7 +374,9 @@ func (h *CompanyHandler) updateCompany(w http.ResponseWriter, r *http.Request) {
 //  2. Parse `If-Unmodified-Since` (RFC 3339; absent/malformed →
 //     zero time.Time{}, which the CAS compare treats as a
 //     guaranteed mismatch).
-//  3. Invoke CompanyService.SoftDeleteCompany.
+//  3. Invoke CompanyService.SoftDeleteCompany — passing `cc.UserID`
+//     so the use case can build the CompanyDeleted audit event with
+//     the right actor (companies-audit design D2 / D7).
 //  4. ErrConcurrencyConflict → 409 with EMPTY body (spec R4 / D12
 //     DELETE asymmetry: PATCH 409 carries the editor view; DELETE
 //     409 is intentionally empty because the success path is 204
@@ -377,7 +384,11 @@ func (h *CompanyHandler) updateCompany(w http.ResponseWriter, r *http.Request) {
 //     the wire).
 //  5. Success → 204 No Content with empty body (no editor view
 //     projected — D12 step 4).
-//  6. Other errors → classifyDeleteCompanyError.
+//  6. Other errors → classifyDeleteCompanyError (including the
+//     `ErrMissingActorIdentity → 500` branch added in WU2 per D6).
+//
+// The handler NEVER builds an `AuditEvent`; the `cc.UserID` is the
+// sole actor provenance the use case sees.
 func (h *CompanyHandler) deleteCompany(w http.ResponseWriter, r *http.Request) {
 	cc, ok := requireCompanyContext(w, r)
 	if !ok {
@@ -386,7 +397,7 @@ func (h *CompanyHandler) deleteCompany(w http.ResponseWriter, r *http.Request) {
 
 	ifUnmodifiedSince := parseIfUnmodifiedSince(r.Header.Get("If-Unmodified-Since"))
 
-	if err := h.service.SoftDeleteCompany(r.Context(), cc.CompanyID, ifUnmodifiedSince); err != nil {
+	if err := h.service.SoftDeleteCompany(r.Context(), cc.CompanyID, cc.UserID, ifUnmodifiedSince); err != nil {
 		if errors.Is(err, entities.ErrConcurrencyConflict) {
 			// 409 with EMPTY body (spec R4 / D12 DELETE asymmetry):
 			// the wire contract on DELETE 409 is INTENTIONALLY empty
@@ -441,8 +452,16 @@ func parseIfUnmodifiedSince(raw string) time.Time {
 }
 
 // classifyUpdateCompanyError is the PATCH handler's flat
-// `errors.Is` dispatcher (design D14). Status mapping:
+// `errors.Is` dispatcher (design D14 + companies-audit D6). Status
+// mapping:
 //
+//	ErrMissingActorIdentity           → 500 "internal server error"
+//	                                       (no existence leak — a
+//	                                       missing actor is an internal
+//	                                        mis-wiring, not a client
+//	                                        error; the sentinel fires
+//	                                        FIRST in the use case
+//	                                        before any query)
 //	ErrConcurrencyConflict           → 409 "conflict"
 //	                                       (the handler special-cases
 //	                                       the 409-with-view path
@@ -464,6 +483,8 @@ func parseIfUnmodifiedSince(raw string) time.Time {
 // classifier is the fallback.
 func classifyUpdateCompanyError(err error) (int, string) {
 	switch {
+	case errors.Is(err, usecases.ErrMissingActorIdentity):
+		return http.StatusInternalServerError, "internal server error"
 	case errors.Is(err, entities.ErrConcurrencyConflict):
 		return http.StatusConflict, "conflict"
 	case errors.Is(err, entities.ErrCompanyNotFound):
@@ -480,9 +501,13 @@ func classifyUpdateCompanyError(err error) (int, string) {
 }
 
 // classifyDeleteCompanyError is the DELETE handler's flat
-// `errors.Is` dispatcher (design D14). Status mapping:
+// `errors.Is` dispatcher (design D14 + companies-audit D6). Status
+// mapping:
 //
-//	ErrConcurrencyConflict           → 409 (the handler
+//	ErrMissingActorIdentity            → 500 "internal server error"
+//	                                        (no existence leak; FIRST
+//	                                        step guard)
+//	ErrConcurrencyConflict            → 409 (the handler
 //	                                       special-cases the
 //	                                       409-empty-body path
 //	                                       BEFORE the classifier;
@@ -492,10 +517,12 @@ func classifyUpdateCompanyError(err error) (int, string) {
 //	                                        SQLSTATE 23514 is
 //	                                        unreachable via the
 //	                                        designed flow)
-//	ErrCompanyNotFound               → 404
-//	default                          → 500
+//	ErrCompanyNotFound                → 404
+//	default                           → 500
 func classifyDeleteCompanyError(err error) (int, string) {
 	switch {
+	case errors.Is(err, usecases.ErrMissingActorIdentity):
+		return http.StatusInternalServerError, "internal server error"
 	case errors.Is(err, entities.ErrConcurrencyConflict):
 		return http.StatusConflict, "conflict"
 	case errors.Is(err, entities.ErrCompanyNotFound):
