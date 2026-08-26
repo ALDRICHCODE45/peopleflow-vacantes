@@ -122,3 +122,189 @@ func (q *Queries) GetCompanyByID(ctx context.Context, id uuid.UUID) (Company, er
 	)
 	return i, err
 }
+
+const softDeleteCompany = `-- name: SoftDeleteCompany :one
+WITH upd AS (
+    UPDATE companies
+    SET
+        deleted_at = now(),
+        updated_at = clock_timestamp()
+    WHERE id         = $1::uuid
+      AND deleted_at IS NULL
+      AND updated_at = $2::timestamptz
+    RETURNING id
+)
+SELECT (SELECT count(*) FROM upd) AS deleted_count
+`
+
+type SoftDeleteCompanyParams struct {
+	CompanyID uuid.UUID          `json:"company_id"`
+	CasToken  pgtype.Timestamptz `json:"cas_token"`
+}
+
+// Atomic soft-delete + CAS for DELETE /me/company (companies-write
+// slice, design D4). Minimal SET list: ONLY deleted_at = now() and
+// updated_at = clock_timestamp(). rfc / industry_id / status /
+// created_at / id and the 12 profile columns are PRESERVED as audit
+// history (a future restore endpoint operates on the intact row).
+//
+// No `active` CTE (locked §6.10: no active-company guard on PATCH/DELETE
+// — a suspended company may be tombstoned). The WHERE scopes by id +
+// `deleted_at IS NULL` + CAS `updated_at`.
+//
+// Outcome matrix (adapter D4 + D11):
+//
+//	deleted_count = 0  → ErrCompanyNotFound (CAS lost / already
+//	                       soft-deleted / cross-company / non-existent —
+//	                       indistinguishable by design)
+//	deleted_count = 1  → nil (success: 1 row tombstoned)
+//
+// The final scalar SELECT (no FROM, no WHERE) ALWAYS returns exactly
+// one row, so pgx.ErrNoRows is unreachable via the designed flow;
+// mapSoftDeleteCompanyError keeps it as defense-in-depth.
+//
+// `closed_count` / 23514 dispatch — `companies` has no CHECK
+// constraints the minimal SET list can trip (the `name` length /
+// `description` length are VO-only; `companies_size_check` /
+// `companies_founded_year_check` only fire on UPDATE with NEW values;
+// `companies_status_check` is unreachable since `status` is never
+// touched). `23514 → ErrInvalidCompanyStatusTransition` is kept as
+// defense-in-depth.
+func (q *Queries) SoftDeleteCompany(ctx context.Context, arg SoftDeleteCompanyParams) (int64, error) {
+	row := q.db.QueryRow(ctx, softDeleteCompany, arg.CompanyID, arg.CasToken)
+	var deleted_count int64
+	err := row.Scan(&deleted_count)
+	return deleted_count, err
+}
+
+const updateCompany = `-- name: UpdateCompany :one
+WITH upd AS (
+    UPDATE companies
+    SET
+        name            = COALESCE($1::text, name),
+        website         = CASE WHEN $2::boolean
+                                THEN $3::text ELSE website END,
+        logo_url        = CASE WHEN $4::boolean
+                                THEN $5::text ELSE logo_url END,
+        description     = CASE WHEN $6::boolean
+                                THEN $7::text ELSE description END,
+        size            = CASE WHEN $8::boolean
+                                THEN $9::text ELSE size END,
+        founded_year    = CASE WHEN $10::boolean
+                                THEN $11::int2 ELSE founded_year END,
+        city            = CASE WHEN $12::boolean
+                                THEN $13::text ELSE city END,
+        country         = CASE WHEN $14::boolean
+                                THEN $15::text ELSE country END,
+        linkedin_url    = CASE WHEN $16::boolean
+                                THEN $17::text ELSE linkedin_url END,
+        instagram_url   = CASE WHEN $18::boolean
+                                THEN $19::text ELSE instagram_url END,
+        facebook_url    = CASE WHEN $20::boolean
+                                THEN $21::text ELSE facebook_url END,
+        twitter_url     = CASE WHEN $22::boolean
+                                THEN $23::text ELSE twitter_url END,
+        cover_image_url = CASE WHEN $24::boolean
+                                THEN $25::text ELSE cover_image_url END,
+        updated_at      = clock_timestamp()
+    WHERE id         = $26::uuid
+      AND deleted_at IS NULL
+      AND updated_at = $27::timestamptz
+    RETURNING id
+)
+SELECT (SELECT count(*) FROM upd) AS updated_count
+`
+
+type UpdateCompanyParams struct {
+	Name             pgtype.Text        `json:"name"`
+	SetWebsite       bool               `json:"set_website"`
+	Website          pgtype.Text        `json:"website"`
+	SetLogoUrl       bool               `json:"set_logo_url"`
+	LogoUrl          pgtype.Text        `json:"logo_url"`
+	SetDescription   bool               `json:"set_description"`
+	Description      pgtype.Text        `json:"description"`
+	SetSize          bool               `json:"set_size"`
+	Size             pgtype.Text        `json:"size"`
+	SetFoundedYear   bool               `json:"set_founded_year"`
+	FoundedYear      pgtype.Int2        `json:"founded_year"`
+	SetCity          bool               `json:"set_city"`
+	City             pgtype.Text        `json:"city"`
+	SetCountry       bool               `json:"set_country"`
+	Country          pgtype.Text        `json:"country"`
+	SetLinkedinUrl   bool               `json:"set_linkedin_url"`
+	LinkedinUrl      pgtype.Text        `json:"linkedin_url"`
+	SetInstagramUrl  bool               `json:"set_instagram_url"`
+	InstagramUrl     pgtype.Text        `json:"instagram_url"`
+	SetFacebookUrl   bool               `json:"set_facebook_url"`
+	FacebookUrl      pgtype.Text        `json:"facebook_url"`
+	SetTwitterUrl    bool               `json:"set_twitter_url"`
+	TwitterUrl       pgtype.Text        `json:"twitter_url"`
+	SetCoverImageUrl bool               `json:"set_cover_image_url"`
+	CoverImageUrl    pgtype.Text        `json:"cover_image_url"`
+	CompanyID        uuid.UUID          `json:"company_id"`
+	CasToken         pgtype.Timestamptz `json:"cas_token"`
+}
+
+// Atomic partial update + CAS for PATCH /me/company (companies-write slice,
+// design D3). Mirrors UpdateJob :one minus the `active` CTE (companies
+// has no active-company guard on PATCH/DELETE — a suspended company may
+// edit its profile; `status` is not patchable).
+//
+// Column-update shapes:
+//   - name            via COALESCE(sqlc.narg('name')::text, name)  (non-nullable, no clear-to-NULL)
+//   - 12 profile cols via CASE WHEN sqlc.arg('set_<field>')::boolean
+//     THEN sqlc.narg('<field>')::...
+//     ELSE col END                          (tri-state — design D7)
+//   - updated_at      = clock_timestamp()                          (advances in the same statement)
+//
+// Tri-state decode per column (matches jobs design D7):
+//
+//	Set=false              -> CASE branch: ELSE col      (untouched)
+//	Set=true, Valid=false  -> CASE branch: THEN narg     -> NULL    (clear)
+//	Set=true, Valid=true   -> CASE branch: THEN narg     -> value
+//
+// CAS in the UPDATE WHERE: `updated_at = sqlc.arg('cas_token')` — atomic
+// race-free guard for the row predicates (id, deleted_at IS NULL). Two
+// writers holding the same CAS: only one UPDATE returns 1 row in `upd`;
+// the other returns 0.
+//
+// The final SELECT is scalar (no FROM, no WHERE) and ALWAYS returns
+// exactly one row. pgx.ErrNoRows is unreachable via the designed flow;
+// mapUpdateCompanyError keeps it as defense-in-depth (mirrors jobs
+// mapUpdateError).
+//
+// Never touched: rfc, industry_id, status, created_at, id, deleted_at.
+func (q *Queries) UpdateCompany(ctx context.Context, arg UpdateCompanyParams) (int64, error) {
+	row := q.db.QueryRow(ctx, updateCompany,
+		arg.Name,
+		arg.SetWebsite,
+		arg.Website,
+		arg.SetLogoUrl,
+		arg.LogoUrl,
+		arg.SetDescription,
+		arg.Description,
+		arg.SetSize,
+		arg.Size,
+		arg.SetFoundedYear,
+		arg.FoundedYear,
+		arg.SetCity,
+		arg.City,
+		arg.SetCountry,
+		arg.Country,
+		arg.SetLinkedinUrl,
+		arg.LinkedinUrl,
+		arg.SetInstagramUrl,
+		arg.InstagramUrl,
+		arg.SetFacebookUrl,
+		arg.FacebookUrl,
+		arg.SetTwitterUrl,
+		arg.TwitterUrl,
+		arg.SetCoverImageUrl,
+		arg.CoverImageUrl,
+		arg.CompanyID,
+		arg.CasToken,
+	)
+	var updated_count int64
+	err := row.Scan(&updated_count)
+	return updated_count, err
+}

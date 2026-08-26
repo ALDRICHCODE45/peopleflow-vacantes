@@ -11,6 +11,34 @@ import (
 )
 
 type Querier interface {
+	// Inline close of all non-closed, non-tombstoned jobs of a company
+	// (companies-write slice, design D5). Runs in the SAME pgx.Tx as the
+	// `SoftDeleteCompany` write so the soft-delete + the inline close are
+	// atomic; on any error in either statement, the transaction rolls back
+	// and NEITHER the tombstone NOR the close is visible.
+	//
+	// No `active` CTE / no guard needed: the soft-delete WHERE already
+	// scopes by `company_id`, so the second statement scopes by the same
+	// column (no TOCTOU window).
+	//
+	// Predicate:
+	//   - `company_id = $1`         scopes to the soft-deleted company
+	//   - `deleted_at IS NULL`      excludes already-tombstoned jobs (the
+	//                                tombstone stands — a soft-deleted job's
+	//                                status is not overwritten)
+	//   - `status IN ('draft',
+	//                'published')` excludes already-closed jobs (closing a
+	//                                closed job is a no-op; updated_at is NOT
+	//                                bumped on those rows — design §14.12
+	//                                five-invariant inline-close assertion)
+	//
+	// `:execrows` (not `:exec`) is chosen deliberately: sqlc `:exec` returns
+	// only `error`, so the adapter could not surface RowsAffected as the
+	// proposal requires. `:execrows` returns `(int64, error)`. The adapter
+	// captures the count and explicitly ignores it (`_ = closedCount`) — the
+	// use case does NOT branch on it; `0 rows closed` is a legitimate success
+	// ("this company had no non-closed jobs at delete time").
+	CloseCompanyJobs(ctx context.Context, companyID uuid.UUID) (int64, error)
 	// Atomic apply + eligibility gate for POST /jobs/{jobId}/applications
 	// (design D1).
 	//
@@ -192,6 +220,34 @@ type Querier interface {
 	// can assert visibility at the row level; they are not exposed in the
 	// API response per spec.
 	SearchJobs(ctx context.Context, arg SearchJobsParams) ([]SearchJobsRow, error)
+	// Atomic soft-delete + CAS for DELETE /me/company (companies-write
+	// slice, design D4). Minimal SET list: ONLY deleted_at = now() and
+	// updated_at = clock_timestamp(). rfc / industry_id / status /
+	// created_at / id and the 12 profile columns are PRESERVED as audit
+	// history (a future restore endpoint operates on the intact row).
+	//
+	// No `active` CTE (locked §6.10: no active-company guard on PATCH/DELETE
+	// — a suspended company may be tombstoned). The WHERE scopes by id +
+	// `deleted_at IS NULL` + CAS `updated_at`.
+	//
+	// Outcome matrix (adapter D4 + D11):
+	//   deleted_count = 0  → ErrCompanyNotFound (CAS lost / already
+	//                          soft-deleted / cross-company / non-existent —
+	//                          indistinguishable by design)
+	//   deleted_count = 1  → nil (success: 1 row tombstoned)
+	//
+	// The final scalar SELECT (no FROM, no WHERE) ALWAYS returns exactly
+	// one row, so pgx.ErrNoRows is unreachable via the designed flow;
+	// mapSoftDeleteCompanyError keeps it as defense-in-depth.
+	//
+	// `closed_count` / 23514 dispatch — `companies` has no CHECK
+	// constraints the minimal SET list can trip (the `name` length /
+	// `description` length are VO-only; `companies_size_check` /
+	// `companies_founded_year_check` only fire on UPDATE with NEW values;
+	// `companies_status_check` is unreachable since `status` is never
+	// touched). `23514 → ErrInvalidCompanyStatusTransition` is kept as
+	// defense-in-depth.
+	SoftDeleteCompany(ctx context.Context, arg SoftDeleteCompanyParams) (int64, error)
 	// Atomic soft-delete + CAS + active-company guard for DELETE /jobs/{id}
 	// (design D1/D2/D3, jobs-soft-delete slice).
 	//
@@ -237,6 +293,35 @@ type Querier interface {
 	// No deleted_at / status filter on jobs: transitions on soft-deleted
 	// jobs' applications remain legal (historical pipeline).
 	TransitionStatus(ctx context.Context, arg TransitionStatusParams) (TransitionStatusRow, error)
+	// Atomic partial update + CAS for PATCH /me/company (companies-write slice,
+	// design D3). Mirrors UpdateJob :one minus the `active` CTE (companies
+	// has no active-company guard on PATCH/DELETE — a suspended company may
+	// edit its profile; `status` is not patchable).
+	//
+	// Column-update shapes:
+	//   - name            via COALESCE(sqlc.narg('name')::text, name)  (non-nullable, no clear-to-NULL)
+	//   - 12 profile cols via CASE WHEN sqlc.arg('set_<field>')::boolean
+	//                            THEN sqlc.narg('<field>')::...
+	//                            ELSE col END                          (tri-state — design D7)
+	//   - updated_at      = clock_timestamp()                          (advances in the same statement)
+	//
+	// Tri-state decode per column (matches jobs design D7):
+	//   Set=false              -> CASE branch: ELSE col      (untouched)
+	//   Set=true, Valid=false  -> CASE branch: THEN narg     -> NULL    (clear)
+	//   Set=true, Valid=true   -> CASE branch: THEN narg     -> value
+	//
+	// CAS in the UPDATE WHERE: `updated_at = sqlc.arg('cas_token')` — atomic
+	// race-free guard for the row predicates (id, deleted_at IS NULL). Two
+	// writers holding the same CAS: only one UPDATE returns 1 row in `upd`;
+	// the other returns 0.
+	//
+	// The final SELECT is scalar (no FROM, no WHERE) and ALWAYS returns
+	// exactly one row. pgx.ErrNoRows is unreachable via the designed flow;
+	// mapUpdateCompanyError keeps it as defense-in-depth (mirrors jobs
+	// mapUpdateError).
+	//
+	// Never touched: rfc, industry_id, status, created_at, id, deleted_at.
+	UpdateCompany(ctx context.Context, arg UpdateCompanyParams) (int64, error)
 	// Atomic partial update + CAS + active-company guard for PATCH /jobs/{id}
 	// (design D1/D2/D3, jobs-reopen slice).
 	//

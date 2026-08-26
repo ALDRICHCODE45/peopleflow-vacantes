@@ -12,6 +12,51 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const closeCompanyJobs = `-- name: CloseCompanyJobs :execrows
+UPDATE jobs
+SET
+    status     = 'closed',
+    updated_at = clock_timestamp()
+WHERE company_id = $1::uuid
+  AND deleted_at IS NULL
+  AND status IN ('draft', 'published')
+`
+
+// Inline close of all non-closed, non-tombstoned jobs of a company
+// (companies-write slice, design D5). Runs in the SAME pgx.Tx as the
+// `SoftDeleteCompany` write so the soft-delete + the inline close are
+// atomic; on any error in either statement, the transaction rolls back
+// and NEITHER the tombstone NOR the close is visible.
+//
+// No `active` CTE / no guard needed: the soft-delete WHERE already
+// scopes by `company_id`, so the second statement scopes by the same
+// column (no TOCTOU window).
+//
+// Predicate:
+//   - `company_id = $1`         scopes to the soft-deleted company
+//   - `deleted_at IS NULL`      excludes already-tombstoned jobs (the
+//     tombstone stands — a soft-deleted job's
+//     status is not overwritten)
+//   - `status IN ('draft',
+//     'published')` excludes already-closed jobs (closing a
+//     closed job is a no-op; updated_at is NOT
+//     bumped on those rows — design §14.12
+//     five-invariant inline-close assertion)
+//
+// `:execrows` (not `:exec`) is chosen deliberately: sqlc `:exec` returns
+// only `error`, so the adapter could not surface RowsAffected as the
+// proposal requires. `:execrows` returns `(int64, error)`. The adapter
+// captures the count and explicitly ignores it (`_ = closedCount`) — the
+// use case does NOT branch on it; `0 rows closed` is a legitimate success
+// ("this company had no non-closed jobs at delete time").
+func (q *Queries) CloseCompanyJobs(ctx context.Context, companyID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, closeCompanyJobs, companyID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const createJob = `-- name: CreateJob :one
 WITH active AS (
     SELECT id, name
