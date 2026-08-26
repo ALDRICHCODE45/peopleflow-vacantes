@@ -10,6 +10,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	sharedvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -104,24 +105,111 @@ func (r *CompanyRepository) GetCompanyForUpdate(ctx context.Context, companyID u
 }
 
 // UpdateCompany applies the patch atomically, guarded by CAS
-// `updated_at = casUpdatedAt` and the row predicates (id, deleted_at IS NULL).
+// `updated_at = casUpdatedAt` and the row predicates
+// (id, deleted_at IS NULL). The D3 SQL is `:one` and emits a scalar
+// SELECT returning a single int64 (sqlc flattens single-column :one
+// queries — see apply-progress.md "sqlc-generated deviation").
 //
-// WU3 stub: the full body lands in WU5 (transactional pool-based UPDATE +
-// rowcount dispatch). The stub keeps the port satisfied so the atomic
-// compile-break repair stays green; legacy tests never exercise it.
+// Outcome matrix (adapter D3 + D11):
+//   updated_count = 0  → entities.ErrCompanyNotFound (CAS lost /
+//                          already-soft-deleted / cross-company /
+//                          non-existent — indistinguishable by
+//                          design; the use case re-reads and either
+//                          maps to 404 or 409-with-view).
+//   updated_count = 1  → nil (success: 1 row patched).
+//
+// `defer tx.Rollback` covers every error path between
+// `r.pool.Begin(ctx)` and `tx.Commit(ctx)` — the soft-delete write
+// is not on this path, but the defer is canonical and harmless.
+//
+// The D3 SQL sets `updated_at = clock_timestamp()` on a successful
+// update, so the authoritative post-write value is the next
+// `GetCompanyForUpdate`'s result (the use case re-reads to obtain it
+// — design D12 step 7).
+//
+// Returns:
+//   nil                                  on success (1 row affected)
+//   entities.ErrCompanyNotFound          on 0 rows affected
+//                                        (CAS lost / cross-company /
+//                                        soft-delete race)
+//   other error                          propagated unchanged (HTTP 500)
 func (r *CompanyRepository) UpdateCompany(ctx context.Context, companyID uuid.UUID, patch repositories.UpdateCompanyPatch, casUpdatedAt time.Time) error {
-	return nil
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	updated, err := db.New(tx).UpdateCompany(ctx, buildUpdateCompanyParams(companyID, patch, casUpdatedAt))
+	if err != nil {
+		return mapUpdateCompanyError(err)
+	}
+	if updated == 0 {
+		return entities.ErrCompanyNotFound
+	}
+	return tx.Commit(ctx)
 }
 
-// SoftDeleteCompany tombstones the row AND transactionally closes every
-// non-closed, non-tombstoned job of the company in ONE pgx.Tx.
+// SoftDeleteCompany tombstones the row (`deleted_at = now()`,
+// `updated_at = clock_timestamp()`) AND transactionally closes every
+// non-closed, non-tombstoned job of the company in ONE pgx.Tx
+// (design D4 / D5). The minimal SET list preserves every other
+// column as audit history (`rfc`, `industry_id`, `status`,
+// `created_at`, `id`, the 12 profile columns); the partial unique
+// index `companies_rfc_unique ON (rfc) WHERE deleted_at IS NULL`
+// permits RFC reuse after the tombstone.
 //
-// WU3 stub: the full body lands in WU5 (pool.Begin → soft-delete → inline
-// close → commit; deferred rollback on any error). The stub keeps the port
-// satisfied so the atomic compile-break repair stays green; legacy tests
-// never exercise it.
+// Outcome matrix (adapter D4 + D11):
+//   deleted_count = 0  → entities.ErrCompanyNotFound (CAS lost /
+//                          already-soft-deleted / cross-company /
+//                          non-existent — indistinguishable by
+//                          design).
+//   deleted_count = 1  → nil; on success, the inline close runs in
+//                          the SAME tx. The adapter captures the
+//                          close rowcount as telemetry but NEVER
+//                          branches on it (`0 rows closed` is a
+//                          legitimate success path — "company had no
+//                          non-closed jobs at delete time").
+//
+// On any inline-close error the deferred `tx.Rollback` undoes the
+// soft-delete write too — both writes either commit atomically or
+// neither is visible. Spec R6 + design §14.12 five-invariant
+// inline-close assertion.
+//
+// Returns:
+//   nil                                  on success (soft-delete +
+//                                        inline close committed)
+//   entities.ErrCompanyNotFound          on 0 rows affected
+//   other error                          propagated unchanged (HTTP 500)
 func (r *CompanyRepository) SoftDeleteCompany(ctx context.Context, companyID uuid.UUID, casUpdatedAt time.Time) error {
-	return nil
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	deleted, err := db.New(tx).SoftDeleteCompany(ctx, buildSoftDeleteCompanyParams(companyID, casUpdatedAt))
+	if err != nil {
+		return mapSoftDeleteCompanyError(err)
+	}
+	if deleted == 0 {
+		return entities.ErrCompanyNotFound
+	}
+
+	// Inline close — runs in the same tx. Rowcount is captured but
+	// never branched on (D5: "0 rows closed is a legitimate success
+	// path"; the adapter is dumb and surfaces the row outcome as-is).
+	closedCount, err := db.New(tx).CloseCompanyJobs(ctx, companyID)
+	if err != nil {
+		// mapSoftDeleteCompanyError maps SQLSTATE 23514 → entities
+		// .ErrInvalidCompanyStatusTransition; pgx.ErrNoRows is
+		// unreachable (the :execrows UPDATE always emits a tag);
+		// unknown errors pass through.
+		return mapSoftDeleteCompanyError(err)
+	}
+	_ = closedCount // telemetry only — NEVER branch on it (D5).
+
+	return tx.Commit(ctx)
 }
 
 // buildCreateParams translates an entity into the sqlc parameter struct. Every
@@ -280,3 +368,174 @@ func mapCompanyCreateError(err error) error {
 }
 
 // --- write-path helpers (companies-write slice, design D10 / D13) ----------
+
+// buildUpdateCompanyParams translates the domain UpdateCompanyPatch
+// into the sqlc `UpdateCompanyParams` struct. Three field shapes per
+// the D3 SQL:
+//
+//   - `Name` via textPtrToPgText (matches buildCreateParams's Name
+//     handling).
+//   - The twelve profile columns via optionalStringToText (string
+//     columns) or optionalIntToInt2 (founded_year). Set=false →
+//     flag false AND value invalid (untouched); Set=true, Valid=false
+//     → flag true AND value invalid (clear to NULL);
+//     Set=true, Valid=true → flag true AND value valid (set to value).
+//   - Identity columns (CompanyID, CasToken) are always populated
+//     at the END of the struct — design D10 SET-list-first arg
+//     order (the SQL SET list textually precedes the WHERE for the
+//     no-active-CTE UpdateCompany).
+//
+// The use case pre-canonicalizes the values: size is `parsedSize.String()`
+// (lowercase for `companies_size_check`), founded_year is the int,
+// name/description are the trimmed raw values.
+func buildUpdateCompanyParams(companyID uuid.UUID, patch repositories.UpdateCompanyPatch, casUpdatedAt time.Time) db.UpdateCompanyParams {
+	return db.UpdateCompanyParams{
+		Name:          textPtrToPgText(patch.Name),
+		SetWebsite:    patch.Website.Set,
+		Website:       optionalStringToPgText(patch.Website),
+		SetLogoUrl:    patch.LogoURL.Set,
+		LogoUrl:       optionalStringToPgText(patch.LogoURL),
+		SetDescription: patch.Description.Set,
+		Description:   optionalStringToPgText(patch.Description),
+		SetSize:       patch.Size.Set,
+		Size:          optionalStringToPgText(patch.Size),
+		SetFoundedYear: patch.FoundedYear.Set,
+		FoundedYear:   optionalIntToPgInt2(patch.FoundedYear),
+		SetCity:       patch.City.Set,
+		City:          optionalStringToPgText(patch.City),
+		SetCountry:    patch.Country.Set,
+		Country:       optionalStringToPgText(patch.Country),
+		SetLinkedinUrl: patch.LinkedInURL.Set,
+		LinkedinUrl:   optionalStringToPgText(patch.LinkedInURL),
+		SetInstagramUrl: patch.InstagramURL.Set,
+		InstagramUrl:  optionalStringToPgText(patch.InstagramURL),
+		SetFacebookUrl: patch.FacebookURL.Set,
+		FacebookUrl:   optionalStringToPgText(patch.FacebookURL),
+		SetTwitterUrl:  patch.TwitterURL.Set,
+		TwitterUrl:    optionalStringToPgText(patch.TwitterURL),
+		SetCoverImageUrl: patch.CoverImageURL.Set,
+		CoverImageUrl: optionalStringToPgText(patch.CoverImageURL),
+		CompanyID:     companyID,
+		CasToken:      pgtype.Timestamptz{Time: casUpdatedAt, Valid: true},
+	}
+}
+
+// buildSoftDeleteCompanyParams translates `(companyID, casUpdatedAt)`
+// into the sqlc `SoftDeleteCompanyParams` struct. The arg order is
+// trivial (no SET-list args): CompanyID first (WHERE), CasToken
+// second (WHERE).
+func buildSoftDeleteCompanyParams(companyID uuid.UUID, casUpdatedAt time.Time) db.SoftDeleteCompanyParams {
+	return db.SoftDeleteCompanyParams{
+		CompanyID: companyID,
+		CasToken:  pgtype.Timestamptz{Time: casUpdatedAt, Valid: true},
+	}
+}
+
+// optionalStringToPgText renders the tri-state Optional[string] into a
+// pgtype.Text. Set=false → invalid pgtype (CASE branch: ELSE col —
+// untouched). Set=true, Valid=false → invalid pgtype with Set=true
+// (CASE branch: THEN narg → NULL — clear). Set=true, Valid=true →
+// valid pgtype with the value.
+func optionalStringToPgText(o sharedvalueobjects.Optional[string]) pgtype.Text {
+	if !o.Set {
+		return pgtype.Text{}
+	}
+	if !o.Valid {
+		return pgtype.Text{Valid: false}
+	}
+	return pgtype.Text{String: o.Value, Valid: true}
+}
+
+// optionalIntToPgInt2 renders the tri-state Optional[int] into a
+// pgtype.Int2. Same semantics as optionalStringToPgText; the SQL
+// column `founded_year` is SMALLINT (int2), matching buildCreateParams's
+// year handling.
+func optionalIntToPgInt2(o sharedvalueobjects.Optional[int]) pgtype.Int2 {
+	if !o.Set {
+		return pgtype.Int2{}
+	}
+	if !o.Valid {
+		return pgtype.Int2{Valid: false}
+	}
+	return pgtype.Int2{Int16: int16(o.Value), Valid: true}
+}
+
+// mapUpdateCompanyError translates Postgres errors surfaced by
+// UpdateCompany into domain sentinels (companies-write slice, design
+// D13). pgx.ErrNoRows is checked BEFORE the errors.As into
+// *pgconn.PgError so the two checks coexist (pgx.ErrNoRows is not a
+// *pgconn.PgError).
+//
+// Mapping contract:
+//   nil                            → nil (pass-through)
+//   pgx.ErrNoRows                  → entities.ErrCompanyNotFound
+//                                    (defense-in-depth; the :one
+//                                    scalar SELECT always yields
+//                                    one row)
+//   23514 + companies_size_check   → valueobjects.ErrInvalidCompanySize
+//   23514 + companies_founded_year_check → valueobjects.ErrFoundedYearOutOfRange
+//   any other PgError               → pass-through (HTTP 500)
+//   any non-pg error                → pass-through (HTTP 500)
+//
+// NO branch for `ErrCompanyNameTooShort` or `ErrCompanyDescriptionTooLong`
+// (D13 — those are VO-level and the use case fires them before SQL;
+// the DB has no CHECK on `name` length or `description` length — see
+// `db/migrations/00003_companies_profile.sql`).
+// NO 23503 mapping (PATCH does not insert or reassign FKs).
+func mapUpdateCompanyError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return entities.ErrCompanyNotFound
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23514":
+			switch pgErr.ConstraintName {
+			case "companies_size_check":
+				return valueobjects.ErrInvalidCompanySize
+			case "companies_founded_year_check":
+				return valueobjects.ErrFoundedYearOutOfRange
+			}
+		}
+	}
+	return err
+}
+
+// mapSoftDeleteCompanyError translates Postgres errors surfaced by
+// SoftDeleteCompany (and the inline CloseCompanyJobs) into domain
+// sentinels (companies-write slice, design D13). pgx.ErrNoRows is
+// checked BEFORE the errors.As into *pgconn.PgError so the two
+// checks coexist.
+//
+// Mapping contract:
+//   nil                            → nil (pass-through)
+//   pgx.ErrNoRows                  → entities.ErrCompanyNotFound
+//                                    (defense-in-depth)
+//   23514                          → entities.ErrInvalidCompanyStatusTransition
+//                                    (defense-in-depth; the only
+//                                    plausible CHECK is
+//                                    jobs_status_check and 'closed'
+//                                    satisfies it)
+//   any other PgError               → pass-through (HTTP 500)
+//   any non-pg error                → pass-through (HTTP 500)
+//
+// NO 23503 mapping (D13 — soft-delete never reassigns FKs).
+func mapSoftDeleteCompanyError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return entities.ErrCompanyNotFound
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "23514":
+			return entities.ErrInvalidCompanyStatusTransition
+		}
+	}
+	return err
+}
