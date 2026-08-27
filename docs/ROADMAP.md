@@ -69,6 +69,7 @@
 5. ✅ **`applications`** — DELIVERED. Postulaciones + pipeline del reclutador (apply + list + transition), `GET /me/applications` del candidato.
 6. ✅ **`audit_events`** — DELIVERED. Append-only en los write paths de applications (co-write atómico fail-closed). Migración `00011`.
 7. ✅ **`companies-write`** — DELIVERED (2026-08-26). `PATCH /me/company` (parcial + CAS If-Unmodified-Since, rfc/industry inmutables) y `DELETE /me/company` (soft-delete + cierre transaccional de vacantes), ambos owner-only. Spec canónica `companies` creada (9 req / 45 escenarios).
+8. ✅ **`companies-audit`** — DELIVERED (2026-08-26). `CompanyUpdated`/`CompanyDeleted` emitidos desde los write paths owner-only de companies (co-write atómico fail-closed en el mismo `pgx.Tx`). Vocabulario de eventos cerrado expandido a 4 (audit_events); metadata PII-free (`CompanyUpdated` → `{}`, `CompanyDeleted` → `{jobs_closed}`).
 
 Decisión abierta para discutir cuando toque: ¿quién valida que `industry_id` exista? Hoy lo garantiza el FK (DB). Evaluar si además se valida contra el catálogo activo en la capa de aplicación.
 
@@ -86,7 +87,7 @@ Decisión abierta para discutir cuando toque: ¿quién valida que `industry_id` 
 - 🔲 **Separar commits RED de GREEN** en ciclos futuros (práctica; hoy el TDD RED-first no es git-reconstruible).
 - 🔲 **Frontend** (`Next.js`) — mockups HTML listos en `design/screens/`, sin código de app.
 - 🔲 **Lambda PostConfirmation** de Cognito → `users` (el backend ya es idempotente para recibirla).
-- 🔲 **Audit events para companies** — `CompanyUpdated`/`CompanyDeleted` (diferido en `companies-write`; helper `Append(ctx, tx)` ya reusable).
+- ✅ **Audit events para companies** — ENTREGADO (2026-08-26, `companies-audit`): `CompanyUpdated`/`CompanyDeleted` co-escritos atómicamente desde `PATCH/DELETE /me/company`. Vocabulario cerrado de audit_events a 4 eventos.
 - 🔲 **Hardening read-side `c.deleted_at IS NULL`** en queries públicas de jobs (diferido en `companies-write`; el inline-close ya tapa la fuga).
 - 🔲 **Restore/undelete de empresa** — el mecanismo inverso del soft-delete (fuera de scope de `companies-write`).
 - 🔲 **`infra/` (Terraform)** y **`workers/`** — vacíos.
