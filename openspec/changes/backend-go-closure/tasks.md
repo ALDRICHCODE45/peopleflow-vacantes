@@ -7,7 +7,7 @@ Scope structure: the 17 WS2–WS7 subunits of design §3, with WS6A expanded int
 ## Review Workload Forecast
 
 | Field | Value |
-|-------|-------|
+| ------- | ------- |
 | Estimated changed lines | ~3,500–6,150 authored (additions+deletions) across the 17 WS2–WS7 subunits, plus ~80–150 authored doc lines for the doc-only unit; sqlc-generated output excluded from authored count, included in snapshot identity |
 | 400-line budget risk | High |
 | Chained PRs recommended | Yes |
@@ -25,7 +25,7 @@ Chain strategy: pending
 **Per-unit authored forecast** (generated sqlc/migration output excluded from these counts; every generated file still enters complete snapshot identity and receipt validation; design §13 group ranges are preserved):
 
 | RU | Work unit(s) | Est. authored lines | >400 risk |
-|----|--------------|--------------------:|-----------|
+| ---- | -------------- | --------------------: | ----------- |
 | RU1 | WS6A-0 spec correction + WS6A-1 catalog core | 120–220 | Low |
 | RU2 | WS6A-2 companies catalog adoption + 409 `data` parity | 200–350 | Low |
 | RU3 | WS6A-3/4 remaining-capability adoption | 200–330 | Low (ask if real diff >400) |

@@ -62,6 +62,7 @@ Behavioral failure captured: `internal_error` was at index 10, not index 13 (las
 **Strict TDD — TRIANGULATE:** `WriteCatalogErrorData` exclusivity confirmed (data only for `conflict`); fail-closed unknown-code; `SafeMessage` preserves new code/status unchanged.
 
 **Verification:**
+
 - `TestListCodes_CanonicalOrder`: PASS (all 14 entries in canonical order);
 - `TestResolve_KnownCodes` (14 subcases): PASS;
 - `TestWriteCatalogError_InvalidDefinition`: PASS;
@@ -72,6 +73,7 @@ Behavioral failure captured: `internal_error` was at index 10, not index 13 (las
 - `git diff --check`: PASS (no whitespace errors).
 
 **Files changed in this corrective pass:**
+
 - `backend/internal/shared/httpjson/errors.go`: canonical-order `ListCodes` + constant reordering + `Resolve` reorder;
 - `backend/internal/shared/httpjson/errors_test.go`: renamed test + canonical-order expected slice;
 - `openspec/changes/backend-go-closure/specs/backend-runtime/spec.md`: readiness 200 body correction;
@@ -79,6 +81,7 @@ Behavioral failure captured: `internal_error` was at index 10, not index 13 (las
 - `openspec/changes/backend-go-closure/apply-progress.md`: this record.
 
 **Measured authored lines (RU1B corrective pass delta only, not cumulative):**
+
 - `errors.go`: ~+6 lines net (constant reordering, `Resolve` reorder);
 - `errors_test.go`: ~+8 lines net (renamed test + new expected slice);
 - `spec.md`: ~+10 lines (readiness paragraph correction);

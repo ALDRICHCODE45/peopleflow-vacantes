@@ -277,8 +277,8 @@ func TestUpdateCompanyHandler_CASConflictReturns409WithView(t *testing.T) {
 		t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
 	}
 	var env struct {
-		Error string                     `json:"error"`
-		Code  httpjson.Code              `json:"code"`
+		Error string                    `json:"error"`
+		Code  httpjson.Code             `json:"code"`
 		Data  dtos.CompanyEditorViewDto `json:"data"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
@@ -319,28 +319,28 @@ func TestUpdateCompanyHandler_CASReturns409(t *testing.T) {
 		{"malformed CAS header", "not-a-timestamp"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-repo := &stubUpdateServiceRepo{
-getForUpdateOut: row,
-updateErr:       entities.ErrConcurrencyConflict,
-}
-router := newUpdateRouter(t, repo, cc)
-rec := doPatch(t, router, `{"name":"Acme"}`, tc.casHeader, cc)
-if rec.Code != http.StatusConflict {
-t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
-}
-var env httpjson.ErrorEnvelope
-if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
-t.Fatalf("decode as catalog envelope: %v; body=%s", err, rec.Body.String())
-}
-if env.Code != httpjson.CodeConflict {
-t.Errorf("code: want %q, got %q", httpjson.CodeConflict, env.Code)
-}
-if env.Error == "" {
-t.Errorf("error must be non-empty and readable")
-}
-if env.Data == nil {
-t.Errorf("data: want non-nil redacted view, got nil")
-}
+			repo := &stubUpdateServiceRepo{
+				getForUpdateOut: row,
+				updateErr:       entities.ErrConcurrencyConflict,
+			}
+			router := newUpdateRouter(t, repo, cc)
+			rec := doPatch(t, router, `{"name":"Acme"}`, tc.casHeader, cc)
+			if rec.Code != http.StatusConflict {
+				t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
+			}
+			var env httpjson.ErrorEnvelope
+			if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+				t.Fatalf("decode as catalog envelope: %v; body=%s", err, rec.Body.String())
+			}
+			if env.Code != httpjson.CodeConflict {
+				t.Errorf("code: want %q, got %q", httpjson.CodeConflict, env.Code)
+			}
+			if env.Error == "" {
+				t.Errorf("error must be non-empty and readable")
+			}
+			if env.Data == nil {
+				t.Errorf("data: want non-nil redacted view, got nil")
+			}
 		})
 	}
 }
