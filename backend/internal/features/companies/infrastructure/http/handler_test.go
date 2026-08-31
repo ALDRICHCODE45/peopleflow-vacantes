@@ -12,13 +12,13 @@ import (
 	"time"
 
 	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
-	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/dtos"
-	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
+"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -512,5 +512,89 @@ func TestGetCompany_InternalServerErrorOnUnknownError(t *testing.T) {
 	}
 }
 
-// ensure dtos.CreateCompanyDto is referenced for compile safety
-var _ = dtos.CreateCompanyDto{}
+
+    // --- Catalog envelope: V1 code field on all error responses ----------
+
+    func doPostWithBootstrap(t *testing.T, bootstrap *stubBootstrapRepo, body string) *httptest.ResponseRecorder {
+        t.Helper()
+        repo := &stubRepo{}
+        router := newTestRouter(newTestHandlerWithBootstrap(repo, bootstrap))
+        return doPost(t, router, body)
+    }
+
+    func doGetWithRepo(t *testing.T, repo *stubRepo, path string) *httptest.ResponseRecorder {
+        t.Helper()
+        router := newTestRouter(newTestHandler(repo))
+        return doGet(t, router, path)
+    }
+
+    func assertCatalogEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int, wantCode httpjson.Code) {
+        t.Helper()
+        if rec.Code != wantStatus {
+            t.Fatalf("want %d, got %d: %s", wantStatus, rec.Code, rec.Body.String())
+        }
+        var env httpjson.ErrorEnvelope
+        if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+            t.Fatalf("decode envelope: %v; body=%s", err, rec.Body.String())
+        }
+        if env.Code == "" {
+            t.Fatalf("want non-empty code, got empty; body=%s", rec.Body.String())
+        }
+        if env.Code != wantCode {
+            t.Errorf("code: want %q, got %q", wantCode, env.Code)
+        }
+        if wantCode == httpjson.CodeInternalError {
+            if env.Error != "an internal error occurred" {
+                t.Errorf("internal_error must use canonical generic message, got %q", env.Error)
+            }
+        }
+    }
+
+    func TestCreateCompany_CatalogCodeMapping(t *testing.T) {
+        tests := []struct {
+            name       string
+            wantCode   httpjson.Code
+            wantStatus int
+            body       string
+            bootstrap  *stubBootstrapRepo
+        }{
+            {"400: invalid size", httpjson.CodeInvalidRequest, http.StatusBadRequest,
+`{"name":"Acme SA de CV","rfc":"AAA010101AAA","industry_id":"tech","size":"huge"}`,
+&stubBootstrapRepo{}},
+            {"409: duplicate RFC", httpjson.CodeAlreadyExists, http.StatusConflict,
+`{"name":"Acme SA de CV","rfc":"AAA010101AAA","industry_id":"tech"}`,
+&stubBootstrapRepo{createErr: entities.ErrDuplicateCompany}},
+            {"500: unexpected", httpjson.CodeInternalError, http.StatusInternalServerError,
+`{"name":"Acme SA de CV","rfc":"AAA010101AAA","industry_id":"tech"}`,
+&stubBootstrapRepo{createErr: errors.New("surprise")}},
+        }
+        for _, tc := range tests {
+            t.Run(tc.name, func(t *testing.T) {
+rec := doPostWithBootstrap(t, tc.bootstrap, tc.body)
+assertCatalogEnvelope(t, rec, tc.wantStatus, tc.wantCode)
+            })
+        }
+    }
+
+    func TestGetCompany_CatalogCodeMapping(t *testing.T) {
+        tests := []struct {
+            name       string
+            wantCode   httpjson.Code
+            path       string
+            wantStatus int
+            repo       *stubRepo
+        }{
+            {"404: not found", httpjson.CodeNotFound, "/companies/" + uuid.New().String(),
+http.StatusNotFound, &stubRepo{}},
+            {"400: invalid UUID", httpjson.CodeInvalidRequest, "/companies/not-a-uuid",
+http.StatusBadRequest, &stubRepo{}},
+            {"500: unexpected", httpjson.CodeInternalError, "/companies/" + uuid.New().String(),
+http.StatusInternalServerError, &stubRepo{getErr: errors.New("kaboom")}},
+        }
+        for _, tc := range tests {
+            t.Run(tc.name, func(t *testing.T) {
+rec := doGetWithRepo(t, tc.repo, tc.path)
+assertCatalogEnvelope(t, rec, tc.wantStatus, tc.wantCode)
+            })
+        }
+    }

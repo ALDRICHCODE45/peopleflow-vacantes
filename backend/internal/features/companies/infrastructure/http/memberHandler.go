@@ -461,7 +461,7 @@ func requireSub(w http.ResponseWriter, r *http.Request) (string, bool) {
 func requireCompanyContext(w http.ResponseWriter, r *http.Request) (identitysecurity.CompanyContext, bool) {
 	cc, ok := identitysecurity.CompanyContextFromContext(r.Context())
 	if !ok {
-		httpjson.WriteError(w, http.StatusInternalServerError, "internal server error")
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
 		return identitysecurity.CompanyContext{}, false
 	}
 	return cc, true

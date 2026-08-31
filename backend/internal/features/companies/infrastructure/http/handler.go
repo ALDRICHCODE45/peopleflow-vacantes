@@ -151,13 +151,13 @@ func (h *CompanyHandler) createCompany(w http.ResponseWriter, r *http.Request) {
 	// ownerless company.
 	claims := security.ClaimsFromContext(r.Context())
 	if claims.Subject == "" {
-		httpjson.WriteError(w, http.StatusUnauthorized, "missing authenticated subject")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeUnauthenticated), "missing authenticated subject"))
 		return
 	}
 
 	var req createCompanyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
 		return
 	}
 
@@ -179,11 +179,11 @@ func (h *CompanyHandler) createCompany(w http.ResponseWriter, r *http.Request) {
 		CoverImageURL: req.CoverImageURL,
 	})
 	if err != nil {
-		status, msg := classifyCreateCompanyError(err)
-		if status == http.StatusInternalServerError {
+		def := classifyCreateCompanyError(err)
+		if def.Code == httpjson.CodeInternalError {
 			slog.Error("create company failed", "error", err)
 		}
-		httpjson.WriteError(w, status, msg)
+		httpjson.WriteCatalogError(w, def)
 		return
 	}
 
@@ -193,19 +193,17 @@ func (h *CompanyHandler) createCompany(w http.ResponseWriter, r *http.Request) {
 func (h *CompanyHandler) getCompany(w http.ResponseWriter, r *http.Request) {
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid company id")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid company id"))
 		return
 	}
 
 	company, err := h.service.GetCompanyByID(r.Context(), id)
 	if err != nil {
-		if errors.Is(err, entities.ErrCompanyNotFound) {
-			httpjson.WriteError(w, http.StatusNotFound, "company not found")
-			return
+		def := classifyGetCompanyError(err)
+		if def.Code == httpjson.CodeInternalError {
+			slog.Error("get company failed", "error", err)
 		}
-
-		slog.Error("get company failed", "error", err)
-		httpjson.WriteError(w, http.StatusInternalServerError, "internal server error")
+		httpjson.WriteCatalogError(w, def)
 		return
 	}
 
@@ -282,13 +280,13 @@ func foundedYearToIntPtr(y *valueobjects.FoundedYear) *int {
 	return &v
 }
 
-// classifyCreateCompanyError maps a use-case error to an HTTP status and a
-// client-safe message. Domain validation → 400, conflict → 409, anything else
-// → 500 with a generic message (the real error is logged separately).
-func classifyCreateCompanyError(err error) (int, string) {
+// classifyCreateCompanyError maps a use-case error to a V1 catalog Definition.
+// Domain validation → invalid_request, duplicate → already_exists, anything else
+// → internal_error. The caller logs the real error when Code is internal_error.
+func classifyCreateCompanyError(err error) httpjson.Definition {
 	switch {
 	case errors.Is(err, entities.ErrUnknownSubject):
-		return http.StatusUnauthorized, err.Error()
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeUnauthenticated), err.Error())
 	case errors.Is(err, entities.ErrEmptyIndustry),
 		errors.Is(err, valueobjects.ErrCompanyNameTooShort),
 		errors.Is(err, valueobjects.ErrCompanyRfcInvalidLength),
@@ -296,11 +294,21 @@ func classifyCreateCompanyError(err error) (int, string) {
 		errors.Is(err, valueobjects.ErrFoundedYearOutOfRange),
 		errors.Is(err, valueobjects.ErrCompanyDescriptionTooLong),
 		errors.Is(err, entities.ErrIndustryNotFound):
-		return http.StatusBadRequest, err.Error()
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), err.Error())
 	case errors.Is(err, entities.ErrDuplicateCompany):
-		return http.StatusConflict, err.Error()
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeAlreadyExists), err.Error())
 	default:
-		return http.StatusInternalServerError, "internal server error"
+		return httpjson.Resolve(httpjson.CodeInternalError)
+	}
+}
+
+// classifyGetCompanyError maps a get-company error to a V1 catalog Definition.
+func classifyGetCompanyError(err error) httpjson.Definition {
+	switch {
+	case errors.Is(err, entities.ErrCompanyNotFound):
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeNotFound), err.Error())
+	default:
+		return httpjson.Resolve(httpjson.CodeInternalError)
 	}
 }
 
@@ -337,7 +345,7 @@ func (h *CompanyHandler) updateCompany(w http.ResponseWriter, r *http.Request) {
 
 	var in dtos.UpdateCompanyDto
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
 		return
 	}
 
@@ -346,19 +354,20 @@ func (h *CompanyHandler) updateCompany(w http.ResponseWriter, r *http.Request) {
 	view, err := h.service.UpdateCompany(r.Context(), cc.CompanyID, cc.UserID, in, ifUnmodifiedSince)
 	if err != nil {
 		if errors.Is(err, entities.ErrConcurrencyConflict) {
-			// The 409 body MUST use the same wire shape as the 200
-			// (spec R3 / D8): the editor view derived from the LATEST
-			// row the use case saw. The use case already projects
-			// toCompanyEditorView on the CAS-mismatch path; the
-			// handler forwards it unchanged.
-			httpjson.WriteJSON(w, http.StatusConflict, view)
+			// 409 envelope carries editor view in data; nil guard handles
+			// re-read-after-conflict returning no row (code only, no data).
+			if view != nil {
+				httpjson.WriteCatalogErrorData(w, httpjson.Resolve(httpjson.CodeConflict), view)
+			} else {
+				httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeConflict))
+			}
 			return
 		}
-		status, msg := classifyUpdateCompanyError(err)
-		if status == http.StatusInternalServerError {
+		def := classifyUpdateCompanyError(err)
+		if def.Code == httpjson.CodeInternalError {
 			slog.Error("update company failed", "company_id", cc.CompanyID, "error", err)
 		}
-		httpjson.WriteError(w, status, msg)
+		httpjson.WriteCatalogError(w, def)
 		return
 	}
 
@@ -399,25 +408,15 @@ func (h *CompanyHandler) deleteCompany(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.service.SoftDeleteCompany(r.Context(), cc.CompanyID, cc.UserID, ifUnmodifiedSince); err != nil {
 		if errors.Is(err, entities.ErrConcurrencyConflict) {
-			// 409 with EMPTY body (spec R4 / D12 DELETE asymmetry):
-			// the wire contract on DELETE 409 is INTENTIONALLY empty
-			// because the success path is 204 (no body) and a
-			// structured 409 body would only add transient state to
-			// the wire. We special-case this BEFORE
-			// classifyDeleteCompanyError so the generic
-			// {"error":"conflict"} envelope is never written.
-			//
-			// We write the status directly via WriteHeader + an
-			// empty body — httpjson.WriteError would write the
-			// envelope, which the spec forbids.
-			w.WriteHeader(http.StatusConflict)
+			// 409: catalog envelope, no data (DELETE asymmetry from PATCH).
+			httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeConflict))
 			return
 		}
-		status, msg := classifyDeleteCompanyError(err)
-		if status == http.StatusInternalServerError {
+		def := classifyDeleteCompanyError(err)
+		if def.Code == httpjson.CodeInternalError {
 			slog.Error("delete company failed", "company_id", cc.CompanyID, "error", err)
 		}
-		httpjson.WriteError(w, status, msg)
+		httpjson.WriteCatalogError(w, def)
 		return
 	}
 
@@ -451,86 +450,41 @@ func parseIfUnmodifiedSince(raw string) time.Time {
 	return t
 }
 
-// classifyUpdateCompanyError is the PATCH handler's flat
-// `errors.Is` dispatcher (design D14 + companies-audit D6). Status
-// mapping:
-//
-//	ErrMissingActorIdentity           → 500 "internal server error"
-//	                                       (no existence leak — a
-//	                                       missing actor is an internal
-//	                                        mis-wiring, not a client
-//	                                        error; the sentinel fires
-//	                                        FIRST in the use case
-//	                                        before any query)
-//	ErrConcurrencyConflict           → 409 "conflict"
-//	                                       (the handler special-cases
-//	                                       the 409-with-view path
-//	                                       BEFORE the classifier;
-//	                                       this branch is the
-//	                                       fallback if a future
-//	                                       refactor drops the
-//	                                       special-case)
-//	ErrCompanyNameTooShort           → 400
-//	ErrInvalidCompanySize            → 400
-//	ErrFoundedYearOutOfRange         → 400
-//	ErrCompanyDescriptionTooLong     → 400
-//	ErrInvalidCompanyStatusTransition → 400 (defense-in-depth)
-//	ErrCompanyNotFound               → 404
-//	default                          → 500
-//
-// ErrConcurrencyConflict is mapped here for completeness but the
-// handler intercepts it first (the 409-with-view path); the
-// classifier is the fallback.
-func classifyUpdateCompanyError(err error) (int, string) {
+// classifyUpdateCompanyError maps PATCH errors to V1 catalog Definition
+// (design D14 + companies-audit D6).
+func classifyUpdateCompanyError(err error) httpjson.Definition {
 	switch {
 	case errors.Is(err, usecases.ErrMissingActorIdentity):
-		return http.StatusInternalServerError, "internal server error"
+		return httpjson.Resolve(httpjson.CodeInternalError)
 	case errors.Is(err, entities.ErrConcurrencyConflict):
-		return http.StatusConflict, "conflict"
+		return httpjson.Resolve(httpjson.CodeConflict)
 	case errors.Is(err, entities.ErrCompanyNotFound):
-		return http.StatusNotFound, "company not found"
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeNotFound), err.Error())
 	case errors.Is(err, valueobjects.ErrCompanyNameTooShort),
 		errors.Is(err, valueobjects.ErrInvalidCompanySize),
 		errors.Is(err, valueobjects.ErrFoundedYearOutOfRange),
 		errors.Is(err, valueobjects.ErrCompanyDescriptionTooLong),
 		errors.Is(err, entities.ErrInvalidCompanyStatusTransition):
-		return http.StatusBadRequest, err.Error()
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), err.Error())
 	default:
-		return http.StatusInternalServerError, "internal server error"
+		return httpjson.Resolve(httpjson.CodeInternalError)
 	}
 }
 
-// classifyDeleteCompanyError is the DELETE handler's flat
-// `errors.Is` dispatcher (design D14 + companies-audit D6). Status
-// mapping:
-//
-//	ErrMissingActorIdentity            → 500 "internal server error"
-//	                                        (no existence leak; FIRST
-//	                                        step guard)
-//	ErrConcurrencyConflict            → 409 (the handler
-//	                                       special-cases the
-//	                                       409-empty-body path
-//	                                       BEFORE the classifier;
-//	                                       this branch is the
-//	                                       fallback)
-//	ErrInvalidCompanyStatusTransition → 400 (defense-in-depth;
-//	                                        SQLSTATE 23514 is
-//	                                        unreachable via the
-//	                                        designed flow)
-//	ErrCompanyNotFound                → 404
-//	default                           → 500
-func classifyDeleteCompanyError(err error) (int, string) {
+// classifyDeleteCompanyError maps DELETE errors to V1 catalog Definition
+// (design D14 + companies-audit D6).
+func classifyDeleteCompanyError(err error) httpjson.Definition {
 	switch {
 	case errors.Is(err, usecases.ErrMissingActorIdentity):
-		return http.StatusInternalServerError, "internal server error"
+		return httpjson.Resolve(httpjson.CodeInternalError)
 	case errors.Is(err, entities.ErrConcurrencyConflict):
-		return http.StatusConflict, "conflict"
+		return httpjson.Resolve(httpjson.CodeConflict)
 	case errors.Is(err, entities.ErrCompanyNotFound):
-		return http.StatusNotFound, "company not found"
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeNotFound), err.Error())
 	case errors.Is(err, entities.ErrInvalidCompanyStatusTransition):
-		return http.StatusBadRequest, err.Error()
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), err.Error())
 	default:
-		return http.StatusInternalServerError, "internal server error"
+		return httpjson.Resolve(httpjson.CodeInternalError)
 	}
 }
 
