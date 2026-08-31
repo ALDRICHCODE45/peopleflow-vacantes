@@ -11,8 +11,9 @@ import (
 // delegate: the use case adds no behavior beyond propagating the
 // repo's result so the HTTP layer sees the exact sentinel and shape
 // the persistence layer produces. The visibility rule
-// (status='published', deleted_at IS NULL, owning company.status='active')
-// is enforced in SQL — the use case MUST NOT re-check it, otherwise
+// (status='published', deleted_at IS NULL, owning company.status='active'
+// AND companies.deleted_at IS NULL) is enforced in SQL — the use case
+// MUST NOT re-check it, otherwise
 // the two layers can drift.
 //
 // ErrJobNotFound from the repo surfaces unchanged so the HTTP layer

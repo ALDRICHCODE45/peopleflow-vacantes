@@ -10,7 +10,7 @@ This slice does NOT cover: notification or event publishing, `company_members` o
 
 ### Requirement: Public Read Endpoints
 
-The system MUST expose `GET /jobs` (search/listing) and `GET /jobs/{id}` (detail) as public, unauthenticated endpoints. Neither MUST require an `Authorization` header; if present, it MUST be ignored. `GET /jobs/{id}` MUST return a published job or 404 for non-existent, draft, closed, soft-deleted, or non-active-company jobs.
+The system MUST expose `GET /jobs` (search/listing) and `GET /jobs/{id}` (detail) as public, unauthenticated endpoints. Neither MUST require an `Authorization` header; if present, it MUST be ignored. `GET /jobs/{id}` MUST return a published job or 404 for non-existent, draft, closed, soft-deleted, non-active-company, or soft-deleted-company jobs.
 
 #### Scenario: GET /jobs is public
 
@@ -26,23 +26,23 @@ The system MUST expose `GET /jobs` (search/listing) and `GET /jobs/{id}` (detail
 
 #### Scenario: GET /jobs/{id} hides non-visible jobs
 
-- GIVEN a job with `status='draft'` OR `status='closed'` OR `deleted_at IS NOT NULL` OR owning company `status != 'active'`
+- GIVEN a job with `status='draft'` OR `status='closed'` OR `deleted_at IS NOT NULL` OR owning company `status != 'active'` OR owning company `deleted_at IS NOT NULL`
 - WHEN `GET /jobs/{id}` runs
 - THEN response is 404
 
 ### Requirement: Read-Side Visibility Rule
 
-A job MUST surface in read responses ONLY if ALL of: `jobs.status='published'`, `jobs.deleted_at IS NULL`, and the related `companies.status='active'`. The read path MUST NOT surface draft, closed, soft-deleted, or non-active-company jobs in any response.
+A job MUST surface in read responses ONLY if ALL of: `jobs.status='published'`, `jobs.deleted_at IS NULL`, the related `companies.status='active'`, and the related `companies.deleted_at IS NULL`. The read path MUST NOT surface draft, closed, soft-deleted, non-active-company, or soft-deleted-company jobs in any response.
 
 #### Scenario: visible job is listed
 
-- GIVEN a job with `status='published'`, `deleted_at IS NULL`, owning company `status='active'`
+- GIVEN a job with `status='published'`, `deleted_at IS NULL`, owning company `status='active'` and `deleted_at IS NULL`
 - WHEN `GET /jobs` runs
 - THEN the job is in the response
 
-#### Scenario: draft, closed, soft-deleted, or non-active-company jobs are hidden
+#### Scenario: draft, closed, soft-deleted, non-active-company, or soft-deleted-company jobs are hidden
 
-- GIVEN any of `status='draft'`, `status='closed'`, `deleted_at IS NOT NULL`, or owning company `status != 'active'`
+- GIVEN any of `status='draft'`, `status='closed'`, `deleted_at IS NOT NULL`, owning company `status != 'active'`, or owning company `deleted_at IS NOT NULL`
 - WHEN `GET /jobs` runs
 - THEN that job is not in the response
 
@@ -624,7 +624,7 @@ The `POST /jobs` body MUST carry exactly the fields below. The system MUST rejec
 
 ### Requirement: Draft Creation Semantics
 
-A row created via `POST /jobs` MUST be born with `status='draft'` (written explicitly in the INSERT, not relying solely on the schema default) and `published_at IS NULL`. The new row MUST NOT be surfaced by the public read endpoints (`GET /jobs` and `GET /jobs/{id}`) until its `status` is later transitioned to `'published'` via `PATCH /jobs/{id}`; the existing read-side visibility predicate (`status='published' AND deleted_at IS NULL AND companies.status='active'`) is the mechanism and MUST NOT be modified.
+A row created via `POST /jobs` MUST be born with `status='draft'` (written explicitly in the INSERT, not relying solely on the schema default) and `published_at IS NULL`. The new row MUST NOT be surfaced by the public read endpoints (`GET /jobs` and `GET /jobs/{id}`) until its `status` is later transitioned to `'published'` via `PATCH /jobs/{id}`; the canonical read-side visibility predicate (`jobs.status='published' AND jobs.deleted_at IS NULL AND companies.status='active' AND companies.deleted_at IS NULL`) enforces this behavior.
 
 #### Scenario: created row is born draft with published_at NULL
 
@@ -1083,7 +1083,7 @@ The second surface is the atomic active-company soft-delete gate, mirroring the 
 
 A `DELETE /jobs/{id}` MUST succeed against a row in ANY current `status` (`draft`, `published`, or `closed`) subject to the existing gate (see DELETE /jobs/{id} Endpoint, Gate, and Route Boundary), the Soft-Delete Concurrency Controls, the existing same-company invariant (canonical `Same-Company Invariant and IDOR Defense`), and the existing re-open invariants (canonical `Re-Open Inherits CAS and Same-Company Invariants`). The SQL UPDATE MUST set ONLY `deleted_at = now()` and `updated_at = now()`; `published_at`, `title`, `description`, `status`, `work_mode`, `employment_type`, `seniority`, `location`, `salary_min`, `salary_max`, and `salary_currency` MUST be preserved as audit history (no other column is touched). The STORED `search_vector` is naturally unchanged because its inputs (`title`, `description`) are not touched; the partial index `jobs_public_listing_idx` (predicated on `deleted_at IS NULL`) MUST drop the row from the index automatically when `deleted_at` is set (Postgres maintains partial indexes on UPDATE).
 
-A successful DELETE makes the row invisible on every read path immediately. The canonical `Read-Side Visibility Rule` and the canonical `GET /jobs/{id} hides non-visible jobs` scenario already pin this invariant; this delta does NOT modify the read side. Specifically: immediately after a successful DELETE, `GET /jobs/{id}` returns `404 job not found` and `GET /jobs` excludes the row from its listing (the existing `deleted_at IS NULL` predicate hides the row from both).
+A successful DELETE makes the row invisible on every read path immediately. The canonical `Read-Side Visibility Rule` and the canonical `GET /jobs/{id} hides non-visible jobs` scenario pin this invariant. Specifically: immediately after a successful DELETE, `GET /jobs/{id}` returns `404 job not found` and `GET /jobs` excludes the row from its listing (the `jobs.deleted_at IS NULL` predicate hides the row from both).
 
 A second `DELETE /jobs/{id}` against a soft-deleted row MUST return `404 job not found` because `GetForUpdate`'s `deleted_at IS NULL` predicate filters the row out (the read-for-delete returns `ErrJobNotFound`, identical body shape to a non-existent id — no leak of existence, consistent with the canonical `soft-deleted id returns 404` scenario for PATCH). A `DELETE /jobs/{id}` against a row owned by another company MUST return `404 job not found` (same-company invariant; identical body shape to a non-existent id and to an already-soft-deleted id — three cases indistinguishable by design). A `PATCH /jobs/{id}` against a soft-deleted row (e.g., `{"status":"draft"}` or `{"status":"published"}`) MUST continue to return `404 job not found`; the canonical `re-open on a soft-deleted closed job returns 404 job not found` scenario already pins this and is unchanged by this delta. The `deleted_at` column IS the audit timestamp; no `deleted_by_user_id`, no `deleted_reason`, no `deletion_log` table is added.
 
@@ -1145,10 +1145,10 @@ A second `DELETE /jobs/{id}` against a soft-deleted row MUST return `404 job not
 
 - GIVEN a row soft-deleted via a successful `DELETE /jobs/{id}`
 - WHEN `GET /jobs/{id}` runs (with or without an `Authorization` header)
-- THEN the response is `404` (the canonical `GET /jobs/{id} hides non-visible jobs` scenario already pins this — the existing `deleted_at IS NULL` predicate filters the row out; no read-side change ships in this slice)
+- THEN the response is `404` (the canonical `GET /jobs/{id} hides non-visible jobs` scenario pins this — the `jobs.deleted_at IS NULL` predicate filters the row out)
 
 #### Scenario: soft-deleted row is excluded from GET /jobs (cross-reference)
 
 - GIVEN a row soft-deleted via a successful `DELETE /jobs/{id}`
 - WHEN `GET /jobs` runs (with or without an `Authorization` header)
-- THEN the row is not in the response listing (the canonical `draft, closed, soft-deleted, or non-active-company jobs are hidden` scenario already pins this — the existing `deleted_at IS NULL` predicate filters the row out; the partial index `jobs_public_listing_idx` drops it automatically)
+- THEN the row is not in the response listing (the canonical `draft, closed, soft-deleted, non-active-company, or soft-deleted-company jobs are hidden` scenario pins this — the `jobs.deleted_at IS NULL` predicate filters the row out; the partial index `jobs_public_listing_idx` drops it automatically)

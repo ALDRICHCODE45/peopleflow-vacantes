@@ -2,7 +2,10 @@
 -- Public read listing for jobs (§spec/jobs). The visibility rule
 -- (§Read-Side Visibility Rule) is enforced here, not in Go: a row
 -- surfaces only when `jobs.status='published'`, `jobs.deleted_at IS NULL`,
--- and the owning company is `active`. The column list is explicit (not
+-- and the owning company is `active` and not soft-deleted
+-- (`c.deleted_at IS NULL` — read-side hardening: a tombstoned company
+-- hides its jobs even if a future code path ever leaves one
+-- `published`). The column list is explicit (not
 -- `SELECT *`) so the STORED generated `search_vector` (sqlc would map it
 -- to `interface{}`) never enters the scan — every field on the row is
 -- typed (uuid.UUID, string, pgtype.Text, pgtype.Int4, pgtype.Timestamptz).
@@ -62,6 +65,7 @@ JOIN companies c ON c.id = j.company_id
 WHERE j.status = 'published'
   AND j.deleted_at IS NULL
   AND c.status = 'active'
+  AND c.deleted_at IS NULL
   AND (sqlc.narg('q')::text IS NULL
        OR j.search_vector @@ websearch_to_tsquery('spanish', sqlc.narg('q')::text))
   AND (sqlc.narg('seniority')::text IS NULL
@@ -90,7 +94,8 @@ ORDER BY search_rank DESC,
 LIMIT sqlc.narg('limit')::int;
 
 -- name: GetJobByID :one
--- Public detail endpoint. Same visibility rule as SearchJobs, plus the
+-- Public detail endpoint. Same visibility rule as SearchJobs (published,
+-- non-tombstoned job, active and non-soft-deleted company), plus the
 -- positional `$1` id. Explicit column list keeps `search_vector` out of
 -- the scan and matches the embedded `{company: {id, name}}` shape.
 SELECT
@@ -114,7 +119,8 @@ JOIN companies c ON c.id = j.company_id
 WHERE j.id = $1
   AND j.status = 'published'
   AND j.deleted_at IS NULL
-  AND c.status = 'active';
+  AND c.status = 'active'
+  AND c.deleted_at IS NULL;
 
 -- name: GetJobForUpdate :one
 -- Write-path read for the gated PATCH /jobs/{id} endpoint (design D3).

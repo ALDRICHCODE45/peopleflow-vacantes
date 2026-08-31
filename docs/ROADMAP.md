@@ -88,7 +88,7 @@ Decisión abierta para discutir cuando toque: ¿quién valida que `industry_id` 
 - 🔲 **Frontend** (`Next.js`) — mockups HTML listos en `design/screens/`, sin código de app.
 - 🔲 **Lambda PostConfirmation** de Cognito → `users` (el backend ya es idempotente para recibirla).
 - ✅ **Audit events para companies** — ENTREGADO (2026-08-26, `companies-audit`): `CompanyUpdated`/`CompanyDeleted` co-escritos atómicamente desde `PATCH/DELETE /me/company`. Vocabulario cerrado de audit_events a 4 eventos.
-- 🔲 **Hardening read-side `c.deleted_at IS NULL`** en queries públicas de jobs (diferido en `companies-write`; el inline-close ya tapa la fuga).
+- ✅ **Hardening read-side `c.deleted_at IS NULL`** en queries públicas de jobs (`SearchJobs` + `GetJobByID`) — ENTREGADO: el inline-close tapa la fuga del flujo de borrado; el predicado es defense-in-depth para un futuro code path que deje una vacante `published` con empresa tombstonada. Cubierto por tests de integración (Search + GetByID, fixture con empresa `active` + `deleted_at` seteado).
 - 🔲 **Restore/undelete de empresa** — el mecanismo inverso del soft-delete (fuera de scope de `companies-write`).
 - 🔲 **`infra/` (Terraform)** y **`workers/`** — vacíos.
 - 🔲 **Enforcement "empresa `active`" en escritura** — hoy solo se aplica en lectura.

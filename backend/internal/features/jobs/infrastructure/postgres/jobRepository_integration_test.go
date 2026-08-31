@@ -9,8 +9,9 @@
 // Postgres can prove:
 //
 //   - REQ-02 Read-Side Visibility Rule: only `status='published'` +
-//     `deleted_at IS NULL` + owning `companies.status='active'` surfaces,
-//     on BOTH `Search` and `GetByID`.
+//     `deleted_at IS NULL` + owning `companies.status='active'` +
+//     `companies.deleted_at IS NULL` surfaces, on BOTH `Search` and
+//     `GetByID`.
 //   - REQ-05 Full-Text Search: `setweight(title,'A') > setweight(desc,'B')`
 //     really orders a title hit above a description-only hit, and a
 //     non-matching query returns nothing.
@@ -67,15 +68,17 @@ var (
 )
 
 // Extra fixture rows inserted on top of the 00008 seed. The `b*` ids are
-// the four ways a row must stay INVISIBLE; the `c*` ids are the
+// the five ways a row must stay INVISIBLE; the `c*` ids are the
 // title-hit / description-hit pair that proves FTS weighting.
 var (
 	companySuspendedID = uuid.MustParse("018f0000-0000-7000-8000-0000000000b0")
+	companyDeletedID   = uuid.MustParse("018f0000-0000-7000-8000-0000000000d0")
 
-	jobDraftID           = uuid.MustParse("018f0000-0000-7000-8000-0000000000b1")
-	jobClosedID          = uuid.MustParse("018f0000-0000-7000-8000-0000000000b2")
-	jobSoftDeletedID     = uuid.MustParse("018f0000-0000-7000-8000-0000000000b3")
-	jobInactiveCompanyID = uuid.MustParse("018f0000-0000-7000-8000-0000000000b4")
+	jobDraftID              = uuid.MustParse("018f0000-0000-7000-8000-0000000000b1")
+	jobClosedID             = uuid.MustParse("018f0000-0000-7000-8000-0000000000b2")
+	jobSoftDeletedID        = uuid.MustParse("018f0000-0000-7000-8000-0000000000b3")
+	jobInactiveCompanyID    = uuid.MustParse("018f0000-0000-7000-8000-0000000000b4")
+	jobSoftDeletedCompanyID = uuid.MustParse("018f0000-0000-7000-8000-0000000000b5")
 
 	jobTitleHitID = uuid.MustParse("018f0000-0000-7000-8000-0000000000c1") // "zorblax" in TITLE
 	jobDescHitID  = uuid.MustParse("018f0000-0000-7000-8000-0000000000c2") // "zorblax" in DESCRIPTION only
@@ -84,6 +87,7 @@ var (
 // hiddenJobIDs are the rows the visibility rule must suppress everywhere.
 var hiddenJobIDs = []uuid.UUID{
 	jobDraftID, jobClosedID, jobSoftDeletedID, jobInactiveCompanyID,
+	jobSoftDeletedCompanyID,
 }
 
 // visibleJobIDsDesc is the complete visible universe in the order the
@@ -180,10 +184,16 @@ func requireJobsSchema(ctx context.Context, t *testing.T, tx pgx.Tx) {
 // readPathFixtureSQL adds, on top of the 00008 seed:
 //
 //	b0  a SUSPENDED company (the "company is not active" case)
+//	d0  an ACTIVE-status company that is SOFT-DELETED (deleted_at set —
+//	    the "company tombstoned" case; the read-side hardening predicate
+//	    `c.deleted_at IS NULL` exists precisely for this shape)
 //	b1  a draft job          (active company)
 //	b2  a closed job         (active company)
 //	b3  a published job that is soft-deleted
 //	b4  a published job owned by the suspended company
+//	b5  a published job owned by the soft-deleted (d0) company — its
+//	    `jobs.status='published'` and `companies.status='active'` values
+//	    are all "visible"-shaped, so ONLY the company tombstone hides it
 //	c1  "Zorblax Engineer"   — the token lives in the TITLE   (weight A)
 //	c2  "Platform Engineer"  — the token lives in the DESC    (weight B)
 //
@@ -194,6 +204,10 @@ const readPathFixtureSQL = `
 INSERT INTO companies (id, name, rfc, industry_id, status) VALUES
     ('018f0000-0000-7000-8000-0000000000b0', 'Suspendida SA', 'SUSP010101ZZZ', 'technology', 'suspended')
 ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status;
+
+INSERT INTO companies (id, name, rfc, industry_id, status, deleted_at) VALUES
+    ('018f0000-0000-7000-8000-0000000000d0', 'Borrada Logica SA', 'BORR010101DDD', 'technology', 'active', '2026-07-01T00:00:00Z')
+ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, deleted_at = EXCLUDED.deleted_at;
 
 INSERT INTO jobs
     (id, company_id, title, description, work_mode, employment_type,
@@ -223,6 +237,12 @@ VALUES
      'Suspended Company Engineer', 'Empresa suspendida.',
      'remote', 'full_time', 'senior', 'published', 'CDMX',
      NULL, NULL, 'MXN', '2026-07-04T12:00:00Z', NULL, now(), now()),
+
+    ('018f0000-0000-7000-8000-0000000000b5',
+     '018f0000-0000-7000-8000-0000000000d0',
+     'Soft-Deleted Company Engineer', 'Empresa borrada logicamente.',
+     'remote', 'full_time', 'senior', 'published', 'CDMX',
+     NULL, NULL, 'MXN', '2026-07-05T12:00:00Z', NULL, now(), now()),
 
     ('018f0000-0000-7000-8000-0000000000c1',
      '018f0000-0000-7000-8000-000000000001',
@@ -289,9 +309,10 @@ func searchAll(ctx context.Context, t *testing.T, repo *JobRepository, p reposit
 // --- REQ-02: read-side visibility rule -------------------------------------
 
 // TestSearch_ReturnsOnlyVisibleJobs proves the visibility rule at
-// runtime: the eight published rows from active companies come back, in
-// `published_at DESC, id DESC` order, and NONE of the four hidden rows
-// leaks — draft, closed, soft-deleted, or owned by a non-active company.
+// runtime: the eight published rows from active, non-tombstoned companies
+// come back, in `published_at DESC, id DESC` order, and NONE of the five
+// hidden rows leaks — draft, closed, soft-deleted, owned by a non-active
+// company, or owned by a soft-deleted company.
 func TestSearch_ReturnsOnlyVisibleJobs(t *testing.T) {
 	ctx, repo := setupReadPath(t)
 
@@ -369,6 +390,7 @@ func TestGetByID_HidesNonVisibleJobs(t *testing.T) {
 		{"closed job", jobClosedID},
 		{"soft-deleted job", jobSoftDeletedID},
 		{"job of a non-active company", jobInactiveCompanyID},
+		{"job of a soft-deleted company", jobSoftDeletedCompanyID},
 		{"unknown id", uuid.MustParse("018f0000-0000-7000-8000-0000000000ff")},
 	}
 

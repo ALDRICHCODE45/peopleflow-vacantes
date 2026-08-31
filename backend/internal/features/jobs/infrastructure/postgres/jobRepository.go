@@ -70,8 +70,9 @@ func (r *JobRepository) Search(ctx context.Context, p repositories.SearchParams)
 }
 
 // GetByID fetches a single visible job. The visibility rule
-// (status='published', deleted_at IS NULL, owning company.status='active')
-// is enforced in SQL inside `db.Queries.GetJobByID`; the adapter only
+// (status='published', deleted_at IS NULL, owning company.status='active'
+// AND companies.deleted_at IS NULL) is enforced in SQL inside
+// `db.Queries.GetJobByID`; the adapter only
 // translates pgx.ErrNoRows into `entities.ErrJobNotFound` and maps the
 // row into the domain entity. GetByID NEVER populates `Job.Rank` —
 // search rank is only meaningful for the list endpoint.
