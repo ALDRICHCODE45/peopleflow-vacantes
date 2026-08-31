@@ -1,40 +1,48 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es" data-theme="dark">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PeopleFlow — Bolsa de trabajo y ATS, conectados</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PeopleFlow — Bolsa de trabajo y ATS, conectados</title>
 
-  <!--
+    <!--
     Anti-flash inline script — MUST run before Tailwind processes and before
     first paint, so the persisted theme (or default 'dark') is already
     applied when styles resolve. Keep this block FIRST in <head>.
   -->
-  <script>
-    (function () {
-      try {
-        var stored = localStorage.getItem('pf-theme');
-        var theme  = stored;
-        if (theme !== 'dark' && theme !== 'light') {
-          theme = (window.matchMedia &&
-                   window.matchMedia('(prefers-color-scheme: light)').matches)
-                    ? 'light' : 'dark';
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("pf-theme");
+          var theme = stored;
+          if (theme !== "dark" && theme !== "light") {
+            theme =
+              window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: light)").matches
+                ? "light"
+                : "dark";
+          }
+          document.documentElement.setAttribute("data-theme", theme);
+        } catch (_e) {
+          document.documentElement.setAttribute("data-theme", "dark");
         }
-        document.documentElement.setAttribute('data-theme', theme);
-      } catch (_e) {
-        document.documentElement.setAttribute('data-theme', 'dark');
-      }
-    })();
-  </script>
+      })();
+    </script>
 
-  <!-- Fonts: Clash Display (Fontshare), Inter + JetBrains Mono (Google) -->
-  <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet" />
+    <!-- Fonts: Clash Display (Fontshare), Inter + JetBrains Mono (Google) -->
+    <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
 
-  <!--
+    <!--
     Load order (shared with all other PeopleFlow screens):
       1. base.css (CSS custom properties → must exist before Tailwind
          resolves `rgb(var(--token) / <alpha>)`).
@@ -47,20 +55,23 @@
     source of truth that the other screens already use. Assets live at
     ../screens/assets/ (this file is in design/landing-preview/).
   -->
-  <link rel="stylesheet" href="../screens/assets/base.css" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="../screens/assets/theme.js"></script>
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <link rel="stylesheet" href="../screens/assets/base.css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="../screens/assets/theme.js"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 
-  <style>
-    /* Ambient depth (.bg-grid, .top-glow, .canvas-grid) and helper classes
+    <style>
+      /* Ambient depth (.bg-grid, .top-glow, .canvas-grid) and helper classes
        (.aurora, .field, .btn, .card, ::selection) are now theme-aware via
        ../screens/assets/base.css. Only landing-specific rules remain below. */
 
-    /* Nav scrolled backdrop — inherits the theme's --base channel. */
-    #nav.scrolled { background-color: rgb(var(--base) / 0.72); border-bottom-color: rgb(var(--line) / 0.9); }
+      /* Nav scrolled backdrop — inherits the theme's --base channel. */
+      #nav.scrolled {
+        background-color: rgb(var(--base) / 0.72);
+        border-bottom-color: rgb(var(--line) / 0.9);
+      }
 
-    /* Aurora canvas display rules — mirrors the login FloatingLines approach.
+      /* Aurora canvas display rules — mirrors the login FloatingLines approach.
        The aurora is now an OPAQUE WebGL canvas blended with the page via
        `mix-blend-mode` (screen in dark, multiply in light), NOT a transparent
        canvas. Two hard requirements for Safari/WebKit:
@@ -70,618 +81,1469 @@
          2) The blend mode is what makes the opaque canvas read as ambient light.
        `mix-blend-mode` is set here for first paint and kept in sync by the
        aurora <script>'s applyAuroraTheme(). Opacity stays at the original 0.85. */
-    #heroAurora {
-      -webkit-mask-image: none; mask-image: none;
-      mix-blend-mode: screen;
-      opacity: 0.85;
-      /* Force Safari/WebKit to promote and rasterize this blended GPU layer
+      #heroAurora {
+        -webkit-mask-image: none;
+        mask-image: none;
+        mix-blend-mode: screen;
+        opacity: 0.85;
+        /* Force Safari/WebKit to promote and rasterize this blended GPU layer
          UP FRONT. Without it, the compositor tiles the mix-blend-mode layer
          lazily during the first animation frames and paints not-yet-composited
          tiles as solid black/white boxes (transient, only on load/reload). A
          stable 3D-promoted layer removes the first-paint glitch. */
-      -webkit-transform: translateZ(0); transform: translateZ(0);
-      will-change: transform;
-      -webkit-backface-visibility: hidden; backface-visibility: hidden;
-    }
-    #heroAurora canvas {
-      display: block; width: 100% !important; height: 100% !important;
-      -webkit-transform: translateZ(0); transform: translateZ(0);
-    }
-    /* Light tuning: multiply blend + a small contrast/saturation bump keeps the
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
+        will-change: transform;
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+      }
+      #heroAurora canvas {
+        display: block;
+        width: 100% !important;
+        height: 100% !important;
+        -webkit-transform: translateZ(0);
+        transform: translateZ(0);
+      }
+      /* Light tuning: multiply blend + a small contrast/saturation bump keeps the
        aurora reading as a controlled brand-purple wash on warm off-white. */
-    :root[data-theme="light"] #heroAurora { mix-blend-mode: multiply; filter: contrast(1.06) saturate(1.25); }
+      :root[data-theme="light"] #heroAurora {
+        mix-blend-mode: multiply;
+        filter: contrast(1.06) saturate(1.25);
+      }
 
-    /* Ambient radial glow behind the hero pipeline — landing-only. */
-    .glow-purple {
-      background: radial-gradient(closest-side, rgba(147, 54, 234, 0.42), rgba(147, 54, 234, 0.10) 55%, transparent 78%);
-      filter: blur(4px);
-    }
-    /* Light needs slightly more punch for the brand glow to read on white. */
-    :root[data-theme="light"] .glow-purple { opacity: 0.85; filter: blur(6px); }
+      /* Ambient radial glow behind the hero pipeline — landing-only. */
+      .glow-purple {
+        background: radial-gradient(
+          closest-side,
+          rgba(147, 54, 234, 0.42),
+          rgba(147, 54, 234, 0.1) 55%,
+          transparent 78%
+        );
+        filter: blur(4px);
+      }
+      /* Light needs slightly more punch for the brand glow to read on white. */
+      :root[data-theme="light"] .glow-purple {
+        opacity: 0.85;
+        filter: blur(6px);
+      }
 
-    /* Active node cyan ring pulse — brand accent stays fixed. */
-    @keyframes pulseCyan {
-      0%, 100% { box-shadow: 0 0 0 1.5px rgba(34, 211, 238, 0.9), 0 0 22px 2px rgba(34, 211, 238, 0.45); }
-      50%      { box-shadow: 0 0 0 1.5px rgba(34, 211, 238, 1),   0 0 34px 6px rgba(34, 211, 238, 0.65); }
-    }
-    .node-active { animation: pulseCyan 2.6s ease-in-out infinite; }
+      /* Active node cyan ring pulse — brand accent stays fixed. */
+      @keyframes pulseCyan {
+        0%,
+        100% {
+          box-shadow:
+            0 0 0 1.5px rgba(34, 211, 238, 0.9),
+            0 0 22px 2px rgba(34, 211, 238, 0.45);
+        }
+        50% {
+          box-shadow:
+            0 0 0 1.5px rgba(34, 211, 238, 1),
+            0 0 34px 6px rgba(34, 211, 238, 0.65);
+        }
+      }
+      .node-active {
+        animation: pulseCyan 2.6s ease-in-out infinite;
+      }
 
-    /* Flowing dash on the connectors */
-    @keyframes dashFlow { to { stroke-dashoffset: -32; } }
-    .flow { stroke-dasharray: 6 8; animation: dashFlow 1.6s linear infinite; }
+      /* Flowing dash on the connectors */
+      @keyframes dashFlow {
+        to {
+          stroke-dashoffset: -32;
+        }
+      }
+      .flow {
+        stroke-dasharray: 6 8;
+        animation: dashFlow 1.6s linear infinite;
+      }
 
-    /* Soft float for the whole pipeline */
-    @keyframes floaty { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
-    .floaty { animation: floaty 7s ease-in-out infinite; }
+      /* Soft float for the whole pipeline */
+      @keyframes floaty {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-8px);
+        }
+      }
+      .floaty {
+        animation: floaty 7s ease-in-out infinite;
+      }
 
-    /* Reveal on scroll */
-    .reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s ease, transform .7s ease; }
-    .reveal.in { opacity: 1; transform: translateY(0); }
+      /* Reveal on scroll */
+      .reveal {
+        opacity: 0;
+        transform: translateY(22px);
+        transition:
+          opacity 0.7s ease,
+          transform 0.7s ease;
+      }
+      .reveal.in {
+        opacity: 1;
+        transform: translateY(0);
+      }
 
-    /* Eyebrow letterspacing */
-    .eyebrow { letter-spacing: 0.28em; }
+      /* Eyebrow letterspacing */
+      .eyebrow {
+        letter-spacing: 0.28em;
+      }
 
-    /* Card hover lift + border glow — brand accent stays fixed. */
-    .card { transition: transform .35s ease, border-color .35s ease, box-shadow .35s ease; }
-    .card:hover { transform: translateY(-4px); border-color: rgba(147,54,234,0.55); box-shadow: 0 18px 50px -20px rgba(147,54,234,0.45); }
+      /* Card hover lift + border glow — brand accent stays fixed. */
+      .card {
+        transition:
+          transform 0.35s ease,
+          border-color 0.35s ease,
+          box-shadow 0.35s ease;
+      }
+      .card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(147, 54, 234, 0.55);
+        box-shadow: 0 18px 50px -20px rgba(147, 54, 234, 0.45);
+      }
 
-    /* Button shimmer/lift */
-    .btn { transition: transform .2s ease, box-shadow .3s ease, background-color .25s ease; }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 14px 40px -12px rgba(147,54,234,0.75); }
-    /* Ghost button hover: ink-tinted border + theme-aware overlay veil. */
-    .btn-ghost:hover { transform: translateY(-2px); border-color: rgb(var(--ink) / 0.35); background-color: rgb(var(--overlay) / 0.04); }
+      /* Button shimmer/lift */
+      .btn {
+        transition:
+          transform 0.2s ease,
+          box-shadow 0.3s ease,
+          background-color 0.25s ease;
+      }
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 14px 40px -12px rgba(147, 54, 234, 0.75);
+      }
+      /* Ghost button hover: ink-tinted border + theme-aware overlay veil. */
+      .btn-ghost:hover {
+        transform: translateY(-2px);
+        border-color: rgb(var(--ink) / 0.35);
+        background-color: rgb(var(--overlay) / 0.04);
+      }
 
-    .avatar-stack > * + * { margin-left: -10px; }
-    ::selection { background: rgba(147,54,234,0.4); color: #fff; }
-  </style>
-</head>
+      .avatar-stack > * + * {
+        margin-left: -10px;
+      }
+      ::selection {
+        background: rgba(147, 54, 234, 0.4);
+        color: #fff;
+      }
+    </style>
+  </head>
 
-<body class="min-h-screen bg-base font-sans text-ink antialiased overflow-x-hidden">
+  <body
+    class="min-h-screen bg-base font-sans text-ink antialiased overflow-x-hidden"
+  >
+    <!-- ambient background layers -->
+    <div class="bg-grid pointer-events-none fixed inset-0 -z-10"></div>
+    <div
+      class="top-glow pointer-events-none fixed inset-x-0 top-0 -z-10 h-[680px]"
+    ></div>
 
-  <!-- ambient background layers -->
-  <div class="bg-grid pointer-events-none fixed inset-0 -z-10"></div>
-  <div class="top-glow pointer-events-none fixed inset-x-0 top-0 -z-10 h-[680px]"></div>
-
-  <!-- ================= NAV ================= -->
-  <header id="nav" class="sticky top-0 z-50 border-b border-transparent backdrop-blur-md transition-colors duration-300">
-    <nav class="mx-auto flex max-w-[1280px] items-center justify-between px-8 py-5">
-      <div class="flex items-center gap-10">
-        <a href="#" class="select-none" data-pf-logo>
-          <img src="../screens/assets/peopleflow-dark.webp"  alt="PeopleFlow" class="pf-logo-dark  h-7 w-auto" />
-          <img src="../screens/assets/peopleflow-light.webp" alt="PeopleFlow" class="pf-logo-light h-7 w-auto" />
-        </a>
-        <ul class="hidden items-center gap-8 text-[15px] text-muted md:flex">
-          <li><a href="#" class="transition hover:text-ink">Producto</a></li>
-          <li><a href="#" class="transition hover:text-ink">Soluciones</a></li>
-          <li><a href="#" class="transition hover:text-ink">Precios</a></li>
-          <li><a href="#" class="transition hover:text-ink">Recursos</a></li>
-        </ul>
-      </div>
-      <div class="flex items-center gap-4">
-        <a href="#" class="hidden text-[15px] text-muted transition hover:text-ink sm:block">Iniciar sesión</a>
-        <!-- Theme toggle — next to the primary CTA, per migration contract. -->
-        <button data-pf-theme-toggle
-                type="button"
-                aria-label="Cambiar tema"
-                title="Cambiar tema"
-                class="grid h-9 w-9 place-items-center rounded-lg border border-line bg-surface/40 text-muted transition hover:border-brand/60 hover:bg-surface/60 hover:text-ink">
-          <i data-lucide="moon" class="pf-icon-moon h-[18px] w-[18px]"></i>
-          <i data-lucide="sun"  class="pf-icon-sun  h-[18px] w-[18px]"></i>
-        </button>
-        <a href="#" class="btn btn-primary rounded-xl bg-brand px-5 py-2.5 text-[14px] font-semibold text-white">Empezar gratis</a>
-      </div>
-    </nav>
-  </header>
-
-  <!-- ================= HERO ================= -->
-  <div class="relative">
-    <div id="heroAurora" class="aurora pointer-events-none absolute inset-0 overflow-hidden"></div>
-    <section class="relative z-10 mx-auto max-w-[1280px] px-8 pt-24 pb-20 md:pt-32">
-    <div class="grid items-center gap-10 lg:grid-cols-[minmax(0,540px)_minmax(0,1fr)]">
-
-      <!-- Hero copy -->
-      <div class="reveal">
-        <p class="eyebrow mb-6 font-mono text-[12px] font-semibold uppercase text-brand">Ecosistema de reclutamiento</p>
-        <h1 class="font-display text-[64px] font-bold leading-[1.02] tracking-tight text-ink">
-          Publica. Recibe. Contrata.
-        </h1>
-        <p class="mt-7 max-w-[520px] text-[17px] leading-relaxed text-muted">
-          Publica tus vacantes en la bolsa de trabajo, recibe postulaciones y gestiona cada candidato en tu pipeline. La bolsa y el ATS, conectados de punta a punta.
-        </p>
-        <div class="mt-9 flex flex-wrap items-center gap-4">
-          <a href="#" class="btn btn-primary rounded-xl bg-brand px-7 py-3.5 text-[15px] font-semibold text-white">Empezar gratis</a>
-          <a href="#" class="btn btn-ghost rounded-xl border border-line bg-surface px-7 py-3.5 text-[15px] font-semibold text-ink">Agendar demo</a>
-        </div>
-      </div>
-
-      <!-- Hero pipeline visual -->
-      <div class="reveal relative">
-        <div class="relative flex items-center overflow-hidden rounded-3xl border border-line bg-surface/40 p-8" style="min-height:540px;">
-          <!-- canvas grid + ambient glow -->
-          <div class="canvas-grid pointer-events-none absolute inset-0"></div>
-          <div class="glow-purple pointer-events-none absolute left-1/2 top-1/2 h-[470px] w-[470px] -translate-x-1/2 -translate-y-1/2"></div>
-
-          <div class="floaty relative w-full">
-            <div class="relative mx-auto" style="width:580px; height:420px;">
-              <!-- SVG connectors + traveling candidate -->
-              <svg class="absolute inset-0 h-full w-full overflow-visible" viewBox="0 0 580 420" fill="none">
-                <defs>
-                  <linearGradient id="linkGrad" x1="0" y1="0" x2="1" y2="0">
-                    <stop offset="0" stop-color="#8B5CF6" />
-                    <stop offset="1" stop-color="#22D3EE" />
-                  </linearGradient>
-                  <filter id="dotGlow" x="-300%" y="-300%" width="700%" height="700%">
-                    <feGaussianBlur stdDeviation="3.5" result="b" />
-                    <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-                  </filter>
-                </defs>
-
-                <!-- base curved links -->
-                <path d="M170 210 H205" stroke="url(#linkGrad)" stroke-width="2" opacity="0.55" />
-                <path d="M375 210 C 398 210, 410 160, 410 108" stroke="url(#linkGrad)" stroke-width="2" opacity="0.55" />
-                <path d="M375 210 C 398 210, 410 262, 410 312" stroke="url(#linkGrad)" stroke-width="2" opacity="0.55" />
-
-                <!-- animated flow overlay -->
-                <path d="M170 210 H205" stroke="#22D3EE" stroke-width="2" class="flow" />
-                <path d="M375 210 C 398 210, 410 160, 410 108" stroke="#22D3EE" stroke-width="2" class="flow" />
-                <path d="M375 210 C 398 210, 410 262, 410 312" stroke="#22D3EE" stroke-width="2" class="flow" />
-
-                <!-- traveling candidate along the happy path -->
-                <circle r="4.5" fill="#22D3EE" filter="url(#dotGlow)">
-                  <animateMotion dur="5s" repeatCount="indefinite" keyPoints="0;1" keyTimes="0;1" calcMode="linear"
-                    path="M170 210 H375 C 398 210 410 262 410 312 H 470" />
-                  <animate attributeName="opacity" dur="5s" repeatCount="indefinite" values="0;1;1;1;0" keyTimes="0;0.08;0.5;0.92;1" />
-                </circle>
-              </svg>
-
-              <!-- Nueva vacante -->
-              <div class="absolute" style="left:0px; top:171px;">
-                <div class="w-[170px] rounded-xl border border-line bg-surface/85 px-3.5 py-3 shadow-xl backdrop-blur-sm">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2.5">
-                      <span class="h-6 w-6 shrink-0 rounded-full" style="background:#9336EA; box-shadow:0 0 12px 1px rgba(147,54,234,.6)"></span>
-                      <span class="text-[13.5px] font-semibold text-ink">Nueva vacante</span>
-                    </div>
-                    <span class="rounded-md overlay-soft px-1.5 py-0.5 text-[11px] font-bold text-muted">24</span>
-                  </div>
-                  <div class="mt-2.5 flex items-center gap-2">
-                    <div class="avatar-stack flex">
-                      <span class="h-5 w-5 rounded-full ring-2 ring-surface" style="background:#7C4DFF"></span>
-                      <span class="h-5 w-5 rounded-full ring-2 ring-surface" style="background:#B266FF"></span>
-                      <span class="h-5 w-5 rounded-full ring-2 ring-surface" style="background:#9B6BFF"></span>
-                    </div>
-                    <span class="text-[11px] text-muted">+21</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Screening (active) -->
-              <div class="absolute" style="left:205px; top:171px;">
-                <div class="node-active w-[170px] rounded-xl border border-cyan/70 bg-surface2/90 px-3.5 py-3 backdrop-blur-sm">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2.5">
-                      <span class="h-6 w-6 shrink-0 rounded-full" style="background:#22D3EE; box-shadow:0 0 12px 1px rgba(34,211,238,.6)"></span>
-                      <span class="text-[13.5px] font-semibold text-ink">Screening</span>
-                    </div>
-                    <span class="rounded-md px-1.5 py-0.5 text-[11px] font-bold" style="background:rgba(34,211,238,.16); color:#22D3EE">8</span>
-                  </div>
-                  <div class="mt-2.5 flex items-center gap-2">
-                    <div class="avatar-stack flex">
-                      <span class="h-5 w-5 rounded-full ring-2 ring-surface2" style="background:#22D3EE"></span>
-                      <span class="h-5 w-5 rounded-full ring-2 ring-surface2" style="background:#7C4DFF"></span>
-                      <span class="h-5 w-5 rounded-full ring-2 ring-surface2" style="background:#1FC4DE"></span>
-                    </div>
-                    <span class="text-[11px] text-muted">IA + filtros</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Entrevista -->
-              <div class="absolute" style="left:410px; top:66px;">
-                <div class="w-[170px] rounded-xl border border-line bg-surface/85 px-3.5 py-3 shadow-xl backdrop-blur-sm">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2.5">
-                      <span class="h-6 w-6 shrink-0 rounded-full" style="background:#D946EF; box-shadow:0 0 12px 1px rgba(217,70,239,.55)"></span>
-                      <span class="text-[13.5px] font-semibold text-ink">Entrevista</span>
-                    </div>
-                    <span class="rounded-md overlay-soft px-1.5 py-0.5 text-[11px] font-bold text-muted">3</span>
-                  </div>
-                  <div class="mt-2.5 flex items-center gap-2">
-                    <div class="avatar-stack flex">
-                      <span class="h-5 w-5 rounded-full ring-2 ring-surface" style="background:#D946EF"></span>
-                      <span class="h-5 w-5 rounded-full ring-2 ring-surface" style="background:#B266FF"></span>
-                      <span class="h-5 w-5 rounded-full ring-2 ring-surface" style="background:#E879F9"></span>
-                    </div>
-                    <span class="text-[11px] text-muted">Agendadas</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Contratado -->
-              <div class="absolute" style="left:410px; top:276px;">
-                <div class="w-[170px] rounded-xl border border-line bg-surface/85 px-3.5 py-3 shadow-xl backdrop-blur-sm">
-                  <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2.5">
-                      <span class="h-6 w-6 shrink-0 rounded-full" style="background:#22C55E; box-shadow:0 0 12px 1px rgba(34,197,94,.55)"></span>
-                      <span class="text-[13.5px] font-semibold text-ink">Contratado</span>
-                    </div>
-                    <span class="rounded-md px-1.5 py-0.5 text-[11px] font-bold" style="background:rgba(34,197,94,.16); color:#34D07A">1</span>
-                  </div>
-                  <div class="mt-2.5 flex items-center gap-2">
-                    <div class="avatar-stack flex">
-                      <span class="h-5 w-5 rounded-full ring-2 ring-surface" style="background:#22C55E"></span>
-                    </div>
-                    <span class="text-[11px] text-muted">Oferta enviada</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- stats / trust strip -->
-    <div class="reveal mt-24 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-line bg-line/50 sm:grid-cols-3">
-      <div class="bg-base/70 px-8 py-8 text-center">
-        <p class="font-display text-[38px] font-bold text-ink">&minus;68%</p>
-        <p class="mt-1.5 text-[13px] text-muted">tiempo por vacante</p>
-      </div>
-      <div class="bg-base/70 px-8 py-8 text-center">
-        <p class="font-display text-[38px] font-bold text-ink">100%</p>
-        <p class="mt-1.5 text-[13px] text-muted">del pipeline, siempre visible</p>
-      </div>
-      <div class="bg-base/70 px-8 py-8 text-center">
-        <p class="font-display text-[38px] font-bold text-ink">1</p>
-        <p class="mt-1.5 text-[13px] text-muted">solo lugar para todo el equipo</p>
-      </div>
-    </div>
-    </section>
-  </div>
-
-  <!-- ================= DOS SISTEMAS ================= -->
-  <section class="relative z-10 mx-auto max-w-[1280px] px-8 py-24">
-    <div class="reveal mx-auto mb-16 max-w-[720px] text-center">
-      <p class="eyebrow mb-4 font-mono text-[12px] font-semibold uppercase text-glow">Un ecosistema, dos sistemas</p>
-      <h2 class="font-display text-[42px] font-bold leading-tight tracking-tight text-ink">La bolsa de trabajo y tu ATS, conectados.</h2>
-      <p class="mt-5 text-[18px] leading-relaxed text-muted">Publica una vacante en la bolsa y cada postulación entra sola a tu pipeline. Bolsa y ATS, el mismo ecosistema de principio a fin.</p>
-    </div>
-
-    <div class="grid items-stretch gap-6 lg:grid-cols-[1fr_auto_1fr]">
-
-      <!-- Sistema A — Bolsa de trabajo -->
-      <article class="card reveal relative flex h-full flex-col gap-5 overflow-hidden rounded-3xl border border-line bg-surface p-8 lg:p-9">
-        <span class="pointer-events-none absolute -top-24 -left-24 h-64 w-64 rounded-full" style="background:radial-gradient(closest-side, rgba(147,54,234,.22), transparent 70%); filter:blur(2px);"></span>
-        <div class="relative flex items-center justify-between">
-          <span class="grid h-11 w-11 place-items-center rounded-xl border border-brand/30 bg-base/40 text-brand">
-            <i data-lucide="megaphone" class="h-5 w-5"></i>
-          </span>
-          <span class="rounded-full overlay-soft px-3 py-1 text-[11px] font-mono font-semibold uppercase tracking-wide text-brand">Sistema A</span>
-        </div>
-        <div class="relative">
-          <h3 class="text-[24px] font-bold text-ink">Bolsa de trabajo</h3>
-          <p class="mt-2 max-w-[440px] text-[15px] leading-relaxed text-muted">Publica vacantes y llega a candidatos. Ellos buscan, filtran y se postulan desde tu bolsa pública.</p>
-        </div>
-        <ul class="relative mt-auto flex flex-col gap-3 pt-2 text-[14px] text-ink">
-          <li class="flex items-start gap-3"><i data-lucide="circle-check" class="mt-[3px] h-4 w-4 shrink-0 text-brand"></i><span>Publicación de vacantes en minutos</span></li>
-          <li class="flex items-start gap-3"><i data-lucide="circle-check" class="mt-[3px] h-4 w-4 shrink-0 text-brand"></i><span>Postulaciones self-service</span></li>
-          <li class="flex items-start gap-3"><i data-lucide="circle-check" class="mt-[3px] h-4 w-4 shrink-0 text-brand"></i><span>Página de marca empleadora</span></li>
-        </ul>
-      </article>
-
-      <!-- Conector A → B -->
-      <div class="reveal flex flex-col items-center justify-center gap-3">
-        <span class="rounded-full overlay-soft px-3 py-1 text-[11px] font-mono font-semibold uppercase tracking-wider text-ink">fluye a</span>
-        <span class="grid h-14 w-14 place-items-center rounded-full border border-brand/40 bg-base/70 text-brand" style="box-shadow:0 0 28px 0 rgba(147,54,234,.45);">
-          <i data-lucide="arrow-right" class="hidden h-6 w-6 lg:block"></i>
-          <i data-lucide="arrow-down" class="block h-6 w-6 lg:hidden"></i>
-        </span>
-        <span class="text-[11px] font-mono uppercase tracking-wider text-muted">en tiempo real</span>
-      </div>
-
-      <!-- Sistema B — ATS Pipeline -->
-      <article class="card reveal relative flex h-full flex-col gap-5 overflow-hidden rounded-3xl border border-line bg-surface p-8 lg:p-9">
-        <span class="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full" style="background:radial-gradient(closest-side, rgba(34,211,238,.18), transparent 70%); filter:blur(2px);"></span>
-        <div class="relative flex items-center justify-between">
-          <span class="grid h-11 w-11 place-items-center rounded-xl border border-cyan/30 bg-base/40 text-cyan">
-            <i data-lucide="git-branch" class="h-5 w-5"></i>
-          </span>
-          <span class="rounded-full overlay-soft px-3 py-1 text-[11px] font-mono font-semibold uppercase tracking-wide text-cyan">Sistema B</span>
-        </div>
-        <div class="relative">
-          <h3 class="text-[24px] font-bold text-ink">ATS · Pipeline</h3>
-          <p class="mt-2 max-w-[440px] text-[15px] leading-relaxed text-muted">Cada postulación entra directo a tu pipeline. Screening con IA, scoring, entrevistas y decisiones del equipo, todo en un solo lugar.</p>
-        </div>
-        <ul class="relative mt-auto flex flex-col gap-3 pt-2 text-[14px] text-ink">
-          <li class="flex items-start gap-3"><i data-lucide="circle-check" class="mt-[3px] h-4 w-4 shrink-0 text-cyan"></i><span>Screening con IA y scoring automático</span></li>
-          <li class="flex items-start gap-3"><i data-lucide="circle-check" class="mt-[3px] h-4 w-4 shrink-0 text-cyan"></i><span>Pipeline por etapas con drag &amp; drop</span></li>
-          <li class="flex items-start gap-3"><i data-lucide="circle-check" class="mt-[3px] h-4 w-4 shrink-0 text-cyan"></i><span>Coordinación y decisiones del equipo</span></li>
-        </ul>
-      </article>
-
-    </div>
-  </section>
-
-  <!-- ================= VALUE PROPS ================= -->
-  <section class="mx-auto max-w-[1280px] px-8 py-24">
-    <!-- header -->
-    <div class="reveal mx-auto mb-14 max-w-[640px] text-center">
-      <h2 class="font-display text-[42px] font-bold leading-tight tracking-tight text-ink">Todo el proceso, bajo tu control</h2>
-      <p class="mt-4 text-[18px] leading-relaxed text-muted">Desde la vacante hasta la contratación, cada etapa es visible, medible y tuya.</p>
-    </div>
-
-    <!-- bento -->
-    <div class="grid gap-6 lg:grid-cols-2">
-
-      <!-- Big card: Pipeline visible -->
-      <div class="card reveal flex flex-col gap-6 rounded-3xl border border-line bg-surface p-8">
-        <div>
-          <h3 class="text-[24px] font-bold text-ink">Pipeline visible</h3>
-          <p class="mt-2 max-w-[440px] text-[15px] leading-relaxed text-muted">Mira a cada candidato avanzar por tus etapas en tiempo real. Sin hojas de cálculo, sin cajas negras.</p>
-        </div>
-
-        <!-- mini kanban -->
-        <div class="grid flex-1 grid-cols-3 gap-3">
-          <!-- col 1 -->
-          <div class="flex flex-col gap-2.5 rounded-2xl bg-base/70 p-3">
-            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-brand"></span><span class="text-[12px] font-semibold text-ink">Nueva vacante</span></div>
-            <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5"><span class="h-5 w-5 rounded-full" style="background:#7C4DFF"></span><span class="flex flex-col gap-1.5"><span class="block h-1.5 w-16 rounded bg-line"></span><span class="block h-1 w-10 rounded bg-line/70"></span></span></div>
-            <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5"><span class="h-5 w-5 rounded-full" style="background:#B266FF"></span><span class="flex flex-col gap-1.5"><span class="block h-1.5 w-14 rounded bg-line"></span><span class="block h-1 w-10 rounded bg-line/70"></span></span></div>
-            <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5"><span class="h-5 w-5 rounded-full" style="background:#9B6BFF"></span><span class="flex flex-col gap-1.5"><span class="block h-1.5 w-16 rounded bg-line"></span><span class="block h-1 w-9 rounded bg-line/70"></span></span></div>
-            <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5"><span class="h-5 w-5 rounded-full" style="background:#6D3FE0"></span><span class="flex flex-col gap-1.5"><span class="block h-1.5 w-12 rounded bg-line"></span><span class="block h-1 w-11 rounded bg-line/70"></span></span></div>
-          </div>
-          <!-- col 2 -->
-          <div class="flex flex-col gap-2.5 rounded-2xl bg-base/70 p-3">
-            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-cyan"></span><span class="text-[12px] font-semibold text-ink">Screening</span></div>
-            <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5"><span class="h-5 w-5 rounded-full" style="background:#22D3EE"></span><span class="flex flex-col gap-1.5"><span class="block h-1.5 w-16 rounded bg-line"></span><span class="block h-1 w-9 rounded bg-line/70"></span></span></div>
-            <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5"><span class="h-5 w-5 rounded-full" style="background:#1FC4DE"></span><span class="flex flex-col gap-1.5"><span class="block h-1.5 w-14 rounded bg-line"></span><span class="block h-1 w-9 rounded bg-line/70"></span></span></div>
-          </div>
-          <!-- col 3 -->
-          <div class="flex flex-col gap-2.5 rounded-2xl bg-base/70 p-3">
-            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-grass"></span><span class="text-[12px] font-semibold text-ink">Contratado</span></div>
-            <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5"><span class="h-5 w-5 rounded-full" style="background:#22C55E"></span><span class="flex flex-col gap-1.5"><span class="block h-1.5 w-14 rounded bg-line"></span><span class="block h-1 w-10 rounded bg-line/70"></span></span></div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Right column -->
-      <div class="flex flex-col gap-6">
-
-        <!-- Screening con IA -->
-        <div class="card reveal flex flex-col gap-5 rounded-3xl border border-line bg-surface p-7">
-          <div>
-            <h3 class="text-[20px] font-bold text-ink">Screening con IA</h3>
-            <p class="mt-2 text-[14px] leading-relaxed text-muted">La IA filtra y ordena los mejores perfiles. La decisión final siempre es tuya.</p>
-          </div>
-          <div class="flex flex-col gap-2.5">
-            <!-- row -->
-            <div class="flex items-center gap-3 rounded-xl bg-base/70 p-3">
-              <span class="h-7 w-7 shrink-0 rounded-full" style="background:#7C4DFF"></span>
-              <span class="flex flex-1 flex-col gap-1.5"><span class="block h-2 w-24 rounded bg-line"></span><span class="block h-1.5 w-14 rounded bg-line/70"></span></span>
-              <span class="rounded-full px-2.5 py-1 text-[12px] font-bold" style="background:rgba(34,197,94,.16); color:#34D07A">94%</span>
-            </div>
-            <div class="flex items-center gap-3 rounded-xl bg-base/70 p-3">
-              <span class="h-7 w-7 shrink-0 rounded-full" style="background:#22D3EE"></span>
-              <span class="flex flex-1 flex-col gap-1.5"><span class="block h-2 w-20 rounded bg-line"></span><span class="block h-1.5 w-12 rounded bg-line/70"></span></span>
-              <span class="rounded-full px-2.5 py-1 text-[12px] font-bold" style="background:rgba(34,211,238,.16); color:#22D3EE">88%</span>
-            </div>
-            <div class="flex items-center gap-3 rounded-xl bg-base/70 p-3">
-              <span class="h-7 w-7 shrink-0 rounded-full" style="background:#B266FF"></span>
-              <span class="flex flex-1 flex-col gap-1.5"><span class="block h-2 w-24 rounded bg-line"></span><span class="block h-1.5 w-11 rounded bg-line/70"></span></span>
-              <span class="rounded-full px-2.5 py-1 text-[12px] font-bold" style="background:rgba(224,168,62,.16); color:#E0A83E">76%</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tu equipo, coordinado -->
-        <div class="card reveal flex flex-col gap-5 rounded-3xl border border-line bg-surface p-7">
-          <div>
-            <h3 class="text-[20px] font-bold text-ink">Tu equipo, coordinado</h3>
-            <p class="mt-2 text-[14px] leading-relaxed text-muted">Comentarios, evaluaciones y decisiones en un solo lugar. Todos alineados, sin correos perdidos.</p>
-          </div>
-          <div class="flex items-center gap-4 rounded-xl bg-base/70 p-4">
-            <div class="avatar-stack flex">
-              <span class="h-8 w-8 rounded-full ring-2 ring-surface" style="background:#7C4DFF"></span>
-              <span class="h-8 w-8 rounded-full ring-2 ring-surface" style="background:#22D3EE"></span>
-              <span class="h-8 w-8 rounded-full ring-2 ring-surface" style="background:#D946EF"></span>
-              <span class="h-8 w-8 rounded-full ring-2 ring-surface" style="background:#22C55E"></span>
-            </div>
-            <span class="flex flex-1 flex-col gap-1.5 rounded-lg bg-elevated p-3"><span class="block h-2 w-32 rounded bg-line"></span><span class="block h-1.5 w-20 rounded bg-line/70"></span></span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= SHOWCASE (Kanban board) ================= -->
-  <section class="relative z-10 mx-auto max-w-[1280px] px-8 py-24">
-    <div class="reveal mx-auto mb-12 max-w-[660px] text-center">
-      <p class="eyebrow mb-4 font-mono text-[12px] font-semibold uppercase text-brand">El producto</p>
-      <h2 class="font-display text-[42px] font-bold leading-tight tracking-tight text-ink">Tu tablero, en acción</h2>
-      <p class="mt-4 text-[18px] leading-relaxed text-muted">Arrastra candidatos entre etapas, deja comentarios y decide en equipo. Todo el proceso en una sola vista.</p>
-    </div>
-
-    <!-- window frame -->
-    <div class="reveal card overflow-hidden rounded-2xl border border-line bg-surface/60 shadow-2xl backdrop-blur-sm">
-      <!-- top bar -->
-      <div class="flex items-center gap-3 border-b border-line px-5 py-3.5">
-        <span class="flex gap-2"><span class="h-3 w-3 rounded-full bg-[#ff5f57]"></span><span class="h-3 w-3 rounded-full bg-[#febc2e]"></span><span class="h-3 w-3 rounded-full bg-[#28c840]"></span></span>
-        <div class="ml-3 flex items-center gap-2 rounded-lg border border-line bg-base/60 px-3 py-1.5 text-[12px] text-muted">
-          <span class="h-2 w-2 rounded-full bg-brand"></span> Vacante · Backend Developer (Senior)
-        </div>
-        <div class="ml-auto hidden items-center gap-2 sm:flex">
-          <span class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted">Filtrar</span>
-          <span class="rounded-md bg-brand px-2.5 py-1 text-[12px] font-semibold text-white">+ Candidato</span>
-        </div>
-      </div>
-
-      <!-- board -->
-      <div class="grid grid-cols-2 gap-4 p-5 lg:grid-cols-4">
-        <!-- Column: Nueva vacante -->
-        <div class="flex flex-col gap-3 rounded-xl bg-base/50 p-3">
-          <div class="flex items-center justify-between px-1">
-            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-brand"></span><span class="text-[13px] font-semibold text-ink">Nueva vacante</span></div>
-            <span class="text-[12px] text-muted">3</span>
-          </div>
-          <!-- card -->
-          <div class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-brand/50">
-            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#7C4DFF"></span><span><span class="block text-[13px] font-semibold text-ink">Sofía Ramírez</span><span class="block text-[11px] text-muted">Frontend Engineer</span></span></div>
-            <div class="mt-3 flex flex-wrap gap-1.5"><span class="rounded-md overlay-soft px-2 py-0.5 text-[10.5px] text-muted">React</span><span class="rounded-md overlay-soft px-2 py-0.5 text-[10.5px] text-muted">Remoto</span></div>
-          </div>
-          <div class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-brand/50">
-            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#B266FF"></span><span><span class="block text-[13px] font-semibold text-ink">Diego Herrera</span><span class="block text-[11px] text-muted">Backend Engineer</span></span></div>
-            <div class="mt-3 flex flex-wrap gap-1.5"><span class="rounded-md overlay-soft px-2 py-0.5 text-[10.5px] text-muted">Go</span><span class="rounded-md overlay-soft px-2 py-0.5 text-[10.5px] text-muted">Senior</span></div>
-          </div>
-          <div class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-brand/50">
-            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#9B6BFF"></span><span><span class="block text-[13px] font-semibold text-ink">Valeria Cruz</span><span class="block text-[11px] text-muted">Fullstack</span></span></div>
-            <div class="mt-3 flex flex-wrap gap-1.5"><span class="rounded-md overlay-soft px-2 py-0.5 text-[10.5px] text-muted">Node</span></div>
-          </div>
-        </div>
-
-        <!-- Column: Screening -->
-        <div class="flex flex-col gap-3 rounded-xl bg-base/50 p-3">
-          <div class="flex items-center justify-between px-1">
-            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-cyan"></span><span class="text-[13px] font-semibold text-ink">Screening</span></div>
-            <span class="text-[12px] text-muted">2</span>
-          </div>
-          <div class="rounded-xl border border-cyan/30 bg-surface p-3.5 transition hover:border-cyan/60">
-            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#22D3EE"></span><span><span class="block text-[13px] font-semibold text-ink">Mateo Gómez</span><span class="block text-[11px] text-muted">Backend Engineer</span></span></div>
-            <div class="mt-3 flex items-center justify-between"><span class="rounded-md overlay-soft px-2 py-0.5 text-[10.5px] text-muted">Go · K8s</span><span class="rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:rgba(34,197,94,.16);color:#34D07A">92%</span></div>
-          </div>
-          <div class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-cyan/60">
-            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#1FC4DE"></span><span><span class="block text-[13px] font-semibold text-ink">Camila Ríos</span><span class="block text-[11px] text-muted">DevOps</span></span></div>
-            <div class="mt-3 flex items-center justify-between"><span class="rounded-md overlay-soft px-2 py-0.5 text-[10.5px] text-muted">AWS</span><span class="rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:rgba(34,211,238,.16);color:#22D3EE">87%</span></div>
-          </div>
-        </div>
-
-        <!-- Column: Entrevista -->
-        <div class="flex flex-col gap-3 rounded-xl bg-base/50 p-3">
-          <div class="flex items-center justify-between px-1">
-            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-magenta"></span><span class="text-[13px] font-semibold text-ink">Entrevista</span></div>
-            <span class="text-[12px] text-muted">2</span>
-          </div>
-          <div class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-magenta/50">
-            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#D946EF"></span><span><span class="block text-[13px] font-semibold text-ink">Andrés Vega</span><span class="block text-[11px] text-muted">Backend Engineer</span></span></div>
-            <div class="mt-3 flex items-center justify-between"><span class="text-[10.5px] text-muted">Mié · 15:00</span><span class="rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:rgba(34,197,94,.16);color:#34D07A">90%</span></div>
-          </div>
-          <div class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-magenta/50">
-            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#E879F9"></span><span><span class="block text-[13px] font-semibold text-ink">Lucía Peña</span><span class="block text-[11px] text-muted">Frontend Engineer</span></span></div>
-            <div class="mt-3 flex items-center justify-between"><span class="text-[10.5px] text-muted">Jue · 11:30</span><span class="rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:rgba(34,211,238,.16);color:#22D3EE">88%</span></div>
-          </div>
-        </div>
-
-        <!-- Column: Contratado -->
-        <div class="flex flex-col gap-3 rounded-xl bg-base/50 p-3">
-          <div class="flex items-center justify-between px-1">
-            <div class="flex items-center gap-2"><span class="h-2.5 w-2.5 rounded-full bg-grass"></span><span class="text-[13px] font-semibold text-ink">Contratado</span></div>
-            <span class="text-[12px] text-muted">1</span>
-          </div>
-          <div class="rounded-xl border border-grass/30 bg-surface p-3.5">
-            <div class="flex items-center gap-2.5"><span class="h-8 w-8 rounded-full" style="background:#22C55E"></span><span><span class="block text-[13px] font-semibold text-ink">Javier Solís</span><span class="block text-[11px] text-muted">Backend Engineer</span></span></div>
-            <div class="mt-3 flex items-center justify-between"><span class="text-[10.5px] text-muted">Oferta aceptada</span><span class="rounded-full px-2 py-0.5 text-[11px] font-bold" style="background:rgba(34,197,94,.16);color:#34D07A">✓</span></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= CTA FINAL ================= -->
-  <section class="relative z-10 mx-auto max-w-[1280px] px-8 py-20">
-    <div class="reveal relative overflow-hidden rounded-3xl border border-line bg-surface/50 px-8 py-20 text-center backdrop-blur-sm">
-      <div class="glow-purple pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[720px] -translate-x-1/2 -translate-y-1/2"></div>
-      <div class="relative">
-        <h2 class="font-display text-[46px] font-bold leading-tight tracking-tight text-ink">Empieza a ver todo tu proceso</h2>
-        <p class="mx-auto mt-4 max-w-[560px] text-[18px] leading-relaxed text-muted">Publica tu primera vacante en la bolsa y sigue cada postulación en tu pipeline. Sin tarjeta, sin fricción.</p>
-        <div class="mt-9 flex flex-wrap items-center justify-center gap-4">
-          <a href="#" class="btn btn-primary rounded-xl bg-brand px-8 py-3.5 text-[15px] font-semibold text-white">Empezar gratis</a>
-          <a href="#" class="btn btn-ghost rounded-xl border border-line bg-surface px-8 py-3.5 text-[15px] font-semibold text-ink">Agendar demo</a>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ================= FOOTER ================= -->
-  <footer class="relative z-10 border-t border-line">
-    <div class="mx-auto max-w-[1280px] px-8 py-14">
-      <div class="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
-        <div>
-          <a href="#" class="select-none inline-block" data-pf-logo>
-            <img src="../screens/assets/peopleflow-dark.webp"  alt="PeopleFlow" class="pf-logo-dark  h-6 w-auto" />
-            <img src="../screens/assets/peopleflow-light.webp" alt="PeopleFlow" class="pf-logo-light h-6 w-auto" />
+    <!-- ================= NAV ================= -->
+    <header
+      id="nav"
+      class="sticky top-0 z-50 border-b border-transparent backdrop-blur-md transition-colors duration-300"
+    >
+      <nav
+        class="mx-auto flex max-w-[1280px] items-center justify-between px-8 py-5"
+      >
+        <div class="flex items-center gap-10">
+          <a href="#" class="select-none" data-pf-logo>
+            <img
+              src="../screens/assets/peopleflow-dark.webp"
+              alt="PeopleFlow"
+              class="pf-logo-dark h-7 w-auto"
+            />
+            <img
+              src="../screens/assets/peopleflow-light.webp"
+              alt="PeopleFlow"
+              class="pf-logo-light h-7 w-auto"
+            />
           </a>
-          <p class="mt-4 max-w-[280px] text-[14px] leading-relaxed text-muted">De la vacante publicada en la bolsa al candidato contratado en tu pipeline — un solo ecosistema.</p>
-          <div class="mt-5 flex gap-3">
-            <span class="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-muted transition hover:border-brand/50 hover:text-ink">in</span>
-            <span class="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-muted transition hover:border-brand/50 hover:text-ink">X</span>
-            <span class="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-muted transition hover:border-brand/50 hover:text-ink">IG</span>
+          <ul class="hidden items-center gap-8 text-[15px] text-muted md:flex">
+            <li><a href="#" class="transition hover:text-ink">Producto</a></li>
+            <li>
+              <a href="#" class="transition hover:text-ink">Soluciones</a>
+            </li>
+            <li><a href="#" class="transition hover:text-ink">Precios</a></li>
+            <li><a href="#" class="transition hover:text-ink">Recursos</a></li>
+          </ul>
+        </div>
+        <div class="flex items-center gap-4">
+          <a
+            href="#"
+            class="hidden text-[15px] text-muted transition hover:text-ink sm:block"
+            >Iniciar sesión</a
+          >
+          <!-- Theme toggle — next to the primary CTA, per migration contract. -->
+          <button
+            data-pf-theme-toggle
+            type="button"
+            aria-label="Cambiar tema"
+            title="Cambiar tema"
+            class="grid h-9 w-9 place-items-center rounded-lg border border-line bg-surface/40 text-muted transition hover:border-brand/60 hover:bg-surface/60 hover:text-ink"
+          >
+            <i data-lucide="moon" class="pf-icon-moon h-[18px] w-[18px]"></i>
+            <i data-lucide="sun" class="pf-icon-sun h-[18px] w-[18px]"></i>
+          </button>
+          <a
+            href="#"
+            class="btn btn-primary rounded-xl bg-brand px-5 py-2.5 text-[14px] font-semibold text-white"
+            >Empezar gratis</a
+          >
+        </div>
+      </nav>
+    </header>
+
+    <!-- ================= HERO ================= -->
+    <div class="relative">
+      <div
+        id="heroAurora"
+        class="aurora pointer-events-none absolute inset-0 overflow-hidden"
+      ></div>
+      <section
+        class="relative z-10 mx-auto max-w-[1280px] px-8 pt-24 pb-20 md:pt-32"
+      >
+        <div
+          class="grid items-center gap-10 lg:grid-cols-[minmax(0,540px)_minmax(0,1fr)]"
+        >
+          <!-- Hero copy -->
+          <div class="reveal">
+            <p
+              class="eyebrow mb-6 font-mono text-[12px] font-semibold uppercase text-brand"
+            >
+              Ecosistema de reclutamiento
+            </p>
+            <h1
+              class="font-display text-[64px] font-bold leading-[1.02] tracking-tight text-ink"
+            >
+              Publica. Recibe. Contrata.
+            </h1>
+            <p
+              class="mt-7 max-w-[520px] text-[17px] leading-relaxed text-muted"
+            >
+              Publica tus vacantes en la bolsa de trabajo, recibe postulaciones
+              y gestiona cada candidato en tu pipeline. La bolsa y el ATS,
+              conectados de punta a punta.
+            </p>
+            <div class="mt-9 flex flex-wrap items-center gap-4">
+              <a
+                href="#"
+                class="btn btn-primary rounded-xl bg-brand px-7 py-3.5 text-[15px] font-semibold text-white"
+                >Empezar gratis</a
+              >
+              <a
+                href="#"
+                class="btn btn-ghost rounded-xl border border-line bg-surface px-7 py-3.5 text-[15px] font-semibold text-ink"
+                >Agendar demo</a
+              >
+            </div>
+          </div>
+
+          <!-- Hero pipeline visual -->
+          <div class="reveal relative">
+            <div
+              class="relative flex items-center overflow-hidden rounded-3xl border border-line bg-surface/40 p-8"
+              style="min-height: 540px"
+            >
+              <!-- canvas grid + ambient glow -->
+              <div
+                class="canvas-grid pointer-events-none absolute inset-0"
+              ></div>
+              <div
+                class="glow-purple pointer-events-none absolute left-1/2 top-1/2 h-[470px] w-[470px] -translate-x-1/2 -translate-y-1/2"
+              ></div>
+
+              <div class="floaty relative w-full">
+                <div
+                  class="relative mx-auto"
+                  style="width: 580px; height: 420px"
+                >
+                  <!-- SVG connectors + traveling candidate -->
+                  <svg
+                    class="absolute inset-0 h-full w-full overflow-visible"
+                    viewBox="0 0 580 420"
+                    fill="none"
+                  >
+                    <defs>
+                      <linearGradient id="linkGrad" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0" stop-color="#8B5CF6" />
+                        <stop offset="1" stop-color="#22D3EE" />
+                      </linearGradient>
+                      <filter
+                        id="dotGlow"
+                        x="-300%"
+                        y="-300%"
+                        width="700%"
+                        height="700%"
+                      >
+                        <feGaussianBlur stdDeviation="3.5" result="b" />
+                        <feMerge>
+                          <feMergeNode in="b" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                    </defs>
+
+                    <!-- base curved links -->
+                    <path
+                      d="M170 210 H205"
+                      stroke="url(#linkGrad)"
+                      stroke-width="2"
+                      opacity="0.55"
+                    />
+                    <path
+                      d="M375 210 C 398 210, 410 160, 410 108"
+                      stroke="url(#linkGrad)"
+                      stroke-width="2"
+                      opacity="0.55"
+                    />
+                    <path
+                      d="M375 210 C 398 210, 410 262, 410 312"
+                      stroke="url(#linkGrad)"
+                      stroke-width="2"
+                      opacity="0.55"
+                    />
+
+                    <!-- animated flow overlay -->
+                    <path
+                      d="M170 210 H205"
+                      stroke="#22D3EE"
+                      stroke-width="2"
+                      class="flow"
+                    />
+                    <path
+                      d="M375 210 C 398 210, 410 160, 410 108"
+                      stroke="#22D3EE"
+                      stroke-width="2"
+                      class="flow"
+                    />
+                    <path
+                      d="M375 210 C 398 210, 410 262, 410 312"
+                      stroke="#22D3EE"
+                      stroke-width="2"
+                      class="flow"
+                    />
+
+                    <!-- traveling candidate along the happy path -->
+                    <circle r="4.5" fill="#22D3EE" filter="url(#dotGlow)">
+                      <animateMotion
+                        dur="5s"
+                        repeatCount="indefinite"
+                        keyPoints="0;1"
+                        keyTimes="0;1"
+                        calcMode="linear"
+                        path="M170 210 H375 C 398 210 410 262 410 312 H 470"
+                      />
+                      <animate
+                        attributeName="opacity"
+                        dur="5s"
+                        repeatCount="indefinite"
+                        values="0;1;1;1;0"
+                        keyTimes="0;0.08;0.5;0.92;1"
+                      />
+                    </circle>
+                  </svg>
+
+                  <!-- Nueva vacante -->
+                  <div class="absolute" style="left: 0px; top: 171px">
+                    <div
+                      class="w-[170px] rounded-xl border border-line bg-surface/85 px-3.5 py-3 shadow-xl backdrop-blur-sm"
+                    >
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                          <span
+                            class="h-6 w-6 shrink-0 rounded-full"
+                            style="
+                              background: #9336ea;
+                              box-shadow: 0 0 12px 1px rgba(147, 54, 234, 0.6);
+                            "
+                          ></span>
+                          <span class="text-[13.5px] font-semibold text-ink"
+                            >Nueva vacante</span
+                          >
+                        </div>
+                        <span
+                          class="rounded-md overlay-soft px-1.5 py-0.5 text-[11px] font-bold text-muted"
+                          >24</span
+                        >
+                      </div>
+                      <div class="mt-2.5 flex items-center gap-2">
+                        <div class="avatar-stack flex">
+                          <span
+                            class="h-5 w-5 rounded-full ring-2 ring-surface"
+                            style="background: #7c4dff"
+                          ></span>
+                          <span
+                            class="h-5 w-5 rounded-full ring-2 ring-surface"
+                            style="background: #b266ff"
+                          ></span>
+                          <span
+                            class="h-5 w-5 rounded-full ring-2 ring-surface"
+                            style="background: #9b6bff"
+                          ></span>
+                        </div>
+                        <span class="text-[11px] text-muted">+21</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Screening (active) -->
+                  <div class="absolute" style="left: 205px; top: 171px">
+                    <div
+                      class="node-active w-[170px] rounded-xl border border-cyan/70 bg-surface2/90 px-3.5 py-3 backdrop-blur-sm"
+                    >
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                          <span
+                            class="h-6 w-6 shrink-0 rounded-full"
+                            style="
+                              background: #22d3ee;
+                              box-shadow: 0 0 12px 1px rgba(34, 211, 238, 0.6);
+                            "
+                          ></span>
+                          <span class="text-[13.5px] font-semibold text-ink"
+                            >Screening</span
+                          >
+                        </div>
+                        <span
+                          class="rounded-md px-1.5 py-0.5 text-[11px] font-bold"
+                          style="
+                            background: rgba(34, 211, 238, 0.16);
+                            color: #22d3ee;
+                          "
+                          >8</span
+                        >
+                      </div>
+                      <div class="mt-2.5 flex items-center gap-2">
+                        <div class="avatar-stack flex">
+                          <span
+                            class="h-5 w-5 rounded-full ring-2 ring-surface2"
+                            style="background: #22d3ee"
+                          ></span>
+                          <span
+                            class="h-5 w-5 rounded-full ring-2 ring-surface2"
+                            style="background: #7c4dff"
+                          ></span>
+                          <span
+                            class="h-5 w-5 rounded-full ring-2 ring-surface2"
+                            style="background: #1fc4de"
+                          ></span>
+                        </div>
+                        <span class="text-[11px] text-muted">IA + filtros</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Entrevista -->
+                  <div class="absolute" style="left: 410px; top: 66px">
+                    <div
+                      class="w-[170px] rounded-xl border border-line bg-surface/85 px-3.5 py-3 shadow-xl backdrop-blur-sm"
+                    >
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                          <span
+                            class="h-6 w-6 shrink-0 rounded-full"
+                            style="
+                              background: #d946ef;
+                              box-shadow: 0 0 12px 1px rgba(217, 70, 239, 0.55);
+                            "
+                          ></span>
+                          <span class="text-[13.5px] font-semibold text-ink"
+                            >Entrevista</span
+                          >
+                        </div>
+                        <span
+                          class="rounded-md overlay-soft px-1.5 py-0.5 text-[11px] font-bold text-muted"
+                          >3</span
+                        >
+                      </div>
+                      <div class="mt-2.5 flex items-center gap-2">
+                        <div class="avatar-stack flex">
+                          <span
+                            class="h-5 w-5 rounded-full ring-2 ring-surface"
+                            style="background: #d946ef"
+                          ></span>
+                          <span
+                            class="h-5 w-5 rounded-full ring-2 ring-surface"
+                            style="background: #b266ff"
+                          ></span>
+                          <span
+                            class="h-5 w-5 rounded-full ring-2 ring-surface"
+                            style="background: #e879f9"
+                          ></span>
+                        </div>
+                        <span class="text-[11px] text-muted">Agendadas</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Contratado -->
+                  <div class="absolute" style="left: 410px; top: 276px">
+                    <div
+                      class="w-[170px] rounded-xl border border-line bg-surface/85 px-3.5 py-3 shadow-xl backdrop-blur-sm"
+                    >
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2.5">
+                          <span
+                            class="h-6 w-6 shrink-0 rounded-full"
+                            style="
+                              background: #22c55e;
+                              box-shadow: 0 0 12px 1px rgba(34, 197, 94, 0.55);
+                            "
+                          ></span>
+                          <span class="text-[13.5px] font-semibold text-ink"
+                            >Contratado</span
+                          >
+                        </div>
+                        <span
+                          class="rounded-md px-1.5 py-0.5 text-[11px] font-bold"
+                          style="
+                            background: rgba(34, 197, 94, 0.16);
+                            color: #34d07a;
+                          "
+                          >1</span
+                        >
+                      </div>
+                      <div class="mt-2.5 flex items-center gap-2">
+                        <div class="avatar-stack flex">
+                          <span
+                            class="h-5 w-5 rounded-full ring-2 ring-surface"
+                            style="background: #22c55e"
+                          ></span>
+                        </div>
+                        <span class="text-[11px] text-muted"
+                          >Oferta enviada</span
+                        >
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <div>
-          <p class="mb-4 text-[13px] font-semibold uppercase tracking-wide text-ink">Producto</p>
-          <ul class="flex flex-col gap-2.5 text-[14px] text-muted">
-            <li><a href="#" class="transition hover:text-ink">Bolsa de trabajo</a></li>
-            <li><a href="#" class="transition hover:text-ink">Pipeline</a></li>
-            <li><a href="#" class="transition hover:text-ink">Screening IA</a></li>
-            <li><a href="#" class="transition hover:text-ink">Precios</a></li>
-          </ul>
+
+        <!-- stats / trust strip -->
+        <div
+          class="reveal mt-24 grid grid-cols-1 gap-px overflow-hidden rounded-2xl border border-line bg-line/50 sm:grid-cols-3"
+        >
+          <div class="bg-base/70 px-8 py-8 text-center">
+            <p class="font-display text-[38px] font-bold text-ink">
+              &minus;68%
+            </p>
+            <p class="mt-1.5 text-[13px] text-muted">tiempo por vacante</p>
+          </div>
+          <div class="bg-base/70 px-8 py-8 text-center">
+            <p class="font-display text-[38px] font-bold text-ink">100%</p>
+            <p class="mt-1.5 text-[13px] text-muted">
+              del pipeline, siempre visible
+            </p>
+          </div>
+          <div class="bg-base/70 px-8 py-8 text-center">
+            <p class="font-display text-[38px] font-bold text-ink">1</p>
+            <p class="mt-1.5 text-[13px] text-muted">
+              solo lugar para todo el equipo
+            </p>
+          </div>
         </div>
-        <div>
-          <p class="mb-4 text-[13px] font-semibold uppercase tracking-wide text-ink">Empresa</p>
-          <ul class="flex flex-col gap-2.5 text-[14px] text-muted">
-            <li><a href="#" class="transition hover:text-ink">Nosotros</a></li>
-            <li><a href="#" class="transition hover:text-ink">Clientes</a></li>
-            <li><a href="#" class="transition hover:text-ink">Contacto</a></li>
-          </ul>
-        </div>
-        <div>
-          <p class="mb-4 text-[13px] font-semibold uppercase tracking-wide text-ink">Recursos</p>
-          <ul class="flex flex-col gap-2.5 text-[14px] text-muted">
-            <li><a href="#" class="transition hover:text-ink">Blog</a></li>
-            <li><a href="#" class="transition hover:text-ink">Guías</a></li>
-            <li><a href="#" class="transition hover:text-ink">Soporte</a></li>
-          </ul>
-        </div>
-      </div>
-      <div class="mt-12 flex flex-col items-start justify-between gap-4 border-t border-line pt-6 text-[13px] text-muted sm:flex-row sm:items-center">
-        <span>© 2026 PeopleFlow — Todos los derechos reservados.</span>
-        <div class="flex gap-6">
-          <a href="#" class="transition hover:text-ink">Privacidad</a>
-          <a href="#" class="transition hover:text-ink">Términos</a>
-          <a href="#" class="transition hover:text-ink">Cookies</a>
-        </div>
-      </div>
+      </section>
     </div>
-  </footer>
 
-  <script>
-    // Reveal on scroll
-    const io = new IntersectionObserver((entries) => {
-      entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } });
-    }, { threshold: 0.14 });
-    document.querySelectorAll('.reveal').forEach((el, i) => {
-      el.style.transitionDelay = (i % 4) * 80 + 'ms';
-      io.observe(el);
-    });
+    <!-- ================= DOS SISTEMAS ================= -->
+    <section class="relative z-10 mx-auto max-w-[1280px] px-8 py-24">
+      <div class="reveal mx-auto mb-16 max-w-[720px] text-center">
+        <p
+          class="eyebrow mb-4 font-mono text-[12px] font-semibold uppercase text-glow"
+        >
+          Un ecosistema, dos sistemas
+        </p>
+        <h2
+          class="font-display text-[42px] font-bold leading-tight tracking-tight text-ink"
+        >
+          La bolsa de trabajo y tu ATS, conectados.
+        </h2>
+        <p class="mt-5 text-[18px] leading-relaxed text-muted">
+          Publica una vacante en la bolsa y cada postulación entra sola a tu
+          pipeline. Bolsa y ATS, el mismo ecosistema de principio a fin.
+        </p>
+      </div>
 
-    // Nav backdrop on scroll
-    const nav = document.getElementById('nav');
-    const onScroll = () => nav.classList.toggle('scrolled', window.scrollY > 12);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-  </script>
+      <div class="grid items-stretch gap-6 lg:grid-cols-[1fr_auto_1fr]">
+        <!-- Sistema A — Bolsa de trabajo -->
+        <article
+          class="card reveal relative flex h-full flex-col gap-5 overflow-hidden rounded-3xl border border-line bg-surface p-8 lg:p-9"
+        >
+          <span
+            class="pointer-events-none absolute -top-24 -left-24 h-64 w-64 rounded-full"
+            style="
+              background: radial-gradient(
+                closest-side,
+                rgba(147, 54, 234, 0.22),
+                transparent 70%
+              );
+              filter: blur(2px);
+            "
+          ></span>
+          <div class="relative flex items-center justify-between">
+            <span
+              class="grid h-11 w-11 place-items-center rounded-xl border border-brand/30 bg-base/40 text-brand"
+            >
+              <i data-lucide="megaphone" class="h-5 w-5"></i>
+            </span>
+            <span
+              class="rounded-full overlay-soft px-3 py-1 text-[11px] font-mono font-semibold uppercase tracking-wide text-brand"
+              >Sistema A</span
+            >
+          </div>
+          <div class="relative">
+            <h3 class="text-[24px] font-bold text-ink">Bolsa de trabajo</h3>
+            <p
+              class="mt-2 max-w-[440px] text-[15px] leading-relaxed text-muted"
+            >
+              Publica vacantes y llega a candidatos. Ellos buscan, filtran y se
+              postulan desde tu bolsa pública.
+            </p>
+          </div>
+          <ul
+            class="relative mt-auto flex flex-col gap-3 pt-2 text-[14px] text-ink"
+          >
+            <li class="flex items-start gap-3">
+              <i
+                data-lucide="circle-check"
+                class="mt-[3px] h-4 w-4 shrink-0 text-brand"
+              ></i
+              ><span>Publicación de vacantes en minutos</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <i
+                data-lucide="circle-check"
+                class="mt-[3px] h-4 w-4 shrink-0 text-brand"
+              ></i
+              ><span>Postulaciones self-service</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <i
+                data-lucide="circle-check"
+                class="mt-[3px] h-4 w-4 shrink-0 text-brand"
+              ></i
+              ><span>Página de marca empleadora</span>
+            </li>
+          </ul>
+        </article>
 
-  <!-- Soft Aurora background (OGL / WebGL) -->
-  <script type="module">
-    import { Renderer, Program, Mesh, Triangle } from 'https://esm.sh/ogl@1.0.11';
+        <!-- Conector A → B -->
+        <div class="reveal flex flex-col items-center justify-center gap-3">
+          <span
+            class="rounded-full overlay-soft px-3 py-1 text-[11px] font-mono font-semibold uppercase tracking-wider text-ink"
+            >fluye a</span
+          >
+          <span
+            class="grid h-14 w-14 place-items-center rounded-full border border-brand/40 bg-base/70 text-brand"
+            style="box-shadow: 0 0 28px 0 rgba(147, 54, 234, 0.45)"
+          >
+            <i data-lucide="arrow-right" class="hidden h-6 w-6 lg:block"></i>
+            <i data-lucide="arrow-down" class="block h-6 w-6 lg:hidden"></i>
+          </span>
+          <span
+            class="text-[11px] font-mono uppercase tracking-wider text-muted"
+            >en tiempo real</span
+          >
+        </div>
 
-    const vertex = `
+        <!-- Sistema B — ATS Pipeline -->
+        <article
+          class="card reveal relative flex h-full flex-col gap-5 overflow-hidden rounded-3xl border border-line bg-surface p-8 lg:p-9"
+        >
+          <span
+            class="pointer-events-none absolute -top-24 -right-24 h-64 w-64 rounded-full"
+            style="
+              background: radial-gradient(
+                closest-side,
+                rgba(34, 211, 238, 0.18),
+                transparent 70%
+              );
+              filter: blur(2px);
+            "
+          ></span>
+          <div class="relative flex items-center justify-between">
+            <span
+              class="grid h-11 w-11 place-items-center rounded-xl border border-cyan/30 bg-base/40 text-cyan"
+            >
+              <i data-lucide="git-branch" class="h-5 w-5"></i>
+            </span>
+            <span
+              class="rounded-full overlay-soft px-3 py-1 text-[11px] font-mono font-semibold uppercase tracking-wide text-cyan"
+              >Sistema B</span
+            >
+          </div>
+          <div class="relative">
+            <h3 class="text-[24px] font-bold text-ink">ATS · Pipeline</h3>
+            <p
+              class="mt-2 max-w-[440px] text-[15px] leading-relaxed text-muted"
+            >
+              Cada postulación entra directo a tu pipeline. Screening con IA,
+              scoring, entrevistas y decisiones del equipo, todo en un solo
+              lugar.
+            </p>
+          </div>
+          <ul
+            class="relative mt-auto flex flex-col gap-3 pt-2 text-[14px] text-ink"
+          >
+            <li class="flex items-start gap-3">
+              <i
+                data-lucide="circle-check"
+                class="mt-[3px] h-4 w-4 shrink-0 text-cyan"
+              ></i
+              ><span>Screening con IA y scoring automático</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <i
+                data-lucide="circle-check"
+                class="mt-[3px] h-4 w-4 shrink-0 text-cyan"
+              ></i
+              ><span>Pipeline por etapas con drag &amp; drop</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <i
+                data-lucide="circle-check"
+                class="mt-[3px] h-4 w-4 shrink-0 text-cyan"
+              ></i
+              ><span>Coordinación y decisiones del equipo</span>
+            </li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- ================= VALUE PROPS ================= -->
+    <section class="mx-auto max-w-[1280px] px-8 py-24">
+      <!-- header -->
+      <div class="reveal mx-auto mb-14 max-w-[640px] text-center">
+        <h2
+          class="font-display text-[42px] font-bold leading-tight tracking-tight text-ink"
+        >
+          Todo el proceso, bajo tu control
+        </h2>
+        <p class="mt-4 text-[18px] leading-relaxed text-muted">
+          Desde la vacante hasta la contratación, cada etapa es visible, medible
+          y tuya.
+        </p>
+      </div>
+
+      <!-- bento -->
+      <div class="grid gap-6 lg:grid-cols-2">
+        <!-- Big card: Pipeline visible -->
+        <div
+          class="card reveal flex flex-col gap-6 rounded-3xl border border-line bg-surface p-8"
+        >
+          <div>
+            <h3 class="text-[24px] font-bold text-ink">Pipeline visible</h3>
+            <p
+              class="mt-2 max-w-[440px] text-[15px] leading-relaxed text-muted"
+            >
+              Mira a cada candidato avanzar por tus etapas en tiempo real. Sin
+              hojas de cálculo, sin cajas negras.
+            </p>
+          </div>
+
+          <!-- mini kanban -->
+          <div class="grid flex-1 grid-cols-3 gap-3">
+            <!-- col 1 -->
+            <div class="flex flex-col gap-2.5 rounded-2xl bg-base/70 p-3">
+              <div class="flex items-center gap-2">
+                <span class="h-2.5 w-2.5 rounded-full bg-brand"></span
+                ><span class="text-[12px] font-semibold text-ink"
+                  >Nueva vacante</span
+                >
+              </div>
+              <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5">
+                <span
+                  class="h-5 w-5 rounded-full"
+                  style="background: #7c4dff"
+                ></span
+                ><span class="flex flex-col gap-1.5"
+                  ><span class="block h-1.5 w-16 rounded bg-line"></span
+                  ><span class="block h-1 w-10 rounded bg-line/70"></span
+                ></span>
+              </div>
+              <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5">
+                <span
+                  class="h-5 w-5 rounded-full"
+                  style="background: #b266ff"
+                ></span
+                ><span class="flex flex-col gap-1.5"
+                  ><span class="block h-1.5 w-14 rounded bg-line"></span
+                  ><span class="block h-1 w-10 rounded bg-line/70"></span
+                ></span>
+              </div>
+              <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5">
+                <span
+                  class="h-5 w-5 rounded-full"
+                  style="background: #9b6bff"
+                ></span
+                ><span class="flex flex-col gap-1.5"
+                  ><span class="block h-1.5 w-16 rounded bg-line"></span
+                  ><span class="block h-1 w-9 rounded bg-line/70"></span
+                ></span>
+              </div>
+              <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5">
+                <span
+                  class="h-5 w-5 rounded-full"
+                  style="background: #6d3fe0"
+                ></span
+                ><span class="flex flex-col gap-1.5"
+                  ><span class="block h-1.5 w-12 rounded bg-line"></span
+                  ><span class="block h-1 w-11 rounded bg-line/70"></span
+                ></span>
+              </div>
+            </div>
+            <!-- col 2 -->
+            <div class="flex flex-col gap-2.5 rounded-2xl bg-base/70 p-3">
+              <div class="flex items-center gap-2">
+                <span class="h-2.5 w-2.5 rounded-full bg-cyan"></span
+                ><span class="text-[12px] font-semibold text-ink"
+                  >Screening</span
+                >
+              </div>
+              <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5">
+                <span
+                  class="h-5 w-5 rounded-full"
+                  style="background: #22d3ee"
+                ></span
+                ><span class="flex flex-col gap-1.5"
+                  ><span class="block h-1.5 w-16 rounded bg-line"></span
+                  ><span class="block h-1 w-9 rounded bg-line/70"></span
+                ></span>
+              </div>
+              <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5">
+                <span
+                  class="h-5 w-5 rounded-full"
+                  style="background: #1fc4de"
+                ></span
+                ><span class="flex flex-col gap-1.5"
+                  ><span class="block h-1.5 w-14 rounded bg-line"></span
+                  ><span class="block h-1 w-9 rounded bg-line/70"></span
+                ></span>
+              </div>
+            </div>
+            <!-- col 3 -->
+            <div class="flex flex-col gap-2.5 rounded-2xl bg-base/70 p-3">
+              <div class="flex items-center gap-2">
+                <span class="h-2.5 w-2.5 rounded-full bg-grass"></span
+                ><span class="text-[12px] font-semibold text-ink"
+                  >Contratado</span
+                >
+              </div>
+              <div class="flex items-center gap-2 rounded-lg bg-elevated p-2.5">
+                <span
+                  class="h-5 w-5 rounded-full"
+                  style="background: #22c55e"
+                ></span
+                ><span class="flex flex-col gap-1.5"
+                  ><span class="block h-1.5 w-14 rounded bg-line"></span
+                  ><span class="block h-1 w-10 rounded bg-line/70"></span
+                ></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right column -->
+        <div class="flex flex-col gap-6">
+          <!-- Screening con IA -->
+          <div
+            class="card reveal flex flex-col gap-5 rounded-3xl border border-line bg-surface p-7"
+          >
+            <div>
+              <h3 class="text-[20px] font-bold text-ink">Screening con IA</h3>
+              <p class="mt-2 text-[14px] leading-relaxed text-muted">
+                La IA filtra y ordena los mejores perfiles. La decisión final
+                siempre es tuya.
+              </p>
+            </div>
+            <div class="flex flex-col gap-2.5">
+              <!-- row -->
+              <div class="flex items-center gap-3 rounded-xl bg-base/70 p-3">
+                <span
+                  class="h-7 w-7 shrink-0 rounded-full"
+                  style="background: #7c4dff"
+                ></span>
+                <span class="flex flex-1 flex-col gap-1.5"
+                  ><span class="block h-2 w-24 rounded bg-line"></span
+                  ><span class="block h-1.5 w-14 rounded bg-line/70"></span
+                ></span>
+                <span
+                  class="rounded-full px-2.5 py-1 text-[12px] font-bold"
+                  style="background: rgba(34, 197, 94, 0.16); color: #34d07a"
+                  >94%</span
+                >
+              </div>
+              <div class="flex items-center gap-3 rounded-xl bg-base/70 p-3">
+                <span
+                  class="h-7 w-7 shrink-0 rounded-full"
+                  style="background: #22d3ee"
+                ></span>
+                <span class="flex flex-1 flex-col gap-1.5"
+                  ><span class="block h-2 w-20 rounded bg-line"></span
+                  ><span class="block h-1.5 w-12 rounded bg-line/70"></span
+                ></span>
+                <span
+                  class="rounded-full px-2.5 py-1 text-[12px] font-bold"
+                  style="background: rgba(34, 211, 238, 0.16); color: #22d3ee"
+                  >88%</span
+                >
+              </div>
+              <div class="flex items-center gap-3 rounded-xl bg-base/70 p-3">
+                <span
+                  class="h-7 w-7 shrink-0 rounded-full"
+                  style="background: #b266ff"
+                ></span>
+                <span class="flex flex-1 flex-col gap-1.5"
+                  ><span class="block h-2 w-24 rounded bg-line"></span
+                  ><span class="block h-1.5 w-11 rounded bg-line/70"></span
+                ></span>
+                <span
+                  class="rounded-full px-2.5 py-1 text-[12px] font-bold"
+                  style="background: rgba(224, 168, 62, 0.16); color: #e0a83e"
+                  >76%</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- Tu equipo, coordinado -->
+          <div
+            class="card reveal flex flex-col gap-5 rounded-3xl border border-line bg-surface p-7"
+          >
+            <div>
+              <h3 class="text-[20px] font-bold text-ink">
+                Tu equipo, coordinado
+              </h3>
+              <p class="mt-2 text-[14px] leading-relaxed text-muted">
+                Comentarios, evaluaciones y decisiones en un solo lugar. Todos
+                alineados, sin correos perdidos.
+              </p>
+            </div>
+            <div class="flex items-center gap-4 rounded-xl bg-base/70 p-4">
+              <div class="avatar-stack flex">
+                <span
+                  class="h-8 w-8 rounded-full ring-2 ring-surface"
+                  style="background: #7c4dff"
+                ></span>
+                <span
+                  class="h-8 w-8 rounded-full ring-2 ring-surface"
+                  style="background: #22d3ee"
+                ></span>
+                <span
+                  class="h-8 w-8 rounded-full ring-2 ring-surface"
+                  style="background: #d946ef"
+                ></span>
+                <span
+                  class="h-8 w-8 rounded-full ring-2 ring-surface"
+                  style="background: #22c55e"
+                ></span>
+              </div>
+              <span
+                class="flex flex-1 flex-col gap-1.5 rounded-lg bg-elevated p-3"
+                ><span class="block h-2 w-32 rounded bg-line"></span
+                ><span class="block h-1.5 w-20 rounded bg-line/70"></span
+              ></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SHOWCASE (Kanban board) ================= -->
+    <section class="relative z-10 mx-auto max-w-[1280px] px-8 py-24">
+      <div class="reveal mx-auto mb-12 max-w-[660px] text-center">
+        <p
+          class="eyebrow mb-4 font-mono text-[12px] font-semibold uppercase text-brand"
+        >
+          El producto
+        </p>
+        <h2
+          class="font-display text-[42px] font-bold leading-tight tracking-tight text-ink"
+        >
+          Tu tablero, en acción
+        </h2>
+        <p class="mt-4 text-[18px] leading-relaxed text-muted">
+          Arrastra candidatos entre etapas, deja comentarios y decide en equipo.
+          Todo el proceso en una sola vista.
+        </p>
+      </div>
+
+      <!-- window frame -->
+      <div
+        class="reveal card overflow-hidden rounded-2xl border border-line bg-surface/60 shadow-2xl backdrop-blur-sm"
+      >
+        <!-- top bar -->
+        <div class="flex items-center gap-3 border-b border-line px-5 py-3.5">
+          <span class="flex gap-2"
+            ><span class="h-3 w-3 rounded-full bg-[#ff5f57]"></span
+            ><span class="h-3 w-3 rounded-full bg-[#febc2e]"></span
+            ><span class="h-3 w-3 rounded-full bg-[#28c840]"></span
+          ></span>
+          <div
+            class="ml-3 flex items-center gap-2 rounded-lg border border-line bg-base/60 px-3 py-1.5 text-[12px] text-muted"
+          >
+            <span class="h-2 w-2 rounded-full bg-brand"></span> Vacante ·
+            Backend Developer (Senior)
+          </div>
+          <div class="ml-auto hidden items-center gap-2 sm:flex">
+            <span
+              class="rounded-md overlay-soft px-2.5 py-1 text-[12px] text-muted"
+              >Filtrar</span
+            >
+            <span
+              class="rounded-md bg-brand px-2.5 py-1 text-[12px] font-semibold text-white"
+              >+ Candidato</span
+            >
+          </div>
+        </div>
+
+        <!-- board -->
+        <div class="grid grid-cols-2 gap-4 p-5 lg:grid-cols-4">
+          <!-- Column: Nueva vacante -->
+          <div class="flex flex-col gap-3 rounded-xl bg-base/50 p-3">
+            <div class="flex items-center justify-between px-1">
+              <div class="flex items-center gap-2">
+                <span class="h-2.5 w-2.5 rounded-full bg-brand"></span
+                ><span class="text-[13px] font-semibold text-ink"
+                  >Nueva vacante</span
+                >
+              </div>
+              <span class="text-[12px] text-muted">3</span>
+            </div>
+            <!-- card -->
+            <div
+              class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-brand/50"
+            >
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="h-8 w-8 rounded-full"
+                  style="background: #7c4dff"
+                ></span
+                ><span
+                  ><span class="block text-[13px] font-semibold text-ink"
+                    >Sofía Ramírez</span
+                  ><span class="block text-[11px] text-muted"
+                    >Frontend Engineer</span
+                  ></span
+                >
+              </div>
+              <div class="mt-3 flex flex-wrap gap-1.5">
+                <span
+                  class="rounded-md overlay-soft px-2 py-0.5 text-[10.5px] text-muted"
+                  >React</span
+                ><span
+                  class="rounded-md overlay-soft px-2 py-0.5 text-[10.5px] text-muted"
+                  >Remoto</span
+                >
+              </div>
+            </div>
+            <div
+              class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-brand/50"
+            >
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="h-8 w-8 rounded-full"
+                  style="background: #b266ff"
+                ></span
+                ><span
+                  ><span class="block text-[13px] font-semibold text-ink"
+                    >Diego Herrera</span
+                  ><span class="block text-[11px] text-muted"
+                    >Backend Engineer</span
+                  ></span
+                >
+              </div>
+              <div class="mt-3 flex flex-wrap gap-1.5">
+                <span
+                  class="rounded-md overlay-soft px-2 py-0.5 text-[10.5px] text-muted"
+                  >Go</span
+                ><span
+                  class="rounded-md overlay-soft px-2 py-0.5 text-[10.5px] text-muted"
+                  >Senior</span
+                >
+              </div>
+            </div>
+            <div
+              class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-brand/50"
+            >
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="h-8 w-8 rounded-full"
+                  style="background: #9b6bff"
+                ></span
+                ><span
+                  ><span class="block text-[13px] font-semibold text-ink"
+                    >Valeria Cruz</span
+                  ><span class="block text-[11px] text-muted"
+                    >Fullstack</span
+                  ></span
+                >
+              </div>
+              <div class="mt-3 flex flex-wrap gap-1.5">
+                <span
+                  class="rounded-md overlay-soft px-2 py-0.5 text-[10.5px] text-muted"
+                  >Node</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- Column: Screening -->
+          <div class="flex flex-col gap-3 rounded-xl bg-base/50 p-3">
+            <div class="flex items-center justify-between px-1">
+              <div class="flex items-center gap-2">
+                <span class="h-2.5 w-2.5 rounded-full bg-cyan"></span
+                ><span class="text-[13px] font-semibold text-ink"
+                  >Screening</span
+                >
+              </div>
+              <span class="text-[12px] text-muted">2</span>
+            </div>
+            <div
+              class="rounded-xl border border-cyan/30 bg-surface p-3.5 transition hover:border-cyan/60"
+            >
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="h-8 w-8 rounded-full"
+                  style="background: #22d3ee"
+                ></span
+                ><span
+                  ><span class="block text-[13px] font-semibold text-ink"
+                    >Mateo Gómez</span
+                  ><span class="block text-[11px] text-muted"
+                    >Backend Engineer</span
+                  ></span
+                >
+              </div>
+              <div class="mt-3 flex items-center justify-between">
+                <span
+                  class="rounded-md overlay-soft px-2 py-0.5 text-[10.5px] text-muted"
+                  >Go · K8s</span
+                ><span
+                  class="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                  style="background: rgba(34, 197, 94, 0.16); color: #34d07a"
+                  >92%</span
+                >
+              </div>
+            </div>
+            <div
+              class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-cyan/60"
+            >
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="h-8 w-8 rounded-full"
+                  style="background: #1fc4de"
+                ></span
+                ><span
+                  ><span class="block text-[13px] font-semibold text-ink"
+                    >Camila Ríos</span
+                  ><span class="block text-[11px] text-muted"
+                    >DevOps</span
+                  ></span
+                >
+              </div>
+              <div class="mt-3 flex items-center justify-between">
+                <span
+                  class="rounded-md overlay-soft px-2 py-0.5 text-[10.5px] text-muted"
+                  >AWS</span
+                ><span
+                  class="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                  style="background: rgba(34, 211, 238, 0.16); color: #22d3ee"
+                  >87%</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- Column: Entrevista -->
+          <div class="flex flex-col gap-3 rounded-xl bg-base/50 p-3">
+            <div class="flex items-center justify-between px-1">
+              <div class="flex items-center gap-2">
+                <span class="h-2.5 w-2.5 rounded-full bg-magenta"></span
+                ><span class="text-[13px] font-semibold text-ink"
+                  >Entrevista</span
+                >
+              </div>
+              <span class="text-[12px] text-muted">2</span>
+            </div>
+            <div
+              class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-magenta/50"
+            >
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="h-8 w-8 rounded-full"
+                  style="background: #d946ef"
+                ></span
+                ><span
+                  ><span class="block text-[13px] font-semibold text-ink"
+                    >Andrés Vega</span
+                  ><span class="block text-[11px] text-muted"
+                    >Backend Engineer</span
+                  ></span
+                >
+              </div>
+              <div class="mt-3 flex items-center justify-between">
+                <span class="text-[10.5px] text-muted">Mié · 15:00</span
+                ><span
+                  class="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                  style="background: rgba(34, 197, 94, 0.16); color: #34d07a"
+                  >90%</span
+                >
+              </div>
+            </div>
+            <div
+              class="rounded-xl border border-line bg-surface p-3.5 transition hover:border-magenta/50"
+            >
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="h-8 w-8 rounded-full"
+                  style="background: #e879f9"
+                ></span
+                ><span
+                  ><span class="block text-[13px] font-semibold text-ink"
+                    >Lucía Peña</span
+                  ><span class="block text-[11px] text-muted"
+                    >Frontend Engineer</span
+                  ></span
+                >
+              </div>
+              <div class="mt-3 flex items-center justify-between">
+                <span class="text-[10.5px] text-muted">Jue · 11:30</span
+                ><span
+                  class="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                  style="background: rgba(34, 211, 238, 0.16); color: #22d3ee"
+                  >88%</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- Column: Contratado -->
+          <div class="flex flex-col gap-3 rounded-xl bg-base/50 p-3">
+            <div class="flex items-center justify-between px-1">
+              <div class="flex items-center gap-2">
+                <span class="h-2.5 w-2.5 rounded-full bg-grass"></span
+                ><span class="text-[13px] font-semibold text-ink"
+                  >Contratado</span
+                >
+              </div>
+              <span class="text-[12px] text-muted">1</span>
+            </div>
+            <div class="rounded-xl border border-grass/30 bg-surface p-3.5">
+              <div class="flex items-center gap-2.5">
+                <span
+                  class="h-8 w-8 rounded-full"
+                  style="background: #22c55e"
+                ></span
+                ><span
+                  ><span class="block text-[13px] font-semibold text-ink"
+                    >Javier Solís</span
+                  ><span class="block text-[11px] text-muted"
+                    >Backend Engineer</span
+                  ></span
+                >
+              </div>
+              <div class="mt-3 flex items-center justify-between">
+                <span class="text-[10.5px] text-muted">Oferta aceptada</span
+                ><span
+                  class="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                  style="background: rgba(34, 197, 94, 0.16); color: #34d07a"
+                  >✓</span
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= CTA FINAL ================= -->
+    <section class="relative z-10 mx-auto max-w-[1280px] px-8 py-20">
+      <div
+        class="reveal relative overflow-hidden rounded-3xl border border-line bg-surface/50 px-8 py-20 text-center backdrop-blur-sm"
+      >
+        <div
+          class="glow-purple pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[720px] -translate-x-1/2 -translate-y-1/2"
+        ></div>
+        <div class="relative">
+          <h2
+            class="font-display text-[46px] font-bold leading-tight tracking-tight text-ink"
+          >
+            Empieza a ver todo tu proceso
+          </h2>
+          <p
+            class="mx-auto mt-4 max-w-[560px] text-[18px] leading-relaxed text-muted"
+          >
+            Publica tu primera vacante en la bolsa y sigue cada postulación en
+            tu pipeline. Sin tarjeta, sin fricción.
+          </p>
+          <div class="mt-9 flex flex-wrap items-center justify-center gap-4">
+            <a
+              href="#"
+              class="btn btn-primary rounded-xl bg-brand px-8 py-3.5 text-[15px] font-semibold text-white"
+              >Empezar gratis</a
+            >
+            <a
+              href="#"
+              class="btn btn-ghost rounded-xl border border-line bg-surface px-8 py-3.5 text-[15px] font-semibold text-ink"
+              >Agendar demo</a
+            >
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= FOOTER ================= -->
+    <footer class="relative z-10 border-t border-line">
+      <div class="mx-auto max-w-[1280px] px-8 py-14">
+        <div class="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
+          <div>
+            <a href="#" class="select-none inline-block" data-pf-logo>
+              <img
+                src="../screens/assets/peopleflow-dark.webp"
+                alt="PeopleFlow"
+                class="pf-logo-dark h-6 w-auto"
+              />
+              <img
+                src="../screens/assets/peopleflow-light.webp"
+                alt="PeopleFlow"
+                class="pf-logo-light h-6 w-auto"
+              />
+            </a>
+            <p
+              class="mt-4 max-w-[280px] text-[14px] leading-relaxed text-muted"
+            >
+              De la vacante publicada en la bolsa al candidato contratado en tu
+              pipeline — un solo ecosistema.
+            </p>
+            <div class="mt-5 flex gap-3">
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-muted transition hover:border-brand/50 hover:text-ink"
+                >in</span
+              >
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-muted transition hover:border-brand/50 hover:text-ink"
+                >X</span
+              >
+              <span
+                class="flex h-9 w-9 items-center justify-center rounded-lg border border-line bg-surface text-muted transition hover:border-brand/50 hover:text-ink"
+                >IG</span
+              >
+            </div>
+          </div>
+          <div>
+            <p
+              class="mb-4 text-[13px] font-semibold uppercase tracking-wide text-ink"
+            >
+              Producto
+            </p>
+            <ul class="flex flex-col gap-2.5 text-[14px] text-muted">
+              <li>
+                <a href="#" class="transition hover:text-ink"
+                  >Bolsa de trabajo</a
+                >
+              </li>
+              <li>
+                <a href="#" class="transition hover:text-ink">Pipeline</a>
+              </li>
+              <li>
+                <a href="#" class="transition hover:text-ink">Screening IA</a>
+              </li>
+              <li><a href="#" class="transition hover:text-ink">Precios</a></li>
+            </ul>
+          </div>
+          <div>
+            <p
+              class="mb-4 text-[13px] font-semibold uppercase tracking-wide text-ink"
+            >
+              Empresa
+            </p>
+            <ul class="flex flex-col gap-2.5 text-[14px] text-muted">
+              <li>
+                <a href="#" class="transition hover:text-ink">Nosotros</a>
+              </li>
+              <li>
+                <a href="#" class="transition hover:text-ink">Clientes</a>
+              </li>
+              <li>
+                <a href="#" class="transition hover:text-ink">Contacto</a>
+              </li>
+            </ul>
+          </div>
+          <div>
+            <p
+              class="mb-4 text-[13px] font-semibold uppercase tracking-wide text-ink"
+            >
+              Recursos
+            </p>
+            <ul class="flex flex-col gap-2.5 text-[14px] text-muted">
+              <li><a href="#" class="transition hover:text-ink">Blog</a></li>
+              <li><a href="#" class="transition hover:text-ink">Guías</a></li>
+              <li><a href="#" class="transition hover:text-ink">Soporte</a></li>
+            </ul>
+          </div>
+        </div>
+        <div
+          class="mt-12 flex flex-col items-start justify-between gap-4 border-t border-line pt-6 text-[13px] text-muted sm:flex-row sm:items-center"
+        >
+          <span>© 2026 PeopleFlow — Todos los derechos reservados.</span>
+          <div class="flex gap-6">
+            <a href="#" class="transition hover:text-ink">Privacidad</a>
+            <a href="#" class="transition hover:text-ink">Términos</a>
+            <a href="#" class="transition hover:text-ink">Cookies</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      // Reveal on scroll
+      const io = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((e) => {
+            if (e.isIntersecting) {
+              e.target.classList.add("in");
+              io.unobserve(e.target);
+            }
+          });
+        },
+        { threshold: 0.14 },
+      );
+      document.querySelectorAll(".reveal").forEach((el, i) => {
+        el.style.transitionDelay = (i % 4) * 80 + "ms";
+        io.observe(el);
+      });
+
+      // Nav backdrop on scroll
+      const nav = document.getElementById("nav");
+      const onScroll = () =>
+        nav.classList.toggle("scrolled", window.scrollY > 12);
+      onScroll();
+      window.addEventListener("scroll", onScroll, { passive: true });
+    </script>
+
+    <!-- Soft Aurora background (OGL / WebGL) -->
+    <script type="module">
+      import {
+        Renderer,
+        Program,
+        Mesh,
+        Triangle,
+      } from "https://esm.sh/ogl@1.0.11";
+
+      const vertex = `
       attribute vec2 uv;
       attribute vec2 position;
       varying vec2 vUv;
       void main() { vUv = uv; gl_Position = vec4(position, 0, 1); }
     `;
 
-    const fragment = `
+      const fragment = `
       precision highp float;
       uniform float uTime; uniform vec3 uResolution;
       uniform float uSpeed; uniform float uScale; uniform float uBrightness;
@@ -765,116 +1627,152 @@
       }
     `;
 
-    const hexToVec3 = (hex) => { const h = hex.replace('#',''); return [parseInt(h.slice(0,2),16)/255, parseInt(h.slice(2,4),16)/255, parseInt(h.slice(4,6),16)/255]; };
+      const hexToVec3 = (hex) => {
+        const h = hex.replace("#", "");
+        return [
+          parseInt(h.slice(0, 2), 16) / 255,
+          parseInt(h.slice(2, 4), 16) / 255,
+          parseInt(h.slice(4, 6), 16) / 255,
+        ];
+      };
 
-    const container = document.getElementById('heroAurora');
-    if (container) {
-      /* OPAQUE canvas (alpha:false) — same as the login FloatingLines that work
+      const container = document.getElementById("heroAurora");
+      if (container) {
+        /* OPAQUE canvas (alpha:false) — same as the login FloatingLines that work
          in Safari. Blending with the page is done via CSS `mix-blend-mode` on the
          #heroAurora container (screen in dark, multiply in light). The old
          transparent-canvas path (alpha:true) is what WebKit mis-composited. */
-      const renderer = new Renderer({ alpha: false });
-      const gl = renderer.gl;
-      gl.clearColor(0, 0, 0, 1);
+        const renderer = new Renderer({ alpha: false });
+        const gl = renderer.gl;
+        gl.clearColor(0, 0, 0, 1);
 
-      /* Dark palette — kept identical to the previous design so the dark
+        /* Dark palette — kept identical to the previous design so the dark
          theme is visually unchanged on this page. */
-      const darkPalette = { color1: '#C89BFF', color2: '#9336EA', brightness: 0.95, bandHeight: 0.5, bandSpread: 1.0 };
-      /* Light palette: deeper purples + tighter bands so the aurora reads as a
+        const darkPalette = {
+          color1: "#C89BFF",
+          color2: "#9336EA",
+          brightness: 0.95,
+          bandHeight: 0.5,
+          bandSpread: 1.0,
+        };
+        /* Light palette: deeper purples + tighter bands so the aurora reads as a
          controlled wash of brand color on warm off-white instead of a bright
          bloom that would feel washed-out. */
-      const lightPalette = { color1: '#7B22C9', color2: '#5B1899', brightness: 0.7, bandHeight: 0.55, bandSpread: 0.85 };
+        const lightPalette = {
+          color1: "#7B22C9",
+          color2: "#5B1899",
+          brightness: 0.7,
+          bandHeight: 0.55,
+          bandSpread: 0.85,
+        };
 
-      let program;
-      const currentMouse = [0.5, 0.5];
-      let targetMouse = [0.5, 0.5];
+        let program;
+        const currentMouse = [0.5, 0.5];
+        let targetMouse = [0.5, 0.5];
 
-      const resize = () => {
-        renderer.setSize(container.offsetWidth, container.offsetHeight);
-        if (program) program.uniforms.uResolution.value = [gl.canvas.width, gl.canvas.height, gl.canvas.width / gl.canvas.height];
-      };
+        const resize = () => {
+          renderer.setSize(container.offsetWidth, container.offsetHeight);
+          if (program)
+            program.uniforms.uResolution.value = [
+              gl.canvas.width,
+              gl.canvas.height,
+              gl.canvas.width / gl.canvas.height,
+            ];
+        };
 
-      const geometry = new Triangle(gl);
-      program = new Program(gl, {
-        vertex, fragment,
-        uniforms: {
-          uTime: { value: 0 },
-          uResolution: { value: [1, 1, 1] },
-          uSpeed: { value: 0.5 },
-          uScale: { value: 1.4 },
-          uBrightness: { value: darkPalette.brightness },
-          uColor1: { value: hexToVec3(darkPalette.color1) },
-          uColor2: { value: hexToVec3(darkPalette.color2) },
-          uNoiseFreq: { value: 2.5 },
-          uNoiseAmp: { value: 1.0 },
-          uBandHeight: { value: darkPalette.bandHeight },
-          uBandSpread: { value: darkPalette.bandSpread },
-          uOctaveDecay: { value: 0.1 },
-          uLayerOffset: { value: 0.0 },
-          uColorSpeed: { value: 1.0 },
-          uMouse: { value: new Float32Array([0.5, 0.5]) },
-          uMouseInfluence: { value: 0.22 },
-          uEnableMouse: { value: true },
-          /* 0 = dark (screen blend), 1 = light (multiply blend). Kept in sync
+        const geometry = new Triangle(gl);
+        program = new Program(gl, {
+          vertex,
+          fragment,
+          uniforms: {
+            uTime: { value: 0 },
+            uResolution: { value: [1, 1, 1] },
+            uSpeed: { value: 0.5 },
+            uScale: { value: 1.4 },
+            uBrightness: { value: darkPalette.brightness },
+            uColor1: { value: hexToVec3(darkPalette.color1) },
+            uColor2: { value: hexToVec3(darkPalette.color2) },
+            uNoiseFreq: { value: 2.5 },
+            uNoiseAmp: { value: 1.0 },
+            uBandHeight: { value: darkPalette.bandHeight },
+            uBandSpread: { value: darkPalette.bandSpread },
+            uOctaveDecay: { value: 0.1 },
+            uLayerOffset: { value: 0.0 },
+            uColorSpeed: { value: 1.0 },
+            uMouse: { value: new Float32Array([0.5, 0.5]) },
+            uMouseInfluence: { value: 0.22 },
+            uEnableMouse: { value: true },
+            /* 0 = dark (screen blend), 1 = light (multiply blend). Kept in sync
              with the CSS mix-blend-mode by applyAuroraTheme(). */
-          uLightBlend: { value: 0.0 },
-        },
-      });
+            uLightBlend: { value: 0.0 },
+          },
+        });
 
-      const mesh = new Mesh(gl, { geometry, program });
-      container.appendChild(gl.canvas);
-      window.addEventListener('resize', resize);
-      resize();
+        const mesh = new Mesh(gl, { geometry, program });
+        container.appendChild(gl.canvas);
+        window.addEventListener("resize", resize);
+        resize();
 
-      window.addEventListener('mousemove', (e) => {
-        const r = container.getBoundingClientRect();
-        targetMouse = [(e.clientX - r.left) / r.width, 1.0 - (e.clientY - r.top) / r.height];
-      }, { passive: true });
+        window.addEventListener(
+          "mousemove",
+          (e) => {
+            const r = container.getBoundingClientRect();
+            targetMouse = [
+              (e.clientX - r.left) / r.width,
+              1.0 - (e.clientY - r.top) / r.height,
+            ];
+          },
+          { passive: true },
+        );
 
-      const update = (time) => {
+        const update = (time) => {
+          requestAnimationFrame(update);
+          program.uniforms.uTime.value = time * 0.001;
+          currentMouse[0] += 0.05 * (targetMouse[0] - currentMouse[0]);
+          currentMouse[1] += 0.05 * (targetMouse[1] - currentMouse[1]);
+          program.uniforms.uMouse.value[0] = currentMouse[0];
+          program.uniforms.uMouse.value[1] = currentMouse[1];
+          renderer.render({ scene: mesh });
+        };
         requestAnimationFrame(update);
-        program.uniforms.uTime.value = time * 0.001;
-        currentMouse[0] += 0.05 * (targetMouse[0] - currentMouse[0]);
-        currentMouse[1] += 0.05 * (targetMouse[1] - currentMouse[1]);
-        program.uniforms.uMouse.value[0] = currentMouse[0];
-        program.uniforms.uMouse.value[1] = currentMouse[1];
-        renderer.render({ scene: mesh });
-      };
-      requestAnimationFrame(update);
 
-      /* Theme swap — updates color/brightness/band uniforms plus the opaque
+        /* Theme swap — updates color/brightness/band uniforms plus the opaque
          output branch and CSS blend mode; shader source and geometry stay
          untouched. Safe to call at any time.
          Wired to init (read window.PFTheme.current()) and to every
          `pf:themechange` event from ../screens/assets/theme.js. */
-      const applyAuroraTheme = (theme) => {
-        const isLight = (theme === 'light');
-        const palette = isLight ? lightPalette : darkPalette;
-        program.uniforms.uColor1.value     = hexToVec3(palette.color1);
-        program.uniforms.uColor2.value     = hexToVec3(palette.color2);
-        program.uniforms.uBrightness.value = palette.brightness;
-        program.uniforms.uBandHeight.value = palette.bandHeight;
-        program.uniforms.uBandSpread.value = palette.bandSpread;
-        /* Keep the opaque-output branch in sync with the CSS blend mode:
+        const applyAuroraTheme = (theme) => {
+          const isLight = theme === "light";
+          const palette = isLight ? lightPalette : darkPalette;
+          program.uniforms.uColor1.value = hexToVec3(palette.color1);
+          program.uniforms.uColor2.value = hexToVec3(palette.color2);
+          program.uniforms.uBrightness.value = palette.brightness;
+          program.uniforms.uBandHeight.value = palette.bandHeight;
+          program.uniforms.uBandSpread.value = palette.bandSpread;
+          /* Keep the opaque-output branch in sync with the CSS blend mode:
            dark → screen (uLightBlend 0), light → multiply (uLightBlend 1). */
-        program.uniforms.uLightBlend.value = isLight ? 1.0 : 0.0;
-        container.style.mixBlendMode = isLight ? 'multiply' : 'screen';
-      };
-      const initialTheme = (window.PFTheme && window.PFTheme.current) ? window.PFTheme.current() : 'dark';
-      applyAuroraTheme(initialTheme);
-      document.addEventListener('pf:themechange', (ev) => {
-        const t = (ev && ev.detail && ev.detail.theme) ? ev.detail.theme : 'dark';
-        applyAuroraTheme(t);
-      });
-    }
-  </script>
+          program.uniforms.uLightBlend.value = isLight ? 1.0 : 0.0;
+          container.style.mixBlendMode = isLight ? "multiply" : "screen";
+        };
+        const initialTheme =
+          window.PFTheme && window.PFTheme.current
+            ? window.PFTheme.current()
+            : "dark";
+        applyAuroraTheme(initialTheme);
+        document.addEventListener("pf:themechange", (ev) => {
+          const t =
+            ev && ev.detail && ev.detail.theme ? ev.detail.theme : "dark";
+          applyAuroraTheme(t);
+        });
+      }
+    </script>
 
-  <script>
-    /* Render toggle icons AFTER lucide has loaded. Sync aria/label with the
+    <script>
+      /* Render toggle icons AFTER lucide has loaded. Sync aria/label with the
        current theme so screen readers see the right copy on first paint. */
-    if (window.lucide) lucide.createIcons();
-    if (window.PFThemeSyncToggle) window.PFThemeSyncToggle();
-  </script>
-  <script src="../screens/assets/theme-toggle.js"></script>
-</body>
+      if (window.lucide) lucide.createIcons();
+      if (window.PFThemeSyncToggle) window.PFThemeSyncToggle();
+    </script>
+    <script src="../screens/assets/theme-toggle.js"></script>
+  </body>
 </html>
