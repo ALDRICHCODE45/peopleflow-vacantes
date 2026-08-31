@@ -144,7 +144,7 @@ func (h *JobHandler) getJob(w http.ResponseWriter, r *http.Request) {
 	raw := chi.URLParam(r, "id")
 	id, err := uuid.Parse(raw)
 	if err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid job id")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid job id"))
 		return
 	}
 
@@ -185,13 +185,13 @@ func (h *JobHandler) updateJob(w http.ResponseWriter, r *http.Request) {
 
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid job id")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid job id"))
 		return
 	}
 
 	var in dtos.UpdateJobDto
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
 		return
 	}
 
@@ -239,7 +239,7 @@ func (h *JobHandler) createJob(w http.ResponseWriter, r *http.Request) {
 
 	var in dtos.CreateJobDto
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
 		return
 	}
 
@@ -288,7 +288,7 @@ func (h *JobHandler) softDeleteJob(w http.ResponseWriter, r *http.Request) {
 
 	id, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid job id")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid job id"))
 		return
 	}
 
@@ -320,70 +320,48 @@ func (h *JobHandler) softDeleteJob(w http.ResponseWriter, r *http.Request) {
 // dispatcher that knows every domain sentinel the use cases can
 // surface.
 func (h *JobHandler) classifyAndWriteError(w http.ResponseWriter, r *http.Request, err error) {
-	status, msg := classifyError(err)
-	if status == http.StatusInternalServerError {
+	def := classifyError(err)
+	if def.Status == http.StatusInternalServerError {
 		slog.Error("jobs handler failed", "method", r.Method, "path", r.URL.Path, "error", err)
 	}
-	httpjson.WriteError(w, status, msg)
+	httpjson.WriteCatalogError(w, def)
 }
 
-// classifyError maps a use-case error into an HTTP status + a
-// client-safe message. The dispatcher is a flat `errors.Is` chain:
-//
-//	ErrJobNotFound              → 404 "job not found"
-//	ErrConcurrencyConflict      → 409 "conflict"          (fallback; updateJob writes view first)
-//	ErrInvalidStatusTransition  → 400 "invalid status transition"
-//	ErrCompanyNotActive         → 409 "company is not active"   (POST /jobs)
-//	ErrCompanyGone              → 409 "company is gone"         (POST /jobs, defense-in-depth)
-//	ErrEmptyTitle               → 400 "title must not be empty"
-//	ErrEmptyDescription         → 400 "description must not be empty"
-//	ErrInvalidSalaryRange       → 400 "salary_min must be less than or equal to salary_max"
-//	ErrInvalidWorkMode          → 400 "invalid work_mode"
-//	ErrInvalidEmploymentType    → 400 "invalid employment_type"
-//	ErrInvalidSeniority         → 400 "invalid seniority"
-//	ErrInvalidSalaryCurrency    → 400 "invalid salary_currency"
-//	ErrInvalidJobStatus         → 400 "invalid status"
-//	default                     → 500 "internal server error"
-//
-// Adding a new sentinel means adding one branch here; no other call
-// site needs to change.
-//
-// Both ErrCompanyNotActive and ErrCompanyGone map to 409: the caller
-// is already an admitted member (RequireCompanyRole resolved a real
-// membership), so the reject is a server-side company-state conflict
-// — never 403 (membership is fine) and never 404 (would leak
-// company/row existence). ErrCompanyGone is unreachable and shares
-// the 409 class with ErrCompanyNotActive (design D9 §6.2).
-func classifyError(err error) (int, string) {
+// classifyError maps a use-case error into an httpjson.Definition
+// using catalog codes. Domain-specific messages are preserved where
+// existing tests assert exact string content; generic catalog messages
+// are used where no existing string assertion exists. All codes/statuses
+// match the V1 catalog regardless of message choice.
+func classifyError(err error) httpjson.Definition {
 	switch {
 	case errors.Is(err, entities.ErrJobNotFound):
-		return http.StatusNotFound, "job not found"
+		return httpjson.Definition{Code: httpjson.CodeNotFound, Status: http.StatusNotFound, Message: "job not found"}
 	case errors.Is(err, entities.ErrConcurrencyConflict):
-		return http.StatusConflict, "conflict"
+		return httpjson.Resolve(httpjson.CodeConflict)
 	case errors.Is(err, entities.ErrInvalidStatusTransition):
-		return http.StatusBadRequest, "invalid status transition"
+		return httpjson.Resolve(httpjson.CodeInvalidStatusTransition)
 	case errors.Is(err, entities.ErrCompanyNotActive):
-		return http.StatusConflict, "company is not active"
+		return httpjson.Resolve(httpjson.CodeCompanyNotActive)
 	case errors.Is(err, entities.ErrCompanyGone):
-		return http.StatusConflict, "company is gone"
+		return httpjson.Definition{Code: httpjson.CodeCompanyNotActive, Status: http.StatusConflict, Message: "company is gone"}
 	case errors.Is(err, entities.ErrEmptyTitle):
-		return http.StatusBadRequest, "title must not be empty"
+		return httpjson.Definition{Code: httpjson.CodeInvalidRequest, Status: http.StatusBadRequest, Message: "title must not be empty"}
 	case errors.Is(err, entities.ErrEmptyDescription):
-		return http.StatusBadRequest, "description must not be empty"
+		return httpjson.Definition{Code: httpjson.CodeInvalidRequest, Status: http.StatusBadRequest, Message: "description must not be empty"}
 	case errors.Is(err, entities.ErrInvalidSalaryRange):
-		return http.StatusBadRequest, "salary_min must be less than or equal to salary_max"
+		return httpjson.Definition{Code: httpjson.CodeInvalidRequest, Status: http.StatusBadRequest, Message: "salary_min must be less than or equal to salary_max"}
 	case errors.Is(err, valueobjects.ErrInvalidWorkMode):
-		return http.StatusBadRequest, "invalid work_mode"
+		return httpjson.Definition{Code: httpjson.CodeInvalidRequest, Status: http.StatusBadRequest, Message: "invalid work_mode"}
 	case errors.Is(err, valueobjects.ErrInvalidEmploymentType):
-		return http.StatusBadRequest, "invalid employment_type"
+		return httpjson.Definition{Code: httpjson.CodeInvalidRequest, Status: http.StatusBadRequest, Message: "invalid employment_type"}
 	case errors.Is(err, valueobjects.ErrInvalidSeniority):
-		return http.StatusBadRequest, "invalid seniority"
+		return httpjson.Definition{Code: httpjson.CodeInvalidRequest, Status: http.StatusBadRequest, Message: "invalid seniority"}
 	case errors.Is(err, valueobjects.ErrInvalidSalaryCurrency):
-		return http.StatusBadRequest, "invalid salary_currency"
+		return httpjson.Definition{Code: httpjson.CodeInvalidRequest, Status: http.StatusBadRequest, Message: "invalid salary_currency"}
 	case errors.Is(err, valueobjects.ErrInvalidJobStatus):
-		return http.StatusBadRequest, "invalid status"
+		return httpjson.Definition{Code: httpjson.CodeInvalidRequest, Status: http.StatusBadRequest, Message: "invalid status"}
 	default:
-		return http.StatusInternalServerError, "internal server error"
+		return httpjson.Resolve(httpjson.CodeInternalError)
 	}
 }
 
@@ -401,7 +379,7 @@ func classifyError(err error) (int, string) {
 func requireCompanyContext(w http.ResponseWriter, r *http.Request) (identitysecurity.CompanyContext, bool) {
 	cc, ok := identitysecurity.CompanyContextFromContext(r.Context())
 	if !ok {
-		httpjson.WriteError(w, http.StatusInternalServerError, "internal server error")
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
 		return identitysecurity.CompanyContext{}, false
 	}
 	return cc, true

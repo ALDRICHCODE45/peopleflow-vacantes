@@ -24,6 +24,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -154,6 +155,8 @@ func makeJob(id uuid.UUID, withLocation bool, withSalary bool) entities.Job {
 func timePtr(t time.Time) *time.Time { return &t }
 func strPtr(s string) *string        { return &s }
 func intPtr(i int) *int              { return &i }
+var _ = strPtr // silence unused — present for future refactors
+var _ = intPtr // silence unused — present for future refactors
 
 // newTestRouter wires the stub repo through a real use-case service
 // into a new handler, mounted under `/jobs` to mirror the production
@@ -433,6 +436,7 @@ func TestListJobs_InternalErrorReturns500(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("want 500, got %d: %s", rec.Code, rec.Body.String())
 	}
+	assertCatalogEnvelope(t, rec, httpjson.CodeInternalError)
 }
 
 // --- detail endpoint ------------------------------------------------------
@@ -493,6 +497,7 @@ func TestGetJob_InvalidID(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
 	}
+	assertCatalogEnvelope(t, rec, httpjson.CodeInvalidRequest)
 }
 
 // TestGetJob_InternalErrorReturns500 covers the generic error path.
@@ -504,6 +509,7 @@ func TestGetJob_InternalErrorReturns500(t *testing.T) {
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("want 500, got %d: %s", rec.Code, rec.Body.String())
 	}
+	assertCatalogEnvelope(t, rec, httpjson.CodeInternalError)
 }
 
 // --- misc -----------------------------------------------------------------
@@ -527,3 +533,16 @@ func TestRoutesArePublic(t *testing.T) {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// assertCatalogEnvelope checks that rec carries the catalog code field.
+// Use after any test that expects a non-2xx response.
+func assertCatalogEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantCode httpjson.Code) {
+	t.Helper()
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("body not JSON: %v", err)
+	}
+	if env.Code != wantCode {
+		t.Errorf("code: want %q, got %q", wantCode, env.Code)
+	}
+}

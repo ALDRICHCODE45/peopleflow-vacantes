@@ -39,6 +39,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -102,6 +103,7 @@ func TestSoftDeleteJob_MissingCompanyContextReturns500(t *testing.T) {
 	if repo.getForUpdateCalls != 0 {
 		t.Errorf("repo.GetForUpdate must NOT be called without CompanyContext, got %d", repo.getForUpdateCalls)
 	}
+	softDeleteJobAssertCatalogEnvelope(t, rec, httpjson.CodeInternalError)
 }
 
 // TestSoftDeleteJob_InvalidUUIDReturns400 covers spec scenario S6: a
@@ -126,6 +128,7 @@ func TestSoftDeleteJob_InvalidUUIDReturns400(t *testing.T) {
 	if repo.getForUpdateCalls != 0 {
 		t.Errorf("GetForUpdate must NOT be called on invalid UUID, got %d", repo.getForUpdateCalls)
 	}
+	softDeleteJobAssertCatalogEnvelope(t, rec, httpjson.CodeInvalidRequest)
 }
 
 // TestSoftDeleteJob_StaleCASReturns409WithView covers spec scenarios
@@ -268,6 +271,7 @@ func TestSoftDeleteJob_NotFoundReturns404(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "job not found") {
 		t.Errorf("body must name the failure, got %q", rec.Body.String())
 	}
+	softDeleteJobAssertCatalogEnvelope(t, rec, httpjson.CodeNotFound)
 }
 
 // TestSoftDeleteJob_CompanyNotActiveReturns409 covers spec scenarios
@@ -299,6 +303,7 @@ func TestSoftDeleteJob_CompanyNotActiveReturns409(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "company is not active") {
 		t.Errorf("body must name the failing gate, got %q", rec.Body.String())
 	}
+	softDeleteJobAssertCatalogEnvelope(t, rec, httpjson.CodeCompanyNotActive)
 }
 
 // TestSoftDeleteJob_SuccessReturns204EmptyBody covers spec scenarios
@@ -404,3 +409,15 @@ var (
 	_ = sync.Mutex{}
 	_ = context.Background
 )
+
+// softDeleteJobAssertCatalogEnvelope checks that rec carries the catalog code field.
+func softDeleteJobAssertCatalogEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantCode httpjson.Code) {
+t.Helper()
+var env httpjson.ErrorEnvelope
+if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+	t.Fatalf("body not JSON: %v", err)
+}
+if env.Code != wantCode {
+	t.Errorf("code: want %q, got %q", wantCode, env.Code)
+}
+}

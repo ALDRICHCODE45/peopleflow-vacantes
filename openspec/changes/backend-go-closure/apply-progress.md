@@ -165,7 +165,7 @@ Parent gate REJECTED the previous result for three concrete reasons:
 **Line count (this corrective pass only):**
 
 | File | Additions | Deletions |
-|------|----------:|----------:|
+| ------ | ----------: | ----------: |
 | `candidates/handler.go` | 26 | 26 |
 | `candidates/handler_test.go` | 36 | 9 |
 | `industries/handler.go` | 17 | 9 |
@@ -181,3 +181,67 @@ Tracked changed lines: 131 additions + 45 deletions = 176. Untracked new file: 7
 - main.go: zero diff (RESTORED to HEAD)
 - No `any` return type; no reflection; no field-drift risk
 - Industries handler test: 76 lines (DB-failure + non-leakage proof only)
+
+---
+
+## RU2 Partial — Task 1.4B: Jobs NON-CAS catalog adoption (partial — CAS deferred to 1.4C)
+
+> **Scope:** Jobs HTTP handlers non-CAS paths only. PATCH and DELETE bare-409 CAS writers (DTO without envelope) preserved unchanged; task 1.4 checkboxes remain unchecked until CAS slice completes.
+
+### What changed
+
+`backend/internal/features/jobs/infrastructure/http/jobHandler.go`:
+
+- `classifyError` now returns `httpjson.Definition` instead of `(int, string)`;
+- all 4 direct `httpjson.WriteError(w, status, msg)` calls replaced with catalog writers;
+- `requireCompanyContext` updated to `WriteCatalogError(w, Resolve(CodeInternalError))`;
+- `classifyAndWriteError` updated to use catalog writer.
+
+Catalog code assignments (non-CAS only):
+
+| Error | Code |
+| ------- | ------ |
+| Invalid UUID / malformed JSON / title/description/salary/VO validation | `invalid_request` |
+| Invalid status transition | `invalid_status_transition` |
+| Job not found | `not_found` |
+| ErrCompanyNotActive | `company_not_active` |
+| ErrCompanyGone | `company_not_active` (same code, domain message preserved) |
+| Unexpected/missing context | `internal_error` |
+
+### Strict TDD — RED (13 behavioral failures)
+
+Each test's assertion: `code: want "<catalog_code>", got ""` against legacy `WriteError` (no `code` field). Failed tests: `TestCreateJob_MissingCompanyContextReturns500`, `TestCreateJob_MalformedBodyReturns400`, `TestCreateJob_EmptyTitleReturns400`, `TestCreateJob_UnknownVOReturns400` (4 subcases), `TestListJobs_InternalErrorReturns500`, `TestGetJob_InvalidID`, `TestGetJob_InternalErrorReturns500`, `TestSoftDeleteJob_MissingCompanyContextReturns500`, `TestSoftDeleteJob_InvalidUUIDReturns400`, `TestSoftDeleteJob_NotFoundReturns404`, `TestSoftDeleteJob_CompanyNotActiveReturns409`, `TestUpdateJob_MissingCompanyContextReturns500`, `TestUpdateJob_InvalidJobIDReturns400`, `TestUpdateJob_ClosedTerminalReturns400`, `TestUpdateJob_IllegalTransitionReturns400`.
+
+### Strict TDD — GREEN
+
+Converted handler to typed catalog. Domain-specific messages preserved where existing tests assert exact string content (`"job not found"`, `"title must not be empty"`, `"company is gone"`, etc.). CAS bare-409 writers (`WriteJSON` → `view`) unchanged.
+
+### Strict TDD — TRIANGULATE
+
+Shared envelope helpers: `assertCatalogEnvelope` (`handler_test.go`), `jobAssertCatalogEnvelope` (`updateJobHandler_test.go`), `createJobAssertCatalogEnvelope` (`createJobHandler_test.go`), `softDeleteJobAssertCatalogEnvelope` (`softDeleteJobHandler_test.go`).
+
+### Strict TDD — REFACTOR
+
+`go test ./... -count=1`: PASS.
+
+### Line count (relative to e5c3c57)
+
+| File | Additions | Deletions | Net |
+| ------ | ----------: | ----------: | ----: |
+| `jobHandler.go` | 29 | 51 | -22 |
+| `handler_test.go` | 19 | 0 | +19 |
+| `updateJobHandler_test.go` | 17 | 0 | +17 |
+| `createJobHandler_test.go` | 20 | 3 | +17 |
+| `softDeleteJobHandler_test.go` | 17 | 0 | +17 |
+| **Total** | **102** | **54** | **+48** |
+
+156 total changed lines (102 additions + 54 deletions) ≤ 400 budget.
+
+### Confirmed invariants
+
+- PATCH `ErrConcurrencyConflict` → `WriteJSON(w, StatusConflict, view)` — bare DTO, no envelope: unchanged
+- DELETE `ErrConcurrencyConflict` → `WriteJSON(w, StatusConflict, view)` — bare DTO, no envelope: unchanged
+- CAS tests (`TestUpdateJob_CASMismatchReturns409`, `TestSoftDeleteJob_StaleCASReturns409WithView`, etc.): unchanged and still pass
+- Task 1.4 checkboxes: all 4 remain unchecked
+- Candidates, Industries, task 1.5+, task 1.3: unchanged
+- main.go, auth fake writers, route/method/body-limit: unchanged

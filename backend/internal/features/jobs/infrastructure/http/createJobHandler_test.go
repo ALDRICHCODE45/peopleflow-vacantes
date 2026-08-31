@@ -37,6 +37,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -114,6 +115,7 @@ func TestCreateJob_MissingCompanyContextReturns500(t *testing.T) {
 	if repo.createCalls != 0 {
 		t.Errorf("Create must NOT be called without CompanyContext, got %d calls", repo.createCalls)
 	}
+	createJobAssertCatalogEnvelope(t, rec, httpjson.CodeInternalError)
 }
 
 // TestCreateJob_MalformedBodyReturns400 covers the JSON decode failure:
@@ -131,6 +133,7 @@ func TestCreateJob_MalformedBodyReturns400(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "invalid JSON body") {
 		t.Errorf("body must name the failure, got %q", rec.Body.String())
 	}
+	createJobAssertCatalogEnvelope(t, rec, httpjson.CodeInvalidRequest)
 }
 
 // TestCreateJob_SuccessReturns201EditorView covers the spec scenario
@@ -245,6 +248,7 @@ func TestCreateJob_EmptyTitleReturns400(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "title must not be empty") {
 		t.Errorf("body must name the failing field, got %q", rec.Body.String())
 	}
+	createJobAssertCatalogEnvelope(t, rec, httpjson.CodeInvalidRequest)
 }
 
 // TestCreateJob_EmptyDescriptionReturns400 mirrors the title case.
@@ -308,9 +312,10 @@ func TestCreateJob_UnknownVOReturns400(t *testing.T) {
 			if !strings.Contains(rec.Body.String(), tt.want) {
 				t.Errorf("body must contain %q, got %q", tt.want, rec.Body.String())
 			}
-			if repo.createCalls != 0 {
-				t.Errorf("Create must NOT be called on bad VO, got %d calls", repo.createCalls)
-			}
+		if repo.createCalls != 0 {
+			t.Errorf("Create must NOT be called on bad VO, got %d calls", repo.createCalls)
+		}
+		createJobAssertCatalogEnvelope(t, rec, httpjson.CodeInvalidRequest)
 		})
 	}
 }
@@ -497,3 +502,15 @@ var _ = bytes.NewReader
 
 // _ context.Context keeps the import live across test refactors.
 var _ context.Context
+
+// createJobAssertCatalogEnvelope checks that rec carries the catalog code field.
+func createJobAssertCatalogEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantCode httpjson.Code) {
+t.Helper()
+var env httpjson.ErrorEnvelope
+if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+t.Fatalf("body not JSON: %v", err)
+}
+if env.Code != wantCode {
+t.Errorf("code: want %q, got %q", wantCode, env.Code)
+}
+}

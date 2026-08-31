@@ -38,6 +38,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -255,6 +256,7 @@ func TestUpdateJob_MissingCompanyContextReturns500(t *testing.T) {
 	if repo.getForUpdateCalls != 0 {
 		t.Errorf("repo.GetForUpdate must NOT be called without CompanyContext, got %d", repo.getForUpdateCalls)
 	}
+	jobAssertCatalogEnvelope(t, rec, httpjson.CodeInternalError)
 }
 
 // TestUpdateJob_InvalidJobIDReturns400 covers the path-param parse
@@ -269,6 +271,7 @@ func TestUpdateJob_InvalidJobIDReturns400(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
 	}
+	jobAssertCatalogEnvelope(t, rec, httpjson.CodeInvalidRequest)
 }
 
 // TestUpdateJob_MalformedBodyReturns400 covers the JSON decode
@@ -387,6 +390,7 @@ func TestUpdateJob_ClosedTerminalReturns400(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "invalid status transition") {
 		t.Errorf("body must name the failing transition, got %q", rec.Body.String())
 	}
+	jobAssertCatalogEnvelope(t, rec, httpjson.CodeInvalidStatusTransition)
 }
 
 // TestUpdateJob_IllegalTransitionReturns400 covers draft→closed (no
@@ -411,6 +415,7 @@ func TestUpdateJob_IllegalTransitionReturns400(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
 	}
+	jobAssertCatalogEnvelope(t, rec, httpjson.CodeInvalidStatusTransition)
 }
 
 // TestUpdateJob_UnknownVOReturns400 covers the spec scenarios
@@ -789,5 +794,17 @@ func makeJobForUpdate(id, companyID uuid.UUID, status valueobjects.JobStatus, up
 			ID:   companyID,
 			Name: "Acme SA",
 		},
+	}
+}
+
+// jobAssertCatalogEnvelope checks that rec carries the catalog code field.
+func jobAssertCatalogEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantCode httpjson.Code) {
+	t.Helper()
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("body not JSON: %v", err)
+	}
+	if env.Code != wantCode {
+		t.Errorf("code: want %q, got %q", wantCode, env.Code)
 	}
 }
