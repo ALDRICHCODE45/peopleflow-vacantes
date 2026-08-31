@@ -60,14 +60,36 @@
     /* Nav scrolled backdrop — inherits the theme's --base channel. */
     #nav.scrolled { background-color: rgb(var(--base) / 0.72); border-bottom-color: rgb(var(--line) / 0.9); }
 
-    /* Aurora canvas display rules. Mask comes from the `.aurora` class added
-       on the hero div below; opacity is pinned to the landing's original 0.85
-       (the shared `.aurora` default is 0.9) so dark stays pixel-identical. */
-    #heroAurora { opacity: 0.85; }
-    #heroAurora canvas { display: block; width: 100% !important; height: 100% !important; }
-    /* Light tuning: a small contrast/saturation bump keeps the aurora vivid
-       on warm off-white. Dark mode uses base.css defaults. */
-    :root[data-theme="light"] #heroAurora { filter: contrast(1.06) saturate(1.25); }
+    /* Aurora canvas display rules — mirrors the login FloatingLines approach.
+       The aurora is now an OPAQUE WebGL canvas blended with the page via
+       `mix-blend-mode` (screen in dark, multiply in light), NOT a transparent
+       canvas. Two hard requirements for Safari/WebKit:
+         1) NO CSS mask-image on the canvas host. base.css `.aurora` still sets
+            a mask, and a mask over an (opaque) GPU WebGL layer makes WebKit tile
+            it into solid black/white boxes. We override it off here.
+         2) The blend mode is what makes the opaque canvas read as ambient light.
+       `mix-blend-mode` is set here for first paint and kept in sync by the
+       aurora <script>'s applyAuroraTheme(). Opacity stays at the original 0.85. */
+    #heroAurora {
+      -webkit-mask-image: none; mask-image: none;
+      mix-blend-mode: screen;
+      opacity: 0.85;
+      /* Force Safari/WebKit to promote and rasterize this blended GPU layer
+         UP FRONT. Without it, the compositor tiles the mix-blend-mode layer
+         lazily during the first animation frames and paints not-yet-composited
+         tiles as solid black/white boxes (transient, only on load/reload). A
+         stable 3D-promoted layer removes the first-paint glitch. */
+      -webkit-transform: translateZ(0); transform: translateZ(0);
+      will-change: transform;
+      -webkit-backface-visibility: hidden; backface-visibility: hidden;
+    }
+    #heroAurora canvas {
+      display: block; width: 100% !important; height: 100% !important;
+      -webkit-transform: translateZ(0); transform: translateZ(0);
+    }
+    /* Light tuning: multiply blend + a small contrast/saturation bump keeps the
+       aurora reading as a controlled brand-purple wash on warm off-white. */
+    :root[data-theme="light"] #heroAurora { mix-blend-mode: multiply; filter: contrast(1.06) saturate(1.25); }
 
     /* Ambient radial glow behind the hero pipeline — landing-only. */
     .glow-purple {
@@ -153,7 +175,7 @@
 
   <!-- ================= HERO ================= -->
   <div class="relative">
-    <div id="heroAurora" class="aurora pointer-events-none absolute inset-0 -z-[1] overflow-hidden"></div>
+    <div id="heroAurora" class="aurora pointer-events-none absolute inset-0 overflow-hidden"></div>
     <section class="relative z-10 mx-auto max-w-[1280px] px-8 pt-24 pb-20 md:pt-32">
     <div class="grid items-center gap-10 lg:grid-cols-[minmax(0,540px)_minmax(0,1fr)]">
 
@@ -667,6 +689,7 @@
       uniform float uNoiseFreq; uniform float uNoiseAmp; uniform float uBandHeight; uniform float uBandSpread;
       uniform float uOctaveDecay; uniform float uLayerOffset; uniform float uColorSpeed;
       uniform vec2 uMouse; uniform float uMouseInfluence; uniform bool uEnableMouse;
+      uniform float uLightBlend;
       #define TAU 6.28318
       vec3 gradientHash(vec3 p){
         p = vec3(dot(p, vec3(127.1,311.7,234.6)), dot(p, vec3(269.5,183.3,198.3)), dot(p, vec3(169.5,283.3,156.9)));
@@ -710,8 +733,35 @@
         col += 0.99 * auroraGlow(t, shift) * cosineGradient(uv.x + uTime*uSpeed*0.2*uColorSpeed, vec3(0.5), vec3(0.5), vec3(1.0), vec3(0.3,0.20,0.20)) * uColor1;
         col += 0.99 * auroraGlow(t + uLayerOffset, shift) * cosineGradient(uv.x + uTime*uSpeed*0.1*uColorSpeed, vec3(0.5), vec3(0.5), vec3(2.0,1.0,0.0), vec3(0.5,0.20,0.25)) * uColor2;
         col *= uBrightness;
-        float alpha = clamp(length(col), 0.0, 1.0);
-        gl_FragColor = vec4(col, alpha);
+
+        /* ---- OPAQUE OUTPUT + CSS mix-blend-mode ------------------------------
+           This mirrors the login screens' FloatingLines, which render flawlessly
+           in Safari: an OPAQUE WebGL canvas (alpha:false, alpha=1.0) blended with
+           the page through CSS mix-blend-mode, NOT a transparent canvas.
+           Safari/WebKit mis-composites transparent WebGL canvases (that was the
+           real root cause of the black/white boxes AND the invisible aurora), but
+           handles opaque canvas + mix-blend-mode correctly.
+
+           Coverage: aurora intensity, feathered by a gentle corner vignette so the
+           opaque canvas edges never show a hard rectangle after blending. */
+        float intensity = clamp(length(col), 0.0, 1.0);
+        vec2 vig = vec2((uv.x - 0.5) / 0.78, (uv.y - 0.5) / 0.70);
+        float mask = 1.0 - smoothstep(0.85, 1.25, length(vig));
+        float g = intensity * mask;
+
+        vec3 outCol;
+        if (uLightBlend > 0.5) {
+          /* LIGHT: container uses mix-blend-mode multiply. White pixels leave
+             the page untouched; where the aurora glows we output its (normalized)
+             hue so multiply tints the warm off-white page with brand purple. */
+          vec3 hue = col / max(intensity, 1e-4);
+          outCol = mix(vec3(1.0), hue, g);
+        } else {
+          /* DARK: container uses mix-blend-mode screen. Black pixels leave the
+             page untouched; the glow adds over the near-black background. */
+          outCol = col * mask;
+        }
+        gl_FragColor = vec4(outCol, 1.0);
       }
     `;
 
@@ -719,9 +769,13 @@
 
     const container = document.getElementById('heroAurora');
     if (container) {
-      const renderer = new Renderer({ alpha: true, premultipliedAlpha: false });
+      /* OPAQUE canvas (alpha:false) — same as the login FloatingLines that work
+         in Safari. Blending with the page is done via CSS `mix-blend-mode` on the
+         #heroAurora container (screen in dark, multiply in light). The old
+         transparent-canvas path (alpha:true) is what WebKit mis-composited. */
+      const renderer = new Renderer({ alpha: false });
       const gl = renderer.gl;
-      gl.clearColor(0, 0, 0, 0);
+      gl.clearColor(0, 0, 0, 1);
 
       /* Dark palette — kept identical to the previous design so the dark
          theme is visually unchanged on this page. */
@@ -761,6 +815,9 @@
           uMouse: { value: new Float32Array([0.5, 0.5]) },
           uMouseInfluence: { value: 0.22 },
           uEnableMouse: { value: true },
+          /* 0 = dark (screen blend), 1 = light (multiply blend). Kept in sync
+             with the CSS mix-blend-mode by applyAuroraTheme(). */
+          uLightBlend: { value: 0.0 },
         },
       });
 
@@ -785,17 +842,23 @@
       };
       requestAnimationFrame(update);
 
-      /* Theme swap — touches ONLY color/brightness/band uniforms; the shader
-         source and geometry stay untouched. Safe to call at any time.
+      /* Theme swap — updates color/brightness/band uniforms plus the opaque
+         output branch and CSS blend mode; shader source and geometry stay
+         untouched. Safe to call at any time.
          Wired to init (read window.PFTheme.current()) and to every
          `pf:themechange` event from ../screens/assets/theme.js. */
       const applyAuroraTheme = (theme) => {
-        const palette = (theme === 'light') ? lightPalette : darkPalette;
+        const isLight = (theme === 'light');
+        const palette = isLight ? lightPalette : darkPalette;
         program.uniforms.uColor1.value     = hexToVec3(palette.color1);
         program.uniforms.uColor2.value     = hexToVec3(palette.color2);
         program.uniforms.uBrightness.value = palette.brightness;
         program.uniforms.uBandHeight.value = palette.bandHeight;
         program.uniforms.uBandSpread.value = palette.bandSpread;
+        /* Keep the opaque-output branch in sync with the CSS blend mode:
+           dark → screen (uLightBlend 0), light → multiply (uLightBlend 1). */
+        program.uniforms.uLightBlend.value = isLight ? 1.0 : 0.0;
+        container.style.mixBlendMode = isLight ? 'multiply' : 'screen';
       };
       const initialTheme = (window.PFTheme && window.PFTheme.current) ? window.PFTheme.current() : 'dark';
       applyAuroraTheme(initialTheme);
