@@ -91,7 +91,7 @@ Decisión abierta para discutir cuando toque: ¿quién valida que `industry_id` 
 - ✅ **Hardening read-side `c.deleted_at IS NULL`** en queries públicas de jobs (`SearchJobs` + `GetJobByID`) — ENTREGADO: el inline-close tapa la fuga del flujo de borrado; el predicado es defense-in-depth para un futuro code path que deje una vacante `published` con empresa tombstonada. Cubierto por tests de integración (Search + GetByID, fixture con empresa `active` + `deleted_at` seteado).
 - 🔲 **Restore/undelete de empresa** — el mecanismo inverso del soft-delete (fuera de scope de `companies-write`).
 - 🔲 **`infra/` (Terraform)** y **`workers/`** — vacíos.
-- 🔲 **Enforcement "empresa `active`" en escritura** — hoy solo se aplica en lectura.
+- ✅ **Enforcement "empresa viva" en escritura** — ENTREGADO: los write paths de jobs (`CreateJob`, `UpdateJob`, `SoftDeleteJob`, `GetJobForUpdate`) y el apply gate de applications (`CreateApplication`) rechazan empresas tombstoned (`status='active'` + `deleted_at` seteado — `SoftDeleteCompany` preserva el status, así que `status='active'` solo no es gate de "empresa viva"). Jobs → `ErrCompanyNotActive` (409) / `ErrJobNotFound` en `GetJobForUpdate`; applications → `ErrJobNotApplicable` (404). Cubierto por tests de integración live-DB (fixture empresa active + tombstone + job published, RED→GREEN). Companion del hardening read-side (b59604c). Queda como follow-up separado: endurecer `RequireCompanyRole`.
 - 🔲 **Conversión FX de salarios** — hoy el filtro `currency` es match exacto (USD/MXN first-class), sin conversión.
 
 ## Stack decidido (no re-discutir)

@@ -12,7 +12,8 @@
 //
 //   - Create atomic eligibility gate (D1): published + deleted_at IS NULL +
 //     active company yields a row; draft / closed / soft-deleted /
-//     suspended-company / pending_verification-company / non-existent job
+//     suspended-company / pending_verification-company / tombstoned-company
+//     (active status + deleted_at set) / non-existent job
 //     yield ErrJobNotApplicable with NO row; the gate is atomic with the
 //     INSERT (a company suspended in-transaction before the write still wins
 //     the predicate); duplicate (job_id, candidate_id) surfaces
@@ -95,6 +96,7 @@ var (
 	appCoActive2   = uuid.MustParse("01900000-0000-7000-8000-0000000000a2") // active
 	appCoSuspended = uuid.MustParse("01900000-0000-7000-8000-0000000000a3") // suspended
 	appCoPending   = uuid.MustParse("01900000-0000-7000-8000-0000000000a4") // pending_verification
+	appCoTombstone = uuid.MustParse("01900000-0000-7000-8000-0000000000a5") // active status + deleted_at set (tombstoned)
 
 	// Jobs. All are published + deleted_at IS NULL unless the name says
 	// otherwise; every job's owning company is appCoActive1 unless stated.
@@ -105,6 +107,7 @@ var (
 	appJobForeign     = uuid.MustParse("01900000-0000-7000-8000-0000000000b5") // published, appCoActive2
 	appJobSuspendedCo = uuid.MustParse("01900000-0000-7000-8000-0000000000b6") // published, appCoSuspended
 	appJobPendingCo   = uuid.MustParse("01900000-0000-7000-8000-0000000000b7") // published, appCoPending
+	appJobTombCo      = uuid.MustParse("01900000-0000-7000-8000-0000000000ba") // published, appCoTombstone
 	appJobPublished2  = uuid.MustParse("01900000-0000-7000-8000-0000000000b8") // published, active co
 	appJobPublished3  = uuid.MustParse("01900000-0000-7000-8000-0000000000b9") // published, active co
 
@@ -129,6 +132,10 @@ INSERT INTO companies (id, name, rfc, industry_id, status) VALUES
     ('01900000-0000-7000-8000-0000000000a3', 'App Suspended SA',   'APPA010101CCC', 'retail',     'suspended'),
     ('01900000-0000-7000-8000-0000000000a4', 'App Pending SA',     'APPA010101DDD', 'retail',     'pending_verification')
 ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO companies (id, name, rfc, industry_id, status, deleted_at) VALUES
+    ('01900000-0000-7000-8000-0000000000a5', 'App Tombstoned SA', 'APPA010101EEE', 'technology', 'active', '2026-07-01T00:00:00Z')
+ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, deleted_at = EXCLUDED.deleted_at;
 
 INSERT INTO jobs
     (id, company_id, title, description, work_mode, employment_type,
@@ -187,7 +194,13 @@ VALUES
      '01900000-0000-7000-8000-0000000000a1',
      'App Published Engineer Three', 'third published fixture row.',
      'remote', 'full_time', 'senior', 'published', 'CDMX',
-     NULL, NULL, 'MXN', '2026-07-08T12:00:00Z', NULL, now(), now())
+     NULL, NULL, 'MXN', '2026-07-08T12:00:00Z', NULL, now(), now()),
+
+    ('01900000-0000-7000-8000-0000000000ba',
+     '01900000-0000-7000-8000-0000000000a5',
+     'App Tombstoned Co Engineer', 'published row owned by an active-status soft-deleted company.',
+     'remote', 'full_time', 'senior', 'published', 'CDMX',
+     NULL, NULL, 'MXN', '2026-07-09T12:00:00Z', NULL, now(), now())
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO users (id, cognito_sub, email, full_name, user_type) VALUES
@@ -224,6 +237,7 @@ type applicationFixture struct {
 	coActive2      uuid.UUID
 	coSuspended    uuid.UUID
 	coPending      uuid.UUID
+	coTombstoned   uuid.UUID
 	jobPublished   uuid.UUID
 	jobDraft       uuid.UUID
 	jobClosed      uuid.UUID
@@ -231,6 +245,7 @@ type applicationFixture struct {
 	jobForeign     uuid.UUID
 	jobSuspendedCo uuid.UUID
 	jobPendingCo   uuid.UUID
+	jobTombCo      uuid.UUID
 	jobPublished2  uuid.UUID
 	jobPublished3  uuid.UUID
 	userC1         uuid.UUID
@@ -280,6 +295,7 @@ func setupApplicationFixture(t *testing.T) (context.Context, *applicationFixture
 		coActive2:      appCoActive2,
 		coSuspended:    appCoSuspended,
 		coPending:      appCoPending,
+		coTombstoned:   appCoTombstone,
 		jobPublished:   appJobPublished,
 		jobDraft:       appJobDraft,
 		jobClosed:      appJobClosed,
@@ -287,6 +303,7 @@ func setupApplicationFixture(t *testing.T) (context.Context, *applicationFixture
 		jobForeign:     appJobForeign,
 		jobSuspendedCo: appJobSuspendedCo,
 		jobPendingCo:   appJobPendingCo,
+		jobTombCo:      appJobTombCo,
 		jobPublished2:  appJobPublished2,
 		jobPublished3:  appJobPublished3,
 		userC1:         appUserC1,
@@ -968,6 +985,7 @@ func TestCreate_NotApplicable(t *testing.T) {
 		{"soft-deleted job", f.jobSoftDeleted},
 		{"suspended company", f.jobSuspendedCo},
 		{"pending_verification company", f.jobPendingCo},
+		{"tombstoned company (active status, deleted_at set)", f.jobTombCo},
 		{"non-existent job", uuid.New()},
 	}
 	for _, tc := range cases {
@@ -978,6 +996,12 @@ func TestCreate_NotApplicable(t *testing.T) {
 				JobID:       tc.jobID,
 				CandidateID: f.userC2,
 			}, submittedAuditEvent(uuid.New(), appID, f.userC2, tc.jobID, nil))
+			// Track unconditionally: on a gate miss the cleanup DELETE is a
+			// no-op; if a future regression lets the gate pass (the RED state
+			// of the tombstoned-company case), the leaked row + its audit
+			// event are still removed so re-runs never collide on
+			// UNIQUE(job_id, candidate_id).
+			f.trackApp(appID)
 			if !errors.Is(err, entities.ErrJobNotApplicable) {
 				t.Errorf("err: want ErrJobNotApplicable, got %v", err)
 			}

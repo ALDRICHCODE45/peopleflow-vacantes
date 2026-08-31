@@ -220,13 +220,14 @@ The candidate identity MUST resolve only from the JWT `sub` claim via `users.cog
 
 ### Requirement: Atomic Apply Eligibility Gate
 
-The `applications` row MUST be inserted only when the target job satisfies ALL three visibility predicates ATOMICALLY inside the same SQL statement (no read-then-write TOCTOU window between the gate middleware and the INSERT):
+The `applications` row MUST be inserted only when the target job satisfies ALL four visibility predicates ATOMICALLY inside the same SQL statement (no read-then-write TOCTOU window between the gate middleware and the INSERT):
 
 1. `jobs.status='published'`
 2. `jobs.deleted_at IS NULL`
 3. `companies.status='active'` (joined via `jobs.company_id`)
+4. `companies.deleted_at IS NULL` (joined via `jobs.company_id` — the write-side counterpart of the read-side hardening: `SoftDeleteCompany` preserves `status='active'` and only sets the tombstone, so `status='active'` alone is not a live-company gate)
 
-The atomic gate MUST be encoded as an `INSERT ... WHERE EXISTS (SELECT 1 FROM jobs JOIN companies WHERE ...) RETURNING id` shape (or equivalent CTE) — the apply path does NOT use a separate Go-level `GetJobForApply` read; the predicate lives entirely in SQL. A zero-row outcome on the SQL guard MUST surface as the new domain sentinel `entities.ErrJobNotApplicable`, and the HTTP layer MUST map that sentinel to `404` with body `{"error":"job not applicable"}`. A zero-row outcome caused by a missing `jobs` row, a draft/closed/soft-deleted `jobs` row, or a suspended/pending/missing `companies` row MUST surface as the same sentinel — the HTTP layer MUST NOT distinguish among these reasons (no existence leak beyond what the public `GET /jobs/{id}` already surfaces).
+The atomic gate MUST be encoded as an `INSERT ... WHERE EXISTS (SELECT 1 FROM jobs JOIN companies WHERE ...) RETURNING id` shape (or equivalent CTE) — the apply path does NOT use a separate Go-level `GetJobForApply` read; the predicate lives entirely in SQL. A zero-row outcome on the SQL guard MUST surface as the new domain sentinel `entities.ErrJobNotApplicable`, and the HTTP layer MUST map that sentinel to `404` with body `{"error":"job not applicable"}`. A zero-row outcome caused by a missing `jobs` row, a draft/closed/soft-deleted `jobs` row, or a suspended/pending/soft-deleted (tombstoned)/missing `companies` row MUST surface as the same sentinel — the HTTP layer MUST NOT distinguish among these reasons (no existence leak beyond what the public `GET /jobs/{id}` already surfaces).
 
 #### Scenario: published job from active company is applicable
 
@@ -264,11 +265,17 @@ The atomic gate MUST be encoded as an `INSERT ... WHERE EXISTS (SELECT 1 FROM jo
 - WHEN `POST /jobs/{jobId}/applications` is sent
 - THEN the response is `404 job not applicable` and no row is inserted
 
+#### Scenario: job from a soft-deleted company is not applicable
+
+- GIVEN a job with `status='published'`, `deleted_at IS NULL`, and an owning company with `status='active'` and `deleted_at IS NOT NULL` (tombstoned — `SoftDeleteCompany` preserves the status and only sets the tombstone)
+- WHEN `POST /jobs/{jobId}/applications` is sent
+- THEN the response is `404 job not applicable` and no row is inserted (`status='active'` alone is not a live-company gate — the write-side counterpart of the read-side `companies.deleted_at IS NULL` hardening)
+
 #### Scenario: non-existent job is not applicable
 
 - GIVEN a `{jobId}` UUID that matches no row in `jobs`
 - WHEN `POST /jobs/{jobId}/applications` is sent
-- THEN the response is `404 job not applicable` and no row is inserted (the SQL guard yields 0 rows; same body shape as draft/closed/soft-deleted/suspended — no leak of existence)
+- THEN the response is `404 job not applicable` and no row is inserted (the SQL guard yields 0 rows; same body shape as draft/closed/soft-deleted/suspended/tombstoned — no leak of existence)
 
 #### Scenario: the eligibility check is atomic with the INSERT
 
@@ -351,7 +358,7 @@ The HTTP layer MUST classify `POST /jobs/{jobId}/applications` errors into the f
 | Unknown `source` value | `400` | `{"error":"invalid source"}` |
 | No `Authorization` header / unverifiable token | `401` | `{"error":"unauthenticated"}` |
 | JWT `sub` matches no live `users.cognito_sub` | `401` | `{"error":"unauthenticated"}` (reuses the `ErrUnknownSubject` sentinel) |
-| Job does not exist OR is not visible (draft / closed / soft-deleted / non-active company / suspended / pending_verification) | `404` | `{"error":"job not applicable"}` (single body shape for all reasons — no leak) |
+| Job does not exist OR is not visible (draft / closed / soft-deleted / non-active company / suspended / pending_verification / tombstoned company) | `404` | `{"error":"job not applicable"}` (single body shape for all reasons — no leak) |
 | Candidate already applied to this job (`UNIQUE(job_id, candidate_id)` → SQLSTATE `23505`) | `409` | `{"error":"already applied"}` |
 | Anything else (DB unavailable, unexpected pg error, missing mapping) | `500` | `{"error":"internal server error"}` (real error logged at `slog.Error`) |
 

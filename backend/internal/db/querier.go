@@ -44,10 +44,16 @@ type Querier interface {
 	//
 	// The visibility predicate lives entirely in SQL (no Go-level read
 	// between middleware and INSERT). A zero-row outcome (draft / closed /
-	// soft-deleted job, suspended / pending_verification / missing company,
-	// or non-existent job) surfaces as pgx.ErrNoRows and the adapter maps
-	// it to ErrJobNotApplicable (404 "job not applicable" — single body
-	// shape, no leak).
+	// soft-deleted job, suspended / pending_verification / soft-deleted
+	// (tombstoned) / missing company, or non-existent job) surfaces as
+	// pgx.ErrNoRows and the adapter maps it to ErrJobNotApplicable (404
+	// "job not applicable" — single body shape, no leak).
+	//
+	// `c.deleted_at IS NULL` is the write-side counterpart of the read-side
+	// hardening (b59604c): `companies.status='active'` alone is NOT a
+	// live-company gate — `SoftDeleteCompany` preserves `status='active'`
+	// and only sets the tombstone, so an orphan published job under a
+	// tombstoned company must stay inapplicable.
 	//
 	// status is NOT inserted: the DB DEFAULT 'submitted' applies, so the
 	// row is born in the closed vocabulary's start state and no client write
@@ -71,8 +77,12 @@ type Querier interface {
 	//
 	// Two guarantees live in this single statement:
 	//   1. Active-company gate: the `active` CTE selects the owning company
-	//      ONLY when status='active'. A suspended / pending_verification /
-	//      missing company yields zero rows in `active`, so `ins` inserts
+	//      ONLY when status='active' AND deleted_at IS NULL (write-side
+	//      hardening, mirroring b59604c's read-side predicate:
+	//      `SoftDeleteCompany` preserves `status='active'` and only sets the
+	//      tombstone, so `status='active'` alone is NOT a live-company gate).
+	//      A suspended / pending_verification / soft-deleted / missing
+	//      company yields zero rows in `active`, so `ins` inserts
 	//      zero rows and the final SELECT returns zero rows -> the adapter
 	//      maps pgx.ErrNoRows -> entities.ErrCompanyNotActive (the
 	//      predicate and the write are the same statement -- no TOCTOU
@@ -125,10 +135,18 @@ type Querier interface {
 	// non-existent).
 	GetJobForApplicationsScope(ctx context.Context, arg GetJobForApplicationsScopeParams) (uuid.UUID, error)
 	// Write-path read for the gated PATCH /jobs/{id} endpoint (design D3).
-	// NON-visibility-narrowed: the write path MUST see drafts (so a
-	// recruiter can publish them) and closed rows (so the use case can
-	// reject them with the terminal-rule 400). Only the company scope and
-	// `deleted_at IS NULL` apply.
+	// NON-visibility-narrowed on the job's own status: the write path MUST
+	// see drafts (so a recruiter can publish them) and closed rows (so the
+	// use case can reject them with the terminal-rule 400). The company
+	// scope, `deleted_at IS NULL`, and the company tombstone gate
+	// (`c.deleted_at IS NULL`) apply.
+	//
+	// The `c.deleted_at IS NULL` gate is write-side hardening
+	// (defense-in-depth, mirroring the read-side b59604c predicate): a
+	// company with `status='active'` but soft-deleted (`deleted_at` set) is
+	// NOT a live company — `SoftDeleteCompany` preserves the status and
+	// only sets the tombstone — so its rows must not even surface the
+	// editor view (indistinguishable from a non-existent id, 404).
 	//
 	// Joined to `companies` for `name` only - the editor view embeds
 	// `{id, name}` (design D7), so one round-trip is enough.
@@ -265,8 +283,12 @@ type Querier interface {
 	//
 	// Active-company guard (mirrors UpdateJob D1):
 	//   - the `active` CTE selects the owning company ONLY when
-	//     companies.status = 'active'. suspended / pending_verification /
-	//     missing company yields zero rows in `active`, so the UPDATE inside
+	//     companies.status = 'active' AND companies.deleted_at IS NULL
+	//     (write-side hardening, mirroring b59604c's read-side predicate:
+	//     `SoftDeleteCompany` preserves `status='active'` and only sets the
+	//     tombstone, so `status='active'` alone is NOT a live-company gate).
+	//     suspended / pending_verification / soft-deleted / missing company
+	//     yields zero rows in `active`, so the UPDATE inside
 	//     `upd` matches zero rows AND the final SELECT reports
 	//     guard_passed = false.
 	//   - the UPDATE's WHERE adds `AND EXISTS (SELECT 1 FROM active)` so the
@@ -274,7 +296,7 @@ type Querier interface {
 	//
 	// Outcome matrix (adapter D2):
 	//   guard_passed = false, deleted_count = 0
-	//     → ErrCompanyNotActive (suspended/pending/missing company)
+	//     → ErrCompanyNotActive (suspended/pending/tombstoned/missing company)
 	//   guard_passed = true,  deleted_count = 0
 	//     → ErrJobNotFound (CAS lost / already-soft-deleted / cross-company
 	//       race with an active company; the use case already CAS-compared,
@@ -355,8 +377,12 @@ type Querier interface {
 	//
 	// Active-company guard (D1/D2):
 	//   - The `active` CTE selects the owning company ONLY when
-	//     companies.status = 'active'. A suspended / pending_verification
-	//     / missing company yields zero rows in `active`, so the UPDATE
+	//     companies.status = 'active' AND companies.deleted_at IS NULL
+	//     (write-side hardening, mirroring b59604c's read-side predicate:
+	//     `SoftDeleteCompany` preserves `status='active'` and only sets the
+	//     tombstone, so `status='active'` alone is NOT a live-company gate).
+	//     A suspended / pending_verification / soft-deleted / missing
+	//     company yields zero rows in `active`, so the UPDATE
 	//     inside `upd` matches zero rows AND the final SELECT reports
 	//     guard_passed = false.
 	//   - The UPDATE's WHERE clause adds `AND EXISTS (SELECT 1 FROM active)`
@@ -367,7 +393,7 @@ type Querier interface {
 	//      (SELECT count(*) FROM upd) AS updated_count`
 	//     so the adapter can distinguish:
 	//       guard_passed = false, updated_count = 0
-	//         → ErrCompanyNotActive (suspended/pending/missing company)
+	//         → ErrCompanyNotActive (suspended/pending/tombstoned/missing company)
 	//       guard_passed = true,  updated_count = 0
 	//         → ErrJobNotFound (CAS lost / cross-company / soft-delete race
 	//           with active company — D3; use case re-reads)

@@ -4,7 +4,7 @@ Public, full-text searchable job board for `peopleflow-vacantes`. Read path: can
 
 ## Out of scope (deferred)
 
-This slice does NOT cover: notification or event publishing, `company_members` ownership, a recruiter subtree beyond the gated `POST /jobs`, `PATCH /jobs/{id}`, and `DELETE /jobs/{id}` write routes, frontend job board, production seed strategy, and currency conversion (FX). The gated write side IS delivered: `POST /jobs` creates a draft behind `RequireAuth` + `RequireCompanyRole(recruiter)` with an atomic active-company gate (`409` when the company is not active at INSERT time); `PATCH /jobs/{id}` performs partial field edits and publish/close/re-open transitions (re-open is allowed via `closed → {draft, published}`) via the gated endpoint, behind an atomic active-company update gate (`409` when the company is not active at UPDATE time) and CAS concurrency control; `DELETE /jobs/{id}` soft-deletes a row by setting `deleted_at = now()` (the tombstone — the row survives in the table for audit) via the gated endpoint, behind an atomic active-company soft-delete gate (`409` when the company is not active at UPDATE time) and CAS concurrency control — the read side is unchanged because the existing `deleted_at IS NULL` predicate already filters tombstoned rows from `GET /jobs` and `GET /jobs/{id}`; `PUT /jobs/{id}` is NOT part of this API. The dev seed (`00008_jobs_seed.sql`) ships ~6 published jobs as a developer convenience only — it is NOT a runtime requirement.
+This slice does NOT cover: notification or event publishing, `company_members` ownership, a recruiter subtree beyond the gated `POST /jobs`, `PATCH /jobs/{id}`, and `DELETE /jobs/{id}` write routes, frontend job board, production seed strategy, and currency conversion (FX). The gated write side IS delivered: `POST /jobs` creates a draft behind `RequireAuth` + `RequireCompanyRole(recruiter)` with an atomic live-company gate (`409` when the company is not active or is soft-deleted at INSERT time); `PATCH /jobs/{id}` performs partial field edits and publish/close/re-open transitions (re-open is allowed via `closed → {draft, published}`) via the gated endpoint, behind an atomic live-company update gate (`409` when the company is not active or is soft-deleted at UPDATE time) and CAS concurrency control; `DELETE /jobs/{id}` soft-deletes a row by setting `deleted_at = now()` (the tombstone — the row survives in the table for audit) via the gated endpoint, behind an atomic live-company soft-delete gate (`409` when the company is not active or is soft-deleted at UPDATE time) and CAS concurrency control — the read side is unchanged because the existing `deleted_at IS NULL` predicate already filters tombstoned rows from `GET /jobs` and `GET /jobs/{id}`; `PUT /jobs/{id}` is NOT part of this API. The dev seed (`00008_jobs_seed.sql`) ships ~6 published jobs as a developer convenience only — it is NOT a runtime requirement.
 
 ## ADDED Requirements
 
@@ -441,7 +441,7 @@ The use case MUST enforce the following rules in the domain layer (no DB guard i
 
 ### Requirement: Same-Company Invariant and IDOR Defense
 
-The write path MUST scope every read and write by the `company_id` from `CompanyContext`. A job that exists but belongs to another company MUST surface as `404 job not found` — identical to the existing same-company pattern in the `companies` slice. The system MUST NOT return `403 forbidden` for cross-company access (that would leak the row's existence); the system MUST NOT return any body hint that the row exists in another company. A soft-deleted row (`deleted_at IS NOT NULL`) and a non-existent id MUST also surface as `404 job not found` with the same body shape.
+The write path MUST scope every read and write by the `company_id` from `CompanyContext`. A job that exists but belongs to another company MUST surface as `404 job not found` — identical to the existing same-company pattern in the `companies` slice. The system MUST NOT return `403 forbidden` for cross-company access (that would leak the row's existence); the system MUST NOT return any body hint that the row exists in another company. A soft-deleted row (`deleted_at IS NOT NULL`), a row owned by a soft-deleted (tombstoned) company — `companies.deleted_at IS NOT NULL`, regardless of the company's `status`, because `SoftDeleteCompany` preserves `status='active'` and only sets the tombstone — and a non-existent id MUST also surface as `404 job not found` with the same body shape. The write-path read (`GetForUpdate`) MUST NOT surface the editor view of a row owned by a tombstoned company (write-side hardening, mirroring the read-side `companies.deleted_at IS NULL` predicate).
 
 #### Scenario: cross-company id returns 404
 
@@ -454,6 +454,12 @@ The write path MUST scope every read and write by the `company_id` from `Company
 - GIVEN a soft-deleted job (`deleted_at IS NOT NULL`) owned by company `A`
 - WHEN `PATCH /jobs/{id}` is sent by a recruiter of company `A`
 - THEN the response is `404`
+
+#### Scenario: row of a soft-deleted company returns 404
+
+- GIVEN a job owned by company `A` whose `companies.status='active'` and `companies.deleted_at IS NOT NULL` (tombstoned)
+- WHEN `PATCH /jobs/{id}` or `DELETE /jobs/{id}` is sent by a recruiter of company `A`
+- THEN the read-for-write (`GetForUpdate`) returns `404 job not found` — the editor view is not surfaced at all (identical body shape to a non-existent id; `status='active'` alone is not a live-company gate)
 
 #### Scenario: non-existent id returns 404
 
@@ -652,7 +658,7 @@ A row created via `POST /jobs` MUST be born with `status='draft'` (written expli
 
 ### Requirement: Active Company Creation Gate
 
-Only a company whose `status='active'` at the moment of the INSERT MAY create jobs via `POST /jobs`. The active-company predicate MUST be enforced atomically inside the same SQL statement that writes the row (no read-then-write TOCTOU window): a non-active company (`status='suspended'` or `status='pending_verification'`) MUST yield a new domain sentinel `entities.ErrCompanyNotActive`, and the HTTP layer MUST map that sentinel to `409 Conflict` with body `{"error":"company is not active"}`. A zero-row outcome on the SQL guard (whether the company is suspended, pending, or — defensively — missing) MUST surface as the same sentinel and the same `409 Conflict` response.
+Only a company whose `status='active'` AND `deleted_at IS NULL` (a live company) at the moment of the INSERT MAY create jobs via `POST /jobs`. The active-company predicate MUST be enforced atomically inside the same SQL statement that writes the row (no read-then-write TOCTOU window): a non-active company (`status='suspended'` or `status='pending_verification'`) or a soft-deleted (tombstoned) company — `deleted_at IS NOT NULL`, regardless of its `status`, because `SoftDeleteCompany` preserves `status='active'` and only sets the tombstone — MUST yield a new domain sentinel `entities.ErrCompanyNotActive`, and the HTTP layer MUST map that sentinel to `409 Conflict` with body `{"error":"company is not active"}`. A zero-row outcome on the SQL guard (whether the company is suspended, pending, tombstoned, or — defensively — missing) MUST surface as the same sentinel and the same `409 Conflict` response.
 
 #### Scenario: suspended company is rejected with 409
 
@@ -665,6 +671,12 @@ Only a company whose `status='active'` at the moment of the INSERT MAY create jo
 - GIVEN a recruiter membership in company `A` whose `companies.status='pending_verification'`
 - WHEN `POST /jobs` is sent with a valid body
 - THEN the response is `409 Conflict` with body `{"error":"company is not active"}` and no row is inserted
+
+#### Scenario: soft-deleted company is rejected with 409
+
+- GIVEN a recruiter membership in company `A` whose `companies.status='active'` and `companies.deleted_at IS NOT NULL` (tombstoned — `SoftDeleteCompany` preserves the status and only sets the tombstone)
+- WHEN `POST /jobs` is sent with a valid body
+- THEN the response is `409 Conflict` with body `{"error":"company is not active"}` and no row is inserted (the write-side counterpart of the read-side `companies.deleted_at IS NULL` hardening: `status='active'` alone is not a live-company gate)
 
 #### Scenario: active company passes the gate
 
@@ -895,7 +907,7 @@ A `PATCH /jobs/{id}` body that combines an explicit re-open transition (`status=
 
 ### Requirement: Active-Company Update Gate
 
-Every `PATCH /jobs/{id}` write — not only re-open transitions — MUST be gated by the same atomic active-company predicate the `POST /jobs` flow uses (the `Active Company Creation Gate` requirement). The active-company predicate MUST be enforced atomically inside the same SQL `UPDATE` statement that writes the row (no read-then-write TOCTOU window): a non-active company (`status='suspended'` or `status='pending_verification'`) MUST yield the existing `entities.ErrCompanyNotActive` sentinel, and the HTTP layer MUST map that sentinel to `409 Conflict` with body `{"error":"company is not active"}` (reusing the `classifyError` branch added by `jobs-create`). A zero-row outcome on the SQL guard (whether the company is suspended, pending, or — defensively — missing) MUST surface as the same sentinel and the same `409 Conflict` response.
+Every `PATCH /jobs/{id}` write — not only re-open transitions — MUST be gated by the same atomic live-company predicate the `POST /jobs` flow uses (the `Active Company Creation Gate` requirement). The predicate MUST be enforced atomically inside the same SQL `UPDATE` statement that writes the row (no read-then-write TOCTOU window): a non-active company (`status='suspended'` or `status='pending_verification'`) or a soft-deleted (tombstoned) company — `deleted_at IS NOT NULL`, regardless of its `status`, because `SoftDeleteCompany` preserves `status='active'` and only sets the tombstone — MUST yield the existing `entities.ErrCompanyNotActive` sentinel, and the HTTP layer MUST map that sentinel to `409 Conflict` with body `{"error":"company is not active"}` (reusing the `classifyError` branch added by `jobs-create`). A zero-row outcome on the SQL guard (whether the company is suspended, pending, tombstoned, or — defensively — missing) MUST surface as the same sentinel and the same `409 Conflict` response.
 
 #### Scenario: suspended company PATCH returns 409 company is not active
 
@@ -908,6 +920,12 @@ Every `PATCH /jobs/{id}` write — not only re-open transitions — MUST be gate
 - GIVEN a recruiter membership in company `A` whose `companies.status='pending_verification'` and a job owned by company `A`
 - WHEN `PATCH /jobs/{id}` is sent with a valid body and a matching CAS token
 - THEN the response is `409 Conflict` with body `{"error":"company is not active"}` and the row is NOT updated
+
+#### Scenario: soft-deleted company PATCH returns 409 company is not active
+
+- GIVEN a recruiter membership in company `A` whose `companies.status='active'` and `companies.deleted_at IS NOT NULL` (tombstoned) and a job owned by company `A`
+- WHEN `PATCH /jobs/{id}` is sent with a valid body and a matching CAS token
+- THEN the response is `409 Conflict` with body `{"error":"company is not active"}` and the row is NOT updated (the write-side counterpart of the read-side `companies.deleted_at IS NULL` hardening)
 
 #### Scenario: active company PATCH passes the gate
 
@@ -1010,7 +1028,7 @@ The soft-delete write MUST be governed by two concurrent-control surfaces, both 
 
 The first surface is the `If-Unmodified-Since` CAS guard, mirroring the canonical `CAS Optimistic Concurrency` requirement verbatim: the system MUST require an `If-Unmodified-Since` request header carrying the client's last-known `updated_at` formatted as an RFC 3339 timestamp string; the server MUST compare the header value against the current `updated_at` loaded by the read-for-delete (the same `GetForUpdate` call the PATCH flow uses) inside the same write transaction; the comparison MUST be against the row, NOT against any value supplied by the client. A mismatch MUST yield `409 Conflict` and the response body MUST contain the latest version of the job (including its current `updated_at` and `status`) using the same editor view DTO the PATCH `200`/`409` bodies already use so the client can re-read without an extra round-trip. A missing or malformed `If-Unmodified-Since` header MUST be treated as a zero-valued token (RFC 3339 zero time) and MUST yield `409 Conflict` with the editor view. After a successful soft-delete, the row's `updated_at` advances exactly once in the same SQL statement that sets `deleted_at` so the next PATCH or DELETE the client sends against the row uses the fresh `updated_at` as its CAS token.
 
-The second surface is the atomic active-company soft-delete gate, mirroring the canonical `Active-Company Update Gate` requirement verbatim: the active-company predicate MUST be enforced atomically inside the same SQL `UPDATE` statement that writes the tombstone (no read-then-write TOCTOU window between the gate middleware and the UPDATE). A non-active company (`status='suspended'` or `status='pending_verification'`) MUST yield the existing `entities.ErrCompanyNotActive` sentinel, and the HTTP layer MUST map that sentinel to `409 Conflict` with body `{"error":"company is not active"}` (reusing the `classifyError` branch added by `jobs-create`). A zero-row outcome on the SQL guard (whether the company is suspended, pending, or — defensively — missing) MUST surface as the same sentinel and the same `409 Conflict` response, and the row MUST NOT be tombstoned.
+The second surface is the atomic active-company soft-delete gate, mirroring the canonical `Active-Company Update Gate` requirement verbatim: the live-company predicate (active status AND not soft-deleted) MUST be enforced atomically inside the same SQL `UPDATE` statement that writes the tombstone (no read-then-write TOCTOU window between the gate middleware and the UPDATE). A non-active company (`status='suspended'` or `status='pending_verification'`) or a soft-deleted (tombstoned) company — `deleted_at IS NOT NULL`, regardless of its `status`, because `SoftDeleteCompany` preserves `status='active'` and only sets the tombstone — MUST yield the existing `entities.ErrCompanyNotActive` sentinel, and the HTTP layer MUST map that sentinel to `409 Conflict` with body `{"error":"company is not active"}` (reusing the `classifyError` branch added by `jobs-create`). A zero-row outcome on the SQL guard (whether the company is suspended, pending, tombstoned, or — defensively — missing) MUST surface as the same sentinel and the same `409 Conflict` response, and the row MUST NOT be tombstoned.
 
 #### Scenario: matching updated_at allows the soft-delete
 
@@ -1067,6 +1085,12 @@ The second surface is the atomic active-company soft-delete gate, mirroring the 
 - WHEN `DELETE /jobs/{id}` is sent with a matching `If-Unmodified-Since`
 - THEN the response is `409 Conflict` with body `{"error":"company is not active"}` and the row is NOT tombstoned
 
+#### Scenario: soft-deleted company DELETE returns 409 company is not active
+
+- GIVEN a recruiter membership in company `A` whose `companies.status='active'` and `companies.deleted_at IS NOT NULL` (tombstoned — `SoftDeleteCompany` preserves the status and only sets the tombstone) and a job owned by company `A`
+- WHEN `DELETE /jobs/{id}` is sent with a matching `If-Unmodified-Since`
+- THEN the response is `409 Conflict` with body `{"error":"company is not active"}` and the row is NOT tombstoned (the write-side counterpart of the read-side `companies.deleted_at IS NULL` hardening: `status='active'` alone is not a live-company gate)
+
 #### Scenario: active company DELETE passes the gate
 
 - GIVEN a recruiter membership in company `A` whose `companies.status='active'` and a job owned by company `A`
@@ -1075,7 +1099,7 @@ The second surface is the atomic active-company soft-delete gate, mirroring the 
 
 #### Scenario: the active check is atomic with the UPDATE
 
-- GIVEN the SQL guard encodes the active predicate in the same statement that writes the tombstone (the `WITH active AS (SELECT id FROM companies WHERE id = sqlc.arg('company_id')::uuid AND status = 'active') , upd AS (UPDATE jobs SET deleted_at = now(), updated_at = now() WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL AND updated_at = $3 AND EXISTS (SELECT 1 FROM active) RETURNING id) SELECT EXISTS (SELECT 1 FROM active) AS guard_passed, (SELECT count(*) FROM upd) AS deleted_count;` shape — mirroring `UpdateJob :one`)
+- GIVEN the SQL guard encodes the active predicate in the same statement that writes the tombstone (the `WITH active AS (SELECT id FROM companies WHERE id = sqlc.arg('company_id')::uuid AND status = 'active' AND deleted_at IS NULL) , upd AS (UPDATE jobs SET deleted_at = now(), updated_at = now() WHERE id = $1 AND company_id = $2 AND deleted_at IS NULL AND updated_at = $3 AND EXISTS (SELECT 1 FROM active) RETURNING id) SELECT EXISTS (SELECT 1 FROM active) AS guard_passed, (SELECT count(*) FROM upd) AS deleted_count;` shape — mirroring `UpdateJob :one`)
 - WHEN `DELETE /jobs/{id}` is sent for a job whose company is `active` at the middleware gate but is `suspended` immediately after the gate middleware resolves the membership
 - THEN the SQL predicate STILL wins — the company was not active at UPDATE time, so the UPDATE yields 0 rows and the response is `409 Conflict` (no TOCTOU window between middleware and write)
 

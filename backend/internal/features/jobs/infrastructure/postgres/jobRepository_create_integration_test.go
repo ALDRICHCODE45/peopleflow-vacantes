@@ -61,10 +61,15 @@ import (
 //	ca — active company (the happy path)
 //	cs — suspended company (the "non-active" gate)
 //	cp — pending_verification company (the second non-active gate)
+//	ct — ACTIVE-status company that is SOFT-DELETED (deleted_at set — the
+//	     tombstone gate; `SoftDeleteCompany` preserves `status='active'` and
+//	     only sets the tombstone, so `status='active'` is NOT a live-company
+//	     gate)
 var (
-	createPathActiveID    = uuid.MustParse("018f0000-0000-7000-8000-0000000000ca")
-	createPathSuspendedID = uuid.MustParse("018f0000-0000-7000-8000-0000000000cb")
-	createPathPendingID   = uuid.MustParse("018f0000-0000-7000-8000-0000000000cc")
+	createPathActiveID     = uuid.MustParse("018f0000-0000-7000-8000-0000000000ca")
+	createPathSuspendedID  = uuid.MustParse("018f0000-0000-7000-8000-0000000000cb")
+	createPathPendingID    = uuid.MustParse("018f0000-0000-7000-8000-0000000000cc")
+	createPathTombstonedID = uuid.MustParse("018f0000-0000-7000-8000-0000000000cd")
 )
 
 // createPathFixtureSQL adds, on top of the 00008 seed:
@@ -72,12 +77,17 @@ var (
 //	ca  active company (the happy path)
 //	cs  suspended company
 //	cp  pending_verification company
+//	ct  ACTIVE-status company that is SOFT-DELETED (deleted_at set)
 const createPathFixtureSQL = `
 INSERT INTO companies (id, name, rfc, industry_id, status) VALUES
     ('018f0000-0000-7000-8000-0000000000ca', 'Active CP SA',   'ACTI010101AA1', 'technology', 'active'),
     ('018f0000-0000-7000-8000-0000000000cb', 'Suspended CP',   'SUSP010101BB2', 'technology', 'suspended'),
     ('018f0000-0000-7000-8000-0000000000cc', 'Pending CP',     'PEND010101CC3', 'technology', 'pending_verification')
 ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status;
+
+INSERT INTO companies (id, name, rfc, industry_id, status, deleted_at) VALUES
+    ('018f0000-0000-7000-8000-0000000000cd', 'Tombstoned CP', 'TOMB010101DD4', 'technology', 'active', '2026-07-01T00:00:00Z')
+ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, deleted_at = EXCLUDED.deleted_at;
 `
 
 // setupCreatePath mirrors setupWritePath but installs the create-path
@@ -495,4 +505,39 @@ func TestCreate_OptionalFieldsRoundTrip(t *testing.T) {
 			t.Errorf("SalaryMax (absent): want nil, got %v", *row.SalaryMax)
 		}
 	})
+}
+
+// TestCreate_TombstonedCompanyReturnsErrCompanyNotActiveAndNoRow pins the
+// write-side tombstone gate (mirroring the suspended/pending gates above):
+// a company that is active-STATUS but soft-deleted (`deleted_at` set —
+// `SoftDeleteCompany` preserves `status='active'` and only sets the
+// tombstone) must yield ErrCompanyNotActive and insert NO row. This is the
+// create-path counterpart of the read-side `c.deleted_at IS NULL`
+// hardening (b59604c).
+func TestCreate_TombstonedCompanyReturnsErrCompanyNotActiveAndNoRow(t *testing.T) {
+	ctx, repo, tx := setupCreatePath(t)
+
+	row, err := repo.Create(ctx, uuid.New(), createPathTombstonedID, repositories.CreateJobParams{
+		Title:          "CP Tombstone Engineer",
+		Description:    "should never persist (tombstoned company).",
+		WorkMode:       valueobjects.Remote,
+		EmploymentType: valueobjects.FullTime,
+		Seniority:      valueobjects.SeniorSeniority,
+		SalaryCurrency: valueobjects.MXN,
+	})
+	if !errors.Is(err, entities.ErrCompanyNotActive) {
+		t.Fatalf("err: want ErrCompanyNotActive (active-status tombstoned company), got %v", err)
+	}
+	if row != nil {
+		t.Errorf("Create result: want nil on ErrCompanyNotActive, got %+v", row)
+	}
+
+	// Verify NO row was inserted (atomicity guarantee).
+	var c int
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) FROM jobs WHERE title = $1`, "CP Tombstone Engineer").Scan(&c); err != nil {
+		t.Fatalf("count: %v", err)
+	}
+	if c != 0 {
+		t.Errorf("jobs rows with tombstoned-company title: want 0 (atomic gate), got %d", c)
+	}
 }

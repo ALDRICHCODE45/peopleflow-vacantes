@@ -535,3 +535,38 @@ func TestSoftDelete_GuardIsAtomicWithUpdate(t *testing.T) {
 		t.Errorf("GetForUpdate(after atomic guard): want still visible, got %v", err)
 	}
 }
+
+// TestSoftDelete_TombstonedCompanyReturnsErrCompanyNotActive pins the
+// write-side tombstone gate (mirroring the Update/Create gates): a
+// company that is active-STATUS but soft-deleted (`deleted_at` set —
+// `SoftDeleteCompany` preserves `status='active'`) must yield
+// ErrCompanyNotActive (guard_passed=false — same 409 as a suspended
+// company) AND the row must NOT be tombstoned.
+func TestSoftDelete_TombstonedCompanyReturnsErrCompanyNotActive(t *testing.T) {
+	ctx, repo, tx := setupWritePath(t)
+
+	// CAS token via raw SQL: the hardened GetForUpdate hides the row, so
+	// the token cannot come from the adapter (mirrors the Update tombstone
+	// test); the token is valid either way so the RED state is meaningful.
+	var casToken time.Time
+	if err := tx.QueryRow(ctx,
+		`SELECT updated_at FROM jobs WHERE id = $1`, wpTombJobID,
+	).Scan(&casToken); err != nil {
+		t.Fatalf("read cas token: %v", err)
+	}
+
+	if err := repo.SoftDelete(ctx, wpTombJobID, wpTombstoneCoID, casToken); !errors.Is(err, entities.ErrCompanyNotActive) {
+		t.Errorf("SoftDelete(active-status tombstoned company): want ErrCompanyNotActive, got %v", err)
+	}
+
+	// Row MUST NOT be tombstoned.
+	var deletedAt *time.Time
+	if err := tx.QueryRow(ctx,
+		`SELECT deleted_at FROM jobs WHERE id = $1`, wpTombJobID,
+	).Scan(&deletedAt); err != nil {
+		t.Fatalf("re-read deleted_at: %v", err)
+	}
+	if deletedAt != nil {
+		t.Errorf("deleted_at must remain NULL on tombstone gate miss, got %v", *deletedAt)
+	}
+}

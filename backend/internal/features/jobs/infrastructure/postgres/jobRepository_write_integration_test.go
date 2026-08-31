@@ -40,6 +40,13 @@
 //     guard and the write are atomic in a single statement (the
 //     UPDATE's `EXISTS (SELECT 1 FROM active)` wins even when the
 //     company is suspended in-transaction after a prior GetForUpdate).
+//   - Tombstone gate (write-side hardening, mirroring b59604c's read-side
+//     `c.deleted_at IS NULL`): a company with `status='active'` but
+//     `deleted_at` set is NOT a live company for the write path —
+//     GetForUpdate hides its rows (ErrJobNotFound) and Update yields
+//     ErrCompanyNotActive without mutating the row. `status='active'`
+//     alone is not a "live company" gate: `SoftDeleteCompany` preserves
+//     the status and only sets the tombstone.
 //
 // Isolation: every test runs inside a transaction that is ALWAYS
 // rolled back. The fixture deletes every `jobs` row outside its own
@@ -80,6 +87,13 @@ var (
 	wpDeletedID   = uuid.MustParse("018f0000-0000-7000-8000-0000000000d3") // soft-deleted, Acme SA
 	wpPublishedID = uuid.MustParse("018f0000-0000-7000-8000-0000000000d4") // published, Acme SA
 	wpCrossCoID   = uuid.MustParse("018f0000-0000-7000-8000-0000000000d5") // published, Globex
+
+	// Tombstone-gate fixture: an ACTIVE-status company that is SOFT-DELETED
+	// (deleted_at set) plus a published job owned by it. Its
+	// `companies.status='active'` value passes the naive active check, so
+	// ONLY the company's `deleted_at IS NULL` gate can hide/reject it.
+	wpTombstoneCoID = uuid.MustParse("018f0000-0000-7000-8000-0000000000e0") // active + deleted_at
+	wpTombJobID     = uuid.MustParse("018f0000-0000-7000-8000-0000000000e1") // published, e0
 )
 
 // writePathFixtureSQL adds, on top of the 00008 seed:
@@ -89,7 +103,15 @@ var (
 //	d3 — soft-deleted, Acme SA, NULL location
 //	d4 — published, Acme SA, location=CDMX, salary 40000-60000, published_at 2026-07-01
 //	d5 — published, Globex (foreign company), location=Remote
+//	e0 — ACTIVE-status company that is SOFT-DELETED (deleted_at set — the
+//	     tombstone-gate case; `SoftDeleteCompany` preserves status and only
+//	     sets the tombstone, so `status='active'` is NOT a live-company gate)
+//	e1 — published job owned by e0
 const writePathFixtureSQL = `
+INSERT INTO companies (id, name, rfc, industry_id, status, deleted_at) VALUES
+    ('018f0000-0000-7000-8000-0000000000e0', 'Borrada Write SA', 'BORW010101EEE', 'technology', 'active', '2026-07-01T00:00:00Z')
+ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, deleted_at = EXCLUDED.deleted_at;
+
 INSERT INTO jobs
     (id, company_id, title, description, work_mode, employment_type,
      seniority, status, location, salary_min, salary_max, salary_currency,
@@ -123,7 +145,13 @@ VALUES
      '018f0000-0000-7000-8000-000000000002',
      'WP Cross Co Engineer', 'foreign-company published row.',
      'remote', 'full_time', 'senior', 'published', 'Remote',
-     30000, 50000, 'USD', '2026-07-04T12:00:00Z', NULL, now(), now())
+     30000, 50000, 'USD', '2026-07-04T12:00:00Z', NULL, now(), now()),
+
+    ('018f0000-0000-7000-8000-0000000000e1',
+     '018f0000-0000-7000-8000-0000000000e0',
+     'WP Tombstoned Co Engineer', 'published row owned by an active-status soft-deleted company.',
+     'remote', 'full_time', 'senior', 'published', 'CDMX',
+     NULL, NULL, 'MXN', '2026-07-06T12:00:00Z', NULL, now(), now())
 ON CONFLICT (id) DO NOTHING;
 `
 
@@ -158,6 +186,7 @@ func setupWritePath(t *testing.T) (context.Context, *JobRepository, pgx.Tx) {
 	// Keep only the write-path fixture rows + the 00008 seed rows.
 	universe := []uuid.UUID{
 		wpDraftID, wpClosedID, wpDeletedID, wpPublishedID, wpCrossCoID,
+		wpTombJobID,
 		jobBackendGoID, jobFrontendID, jobDataEngID,
 		jobMLEngID, jobJuniorQAID, jobDevOpsIntern,
 	}
@@ -1015,5 +1044,66 @@ func TestUpdate_GuardIsAtomicWithUpdate(t *testing.T) {
 	}
 	if after.Title == newTitle {
 		t.Errorf("Title must NOT have changed on atomic guard miss, got %q", after.Title)
+	}
+}
+
+// --- Tombstone gate (write-side hardening) ---------------------------
+//
+// A company with `status='active'` but `deleted_at` set (tombstoned) is
+// NOT a live company for the write path: `SoftDeleteCompany` preserves
+// `status='active'` and only sets the tombstone, so `status='active'`
+// alone is not a "live company" gate. These tests pin the write-side
+// counterpart of b59604c's read-side `c.deleted_at IS NULL` hardening.
+
+// TestGetForUpdate_TombstonedCompanyRowReturnsErrJobNotFound pins
+// defense-in-depth: the write-path read must not even surface the editor
+// view of a row owned by an active-status but soft-deleted company —
+// indistinguishable from a non-existent id (ErrJobNotFound, 404).
+func TestGetForUpdate_TombstonedCompanyRowReturnsErrJobNotFound(t *testing.T) {
+	ctx, repo, _ := setupWritePath(t)
+
+	_, err := repo.GetForUpdate(ctx, wpTombJobID, wpTombstoneCoID)
+	if !errors.Is(err, entities.ErrJobNotFound) {
+		t.Errorf("err: want ErrJobNotFound (row of an active-status but soft-deleted company), got %v", err)
+	}
+}
+
+// TestUpdate_TombstonedCompanyReturnsErrCompanyNotActive pins the write
+// gate: Update on a row whose owning company is active-STATUS but
+// soft-deleted must yield ErrCompanyNotActive (guard_passed=false — the
+// same 409 as a suspended company) AND the row must NOT be mutated.
+func TestUpdate_TombstonedCompanyReturnsErrCompanyNotActive(t *testing.T) {
+	ctx, repo, tx := setupWritePath(t)
+
+	// The CAS token cannot come from GetForUpdate once the write path is
+	// hardened (the read hides the row), so read it via raw SQL — the token
+	// is valid either way, which keeps this test meaningful in the RED
+	// state too (a pre-hardening UPDATE matches it and succeeds).
+	var casToken time.Time
+	if err := tx.QueryRow(ctx,
+		`SELECT updated_at FROM jobs WHERE id = $1`, wpTombJobID,
+	).Scan(&casToken); err != nil {
+		t.Fatalf("read cas token: %v", err)
+	}
+
+	newTitle := "WP Tombstone-Title"
+	err := repo.Update(ctx, wpTombJobID, wpTombstoneCoID,
+		repositories.UpdatePatch{Title: &newTitle},
+		casToken,
+	)
+	if !errors.Is(err, entities.ErrCompanyNotActive) {
+		t.Fatalf("err: want ErrCompanyNotActive (active-status tombstoned company), got %v", err)
+	}
+
+	// Row MUST NOT be updated — the company's `deleted_at IS NULL` gate
+	// excluded the row from the UPDATE in the same statement.
+	var title string
+	if err := tx.QueryRow(ctx,
+		`SELECT title FROM jobs WHERE id = $1`, wpTombJobID,
+	).Scan(&title); err != nil {
+		t.Fatalf("re-read title: %v", err)
+	}
+	if title == newTitle {
+		t.Errorf("Title must NOT have changed on tombstone gate miss, got %q", title)
 	}
 }

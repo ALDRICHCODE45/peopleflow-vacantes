@@ -4,10 +4,16 @@
 --
 -- The visibility predicate lives entirely in SQL (no Go-level read
 -- between middleware and INSERT). A zero-row outcome (draft / closed /
--- soft-deleted job, suspended / pending_verification / missing company,
--- or non-existent job) surfaces as pgx.ErrNoRows and the adapter maps
--- it to ErrJobNotApplicable (404 "job not applicable" — single body
--- shape, no leak).
+-- soft-deleted job, suspended / pending_verification / soft-deleted
+-- (tombstoned) / missing company, or non-existent job) surfaces as
+-- pgx.ErrNoRows and the adapter maps it to ErrJobNotApplicable (404
+-- "job not applicable" — single body shape, no leak).
+--
+-- `c.deleted_at IS NULL` is the write-side counterpart of the read-side
+-- hardening (b59604c): `companies.status='active'` alone is NOT a
+-- live-company gate — `SoftDeleteCompany` preserves `status='active'`
+-- and only sets the tombstone, so an orphan published job under a
+-- tombstoned company must stay inapplicable.
 --
 -- status is NOT inserted: the DB DEFAULT 'submitted' applies, so the
 -- row is born in the closed vocabulary's start state and no client write
@@ -34,6 +40,7 @@ WHERE EXISTS (
       AND j.status = 'published'
       AND j.deleted_at IS NULL
       AND c.status = 'active'
+      AND c.deleted_at IS NULL
 )
 RETURNING id, job_id, candidate_id, status, source, cover_letter, created_at, updated_at;
 
