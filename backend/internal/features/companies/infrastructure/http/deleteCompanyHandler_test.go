@@ -31,6 +31,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -93,7 +94,7 @@ var _ repositories.CompanyRepository = (*stubDeleteServiceRepo)(nil)
 
 // newDeleteRouter mounts a CompanyHandler with a DELETE route wired
 // against a stubDeleteServiceRepo.
-func newDeleteRouter(t *testing.T, repo *stubDeleteServiceRepo, cc identitysecurity.CompanyContext) http.Handler {
+func newDeleteRouter(t *testing.T, repo *stubDeleteServiceRepo, _ identitysecurity.CompanyContext) http.Handler {
 	t.Helper()
 	svc := usecases.NewCompanyService(repo)
 	h := NewCompanyHandler(svc)
@@ -160,16 +161,27 @@ func TestDeleteCompanyHandler_MissingContextReturns500(t *testing.T) {
 	if repo.softDeleteCalls != 0 {
 		t.Errorf("service.SoftDeleteCompany MUST NOT be called on missing context, got %d calls", repo.softDeleteCalls)
 	}
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode as catalog envelope: %v; body=%s", err, rec.Body.String())
+	}
+	if env.Code != httpjson.CodeInternalError {
+		t.Errorf("code: want %q, got %q", httpjson.CodeInternalError, env.Code)
+	}
+	if env.Error == "" || strings.Contains(env.Error, "surprise") || strings.Contains(env.Error, "kaboom") {
+		t.Errorf("error must be a generic catalog message, got %q", env.Error)
+	}
 }
 
-// --- 2. CAS conflict returns 409 with an EMPTY body ---------------------------
+// --- 2. CAS conflict returns 409 with catalog envelope --------------------------
 
-// TestDeleteCompanyHandler_CASConflictReturns409EmptyBody pins the
-// "stale If-Unmodified-Since → 409 with empty body" scenario
-// (spec R5 / D12 DELETE asymmetry). The body is INTENTIONALLY empty
-// (not the editor view, not the generic {"error":"conflict"}
-// envelope) — the client re-reads via GET /me/company.
-func TestDeleteCompanyHandler_CASConflictReturns409EmptyBody(t *testing.T) {
+// TestDeleteCompanyHandler_CASConflictReturns409WithEnvelope pins the
+// "stale If-Unmodified-Since → 409 with catalog envelope" scenario
+// (spec R5 / WS6A-2). The 409 body carries a stable catalog envelope
+// `{"error":"conflict","code":"conflict"}` with `data` omitted
+// (DELETE asymmetry: the 204 success path has no body, so the 409
+// envelope carries only the code for client-logged parity).
+func TestDeleteCompanyHandler_CASConflictReturns409WithEnvelope(t *testing.T) {
 	row := mustCompany(uuid.New())
 	repo := &stubDeleteServiceRepo{
 		getForUpdateOut: row,
@@ -179,21 +191,27 @@ func TestDeleteCompanyHandler_CASConflictReturns409EmptyBody(t *testing.T) {
 	cc := identitysecurity.CompanyContext{CompanyID: companyID, UserID: uuid.New(), Role: valueobjects.OwnerRole}
 	router := newDeleteRouter(t, repo, cc)
 
-	// Pass a stale CAS token (older than row.UpdatedAt) so the
-	// use case's CAS compare mismatches BEFORE calling
-	// SoftDeleteCompany.
 	staleToken := row.UpdatedAt.Add(-1 * time.Hour).Format(time.RFC3339)
 	rec := doDelete(t, router, staleToken, cc)
 
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
 	}
-	// The body MUST be empty (no editor view, no {"error":"..."}).
-	if rec.Body.Len() != 0 {
-		t.Errorf("409 body MUST be empty (spec R4 / D12 DELETE asymmetry), got %q", rec.Body.String())
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode as catalog envelope: %v; body=%s", err, rec.Body.String())
+	}
+	if env.Code != httpjson.CodeConflict {
+		t.Errorf("code: want %q, got %q", httpjson.CodeConflict, env.Code)
+	}
+	if env.Error == "" {
+		t.Errorf("error field must be non-empty")
+	}
+	if env.Data != nil {
+		t.Errorf("data: want omitted (nil), got %v", env.Data)
 	}
 	if repo.softDeleteCalls != 0 {
-		t.Errorf("service.SoftDeleteCompany MUST NOT be called when the CAS mismatches, got %d calls", repo.softDeleteCalls)
+		t.Errorf("service.SoftDeleteCompany MUST NOT be called on CAS mismatch, got %d calls", repo.softDeleteCalls)
 	}
 }
 
@@ -344,8 +362,12 @@ func TestDeleteCompanyHandler_MissingCASReturns409(t *testing.T) {
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("want 409 (missing CAS), got %d: %s", rec.Code, rec.Body.String())
 	}
-	if rec.Body.Len() != 0 {
-		t.Errorf("409 body MUST be empty (DELETE asymmetry), got %q", rec.Body.String())
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode as catalog envelope: %v; body=%s", err, rec.Body.String())
+	}
+	if env.Code != httpjson.CodeConflict {
+		t.Errorf("code: want %q, got %q", httpjson.CodeConflict, env.Code)
 	}
 	if repo.softDeleteCalls != 0 {
 		t.Errorf("service.SoftDeleteCompany MUST NOT be called when CAS is missing, got %d calls", repo.softDeleteCalls)

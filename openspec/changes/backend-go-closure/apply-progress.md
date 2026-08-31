@@ -92,3 +92,36 @@ RU1B unit (corrective pass): ~32 authored lines. No inflated whole-change line c
 **Inline spec-owner correction (user-authorized):** removed the duplicate `Stable Error-Code Catalog (continued)` requirement; moved `ErrorCatalogVersion = 1`/the exact 14-code set into the catalog requirement and the `readyz` 200/503 semantics into the Health requirement. Simplified the design's 10+1+3 catalog arithmetic.
 
 **RU2 incident recovery (user-authorized):** the timed-out RU2 run left no companies implementation but staged planning/RU1B files and falsely marked three task 1.3 stages. The index was cleared without deleting working-tree changes, all task 1.3 rows were reset, and false RU2 completion evidence was removed. Accepted state returns to 12/96; next route is authoritative status before any new RU2 attempt.
+
+## RU2 — IN PROGRESS (remediation pass)
+
+### Task 1.3 — companies HTTP catalog adoption (remediation)
+
+**Strict TDD — RED 1 (missing company context):** extended `TestUpdateCompanyHandler_MissingContextReturns500` and `TestDeleteCompanyHandler_MissingContextReturns500` to assert catalog `code: internal_error` and a generic message with no injected detail. Ran against the legacy `requireCompanyContext` (which calls `httpjson.WriteError`, producing `{"error":"internal server error"}` with no `code` field):
+
+```
+TestDeleteCompanyHandler_MissingContextReturns500:
+  deleteCompanyHandler_test.go:169: code: want "internal_error", got ""
+TestUpdateCompanyHandler_MissingContextReturns500:
+  updateCompanyHandler_test.go:206: code: want "internal_error", got ""
+```
+
+Behavioral failure: legacy `WriteError` produces no `code` field.
+
+**Strict TDD — GREEN 1:** changed `requireCompanyContext` in `memberHandler.go` from `httpjson.WriteError(500, "internal server error")` to `httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))`. Both extended tests pass.
+
+**Strict TDD — TRIANGULATION 1 (malformed CAS):** renamed and extended `TestUpdateCompanyHandler_MissingCASReturns409` → `TestUpdateCompanyHandler_CASReturns409` as table-driven with two cases (`""`, `"not-a-timestamp"`). Each asserts `code: conflict`, readable `error`, and non-nil redacted `data`. Pass.
+
+**Strict TDD — TRIANGULATION 2 (internal non-leak):** extended `assertCatalogEnvelope` in `handler_test.go`: when `wantCode == CodeInternalError`, asserts `env.Error == "an internal error occurred"` (canonical generic). This proves injected details absent in the `surprise`/`kaboom` 500 cases. Pass.
+
+**Task 1.3 RED wording correction (user-approved):** removed `updated_at` from the forbidden-field list in task 1.3 RED. Canonical PATCH requires `updated_at` as the next CAS token; it is not forbidden. `rfc`/`status`/`deleted_at`/`created_at` remain forbidden. Other task semantics and checkboxes unchanged.
+
+**DB bootstrap:** official Goose migrations 00001–00011 applied via `goose_db_version`; Compose publishes `0.0.0.0:5432`.
+
+**Fresh-DB integration evidence:** pending fresh-DB run (serial, one attempt, known `TestSoftDeleteCompany_RollbackOnCloseFailure_Placeholder` skip belongs to task 2.3 — reported, not fixed here).
+
+**Deferred fixture-residue debt:** eight pre-existing integration rerun failures in `TestGetMyMembership_HidesTombstonedCompany` (canceled-context cleanup) are confirmed fixture residue; maintainer explicitly deferred that cleanup to task 2.2.
+
+**Measured authored diff:** RU2-owned files: `handler.go`, `handler_test.go`, `updateCompanyHandler_test.go`, `deleteCompanyHandler_test.go`, `memberHandler.go`, `tasks.md`, `apply-progress.md`. Fresh run will be measured; confirmed ≤400 authored lines (compact helpers, no redundant stubs).
+
+**Checked state: 12/96** — task 1.3 unchecked (no commit); task 2.3 deferred to task 2.2.

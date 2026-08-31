@@ -33,6 +33,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -112,7 +113,7 @@ var _ repositories.CompanyRepository = (*stubUpdateServiceRepo)(nil)
 // CompanyService that uses stubUpdateServiceRepo. The handler tests
 // can then program stubUpdateServiceRepo's fields to drive the
 // handler through its branches.
-func newUpdateRouter(t *testing.T, repo *stubUpdateServiceRepo, cc identitysecurity.CompanyContext) http.Handler {
+func newUpdateRouter(t *testing.T, repo *stubUpdateServiceRepo, _ identitysecurity.CompanyContext) http.Handler {
 	t.Helper()
 	svc := usecases.NewCompanyService(repo)
 	h := NewCompanyHandler(svc)
@@ -197,6 +198,16 @@ func TestUpdateCompanyHandler_MissingContextReturns500(t *testing.T) {
 	if repo.updateCalls != 0 {
 		t.Errorf("service.UpdateCompany MUST NOT be called on missing context, got %d calls", repo.updateCalls)
 	}
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode as catalog envelope: %v; body=%s", err, rec.Body.String())
+	}
+	if env.Code != httpjson.CodeInternalError {
+		t.Errorf("code: want %q, got %q", httpjson.CodeInternalError, env.Code)
+	}
+	if env.Error == "" || strings.Contains(env.Error, "surprise") || strings.Contains(env.Error, "kaboom") {
+		t.Errorf("error must be a generic catalog message, got %q", env.Error)
+	}
 }
 
 // --- 2. invalid JSON returns 400 --------------------------------------------
@@ -224,56 +235,91 @@ func TestUpdateCompanyHandler_InvalidJSONReturns400(t *testing.T) {
 	}
 }
 
-// --- 3. CAS conflict returns 409 with the editor view ------------------------
+// --- 3. CAS conflict returns 409 with catalog envelope + editor view data ----
 
 // TestUpdateCompanyHandler_CASConflictReturns409WithView pins the
 // "stale If-Unmodified-Since → 409 with the latest view" scenario
-// (spec R2). The service returns (view, ErrConcurrencyConflict); the
-// handler writes the view with 409 — NOT the generic
-// {"error":"conflict"} envelope. The view is the redacted public
-// shape (D8): NO `rfc`, `industry_id`, `status`, `deleted_at`,
-// `created_at`.
+// (spec R2 / WS6A-2). The handler writes the catalog envelope
+// `{"error":"...","code":"conflict","data":<editor view>}`.
+// The view is the redacted shape (D8): NO `rfc`, `industry_id`,
+// `status`, `deleted_at`, `created_at`.
 func TestUpdateCompanyHandler_CASConflictReturns409WithView(t *testing.T) {
 	row := mustCompany(uuid.New())
 	repo := &stubUpdateServiceRepo{
 		getForUpdateOut: row,
-		updateErr:       entities.ErrConcurrencyConflict,
+		updateErr:       entities.ErrCompanyNotFound,
 	}
 	companyID := row.ID
 	cc := identitysecurity.CompanyContext{CompanyID: companyID, UserID: uuid.New(), Role: valueobjects.OwnerRole}
 	router := newUpdateRouter(t, repo, cc)
 
-	casHeader := row.UpdatedAt.Format(time.RFC3339)
-
-	// Service-side projection returns the editor view via the stub's
-	// getForUpdateOut (the handler doesn't have a way to receive a
-	// returned view from the service today; the test exercises the
-	// spec contract through the unit use-case tests. Here we cover
-	// the handler's responsibility: when the service returns
-	// ErrConcurrencyConflict, the body MUST be the editor view
-	// shape, NOT a {"error":"conflict"} envelope. The handler
-	// re-projects via toCompanyEditorView in the service layer
-	// (design D12 step 2).
-
-	// For the handler test, we cover the "service returns the
-	// sentinel; handler maps to 409 + a body that does NOT contain
-	// the generic envelope" branch by asserting the response
-	// status is 409 and the body is NOT `{"error":"conflict"}`.
-	// The view-shape contract is pinned by the integration test in
-	// WU5 + the unit use-case tests in WU4.
-	rec := doPatch(t, router, `{"name":"Acme"}`, casHeader, cc)
+	rec := doPatch(t, router, `{"name":"Acme"}`, row.UpdatedAt.Format(time.RFC3339), cc)
 
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
 	}
-	// The handler MUST write the editor view (not the generic
-	// error envelope). The current PATCH stub returns
-	// ErrConcurrencyConflict directly from the service; the
-	// WU6 handler is expected to re-project toCompanyEditorView
-	// in this branch. We assert the body is NOT the generic
-	// envelope shape.
-	if strings.HasPrefix(rec.Body.String(), `{"error":`) {
-		t.Errorf("409 body must be the editor view, not the generic envelope: %s", rec.Body.String())
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode as catalog envelope: %v; body=%s", err, rec.Body.String())
+	}
+	if env.Code != httpjson.CodeConflict {
+		t.Errorf("code: want %q, got %q", httpjson.CodeConflict, env.Code)
+	}
+	if env.Error == "" {
+		t.Errorf("error field must be non-empty")
+	}
+	if env.Data == nil {
+		t.Errorf("409 data must be the editor view (not nil)")
+	}
+	bodyStr := rec.Body.String()
+	for _, f := range []string{"rfc", "industry_id", "status", "deleted_at", "created_at"} {
+		if strings.Contains(bodyStr, f) {
+			t.Errorf("409 data must omit %s", f)
+		}
+	}
+}
+
+// --- 3a. missing/malformed If-Unmodified-Since returns 409 --------------------
+
+// TestUpdateCompanyHandler_CASReturns409 pins the "stale/absent/malformed
+// If-Unmodified-Since → 409" spec scenarios. parseIfUnmodifiedSince collapses
+// absent ("") and malformed ("not-a-timestamp") to zero time.Time{}, which
+// the CAS compare treats as a guaranteed mismatch.
+func TestUpdateCompanyHandler_CASReturns409(t *testing.T) {
+	row := mustCompany(uuid.New())
+	cc := identitysecurity.CompanyContext{CompanyID: row.ID, UserID: uuid.New(), Role: valueobjects.OwnerRole}
+
+	for _, tc := range []struct {
+		name      string
+		casHeader string
+	}{
+		{"missing CAS header", ""},
+		{"malformed CAS header", "not-a-timestamp"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+repo := &stubUpdateServiceRepo{
+getForUpdateOut: row,
+updateErr:       entities.ErrConcurrencyConflict,
+}
+router := newUpdateRouter(t, repo, cc)
+rec := doPatch(t, router, `{"name":"Acme"}`, tc.casHeader, cc)
+if rec.Code != http.StatusConflict {
+t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
+}
+var env httpjson.ErrorEnvelope
+if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+t.Fatalf("decode as catalog envelope: %v; body=%s", err, rec.Body.String())
+}
+if env.Code != httpjson.CodeConflict {
+t.Errorf("code: want %q, got %q", httpjson.CodeConflict, env.Code)
+}
+if env.Error == "" {
+t.Errorf("error must be non-empty and readable")
+}
+if env.Data == nil {
+t.Errorf("data: want non-nil redacted view, got nil")
+}
+		})
 	}
 }
 
