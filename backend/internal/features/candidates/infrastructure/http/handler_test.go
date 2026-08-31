@@ -17,6 +17,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -214,9 +215,7 @@ func TestGetProfile_NotFound(t *testing.T) {
 	router := newTestRouter(newTestHandler(cRepo, uRepo))
 
 	rec := doRequest(t, router, authedRequest(t, http.MethodGet, "/me/profile/", "", "sub-abc"))
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("want 404, got %d: %s", rec.Code, rec.Body.String())
-	}
+	assertCatalogEnvelope(t, rec, http.StatusNotFound, httpjson.CodeNotFound)
 }
 
 // TestGetProfile_UnknownSubjectIsUnauthorized covers the spec scenario
@@ -228,9 +227,7 @@ func TestGetProfile_UnknownSubjectIsUnauthorized(t *testing.T) {
 	router := newTestRouter(newTestHandler(cRepo, uRepo))
 
 	rec := doRequest(t, router, authedRequest(t, http.MethodGet, "/me/profile/", "", "missing-sub"))
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("want 401, got %d: %s", rec.Code, rec.Body.String())
-	}
+	assertCatalogEnvelope(t, rec, http.StatusUnauthorized, httpjson.CodeUnauthenticated)
 }
 
 // TestUpsertProfile_Ok covers the spec scenario "PUT creates on first
@@ -288,6 +285,7 @@ func TestUpsertProfile_InvalidEducationLevel(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "education") {
 		t.Errorf("expected error mentioning education, got: %s", rec.Body.String())
 	}
+	assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 }
 
 // TestUpsertProfile_InvalidSalaryPeriod covers the spec scenario
@@ -303,9 +301,11 @@ func TestUpsertProfile_InvalidSalaryPeriod(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
 	}
+
 	if !strings.Contains(rec.Body.String(), "salary") {
 		t.Errorf("expected error mentioning salary, got: %s", rec.Body.String())
 	}
+	assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 }
 
 // TestUpsertProfile_UnknownSubjectIsUnauthorized covers the IDOR
@@ -317,9 +317,7 @@ func TestUpsertProfile_UnknownSubjectIsUnauthorized(t *testing.T) {
 
 	body := `{"professional_title": "Backend Engineer"}`
 	rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", body, "missing-sub"))
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("want 401, got %d: %s", rec.Code, rec.Body.String())
-	}
+	assertCatalogEnvelope(t, rec, http.StatusUnauthorized, httpjson.CodeUnauthenticated)
 }
 
 // TestListLanguages_Ok covers the GET /me/profile/languages path. Empty
@@ -343,6 +341,17 @@ func TestListLanguages_Ok(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"spanish"`) {
 		t.Errorf("expected response to mention spanish, got: %s", rec.Body.String())
 	}
+}
+
+// TestListLanguages_UnknownSubjectIsUnauthorized proves that an unknown JWT
+// subject is classified as unauthenticated (401), never as a 5xx.
+func TestListLanguages_UnknownSubjectIsUnauthorized(t *testing.T) {
+	cRepo := &stubCandidateRepo{}
+	uRepo := &stubUserRepo{} // default: ErrUserNotFound
+	router := newTestRouter(newTestHandler(cRepo, uRepo))
+
+	rec := doRequest(t, router, authedRequest(t, http.MethodGet, "/me/profile/languages/", "", "missing-sub"))
+	assertCatalogEnvelope(t, rec, http.StatusUnauthorized, httpjson.CodeUnauthenticated)
 }
 
 // TestListLanguages_EmptyIsBracketedNotNull proves the "[] not null"
@@ -405,6 +414,7 @@ func TestReplaceLanguages_DuplicateIsRejected(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "duplicate") {
 		t.Errorf("expected error mentioning duplicate, got: %s", rec.Body.String())
 	}
+	assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 }
 
 // TestReplaceLanguages_InvalidCefrIsRejected covers the spec scenario
@@ -423,6 +433,7 @@ func TestReplaceLanguages_InvalidCefrIsRejected(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "CEFR") && !strings.Contains(rec.Body.String(), "cefr") {
 		t.Errorf("expected error mentioning CEFR, got: %s", rec.Body.String())
 	}
+	assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 }
 
 // TestRoutes_OnlyMeMount covers the spec scenario "path id is ignored":
@@ -440,6 +451,22 @@ func TestRoutes_OnlyMeMount(t *testing.T) {
 	rec := doRequest(t, router, authedRequest(t, http.MethodGet, "/me/profile/"+uuid.New().String()+"/", "", "sub-abc"))
 	if rec.Code == http.StatusOK {
 		t.Fatalf("path-id IDOR attempt must not return 200, got: %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+// assertCatalogEnvelope verifies the response carries a stable V1 error envelope
+// with the expected HTTP status and catalog code.
+func assertCatalogEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int, wantCode httpjson.Code) {
+	t.Helper()
+	if rec.Code != wantStatus {
+		t.Fatalf("want %d, got %d: %s", wantStatus, rec.Code, rec.Body.String())
+	}
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode envelope: %v; body=%s", err, rec.Body.String())
+	}
+	if env.Code != wantCode {
+		t.Errorf("code: want %q, got %q", wantCode, env.Code)
 	}
 }
 

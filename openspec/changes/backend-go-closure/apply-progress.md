@@ -129,4 +129,55 @@ Behavioral failure: legacy `WriteError` produces no `code` field.
 
 **Review slices:** `fcb24d7` (`feat(companies): adopt stable error catalog`) is 260 authored changed lines; `757dfff` (`test(companies): prove conflict envelope parity`) is 207. The combined 467-line candidate was auto-chained so every review unit remains within the 400-line budget. Rollback boundary: revert both commits plus the direct-parity corrective commit to remove RU2 behavior and evidence without touching RU1/RU1B or the unrelated landing preview.
 
-**Checked state: 16/96** — all four task 1.3 stages are complete after the two functional commits; task 2.2 owns fixture cleanup and task 2.3 owns the rollback placeholder.
+**Checked state: 16/96** — tasks 1.1, 1.2, 1.6 (RU1/RU1B) complete; task 1.3 (RU2 companies) complete; task 1.4 unchecked (Jobs deferred).
+
+---
+
+## RU2/RU3 — Task 1.4 Slice A: Candidates + Industries catalog adoption (Jobs deferred) — CORRECTIVE PASS
+
+> **Scope:** Candidates HTTP + Industries HTTP only. Jobs HTTP catalog adoption is handled in a separate slice. Task 1.4 checkboxes remain unchecked until Jobs is completed.
+
+### Gatekeeper corrective rerun (ONE allowed)
+
+Parent gate REJECTED the previous result for three concrete reasons:
+
+1. `industriesReader.ListActiveIndustries(context.Context) (any,error)` plus reflection is unsafe: field drift silently emits zero values.
+2. `backend/cmd/api/main.go` adapter changes are unnecessary composition-root scope drift.
+3. The 166-line industries test implements happy/public/field-shape requirements owned by later task 3.2; task 1.4 requires only the NEW handler test proving the DB-failure catalog envelope.
+
+**Mandatory corrections applied:**
+
+1. **main.go RESTORED to HEAD:** `industriesAdapter` type and all `&industriesAdapter{...}` calls removed. No main.go diff remains.
+2. **Narrow compile-time interface:** replaced `industriesReader` with method `ListActiveIndustries(ctx context.Context) ([]db.Industry, error)`. `*db.Queries` satisfies this interface directly without an adapter. No `any`, no reflection, no silent field access helpers.
+3. **Non-leakage proof:** `handler_test.go` now asserts canonical message `"an internal error occurred"` is present and injected DB detail `"db: connection refused"` is absent. Task 3.2 happy/public/field-shape tests removed.
+
+**Strict TDD — RED:** catalog code assertions failed against legacy `WriteError`.
+
+**Strict TDD — GREEN:** Candidates catalog adoption unchanged (already correct). Industries corrected to: narrow `industriesReader` interface with typed `[]db.Industry` return, direct field mapping (no reflection), and `WriteCatalogError(w, Resolve(CodeInternalError))` for DB failure.
+
+**Verification (this pass):**
+
+- `go test ./internal/features/industries/infrastructure/http/... -count=1 -v`: PASS (`TestListIndustries_InternalErrorReturnsCatalogEnvelope`)
+- `go test ./internal/features/candidates/infrastructure/http/... -count=1`: PASS (14 tests)
+- `go test ./... -count=1`: PASS
+- `git diff --check`: PASS
+
+**Line count (this corrective pass only):**
+
+| File | Additions | Deletions |
+|------|----------:|----------:|
+| `candidates/handler.go` | 26 | 26 |
+| `candidates/handler_test.go` | 36 | 9 |
+| `industries/handler.go` | 17 | 9 |
+| `industries/handler_test.go` (new) | 76 | — |
+| `apply-progress.md` | 52 | 1 |
+| **Total** | **131** | **45** |
+
+Tracked changed lines: 131 additions + 45 deletions = 176. Untracked new file: 76 lines. Total: 252 ≤ 400 budget.
+
+**Confirmed invariants:**
+
+- Jobs files: NOT touched; task 1.4 checkboxes: all 4 remain unchecked
+- main.go: zero diff (RESTORED to HEAD)
+- No `any` return type; no reflection; no field-drift risk
+- Industries handler test: 76 lines (DB-failure + non-leakage proof only)

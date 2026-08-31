@@ -155,11 +155,11 @@ func (h *CandidateHandler) getMyProfile(w http.ResponseWriter, r *http.Request) 
 
 	profile, err := h.service.GetMyProfile(r.Context(), sub)
 	if err != nil {
-		status, msg := classifyCandidateError(err)
-		if status == http.StatusInternalServerError {
+		def := classifyCandidateError(err)
+		if def.Code == httpjson.CodeInternalError {
 			slog.Error("get my profile failed", "error", err)
 		}
-		httpjson.WriteError(w, status, msg)
+		httpjson.WriteCatalogError(w, def)
 		return
 	}
 
@@ -174,7 +174,7 @@ func (h *CandidateHandler) upsertMyProfile(w http.ResponseWriter, r *http.Reques
 
 	var req upsertProfileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
 		return
 	}
 
@@ -200,11 +200,11 @@ func (h *CandidateHandler) upsertMyProfile(w http.ResponseWriter, r *http.Reques
 		CVS3Key:              req.CVS3Key,
 	})
 	if err != nil {
-		status, msg := classifyCandidateError(err)
-		if status == http.StatusInternalServerError {
+		def := classifyCandidateError(err)
+		if def.Code == httpjson.CodeInternalError {
 			slog.Error("upsert my profile failed", "error", err)
 		}
-		httpjson.WriteError(w, status, msg)
+		httpjson.WriteCatalogError(w, def)
 		return
 	}
 
@@ -219,11 +219,11 @@ func (h *CandidateHandler) listMyLanguages(w http.ResponseWriter, r *http.Reques
 
 	languages, err := h.service.ListMyLanguages(r.Context(), sub)
 	if err != nil {
-		status, msg := classifyCandidateError(err)
-		if status == http.StatusInternalServerError {
+		def := classifyCandidateError(err)
+		if def.Code == httpjson.CodeInternalError {
 			slog.Error("list my languages failed", "error", err)
 		}
-		httpjson.WriteError(w, status, msg)
+		httpjson.WriteCatalogError(w, def)
 		return
 	}
 
@@ -238,7 +238,7 @@ func (h *CandidateHandler) replaceMyLanguages(w http.ResponseWriter, r *http.Req
 
 	var req replaceLanguagesRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
 		return
 	}
 
@@ -250,11 +250,11 @@ func (h *CandidateHandler) replaceMyLanguages(w http.ResponseWriter, r *http.Req
 	}
 
 	if err := h.service.ReplaceMyLanguages(r.Context(), sub, dto); err != nil {
-		status, msg := classifyCandidateError(err)
-		if status == http.StatusInternalServerError {
+		def := classifyCandidateError(err)
+		if def.Code == httpjson.CodeInternalError {
 			slog.Error("replace my languages failed", "error", err)
 		}
-		httpjson.WriteError(w, status, msg)
+		httpjson.WriteCatalogError(w, def)
 		return
 	}
 
@@ -262,11 +262,11 @@ func (h *CandidateHandler) replaceMyLanguages(w http.ResponseWriter, r *http.Req
 	// the client can confirm what landed. The repository just stored it.
 	fresh, err := h.service.ListMyLanguages(r.Context(), sub)
 	if err != nil {
-		status, msg := classifyCandidateError(err)
-		if status == http.StatusInternalServerError {
+		def := classifyCandidateError(err)
+		if def.Code == httpjson.CodeInternalError {
 			slog.Error("replace my languages: post-write read failed", "error", err)
 		}
-		httpjson.WriteError(w, status, msg)
+		httpjson.WriteCatalogError(w, def)
 		return
 	}
 	httpjson.WriteJSON(w, http.StatusOK, toLanguagesResponse(fresh))
@@ -335,28 +335,28 @@ func toLanguagesResponse(in []entities.Language) languagesResponse {
 func requireSub(w http.ResponseWriter, r *http.Request) (string, bool) {
 	claims := identitysecurity.ClaimsFromContext(r.Context())
 	if claims.Subject == "" {
-		httpjson.WriteError(w, http.StatusUnauthorized, "unauthorized")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeUnauthenticated), "missing authenticated subject"))
 		return "", false
 	}
 	return claims.Subject, true
 }
 
-// classifyCandidateError is the flat errors.Is dispatcher for every
-// domain sentinel the use cases can surface. Adding a new sentinel
-// means adding one branch here — no other call site needs to change.
-func classifyCandidateError(err error) (int, string) {
+// classifyCandidateError maps a domain sentinel to a V1 catalog Definition.
+// Adding a new sentinel means adding one branch here — no other call site
+// needs to change.
+func classifyCandidateError(err error) httpjson.Definition {
 	switch {
 	case errors.Is(err, usecases.ErrUnknownSubject):
-		return http.StatusUnauthorized, "unauthorized"
+		return httpjson.Resolve(httpjson.CodeUnauthenticated)
 	case errors.Is(err, valueobjects.ErrInvalidCefrLevel),
 		errors.Is(err, valueobjects.ErrInvalidEducationLevel),
 		errors.Is(err, valueobjects.ErrInvalidSalaryPeriod),
 		errors.Is(err, entities.ErrDuplicateLanguage),
 		errors.Is(err, entities.ErrEmptyUserIDForProfile):
-		return http.StatusBadRequest, err.Error()
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), err.Error())
 	case errors.Is(err, entities.ErrProfileNotFound):
-		return http.StatusNotFound, "candidate profile not found"
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeNotFound), "candidate profile not found")
 	default:
-		return http.StatusInternalServerError, "internal server error"
+		return httpjson.Resolve(httpjson.CodeInternalError)
 	}
 }
