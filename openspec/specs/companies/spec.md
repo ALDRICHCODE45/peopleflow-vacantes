@@ -12,7 +12,7 @@ This specification does NOT cover: company `status` field manipulation (the fiel
 
 ### Requirement: PATCH /me/company Endpoint, Owner-Only Gate, and Field Mutability
 
-The system MUST expose `PATCH /me/company` as an owner-only write route. The route MUST run behind `RequireAuth` followed by `RequireCompanyRole(owner)`. The handler MUST derive `company_id` exclusively from the `security.CompanyContext` injected by the middleware; any `company_id` value supplied in the request body MUST be ignored by the server. Because `MemberRole` is ordinal and `owner` is the highest role in the matrix, only an owner passes the gate — a recruiter (role `< owner`) is rejected with `403` from the middleware BEFORE the handler runs. The handler MUST short-circuit fail-closed (return `500 internal server error`) if no `CompanyContext` is present on the request context (mirroring the canonical `RequireCompanyContext` invariant from the `jobs` slice).
+The system MUST expose `PATCH /me/company` as an owner-only write route. The route MUST run behind `RequireAuth` followed by `RequireCompanyRole(owner)`. The `RequireCompanyRole` middleware MUST probe the resolved member company's liveness (the same SQL `WHERE deleted_at IS NULL` predicate used by `GetCompanyByID`) AFTER membership resolution and BEFORE role comparison — a tombstoned company (`deleted_at IS NOT NULL`) and a missing company row (`ErrCompanyNotFound`) collapse to the SAME `403 Forbidden` with reason `company is inactive`, the handler is NEVER invoked, and no `CompanyContext` is injected (so the handler cannot see the row). The handler MUST derive `company_id` exclusively from the `security.CompanyContext` injected by the middleware; any `company_id` value supplied in the request body MUST be ignored by the server. Because `MemberRole` is ordinal and `owner` is the highest role in the matrix, only an owner of a LIVE company passes the gate — a recruiter (role `< owner`) and an owner of a tombstoned company are both rejected with `403` from the middleware BEFORE the handler runs (three branches — role below owner, no `company_members` row, tombstoned company — collapse to the same `403`). The handler MUST short-circuit fail-closed (return `500 internal server error`) if no `CompanyContext` is present on the request context (mirroring the canonical `RequireCompanyContext` invariant from the `jobs` slice).
 
 The PATCH body MUST be a JSON object that carries OPTIONAL fields only — no field is required. Absent fields MUST be left untouched on the server (partial update). The editable set is exactly: `name` (string, re-validated via `valueobjects.CompanyName` — `≥ 4` characters after trim) and the eleven profile fields `website`, `logo_url`, `description`, `size`, `founded_year`, `city`, `country`, `linkedin_url`, `instagram_url`, `facebook_url`, `twitter_url`, `cover_image_url`. The PATCH DTO MUST NOT carry `rfc`, `industry_id`, or `status`; `encoding/json` silently drops unknown JSON keys, so a client that sends any of those keys gets the same outcome as if they did not send them — the row's `rfc`, `industry_id`, and `status` are unchanged. For text columns (`website`, `logo_url`, `city`, `country`, `linkedin_url`, `instagram_url`, `facebook_url`, `twitter_url`, `cover_image_url`), the server MUST distinguish `null` (present and JSON `null`, meaning "clear the column to SQL `NULL`") from absent (field omitted from the JSON, meaning "do not touch"). For the nullable profile columns (`description`, `size`, `founded_year`), the tri-state semantics MUST apply: absent leaves the column unchanged, explicit `null` clears the column to SQL `NULL`, present value sets the column to the parsed value (the use case MUST re-validate through the corresponding `valueobjects` VO — `CompanyDescription`, `CompanySize`, `FoundedYear` — before the SQL UPDATE runs).
 
@@ -82,11 +82,11 @@ The PATCH body MUST be a JSON object that carries OPTIONAL fields only — no fi
 - WHEN `PATCH /me/company` is sent with a body that is not valid JSON
 - THEN the response is `400 Bad Request` and no row is updated
 
-#### Scenario: non-owner and non-member are rejected with 403
+#### Scenario: non-owner, non-member, and tombstoned company are rejected with 403
 
-- GIVEN a recruiter (role `< owner`) membership in company `A`, OR an authenticated user with no `company_members` row
+- GIVEN a recruiter (role `< owner`) membership in company `A`, OR an authenticated user with no `company_members` row, OR an owner of company `A` whose `companies.deleted_at IS NOT NULL` (tombstoned)
 - WHEN `PATCH /me/company` is sent
-- THEN the response is `403 Forbidden` and the handler is never invoked (the middleware or membership-resolver short-circuits; the role-below-owner branch and the no-membership-row branch collapse to the same `403`)
+- THEN the response is `403 Forbidden` and the handler is never invoked (the middleware short-circuits; the role-below-owner branch, the no-membership-row branch, and the tombstoned-company branch all collapse to the same `403`; the tombstoned-company branch additionally carries reason `company is inactive` and injects no `CompanyContext`)
 
 #### Scenario: unauthenticated request returns 401
 
@@ -160,7 +160,7 @@ The PATCH response body — on both `200 OK` and `409 Conflict` — MUST be the 
 
 ### Requirement: DELETE /me/company Endpoint, Owner-Only Gate, and Idempotency
 
-The system MUST expose `DELETE /me/company` as an owner-only write route. The route MUST run behind `RequireAuth` followed by `RequireCompanyRole(owner)`. The handler MUST derive `company_id` exclusively from the `security.CompanyContext` injected by the middleware; the request carries no body and the path carries no `company_id`, so no client-supplied value is ever honored. Only an owner passes the gate — a recruiter (role `< owner`) is rejected with `403` from the middleware BEFORE the handler runs. The handler MUST short-circuit fail-closed (return `500 internal server error`) if no `CompanyContext` is present on the request context. The request MUST NOT carry a body. On success the response MUST be `204 No Content` with an empty body (no editor view is projected — see `DELETE /me/company CAS Optimistic Concurrency Control` for the deliberately-empty `409` body shape on CAS mismatch). A second `DELETE /me/company` against an already-soft-deleted company MUST return `404 company not found` because the read-for-delete (`GetCompanyForUpdate`) returns `ErrCompanyNotFound` — the `deleted_at IS NULL` predicate in the write-path SQL filters the row out. The `404` body shape MUST be identical to the body shape for a non-existent company id (no leak of existence, consistent with the canonical `Same-Company Invariant and IDOR Defense` for `PATCH /jobs/{id}` and `DELETE /jobs/{id}`).
+The system MUST expose `DELETE /me/company` as an owner-only write route. The route MUST run behind `RequireAuth` followed by `RequireCompanyRole(owner)`. The `RequireCompanyRole` middleware MUST probe the resolved member company's liveness (the same SQL `WHERE deleted_at IS NULL` predicate used by `GetCompanyByID`) AFTER membership resolution and BEFORE role comparison — a tombstoned company (`deleted_at IS NOT NULL`) and a missing company row (`ErrCompanyNotFound`) collapse to the SAME `403 Forbidden` with reason `company is inactive`, the handler is NEVER invoked, and no `CompanyContext` is injected (so the handler cannot see the row). The handler MUST derive `company_id` exclusively from the `security.CompanyContext` injected by the middleware; the request carries no body and the path carries no `company_id`, so no client-supplied value is ever honored. Only an owner of a LIVE company passes the gate — a recruiter (role `< owner`) and an owner of a tombstoned company are both rejected with `403` from the middleware BEFORE the handler runs. The handler MUST short-circuit fail-closed (return `500 internal server error`) if no `CompanyContext` is present on the request context. The request MUST NOT carry a body. On success the response MUST be `204 No Content` with an empty body (no editor view is projected — see `DELETE /me/company CAS Optimistic Concurrency Control` for the deliberately-empty `409` body shape on CAS mismatch). A second `DELETE /me/company` against an already-soft-deleted company MUST return `403 Forbidden` with reason `company is inactive` from the `RequireCompanyRole` liveness gate (the gate intercepts before the handler runs); the handler / use-case / repository `ErrCompanyNotFound` path remains in place as defense-in-depth for a bypassed or mis-wired call (and would surface as `404 company not found` in that edge case), but the production API MUST NOT reach it for a tombstoned company. The `404` body shape for that defense-in-depth path MUST remain identical to the body shape for a non-existent company id (no leak of existence, consistent with the canonical `Same-Company Invariant and IDOR Defense` for `PATCH /jobs/{id}` and `DELETE /jobs/{id}`).
 
 #### Scenario: owner soft-deletes their company
 
@@ -168,11 +168,11 @@ The system MUST expose `DELETE /me/company` as an owner-only write route. The ro
 - WHEN `DELETE /me/company` is sent with `If-Unmodified-Since: T`
 - THEN the response is `204 No Content` with an empty body (no editor view is projected — the post-delete row's `deleted_at` is not surfaced), `companies.deleted_at` is set within the request window, `companies.updated_at` advances to a value strictly greater than `T`, and every draft/published job of company `A` is transitioned to `status='closed'` in the same SQL transaction (see `Soft-Delete Atomic Transactional Close of Jobs`)
 
-#### Scenario: non-owner and non-member are rejected with 403
+#### Scenario: non-owner, non-member, and tombstoned company are rejected with 403
 
-- GIVEN a recruiter (role `< owner`) membership in company `A`, OR an authenticated user with no `company_members` row
+- GIVEN a recruiter (role `< owner`) membership in company `A`, OR an authenticated user with no `company_members` row, OR an owner of company `A` whose `companies.deleted_at IS NOT NULL` (tombstoned)
 - WHEN `DELETE /me/company` is sent
-- THEN the response is `403 Forbidden` and the handler is never invoked (the middleware or membership-resolver short-circuits; the role-below-owner branch and the no-membership-row branch collapse to the same `403`)
+- THEN the response is `403 Forbidden` and the handler is never invoked (the middleware short-circuits; the role-below-owner branch, the no-membership-row branch, and the tombstoned-company branch all collapse to the same `403`; the tombstoned-company branch additionally carries reason `company is inactive` and injects no `CompanyContext`)
 
 #### Scenario: unauthenticated request returns 401
 
@@ -186,11 +186,11 @@ The system MUST expose `DELETE /me/company` as an owner-only write route. The ro
 - WHEN `DELETE /me/company` is sent
 - THEN the response is `500 Internal Server Error` and no row is tombstoned
 
-#### Scenario: second DELETE on an already-soft-deleted company returns 404
+#### Scenario: second DELETE on an already-soft-deleted company returns 403
 
-- GIVEN a company `A` with `companies.deleted_at IS NOT NULL`
+- GIVEN a company `A` with `companies.deleted_at IS NOT NULL` and an owner whose `company_members.role='owner'` for `A`
 - WHEN the owner sends `DELETE /me/company` with any `If-Unmodified-Since`
-- THEN the response is `404 company not found` (the read-for-delete `GetCompanyForUpdate` returns `ErrCompanyNotFound` because its `deleted_at IS NULL` predicate filters the row out — same body shape as a non-existent id; consistent with the canonical `soft-deleted id returns 404` invariant)
+- THEN the response is `403 Forbidden` with reason `company is inactive` and the handler is NEVER invoked — `RequireCompanyRole`'s liveness gate sees the tombstoned company and short-circuits BEFORE `GetCompanyForUpdate` runs (the handler / repository `ErrCompanyNotFound` path is preserved as defense-in-depth for a bypassed or mis-wired call and would surface as `404 company not found` in that edge case, but the production API MUST NOT reach it for a tombstoned company)
 
 ### Requirement: DELETE /me/company CAS Optimistic Concurrency Control
 
@@ -277,15 +277,15 @@ A company whose `companies.deleted_at IS NOT NULL` MUST be invisible on every pu
 - AND `GET /jobs` is sent
 - THEN the company's job is NOT in the response listing (the inline close flipped the job's `status` out of the `status='published'` visibility predicate; the partial index `jobs_public_listing_idx` drops it automatically)
 
-#### Scenario: GET /me/company hides a soft-deleted company from the owner
+#### Scenario: GET /me/company hides a soft-deleted company from the owner (R7-S3 preservation)
 
 - GIVEN a soft-deleted company `A` (`deleted_at IS NOT NULL`) and the owner whose `company_members.role='owner'` for `A`
 - WHEN the owner sends `GET /me/company`
-- THEN the response is `404 company not found` (the membership read resolves the company through `GetCompanyByID`, whose `WHERE deleted_at IS NULL` predicate filters the tombstoned row; the `company_members` row itself survives in the DB as audit history)
+- THEN the response is `404 company not found` — `GET /me/company` is `RequireAuth`-only (NOT gated by `RequireCompanyRole`'s liveness check), so the tombstone gate does NOT apply on this read; the membership read resolves the company through `GetCompanyByID`, whose `WHERE deleted_at IS NULL` predicate filters the tombstoned row; the `company_members` row itself survives in the DB as audit history but no archived-company response is returned (the 404 hides the company projection; a future restore endpoint is the proper un-tombstone mechanism); every role-gated write subtree (under `RequireCompanyRole`'s liveness probe) returns `403 company is inactive` on the same tombstone
 
 ### Requirement: Authorization Dispatch Order for /me/company Writes
 
-The `PATCH /me/company` and `DELETE /me/company` routes MUST share the same authorization dispatch order, layered strictly: `RequireAuth` MUST run first and reject with `401 Unauthorized` if no valid JWT is present (or if the JWT signature is unverifiable, or if the JWT `sub` matches no live `users.cognito_sub`); `RequireCompanyRole(owner)` MUST run second and reject with `403 Forbidden` if the authenticated user has no `company_members` row OR has a row with a role strictly less than `owner` (a recruiter is rejected with `403` from the middleware BEFORE the handler runs); the gated handler MUST run third and short-circuit fail-closed with `500 Internal Server Error` if the request context is missing a `CompanyContext` (the `RequireCompanyContext` invariant — the middleware was mis-wired if `CompanyContext` is absent). The dispatch order MUST NOT be reordered: a request without `Authorization` MUST return `401` (NOT `403`, NOT `500`); a request with a valid `Authorization` but no `company_members` row MUST return `403` (NOT `500`, NOT `401`); a request that bypasses the middleware and reaches the handler with no `CompanyContext` MUST return `500` (NOT `401`, NOT `403`). This is the canonical `401 → 403 → handler` chain — the same dispatch order every gated write subtree in the codebase enforces.
+The `PATCH /me/company` and `DELETE /me/company` routes MUST share the same authorization dispatch order, layered strictly: `RequireAuth` MUST run first and reject with `401 Unauthorized` if no valid JWT is present (or if the JWT signature is unverifiable, or if the JWT `sub` matches no live `users.cognito_sub`); `RequireCompanyRole(owner)` MUST run second and pass through FOUR ordered sub-checks — (a) resolve the JWT `sub` to `users.id` (a missing subject is `401`), (b) resolve `users.id` to a `company_members` row (a missing row is `403 not a member of any company`), (c) probe the resolved company's liveness via the narrow `CompanyLivenessRepository` (a tombstoned company — `deleted_at IS NOT NULL` — or a missing company row — `ErrCompanyNotFound` — collapses to `403 company is inactive`; an unexpected liveness error is `500`), (d) compare the membership role to `owner` (a role strictly below `owner` is `403 insufficient role`). The tombstone liveness probe (sub-check c) runs AFTER membership resolution (so a stranger cannot probe company existence via the gate) and BEFORE role comparison (so the handler NEVER receives a `CompanyContext` for a tombstoned company); the gated handler MUST run third and short-circuit fail-closed with `500 Internal Server Error` if the request context is missing a `CompanyContext` (the `RequireCompanyContext` invariant — the middleware was mis-wired if `CompanyContext` is absent). The dispatch order MUST NOT be reordered: a request without `Authorization` MUST return `401` (NOT `403`, NOT `500`); a request with a valid `Authorization` but no `company_members` row MUST return `403` (NOT `500`, NOT `401`); a request whose membership's company is tombstoned or missing MUST return `403 company is inactive` (NOT `500`, NOT `401`); a request that bypasses the middleware and reaches the handler with no `CompanyContext` MUST return `500` (NOT `401`, NOT `403`). This is the canonical `401 → 403 → handler` chain — the same dispatch order every gated write subtree in the codebase enforces.
 
 #### Scenario: 401 short-circuits before the role gate
 
@@ -298,6 +298,12 @@ The `PATCH /me/company` and `DELETE /me/company` routes MUST share the same auth
 - GIVEN a `PATCH /me/company` (or `DELETE /me/company`) request with a valid `Authorization` header but the authenticated user has no `company_members` row OR a row with a role below `owner`
 - WHEN the request reaches the gated write route
 - THEN the response is `403 Forbidden` (RequireCompanyRole short-circuits; the handler is never invoked)
+
+#### Scenario: 403 for a tombstoned member company short-circuits before the handler
+
+- GIVEN a `PATCH /me/company` (or `DELETE /me/company`) request with a valid `Authorization` header and an authenticated owner whose `companies.deleted_at IS NOT NULL` (tombstoned)
+- WHEN the request reaches the gated write route
+- THEN the response is `403 Forbidden` with reason `company is inactive` (the `RequireCompanyRole` liveness probe collapses tombstoned and missing-company rows to the same `403`; the handler is never invoked and no `CompanyContext` is injected)
 
 #### Scenario: 500 fail-closed if CompanyContext is missing
 
@@ -350,12 +356,19 @@ The event MUST be built in the application layer (the use case is the single sou
 - AND the response is `400 Bad Request`
 - THEN `audit_events` has `N` rows (no new row appended; the use case never invoked `repo.UpdateCompany`)
 
-#### Scenario: PATCH or DELETE 404 on not-found, cross-company, or already-soft-deleted appends zero audit rows
+#### Scenario: PATCH or DELETE 404 on not-found or cross-company appends zero audit rows
 
-- GIVEN an owner of company `A` with a baseline `N` rows in `audit_events` and `A` either non-existent, cross-company, or already soft-deleted (`deleted_at IS NOT NULL`)
+- GIVEN an owner of company `A` with a baseline `N` rows in `audit_events` and `A` either non-existent or cross-company (membership row pointing to a different company id than the request is scoped to)
 - WHEN `PATCH /me/company` or `DELETE /me/company` is sent
 - AND the response is `404 company not found`
 - THEN `audit_events` has `N` rows (no new row appended; the read-for-update `GetCompanyForUpdate` failed BEFORE the adapter write)
+
+#### Scenario: PATCH or DELETE 403 on tombstoned company appends zero audit rows
+
+- GIVEN an owner of company `A` with a baseline `N` rows in `audit_events` and `A` already soft-deleted (`deleted_at IS NOT NULL`)
+- WHEN `PATCH /me/company` or `DELETE /me/company` is sent
+- AND the response is `403 Forbidden` with reason `company is inactive`
+- THEN `audit_events` has `N` rows (no new row appended; `RequireCompanyRole`'s liveness gate short-circuits BEFORE the handler / use case / adapter runs — the audit append is never reached; the handler / repository `ErrCompanyNotFound` path is preserved as defense-in-depth but is unreachable for a tombstoned company in the production API)
 
 #### Scenario: PATCH or DELETE 409 on CAS mismatch appends zero audit rows
 
@@ -372,9 +385,9 @@ The event MUST be built in the application layer (the use case is the single sou
 
 #### Scenario: 401 or 403 short-circuits before the use case and appends zero audit rows
 
-- GIVEN an unauthenticated `PATCH /me/company` or `DELETE /me/company` request (no `Authorization` header), OR an authenticated non-owner (recruiter — role `< owner`) member, OR an authenticated user with no `company_members` row
+- GIVEN an unauthenticated `PATCH /me/company` or `DELETE /me/company` request (no `Authorization` header), OR an authenticated non-owner (recruiter — role `< owner`) member, OR an authenticated user with no `company_members` row, OR an authenticated owner whose `companies.deleted_at IS NOT NULL` (tombstoned)
 - WHEN the request reaches the gated write route
-- AND the response is `401 Unauthorized` or `403 Forbidden`
+- AND the response is `401 Unauthorized` or `403 Forbidden` (the tombstoned-company branch additionally carries reason `company is inactive`)
 - THEN `audit_events` row count is unchanged (the middleware short-circuits BEFORE the handler / use case / adapter runs)
 
 #### Scenario: uuid.Nil actor fails closed with 500 and appends zero audit rows

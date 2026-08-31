@@ -152,7 +152,7 @@ The transition matrix MUST be enforced in the use case (the domain layer); the D
 
 ### Requirement: Apply Endpoint
 
-The system MUST expose `POST /jobs/{jobId}/applications` as a candidate-only write route. The route MUST run behind `RequireAuth`. The request body MAY carry an optional `source` (one of `referral|linkedin|job_board|direct|other` or `null`) and an optional `cover_letter` (string, length ≤ 2000 characters after trim). The body MUST NOT carry `id`, `job_id`, `candidate_id`, `status`, `cv_s3_key`, `anonymized_at`, `created_at`, or `updated_at`; any such fields MUST be ignored by the server. The path `{jobId}` MUST be parsed as a UUID; non-UUID values yield `400 invalid job id` and no row is inserted. On success the response MUST be `201 Created` with the full application body and the row's `id` (see `Apply Response`).
+The system MUST expose `POST /jobs/{jobId}/applications` as a candidate-only write route. The route MUST run behind `RequireAuth` ONLY — the candidate's own company membership is NOT consulted by this route (a candidate with NO `company_members` row is allowed to apply; a candidate whose membership's company happens to be tombstoned is also allowed to apply because `RequireCompanyRole`'s liveness gate does not run on this `RequireAuth`-only path). The tombstone visibility of the TARGET JOB's company is enforced by the atomic apply gate (see `Atomic Apply Eligibility Gate`) and surfaces as `404 job not applicable` — the `404` for a tombstoned JOB-company is intentional and MUST NOT be converted to `403`. The request body MAY carry an optional `source` (one of `referral|linkedin|job_board|direct|other` or `null`) and an optional `cover_letter` (string, length ≤ 2000 characters after trim). The body MUST NOT carry `id`, `job_id`, `candidate_id`, `status`, `cv_s3_key`, `anonymized_at`, `created_at`, or `updated_at`; any such fields MUST be ignored by the server. The path `{jobId}` MUST be parsed as a UUID; non-UUID values yield `400 invalid job id` and no row is inserted. On success the response MUST be `201 Created` with the full application body and the row's `id` (see `Apply Response`).
 
 #### Scenario: authenticated candidate applies successfully
 
@@ -404,7 +404,7 @@ The `POST /jobs/{jobId}/applications` route MUST be mounted on a per-route middl
 
 ### Requirement: Candidate My Applications Endpoint
 
-The system MUST expose `GET /me/applications` as a candidate-only read route. The route MUST run behind `RequireAuth`. The handler MUST list the caller's applications — and ONLY the caller's applications — ordered `created_at DESC`. Each item MUST carry `id`, `job_id`, `status`, `source`, `cover_letter`, `created_at`, `updated_at`, plus a tiny `job` summary `{id, title, company: {id, name}}` (see `Candidate My Applications DTO Shape`). The handler MUST NOT redact by `jobs.deleted_at` on purpose: the candidate's own history persists even if the job has since been soft-deleted. The list MUST be capped at 100 rows in this slice (no pagination, no `next_cursor`, no offset — a hard LIMIT). The response MUST be `200 OK` with a top-level `applications` array.
+The system MUST expose `GET /me/applications` as a candidate-only read route. The route MUST run behind `RequireAuth` ONLY — the candidate's own company membership is NOT consulted by this route (a candidate with NO `company_members` row, or a candidate whose membership's company is tombstoned, still sees their own applications list because `RequireCompanyRole`'s liveness gate does not run on this `RequireAuth`-only path; the candidate's own history persists regardless of tombstone state of any company). The handler MUST list the caller's applications — and ONLY the caller's applications — ordered `created_at DESC`. Each item MUST carry `id`, `job_id`, `status`, `source`, `cover_letter`, `created_at`, `updated_at`, plus a tiny `job` summary `{id, title, company: {id, name}}` (see `Candidate My Applications DTO Shape`). The handler MUST NOT redact by `jobs.deleted_at` on purpose: the candidate's own history persists even if the job has since been soft-deleted. The list MUST be capped at 100 rows in this slice (no pagination, no `next_cursor`, no offset — a hard LIMIT). The response MUST be `200 OK` with a top-level `applications` array.
 
 #### Scenario: GET /me/applications lists the caller's applications
 
@@ -466,7 +466,7 @@ Each item in the `applications` array MUST carry: `id` (UUID), `job_id` (UUID), 
 
 ### Requirement: Recruiter List Endpoint
 
-The system MUST expose `GET /jobs/{jobId}/applications` as a recruiter-only read route. The route MUST run behind `RequireAuth` followed by `RequireCompanyRole(recruiter)`. The handler MUST scope the read by the caller's `CompanyContext.company_id` AND the path `{jobId}`: the listing is the set of applications whose `job_id` equals the path's `{jobId}` AND whose job is owned by the caller's company. The list MUST be ordered `created_at DESC`. Each item MUST carry `id`, `job_id`, `candidate_id`, `status`, `source`, `cover_letter`, `created_at`, `updated_at`, plus a small `candidate` snippet (see `Recruiter Detail PII Minimization`). The list MUST be capped at 100 rows in this slice (no pagination). The response MUST be `200 OK` with a top-level `applications` array.
+The system MUST expose `GET /jobs/{jobId}/applications` as a recruiter-only read route. The route MUST run behind `RequireAuth` followed by `RequireCompanyRole(recruiter)`. The `RequireCompanyRole` middleware MUST probe the resolved member company's liveness (the same SQL `WHERE deleted_at IS NULL` predicate used by `GetCompanyByID`) AFTER membership resolution and BEFORE role comparison — a tombstoned company (`deleted_at IS NOT NULL`) and a missing company row (`ErrCompanyNotFound`) collapse to the SAME `403 Forbidden` with reason `company is inactive`, the handler is NEVER invoked, and no `CompanyContext` is injected. The handler MUST scope the read by the caller's `CompanyContext.company_id` AND the path `{jobId}`: the listing is the set of applications whose `job_id` equals the path's `{jobId}` AND whose job is owned by the caller's company. The list MUST be ordered `created_at DESC`. Each item MUST carry `id`, `job_id`, `candidate_id`, `status`, `source`, `cover_letter`, `created_at`, `updated_at`, plus a small `candidate` snippet (see `Recruiter Detail PII Minimization`). The list MUST be capped at 100 rows in this slice (no pagination). The response MUST be `200 OK` with a top-level `applications` array.
 
 #### Scenario: recruiter lists own company's job applications
 
@@ -485,6 +485,12 @@ The system MUST expose `GET /jobs/{jobId}/applications` as a recruiter-only read
 - GIVEN an authenticated user with no `company_members` row
 - WHEN `GET /jobs/{jobId}/applications` is sent
 - THEN the response is `403` and the handler is never invoked (the middleware short-circuits)
+
+#### Scenario: tombstoned member company returns 403 (middleware)
+
+- GIVEN an authenticated recruiter (or owner) membership in company A whose `companies.deleted_at IS NOT NULL` (tombstoned)
+- WHEN `GET /jobs/{jobId}/applications` is sent
+- THEN the response is `403 Forbidden` with reason `company is inactive` and the handler is never invoked — `RequireCompanyRole`'s liveness gate collapses tombstoned and missing-company rows to the same `403` BEFORE role comparison; the SQL same-company read remains as defense-in-depth but the production API MUST NOT reach it for a tombstoned member company
 
 #### Scenario: member with role below recruiter returns 403
 
@@ -554,7 +560,7 @@ When a job is soft-deleted (`jobs.deleted_at IS NOT NULL`), `GET /jobs/{jobId}/a
 
 ### Requirement: Recruiter Detail Endpoint
 
-The system MUST expose `GET /jobs/{jobId}/applications/{id}` as a recruiter-only read route. The route MUST run behind `RequireAuth` followed by `RequireCompanyRole(recruiter)`. The handler MUST scope the read by the caller's `CompanyContext.company_id`, the path `{jobId}`, AND the path `{id}`: the row's `job_id` MUST equal `{jobId}` and that job MUST be owned by the caller's company. On success the response MUST be `200 OK` with the full application row and the joined candidate snippet.
+The system MUST expose `GET /jobs/{jobId}/applications/{id}` as a recruiter-only read route. The route MUST run behind `RequireAuth` followed by `RequireCompanyRole(recruiter)`. The `RequireCompanyRole` middleware MUST probe the resolved member company's liveness (the same SQL `WHERE deleted_at IS NULL` predicate used by `GetCompanyByID`) AFTER membership resolution and BEFORE role comparison — a tombstoned company (`deleted_at IS NOT NULL`) and a missing company row (`ErrCompanyNotFound`) collapse to the SAME `403 Forbidden` with reason `company is inactive`, the handler is NEVER invoked, and no `CompanyContext` is injected. The handler MUST scope the read by the caller's `CompanyContext.company_id`, the path `{jobId}`, AND the path `{id}`: the row's `job_id` MUST equal `{jobId}` and that job MUST be owned by the caller's company. On success the response MUST be `200 OK` with the full application row and the joined candidate snippet.
 
 #### Scenario: recruiter gets an application's detail
 
@@ -573,6 +579,12 @@ The system MUST expose `GET /jobs/{jobId}/applications/{id}` as a recruiter-only
 - GIVEN an authenticated user with no `company_members` row
 - WHEN `GET /jobs/{jobId}/applications/{id}` is sent
 - THEN the response is `403` and the handler is never invoked
+
+#### Scenario: tombstoned member company returns 403 (middleware)
+
+- GIVEN an authenticated recruiter (or owner) membership in company A whose `companies.deleted_at IS NOT NULL` (tombstoned)
+- WHEN `GET /jobs/{jobId}/applications/{id}` is sent
+- THEN the response is `403 Forbidden` with reason `company is inactive` and the handler is never invoked — `RequireCompanyRole`'s liveness gate collapses tombstoned and missing-company rows to the same `403` BEFORE role comparison; the SQL same-company read remains as defense-in-depth but the production API MUST NOT reach it for a tombstoned member company
 
 #### Scenario: invalid job id returns 400
 
@@ -626,7 +638,7 @@ The recruiter detail response MUST join `users` (for `full_name`) and `candidate
 
 ### Requirement: Recruiter Transition Endpoint
 
-The system MUST expose `PATCH /jobs/{jobId}/applications/{id}/transition` as a recruiter-only write route. The route MUST run behind `RequireAuth` followed by `RequireCompanyRole(recruiter)`. The body MUST carry `status` (one of `in_review|rejected|hired`; the use case MUST reject `submitted` because the slice does not allow back-edges). The path `{jobId}` MUST be parsed as a UUID; non-UUID values yield `400 invalid job id`. The path `{id}` MUST be parsed as a UUID; non-UUID values yield `400 invalid application id`. The handler MUST scope the write by the caller's `CompanyContext.company_id`, the path `{jobId}`, AND the path `{id}`: the row's `job_id` MUST equal `{jobId}` and that job MUST be owned by the caller's company. There is NO CAS guard on transitions (low-contention, monotonic in the happy path; the response surfaces the new state so the client can re-fetch on a lost race — see `Recruiter Transition Lost Race`).
+The system MUST expose `PATCH /jobs/{jobId}/applications/{id}/transition` as a recruiter-only write route. The route MUST run behind `RequireAuth` followed by `RequireCompanyRole(recruiter)`. The `RequireCompanyRole` middleware MUST probe the resolved member company's liveness (the same SQL `WHERE deleted_at IS NULL` predicate used by `GetCompanyByID`) AFTER membership resolution and BEFORE role comparison — a tombstoned company (`deleted_at IS NOT NULL`) and a missing company row (`ErrCompanyNotFound`) collapse to the SAME `403 Forbidden` with reason `company is inactive`, the handler is NEVER invoked, and no `CompanyContext` is injected. The body MUST carry `status` (one of `in_review|rejected|hired`; the use case MUST reject `submitted` because the slice does not allow back-edges). The path `{jobId}` MUST be parsed as a UUID; non-UUID values yield `400 invalid job id`. The path `{id}` MUST be parsed as a UUID; non-UUID values yield `400 invalid application id`. The handler MUST scope the write by the caller's `CompanyContext.company_id`, the path `{jobId}`, AND the path `{id}`: the row's `job_id` MUST equal `{jobId}` and that job MUST be owned by the caller's company. There is NO CAS guard on transitions (low-contention, monotonic in the happy path; the response surfaces the new state so the client can re-fetch on a lost race — see `Recruiter Transition Lost Race`).
 
 #### Scenario: recruiter transitions submitted → in_review
 
@@ -657,6 +669,12 @@ The system MUST expose `PATCH /jobs/{jobId}/applications/{id}/transition` as a r
 - GIVEN an authenticated user with no `company_members` row
 - WHEN `PATCH /jobs/{jobId}/applications/{id}/transition` is sent
 - THEN the response is `403` and the handler is never invoked
+
+#### Scenario: tombstoned member company returns 403 (middleware)
+
+- GIVEN an authenticated recruiter (or owner) membership in company A whose `companies.deleted_at IS NOT NULL` (tombstoned)
+- WHEN `PATCH /jobs/{jobId}/applications/{id}/transition` is sent
+- THEN the response is `403 Forbidden` with reason `company is inactive` and the handler is never invoked — `RequireCompanyRole`'s liveness gate collapses tombstoned and missing-company rows to the same `403` BEFORE role comparison; the SQL same-company read remains as defense-in-depth but the production API MUST NOT reach it for a tombstoned member company
 
 #### Scenario: invalid job id returns 400
 

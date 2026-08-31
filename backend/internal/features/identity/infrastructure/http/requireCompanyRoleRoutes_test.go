@@ -163,12 +163,22 @@ func (rtStubCompanyRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ tim
 	return nil
 }
 
+// IsCompanyLive is the narrow liveness probe (require-company-role-tombstone-gate slice).
+// Route tests run the chain under "live company" by default; the
+// liveness-specific scenarios live in requireCompanyRole_test.go's
+// `stubLivenessRepo` (driven directly). Returning true keeps every
+// existing route scenario in the same happy-path shape it already was.
+func (rtStubCompanyRepo) IsCompanyLive(_ context.Context, _ uuid.UUID) (bool, error) {
+	return true, nil
+}
+
 // Compile-time guards: the route-test fakes satisfy the exact port
 // surfaces the production wiring consumes.
 var (
-	_ identityrepositories.UserRepository  = (*rtStubUserRepo)(nil)
-	_ repositories.CompanyMemberRepository = (*rtStubMemberRepo)(nil)
-	_ repositories.CompanyRepository       = rtStubCompanyRepo{}
+	_ identityrepositories.UserRepository    = (*rtStubUserRepo)(nil)
+	_ repositories.CompanyMemberRepository   = (*rtStubMemberRepo)(nil)
+	_ repositories.CompanyRepository         = rtStubCompanyRepo{}
+	_ repositories.CompanyLivenessRepository = rtStubCompanyRepo{}
 )
 
 // --- helpers --------------------------------------------------------------
@@ -190,6 +200,14 @@ func buildMemberRouter(users *rtStubUserRepo, members *rtStubMemberRepo, handler
 	svc := usecases.NewCompanyMemberService(members, users, rtStubCompanyRepo{})
 	mh := companieshttp.NewMemberHandler(svc)
 
+	// require-company-role-tombstone-gate slice: the narrow
+	// `CompanyLivenessRepository` consumed by RequireCompanyRole is
+	// wired with a live-default stub so the existing route scenarios
+	// stay in their happy-path shape. The liveness-specific
+	// scenarios (tombstone / missing / repo failure) live in
+	// requireCompanyRole_test.go's dedicated `stubLivenessRepo`.
+	liveness := rtStubCompanyRepo{}
+
 	r := chi.NewRouter()
 	r.Route("/me", func(r chi.Router) {
 		// /me subtree: RequireAuth runs first. Below the route group,
@@ -206,7 +224,7 @@ func buildMemberRouter(users *rtStubUserRepo, members *rtStubMemberRepo, handler
 
 		// GET /me/company/members — minRole=recruiter.
 		r.Route("/company/members", func(r chi.Router) {
-			r.Use(RequireCompanyRole(users, members, valueobjects.RecruiterRole))
+			r.Use(RequireCompanyRole(users, members, liveness, valueobjects.RecruiterRole))
 			r.Get("/", func(w http.ResponseWriter, req *http.Request) {
 				*handlerInvoked = true
 				mh.Routes().ServeHTTP(w, req)
@@ -217,7 +235,7 @@ func buildMemberRouter(users *rtStubUserRepo, members *rtStubMemberRepo, handler
 		// chi.Post takes http.HandlerFunc; the middleware returns
 		// http.Handler, so we wrap with a tiny inline handler that
 		// delegates — same shape as the production wiring.
-		postHandler := RequireCompanyRole(users, members, valueobjects.OwnerRole)(
+		postHandler := RequireCompanyRole(users, members, liveness, valueobjects.OwnerRole)(
 			http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 				*handlerInvoked = true
 				mh.Routes().ServeHTTP(w, req)
@@ -243,6 +261,7 @@ func allowAllVerifierForBuildRouter() security.Verifier { return allowAllVerifie
 func TestRoutes_MissingAuthHeaderIsUnauthorized(t *testing.T) {
 	users := &rtStubUserRepo{}
 	members := &rtStubMemberRepo{}
+	liveness := rtStubCompanyRepo{}
 
 	// Mount with a denyAll verifier so /me/* rejects every request
 	// regardless of the Authorization header. The shape is the same
@@ -254,7 +273,7 @@ func TestRoutes_MissingAuthHeaderIsUnauthorized(t *testing.T) {
 			t.Error("handler must NOT be invoked when Authorization header is missing")
 		})
 		r.Method(http.MethodPost, "/company/members",
-			RequireCompanyRole(users, members, valueobjects.OwnerRole)(
+			RequireCompanyRole(users, members, liveness, valueobjects.OwnerRole)(
 				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					t.Error("handler must NOT be invoked when Authorization header is missing")
 				}),

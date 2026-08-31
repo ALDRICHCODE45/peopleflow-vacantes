@@ -180,8 +180,17 @@ func run() error {
 	// BOTH the /me/* subtree AND the jobs write route (PATCH /jobs/{id}),
 	// so they're hoisted to run() scope. requireOwner stays local to the
 	// /me block (only used by member-mutation routes).
+	//
+	// require-company-role-tombstone-gate slice: the same postgres
+	// `*companyRepo` is reused as the narrow `CompanyLivenessRepository`
+	// (`IsCompanyLive(ctx, companyID) (bool, error)`); the gate runs
+	// after membership resolution and before role comparison so a
+	// tombstoned or missing company returns 403 with reason
+	// "company is inactive" before the handler runs. The same hoisted
+	// instance is consumed at both `RequireCompanyRole` call sites
+	// (`requireRecruiter` + `requireOwner`).
 	requireAuth := identityhttp.RequireAuth(verifier)
-	requireRecruiter := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, valueobjects.RecruiterRole)
+	requireRecruiter := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, companyRepo, valueobjects.RecruiterRole)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -312,7 +321,13 @@ func run() error {
 		// the handler. requireRecruiter is the hoisted variable
 		// (Phase 6 D8); only requireOwner stays in this block because it
 		// is only used here.
-		requireOwner := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, valueobjects.OwnerRole)
+		//
+		// require-company-role-tombstone-gate slice: same hoisted
+		// `companyRepo` reused as the liveness port (narrow
+		// CompanyLivenessRepository). The narrowed port keeps the
+		// middleware from depending on the entity hydration +
+		// write-co-write surface it doesn't need.
+		requireOwner := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, companyRepo, valueobjects.OwnerRole)
 
 		// Per-method handler accessors (added in WU4) — they let us
 		// apply different gates to different (method, path) pairs,

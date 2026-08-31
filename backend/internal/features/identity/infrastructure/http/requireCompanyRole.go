@@ -37,6 +37,20 @@ import (
 //     IDOR leak from probing membership rows with a bogus sub).
 //   - users.id → members.GetMembershipByUserID. Missing row maps to
 //     403; role < minRole maps to 403 (per design D4 / spec scenarios).
+//   - After membership resolution, the middleware probes the company's
+//     liveness via the narrow CompanyLivenessRepository. A tombstoned
+//     company (`deleted_at IS NOT NULL`) and a missing company (no
+//     such row, ErrCompanyNotFound) collapse to the SAME 403 with
+//     reason "company is inactive" — the gate MUST NOT reveal which
+//     one it saw, because that would leak the existence of
+//     soft-deleted companies to a probing caller (R7 invariant
+//     extension: a soft-deleted company is invisible on every
+//     role-gated route, not just the membership read). An unexpected
+//     liveness lookup error maps to 500 (the existing generic
+//     internal-error response). Liveness runs AFTER membership
+//     resolution (so a stranger doesn't probe company existence via
+//     the gate) and BEFORE role comparison (so the handler never
+//     receives a CompanyContext for a tombstoned company).
 //   - On success, CompanyContext{company_id, user_id, role} is injected and
 //     the downstream handler runs.
 //
@@ -47,6 +61,7 @@ import (
 func RequireCompanyRole(
 	users identityrepositories.UserRepository,
 	members companiesrepositories.CompanyMemberRepository,
+	liveness companiesrepositories.CompanyLivenessRepository,
 	minRole valueobjects.MemberRole,
 ) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -81,6 +96,36 @@ func RequireCompanyRole(
 				}
 				slog.Error("company role middleware: membership lookup failed", "error", err)
 				respondServerError(w)
+				return
+			}
+
+			// Liveness gate (require-company-role-tombstone-gate slice).
+			// Runs AFTER membership resolution (so a stranger cannot
+			// probe company existence via this gate) and BEFORE role
+			// comparison (so the handler never sees a CompanyContext
+			// for a tombstoned company).
+			//
+			// A tombstoned company (`deleted_at IS NOT NULL`) AND a
+			// missing company (pgx.ErrNoRows →
+			// entities.ErrCompanyNotFound) collapse to the SAME 403
+			// with reason "company is inactive" — the gate MUST
+			// NOT reveal which one it saw, because that would leak the
+			// existence of soft-deleted companies to a probing caller.
+			// Any other liveness error is treated as 500 (the error is
+			// logged via slog; the wire body is the generic internal-
+			// error response).
+			live, err := liveness.IsCompanyLive(r.Context(), member.CompanyID)
+			if err != nil {
+				if errors.Is(err, entities.ErrCompanyNotFound) {
+					respondForbidden(w, "company is inactive")
+					return
+				}
+				slog.Error("company role middleware: liveness lookup failed", "error", err)
+				respondServerError(w)
+				return
+			}
+			if !live {
+				respondForbidden(w, "company is inactive")
 				return
 			}
 

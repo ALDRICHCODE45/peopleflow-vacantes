@@ -62,6 +62,50 @@ func NewCompanyRepository(pool *pgxpool.Pool, audit auditrepositories.AuditEvent
 // rather than waiting for a wiring/runtime surprise in `cmd/api/main.go`.
 var _ repositories.CompanyRepository = (*CompanyRepository)(nil)
 
+// IsCompanyLive probes the `companies` row's `deleted_at IS NULL`
+// without applying the tombstone filter the other CompanyRepository
+// reads apply (require-company-role-tombstone-gate slice).
+//
+// The concrete postgres CompanyRepository is the single implementation of
+// BOTH the broad `repositories.CompanyRepository` (entity hydration,
+// CAS write paths, audit co-write) AND the narrow
+// `repositories.CompanyLivenessRepository` (boolean liveness only). The
+// sqlc IsCompanyLive :one query selects one column and pgx.ErrNoRows is
+// remapped to entities.ErrCompanyNotFound — the middleware collapses
+// that sentinel + a literal `false` to the same 403 with reason `"company
+// is inactive"`, so the gate cannot reveal which one it saw.
+//
+// `pgx.ErrNoRows` is checked BEFORE the error is returned so the two
+// branches coexist cleanly with whatever else the driver may surface
+// (defense-in-depth, mirror of `GetCompanyByID`'s mapping).
+//
+// Returns:
+//
+//	(true,  nil)                          on a live (deleted_at IS NULL) row
+//	(false, nil)                          on a tombstoned (deleted_at IS NOT NULL) row
+//	(false, entities.ErrCompanyNotFound)  when no row matches the id
+//	                                        (false is the conservative default; the
+//	                                         caller maps this to a 403 with reason
+//	                                         "company is inactive" regardless of
+//	                                         the sentinel vs the literal false)
+//	(_,     other error)                  propagated unchanged (HTTP 500)
+func (r *CompanyRepository) IsCompanyLive(ctx context.Context, companyID uuid.UUID) (bool, error) {
+	live, err := db.New(r.pool).IsCompanyLive(ctx, companyID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, entities.ErrCompanyNotFound
+		}
+		return false, err
+	}
+	return live, nil
+}
+
+// Compile-time assertion: the same adapter also satisfies the NARROW
+// liveness port. A future refactor that drifts either port surface will
+// refuse to compile at this guard rather than waiting for a wiring
+// surprise in `cmd/api/main.go`.
+var _ repositories.CompanyLivenessRepository = (*CompanyRepository)(nil)
+
 // Create persists a new company, mapping the entity's value objects into sqlc params.
 //
 // WU3 (D15): the read path borrows `db.New(r.pool)` per call instead

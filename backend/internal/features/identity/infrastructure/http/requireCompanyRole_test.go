@@ -116,12 +116,35 @@ func (s *stubMemberRepo) Remove(_ context.Context, _, _ uuid.UUID) error {
 	return errors.New("stubMemberRepo.Remove: not used by middleware tests")
 }
 
+// stubLivenessRepo is the in-memory companies CompanyLivenessRepository
+// for the middleware tests. It is intentionally a SEPARATE stub (not a
+// method on stubMemberRepo) so the tests can independently drive
+// "live", "tombstoned", "missing", and "repo failure" without dragging
+// the membership stub through four scenarios. Only IsCompanyLive is
+// used; the surface is the full interface so the compile-time guard
+// catches future port drift.
+type stubLivenessRepo struct {
+	mu sync.Mutex
+
+	live      bool
+	liveErr   error
+	liveCalls int
+}
+
+func (s *stubLivenessRepo) IsCompanyLive(_ context.Context, _ uuid.UUID) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.liveCalls++
+	return s.live, s.liveErr
+}
+
 // Compile-time guards: the fakes satisfy the exact port surfaces the
 // middleware depends on. Future renames break the build at the fake,
 // not at the production site.
 var (
-	_ identityrepositories.UserRepository  = (*stubUserRepo)(nil)
-	_ repositories.CompanyMemberRepository = (*stubMemberRepo)(nil)
+	_ identityrepositories.UserRepository    = (*stubUserRepo)(nil)
+	_ repositories.CompanyMemberRepository   = (*stubMemberRepo)(nil)
+	_ repositories.CompanyLivenessRepository = (*stubLivenessRepo)(nil)
 )
 
 // --- helpers --------------------------------------------------------------
@@ -130,13 +153,19 @@ var (
 // prove the middleware either invokes the downstream handler or rejects
 // the request before it reaches one. The recorder function returns
 // whatever the handler wants the test to observe.
+//
+// The liveness port is a required argument (RequireCompanyRole runs the
+// liveness gate after membership resolution). Default scenarios use a
+// `{live: true}` stub so the gate is a no-op; the new tombstone /
+// missing / repo-failure tests drive the stub directly.
 func buildMiddleware(
 	users *stubUserRepo,
 	members *stubMemberRepo,
+	liveness *stubLivenessRepo,
 	minRole valueobjects.MemberRole,
 	recorder func(w http.ResponseWriter, r *http.Request, seenCompanyID uuid.UUID, seenRole valueobjects.MemberRole),
 ) http.Handler {
-	return RequireCompanyRole(users, members, minRole)(
+	return RequireCompanyRole(users, members, liveness, minRole)(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			cc, ok := identitysecurity.CompanyContextFromContext(r.Context())
 			if !ok {
@@ -181,9 +210,10 @@ func TestRequireCompanyRole_OwnerPassesRecruiterGate(t *testing.T) {
 
 	users := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-owner"}}
 	members := &stubMemberRepo{resolvedMember: member}
+	liveness := &stubLivenessRepo{live: true} // default: live company; liveness tests override below
 
 	invoked := false
-	h := buildMiddleware(users, members, valueobjects.RecruiterRole,
+	h := buildMiddleware(users, members, liveness, valueobjects.RecruiterRole,
 		func(_ http.ResponseWriter, _ *http.Request, seenCompanyID uuid.UUID, seenRole valueobjects.MemberRole) {
 			invoked = true
 			if seenCompanyID != companyID {
@@ -228,9 +258,10 @@ func TestRequireCompanyRole_RecruiterUnderOwnerIsForbidden(t *testing.T) {
 
 	users := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-recruiter"}}
 	members := &stubMemberRepo{resolvedMember: member}
+	liveness := &stubLivenessRepo{live: true}
 
 	invoked := false
-	h := RequireCompanyRole(users, members, valueobjects.OwnerRole)(
+	h := RequireCompanyRole(users, members, liveness, valueobjects.OwnerRole)(
 		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { invoked = true }),
 	)
 
@@ -256,9 +287,10 @@ func TestRequireCompanyRole_NonMemberIsForbidden(t *testing.T) {
 
 	users := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-stranger"}}
 	members := &stubMemberRepo{resolveErr: entities.ErrNotAMember}
+	liveness := &stubLivenessRepo{live: true}
 
 	invoked := false
-	h := RequireCompanyRole(users, members, valueobjects.OwnerRole)(
+	h := RequireCompanyRole(users, members, liveness, valueobjects.OwnerRole)(
 		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { invoked = true }),
 	)
 
@@ -284,9 +316,10 @@ func TestRequireCompanyRole_NonMemberIsForbidden(t *testing.T) {
 func TestRequireCompanyRole_UnknownSubIsUnauthorized(t *testing.T) {
 	users := &stubUserRepo{resolveErr: identityentities.ErrUserNotFound}
 	members := &stubMemberRepo{}
+	liveness := &stubLivenessRepo{live: true}
 
 	invoked := false
-	h := RequireCompanyRole(users, members, valueobjects.OwnerRole)(
+	h := RequireCompanyRole(users, members, liveness, valueobjects.OwnerRole)(
 		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { invoked = true }),
 	)
 
@@ -321,10 +354,11 @@ func TestRequireCompanyRole_InjectsUserID(t *testing.T) {
 	}
 	users := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-recruiter"}}
 	members := &stubMemberRepo{resolvedMember: member}
+	liveness := &stubLivenessRepo{live: true}
 
 	var gotUserID uuid.UUID
 	invoked := false
-	h := RequireCompanyRole(users, members, valueobjects.RecruiterRole)(
+	h := RequireCompanyRole(users, members, liveness, valueobjects.RecruiterRole)(
 		http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 			invoked = true
 			cc, ok := identitysecurity.CompanyContextFromContext(r.Context())
@@ -365,9 +399,10 @@ func TestRequireCompanyRole_OwnerOwnerIsSelfPass(t *testing.T) {
 	}
 	users := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-owner"}}
 	members := &stubMemberRepo{resolvedMember: member}
+	liveness := &stubLivenessRepo{live: true}
 
 	invoked := false
-	h := RequireCompanyRole(users, members, valueobjects.OwnerRole)(
+	h := RequireCompanyRole(users, members, liveness, valueobjects.OwnerRole)(
 		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { invoked = true }),
 	)
 
@@ -398,9 +433,10 @@ func TestRequireCompanyRole_RecruiterPassesRecruiterGate(t *testing.T) {
 	}
 	users := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-rec"}}
 	members := &stubMemberRepo{resolvedMember: member}
+	liveness := &stubLivenessRepo{live: true}
 
 	invoked := false
-	h := RequireCompanyRole(users, members, valueobjects.RecruiterRole)(
+	h := RequireCompanyRole(users, members, liveness, valueobjects.RecruiterRole)(
 		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { invoked = true }),
 	)
 
@@ -424,9 +460,10 @@ func TestRequireCompanyRole_RecruiterPassesRecruiterGate(t *testing.T) {
 func TestRequireCompanyRole_MissingClaimsIsUnauthorized(t *testing.T) {
 	users := &stubUserRepo{}
 	members := &stubMemberRepo{}
+	liveness := &stubLivenessRepo{live: true}
 
 	invoked := false
-	h := RequireCompanyRole(users, members, valueobjects.OwnerRole)(
+	h := RequireCompanyRole(users, members, liveness, valueobjects.OwnerRole)(
 		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { invoked = true }),
 	)
 
@@ -444,5 +481,179 @@ func TestRequireCompanyRole_MissingClaimsIsUnauthorized(t *testing.T) {
 	}
 	if users.getCalls != 0 {
 		t.Errorf("middleware must NOT call UserRepo with no Claims; got %d calls", users.getCalls)
+	}
+}
+
+// --- 5. RequireCompanyRole liveness gate (require-company-role-tombstone-gate slice) ---
+//
+// The four scenarios below pin the dispatch contract of the liveness
+// gate added in this slice:
+//
+//   - A soft-deleted company (deleted_at IS NOT NULL) MUST fail with
+//     403 reason "company is inactive" and MUST NOT invoke the handler.
+//   - A missing company (no such id; ErrCompanyNotFound) MUST fail with
+//     the SAME 403 + reason — the gate MUST NOT leak which one it saw.
+//   - An unexpected liveness error MUST fail with 500 (logged internally)
+//     and MUST NOT invoke the handler.
+//   - The happy path (live company, role >= minRole) MUST still pass
+//     AND MUST hit the liveness probe exactly once — a guard against a
+//     future refactor that doubles the probe or accidentally drops it.
+
+const livenessGateReason = "company is inactive"
+
+// TestRequireCompanyRole_TombstonedCompanyIsForbidden covers the
+// liveness gate failing closed on a soft-deleted company: the stub
+// reports (false, nil) (the postgres IsCompanyLive signature for a row
+// where deleted_at IS NOT NULL). The middleware MUST short-circuit to
+// 403 with reason "company is inactive" and MUST NOT invoke the
+// handler. The liveness probe MUST be called exactly once (no second
+// probe after a future refactor accidentally doubles the call).
+func TestRequireCompanyRole_TombstonedCompanyIsForbidden(t *testing.T) {
+	userID := uuid.New()
+	companyID := uuid.New()
+	member := &entities.CompanyMember{
+		ID:        uuid.New(),
+		UserID:    userID,
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole, // would otherwise pass
+	}
+	users := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-tombstoned"}}
+	members := &stubMemberRepo{resolvedMember: member}
+	liveness := &stubLivenessRepo{live: false} // soft-deleted company
+
+	invoked := false
+	h := RequireCompanyRole(users, members, liveness, valueobjects.OwnerRole)(
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { invoked = true }),
+	)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, reqWithSub(http.MethodPost, "/me/company/members", "sub-tombstoned"))
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if got, want := rec.Body.String(), `{"error":"forbidden","reason":"`+livenessGateReason+`"}`; got != want {
+		t.Errorf("body: want %q, got %q", want, got)
+	}
+	if invoked {
+		t.Error("handler invoked despite tombstoned company")
+	}
+	if liveness.liveCalls != 1 {
+		t.Errorf("liveness probe calls: want 1, got %d", liveness.liveCalls)
+	}
+}
+
+// TestRequireCompanyRole_MissingCompanyIsForbidden covers the liveness
+// gate failing closed on a company that has no row at all: the stub
+// reports (false, entities.ErrCompanyNotFound) — the postgres adapter's
+// pgx.ErrNoRows mapping. The middleware MUST collapse this to the SAME
+// 403 + reason as the tombstone case (the gate cannot reveal which one
+// it saw), and MUST NOT invoke the handler.
+func TestRequireCompanyRole_MissingCompanyIsForbidden(t *testing.T) {
+	userID := uuid.New()
+	companyID := uuid.New()
+	member := &entities.CompanyMember{
+		ID:        uuid.New(),
+		UserID:    userID,
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole, // would otherwise pass
+	}
+	users := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-missing-co"}}
+	members := &stubMemberRepo{resolvedMember: member}
+	liveness := &stubLivenessRepo{live: false, liveErr: entities.ErrCompanyNotFound}
+
+	invoked := false
+	h := RequireCompanyRole(users, members, liveness, valueobjects.OwnerRole)(
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { invoked = true }),
+	)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, reqWithSub(http.MethodPost, "/me/company/members", "sub-missing-co"))
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if got, want := rec.Body.String(), `{"error":"forbidden","reason":"`+livenessGateReason+`"}`; got != want {
+		t.Errorf("body: want %q, got %q (tombstone vs missing MUST be indistinguishable)", want, got)
+	}
+	if invoked {
+		t.Error("handler invoked despite missing company")
+	}
+	if liveness.liveCalls != 1 {
+		t.Errorf("liveness probe calls: want 1, got %d", liveness.liveCalls)
+	}
+}
+
+// TestRequireCompanyRole_LivenessLookupErrorIsInternalError covers the
+// unexpected-error branch: any error that is NOT entities.ErrCompanyNotFound
+// is treated as a 500 (logged via slog, generic body to the client).
+// The handler MUST NOT be invoked.
+func TestRequireCompanyRole_LivenessLookupErrorIsInternalError(t *testing.T) {
+	userID := uuid.New()
+	companyID := uuid.New()
+	member := &entities.CompanyMember{
+		ID:        uuid.New(),
+		UserID:    userID,
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	}
+	users := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-live-err"}}
+	members := &stubMemberRepo{resolvedMember: member}
+	liveness := &stubLivenessRepo{live: false, liveErr: errors.New("boom: connection reset")}
+
+	invoked := false
+	h := RequireCompanyRole(users, members, liveness, valueobjects.OwnerRole)(
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { invoked = true }),
+	)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, reqWithSub(http.MethodGet, "/me/company/members", "sub-live-err"))
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if invoked {
+		t.Error("handler invoked despite liveness lookup error")
+	}
+	if liveness.liveCalls != 1 {
+		t.Errorf("liveness probe calls: want 1, got %d", liveness.liveCalls)
+	}
+}
+
+// TestRequireCompanyRole_LivenessProbeCalledOnce is the call-assertion
+// companion to the live happy path: a live company under a passing role
+// gate MUST hit the liveness probe exactly once. The trip-assertion (no
+// double probe, no missed probe) guards a future refactor that
+// accidentally drops the call or duplicates it (e.g. once at the
+// middleware top and once inside the role gate).
+func TestRequireCompanyRole_LivenessProbeCalledOnce(t *testing.T) {
+	userID := uuid.New()
+	companyID := uuid.New()
+	member := &entities.CompanyMember{
+		ID:        uuid.New(),
+		UserID:    userID,
+		CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+	}
+	users := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-live-once"}}
+	members := &stubMemberRepo{resolvedMember: member}
+	liveness := &stubLivenessRepo{live: true} // live company
+
+	invoked := false
+	h := RequireCompanyRole(users, members, liveness, valueobjects.OwnerRole)(
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { invoked = true }),
+	)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, reqWithSub(http.MethodGet, "/me/company/members", "sub-live-once"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !invoked {
+		t.Fatal("handler must be invoked for live company + passing role")
+	}
+	if liveness.liveCalls != 1 {
+		t.Errorf("liveness probe calls: want 1, got %d (must be hit exactly once)", liveness.liveCalls)
 	}
 }

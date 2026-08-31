@@ -1183,3 +1183,102 @@ func TestGetMyMembership_HidesTombstonedCompany(t *testing.T) {
 		t.Errorf("expected membership role 'owner' to survive, got %q", role)
 	}
 }
+
+// --- 5. IsCompanyLive liveness probe (require-company-role-tombstone-gate slice) ---
+//
+// IsCompanyLive is the narrow liveness port the RequireCompanyRole
+// middleware consumes. The three integration tests pin the SQL contract
+// against a real Postgres instance (no in-memory shortcut can prove the
+// pgx.ErrNoRows mapping or the deleted_at IS NOT NULL round-trip):
+//
+//   - Live row (writeCoA, deleted_at IS NULL) returns (true, nil).
+//   - Tombstoned row (writeCoT, deleted_at IS NOT NULL) returns
+//     (false, nil) — the probe MUST see the tombstone, not skip past it.
+//   - Missing id (a fresh uuid.New()) returns
+//     (false, entities.ErrCompanyNotFound) — the adapter maps
+//     pgx.ErrNoRows to the domain sentinel so the middleware collapses
+//     it to the same 403 "company is inactive" as the tombstone case.
+//
+// Reuses the existing committed-fixture helpers (fixtureSeed,
+// cleanupCompanies, writeCoA, writeCoT). The IsCompanyLive probe
+// performs NO write and appends NO audit row, so the fixture's
+// pre/post invariants stay intact.
+
+// TestIsCompanyLive_LiveRowReturnsTrue proves the happy path against
+// real Postgres: writeCoA is seeded with deleted_at IS NULL, the probe
+// MUST return (true, nil).
+func TestIsCompanyLive_LiveRowReturnsTrue(t *testing.T) {
+	pool := skipIfNoDatabase(t)
+	t.Cleanup(func() { pool.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	fixtureSeed(t, ctx, pool) // seeds writeCoA (live) + writeCoT (tombstoned)
+	t.Cleanup(func() { cleanupCompanies(t, pool) })
+
+	repo := newTestCompanyRepository(pool)
+
+	live, err := repo.IsCompanyLive(ctx, writeCoA)
+	if err != nil {
+		t.Fatalf("IsCompanyLive(live row): unexpected error: %v", err)
+	}
+	if !live {
+		t.Errorf("IsCompanyLive(live row): want true, got false (writeCoA has deleted_at IS NULL per fixtureSeed)")
+	}
+}
+
+// TestIsCompanyLive_TombstonedRowReturnsFalse proves the tombstone
+// contract against real Postgres: writeCoT is seeded with
+// deleted_at IS NOT NULL, the probe MUST return (false, nil). The
+// probe MUST NOT trip pgx.ErrNoRows — the row exists, it is just
+// tombstoned — and MUST NOT trip any other error.
+func TestIsCompanyLive_TombstonedRowReturnsFalse(t *testing.T) {
+	pool := skipIfNoDatabase(t)
+	t.Cleanup(func() { pool.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	fixtureSeed(t, ctx, pool) // seeds writeCoT (tombstoned)
+	t.Cleanup(func() { cleanupCompanies(t, pool) })
+
+	repo := newTestCompanyRepository(pool)
+
+	live, err := repo.IsCompanyLive(ctx, writeCoT)
+	if err != nil {
+		t.Fatalf("IsCompanyLive(tombstoned row): unexpected error: %v (the probe MUST see the tombstone, not skip past it)", err)
+	}
+	if live {
+		t.Errorf("IsCompanyLive(tombstoned row): want false, got true")
+	}
+}
+
+// TestIsCompanyLive_MissingIDReturnsErrCompanyNotFound proves the
+// adapter's pgx.ErrNoRows → entities.ErrCompanyNotFound mapping: a
+// probe against a uuid that no row in `companies` matches MUST return
+// (false, entities.ErrCompanyNotFound). The (false) is the conservative
+// default the middleware collapses to the same 403 "company is
+// inactive" as a tombstone; the sentinel carries the diagnostic value
+// for callers that want to log it differently.
+func TestIsCompanyLive_MissingIDReturnsErrCompanyNotFound(t *testing.T) {
+	pool := skipIfNoDatabase(t)
+	t.Cleanup(func() { pool.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	fixtureSeed(t, ctx, pool)
+	t.Cleanup(func() { cleanupCompanies(t, pool) })
+
+	repo := newTestCompanyRepository(pool)
+
+	missingID := uuid.New()
+	live, err := repo.IsCompanyLive(ctx, missingID)
+	if !errors.Is(err, entities.ErrCompanyNotFound) {
+		t.Fatalf("IsCompanyLive(missing id): want ErrCompanyNotFound, got %v (live=%v)", err, live)
+	}
+	if live {
+		t.Errorf("IsCompanyLive(missing id): want false on the ErrCompanyNotFound branch, got true")
+	}
+}

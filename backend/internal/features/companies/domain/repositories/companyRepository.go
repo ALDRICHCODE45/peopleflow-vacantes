@@ -92,3 +92,34 @@ type CompanyRepository interface {
 	UpdateCompany(ctx context.Context, companyID uuid.UUID, patch UpdateCompanyPatch, casUpdatedAt time.Time, event auditentities.AuditEvent) error
 	SoftDeleteCompany(ctx context.Context, companyID uuid.UUID, casUpdatedAt time.Time, event auditentities.AuditEvent) error
 }
+
+// CompanyLivenessRepository is the NARROW persistence port for liveness
+// probes against the `companies` aggregate
+// (require-company-role-tombstone-gate slice). It is intentionally
+// segregated from the broader `CompanyRepository`:
+//
+//   - Interface segregation: the only consumer (the RequireCompanyRole
+//     middleware) only needs a boolean to gate on. The broader port's
+//     entity hydration, CAS write paths, audit-co-write, and inline
+//     job close are dead weight at this call site — extending the
+//     broader port would push the middleware's needs onto every other
+//     implementer (and onto every test stub).
+//
+//   - Single-purpose semantics: a row that is present returns
+//     `(deleted_at IS NULL)` AS `is_live`; a row that is absent surfaces
+//     as pgx.ErrNoRows at the adapter, which is mapped to
+//     `entities.ErrCompanyNotFound`. The middleware collapses both
+//     `ErrCompanyNotFound` and `false` to the same 403 with reason
+//     `"company is inactive"` — the gate MUST NOT reveal which one it
+//     saw, because that would leak the existence of soft-deleted
+//     companies to a probing caller.
+//
+//   - No tombstone filter: the SQL carries no `deleted_at IS NULL`
+//     predicate. A filtered-out tombstone would defeat the gate (the
+//     middleware would treat a soft-deleted company as "missing"
+//     instead of "inactive"). The query is byte-for-byte the dedicated
+//     read for this port; do NOT reuse GetCompanyByID's tombstone
+//     filter, do NOT reuse GetCompanyForUpdate's same SQL.
+type CompanyLivenessRepository interface {
+	IsCompanyLive(ctx context.Context, companyID uuid.UUID) (bool, error)
+}

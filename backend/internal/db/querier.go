@@ -174,6 +174,29 @@ type Querier interface {
 	// prevents duplicate languages for the same user — the adapter surfaces a
 	// 23505 as ErrDuplicateLanguage.
 	InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error
+	// Atomic liveness probe for the RequireCompanyRole middleware
+	// (require-company-role-tombstone-gate slice). Returns `deleted_at IS NULL`
+	// for the exact company id WITHOUT filtering away tombstones:
+	//
+	//   - Row present, deleted_at IS NULL    → true  (live company)
+	//   - Row present, deleted_at IS NOT NULL → false (tombstoned company)
+	//   - Row absent (no such id)           → pgx.ErrNoRows → adapter maps
+	//                                          to entities.ErrCompanyNotFound
+	//                                          (the middleware collapses
+	//                                          ErrCompanyNotFound + false to
+	//                                          the same 403 — the gate cannot
+	//                                          reveal which one it saw)
+	//
+	// The probe is ONE column (boolean) so it is cheaper than GetCompanyByID
+	// (which SELECTs 22 columns and rebuilds the entity). The `id = $1`
+	// predicate carries NO `deleted_at IS NULL` filter — the gate must see
+	// the tombstone, not skip past it.
+	//
+	// `:one` (not `:exec`) is chosen deliberately: the middleware needs
+	// the boolean to dispatch, and `:one` matches the per-row scalar
+	// semantics used by every other read in this file. A missing row
+	// surfaces as pgx.ErrNoRows at the adapter boundary.
+	IsCompanyLive(ctx context.Context, id uuid.UUID) (bool, error)
 	ListActiveIndustries(ctx context.Context) ([]Industry, error)
 	// Recruiter queue read (design D5 second step). Same-company scope
 	// enforced inside the same statement. NO deleted_at / status filter on
