@@ -21,6 +21,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -148,6 +149,23 @@ func doPatch(t *testing.T, router http.Handler, body, casHeader string, cc ident
 	return rec
 }
 
+func patchSuccessEditorView(t *testing.T, row *entities.Company, cc identitysecurity.CompanyContext) dtos.CompanyEditorViewDto {
+	t.Helper()
+	repo := &sequentialUpdateRepo{preUpdate: row, postUpdate: row}
+	handlers := NewCompanyHandler(usecases.NewCompanyService(repo)).CompanyHandlers()
+	router := chi.NewRouter()
+	router.Patch("/me/company", handlers.UpdateCompany)
+	rec := doPatch(t, router, `{"name":"Acme"}`, row.UpdatedAt.Format(time.RFC3339), cc)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("success PATCH: want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var view dtos.CompanyEditorViewDto
+	if err := json.Unmarshal(rec.Body.Bytes(), &view); err != nil {
+		t.Fatalf("decode success editor view: %v", err)
+	}
+	return view
+}
+
 // --- 0. missing actor (uuid.Nil) fails closed with 500 via classifier --------
 
 // TestUpdateCompanyHandler_MissingUserIDReturns500 pins the spec
@@ -245,20 +263,24 @@ func TestUpdateCompanyHandler_InvalidJSONReturns400(t *testing.T) {
 // `status`, `deleted_at`, `created_at`.
 func TestUpdateCompanyHandler_CASConflictReturns409WithView(t *testing.T) {
 	row := mustCompany(uuid.New())
+	companyID := row.ID
+	cc := identitysecurity.CompanyContext{CompanyID: companyID, UserID: uuid.New(), Role: valueobjects.OwnerRole}
+	successView := patchSuccessEditorView(t, row, cc)
+
 	repo := &stubUpdateServiceRepo{
 		getForUpdateOut: row,
 		updateErr:       entities.ErrCompanyNotFound,
 	}
-	companyID := row.ID
-	cc := identitysecurity.CompanyContext{CompanyID: companyID, UserID: uuid.New(), Role: valueobjects.OwnerRole}
-	router := newUpdateRouter(t, repo, cc)
-
-	rec := doPatch(t, router, `{"name":"Acme"}`, row.UpdatedAt.Format(time.RFC3339), cc)
+	rec := doPatch(t, newUpdateRouter(t, repo, cc), `{"name":"Acme"}`, row.UpdatedAt.Format(time.RFC3339), cc)
 
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
 	}
-	var env httpjson.ErrorEnvelope
+	var env struct {
+		Error string                     `json:"error"`
+		Code  httpjson.Code              `json:"code"`
+		Data  dtos.CompanyEditorViewDto `json:"data"`
+	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
 		t.Fatalf("decode as catalog envelope: %v; body=%s", err, rec.Body.String())
 	}
@@ -268,8 +290,8 @@ func TestUpdateCompanyHandler_CASConflictReturns409WithView(t *testing.T) {
 	if env.Error == "" {
 		t.Errorf("error field must be non-empty")
 	}
-	if env.Data == nil {
-		t.Errorf("409 data must be the editor view (not nil)")
+	if !reflect.DeepEqual(successView, env.Data) {
+		t.Errorf("200 editor view != 409 data:\n200: %#v\n409: %#v", successView, env.Data)
 	}
 	bodyStr := rec.Body.String()
 	for _, f := range []string{"rfc", "industry_id", "status", "deleted_at", "created_at"} {
