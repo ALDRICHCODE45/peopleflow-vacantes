@@ -1,0 +1,269 @@
+# Tasks: backend-go-closure
+
+Implementation tasks for the objective Go backend closure. Sources: `proposal.md`, six delta specs (`backend-runtime`, `companies`, `candidates`, `identity`, `industries`, `jobs`), and the corrected `design.md` (native engine, D1–D11, §3 work units, §11 TDD protocol, §12 traceability matrix). Every checkbox ends with the terminal ownership marker; no RDD/receipt/delivery-gate tasks are generated.
+
+Scope structure: the 17 WS2–WS7 subunits of design §3, with WS6A expanded into five sequenced tasks (WS6A-0 spec correction → catalog core → three adoption waves), plus the doc-only unit (A2). 24 tasks / 96 implementation-owned checkboxes.
+
+## Review Workload Forecast
+
+| Field | Value |
+|-------|-------|
+| Estimated changed lines | ~3,500–6,150 authored (additions+deletions) across the 17 WS2–WS7 subunits, plus ~80–150 authored doc lines for the doc-only unit; sqlc-generated output excluded from authored count, included in snapshot identity |
+| 400-line budget risk | High |
+| Chained PRs recommended | Yes |
+| Suggested split | RU1 catalog core → RU2/RU3 adoption by capability → RU4–RU7 companies → RU8/RU9 candidates+industries → RU10/RU11 executables → RU12–RU14 JWT → RU15/RU16 server+decode → RU17 observability → RU18–RU20 gates/report → RU21 docs |
+| Delivery strategy | ask-on-risk |
+| Chain strategy | pending |
+
+```text
+Decision needed before apply: Yes
+Chained PRs recommended: Yes
+Chain strategy: pending
+400-line budget risk: High
+```
+
+**Per-unit authored forecast** (generated sqlc/migration output excluded from these counts; every generated file still enters complete snapshot identity and receipt validation; design §13 group ranges are preserved):
+
+| RU | Work unit(s) | Est. authored lines | >400 risk |
+|----|--------------|--------------------:|-----------|
+| RU1 | WS6A-0 spec correction + WS6A-1 catalog core | 120–220 | Low |
+| RU2 | WS6A-2 companies catalog adoption + 409 `data` parity | 200–350 | Low |
+| RU3 | WS6A-3/4 remaining-capability adoption | 200–330 | Low (ask if real diff >400) |
+| RU4 | WS2A atomic active-industry SQL + races | 250–400 | Medium |
+| RU5 | WS2B direct adapters + named constraints | 120–200 | Low |
+| RU6 | WS2C rollback failure injection | 130–200 | Low |
+| RU7 | WS2D PATCH/DELETE CAS, races, zero-audit | 280–420 | Medium → **ask** if indivisible >400 |
+| RU8 | WS3A candidate full-replacement + CV reserve | 220–360 | Low |
+| RU9 | WS3B industries contract + single route | 120–200 | Low |
+| RU10 | WS4A `cmd/migrate` core + live round-trip harness | 300–500 | Medium → split core vs harness if needed |
+| RU11 | WS4B PostConfirmation adapter vs executable wiring | 350–600 | Medium → split pure adapter vs wiring |
+| RU12 | WS5A explicit verifier config factory | 100–200 | Low |
+| RU13 | WS5B JWKS cache/rotation verifier | 450–700 | **High → ask before chaining WS5B-1 (cache/single-flight core) and WS5B-2 (verification flow + concurrency evidence)** |
+| RU14 | WS5C middleware/composition wiring | 100–200 | Low |
+| RU15 | WS6B-1 server/router/health extraction | 200–350 | Low (ask if real diff >400) |
+| RU16 | WS6B-2 shared decoder + capability-group handler migration | 200–350 | Low (ask if real diff >400) |
+| RU17 | WS6C logs/metrics | 100–200 | Low |
+| RU18 | WS7A gate targets/receipts | 250–400 | Low |
+| RU19 | WS7B guards + traceability manifest | 250–400 | Low |
+| RU20 | WS7C report generator + generated evidence | 150–250 | Low |
+| RU21 | Doc reconciliation (doc-only) | 80–150 | Low |
+
+WS6A group total: 520–900 (design §13 "500–900"). WS6B+WS6C group total: 500–900 (design §13 "500–900"); WS6B is pre-split into RU15/RU16 behavior-preserving review candidates. WS7 group total: 650–1,050 across RU18–RU20 (design §13 "500–900"; the doc-only unit is outside §13).
+
+**Hotspots:** JWKS verifier+crypto tests (RU13), companies live-DB closure (RU4–RU7), handler-wide catalog adoption (RU2/RU3) and decoder migration (RU16) — both are broad cross-feature units and are pre-split by capability group, server extraction (RU15), executable adapters (RU10/RU11). Because `delivery_strategy=ask-on-risk`: RU7, RU13, and any unit whose real authored diff exceeds 400 lines must be surfaced to the user before apply; no `size:exception` is authorized and no chain strategy is preselected.
+
+**Dependency order:** RU1 → RU2–RU7 (catalog required by WS2A wire assertions and WS2D 409 `data` parity); RU8/RU9 independent after RU1; RU10–RU17 independent after their own prerequisite; RU18–RU20 consume immutable evidence from all prior units; RU21 last (pairs with delivered behavior or stands as doc-only; generated closure docs stay owned by RU20). WS2–WS6 integration merges in design §3 order (WS2 first), independent of implementation sequence.
+
+## Task conventions
+
+- Strict TDD, compile-safe RED: a RED task for a NEW boundary must compile and run before GREEN. Either the test exercises only existing exported surface, or the task first lands a minimal scaffold/stub whose observable behavior is wrong; the RED command then fails for the stated missing behavior. RED that fails only because a package/symbol does not compile is invalid and must not be recorded as RED.
+- Names of not-yet-existing test functions, symbols, and selectors are design targets; the exact resolved name is confirmed against the candidate tree when the task runs and recorded in the WS7B manifest. Existing paths cited as "verified" were confirmed in the working tree during tasks drafting.
+- DB-touching evidence runs `cd backend && go test -tags=integration -p 1 -count=1 <pkgs>`; final closure requires zero unexpected skips (skip whitelist empty).
+- REFACTOR closes each unit: focused tests still green, then `go test ./...` (plus the serial integration selector for DB units).
+- Traceability rows resolve actual paths, symbols, routes, and test functions in the candidate tree; design-target names are never accepted as evidence.
+- Mutation/failure-injection tests use temporary fixture copies and leave the working tree clean (`git status --porcelain` empty afterwards).
+
+---
+
+## Phase 1 — WS6A: Central stable error catalog (prerequisite for WS2A/WS2D)
+
+### 1.1 (WS6A-0) Wording-only spec correction: companies PATCH 409 parity
+
+- [x] RED: document the ambiguity first — quote the exact phrase "the `200` and `409` PATCH response bodies MUST be proven to use the same redacted shape (redaction parity)" from `openspec/changes/backend-go-closure/specs/companies/spec.md` (Requirement: Companies Write-Surface Evidence Contract, W4/W5) and record the two readings — (a) whole-409-body equality with the 200 body vs (b) 200-body / 409-envelope-`data` parity — as an apply-progress annotation directly under this task 1.1 in `openspec/changes/backend-go-closure/tasks.md` (this file is the named evidence artifact; there is no separate change journal). <!-- sdd-owner: implementation -->
+- [x] GREEN: apply the wording-only correction to that W4/W5 line in the companies delta so it reads: the 200 response body and the 409 envelope's `data` field carry the same redacted company DTO (same schema and constructor); the 409's `error` and `code` are additional stable-envelope fields. Behavior and ownership unchanged; no other delta text touched. The canonical `openspec/specs/companies/spec.md` ("PATCH /me/company Response Shape") is NOT edited while the change is active — deltas are the modification mechanism, and this task only verifies (does not assert) that the canonical text stays consistent with the corrected reading. <!-- sdd-owner: implementation -->
+- [x] TRIANGULATE: re-read `openspec/changes/backend-go-closure/specs/backend-runtime/spec.md` (Stable Error Envelope) and confirm the corrected wording cannot be read as a second envelope or as whole-body equality; append the confirmation to the same 1.1 apply-progress annotation. <!-- sdd-owner: implementation -->
+- [x] REFACTOR: none (spec text only). Validation via a deterministic structural check (no `openspec` CLI is wired in this repo and `openspec/config.yaml` defines no validate command): before the edit record `grep -c '^### Requirement:'` and `grep -c '^#### Scenario:'` baselines for the companies delta; after the edit both counts are unchanged and `grep -Fc` finds the corrected parity sentence exactly once. <!-- sdd-owner: implementation -->
+
+### 1.2 (WS6A-1) Catalog core in `internal/shared/httpjson`
+
+- [x] RED (compile-safe scaffold): the `httpjson` package already exists (`backend/internal/shared/httpjson/httpjson.go`, legacy `WriteJSON`/`WriteError(w, status, msg)`), but the catalog does not. Add a deliberately wrong, compile-safe `errors.go` scaffold together with compact table-driven tests so `go test ./internal/shared/httpjson -count=1` runs and fails on catalog version/definitions/envelope behavior rather than compilation. The tests MUST pin the exact ordered V1 code/status/default triples (including distinct `company_inactive = "company is inactive"`, CAS-only `conflict`, and `industry_unavailable`), fail-closed unknown-code handling, optional safe `data`, and a safe-message helper that preserves code/status. Record exact assertion failures. <!-- sdd-owner: implementation -->
+- [x] GREEN: replace the scaffold with immutable value-returning catalog logic, a fresh ordered code slice, fail-closed unknown-code resolution, and non-conflicting typed writers `WriteCatalogError` / `WriteCatalogErrorData`; add the real safe-message helper. Preserve legacy `WriteError(w, status, msg)` unchanged and add no duplicate compatibility helper. Make focused tests pass. <!-- sdd-owner: implementation -->
+- [x] TRIANGULATE: cover data omitted vs included, unknown code → canonical `internal_error`/500, safe-message override preserving code/status, generic internal message, and mutation of returned definitions/slices not affecting later resolutions. <!-- sdd-owner: implementation -->
+- [x] REFACTOR: compact implementation + tests + RU1 evidence/spec/task edits MUST remain within 400 authored changed lines for RU1; run `cd backend && go test ./... -count=1`. Do not migrate/dedupe feature handlers in this unit; adoption begins at task 1.3. <!-- sdd-owner: implementation -->
+
+### 1.6 (WS6A-1b) Error taxonomy closure: V1 14-code catalog (RU1B)
+
+This follow-up task extends the 11-code V1 catalog to 14 codes per the planning corrections, completing taxonomy closure before handler adoption begins. `ErrorCatalogVersion = 1` is added. The three new codes are: `already_exists` (409, duplicate company RFC/membership/application), `method_not_allowed` (405, router method mismatch), and `service_unavailable` (503, DB readiness failure). The closed switch, ordered list, and all tests are updated together. `conflict` and `company_not_active` semantics are unchanged.
+
+- [x] RED (compile-safe, behavioral only): add `ErrorCatalogVersion = 1` constant, three new `Code` constants, and the version test; extend `TestResolve_KnownCodes` with 3 new rows and `TestListCodes_Order` with 3 new entries. All 14 cases must fail on the new rows before the switch is updated. Record exact behavioral failures (not compile failures). <!-- sdd-owner: implementation -->
+
+- [x] GREEN: add the three `case` branches to `Resolve`, append to `ListCodes`, and make all focused tests pass. <!-- sdd-owner: implementation -->
+
+- [x] TRIANGULATE: confirm `WriteCatalogErrorData` exclusivity (data only for `conflict`), fail-closed unknown-code, and `SafeMessage` preserve new code/status unchanged. <!-- sdd-owner: implementation -->
+
+- [x] REFACTOR: run `cd backend && go test ./internal/shared/httpjson/... -count=1`, `go test ./... -count=1`, and `git diff --check`. No feature handlers touched. <!-- sdd-owner: implementation -->
+
+### 1.3 (WS6A-2) Catalog adoption — companies + PATCH 409 `data` parity
+
+- [ ] RED: extend the verified test files `backend/internal/features/companies/infrastructure/http/handler_test.go` and `backend/internal/features/companies/infrastructure/http/updateCompanyHandler_test.go` — classify every companies handler outcome through the catalog (`invalid_request`, `already_exists` for duplicate RFC, `conflict`, `forbidden`, `company_not_active`, `not_found`, `internal_error`); pin that `conflict` is used ONLY for CAS/`If-Unmodified-Since` mismatch on PATCH and DELETE; company DELETE conflict writes the 409 envelope without `data`. Decode the existing 200 PATCH body and the 409 body as `{error,code,data}`, assert 200 DTO == 409 `data`, and run forbidden-field assertions (`rfc`, `status`, `deleted_at`, `created_at`, `updated_at` absent) against BOTH. Capture the behavioral failure: current handlers write `{"error": msg}` with no `code` field and the 409 carries no redacted `data` (exact observed bodies recorded in the apply note). <!-- sdd-owner: implementation -->
+- [ ] GREEN: update `backend/internal/features/companies/infrastructure/http/handler.go` and the company use-case classifiers to return catalog `Definition` values; write the PATCH 409 through an envelope carrying `data` built by the same redacted-DTO constructor as the 200 body. Make focused tests pass. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: add failed-outcome cases (400/403/404/409) asserting the 409-on-missing-CAS path also carries the redacted `data` and that no failed outcome leaks internals; assert `error` remains readable by a legacy client. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: run `cd backend && go test ./... -count=1` and the companies serial selector `go test -tags=integration -p 1 -count=1 ./internal/features/companies/...`. <!-- sdd-owner: implementation -->
+
+### 1.4 (WS6A-3) Catalog adoption — candidates, industries, jobs
+
+- [ ] RED: in the verified files `backend/internal/features/candidates/infrastructure/http/handler_test.go`, the jobs HTTP tests (`backend/internal/features/jobs/infrastructure/http/handler_test.go`, `createJobHandler_test.go`, `updateJobHandler_test.go`, `softDeleteJobHandler_test.go`), and a NEW `backend/internal/features/industries/infrastructure/http/handler_test.go` (the handler itself exists, so the new test compiles), assert each 400/401/403/404/409/413/500 outcome carries the correct catalog `code` (`invalid_status_transition` for job status, `already_exists` for duplicate application, `internal_error` for the industries DB failure, `company_not_active`/`ErrCompanyGone` → `company_not_active`) with no ad-hoc code strings. Job PATCH/DELETE CAS conflict (409) carries the latest editor DTO in `data`. Capture the behavioral failure: current bodies carry only `error` (verified legacy `WriteError` shape). <!-- sdd-owner: implementation -->
+- [ ] GREEN: adopt the catalog in `backend/internal/features/candidates/infrastructure/http/handler.go`, `backend/internal/features/industries/infrastructure/http/handler.go`, and the jobs handlers' classifiers (`backend/internal/features/jobs/infrastructure/http/jobHandler.go` and per-handler files). <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: table one case per outcome class per feature; prove same outcome class ⇒ same code even when English messages differ. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: run `cd backend && go test ./... -count=1`. <!-- sdd-owner: implementation -->
+
+### 1.5 (WS6A-4) Catalog adoption — identity, company-membership, applications
+
+- [ ] RED: extend the verified test files `backend/internal/features/identity/infrastructure/http/middleware_test.go`, `backend/internal/features/identity/infrastructure/http/requireCompanyRole_test.go` (and `requireCompanyRoleRoutes_test.go`), `backend/internal/features/companies/infrastructure/http/memberHandler_test.go` + `memberHandler_classify_test.go` (member handlers live in the companies package — verified; earlier design prose placing them under identity is a design-target mismatch, not evidence), and `backend/internal/features/applications/infrastructure/http/applicationHandler_test.go` to assert catalog codes (`unauthenticated`, `forbidden`, `company_inactive`, `not_found`, `already_exists` for duplicate membership and application, `conflict`, `invalid_status_transition`, `invalid_request`, `internal_error`) on every error path. Capture failures (no `code` field on current bodies). <!-- sdd-owner: implementation -->
+- [ ] GREEN: adopt the catalog in the identity middleware/role middleware, member handlers, and applications classifiers. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: add the same-outcome-class⇒same-code table and an internal-failure case proving the real error is logged server-side while the body is generic. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: run `cd backend && go test ./... -count=1`; delete `WriteLegacyError` now that the last map-based call site is adopted (package must still compile), and confirm no handler outside `httpjson` assigns a `code` literal (manual grep; the WS7B guard makes it permanent). <!-- sdd-owner: implementation -->
+
+---
+
+## Phase 2 — WS2: Companies W1–W6 and SQL closure (needs Phase 1)
+
+### 2.1 (WS2A) Atomic active-industry SQL + deterministic races
+
+- [ ] RED (compile-safe, existing surface only): add a focused integration test (new file `backend/internal/features/companies/infrastructure/postgres/activeIndustryGate_integration_test.go`, exact test name fixed at apply) calling the existing `CompanyBootstrapRepository.CreateWithOwner` in `backend/internal/features/companies/infrastructure/postgres/companyBootstrapRepository.go` with an inactive industry and an unknown industry. Assert the target property: creation MUST fail with a dedicated industry-unavailable outcome and write NO `companies`/`company_members` row. Run `cd backend && go test -tags=integration -p 1 -count=1 ./internal/features/companies/infrastructure/postgres` and capture the behavioral failure — exact reason: an inactive industry currently SATISFIES the existing FK and the create SUCCEEDS (row written), while an unknown industry fails only with a raw FK violation; neither is the dedicated outcome. No new symbol is referenced in RED, so the test compiles. <!-- sdd-owner: implementation -->
+- [ ] GREEN: implement the locking `WITH active_industry AS MATERIALIZED (...) FOR UPDATE ... INSERT ... SELECT ... RETURNING *` in `backend/db/queries/companies.sql`, run sqlc to regenerate `backend/internal/db/companies.sql.go`, map zero rows to the new `IndustryUnavailable` domain sentinel inside `backend/internal/features/companies/infrastructure/postgres/companyBootstrapRepository.go`, and map the sentinel to catalog `industry_unavailable` (409) in the companies HTTP classifier. Make the focused command pass. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: barrier-channel (no sleeps) two-connection live races — (a) deactivate-first: tx A holds `active=false` update, B's create observed blocked, A commits, B returns `industry_unavailable` with no rows; (b) create-first: tx A holds the locking create, B's deactivation observed blocked, A commits, B proceeds; plus owner-row-absence and exact-409 mapping assertions. Unique industry/company/user IDs per case, reverse-FK cleanup, bounded contexts. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: `cd backend && go test ./... -count=1` and `go test -tags=integration -p 1 -count=1 ./internal/features/companies/... ./internal/db/...` green; commit SQL + generated + mapper + tests as one unit. <!-- sdd-owner: implementation -->
+
+### 2.2 (WS2B) Direct live `CompanyRepository.Create`/`GetByID` + named CHECK evidence
+
+- [ ] RED (evidence-absence RED, no new symbols): the focused selector `cd backend && go test -tags=integration -p 1 -count=1 ./internal/features/companies/infrastructure/postgres -run 'TestCompanyRepository_(Create|GetByID)_Live|TestCompaniesConstraints_Named'` currently matches ZERO tests — that zero-match result is the recorded RED evidence (this is a test/evidence-only unit per design §3; no production behavior changes). Exact failure reason: "no tests matched". <!-- sdd-owner: implementation -->
+- [ ] GREEN: write the tests in the verified file `backend/internal/features/companies/infrastructure/postgres/companyRepository_write_integration_test.go` (direct adapter calls against the existing `backend/internal/features/companies/infrastructure/postgres/companyRepository.go`, not via HTTP): persistence/read-back round-trip; both CHECK tests assert SQLSTATE `23514` AND the exact constraint names `companies_size_check` / `companies_founded_year_check` (target names — confirm the actual constraint names from the live catalog before pinning) with fixture cleanup. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: valid read-back of a row with all profile fields set; both constraint violations triggered through distinct field values; cleanup verified by re-query. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: full `go test ./... -count=1` plus the serial companies integration selector; remove any stale test preambles claiming "no audit" while touching this file. <!-- sdd-owner: implementation -->
+
+### 2.3 (WS2C) Deterministic rollback failure injection (replaces placeholder skip)
+
+- [ ] RED: the existing placeholder `TestSoftDeleteCompany_RollbackOnCloseFailure_Placeholder` at `backend/internal/features/companies/infrastructure/postgres/companyRepository_write_integration_test.go:930` (verified) is the RED evidence — replace its skip with a failing assertion that a forced inline jobs-close failure rolls back the tombstone. Capture the behavioral failure: no injection seam exists, so the close failure cannot be forced and the tombstone commits. <!-- sdd-owner: implementation -->
+- [ ] GREEN: add an injectable transaction/query seam to the company delete repository path (transaction-local, guaranteed cleanup; no shared-schema mutation); implement `TestSoftDeleteCompany_RollbackOnCloseFailure` proving `deleted_at` unset, jobs not closed, audit unchanged, and seam removed after the test. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: arm the seam so the error occurs before commit and prove company, jobs, AND audit_events are all unchanged; a second case proves the happy path stays semantically identical with the seam disarmed. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: delete the placeholder test, run `go test -tags=integration -p 1 -count=1 ./internal/features/companies/...` and `go test ./... -count=1`; confirm zero skips in the companies suite. <!-- sdd-owner: implementation -->
+
+### 2.4 (WS2D) PATCH/DELETE CAS degenerates, multi-field update, zero-audit failures, two-writer races
+
+- [ ] RED: extend the verified files `backend/internal/features/companies/infrastructure/http/updateCompanyHandler_test.go`, `backend/internal/features/companies/infrastructure/http/deleteCompanyHandler_test.go`, and `backend/internal/features/companies/infrastructure/postgres/companyRepository_write_integration_test.go` with: missing and malformed `If-Unmodified-Since` ⇒ 409 `conflict` + redacted shape (per RU2); multi-field single-call update persisting every supplied field; explicit zero-audit assertions (`audit_events` count unchanged) for every failed outcome class; true two-writer concurrent races for PATCH and DELETE. Capture the failures and record the ACTUAL observed status/body per case (do not presuppose the current behavior beyond "not the specified 409+redacted outcome"). <!-- sdd-owner: implementation -->
+- [ ] GREEN: implement the missing/malformed CAS classification (409 `conflict` with redacted `data`), the multi-field update path, and the race tests against live Postgres (serial integration, `-p 1`). <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: each race proves exactly one winner (`200`/`204`) and one `409` for both PATCH and DELETE; every failed status class proves zero audit rows appended; opposite writer orderings covered. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: run `go test ./... -count=1` and `go test -tags=integration -p 1 -count=1 ./internal/features/companies/...`; confirm the W1–W6 evidence contract is fully green with zero skips. <!-- sdd-owner: implementation -->
+
+---
+
+## Phase 3 — WS3: Candidate and industries contract closure (needs Phase 1)
+
+### 3.1 (WS3A) Candidate full-replacement contract, `field_of_study`, CV-key reserve
+
+- [ ] RED (compile-safe, verified defects): extend `backend/internal/features/candidates/infrastructure/http/handler_test.go`, `backend/internal/features/candidates/infrastructure/postgres/candidateRepository_test.go`, and `backend/internal/features/candidates/infrastructure/postgres/00006_integration_test.go` — (a) static scan of `backend/internal/features/candidates/infrastructure/http/handler.go` proving request AND response JSON tags are exactly `field_of_study`; the request tag is the verified defect `json:"field_of study"` (handler.go, request struct) which silently drops client input; (b) characterize and pin the existing PUT full-replacement behavior produced by a new profile entity plus replacing SQL upsert: omitted vs explicit-null nullable fields persist NULL, omitted/null `skills` → `{}`, omitted/null `salary_currency` → `MXN`, malformed `birth_date` → 400 with no write, server-managed `user_id`/`created_at`/`updated_at`/`search_vector` ignored; (c) `cv_s3_key` never client-assertable (rejected/ignored) and is omitted from every wire body — currently the request ACCEPTS it (`cv_s3_key` in the request struct, handler.go) and the response EXPOSES it (`cv_s3_key,omitempty`, handler.go response struct; both verified). Capture the guaranteed behavioral failures from the defective `field_of_study` request tag and client-visible/client-writable `cv_s3_key`; replacement-matrix cases are characterization evidence and may already pass. <!-- sdd-owner: implementation -->
+- [ ] GREEN: fix the request tag and remove `cv_s3_key` from BOTH client request and response structs in `backend/internal/features/candidates/infrastructure/http/handler.go`; align `backend/internal/features/candidates/application/dtos/candidateDtos.go` and `upsertMyProfile.go` with full-replacement semantics and no candidate-API write path for `CVS3Key`; keep `cv_s3_key` out of the repository write path (`backend/internal/features/candidates/infrastructure/postgres/candidateRepository.go`, `backend/db/queries/candidates.sql`) while RETAINING the nullable DB column (migration `00006` untouched) and internal read mapping, so a preexisting reserved value persists but is never written or exposed via the API. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: `field_of_study` round-trips PUT→GET unchanged; a preexisting reserved `cv_s3_key` value seeded directly in the DB stays absent from responses; empty arrays/default MXN vs omitted-value contrast cases; live replacement persistence test proving prior values cleared. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: correct stale merge/PATCH-semantics comments in the candidate handler/DTO/service/repository files to state full replacement; run `go test ./... -count=1` and `go test -tags=integration -p 1 -count=1 ./internal/features/candidates/...`. <!-- sdd-owner: implementation -->
+
+### 3.2 (WS3B) Industries contract + single canonical route
+
+- [ ] RED: add `backend/internal/features/industries/infrastructure/http/handler_test.go` (the handler exists, so this compiles) — public endpoint, `Authorization` header ignored, array (never `null`) with exactly `id`/`label_es`/`label_en`/`sort_order`, no `active`/timestamps, 500 via shared envelope on DB failure, active-only with `sort_order,id` ordering (tied sort case) — plus a static-scan test of `backend/cmd/api/main.go` proving exactly ONE industries registration. Capture failures; the guaranteed RED failure is the single-route scan: `r.Mount("/industries", ...)` and `r.Get("/industries", ...)` BOTH call `industrieshttp.ListIndustries(queries)` (verified at main.go lines 210 and 227); shape/ordering cases fail or pass per actual current behavior, recorded per case. <!-- sdd-owner: implementation -->
+- [ ] GREEN: remove the duplicate registration in `backend/cmd/api/main.go`; align the handler/SQL in `backend/internal/features/industries/` and `backend/db/queries/industries.sql` with the pinned contract (only where a RED case failed). <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: inactive row never returned; DB-failure envelope case; endpoint smoke through the single canonical registration. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: run `go test ./... -count=1` and the live industries selector `go test -tags=integration -p 1 -count=1 ./internal/features/industries/... ./internal/db/...` for the active-only SQL. <!-- sdd-owner: implementation -->
+
+---
+
+## Phase 4 — WS4: Executable runtime boundaries
+
+### 4.1 (WS4A) Embedded migrations + `cmd/migrate` (may split core vs live harness per forecast)
+
+- [ ] RED (compile-safe scaffold): `cmd/migrate` and the embed wrapper do not exist. First land scaffolds: `backend/db/migrations/embed.go` declaring an exported `MigrationsFS fs.FS` variable that is nil/empty (no `//go:embed` yet), and `backend/cmd/migrate/main.go` that parses args but for every command prints a safe structured JSON error and exits 3 ("not implemented"). Then add `backend/db/migrations/embed_test.go` (asserts `MigrationsFS` is non-nil and contains the migration `.sql` entries) and `backend/cmd/migrate/main_test.go` (command parse accepts exactly `up|down|status`; invalid command/missing config exits non-zero with safe structured error, no DSN/credentials in logs). Both compile and FAIL behaviorally: embed test fails with "nil/empty FS contains no migrations"; command tests fail with "up/status exit 3 not-implemented instead of running". <!-- sdd-owner: implementation -->
+- [ ] GREEN: replace the scaffolds: `//go:embed *.sql` in `backend/db/migrations/embed.go` and real `backend/cmd/migrate/main.go`: open pgx `database/sql` adapter, set goose Postgres dialect/base FS, reserve a dedicated `*sql.Conn`, `SELECT pg_advisory_lock($1)` with a fixed documented int64 key before any goose operation, defer unlock, exit contract per design §6.1. Make the focused unit tests pass. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: live round-trip harness (disposable DB, built-binary invocation, normalized `pg_catalog` object/constraint/index snapshot comparison after first `up` vs down-to-base/up; idempotent second `up`; lock contention and context-cancellation-while-waiting non-zero; unreachable-DB safe failure) in `backend/cmd/migrate/main_integration_test.go`, run `go test -tags=integration -p 1 -count=1 ./cmd/migrate ./db/migrations`. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: keep the Make/goose developer path functional and labelled local/manual in `backend/Makefile`; run `go test ./... -count=1`; never log the DSN. <!-- sdd-owner: implementation -->
+
+### 4.2 (WS4B) PostConfirmation Lambda adapter + executable (may split pure adapter vs wiring per forecast)
+
+- [ ] RED (compile-safe scaffold): the adapter package and executable do not exist. First land scaffolds: `backend/internal/features/identity/infrastructure/lambdapostconfirmation/adapter.go` whose handler always returns a "not implemented" error without rejecting non-PostConfirmation sources, and `backend/cmd/postconfirmation/main.go` that exits non-zero with a structured not-implemented error for every env config. Then add `backend/internal/features/identity/infrastructure/lambdapostconfirmation/adapter_test.go` and `backend/cmd/postconfirmation/main_test.go`: only PostConfirmation trigger accepted (other sources rejected before handler invocation), event→`application.PostConfirmationEvent` mapping, handler errors propagate unchanged as invocation failure, production config with `IDENTITY_POSTCONFIRMATION_ENABLED` unset/`false`/malformed refuses startup, local explicit `false` accepted with the application no-op. All compile and FAIL behaviorally: mapping/acceptance tests fail on "not implemented"; startup tests fail because the stub refuses even the valid local-enabled case. <!-- sdd-owner: implementation -->
+- [ ] GREEN: implement the narrow adapter translating AWS PostConfirmation events onto the existing `backend/internal/features/identity/application/post_confirmation.go` handler (no identity logic duplication), and `backend/cmd/postconfirmation/main.go` validating env, opening/pinging Postgres, wiring the existing user repository + handler, starting the Lambda runtime. Make the focused tests pass. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: wrong trigger source; repeated delivery through the adapter leaves exactly one `users` row (live integration `-tags=integration -p 1 -count=1`); logs classify failure without swallowing it and never log email/name attributes; service-specific Lambda dependencies pinned in `backend/go.mod`. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: `go build ./...` and `go test ./... -count=1` prove independent buildability with no deployment resources created. <!-- sdd-owner: implementation -->
+
+---
+
+## Phase 5 — WS5: Production-safe JWT verification
+
+### 5.1 (WS5A) Explicit verifier configuration factory
+
+- [ ] RED (compile-safe scaffold): no verifier config factory exists. First land a scaffold `backend/internal/features/identity/infrastructure/auth/config.go` declaring the factory constructor (target name, e.g. `NewVerifierConfigFromEnv`) that returns a "not implemented" error for every input. Add `backend/internal/features/identity/infrastructure/auth/config_test.go`: `IDENTITY_JWT_MODE` required, accepts only `jwks`|`pem`; missing/unknown mode, malformed issuer, empty audience/token-use, invalid TTL, invalid PEM, and production-PEM each fail construction; no default selection; valid `jwks` and valid local `pem` each construct successfully. RED fails behaviorally — exact reason: "valid-mode construction returns the not-implemented error" (the invalid-input rejection cases may incidentally pass against the always-error stub; the command still fails overall on the success cases). This task touches ONLY the auth package; `cmd/api/main.go` wiring belongs exclusively to WS5C. <!-- sdd-owner: implementation -->
+- [ ] GREEN: replace the scaffold with the real factory in `backend/internal/features/identity/infrastructure/auth/` returning either the existing PEM verifier (`rsa_verifier.go`, preserved fail-closed for local) or the JWKS verifier port. Do NOT modify `backend/cmd/api/main.go` in this unit. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: production + `jwks` succeeds only with HTTPS issuer and complete config; every invalid combination from the table in design §7.1 enumerated. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: run `go test ./... -count=1`; confirm `git diff --name-only` for this unit shows no `cmd/` file. <!-- sdd-owner: implementation -->
+
+### 5.2 (WS5B) JWKS bounded cache, single-flight rotation verifier — **forecast >400 authored lines; ask before splitting into WS5B-1 (cache/single-flight core) and WS5B-2 (verification flow + concurrency evidence)**
+
+- [ ] RED (compile-safe scaffold): no JWKS verifier exists. First land a scaffold `backend/internal/features/identity/infrastructure/auth/jwks_verifier.go` whose constructor succeeds but whose `Verify` always returns a "not implemented" error. Add `backend/internal/features/identity/infrastructure/auth/jwks_verifier_test.go` — header parsing requires `alg=RS256` and non-empty `kid` before trusting claims; unknown `kid` triggers exactly one bounded forced refresh; known-`kid` verification against `httptest.Server` with generated RSA keys; issuer/audience/token_use/exp/nbf/iat-skew failure table; response byte-size and key-count bounds; malformed JSON and server-error fail-closed; no PEM fallback. RED fails behaviorally — exact reason: "known-kid verification against the httptest JWKS server returns the not-implemented error instead of a verified subject". <!-- sdd-owner: implementation -->
+- [ ] GREEN: implement the verifier per design §7.2: mutex-protected immutable snapshot + expiry, TTL clamped to configured min/max, exactly one in-flight refresh record, verifier-owned lifecycle context + wait group, positive fetch timeout on a bounded `http.Client`, refresh launched under `context.WithTimeout(verifierCtx, fetchTimeout)` never the request context, publish-once + close completion channel exactly once, waiters `select` on `refresh.done` vs own `requestContext.Done()` and never touch the shared cancel, whole-set bounded cache replacement, failed refresh never extends expiry. Make the focused tests pass. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: concurrency evidence — one HTTP refresh under concurrent misses; cancelling the starter lets it return its own error while another waiter succeeds from the same refresh; cancelling any other waiter does not affect the fetch; stalled server observes cancellation at the verifier-owned deadline; injected clock controls TTL (no sleeps as correctness conditions); `Close` cancels lifecycle and returns boundedly; package-level goroutine-leak detection (goleak or wait-group assertion) proves no refresh goroutine survives. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: run `go test ./... -count=1` and `go test -race ./internal/features/identity/... -count=1`; confirm no permissive fallback path exists anywhere in the package. <!-- sdd-owner: implementation -->
+
+### 5.3 (WS5C) Middleware/composition integration
+
+- [ ] RED: extend the verified files `backend/internal/features/identity/infrastructure/http/middleware_test.go` and `backend/cmd/api/main_test.go` route scan — API starts only with a valid explicit mode; all verifier errors map to catalog `unauthenticated` 401 without exposing why; `/me/*` subtree wrapped; the JWT Verification Modes scenarios (known kid, rotation refresh, fail-closed fetch, explicit PEM selection, no fallback) observable through the middleware. Capture failures: composition still uses the current "warn and install deny-all" path and never consults the WS5A factory. <!-- sdd-owner: implementation -->
+- [ ] GREEN: complete composition wiring in `backend/cmd/api/main.go` through the WS5A factory; remove the deny-all fallback path. This is the ONLY unit permitted to change verifier wiring in the composition root. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: production cannot start permissively under misconfiguration; local PEM mode still fails closed at runtime on bad tokens. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: `go test ./... -count=1`; identity delta's "JWKS deferred" replacement is already in specs — no doc drift left behind. <!-- sdd-owner: implementation -->
+
+---
+
+## Phase 6 — WS6B/WS6C: HTTP hardening and observability (WS6A done in Phase 1; pre-split into WS6B-1 / WS6B-2 / WS6C per forecast)
+
+### 6.1 (WS6B-1) Router/server/health extraction + composition rewiring
+
+- [ ] RED (compile-safe scaffold): `backend/internal/runtime/` does not exist. First land scaffolds: `internal/runtime/config/config.go` (typed struct with ZERO-value timeouts), `internal/runtime/server/server.go` (constructor returning a default server with no timeouts), `internal/runtime/health/health.go` (handlers answering 503). Add tests: typed config requires positive read-header/read/write/idle/readiness/drain timeouts (target `TestServerConfig`); `TestHealthz_*` static 200 without DB port; `TestReadyz_*` 200 on ping / 503 safe body on failure via a narrow `Ping(ctx)` port; `TestGracefulShutdown` with injected context (stop accept → Shutdown(drain deadline) → Close only on expiry). All compile and FAIL behaviorally: zero timeouts fail positivity; stub healthz fails the static-200 case; stub shutdown never drains. Move the existing route AST guards with the router and scan the actual router owner (guard fixtures updated in the same unit). <!-- sdd-owner: implementation -->
+- [ ] GREEN: implement the three runtime packages per design §8.1 and rewire `backend/cmd/api/main.go` as composition root over the new constructors. Make the focused tests pass. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: DB-down `/healthz` stays 200 while `/readyz` is 503; graceful AND forced drain cases; route topology unchanged (public/gated mounts identical before/after extraction, proven by the moved guards). <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: `go test ./... -count=1` plus `go vet ./...`/`gofmt -l` clean; rollback boundary = the constructor/middleware unit only, domain code untouched. <!-- sdd-owner: implementation -->
+
+### 6.2 (WS6B-2) Shared JSON decode + body-limit migration by capability groups
+
+- [ ] RED (compile-safe scaffold): add `backend/internal/shared/httpjson/decode.go` scaffold whose `DecodeJSON(w, r, dst, N)` (target name) always returns the catalog `invalid_request` definition, plus `backend/internal/shared/httpjson/decode_test.go`: `TestDecodeJSON_BodyLimit_NAndNPlusOne` (target name) for BOTH fixed-length (`Content-Length` set) and chunked (`ContentLength = -1`) requests at exactly N=1,048,576 bytes; trailing-JSON/second-value rejection → 400 `invalid_request`; `errors.As(*http.MaxBytesError)` → 413 `payload_too_large`; spy use case proves NO invocation after any decode failure; bounded real-server test for transfer framing. RED fails behaviorally — exact reason: "valid JSON bodies are rejected as invalid_request by the stub". <!-- sdd-owner: implementation -->
+- [ ] GREEN: implement `httpjson.DecodeJSON` wrapping the body with `http.MaxBytesReader` and requiring exactly one JSON value + `io.EOF` second decode (never writing a response itself), and the optional Content-Length precheck middleware. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE (capability-group migration, behavior-preserving, tests retained with behavior): migrate EVERY JSON-accepting handler to `DecodeJSON` in coherent capability groups, each group a reviewable checkpoint with its own green tests — (a) companies + company-membership handlers; (b) candidates + applications handlers; (c) jobs handlers; (d) industries + identity handlers. For each group: direct `json.Decoder` use disappears from that group's feature handlers; the group's handler tests pass unchanged except where decode-error codes are newly pinned. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: `go test ./... -count=1` plus `go vet ./...`/`gofmt -l` clean; grep proves no feature handler constructs a `json.Decoder` anymore (AST guard lands in WS7B). <!-- sdd-owner: implementation -->
+
+### 6.3 (WS6C) Request correlation, structured lifecycle logs, metrics interfaces + no-op
+
+- [ ] RED (compile-safe scaffold): first land `backend/internal/runtime/metrics/metrics.go` scaffold with the narrow interfaces (`HTTPMetrics`/`DBMetrics`/`ReadinessMetrics` — target names) and no-op defaults, plus a stub request middleware that emits nothing. Add captured-slog and spy tests — one completion record per request with bounded fields `request_id`/`method`/`path`/`status`/`duration`/code class; same request ID on all lines incl. domain/error logs; `path` equals the matched chi route pattern (`/companies/{id}`) and randomized unknown URLs collapse to bounded `unmatched` (never raw `r.URL.Path`); startup log with non-secret effective config; shutdown log with reason + graceful/forced classification; spy proves bounded labels, no exporter/endpoint exists; readiness failure updates the gauge and logs only a safe classification. RED fails behaviorally — exact reason: "the stub middleware emits no completion record and the captured logs lack the required fields". <!-- sdd-owner: implementation -->
+- [ ] GREEN: implement the request middleware and metrics per design §8.3; wire into `backend/cmd/api/main.go`. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: forbidden-field scan of captured logs (no tokens, request bodies, CV keys, email/name, DSNs, raw DB errors); no-op assembly builds and runs with zero exporter dependency; optional CORS default-deny and no-op limiter port pinned as SHOULD-tier without displacing MUST evidence. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: `go test ./... -count=1`; removal boundary = instrumentation implementation while interfaces/no-op remain if callers depend on them. <!-- sdd-owner: implementation -->
+
+---
+
+## Phase 7 — WS7: Gates, guards, traceability, go/no-go (consumes all prior evidence)
+
+### 7.1 (WS7A) Reproducible gate targets + receipts
+
+- [ ] RED (compile-safe scaffold + mutation fixtures in temporary copies): first land pass-through scaffolds — `backend/Makefile` targets `gate-build`, `gate-vet`, `gate-fmt`, `gate-unit`, `gate-race`, `gate-integration`, `gate-migrations`, `gate-sqlc`, `closure-gate` delegating to stub `backend/scripts/closure/**` scripts that emit `{"status":"pass"}` receipts without running any check. Add mutation-fixture tests (e.g. `backend/scripts/closure/gates_test.go`, target package/name fixed at apply) that, for each target, copy the tree or the relevant inputs to a TEMPORARY directory (never mutating the working tree), seed a violation (build break, vet finding, unformatted file, failing unit test, emitted `Action:"skip"`, migration round-trip break, sqlc drift), run the target, and assert it FAILS and the receipt records the failure. RED fails behaviorally — exact reason: "each stub target reports pass on the mutated fixture, so the fixture test expecting failure fails". <!-- sdd-owner: implementation -->
+- [ ] GREEN: replace the stubs with real targets/scripts emitting machine-readable receipts (`backend/quality/receipts/*.json`: command, commit/tree identity, start/end, exit status, test counts, skip names, artifact hashes); `gate-integration` parses `go test -json` and fails on ANY `Action:"skip"`, with a DB preflight that makes env-skips unreachable; `gate-migrations` invokes the built `cmd/migrate`; `gate-sqlc` runs sqlc in a clean temp copy and diffs. Make the mutation-fixture tests pass. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: stale-receipt, skip-emission, sqlc-drift, and unreachable-Postgres mutations each force failure; missing `DATABASE_URL` fails the gate rather than converting evidence into skips; all fixtures in temporary copies, working tree clean (`git status --porcelain` empty) after every case. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: run each required gate target individually end-to-end on a disposable Postgres and confirm every one emits a valid receipt; record in the apply note that the aggregate `make closure-gate` is still EXPECTED NO-GO at this point (receipts incomplete) — that observation is recorded, not required, as this task's pass criterion (the unit pass criterion is each target's own receipt). <!-- sdd-owner: implementation -->
+
+### 7.2 (WS7B) Architecture/non-goal guards + executable traceability manifest
+
+- [ ] RED (compile-safe scaffold): first land a scaffold `backend/internal/tools/archguard` (or equivalent) whose guard functions return nil (no violations) for every input. Add guard tests with fixtures — forbidden cross-feature `infrastructure/**` import must fail naming the offender; documented narrow domain-port and audit co-write exceptions pass and are listed; route-topology mutation (gated route moved to public mount / middleware removed) fails; error-catalog scan rejects `code` string literals outside `httpjson` and direct feature error-JSON writes; non-goal scan rejects new Docker/Terraform/workers/outbox/deployment-resource paths. RED fails behaviorally — exact reason: "the accept-all stub reports no violation on each mutated fixture". <!-- sdd-owner: implementation -->
+- [ ] GREEN: implement the guards walking `go list -json ./...` with exact exception entries (no wildcards); create `backend/quality/traceability.json` with one row per effective MUST from design §12.1–§12.5 — including unchanged `company-membership`, `applications`, `audit_events`, and the remaining jobs requirements (no empty spec deltas created) — each row with `requirement`, `capability`, `tier`, `owners`, and `evidence` naming the RESOLVED actual path, Go/SQL symbol or route, and exact test function/selector from the candidate tree (run the focused selector to confirm it matches ≥1 test; design-target names are rejected and replaced by resolved names during this task). Make the guard fixtures pass against the real guards. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: manifest mutations — duplicate title, duplicate owner, missing row, extra row, unresolvable path/symbol, selector matching zero tests, zero anchors — each fails the checker; effective-set composition (canonical specs + change deltas, MODIFIED replacing canonical title) verified against the six deltas. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: wire `gate-arch` into `closure-gate`; `make closure-gate` remains NO-GO at this point (report unit pending) but with zero unexplained manifest rows. <!-- sdd-owner: implementation -->
+
+### 7.3 (WS7C) Generated traceability Markdown + objective AWS go/no-go report
+
+- [ ] RED (compile-safe scaffold + bounded fixture test): first land a scaffold generator (e.g. `backend/internal/tools/closurereport`, target package fixed at apply) that always writes `{"decision":"NO-GO","blockers":[]}` regardless of inputs. Add generator tests that run the ALGORITHM ONLY against fixture evidence sets (traceability manifest + receipt JSON fixtures) in TEMPORARY directories, never the real tree: (1) a complete fixture flips to GO only when traceability validation passes (one owner + ≥1 resolvable anchor per MUST), all required receipts match the same tree identity and exit 0, integration skip count and whitelist length are zero, all three executables + runtime boundary tests present, every proposal §9 criterion maps to passing receipt/manifest rows, and locked non-goal scans pass; (2) each incomplete fixture (stale/missing receipt, one skip, one unresolvable anchor, one non-goal hit) stays NO-GO; (3) ALL blockers are listed in one run; (4) no waiver or `size:exception` is accepted as technical evidence. RED fails behaviorally — exact reason: "the complete fixture never reaches GO and incomplete fixtures list no blockers (stub always emits NO-GO with an empty blocker list)". No real-tree blocker fixing is inside this checkbox. <!-- sdd-owner: implementation -->
+- [ ] GREEN: implement the generator producing `docs/backend-go-closure-traceability.md` (generated view, never source of truth) and `docs/aws-go-no-go.md` (criterion-by-criterion proposal §9 result naming every blocker). Make the fixture tests pass. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: run the generator once against the real tree to produce the actual report; the result is whatever the evidence says (GO or NO-GO with its blocker list). Any REAL blocker it names becomes an explicit follow-up checkbox appended to this tasks file or an explicit status blocker — it is never silently absorbed into this unit. Regeneration is deterministic from the same evidence (no hand edits). <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: rerun `make closure-gate`; confirm generated Markdown regenerates deterministically (byte-identical between runs on unchanged evidence). <!-- sdd-owner: implementation -->
+
+---
+
+## Phase 8 — Explanatory doc reconciliation (doc-only unit)
+
+### 8.1 (A2) Docs no longer contradict delivered behavior
+
+- [ ] RED: list every stale claim in the four verified explanatory docs — `docs/ROADMAP.md`, `README.md`, `docs/arquitectura-backend-proyecto-04.md`, `docs/modelo-de-datos-proyecto-04.md` — against delivered behavior (migrations version, routes, JWT auth mode, `cmd/migrate`, invitations framing, repository structure) and diff each claim against the actual tree — the drift list, recorded as an apply-progress annotation under this task, is the RED evidence. <!-- sdd-owner: implementation -->
+- [ ] GREEN: correct each stale claim to match delivered behavior; label long-range material `future/non-MVP`; remove any text reading as delivered that is not; never invent behavior. Pair any doc fix with its owning behavior unit where one exists; this unit carries only the remainder. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: re-scan the four docs for contradictions with the six delta specs and locked non-goals; confirm no normative language (MUST/SHALL) was introduced into explanatory docs. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: none; verify scope with `git diff --name-only -- README.md docs/ROADMAP.md docs/arquitectura-backend-proyecto-04.md docs/modelo-de-datos-proyecto-04.md` — exactly these four files, and nothing else Markdown-touched by this unit (generated closure docs under `docs/` remain owned by WS7C and are excluded from this diff surface). <!-- sdd-owner: implementation -->
