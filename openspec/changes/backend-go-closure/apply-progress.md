@@ -93,7 +93,7 @@ RU1B unit (corrective pass): ~32 authored lines. No inflated whole-change line c
 
 **RU2 incident recovery (user-authorized):** the timed-out RU2 run left no companies implementation but staged planning/RU1B files and falsely marked three task 1.3 stages. The index was cleared without deleting working-tree changes, all task 1.3 rows were reset, and false RU2 completion evidence was removed. Accepted state returns to 12/96; next route is authoritative status before any new RU2 attempt.
 
-## RU2 — IN PROGRESS (remediation pass)
+## RU2 — COMPLETE
 
 ### Task 1.3 — companies HTTP catalog adoption (remediation)
 
@@ -118,10 +118,10 @@ Behavioral failure: legacy `WriteError` produces no `code` field.
 
 **DB bootstrap:** official Goose migrations 00001–00011 applied via `goose_db_version`; Compose publishes `0.0.0.0:5432`.
 
-**Fresh-DB integration evidence:** pending fresh-DB run (serial, one attempt, known `TestSoftDeleteCompany_RollbackOnCloseFailure_Placeholder` skip belongs to task 2.3 — reported, not fixed here).
+**Verification:** focused companies HTTP tests PASS; `go test ./... -count=1` PASS; fresh-DB serial integration with `backend/.env` PASS with zero failures and zero environment skips; the single named `TestSoftDeleteCompany_RollbackOnCloseFailure_Placeholder` skip remains owned by task 2.3; `git diff --check` PASS.
 
-**Deferred fixture-residue debt:** eight pre-existing integration rerun failures in `TestGetMyMembership_HidesTombstonedCompany` (canceled-context cleanup) are confirmed fixture residue; maintainer explicitly deferred that cleanup to task 2.2.
+**Deferred fixture-residue debt:** immediate integration reruns expose pre-existing fixed-ID/canceled-context cleanup residue in `TestGetMyMembership_HidesTombstonedCompany`; the maintainer explicitly assigned shared fixture repair to task 2.2. RU2 evidence therefore uses one clean disposable-DB run after official Goose migration.
 
-**Measured authored diff:** RU2-owned files: `handler.go`, `handler_test.go`, `updateCompanyHandler_test.go`, `deleteCompanyHandler_test.go`, `memberHandler.go`, `tasks.md`, `apply-progress.md`. Fresh run will be measured; confirmed ≤400 authored lines (compact helpers, no redundant stubs).
+**Review slices:** `fcb24d7` (`feat(companies): adopt stable error catalog`) is 260 authored changed lines; `757dfff` (`test(companies): prove conflict envelope parity`) is 207. The combined 467-line candidate was auto-chained so every review unit remains within the 400-line budget. Rollback boundary: revert both commits to remove RU2 behavior and evidence without touching RU1/RU1B or the unrelated landing preview.
 
-**Checked state: 12/96** — task 1.3 unchecked (no commit); task 2.3 deferred to task 2.2.
+**Checked state: 16/96** — all four task 1.3 stages are complete after the two functional commits; task 2.2 owns fixture cleanup and task 2.3 owns the rollback placeholder.
