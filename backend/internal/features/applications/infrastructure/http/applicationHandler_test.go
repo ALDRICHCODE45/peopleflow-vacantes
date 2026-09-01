@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -35,6 +36,7 @@ import (
 	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -259,8 +261,9 @@ func TestApplyToJob_InvalidJobID400(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d (body %s)", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), "invalid job id") {
-		t.Errorf("want body to contain 'invalid job id', got %s", w.Body.String())
+	// Catalog canonical message for direct parse errors.
+	if !strings.Contains(w.Body.String(), "invalid request") {
+		t.Errorf("want body to contain 'invalid request', got %s", w.Body.String())
 	}
 }
 
@@ -274,8 +277,9 @@ func TestApplyToJob_InvalidJSON400(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
 	}
-	if !strings.Contains(w.Body.String(), "invalid JSON body") {
-		t.Errorf("want body to contain 'invalid JSON body', got %s", w.Body.String())
+	// Catalog canonical message for direct parse errors.
+	if !strings.Contains(w.Body.String(), "invalid request") {
+		t.Errorf("want body to contain 'invalid request', got %s", w.Body.String())
 	}
 }
 
@@ -565,8 +569,9 @@ func TestListJobApplications_InvalidJobID400(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
 	}
-	if !strings.Contains(w.Body.String(), "invalid job id") {
-		t.Errorf("want body to contain 'invalid job id', got %s", w.Body.String())
+	// Catalog canonical message for direct parse errors.
+	if !strings.Contains(w.Body.String(), "invalid request") {
+		t.Errorf("want body to contain 'invalid request', got %s", w.Body.String())
 	}
 }
 
@@ -673,8 +678,9 @@ func TestGetApplication_InvalidAppID400(t *testing.T) {
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("want 400, got %d", w.Code)
 	}
-	if !strings.Contains(w.Body.String(), "invalid application id") {
-		t.Errorf("want body to contain 'invalid application id', got %s", w.Body.String())
+	// Catalog canonical message for direct parse errors.
+	if !strings.Contains(w.Body.String(), "invalid request") {
+		t.Errorf("want body to contain 'invalid request', got %s", w.Body.String())
 	}
 }
 
@@ -933,8 +939,9 @@ func TestTransitionApplication_MissingUserIDReturns500(t *testing.T) {
 	if w.Code != http.StatusInternalServerError {
 		t.Errorf("want 500, got %d (body %s)", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), "internal server error") {
-		t.Errorf("want generic 500 body, got %s", w.Body.String())
+	// Catalog canonical message for fail-closed internal error.
+	if !strings.Contains(w.Body.String(), "an internal error occurred") {
+		t.Errorf("want canonical 500 body, got %s", w.Body.String())
 	}
 	if h.repo.transitionCalls != 0 {
 		t.Errorf("Transition MUST NOT be called when CompanyContext.UserID is missing; got %d calls", h.repo.transitionCalls)
@@ -978,6 +985,193 @@ func TestTransitionApplication_BodyActorIDIgnored(t *testing.T) {
 	if strings.Contains(w.Body.String(), bodyActor) {
 		t.Errorf("the body actor_id %q must never reach the wire or the event", bodyActor)
 	}
+}
+
+// catalogEnv decodes {"error":string, "code":string, ...}.
+type catalogEnv struct {
+	Error string `json:"error"`
+	Code  string `json:"code"`
+}
+
+// assertCatalogEnvelope asserts exact HTTP status, catalog code, and
+// canonical generic message for internal_error (no injected detail).
+func assertCatalogEnvelope(t testing.TB, w *httptest.ResponseRecorder, wantStatus int, wantCode string) {
+	t.Helper()
+	if w.Code != wantStatus {
+		t.Errorf("status: want %d, got %d (body %s)", wantStatus, w.Code, w.Body.String())
+	}
+	var env catalogEnv
+	if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode body as catalog envelope: %v (body %s)", err, w.Body.String())
+	}
+	if env.Code == "" {
+		t.Errorf("code: want %q, got empty (body %s)", wantCode, w.Body.String())
+		return
+	}
+	if env.Code != wantCode {
+		t.Errorf("code: want %q, got %q", wantCode, env.Code)
+	}
+	if wantCode == "internal_error" {
+		if !strings.Contains(env.Error, "an internal error occurred") {
+			t.Errorf("code=internal_error: want canonical generic message, got %q", env.Error)
+		}
+		if strings.Contains(w.Body.String(), "missing actor") || strings.Contains(w.Body.String(), "kaboom") || strings.Contains(w.Body.String(), "surprise") {
+			t.Errorf("code=internal_error MUST NOT contain injected detail, got %s", w.Body.String())
+		}
+	}
+}
+
+// Direct classifier: 12 cases (11 sentinels + unknown default).
+func TestClassifyApplicationError_CatalogDefinition(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantCode   httpjson.Code
+		wantStatus int
+		wantMsg    string
+	}{
+		// sentinels with exact messages
+		{"UnknownSubject_unauthenticated", applicationsusecases.ErrUnknownSubject, httpjson.CodeUnauthenticated, http.StatusUnauthorized, "unauthenticated"},
+		{"ApplicationNotFound_notFound", applicationsentities.ErrApplicationNotFound, httpjson.CodeNotFound, http.StatusNotFound, "application not found"},
+		{"JobNotApplicable_notFound", applicationsentities.ErrJobNotApplicable, httpjson.CodeNotFound, http.StatusNotFound, "job not applicable"},
+		{"AlreadyApplied_alreadyExists", applicationsentities.ErrAlreadyApplied, httpjson.CodeAlreadyExists, http.StatusConflict, "already applied"},
+		{"StatusRequired_invalidRequest", applicationsentities.ErrStatusRequired, httpjson.CodeInvalidRequest, http.StatusBadRequest, "status is required"},
+		{"CoverLetterEmpty_invalidRequest", applicationsentities.ErrCoverLetterEmpty, httpjson.CodeInvalidRequest, http.StatusBadRequest, "cover_letter must not be empty"},
+		{"CoverLetterTooLong_invalidRequest", applicationsentities.ErrCoverLetterTooLong, httpjson.CodeInvalidRequest, http.StatusBadRequest, "cover_letter must be at most 2000 characters"},
+		{"InvalidSource_invalidRequest", applicationsvalueobjects.ErrInvalidSource, httpjson.CodeInvalidRequest, http.StatusBadRequest, "invalid source"},
+		{"InvalidApplicationReference_invalidRequest", applicationsentities.ErrInvalidApplicationReference, httpjson.CodeInvalidRequest, http.StatusBadRequest, "invalid application reference"},
+		{"InvalidStatusTransition_directSentinel", applicationsvalueobjects.ErrInvalidStatusTransition, httpjson.CodeInvalidStatusTransition, http.StatusBadRequest, "invalid status transition"},
+		{"MissingActorIdentity_internalError", applicationsusecases.ErrMissingActorIdentity, httpjson.CodeInternalError, http.StatusInternalServerError, "an internal error occurred"},
+		// unknown/default
+		{"unknown_default", errors.New("kaboom"), httpjson.CodeInternalError, http.StatusInternalServerError, "an internal error occurred"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			def := classifyApplicationError(tt.err)
+			if def.Code != tt.wantCode {
+				t.Errorf("code: want %q, got %q", tt.wantCode, def.Code)
+			}
+			if def.Status != tt.wantStatus {
+				t.Errorf("status: want %d, got %d", tt.wantStatus, def.Status)
+			}
+			if def.Message != tt.wantMsg {
+				t.Errorf("message: want %q, got %q", tt.wantMsg, def.Message)
+			}
+		})
+	}
+}
+
+// Wrapped sentinels: 9 cases prove errors.Is chain resolution.
+func TestClassifyApplicationError_WrappedSentinals(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		wantCode httpjson.Code
+		wantMsg  string
+	}{
+		{"ApplicationNotFound_wrapped", fmt.Errorf("repository failed: %w", applicationsentities.ErrApplicationNotFound), httpjson.CodeNotFound, "application not found"},
+		{"JobNotApplicable_wrapped", fmt.Errorf("service: %w", applicationsentities.ErrJobNotApplicable), httpjson.CodeNotFound, "job not applicable"},
+		{"AlreadyApplied_wrapped", fmt.Errorf("db error: %w", applicationsentities.ErrAlreadyApplied), httpjson.CodeAlreadyExists, "already applied"},
+		{"CoverLetterEmpty_wrapped", fmt.Errorf("validation: %w", applicationsentities.ErrCoverLetterEmpty), httpjson.CodeInvalidRequest, "cover_letter must not be empty"},
+		{"InvalidSource_wrapped", fmt.Errorf("handler: %w", applicationsvalueobjects.ErrInvalidSource), httpjson.CodeInvalidRequest, "invalid source"},
+		{"InvalidStatusTransition_wrappedMatrixCollapses", fmt.Errorf("transition rejected: %w", applicationsvalueobjects.ErrInvalidStatusTransition), httpjson.CodeInvalidStatusTransition, "invalid status transition"},
+		{"InvalidStatusTransition_preservesWrappedDetail", fmt.Errorf("%w: submitted -> rejected", applicationsvalueobjects.ErrInvalidStatusTransition), httpjson.CodeInvalidStatusTransition, "invalid status transition: submitted -> rejected"},
+		{"InvalidStatusTransition_nonSentinelWrapperFallsThrough", fmt.Errorf("repository failed: %w", fmt.Errorf("invalid status transition: in_review -> hired")), httpjson.CodeInternalError, "an internal error occurred"},
+		{"MissingActorIdentity_wrapped", fmt.Errorf("internal: %w", applicationsusecases.ErrMissingActorIdentity), httpjson.CodeInternalError, "an internal error occurred"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			def := classifyApplicationError(tt.err)
+			if def.Code != tt.wantCode {
+				t.Errorf("code: want %q, got %q", tt.wantCode, def.Code)
+			}
+			if def.Message != tt.wantMsg {
+				t.Errorf("message: want %q, got %q", tt.wantMsg, def.Message)
+			}
+		})
+	}
+}
+
+// triangulation: not_found code shared by two sentinels with different messages
+func TestTriangulation_NotFoundMessagesDiffer(t *testing.T) {
+	defApp := classifyApplicationError(applicationsentities.ErrApplicationNotFound)
+	defJob := classifyApplicationError(applicationsentities.ErrJobNotApplicable)
+	if defApp.Code != httpjson.CodeNotFound || defJob.Code != httpjson.CodeNotFound {
+		t.Errorf("codes: want not_found, got %q and %q", defApp.Code, defJob.Code)
+	}
+	if defApp.Message != "application not found" || defJob.Message != "job not applicable" || defApp.Message == defJob.Message {
+		t.Errorf("messages: got application=%q job=%q", defApp.Message, defJob.Message)
+	}
+}
+
+// triangulation: invalid_request code shared by multiple sentinels with different messages
+func TestTriangulation_InvalidRequestMessagesDiffer(t *testing.T) {
+	defStatus := classifyApplicationError(applicationsentities.ErrStatusRequired)
+	defCover := classifyApplicationError(applicationsentities.ErrCoverLetterEmpty)
+	defSource := classifyApplicationError(applicationsvalueobjects.ErrInvalidSource)
+	if defStatus.Code != httpjson.CodeInvalidRequest || defCover.Code != httpjson.CodeInvalidRequest || defSource.Code != httpjson.CodeInvalidRequest {
+		t.Errorf("codes: want invalid_request, got %q, %q, %q", defStatus.Code, defCover.Code, defSource.Code)
+	}
+	if defStatus.Message != "status is required" || defCover.Message != "cover_letter must not be empty" || defSource.Message != "invalid source" || defStatus.Message == defCover.Message || defCover.Message == defSource.Message || defStatus.Message == defSource.Message {
+		t.Errorf("messages: got %q, %q, %q", defStatus.Message, defCover.Message, defSource.Message)
+	}
+}
+
+// Handler catalog compatibility (4 cases).
+func TestTransitionApplication_MissingCompanyContextCatalogCode500(t *testing.T) {
+	h := newHarness()
+	h.repo.getByIDApp = &applicationsentities.ApplicationWithCandidate{
+		Application: applicationsentities.Application{Status: applicationsvalueobjects.Submitted},
+	}
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String()+"/transition",
+		strings.NewReader(`{"status":"in_review"}`))
+	// CompanyContext deliberately omitted.
+	h.router.ServeHTTP(w, req)
+	assertCatalogEnvelope(t, w, http.StatusInternalServerError, "internal_error")
+}
+
+func TestTransitionApplication_MissingStatusCatalogCode400(t *testing.T) {
+	h := newHarness()
+	h.repo.getByIDApp = &applicationsentities.ApplicationWithCandidate{
+		Application: applicationsentities.Application{Status: applicationsvalueobjects.Submitted},
+	}
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String()+"/transition",
+		strings.NewReader(`{}`))
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
+	h.router.ServeHTTP(w, req)
+	assertCatalogEnvelope(t, w, http.StatusBadRequest, "invalid_request")
+}
+
+func TestTransitionApplication_IllegalTransitionCatalogCode400(t *testing.T) {
+	h := newHarness()
+	h.repo.getByIDApp = &applicationsentities.ApplicationWithCandidate{
+		Application: applicationsentities.Application{Status: applicationsvalueobjects.Submitted},
+	}
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String()+"/transition",
+		strings.NewReader(`{"status":"rejected"}`))
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
+	h.router.ServeHTTP(w, req)
+	assertCatalogEnvelope(t, w, http.StatusBadRequest, "invalid_status_transition")
+	body := w.Body.String()
+	if !strings.Contains(body, "invalid status transition") || !strings.Contains(body, "submitted") || !strings.Contains(body, "rejected") {
+		t.Errorf("want safe message with transition detail, got %s", body)
+	}
+}
+
+func TestTransitionApplication_UnknownStatusCatalogCode400(t *testing.T) {
+	h := newHarness()
+	h.repo.getByIDApp = &applicationsentities.ApplicationWithCandidate{
+		Application: applicationsentities.Application{Status: applicationsvalueobjects.Submitted},
+	}
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("PATCH", "/jobs/"+uuid.New().String()+"/applications/"+uuid.New().String()+"/transition",
+		strings.NewReader(`{"status":"withdrawn"}`))
+	req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
+	h.router.ServeHTTP(w, req)
+	assertCatalogEnvelope(t, w, http.StatusBadRequest, "invalid_status_transition")
 }
 
 // --- helpers -------------------------------------------------------------

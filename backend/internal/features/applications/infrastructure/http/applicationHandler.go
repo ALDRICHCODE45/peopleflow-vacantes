@@ -23,6 +23,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/dtos"
 	applicationsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/usecases"
@@ -76,11 +77,11 @@ func (h *ApplicationHandler) ApplicationHandlers() ApplicationHandlers {
 // applyToJob implements POST /jobs/{jobId}/applications.
 //
 // Flow:
-//  1. requireSub (401 on missing/blank JWT subject).
-//  2. Parse {jobId} as UUID (400 on malformed).
-//  3. Decode body as ApplyRequestDto (400 on invalid JSON).
+//  1. requireSub (401 on missing/blank JWT subject → catalog unauthenticated).
+//  2. Parse {jobId} as UUID (400 on malformed → catalog invalid_request).
+//  3. Decode body as ApplyRequestDto (400 on invalid JSON → catalog invalid_request).
 //  4. Invoke ApplyJob.
-//  5. classifyAndWriteError on err (404 / 409 / 400 / 500).
+//  5. classifyAndWriteError on err (404 / 409 / 400 / 500 via catalog).
 //  6. Success → 201 + ApplicationResponse.
 //
 // cv_s3_key and anonymized_at are intentionally absent from
@@ -94,13 +95,13 @@ func (h *ApplicationHandler) applyToJob(w http.ResponseWriter, r *http.Request) 
 
 	jobID, err := uuid.Parse(chi.URLParam(r, "jobId"))
 	if err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid job id")
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
 		return
 	}
 
 	var in dtos.ApplyRequestDto
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
 		return
 	}
 
@@ -146,11 +147,11 @@ func (h *ApplicationHandler) listMyApplications(w http.ResponseWriter, r *http.R
 // listJobApplications implements GET /jobs/{jobId}/applications (recruiter).
 //
 // Flow:
-//  1. requireCompanyContext (500 fail-closed on missing middleware).
-//  2. Parse {jobId} as UUID (400).
+//  1. requireCompanyContext (500 fail-closed on missing middleware → catalog internal_error).
+//  2. Parse {jobId} as UUID (400 → catalog invalid_request).
 //  3. ListApplicationsByJob → 404 on cross-company/non-existent
-//     (ErrApplicationNotFound); 200 with non-nil empty array on
-//     own-company zero applications.
+//     (ErrApplicationNotFound → catalog not_found); 200 with non-nil empty
+//     array on own-company zero applications.
 //  4. Success → 200 + RecruiterApplicationsResponse.
 func (h *ApplicationHandler) listJobApplications(w http.ResponseWriter, r *http.Request) {
 	cc, ok := requireCompanyContext(w, r)
@@ -160,7 +161,7 @@ func (h *ApplicationHandler) listJobApplications(w http.ResponseWriter, r *http.
 
 	jobID, err := uuid.Parse(chi.URLParam(r, "jobId"))
 	if err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid job id")
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
 		return
 	}
 
@@ -182,10 +183,10 @@ func (h *ApplicationHandler) listJobApplications(w http.ResponseWriter, r *http.
 // getApplication implements GET /jobs/{jobId}/applications/{id}.
 //
 // Flow:
-//  1. requireCompanyContext.
-//  2. Parse {jobId}, {id} as UUIDs (400 on malformed).
+//  1. requireCompanyContext (500 fail-closed → catalog internal_error).
+//  2. Parse {jobId}, {id} as UUIDs (400 on malformed → catalog invalid_request).
 //  3. GetApplicationDetail → 404 on cross-company/non-existent/mismatched
-//     job (ErrApplicationNotFound).
+//     job (ErrApplicationNotFound → catalog not_found).
 //  4. Success → 200 + ApplicationListItemDto (the same shape the list
 //     endpoint returns, so clients reuse their parser).
 func (h *ApplicationHandler) getApplication(w http.ResponseWriter, r *http.Request) {
@@ -196,13 +197,13 @@ func (h *ApplicationHandler) getApplication(w http.ResponseWriter, r *http.Reque
 
 	jobID, err := uuid.Parse(chi.URLParam(r, "jobId"))
 	if err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid job id")
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
 		return
 	}
 
 	appID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid application id")
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
 		return
 	}
 
@@ -220,9 +221,9 @@ func (h *ApplicationHandler) getApplication(w http.ResponseWriter, r *http.Reque
 // transitionApplication implements PATCH /jobs/{jobId}/applications/{id}/transition.
 //
 // Flow:
-//  1. requireCompanyContext.
-//  2. Parse {jobId}, {id} as UUIDs (400).
-//  3. Decode body as TransitionRequestDto (400 on invalid JSON).
+//  1. requireCompanyContext (500 fail-closed → catalog internal_error).
+//  2. Parse {jobId}, {id} as UUIDs (400 → catalog invalid_request).
+//  3. Decode body as TransitionRequestDto (400 on invalid JSON → catalog invalid_request).
 //  4. TransitionApplication — request-first validation, then matrix,
 //     then guarded write.
 //  5. Success → 200 + ApplicationResponse (updated row).
@@ -234,19 +235,19 @@ func (h *ApplicationHandler) transitionApplication(w http.ResponseWriter, r *htt
 
 	jobID, err := uuid.Parse(chi.URLParam(r, "jobId"))
 	if err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid job id")
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
 		return
 	}
 
 	appID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid application id")
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
 		return
 	}
 
 	var in dtos.TransitionRequestDto
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
 		return
 	}
 
@@ -261,84 +262,110 @@ func (h *ApplicationHandler) transitionApplication(w http.ResponseWriter, r *htt
 
 // --- classification & helpers -------------------------------------------
 
-// classifyAndWriteError centralizes the error → HTTP mapping for every
-// handler. The real error is logged at error severity when the
-// classifier lands on 500 so an operator can correlate with the
-// generic 5xx response the client sees.
+// classifyAndWriteError centralizes error → catalog HTTP mapping for every
+// handler. The real error is logged at error severity when the classifier
+// lands on internal_error so an operator can correlate with the generic
+// 5xx response the client sees.
 func (h *ApplicationHandler) classifyAndWriteError(w http.ResponseWriter, r *http.Request, err error) {
-	status, msg := classifyApplicationError(err)
-	if status == http.StatusInternalServerError {
+	def := classifyApplicationError(err)
+	if def.Code == httpjson.CodeInternalError {
 		slog.Error("applications handler failed", "method", r.Method, "path", r.URL.Path, "error", err)
 	}
-	httpjson.WriteError(w, status, msg)
+	httpjson.WriteCatalogError(w, def)
 }
 
-// classifyApplicationError is the flat errors.Is dispatcher for every
-// domain sentinel the use cases can surface. The mapping table mirrors
-// the design §3 D9 classifier exactly:
-//
-//	ErrUnknownSubject                → 401 "unauthenticated"
-//	ErrApplicationNotFound           → 404 "application not found"
-//	ErrJobNotApplicable              → 404 "job not applicable"
-//	ErrAlreadyApplied                → 409 "already applied"
-//	ErrStatusRequired                → 400 "status is required"
-//	ErrInvalidStatusTransition       → 400 err.Error()  (the
-//	                                              unwrapped "invalid
-//	                                              status transition"
-//	                                              or the wrapped
-//	                                              "<from> -> <to>"
-//	                                              form)
-//	ErrCoverLetterEmpty              → 400 "cover_letter must not be empty"
-//	ErrCoverLetterTooLong            → 400 "cover_letter must be at most 2000 characters"
-//	ErrInvalidSource                 → 400 "invalid source"
-//	ErrInvalidApplicationReference   → 400 "invalid application reference"
-//	ErrMissingActorIdentity          → 500 "internal server error" (fail-closed:
-//	                                              no status change, no event)
-//	default                          → 500 "internal server error"
-func classifyApplicationError(err error) (int, string) {
+// classifyApplicationError is the flat errors.Is dispatcher for every domain
+// sentinel the use cases can surface. Returns an httpjson.Definition. Domain
+// messages are preserved via SafeMessage; internal_error always returns the
+// canonical generic message so no injected detail reaches the wire.
+func classifyApplicationError(err error) httpjson.Definition {
 	switch {
 	case errors.Is(err, applicationsusecases.ErrUnknownSubject):
-		return http.StatusUnauthorized, "unauthenticated"
+		return httpjson.Resolve(httpjson.CodeUnauthenticated)
 	case errors.Is(err, applicationsentities.ErrApplicationNotFound):
-		return http.StatusNotFound, "application not found"
+		return httpjson.SafeMessage(
+			httpjson.Resolve(httpjson.CodeNotFound),
+			"application not found",
+		)
 	case errors.Is(err, applicationsentities.ErrJobNotApplicable):
-		return http.StatusNotFound, "job not applicable"
+		return httpjson.SafeMessage(
+			httpjson.Resolve(httpjson.CodeNotFound),
+			"job not applicable",
+		)
 	case errors.Is(err, applicationsentities.ErrAlreadyApplied):
-		return http.StatusConflict, "already applied"
+		return httpjson.SafeMessage(
+			httpjson.Resolve(httpjson.CodeAlreadyExists),
+			"already applied",
+		)
 	case errors.Is(err, applicationsentities.ErrStatusRequired):
-		return http.StatusBadRequest, "status is required"
+		return httpjson.SafeMessage(
+			httpjson.Resolve(httpjson.CodeInvalidRequest),
+			"status is required",
+		)
 	case errors.Is(err, applicationsvalueobjects.ErrInvalidStatusTransition):
-		// Render err.Error() directly: the unwrapped sentinel message is
-		// "invalid status transition" (unknown parse); the wrapped form is
-		// "invalid status transition: <from> -> <to>" (illegal matrix).
-		// Both are spec-mandated body shapes.
-		return http.StatusBadRequest, err.Error()
+		return httpjson.SafeMessage(
+			httpjson.Resolve(httpjson.CodeInvalidStatusTransition),
+			invalidStatusTransitionSafeMessage(err),
+		)
 	case errors.Is(err, applicationsentities.ErrCoverLetterEmpty):
-		return http.StatusBadRequest, "cover_letter must not be empty"
+		return httpjson.SafeMessage(
+			httpjson.Resolve(httpjson.CodeInvalidRequest),
+			"cover_letter must not be empty",
+		)
 	case errors.Is(err, applicationsentities.ErrCoverLetterTooLong):
-		return http.StatusBadRequest, "cover_letter must be at most 2000 characters"
+		return httpjson.SafeMessage(
+			httpjson.Resolve(httpjson.CodeInvalidRequest),
+			"cover_letter must be at most 2000 characters",
+		)
 	case errors.Is(err, applicationsvalueobjects.ErrInvalidSource):
-		return http.StatusBadRequest, "invalid source"
+		return httpjson.SafeMessage(
+			httpjson.Resolve(httpjson.CodeInvalidRequest),
+			"invalid source",
+		)
 	case errors.Is(err, applicationsentities.ErrInvalidApplicationReference):
-		return http.StatusBadRequest, "invalid application reference"
+		return httpjson.SafeMessage(
+			httpjson.Resolve(httpjson.CodeInvalidRequest),
+			"invalid application reference",
+		)
 	case errors.Is(err, applicationsusecases.ErrMissingActorIdentity):
 		// Fail-closed 500: a missing CompanyContext.UserID must never
 		// surface as 4xx (no existence leak) and never write (D8).
-		return http.StatusInternalServerError, "internal server error"
+		// Canonical generic message — no injected detail.
+		return httpjson.Resolve(httpjson.CodeInternalError)
 	default:
-		return http.StatusInternalServerError, "internal server error"
+		return httpjson.Resolve(httpjson.CodeInternalError)
 	}
+}
+
+func invalidStatusTransitionSafeMessage(err error) string {
+	base := applicationsvalueobjects.ErrInvalidStatusTransition.Error()
+	msg := err.Error()
+	detail, ok := strings.CutPrefix(msg, base+": ")
+	if !ok {
+		return base
+	}
+	parts := strings.Split(detail, " -> ")
+	if len(parts) != 2 {
+		return base
+	}
+	if _, parseErr := applicationsvalueobjects.ParseApplicationStatus(parts[0]); parseErr != nil {
+		return base
+	}
+	if _, parseErr := applicationsvalueobjects.ParseApplicationStatus(parts[1]); parseErr != nil {
+		return base
+	}
+	return msg
 }
 
 // requireSub extracts the JWT subject from the request context. Mirrors
 // the candidates-side implementation; sources are unexported in the
 // identity http package so a little copying is better than a dependency.
-// Returns (sub, true) on success, writes 401 and returns ("", false)
-// otherwise.
+// Returns (sub, true) on success, writes catalog unauthenticated and
+// returns ("", false) otherwise.
 func requireSub(w http.ResponseWriter, r *http.Request) (string, bool) {
 	claims := identitysecurity.ClaimsFromContext(r.Context())
 	if claims.Subject == "" {
-		httpjson.WriteError(w, http.StatusUnauthorized, "unauthenticated")
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeUnauthenticated))
 		return "", false
 	}
 	return claims.Subject, true
@@ -346,11 +373,12 @@ func requireSub(w http.ResponseWriter, r *http.Request) (string, bool) {
 
 // requireCompanyContext reads the CompanyContext that RequireCompanyRole
 // injected after resolving sub → users.id → company_members. Fail-closed
-// 500 if the middleware was bypassed (mirrors the jobs handler).
+// 500 if the middleware was bypassed (mirrors the jobs handler). Canonical
+// generic message — no injected detail.
 func requireCompanyContext(w http.ResponseWriter, r *http.Request) (identitysecurity.CompanyContext, bool) {
 	cc, ok := identitysecurity.CompanyContextFromContext(r.Context())
 	if !ok {
-		httpjson.WriteError(w, http.StatusInternalServerError, "internal server error")
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
 		return identitysecurity.CompanyContext{}, false
 	}
 	return cc, true
