@@ -66,6 +66,7 @@ import (
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	sharedvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -893,53 +894,213 @@ func TestUpdateCompany_ProducesCompanyUpdatedAuditRow(t *testing.T) {
 }
 
 // --- 3. SoftDeleteCompany rollback on inline close failure -----------------
+//
+// WS2C (companies-write close-failure injection seam): replaces the
+// long-standing coverage gap (D17 item 30, formerly a skip placeholder).
+// The inline jobs-close failure is forced deterministically via an
+// instance-local immutable seam (a `closeCompanyJobsFn` field on
+// `CompanyRepository`, wired at construction; no global state, no
+// shared mutable map, concurrency-safe by construction). The seam
+// receives the live `pgx.Tx`, so a forced failure rolls back the SAME
+// transaction as the soft-delete write — every prior write inside
+// that tx (the soft-delete UPDATE) and every later write that never
+// ran (the audit append) is invisible after the deferred
+// `tx.Rollback`. The test pins all five invariants on a fresh bounded
+// context with the production cleanup chain intact; no DDL churn, no
+// schema edits, no CHECK manipulation, no sleeps.
 
-// TestSoftDeleteCompany_RollbackOnCloseFailure forces an inline-close
-// failure by introducing a `jobs_status_check` violation via a
-// trigger-free DDL approach: the test pre-creates a row that the
-// inline close WILL update (draft → closed, valid), but then
-// overrides `jobs_status_check` to reject 'closed' for that one row
-// via a per-row trigger. That's invasive.
+// errCloseForced is the sentinel error the WS2C close-failure injection
+// seam returns. The test asserts `errors.Is(err, errCloseForced)` to
+// prove the seam actually reached `SoftDeleteCompany` (any other path
+// would return a wrapped error or a domain sentinel and fail the
+// assertion).
+var errCloseForced = errors.New("ws2c forced inline close failure")
+
+// newTestCompanyRepositoryWithCloseFn is the test-only constructor used
+// by TestSoftDeleteCompany_RollbackOnCloseFailure. It mirrors
+// newTestCompanyRepository but installs a caller-supplied close seam so
+// the test can deterministically force the inline close to fail without
+// DDL churn. The seam's field is set after construction (the production
+// `NewCompanyRepository` is the only public constructor; the seam
+// remains immutable from the perspective of every other test). The
+// return value is `*CompanyRepository`, identical to the public
+// constructor's return type, so call sites can stay interchangeable.
+func newTestCompanyRepositoryWithCloseFn(pool *pgxpool.Pool, closeFn closeCompanyJobsFn) *CompanyRepository {
+	repo := NewCompanyRepository(pool, auditpostgres.NewAuditEventRepository())
+	repo.closeFn = closeFn
+	return repo
+}
+
+// TestSoftDeleteCompany_RollbackOnCloseFailure is the WS2C close-failure
+// injection test. The test:
 //
-// The pragmatic alternative: force the inline close to fail by
-// inserting a row with a `status` value that satisfies the predicate
-// at insert time but trips `jobs_status_check` on the UPDATE.
+//  1. Sets up a fresh bounded context via the existing committed fixtures
+//     (fixtureSeed + seedCompanyAJobs; the audit-baseline seed row keeps
+//     pre/post audit-count deltas deterministic).
+//  2. Snapshots pre-call state for the company (deleted_at, updated_at),
+//     both live jobs (status, updated_at), and the total audit count.
+//  3. Forces the inline close to fail by injecting a seam that returns
+//     `errCloseForced` for the close call only (the soft-delete UPDATE
+//     runs FIRST, inside the same tx, so the seam failure is the second
+//     statement of the tx).
+//  4. Asserts every assertion that the defer-Rollback idiom must
+//     preserve: the injected error is returned unchanged; the company
+//     tombstone did NOT commit (`deleted_at IS NULL`, `updated_at`
+//     unchanged); the draft job is still `draft` with unchanged
+//     `updated_at`; the published job is still `published` with
+//     unchanged `updated_at`; the total audit count is unchanged; no
+//     `CompanyDeleted` row exists for the company.
 //
-// The simplest deterministic approach: drop the `jobs_status_check`
-// constraint on `jobs.status`, then alter the row's status to a
-// value that violates the constraint on update. The test framework
-// does not allow arbitrary DDL without restoring state.
-//
-// A more focused alternative: use a SAVEPOINT inside a manual tx to
-// force the second statement to fail. But the adapter owns the tx
-// and does not expose SAVEPOINTs.
-//
-// Pragmatic decision: this test uses the public CHECK violation
-// surface — add a row whose `status='draft'`, then ALTER COLUMN to
-// drop the constraint, then UPDATE jobs to a value that violates
-// `jobs_status_check` only AFTER `status_check` is replaced by an
-// impossible value. The DDL churn is too costly for a single
-// integration test.
-//
-// A cleaner approach: skip the deterministic failure and rely on
-// the `defer tx.Rollback` review + the `tx.Commit` boundary tests
-// elsewhere. The five-invariant test above proves the happy path
-// and the atomicity property; the rollback path is a small adapter
-// invariant (defer Rollback on every error path before Commit) that
-// is reviewable without an integration test.
-//
-// We document this as a deliberate coverage gap: the rollback
-// behavior is enforced by the defer idiom and the WU5 review, not
-// by a live-DB test. (Design D17 item 30.)
-//
-// To prevent the coverage hole from silently widening, the helper
-// function below is wired to the same `skipIfNoDatabase` helper and
-// is the documented placeholder for a future
-// `forceInlineCloseFailure` helper.
-func TestSoftDeleteCompany_RollbackOnCloseFailure_Placeholder(t *testing.T) {
-	t.Skip("deferred — defer tx.Rollback idiom + WU5 review cover the rollback invariant; " +
-		"deterministic inline-close failure requires DDL churn that exceeds the slice's risk budget. " +
-		"See design D17 item 30 + apply-progress.md 'coverage gaps'.")
+// The test deliberately does NOT seed an owner user: with the close
+// failing before the audit append, audit is unreachable (the only
+// audit row that COULD have been written is the co-write
+// `CompanyDeleted`, which the rollback guarantees never reached the
+// table; the baseline seed row in `fixtureSeed` keeps the count
+// deterministic).
+func TestSoftDeleteCompany_RollbackOnCloseFailure(t *testing.T) {
+	pool := skipIfNoDatabase(t)
+	t.Cleanup(func() { pool.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	fixtureSeed(t, ctx, pool)
+	seedCompanyAJobs(t, ctx, pool)
+	t.Cleanup(func() {
+		cleanupCompanyAJobs(t, pool)
+		cleanupCompanies(t, pool)
+	})
+
+	// Snapshot pre-call state for company A.
+	var (
+		preDeletedAt *time.Time
+		preUpdatedAt time.Time
+	)
+	if err := pool.QueryRow(ctx,
+		`SELECT deleted_at, updated_at FROM companies WHERE id = $1`, writeCoA,
+	).Scan(&preDeletedAt, &preUpdatedAt); err != nil {
+		t.Fatalf("snapshot company: %v", err)
+	}
+	if preDeletedAt != nil {
+		t.Fatalf("precondition: company A.deleted_at must be NULL, got %v", *preDeletedAt)
+	}
+
+	// Snapshot pre-call state for the draft + published jobs.
+	var (
+		preDraftStatus        string
+		preDraftUpdatedAt     time.Time
+		prePublishedStatus    string
+		prePublishedUpdatedAt time.Time
+	)
+	if err := pool.QueryRow(ctx,
+		`SELECT status, updated_at FROM jobs WHERE id = $1`, writeJobDraft,
+	).Scan(&preDraftStatus, &preDraftUpdatedAt); err != nil {
+		t.Fatalf("snapshot draft job: %v", err)
+	}
+	if err := pool.QueryRow(ctx,
+		`SELECT status, updated_at FROM jobs WHERE id = $1`, writeJobPublished,
+	).Scan(&prePublishedStatus, &prePublishedUpdatedAt); err != nil {
+		t.Fatalf("snapshot published job: %v", err)
+	}
+
+	// Pre-call audit count (baseline row + any earlier test residue;
+	// the `fixtureSeed` baseline keeps the count deterministic).
+	var preAuditCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events`).Scan(&preAuditCount); err != nil {
+		t.Fatalf("count audit_events: %v", err)
+	}
+
+	// ACT: arm the seam so the inline close returns the sentinel
+	// error. The seam receives the live tx so the failure surfaces
+	// from inside the same transaction as the soft-delete UPDATE;
+	// the deferred tx.Rollback restores pre-state on every other
+	// row the tx touched.
+	repo := newTestCompanyRepositoryWithCloseFn(pool, func(_ context.Context, _ pgx.Tx, _ uuid.UUID) (int64, error) {
+		return 0, errCloseForced
+	})
+
+	err := repo.SoftDeleteCompany(ctx, writeCoA, preUpdatedAt, writeDeleteAuditEvent(writeCoA))
+	if !errors.Is(err, errCloseForced) {
+		t.Fatalf("SoftDeleteCompany: want errCloseForced (injected), got: %v", err)
+	}
+
+	// Company A tombstone did NOT commit: deleted_at IS NULL AND
+	// updated_at unchanged.
+	var (
+		postDeletedAt *time.Time
+		postUpdatedAt time.Time
+	)
+	if err := pool.QueryRow(ctx,
+		`SELECT deleted_at, updated_at FROM companies WHERE id = $1`, writeCoA,
+	).Scan(&postDeletedAt, &postUpdatedAt); err != nil {
+		t.Fatalf("post snapshot company: %v", err)
+	}
+	if postDeletedAt != nil {
+		t.Errorf("rollback invariant: company.deleted_at must remain NULL (the soft-delete write MUST be undone by the deferred tx.Rollback), got %v", *postDeletedAt)
+	}
+	if !postUpdatedAt.Equal(preUpdatedAt) {
+		t.Errorf("rollback invariant: company.updated_at must remain unchanged at %v (the soft-delete write MUST be undone), got %v", preUpdatedAt, postUpdatedAt)
+	}
+
+	// Draft job: status unchanged, updated_at unchanged.
+	var (
+		postDraftStatus    string
+		postDraftUpdatedAt time.Time
+	)
+	if err := pool.QueryRow(ctx,
+		`SELECT status, updated_at FROM jobs WHERE id = $1`, writeJobDraft,
+	).Scan(&postDraftStatus, &postDraftUpdatedAt); err != nil {
+		t.Fatalf("post draft job: %v", err)
+	}
+	if postDraftStatus != preDraftStatus {
+		t.Errorf("rollback invariant: draft job.status: want unchanged %q, got %q", preDraftStatus, postDraftStatus)
+	}
+	if !postDraftUpdatedAt.Equal(preDraftUpdatedAt) {
+		t.Errorf("rollback invariant: draft job.updated_at: want unchanged %v, got %v", preDraftUpdatedAt, postDraftUpdatedAt)
+	}
+
+	// Published job: status unchanged, updated_at unchanged.
+	var (
+		postPublishedStatus    string
+		postPublishedUpdatedAt time.Time
+	)
+	if err := pool.QueryRow(ctx,
+		`SELECT status, updated_at FROM jobs WHERE id = $1`, writeJobPublished,
+	).Scan(&postPublishedStatus, &postPublishedUpdatedAt); err != nil {
+		t.Fatalf("post published job: %v", err)
+	}
+	if postPublishedStatus != prePublishedStatus {
+		t.Errorf("rollback invariant: published job.status: want unchanged %q, got %q", prePublishedStatus, postPublishedStatus)
+	}
+	if !postPublishedUpdatedAt.Equal(prePublishedUpdatedAt) {
+		t.Errorf("rollback invariant: published job.updated_at: want unchanged %v, got %v", prePublishedUpdatedAt, postPublishedUpdatedAt)
+	}
+
+	// Audit invariants: total count unchanged AND no CompanyDeleted
+	// row exists for the company. The baseline seed row keeps the
+	// count deterministic; the rollback MUST have undone the soft-delete
+	// write AND prevented the audit append from running (the audit
+	// append is the LAST statement before `tx.Commit`; the close
+	// failure returns before the append is reached).
+	var postAuditCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events`).Scan(&postAuditCount); err != nil {
+		t.Fatalf("post audit count: %v", err)
+	}
+	if postAuditCount != preAuditCount {
+		t.Errorf("rollback invariant: audit_events count: want unchanged %d (no CompanyDeleted row appended), got %d", preAuditCount, postAuditCount)
+	}
+
+	var companyDeletedCount int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM audit_events
+		 WHERE entity_type = 'company' AND entity_id = $1 AND event_type = 'CompanyDeleted'`,
+		writeCoA,
+	).Scan(&companyDeletedCount); err != nil {
+		t.Fatalf("post CompanyDeleted count: %v", err)
+	}
+	if companyDeletedCount != 0 {
+		t.Errorf("rollback invariant: CompanyDeleted rows for company: want 0, got %d (the audit append MUST NOT have run)", companyDeletedCount)
+	}
 }
 
 // --- 4. GetCompanyForUpdate hides tombstoned companies --------------------

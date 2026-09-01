@@ -21,6 +21,29 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// closeCompanyJobsFn abstracts the inline jobs-close statement executed
+// inside SoftDeleteCompany's adapter-owned pgx.Tx. The signature receives
+// the live tx so the seam runs in the SAME transaction as the soft-delete
+// write — the close MUST NOT start a new connection, otherwise the inline
+// rollback guarantee is lost. The `(int64, error)` return preserves the
+// rowcount contract the metadata finalizer depends on (D1 —
+// `CompanyDeletedMetadata(int(closedCount))`).
+//
+// WS2C close-failure injection seam: the production default delegates to
+// `db.New(tx).CloseCompanyJobs`. The field is immutable after
+// construction (set only inside `NewCompanyRepository` and the test-only
+// `newTestCompanyRepositoryWithCloseFn`); no other call site mutates it,
+// which makes the seam concurrency-safe by construction (no global state,
+// no shared mutable map, no setter method).
+type closeCompanyJobsFn func(ctx context.Context, tx pgx.Tx, companyID uuid.UUID) (int64, error)
+
+// defaultCloseCompanyJobs is the production seam: it delegates to the
+// sqlc-generated CloseCompanyJobs, preserving the rowcount contract the
+// metadata finalizer depends on.
+func defaultCloseCompanyJobs(ctx context.Context, tx pgx.Tx, companyID uuid.UUID) (int64, error) {
+	return db.New(tx).CloseCompanyJobs(ctx, companyID)
+}
+
 // CompanyRepository is the PostgreSQL adapter for the repositories.CompanyRepository port.
 //
 // Companies-write WU3 (design D15): the adapter is now POOL-OWNING.
@@ -42,19 +65,30 @@ import (
 // domain write without its audit trail). The adapter NEVER builds
 // the event — the use case is the single source of truth (the event
 // arrives through the port signature as the LAST value param, D3).
+//
+// WS2C (companies-write close-failure injection seam): the adapter also
+// holds an instance-local `closeFn closeCompanyJobsFn` field. The
+// production default delegates to `db.New(tx).CloseCompanyJobs`. The
+// field is set once at construction time and never mutated afterwards,
+// so it requires no cleanup and no global reset between tests; the
+// seam is concurrency-safe by construction (the field is read-only after
+// the constructor returns).
 type CompanyRepository struct {
-	pool  *pgxpool.Pool
-	audit auditrepositories.AuditEventRepository
+	pool    *pgxpool.Pool
+	audit   auditrepositories.AuditEventRepository
+	closeFn closeCompanyJobsFn
 }
 
 // NewCompanyRepository wraps the pgxpool.Pool + the stateless audit
-// adapter. Pool first, audit second — mirror of
-// `NewApplicationRepository(pool, audit)` (companies-audit design
+// adapter + the production close seam. Pool first, audit second — mirror
+// of `NewApplicationRepository(pool, audit)` (companies-audit design
 // D4). The composition root hoists the `auditRepo` declaration
 // above the `companyRepo` construction so the `auditRepo` variable
-// is in scope when this constructor runs.
+// is in scope when this constructor runs. The close seam defaults to
+// `defaultCloseCompanyJobs` (production behavior). Public constructor
+// signature unchanged from the pre-WS2C slice.
 func NewCompanyRepository(pool *pgxpool.Pool, audit auditrepositories.AuditEventRepository) *CompanyRepository {
-	return &CompanyRepository{pool: pool, audit: audit}
+	return &CompanyRepository{pool: pool, audit: audit, closeFn: defaultCloseCompanyJobs}
 }
 
 // Compile-time assertion: the adapter satisfies the domain port. If a
@@ -277,8 +311,19 @@ func (r *CompanyRepository) SoftDeleteCompany(ctx context.Context, companyID uui
 	}
 
 	// Inline close — runs in the same tx. The rowcount becomes the
-	// `jobs_closed` metadata value (D1 / D9).
-	closedCount, err := db.New(tx).CloseCompanyJobs(ctx, companyID)
+	// `jobs_closed` metadata value (D1 / D9). WS2C: the call routes
+	// through `r.closeFn` (an instance-local seam; the production
+	// default delegates to `db.New(tx).CloseCompanyJobs`). The seam
+	// receives the live tx so a forced failure rolls back the same
+	// transaction as the soft-delete write — every prior write inside
+	// that tx (the soft-delete UPDATE) and every later write that
+	// never ran (the audit append) is invisible after the deferred
+	// `tx.Rollback`. The seam is immutable after construction (set
+	// only in `NewCompanyRepository` and the test-only
+	// `newTestCompanyRepositoryWithCloseFn`); no other call site
+	// mutates it, which makes the seam concurrency-safe by
+	// construction (no global state, no shared mutable map).
+	closedCount, err := r.closeFn(ctx, tx, companyID)
 	if err != nil {
 		// mapSoftDeleteCompanyError maps SQLSTATE 23514 → entities
 		// .ErrInvalidCompanyStatusTransition; pgx.ErrNoRows is

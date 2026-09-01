@@ -134,10 +134,10 @@ This follow-up task extends the 11-code V1 catalog to 14 codes per the planning 
 
 ### 2.3 (WS2C) Deterministic rollback failure injection (replaces placeholder skip)
 
-- [ ] RED: the existing placeholder `TestSoftDeleteCompany_RollbackOnCloseFailure_Placeholder` at `backend/internal/features/companies/infrastructure/postgres/companyRepository_write_integration_test.go:930` (verified) is the RED evidence — replace its skip with a failing assertion that a forced inline jobs-close failure rolls back the tombstone. Capture the behavioral failure: no injection seam exists, so the close failure cannot be forced and the tombstone commits. <!-- sdd-owner: implementation -->
-- [ ] GREEN: add an injectable transaction/query seam to the company delete repository path (transaction-local, guaranteed cleanup; no shared-schema mutation); implement `TestSoftDeleteCompany_RollbackOnCloseFailure` proving `deleted_at` unset, jobs not closed, audit unchanged, and seam removed after the test. <!-- sdd-owner: implementation -->
-- [ ] TRIANGULATE: arm the seam so the error occurs before commit and prove company, jobs, AND audit_events are all unchanged; a second case proves the happy path stays semantically identical with the seam disarmed. <!-- sdd-owner: implementation -->
-- [ ] REFACTOR: delete the placeholder test, run `go test -tags=integration -p 1 -count=1 ./internal/features/companies/...` and `go test ./... -count=1`; confirm zero skips in the companies suite. <!-- sdd-owner: implementation -->
+- [x] RED: the existing placeholder `TestSoftDeleteCompany_RollbackOnCloseFailure_Placeholder` at `backend/internal/features/companies/infrastructure/postgres/companyRepository_write_integration_test.go:930` (verified) is the RED evidence — replace its skip with a failing assertion that a forced inline jobs-close failure rolls back the tombstone. Capture the behavioral failure: no injection seam exists, so the close failure cannot be forced and the tombstone commits. <!-- sdd-owner: implementation -->
+- [x] GREEN: add an injectable transaction/query seam to the company delete repository path (transaction-local, guaranteed cleanup; no shared-schema mutation); implement `TestSoftDeleteCompany_RollbackOnCloseFailure` proving `deleted_at` unset, jobs not closed, audit unchanged, and seam removed after the test. <!-- sdd-owner: implementation -->
+- [x] TRIANGULATE: arm the seam so the error occurs before commit and prove company, jobs, AND audit_events are all unchanged; a second case proves the happy path stays semantically identical with the seam disarmed. <!-- sdd-owner: implementation -->
+- [x] REFACTOR: delete the placeholder test, run `go test -tags=integration -p 1 -count=1 ./internal/features/companies/...` and `go test ./... -count=1`; confirm zero skips in the companies suite. <!-- sdd-owner: implementation -->
 
 ### 2.4 (WS2D) PATCH/DELETE CAS degenerates, multi-field update, zero-audit failures, two-writer races
 

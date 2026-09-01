@@ -444,3 +444,83 @@ Exact HEAD numstat: handler `101/73`, test `204/10`, progress `7/0`; 312 additio
 **Preserved unchanged:** task 2.3 placeholder skip; task 2.4 behavior; `companyRepository.go` (zero diff); all other tests and sections.
 
 **Task state: 32/96** — task 2.2 is closed; task 2.3 placeholder and task 2.4 behavior preserved unchanged.
+
+---
+
+## RU6 task 2.3 — WS2C deterministic close-failure injection seam (closes D17 item 30 coverage gap)
+
+> **Scope:** replace `TestSoftDeleteCompany_RollbackOnCloseFailure_Placeholder` with a deterministic, instance-local, immutable-after-construction close-seam injection test that proves `SoftDeleteCompany` rolls back the tombstone, the inline close, and the audit append on a forced inline-close failure. The placeholder test (and its obsolete DDL essay) is deleted; the seam is a single unexported field on `CompanyRepository` wired to a production-default `db.New(tx).CloseCompanyJobs` delegate. Public constructor signature and call sites unchanged. No schema edits, no sleeps, no shared-schema DDL, no package globals.
+
+### Strict TDD — RED (compile-safe scaffold; behavioral failure only)
+
+Added seam scaffold to `companyRepository.go`: unexported type `closeCompanyJobsFn func(ctx context.Context, tx pgx.Tx, companyID uuid.UUID) (int64, error)` (seam receives the live `pgx.Tx` so the close runs in the SAME transaction); unexported production-default `defaultCloseCompanyJobs(ctx, tx, companyID)` delegating to `db.New(tx).CloseCompanyJobs`; unexported field `closeFn closeCompanyJobsFn` on `CompanyRepository`; public `NewCompanyRepository` unchanged in signature, now wires `closeFn: defaultCloseCompanyJobs` (call sites unchanged).
+
+`SoftDeleteCompany` still IGNORES the seam in RED: the close call is still `db.New(tx).CloseCompanyJobs(ctx, companyID)` directly, so the production code bypasses the injected failure. Added `TestSoftDeleteCompany_RollbackOnCloseFailure` plus the test-only constructor `newTestCompanyRepositoryWithCloseFn` (which sets `repo.closeFn` after the public constructor returns). The test arms the seam with a sentinel `errCloseForced` and pins all five rollback invariants (injected error returned unchanged; company `deleted_at`/`updated_at` unchanged; draft + published job `status`/`updated_at` unchanged; total `audit_events` count unchanged; no `CompanyDeleted` row for the company). Uses existing committed fixtures (`fixtureSeed` + `seedCompanyAJobs`), no owner seed (audit unreachable after close failure; the `fixtureSeed` baseline row keeps the pre/post count deterministic). Imports added: `github.com/jackc/pgx/v5`.
+
+Focused selector against the un-wired RED scaffold:
+
+```text
+=== RUN   TestSoftDeleteCompany_RollbackOnCloseFailure
+    companyRepository_write_integration_test.go:1024: SoftDeleteCompany: want errCloseForced (injected), got: <nil>
+--- FAIL: TestSoftDeleteCompany_RollbackOnCloseFailure (0.02s)
+FAIL
+```
+
+Exact behavioral failure: the injected `errCloseForced` is NOT returned (got `<nil>`), proving the seam is not wired AND the tombstone + audit row + job close all commit silently. No compile failures; the seam scaffold compiles and the test runs against the existing production code.
+
+### Strict TDD — GREEN
+
+Changed one line in `companyRepository.go`'s `SoftDeleteCompany`: replaced `db.New(tx).CloseCompanyJobs(ctx, companyID)` with `r.closeFn(ctx, tx, companyID)`. Documented the seam's contract in the call-site comment block: the seam is immutable after construction (set only in `NewCompanyRepository` and the test-only `newTestCompanyRepositoryWithCloseFn`); no global state, no shared mutable map, concurrency-safe by construction. Focused selector PASSES:
+
+```text
+=== RUN   TestSoftDeleteCompany_TombstonesAndClosesJobs
+--- PASS: TestSoftDeleteCompany_TombstonesAndClosesJobs (0.03s)
+=== RUN   TestSoftDeleteCompany_RollbackOnCloseFailure
+--- PASS: TestSoftDeleteCompany_RollbackOnCloseFailure (0.02s)
+PASS
+```
+
+### Strict TDD — TRIANGULATE
+
+Both tests run in the same focused selector with the seam wired:
+
+- `TestSoftDeleteCompany_TombstonesAndClosesJobs` uses `newTestCompanyRepository(pool)` (public constructor + `defaultCloseCompanyJobs` — the disarmed production default). PASS proves the happy path is semantically identical: the inline close rowcount becomes the `jobs_closed` metadata value via `CompanyDeletedMetadata(int(closedCount))`, the audit append runs in the SAME tx, all five invariants (a–e) hold, and exactly one `CompanyDeleted` row is appended with `entity_type='company'` and the seeded `actor_id=<writeOwnerUserID>`. This is the explicit "disarmed production default proves semantics unchanged" triangulation stated in the WS2C evidence goal.
+- `TestSoftDeleteCompany_RollbackOnCloseFailure` uses the armed seam (`newTestCompanyRepositoryWithCloseFn`) returning `errCloseForced`. PASS proves every rollback invariant: `errors.Is(err, errCloseForced)`, company `deleted_at`/`updated_at` unchanged, draft + published job `status`/`updated_at` unchanged, total `audit_events` count unchanged, zero `CompanyDeleted` rows for the company.
+
+### Strict TDD — REFACTOR (zero-skip evidence, full suite, hygiene)
+
+```bash
+cd backend && set -a && . /tmp/peopleflow-ws2c.env && set +a && \
+  go test -tags=integration -p 1 -count=1 -v ./internal/features/companies/infrastructure/postgres
+# 48 PASS, 0 SKIP, 0 FAIL
+cd backend && go test ./... -count=1                                            # PASS, all packages green
+cd backend && go vet ./... && go vet -tags=integration ./...                    # PASS
+cd backend && gofmt -l <changed files>                                          # clean
+git diff HEAD --check                                                           # PASS (no whitespace errors)
+cd backend && set -a && . /tmp/peopleflow-ws2c.env && set +a && \
+  go test -tags=integration -p 1 -count=1 ./internal/features/companies/...   # PASS (serial rerun, no residue)
+```
+
+Full serial Companies integration (`./internal/features/companies/...`): PASS, zero skips, zero failures; the legacy placeholder skip is gone. `DATABASE_URL` lives only in `/tmp/peopleflow-ws2c.env` (mode 0600); the snippets above source it with `set -a; set +a`.
+
+### Rollback facts (the truth pinned by the new test)
+
+When the seam returns `errCloseForced` between the soft-delete UPDATE and the audit append, `defer tx.Rollback(ctx)` restores EVERY prior write inside the same `pgx.Tx`:
+
+- `companies` row: `deleted_at` stays NULL (the soft-delete SET `deleted_at = now()` is undone), `updated_at` stays at the pre-call value (the `clock_timestamp()` bump is undone).
+- `jobs` row: draft stays `status='draft'` with its pre-call `updated_at`; published stays `status='published'` with its pre-call `updated_at`. The inline close never committed.
+- `audit_events`: count unchanged; no `CompanyDeleted` row for the company. The audit append never ran (it sits AFTER the close in the operation order and the close failure short-circuits to the deferred Rollback before the append is reached).
+- The error returned to the caller is the injected sentinel itself (the seam returns `errCloseForced` unchanged; `mapSoftDeleteCompanyError` is bypassed because the error is not a pg error).
+
+### Scope and exact HEAD numstat (post-format)
+
+```text
+backend/internal/features/companies/infrastructure/postgres/companyRepository.go                       53      8
+backend/internal/features/companies/infrastructure/postgres/companyRepository_write_integration_test.go 205     44
+openspec/changes/backend-go-closure/tasks.md                                                            4      4
+openspec/changes/backend-go-closure/apply-progress.md                                                  80      0
+```
+
+Arithmetic: 53 + 205 + 4 + 80 = 342 additions, 8 + 44 + 4 + 0 = 56 deletions. Total: 398. Under the 400-line budget. No other file changed; no schema migration, no shared-schema DDL, no `git status` residue (only the four files named above).
+
+**Task state: 36/96** — task 2.3 is closed; task 2.4 (WS2D PATCH/DELETE CAS + races + zero-audit) is the next unit.
