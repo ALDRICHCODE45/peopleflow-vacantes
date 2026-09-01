@@ -524,3 +524,64 @@ openspec/changes/backend-go-closure/apply-progress.md                           
 Arithmetic: 53 + 205 + 4 + 80 = 342 additions, 8 + 44 + 4 + 0 = 56 deletions. Total: 398. Under the 400-line budget. No other file changed; no schema migration, no shared-schema DDL, no `git status` residue (only the four files named above).
 
 **Task state: 36/96** — task 2.3 is closed; task 2.4 (WS2D PATCH/DELETE CAS + races + zero-audit) is the next unit.
+
+---
+## WS2D-A partial slice — DELETE CAS loss + malformed CAS transport + DELETE zero-audit (task 2.4 stays unchecked, deferred to WS2D-B)
+
+> **Scope:** DELETE side only. Pre-WS2D-A bug: a lost-CAS adapter result on DELETE returned `ErrCompanyNotFound` (handler → 404) — wrong when the row is just stale, not gone. Post-WS2D-A the use case re-reads on the 0-row adapter path: row present → `ErrConcurrencyConflict` (409); row gone → `ErrCompanyNotFound` (404). Mirrors PATCH step 6 without the editor view (DELETE 409 has no `data`). Deferred to WS2D-B: multi-field persistence plus bidirectional live PATCH/DELETE races.
+
+### Strict TDD — RED
+
+`TestSoftDeleteCompany_LostCASConflictWhenRowStillPresent` + `TestSoftDeleteCompany_LostCASReturnsNotFoundWhenRowGone` against pre-WS2D-A code:
+
+```
+deleteCompany_test.go:411: lost-CAS + row present: want ErrConcurrencyConflict (409), got: company not found
+deleteCompany_test.go:450: GetCompanyForUpdate: want exactly 2 calls (step 1 + lost-CAS re-read), got 1
+```
+Pre-WS2D-A the use case propagated `ErrCompanyNotFound` unchanged; post-WS2D-A it must re-read after the 0-row UPDATE and classify as 409 (row present) or 404 (row gone). Handler transport: `TestDeleteCompanyHandler_MalformedCASReturns409` (RFC 1123 + non-RFC3339) and `TestDeleteCompanyHandler_NotFoundReturns404NoRepoCall` pin the canonical envelope `{error, code}` with `code: conflict` (no `data`) and assert zero `repo.SoftDeleteCompany` calls on the 404 path.
+
+### Strict TDD — GREEN + TRIANGULATE + REFACTOR
+
+`deleteCompany.go` re-reads on the `ErrCompanyNotFound` adapter path: row present → `ErrConcurrencyConflict` (409); row gone → `ErrCompanyNotFound` (404); re-read non-domain error → propagates (500). The re-read runs after the adapter's `tx.Rollback` (the `if deleted == 0` branch returns BEFORE the audit append). Two `GetCompanyForUpdate` calls on the lost-CAS path; one on the stale-CAS-at-step-2 path (unchanged). The two unit tests cover orthogonal post-race states; `TestDeleteCompanyHandler_MalformedCASReturns409` table-drives two RFC 3339 violations; `TestSoftDeleteCompany_LostCASAdapterPathAppendsZeroAudit` proves the zero-audit invariant for the only DELETE outcome class where the transaction opens AND rolls back.
+
+```bash
+cd backend && go test ./internal/features/companies/... -count=1
+cd backend && set -a && . /tmp/peopleflow-ws2da.env && set +a && \
+  go test -tags=integration -p 1 -count=1 -run 'TestSoftDeleteCompany' \
+  ./internal/features/companies/infrastructure/postgres/...
+cd backend && go test ./... -count=1
+gofmt -l <changed files>                                  # clean
+git diff --check HEAD                                     # PASS
+```
+
+All commands PASS. Safe env-loading command only — no DSN, credentials, or `DATABASE_URL` assignment.
+
+### Zero-audit evidence summary (task 2.4 failed outcomes, baseline + new)
+
+| Outcome class | Pre-repository? | Evidence type | Test |
+| --- | --- | --- | --- |
+| 500 (missing actor) | yes (step 0) | unit no-call | `TestSoftDeleteCompany_MissingUserIDFailsClosed` |
+| 500 (missing context) | yes (middleware) | unit no-call | `TestDeleteCompanyHandler_MissingContextReturns500` |
+| 409 (stale/missing/malformed CAS, step 2) | yes (step 2) | unit no-call | `_CASMismatch…` + `_ZeroToken…` + `MalformedCAS…` |
+| 404 (initial absent, DELETE step 1) | yes (step 1) | unit no-call | `TestSoftDeleteCompany_NotFound` + `_NotFoundReturns404NoRepoCall` |
+| 409 / 404 (lost CAS, NEW) | **no** (tx opens, rolls back) | **live audit-count** | `TestSoftDeleteCompany_LostCASAdapterPathAppendsZeroAudit` |
+| 400 PATCH invalid JSON (baseline; not new RED) | yes (handler) | unit no-call (`updateCalls == 0`) | `TestUpdateCompanyHandler_InvalidJSONReturns400` |
+| 403 owner gate (baseline; not new RED) | yes (middleware) | unit no-call (handler not invoked) | `TestRequireCompanyRole_RecruiterUnderOwnerIsForbidden` + related forbidden |
+
+DELETE has no request body; the 400 class belongs to PATCH. PATCH CAS conflict baseline (`TestUpdateCompanyHandler_CASMismatchReturns409WithView` and friends) is unchanged — WS2D-B owns live bidirectional races plus all-fields persistence (PATCH lost-CAS re-read already exists).
+
+### Files changed + Rollback + Task state
+
+| File | A | D |
+| --- | ---: | ---: |
+| `backend/.../deleteCompany.go` | 25 | 7 |
+| `backend/.../deleteCompany_test.go` | 124 | 7 |
+| `backend/.../deleteCompanyHandler_test.go` | 78 | 0 |
+| `backend/.../companyRepository_write_integration_test.go` | 93 | 0 |
+| `openspec/changes/.../apply-progress.md` | 61 | 0 |
+
+**Live numstat (correction):** 381 additions + 14 deletions = **395 exact changed lines**, including the missing `TestSoftDeleteCompany_LostCASRereadErrorPropagates` branch proof and corrected per-file arithmetic; 5 lines remain under the cap. Verification `sha256:05b64078…0e7b` rejected stale evidence; `sha256:7e4643dc…3c04` passed every candidate gate but rejected its own temporary-file protocol. The audited reset preserved this candidate for one protocol-clean final gate; this record does not claim that gate passed.
+
+Rollback: revert `deleteCompany.go` (re-read logic + corrected step-4 comment) plus the three new unit tests + new integration test; handler tests are additive. No handler or PATCH file touched.
+
+**Task state: 36/96** — task 2.4 remains UNCHECKED; WS2D-B closes multi-field persistence plus bidirectional live PATCH/DELETE races.

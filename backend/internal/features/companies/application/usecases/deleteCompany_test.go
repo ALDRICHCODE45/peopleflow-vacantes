@@ -1,13 +1,10 @@
 // Unit tests for the SoftDeleteCompany use case (companies-write slice,
 // design §7 / D12 DELETE flow).
 //
-// The orchestrator runs in 4 steps per design D12:
-//
-//  1. Read for delete (GetCompanyForUpdate → ErrCompanyNotFound on 0 rows)
-//  2. CAS compare (header vs row.UpdatedAt; mismatch → ErrConcurrencyConflict)
-//  3. SoftDelete (adapter owns the pgx.Tx; soft-delete + inline close
-//     commit atomically; 0 rows → ErrCompanyNotFound)
-//  4. (no re-read on success; 204 has no body)
+// The orchestrator reads the current row, compares CAS, builds the audit
+// event, and asks the adapter to delete atomically. An adapter no-row result
+// triggers one classification re-read: present is a conflict, absent is not
+// found. Success is never re-read because 204 has no body.
 //
 // Each test pins one step (or one boundary) so a regression in any
 // step surfaces as a single failing test, not a cascade.
@@ -297,5 +294,125 @@ func TestSoftDeleteCompany_RepoErrPropagates(t *testing.T) {
 
 	if !errors.Is(err, repoErr) {
 		t.Errorf("want repoErr %v to propagate, got: %v", repoErr, err)
+	}
+}
+
+// --- 6. lost CAS (race) classification (WS2D-A) ------------------------------
+//
+// Post-WS2D-A: 0-row adapter → re-read. Present (409) / gone (404) /
+// non-domain err (propagate 500). Mirrors PATCH step 6 without editor.
+
+type lostCASRepo struct {
+	mu              sync.Mutex
+	firstGet        *entities.Company
+	reReadErr       error
+	reReadRow       *entities.Company
+	reReadCalls     int
+	softDeleteCalls int
+	softDeleteErr   error
+}
+
+func (s *lostCASRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.reReadCalls == 0 && s.firstGet != nil {
+		s.reReadCalls++
+		copy := *s.firstGet
+		return &copy, nil
+	}
+	s.reReadCalls++
+	if s.reReadErr != nil {
+		return nil, s.reReadErr
+	}
+	if s.reReadRow != nil {
+		copy := *s.reReadRow
+		return &copy, nil
+	}
+	return nil, entities.ErrCompanyNotFound
+}
+
+func (s *lostCASRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time, _ auditentities.AuditEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.softDeleteCalls++
+	return s.softDeleteErr
+}
+
+func (s *lostCASRepo) Create(_ context.Context, _ *entities.Company) error { return nil }
+func (s *lostCASRepo) GetByID(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
+	return nil, entities.ErrCompanyNotFound
+}
+func (s *lostCASRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time, _ auditentities.AuditEvent) error {
+	return nil
+}
+
+var _ repositories.CompanyRepository = (*lostCASRepo)(nil)
+
+// TestSoftDeleteCompany_LostCASConflictWhenRowStillPresent: 0-row UPDATE + row still alive → 409.
+func TestSoftDeleteCompany_LostCASConflictWhenRowStillPresent(t *testing.T) {
+	companyID := uuid.New()
+	preRaceUpdatedAt := time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC)
+	postRaceUpdatedAt := preRaceUpdatedAt.Add(1 * time.Nanosecond) // concurrent writer bumped updated_at
+	stored := makeStoredCompany(t, companyID, preRaceUpdatedAt)
+	postRace := makeStoredCompany(t, companyID, postRaceUpdatedAt)
+	repo := &lostCASRepo{
+		firstGet:      stored,
+		softDeleteErr: entities.ErrCompanyNotFound, // 0-row UPDATE → adapter returns ErrCompanyNotFound
+		reReadRow:     postRace,
+	}
+	svc := NewCompanyService(repo)
+	err := svc.SoftDeleteCompany(context.Background(), companyID, uuid.New(), preRaceUpdatedAt) // pre-race token + 0-row UPDATE = lost CAS
+
+	if !errors.Is(err, entities.ErrConcurrencyConflict) {
+		t.Fatalf("lost-CAS + row present: want ErrConcurrencyConflict (409), got: %v", err)
+	}
+	if repo.softDeleteCalls != 1 {
+		t.Errorf("SoftDeleteCompany: want 1 call (no retry on lost CAS), got %d", repo.softDeleteCalls)
+	}
+	if repo.reReadCalls != 2 {
+		t.Errorf("GetCompanyForUpdate: want 2 calls (step 1 + re-read), got %d", repo.reReadCalls)
+	}
+}
+
+// TestSoftDeleteCompany_LostCASReturnsNotFoundWhenRowGone: 0-row UPDATE + row gone → 404.
+func TestSoftDeleteCompany_LostCASReturnsNotFoundWhenRowGone(t *testing.T) {
+	companyID := uuid.New()
+	preRaceUpdatedAt := time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC)
+	stored := makeStoredCompany(t, companyID, preRaceUpdatedAt)
+	repo := &lostCASRepo{
+		firstGet:      stored,
+		softDeleteErr: entities.ErrCompanyNotFound, // 0-row UPDATE
+		reReadErr:     entities.ErrCompanyNotFound,
+	}
+	svc := NewCompanyService(repo)
+
+	err := svc.SoftDeleteCompany(context.Background(), companyID, uuid.New(), preRaceUpdatedAt)
+
+	if !errors.Is(err, entities.ErrCompanyNotFound) {
+		t.Fatalf("lost-CAS + row gone: want ErrCompanyNotFound (404), got: %v", err)
+	}
+	if repo.softDeleteCalls != 1 {
+		t.Errorf("SoftDeleteCompany: want 1 call, got %d", repo.softDeleteCalls)
+	}
+	if repo.reReadCalls != 2 {
+		t.Errorf("GetCompanyForUpdate: want 2 calls (step 1 + re-read), got %d", repo.reReadCalls)
+	}
+}
+
+func TestSoftDeleteCompany_LostCASRereadErrorPropagates(t *testing.T) {
+	stored := makeStoredCompany(t, uuid.New(), time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC))
+	injected := errors.New("transient db blip")
+	repo := &lostCASRepo{
+		firstGet:      stored,
+		softDeleteErr: entities.ErrCompanyNotFound,
+		reReadErr:     injected,
+	}
+	svc := NewCompanyService(repo)
+	err := svc.SoftDeleteCompany(context.Background(), stored.ID, uuid.New(), stored.UpdatedAt)
+	if !errors.Is(err, injected) {
+		t.Fatalf("want re-read err %v propagated unchanged, got: %v", injected, err)
+	}
+	if repo.softDeleteCalls != 1 || repo.reReadCalls != 2 {
+		t.Errorf("calls: softDelete=%d reRead=%d, want 1+2 (step 1 + re-read)", repo.softDeleteCalls, repo.reReadCalls)
 	}
 }

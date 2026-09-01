@@ -374,6 +374,84 @@ func TestDeleteCompanyHandler_MissingCASReturns409(t *testing.T) {
 	}
 }
 
+// --- 5b. malformed If-Unmodified-Since returns 409 -----------------------------
+//
+// WS2D-A: malformed-CAS transport proof alongside the missing-header
+// baseline. parseIfUnmodifiedSince collapses non-RFC3339 values to the
+// zero time.Time{}; the CAS compare treats zero as a guaranteed
+// mismatch — identical behavior to the missing-header case. The 409
+// body is the catalog envelope with code=conflict, no data, and the
+// repo is never invoked (DELETE 409 has no body per design D4.2 /
+// D12 — PATCH 409 carries the redacted DTO in `data`).
+func TestDeleteCompanyHandler_MalformedCASReturns409(t *testing.T) {
+	row := mustCompany(uuid.New())
+	companyID := uuid.New()
+	cc := identitysecurity.CompanyContext{CompanyID: companyID, UserID: uuid.New(), Role: valueobjects.OwnerRole}
+
+	cases := []struct {
+		name      string
+		casHeader string
+	}{
+		{"non-RFC3339 word", "not-a-timestamp"},
+		{"RFC1123 instead of RFC3339", "Mon, 01 Jan 2026 10:00:00 GMT"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &stubDeleteServiceRepo{getForUpdateOut: row}
+			router := newDeleteRouter(t, repo, cc)
+			rec := doDelete(t, router, tc.casHeader, cc)
+
+			if rec.Code != http.StatusConflict {
+				t.Fatalf("malformed CAS %q: want 409, got %d: %s", tc.casHeader, rec.Code, rec.Body.String())
+			}
+			var env httpjson.ErrorEnvelope
+			if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+				t.Fatalf("decode envelope: %v; body=%s", err, rec.Body.String())
+			}
+			if env.Code != httpjson.CodeConflict {
+				t.Errorf("code: want %q, got %q", httpjson.CodeConflict, env.Code)
+			}
+			if env.Error == "" {
+				t.Errorf("error field must be non-empty")
+			}
+			if env.Data != nil {
+				t.Errorf("data: want omitted (DELETE asymmetry), got %v", env.Data)
+			}
+			if repo.softDeleteCalls != 0 {
+				t.Errorf("service.SoftDeleteCompany MUST NOT be called on malformed CAS, got %d calls", repo.softDeleteCalls)
+			}
+		})
+	}
+}
+
+// --- 5c. NotFound returns 404 with NO repo.SoftDeleteCompany call ------------
+//
+// WS2D-A zero-audit evidence for the 404 outcome. The 404 path
+// short-circuits at GetCompanyForUpdate (no row), so the soft-delete
+// transaction is never opened and no audit row can be appended. The
+// unit-level no-call assertion is the only auditable evidence here;
+// the live integration test
+// (TestSoftDeleteCompany_LostCASAdapterPathAppendsZeroAudit) covers
+// the orthogonal case where the transaction DID open but rolled
+// back before the audit append.
+func TestDeleteCompanyHandler_NotFoundReturns404NoRepoCall(t *testing.T) {
+	repo := &stubDeleteServiceRepo{
+		getForUpdateErr: entities.ErrCompanyNotFound,
+	}
+	companyID := uuid.New()
+	cc := identitysecurity.CompanyContext{CompanyID: companyID, UserID: uuid.New(), Role: valueobjects.OwnerRole}
+	router := newDeleteRouter(t, repo, cc)
+
+	rec := doDelete(t, router, "", cc)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("want 404, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.softDeleteCalls != 0 {
+		t.Errorf("404 path: service.SoftDeleteCompany MUST NOT be called (no transaction opened, no audit append possible), got %d calls", repo.softDeleteCalls)
+	}
+}
+
 // _ keeps the dtos import referenced even on a no-op file.
 var _ = dtos.CompanyEditorViewDto{}
 

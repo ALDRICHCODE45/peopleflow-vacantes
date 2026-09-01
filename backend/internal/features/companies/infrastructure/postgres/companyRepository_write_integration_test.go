@@ -1208,6 +1208,99 @@ func TestSoftDeleteCompany_StaleCASReturnsErrCompanyNotFound(t *testing.T) {
 	}
 }
 
+// --- WS2D-A: lost-CAS adapter path appends zero audit rows ---------------
+//
+// When SoftDeleteCompany returns 0 rows (the adapter's stale-CAS
+// path), the deferred tx.Rollback fires BEFORE the audit append:
+// the `if deleted == 0 { return ErrCompanyNotFound }` branch
+// returns prior to `r.audit.Append`, so no row reaches
+// audit_events. The use case's NEW lost-CAS re-read (WS2D-A)
+// changes only the error classification (409 vs 404); the
+// adapter's zero-audit invariant is unchanged. The use-case
+// re-read classification is pinned by the stub-based unit test
+// (`TestSoftDeleteCompany_LostCASConflictWhenRowStillPresent`);
+// a true bidirectional live race is deferred to WS2D-B. No
+// sleeps, no DDL churn, no schema edits; the `fixtureSeed`
+// baseline row keeps the audit-count delta deterministic.
+func TestSoftDeleteCompany_LostCASAdapterPathAppendsZeroAudit(t *testing.T) {
+	pool := skipIfNoDatabase(t)
+	t.Cleanup(func() { pool.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	fixtureSeed(t, ctx, pool)
+	t.Cleanup(func() { cleanupCompanies(t, pool) })
+
+	// Snapshot pre-call audit count.
+	var preAuditCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events`).Scan(&preAuditCount); err != nil {
+		t.Fatalf("pre audit count: %v", err)
+	}
+
+	// Snapshot writeCoA's updated_at and force a concurrent
+	// writer bump via direct SQL (simulating the race window
+	// between use-case step 1 and the adapter UPDATE).
+	var preRaceUpdatedAt time.Time
+	if err := pool.QueryRow(ctx,
+		`SELECT updated_at FROM companies WHERE id = $1`, writeCoA,
+	).Scan(&preRaceUpdatedAt); err != nil {
+		t.Fatalf("snapshot updated_at: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`UPDATE companies SET updated_at = updated_at + INTERVAL '1 microsecond' WHERE id = $1`,
+		writeCoA,
+	); err != nil {
+		t.Fatalf("simulate concurrent bump: %v", err)
+	}
+
+	// Adapter call with the PRE-race token. The UPDATE matches
+	// 0 rows (CAS lost); the deferred tx.Rollback fires BEFORE
+	// the audit append; the function returns ErrCompanyNotFound.
+	repo := newTestCompanyRepository(pool)
+	if err := repo.SoftDeleteCompany(ctx, writeCoA, preRaceUpdatedAt, writeDeleteAuditEvent(writeCoA)); !errors.Is(err, entities.ErrCompanyNotFound) {
+		t.Errorf("stale CAS adapter: want ErrCompanyNotFound, got: %v", err)
+	}
+
+	// Zero-audit invariant: the `if deleted == 0` branch
+	// returned BEFORE the audit append, so the total
+	// audit_events count MUST be unchanged. This is the only
+	// outcome class where the transaction opens AND rolls back;
+	// for 409/500 paths the transaction never opens (unit-level
+	// no-call evidence is the only auditable assertion there).
+	var postAuditCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM audit_events`).Scan(&postAuditCount); err != nil {
+		t.Fatalf("post audit count: %v", err)
+	}
+	if postAuditCount != preAuditCount {
+		t.Errorf("audit_events count: want unchanged (%d) on lost-CAS adapter path, got %d (delta=%d)",
+			preAuditCount, postAuditCount, postAuditCount-preAuditCount)
+	}
+
+	// No CompanyDeleted row for writeCoA.
+	var deletedRowCount int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM audit_events WHERE event_type = 'CompanyDeleted' AND entity_type = 'company' AND entity_id = $1`,
+		writeCoA,
+	).Scan(&deletedRowCount); err != nil {
+		t.Fatalf("CompanyDeleted row count: %v", err)
+	}
+	if deletedRowCount != 0 {
+		t.Errorf("CompanyDeleted rows for writeCoA: want 0 on lost-CAS adapter path, got %d", deletedRowCount)
+	}
+
+	// The company row is NOT tombstoned.
+	var postDeletedAt *time.Time
+	if err := pool.QueryRow(ctx,
+		`SELECT deleted_at FROM companies WHERE id = $1`, writeCoA,
+	).Scan(&postDeletedAt); err != nil {
+		t.Fatalf("post tombstone snapshot: %v", err)
+	}
+	if postDeletedAt != nil {
+		t.Errorf("lost-CAS adapter path must NOT tombstone; deleted_at = %v", *postDeletedAt)
+	}
+}
+
 // TestUpdateCompany_SQLCHECKViolationMapsToSizeVO proves the D13
 // `23514 + companies_size_check → ErrInvalidCompanySize` mapping
 // against live Postgres (defense-in-depth for the adapter; the use
