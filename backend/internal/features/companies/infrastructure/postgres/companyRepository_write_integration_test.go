@@ -26,7 +26,7 @@
 //     `updated_at` are unchanged (NOT bumped); the deleted job is
 //     untouched; (c) company_members row count + roles unchanged;
 //     (d) applications row count + statuses unchanged; (e)
-//     audit_events row count unchanged.
+//     exactly one CompanyDeleted audit row is appended.
 //   - SoftDeleteCompany rollback on inline close failure: forcing a
 //     failure on the inline close rolls back the soft-delete
 //     (defer tx.Rollback restores pre-state).
@@ -52,6 +52,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,6 +66,7 @@ import (
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	sharedvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -142,12 +144,12 @@ var (
 	writeOwnerUserID = uuid.MustParse("01910000-0000-7000-8000-0000000000e1")
 )
 
-// fixtureSeed inserts the deterministic fixture universe (industry + 3
-// companies + 4 jobs + 2 owner users + 2 applications + 1 audit event).
-// The audit_event is seeded to verify the R9 spec scenario
-// "successful DELETE does NOT add an audit_events row" — its count
-// MUST stay unchanged across the soft-delete (companies-write slice
-// does NOT extend the audit_events port; spec R9 / D17 invariant (e)).
+// fixtureSeed inserts deterministic base fixtures: two industries, three
+// companies, and one audit-event baseline. Scenario-specific helpers seed
+// jobs, users, memberships, and applications for tests that need them.
+// The baseline event makes pre/post audit-count deltas deterministic;
+// successful SoftDeleteCompany appends exactly one CompanyDeleted row.
+// Cleanup targets every seeded row so immediate re-runs remain isolated.
 //
 // ON CONFLICT DO NOTHING keeps the fixture idempotent across re-runs;
 // tests that need unique rows use uuid.New() per call.
@@ -191,9 +193,10 @@ func fixtureSeed(t *testing.T, ctx context.Context, pool *pgxpool.Pool) {
 		t.Fatalf("seed company B: %v", err)
 	}
 
-	// Seed one audit event to anchor the "row count unchanged"
-	// invariant (the suite asserts the count stays constant; adding
-	// the seed row makes the count deterministic across re-runs).
+	// Seed one audit event to anchor deterministic pre/post
+	// audit-count delta assertions. The pre/post counts differ
+	// by exactly one; the seed row keeps that delta deterministic
+	// across re-runs.
 	// The audit_events table (migration 00011) requires a real entity
 	// reference (entity_id is NOT NULL); we use writeCoA as the
 	// stand-in (the row will be cleaned up with the rest of the
@@ -317,14 +320,21 @@ func cleanupOwnerUser(t *testing.T, pool *pgxpool.Pool) {
 	}
 }
 
-// cleanupCompanies removes the three companies + audit events + industries
+// cleanupCompanies removes the three companies + memberships + audit events + industries
 // the fixture inserted. Safe to call multiple times (idempotent).
 // Uses a fresh background context (the test's primary ctx is canceled
-// by the time t.Cleanup runs).
+// by the time t.Cleanup runs). Memberships are deleted before companies
+// to respect the FK ordering.
 func cleanupCompanies(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	// Delete memberships first (FK references companies).
+	if _, err := pool.Exec(cleanupCtx,
+		`DELETE FROM company_members WHERE company_id = ANY($1::uuid[])`,
+		[]uuid.UUID{writeCoA, writeCoT, writeCoB}); err != nil {
+		t.Logf("cleanup company_members: %v", err)
+	}
 	// Delete audit_events that reference fixture entity_ids (entity_id
 	// is NOT NULL and has no FK; we created them as part of the seed).
 	// companies-audit WU3 (cleanup widening): the seed row uses the
@@ -332,17 +342,17 @@ func cleanupCompanies(t *testing.T, pool *pgxpool.Pool) {
 	// emission uses the singular `entity_type='company'`. The
 	// predicate widens to BOTH literals so cleanup is defensive against
 	// both the legacy seed and the new production emission.
-	if _, err := pool.Exec(ctx,
+	if _, err := pool.Exec(cleanupCtx,
 		`DELETE FROM audit_events WHERE entity_type IN ('companies', 'company') AND entity_id = ANY($1::uuid[])`,
 		[]uuid.UUID{writeCoA, writeCoT, writeCoB}); err != nil {
 		t.Logf("cleanup audit_events: %v", err)
 	}
-	if _, err := pool.Exec(ctx,
+	if _, err := pool.Exec(cleanupCtx,
 		`DELETE FROM companies WHERE id = ANY($1::uuid[])`,
 		[]uuid.UUID{writeCoA, writeCoT, writeCoB}); err != nil {
 		t.Logf("cleanup companies: %v", err)
 	}
-	if _, err := pool.Exec(ctx,
+	if _, err := pool.Exec(cleanupCtx,
 		`DELETE FROM industries WHERE id = ANY($1::text[])`,
 		[]string{writeIndID, writeIndID2}); err != nil {
 		t.Logf("cleanup industries: %v", err)
@@ -531,8 +541,7 @@ func TestUpdateCompany_TextNullClearsColumn(t *testing.T) {
 //	(c) company_members row count + roles unchanged (we seed two
 //	    members and assert both remain).
 //	(d) applications row count + statuses unchanged.
-//	(e) audit_events row count unchanged (the spec R9 invariant
-//	    "successful DELETE does NOT add an audit_events row").
+//	(e) exactly one CompanyDeleted audit row is appended.
 //
 // This single test pins the deliverable behavior the spec requires.
 func TestSoftDeleteCompany_TombstonesAndClosesJobs(t *testing.T) {
@@ -1157,8 +1166,10 @@ func TestGetMyMembership_HidesTombstonedCompany(t *testing.T) {
 		t.Fatalf("seed membership: %v", err)
 	}
 	t.Cleanup(func() {
-		_, _ = pool.Exec(ctx, `DELETE FROM company_members WHERE id = $1`, memberID)
-		_, _ = pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, userID)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cleanupCancel()
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM company_members WHERE id = $1`, memberID)
+		_, _ = pool.Exec(cleanupCtx, `DELETE FROM users WHERE id = $1`, userID)
 		cleanupCompanies(t, pool)
 	})
 
@@ -1282,3 +1293,256 @@ func TestIsCompanyLive_MissingIDReturnsErrCompanyNotFound(t *testing.T) {
 		t.Errorf("IsCompanyLive(missing id): want false on the ErrCompanyNotFound branch, got true")
 	}
 }
+
+// --- WS2B: Direct CompanyRepository.Create / GetByID + named CHECK evidence ----
+
+// uniqueRFC generates a 12-char RFC using the first 8 hex digits of a UUID.
+// Avoids math/rand; collision probability is negligible per test run.
+func uniqueRFC(prefix string, id uuid.UUID) string {
+	return prefix + id.String()[:8]
+}
+
+// TestCompanyRepository_Create_Live proves the direct adapter persistence/read-back
+// contract: company created via repo.Create is read back by repo.GetByID and every
+// profile field is asserted. UUID-derived RFC avoids math/rand and prevents
+// UNIQUE(rfc) collisions across re-runs.
+func TestCompanyRepository_Create_Live(t *testing.T) {
+	pool := skipIfNoDatabase(t)
+	t.Cleanup(func() { pool.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO industries (id, label_es, label_en, sort_order, active)
+		 VALUES ($1, 'T', 'T', 0, true) ON CONFLICT (id) DO NOTHING`,
+		writeIndID); err != nil {
+		t.Fatalf("seed industry: %v", err)
+	}
+	t.Cleanup(func() { cleanupCompanies(t, pool) })
+
+	website := "https://live.example.com"
+	logo := "https://live.example.com/logo.png"
+	linkedin := "https://linkedin.com/company/live-company"
+	instagram := "https://instagram.com/livecompanymx"
+	facebook := "https://facebook.com/livecompanymx"
+	twitter := "https://twitter.com/livecompanymx"
+	cover := "https://live.example.com/cover.png"
+	desc, _ := valueobjects.NewCompanyDescription("Live company profile.")
+	size, _ := valueobjects.ParseCompanySize("medium")
+	year, _ := valueobjects.NewFoundedYear(2000)
+	companyID := uuid.New()
+	rfc := strings.ToUpper(uniqueRFC("LIVE", companyID))
+	company, err := entities.NewCompany("Live Company SA de CV", rfc, writeIndID,
+		entities.CompanyProfile{
+			Website:       &website,
+			LogoURL:       &logo,
+			LinkedInURL:   &linkedin,
+			InstagramURL:  &instagram,
+			FacebookURL:   &facebook,
+			TwitterURL:    &twitter,
+			CoverImageURL: &cover,
+			Description:   &desc,
+			Size:          &size,
+			FoundedYear:   &year,
+			City:          strPtr("CDMX"),
+			Country:       strPtr("MX"),
+		})
+	if err != nil {
+		t.Fatalf("NewCompany: %v", err)
+	}
+
+	repo := newTestCompanyRepository(pool)
+	if err := repo.Create(ctx, company); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	read, err := repo.GetByID(ctx, company.ID)
+	if err != nil {
+		t.Fatalf("GetByID: %v", err)
+	}
+
+	// Assert every profile field.
+	if read.Name.Value() != "Live Company SA de CV" {
+		t.Errorf("Name: want %q, got %q", "Live Company SA de CV", read.Name.Value())
+	}
+	if read.Status != valueobjects.Active {
+		t.Errorf("Status: want active, got %v", read.Status)
+	}
+	if read.Website == nil || *read.Website != website {
+		t.Errorf("Website: want %q, got %v", website, read.Website)
+	}
+	if read.LogoURL == nil || *read.LogoURL != logo {
+		t.Errorf("LogoURL: want %q, got %v", logo, read.LogoURL)
+	}
+	if read.Description == nil || read.Description.Value() != desc.Value() {
+		t.Errorf("Description: want %q, got %v", desc.Value(), read.Description)
+	}
+	if read.Size == nil || *read.Size != size {
+		t.Errorf("Size: want %v, got %v", size, read.Size)
+	}
+	if read.FoundedYear == nil || read.FoundedYear.Value() != year.Value() {
+		t.Errorf("FoundedYear: want %v, got %v", year, read.FoundedYear)
+	}
+	if read.City == nil || *read.City != "CDMX" {
+		t.Errorf("City: want %q, got %v", "CDMX", read.City)
+	}
+	if read.Country == nil || *read.Country != "MX" {
+		t.Errorf("Country: want %q, got %v", "MX", read.Country)
+	}
+	if read.LinkedInURL == nil || *read.LinkedInURL != linkedin {
+		t.Errorf("LinkedInURL: want %q, got %v", linkedin, read.LinkedInURL)
+	}
+	if read.InstagramURL == nil || *read.InstagramURL != instagram {
+		t.Errorf("InstagramURL: want %q, got %v", instagram, read.InstagramURL)
+	}
+	if read.FacebookURL == nil || *read.FacebookURL != facebook {
+		t.Errorf("FacebookURL: want %q, got %v", facebook, read.FacebookURL)
+	}
+	if read.TwitterURL == nil || *read.TwitterURL != twitter {
+		t.Errorf("TwitterURL: want %q, got %v", twitter, read.TwitterURL)
+	}
+	if read.CoverImageURL == nil || *read.CoverImageURL != cover {
+		t.Errorf("CoverImageURL: want %q, got %v", cover, read.CoverImageURL)
+	}
+	if read.Rfc.Value() != rfc {
+		t.Errorf("Rfc: want %q, got %q", rfc, read.Rfc.Value())
+	}
+	if read.IndustryID != writeIndID {
+		t.Errorf("IndustryID: want %q, got %q", writeIndID, read.IndustryID)
+	}
+
+	// Cleanup verification: delete and re-query.
+	cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cleanupCancel()
+	if _, err := pool.Exec(cleanupCtx, `DELETE FROM companies WHERE id = $1`, company.ID); err != nil {
+		t.Fatalf("cleanup delete: %v", err)
+	}
+	_, err = repo.GetByID(cleanupCtx, company.ID)
+	if !errors.Is(err, entities.ErrCompanyNotFound) {
+		t.Errorf("after cleanup GetByID: want ErrCompanyNotFound, got %v", err)
+	}
+}
+
+// TestCompaniesConstraints_Named proves UpdateCompany surfaces the named CHECK
+// constraints via SQLSTATE 23514 + exact ConstraintName assertions. The test
+// queries pg_constraint read-only first to confirm live constraint names, then
+// triggers each constraint through direct SQL INSERT with distinct UUID/RFC values,
+// asserting zero company rows afterward.
+func TestCompaniesConstraints_Named(t *testing.T) {
+	pool := skipIfNoDatabase(t)
+	t.Cleanup(func() { pool.Close() })
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Read-only pg_constraint query to confirm live constraint names.
+	var constraintNames []string
+	rows, err := pool.Query(ctx,
+		`SELECT conname FROM pg_constraint WHERE conrelid = 'companies'::regclass
+		 AND contype = 'c' AND conname LIKE 'companies_%_check'`)
+	if err != nil {
+		t.Fatalf("pg_constraint query: %v", err)
+	}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatalf("scan constraint name: %v", err)
+		}
+		constraintNames = append(constraintNames, name)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatalf("pg_constraint rows: %v", err)
+	}
+	// Verify expected constraints exist.
+	hasSize := false
+	hasYear := false
+	for _, name := range constraintNames {
+		if name == "companies_size_check" {
+			hasSize = true
+		}
+		if name == "companies_founded_year_check" {
+			hasYear = true
+		}
+	}
+	if !hasSize {
+		t.Errorf("pg_constraint: expected companies_size_check")
+	}
+	if !hasYear {
+		t.Errorf("pg_constraint: expected companies_founded_year_check")
+	}
+
+	// Seed a live industry.
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO industries (id, label_es, label_en, sort_order, active)
+		 VALUES ($1, 'T', 'T', 0, true) ON CONFLICT (id) DO NOTHING`,
+		writeIndID); err != nil {
+		t.Fatalf("seed industry: %v", err)
+	}
+	t.Cleanup(func() { cleanupCompanies(t, pool) })
+
+	tests := []struct {
+		name       string
+		constraint string
+		insertRFC  string
+		insertSize *string
+		insertYear *int16
+	}{
+		{
+			name:       "invalid_size_gigantic",
+			constraint: "companies_size_check",
+			insertRFC:  uniqueRFC("SIZC", uuid.New()),
+			insertSize: strPtr("gigantic"),
+			insertYear: int16Ptr(2000),
+		},
+		{
+			name:       "invalid_year_1500",
+			constraint: "companies_founded_year_check",
+			insertRFC:  uniqueRFC("YRCC", uuid.New()),
+			insertSize: strPtr("small"),
+			insertYear: int16Ptr(1500),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			companyID := uuid.New()
+			website := strPtr("https://cstr.example.com")
+
+			// Trigger constraint via direct SQL INSERT with distinct UUID/RFC.
+			_, err := pool.Exec(ctx,
+				`INSERT INTO companies (id, name, rfc, industry_id, status,
+				 website, size, founded_year, updated_at)
+				 VALUES ($1, $2, $3, $4, 'active', $5, $6, $7, now())`,
+				companyID, "CStr Co", tt.insertRFC, writeIndID, website, tt.insertSize, tt.insertYear)
+
+			var pgErr *pgconn.PgError
+			if !errors.As(err, &pgErr) {
+				t.Fatalf("want *pgconn.PgError, got: %T %v", err, err)
+			}
+			if pgErr.SQLState() != "23514" {
+				t.Errorf("SQLSTATE: want 23514, got %q", pgErr.SQLState())
+			}
+			if pgErr.ConstraintName != tt.constraint {
+				t.Errorf("ConstraintName: want %q, got %q", tt.constraint, pgErr.ConstraintName)
+			}
+
+			// Assert zero company rows created.
+			var count int
+			if err := pool.QueryRow(ctx,
+				`SELECT count(*) FROM companies WHERE id = $1`, companyID).Scan(&count); err != nil {
+				t.Fatalf("count query: %v", err)
+			}
+			if count != 0 {
+				t.Errorf("companies row count: want 0, got %d (constraint violation must not insert)", count)
+			}
+		})
+	}
+}
+
+// Helper: pointer to string.
+func strPtr(s string) *string { return &s }
+
+// Helper: pointer to int16.
+func int16Ptr(i int16) *int16 { return &i }
