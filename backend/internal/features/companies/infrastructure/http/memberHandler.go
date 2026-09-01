@@ -38,6 +38,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
@@ -219,11 +220,11 @@ func (h *MemberHandler) getMyMembership(w http.ResponseWriter, r *http.Request) 
 
 	member, company, err := h.service.GetMyMembership(r.Context(), sub)
 	if err != nil {
-		status, msg := classifyMemberError(err)
-		if status == http.StatusInternalServerError {
+		def := classifyMemberError(err)
+		if def.Code == httpjson.CodeInternalError {
 			slog.Error("get my membership failed", "error", err)
 		}
-		httpjson.WriteError(w, status, msg)
+		httpjson.WriteCatalogError(w, def)
 		return
 	}
 
@@ -245,11 +246,11 @@ func (h *MemberHandler) listMembers(w http.ResponseWriter, r *http.Request) {
 
 	members, err := h.service.ListMembers(r.Context(), cc.CompanyID)
 	if err != nil {
-		status, msg := classifyMemberError(err)
-		if status == http.StatusInternalServerError {
+		def := classifyMemberError(err)
+		if def.Code == httpjson.CodeInternalError {
 			slog.Error("list members failed", "error", err)
 		}
-		httpjson.WriteError(w, status, msg)
+		httpjson.WriteCatalogError(w, def)
 		return
 	}
 
@@ -269,13 +270,13 @@ func (h *MemberHandler) addMember(w http.ResponseWriter, r *http.Request) {
 
 	var req addMemberRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
 		return
 	}
 
 	userID, err := uuid.Parse(req.UserID)
 	if err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid user_id")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid user_id"))
 		return
 	}
 
@@ -284,11 +285,11 @@ func (h *MemberHandler) addMember(w http.ResponseWriter, r *http.Request) {
 		Role:   req.Role,
 	})
 	if err != nil {
-		status, msg := classifyMemberError(err)
-		if status == http.StatusInternalServerError {
+		def := classifyMemberError(err)
+		if def.Code == httpjson.CodeInternalError {
 			slog.Error("add member failed", "error", err)
 		}
-		httpjson.WriteError(w, status, msg)
+		httpjson.WriteCatalogError(w, def)
 		return
 	}
 
@@ -309,24 +310,24 @@ func (h *MemberHandler) updateMemberRole(w http.ResponseWriter, r *http.Request)
 
 	memberID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid member id")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid member id"))
 		return
 	}
 
 	var req updateMemberRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid JSON body")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
 		return
 	}
 
 	if err := h.service.UpdateRole(r.Context(), cc.CompanyID, memberID, dtos.UpdateMemberRoleDto{
 		Role: req.Role,
 	}); err != nil {
-		status, msg := classifyMemberError(err)
-		if status == http.StatusInternalServerError {
+		def := classifyMemberError(err)
+		if def.Code == httpjson.CodeInternalError {
 			slog.Error("update member role failed", "error", err)
 		}
-		httpjson.WriteError(w, status, msg)
+		httpjson.WriteCatalogError(w, def)
 		return
 	}
 
@@ -346,16 +347,16 @@ func (h *MemberHandler) removeMember(w http.ResponseWriter, r *http.Request) {
 
 	memberID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		httpjson.WriteError(w, http.StatusBadRequest, "invalid member id")
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid member id"))
 		return
 	}
 
 	if err := h.service.RemoveMember(r.Context(), cc.CompanyID, memberID); err != nil {
-		status, msg := classifyMemberError(err)
-		if status == http.StatusInternalServerError {
+		def := classifyMemberError(err)
+		if def.Code == httpjson.CodeInternalError {
 			slog.Error("remove member failed", "error", err)
 		}
-		httpjson.WriteError(w, status, msg)
+		httpjson.WriteCatalogError(w, def)
 		return
 	}
 
@@ -439,12 +440,12 @@ func toUserSummary(u *entities.MemberUser) *userSummaryDTO {
 // 401 here so the handler never reaches the use case with a blank
 // subject.
 func requireSub(w http.ResponseWriter, r *http.Request) (string, bool) {
-	claims := identitysecurity.ClaimsFromContext(r.Context())
-	if claims.Subject == "" {
-		httpjson.WriteError(w, http.StatusUnauthorized, "unauthorized")
-		return "", false
-	}
-	return claims.Subject, true
+claims := identitysecurity.ClaimsFromContext(r.Context())
+if claims.Subject == "" {
+httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeUnauthenticated))
+return "", false
+}
+return claims.Subject, true
 }
 
 // requireCompanyContext reads the CompanyContext that RequireCompanyRole
@@ -468,45 +469,48 @@ func requireCompanyContext(w http.ResponseWriter, r *http.Request) (identitysecu
 }
 
 // classifyMemberError is the flat errors.Is dispatcher for every domain
-// sentinel the membership use cases can surface. Adding a new sentinel
-// means adding one branch here — no other call site needs to change.
+// sentinel the membership use cases can surface. Returns the stable catalog
+// Definition (Code + Status + safe Message). Adding a new sentinel means
+// adding one branch here — no other call site needs to change.
 //
-// Status mapping (design error table):
+// Catalog mapping (canonical spec):
 //
-//	ErrUnknownSubject      → 401 unauthorized
-//	ErrNotAMember          → 404 company member not found
-//	ErrMemberExists        → 409 user already has a company membership
-//	ErrMemberNotFound      → 404 company member not found
-//	ErrUserNotFound        → 404 user not found
-//	ErrInvalidMemberRole   → 400 invalid member role
+//	ErrUnknownSubject      → CodeUnauthenticated   (401) + "unauthenticated"
+//	ErrNotAMember          → CodeNotFound          (404) + "company member not found"
+//	ErrMemberExists        → CodeAlreadyExists     (409) + "user already has a company membership"
+//	ErrMemberNotFound      → CodeNotFound          (404) + "company member not found"
+//	ErrUserNotFound        → CodeNotFound          (404) + "user not found"
+//	ErrTargetNotRecruiter  → CodeInvalidRequest    (400) + "target user is not a recruiter"
+//	ErrInvalidMemberRole   → CodeInvalidRequest    (400) + "invalid member role"
+//	ErrCompanyNotFound     → CodeNotFound          (404) + "company not found"
 //
-// Anything else falls through to 500 with a generic message; the real
-// error is logged separately. The list endpoint overrides the
-// ErrNotAMember → 404 default to 403 (spec scenario "non-member is
-// rejected"); the rest of the dispatcher is identical.
+// Anything else falls through to CodeInternalError (500) + canonical generic
+// message; the real error is logged separately and absent from the wire.
 //
 // Note: this function does NOT check ErrUserNotFound against the
 // specific FK that tripped (user_id vs company_id). Both collapse to
 // 404 because the HTTP wire cannot meaningfully distinguish them —
 // adding a ConstraintName-aware branch here would surface a richer
 // 4xx but break the design's "404 for any FK miss" decision.
-func classifyMemberError(err error) (int, string) {
+func classifyMemberError(err error) httpjson.Definition {
 	switch {
 	case errors.Is(err, entities.ErrUnknownSubject):
-		return http.StatusUnauthorized, "unauthorized"
+		return httpjson.Resolve(httpjson.CodeUnauthenticated)
 	case errors.Is(err, entities.ErrNotAMember):
-		return http.StatusNotFound, "company member not found"
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeNotFound), "company member not found")
 	case errors.Is(err, entities.ErrMemberExists):
-		return http.StatusConflict, "user already has a company membership"
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeAlreadyExists), "user already has a company membership")
 	case errors.Is(err, entities.ErrMemberNotFound):
-		return http.StatusNotFound, "company member not found"
-	case errors.Is(err, entities.ErrUserNotFound):
-		return http.StatusNotFound, "user not found"
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeNotFound), "company member not found")
+	case errors.Is(err, entities.ErrUserNotFound), errors.Is(err, identityentities.ErrUserNotFound):
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeNotFound), "user not found")
 	case errors.Is(err, entities.ErrTargetNotRecruiter):
-		return http.StatusBadRequest, "target user is not a recruiter"
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "target user is not a recruiter")
 	case errors.Is(err, valueobjects.ErrInvalidMemberRole):
-		return http.StatusBadRequest, "invalid member role"
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid member role")
+	case errors.Is(err, entities.ErrCompanyNotFound):
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeNotFound), "company not found")
 	default:
-		return http.StatusInternalServerError, "internal server error"
+		return httpjson.Resolve(httpjson.CodeInternalError)
 	}
 }

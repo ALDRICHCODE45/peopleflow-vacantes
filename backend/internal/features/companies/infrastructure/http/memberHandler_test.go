@@ -20,6 +20,7 @@ import (
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	identityvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/valueobjects"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -314,6 +315,31 @@ func doReq(t *testing.T, router http.Handler, method, path, body string) *httpte
 	return rec
 }
 
+// memberAssertCatalogEnvelope asserts the response is a catalog envelope with
+// the expected HTTP status and catalog code. For internal_error it also
+// asserts the canonical generic message (non-leak proof).
+func memberAssertCatalogEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int, wantCode httpjson.Code) {
+	t.Helper()
+	if rec.Code != wantStatus {
+		t.Fatalf("want %d, got %d: %s", wantStatus, rec.Code, rec.Body.String())
+	}
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode envelope: %v; body=%s", err, rec.Body.String())
+	}
+	if env.Code == "" {
+		t.Fatalf("code: want non-empty, got empty; body=%s", rec.Body.String())
+	}
+	if env.Code != wantCode {
+		t.Errorf("code: want %q, got %q", wantCode, env.Code)
+	}
+	if wantCode == httpjson.CodeInternalError {
+		if env.Error != "an internal error occurred" {
+t.Errorf("internal_error must use canonical generic message, got %q", env.Error)
+		}
+	}
+}
+
 // --- GET /me/company (task 3.5) --------------------------------------------
 
 // TestGetMyCompany_OwnerReturns200 covers the spec scenario "owner gets
@@ -366,9 +392,7 @@ func TestGetMyCompany_NonMemberReturns404(t *testing.T) {
 	router := newMemberRouter(t, svc, "sub-stranger", identitysecurity.CompanyContext{})
 
 	rec := doReq(t, router, http.MethodGet, "/me/company", "")
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("want 404, got %d: %s", rec.Code, rec.Body.String())
-	}
+	memberAssertCatalogEnvelope(t, rec, http.StatusNotFound, httpjson.CodeNotFound)
 }
 
 // TestGetMyCompany_UnknownSubReturns401 covers the spec scenario
@@ -383,9 +407,7 @@ func TestGetMyCompany_UnknownSubReturns401(t *testing.T) {
 	router := newMemberRouter(t, svc, "sub-missing", identitysecurity.CompanyContext{})
 
 	rec := doReq(t, router, http.MethodGet, "/me/company", "")
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("want 401, got %d: %s", rec.Code, rec.Body.String())
-	}
+	memberAssertCatalogEnvelope(t, rec, http.StatusUnauthorized, httpjson.CodeUnauthenticated)
 }
 
 // --- GET /me/company/members (task 3.5) -----------------------------------
@@ -500,9 +522,7 @@ func TestListMembers_MissingCompanyContextIsServerError(t *testing.T) {
 	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{})
 
 	rec := doReq(t, router, http.MethodGet, "/me/company/members", "")
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("want 500 (fail-closed), got %d: %s", rec.Code, rec.Body.String())
-	}
+	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
 	if mRepo.listCalls != 0 {
 		t.Errorf("service.ListMembers must NOT be invoked when CompanyContext is missing, got %d calls", mRepo.listCalls)
 	}
@@ -600,9 +620,7 @@ func TestAddMember_DuplicateReturns409(t *testing.T) {
 	targetID := uuid.New()
 	body := `{"user_id":"` + targetID.String() + `","role":"recruiter"}`
 	rec := doReq(t, router, http.MethodPost, "/me/company/members", body)
-	if rec.Code != http.StatusConflict {
-		t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
-	}
+	memberAssertCatalogEnvelope(t, rec, http.StatusConflict, httpjson.CodeAlreadyExists)
 }
 
 // TestAddMember_InvalidRoleReturns400 — validation surfaces as
@@ -622,9 +640,7 @@ func TestAddMember_InvalidRoleReturns400(t *testing.T) {
 	targetID := uuid.New()
 	body := `{"user_id":"` + targetID.String() + `","role":"admin"}`
 	rec := doReq(t, router, http.MethodPost, "/me/company/members", body)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
-	}
+	memberAssertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 }
 
 // TestAddMember_CandidateReturns400 covers business rule 3a at the transport:
@@ -646,9 +662,7 @@ func TestAddMember_CandidateReturns400(t *testing.T) {
 	targetID := uuid.New()
 	body := `{"user_id":"` + targetID.String() + `","role":"recruiter"}`
 	rec := doReq(t, router, http.MethodPost, "/me/company/members", body)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
-	}
+	memberAssertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 }
 
 // TestAddMember_InvalidJSONReturns400 covers the malformed-body branch.
@@ -665,9 +679,7 @@ func TestAddMember_InvalidJSONReturns400(t *testing.T) {
 	})
 
 	rec := doReq(t, router, http.MethodPost, "/me/company/members", "{not json")
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
-	}
+	memberAssertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 }
 
 // --- PATCH /me/company/members/{id} (task 3.5) ----------------------------
@@ -720,9 +732,7 @@ func TestUpdateMemberRole_CrossCompanyReturns404(t *testing.T) {
 	targetID := uuid.New()
 	body := `{"role":"owner"}`
 	rec := doReq(t, router, http.MethodPatch, "/me/company/members/"+targetID.String(), body)
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("want 404, got %d: %s", rec.Code, rec.Body.String())
-	}
+	memberAssertCatalogEnvelope(t, rec, http.StatusNotFound, httpjson.CodeNotFound)
 }
 
 // --- DELETE /me/company/members/{id} (task 3.5) ---------------------------
@@ -773,24 +783,10 @@ func TestRemoveMember_InvalidUUIDReturns400(t *testing.T) {
 	})
 
 	rec := doReq(t, router, http.MethodDelete, "/me/company/members/not-a-uuid", "")
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
-	}
+	memberAssertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 }
 
 // --- helpers ---------------------------------------------------------------
-
-func mustMember(userID, companyID uuid.UUID, role valueobjects.MemberRole) *entities.CompanyMember {
-	now := time.Now().UTC()
-	return &entities.CompanyMember{
-		ID:        uuid.New(),
-		UserID:    userID,
-		CompanyID: companyID,
-		Role:      role,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}
-}
 
 // Ensure dtos.AddMemberDto and dtos.UpdateMemberRoleDto stay referenced.
 var (

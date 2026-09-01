@@ -298,7 +298,7 @@ Behavioral failure: bare DTO body (`{"id":"...","status":"draft",...}`) has no `
 
 ## RU2 task 1.5A — Identity catalog adoption (Identity-only slice)
 
-> **Scope:** `RequireAuth` and `RequireCompanyRole` middleware catalog adoption. Membership work deferred. Applications catalog deferred to task 1.5B. Task 1.5 checkboxes remain unchecked.
+> **Scope:** `RequireAuth` and `RequireCompanyRole` middleware catalog adoption. Membership and Applications work deferred to later task 1.5 slices. Task 1.5 checkboxes remain unchecked.
 
 ### Strict TDD — RED
 
@@ -340,4 +340,31 @@ openspec/changes/backend-go-closure/apply-progress.md                         48
 ```
 
 **Totals:** 280 additions + 74 deletions = 354 lines. Within 400-line budget. Membership/Applications deferred. No test-count claims made; assertions as stated above. No changes to non-Identity files.
-.
+
+---
+
+## RU2 task 1.5B — Membership core/catalog classifier + writer adoption (partial — Applications deferred)
+
+> **Scope:** Membership HTTP catalog classifier and handler adoption only. No exhaustive transport matrix. Task 1.5 checkboxes remain unchecked; Membership transport evidence is 1.5C and Applications follow afterward.
+
+**Correction applied:** stable safe messages in `classifyMemberError` — `ErrTargetNotRecruiter` and `ErrInvalidMemberRole` no longer call `err.Error()` (wrapper prefix leak); all four not-found sentinels use specific messages (`company member not found` / `user not found` / `company not found`) instead of generic `"not found"`; `ErrMemberExists` stable domain message without wrapper prefix; both Companies and Identity `ErrUserNotFound` resolve to `"user not found"`/404. `classifyMemberError` returns `httpjson.Definition` (typed, not `(int,string)`); all handler call sites use `WriteCatalogError`; internal errors log detail, write canonical generic. Wrapped sentinel cases (7 subtests, including the distinct Identity user sentinel) prove `errors.Is` chain resolution without wrapper text.
+
+**Deferred to RU2 task 1.5C — Membership transport evidence:** exhaustive handler transport matrix (missing-subject tests for all gated paths, remaining direct parse/context branches, unexpected service/log/non-leak proof, same-code/different-message wire triangulation). Do NOT add here.
+
+**Tests run:**
+
+```bash
+go test ./internal/features/companies/infrastructure/http/... -count=1   # PASS
+go test ./... -count=1                                                  # PASS
+```
+
+**Exact final live HEAD numstat:**
+
+```
+backend/internal/features/companies/infrastructure/http/memberHandler.go                53     49
+backend/internal/features/companies/infrastructure/http/memberHandler_classify_test.go  125     68
+backend/internal/features/companies/infrastructure/http/memberHandler_test.go            35     39
+openspec/changes/backend-go-closure/apply-progress.md                                    29      2
+```
+
+**Totals:** 242 additions + 158 deletions = 400 lines. At the 400-line budget ceiling. No non-membership files changed. Task 1.5 remains unchecked.
