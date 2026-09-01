@@ -168,15 +168,14 @@ func (h *JobHandler) getJob(w http.ResponseWriter, r *http.Request) {
 //  4. Parse `If-Unmodified-Since` (RFC 3339; absent/malformed → zero
 //     time, which the use case treats as a CAS mismatch).
 //  5. Invoke EditJob.
-//  6. ErrConcurrencyConflict → write the editor view directly with 409
-//     (the 409 body MUST be the same shape as a 200; design D6).
+//  6. ErrConcurrencyConflict → write the catalog envelope
+//     {error, code, data} with code: conflict and data carrying the
+//     JobEditorViewDto. The envelope's `data` field carries the same
+//     DTO shape as the 200 body (design D6 parity). We special-case
+//     this BEFORE classifyAndWriteError so the generic envelope is not
+//     written (classifyError alone would produce {error:"conflict",
+//     code:"conflict"} without the editor-view `data` field).
 //  7. Else → classifyAndWriteError (the dispatcher covers 400/404/500).
-//
-// The handler is intentionally thin: the use case owns the
-// validation, transition table, and CAS logic. The handler's only
-// "smart" decisions are (a) the 500-on-missing-context fail-closed
-// check, (b) the 409-with-view special-case (because classifyError
-// alone would render a generic {"error":"conflict"} body).
 func (h *JobHandler) updateJob(w http.ResponseWriter, r *http.Request) {
 	cc, ok := requireCompanyContext(w, r)
 	if !ok {
@@ -200,11 +199,13 @@ func (h *JobHandler) updateJob(w http.ResponseWriter, r *http.Request) {
 	view, err := h.service.EditJob(r.Context(), cc.CompanyID, id, in, ifUnmodifiedSince)
 	if err != nil {
 		if errors.Is(err, entities.ErrConcurrencyConflict) {
-			// The 409 body MUST be the editor view of the latest row
-			// (spec requirement: 409 body uses the same shape as 200).
-			// We special-case this BEFORE classifyAndWriteError so the
-			// generic {"error":"conflict"} envelope is not written.
-			httpjson.WriteJSON(w, http.StatusConflict, view)
+			// The 409 body is a catalog envelope {error, code, data}
+			// with code: conflict and data carrying the JobEditorViewDto
+			// (spec requirement: 409 envelope data uses the same shape as
+			// 200). We special-case this BEFORE classifyAndWriteError so
+			// the generic {error:"resource conflict", code:"conflict"} without data
+			// is not written.
+			httpjson.WriteCatalogErrorData(w, httpjson.Resolve(httpjson.CodeConflict), view)
 			return
 		}
 		h.classifyAndWriteError(w, r, err)
@@ -264,22 +265,20 @@ func (h *JobHandler) createJob(w http.ResponseWriter, r *http.Request) {
 //  3. Parse `If-Unmodified-Since` (RFC 3339; absent/malformed → zero
 //     time, which the use case treats as a CAS mismatch).
 //  4. Invoke SoftDeleteJob with the caller's CompanyID.
-//  5. ErrConcurrencyConflict → write the editor view directly with 409
-//     (the 409 body MUST be the same shape as the PATCH 200 — design
-//     D4/D8).
+//  5. ErrConcurrencyConflict → write the catalog envelope
+//     {error, code, data} with code: conflict and data carrying the
+//     JobEditorViewDto. The envelope's `data` field carries the same
+//     DTO shape as the PATCH 200 body (design D4/D8 parity). We
+//     special-case this BEFORE classifyAndWriteError so the generic
+//     envelope is not written (classifyError alone would produce
+//     {error:"conflict", code:"conflict"} without the editor-view
+//     `data` field).
 //  6. Else → classifyAndWriteError (the dispatcher covers
 //     400/404/409/500; ErrCompanyNotActive → 409 "company is not
 //     active", ErrJobNotFound → 404 "job not found").
 //  7. Success → 204 No Content with empty body (no editor view — the
 //     post-delete row's deleted_at is not representable in the DTO
 //     and the success path has no body by definition; design D2).
-//
-// The handler is intentionally thin: the use case owns the
-// read-for-delete, the CAS compare, and the SoftDelete call. The
-// handler's only "smart" decisions are (a) the 500-on-missing-
-// context fail-closed check and (b) the 409-with-view special-case
-// (because classifyError alone would render a generic {"error":
-// "conflict"} body — same shape the PATCH handler uses).
 func (h *JobHandler) softDeleteJob(w http.ResponseWriter, r *http.Request) {
 	cc, ok := requireCompanyContext(w, r)
 	if !ok {
@@ -297,11 +296,13 @@ func (h *JobHandler) softDeleteJob(w http.ResponseWriter, r *http.Request) {
 	view, err := h.service.SoftDeleteJob(r.Context(), cc.CompanyID, id, ifUnmodifiedSince)
 	if err != nil {
 		if errors.Is(err, entities.ErrConcurrencyConflict) {
-			// The 409 body MUST be the editor view of the latest row
-			// (spec requirement: 409 body uses the same shape as 200).
-			// We special-case this BEFORE classifyAndWriteError so the
-			// generic {"error":"conflict"} envelope is not written.
-			httpjson.WriteJSON(w, http.StatusConflict, view)
+			// The 409 body is a catalog envelope {error, code, data}
+			// with code: conflict and data carrying the JobEditorViewDto
+			// (spec requirement: 409 envelope data uses the same shape as
+			// the PATCH 200 body). We special-case this BEFORE
+			// classifyAndWriteError so the generic {error:"resource conflict",
+			// code:"conflict"} without data is not written.
+			httpjson.WriteCatalogErrorData(w, httpjson.Resolve(httpjson.CodeConflict), view)
 			return
 		}
 		h.classifyAndWriteError(w, r, err)

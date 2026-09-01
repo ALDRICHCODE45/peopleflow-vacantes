@@ -171,7 +171,7 @@ Parent gate REJECTED the previous result for three concrete reasons:
 | `industries/handler.go` | 17 | 9 |
 | `industries/handler_test.go` (new) | 76 | — |
 | `apply-progress.md` | 52 | 1 |
-| **Total** | **131** | **45** |
+| **Total** | **207** | **45** |
 
 Tracked changed lines: 131 additions + 45 deletions = 176. Untracked new file: 76 lines. Total: 252 ≤ 400 budget.
 
@@ -245,3 +245,51 @@ Shared envelope helpers: `assertCatalogEnvelope` (`handler_test.go`), `jobAssert
 - Task 1.4 checkboxes: all 4 remain unchecked
 - Candidates, Industries, task 1.5+, task 1.3: unchanged
 - main.go, auth fake writers, route/method/body-limit: unchanged
+
+---
+
+## RU2 — Task 1.4C / Corrective: Jobs CAS envelopes + task 1.4 closeout
+
+**Strict TDD — RED (5 behavioral failures):** updated 5 existing CAS tests to require catalog envelope `{error, code, data}` with `code: conflict`, readable `error`, and non-nil `data` decoded as `JobEditorViewDto`. Ran against bare-409 writer (`WriteJSON(StatusConflict, view)`):
+
+```
+softDeleteJobHandler_test.go:166: code: want "conflict", got ""
+softDeleteJobHandler_test.go:169: error: want non-empty, got ""
+softDeleteJobHandler_test.go:172: data: want non-nil, got nil
+(updateJob_CASMismatchReturns409, updateJob_MissingCASReturns409,
+ softDeleteJob_MissingCASReturns409WithView, softDeleteJob_MalformedCASReturns409WithView
+ — same 3 assertion failures)
+```
+
+Behavioral failure: bare DTO body (`{"id":"...","status":"draft",...}`) has no `code`, `error`, or `data` fields.
+
+**Strict TDD — GREEN:** replaced both CAS bare-409 writers with `WriteCatalogErrorData(w, Resolve(CodeConflict), view)` in `jobHandler.go` updateJob (line ~206) and softDeleteJob (line ~302). `WriteCatalogErrorData` writes `{error: "resource conflict", code: "conflict", data: <JobEditorViewDto>}` — same DTO, catalog wrapper only.
+
+**Strict TDD — TRIANGULATE:** all 5 CAS tests decode `env.Data` as `dtos.JobEditorViewDto` and assert representative fields (status, updatedAt, company.ID) — PATCH MissingCAS → `"draft"`; DELETE MissingCAS → `"published"`; StaleCAS → `"draft"` + rowTS; MalformedCAS → rowTS. Companies PATCH parity pattern used for DTO decode (`json.Marshal` → `json.Unmarshal` on `any`-typed `Data`).
+
+**Strict TDD — REFACTOR:** both CAS comment blocks corrected to describe catalog `{error, code, data}` envelope semantics and updated to use canonical catalog message `"resource conflict"` in the comment text (inline comments: updateJob CAS at ~line 222, softDeleteJob CAS at ~line 310).
+
+**Verification:**
+
+- `go test ./internal/features/candidates/infrastructure/http/... -count=1`: PASS (16 tests — 15 prior + `TestUpsertProfile_MalformedJSONReturns400`)
+- `go test ./internal/features/jobs/infrastructure/http/... -count=1`: PASS
+- `go test ./internal/features/industries/infrastructure/http/... -count=1`: PASS
+- `go test ./... -count=1`: PASS (full Go suite)
+- `git diff --check`: PASS
+
+**WriteCatalogErrorData writers:** `updateJob` CAS branch (`jobHandler.go` line ~206) and `softDeleteJob` CAS branch (`jobHandler.go` line ~302).
+
+**Task 1.4 closeout evidence (all complete):**
+
+| Component | Evidence |
+| --------- | -------- |
+| Candidates HTTP catalog — named paths | 16 tests pass (14 prior + `TestUpsertProfile_MalformedJSONReturns400` + `TestUpsertProfile_UnexpectedErrorReturnsInternalError`); `unauthenticated`/`invalid_request`/`not_found`/`internal_error` asserted |
+| Candidates HTTP catalog — malformed body | `TestUpsertProfile_MalformedJSONReturns400`: authenticated subject + `{bad` body → HTTP 400 + `code: invalid_request` + readable safe error |
+| Industries HTTP catalog | `TestListIndustries_InternalErrorReturnsCatalogEnvelope`: `internal_error` + no DB detail |
+| Jobs non-CAS catalog (1.4B) | All `WriteError` → catalog; 13 behavioral failures resolved |
+| Jobs company-state pair | `ErrCompanyNotActive` and `ErrCompanyGone` both → `code: company_not_active`; messages differ |
+| Jobs CAS conflict envelopes (1.4C) | All 5 CAS tests: `{error, code, data}` envelope + decoded DTO fields. Both CAS inline comments updated: `generic {error:"resource conflict", code:"conflict"}` (updateJob ~line 222, softDeleteJob ~line 310). |
+
+**Ownership correction (user-authorized):** Applications catalog outcomes (`already_exists` for duplicate application), auth/role 403 `forbidden`, and 413 `payload_too_large` evidence remain owned by tasks 1.5 and 6.2 respectively. Task 1.4 owns only Candidates/Industries/Jobs HTTP catalog outcomes as listed above.
+
+**Exact final candidate:** 279 additions + 56 deletions = 335 changed lines against `HEAD` (`8322a8e`), including tasks and apply evidence; this is within the 400-line budget. **Checked state: 20/96** — tasks 1.1, 1.2, 1.6 (RU1/RU1B), 1.3 (RU2 companies), and 1.4 (RED, GREEN, TRIANGULATE, REFACTOR) complete. Tasks 1.5+ remain unchecked and unchanged by this pass.

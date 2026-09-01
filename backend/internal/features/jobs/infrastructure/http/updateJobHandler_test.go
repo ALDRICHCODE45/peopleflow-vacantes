@@ -306,8 +306,9 @@ func TestUpdateJob_CrossCompanyReturns404(t *testing.T) {
 }
 
 // TestUpdateJob_CASMismatchReturns409 covers the spec scenario "stale
-// updated_at returns 409 with latest version": the 409 body MUST
-// decode as a JobEditorViewDto (status + updated_at).
+// updated_at returns 409 with latest version": the 409 body MUST be
+// a catalog envelope {error, code, data} with code: conflict and data
+// carrying the JobEditorViewDto.
 func TestUpdateJob_CASMismatchReturns409(t *testing.T) {
 	jobID := uuid.New()
 	companyID := uuid.New()
@@ -329,9 +330,27 @@ func TestUpdateJob_CASMismatchReturns409(t *testing.T) {
 		t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
 	}
 
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode 409 body as catalog envelope: %v; body=%s", err, rec.Body.String())
+	}
+	if env.Code != httpjson.CodeConflict {
+		t.Errorf("code: want %q, got %q", httpjson.CodeConflict, env.Code)
+	}
+	if env.Error == "" {
+		t.Errorf("error: want non-empty readable message, got %q", env.Error)
+	}
+	if env.Data == nil {
+		t.Errorf("data: want non-nil JobEditorViewDto, got nil")
+	}
+
+	dataBytes, err := json.Marshal(env.Data)
+	if err != nil {
+		t.Fatalf("marshal env.Data: %v", err)
+	}
 	var view dtos.JobEditorViewDto
-	if err := json.Unmarshal(rec.Body.Bytes(), &view); err != nil {
-		t.Fatalf("decode 409 body as JobEditorViewDto: %v", err)
+	if err := json.Unmarshal(dataBytes, &view); err != nil {
+		t.Fatalf("decode env.Data as JobEditorViewDto: %v", err)
 	}
 	if view.Status != "draft" {
 		t.Errorf("view.Status: want \"draft\", got %q", view.Status)
@@ -344,7 +363,8 @@ func TestUpdateJob_CASMismatchReturns409(t *testing.T) {
 // TestUpdateJob_MissingCASReturns409 covers the spec scenario "missing
 // If-Unmodified-Since returns 409": a handler without the header
 // behaves identically to a stale CAS (the use case treats the zero
-// token as a mismatch).
+// token as a mismatch). The 409 body is a catalog envelope with
+// code: conflict and data carrying the JobEditorViewDto.
 func TestUpdateJob_MissingCASReturns409(t *testing.T) {
 	jobID := uuid.New()
 	companyID := uuid.New()
@@ -362,6 +382,36 @@ func TestUpdateJob_MissingCASReturns409(t *testing.T) {
 	rec := doPatch(t, router, "/jobs/"+jobID.String(), `{"title":"New"}`, nil)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode 409 body as catalog envelope: %v; body=%s", err, rec.Body.String())
+	}
+	if env.Code != httpjson.CodeConflict {
+		t.Errorf("code: want %q, got %q", httpjson.CodeConflict, env.Code)
+	}
+	if env.Error == "" {
+		t.Errorf("error: want non-empty readable message, got %q", env.Error)
+	}
+	if env.Data == nil {
+		t.Errorf("data: want non-nil JobEditorViewDto, got nil")
+	}
+
+	// Decode env.Data as JobEditorViewDto and assert representative fields.
+	dataBytes, err := json.Marshal(env.Data)
+	if err != nil {
+		t.Fatalf("marshal env.Data: %v", err)
+	}
+	var view dtos.JobEditorViewDto
+	if err := json.Unmarshal(dataBytes, &view); err != nil {
+		t.Fatalf("decode env.Data as JobEditorViewDto: %v", err)
+	}
+	if view.Status != "draft" {
+		t.Errorf("view.Status: want \"draft\", got %q", view.Status)
+	}
+	if view.Company.ID != companyID.String() {
+		t.Errorf("view.Company.ID: want %q, got %q", companyID.String(), view.Company.ID)
 	}
 }
 

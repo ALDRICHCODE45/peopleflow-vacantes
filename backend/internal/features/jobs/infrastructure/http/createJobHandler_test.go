@@ -209,10 +209,13 @@ func TestCreateJob_ErrCompanyNotActiveReturns409(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "company is not active") {
 		t.Errorf("body must name the failure, got %q", rec.Body.String())
 	}
+	createJobAssertCatalogEnvelope(t, rec, httpjson.CodeCompanyNotActive)
 }
 
 // TestCreateJob_ErrCompanyGoneReturns409 covers the defense-in-depth
-// 23503 sentinel.
+// 23503 sentinel. ErrCompanyGone maps to CodeCompanyNotActive (same
+// code as ErrCompanyNotActive) while preserving the distinct domain
+// message "company is gone" — proving same outcome class ⇒ same code.
 func TestCreateJob_ErrCompanyGoneReturns409(t *testing.T) {
 	repo := &writeStubHandlerRepo{
 		createErr: entities.ErrCompanyGone,
@@ -229,6 +232,8 @@ func TestCreateJob_ErrCompanyGoneReturns409(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "company is gone") {
 		t.Errorf("body must name the failure, got %q", rec.Body.String())
 	}
+	// Same outcome class (company inactive/gone) ⇒ same code, different message.
+	createJobAssertCatalogEnvelope(t, rec, httpjson.CodeCompanyNotActive)
 }
 
 // TestCreateJob_EmptyTitleReturns400 covers the use case step 1

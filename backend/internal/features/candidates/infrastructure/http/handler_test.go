@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	candidatesdtos "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/dtos"
 	candidatesusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/usecases"
@@ -308,6 +307,26 @@ func TestUpsertProfile_InvalidSalaryPeriod(t *testing.T) {
 	assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 }
 
+// TestUpsertProfile_MalformedJSONReturns400 covers the spec scenario
+// "malformed JSON body is rejected". The handler must decode the request
+// body with json.Decoder and return a catalog envelope with
+// code:invalid_request before any use-case invocation. An authenticated
+// subject is provided so the malformed-body decoding path is reached.
+func TestUpsertProfile_MalformedJSONReturns400(t *testing.T) {
+userID := uuid.New()
+cRepo := &stubCandidateRepo{}
+uRepo := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-abc"}}
+router := newTestRouter(newTestHandler(cRepo, uRepo))
+
+// Invalid JSON syntax triggers the decode error.
+body := `{bad`
+rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", body, "sub-abc"))
+assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
+if !strings.Contains(rec.Body.String(), "JSON") && !strings.Contains(rec.Body.String(), "invalid") {
+t.Errorf("expected readable safe error mentioning JSON or invalid, got: %s", rec.Body.String())
+}
+}
+
 // TestUpsertProfile_UnknownSubjectIsUnauthorized covers the IDOR
 // invariant on PUT too: unknown sub → 401, never 5xx.
 func TestUpsertProfile_UnknownSubjectIsUnauthorized(t *testing.T) {
@@ -436,6 +455,39 @@ func TestReplaceLanguages_InvalidCefrIsRejected(t *testing.T) {
 	assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 }
 
+// TestUpsertProfile_UnexpectedErrorReturnsInternalError proves the
+// default/unexpected classifier path yields code:internal_error with the
+// generic non-leaking message. Any error type not explicitly handled by
+// the handler's classifyAndWriteError falls through to Resolve(default),
+// which returns CodeInternalError with "an internal error occurred".
+// The stub injects an unexpected error through the upsert path; injected
+// DB detail must NOT appear in the response body.
+func TestUpsertProfile_UnexpectedErrorReturnsInternalError(t *testing.T) {
+userID := uuid.New()
+cRepo := &stubCandidateRepo{
+upsertErr: errors.New("db: connection refused"),
+}
+uRepo := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-abc"}}
+router := newTestRouter(newTestHandler(cRepo, uRepo))
+
+body := `{"professional_title": "Backend Engineer"}`
+rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", body, "sub-abc"))
+if rec.Code != http.StatusInternalServerError {
+t.Fatalf("want 500, got %d: %s", rec.Code, rec.Body.String())
+}
+assertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+var env httpjson.ErrorEnvelope
+if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+t.Fatalf("decode envelope: %v", err)
+}
+if env.Error != "an internal error occurred" {
+t.Errorf("canonical message: want %q, got %q", "an internal error occurred", env.Error)
+}
+if strings.Contains(rec.Body.String(), "connection refused") {
+t.Errorf("response must not leak injected detail, got: %s", rec.Body.String())
+}
+}
+
 // TestRoutes_OnlyMeMount covers the spec scenario "path id is ignored":
 // the candidate handler's Routes() does NOT expose a {userID} segment.
 // Hitting a path that looks like an IDOR attempt must 404 from the
@@ -470,7 +522,6 @@ func assertCatalogEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantSta
 	}
 }
 
-// helper to silence unused-import warnings when tests are added/removed
-// in future edits.
+// helpers to silence unused-import warnings when tests are added/removed.
 var _ = candidatesdtos.ReplaceMyLanguagesDto{}
-var _ = time.Now
+var _ = candidatesusecases.NewCandidateService

@@ -133,9 +133,10 @@ func TestSoftDeleteJob_InvalidUUIDReturns400(t *testing.T) {
 
 // TestSoftDeleteJob_StaleCASReturns409WithView covers spec scenarios
 // S11 + S14: a stale `If-Unmodified-Since` (header != row's
-// updated_at) returns 409 with the editor view as the body. The 409
-// body MUST decode as a JobEditorViewDto (status + updated_at) so the
-// client can re-read without a second round-trip.
+// updated_at) returns 409 with a catalog envelope {error, code, data}.
+// The envelope carries code: conflict and data with the JobEditorViewDto
+// (status + updated_at) so the client can re-read without a second
+// round-trip.
 func TestSoftDeleteJob_StaleCASReturns409WithView(t *testing.T) {
 	jobID := uuid.New()
 	companyID := uuid.New()
@@ -157,9 +158,27 @@ func TestSoftDeleteJob_StaleCASReturns409WithView(t *testing.T) {
 		t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
 	}
 
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode 409 body as catalog envelope: %v; body=%s", err, rec.Body.String())
+	}
+	if env.Code != httpjson.CodeConflict {
+		t.Errorf("code: want %q, got %q", httpjson.CodeConflict, env.Code)
+	}
+	if env.Error == "" {
+		t.Errorf("error: want non-empty readable message, got %q", env.Error)
+	}
+	if env.Data == nil {
+		t.Errorf("data: want non-nil JobEditorViewDto, got nil")
+	}
+
+	dataBytes, err := json.Marshal(env.Data)
+	if err != nil {
+		t.Fatalf("marshal env.Data: %v", err)
+	}
 	var view dtos.JobEditorViewDto
-	if err := json.Unmarshal(rec.Body.Bytes(), &view); err != nil {
-		t.Fatalf("decode 409 body as JobEditorViewDto: %v", err)
+	if err := json.Unmarshal(dataBytes, &view); err != nil {
+		t.Fatalf("decode env.Data as JobEditorViewDto: %v", err)
 	}
 	if view.Status != "draft" {
 		t.Errorf("view.Status: want \"draft\", got %q", view.Status)
@@ -176,8 +195,9 @@ func TestSoftDeleteJob_StaleCASReturns409WithView(t *testing.T) {
 // S12: a missing `If-Unmodified-Since` header parses to time.Time{}
 // in the handler; the zero token never equals a real row's
 // updated_at, so the CAS compare fails and the use case returns
-// (view, ErrConcurrencyConflict). The handler writes 409 with the
-// editor view body.
+// (view, ErrConcurrencyConflict). The handler writes 409 with a
+// catalog envelope {error, code, data} where code: conflict and
+// data carries the JobEditorViewDto.
 func TestSoftDeleteJob_MissingCASReturns409WithView(t *testing.T) {
 	jobID := uuid.New()
 	companyID := uuid.New()
@@ -197,12 +217,33 @@ func TestSoftDeleteJob_MissingCASReturns409WithView(t *testing.T) {
 		t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
 	}
 
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode 409 body as catalog envelope: %v; body=%s", err, rec.Body.String())
+	}
+	if env.Code != httpjson.CodeConflict {
+		t.Errorf("code: want %q, got %q", httpjson.CodeConflict, env.Code)
+	}
+	if env.Error == "" {
+		t.Errorf("error: want non-empty readable message, got %q", env.Error)
+	}
+	if env.Data == nil {
+		t.Errorf("data: want non-nil JobEditorViewDto, got nil")
+	}
+
+	dataBytes, err := json.Marshal(env.Data)
+	if err != nil {
+		t.Fatalf("marshal env.Data: %v", err)
+	}
 	var view dtos.JobEditorViewDto
-	if err := json.Unmarshal(rec.Body.Bytes(), &view); err != nil {
-		t.Fatalf("decode 409 body: %v", err)
+	if err := json.Unmarshal(dataBytes, &view); err != nil {
+		t.Fatalf("decode env.Data as JobEditorViewDto: %v", err)
 	}
 	if view.Status != "published" {
 		t.Errorf("view.Status: want \"published\", got %q", view.Status)
+	}
+	if view.Company.ID != companyID.String() {
+		t.Errorf("view.Company.ID: want %q, got %q", companyID.String(), view.Company.ID)
 	}
 }
 
@@ -210,8 +251,9 @@ func TestSoftDeleteJob_MissingCASReturns409WithView(t *testing.T) {
 // S13: a malformed `If-Unmodified-Since` (e.g. `not-a-timestamp`)
 // parses to time.Time{} via the handler's parseIfUnmodifiedSince
 // helper; the zero token mismatches the row and the use case returns
-// (view, ErrConcurrencyConflict). The handler writes 409 with the
-// editor view body.
+// (view, ErrConcurrencyConflict). The handler writes 409 with a
+// catalog envelope {error, code, data} where code: conflict and
+// data carries the JobEditorViewDto.
 func TestSoftDeleteJob_MalformedCASReturns409WithView(t *testing.T) {
 	jobID := uuid.New()
 	companyID := uuid.New()
@@ -233,12 +275,33 @@ func TestSoftDeleteJob_MalformedCASReturns409WithView(t *testing.T) {
 		t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
 	}
 
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode 409 body as catalog envelope: %v; body=%s", err, rec.Body.String())
+	}
+	if env.Code != httpjson.CodeConflict {
+		t.Errorf("code: want %q, got %q", httpjson.CodeConflict, env.Code)
+	}
+	if env.Error == "" {
+		t.Errorf("error: want non-empty readable message, got %q", env.Error)
+	}
+	if env.Data == nil {
+		t.Errorf("data: want non-nil JobEditorViewDto, got nil")
+	}
+
+	dataBytes, err := json.Marshal(env.Data)
+	if err != nil {
+		t.Fatalf("marshal env.Data: %v", err)
+	}
 	var view dtos.JobEditorViewDto
-	if err := json.Unmarshal(rec.Body.Bytes(), &view); err != nil {
-		t.Fatalf("decode 409 body: %v", err)
+	if err := json.Unmarshal(dataBytes, &view); err != nil {
+		t.Fatalf("decode env.Data as JobEditorViewDto: %v", err)
 	}
 	if !view.UpdatedAt.Equal(rowTS) {
 		t.Errorf("view.UpdatedAt: want %v, got %v", rowTS, view.UpdatedAt)
+	}
+	if view.Company.ID != companyID.String() {
+		t.Errorf("view.Company.ID: want %q, got %q", companyID.String(), view.Company.ID)
 	}
 }
 
@@ -279,6 +342,11 @@ func TestSoftDeleteJob_NotFoundReturns404(t *testing.T) {
 // company SQL guard) → 409 with body `{"error":"company is not
 // active"}`. classifyError handles this sentinel verbatim (no new
 // branch needed — it was added by jobs-create for POST /jobs).
+// Both ErrCompanyNotActive and ErrCompanyGone map to
+// CodeCompanyNotActive (same outcome class ⇒ same code, different
+// message — the company-state pair is proven by the create-handler
+// tests; this test proves the soft-delete path also emits
+// CodeCompanyNotActive).
 func TestSoftDeleteJob_CompanyNotActiveReturns409(t *testing.T) {
 	jobID := uuid.New()
 	companyID := uuid.New()
