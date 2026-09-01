@@ -371,7 +371,7 @@ openspec/changes/backend-go-closure/apply-progress.md                           
 
 ---
 
-## RU2 task 1.5C — Membership transport evidence (test-only; no production change). This continues the task-level RED captured during committed 1.5B core adoption. Exact decoded assertions cover GET missing subject, PATCH invalid UUID/role, remaining reachable transport failures, failure-safe slog/non-leak evidence, and no-call checks for missing-context and unexpected branches; wire triangulation proves equal `invalid_request`/`not_found` codes with unequal safe messages. Verification passed: `go test ./internal/features/companies/infrastructure/http/... -run '^(TestGetMyCompany_(NoSubjectReturns401|MemberButCompanyNotFound|UnexpectedCompanyError)|TestListMembers_UnexpectedServiceError|TestAddMember_(MissingCompanyContextIsServerError|InvalidUserIDReturns400|UserNotFound|UserLookupUnexpectedError|CreateUnexpectedError)|TestUpdateMemberRole_(MissingCompanyContextIsServerError|InvalidMemberIDReturns400|InvalidRoleReturns400|MalformedJSONBody|UnexpectedServiceError)|TestRemoveMember_(MissingCompanyContextIsServerError|InvalidMemberIDReturns400|MemberNotFound|UnexpectedRemoveError)|TestTriangulation_(InvalidRequestMessagesDiffer|NotFoundMessagesDiffer))$' -count=1`, all Companies HTTP tests, `go test ./... -count=1`, and `git diff --check`. Exact HEAD numstat: test `387/4`, progress `6/1`; 393 additions + 5 deletions = 398 lines. Remaining cleanup deletes the actual `httpjson.WriteError` after Applications. Checked state stays 20/96; all four task 1.5 boxes remain unchecked.
+## RU2 task 1.5C — Membership transport evidence (test-only; no production change). This continues the task-level RED captured during committed 1.5B core adoption. Exact decoded assertions cover GET missing subject, PATCH invalid UUID/role, remaining reachable transport failures, failure-safe slog/non-leak evidence, and no-call checks for missing-context and unexpected branches; wire triangulation proves equal `invalid_request`/`not_found` codes with unequal safe messages. Verification passed: `go test ./internal/features/companies/infrastructure/http/... -run '^(TestGetMyCompany_(NoSubjectReturns401|MemberButCompanyNotFound|UnexpectedCompanyError)|TestListMembers_UnexpectedServiceError|TestAddMember_(MissingCompanyContextIsServerError|InvalidUserIDReturns400|UserNotFound|UserLookupUnexpectedError|CreateUnexpectedError)|TestUpdateMemberRole_(MissingCompanyContextIsServerError|InvalidMemberIDReturns400|InvalidRoleReturns400|MalformedJSONBody|UnexpectedServiceError)|TestRemoveMember_(MissingCompanyContextIsServerError|InvalidMemberIDReturns400|MemberNotFound|UnexpectedRemoveError)|TestTriangulation_(InvalidRequestMessagesDiffer|NotFoundMessagesDiffer))$' -count=1`, all Companies HTTP tests, `go test ./... -count=1`, and `git diff --check`. Exact HEAD numstat: test `387/4`, progress `6/1`; 393 additions + 5 deletions = 398 lines. Remaining cleanup deletes the actual `httpjson.WriteError` after Applications. Checked state stays 20/96; all four task 1.5 boxes remain unchecked
 
 ---
 
@@ -409,15 +409,18 @@ Exact HEAD numstat: handler `101/73`, test `204/10`, progress `7/0`; 312 additio
 **Strict TDD — RED (evidence-absence):** Prior GREEN omitted five profile URL fields and two readback assertions. This pass adds non-nil values for LinkedInURL, InstagramURL, FacebookURL, TwitterURL, CoverImageURL to the `CompanyProfile` struct and adds exact value assertions for all five plus `read.Rfc.Value()` and `read.IndustryID` after `repo.GetByID`. No second RED was fabricated.
 
 **Strict TDD — GREEN:**
+
 - `TestCompanyRepository_Create_Live`: direct `repo.Create`, then `repo.GetByID`, verifies persistence plus every profile field (Name, Status, Website, LogoURL, LinkedInURL, InstagramURL, FacebookURL, TwitterURL, CoverImageURL, Description, Size, FoundedYear, City, Country, Rfc, IndustryID — 16 assertions). UUID-derived RFC avoids math/rand; RFC uppercased via `strings.ToUpper` to match DB normalization. Fresh bounded cleanup context. Re-query proves cleanup.
 - `TestCompaniesConstraints_Named`: table-driven with two subtests (invalid_size_gigantic, invalid_year_1500). Read-only pg_constraint query confirms exact live names (`companies_size_check`, `companies_founded_year_check`). Direct SQL INSERT triggers each constraint with distinct UUID/RFC values. Asserts `errors.As(*pgconn.PgError)`, SQLSTATE 23514, and exact ConstraintName. Asserts zero company rows afterward.
 
 **Strict TDD — TRIANGULATE:**
+
 - Valid read-back of all 16 profile + identity fields (9 original + 5 social/cover + Rfc + IndustryID)
 - Both constraint violations with distinct invalid values
 - Cleanup verified by re-query
 
 **Strict TDD — REFACTOR:**
+
 - Production code: zero diff
 - Focused selector: `go test -tags=integration -p 1 -count=1 ./internal/features/companies/infrastructure/postgres -run 'TestCompanyRepository_Create_Live|TestCompaniesConstraints_Named'` — PASS (2 tests)
 - Serial integration twice on same DB — PASS both runs (no residue)
@@ -426,12 +429,14 @@ Exact HEAD numstat: handler `101/73`, test `204/10`, progress `7/0`; 312 additio
 - `git diff --check` — clean
 
 **Line count (this corrective delta only):**
+
 - `companyRepository_write_integration_test.go`: 284 additions, 20 deletions (304 changed lines)
 - `openspec/changes/backend-go-closure/apply-progress.md`: 40 additions (this record)
 - `openspec/changes/backend-go-closure/tasks.md`: 4 additions, 4 deletions (checkboxes only)
 - **Total delta:** 328 additions, 24 deletions = 352 changed lines — within 400-line budget.
 
 **Files changed:**
+
 - `backend/internal/features/companies/infrastructure/postgres/companyRepository_write_integration_test.go`: 284 additions, 20 deletions total; added direct adapter/profile/constraint evidence, repeatable cleanup, and corrected stale audit prose
 - `openspec/changes/backend-go-closure/apply-progress.md`: corrected field enumeration + line arithmetic
 - `openspec/changes/backend-go-closure/tasks.md`: task 2.2 checkboxes checked
