@@ -66,6 +66,8 @@ type Querier interface {
 	// source / cover_letter are sqlc.narg (nullable): absent on the wire →
 	// SQL NULL.
 	CreateApplication(ctx context.Context, arg CreateApplicationParams) (CreateApplicationRow, error)
+	// Locks the active industry before INSERT so creation and deactivation serialize.
+	// Missing or inactive industries return no row.
 	CreateCompany(ctx context.Context, arg CreateCompanyParams) (Company, error)
 	// Adds a row to `company_members`. UNIQUE(user_id) means a second insert with
 	// the same user_id surfaces SQLSTATE 23505 to the adapter (mapped to

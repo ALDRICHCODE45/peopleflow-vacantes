@@ -1,6 +1,6 @@
 // Package entities: companies-write sentinels (design D9).
 //
-// Two new sentinels land in this file so company.go can stay
+// Three sentinels land in this file so company.go can stay
 // byte-for-byte unchanged (the proposal's "NO CHANGE" is honored
 // literally — a new file is additive):
 //
@@ -12,6 +12,7 @@
 //     plausible CHECK is jobs_status_check, and 'closed' satisfies it,
 //     so this branch is unreachable via the designed flow but kept as
 //     a safety net).
+//   - ErrIndustryUnavailable is the WS2A active-industry creation gate.
 //
 // Companies defines its OWN ErrConcurrencyConflict rather than
 // importing jobs/domain/entities.ErrConcurrencyConflict (cross-feature
@@ -40,4 +41,7 @@ var (
 	// safety net so a future refactor that adds a column to the
 	// SET list does not silently leak a 500.
 	ErrInvalidCompanyStatusTransition = errors.New("invalid company status transition")
+
+	// ErrIndustryUnavailable collapses inactive and unknown industries.
+	ErrIndustryUnavailable = errors.New("industry unavailable")
 )

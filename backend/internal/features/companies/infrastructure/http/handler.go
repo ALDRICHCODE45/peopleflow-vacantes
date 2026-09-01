@@ -283,10 +283,13 @@ func foundedYearToIntPtr(y *valueobjects.FoundedYear) *int {
 // classifyCreateCompanyError maps a use-case error to a V1 catalog Definition.
 // Domain validation → invalid_request, duplicate → already_exists, anything else
 // → internal_error. The caller logs the real error when Code is internal_error.
+// ErrIndustryUnavailable is the dedicated WS2A 409 path.
 func classifyCreateCompanyError(err error) httpjson.Definition {
 	switch {
 	case errors.Is(err, entities.ErrUnknownSubject):
 		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeUnauthenticated), err.Error())
+	case errors.Is(err, entities.ErrIndustryUnavailable):
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeIndustryUnavailable), err.Error())
 	case errors.Is(err, entities.ErrEmptyIndustry),
 		errors.Is(err, valueobjects.ErrCompanyNameTooShort),
 		errors.Is(err, valueobjects.ErrCompanyRfcInvalidLength),

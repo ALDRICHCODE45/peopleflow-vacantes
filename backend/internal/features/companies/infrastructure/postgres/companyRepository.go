@@ -444,9 +444,15 @@ func pgTimestamptzToTimePtr(t pgtype.Timestamptz) *time.Time {
 // mapCreateError with a SQLSTATE → sentinel mapping specific to the
 // `company_members` table; do not collapse them — same SQLSTATE codes
 // mean different domain errors on different tables.
+//
+// WS2A checks pgx.ErrNoRows first: the shared active-industry gate emits zero
+// rows for inactive/missing industries on direct and bootstrap creation.
 func mapCompanyCreateError(err error) error {
 	if err == nil {
 		return nil
+	}
+	if errors.Is(err, pgx.ErrNoRows) {
+		return entities.ErrIndustryUnavailable
 	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {

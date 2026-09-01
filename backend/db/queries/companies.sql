@@ -1,14 +1,22 @@
 -- name: CreateCompany :one
+-- Locks the active industry before INSERT so creation and deactivation serialize.
+-- Missing or inactive industries return no row.
+WITH active_industry AS MATERIALIZED (
+    SELECT id
+    FROM industries
+    WHERE id = $4 AND active = true
+    FOR UPDATE
+)
 INSERT INTO companies (
     id, name, rfc, industry_id, website, logo_url,
     description, size, founded_year, city, country,
     linkedin_url, instagram_url, facebook_url, twitter_url, cover_image_url
 )
-VALUES (
+SELECT
     $1, $2, $3, $4, $5, $6,
     $7, $8, $9, $10, $11,
     $12, $13, $14, $15, $16
-)
+FROM active_industry
 RETURNING *;
 
 

@@ -388,3 +388,14 @@ Exact HEAD numstat: handler `101/73`, test `204/10`, progress `7/0`; 312 additio
 **REFACTOR:** the actual unused `WriteError` function and its comment are deleted from `backend/internal/shared/httpjson/httpjson.go`; `grep -rn 'httpjson\.WriteError' backend/` and `grep -rn 'func WriteError' backend/` both return empty. The prior task-1.5 `WriteLegacyError` wording was a typo and was corrected in `tasks.md`. No other production behavior change — whitespace-subject handling and CompanyContext requirements are untouched.
 **Verification passed:** focused transport selector; Applications HTTP; shared httpjson; Identity + Companies + Applications HTTP; `cd backend && go test ./... -count=1`; `git diff --check`; both `WriteError` searches. Exact live HEAD numstat — transport test `375/0`, `httpjson.go` `0/5`, `tasks.md` `4/4`, this file `9/1`; arithmetic 375+0+5+4+4+9+1 = 398 lines, within the 400-line budget.
 **Task state: 24/96** — all four task 1.5 boxes are checked and task 1.5 is closed; next work resumes the remaining task order, including WS2D and WS3A — there is no 1.5F.
+
+---
+
+## RU4 task 2.1 — Atomic active-industry gate
+
+**RED:** inactive industry creation incorrectly succeeded and persisted company/member rows; unknown industry returned only the former FK-domain error.
+**GREEN:** `CreateCompany` now locks a materialized active-industry CTE and inserts from it; zero rows map through the shared create mapper to `ErrIndustryUnavailable`, then to exact catalog `industry_unavailable`/409 without `data`.
+**TRIANGULATE:** deterministic deactivate-first and create-first tests use dedicated backend PIDs and require positive `pg_blocking_pids` plus `wait_event_type = 'Lock'` evidence. No sleeps or timing-only assertions; inactive/unknown paths assert exact sentinel text and zero company/member rows.
+**REFACTOR / verification:** focused integration, race detector, Companies HTTP/unit, `go test ./... -count=1`, serial Companies/DB integration, `go vet ./...`, gofmt, sqlc idempotence, and `git diff --check` all PASS against disposable `peopleflow_ws2a`.
+**Measured candidate:** implementation/tests 314 changed lines before this note; complete candidate is 333 changed lines.
+**Task state: 28/96** — task 2.1 is closed; next task is 2.2 (direct adapters and named constraints).

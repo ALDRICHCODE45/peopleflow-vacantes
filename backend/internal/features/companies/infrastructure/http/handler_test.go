@@ -554,16 +554,21 @@ func TestCreateCompany_CatalogCodeMapping(t *testing.T) {
 		name       string
 		wantCode   httpjson.Code
 		wantStatus int
+		wantMsg    string
 		body       string
 		bootstrap  *stubBootstrapRepo
 	}{
-		{"400: invalid size", httpjson.CodeInvalidRequest, http.StatusBadRequest,
+		{"400: invalid size", httpjson.CodeInvalidRequest, http.StatusBadRequest, "",
 			`{"name":"Acme SA de CV","rfc":"AAA010101AAA","industry_id":"tech","size":"huge"}`,
 			&stubBootstrapRepo{}},
-		{"409: duplicate RFC", httpjson.CodeAlreadyExists, http.StatusConflict,
+		{"409: duplicate RFC", httpjson.CodeAlreadyExists, http.StatusConflict, "",
 			`{"name":"Acme SA de CV","rfc":"AAA010101AAA","industry_id":"tech"}`,
 			&stubBootstrapRepo{createErr: entities.ErrDuplicateCompany}},
-		{"500: unexpected", httpjson.CodeInternalError, http.StatusInternalServerError,
+		{"409: industry unavailable (WS2A gate)", httpjson.CodeIndustryUnavailable, http.StatusConflict,
+			"industry unavailable",
+			`{"name":"Acme SA de CV","rfc":"AAA010101AAA","industry_id":"ghost-tech"}`,
+			&stubBootstrapRepo{createErr: entities.ErrIndustryUnavailable}},
+		{"500: unexpected", httpjson.CodeInternalError, http.StatusInternalServerError, "",
 			`{"name":"Acme SA de CV","rfc":"AAA010101AAA","industry_id":"tech"}`,
 			&stubBootstrapRepo{createErr: errors.New("surprise")}},
 	}
@@ -571,6 +576,15 @@ func TestCreateCompany_CatalogCodeMapping(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := doPostWithBootstrap(t, tc.bootstrap, tc.body)
 			assertCatalogEnvelope(t, rec, tc.wantStatus, tc.wantCode)
+			if tc.wantMsg != "" {
+				if !strings.Contains(rec.Body.String(), tc.wantMsg) {
+					t.Errorf("expected body to contain %q, got %s", tc.wantMsg, rec.Body.String())
+				}
+				// WS2A 409 must stay code-only.
+				if strings.Contains(rec.Body.String(), `"data"`) {
+					t.Errorf("industry_unavailable must not emit a `data` field; body=%s", rec.Body.String())
+				}
+			}
 		})
 	}
 }
