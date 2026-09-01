@@ -1,9 +1,11 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -335,7 +337,7 @@ func memberAssertCatalogEnvelope(t *testing.T, rec *httptest.ResponseRecorder, w
 	}
 	if wantCode == httpjson.CodeInternalError {
 		if env.Error != "an internal error occurred" {
-t.Errorf("internal_error must use canonical generic message, got %q", env.Error)
+			t.Errorf("internal_error must use canonical generic message, got %q", env.Error)
 		}
 	}
 }
@@ -786,10 +788,391 @@ func TestRemoveMember_InvalidUUIDReturns400(t *testing.T) {
 	memberAssertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 }
 
-// --- helpers ---------------------------------------------------------------
-
-// Ensure dtos.AddMemberDto and dtos.UpdateMemberRoleDto stay referenced.
 var (
 	_ = dtos.AddMemberDto{}
 	_ = dtos.UpdateMemberRoleDto{}
 )
+
+func captureSlog(t *testing.T, buf *bytes.Buffer) {
+	prev := slog.Default().Handler()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(slog.New(prev)) })
+}
+
+func assertErrorMessage(t *testing.T, rec *httptest.ResponseRecorder, want string) {
+	t.Helper()
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode envelope: %v; body=%s", err, rec.Body.String())
+	}
+	if env.Error != want {
+		t.Errorf("error message: want %q, got %q", want, env.Error)
+	}
+}
+
+func assertNoMemberWrites(t *testing.T, members *stubMemberRepositoryForHandler, users *stubUserRepositoryForHandler) {
+	t.Helper()
+	if members.createCalls != 0 || members.updateCalls != 0 || members.removeCalls != 0 || users.getCalls != 0 {
+		t.Fatalf("unexpected calls: create=%d update=%d remove=%d user_get=%d", members.createCalls, members.updateCalls, members.removeCalls, users.getCalls)
+	}
+}
+
+func TestGetMyCompany_NoSubjectReturns401(t *testing.T) {
+	svc := newMemberHandlerService(&stubMemberRepositoryForHandler{}, &stubUserRepositoryForHandler{}, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{})
+	rec := doReq(t, router, http.MethodGet, "/me/company", "")
+	memberAssertCatalogEnvelope(t, rec, http.StatusUnauthorized, httpjson.CodeUnauthenticated)
+	assertErrorMessage(t, rec, "unauthenticated")
+}
+
+func TestGetMyCompany_MemberButCompanyNotFound(t *testing.T) {
+	userID := uuid.New()
+	companyID := uuid.New()
+	member := &entities.CompanyMember{
+		ID: uuid.New(), UserID: userID, CompanyID: companyID,
+		Role:      valueobjects.OwnerRole,
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}
+	mRepo := &stubMemberRepositoryForHandler{getByUserOut: member}
+	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub"}}
+	cRepo := &stubMemberCompanyRepositoryForHandler{getErr: entities.ErrCompanyNotFound}
+	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
+	router := newMemberRouter(t, svc, "sub", identitysecurity.CompanyContext{})
+	rec := doReq(t, router, http.MethodGet, "/me/company", "")
+	memberAssertCatalogEnvelope(t, rec, http.StatusNotFound, httpjson.CodeNotFound)
+	assertErrorMessage(t, rec, "company not found")
+}
+
+func TestGetMyCompany_UnexpectedCompanyError(t *testing.T) {
+	var logBuf bytes.Buffer
+	captureSlog(t, &logBuf)
+	userID := uuid.New()
+	member := &entities.CompanyMember{
+		ID: uuid.New(), UserID: userID, CompanyID: uuid.New(),
+		Role:      valueobjects.OwnerRole,
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}
+	cRepo := &stubMemberCompanyRepositoryForHandler{getErr: errors.New("db: conn refused")}
+	mRepo := &stubMemberRepositoryForHandler{getByUserOut: member}
+	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub"}}
+	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
+	router := newMemberRouter(t, svc, "sub", identitysecurity.CompanyContext{})
+	rec := doReq(t, router, http.MethodGet, "/me/company", "")
+	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+	body := rec.Body.String()
+	if strings.Contains(body, "conn refused") || strings.Contains(body, "db:") {
+		t.Errorf("injected detail must not appear in wire: %s", body)
+	}
+	logOut := logBuf.String()
+	if !strings.Contains(logOut, "conn refused") {
+		t.Errorf("injected detail must appear in slog; got: %s", logOut)
+	}
+	if mRepo.createCalls > 0 || mRepo.updateCalls > 0 || mRepo.removeCalls > 0 {
+		t.Errorf("no writes expected: create=%d update=%d remove=%d",
+			mRepo.createCalls, mRepo.updateCalls, mRepo.removeCalls)
+	}
+}
+
+func TestListMembers_UnexpectedServiceError(t *testing.T) {
+	var logBuf bytes.Buffer
+	captureSlog(t, &logBuf)
+	companyID := uuid.New()
+	mRepo := &stubMemberRepositoryForHandler{listErr: errors.New("pg: pool exhausted")}
+	svc := newMemberHandlerService(mRepo, &stubUserRepositoryForHandler{}, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
+	rec := doReq(t, router, http.MethodGet, "/me/company/members", "")
+	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+	body := rec.Body.String()
+	if strings.Contains(body, "pool exhausted") {
+		t.Errorf("injected detail must not appear in wire: %s", body)
+	}
+	logOut := logBuf.String()
+	if !strings.Contains(logOut, "pool exhausted") {
+		t.Errorf("injected detail must appear in slog; got: %s", logOut)
+	}
+	if mRepo.createCalls > 0 || mRepo.updateCalls > 0 || mRepo.removeCalls > 0 {
+		t.Errorf("no writes expected: create=%d update=%d remove=%d",
+			mRepo.createCalls, mRepo.updateCalls, mRepo.removeCalls)
+	}
+}
+
+func TestAddMember_MissingCompanyContextIsServerError(t *testing.T) {
+	members := &stubMemberRepositoryForHandler{}
+	users := &stubUserRepositoryForHandler{}
+	svc := newMemberHandlerService(members, users, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{})
+	rec := doReq(t, router, http.MethodPost, "/me/company/members",
+		`{"user_id":"`+uuid.New().String()+`","role":"recruiter"}`)
+	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+	assertNoMemberWrites(t, members, users)
+}
+
+// * Invalid user_id → 400 invalid_request, "invalid user_id".
+func TestAddMember_InvalidUserIDReturns400(t *testing.T) {
+	companyID := uuid.New()
+	svc := newMemberHandlerService(&stubMemberRepositoryForHandler{}, &stubUserRepositoryForHandler{}, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
+	rec := doReq(t, router, http.MethodPost, "/me/company/members", `{"user_id":"bad","role":"recruiter"}`)
+	memberAssertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
+	assertErrorMessage(t, rec, "invalid user_id")
+}
+
+// * User not found → 404 "user not found".
+func TestAddMember_UserNotFound(t *testing.T) {
+	companyID := uuid.New()
+	uRepo := &stubUserRepositoryForHandler{byIDErr: identityentities.ErrUserNotFound}
+	svc := newMemberHandlerService(&stubMemberRepositoryForHandler{}, uRepo, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
+	rec := doReq(t, router, http.MethodPost, "/me/company/members",
+		`{"user_id":"`+uuid.New().String()+`","role":"recruiter"}`)
+	memberAssertCatalogEnvelope(t, rec, http.StatusNotFound, httpjson.CodeNotFound)
+	assertErrorMessage(t, rec, "user not found")
+}
+
+// * Unexpected user repo error → 500; member writes untouched.
+func TestAddMember_UserLookupUnexpectedError(t *testing.T) {
+	var logBuf bytes.Buffer
+	captureSlog(t, &logBuf)
+	companyID := uuid.New()
+	uRepo := &stubUserRepositoryForHandler{byIDErr: errors.New("user repo: timeout")}
+	mRepo := &stubMemberRepositoryForHandler{}
+	svc := newMemberHandlerService(mRepo, uRepo, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
+	rec := doReq(t, router, http.MethodPost, "/me/company/members",
+		`{"user_id":"`+uuid.New().String()+`","role":"recruiter"}`)
+	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+	body := rec.Body.String()
+	if strings.Contains(body, "timeout") || strings.Contains(body, "user repo") {
+		t.Errorf("injected detail must not appear in wire: %s", body)
+	}
+	logOut := logBuf.String()
+	if !strings.Contains(logOut, "timeout") {
+		t.Errorf("injected detail must appear in slog; got: %s", logOut)
+	}
+	if mRepo.createCalls > 0 || mRepo.updateCalls > 0 || mRepo.removeCalls > 0 {
+		t.Errorf("member writes must not be called: create=%d update=%d remove=%d",
+			mRepo.createCalls, mRepo.updateCalls, mRepo.removeCalls)
+	}
+}
+
+// * Unexpected Create error → 500; Update/Remove untouched.
+func TestAddMember_CreateUnexpectedError(t *testing.T) {
+	var logBuf bytes.Buffer
+	captureSlog(t, &logBuf)
+	companyID := uuid.New()
+	mRepo := &stubMemberRepositoryForHandler{createErr: errors.New("pg: serializable conflict")}
+	svc := newMemberHandlerService(mRepo, &stubUserRepositoryForHandler{}, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
+	rec := doReq(t, router, http.MethodPost, "/me/company/members",
+		`{"user_id":"`+uuid.New().String()+`","role":"recruiter"}`)
+	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+	body := rec.Body.String()
+	if strings.Contains(body, "serializable") || strings.Contains(body, "pg:") {
+		t.Errorf("injected detail must not appear in wire: %s", body)
+	}
+	logOut := logBuf.String()
+	if !strings.Contains(logOut, "serializable conflict") {
+		t.Errorf("injected detail must appear in slog; got: %s", logOut)
+	}
+	if mRepo.createCalls == 0 {
+		t.Errorf("Create must be called")
+	}
+	if mRepo.updateCalls > 0 || mRepo.removeCalls > 0 {
+		t.Errorf("no unintended writes: update=%d remove=%d", mRepo.updateCalls, mRepo.removeCalls)
+	}
+}
+
+// --- PATCH /me/company/members/{id} (gated) ---
+
+// * Missing CompanyContext → 500.
+func TestUpdateMemberRole_MissingCompanyContextIsServerError(t *testing.T) {
+	members := &stubMemberRepositoryForHandler{}
+	users := &stubUserRepositoryForHandler{}
+	svc := newMemberHandlerService(members, users, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{})
+	rec := doReq(t, router, http.MethodPatch, "/me/company/members/"+uuid.New().String(), `{"role":"owner"}`)
+	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+	assertNoMemberWrites(t, members, users)
+}
+
+// * Invalid member UUID → 400 invalid_request, "invalid member id".
+func TestUpdateMemberRole_InvalidMemberIDReturns400(t *testing.T) {
+	companyID := uuid.New()
+	svc := newMemberHandlerService(&stubMemberRepositoryForHandler{}, &stubUserRepositoryForHandler{}, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
+	rec := doReq(t, router, http.MethodPatch, "/me/company/members/not-a-uuid", `{"role":"owner"}`)
+	memberAssertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
+	assertErrorMessage(t, rec, "invalid member id")
+}
+
+// * ErrInvalidMemberRole → 400 invalid_request, "invalid member role".
+func TestUpdateMemberRole_InvalidRoleReturns400(t *testing.T) {
+	companyID := uuid.New()
+	mRepo := &stubMemberRepositoryForHandler{updateErr: valueobjects.ErrInvalidMemberRole}
+	svc := newMemberHandlerService(mRepo, &stubUserRepositoryForHandler{}, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
+	rec := doReq(t, router, http.MethodPatch, "/me/company/members/"+uuid.New().String(), `{"role":"admin"}`)
+	memberAssertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
+	assertErrorMessage(t, rec, "invalid member role")
+}
+
+// * Malformed JSON body → 400 invalid_request, "invalid JSON body".
+func TestUpdateMemberRole_MalformedJSONBody(t *testing.T) {
+	companyID := uuid.New()
+	svc := newMemberHandlerService(&stubMemberRepositoryForHandler{}, &stubUserRepositoryForHandler{}, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
+	rec := doReq(t, router, http.MethodPatch, "/me/company/members/"+uuid.New().String(), `{bad json}`)
+	memberAssertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
+	assertErrorMessage(t, rec, "invalid JSON body")
+}
+
+// * Unexpected UpdateRole error → 500; user repo not called.
+func TestUpdateMemberRole_UnexpectedServiceError(t *testing.T) {
+	var logBuf bytes.Buffer
+	captureSlog(t, &logBuf)
+	companyID := uuid.New()
+	mRepo := &stubMemberRepositoryForHandler{updateErr: errors.New("tx: rollback failed")}
+	uRepo := &stubUserRepositoryForHandler{}
+	svc := newMemberHandlerService(mRepo, uRepo, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
+	rec := doReq(t, router, http.MethodPatch, "/me/company/members/"+uuid.New().String(), `{"role":"owner"}`)
+	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+	body := rec.Body.String()
+	if strings.Contains(body, "rollback") || strings.Contains(body, "tx:") {
+		t.Errorf("injected detail must not appear in wire: %s", body)
+	}
+	logOut := logBuf.String()
+	if !strings.Contains(logOut, "rollback failed") {
+		t.Errorf("injected detail must appear in slog; got: %s", logOut)
+	}
+	if mRepo.updateCalls == 0 {
+		t.Errorf("UpdateRole must be called")
+	}
+	if uRepo.getCalls > 0 {
+		t.Errorf("userRepo.GetByCognitoSub must NOT be called on gated path: got %d", uRepo.getCalls)
+	}
+	if mRepo.createCalls != 0 || mRepo.removeCalls != 0 {
+		t.Errorf("unrelated writes: create=%d remove=%d", mRepo.createCalls, mRepo.removeCalls)
+	}
+}
+
+// --- DELETE /me/company/members/{id} (gated) ---
+
+// * Missing CompanyContext → 500.
+func TestRemoveMember_MissingCompanyContextIsServerError(t *testing.T) {
+	members := &stubMemberRepositoryForHandler{}
+	users := &stubUserRepositoryForHandler{}
+	svc := newMemberHandlerService(members, users, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{})
+	rec := doReq(t, router, http.MethodDelete, "/me/company/members/"+uuid.New().String(), "")
+	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+	assertNoMemberWrites(t, members, users)
+}
+
+// * Invalid member UUID → 400 invalid_request, "invalid member id".
+func TestRemoveMember_InvalidMemberIDReturns400(t *testing.T) {
+	companyID := uuid.New()
+	svc := newMemberHandlerService(&stubMemberRepositoryForHandler{}, &stubUserRepositoryForHandler{}, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
+	rec := doReq(t, router, http.MethodDelete, "/me/company/members/not-a-uuid", "")
+	memberAssertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
+	assertErrorMessage(t, rec, "invalid member id")
+}
+
+// * Member not found → 404 "company member not found".
+func TestRemoveMember_MemberNotFound(t *testing.T) {
+	companyID := uuid.New()
+	mRepo := &stubMemberRepositoryForHandler{removeErr: entities.ErrMemberNotFound}
+	svc := newMemberHandlerService(mRepo, &stubUserRepositoryForHandler{}, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
+	rec := doReq(t, router, http.MethodDelete, "/me/company/members/"+uuid.New().String(), "")
+	memberAssertCatalogEnvelope(t, rec, http.StatusNotFound, httpjson.CodeNotFound)
+	assertErrorMessage(t, rec, "company member not found")
+}
+
+// * Unexpected Remove error → 500; user repo not called; Create/Update untouched.
+func TestRemoveMember_UnexpectedRemoveError(t *testing.T) {
+	var logBuf bytes.Buffer
+	captureSlog(t, &logBuf)
+	companyID := uuid.New()
+	mRepo := &stubMemberRepositoryForHandler{removeErr: errors.New("db: lock not acquired")}
+	uRepo := &stubUserRepositoryForHandler{}
+	svc := newMemberHandlerService(mRepo, uRepo, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
+	rec := doReq(t, router, http.MethodDelete, "/me/company/members/"+uuid.New().String(), "")
+	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+	body := rec.Body.String()
+	if strings.Contains(body, "lock") || strings.Contains(body, "db:") {
+		t.Errorf("injected detail must not appear in wire: %s", body)
+	}
+	logOut := logBuf.String()
+	if !strings.Contains(logOut, "lock not acquired") {
+		t.Errorf("injected detail must appear in slog; got: %s", logOut)
+	}
+	if mRepo.removeCalls == 0 {
+		t.Errorf("Remove must be called")
+	}
+	if mRepo.createCalls > 0 || mRepo.updateCalls > 0 {
+		t.Errorf("no unintended writes: create=%d update=%d", mRepo.createCalls, mRepo.updateCalls)
+	}
+	if uRepo.getCalls > 0 {
+		t.Errorf("userRepo.GetByCognitoSub must NOT be called on gated path: got %d", uRepo.getCalls)
+	}
+}
+
+// --- Wire triangulation: same code, different safe messages ---
+
+// * invalid user_id vs malformed JSON body → both invalid_request, messages differ.
+func TestTriangulation_InvalidRequestMessagesDiffer(t *testing.T) {
+	companyID := uuid.New()
+	svc := newMemberHandlerService(&stubMemberRepositoryForHandler{}, &stubUserRepositoryForHandler{}, &stubMemberCompanyRepositoryForHandler{})
+	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
+
+	recA := doReq(t, router, http.MethodPost, "/me/company/members", `{"user_id":"bad","role":"recruiter"}`)
+	memberAssertCatalogEnvelope(t, recA, http.StatusBadRequest, httpjson.CodeInvalidRequest)
+	assertErrorMessage(t, recA, "invalid user_id")
+
+	recB := doReq(t, router, http.MethodPatch, "/me/company/members/"+uuid.New().String(), `{bad`)
+	memberAssertCatalogEnvelope(t, recB, http.StatusBadRequest, httpjson.CodeInvalidRequest)
+	assertErrorMessage(t, recB, "invalid JSON body")
+
+	var envA, envB httpjson.ErrorEnvelope
+	json.Unmarshal(recA.Body.Bytes(), &envA)
+	json.Unmarshal(recB.Body.Bytes(), &envB)
+	if envA.Error == envB.Error {
+		t.Errorf("invalid_request messages must differ: got same %q twice", envA.Error)
+	}
+}
+
+// * company-not-found vs user-not-found → both not_found, messages differ.
+func TestTriangulation_NotFoundMessagesDiffer(t *testing.T) {
+	companyID := uuid.New()
+	userID := uuid.New()
+	member := &entities.CompanyMember{
+		ID: uuid.New(), UserID: userID, CompanyID: companyID, Role: valueobjects.OwnerRole,
+		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
+	}
+	mRepoA := &stubMemberRepositoryForHandler{getByUserOut: member}
+	uRepoA := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub"}}
+	cRepoA := &stubMemberCompanyRepositoryForHandler{getErr: entities.ErrCompanyNotFound}
+	svcA := newMemberHandlerService(mRepoA, uRepoA, cRepoA)
+	routerA := newMemberRouter(t, svcA, "sub", identitysecurity.CompanyContext{})
+	recA := doReq(t, routerA, http.MethodGet, "/me/company", "")
+	memberAssertCatalogEnvelope(t, recA, http.StatusNotFound, httpjson.CodeNotFound)
+	assertErrorMessage(t, recA, "company not found")
+
+	uRepoB := &stubUserRepositoryForHandler{byIDErr: identityentities.ErrUserNotFound}
+	svcB := newMemberHandlerService(&stubMemberRepositoryForHandler{}, uRepoB, &stubMemberCompanyRepositoryForHandler{})
+	routerB := newMemberRouter(t, svcB, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
+	recB := doReq(t, routerB, http.MethodPost, "/me/company/members",
+		`{"user_id":"`+uuid.New().String()+`","role":"recruiter"}`)
+	memberAssertCatalogEnvelope(t, recB, http.StatusNotFound, httpjson.CodeNotFound)
+	assertErrorMessage(t, recB, "user not found")
+
+	var envA, envB httpjson.ErrorEnvelope
+	json.Unmarshal(recA.Body.Bytes(), &envA)
+	json.Unmarshal(recB.Body.Bytes(), &envB)
+	if envA.Error == envB.Error {
+		t.Errorf("not_found messages must differ: got same %q twice", envA.Error)
+	}
+}
