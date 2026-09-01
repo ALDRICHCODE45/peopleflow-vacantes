@@ -17,10 +17,14 @@ package http
 // CompanyContext injection helper pin down.
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 
@@ -28,6 +32,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	identityrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/repositories"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/google/uuid"
@@ -144,7 +149,7 @@ func (s *stubLivenessRepo) IsCompanyLive(_ context.Context, _ uuid.UUID) (bool, 
 var (
 	_ identityrepositories.UserRepository    = (*stubUserRepo)(nil)
 	_ repositories.CompanyMemberRepository   = (*stubMemberRepo)(nil)
-	_ repositories.CompanyLivenessRepository = (*stubLivenessRepo)(nil)
+_ repositories.CompanyLivenessRepository = (*stubLivenessRepo)(nil)
 )
 
 // --- helpers --------------------------------------------------------------
@@ -268,8 +273,14 @@ func TestRequireCompanyRole_RecruiterUnderOwnerIsForbidden(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, reqWithSub(http.MethodPost, "/me/company/members", "sub-recruiter"))
 
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d: %s", rec.Code, rec.Body.String())
+	assertCatalogEnvelope(t, rec, httpjson.CodeForbidden, http.StatusForbidden)
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	// Insufficient role: exact safe distinct message.
+	if env.Error != "insufficient role" {
+		t.Errorf("error field: want %q, got %q", "insufficient role", env.Error)
 	}
 	if invoked {
 		t.Error("handler invoked despite insufficient role")
@@ -282,6 +293,7 @@ func TestRequireCompanyRole_RecruiterUnderOwnerIsForbidden(t *testing.T) {
 // TestRequireCompanyRole_NonMemberIsForbidden covers the spec scenario
 // "non-member is 403": caller has no membership row — the middleware
 // MUST short-circuit to 403 and MUST NOT invoke the handler.
+// The safe message MUST be distinct from "insufficient role" (both 403).
 func TestRequireCompanyRole_NonMemberIsForbidden(t *testing.T) {
 	userID := uuid.New()
 
@@ -297,8 +309,20 @@ func TestRequireCompanyRole_NonMemberIsForbidden(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, reqWithSub(http.MethodGet, "/me/company/members", "sub-stranger"))
 
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d: %s", rec.Code, rec.Body.String())
+	assertCatalogEnvelope(t, rec, httpjson.CodeForbidden, http.StatusForbidden)
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	// Non-member: exact safe distinct message, different from "insufficient role".
+	if env.Error != "not a member of any company" {
+		t.Errorf("error field: want %q, got %q", "not a member of any company", env.Error)
+	}
+	// Explicitly prove the two 403 messages differ.
+	safeMsgInsufficient := "insufficient role"
+	safeMsgNonMember := "not a member of any company"
+	if safeMsgInsufficient == safeMsgNonMember {
+		t.Errorf("distinctness: forbidden safe messages must differ; got same value %q", safeMsgInsufficient)
 	}
 	if invoked {
 		t.Error("handler invoked despite missing membership")
@@ -326,9 +350,7 @@ func TestRequireCompanyRole_UnknownSubIsUnauthorized(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, reqWithSub(http.MethodGet, "/me/company/members", "sub-missing"))
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("want 401, got %d: %s", rec.Code, rec.Body.String())
-	}
+	assertCatalogEnvelope(t, rec, httpjson.CodeUnauthenticated, http.StatusUnauthorized)
 	if invoked {
 		t.Error("handler invoked despite unknown sub")
 	}
@@ -473,9 +495,7 @@ func TestRequireCompanyRole_MissingClaimsIsUnauthorized(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("want 401, got %d: %s", rec.Code, rec.Body.String())
-	}
+	assertCatalogEnvelope(t, rec, httpjson.CodeUnauthenticated, http.StatusUnauthorized)
 	if invoked {
 		t.Error("handler invoked despite missing claims")
 	}
@@ -498,8 +518,6 @@ func TestRequireCompanyRole_MissingClaimsIsUnauthorized(t *testing.T) {
 //   - The happy path (live company, role >= minRole) MUST still pass
 //     AND MUST hit the liveness probe exactly once — a guard against a
 //     future refactor that doubles the probe or accidentally drops it.
-
-const livenessGateReason = "company is inactive"
 
 // TestRequireCompanyRole_TombstonedCompanyIsForbidden covers the
 // liveness gate failing closed on a soft-deleted company: the stub
@@ -529,12 +547,7 @@ func TestRequireCompanyRole_TombstonedCompanyIsForbidden(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, reqWithSub(http.MethodPost, "/me/company/members", "sub-tombstoned"))
 
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if got, want := rec.Body.String(), `{"error":"forbidden","reason":"`+livenessGateReason+`"}`; got != want {
-		t.Errorf("body: want %q, got %q", want, got)
-	}
+	assertCatalogEnvelope(t, rec, httpjson.CodeCompanyInactive, http.StatusForbidden)
 	if invoked {
 		t.Error("handler invoked despite tombstoned company")
 	}
@@ -570,12 +583,8 @@ func TestRequireCompanyRole_MissingCompanyIsForbidden(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, reqWithSub(http.MethodPost, "/me/company/members", "sub-missing-co"))
 
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("want 403, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if got, want := rec.Body.String(), `{"error":"forbidden","reason":"`+livenessGateReason+`"}`; got != want {
-		t.Errorf("body: want %q, got %q (tombstone vs missing MUST be indistinguishable)", want, got)
-	}
+	// Tombstone vs missing MUST be indistinguishable.
+	assertCatalogEnvelope(t, rec, httpjson.CodeCompanyInactive, http.StatusForbidden)
 	if invoked {
 		t.Error("handler invoked despite missing company")
 	}
@@ -609,9 +618,7 @@ func TestRequireCompanyRole_LivenessLookupErrorIsInternalError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, reqWithSub(http.MethodGet, "/me/company/members", "sub-live-err"))
 
-	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("want 500, got %d: %s", rec.Code, rec.Body.String())
-	}
+	assertCatalogEnvelope(t, rec, httpjson.CodeInternalError, http.StatusInternalServerError)
 	if invoked {
 		t.Error("handler invoked despite liveness lookup error")
 	}
@@ -655,5 +662,106 @@ func TestRequireCompanyRole_LivenessProbeCalledOnce(t *testing.T) {
 	}
 	if liveness.liveCalls != 1 {
 		t.Errorf("liveness probe calls: want 1, got %d (must be hit exactly once)", liveness.liveCalls)
+	}
+}
+
+// --- 6. unexpected-error branch (require-company-role-internal-error slice) ---
+//
+// The three scenarios below pin the contract of the unexpected-error branch
+// for ALL THREE repository calls in RequireCompanyRole:
+//
+//   - User lookup unexpected error  → 500 + code:internal_error + canonical message
+//   - Membership lookup unexpected error → 500 + code:internal_error + canonical message
+//   - Liveness lookup unexpected error → 500 + code:internal_error + canonical message
+//
+// Each case asserts:
+//   1. HTTP 500 and catalog code "internal_error".
+//   2. Canonical message "an internal error occurred" is in the response body.
+//   3. The injected detail is ABSENT from the response body (non-leak).
+//   4. The injected detail IS PRESENT in the captured slog output (observability).
+//   5. The downstream handler is NOT invoked.
+//
+// A compact table-driven structure reuses the same helper per branch.
+
+// TestRequireCompanyRole_InternalErrors proves all three unexpected-error
+// branches share the same 500 contract. Each row uses a private buffer-backed
+// slog logger to capture the injected detail in the server log.
+func TestRequireCompanyRole_InternalErrors(t *testing.T) {
+	const canonicalMsg = "an internal error occurred"
+
+	tests := []struct {
+		name           string
+		userResolveErr error // nil → user lookup succeeds; non-nil → returned
+		memberErr      error // nil → membership succeeds; non-nil → returned
+		live           bool
+		liveErr        error
+		injected       string // token that should appear in the log but NOT in the wire
+	}{
+		{name: "user lookup unexpected error", userResolveErr: errors.New("boom: user repo failed"), injected: "boom: user repo failed"},
+		{name: "membership lookup unexpected error", userResolveErr: nil, memberErr: errors.New("boom: membership lookup failed"), injected: "boom: membership lookup failed"},
+		{name: "liveness lookup unexpected error", userResolveErr: nil, memberErr: nil, live: true, liveErr: errors.New("boom: liveness check failed"), injected: "boom: liveness check failed"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			userID := uuid.New()
+			companyID := uuid.New()
+
+			users := &stubUserRepo{
+				resolved:   &identityentities.User{ID: userID, CognitoSub: "sub-internal-err"},
+				resolveErr: tt.userResolveErr,
+		}
+
+			var resolvedMember *entities.CompanyMember
+			if tt.memberErr == nil {
+				resolvedMember = &entities.CompanyMember{ID: uuid.New(), UserID: userID, CompanyID: companyID, Role: valueobjects.OwnerRole}
+			}
+			members := &stubMemberRepo{resolvedMember: resolvedMember, resolveErr: tt.memberErr}
+			liveness := &stubLivenessRepo{live: tt.live, liveErr: tt.liveErr}
+
+			// Capture slog output: redirect the global logger to a private buffer.
+			var logBuf bytes.Buffer
+			prev := slog.Default().Handler()
+			slog.SetDefault(slog.New(slog.NewJSONHandler(&logBuf, nil)))
+			t.Cleanup(func() { slog.SetDefault(slog.New(prev)) })
+
+			invoked := false
+			h := RequireCompanyRole(users, members, liveness, valueobjects.OwnerRole)(
+				http.HandlerFunc(func(http.ResponseWriter, *http.Request) { invoked = true }),
+			)
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, reqWithSub(http.MethodGet, "/me/company/members", "sub-internal-err"))
+
+			// 1. HTTP 500 + catalog code "internal_error".
+			assertCatalogEnvelope(t, rec, httpjson.CodeInternalError, http.StatusInternalServerError)
+
+			// 2. Exact canonical message "an internal error occurred" in body.
+			body := rec.Body.String()
+			var env httpjson.ErrorEnvelope
+			if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+				t.Fatalf("decode catalog envelope: %v", err)
+			}
+			if env.Error != canonicalMsg {
+				t.Errorf("error: want %q, got %q", canonicalMsg, env.Error)
+			}
+
+			// 3. Injected detail ABSENT from wire.
+			if strings.Contains(body, tt.injected) {
+				t.Errorf("body must NOT contain injected detail %q; got: %s", tt.injected, body)
+			}
+
+			// 4. Injected detail PRESENT in captured server log.
+			// t.Logf exposes slog output in test results without a custom handler.
+			logOutput := logBuf.String()
+			t.Logf("server log capture: %s", logOutput)
+			if !strings.Contains(logOutput, tt.injected) {
+				t.Errorf("injected detail %q must appear in server log; got: %s", tt.injected, logOutput)
+			}
+
+			// 5. Downstream handler NOT invoked.
+			if invoked {
+				t.Error("handler invoked despite internal error")
+			}
+		})
 	}
 }

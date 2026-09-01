@@ -17,6 +17,7 @@ import (
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identityrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 )
 
 // RequireCompanyRole returns a middleware that resolves the
@@ -41,16 +42,16 @@ import (
 //     liveness via the narrow CompanyLivenessRepository. A tombstoned
 //     company (`deleted_at IS NOT NULL`) and a missing company (no
 //     such row, ErrCompanyNotFound) collapse to the SAME 403 with
-//     reason "company is inactive" — the gate MUST NOT reveal which
-//     one it saw, because that would leak the existence of
-//     soft-deleted companies to a probing caller (R7 invariant
-//     extension: a soft-deleted company is invisible on every
-//     role-gated route, not just the membership read). An unexpected
-//     liveness lookup error maps to 500 (the existing generic
-//     internal-error response). Liveness runs AFTER membership
-//     resolution (so a stranger doesn't probe company existence via
-//     the gate) and BEFORE role comparison (so the handler never
-//     receives a CompanyContext for a tombstoned company).
+//     code `company_inactive` — the gate MUST NOT reveal which one it
+//     saw, because that would leak the existence of soft-deleted
+//     companies to a probing caller (R7 invariant extension: a
+//     soft-deleted company is invisible on every role-gated route,
+//     not just the membership read). An unexpected liveness lookup
+//     error maps to 500 (the existing generic internal-error response).
+//     Liveness runs AFTER membership resolution (so a stranger
+//     doesn't probe company existence via the gate) and BEFORE role
+//     comparison (so the handler never receives a CompanyContext for
+//     a tombstoned company).
 //   - On success, CompanyContext{company_id, user_id, role} is injected and
 //     the downstream handler runs.
 //
@@ -83,6 +84,7 @@ func RequireCompanyRole(
 					respondUnauthorized(w, "unknown subject")
 					return
 				}
+				// Unexpected error: log and return generic 500.
 				slog.Error("company role middleware: user lookup failed", "error", err)
 				respondServerError(w)
 				return
@@ -91,7 +93,7 @@ func RequireCompanyRole(
 			member, err := members.GetMembershipByUserID(r.Context(), user.ID)
 			if err != nil {
 				if errors.Is(err, entities.ErrNotAMember) {
-					respondForbidden(w, "not a member of any company")
+					respondForbiddenSafe(w, "not a member of any company")
 					return
 				}
 				slog.Error("company role middleware: membership lookup failed", "error", err)
@@ -108,16 +110,16 @@ func RequireCompanyRole(
 			// A tombstoned company (`deleted_at IS NOT NULL`) AND a
 			// missing company (pgx.ErrNoRows →
 			// entities.ErrCompanyNotFound) collapse to the SAME 403
-			// with reason "company is inactive" — the gate MUST
-			// NOT reveal which one it saw, because that would leak the
+			// with code `company_inactive` — the gate MUST NOT reveal
+			// which one it saw, because that would leak the
 			// existence of soft-deleted companies to a probing caller.
 			// Any other liveness error is treated as 500 (the error is
-			// logged via slog; the wire body is the generic internal-
-			// error response).
+			// logged via slog; the wire body is the generic
+			// internal-error response).
 			live, err := liveness.IsCompanyLive(r.Context(), member.CompanyID)
 			if err != nil {
 				if errors.Is(err, entities.ErrCompanyNotFound) {
-					respondForbidden(w, "company is inactive")
+					respondCompanyInactive(w)
 					return
 				}
 				slog.Error("company role middleware: liveness lookup failed", "error", err)
@@ -125,12 +127,12 @@ func RequireCompanyRole(
 				return
 			}
 			if !live {
-				respondForbidden(w, "company is inactive")
+				respondCompanyInactive(w)
 				return
 			}
 
 			if member.Role < minRole {
-				respondForbidden(w, "insufficient role")
+				respondForbiddenSafe(w, "insufficient role")
 				return
 			}
 
@@ -144,19 +146,29 @@ func RequireCompanyRole(
 	}
 }
 
-// respondForbidden writes a 403 JSON error body. Centralized so the
-// middleware response shape mirrors respondUnauthorized.
-func respondForbidden(w http.ResponseWriter, reason string) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusForbidden)
-	_, _ = w.Write([]byte(`{"error":"forbidden","reason":"` + reason + `"}`))
+
+
+// respondForbiddenSafe writes a 403 catalog envelope with code "forbidden".
+// The safe message is the domain-specific reason, not the canonical
+// generic message.
+func respondForbiddenSafe(w http.ResponseWriter, safeMsg string) {
+	def := httpjson.SafeMessage(
+		httpjson.Resolve(httpjson.CodeForbidden),
+		safeMsg,
+	)
+	httpjson.WriteCatalogError(w, def)
 }
 
-// respondServerError writes a 500 JSON error body. The real error is
-// logged by the caller; the wire response is intentionally generic so
-// internal failures don't leak to the client.
+// respondCompanyInactive writes a 403 catalog envelope with code "company_inactive".
+// Used for both tombstoned and missing companies — the code is identical so
+// the gate does not leak which condition it saw.
+func respondCompanyInactive(w http.ResponseWriter) {
+	httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeCompanyInactive))
+}
+
+// respondServerError writes a 500 catalog envelope with code "internal_error".
+// The real error is logged by the caller; the wire response is intentionally
+// generic so internal failures don't leak to the client.
 func respondServerError(w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusInternalServerError)
-	_, _ = w.Write([]byte(`{"error":"internal server error"}`))
+	httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
 }

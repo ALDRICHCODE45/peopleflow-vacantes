@@ -293,3 +293,51 @@ Behavioral failure: bare DTO body (`{"id":"...","status":"draft",...}`) has no `
 **Ownership correction (user-authorized):** Applications catalog outcomes (`already_exists` for duplicate application), auth/role 403 `forbidden`, and 413 `payload_too_large` evidence remain owned by tasks 1.5 and 6.2 respectively. Task 1.4 owns only Candidates/Industries/Jobs HTTP catalog outcomes as listed above.
 
 **Exact final candidate:** 279 additions + 56 deletions = 335 changed lines against `HEAD` (`8322a8e`), including tasks and apply evidence; this is within the 400-line budget. **Checked state: 20/96** — tasks 1.1, 1.2, 1.6 (RU1/RU1B), 1.3 (RU2 companies), and 1.4 (RED, GREEN, TRIANGULATE, REFACTOR) complete. Tasks 1.5+ remain unchecked and unchanged by this pass.
+
+---
+
+## RU2 task 1.5A — Identity catalog adoption (Identity-only slice)
+
+> **Scope:** `RequireAuth` and `RequireCompanyRole` middleware catalog adoption. Membership work deferred. Applications catalog deferred to task 1.5B. Task 1.5 checkboxes remain unchecked.
+
+### Strict TDD — RED
+
+Focused behavioral tests failed against legacy envelopes because `code` was absent and authentication failures exposed an ad-hoc `reason` shape. The Identity-only GREEN assertions below replace that legacy contract.
+
+### Strict TDD — GREEN / TRIANGULATION
+
+- `middleware.go`: `respondUnauthorized` → catalog `unauthenticated`; `WWW-Authenticate` retained; no `reason` field; verifier detail absent.
+- `requireCompanyRole.go`: `respondForbiddenSafe(w, msg)` → `forbidden` with safe domain message; `respondCompanyInactive(w)` → `company_inactive` (tombstoned and missing indistinguishable); `respondServerError(w)` → `internal_error`, detail logged, generic body.
+- **Non-leak evidence:** `TestRequireAuth_InvalidToken` asserts no "token"/"verify"/"signature" in body; `TestRequireCompanyRole_InternalErrors` table (3 subtests) proves injected detail absent from wire and present in captured slog output.
+- **Forbidden safe-message distinction:** `TestRequireCompanyRole_RecruiterUnderOwnerIsForbidden` asserts exact `"insufficient role"` message; `TestRequireCompanyRole_NonMemberIsForbidden` asserts exact `"not a member of any company"` message; explicit distinctness check proves messages differ; `json.Unmarshal` errors are not discarded.
+
+### Test table (new additions in this corrective pass)
+
+| Test | Scenario | Key assertions |
+| ---- | -------- | -------------- |
+| `TestRequireCompanyRole_InternalErrors/user lookup unexpected error` | User repo returns non-sentinel error | 500 + `code: internal_error` + canonical msg; detail absent from wire; detail in captured slog |
+| `TestRequireCompanyRole_InternalErrors/membership lookup unexpected error` | Member repo returns non-sentinel error | Same 5 assertions as above |
+| `TestRequireCompanyRole_InternalErrors/liveness lookup unexpected error` | Liveness repo returns non-sentinel error | Same 5 assertions as above |
+| `TestRequireCompanyRole_RecruiterUnderOwnerIsForbidden` | Insufficient role | Exact `"insufficient role"` message; `json.Unmarshal` error handled |
+| `TestRequireCompanyRole_NonMemberIsForbidden` | No membership row | Exact `"not a member of any company"`; messages differ from above; `json.Unmarshal` error handled |
+
+### Commands run
+
+```bash
+go test ./internal/features/identity/infrastructure/http/... -count=1  # PASS
+go test ./... -count=1                                               # PASS (full backend Go suite)
+git diff --check                                                      # PASS (no whitespace errors)
+```
+
+### Exact final HEAD numstat
+
+```
+backend/internal/features/identity/infrastructure/http/middleware.go               11      6
+backend/internal/features/identity/infrastructure/http/middleware_test.go           43     10
+backend/internal/features/identity/infrastructure/http/requireCompanyRole.go         42     30
+backend/internal/features/identity/infrastructure/http/requireCompanyRole_test.go   136    28
+openspec/changes/backend-go-closure/apply-progress.md                         48      0
+```
+
+**Totals:** 280 additions + 74 deletions = 354 lines. Within 400-line budget. Membership/Applications deferred. No test-count claims made; assertions as stated above. No changes to non-Identity files.
+.

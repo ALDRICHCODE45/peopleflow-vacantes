@@ -4,17 +4,42 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
 )
+
+// catalogEnvelope helper: parses rec.Body into an ErrorEnvelope and fails
+// the test if decoding fails or any assertion misses.
+func assertCatalogEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantCode httpjson.Code, wantStatus int) {
+	t.Helper()
+	if rec.Code != wantStatus {
+		t.Fatalf("status: want %d, got %d: %s", wantStatus, rec.Code, rec.Body.String())
+	}
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode catalog envelope: %v; body: %s", err, rec.Body.String())
+	}
+	if env.Code != wantCode {
+		t.Errorf("code: want %q, got %q", wantCode, env.Code)
+	}
+	if env.Error == "" {
+		t.Error("error field: want non-empty, got empty")
+	}
+	if env.Data != nil {
+		t.Errorf("data: want nil for non-conflict envelope, got %v", env.Data)
+	}
+    }
 
 var (
 	mwTestKey    *rsa.PrivateKey
@@ -124,8 +149,9 @@ func TestRequireAuth_MissingHeader(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", rec.Code)
+	assertCatalogEnvelope(t, rec, httpjson.CodeUnauthenticated, http.StatusUnauthorized)
+	if rec.Header().Get("WWW-Authenticate") == "" {
+		t.Error("WWW-Authenticate header: want non-empty, got empty")
 	}
 	if invoked {
 		t.Error("downstream handler should not be invoked")
@@ -145,8 +171,9 @@ func TestRequireAuth_InvalidBearerScheme(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", rec.Code)
+	assertCatalogEnvelope(t, rec, httpjson.CodeUnauthenticated, http.StatusUnauthorized)
+	if rec.Header().Get("WWW-Authenticate") == "" {
+		t.Error("WWW-Authenticate header: want non-empty, got empty")
 	}
 	if invoked {
 		t.Error("downstream handler should not be invoked")
@@ -154,7 +181,7 @@ func TestRequireAuth_InvalidBearerScheme(t *testing.T) {
 }
 
 // TestRequireAuth_InvalidToken proves the spec scenario "invalid cases
-// return 401".
+// return 401". The verifier failure detail must NOT leak to the client.
 func TestRequireAuth_InvalidToken(t *testing.T) {
 	verifier := newTestVerifier(t)
 	invoked := false
@@ -167,8 +194,13 @@ func TestRequireAuth_InvalidToken(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", rec.Code)
+	assertCatalogEnvelope(t, rec, httpjson.CodeUnauthenticated, http.StatusUnauthorized)
+	if rec.Header().Get("WWW-Authenticate") == "" {
+		t.Error("WWW-Authenticate header: want non-empty, got empty")
+	}
+	// No verifier detail in body — safe generic message only.
+	if strings.Contains(rec.Body.String(), "token") || strings.Contains(rec.Body.String(), "verify") || strings.Contains(rec.Body.String(), "signature") {
+		t.Errorf("body must not leak verifier detail: %s", rec.Body.String())
 	}
 	if invoked {
 		t.Error("downstream handler should not be invoked")
@@ -188,8 +220,9 @@ func TestRequireAuth_EmptyBearerToken(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusUnauthorized {
-		t.Errorf("expected 401, got %d", rec.Code)
+	assertCatalogEnvelope(t, rec, httpjson.CodeUnauthenticated, http.StatusUnauthorized)
+	if rec.Header().Get("WWW-Authenticate") == "" {
+		t.Error("WWW-Authenticate header: want non-empty, got empty")
 	}
 	if invoked {
 		t.Error("downstream handler should not be invoked")
@@ -237,6 +270,6 @@ func TestRequireAuth_PreservesContextForDownstream(t *testing.T) {
 	}
 	claims := security.ClaimsFromContext(seenContext)
 	if claims.Subject != "sub-ctx" {
-		t.Errorf("Subject: want sub-ctx, got %q", claims.Subject)
+			t.Errorf("Subject: want sub-ctx, got %q", claims.Subject)
 	}
 }
