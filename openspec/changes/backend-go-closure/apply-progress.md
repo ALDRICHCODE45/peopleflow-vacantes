@@ -747,7 +747,33 @@ Rollback: remove the race decorator/helpers/test and uncheck task 2.4. B2a remai
 **Verification (corrected, factual):** the `backend/migrate` ELF story, stated accurately — an earlier corrective worker briefly ran `go build ./cmd/migrate/`, recreating the generated ELF `backend/migrate`, then deleted that ELF itself; the final tree ships no `backend/migrate` artifact (the later independent verifier's `go build ./...` did not recreate it). `go test ./cmd/migrate ./db/migrations -count=1` = 2 pkgs ok (this closure: compile-repaired table literals, gofmt-clean, focused lock-timeout probes `TestRunLockAcquisitionIsBounded`/`TestNewUnlockContextIndependentAndBounded`/`TestAdvisoryLockKeyMatchesDocumentedHex` all PASS); `go vet ./cmd/migrate ./db/migrations` OK; `gofmt -l` on the four files empty; `git diff --check HEAD` clean. No live DB or real DSN used; stub-driver tests cover migration-failure and unlock-failure paths.
 **Not in this unit (deferred to WS4A-B per split):** live round-trip harness (`main_integration_test.go`, `-tags=integration -p 1`), Makefile labelling, go.mod tidiness. Task 4.1 remains unchecked.
 **Candidate:** 391 source/test lines in the four untracked files (`cmd/migrate/main.go` 136, `main_test.go` 190, `db/migrations/embed.go` 18, `embed_test.go` 47) + 8 progress lines = 399 ≤ 400. Rollback boundary: delete `backend/cmd/migrate/` and `backend/db/migrations/embed.go`+`embed_test.go`; existing Make/goose path untouched. Task state remains 48/96.
+
 ## WS4A-B task 4.1 — live built-binary migration closeout
+
 **TRIANGULATE:** Built binary PASS: safe unreachable failure; disposable DB first/idempotent up, status, 11 downs to version 0, re-up catalog equality; lock serialization; SIGINT exit 3 exact static lock record.
 **Verification:** `go test -tags=integration -p 1 -count=1 ./cmd/migrate ./db/migrations`, `go test ./... -count=1`, `go vet ./...`, `go build ./...`, and `git diff --check` PASS; zero skips.
 **Candidate:** 391 additions + 9 deletions = 400 changed lines. **Task state: 52/96** — task 4.1 closed.
+
+## WS4B task 4.2 — CORRECTIVE RED REPLAY (evidence-only; explicitly NOT historical chronology)
+
+> This entry records a parent-authorized, evidence-only corrective replay. It does NOT rewrite or claim the historical task-4.2 RED chronology: no valid RED ever existed in the real tree for 4.2, because the original recorded RED failed on missing symbols instead of behavior. The real workspace backend files were never modified by this replay.
+
+**Why the original RED was invalid:** the first task-4.2 RED failed with missing-symbol/compiler errors, which the task conventions ("RED that fails only because a package/symbol does not compile is invalid and must not be recorded as RED") and the task-4.2 RED row itself forbid. The GREEN/TRIANGULATE/REFACTOR rows had also been checked before any WS4B commit landed, violating `openspec/config.yaml` ("Mark tasks with [x] only after the corresponding commit lands"); all four task-4.2 rows were therefore returned to unchecked at replay time.
+
+**Corrective replay protocol (isolated temporary copy only):** `backend/` was copied to a fresh `mktemp -d` directory excluding `.env`, `.env.*`, `*.pem`, `*.key`, `*.crt`, and binaries (`backend/migrate`, `*.exe`, `*.test`, `*.out`); a find sweep over the copy proved none of those were present. In the copy ONLY, the two production implementations were replaced by compile-safe scaffolds preserving every symbol the already-written tests need: adapter `Handle` always returned one static "not implemented" error and did not reject wrong trigger sources; `cmd/postconfirmation` `loadConfig`/`run` refused every configuration with one static "not implemented" error, creating no dependency and starting nothing.
+
+**Behavioral RED failures observed under the compile-safe temp scaffolds (sanitized; both packages compiled — zero build failures):**
+
+- Adapter package (4/4 top-level tests failed): the attribute-forwarding test failed because `Handle` returned the static not-implemented error and invoked the handler zero times; both official-trigger-source subtests failed identically; all five wrong-source subtests failed expecting `ErrUnsupportedTriggerSource` but got the not-implemented error (proving the scaffold does not reject wrong sources); the handler-error-propagation test failed because the static scaffold error replaced the handler's own error.
+- Executable package (2/2 top-level tests failed): all five valid-config `loadConfig` subtests failed with "loadConfig returned error: ... not implemented"; the invalid-config subtests passed incidentally against the always-error stub; the `run` subtests failed with zero pool opens, zero pings, zero pool closes, and "run returned error" for both the valid production and the valid local-explicit-false configurations — the stub refuses even the valid local case, exactly the failure class the RED row predicts. Every observed failure message was a static literal: no email, name, attribute, DSN, credential, or raw DB/driver text was captured or persisted.
+
+**Real-tree state after the replay:**
+
+- Byte-identity proven: the aggregate sha256 over all `backend/` files is identical before and after the replay — `269e9e64a7437be257399af0883a279c390b1929594afc33eec7c3eec5941b31`.
+- Focused GREEN commands rerun in the real workspace: `cd backend && go test ./internal/features/identity/infrastructure/lambdapostconfirmation/... -count=1` PASS; `cd backend && go test ./cmd/postconfirmation/... -count=1` PASS (both suites are fake-backed unit tests — no AWS runtime or service calls, no DB contact).
+- Live integration and full gates for the WS4B candidates were already independently passed (adapter live idempotency under `-tags=integration -p 1`, full `go test ./...`, `go build ./...`) and remain valid; this replay changed no source.
+- Cleanup proven: the temp directory was removed and `test ! -e` confirmed it gone; no `ws4b-red-replay.*` directory remains under /tmp.
+
+**Budgets and replay-time task state:** WS4B-A candidate 319 changed lines (`go.mod`/`go.sum` + adapter/tests); WS4B-B candidate 400 changed lines (`cmd/postconfirmation` main/tests). At replay time the task state remained **52/96**, with all four task-4.2 rows unchecked until their commits landed.
+
+**Post-commit closure:** WS4B-A landed as `0242088`; WS4B-B landed as `a6c51a5`. All four task-4.2 rows are now checked. **Task state: 56/96**; next ordered unit is task 5.1 (WS5A).
