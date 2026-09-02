@@ -758,3 +758,63 @@ func TestApplicationsRecruiterRoute_MountedBehindGates(t *testing.T) {
 	t.Logf("parsed %s: %d gated recruiter Route(\"/jobs/{jobId}/applications\") subtrees behind both requireAuth+requireRecruiter",
 		filePath, len(gatedRoutes))
 }
+
+// industryRegistrationMethods is the chi.Router method set that can
+// register a route. The scan collects ANY of them targeting the exact
+// "/industries" path literal so a duplicate cannot hide behind a
+// different mutation.
+func industryRegistrationMethods(name string) bool {
+	switch name {
+	case "Mount", "Get", "Post", "Put", "Patch", "Delete", "Route", "Group", "Handle", "HandleFunc":
+		return true
+	}
+	return false
+}
+
+// TestIndustriesRoute_SingleCanonicalRegistration asserts the WS3B
+// "exactly one industries registration" spec scenario at the composition
+// root: main.go calls the production-owned registrar
+// (industrieshttp.RegisterRoutes) EXACTLY once and itself registers NO
+// literal "/industries" route. A reintroduced r.Get/r.Mount
+// ("/industries", ...) duplicate or a second registrar call fails here;
+// the path literal is matched exactly so a typo cannot sneak past.
+func TestIndustriesRoute_SingleCanonicalRegistration(t *testing.T) {
+	const filePath = "main.go"
+
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		t.Skipf("cannot parse %s (run with cwd=backend/cmd/api): %v", filePath, err)
+	}
+
+	var registrarCalls, literalRegs []string
+
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		if x, ok := sel.X.(*ast.Ident); ok && x.Name == "industrieshttp" && sel.Sel.Name == "RegisterRoutes" {
+			registrarCalls = append(registrarCalls, sel.Sel.Name)
+		}
+		if industryRegistrationMethods(sel.Sel.Name) && len(call.Args) > 0 {
+			if bl, ok := call.Args[0].(*ast.BasicLit); ok && bl.Kind == token.STRING && bl.Value == `"/industries"` {
+				literalRegs = append(literalRegs, sel.Sel.Name)
+			}
+		}
+		return true
+	})
+
+	if len(registrarCalls) != 1 {
+		t.Fatalf("expected exactly ONE industrieshttp.RegisterRoutes call in main.go, got %d", len(registrarCalls))
+	}
+	if len(literalRegs) != 0 {
+		t.Fatalf("no literal /industries chi registration may remain in main.go; the route must go through industrieshttp.RegisterRoutes, got %v", literalRegs)
+	}
+
+	t.Logf("parsed %s: %d industrieshttp.RegisterRoutes call(s), %d literal /industries registrations", filePath, len(registrarCalls), len(literalRegs))
+}

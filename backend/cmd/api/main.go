@@ -207,7 +207,9 @@ func run() error {
 		_, _ = w.Write([]byte("ok"))
 	})
 
-	r.Mount("/industries", industrieshttp.ListIndustries(queries))
+	// GET /industries — the ONLY industries registration: it goes through
+	// the production-owned registrar, guarded by
+	// TestIndustriesRoute_SingleCanonicalRegistration.
 
 	// /companies is split across two auth planes because its two verbs have
 	// different visibility:
@@ -224,7 +226,7 @@ func run() error {
 		// handler reads to resolve the subject → users.id.
 		r.With(identityhttp.RequireAuth(verifier)).Post("/companies", companyHandlers.CreateCompany)
 	}
-	r.Get("/industries", industrieshttp.ListIndustries(queries))
+	industrieshttp.RegisterRoutes(r, queries)
 
 	// /jobs is the public-read job board. Both routes (GET /jobs and
 	// GET /jobs/{id}) are reachable WITHOUT authentication: the spec

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 
@@ -72,5 +73,109 @@ func TestListIndustries_InternalErrorReturnsCatalogEnvelope(t *testing.T) {
 	// The injected "db: connection refused" must not appear.
 	if strings.Contains(body, "connection refused") {
 		t.Errorf("error message must not leak DB detail: %s", body)
+	}
+}
+
+// decodeIndustryArray decodes a successful GET /industries body as a
+// slice of raw-keyed objects so tests can assert the EXACT key set.
+func decodeIndustryArray(t *testing.T, rec *httptest.ResponseRecorder) []map[string]json.RawMessage {
+	t.Helper()
+	var rows []map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &rows); err != nil {
+		t.Fatalf("decode response as JSON array: %v; body=%s", err, rec.Body.String())
+	}
+	return rows
+}
+
+// assertExactWireKeys proves one element carries exactly the four contract
+// fields — no `active`, no `created_at`, no `updated_at`, nothing else.
+func assertExactWireKeys(t *testing.T, elem map[string]json.RawMessage) {
+	t.Helper()
+	got := make([]string, 0, len(elem))
+	for k := range elem {
+		got = append(got, k)
+	}
+	sort.Strings(got)
+	want := []string{"id", "label_en", "label_es", "sort_order"}
+	if !equalStrings(got, want) {
+		t.Errorf("element keys: want exactly %v, got %v", want, got)
+	}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// TestListIndustries_WireShapeExactlyFourFields pins the WS3B public
+// contract: a 200 JSON array (never null) whose elements carry exactly
+// id, label_es, label_en, and sort_order — and the zero-row edge stays
+// `[]`, never `null`.
+func TestListIndustries_WireShapeExactlyFourFields(t *testing.T) {
+	stub := &stubDBQueries{listIndustriesOut: []db.Industry{
+		{ID: "technology", LabelEs: "Tecnología", LabelEn: "Technology", SortOrder: 10},
+	}}
+	handler := ListIndustries(stub)
+
+	req := httptest.NewRequest(http.MethodGet, "/industries", nil)
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	rows := decodeIndustryArray(t, rec)
+	if rows == nil {
+		t.Fatal("response decoded as null; want a JSON array (never null)")
+	}
+	if len(rows) != 1 {
+		t.Fatalf("want 1 element, got %d", len(rows))
+	}
+	assertExactWireKeys(t, rows[0])
+	if string(rows[0]["id"]) != `"technology"` {
+		t.Errorf("id: want %q, got %s", "technology", rows[0]["id"])
+	}
+
+	empty := ListIndustries(&stubDBQueries{})
+	req2 := httptest.NewRequest(http.MethodGet, "/industries", nil)
+	rec2 := httptest.NewRecorder()
+	empty.ServeHTTP(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("empty catalog: want 200, got %d: %s", rec2.Code, rec2.Body.String())
+	}
+	if strings.TrimSpace(rec2.Body.String()) == "null" {
+		t.Fatal("empty catalog serialized as null; want []")
+	}
+	rows2 := decodeIndustryArray(t, rec2)
+	if rows2 == nil || len(rows2) != 0 {
+		t.Fatalf("empty catalog: want empty non-null array, got %v (%s)", rows2, rec2.Body.String())
+	}
+}
+
+// TestListIndustries_AuthorizationHeaderIgnored pins the public
+// contract: a present (even garbage) Bearer token is ignored.
+func TestListIndustries_AuthorizationHeaderIgnored(t *testing.T) {
+	stub := &stubDBQueries{listIndustriesOut: []db.Industry{
+		{ID: "technology", LabelEs: "Tecnología", LabelEn: "Technology", SortOrder: 10},
+	}}
+	handler := ListIndustries(stub)
+
+	req := httptest.NewRequest(http.MethodGet, "/industries", nil)
+	req.Header.Set("Authorization", "Bearer garbage-ws3b-token")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("Authorization header must be ignored; want 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "technology") {
+		t.Errorf("catalog rows must be served despite Authorization header: %s", rec.Body.String())
 	}
 }

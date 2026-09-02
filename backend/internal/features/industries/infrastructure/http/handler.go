@@ -8,6 +8,7 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
+	"github.com/go-chi/chi/v5"
 )
 
 // industriesReader is the minimal interface ListIndustries needs.
@@ -51,4 +52,12 @@ func ListIndustries(q industriesReader) http.HandlerFunc {
 
 		httpjson.WriteJSON(w, http.StatusOK, resp)
 	}
+}
+
+// RegisterRoutes is the production-owned industries route registrar: the
+// single canonical GET /industries registration. The composition root
+// (backend/cmd/api/main.go) and the live integration smoke both call this
+// exact function so the served route and the evidence route cannot drift.
+func RegisterRoutes(r chi.Router, q industriesReader) {
+	r.Get("/industries", ListIndustries(q))
 }

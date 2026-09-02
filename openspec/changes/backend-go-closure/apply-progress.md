@@ -729,3 +729,13 @@ Rollback: remove the race decorator/helpers/test and uncheck task 2.4. B2a remai
 **REFACTOR:** stale "leave unchanged on update" comments replaced with full-replacement wording in handler/DTO/usecase/repository/SQL. Verification: `go vet ./...`, `go test ./... -count=1`, `go test -tags=integration -p 1 -count=1 ./internal/features/candidates/... ./internal/db/...` (disposable `peopleflow_ws3a`, zero skips in candidates packages), gofmt clean, `git diff --check` — all PASS.
 
 **Task state: 44/96** — task 3.1 is checked after the parent split A/B into two bounded candidates.
+
+---
+
+## WS3B task 3.2 — Industries contract + single canonical route (corrective pass)
+
+**RED (verifier FAIL = corrective RED):** integration smoke recreated `r.Get("/industries", ...)` itself instead of exercising production wiring. **GREEN:** new production-owned registrar `industrieshttp.RegisterRoutes(r, q)` (handler.go); `main.go` calls it exactly once; live smoke `canonicalIndustriesRouter` calls the same registrar. Guard rewritten: EXACTLY one `industrieshttp.RegisterRoutes` call and ZERO literal `/industries` chi registrations in main.go; RED captured (`got 0`), mutation checks FAIL correctly on a duplicate registrar call (`got 2`) and a reintroduced literal `r.Get` (`got [Get]`).
+
+**TRIANGULATE (live `/tmp/peopleflow-ws3b.env`):** unchanged contract evidence — inactive excluded, tied `sort_order=5` id-ordering (`ws3b_b < ws3b_a < ws3b_c`), exact four-key elements, 200+`application/json`, Authorization ignored, closed-pool 500 `internal_error` envelope — all served through the shared registrar. **REFACTOR/verification:** focused industries+cmd/api, full unit (38 pkgs), live integration (5 PASS, no skips), both `go vet` modes, gofmt, `git diff --check` — all PASS.
+
+**Candidate:** 393 changed lines (192 additions + 6 deletions tracked + 195 untracked), ≤ 400. **Task state: 48/96** — task 3.2 closed; next ordered task is 4.1.
