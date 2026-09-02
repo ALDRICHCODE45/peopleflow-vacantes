@@ -314,121 +314,67 @@ func TestUpdateCompany_InvalidSize(t *testing.T) {
 	}
 }
 
-// --- 7. update lost race (rowcount=0) re-reads as ErrConcurrencyConflict ---
+// --- 7. update lost race after observation classifies as 409 ---
 
-// TestUpdateCompany_UpdateLostRaceRereadsAsConflict pins the
-// "tight race between use-case GetCompanyForUpdate and adapter
-// Update" scenario (D12 step 5-6). The repo's UpdateCompany
-// returns ErrCompanyNotFound (0 rows); the use case re-reads via
-// GetCompanyForUpdate; the re-read returns a row (a concurrent
-// writer updated the company); the use case returns
-// (latest view, ErrConcurrencyConflict).
-func TestUpdateCompany_UpdateLostRaceRereadsAsConflict(t *testing.T) {
+// TestUpdateCompany_UpdateLostRaceAfterDeleteTombstoneReturnsConflict
+// pins the WS2D-B carve for PATCH-after-DELETE: even if DELETE tombstoned
+// the row between step 1 and step 5, a 0-row adapter result is 409 (NOT
+// 404 — pre-WS2D-B was 404). The repository stub returns ErrCompanyNotFound
+// from UpdateCompany (matching the live adapter's 0-row result); the use
+// case classifies it as ErrConcurrencyConflict with the pre-race editor
+// view (no re-read). Mirrors TestSoftDeleteCompany_LostCASConflictEvenWhenRowGone.
+func TestUpdateCompany_UpdateLostRaceAfterDeleteTombstoneReturnsConflict(t *testing.T) {
 	companyID := uuid.New()
 	rowUpdatedAt := time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC)
 	stored := makeStoredCompany(t, companyID, rowUpdatedAt)
-	rereadUpdatedAt := time.Date(2026, 2, 1, 10, 5, 0, 0, time.UTC) // newer
-	reread := makeStoredCompany(t, companyID, rereadUpdatedAt)
 
 	repo := &stubUpdateRepo{
-		getForUpdateOut: stored,
-		updateErr:       entities.ErrCompanyNotFound,
+		getForUpdateOut: stored,                      // step 1 observes the row
+		updateErr:       entities.ErrCompanyNotFound, // 0-row adapter result (live: tombstoned between step 1 and step 5)
 	}
-	// WU4 needs the stub to return the reread on the SECOND
-	// GetCompanyForUpdate call; the WU3 stub-repaired design stores
-	// the row in getForUpdateOut and the test mutates it after the
-	// first call. The simplest expression is to add a per-call
-	// sequence; since the WU4 stub inherits a single
-	// getForUpdateOut, we model the sequence by having the test
-	// replace the row between calls via a custom stub.
-	customRepo := &sequentialRepo{
-		stored1: stored,
-		stored2: reread,
-	}
-	svc := NewCompanyService(customRepo)
+	svc := NewCompanyService(repo)
 
 	view, err := svc.UpdateCompany(context.Background(), companyID, uuid.New(), dtos.UpdateCompanyDto{}, rowUpdatedAt)
 
 	if !errors.Is(err, entities.ErrConcurrencyConflict) {
-		t.Fatalf("want ErrConcurrencyConflict on lost race re-read, got: %v", err)
+		t.Fatalf("PATCH-after-DELETE-wins: want ErrConcurrencyConflict (409), got: %v", err)
 	}
 	if view == nil {
-		t.Fatal("want non-nil view (the re-read returns a row)")
+		t.Fatal("want non-nil view on 409 (pre-race editor view)")
 	}
-	if !view.UpdatedAt.Equal(rereadUpdatedAt) {
-		t.Errorf("view.UpdatedAt: want %v, got %v", rereadUpdatedAt, view.UpdatedAt)
-	}
-	if repo.updateCalls != 0 {
-		// guard against accidentally exercising both stubs in the same test.
-		t.Errorf("repo.updateCalls should be 0 here (this test uses sequentialRepo), got %d", repo.updateCalls)
+	if !view.UpdatedAt.Equal(rowUpdatedAt) {
+		t.Errorf("view.UpdatedAt: want %v (pre-race), got %v", rowUpdatedAt, view.UpdatedAt)
 	}
 }
 
-// sequentialRepo returns stored1 on the first GetCompanyForUpdate call
-// and stored2 on the second. Other calls return defaults. Used by the
-// lost-race test to model the "use case re-reads after a 0-row
-// UPDATE" sequence without exposing a slice of pre-loaded rows on the
-// base stub.
-type sequentialRepo struct {
-	stored1 *entities.Company
-	stored2 *entities.Company
+// --- 8a. unrelated adapter errors propagate unchanged (no classification) ---
 
-	mu                sync.Mutex
-	getForUpdateCalls int
-}
-
-func (s *sequentialRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.getForUpdateCalls++
-	if s.getForUpdateCalls == 1 && s.stored1 != nil {
-		copy := *s.stored1
-		return &copy, nil
-	}
-	if s.getForUpdateCalls >= 2 && s.stored2 != nil {
-		copy := *s.stored2
-		return &copy, nil
-	}
-	return nil, entities.ErrCompanyNotFound
-}
-
-func (s *sequentialRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time, _ auditentities.AuditEvent) error {
-	return entities.ErrCompanyNotFound
-}
-
-func (s *sequentialRepo) Create(_ context.Context, _ *entities.Company) error { return nil }
-func (s *sequentialRepo) GetByID(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
-	return nil, entities.ErrCompanyNotFound
-}
-func (s *sequentialRepo) SoftDeleteCompany(_ context.Context, _ uuid.UUID, _ time.Time, _ auditentities.AuditEvent) error {
-	return nil
-}
-
-var _ repositories.CompanyRepository = (*sequentialRepo)(nil)
-
-// --- 8. update lost race re-read returns ErrCompanyNotFound ---
-
-// TestUpdateCompany_UpdateLostRaceRereadEmpty pins the
-// "use case re-read after 0-row UPDATE finds the row gone"
-// scenario (D12 step 6 — the row was tombstoned between the
-// GetCompanyForUpdate and the adapter Update). The repo's
-// UpdateCompany returns ErrCompanyNotFound; the re-read also
-// returns ErrCompanyNotFound; the use case propagates 404.
-func TestUpdateCompany_UpdateLostRaceRereadEmpty(t *testing.T) {
+// TestUpdateCompany_UnrelatedAdapterErrorPropagates pins the post-WS2D-B
+// branch "any other error from UpdateCompany is returned to the caller
+// unchanged" (defense-in-depth for non-CAS pg errors, e.g. 23514 with an
+// unrecognized constraint name, or a raw connection failure). The use
+// case must NOT classify unrelated errors as ErrConcurrencyConflict and
+// must NOT project a view (the caller cannot trust the row state when
+// the adapter surfaced an unclassified error).
+func TestUpdateCompany_UnrelatedAdapterErrorPropagates(t *testing.T) {
 	companyID := uuid.New()
 	rowUpdatedAt := time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC)
 	stored := makeStoredCompany(t, companyID, rowUpdatedAt)
 
-	repo := &sequentialRepo{
-		stored1: stored,
-		stored2: nil, // re-read returns ErrCompanyNotFound (default)
+	rawErr := errors.New("simulated connection failure")
+	repo := &stubUpdateRepo{
+		getForUpdateOut: stored,
+		updateErr:       rawErr,
 	}
 	svc := NewCompanyService(repo)
 
-	_, err := svc.UpdateCompany(context.Background(), companyID, uuid.New(), dtos.UpdateCompanyDto{}, rowUpdatedAt)
+	view, err := svc.UpdateCompany(context.Background(), companyID, uuid.New(), dtos.UpdateCompanyDto{}, rowUpdatedAt)
 
-	if !errors.Is(err, entities.ErrCompanyNotFound) {
-		t.Fatalf("want ErrCompanyNotFound on lost race + re-read empty, got: %v", err)
+	if err != rawErr {
+		t.Fatalf("want unrelated error to propagate unchanged, got: %v", err)
+	}
+	if view != nil {
+		t.Errorf("view: want nil on unrelated adapter error, got %+v", view)
 	}
 }
 

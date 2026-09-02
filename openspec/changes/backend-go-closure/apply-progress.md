@@ -678,3 +678,17 @@ Race evidence: **not claimed**; races belong to B2 (`TaskCompanies_Race` and the
 Rollback: revert `deleteCompany.go` to the pre-B1 step-4 re-read path, restore the race type/helpers/test in `companyRepository_ws2db_integration_test.go`, and drop the B1 entry from this file. No handler or PATCH file touched.
 
 **Task state: 36/96** — task 2.4 remains UNCHECKED pending WS2D-B2 (live PATCH/DELETE controlled-order races + zero-audit assertions).
+
+## WS2D-B2a — PATCH post-observation conflict semantics (partial 2.4)
+
+**Scope:** classify the adapter's zero-row result after the step-1 company read as `ErrConcurrencyConflict`; preserve initial absence as `ErrCompanyNotFound` and propagate unrelated adapter errors unchanged. Live race orchestration and task 2.4 closure remain B2b.
+
+### TDD evidence
+
+- RED from the pre-B2 branch: DELETE-wins/PATCH-loses returned `ErrCompanyNotFound` after the post-loss reread; the required observed-loss contract is `ErrConcurrencyConflict` with the pre-race editor view.
+- GREEN: `UpdateCompany` no longer re-reads after an adapter `ErrCompanyNotFound`; because step 1 already observed the row, this path is a CAS loss. `TestUpdateCompany_UpdateLostRaceAfterDeleteTombstoneReturnsConflict` pins the 409-domain result and pre-race view.
+- TRIANGULATE: `TestUpdateCompany_NotFound` preserves initial-absence 404-domain behavior; `TestUpdateCompany_UnrelatedAdapterErrorPropagates` proves non-CAS errors are returned unchanged with no view.
+
+The focused use-case suite passed during apply. B2a intentionally makes no live-race, HTTP-live, audit-cardinality, full-suite, or task-completion claim. The deterministic two-order live race draft is preserved externally for B2b and task 2.4 remains unchecked.
+
+Rollback: restore the post-loss reread and its sequence stub/tests. B2b must then be redesigned because DELETE-wins/PATCH-loses would again classify as 404.

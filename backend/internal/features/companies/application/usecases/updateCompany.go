@@ -1,34 +1,16 @@
 // Package usecases (companies): the UpdateCompany orchestrator for
 // PATCH /me/company (companies-write slice, design D12 PATCH flow).
 //
-// UpdateCompany runs in 8 steps (design D12 step 1–8):
+// UpdateCompany (7 steps; D12 step 1–8 with WS2D-A re-read removed):
 //
-//  1. Read for update (GetCompanyForUpdate; 0 rows → ErrCompanyNotFound →
-//     handler 404; covers non-existent / cross-company / soft-deleted).
-//  2. CAS compare (If-Unmodified-Since vs row.UpdatedAt; stale /
-//     missing / malformed → (latest view, ErrConcurrencyConflict) →
-//     handler 409 + view).
-//  3. VO parse on the present fields (name, description, size,
-//     founded_year) when present → 400 sentinel propagates.
-//  4. Build the patch (UpdateCompanyPatch: tri-state profile columns
-//     pass through unchanged; size stores the parsed String(); founded_year
-//     stores the int; name / description store the trimmed raw value).
-//  5. Update (adapter returns ErrCompanyNotFound on 0 rows; the use
-//     case re-reads and either maps to 404 or 409-with-latest-view).
-//  6. On 0 rows + re-read empty → ErrCompanyNotFound → handler 404.
-//     On 0 rows + re-read returns a row → (latest view,
-//     ErrConcurrencyConflict) → handler 409 + latest view.
-//  7. On 1 row success → re-read for the authoritative post-write
-//     UpdatedAt (the SQL UPDATE used clock_timestamp()).
-//  8. Project the editor view and return (view, nil) → handler 200.
+//  1. Read for update (0 rows → 404).  2. CAS compare (mismatch → 409).
+//  3. VO parse → 400 sentinel.        4. Build the patch.
+//  5. Update (0 rows after step 1 = CAS loss, even if DELETE tombstoned).
+//  6. On 0 rows → (pre-race view, ErrConcurrencyConflict).
+//  7. On success → re-read for post-write UpdatedAt, project.
 //
-// Return contract:
-//
-//	success                            → (view, nil)
-//	ErrConcurrencyConflict             → (view, err)            (view = latest editor view)
-//	ErrCompanyNotFound                 → (nil, err)
-//	any VO 4xx sentinel                → (nil, err)
-//	any 500-class                      → (nil, err)
+// Return contract: success → (view, nil); ErrConcurrencyConflict →
+// (pre-race view, err); ErrCompanyNotFound / VO 4xx / 500-class → (nil, err).
 package usecases
 
 import (
@@ -188,18 +170,10 @@ func (s *CompanyService) UpdateCompany(
 	//    appends the event inside the SAME tx (fail-closed co-write).
 	if err := s.repository.UpdateCompany(ctx, companyID, patch, current.UpdatedAt, event); err != nil {
 		if errors.Is(err, entities.ErrCompanyNotFound) {
-			// 6. Re-read for the latest view (or 404 if the row is
-			//    gone — soft-deleted between the use-case
-			//    GetCompanyForUpdate and the adapter UPDATE).
-			latest, rereadErr := s.repository.GetCompanyForUpdate(ctx, companyID)
-			if rereadErr != nil {
-				// Row is gone → 404. Use case surfaces
-				// ErrCompanyNotFound; handler maps to 404.
-				return nil, entities.ErrCompanyNotFound
-			}
-			// Row is still there, just changed (a concurrent writer
-			// bumped UpdatedAt): 409 + latest editor view.
-			return toCompanyEditorView(latest), entities.ErrConcurrencyConflict
+			// Post-WS2D-B: ANY 0-row adapter result after step-1
+			// observation is a concurrent CAS loss. Re-read removed —
+			// return 409 + pre-race editor view (spec R3 shape).
+			return toCompanyEditorView(current), entities.ErrConcurrencyConflict
 		}
 		// 23514 → ErrInvalidCompanyStatusTransition (defense-in-depth;
 		// unreachable via the designed flow — the use case parses
