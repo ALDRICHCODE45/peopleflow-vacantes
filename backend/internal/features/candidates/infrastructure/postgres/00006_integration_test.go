@@ -102,6 +102,33 @@ func TestCandidateProfilesHasNoStatusColumn(t *testing.T) {
 	}
 }
 
+// TestCandidateProfilesCvS3KeyReservedNullable closes the cv_s3_key
+// reserve contract at the schema level: the column must remain present
+// and nullable so the future CV slice can own it, while the API never
+// writes or exposes it (write-path and read-mapping evidence lives in
+// candidateRepository_test.go).
+func TestCandidateProfilesCvS3KeyReservedNullable(t *testing.T) {
+	pool := skipIfNoDatabaseForCandidates(t)
+	defer pool.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var dataType, isNullable string
+	if err := pool.QueryRow(ctx,
+		`SELECT data_type, is_nullable FROM information_schema.columns
+		 WHERE table_name = 'candidate_profiles' AND column_name = 'cv_s3_key'`,
+	).Scan(&dataType, &isNullable); err != nil {
+		t.Fatalf("query cv_s3_key column metadata: %v", err)
+	}
+	if dataType != "text" {
+		t.Errorf("cv_s3_key must stay a text column reserved for the CV slice, got %q", dataType)
+	}
+	if isNullable != "YES" {
+		t.Errorf("cv_s3_key must stay nullable (reserved, no API write path), got %q", isNullable)
+	}
+}
+
 // sortedKeys returns the keys of m in lexicographic order. It exists only
 // to keep the test failure messages deterministic; it is not a general
 // utility.

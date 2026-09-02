@@ -12,6 +12,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -361,6 +362,120 @@ func TestReplaceLanguagesByUserID_EmptyClearsList(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Errorf("expected 0 languages after clear, got %d: %+v", len(got), got)
+	}
+}
+
+// TestUpsertProfile_FullReplacementPersists proves the replacing upsert
+// semantics at the DB boundary: a follow-up PUT built from a fresh profile
+// clears prior values — omitted nullable fields become SQL NULL, skills
+// becomes '{}', salary_currency falls back to 'MXN' — while a present
+// field_of_study round-trips through write and read unchanged.
+func TestUpsertProfile_FullReplacementPersists(t *testing.T) {
+	repo, pool := newTestRepo(t)
+	userID := seedUser(t, pool)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	first, err := entities.NewCandidateProfile(userID.String(), entities.CandidateProfileInput{
+		EducationLevel: "bachelor",
+		Skills:         []string{"go", "aws"},
+	})
+	if err != nil {
+		t.Fatalf("first profile: %v", err)
+	}
+	first.City = strPtr("CDMX")
+	first.FieldOfStudy = strPtr("Computer Science")
+	first.SalaryCurrency = "USD"
+	if _, err := repo.UpsertProfile(ctx, first); err != nil {
+		t.Fatalf("first upsert: %v", err)
+	}
+
+	// Contrast read: present values landed verbatim.
+	var city, fos, currency sql.NullString
+	var skills string
+	if err := pool.QueryRow(ctx,
+		`SELECT city, field_of_study, skills::text, salary_currency FROM candidate_profiles WHERE user_id = $1`, userID,
+	).Scan(&city, &fos, &skills, &currency); err != nil {
+		t.Fatalf("read back first row: %v", err)
+	}
+	if !city.Valid || city.String != "CDMX" || !fos.Valid || fos.String != "Computer Science" || currency.String != "USD" {
+		t.Errorf("present fields must persist verbatim, got city=%v field_of_study=%v currency=%v", city, fos, currency)
+	}
+
+	// Second PUT: a brand-new profile with no optional fields.
+	second, err := entities.NewCandidateProfile(userID.String(), entities.CandidateProfileInput{})
+	if err != nil {
+		t.Fatalf("second profile: %v", err)
+	}
+	if _, err := repo.UpsertProfile(ctx, second); err != nil {
+		t.Fatalf("second upsert: %v", err)
+	}
+
+	if err := pool.QueryRow(ctx,
+		`SELECT city, field_of_study, skills::text, salary_currency FROM candidate_profiles WHERE user_id = $1`, userID,
+	).Scan(&city, &fos, &skills, &currency); err != nil {
+		t.Fatalf("read back replaced row: %v", err)
+	}
+	if city.Valid || fos.Valid {
+		t.Errorf("omitted nullable fields must persist NULL after replacement, got city=%v field_of_study=%v", city, fos)
+	}
+	if skills != "{}" {
+		t.Errorf("omitted skills must persist '{}', got %s", skills)
+	}
+	if !currency.Valid || currency.String != "MXN" {
+		t.Errorf("omitted salary_currency must persist 'MXN', got %v", currency)
+	}
+}
+
+// TestUpsertProfile_PreservesReservedCvS3Key proves the reserved column
+// contract: a value seeded directly in the DB survives a repository
+// upsert (the write path carries no cv_s3_key, so it is never
+// overwritten), and the internal read mapping still surfaces it to the
+// domain even though it never crosses the API wire.
+func TestUpsertProfile_PreservesReservedCvS3Key(t *testing.T) {
+	repo, pool := newTestRepo(t)
+	userID := seedUser(t, pool)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Seed a profile row directly with a reserved cv_s3_key (no API flow
+	// may establish this value; only direct DB access can).
+	if _, err := pool.Exec(ctx,
+		`INSERT INTO candidate_profiles (user_id, skills, salary_currency, cv_s3_key)
+		 VALUES ($1, '{}', 'MXN', 'resumes/reserved.pdf')`, userID,
+	); err != nil {
+		t.Fatalf("seed reserved row: %v", err)
+	}
+
+	profile, err := entities.NewCandidateProfile(userID.String(), entities.CandidateProfileInput{
+		Skills: []string{"go"},
+	})
+	if err != nil {
+		t.Fatalf("profile: %v", err)
+	}
+	profile.CVS3Key = nil // the API write path can never set this
+	if _, err := repo.UpsertProfile(ctx, profile); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+
+	var reserved sql.NullString
+	if err := pool.QueryRow(ctx,
+		`SELECT cv_s3_key FROM candidate_profiles WHERE user_id = $1`, userID,
+	).Scan(&reserved); err != nil {
+		t.Fatalf("read back cv_s3_key: %v", err)
+	}
+	if !reserved.Valid || reserved.String != "resumes/reserved.pdf" {
+		t.Errorf("reserved cv_s3_key must survive a repository upsert untouched, got %v", reserved)
+	}
+
+	// Internal read mapping is retained: the adapter surfaces the reserved
+	// value to the domain (response omission is proven at the HTTP layer).
+	got, err := repo.GetProfileByUserID(ctx, userID)
+	if err != nil {
+		t.Fatalf("GetProfileByUserID: %v", err)
+	}
+	if got.CVS3Key == nil || *got.CVS3Key != "resumes/reserved.pdf" {
+		t.Errorf("internal read mapping of CVS3Key must be retained, got %v", got.CVS3Key)
 	}
 }
 
