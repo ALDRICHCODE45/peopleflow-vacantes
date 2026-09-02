@@ -7,8 +7,8 @@
 # Available targets:
 #   make db-up         # docker compose up -d (Postgres 16)
 #   make db-down       # docker compose down
-#   make db-migrate    # apply all pending goose migrations (reads .env)
-#   make db-status     # show applied migrations
+#   make db-migrate    # local/manual external-goose workflow, not closure evidence
+#   make db-status     # local/manual external-goose workflow, not closure evidence
 #   make db-new        # create a new migration file: make db-new NAME=add_foo
 #   make sqlc          # regenerate sqlc code from db/queries/*.sql
 #   make run           # run the API server (loads .env via godotenv)
@@ -34,8 +34,8 @@ db-status:
 	$(GOOSE) status
 
 db-new:
-	@if [ -z "$(NAME)" ]; then echo "usage: make db-new NAME=add_foo"; exit 1; fi
-	$(GOOSE) create $(NAME) sql
+	@if [ -z "${NAME}" ]; then echo "usage: make db-new NAME=add_foo"; exit 1; fi
+	$(GOOSE) create ${NAME} sql
 
 sqlc:
 	$(SQLC) generate
