@@ -23,6 +23,7 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.45.0 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
+	github.com/aws/aws-lambda-go v1.55.0
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/coder/websocket v1.8.14 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
