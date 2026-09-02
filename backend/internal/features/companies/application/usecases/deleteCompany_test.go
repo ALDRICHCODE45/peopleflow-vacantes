@@ -297,35 +297,30 @@ func TestSoftDeleteCompany_RepoErrPropagates(t *testing.T) {
 	}
 }
 
-// --- 6. lost CAS (race) classification (WS2D-A) ------------------------------
+// --- 6. lost CAS (race) classification (WS2D-B) ------------------------------
 //
-// Post-WS2D-A: 0-row adapter → re-read. Present (409) / gone (404) /
-// non-domain err (propagate 500). Mirrors PATCH step 6 without editor.
+// Post-WS2D-B: once the use case has observed the company via step 1,
+// ANY 0-row adapter result classifies as ErrConcurrencyConflict (409),
+// even if the winner tombstoned the row — the post-adapter re-read
+// from WS2D-A is removed (a 0-row result is always a concurrent CAS
+// loss once observed). Mirrors PATCH step 6 without the editor view.
+// The pre-observation path (initial GetCompanyForUpdate →
+// ErrCompanyNotFound) still maps to 404 — see TestSoftDeleteCompany_NotFound.
 
 type lostCASRepo struct {
-	mu              sync.Mutex
-	firstGet        *entities.Company
-	reReadErr       error
-	reReadRow       *entities.Company
-	reReadCalls     int
-	softDeleteCalls int
-	softDeleteErr   error
+	mu                sync.Mutex
+	firstGet          *entities.Company
+	getForUpdateCalls int
+	softDeleteCalls   int
+	softDeleteErr     error
 }
 
 func (s *lostCASRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.reReadCalls == 0 && s.firstGet != nil {
-		s.reReadCalls++
+	s.getForUpdateCalls++
+	if s.firstGet != nil {
 		copy := *s.firstGet
-		return &copy, nil
-	}
-	s.reReadCalls++
-	if s.reReadErr != nil {
-		return nil, s.reReadErr
-	}
-	if s.reReadRow != nil {
-		copy := *s.reReadRow
 		return &copy, nil
 	}
 	return nil, entities.ErrCompanyNotFound
@@ -348,20 +343,19 @@ func (s *lostCASRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositori
 
 var _ repositories.CompanyRepository = (*lostCASRepo)(nil)
 
-// TestSoftDeleteCompany_LostCASConflictWhenRowStillPresent: 0-row UPDATE + row still alive → 409.
+// TestSoftDeleteCompany_LostCASConflictWhenRowStillPresent: post-WS2D-B,
+// 0-row UPDATE after a step-1 observation MUST classify as 409 — no
+// post-adapter re-read, exactly one GetCompanyForUpdate call.
 func TestSoftDeleteCompany_LostCASConflictWhenRowStillPresent(t *testing.T) {
 	companyID := uuid.New()
 	preRaceUpdatedAt := time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC)
-	postRaceUpdatedAt := preRaceUpdatedAt.Add(1 * time.Nanosecond) // concurrent writer bumped updated_at
 	stored := makeStoredCompany(t, companyID, preRaceUpdatedAt)
-	postRace := makeStoredCompany(t, companyID, postRaceUpdatedAt)
 	repo := &lostCASRepo{
 		firstGet:      stored,
-		softDeleteErr: entities.ErrCompanyNotFound, // 0-row UPDATE → adapter returns ErrCompanyNotFound
-		reReadRow:     postRace,
+		softDeleteErr: entities.ErrCompanyNotFound, // 0-row UPDATE (concurrent writer bumped updated_at)
 	}
 	svc := NewCompanyService(repo)
-	err := svc.SoftDeleteCompany(context.Background(), companyID, uuid.New(), preRaceUpdatedAt) // pre-race token + 0-row UPDATE = lost CAS
+	err := svc.SoftDeleteCompany(context.Background(), companyID, uuid.New(), preRaceUpdatedAt)
 
 	if !errors.Is(err, entities.ErrConcurrencyConflict) {
 		t.Fatalf("lost-CAS + row present: want ErrConcurrencyConflict (409), got: %v", err)
@@ -369,50 +363,33 @@ func TestSoftDeleteCompany_LostCASConflictWhenRowStillPresent(t *testing.T) {
 	if repo.softDeleteCalls != 1 {
 		t.Errorf("SoftDeleteCompany: want 1 call (no retry on lost CAS), got %d", repo.softDeleteCalls)
 	}
-	if repo.reReadCalls != 2 {
-		t.Errorf("GetCompanyForUpdate: want 2 calls (step 1 + re-read), got %d", repo.reReadCalls)
+	if repo.getForUpdateCalls != 1 {
+		t.Errorf("GetCompanyForUpdate: want exactly 1 call (no re-read), got %d", repo.getForUpdateCalls)
 	}
 }
 
-// TestSoftDeleteCompany_LostCASReturnsNotFoundWhenRowGone: 0-row UPDATE + row gone → 404.
-func TestSoftDeleteCompany_LostCASReturnsNotFoundWhenRowGone(t *testing.T) {
+// TestSoftDeleteCompany_LostCASConflictEvenWhenRowGone: post-WS2D-B,
+// the previous WS2D-A "row gone → 404" branch becomes 409 (the row was
+// observed in step 1; a 0-row adapter result is always a CAS loss even
+// if the concurrent winner tombstoned the row).
+func TestSoftDeleteCompany_LostCASConflictEvenWhenRowGone(t *testing.T) {
 	companyID := uuid.New()
 	preRaceUpdatedAt := time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC)
 	stored := makeStoredCompany(t, companyID, preRaceUpdatedAt)
 	repo := &lostCASRepo{
 		firstGet:      stored,
-		softDeleteErr: entities.ErrCompanyNotFound, // 0-row UPDATE
-		reReadErr:     entities.ErrCompanyNotFound,
+		softDeleteErr: entities.ErrCompanyNotFound, // 0-row UPDATE (winner tombstoned the row)
 	}
 	svc := NewCompanyService(repo)
-
 	err := svc.SoftDeleteCompany(context.Background(), companyID, uuid.New(), preRaceUpdatedAt)
 
-	if !errors.Is(err, entities.ErrCompanyNotFound) {
-		t.Fatalf("lost-CAS + row gone: want ErrCompanyNotFound (404), got: %v", err)
+	if !errors.Is(err, entities.ErrConcurrencyConflict) {
+		t.Fatalf("lost-CAS + row gone: want ErrConcurrencyConflict (post-WS2D-B 409), got: %v", err)
 	}
 	if repo.softDeleteCalls != 1 {
 		t.Errorf("SoftDeleteCompany: want 1 call, got %d", repo.softDeleteCalls)
 	}
-	if repo.reReadCalls != 2 {
-		t.Errorf("GetCompanyForUpdate: want 2 calls (step 1 + re-read), got %d", repo.reReadCalls)
-	}
-}
-
-func TestSoftDeleteCompany_LostCASRereadErrorPropagates(t *testing.T) {
-	stored := makeStoredCompany(t, uuid.New(), time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC))
-	injected := errors.New("transient db blip")
-	repo := &lostCASRepo{
-		firstGet:      stored,
-		softDeleteErr: entities.ErrCompanyNotFound,
-		reReadErr:     injected,
-	}
-	svc := NewCompanyService(repo)
-	err := svc.SoftDeleteCompany(context.Background(), stored.ID, uuid.New(), stored.UpdatedAt)
-	if !errors.Is(err, injected) {
-		t.Fatalf("want re-read err %v propagated unchanged, got: %v", injected, err)
-	}
-	if repo.softDeleteCalls != 1 || repo.reReadCalls != 2 {
-		t.Errorf("calls: softDelete=%d reRead=%d, want 1+2 (step 1 + re-read)", repo.softDeleteCalls, repo.reReadCalls)
+	if repo.getForUpdateCalls != 1 {
+		t.Errorf("GetCompanyForUpdate: want exactly 1 call, got %d", repo.getForUpdateCalls)
 	}
 }

@@ -1,8 +1,10 @@
 // Package usecases (companies): the SoftDeleteCompany orchestrator for
 // DELETE /me/company (companies-write slice, design D12 DELETE flow).
 //
-// SoftDeleteCompany runs in 6 steps (design D12 step 1–4 + WS2D-A
-// lost-CAS re-read at step 5–6):
+// SoftDeleteCompany runs in 4 steps (WS2D-B: the WS2D-A lost-CAS
+// re-read at step 5–6 is removed — once the use case observes the row
+// in step 1, any 0-row adapter result is a concurrent CAS loss even if
+// the winner tombstoned the row):
 //
 //  1. Read for delete (GetCompanyForUpdate; 0 rows → ErrCompanyNotFound
 //     → handler 404; cross-company / non-existent / already-soft-deleted
@@ -11,23 +13,16 @@
 //     missing / malformed → ErrConcurrencyConflict → handler 409 +
 //     EMPTY body — the spec R4 / D12 asymmetry vs PATCH).
 //  3. SoftDelete (adapter owns the pgx.Tx; soft-delete + inline close
-//     commit atomically; 0 rows → ErrCompanyNotFound → step 5–6).
+//     commit atomically; 0 rows on the adapter path →
+//     ErrConcurrencyConflict — see the return contract below).
 //  4. (no re-read on success; 204 has no body — design D12 step 4).
-//  5. WS2D-A re-read: on the 0-row adapter result, re-read
-//     GetCompanyForUpdate; the deferred tx.Rollback in the adapter
-//     restored pre-state, so the row state reflects the concurrent
-//     writer's outcome (present or gone).
-//  6. Row present → ErrConcurrencyConflict (409, no `data` per D4.2 /
-//     D12). Row gone → ErrCompanyNotFound (404). Other re-read error
-//     → propagate (500).
 //
 // Return contract:
 //
 //	success                            → nil
 //	stale / missing / malformed CAS    → ErrConcurrencyConflict (no view)
 //	GetCompanyForUpdate → ErrCompanyNotFound → ErrCompanyNotFound
-//	SoftDeleteCompany   → ErrCompanyNotFound AND re-read sees row → ErrConcurrencyConflict
-//	SoftDeleteCompany   → ErrCompanyNotFound AND re-read sees no row → ErrCompanyNotFound
+//	once observed, any zero-row adapter result → ErrConcurrencyConflict (no re-read; 404 is unreachable post-observation)
 //	any 500-class                      → err (propagated unchanged)
 package usecases
 
@@ -110,17 +105,15 @@ func (s *CompanyService) SoftDeleteCompany(
 	// 4. Soft delete — adapter owns the pgx.Tx; the soft-delete
 	//    UPDATE + the inline `jobs.status='closed'` UPDATE commit
 	//    atomically (defer tx.Rollback covers every error path).
-	//    WS2D-A: a 0-row UPDATE returns ErrCompanyNotFound WITHOUT
-	//    an audit append; re-read classifies: row present (409),
-	//    row gone (404), other re-read error → propagate (500).
+	//    Post-WS2D-B: a 0-row UPDATE returns ErrCompanyNotFound
+	//    WITHOUT an audit append; the use case observed the row in
+	//    step 1, so the 0-row result is always a concurrent CAS loss
+	//    and classifies as ErrConcurrencyConflict (no re-read — the
+	//    row state after the adapter's tx.Rollback may be anything,
+	//    and the use case can only observe the row's existence once:
+	//    either in step 1, or never).
 	if err := s.repository.SoftDeleteCompany(ctx, companyID, current.UpdatedAt, event); err != nil {
 		if errors.Is(err, entities.ErrCompanyNotFound) {
-			if _, reErr := s.repository.GetCompanyForUpdate(ctx, companyID); reErr != nil {
-				if errors.Is(reErr, entities.ErrCompanyNotFound) {
-					return entities.ErrCompanyNotFound
-				}
-				return reErr
-			}
 			return entities.ErrConcurrencyConflict
 		}
 		return err

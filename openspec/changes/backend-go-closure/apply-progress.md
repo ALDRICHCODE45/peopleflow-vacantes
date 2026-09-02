@@ -526,6 +526,7 @@ Arithmetic: 53 + 205 + 4 + 80 = 342 additions, 8 + 44 + 4 + 0 = 56 deletions. To
 **Task state: 36/96** — task 2.3 is closed; task 2.4 (WS2D PATCH/DELETE CAS + races + zero-audit) is the next unit.
 
 ---
+
 ## WS2D-A partial slice — DELETE CAS loss + malformed CAS transport + DELETE zero-audit (task 2.4 stays unchecked, deferred to WS2D-B)
 
 > **Scope:** DELETE side only. Pre-WS2D-A bug: a lost-CAS adapter result on DELETE returned `ErrCompanyNotFound` (handler → 404) — wrong when the row is just stale, not gone. Post-WS2D-A the use case re-reads on the 0-row adapter path: row present → `ErrConcurrencyConflict` (409); row gone → `ErrCompanyNotFound` (404). Mirrors PATCH step 6 without the editor view (DELETE 409 has no `data`). Deferred to WS2D-B: multi-field persistence plus bidirectional live PATCH/DELETE races.
@@ -538,6 +539,7 @@ Arithmetic: 53 + 205 + 4 + 80 = 342 additions, 8 + 44 + 4 + 0 = 56 deletions. To
 deleteCompany_test.go:411: lost-CAS + row present: want ErrConcurrencyConflict (409), got: company not found
 deleteCompany_test.go:450: GetCompanyForUpdate: want exactly 2 calls (step 1 + lost-CAS re-read), got 1
 ```
+
 Pre-WS2D-A the use case propagated `ErrCompanyNotFound` unchanged; post-WS2D-A it must re-read after the 0-row UPDATE and classify as 409 (row present) or 404 (row gone). Handler transport: `TestDeleteCompanyHandler_MalformedCASReturns409` (RFC 1123 + non-RFC3339) and `TestDeleteCompanyHandler_NotFoundReturns404NoRepoCall` pin the canonical envelope `{error, code}` with `code: conflict` (no `data`) and assert zero `repo.SoftDeleteCompany` calls on the 404 path.
 
 ### Strict TDD — GREEN + TRIANGULATE + REFACTOR
@@ -585,3 +587,94 @@ DELETE has no request body; the 400 class belongs to PATCH. PATCH CAS conflict b
 Rollback: revert `deleteCompany.go` (re-read logic + corrected step-4 comment) plus the three new unit tests + new integration test; handler tests are additive. No handler or PATCH file touched.
 
 **Task state: 36/96** — task 2.4 remains UNCHECKED; WS2D-B closes multi-field persistence plus bidirectional live PATCH/DELETE races.
+
+---
+
+## WS2D-B1 carve — all-fields live persistence + DELETE no-reread (task 2.4 stays UNCHECKED pending WS2D-B2)
+
+> **Scope:** B1 = compact all-fields `UpdateCompany` live persistence + audit delta +1 AND DELETE-side no-reread semantics (`ErrCompanyNotFound` adapter path → `ErrConcurrencyConflict`, never a second `GetCompanyForUpdate`). B2 = PATCH/DELETE controlled-order live races + zero-audit assertions. Surgical carve of the previous 410-line partial; the 286-line race file collapsed to the all-fields test plus its seeder helpers.
+
+### Strict TDD — RED (captured by the updated unit expectation)
+
+`TestSoftDeleteCompany_LostCASConflictEvenWhenRowGone` against the pre-B1 (re-read-on-zero-row) implementation:
+
+```
+lost-CAS + row gone: want ErrConcurrencyConflict (post-WS2D-B 409), got: company not found
+```
+
+The pre-B1 branch re-read after a 0-row adapter `SoftDeleteCompany` and returned `ErrCompanyNotFound` if the row was missing — wrong once the use case has observed the row in step 1, because the post-`tx.Rollback` row state is unknowable. The target branch classifies every 0-row adapter result as `ErrConcurrencyConflict` without a second read.
+
+### Strict TDD — GREEN + TRIANGULATE
+
+- `deleteCompany.go` step 4 is now `if errors.Is(err, entities.ErrCompanyNotFound) { return entities.ErrConcurrencyConflict }` — no second `GetCompanyForUpdate`, no separate re-read classifier. Initial lookup absent (step 1 `ErrCompanyNotFound`) still propagates unchanged → handler 404.
+- `deleteCompany_test.go` carries the four required scenarios — initial absence → 404 (`_NotFound`), observed row-gone adapter loss → 409 (`_LostCASConflictEvenWhenRowGone`), observed row-present adapter loss → 409 (`_LostCASConflictWhenRowStillPresent`), pre-write stale CAS → no `SoftDeleteCompany` call (`_CASMismatchReturnsConflictNoView`). No `TestSoftDeleteCompany_LostCASRereadErrorPropagates` exists: the reread-error branch is unreachable because the reread is removed.
+- `companyRepository_ws2db_integration_test.go` retains exactly `TestUpdateCompany_AllFields_PersistsEveryMutableField` plus the three pointer-typed helpers (`seedRaceCompany`, `auditCount`, `cleanupRaceCompany`) and the `ws2dbIndustryID` constant. All race infrastructure (`raceAudit`, `newBlockingAudit`, `newPassthroughAudit`, `racePair`, `TestCompanies_Race`) and the race-related imports (`errors`, `sync`, `sync/atomic`, `dtos`, `usecases`, `auditrepositories`, `pgx`, `entities`) are removed — B2 re-lands them.
+
+**Runtime B1 seed correction (`42P08` → typed RFC param):** the verifier run caught the seed SQL failing with `SQLSTATE 42P08 inconsistent types deduced for parameter $1` because `$1` was bound both as UUID (for `id`) and as text inside `substring($1::text, 1, 10)`. The minimal, in-scope fix is to compute the RFC string in Go (4-char `WSDB` prefix + first 8 hex digits of the UUID = 12 chars, uppercased via `strings.ToUpper`) and pass it as a separately typed `$3`. RFC stays valid (12 chars) and unique (UUID-derived). DELETE semantics, the four DELETE unit tests, the all-fields test body, the cleanup helpers, and the `ws2dbIndustryID` constant are untouched. `strings` is the only added import. Inline doc comment in `seedRaceCompany` documents the `42P08` rationale so the regression is not re-introduced. No task-checkbox edits, no race infrastructure re-land, no broadened coverage.
+
+### Verification (focused → full)
+
+```bash
+cd backend && set -a && . /tmp/peopleflow-ws2db.env && set +a && \
+  go test -tags=integration -p 1 -count=1 -v -run TestUpdateCompany_AllFields_PersistsEveryMutableField \
+  ./internal/features/companies/infrastructure/postgres/...
+# PASS — the all-fields live test passes (not skip) under the
+#        /tmp/peopleflow-ws2db.env DATABASE_URL. Repeatable: PASS on rerun.
+
+cd backend && set -a && . /tmp/peopleflow-ws2db.env && set +a && \
+  go test -tags=integration -p 1 -count=1 -v -run TestSoftDeleteCompany_ \
+  ./internal/features/companies/...
+# 12/12 PASS — 8 use-case units (MissingUserIDFailsClosed,
+#   CASMismatchReturnsConflictNoView, ZeroTokenReturnsConflict, NotFound,
+#   SuccessNoReread, RepoErrPropagates,
+#   LostCASConflictWhenRowStillPresent,
+#   LostCASConflictEvenWhenRowGone) + 4 integration tests
+#   (TombstonesAndClosesJobs, RollbackOnCloseFailure,
+#   StaleCASReturnsErrCompanyNotFound,
+#   LostCASAdapterPathAppendsZeroAudit).
+
+cd backend && go test ./... -count=1
+# PASS (full Go unit suite; integration tests gated by build tag).
+
+cd backend && gofmt -l internal/features/companies/infrastructure/postgres/companyRepository_ws2db_integration_test.go \
+internal/features/companies/application/usecases/deleteCompany.go \
+internal/features/companies/application/usecases/deleteCompany_test.go && \
+  go vet ./... && go vet -tags=integration ./...
+# clean.
+
+cd backend && git diff --check HEAD
+# PASS (no whitespace errors).
+```
+
+### Files changed
+
+| File | Status | LoC |
+| --- | --- | ---: |
+| `backend/.../deleteCompany.go` | modified | 126 |
+| `backend/.../deleteCompany_test.go` | modified | 395 |
+| `backend/.../companyRepository_ws2db_integration_test.go` | added (post-fix) | 182 |
+| `openspec/changes/.../apply-progress.md` | modified | +~70 |
+
+Surgical carve + 4 required unit tests + 1 live integration test (now runnable under `/tmp/peopleflow-ws2db.env`) + the `seedRaceCompany` parameter-typing fix + this progress entry: well under the 400-line review budget; the previously estimated ~410 partial collapsed by 286 → 170 lines in the integration file, then +7 for the typed-RFC fix, then +5 for the LIFO cleanup-ordering fix (182).
+
+### B1 cleanup-ordering fix (self-reported defect)
+
+The initial B1 evidence was runnable but `defer pool.Close()` in `TestUpdateCompany_AllFields_PersistsEveryMutableField` ran **before** `t.Cleanup(cleanupRaceCompany)`, so the row cleanup ran against an already-closed pool and the seeded company + audit row persisted (`cleanup audit: closed pool` / `cleanup company: closed pool` logged on every run). Fix: replace `defer pool.Close()` with `t.Cleanup(pool.Close)` registered **before** the row cleanup so LIFO ordering removes the rows on an open pool first, then closes the pool. Verification: pre-existing `WS2DB %` residue cleared, focused test run twice consecutively on the same disposable DB — both PASS, zero `closed pool` logs, zero `companies` / `audit_events` residue for the `WS2DB %` prefix; gofmt, `go vet` (with/without `-tags=integration`), `git diff --check`, and `go test ./... -count=1` all clean. Net test-file delta: +5 lines (182 total).
+
+### Live numstat (measured, post-fix)
+
+```bash
+git diff --numstat HEAD -- \
+  backend/internal/features/companies/application/usecases/deleteCompany.go \
+  backend/internal/features/companies/application/usecases/deleteCompany_test.go \
+  openspec/changes/backend-go-closure/apply-progress.md
+# 14 + 32 + 93  = 139 insertions, 21 + 55 + 0 = 76 deletions
+# plus the 182-line new integration test file (untracked).
+# arithmetic: 139 + 76 + 182 = 397 <= 400-line budget.
+```
+
+Race evidence: **not claimed**; races belong to B2 (`TaskCompanies_Race` and the per-op `racePair` controlled-order subtests are deferred). Task completion: **not claimed** for 2.4. Skips: **not claimed** as zero; the focused live test is skipped only when `DATABASE_URL` is unset (existing `skipIfNoDatabase` policy), and under `/tmp/peopleflow-ws2db.env` it PASSES — the seed `42P08` was the only blocker and is resolved by the typed-RFC parameter.
+
+Rollback: revert `deleteCompany.go` to the pre-B1 step-4 re-read path, restore the race type/helpers/test in `companyRepository_ws2db_integration_test.go`, and drop the B1 entry from this file. No handler or PATCH file touched.
+
+**Task state: 36/96** — task 2.4 remains UNCHECKED pending WS2D-B2 (live PATCH/DELETE controlled-order races + zero-audit assertions).
