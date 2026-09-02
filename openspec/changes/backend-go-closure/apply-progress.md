@@ -692,3 +692,24 @@ Rollback: revert `deleteCompany.go` to the pre-B1 step-4 re-read path, restore t
 The focused use-case suite passed during apply. B2a intentionally makes no live-race, HTTP-live, audit-cardinality, full-suite, or task-completion claim. The deterministic two-order live race draft is preserved externally for B2b and task 2.4 remains unchecked.
 
 Rollback: restore the post-loss reread and its sequence stub/tests. B2b must then be redesigned because DELETE-wins/PATCH-loses would again classify as 404.
+
+## WS2D-B2b — deterministic live PATCH/DELETE races; task 2.4 closed
+
+`TestUpdateDeleteRace_ControlledOrder` uses two one-connection repository pools and a winner-only audit decorator. The decorator performs the real audit append inside the write transaction, signals readiness, and holds the transaction open. The loser then reaches the same row lock; `pg_blocking_pids` proves the designated winner blocks it before release. There are no sleeps.
+
+### Race evidence
+
+| Ordering | Winner | Loser | Final state | Audit delta |
+| --- | --- | --- | --- | --- |
+| PATCH wins / DELETE loses | PATCH succeeds | repository zero-row → DELETE use case 409 | live; winner website; token advanced | exactly +1 `CompanyUpdated`; zero `CompanyDeleted` |
+| DELETE wins / PATCH loses | DELETE succeeds | repository zero-row → PATCH use case 409 | tombstoned | exactly +1 `CompanyDeleted`, `jobs_closed=0`; zero `CompanyUpdated` |
+
+Both operations share the original CAS token. The loser is observed waiting on the winner's backend PID before the hold is released. Result channels are joined under bounded contexts; a deferred idempotent release precedes the wait on every post-loser exit path. Each subtest seeds and removes its own company/audit rows.
+
+Apply evidence: the focused live race passed twice consecutively with both orderings, no skips and zero `WS2DB %` residue. The Companies integration suite, full unit suite, both vet modes, read-only format check, and diff check are the final verification gate for this exact candidate.
+
+Task 2.4's earlier units supply malformed/missing CAS transport, invalid-body/no-call behavior, initial absence, stale CAS, failed-outcome zero-audit, atomic all-fields persistence, and adapter rollback evidence. B2b supplies the remaining controlled-order live race proof. Transport unit tests map success to 200/204 and `ErrConcurrencyConflict` to 409; this repository-live test does not claim to be HTTP E2E.
+
+Rollback: remove the race decorator/helpers/test and uncheck task 2.4. B2a remains independently valid but task 2.4 becomes partial.
+
+**Task state: 40/96** — task 2.4 complete; next ordered task is 3.1.
