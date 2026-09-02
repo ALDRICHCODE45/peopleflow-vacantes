@@ -131,7 +131,9 @@ func (r *CandidateRepository) ReplaceLanguagesByUserID(ctx context.Context, user
 // buildUpsertParams translates the entity into the sqlc parameter
 // struct. Every optional field becomes an invalid pgtype (SQL NULL)
 // when the entity pointer is nil so the DB CHECK constraints see the
-// same shape the domain validation produced.
+// same shape the domain validation produced. The reserved cv_s3_key
+// column is deliberately absent: the candidate-API write path never
+// writes it, so a preexisting reserved value survives every upsert.
 func buildUpsertParams(p *entities.CandidateProfile) db.UpsertCandidateProfileParams {
 	var birthDate pgtype.Date
 	if p.BirthDate != nil {
@@ -157,7 +159,6 @@ func buildUpsertParams(p *entities.CandidateProfile) db.UpsertCandidateProfilePa
 		ExpectedSalary:       intPtrToInt4(p.ExpectedSalary),
 		SalaryCurrency:       p.SalaryCurrency,
 		ExpectedSalaryPeriod: salaryPeriodToPgText(p.ExpectedSalaryPeriod),
-		CvS3Key:              textPtrToPgText(p.CVS3Key),
 	}
 }
 

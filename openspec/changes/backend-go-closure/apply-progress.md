@@ -713,3 +713,19 @@ Task 2.4's earlier units supply malformed/missing CAS transport, invalid-body/no
 Rollback: remove the race decorator/helpers/test and uncheck task 2.4. B2a remains independently valid but task 2.4 becomes partial.
 
 **Task state: 40/96** — task 2.4 complete; next ordered task is 3.1.
+
+---
+
+## WS3A task 3.1 — Candidate full-replacement contract, `field_of_study`, CV-key reserve (candidate A; B split out)
+
+**Budget split (hard 400-line cap):** the completed task measured 524 changed lines, so it is delivered as the pre-authorized split. Candidate A (wire contract/CV reserve + static/API tests): 361 code/test lines + 16 progress lines = 377 ≤ 400. Candidate B (live replacement matrix, 142 lines): `TestUpsertProfile_FullReplacementPersists` + `TestUpsertProfile_PreservesReservedCvS3Key` additions in `candidateRepository_test.go` and `TestCandidateProfilesCvS3KeyReservedNullable` in `00006_integration_test.go`. B is stacked on A (its live assertions require A's SQL change) and its full text is already in the working tree — the parent should commit A's files first, then B's files as the second candidate.
+
+**RED (compile-safe, all against pre-edit tree):** `go test ./internal/features/candidates/infrastructure/http -count=1` failed exactly on: `TestProfileWireContract_StaticScan` (0 exact `field_of_study` tags; defective `field_of study` present; `cv_s3_key`/`CVS3Key` present in handler.go); `TestUpsertProfile_CvS3KeyNotClientWritable` (PUT response echoed `cv_s3_key`; stub received the client value; GET exposed a seeded reserved value); `TestFieldOfStudy_RoundTrip` (value silently dropped PUT→GET); `TestUpsertProfile_FullReplacementContract/malformed_birth_date_rejects_without_write` (500 instead of the pinned 400 — no-write itself held). Integration RED on disposable `peopleflow_ws3a`: `TestUpsertProfile_PreservesReservedCvS3Key` failed — the pre-fix upsert overwrote a directly-seeded `cv_s3_key` to NULL (proves the write-path defect at the DB boundary). Characterization subtests already passing pre-GREEN: omitted/explicit-null → NULL + `{}` skills + `MXN`, server-managed fields ignored, live full-replacement contrast read, cv_s3_key column nullable.
+
+**GREEN:** request tag fixed to `field_of_study`; `cv_s3_key` removed from BOTH the request and response structs and from the handler→DTO mapping in `handler.go`; `CVS3Key` removed from `UpsertMyProfileDto`, the use-case copy block, and `buildUpsertParams`; `candidates.sql` upsert drops `cv_s3_key` from INSERT and DO UPDATE SET (reserved value survives every upsert), with `internal/db/candidates.sql.go` + `querier.go` regenerated via sqlc; SELECT/RETURNING `cv_s3_key` and `toEntity`'s internal `CVS3Key` read mapping retained. New `usecases.ErrInvalidBirthDate` wraps the parse error and `classifyCandidateError` maps it to 400 (fixes the RED 500).
+
+**TRIANGULATE:** `TestFieldOfStudy_RoundTrip` PUT→GET unchanged; static scan proves both wire names and no boundary `cv_s3_key`/`CVS3Key`; empty/default contrasts (omitted vs present `city`/`field_of_study`/`salary_currency`) in the live test; malformed `birth_date` now 400 with zero repository calls.
+
+**REFACTOR:** stale "leave unchanged on update" comments replaced with full-replacement wording in handler/DTO/usecase/repository/SQL. Verification: `go vet ./...`, `go test ./... -count=1`, `go test -tags=integration -p 1 -count=1 ./internal/features/candidates/... ./internal/db/...` (disposable `peopleflow_ws3a`, zero skips in candidates packages), gofmt clean, `git diff --check` — all PASS.
+
+**Task state: 40/96** — task 3.1 implementation complete in the working tree; checkboxes remain unchecked pending the parent's review/commit of candidates A and B.

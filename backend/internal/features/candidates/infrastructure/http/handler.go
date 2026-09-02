@@ -57,10 +57,12 @@ func (h *CandidateHandler) Routes() chi.Router {
 
 // --- request / response shapes --------------------------------------------
 
-// upsertProfileRequest is the body for PUT /me/profile. Every field
-// is optional; nil means "leave unchanged on update" / "leave NULL on
-// insert". Skills is normalized (lowercased, trimmed, deduped) inside
-// the use case.
+// upsertProfileRequest is the body for PUT /me/profile. PUT has
+// full-replacement semantics: every client-owned field is optional on
+// the wire, and an omitted or JSON-null nullable field is persisted as
+// SQL NULL (never "left unchanged"). Skills is normalized (lowercased,
+// trimmed, deduped) inside the use case. The reserved cv_s3_key column
+// has no request field: a client-supplied value is ignored.
 type upsertProfileRequest struct {
 	Phone             *string `json:"phone"`
 	LinkedInURL       *string `json:"linkedin_url"`
@@ -76,7 +78,7 @@ type upsertProfileRequest struct {
 	Country *string `json:"country"`
 
 	EducationLevel *string `json:"education_level"`
-	FieldOfStudy   *string `json:"field_of study"`
+	FieldOfStudy   *string `json:"field_of_study"`
 
 	Skills []string `json:"skills"`
 
@@ -85,13 +87,13 @@ type upsertProfileRequest struct {
 	ExpectedSalary       *int    `json:"expected_salary"`
 	SalaryCurrency       *string `json:"salary_currency"`
 	ExpectedSalaryPeriod *string `json:"expected_salary_period"`
-
-	CVS3Key *string `json:"cv_s3_key"`
 }
 
 // candidateProfileResponse is the JSON shape for /me/profile. It is
-// the full entity (no redaction needed — self-service, the caller is
-// the owner per the IDOR-resistant sub → id resolution).
+// the full entity minus server-managed identity/timestamps handling —
+// self-service, the caller is the owner per the IDOR-resistant sub →
+// id resolution. The reserved cv_s3_key is never exposed on the wire,
+// even when a value exists in the DB.
 type candidateProfileResponse struct {
 	UserID string `json:"user_id"`
 
@@ -117,8 +119,6 @@ type candidateProfileResponse struct {
 	ExpectedSalary       *int    `json:"expected_salary,omitempty"`
 	SalaryCurrency       string  `json:"salary_currency"`
 	ExpectedSalaryPeriod *string `json:"expected_salary_period,omitempty"`
-
-	CVS3Key *string `json:"cv_s3_key,omitempty"`
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -197,7 +197,6 @@ func (h *CandidateHandler) upsertMyProfile(w http.ResponseWriter, r *http.Reques
 		ExpectedSalary:       req.ExpectedSalary,
 		SalaryCurrency:       req.SalaryCurrency,
 		ExpectedSalaryPeriod: req.ExpectedSalaryPeriod,
-		CVS3Key:              req.CVS3Key,
 	})
 	if err != nil {
 		def := classifyCandidateError(err)
@@ -296,7 +295,6 @@ func toProfileResponse(p *entities.CandidateProfile) candidateProfileResponse {
 		CurrentSalaryNet:   p.CurrentSalaryNet,
 		ExpectedSalary:     p.ExpectedSalary,
 		SalaryCurrency:     p.SalaryCurrency,
-		CVS3Key:            p.CVS3Key,
 		CreatedAt:          p.CreatedAt,
 		UpdatedAt:          p.UpdatedAt,
 	}
@@ -351,6 +349,7 @@ func classifyCandidateError(err error) httpjson.Definition {
 	case errors.Is(err, valueobjects.ErrInvalidCefrLevel),
 		errors.Is(err, valueobjects.ErrInvalidEducationLevel),
 		errors.Is(err, valueobjects.ErrInvalidSalaryPeriod),
+		errors.Is(err, usecases.ErrInvalidBirthDate),
 		errors.Is(err, entities.ErrDuplicateLanguage),
 		errors.Is(err, entities.ErrEmptyUserIDForProfile):
 		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), err.Error())

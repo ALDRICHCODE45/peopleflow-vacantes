@@ -3,9 +3,11 @@
 // use case owns parsing and validation through the domain VOs.
 package dtos
 
-// UpsertMyProfileDto is the PUT /me/profile body. Every field is optional;
-// nil means "leave unchanged on update" / "leave NULL on insert". Skills is
-// normalized (lowercase, trimmed, deduped) inside the use case.
+// UpsertMyProfileDto is the PUT /me/profile body. PUT has full-replacement
+// semantics: every client-owned field is optional on the wire, and an
+// omitted or JSON-null nullable field is persisted as SQL NULL. Skills is
+// normalized (lowercase, trimmed, deduped) inside the use case. The
+// reserved cv_s3_key column has no DTO field: it is not client-assertable.
 type UpsertMyProfileDto struct {
 	Phone             *string
 	LinkedInURL       *string
@@ -30,8 +32,6 @@ type UpsertMyProfileDto struct {
 	ExpectedSalary       *int
 	SalaryCurrency       *string
 	ExpectedSalaryPeriod *string // validated by valueobjects.ParseSalaryPeriod
-
-	CVS3Key *string
 }
 
 // LanguageDto is a single language entry on PUT /me/profile/languages. The

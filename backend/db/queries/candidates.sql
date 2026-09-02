@@ -1,13 +1,17 @@
 -- name: UpsertCandidateProfile :one
 -- Idempotent upsert keyed on the PK (user_id). First PUT creates the row;
--- subsequent PUTs overwrite the editable columns. search_vector is a STORED
--- generated column owned by Postgres and MUST NOT be touched here.
+-- subsequent PUTs replace the editable columns with the fresh entity
+-- (full-replacement semantics: omitted nullable fields become NULL).
+-- search_vector is a STORED generated column owned by Postgres and MUST
+-- NOT be touched here. cv_s3_key is RESERVED for the future CV slice and
+-- MUST NOT be written here: it stays out of both the INSERT and the DO
+-- UPDATE SET list, so a preexisting reserved value survives every upsert.
 INSERT INTO candidate_profiles (
     user_id, phone, linkedin_url, portfolio_url, professional_title,
     current_company, years_of_experience, profile_summary, birth_date,
     city, country, education_level, field_of_study, skills,
     current_salary_gross, current_salary_net, expected_salary,
-    salary_currency, expected_salary_period, cv_s3_key,
+    salary_currency, expected_salary_period,
     created_at, updated_at
 )
 VALUES (
@@ -15,7 +19,7 @@ VALUES (
     $6, $7, $8, $9,
     $10, $11, $12, $13, $14,
     $15, $16, $17,
-    $18, $19, $20,
+    $18, $19,
     now(), now()
 )
 ON CONFLICT (user_id) DO UPDATE SET
@@ -37,7 +41,6 @@ ON CONFLICT (user_id) DO UPDATE SET
     expected_salary        = EXCLUDED.expected_salary,
     salary_currency        = EXCLUDED.salary_currency,
     expected_salary_period = EXCLUDED.expected_salary_period,
-    cv_s3_key              = EXCLUDED.cv_s3_key,
     updated_at             = now()
 RETURNING *;
 

@@ -445,8 +445,12 @@ type Querier interface {
 	// to do it.
 	UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) (int64, error)
 	// Idempotent upsert keyed on the PK (user_id). First PUT creates the row;
-	// subsequent PUTs overwrite the editable columns. search_vector is a STORED
-	// generated column owned by Postgres and MUST NOT be touched here.
+	// subsequent PUTs replace the editable columns with the fresh entity
+	// (full-replacement semantics: omitted nullable fields become NULL).
+	// search_vector is a STORED generated column owned by Postgres and MUST
+	// NOT be touched here. cv_s3_key is RESERVED for the future CV slice and
+	// MUST NOT be written here: it stays out of both the INSERT and the DO
+	// UPDATE SET list, so a preexisting reserved value survives every upsert.
 	UpsertCandidateProfile(ctx context.Context, arg UpsertCandidateProfileParams) (CandidateProfile, error)
 }
 

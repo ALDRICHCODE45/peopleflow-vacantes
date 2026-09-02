@@ -2,17 +2,27 @@ package usecases
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/entities"
 )
 
-// UpsertMyProfile creates or updates the caller's profile. The DTO carries
+// ErrInvalidBirthDate is returned when birth_date does not parse as
+// YYYY-MM-DD. It wraps the raw parse error so the HTTP layer maps it to
+// 400 with a readable validation message instead of a 500.
+var ErrInvalidBirthDate = errors.New("invalid birth_date")
+
+// UpsertMyProfile creates or replaces the caller's profile. PUT has
+// full-replacement semantics: a fresh profile entity is built from the
+// DTO, so an omitted or JSON-null optional field persists as SQL NULL
+// (there is no PATCH-style "leave unchanged" tri-state). The DTO carries
 // raw strings/primitives; the use case parses them through the domain VOs
-// and the entity re-validates before persistence. On any validation failure
-// the repository is never invoked (defense-in-depth: the HTTP layer maps
-// the error to 400 with a clean message).
+// and the entity re-validates before persistence. On any validation
+// failure the repository is never invoked (defense-in-depth: the HTTP
+// layer maps the error to 400 with a clean message).
 func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub string, params dtos.UpsertMyProfileDto) (*entities.CandidateProfile, error) {
 	userID, err := s.resolveUserID(ctx, cognitoSub)
 	if err != nil {
@@ -64,7 +74,7 @@ func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub strin
 	if params.BirthDate != nil && *params.BirthDate != "" {
 		parsed, err := time.Parse("2006-01-02", *params.BirthDate)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: %v", ErrInvalidBirthDate, err)
 		}
 		profile.BirthDate = &parsed
 	}
@@ -92,9 +102,10 @@ func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub strin
 	if params.SalaryCurrency != nil && *params.SalaryCurrency != "" {
 		profile.SalaryCurrency = *params.SalaryCurrency
 	}
-	if params.CVS3Key != nil {
-		profile.CVS3Key = params.CVS3Key
-	}
+
+	// CVS3Key is deliberately not copied: the reserved column has no
+	// candidate-API write path, so a preexisting reserved value can never
+	// be overwritten through the upsert.
 
 	return s.repository.UpsertProfile(ctx, profile)
 }
