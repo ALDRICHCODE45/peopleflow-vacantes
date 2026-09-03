@@ -8,11 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	applicationsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/usecases"
@@ -33,6 +31,9 @@ import (
 	jobsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
 	jobspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres"
+	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/health"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/server"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -191,20 +192,27 @@ func run() error {
 	requireAuth := identityhttp.RequireAuth(verifier)
 	requireRecruiter := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, companyRepo, valueobjects.RecruiterRole)
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	// Typed runtime configuration (WS6B-1a): conservative hardening
+	// timeouts; server.New validates that every one of them is positive.
+	cfg := runtimeconfig.DefaultServerConfig(":" + port)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	// Wiring/health check: pings the DB to prove the HTTP -> DB path end to end.
-	r.Get("/healthz", func(w http.ResponseWriter, req *http.Request) {
-		if err := pool.Ping(req.Context()); err != nil {
-			http.Error(w, "database unavailable", http.StatusServiceUnavailable)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	})
+	// Health composition (WS6B-1b, design §8.1): liveness is a static 200
+	// that never touches the DB port; readiness pings the pool once under
+	// the shorter configured readiness timeout and answers the catalog
+	// service_unavailable 503 envelope on failure. The pool satisfies the
+	// narrow health.Pinger port.
+	r.Get("/healthz", health.Healthz(pool))
+	r.Get("/readyz", health.Readyz(pool, cfg.ReadinessTimeout))
 
 	// GET /industries — the ONLY industries registration: it goes through
 	// the production-owned registrar, guarded by
@@ -361,36 +369,13 @@ func run() error {
 		r.With(requireOwner).Delete("/company", companyHandlers.DeleteCompany)
 	})
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	srv := &http.Server{
-		Addr:              ":" + port,
-		Handler:           r,
-		ReadHeaderTimeout: 5 * time.Second,
-	}
-
-	// Run the server in a goroutine so the main flow can wait for the shutdown signal.
-	serverErr := make(chan error, 1)
-	go func() {
-		slog.Info("listening", "addr", srv.Addr)
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			serverErr <- err
-		}
-	}()
-
-	// Block until the server fails or a shutdown signal arrives.
-	select {
-	case err := <-serverErr:
+	// Hardened server + lifecycle from the runtime packages (WS6B-1a):
+	// Run serves until ctx is cancelled, drains with the configured
+	// deadline, and force-closes only if the drain deadline expires.
+	srv, err := server.New(cfg, r)
+	if err != nil {
 		return err
-	case <-ctx.Done():
-		slog.Info("shutdown signal received")
 	}
-
-	// Give in-flight requests up to 10s to finish before forcing the close.
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	return srv.Shutdown(shutdownCtx)
+	slog.Info("listening", "addr", srv.Addr)
+	return server.Run(ctx, srv, cfg.DrainTimeout)
 }

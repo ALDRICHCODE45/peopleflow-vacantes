@@ -31,12 +31,14 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 )
 
 func TestCompanyWriteRoutes_MountedBehindGates(t *testing.T) {
-	const filePath = "main.go"
+	filePath := routerFile
 
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
@@ -44,10 +46,8 @@ func TestCompanyWriteRoutes_MountedBehindGates(t *testing.T) {
 		t.Skipf("cannot parse %s (run with cwd=backend/cmd/api): %v", filePath, err)
 	}
 
-	var patchRoutes []string
-	var properlyGatedPatchRoutes []string
-	var deleteRoutes []string
-	var properlyGatedDeleteRoutes []string
+	var meRoutes, mountShadowing int
+	var gatedPatch, gatedDelete, ungatedPatch, ungatedDelete int
 
 	ast.Inspect(f, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -58,59 +58,77 @@ func TestCompanyWriteRoutes_MountedBehindGates(t *testing.T) {
 		if !ok {
 			return true
 		}
-		inner, ok := sel.X.(*ast.CallExpr)
-		if !ok || !isWithCall(inner) {
+		if sel.Sel.Name == "Mount" {
+			if path, ok := chiPathLiteral(call); ok && path == `"/me/company"` {
+				mountShadowing++
+			}
 			return true
 		}
-
-		switch sel.Sel.Name {
-		case "Patch":
-			path, ok := meCompanyPathLiteral(call)
-			if !ok {
-				return true
-			}
-			patchRoutes = append(patchRoutes, path)
-			if referencesIdentifier(inner, "requireOwner") {
-				properlyGatedPatchRoutes = append(properlyGatedPatchRoutes, path)
-			}
-		case "Delete":
-			path, ok := meCompanyPathLiteral(call)
-			if !ok {
-				return true
-			}
-			deleteRoutes = append(deleteRoutes, path)
-			if referencesIdentifier(inner, "requireOwner") {
-				properlyGatedDeleteRoutes = append(properlyGatedDeleteRoutes, path)
-			}
+		if sel.Sel.Name != "Route" || len(call.Args) < 2 {
+			return true
 		}
+		path, ok := chiPathLiteral(call)
+		if !ok || path != `"/me"` {
+			return true
+		}
+		fl, ok := call.Args[1].(*ast.FuncLit)
+		if !ok {
+			return true
+		}
+		meRoutes++
+		// Only mutations lexically nested in the /me subtree count: a
+		// root-level mutation or the owner-gated /company/members/{id}
+		// routes must never satisfy this guard (false-positive defense:
+		// the exact relative path /company is required).
+		ast.Inspect(fl.Body, func(m ast.Node) bool {
+			mut, ok := m.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			msel, ok := mut.Fun.(*ast.SelectorExpr)
+			if !ok || (msel.Sel.Name != "Patch" && msel.Sel.Name != "Delete") {
+				return true
+			}
+			if path, ok := chiPathLiteral(mut); !ok || path != `"/company"` {
+				return true
+			}
+			with, ok := msel.X.(*ast.CallExpr)
+			if !ok || !isWithCall(with) || !referencesIdentifier(with, "requireOwner") {
+				if msel.Sel.Name == "Patch" {
+					ungatedPatch++
+				} else {
+					ungatedDelete++
+				}
+				return true
+			}
+			if msel.Sel.Name == "Patch" {
+				gatedPatch++
+			} else {
+				gatedDelete++
+			}
+			return true
+		})
 		return true
 	})
 
-	if len(properlyGatedPatchRoutes) < 1 {
-		t.Fatalf("expected at least one `With(requireOwner).Patch(\"/me/company\", ...)` mutation in main.go; got %d (found %d PATCH /me/company calls without requireOwner)",
-			len(properlyGatedPatchRoutes), len(patchRoutes))
+	if meRoutes != 1 {
+		t.Fatalf("expected exactly one `r.Route(\"/me\", ...)` subtree in %s; got %d", filePath, meRoutes)
 	}
-	if len(properlyGatedDeleteRoutes) < 1 {
-		t.Fatalf("expected at least one `With(requireOwner).Delete(\"/me/company\", ...)` mutation in main.go; got %d (found %d DELETE /me/company calls without requireOwner)",
-			len(properlyGatedDeleteRoutes), len(deleteRoutes))
+	if mountShadowing != 0 {
+		t.Fatalf("no chi.Mount(\"/me/company\", ...) subrouter may shadow the per-method gates; got %d", mountShadowing)
+	}
+	if gatedPatch != 1 || gatedDelete != 1 || ungatedPatch != 0 || ungatedDelete != 0 {
+		t.Fatalf("/me subtree must mount exactly one requireOwner-gated PATCH and DELETE of the exact relative path /company (gated patch=%d delete=%d, ungated patch=%d delete=%d)",
+			gatedPatch, gatedDelete, ungatedPatch, ungatedDelete)
 	}
 
-	t.Logf("parsed %s: %d PATCH /me/company (gated=%d), %d DELETE /me/company (gated=%d)",
-		filePath, len(patchRoutes), len(properlyGatedPatchRoutes),
-		len(deleteRoutes), len(properlyGatedDeleteRoutes))
+	t.Logf("parsed %s: /me subtree mounts PATCH and DELETE /company behind requireOwner, no shadowing mount", filePath)
 }
 
-// meCompanyPathLiteral extracts the first string literal of a PATCH
-// or DELETE call whose path is "/me/company". Used by
-// TestCompanyWriteRoutes_MountedBehindGates.
-func meCompanyPathLiteral(call *ast.CallExpr) (string, bool) {
-	fn, ok := call.Fun.(*ast.SelectorExpr)
-	if !ok {
-		return "", false
-	}
-	if fn.Sel.Name != "Patch" && fn.Sel.Name != "Delete" {
-		return "", false
-	}
+// chiPathLiteral returns the first string-literal argument of a chi
+// registration call, quoted as in source (e.g. `"/me/company"`).
+// Shared by the company-write, health, and topology guards.
+func chiPathLiteral(call *ast.CallExpr) (string, bool) {
 	if len(call.Args) == 0 {
 		return "", false
 	}
@@ -120,9 +138,6 @@ func meCompanyPathLiteral(call *ast.CallExpr) (string, bool) {
 	}
 	return bl.Value, true
 }
-
-// _ keeps the strings import referenced on a no-op file.
-var _ = strings.Contains
 
 // TestRequireAuth_MountedOnMeRoutes asserts the spec scenario
 // "Authentication Required": RequireAuth is referenced in at least
@@ -139,7 +154,7 @@ var _ = strings.Contains
 // rejection can fire is if the middleware is actually wired into
 // the route chain.
 func TestRequireAuth_MountedOnMeRoutes(t *testing.T) {
-	const filePath = "main.go"
+	filePath := routerFile
 
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
@@ -282,7 +297,7 @@ func referencesIdentifier(call *ast.CallExpr, name string) bool {
 // MountedOnMeRoutes (AST walk of main.go) so the two guards live
 // in the same idiom.
 func TestJobsMount_PublicReadRoutes(t *testing.T) {
-	const filePath = "main.go"
+	filePath := routerFile
 
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
@@ -379,7 +394,7 @@ func isJobsMountCall(call *ast.CallExpr) bool {
 // behind the gates (a regression where the write path becomes
 // reachable unauthenticated).
 func TestJobsWriteRoute_MountedBehindGates(t *testing.T) {
-	const filePath = "main.go"
+	filePath := routerFile
 
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
@@ -480,7 +495,7 @@ func patchPathLiteral(call *ast.CallExpr) (string, bool) {
 // gates (a regression where the write path becomes reachable
 // unauthenticated).
 func TestJobsCreateRoute_MountedBehindGates(t *testing.T) {
-	const filePath = "main.go"
+	filePath := routerFile
 
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
@@ -572,7 +587,7 @@ func postPathLiteral(call *ast.CallExpr) (string, bool) {
 // that touches the gate wiring fails all three tests in lockstep
 // (rather than leaving one verb ungated by accident).
 func TestJobsSoftDeleteRoute_MountedBehindGates(t *testing.T) {
-	const filePath = "main.go"
+	filePath := routerFile
 
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
@@ -660,7 +675,7 @@ func deletePathLiteral(call *ast.CallExpr) (string, bool) {
 // apply route is moved out from behind auth (a regression where an
 // unauthenticated candidate can apply).
 func TestApplicationsApplyRoute_MountedBehindAuth(t *testing.T) {
-	const filePath = "main.go"
+	filePath := routerFile
 
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
@@ -713,7 +728,7 @@ func TestApplicationsApplyRoute_MountedBehindAuth(t *testing.T) {
 // subtree). The guard fails the moment a recruiter route is moved out
 // from behind the gates or onto the public /jobs mount.
 func TestApplicationsRecruiterRoute_MountedBehindGates(t *testing.T) {
-	const filePath = "main.go"
+	filePath := routerFile
 
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
@@ -780,7 +795,7 @@ func industryRegistrationMethods(name string) bool {
 // ("/industries", ...) duplicate or a second registrar call fails here;
 // the path literal is matched exactly so a typo cannot sneak past.
 func TestIndustriesRoute_SingleCanonicalRegistration(t *testing.T) {
-	const filePath = "main.go"
+	filePath := routerFile
 
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
@@ -861,7 +876,7 @@ func TestRun_StartsOnlyWithValidExplicitMode(t *testing.T) {
 // TestVerifierComposition_AstGuards scans main.go's AST for the WS5C composition contract: factory-only verifier wiring with no deny-all
 // fallback, and the /me subtree wrapped with r.Use(requireAuth).
 func TestVerifierComposition_AstGuards(t *testing.T) {
-	const filePath = "main.go"
+	filePath := routerFile
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
@@ -931,4 +946,194 @@ func TestVerifierComposition_AstGuards(t *testing.T) {
 			t.Fatalf(`the /me/* subtree must be wrapped with r.Use(requireAuth) inside r.Route("/me", ...)`)
 		}
 	})
+}
+
+// routerFile names the router owner the guards scan; WS6B-1b keeps router
+// construction in the composition root (physical extraction deferred to 1b-b),
+// and guards name the owner instead of hardcoding a path assumption (design §8.1).
+const routerFile = "main.go"
+
+// TestRouterOwner_HealthAndReadinessMounted pins the WS6B-1b health composition
+// (design §8.1): /healthz mounts health.Healthz (static liveness, never touches
+// the DB port) and /readyz mounts health.Readyz (narrow ping port + configured
+// timeout). Fails pre-rewiring: inline DB-pinging /healthz, no /readyz at all.
+func TestRouterOwner_HealthAndReadinessMounted(t *testing.T) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, routerFile, nil, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("cannot parse router owner %s: %v", routerFile, err)
+	}
+
+	var healthz, readyz int
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "Get" || len(call.Args) < 2 {
+			return true
+		}
+		path, ok := chiPathLiteral(call)
+		if !ok {
+			return true
+		}
+		// Asserted receiver/type: the handler must call the expected health-package runtime constructor.
+		h, ok := call.Args[1].(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		hs, ok := h.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		owner, ok := hs.X.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		switch path {
+		case `"/healthz"`:
+			// Liveness: health.Healthz over the pool (narrow Pinger port), not an inline DB-pinging handler.
+			if owner.Name != "health" || hs.Sel.Name != "Healthz" ||
+				len(h.Args) != 1 || !referencesIdentifier(h, "pool") {
+				t.Errorf("/healthz must mount health.Healthz(pool); got %s.%s", owner.Name, hs.Sel.Name)
+				return true
+			}
+			healthz++
+		case `"/readyz"`:
+			// Readiness: health.Readyz over the pool port AND the configured timeout, never an ad-hoc literal.
+			if owner.Name != "health" || hs.Sel.Name != "Readyz" ||
+				len(h.Args) != 2 || !referencesIdentifier(h, "pool") ||
+				!referencesIdentifier(h, "ReadinessTimeout") {
+				t.Errorf("/readyz must mount health.Readyz(pool, <readiness timeout>); got %s.%s", owner.Name, hs.Sel.Name)
+				return true
+			}
+			readyz++
+		}
+		return true
+	})
+	if healthz != 1 || readyz != 1 {
+		t.Fatalf("router owner must register exactly one /healthz and one /readyz through the runtime health handlers (healthz=%d readyz=%d)", healthz, readyz)
+	}
+
+	t.Logf("parsed %s: exactly one /healthz -> health.Healthz and one /readyz -> health.Readyz", routerFile)
+}
+
+// TestComposition_RootUsesRuntimeLifecycle pins the WS6B-1b composition contract:
+// main.go builds the server through runtime/config + runtime/server.New/Run with no
+// inline http.Server literal or ListenAndServe/Shutdown lifecycle. Fails pre-rewiring.
+func TestComposition_RootUsesRuntimeLifecycle(t *testing.T) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, routerFile, nil, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("cannot parse %s: %v", routerFile, err)
+	}
+
+	var newCalls, runCalls, defaultCfgCalls, serverLiterals, lifecycleRefs int
+	ast.Inspect(f, func(n ast.Node) bool {
+		switch x := n.(type) {
+		case *ast.CallExpr:
+			if sel, ok := x.Fun.(*ast.SelectorExpr); ok {
+				if id, ok := sel.X.(*ast.Ident); ok {
+					switch {
+					case id.Name == "server" && sel.Sel.Name == "New":
+						newCalls++
+					case id.Name == "server" && sel.Sel.Name == "Run":
+						runCalls++
+					case id.Name == "runtimeconfig" && sel.Sel.Name == "DefaultServerConfig":
+						defaultCfgCalls++
+					}
+				}
+			}
+		case *ast.CompositeLit:
+			if sel, ok := x.Type.(*ast.SelectorExpr); ok {
+				if id, ok := sel.X.(*ast.Ident); ok && id.Name == "http" && sel.Sel.Name == "Server" {
+					serverLiterals++
+				}
+			}
+		case *ast.SelectorExpr:
+			if x.Sel.Name == "ListenAndServe" || x.Sel.Name == "Shutdown" {
+				lifecycleRefs++
+			}
+		}
+		return true
+	})
+
+	if newCalls < 1 || runCalls < 1 || defaultCfgCalls < 1 {
+		t.Fatalf("composition root must wire runtime/server.New, runtime/server.Run and runtime/config.DefaultServerConfig (got server.New=%d server.Run=%d DefaultServerConfig=%d)",
+			newCalls, runCalls, defaultCfgCalls)
+	}
+	if serverLiterals != 0 || lifecycleRefs != 0 {
+		t.Fatalf("composition root must not build its own http.Server literal or inline ListenAndServe/Shutdown lifecycle (http.Server literals=%d, ListenAndServe/Shutdown refs=%d)",
+			serverLiterals, lifecycleRefs)
+	}
+
+	t.Logf("parsed %s: runtimeconfig.DefaultServerConfig=%d server.New=%d server.Run=%d, no inline http.Server lifecycle", routerFile, defaultCfgCalls, newCalls, runCalls)
+}
+
+// TestRouteTopology_ExactRegistrations pins the full chi route topology of the router
+// owner as an exact sorted (method, path) multiset over all string-literal
+// registrations (incl. nested Route closures); any added/removed/renamed/re-gated
+// registration drifts the multiset and fails, proving topology is preserved.
+func TestRouteTopology_ExactRegistrations(t *testing.T) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, routerFile, nil, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("cannot parse router owner %s: %v", routerFile, err)
+	}
+
+	var got []string
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		switch sel.Sel.Name {
+		case "Get", "Post", "Patch", "Delete", "Mount", "Route":
+			path, ok := chiPathLiteral(call)
+			if !ok {
+				return true
+			}
+			got = append(got, sel.Sel.Name+" "+strings.Trim(path, `"`))
+		}
+		return true
+	})
+	sort.Strings(got)
+
+	want := []string{
+		"Delete /company",
+		"Delete /company/members/{id}",
+		"Delete /jobs/{id}",
+		"Get /",
+		"Get /{id}",
+		"Get /applications",
+		"Get /companies/{id}",
+		"Get /company",
+		"Get /company/members",
+		"Get /healthz",
+		"Get /readyz",
+		"Mount /jobs",
+		"Mount /profile",
+		"Patch /{id}/transition",
+		"Patch /company",
+		"Patch /company/members/{id}",
+		"Patch /jobs/{id}",
+		"Post /companies",
+		"Post /company/members",
+		"Post /jobs",
+		"Post /jobs/{jobId}/applications",
+		"Route /jobs/{jobId}/applications",
+		"Route /me",
+	}
+	sort.Strings(want)
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("route topology drifted;\n got: %v\nwant: %v", got, want)
+	}
+
+	t.Logf("parsed %s: all %d chi registrations match the pinned topology exactly", routerFile, len(got))
 }
