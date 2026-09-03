@@ -777,3 +777,13 @@ Rollback: remove the race decorator/helpers/test and uncheck task 2.4. B2a remai
 **Budgets and replay-time task state:** WS4B-A candidate 319 changed lines (`go.mod`/`go.sum` + adapter/tests); WS4B-B candidate 400 changed lines (`cmd/postconfirmation` main/tests). At replay time the task state remained **52/96**, with all four task-4.2 rows unchecked until their commits landed.
 
 **Post-commit closure:** WS4B-A landed as `0242088`; WS4B-B landed as `a6c51a5`. All four task-4.2 rows are now checked. **Task state: 56/96**; next ordered unit is task 5.1 (WS5A).
+
+## WS5A closure — commit `53ebe81`
+
+WS5A explicit verifier configuration factory is closed under approved review lineage `review-519d5bc2f0f7390d`. The commit covers the two auth files `backend/internal/features/identity/infrastructure/auth/config.go` and `backend/internal/features/identity/infrastructure/auth/config_test.go`, plus the WS5A task-state update.
+
+**Verification:** focused auth tests (`cd backend && go test ./internal/features/identity/infrastructure/auth -count=1`) PASS; full suite (`cd backend && go test ./... -count=1`) PASS; `cd backend && go vet ./...` PASS; `gofmt -d` on changed Go files is clean. Runtime harness: N/A (no executable boundary in WS5A).
+
+**Rollback boundary:** revert the two auth files named above and the WS5A task-state update only; WS5B and WS5C remain untouched.
+
+**Post-split task state:** 60/100 checklist boxes complete. The approved WS5B split is represented by sequential WS5B-1/RU13A and WS5B-2/RU13B units, each forecast at no more than 400 authored changed lines and delivered stacked-to-main; verify/sync/archive remain blocked until implementation completes.

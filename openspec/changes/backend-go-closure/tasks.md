@@ -2,23 +2,23 @@
 
 Implementation tasks for the objective Go backend closure. Sources: `proposal.md`, six delta specs (`backend-runtime`, `companies`, `candidates`, `identity`, `industries`, `jobs`), and the corrected `design.md` (native engine, D1–D11, §3 work units, §11 TDD protocol, §12 traceability matrix). Every checkbox ends with the terminal ownership marker; no RDD/receipt/delivery-gate tasks are generated.
 
-Scope structure: the 17 WS2–WS7 subunits of design §3, with WS6A expanded into five sequenced tasks (WS6A-0 spec correction → catalog core → three adoption waves), plus the doc-only unit (A2). 24 tasks / 96 implementation-owned checkboxes.
+Scope structure: the WS2–WS7 subunits of design §3, with WS6A expanded into five sequenced tasks (WS6A-0 spec correction → catalog core → three adoption waves), WS5B split into two sequential review units (WS5B-1 → WS5B-2), plus the doc-only unit (A2). 25 tasks / 100 implementation-owned checkboxes.
 
 ## Review Workload Forecast
 
 | Field | Value |
 | ------- | ------- |
-| Estimated changed lines | ~3,500–6,150 authored (additions+deletions) across the 17 WS2–WS7 subunits, plus ~80–150 authored doc lines for the doc-only unit; sqlc-generated output excluded from authored count, included in snapshot identity |
+| Estimated changed lines | ~3,500–6,150 authored (additions+deletions) across the 18 WS2–WS7 subunits, plus ~80–150 authored doc lines for the doc-only unit; sqlc-generated output excluded from authored count, included in snapshot identity |
 | 400-line budget risk | High |
 | Chained PRs recommended | Yes |
-| Suggested split | RU1 catalog core → RU2/RU3 adoption by capability → RU4–RU7 companies → RU8/RU9 candidates+industries → RU10/RU11 executables → RU12–RU14 JWT → RU15/RU16 server+decode → RU17 observability → RU18–RU20 gates/report → RU21 docs |
-| Delivery strategy | ask-on-risk |
-| Chain strategy | pending |
+| Suggested split | RU1 catalog core → RU2/RU3 adoption by capability → RU4–RU7 companies → RU8/RU9 candidates+industries → RU10/RU11 executables → RU12 WS5A → RU13A WS5B-1 → RU13B WS5B-2 → RU14 WS5C → RU15/RU16 server+decode → RU17 observability → RU18–RU20 gates/report → RU21 docs |
+| Delivery strategy | ask-on-risk (WS5B split explicitly approved; each slice ≤400) |
+| Chain strategy | stacked-to-main |
 
 ```text
-Decision needed before apply: Yes
+Decision needed before apply: No
 Chained PRs recommended: Yes
-Chain strategy: pending
+Chain strategy: stacked-to-main
 400-line budget risk: High
 ```
 
@@ -38,7 +38,8 @@ Chain strategy: pending
 | RU10 | WS4A `cmd/migrate` core + live round-trip harness | 300–500 | Medium → split core vs harness if needed |
 | RU11 | WS4B PostConfirmation adapter vs executable wiring | 350–600 | Medium → split pure adapter vs wiring |
 | RU12 | WS5A explicit verifier config factory | 100–200 | Low |
-| RU13 | WS5B JWKS cache/rotation verifier | 450–700 | **High → ask before chaining WS5B-1 (cache/single-flight core) and WS5B-2 (verification flow + concurrency evidence)** |
+| RU13A | WS5B-1 bounded cache/single-flight core; Verify intentionally deferred | 180–320 | Low |
+| RU13B | WS5B-2 verification flow, rotation, cancellation/deadline/Close and adversarial concurrency evidence | 250–390 | Low |
 | RU14 | WS5C middleware/composition wiring | 100–200 | Low |
 | RU15 | WS6B-1 server/router/health extraction | 200–350 | Low (ask if real diff >400) |
 | RU16 | WS6B-2 shared decoder + capability-group handler migration | 200–350 | Low (ask if real diff >400) |
@@ -48,11 +49,11 @@ Chain strategy: pending
 | RU20 | WS7C report generator + generated evidence | 150–250 | Low |
 | RU21 | Doc reconciliation (doc-only) | 80–150 | Low |
 
-WS6A group total: 520–900 (design §13 "500–900"). WS6B+WS6C group total: 500–900 (design §13 "500–900"); WS6B is pre-split into RU15/RU16 behavior-preserving review candidates. WS7 group total: 650–1,050 across RU18–RU20 (design §13 "500–900"; the doc-only unit is outside §13).
+WS5B total: 430–710 across RU13A/RU13B, with each slice ≤400. WS6A group total: 520–900 (design §13 "500–900"). WS6B+WS6C group total: 500–900 (design §13 "500–900"); WS6B is pre-split into RU15/RU16 behavior-preserving review candidates. WS7 group total: 650–1,050 across RU18–RU20 (design §13 "500–900"; the doc-only unit is outside §13).
 
-**Hotspots:** JWKS verifier+crypto tests (RU13), companies live-DB closure (RU4–RU7), handler-wide catalog adoption (RU2/RU3) and decoder migration (RU16) — both are broad cross-feature units and are pre-split by capability group, server extraction (RU15), executable adapters (RU10/RU11). Because `delivery_strategy=ask-on-risk`: RU7, RU13, and any unit whose real authored diff exceeds 400 lines must be surfaced to the user before apply; no `size:exception` is authorized and no chain strategy is preselected.
+**Hotspots:** JWKS verifier+crypto tests (RU13A/RU13B), companies live-DB closure (RU4–RU7), handler-wide catalog adoption (RU2/RU3) and decoder migration (RU16) — broad areas are split by behavior/capability, with server extraction (RU15) and executable adapters (RU10/RU11) likewise bounded. The user-approved WS5B split uses stacked-to-main delivery; each slice is forecast at ≤400 authored lines, with no `size:exception`.
 
-**Dependency order:** RU1 → RU2–RU7 (catalog required by WS2A wire assertions and WS2D 409 `data` parity); RU8/RU9 independent after RU1; RU10–RU17 independent after their own prerequisite; RU18–RU20 consume immutable evidence from all prior units; RU21 last (pairs with delivered behavior or stands as doc-only; generated closure docs stay owned by RU20). WS2–WS6 integration merges in design §3 order (WS2 first), independent of implementation sequence.
+**Dependency order:** RU1 → RU2–RU7 (catalog required by WS2A wire assertions and WS2D 409 `data` parity); RU8/RU9 independent after RU1; RU10–RU17 independent after their own prerequisite; RU13A precedes RU13B, and both precede RU14; RU18–RU20 consume immutable evidence from all prior units; RU21 last (pairs with delivered behavior or stands as doc-only; generated closure docs stay owned by RU20). WS2–WS6 integration merges in design §3 order (WS2 first), independent of implementation sequence.
 
 ## Task conventions
 
@@ -193,12 +194,23 @@ This follow-up task extends the 11-code V1 catalog to 14 codes per the planning 
 - [x] TRIANGULATE: production + `jwks` succeeds only with HTTPS issuer and complete config; every invalid combination from the table in design §7.1 enumerated. <!-- sdd-owner: implementation -->
 - [x] REFACTOR: run `go test ./... -count=1`; confirm `git diff --name-only` for this unit shows no `cmd/` file. <!-- sdd-owner: implementation -->
 
-### 5.2 (WS5B) JWKS bounded cache, single-flight rotation verifier — **forecast >400 authored lines; ask before splitting into WS5B-1 (cache/single-flight core) and WS5B-2 (verification flow + concurrency evidence)**
+### 5.2a (WS5B-1 / RU13A) Bounded JWKS cache and single-flight core — **≤400 authored lines; stacked-to-main slice 1**
 
-- [ ] RED (compile-safe scaffold): no JWKS verifier exists. First land a scaffold `backend/internal/features/identity/infrastructure/auth/jwks_verifier.go` whose constructor succeeds but whose `Verify` always returns a "not implemented" error. Add `backend/internal/features/identity/infrastructure/auth/jwks_verifier_test.go` — header parsing requires `alg=RS256` and non-empty `kid` before trusting claims; unknown `kid` triggers exactly one bounded forced refresh; known-`kid` verification against `httptest.Server` with generated RSA keys; issuer/audience/token_use/exp/nbf/iat-skew failure table; response byte-size and key-count bounds; malformed JSON and server-error fail-closed; no PEM fallback. RED fails behaviorally — exact reason: "known-kid verification against the httptest JWKS server returns the not-implemented error instead of a verified subject". <!-- sdd-owner: implementation -->
-- [ ] GREEN: implement the verifier per design §7.2: mutex-protected immutable snapshot + expiry, TTL clamped to configured min/max, exactly one in-flight refresh record, verifier-owned lifecycle context + wait group, positive fetch timeout on a bounded `http.Client`, refresh launched under `context.WithTimeout(verifierCtx, fetchTimeout)` never the request context, publish-once + close completion channel exactly once, waiters `select` on `refresh.done` vs own `requestContext.Done()` and never touch the shared cancel, whole-set bounded cache replacement, failed refresh never extends expiry. Make the focused tests pass. <!-- sdd-owner: implementation -->
-- [ ] TRIANGULATE: concurrency evidence — one HTTP refresh under concurrent misses; cancelling the starter lets it return its own error while another waiter succeeds from the same refresh; cancelling any other waiter does not affect the fetch; stalled server observes cancellation at the verifier-owned deadline; injected clock controls TTL (no sleeps as correctness conditions); `Close` cancels lifecycle and returns boundedly; package-level goroutine-leak detection (goleak or wait-group assertion) proves no refresh goroutine survives. <!-- sdd-owner: implementation -->
-- [ ] REFACTOR: run `go test ./... -count=1` and `go test -race ./internal/features/identity/... -count=1`; confirm no permissive fallback path exists anywhere in the package. <!-- sdd-owner: implementation -->
+Boundary: lifecycle, bounded JWKS HTTP fetch/parse, immutable cache snapshot/TTL, and single-flight refresh mechanics only. `Verify` remains intentionally unimplemented until WS5B-2; no claim in this unit may trust token claims or select a PEM fallback.
+
+- [ ] RED (compile-safe scaffold): add `backend/internal/features/identity/infrastructure/auth/jwks_verifier.go` with a compile-safe constructor, lifecycle `Close`, and a `Verify` stub that returns a static "not implemented" error; add core tests in `backend/internal/features/identity/infrastructure/auth/jwks_verifier_test.go` (or narrowly split core test files) that compile and fail behaviorally on bounded fetch/parse, immutable snapshot/TTL, and single-flight refresh mechanics rather than missing symbols. Use an injected clock and channel barriers; do not use sleeps as correctness conditions. <!-- sdd-owner: implementation -->
+- [ ] GREEN: implement only the WS5B-1 core in `backend/internal/features/identity/infrastructure/auth/`: verifier-owned lifecycle context and wait group; positive bounded fetch timeout and bounded `http.Client`; JWKS response byte-size/key-count limits and malformed/server-error fail-closed parsing; mutex-protected immutable whole-set snapshot with TTL clamped to configured min/max; exactly one in-flight refresh record; refresh launched from the verifier context (never a request context); publish and completion-channel close exactly once; failed refresh never extends expiry. Keep `Verify` returning the deliberate not-implemented error. Make the focused core tests pass. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: deterministically prove concurrent callers share one HTTP refresh, waiters select only their own cancellation versus shared completion, cancellation of one waiter cannot cancel shared refresh, bounded fetch cancellation is observed, replacement is whole-set and bounded, TTL uses the injected clock, and `Close` cancels lifecycle without surviving refresh goroutines. Use barriers/wait-group or goleak evidence, with no timing-only assertions. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: keep the WS5B-1 implementation, core tests, and task evidence at no more than 400 authored changed lines; run `cd backend && go test ./internal/features/identity/infrastructure/auth/... -count=1`, `cd backend && go test ./... -count=1`, `cd backend && go vet ./...`, and `gofmt -l` on changed Go files. Rollback boundary is the WS5B-1 cache/lifecycle files and tests; WS5B-2 verification behavior and WS5C wiring remain untouched. <!-- sdd-owner: implementation -->
+
+### 5.2b (WS5B-2 / RU13B) Verification flow, rotation, and adversarial concurrency evidence — **≤400 authored lines; stacked-to-main slice 2; depends on WS5B-1**
+
+Boundary: complete `Verify` on the WS5B-1 core, including claims validation, rotation behavior, and adversarial cancellation/deadline/Close evidence. Do not modify `backend/cmd/api/main.go`; WS5C owns composition wiring.
+
+- [ ] RED (compile-safe behavioral): against the compile-safe WS5B-1 core, add behavioral tests in `backend/internal/features/identity/infrastructure/auth/jwks_verifier_test.go` using generated RSA keys and an `httptest.Server`; known-kid verification must fail on the deliberate not-implemented result. The tests must require `alg=RS256` and non-empty `kid` before claims trust, validate signature plus issuer/audience/token_use/exp/nbf/iat skew, require unknown-kid exactly-one forced refresh, enforce no PEM fallback, and cover malformed/server-error fail-closed behavior. <!-- sdd-owner: implementation -->
+- [ ] GREEN: complete `Verify` in `backend/internal/features/identity/infrastructure/auth/jwks_verifier.go`: select the cached `kid`, force exactly one bounded refresh for an unknown kid, validate RS256 signature and issuer/audience/token_use/exp/nbf/iat skew before returning claims/subject, and fail closed for every fetch, parse, key, algorithm, signature, or claim error. Preserve WS5B-1 invariants: shared refresh never uses/carries a request context; waiters never touch shared cancellation; publish/close exactly once; whole-set bounded replacement; failed refresh never extends expiry; no PEM fallback. Make the focused behavioral tests pass. <!-- sdd-owner: implementation -->
+- [ ] TRIANGULATE: add deterministic adversarial evidence for rotation and cancellation: starter cancellation returns its own error while another waiter succeeds from the same refresh; cancelling another waiter does not affect the fetch; a stalled server observes the verifier-owned deadline; injected clock controls TTL; `Close` is bounded and idempotent; no goroutine/refresh leak remains. Run the scoped identity race suite and assert byte/key bounds and all fail-closed outcomes with barriers, injected clocks, and wait-group/goleak evidence rather than sleeps. <!-- sdd-owner: implementation -->
+- [ ] REFACTOR: keep the WS5B-2 implementation/tests/evidence at no more than 400 authored changed lines; run `cd backend && go test ./internal/features/identity/infrastructure/auth/... -count=1`, `cd backend && go test -race ./internal/features/identity/... -count=1`, `cd backend && go test ./... -count=1`, `cd backend && go vet ./...`, and `gofmt -l` on changed Go files. Confirm no permissive fallback exists anywhere under `backend/internal/features/identity/infrastructure/auth/`. Rollback boundary is the Verify/rotation additions and WS5B-2 tests, leaving the WS5B-1 core intact. <!-- sdd-owner: implementation -->
 
 ### 5.3 (WS5C) Middleware/composition integration
 
