@@ -14,9 +14,12 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
             <PeopleFlowLogo />
           </Link>
           <nav aria-label="Navegación principal">
+            {/* Primary pill: the preset dark --primary fails AA as small text
+                (2.15:1), but the --primary/--primary-foreground pair passes
+                in both schemes, so the token pair is used as designed. */}
             <Link
               href="/vacantes"
-              className={`${focusRing} text-sm font-medium text-primary underline-offset-4 hover:underline`}
+              className={`${focusRing} inline-flex items-center rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90`}
             >
               Vacantes
             </Link>
