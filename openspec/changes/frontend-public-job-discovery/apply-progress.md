@@ -3,12 +3,13 @@
 ## Current apply slice
 
 - Change: `frontend-public-job-discovery`
-- Work unit: `task-1.1-bootstrap`
-- Delivery boundary: PR 1 of the selected feature-branch chain; tracker branch `feat/frontend-foundation`
-- State: committed at `8e488a4` (`chore(frontend): bootstrap Next.js foundation`); no push or PR was performed
-- Remediation: attempt 2 (gatekeeper rerun, bound to evidence revision `sha256:f62828b3be7ebbf193d74abcaa6b29c70d5c5eeea3e9d0d3b4c327626c28d7e0`) completed; see `## Remediation evidence — attempt 2` below
-- Persisted checkbox: `- [x]` — the corresponding implementation commit landed at `8e488a4`
-- Out of scope and not started: task 2.1 and every later task
+- Work unit: `task-2.1-red` (RED for shared preset foundation and minimal public root)
+- Delivery boundary: PR 2 of the selected feature-branch chain; tracker branch `feat/frontend-foundation`
+- State: RED implementation committed at `bfada71c7ce6972c0fa792409570dfaa9d548ae2` (`test(frontend): define public root foundation`); no push or PR was performed
+- Persisted checkbox: `- [x]` — task 2.1's authorized RED commit landed at `bfada71`
+- Out of scope and not started: task 2.2 (GREEN) and every later task
+
+Prior slice (task 1.1 bootstrap, committed at `8e488a4`, remediation attempt 2 and revalidation attempt 3 bound to evidence revision `sha256:f62828b3be7ebbf193d74abcaa6b29c70d5c5eeea3e9d0d3b4c327626c28d7e0`) remains fully documented below.
 
 ## Structured status consumed
 
@@ -160,7 +161,7 @@ All blocking diagnostics were disproved with exact resolution evidence; the task
 
 Task 1.1 is complete (see the final closure section below). For the original task text, see `tasks.md` §1.1.
 
-All task 2.1+ checkboxes remain untouched and are outside this work-unit boundary.
+All task 2.1+ checkboxes remained untouched and outside that task-1.1 work-unit boundary (historical: task 2.1 was subsequently implemented and closed; see the section below).
 
 ## Final revalidation — corrected native accounting objective (attempt 3, read-mostly)
 
@@ -200,4 +201,14 @@ Remove only the 14 frontend paths listed above. This removes the standalone boot
 - `src/lib/utils.ts` was reconciled to blob `bd0c391ddd1088e9067844c48835bf4abcd61783` through completed native work unit `task-1.1-formatter-reconciliation`; `pnpm-lock.yaml` was reconciled to blob `cb49f20d235e783ac7f66007f25b7839c764866b` through completed native work unit `task-1.1-lockfile-reconciliation`; `src/app/globals.css` remained blob `63ff46048f838f8cb5652fbc28e77257b2238f1d` throughout.
 - Final revalidation under Node `v22.22.1` / pnpm `10.34.5` passed: frozen install, shadcn preset/Base UI/alias assertions, import resolution, typecheck, lint, empty unit/E2E/a11y runners, API-offline build, and the expected startup 404 (task 1.1 creates no routes).
 - All 14 blobs matched settled tree `4ff86dcad756e6ddf1d88b4a9d35c34c6d2cee16` both before and after verification; no source or OpenSpec artifact changed during verification.
-- Task 1.1 is complete: its implementation checkbox in `tasks.md` is now `- [x]` (1 checked, 21 unchecked implementation rows). Task 2.1 and every later task remain untouched. No push was made and no PR was created.
+- Task 1.1 is complete: its implementation checkbox in `tasks.md` is now `- [x]` (1 checked, 21 unchecked implementation rows). At that closure time task 2.1 and every later task were untouched (task 2.1 has since landed; see the section below). No push was made and no PR was created.
+
+## Task 2.1 RED closure — complete
+
+- RED implementation commit: `bfada71c7ce6972c0fa792409570dfaa9d548ae2` — `test(frontend): define public root foundation`. Exact scope: seven test files, 391 insertions, no production files.
+- Genuine RED evidence (required, not a defect to fix in closure), Node 22.22.1 / pnpm 10.34.5:
+  - `pnpm test` → 5 files failed, 1 passed; failures are missing `layout` / `page` / `logo` / `PublicShell` modules plus missing system-dark media activation.
+  - `pnpm test:e2e` → root `ERR_CONNECTION_REFUSED` because no route/server exists yet.
+- Native work units `task-2.1-red` and `task-2.1-red-commit` both settled complete. Parent acquired, settled, and committed; no apply-side stage/commit was performed.
+- Rollback: revert commit `bfada71`; it removes only the seven root/foundation test files.
+- Task state: 2.1 checkbox is `- [x]` (2 checked / 20 unchecked). Task 2.2 (GREEN) is next and has not started. No push or PR.

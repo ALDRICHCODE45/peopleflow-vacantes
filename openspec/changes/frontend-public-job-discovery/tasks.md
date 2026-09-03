@@ -39,7 +39,7 @@ Preset `b27M1Ev2` is the authoritative visual bootstrap. Its confirmed values MU
 
 ### 2.1 RED — define shell, theme, asset, and root expectations
 
-- [ ] Add failing Vitest/RTL and Playwright expectations for `frontend/src/app/layout.tsx`, `frontend/src/app/(marketing)/page.tsx`, `frontend/src/components/brand/`, `frontend/src/components/shells/`, and `frontend/src/app/globals.css`: `lang="es-MX"`, one minimal root `h1`, one clear “/vacantes” link, no root API call or broad client boundary, PeopleFlow assets, semantic light/dark tokens, safe focus, Inter typography, exact preset identity, and no unsupported marketing actions; run focused `cd frontend && pnpm test` and root Playwright commands (RED until routes exist). Rollback is limited to these root/foundation tests. <!-- sdd-owner: implementation -->
+- [x] Add failing Vitest/RTL and Playwright expectations for `frontend/src/app/layout.tsx`, `frontend/src/app/(marketing)/page.tsx`, `frontend/src/components/brand/`, `frontend/src/components/shells/`, and `frontend/src/app/globals.css`: `lang="es-MX"`, one minimal root `h1`, one clear “/vacantes” link, no root API call or broad client boundary, PeopleFlow assets, semantic light/dark tokens, safe focus, Inter typography, exact preset identity, and no unsupported marketing actions; run focused `cd frontend && pnpm test` and root Playwright commands (RED until routes exist). Rollback is limited to these root/foundation tests. <!-- sdd-owner: implementation -->
 
 ### 2.2 GREEN — consume the verified preset and implement shared foundation
 
