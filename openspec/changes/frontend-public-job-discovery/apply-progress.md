@@ -348,3 +348,38 @@ Native runtime settlement completed the `task-2.2-green` objective and remediate
 - Scope: the exact staged implementation scope was 9 paths and 195 textual changed lines, below the 400-line review budget; administrative evidence is excluded from the budget.
 - Rollback: revert commit `8467124`, which removes only this foundation candidate plus its reviewed generated snapshot without touching unrelated work.
 - Task state after this closure: task 2.3 (TRIANGULATE), task 2.4 (REFACTOR), and every later task are not started; their checkboxes remain `- [ ]`.
+
+## Final closure — task 2.3 TRIANGULATE complete
+
+Task 2.3 is closed: implementation commit `7e4a05016e4552e0440241321da56afe82558f5a` (`fix(frontend): ensure accessible public root foundation`) landed on `feat/frontend-foundation`, and its checkbox in `tasks.md` is now `- [x]`. No push was made and no PR was created.
+
+### Commit identity and line accounting
+
+- Exact commit scope: `frontend/tests/e2e/root.spec.ts` (+378/−0) and `frontend/src/components/shells/PublicShell.tsx` (+4/−1); totals **382 additions + 1 deletion = 383 textual lines**, under the hard 400-line budget.
+- Production defect fixed: the dark-scheme `/vacantes` link used `text-primary` with ~2.16:1 contrast; semantic `bg-primary text-primary-foreground` reaches ~6.64:1 light / ~8.35:1 dark without changing preset tokens.
+
+### Failed-verification correction history
+
+1. The first apply attempt timed out and native accounting measured 443 lines because a 69-line progress append was included; the user authorized an audited reset, recovery restored progress to HEAD, and the candidate was compacted to 380 lines.
+2. Independent verification then blocked on a test-harness false positive: repeated `test.use({ viewport })` in one scheme-level describe made mobile 375×812 override desktop. Remediation produced genuine RED (two nominal desktop tests failed: expected 1280×720, received 375×812) and GREEN after nested per-cell describes plus exact `page.viewportSize()` assertions.
+
+### Final corrected verification (Node v22.22.1 / Corepack pnpm 10.34.5)
+
+| Gate | Command | Result |
+| ---- | ------- | ------ |
+| Unit | `corepack pnpm test` | 6 files / 29 tests pass |
+| Typecheck | `corepack pnpm typecheck` | pass |
+| Lint | `corepack pnpm lint` | pass |
+| Build | `corepack pnpm build` (API offline) | pass, Next.js 15.5.25 |
+| E2E | production `pnpm start` + focused Playwright suite | 13/13 pass with actual desktop 1280×720 and mobile 375×812 |
+| Axe | accessibility suite | 4/4 pass across light/dark × both widths |
+
+- Preset identity: live `pnpm dlx shadcn@latest` decode/resolve/info pass for `b27M1Ev2` — Rhea, Neutral base, Violet theme, Neutral chart, Inter body with inherited Inter heading, Lucide, Default radius, Default/Solid menu, Subtle accent, Base UI `base`, Tailwind v4, `@/*` → `./src/*`, and UI output under `frontend/src/components/ui/`.
+- Negative checks pass: no raw/ad hoc colors, custom radius/primitive overrides, charts, employer menus, horizontal overflow, or root API calls (including same-origin `/api`); exact focus on `/vacantes`; correct visible logo dimensions; exactly one h1 and exactly one `/vacantes` link.
+
+### Work units, rollback, and remaining state
+
+- Complete native work units: `task-2.3-triangulate`, `task-2.3-independent-verification` (failed then remediated), `task-2.3-formatting-correction`, and `task-2.3-commit`.
+- Rollback boundary: `git revert 7e4a050` removes only the E2E triangulation expansion and the PublicShell contrast fix without touching unrelated work.
+- Six formatter-only frontend test diffs remain intentionally unstaged; no push and no PR.
+- Task 2.4 (REFACTOR) and every later task remain untouched; their checkboxes are still `- [ ]`.
