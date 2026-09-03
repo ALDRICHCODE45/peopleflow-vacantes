@@ -795,7 +795,10 @@ WS5A explicit verifier configuration factory is closed under approved review lin
 **REFACTOR / verification:** focused auth, full `go test ./... -count=1`, vet, gofmt, and diff checks PASS; runtime harness N/A (library core only). Rollback removes the two JWKS files and this evidence without touching WS5B-2/WS5C. Exact candidate including four task-state rows: 400 changed lines; task state 64/100.
 
 ## WS5B-2 / RU13B bounded candidate — TDD Cycle Evidence
+
 | Task | RED provenance | GREEN / TRIANGULATE / REFACTOR |
 |---|---|---|
 | 5.2b | Prior worker proved the committed Verify stub RED; continuation RED caught missing `exp` and cached verification after `Close`. | Focused auth tests pass; RS256/claims/rotation, deterministic starter cancellation, owned deadline, injected TTL, and bounded idempotent Close are covered. |
+
 - Candidate: 391 additions + 9 deletions = 400 changed lines; RU13B boxes remain unchecked pending parent gate/commit.
+Post-commit closure: implementation commit `fdcea15` (`feat(identity): verify JWKS tokens and rotation`) landed as the exact 400-line RU13B candidate after independent verification PASS; the four task 5.2b boxes are now checked and task state is 68/100.
