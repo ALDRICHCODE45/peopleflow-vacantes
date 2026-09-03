@@ -3,13 +3,15 @@
 ## Current apply slice
 
 - Change: `frontend-public-job-discovery`
-- Work unit: `task-2.1-red` (RED for shared preset foundation and minimal public root)
+- Work unit: `task-2.2-green` (GREEN — consume the verified preset and implement shared foundation)
 - Delivery boundary: PR 2 of the selected feature-branch chain; tracker branch `feat/frontend-foundation`
-- State: RED implementation committed at `bfada71c7ce6972c0fa792409570dfaa9d548ae2` (`test(frontend): define public root foundation`); no push or PR was performed
-- Persisted checkbox: `- [x]` — task 2.1's authorized RED commit landed at `bfada71`
-- Out of scope and not started: task 2.2 (GREEN) and every later task
+- State: GREEN implementation committed at `8467124` (`feat(frontend): add public foundation and marketing root`); no push or PR was performed
+- Persisted checkbox: `- [x]` — task 2.2's authorized implementation commit landed at `8467124` and the checkbox is closed in this reconciliation
+- Final verification (Node `v22.22.1` / pnpm `10.34.5`): unit 6/6 files and 29/29 tests exit 0; typecheck pass; lint pass; API-offline Next `15.5.25` build pass; production root Playwright 1/1 pass; no stale server
+- Scope: 9 paths and 195 textual changed lines, below the 400-line review budget
+- Out of scope and not started: task 2.3 (TRIANGULATE), task 2.4 (REFACTOR), and every later task
 
-Prior slice (task 1.1 bootstrap, committed at `8e488a4`, remediation attempt 2 and revalidation attempt 3 bound to evidence revision `sha256:f62828b3be7ebbf193d74abcaa6b29c70d5c5eeea3e9d0d3b4c327626c28d7e0`) remains fully documented below.
+Prior slices remain fully documented below: task 1.1 bootstrap (committed at `8e488a4`, remediation attempt 2 and revalidation attempt 3 bound to evidence revision `sha256:f62828b3be7ebbf193d74abcaa6b29c70d5c5eeea3e9d0d3b4c327626c28d7e0`) and task 2.1 RED (committed at `bfada71`).
 
 ## Structured status consumed
 
@@ -212,3 +214,137 @@ Remove only the 14 frontend paths listed above. This removes the standalone boot
 - Native work units `task-2.1-red` and `task-2.1-red-commit` both settled complete. Parent acquired, settled, and committed; no apply-side stage/commit was performed.
 - Rollback: revert commit `bfada71`; it removes only the seven root/foundation test files.
 - Task state: 2.1 checkbox is `- [x]` (2 checked / 20 unchecked). Task 2.2 (GREEN) is next and has not started. No push or PR.
+
+## Corrective rerun — task 2.2 GREEN (gatekeeper rerun, one allowed corrective attempt)
+
+Purpose: continue the exact task 2.2 GREEN candidate left by the timed-out prior actor and drive the committed task 2.1 RED suite to GREEN. **Zero files were authored or modified in this rerun** — the candidate was inspected, preserved, and every gate was executed; two intrinsic test-vs-framework conflicts block GREEN and are reported precisely below with the minimum test corrections, per the delegated instruction not to edit tests.
+
+### Candidate inspection and preservation
+
+- Dirty state verified formatter-only via `git diff` on the six RED test files (whitespace/wrapping only) and confirmed byte-identical before/after the rerun (`git status --porcelain` unchanged: 7 modified test/config files + untracked `frontend/public/`, `layout.tsx`, `(marketing)/page.tsx`, `brand/logo.tsx`, `shells/PublicShell.tsx`).
+- Candidate production files preserved as-is: `src/app/layout.tsx` (35), `src/app/(marketing)/page.tsx` (18), `src/components/brand/logo.tsx` (35), `src/components/shells/PublicShell.tsx` (36), `src/app/globals.css` (+54 system-dark media block and brand-mark scheme swap), `public/brand/peopleflow-{light,dark}.webp` (1584×396, ratio 4 verified by the logo test). Total authored candidate ≈ 178 lines, matching the prior actor's report.
+- No production correction was needed: the candidate is valid Next.js code. Both blockers live in the committed test file, not in the candidate.
+
+### Blocker 1 (precise) — named `RootLayout` export is invalid for a Next.js layout
+
+- `frontend/src/app/layout.test.tsx` line 18 requires the named export: `import { RootLayout, metadata } from "./layout";`.
+- `frontend/src/app/layout.tsx` satisfies it with `export function RootLayout(...)` + `export default RootLayout;`.
+- Next.js 15.5 route-export validation rejects any extra named export from a layout module. Exact evidence:
+  - `PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:9 PEOPLEFLOW_SITE_URL=http://127.0.0.1:3000 corepack pnpm build` → `Failed to compile. src/app/layout.tsx — Type error: Layout "src/app/layout.tsx" does not match the required types of a Next.js Layout. "RootLayout" is not a valid Layout export field.`
+  - `corepack pnpm typecheck` (with the build-regenerated `.next/types` in the tsconfig program) → same root cause: `Property 'RootLayout' is incompatible with index signature ... not assignable to type 'never'` in `.next/types/app/layout.ts(12,13)`.
+- No production-side fix exists inside the allowed edit surfaces: the named export cannot be removed (breaks the test import) and cannot be kept (breaks `next build` type validation). Workarounds (`typescript.ignoreBuildErrors`, removing `.next/types` from tsconfig, project-wide config changes) are explicitly forbidden and would be hacks.
+- **Minimum test correction:** change the import to the default export — `import RootLayout, { metadata } from "./layout";` — and the production layout to `export default function RootLayout(...)`, dropping the `export default RootLayout;` alias line. No other assertion needs to change (the metadata export is valid).
+
+### Blocker 2 (precise) — React 19 hoists `<html>`/`<body>` out of the RTL container
+
+- Three committed assertions query the Testing Library container: `container.querySelector("html")` (×2) and `container.querySelector("body")` (×1) in `frontend/src/app/layout.test.tsx` lines 31, 43, 54.
+- React 19 (react-dom 19.1.9) treats `<html>`/`<body>` as pinned root elements: rendering them from a valid Next root layout hoists them onto the real `document.documentElement`/`document.body` and leaves the RTL container holding only the children. Debug evidence (temporary throwaway test, deleted after): `CONTAINER: <p>contenido</p>` while `document.documentElement` carried `lang="es-MX"` and the Inter variable/className — i.e. the production behavior is correct and the container-only queries can never pass.
+- No production-side fix exists: any valid Next root layout returns `<html>`, and React 19 always hoists it in a jsdom document context.
+- **Minimum test correction:** in those three assertions use the document root elements instead of the container — `document.querySelector("html")` / `document.querySelector("body")` (or `document.documentElement` / `document.body`).
+
+### Verification evidence (Node v22.22.1, Corepack-pinned pnpm 10.34.5, from `frontend/`)
+
+| Gate | Exact command | Outcome |
+| --- | --- | --- |
+| Node | `find ~/.cache/pnpm/dlx -path '*/node@22.22.1/.../bin/node'` + `PATH` prepend; `node --version` | `v22.22.1` |
+| pnpm | `corepack pnpm --version` | `10.34.5` |
+| Unit (RED→GREEN state) | `corepack pnpm test` | 1 file failed / 5 passed; **26 of 29 tests pass** — page, logo, PublicShell, preset-identity, globals.css suites are fully GREEN. The 3 failures are exactly Blocker 2 (html/body container queries). The suite also caught the prior actor's reported missing system-dark media activation and it now passes (globals.css system-dark block present). |
+| Typecheck | `corepack pnpm typecheck` | Fails only via Blocker 1 (`.next/types` export-field check); no other diagnostics. Passed clean before the failed build generated `.next/types`. |
+| Lint | `corepack pnpm lint` | Passed, zero errors/warnings. |
+| API-offline build | `PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:9 PEOPLEFLOW_SITE_URL=http://127.0.0.1:3000 corepack pnpm build` | Fails only on Blocker 1 with the exact "not a valid Layout export field" error; compilation itself succeeded (`✓ Compiled successfully in 1428ms`). |
+| shadcn info | `pnpm dlx shadcn@latest info --json` | Confirmed: Next.js 15.5.25, `srcDirectory=true`, `rsc=true`, Tailwind v4, `style=base-rhea`, `base=base`, Lucide, aliases `components=@/components` / `ui=@/components/ui`, resolved UI path `frontend/src/components/ui`, `components: []`. |
+| Preset resolve | `pnpm dlx shadcn@latest preset resolve --json` | Confirmed: code `b27M1Ev2`, values rhea/neutral/violet/neutral-chart/lucide/inter/inherit-heading/default-radius/subtle-accent/default-menu — exact match with the tasks.md preset fidelity contract, no fallbacks. |
+| Focused E2E smoke (dev server, production unavailable) | `PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:9 PEOPLEFLOW_SITE_URL=http://127.0.0.1:3000 corepack pnpm dev --hostname 127.0.0.1 --port 3000` then `corepack pnpm exec playwright test tests/e2e/root.spec.ts` | Server `Ready in 1485ms`; rendered `lang="es-MX"` confirmed via curl. All product assertions passed; single failure is `getByRole("button")` resolving to the dev-only **"Open Next.js Dev Tools"** overlay button (absent in production builds). No test change is needed for the E2E spec; it must be rerun against a production build once Blocker 1 is resolved. A stale leftover `next-server` on port 3000 from the prior actor was stopped before the run; the dev server was stopped after. |
+
+### TDD Cycle Evidence (task 2.2, partial — blocked)
+
+| Stage | Evidence |
+| --- | --- |
+| RED | Provided by committed task 2.1 (`bfada71`); the prior actor's "missing system-dark media activation" RED failure is now genuinely GREEN. |
+| GREEN | 26/29 unit tests pass and the candidate compiles; blocked from full GREEN only by Blockers 1–2 in `layout.test.tsx` and the derived build/typecheck gates. |
+| TRIANGULATE | shadcn `info --json` + `preset resolve --json` re-verified exact `b27M1Ev2` identity; focused dev-mode Playwright smoke executed with product assertions passing. |
+| REFACTOR | Not started (out of scope for GREEN; task 2.4). |
+
+### Remaining work after the test corrections land
+
+1. ~~Apply the two minimum corrections~~ → **DONE** (see the authorized correction section below).
+2. ~~Re-run gates~~ → **DONE** (evidence below); one exit-code caveat remains on the unit gate, owned by read-only files.
+3. ~~Mark task 2.2 checkbox `- [x]` only when the implementation commit lands (per the candidate-and-commit accounting contract).~~ SUPERSEDED: the implementation commit landed at `8467124` and the checkbox is now closed (see the final task 2.2 closure section below).
+
+## Authorized minimal test correction — task 2.2 GREEN (work unit `task-2.2-green`)
+
+Human decision: `authorize_minimal_test_correction` — correct only the invalid committed layout-test assumptions, adjust the production default export, finish GREEN verification. Bound to failed evidence revision `sha256:42f633aea0a2a7489a7fe8d40d7e24303f7a2767d810eae13f80a8c8d7d2bc62` (no runtime tokens persisted). Allowed edit surfaces honored exactly: `frontend/src/app/layout.test.tsx`, `frontend/src/app/layout.tsx`, this file. No other production or test file was modified; `tasks.md` untouched; nothing staged, committed, or pushed.
+
+### Corrections applied (exact)
+
+1. `frontend/src/app/layout.test.tsx`: `import { RootLayout, metadata } from "./layout";` → `import RootLayout, { metadata } from "./layout";` (valid default import; named `metadata` retained).
+2. `frontend/src/app/layout.test.tsx`: the three committed RTL `container` queries for `<html>`/`<body>` now query the React 19 document root — `document.querySelector("html")` ×2, `document.querySelector("body")` ×1 — because React 19 pins `<html>`/`<body>` onto the real document, never the RTL container. The now-unused `const { container }` destructuring was removed on exactly those three tests (otherwise lint fails on unused vars). A one-line comment on each test records why. All behavioral assertions preserved at full strength; no assertion weakened or removed.
+3. `frontend/src/app/layout.tsx`: `export function RootLayout(...)` + `export default RootLayout;` → single `export default function RootLayout(...)` (33 lines, was 35). The extra named export — the exact "not a valid Layout export field" build/typecheck blocker — is gone. No other byte changed.
+
+Pre-existing formatter-only drift in the dirty test file (e.g. the wrapped `readFileSync(...)` multiline call, present before this correction) was preserved untouched, per the delegation.
+
+### Blocker resolution evidence
+
+- Blocker 1 (named layout export) — **RESOLVED**: API-offline build now compiles, type-checks, and generates 4/4 static pages (`/` 8.18 kB First Load 110 kB, `/_not-found`); typecheck passes with no diagnostics. The `.next/types` route-export rejection is gone.
+- Blocker 2 (container `<html>`/`<body>` queries) — **RESOLVED**: the three layout tests pass against the real document root; full suite is 6/6 files, **29/29 tests passing** (was 26/29 with 3 failures).
+
+### Verification evidence (Node `v22.22.1` via pinned pnpm `10.34.5`, from `frontend/`)
+
+| Gate | Exact command | Outcome |
+| --- | --- | --- |
+| Baseline (pre-correction, for attribution) | `git stash push -- src/app/layout.test.tsx` + `corepack pnpm test` + `git stash pop` | Reproduced the failed evidence revision state: 3 failed / 26 passed AND the same 3 unhandled teardown errors — proving those errors pre-date this correction and originate in read-only files |
+| 1. Unit | `corepack pnpm test` (`vitest run --passWithNoTests`) | **6/6 files, 29/29 tests passed**, but process exit 1: Vitest caught 3 unhandled post-teardown errors (non-deterministically 3–4 across runs; count varies with scheduler timing), all `TypeError: Right-hand side of 'instanceof' is not an object` in react-dom `getActiveElementDeep` via `Immediate.performWorkUntilDeadline`, "caught after test environment was torn down", originating ONLY in `src/app/(marketing)/page.test.tsx` and `src/components/shells/PublicShell.test.tsx` — both read-only for this work unit |
+| 1a. Root-cause diagnostic (throwaway, zero repo files touched) | temp setup file in ignored `node_modules/` registering `afterEach(() => cleanup())` + temp vitest config in `/tmp`; deleted after | With only the cleanup hook registered: **6/6 files, 29/29 tests, exit 0**. Proven cause: `vitest.config.ts` lacks `globals: true`, so `@testing-library/react` auto-cleanup never registers; roots stay mounted and React 19 scheduler work fires after jsdom teardown. One-line remediation (`globals: true` in `vitest.config.ts`, or `afterEach(cleanup)` in the two read-only test files) is OUTSIDE the authorized edit surfaces and requires a parent/user decision |
+| 2. Typecheck | `corepack pnpm typecheck` | Passed, no diagnostics |
+| 3. Lint | `corepack pnpm lint` | Passed, zero errors/warnings |
+| 4. API-offline build | `PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:9 PEOPLEFLOW_SITE_URL=http://127.0.0.1:3000 corepack pnpm build` | Passed: Next.js `15.5.25`, compiled 1435 ms, lint/type validity OK, 4/4 static pages, `/` + `/_not-found` only; no API process available |
+| 5. Focused root Playwright smoke (production) | `corepack pnpm start --hostname 127.0.0.1 --port 3000` then `node node_modules/@playwright/test/cli.js test tests/e2e/root.spec.ts` | Server `Ready in 460 ms` under Node `v22.22.1`; `GET /` → HTTP 200 with `lang="es-MX"`; **1 passed** (chromium, 250 ms), exit 0 — all product assertions including zero buttons (dev-overlay absent in production) |
+| Stale-server check | `ss -ltnp` + `pgrep -af 'next-server\|next start'` after run | No listener on 3000, no next-server processes; temp logs removed |
+| Runtime pin | `node --version` / `corepack pnpm --version` | `v22.22.1` / `10.34.5` (machine default v24.14.1 not used; an intermediate shell precedence slip briefly hit v24 and was corrected with proper grouping before any gate result was recorded) |
+
+### Unit-gate caveat (requires parent decision — NOT a test failure)
+
+Every test passes (29/29). The only reason `pnpm test` exits non-zero is the pre-existing missing-RTL-auto-cleanup infrastructure defect in read-only files (`page.test.tsx`, `PublicShell.test.tsx`, `vitest.config.ts`), proven by the 1a diagnostic. The objective "make the committed task 2.1 RED suite pass" is achieved at the assertion level; the exit-code remediation is a one-line change outside `authorize_minimal_test_correction`'s edit surfaces. Recommended next authorization: `globals: true` in `frontend/vitest.config.ts` (preferred — one line, fixes all files, no test edits) or equivalent per-file `afterEach(cleanup)`.
+
+### TDD Cycle Evidence (task 2.2 GREEN — complete at assertion level)
+
+| Stage | Evidence |
+| --- | --- |
+| RED | Committed task 2.1 suite (`bfada71`); baseline rerun before this correction reproduced 3 failed / 26 passed bound to the failed evidence revision |
+| GREEN | After the authorized minimal correction: 29/29 tests pass, typecheck/lint/build/production-E2E all pass; exit-code caveat is pre-existing test-infra, not a behavioral failure |
+| TRIANGULATE | Production-mode Playwright smoke (HTTP 200, `lang="es-MX"`, 1 h1, exactly one `/vacantes` link, zero buttons) passed against `pnpm start`; build validated route-export types via `.next/types` |
+| REFACTOR | Not started (task 2.4, out of scope) |
+
+### Changed-line accounting (this correction)
+
+- `frontend/src/app/layout.test.tsx` (tracked): `git diff --stat` = 14 insertions / 8 deletions total vs HEAD, of which ~3/1 are pre-existing formatter-only drift; authored delta ≈ 11+/7− (import, 3 comment lines, 3 destructure removals, 3 query lines).
+- `frontend/src/app/layout.tsx` (untracked): 33 lines (was 35) — default-only export.
+- `apply-progress.md`: administrative evidence, excluded from budget.
+- Total authored delta for this work unit ≈ **28 changed lines** — far below the 400-line budget. No staging or commits performed.
+
+### Rollback boundary
+
+Revert the two exact files: restore the committed `frontend/src/app/layout.test.tsx` via `git checkout -- frontend/src/app/layout.test.tsx` and delete untracked `frontend/src/app/layout.tsx` (or restore its 35-line two-export form). No other file, config, or lockfile was touched by this correction.
+
+## Final GREEN resolution — task 2.2
+
+The parent applied the proven one-line test-infrastructure correction, `globals: true` in `frontend/vitest.config.ts`, so React Testing Library auto-cleanup registers for every test. Independent verification then completed the task 2.2 GREEN objective under Node `v22.22.1` and pnpm `10.34.5`:
+
+- `corepack pnpm test`: passed, 6/6 files and 29/29 tests, exit 0, with no unhandled-errors section.
+- `corepack pnpm typecheck`: passed with no diagnostics.
+- `corepack pnpm lint`: passed with no errors or warnings.
+- API-offline `corepack pnpm build`: passed; Next.js `15.5.25` compiled, validated types, and generated 4/4 static pages with only `/` and `/_not-found`.
+- Production `pnpm start` plus focused `tests/e2e/root.spec.ts`: passed, 1/1 Chromium test; the server was terminated and port 3000 had no remaining listener.
+- `git diff --check`: passed. The semantic task footprint is approximately 194 changed lines, below the 400-line budget; administrative evidence is excluded.
+- Static preset assertions remained GREEN for exact `b27M1Ev2`, Base UI, Rhea/Neutral/Violet, Inter, Lucide, Default radius, Default/Solid menu, Subtle accent, Tailwind v4, aliases, and resolved UI path. Live `pnpm dlx` registry checks were not repeated by the read-only verifier because they can mutate the external dlx cache; the prior apply run's live checks remain valid.
+
+Native runtime settlement completed the `task-2.2-green` objective and remediated evidence revision `sha256:916a616096dd79883ffb399388fb128b8ac8a331c06ec87114447a6cb38bbb84`. The statement "Task 2.2 remains `- [ ]` until an explicitly authorized implementation commit lands" recorded above is now SUPERSEDED: the implementation commit `8467124` has landed and the checkbox is closed (see the final task 2.2 closure section below). At that settlement time no stage, commit, push, or PR had been performed by apply-side actors.
+
+## Final closure — task 2.2 GREEN complete
+
+- Implementation commit `8467124` (`feat(frontend): add public foundation and marketing root`) landed on `feat/frontend-foundation`; task 2.2's checkbox in `tasks.md` is now `- [x]`. No push was made and no PR was created.
+- Final verification under Node `v22.22.1` / pnpm `10.34.5`: unit tests 6/6 files and 29/29 tests passing with exit 0; `corepack pnpm typecheck` passed with no diagnostics; `corepack pnpm lint` passed with no errors or warnings; API-offline `corepack pnpm build` passed with Next.js `15.5.25`; production `pnpm start` plus the focused `tests/e2e/root.spec.ts` browser smoke passed 1/1 with no stale server left behind.
+- Native runtime completion: the `task-2.2-green` work unit settled complete natively, remediating evidence revision `sha256:916a616096dd79883ffb399388fb128b8ac8a331c06ec87114447a6cb38bbb84`.
+- Scope: the exact staged implementation scope was 9 paths and 195 textual changed lines, below the 400-line review budget; administrative evidence is excluded from the budget.
+- Rollback: revert commit `8467124`, which removes only this foundation candidate plus its reviewed generated snapshot without touching unrelated work.
+- Task state after this closure: task 2.3 (TRIANGULATE), task 2.4 (REFACTOR), and every later task are not started; their checkboxes remain `- [ ]`.
