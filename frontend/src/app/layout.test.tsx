@@ -13,42 +13,45 @@ vi.mock("next/font/google", () => ({
   })),
 }));
 
-import { RootLayout, metadata } from "./layout";
+import RootLayout, { metadata } from "./layout";
 
 const layoutSource = readFileSync(join(process.cwd(), "src/app/layout.tsx"), "utf8");
 
 describe("root layout", () => {
   it("renders the document with lang es-MX", () => {
-    const { container } = render(
+    // React 19 pins <html>/<body> onto the real document, not the RTL container.
+    render(
       <RootLayout>
         <p>contenido</p>
       </RootLayout>,
     );
 
-    const html = container.querySelector("html");
+    const html = document.querySelector("html");
     expect(html).not.toBeNull();
     expect(html).toHaveAttribute("lang", "es-MX");
   });
 
   it("applies the Inter font variable to the document root", () => {
-    const { container } = render(
+    // React 19 pins <html>/<body> onto the real document, not the RTL container.
+    render(
       <RootLayout>
         <p>contenido</p>
       </RootLayout>,
     );
 
-    const html = container.querySelector("html");
+    const html = document.querySelector("html");
     expect(html?.className).toContain("mock-inter-variable");
   });
 
   it("renders children inside the body", () => {
-    const { container } = render(
+    // React 19 pins <html>/<body> onto the real document, not the RTL container.
+    render(
       <RootLayout>
         <p>contenido</p>
       </RootLayout>,
     );
 
-    const body = container.querySelector("body");
+    const body = document.querySelector("body");
     expect(body).not.toBeNull();
     expect(body).toHaveTextContent("contenido");
   });
