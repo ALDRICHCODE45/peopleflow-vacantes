@@ -5,11 +5,17 @@ import { PeopleFlowLogo } from "../brand/logo";
 const focusRing =
   "rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
+// Shared page container: one width/padding rhythm for header, main, and footer,
+// inherited by the root and future vacancy routes.
+const shellContainer = "mx-auto w-full max-w-5xl px-4";
+
 export function PublicShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="border-b border-border">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-3">
+        <div
+          className={`${shellContainer} flex items-center justify-between gap-4 py-3`}
+        >
           <Link href="/" aria-label="PeopleFlow" className={focusRing}>
             <PeopleFlowLogo />
           </Link>
@@ -26,11 +32,9 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
           </nav>
         </div>
       </header>
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
-        {children}
-      </main>
+      <main className={`${shellContainer} flex-1 py-10`}>{children}</main>
       <footer className="border-t border-border">
-        <div className="mx-auto w-full max-w-5xl px-4 py-6 text-sm text-muted-foreground">
+        <div className={`${shellContainer} py-6 text-sm text-muted-foreground`}>
           PeopleFlow · Encuentra tu próxima oportunidad profesional.
         </div>
       </footer>
