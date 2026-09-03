@@ -51,7 +51,7 @@ Preset `b27M1Ev2` is the authoritative visual bootstrap. Its confirmed values MU
 
 ### 2.4 REFACTOR — stabilize shared tokens and composition
 
-- [ ] Refactor only `frontend/src/app/globals.css`, `frontend/src/components/brand/`, and `frontend/src/components/shells/` to remove duplicated navigation markup and non-semantic styling while preserving the exact preset tokens, Inter roles, Default radius, both schemes, WCAG AA focus/contrast, reduced-motion-safe transitions, and one shared shell for root and vacancy routes. Re-run typecheck, lint, unit, root browser, axe, and preset/configuration assertions; rollback only this foundation refactor. <!-- sdd-owner: implementation -->
+- [x] Refactor only `frontend/src/app/globals.css`, `frontend/src/components/brand/`, and `frontend/src/components/shells/` to remove duplicated navigation markup and non-semantic styling while preserving the exact preset tokens, Inter roles, Default radius, both schemes, WCAG AA focus/contrast, reduced-motion-safe transitions, and one shared shell for root and vacancy routes. Re-run typecheck, lint, unit, root browser, axe, and preset/configuration assertions; rollback only this foundation refactor. <!-- sdd-owner: implementation -->
 
 ## 3. API boundary, schemas, URL state, and formatting (PR 3)
 

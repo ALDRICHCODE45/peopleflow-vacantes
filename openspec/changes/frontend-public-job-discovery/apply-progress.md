@@ -3,15 +3,16 @@
 ## Current apply slice
 
 - Change: `frontend-public-job-discovery`
-- Work unit: `task-2.2-green` (GREEN — consume the verified preset and implement shared foundation)
+- Work unit: `task-2.4-closure` (ACTIVE — close out the committed task 2.4 REFACTOR)
 - Delivery boundary: PR 2 of the selected feature-branch chain; tracker branch `feat/frontend-foundation`
-- State: GREEN implementation committed at `8467124` (`feat(frontend): add public foundation and marketing root`); no push or PR was performed
-- Persisted checkbox: `- [x]` — task 2.2's authorized implementation commit landed at `8467124` and the checkbox is closed in this reconciliation
-- Final verification (Node `v22.22.1` / pnpm `10.34.5`): unit 6/6 files and 29/29 tests exit 0; typecheck pass; lint pass; API-offline Next `15.5.25` build pass; production root Playwright 1/1 pass; no stale server
-- Scope: 9 paths and 195 textual changed lines, below the 400-line review budget
-- Out of scope and not started: task 2.3 (TRIANGULATE), task 2.4 (REFACTOR), and every later task
+- State: task 2.4 REFACTOR committed at `8ac4932` (`refactor(frontend): stabilize shared shell composition`), exact scope `frontend/src/components/shells/PublicShell.tsx` at 9 insertions / 5 deletions = 14 committed lines; no push or PR was performed
+- Persisted checkbox: the task 2.4 checkbox is closed (`- [x]`, 5 checked / 17 unchecked) in `tasks.md` as part of this candidate; the native work unit `task-2.4-closure` itself is currently active and not yet settled
+- Settled prior native objectives: `task-2.4-refactor`, `task-2.4-independent-verification`, and `task-2.4-commit` are all settled complete
+- Final verification (Node `v22.22.1` / pnpm `10.34.5`): unit 6/6 files and 29/29 tests exit 0; typecheck pass; lint pass; API-offline Next `15.5.25` build pass; 13/13 root E2E and 4/4 axe pass; no stale server
+- Scope: the committed production delta is one path, 14 changed lines, below the 400-line review budget; the six protected formatter-only test diffs (98+/54−) remain unstaged and untouched
+- Out of scope and not started: every task 3+ item
 
-Prior slices remain fully documented below: task 1.1 bootstrap (committed at `8e488a4`, remediation attempt 2 and revalidation attempt 3 bound to evidence revision `sha256:f62828b3be7ebbf193d74abcaa6b29c70d5c5eeea3e9d0d3b4c327626c28d7e0`) and task 2.1 RED (committed at `bfada71`).
+Prior slices remain fully documented below: task 1.1 bootstrap (committed at `8e488a4`, remediation attempt 2 and revalidation attempt 3 bound to evidence revision `sha256:f62828b3be7ebbf193d74abcaa6b29c70d5c5eeea3e9d0d3b4c327626c28d7e0`), task 2.1 RED (committed at `bfada71`), task 2.2 GREEN (committed at `8467124`), and task 2.3 TRIANGULATE (committed at `7e4a050`).
 
 ## Structured status consumed
 
@@ -347,7 +348,7 @@ Native runtime settlement completed the `task-2.2-green` objective and remediate
 - Native runtime completion: the `task-2.2-green` work unit settled complete natively, remediating evidence revision `sha256:916a616096dd79883ffb399388fb128b8ac8a331c06ec87114447a6cb38bbb84`.
 - Scope: the exact staged implementation scope was 9 paths and 195 textual changed lines, below the 400-line review budget; administrative evidence is excluded from the budget.
 - Rollback: revert commit `8467124`, which removes only this foundation candidate plus its reviewed generated snapshot without touching unrelated work.
-- Task state after this closure: task 2.3 (TRIANGULATE), task 2.4 (REFACTOR), and every later task are not started; their checkboxes remain `- [ ]`.
+- Task state after this closure: task 2.3 (TRIANGULATE), task 2.4 (REFACTOR), and every later task are not started; their checkboxes remain `- [ ]` (historical: tasks 2.3 and 2.4 have since landed — see the sections below).
 
 ## Final closure — task 2.3 TRIANGULATE complete
 
@@ -382,4 +383,66 @@ Task 2.3 is closed: implementation commit `7e4a05016e4552e0440241321da56afe82558
 - Complete native work units: `task-2.3-triangulate`, `task-2.3-independent-verification` (failed then remediated), `task-2.3-formatting-correction`, and `task-2.3-commit`.
 - Rollback boundary: `git revert 7e4a050` removes only the E2E triangulation expansion and the PublicShell contrast fix without touching unrelated work.
 - Six formatter-only frontend test diffs remain intentionally unstaged; no push and no PR.
-- Task 2.4 (REFACTOR) and every later task remain untouched; their checkboxes are still `- [ ]`.
+- Task 2.4 (REFACTOR) and every later task remain untouched; their checkboxes are still `- [ ]` (historical: task 2.4 has since been committed — see the section below).
+
+## Task 2.4 REFACTOR — applied and committed (closure objective active)
+
+Objective: remove duplicated navigation markup and non-semantic styling from `frontend/src/app/globals.css`, `frontend/src/components/brand/`, and `frontend/src/components/shells/` while preserving exact preset tokens, Inter roles, Default radius, both schemes, WCAG AA focus/contrast, reduced-motion-safe transitions, and one shared shell for root and future vacancy routes.
+
+### Refactor decision
+
+- Duplicated navigation markup: none found. `PublicShell` is already the single shared shell and `(marketing)/page.tsx` composes it; no nav markup duplication existed in the allowed surfaces, so no churn was manufactured there.
+- `PublicShell.tsx`: the container classes `mx-auto w-full max-w-5xl px-4` were repeated three times (header, main, footer). Extracted into one shared `shellContainer` constant so header/main/footer keep a single width/padding rhythm inherited by root and future vacancy routes. No className output changes; behavior-identical.
+- `globals.css`: the dark token values appear in both the `.dark` block and the `@media (prefers-color-scheme: dark)` block. This duplication is contractually pinned by the protected, uneditable `globals.css.test.ts` (`cssBlock(".dark")` requires the `.dark` block; the media-query test requires dark values after the media block), so it is NOT a safe refactor target. No other non-semantic styling found; the semantic `bg-primary text-primary-foreground` vacancy link contrast fix from task 2.3 is preserved verbatim.
+- `brand/logo.tsx`: already minimal (data-driven marks, `cn()` composition, reserved dimensions); its protected test pins the current shape. Left unchanged.
+
+### TDD Cycle Evidence (task 2.4 REFACTOR)
+
+| Stage | Evidence |
+| --- | --- |
+| RED/GREEN/TRIANGULATE | Already committed (tasks 2.1–2.3, commits `8467124`, `7e4a050`); REFACTOR preserves committed behavior, no new production behavior introduced |
+| REFACTOR | Single deduplication refactor committed at `8ac4932` (`refactor(frontend): stabilize shared shell composition`) with a final committed delta of 9+/5− = 14 lines in `PublicShell.tsx`; all gates rerun GREEN post-refactor |
+
+### Verification (Node v22.22.1 / Corepack pnpm 10.34.5, run from `frontend/`)
+
+| Gate | Command | Result |
+| ---- | ------- | ------ |
+| Typecheck | `corepack pnpm typecheck` | pass, no diagnostics |
+| Lint | `corepack pnpm lint` | pass, no errors/warnings |
+| Unit (incl. preset/config assertions) | `corepack pnpm test` | 6 files / 29 tests pass, exit 0 (includes `preset-identity.test.ts` and `globals.css.test.ts` preset/configuration assertions) |
+| API-offline build | `corepack pnpm build` (after `rm -rf .next`) | pass, Next.js 15.5.25, 4/4 static pages |
+| Root browser E2E | production `pnpm start` + `playwright test tests/e2e/root.spec.ts` | 13/13 pass (incl. live rendered preset triangulation and no-raw-color composition checks) |
+| Axe | `corepack pnpm test:a11y` | 4/4 pass (light/dark × desktop/mobile) |
+| Server hygiene | `pkill` + curl probe | `next-server` terminated; port 3000 clear, no stale Next server |
+| Protected diffs | `sha256sum` of all six files | all six hashes byte-for-byte identical to the handoff values |
+
+### Changed-line accounting (this work unit)
+
+- `frontend/src/components/shells/PublicShell.tsx`: final committed accounting is 9 insertions / 5 deletions = **14 changed lines** (the only authored production delta). The pre-stage on-disk diff measured 7+/3− = 10 lines; staging formatting changed only physical JSX wrapping/collapse and was independently proven semantic-neutral, so the committed 9+/5− = 14 lines is the authoritative final accounting.
+- The six protected formatter-only diffs remain unstaged and untouched (98+/54− pre-existing, excluded from this work unit's accounting).
+- Total authored delta: **14 committed lines** (9+/5− in `PublicShell.tsx`, the authoritative final accounting), far below the 400-line budget. `apply-progress.md` is administrative evidence, excluded.
+- No push or PR was performed and the six formatter-only diffs remain unstaged. The authorized implementation commit `8ac4932` has landed; the prior native work units `task-2.4-refactor`, `task-2.4-independent-verification`, and `task-2.4-commit` are settled complete, while the native `task-2.4-closure` objective is currently active.
+
+### Rollback boundary
+
+With commit `8ac4932` landed, `git revert 8ac4932` removes only this foundation refactor; no other file was touched.
+
+### Remaining tasks
+
+The prior task 2.4 objectives — `task-2.4-refactor`, `task-2.4-independent-verification`, and `task-2.4-commit` — are settled complete, with the implementation commit `8ac4932` landed and the task 2.4 checkbox closed in `tasks.md` as part of this candidate. The native work unit `task-2.4-closure` is currently active and not yet settled. Tasks 3.x and later remain untouched and unchecked.
+
+## Corrective verification note — task 2.4 (administrative evidence correction)
+
+The first independent verification of task 2.4 stopped fail-closed before any runtime gate: two parent-supplied expected SHA-256 baselines arrived malformed/truncated, so protected-hash comparison could not proceed. No repo bytes changed; this was not a candidate defect.
+
+Corrected independent verification (`subtask_gentle-ai-verify_1788445602719_9fd220af`, read-only, Node v22.22.1 / Corepack pnpm 10.34.5) passed all gates: typecheck, lint, 6/6 files and 29/29 unit tests, API-offline Next 15.5.25 build, 13/13 focused root E2E, 4/4 axe, live shadcn decode/resolve/info, diff check, all six exact protected hashes, and no stale server.
+
+### Task 2.4 committed state (closure objective active)
+
+- Implementation commit `8ac49325bdc1ce4e069143256d91a11678918f3f` (`refactor(frontend): stabilize shared shell composition`) landed on `feat/frontend-foundation`, authored by `aldrich_coder45`, touching exactly one path: `frontend/src/components/shells/PublicShell.tsx` at 9 insertions / 5 deletions = 14 committed lines.
+- Final accounting correction: the pre-stage on-disk diff read 7+/3− = 10 lines; staging formatting changed only physical JSX wrapping/collapse and was independently proven semantic-neutral, so the committed 9+/5− = 14 lines is the final production accounting.
+- Pre-commit verifier `subtask_gentle-ai-verify_1788446246091_b42f6445` confirmed: exact one-file staged scope with protected and OpenSpec files excluded, clean `git diff --cached --check`, and Node v22.22.1 / Corepack pnpm 10.34.5 typecheck, lint, and 29/29 unit tests passing; the prior runtime evidence (13/13 root E2E, 4/4 axe, API-offline build) remains applicable because the refactor is behavior-identical.
+- Prior native work units `task-2.4-refactor`, `task-2.4-independent-verification`, and `task-2.4-commit` are settled complete. The current native work unit `task-2.4-closure` is active (not yet settled). The task 2.4 checkbox is `- [x]` (5 checked / 17 unchecked) in `tasks.md` as part of this candidate.
+- The six formatter-only frontend test diffs (98+/54−) remain intentionally unstaged and byte-for-byte preserved; no push was made, no PR was created, and no task 3 work has started.
+- Post-reset remediation note: the user authorized an audited reset of only `task-2.4-closure` at prior status revision `sha256:7d303ee4245cbadc7b583a1b21250b634ea6225d21de1cee957a0a5f9416a49a`. Attempt 1 found and corrected real stale/premature wording; attempt 2 passed all candidate content/scope checks but failed solely because the parent omitted the six known expected hashes from the verifier prompt — not a candidate defect.
+- The audited reset preserved this staged corrected candidate, and the `task-2.4-closure` authority remains active/not settled until post-commit settlement. This note is evidence bookkeeping only and does not claim the closure objective is complete.
