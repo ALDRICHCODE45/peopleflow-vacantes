@@ -214,10 +214,10 @@ Boundary: complete `Verify` on the WS5B-1 core, including claims validation, rot
 
 ### 5.3 (WS5C) Middleware/composition integration
 
-- [ ] RED: extend the verified files `backend/internal/features/identity/infrastructure/http/middleware_test.go` and `backend/cmd/api/main_test.go` route scan — API starts only with a valid explicit mode; all verifier errors map to catalog `unauthenticated` 401 without exposing why; the "/me/*" subtree is wrapped; the JWT Verification Modes scenarios (known kid, rotation refresh, fail-closed fetch, explicit PEM selection, no fallback) observable through the middleware. Capture failures: composition still uses the current "warn and install deny-all" path and never consults the WS5A factory. <!-- sdd-owner: implementation -->
-- [ ] GREEN: complete composition wiring in `backend/cmd/api/main.go` through the WS5A factory; remove the deny-all fallback path. This is the ONLY unit permitted to change verifier wiring in the composition root. <!-- sdd-owner: implementation -->
-- [ ] TRIANGULATE: production cannot start permissively under misconfiguration; local PEM mode still fails closed at runtime on bad tokens. <!-- sdd-owner: implementation -->
-- [ ] REFACTOR: `go test ./... -count=1`; identity delta's "JWKS deferred" replacement is already in specs — no doc drift left behind. <!-- sdd-owner: implementation -->
+- [x] RED: extend the verified files `backend/internal/features/identity/infrastructure/http/middleware_test.go` and `backend/cmd/api/main_test.go` route scan — API starts only with a valid explicit mode; all verifier errors map to catalog `unauthenticated` 401 without exposing why; the "/me/*" subtree is wrapped; the JWT Verification Modes scenarios (known kid, rotation refresh, fail-closed fetch, explicit PEM selection, no fallback) observable through the middleware. Capture failures: composition still uses the current "warn and install deny-all" path and never consults the WS5A factory. <!-- sdd-owner: implementation -->
+- [x] GREEN: complete composition wiring in `backend/cmd/api/main.go` through the WS5A factory; remove the deny-all fallback path. This is the ONLY unit permitted to change verifier wiring in the composition root. <!-- sdd-owner: implementation -->
+- [x] TRIANGULATE: production cannot start permissively under misconfiguration; local PEM mode still fails closed at runtime on bad tokens. <!-- sdd-owner: implementation -->
+- [x] REFACTOR: `go test ./... -count=1`; identity delta's "JWKS deferred" replacement is already in specs — no doc drift left behind. <!-- sdd-owner: implementation -->
 
 ---
 
