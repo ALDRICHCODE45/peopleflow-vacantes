@@ -5,9 +5,9 @@
 - Change: `frontend-public-job-discovery`
 - Work unit: `task-1.1-bootstrap`
 - Delivery boundary: PR 1 of the selected feature-branch chain; tracker branch `feat/frontend-foundation`
-- State: uncommitted implementation candidate; no commit, staging, push, or PR was performed
+- State: committed at `8e488a4` (`chore(frontend): bootstrap Next.js foundation`); no push or PR was performed
 - Remediation: attempt 2 (gatekeeper rerun, bound to evidence revision `sha256:f62828b3be7ebbf193d74abcaa6b29c70d5c5eeea3e9d0d3b4c327626c28d7e0`) completed; see `## Remediation evidence — attempt 2` below
-- Persisted checkbox: intentionally remains `- [ ]` because `tasks.md` requires the corresponding commit to land first
+- Persisted checkbox: `- [x]` — the corresponding implementation commit landed at `8e488a4`
 - Out of scope and not started: task 2.1 and every later task
 
 ## Structured status consumed
@@ -158,9 +158,7 @@ All blocking diagnostics were disproved with exact resolution evidence; the task
 
 ## Remaining assigned task
 
-Task 1.1 remains unchecked pending its authorized commit, exactly as persisted in `tasks.md`:
-
-- [ ] Create the exact standalone Next.js 15 application shape under `frontend/` before shadcn initialization: App Router, `src/` directory, pnpm, Node 22, and TypeScript alias `@/*` → `./src/*`; create/pin `frontend/package.json`, `frontend/pnpm-lock.yaml`, `frontend/.nvmrc`, `frontend/next.config.ts`, `frontend/tsconfig.json`, `frontend/eslint.config.mjs`, `frontend/postcss.config.mjs`, `frontend/vitest.config.ts`, and `frontend/playwright.config.ts` without asking shadcn to choose or regenerate the framework. From `frontend/`, inspect the current CLI/help and decode the authoritative preset with `pnpm dlx shadcn@latest preset decode b27M1Ev2`; initialize this existing project using current `init --preset b27M1Ev2` semantics with Base UI explicitly selected (`--base base` when supported, otherwise the explicit current interactive option), never an assumed default. Inspect and correct `frontend/components.json` and `frontend/tsconfig.json` before installing any component so `components` → `@/components`, `ui` → `@/components/ui`, `@/*` → `./src/*`, and resolved UI output is `frontend/src/components/ui/`. Verify with `pnpm dlx shadcn@latest info --json` and `pnpm dlx shadcn@latest preset resolve --json`; block on any preset identity/value, Base UI, Tailwind v4, Lucide, framework/RSC, alias, or resolved-path mismatch. Do not use `pnpm dlx shadcn@latest apply --preset ... .`; `apply b27M1Ev2` is reserved for an already initialized shadcn project and is not this blank-project task. Add local scripts/dependencies for frozen install, typecheck, lint, unit tests, E2E, accessibility, and API-offline build, then verify startup and commands from `frontend/`; browser runtime is `N/A` until routes exist. Rollback is limited to the bootstrap files, lockfile, and any coherent shadcn-generated initialization snapshot. <!-- sdd-owner: implementation -->
+Task 1.1 is complete (see the final closure section below). For the original task text, see `tasks.md` §1.1.
 
 All task 2.1+ checkboxes remain untouched and are outside this work-unit boundary.
 
@@ -194,4 +192,12 @@ Purpose: revalidate the exact existing task-1.1 candidate under the corrected na
 
 ## Rollback boundary
 
-Remove only the 14 frontend paths listed above. This removes the standalone bootstrap, exact dependency lock, test/build harness, and coherent shadcn initialization without touching backend code, root/shared configuration, OpenSpec source artifacts, or later feature work. For attempt 4 specifically, restoring the lockfile is a single `git cat-file blob cb49f20d235e783ac7f66007f25b7839c764866b > frontend/pnpm-lock.yaml` command.
+Remove only the 14 frontend paths listed above. This removes the standalone bootstrap, exact dependency lock, test/build harness, and coherent shadcn initialization without touching backend code, root/shared configuration, OpenSpec source artifacts, or later feature work.
+
+## Final closure — task 1.1 complete
+
+- Planning commit `aff13fc` (`docs(openspec): define frontend public job discovery`) and bootstrap implementation commit `8e488a4` (`chore(frontend): bootstrap Next.js foundation`) are both landed on `feat/frontend-foundation`.
+- `src/lib/utils.ts` was reconciled to blob `bd0c391ddd1088e9067844c48835bf4abcd61783` through completed native work unit `task-1.1-formatter-reconciliation`; `pnpm-lock.yaml` was reconciled to blob `cb49f20d235e783ac7f66007f25b7839c764866b` through completed native work unit `task-1.1-lockfile-reconciliation`; `src/app/globals.css` remained blob `63ff46048f838f8cb5652fbc28e77257b2238f1d` throughout.
+- Final revalidation under Node `v22.22.1` / pnpm `10.34.5` passed: frozen install, shadcn preset/Base UI/alias assertions, import resolution, typecheck, lint, empty unit/E2E/a11y runners, API-offline build, and the expected startup 404 (task 1.1 creates no routes).
+- All 14 blobs matched settled tree `4ff86dcad756e6ddf1d88b4a9d35c34c6d2cee16` both before and after verification; no source or OpenSpec artifact changed during verification.
+- Task 1.1 is complete: its implementation checkbox in `tasks.md` is now `- [x]` (1 checked, 21 unchecked implementation rows). Task 2.1 and every later task remain untouched. No push was made and no PR was created.
