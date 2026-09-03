@@ -30,6 +30,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"os"
 	"strings"
 	"testing"
 )
@@ -817,4 +818,117 @@ func TestIndustriesRoute_SingleCanonicalRegistration(t *testing.T) {
 	}
 
 	t.Logf("parsed %s: %d industrieshttp.RegisterRoutes call(s), %d literal /industries registrations", filePath, len(registrarCalls), len(literalRegs))
+}
+
+// mwMainPEM is a fixed valid PKIX RSA public key for the factory's pem mode.
+const mwMainPEM = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA39J11KFuFgePmdlaTa5B\nUtD+daejJ5Qo9AQx7TOLI1uchwCqJRIrUoK/CQ2vlkgq7GDafubmztexTwFWoj8r\nRjOuE6IldM7TyN67EWiEyZ5jW6wygLEpUNm5zNWOUtQI5bGxtqfS8tUHDRr7TVgx\ndkjOkopemuQR8n6ux4l27fsT+jPk6P2YR0y/qmwnwCYJQyRJmN9hdAz7X4DGh8du\nAcNqQFHepjHvcmkKwAhWMQJpWHVugAWqlSkbWLp15/1ch2T5O64KZrShaZAENwEh\npeSLQHY6mputbSXsITVGkMyX3kiVvvgOi/7DxKvk4u7NDvFQqrlgi4nzIzL4oQ/B\nbwIDAQAB\n-----END PUBLIC KEY-----\n"
+
+// TestRun_StartsOnlyWithValidExplicitMode: run() must fail on verifier misconfiguration BEFORE infrastructure
+// wiring (DSN/pool); a valid explicit local pem selection reaches DATABASE_URL.
+func TestRun_StartsOnlyWithValidExplicitMode(t *testing.T) {
+	tests := []struct {
+		name    string
+		appEnv  string
+		mode    string
+		wantErr string // error substring; non-DSN cases must NOT hit DATABASE_URL
+	}{
+		{"missing mode aborts startup before infrastructure wiring", "local", "", "IDENTITY_JWT_MODE"},
+		{"production pem mode is rejected", "production", "pem", "not allowed in production"},
+		{"valid explicit local pem passes the verifier gate", "local", "pem", "DATABASE_URL"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for k, v := range map[string]string{
+				"APP_ENV": tc.appEnv, "IDENTITY_JWT_MODE": tc.mode,
+				"IDENTITY_JWT_PUBLIC_KEY_PEM": mwMainPEM, "IDENTITY_JWT_ISSUER": "https://cognito-idp.test.local",
+				"IDENTITY_JWT_TOKEN_USE": "", "IDENTITY_JWT_CACHE_TTL": "", "IDENTITY_JWT_FETCH_TIMEOUT": "",
+				"IDENTITY_JWT_AUDIENCE": "test-client-id", "DATABASE_URL": "",
+			} {
+				t.Setenv(k, v)
+			}
+			err := run()
+			if err == nil {
+				t.Fatalf("run() must fail (want %q)", tc.wantErr)
+			}
+			msg := err.Error()
+			if !strings.Contains(msg, tc.wantErr) {
+				t.Fatalf("run() error: want substring %q, got: %v", tc.wantErr, err)
+			}
+		})
+	}
+}
+
+// TestVerifierComposition_AstGuards scans main.go's AST for the WS5C composition contract: factory-only verifier wiring with no deny-all
+// fallback, and the /me subtree wrapped with r.Use(requireAuth).
+func TestVerifierComposition_AstGuards(t *testing.T) {
+	const filePath = "main.go"
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		t.Skipf("cannot parse %s (run with cwd=backend/cmd/api): %v", filePath, err)
+	}
+	src, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", filePath, err)
+	}
+
+	t.Run("factory-only wiring, no deny-all fallback", func(t *testing.T) {
+		factoryCalls := 0
+		ast.Inspect(f, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			if id, ok := sel.X.(*ast.Ident); ok && id.Name == "auth" && sel.Sel.Name == "NewVerifierConfigFromEnv" {
+				factoryCalls++
+			}
+			return true
+		})
+		for _, sym := range []string{"denyAllVerifier", "errFailClosedVerifier", "buildVerifierFromEnv"} {
+			if strings.Contains(string(src), sym) {
+				t.Errorf("deny-all fallback symbol %q must be removed from main.go", sym)
+			}
+		}
+		if factoryCalls != 1 {
+			t.Fatalf("expected exactly ONE auth.NewVerifierConfigFromEnv call in main.go (the WS5A factory is the only verifier source), got %d", factoryCalls)
+		}
+	})
+
+	t.Run("me subtree wrapped with requireAuth", func(t *testing.T) {
+		wrapped := false
+		ast.Inspect(f, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || sel.Sel.Name != "Route" || len(call.Args) < 2 {
+				return true
+			}
+			if bl, ok := call.Args[0].(*ast.BasicLit); !ok || bl.Kind != token.STRING || bl.Value != `"/me"` {
+				return true
+			}
+			fn, ok := call.Args[1].(*ast.FuncLit)
+			if !ok {
+				return true
+			}
+			ast.Inspect(fn.Body, func(m ast.Node) bool {
+				if inner, ok := m.(*ast.CallExpr); ok {
+					if s, ok := inner.Fun.(*ast.SelectorExpr); ok && s.Sel.Name == "Use" && referencesIdentifier(inner, "requireAuth") {
+						wrapped = true
+						return false
+					}
+				}
+				return true
+			})
+			return true
+		})
+		if !wrapped {
+			t.Fatalf(`the /me/* subtree must be wrapped with r.Use(requireAuth) inside r.Route("/me", ...)`)
+		}
+	})
 }

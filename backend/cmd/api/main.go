@@ -26,7 +26,6 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
-	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
@@ -38,7 +37,6 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
 func main() {
@@ -56,6 +54,19 @@ func run() error {
 	// production (env vars are injected by ECS). In dev, the missing-file error
 	// is ignored so the binary still runs against a real environment when needed.
 	_ = godotenv.Load()
+
+	// WS5C (task 5.3): verifier ONLY via the WS5A explicit factory; bad
+	// IDENTITY_JWT_* config aborts startup (no deny-all fallback).
+	verifier, verifierErr := auth.NewVerifierConfigFromEnv(os.Getenv, auth.NewJWKSVerifier)
+	if verifierErr != nil {
+		return fmt.Errorf("identity verifier configuration: %w", verifierErr)
+	}
+	// run() owns the verifier: on every return path, Close cancels the
+	// verifier-owned JWKS lifecycle context and awaits in-flight refresh work.
+	if closer, ok := verifier.(interface{ Close() }); ok {
+		defer closer.Close()
+	}
+	slog.Info("identity verifier ready")
 
 	// Root context cancelled on SIGINT/SIGTERM. This is the graceful shutdown trigger.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -164,18 +175,6 @@ func run() error {
 	applicationHandler := applicationshttp.NewApplicationHandler(applicationService)
 	applicationHandlers := applicationHandler.ApplicationHandlers()
 
-	// Verifier wiring: build a real RSA verifier when IDENTITY_JWT_* env
-	// vars are set; fall back to a fail-closed verifier when they aren't.
-	// The fail-closed path keeps /me/* mounted behind RequireAuth so the
-	// middleware always runs — there is no code path that lets an
-	// unauthenticated request reach the candidate handler.
-	verifier, verifierErr := buildVerifierFromEnv()
-	if verifierErr != nil {
-		slog.Warn("identity verifier not configured; /me/* will reject every request with 401", "error", verifierErr)
-	} else {
-		slog.Info("identity verifier ready")
-	}
-
 	// Phase 6 D8 hoist: requireAuth + requireRecruiter are now used by
 	// BOTH the /me/* subtree AND the jobs write route (PATCH /jobs/{id}),
 	// so they're hoisted to run() scope. requireOwner stays local to the
@@ -280,9 +279,8 @@ func run() error {
 
 	// /me/* is the authenticated slice. RequireAuth runs first, so any
 	// request without a valid Bearer token is rejected pre-handler with
-	// 401 — the candidate handler is never invoked. With the fail-closed
-	// verifier in place (env not set), every request still hits 401, not
-	// 404, so the surface can't be probed by accident.
+	// 401 — the candidate handler is never invoked; the verifier is
+	// factory-built, so the subtree mounts unconditionally behind it.
 	//
 	// The companies-write handlers (WU6) live here too: the
 	// `companyHandlers` struct is hoisted from the public /companies
@@ -396,48 +394,3 @@ func run() error {
 	defer cancel()
 	return srv.Shutdown(shutdownCtx)
 }
-
-// buildVerifierFromEnv returns a security.Verifier built from the
-// IDENTITY_JWT_* env vars. When the env is fully populated, it parses
-// IDENTITY_JWT_PUBLIC_KEY_PEM (accepting both PKCS#1 and PKIX via
-// jwk.WithPEM(true)) and returns a real auth.RSAVerifier pinned to
-// the configured issuer and audience. When any of the three env vars
-// is unset, it returns a fail-closed denyAllVerifier so the
-// /me/* route chain still mounts behind RequireAuth — every request
-// is rejected with a sentinel error, never silently admitted.
-func buildVerifierFromEnv() (security.Verifier, error) {
-	pubPEM := os.Getenv("IDENTITY_JWT_PUBLIC_KEY_PEM")
-	issuer := os.Getenv("IDENTITY_JWT_ISSUER")
-	audience := os.Getenv("IDENTITY_JWT_AUDIENCE")
-	if pubPEM == "" || issuer == "" || audience == "" {
-		return denyAllVerifier{}, errors.New("IDENTITY_JWT_PUBLIC_KEY_PEM, IDENTITY_JWT_ISSUER, and IDENTITY_JWT_AUDIENCE must be set")
-	}
-	// jwk.ParseKey with WithPEM(true) accepts both PKCS#1 (header
-	// "RSA PUBLIC KEY") and PKIX (header "PUBLIC KEY") PEM blocks; the
-	// constructor pins the algorithm to RS256 to block the HS256
-	// algorithm-confusion attack class.
-	key, err := jwk.ParseKey([]byte(pubPEM), jwk.WithPEM(true))
-	if err != nil {
-		return nil, fmt.Errorf("parse IDENTITY_JWT_PUBLIC_KEY_PEM: %w", err)
-	}
-	return auth.NewRSAVerifier(key, issuer, audience)
-}
-
-// errFailClosedVerifier is the sentinel a denyAllVerifier surfaces for
-// every token. It is intentionally distinct from a real verification
-// error so logs can be filtered cleanly.
-var errFailClosedVerifier = errors.New("identity verifier is fail-closed: IDENTITY_JWT_* env vars are not configured")
-
-// denyAllVerifier is the fail-closed security.Verifier returned by
-// buildVerifierFromEnv when IDENTITY_JWT_* env vars are missing. It
-// rejects every token with errFailClosedVerifier, so /me/* mounted
-// behind RequireAuth never admits a request by accident even when
-// the operator hasn't provisioned the JWT signing key yet.
-type denyAllVerifier struct{}
-
-func (denyAllVerifier) Verify(_ context.Context, _ string) (security.Claims, error) {
-	return security.Claims{}, errFailClosedVerifier
-}
-
-// Compile-time assertion that denyAllVerifier satisfies the port.
-var _ security.Verifier = denyAllVerifier{}
