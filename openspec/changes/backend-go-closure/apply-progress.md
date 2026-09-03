@@ -789,6 +789,13 @@ WS5A explicit verifier configuration factory is closed under approved review lin
 **Post-split task state:** 60/100 checklist boxes complete. The approved WS5B split is represented by sequential WS5B-1/RU13A and WS5B-2/RU13B units, each forecast at no more than 400 authored changed lines and delivered stacked-to-main; verify/sync/archive remain blocked until implementation completes.
 
 ## WS5B-1 / RU13A — bounded JWKS cache and single-flight core
+
 **RED / GREEN:** an isolated compile-safe stub replay failed behaviorally on fetch bounds/parsing, cache/TTL, and refresh mechanics; the real implementation adds bounded HTTPS fetch, deep immutable snapshots, verifier-owned lifecycle, and one shared refresh while `Verify` remains deliberately unimplemented.
 **TRIANGULATE:** injected-clock, key-mutation, server-failure, concurrent-waiter, cancellation, deadline, and `Close` cases prove TTL, whole-set replacement, single-flight, independent waiters, and bounded shutdown without sleeps as correctness conditions.
 **REFACTOR / verification:** focused auth, full `go test ./... -count=1`, vet, gofmt, and diff checks PASS; runtime harness N/A (library core only). Rollback removes the two JWKS files and this evidence without touching WS5B-2/WS5C. Exact candidate including four task-state rows: 400 changed lines; task state 64/100.
+
+## WS5B-2 / RU13B bounded candidate — TDD Cycle Evidence
+| Task | RED provenance | GREEN / TRIANGULATE / REFACTOR |
+|---|---|---|
+| 5.2b | Prior worker proved the committed Verify stub RED; continuation RED caught missing `exp` and cached verification after `Close`. | Focused auth tests pass; RS256/claims/rotation, deterministic starter cancellation, owned deadline, injected TTL, and bounded idempotent Close are covered. |
+- Candidate: 391 additions + 9 deletions = 400 changed lines; RU13B boxes remain unchecked pending parent gate/commit.

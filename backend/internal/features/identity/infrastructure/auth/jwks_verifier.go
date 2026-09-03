@@ -14,6 +14,8 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
+	"github.com/lestrrat-go/jwx/v2/jws"
+	"github.com/lestrrat-go/jwx/v2/jwt"
 )
 
 const (
@@ -21,9 +23,14 @@ const (
 	maxJWKSKeys          = 16
 )
 
+const jwksClockSkew = 30 * time.Second
+
+type clockFn func() time.Time
+
+func (f clockFn) Now() time.Time { return f() }
+
 var (
-	errJWKSVerifyNotImplemented = errors.New("jwks verifier: verification is not implemented")
-	errJWKSClosed               = errors.New("jwks verifier: closed")
+	errJWKSClosed = errors.New("jwks verifier: closed")
 )
 
 type jwksRefresh struct {
@@ -60,8 +67,85 @@ func NewJWKSVerifier(cfg JWKSVerifierConfig) (security.Verifier, error) {
 }
 
 func (v *JWKSVerifier) Verify(ctx context.Context, token string) (security.Claims, error) {
-	_, _ = ctx, token
-	return security.Claims{}, errJWKSVerifyNotImplemented
+	v.mu.Lock()
+	closed := v.closed
+	v.mu.Unlock()
+	if closed {
+		return security.Claims{}, errJWKSClosed
+	}
+	hdr, err := jwsHeader(token)
+	if err != nil {
+		return security.Claims{}, err
+	}
+	kid := hdr.KeyID()
+	set, ok := v.cachedSet()
+	if ok {
+		if _, found := set.LookupKeyID(kid); found {
+			return v.verifyClaims(set, kid, token)
+		}
+	}
+	if err := v.refresh(ctx); err != nil {
+		return security.Claims{}, fmt.Errorf("jwks verify: refresh: %w", err)
+	}
+	if set, ok = v.cachedSet(); !ok {
+		return security.Claims{}, errors.New("jwks verify: no usable key set after refresh")
+	}
+	return v.verifyClaims(set, kid, token)
+}
+
+func jwsHeader(token string) (jws.Headers, error) {
+	msg, err := jws.Parse([]byte(token))
+	if err != nil {
+		return nil, fmt.Errorf("jwks verify: parse: %w", err)
+	}
+	sigs := msg.Signatures()
+	if len(sigs) != 1 {
+		return nil, fmt.Errorf("jwks verify: unexpected signature count %d", len(sigs))
+	}
+	hdr := sigs[0].ProtectedHeaders()
+	if hdr.Algorithm() != jwa.RS256 {
+		return nil, fmt.Errorf("jwks verify: header alg %q is not RS256", hdr.Algorithm())
+	}
+	if hdr.KeyID() == "" {
+		return nil, errors.New("jwks verify: header kid is required")
+	}
+	return hdr, nil
+}
+
+func (v *JWKSVerifier) verifyClaims(set jwk.Set, kid, token string) (security.Claims, error) {
+	key, found := set.LookupKeyID(kid)
+	if !found {
+		return security.Claims{}, fmt.Errorf("jwks verify: unknown kid %q", kid)
+	}
+	if v.cfg.Issuer == "" || v.cfg.Audience == "" || v.cfg.TokenUse == "" {
+		return security.Claims{}, errors.New("jwks verify: issuer, audience, and token_use must be configured")
+	}
+	parsed, err := jwt.Parse([]byte(token),
+		jwt.WithKey(jwa.RS256, key),
+		jwt.WithIssuer(v.cfg.Issuer),
+		jwt.WithAudience(v.cfg.Audience),
+		jwt.WithValidate(true),
+		jwt.WithClock(clockFn(v.now)),
+		jwt.WithAcceptableSkew(jwksClockSkew),
+	)
+	if err != nil {
+		return security.Claims{}, fmt.Errorf("jwks verify: %w", err)
+	}
+	if parsed.Expiration().IsZero() {
+		return security.Claims{}, errors.New("jwks verify: exp claim is required")
+	}
+	raw, ok := parsed.Get("token_use")
+	if !ok {
+		return security.Claims{}, errors.New("jwks verify: token_use claim is required")
+	}
+	if use, _ := raw.(string); use != v.cfg.TokenUse {
+		return security.Claims{}, fmt.Errorf("jwks verify: token_use %q is not accepted", use)
+	}
+	if parsed.Subject() == "" {
+		return security.Claims{}, errors.New("jwks verify: subject is required")
+	}
+	groups, _ := parsed.Get("cognito:groups")
+	return security.Claims{Subject: parsed.Subject(), Groups: normalizeGroups(groups)}, nil
 }
 
 func (v *JWKSVerifier) Close() { v.mu.Lock(); v.closed = true; v.mu.Unlock(); v.cancel(); v.wg.Wait() }
