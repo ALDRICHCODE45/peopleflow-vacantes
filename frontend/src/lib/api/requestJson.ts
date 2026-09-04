@@ -39,12 +39,22 @@ export async function requestJson<T>(
 
     if (!response.ok) {
       const status = response.status;
-      if (options.notFoundStatus !== undefined && status === options.notFoundStatus) {
-        return { ok: false, error: { kind: "not_found", retryable: false, status } };
+      if (
+        options.notFoundStatus !== undefined &&
+        status === options.notFoundStatus
+      ) {
+        return {
+          ok: false,
+          error: { kind: "not_found", retryable: false, status },
+        };
       }
       return {
         ok: false,
-        error: { kind: "status", retryable: status === 429 || status >= 500, status },
+        error: {
+          kind: "status",
+          retryable: status === 429 || status >= 500,
+          status,
+        },
       };
     }
 
@@ -57,12 +67,18 @@ export async function requestJson<T>(
       if (timedOut) {
         return { ok: false, error: { kind: "timeout", retryable: true } };
       }
-      return { ok: false, error: { kind: "invalid_response", retryable: false } };
+      return {
+        ok: false,
+        error: { kind: "invalid_response", retryable: false },
+      };
     }
     try {
       return { ok: true, data: options.decoder(payload) };
     } catch {
-      return { ok: false, error: { kind: "invalid_response", retryable: false } };
+      return {
+        ok: false,
+        error: { kind: "invalid_response", retryable: false },
+      };
     }
   } catch {
     return {
