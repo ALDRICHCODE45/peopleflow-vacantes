@@ -153,14 +153,20 @@ func chiPathLiteral(call *ast.CallExpr) (string, bool) {
 // "missing Authorization header is rejected" — the only way the
 // rejection can fire is if the middleware is actually wired into
 // the route chain.
-func TestRequireAuth_MountedOnMeRoutes(t *testing.T) {
-	filePath := routerFile
-
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+func mustParse(t *testing.T, path string) *ast.File {
+	t.Helper()
+	f, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
 	if err != nil {
-		t.Skipf("cannot parse %s (run with cwd=backend/cmd/api): %v", filePath, err)
+		t.Fatalf("cannot parse %s: %v", path, err)
 	}
+	return f
+}
+
+func isBareIdentExpr(e ast.Expr) bool { _, ok := e.(*ast.Ident); return ok }
+
+func TestRequireAuth_MountedOnMeRoutes(t *testing.T) {
+	cf := mustParse(t, compositionFile)
+	rf := mustParse(t, routerFile)
 
 	// Walk the AST and collect:
 	//   - every CallExpr whose function name is RequireAuth (or a
@@ -176,7 +182,7 @@ func TestRequireAuth_MountedOnMeRoutes(t *testing.T) {
 	// x.RequireAuth).
 	hasConstructorCall := false
 
-	ast.Inspect(f, func(n ast.Node) bool {
+	ast.Inspect(cf, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
@@ -186,6 +192,14 @@ func TestRequireAuth_MountedOnMeRoutes(t *testing.T) {
 		if isConstructorCall(call) {
 			hasConstructorCall = true
 			constructorCalls++
+		}
+		return true
+	})
+
+	ast.Inspect(rf, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
 		}
 
 		// Detect chi Route mutation.
@@ -218,10 +232,6 @@ func TestRequireAuth_MountedOnMeRoutes(t *testing.T) {
 		t.Errorf("expected >=1 chi route references to RequireAuth (RequireAuth must be wired into the /me/* route chain), got %d (of %d chi calls)",
 			routeReferences, chiMutationCalls)
 	}
-
-	// Sanity log for the verbose run.
-	t.Logf("parsed %s: %d RequireAuth constructor calls, %d chi route mutations, %d references",
-		filePath, constructorCalls, chiMutationCalls, routeReferences)
 }
 
 // isConstructorCall returns true if the call is a `RequireAuth(...)`
@@ -237,7 +247,7 @@ func isConstructorCall(call *ast.CallExpr) bool {
 }
 
 // isChiRouteMutationCall returns true if the call is chi-style route
-// mutation: Use, With, Group, Mount, Route. We accept both bare
+// mutation (WS6B-1b-b: also registration verbs). We accept both bare
 // identifiers and selector expressions (e.g. r.Use).
 func isChiRouteMutationCall(call *ast.CallExpr) bool {
 	const mutations = "Use|With|Group|Mount|Route"
@@ -253,7 +263,7 @@ func isChiRouteMutationCall(call *ast.CallExpr) bool {
 
 func isMutationName(name string) bool {
 	switch name {
-	case "Use", "With", "Group", "Mount", "Route":
+	case "Use", "With", "Group", "Mount", "Route", "Get", "Post", "Put", "Patch", "Delete", "Handle", "HandleFunc":
 		return true
 	}
 	return false
@@ -297,24 +307,26 @@ func referencesIdentifier(call *ast.CallExpr, name string) bool {
 // MountedOnMeRoutes (AST walk of main.go) so the two guards live
 // in the same idiom.
 func TestJobsMount_PublicReadRoutes(t *testing.T) {
-	filePath := routerFile
-
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
-	if err != nil {
-		t.Skipf("cannot parse %s (run with cwd=backend/cmd/api): %v", filePath, err)
-	}
+	cf := mustParse(t, compositionFile)
+	rf := mustParse(t, routerFile)
 
 	handlerCtor := 0
 	jobsMounts := 0
 
-	ast.Inspect(f, func(n ast.Node) bool {
+	ast.Inspect(cf, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
 		}
 		if isJobsHandlerConstructorCall(call) {
 			handlerCtor++
+		}
+		return true
+	})
+	ast.Inspect(rf, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
 		}
 		if isJobsMountCall(call) {
 			jobsMounts++
@@ -328,9 +340,6 @@ func TestJobsMount_PublicReadRoutes(t *testing.T) {
 	if jobsMounts < 1 {
 		t.Errorf("expected r.Mount(\"/jobs\", ...) in main.go; got %d mounts (GET /jobs and GET /jobs/{id} are unreachable)", jobsMounts)
 	}
-
-	t.Logf("parsed %s: %d NewJobHandler constructor calls, %d /jobs mounts",
-		filePath, handlerCtor, jobsMounts)
 }
 
 // isJobsHandlerConstructorCall returns true when the call is
@@ -816,6 +825,9 @@ func TestIndustriesRoute_SingleCanonicalRegistration(t *testing.T) {
 		}
 		if x, ok := sel.X.(*ast.Ident); ok && x.Name == "industrieshttp" && sel.Sel.Name == "RegisterRoutes" {
 			registrarCalls = append(registrarCalls, sel.Sel.Name)
+			if len(call.Args) == 0 || !isBareIdentExpr(call.Args[0]) {
+				t.Fatalf("industrieshttp.RegisterRoutes first argument must be the bare router identifier, not a With-wrapped subrouter")
+			}
 		}
 		if industryRegistrationMethods(sel.Sel.Name) && len(call.Args) > 0 {
 			if bl, ok := call.Args[0].(*ast.BasicLit); ok && bl.Kind == token.STRING && bl.Value == `"/industries"` {
@@ -876,16 +888,12 @@ func TestRun_StartsOnlyWithValidExplicitMode(t *testing.T) {
 // TestVerifierComposition_AstGuards scans main.go's AST for the WS5C composition contract: factory-only verifier wiring with no deny-all
 // fallback, and the /me subtree wrapped with r.Use(requireAuth).
 func TestVerifierComposition_AstGuards(t *testing.T) {
-	filePath := routerFile
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	f := mustParse(t, compositionFile)
+	src, err := os.ReadFile(compositionFile)
 	if err != nil {
-		t.Skipf("cannot parse %s (run with cwd=backend/cmd/api): %v", filePath, err)
+		t.Fatalf("read %s: %v", compositionFile, err)
 	}
-	src, err := os.ReadFile(filePath)
-	if err != nil {
-		t.Fatalf("read %s: %v", filePath, err)
-	}
+	rf := mustParse(t, routerFile)
 
 	t.Run("factory-only wiring, no deny-all fallback", func(t *testing.T) {
 		factoryCalls := 0
@@ -915,7 +923,7 @@ func TestVerifierComposition_AstGuards(t *testing.T) {
 
 	t.Run("me subtree wrapped with requireAuth", func(t *testing.T) {
 		wrapped := false
-		ast.Inspect(f, func(n ast.Node) bool {
+		ast.Inspect(rf, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok {
 				return true
@@ -948,10 +956,9 @@ func TestVerifierComposition_AstGuards(t *testing.T) {
 	})
 }
 
-// routerFile names the router owner the guards scan; WS6B-1b keeps router
-// construction in the composition root (physical extraction deferred to 1b-b),
-// and guards name the owner instead of hardcoding a path assumption (design §8.1).
-const routerFile = "main.go"
+// routerFile = chi router owner (router.go since WS6B-1b-b); compositionFile = composition root.
+const routerFile = "router.go"
+const compositionFile = "main.go"
 
 // TestRouterOwner_HealthAndReadinessMounted pins the WS6B-1b health composition
 // (design §8.1): /healthz mounts health.Healthz (static liveness, never touches
@@ -1004,7 +1011,7 @@ func TestRouterOwner_HealthAndReadinessMounted(t *testing.T) {
 			// Readiness: health.Readyz over the pool port AND the configured timeout, never an ad-hoc literal.
 			if owner.Name != "health" || hs.Sel.Name != "Readyz" ||
 				len(h.Args) != 2 || !referencesIdentifier(h, "pool") ||
-				!referencesIdentifier(h, "ReadinessTimeout") {
+				!referencesIdentifier(h, "readinessTimeout") {
 				t.Errorf("/readyz must mount health.Readyz(pool, <readiness timeout>); got %s.%s", owner.Name, hs.Sel.Name)
 				return true
 			}
@@ -1024,9 +1031,9 @@ func TestRouterOwner_HealthAndReadinessMounted(t *testing.T) {
 // inline http.Server literal or ListenAndServe/Shutdown lifecycle. Fails pre-rewiring.
 func TestComposition_RootUsesRuntimeLifecycle(t *testing.T) {
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, routerFile, nil, parser.ParseComments)
+	f, err := parser.ParseFile(fset, compositionFile, nil, parser.ParseComments)
 	if err != nil {
-		t.Fatalf("cannot parse %s: %v", routerFile, err)
+		t.Fatalf("cannot parse %s: %v", compositionFile, err)
 	}
 
 	var newCalls, runCalls, defaultCfgCalls, serverLiterals, lifecycleRefs int
@@ -1071,6 +1078,25 @@ func TestComposition_RootUsesRuntimeLifecycle(t *testing.T) {
 	t.Logf("parsed %s: runtimeconfig.DefaultServerConfig=%d server.New=%d server.Run=%d, no inline http.Server lifecycle", routerFile, defaultCfgCalls, newCalls, runCalls)
 }
 
+// TestMainComposition_DelegatesRouterConstruction pins the WS6B-1b-b split: main.go builds the router via ONE newRouter call and registers no chi routes.
+func TestMainComposition_DelegatesRouterConstruction(t *testing.T) {
+	var newRouterCalls, chiRegistrations int
+	ast.Inspect(mustParse(t, compositionFile), func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
+			if id, isId := call.Fun.(*ast.Ident); isId && id.Name == "newRouter" {
+				newRouterCalls++
+			}
+			if isChiRouteMutationCall(call) {
+				chiRegistrations++
+			}
+		}
+		return true
+	})
+	if newRouterCalls != 1 || chiRegistrations != 0 {
+		t.Fatalf("main.go must delegate router construction via exactly one newRouter call and contain no chi registrations; got newRouter=%d chiRegistrations=%d", newRouterCalls, chiRegistrations)
+	}
+}
+
 // TestRouteTopology_ExactRegistrations pins the full chi route topology of the router
 // owner as an exact sorted (method, path) multiset over all string-literal
 // registrations (incl. nested Route closures); any added/removed/renamed/re-gated
@@ -1097,6 +1123,13 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 			path, ok := chiPathLiteral(call)
 			if !ok {
 				return true
+			}
+			if wc, isCall := sel.X.(*ast.CallExpr); isCall && (sel.Sel.Name == "Get" || sel.Sel.Name == "Mount") &&
+				!(sel.Sel.Name == "Get" && strings.Trim(path, `"`) == "/company/members" && referencesIdentifier(wc, "requireRecruiter")) {
+				t.Fatalf("Get/Mount receiver must be the bare router identifier; direct With-wrapping of %s %s evades the pinned gating topology (sole exemption: Get /company/members on a requireRecruiter-wrapped receiver)", sel.Sel.Name, strings.Trim(path, `"`))
+			}
+			if wc, isCall := sel.X.(*ast.CallExpr); sel.Sel.Name == "Get" && strings.Trim(path, `"`) == "/company/members" && (!isCall || !isWithCall(wc) || len(wc.Args) != 1 || !referencesIdentifier(wc, "requireRecruiter")) {
+				t.Fatalf("Get /company/members must be registered as the exact recruiter-gated triple r.With(requireRecruiter).Get(\"/company/members\"); a bare or otherwise-ungated registration evades the pinned gating topology")
 			}
 			got = append(got, sel.Sel.Name+" "+strings.Trim(path, `"`))
 		}
