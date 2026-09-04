@@ -57,7 +57,7 @@ Preset `b27M1Ev2` is the authoritative visual bootstrap. Its confirmed values MU
 
 ### 3.1 RED — specify contracts before implementation
 
-- [ ] Add failing unit/page-data tests under `frontend/src/features/jobs/**` and `frontend/src/lib/**` for server-only environment validation, timeout/status/JSON classification, Zod acceptance/rejection with omitted optionals, UUID prevalidation, Mexico Spanish enum/date/salary formatting, canonical query ordering and repeated/unknown/invalid removal, exact `MXN|USD`, cursor preservation, and cursor reset on every filter change. Run focused Vitest commands from `frontend/`, record expected RED, and roll back only the contract-test commit. <!-- sdd-owner: implementation -->
+- [x] Add failing unit/page-data tests under `frontend/src/features/jobs/**` and `frontend/src/lib/**` for server-only environment validation, timeout/status/JSON classification, Zod acceptance/rejection with omitted optionals, UUID prevalidation, Mexico Spanish enum/date/salary formatting, canonical query ordering and repeated/unknown/invalid removal, exact `MXN|USD`, cursor preservation, and cursor reset on every filter change. Run focused Vitest commands from `frontend/`, record expected RED, and roll back only the contract-test commit. <!-- sdd-owner: implementation -->
 
 ### 3.2 GREEN — implement shared transport and jobs data contracts
 

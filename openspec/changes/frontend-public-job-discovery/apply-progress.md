@@ -457,3 +457,22 @@ Corrected independent verification (`subtask_gentle-ai-verify_1788445602719_9fd2
 - Type-structural soundness proof: the six final test files were copied to a throwaway `/tmp/t31-typecheck` mirror with stub `.d.ts` declarations of the seven future modules (including the new `notFoundStatus` option) and typechecked with the frontend's own `tsc` under the frontend strict tsconfig settings (`dom`, `dom.iterable`, `esnext`) → exit 0 (mirror removed afterwards; zero repo changes from this check).
 - Hygiene: `git diff --check` clean; the six protected formatter-only test diffs remain unstaged and byte-for-byte identical before/after (all six SHA-256 values match the handoff baselines); no production/config/backend/lockfile/fixture/helper file changed; the task 3.1 checkbox remains `- [ ]`; no stale servers or leftover processes; throwaway `/tmp` verification trees removed.
 - Rollback boundary: delete the six new `*.test.ts` files (paths above); no other byte of the repository was touched by this work unit.
+
+## Final closure — task 3.1 RED complete
+
+Task 3.1 is closed: implementation commit `e35a82beeff22f1da5615e6c4a6c47a70d635535` (`test(frontend): specify public job discovery contracts`) landed on `feat/frontend-foundation`, and its checkbox in `tasks.md` is now `- [x]`. No push was made and no PR was created.
+
+### Commit identity and line accounting
+
+- Exact commit scope: the six Task 3.1 RED test files (`src/lib/env/server.test.ts` 53, `src/lib/api/transport.test.ts` 78, `src/features/jobs/schemas.test.ts` 82, `src/features/jobs/formatters.test.ts` 58, `src/features/jobs/url.test.ts` 71, `src/features/jobs/jobId.test.ts` 35) plus the existing 11-line Task 3.1 apply-progress section — **7 paths, 388 insertions, 0 deletions** (verified via `git show --numstat`), inside the hard 400-line budget.
+
+### Independent RED verification and post-commit hygiene
+
+- Independently settled RED verification under Node `v22.22.1` with explicitly selected Corepack pnpm `10.34.5`: the focused Vitest run produced **6 failed files / 0 tests run**, solely because the seven future Task 3.2 modules (`validate`, `requestJson`, `schemas`, `formatters`, `url`, `api/getJob`, and the server env guard) were absent — genuine missing production modules, not malformed tests. TypeScript parser/virtual-module structure checks, the contract audit, protected hashes, scope checks, process cleanup, and diff checks all passed.
+- Post-commit formatter cleanup work unit `task-3.1-post-commit-formatter-cleanup` completed at native generation 33 (status revision `sha256:3d978c15b040ca0c103261689396fc04f0c15a0d9458dfd210b0b6dbb6ccd94c`, evidence `sha256:ddb266ba49f05c7db3d80e69b0cbf724052d1d2e62c8c3d1da2dc32c8ea8d222`). Exactly four post-commit formatter-only Task 3.1 diffs were restored to HEAD, and all six Task 3.1 test files are now clean against HEAD.
+- Working-tree state at closure: exactly the six protected pre-existing formatter-only diffs remain unstaged and excluded (98+/54−); the index is empty; there are no untracked files; and no production, backend, config, package, or lockfile change exists.
+
+### Rollback boundary and remaining state
+
+- Rollback: `git revert e35a82b` removes only the six contract-test files and this progress section without touching unrelated work.
+- Task state after this closure: Task 3.1 is complete (6/22 checkboxes closed); Task 3.2 (GREEN) remains not started, and every later task is untouched. No push and no PR.
