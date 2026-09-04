@@ -476,3 +476,77 @@ Task 3.1 is closed: implementation commit `e35a82beeff22f1da5615e6c4a6c47a70d635
 
 - Rollback: `git revert e35a82b` removes only the six contract-test files and this progress section without touching unrelated work.
 - Task state after this closure: Task 3.1 is complete (6/22 checkboxes closed); Task 3.2 (GREEN) remains not started, and every later task is untouched. No push and no PR.
+
+## Artifact-only reconciliation — TanStack Query state ownership (maintainer decision, native work unit `task-3.2-api-state-reconciliation`)
+
+> **Historical/superseded (maintainer-authorized reset):** the reconciliation objective below was reset before settlement after its final verifier failed (evidence `sha256:034c73ea90268fd652934c83e978ae28d6a8b0f65f37d2efc74668bb2891e219`, reset revision `sha256:1e511f4163e0569f152e7c395eadab59060c324ff2be3bb235f9d033053e6c85`). It is retained verbatim as history, not as a current claim; see the `task-3.2-api-state-reconciliation-correction` section at the end of this file for the current state and authoritative changed-line accounting.
+
+This section documents a **documentation-only OpenSpec artifact reconciliation**, not implementation. It was corrected once (the one allowed gatekeeper rerun, bound to failed evidence `sha256:11d245550fde9e53b0b16570e3a77269fe22ee6bf4d61b6d042a6ad57f8ae470`) to remove internally non-executable hydration wording: this slice keeps TanStack Query orchestration **server-side only** with a fresh request-scoped `QueryClient` and no `QueryClientProvider`/`HydrationBoundary`/client cache. The later authoritative maintainer decision is now recorded in the design/tasks wording:
+
+1. TanStack Query orchestrates every application-facing API request server-side: SSR-first list/detail reads execute feature-owned `queryOptions` through `fetchQuery` on a fresh request-scoped server `QueryClient`; no client query cache is hydrated.
+2. A fresh server `QueryClient` is created per request/render boundary; never a module-global or cross-request shared client.
+3. `requestJson` remains the low-level server-only transport beneath that orchestration.
+4. Zod validates every network boundary.
+5. URL parameters are authoritative for discovery filters and cursors, and URL navigation triggers a new server render with a fresh request-scoped query client.
+6. Zustand is reserved only for demonstrated client-local cross-component state that the URL or TanStack Query cannot own; it is not added now.
+7. SSR-first rendering, no browser-direct API access, no Next proxy, and `cache: "no-store"` freshness are preserved.
+
+### Reconciled artifacts (exact scope)
+
+- `design.md`: D2 rewritten (TanStack Query is the single server-side orchestration layer executed through a fresh request-scoped server `QueryClient`; the stale rejection is explicitly superseded; no client cache is hydrated), D3 reworded (`requestJson` beneath TanStack Query), D5 rationale records the Zustand reservation; §3.1 package policy adds `@tanstack/react-query` and forbids Zustand; §4 topology comment plus a new server-side orchestration paragraph (fresh request-scoped server `QueryClient`, `fetchQuery`, explicitly no `QueryClientProvider`/`HydrationBoundary`/dehydrated state/client cache); §5.2 retitled "Server-only transport beneath TanStack Query" with the request-scoped `fetchQuery` boundary and the `queryFn`-only-caller rule over `requestJson` with Zod decoding; §6.2 list sequence and §6.4 detail participant updated to show server-side `fetchQuery` orchestration through the request-scoped `QueryClient` with unchanged `no-store` freshness and no hydration payload; §6.3 and §7.3 island paragraphs now state job data is read solely server-side through the request-scoped TanStack Query `QueryClient` with no Zustand store and no client query cache; §10.1 adds an orchestration-boundary test bullet; §13 adds a bypass/Zustand risk row.
+- `tasks.md`: a new "State ownership reconciliation" section records the decision as binding (server-side `fetchQuery` on a fresh request-scoped server `QueryClient`; no `QueryClientProvider`, `HydrationBoundary`, dehydrated state, or client query cache); task 3.2 (GREEN) wording now requires TanStack Query `queryOptions`/`queryFn` over `requestJson`, Zod boundary decoding, `no-store`, and forbids Zustand/browser-direct/proxy; tasks 3.3, 3.4, 4.2, 4.4, and 5.2 carry the matching server-side wording (4.2 and 5.2 explicitly on the fresh request-scoped server `QueryClient` with no client query cache). **No checkbox was changed.**
+- `specs/public-job-discovery/spec.md` was inspected and is implementation-neutral; it was **not** touched.
+
+### Explicit scope statement
+
+- This is **artifact-only** work; no implementation was performed.
+- Task 3.2 remains `- [ ]` and **not started**; no production code, test, config, package manifest, or lockfile byte was changed, and no dependency was added or installed.
+- No files were staged, committed, pushed, or opened as a PR; branch remains `feat/frontend-foundation` at expected HEAD `e9b4bc12a4bc296656c06dcc5bf9308d9d91613a`.
+- The six protected formatter-only diffs remained excluded and untouched; all six SHA-256 hashes were verified byte-identical to the handoff baselines before and after the edits.
+- Historical evidence above is preserved verbatim; this section only appends.
+
+### Reconciliation checks
+
+| Check | Exact command | Result |
+| --- | --- | --- |
+| Branch / HEAD | `git branch --show-current` / `git rev-parse HEAD` | `feat/frontend-foundation` / `e9b4bc12a4bc296656c06dcc5bf9308d9d91613a` |
+| Protected hashes (before and after) | `sha256sum` of the six protected paths | all six match the handoff baselines exactly |
+| Working-tree scope | `git status --porcelain` | only the six pre-existing protected modifications plus the three edited OpenSpec artifact files |
+| Checkbox invariants | `grep -c '^- \[[xX]\]' tasks.md` / `grep -c '^- \[ \]' tasks.md` | 6 checked / 16 unchecked (unchanged) |
+| Changed-line count | `git diff --numstat` over the three artifacts | see below |
+
+### Changed-line accounting
+
+`git diff --numstat` for the full uncommitted reconciliation candidate, including this corrective rerun (design.md + tasks.md + apply-progress.md): **89 insertions, 20 deletions = 109 changed lines** (apply-progress.md 44+/0−, design.md 24+/14−, tasks.md 21+/6−), within the 400-line hard budget. The gatekeeper correction removed all internally non-executable `QueryClientProvider`/`HydrationBoundary`/dehydrate/client-cache claims in favor of server-side `fetchQuery` orchestration on a fresh request-scoped server `QueryClient`, and replaced the incorrectly escaped checkbox commands with executable forms. No other path changed; nothing staged; no checkbox changed.
+
+### Rollback boundary
+
+Revert the three OpenSpec artifact files only (`design.md`, `tasks.md`, `apply-progress.md`) to their pre-reconciliation blobs; no repository byte outside `openspec/changes/frontend-public-job-discovery/` was touched.
+
+## Maintainer-authorized reset and correction — TanStack Query state reconciliation (work unit `task-3.2-api-state-reconciliation-correction`)
+
+A maintainer explicitly authorized resetting only the prior blocked `task-3.2-api-state-reconciliation` reconciliation objective (artifact-only; no implementation). Fresh acquire returned `proceed` for this correction objective with a hard 400-line changed-line budget. This correction is documentation-only: no production code, test, config, package, or lockfile byte was changed, no dependency was added or installed, and no checkbox in `tasks.md` was touched.
+
+- Failed evidence being remediated: the prior objective's final verifier failed with evidence `sha256:034c73ea90268fd652934c83e978ae28d6a8b0f65f37d2efc74668bb2891e219`; the exact reset revision was `sha256:1e511f4163e0569f152e7c395eadab59060c324ff2be3bb235f9d033053e6c85`. The parent owns settlement; a passing settlement remediates that failed evidence.
+- Defect 1 corrected — `design.md` §6.4 detail sequence no longer bypasses request-scoped TanStack Query orchestration. It now mirrors the coherent list boundary of §6.2: detail route/metadata → fresh request-scoped server `QueryClient` `fetchQuery` → feature-owned server-only `queryFn` → `requestJson` → Go API, with validated results and typed errors returning through the QueryClient to the route. The UUID short-circuit, detail 404 → `notFound()` mapping, Zod validation, request-scoped dedupe, direct server rendering, and `cache: "no-store"` freshness are all preserved.
+- Defect 2 corrected — the trailing whitespace added at `design.md` line 239 was removed; `git diff --check` now passes with exit 0.
+- Historical labeling: the reconciliation section above is preserved verbatim as history. Its pre-correction statements (the §6.4 participant description and the 109-line accounting) are superseded, not deleted; this section records the current claim.
+- Task state: Task 3.2 remains `- [ ]` and not started; no checkbox changed and no implementation was performed. No files were staged, committed, pushed, or opened as a PR.
+
+### Correction checks
+
+| Check | Exact command | Result |
+| --- | --- | --- |
+| Branch / HEAD | `git branch --show-current` / `git rev-parse HEAD` | `feat/frontend-foundation` / `e9b4bc12a4bc296656c06dcc5bf9308d9d91613a` (unchanged) |
+| Protected hashes (before and after) | `sha256sum` of the six protected paths | all six match the handoff baselines exactly |
+| Whitespace gate | `git diff --check` | exit 0, no whitespace errors |
+| Checkbox invariants | `grep -c '^- \[[xX]\]' tasks.md` / `grep -c '^- \[ \]' tasks.md` | unchanged at 6 checked / 16 unchecked |
+| Changed-line accounting | `git diff --numstat` over `design.md`, `apply-progress.md`, `tasks.md` | see below |
+
+### Correction changed-line accounting
+
+`git diff --numstat` for the full uncommitted candidate after this correction: **129 insertions, 25 deletions = 154 changed lines** (apply-progress.md 74+/0−, design.md 34+/19−, tasks.md 21+/6−). The correction itself contributed 45 changed lines on top of the preserved prior candidate: design.md +10/−5 for the §6.4 rework and apply-progress.md +30 for the superseded banner and this section. The total stays well inside the hard 400-line budget. `apply-progress.md` is administrative evidence, excluded from frontend source-budget accounting.
+
+### Correction rollback boundary
+
+Revert the two corrected artifacts (`design.md`, `apply-progress.md`) to their pre-correction blobs, or revert all three OpenSpec artifacts to HEAD to remove the reconciliation candidate entirely; no repository byte outside `openspec/changes/frontend-public-job-discovery/` was touched by this correction.

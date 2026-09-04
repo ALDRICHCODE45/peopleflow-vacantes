@@ -28,10 +28,10 @@ This change introduces one standalone Next.js application under `frontend/`. It 
 | ID | Decision | Rationale | Alternatives rejected |
 | --- | --- | --- | --- |
 | D1 | Create a standalone pnpm workspace at `frontend/`, pinned to Next.js 15 and Node.js 22. | Node 22 is one of Amplify's supported 20/22/24 runtimes and is the conservative LTS choice. An exact Next 15 release plus lockfile prevents an accidental Next 16 migration. | Next 16 is outside the accepted hosting policy. Node 18 is unsupported. npm/yarn would violate the package-manager decision. |
-| D2 | Use App Router Server Components for the static root entry, job route reads, and metadata. Keep route files thin and all job behavior in `src/features/jobs`. | Secrets remain server-side, HTML is useful without hydration, and the domain is visible in the source tree. | A client SPA, TanStack Query, or a broad browser data layer adds state duplication and requires CORS. |
-| D3 | Call the Go API directly from Server Components through a shared server-only transport. | It avoids CORS and one unnecessary HTTP hop while preserving the backend as the source of truth. | Browser-direct calls and a Next route-handler proxy are explicitly excluded. |
+| D2 | Use App Router Server Components for the static root entry, job route reads, and metadata. TanStack Query orchestrates every application-facing API request entirely server-side: SSR-first list/detail reads execute feature-owned `queryOptions` through a fresh request-scoped server `QueryClient` (`fetchQuery` or equivalent), whose server-only `queryFn` is the only caller of the `requestJson` transport and whose successful payloads are decoded by feature-owned Zod schemas. Route Server Components render the returned validated data directly; no client query cache is hydrated in this slice. Keep route files thin and all job behavior in `src/features/jobs`. | Secrets remain server-side, SSR-first HTML is useful without JavaScript, and TanStack Query provides one canonical request orchestration layer (dedupe, retry policy) instead of ad hoc per-page server reads; `requestJson` stays the low-level server-only transport beneath that orchestration. Route Server Components remain thin: they parse URL state, execute the feature query through the request-scoped `QueryClient`, and render the returned validated data directly. Hydration is unnecessary here because result rendering remains server-side and the navigation island owns no job data, so `QueryClientProvider`, `HydrationBoundary`, and dehydrated state are not used; a client cache would require a future demonstrated client data consumer with a separately designed browser-safe query function and refetch policy. An earlier revision of this decision rejected TanStack Query in favor of plain server reads; that rejection is superseded by the authoritative maintainer decision recorded here. | A client SPA without SSR, browser-direct data fetching, a Next route-handler proxy, or a hand-rolled server read that bypasses TanStack Query creates competing request paths. Zustand is rejected as a job-data or filter store: the URL owns filters/cursors and TanStack Query orchestrates fetched job data server-side. |
+| D3 | Call the Go API directly from the server through the shared server-only `requestJson` transport, which sits beneath TanStack Query orchestration as its low-level fetch boundary. | It avoids CORS and one unnecessary HTTP hop while preserving the backend as the source of truth; the query layer adds orchestration, never a second transport or a browser-reachable path. | Browser-direct calls and a Next route-handler proxy are explicitly excluded. |
 | D4 | Validate all successful API payloads at runtime with Zod job schemas. | TypeScript types do not validate JSON. One malformed item invalidates the response, preventing partially trusted rendering. | Type assertions provide no runtime safety. Hand-written validation is more error-prone. |
-| D5 | Make the URL the only durable list state and canonicalize it before fetching. | Refresh, sharing, crawlability, and browser history work without a client store. | React context, Zustand, URL-plus-store mirroring, and uncontrolled implicit form state create competing sources of truth. |
+| D5 | Make the URL the only durable list state and canonicalize it before fetching. | Refresh, sharing, crawlability, and browser history work without a client store. Zustand is reserved for a demonstrated client-local cross-component need that neither the URL nor TanStack Query can own; no such need exists in this slice, so no Zustand store or dependency is added. | React context, Zustand, URL-plus-store mirroring, and uncontrolled implicit form state create competing sources of truth. |
 | D6 | Treat cursor as a non-empty opaque scalar and only serialize it through `URLSearchParams`. | Percent encoding may change URL spelling, but the decoded cursor value is preserved byte-for-byte as a string. No code inspects or manufactures cursor contents. | Page numbers, reverse cursors, cursor decoding, and append-in-place infinite scrolling are unsupported. |
 | D7 | Render every jobs request dynamically with `cache: "no-store"`, Node runtime, and forced dynamic route policy. | The next request reflects current vacancy visibility and the production build never fetches job data. | ISR, on-demand revalidation, static generation, Edge runtime, and freshness TTLs conflict with the accepted Amplify policy. |
 | D8 | Do not use streaming for correctness and do not add route `loading.tsx` files in this slice. Use route-local client pending feedback for user-initiated navigation. | Amplify may buffer RSC output. Final success, empty, error, and not-found states are complete without Suspense delivery. | A streamed skeleton would be unreliable as the only loading experience. |
@@ -50,6 +50,7 @@ This change introduces one standalone Next.js application under `frontend/`. It 
 - local scripts for dev, lint, type-check, unit tests, E2E, accessibility, and build;
 - Tailwind CSS v4 with `@tailwindcss/postcss`, using the CLI-resolved global CSS location and v4 `@theme inline` token mapping rather than a Tailwind v3 configuration file;
 - `lucide-react` as the only icon package, with its locked version resolved through pnpm and no second icon family or hand-authored icon SVGs;
+- `@tanstack/react-query` as the only data-fetching orchestration dependency for application-facing API requests, with its locked version resolved through pnpm; no Zustand or other client state-store dependency is added in this slice — Zustand is reserved for a future demonstrated client-local need that URL state and TanStack Query cannot satisfy;
 - Inter for both heading and body roles through the preset-compatible `next/font` integration, with no typography override.
 
 The application uses the default Node.js runtime, not Edge. Amplify's app root must be `frontend`, its build runtime must be Node 22, and its build commands must use Corepack and `pnpm install --frozen-lockfile`. That hosting-console or deployment-pipeline coordination is outside this repository change. Upgrades may take security and bug-fix releases within Next 15 after tests pass. Moving to Next 16 requires an explicit hosting compatibility review and a separate change.
@@ -87,7 +88,7 @@ frontend/
     │   ├── error.tsx                      # list retry boundary
     │   └── [jobId]/{page,error,not-found}.tsx
     ├── features/jobs/
-    │   ├── api/                           # list/detail operations and mapping
+    │   ├── api/                           # TanStack Query query functions over server-only requestJson
     │   ├── components/                    # search, filters, rows, detail, states
     │   ├── schemas/                       # runtime wire schemas
     │   ├── url/                           # canonical query parse/build
@@ -103,6 +104,8 @@ The `(marketing)` group is created only for `page.tsx` at `/`; it does not add a
 
 The marketing root route may only compose the shared shell and its minimal static entry. Job route files may await Next.js 15 `params` or `searchParams`, invoke one feature operation, map `notFound()`, and compose feature views. Route files must not own query rules, schemas, formatters, or endpoint construction.
 
+TanStack Query orchestration stays entirely server-side. Each request/render boundary creates one fresh server `QueryClient` — never a module-global or cross-request shared client — and route Server Components stay Server Components: they execute the feature `queryOptions` through that request-scoped client with `fetchQuery` and render the returned validated data directly. No `QueryClientProvider`, `HydrationBoundary`, dehydrated state, or browser TanStack Query cache exists in this slice; introducing one would require a future demonstrated client data consumer with a separately designed browser-safe query function and refetch policy. No route becomes a Client Component to obtain data, and nothing outside the feature query functions calls `requestJson` or `fetch` for application data.
+
 ## 5. Contracts and data flow
 
 ### 5.1 Server-only environment
@@ -115,9 +118,9 @@ The marketing root route may only compose the shared shell and its minimal stati
 
 No API URL uses a `NEXT_PUBLIC_` prefix. The environment object cannot be imported by Client Components. Endpoint URLs are created with `new URL()` and `URLSearchParams`, never string-concatenated.
 
-### 5.2 Generic transport
+### 5.2 Server-only transport beneath TanStack Query
 
-`src/lib/api` exposes a server-only `requestJson` boundary that:
+Application-facing jobs reads are orchestrated server-side by TanStack Query: feature query functions (`queryOptions`) define the list/detail queries and are executed through the fresh request-scoped server `QueryClient` created for the current render, their server-only `queryFn` is the only caller of the transport, and successful network payloads are decoded with the feature-owned Zod schemas. `src/lib/api` exposes a server-only `requestJson` boundary that:
 
 1. starts an abort timeout;
 2. calls native `fetch` with `cache: "no-store"` and minimal `Accept: application/json` headers;
@@ -209,7 +212,8 @@ sequenceDiagram
     actor B as Browser
     participant P as /vacantes page
     participant U as jobs/url
-    participant J as jobs/api
+    participant Q as request-scoped server QueryClient
+    participant J as jobs/api query functions
     participant T as lib/api transport
     participant A as Go GET /jobs
 
@@ -220,16 +224,20 @@ sequenceDiagram
         P-->>B: 307 redirect before API access
     else query is canonical
         U-->>P: typed filters and cursor
-        P->>J: listJobs(query)
+        P->>Q: fetchQuery listJobs(query)
+        Q->>J: queryFn listJobs(query)
         J->>T: requestJson(/jobs, query, list decoder)
         T->>A: GET /jobs with no auth, no-store, timeout
         A-->>T: status and JSON
         T->>J: classified response
         J->>J: Zod validation
-        J-->>P: validated list or typed error
-        P-->>B: complete success/empty HTML or error boundary
+        J-->>Q: validated list or typed error
+        Q-->>P: validated list or typed error
+        P-->>B: success/empty HTML or error boundary without hydration payload
     end
 ```
+
+The query client lives only for this server render and is discarded with it. URL navigation is authoritative and starts a new server render with a fresh request-scoped query client, so freshness remains governed by the underlying `no-store` request. No client query cache exists and the browser never reads job data directly.
 
 ### 6.3 Filter and cursor navigation
 
@@ -256,7 +264,7 @@ sequenceDiagram
     I->>I: clear pending state
 ```
 
-Forms retain ordinary `method="get"` actions and next controls retain real `href` values, so navigation still works without JavaScript. The client island only enhances pending feedback and uses no API data cache.
+Forms retain ordinary `method="get"` actions and next controls retain real `href` values, so navigation still works without JavaScript. The client island only enhances pending feedback and holds no job data; fetched job data is read and rendered server-side through the request-scoped TanStack Query `QueryClient`. No Zustand store, client query cache, or other client data store exists in this slice.
 
 ### 6.4 Detail and metadata
 
@@ -264,7 +272,8 @@ Forms retain ordinary `method="get"` actions and next controls retain real `href
 sequenceDiagram
     actor B as Browser or crawler
     participant N as Next detail route and metadata
-    participant J as cached jobs getJob operation
+    participant Q as request-scoped server QueryClient
+    participant J as jobs/api query functions
     participant T as lib/api transport
     participant A as Go GET /jobs/{id}
 
@@ -273,24 +282,28 @@ sequenceDiagram
     alt malformed UUID
         N-->>B: branded 404, no API call
     else valid UUID
-        N->>J: getJob(jobId)
-        J->>T: no-store request with request-scoped dedupe
+        N->>Q: fetchQuery getJob(jobId)
+        Q->>J: queryFn getJob(jobId)
+        J->>T: requestJson(/jobs/{jobId}) with no-store
         T->>A: GET /jobs/{jobId}
         A-->>T: 200, 404, or failure
+        T->>J: classified response
+        J->>J: Zod validation
+        J-->>Q: validated job or typed error
         alt 404
-            J-->>N: notFound result
+            Q-->>N: not-found result
             N-->>B: branded 404 with noindex
         else valid 200
-            J-->>N: validated job
+            Q-->>N: validated job
             N-->>B: dynamic metadata plus complete article HTML
         else timeout, 5xx, or invalid schema
-            J-->>N: typed error
+            Q-->>N: typed error
             N-->>B: retryable detail error boundary
         end
     end
 ```
 
-A React `cache()` wrapper deduplicates metadata and page reads only within the same server render. The underlying fetch remains `no-store`; there is no persistent data or full-route cache.
+Request-scoped dedupe for metadata and page reads is preserved within the same server render: the fresh request-scoped `QueryClient` dedupes identical queries, whether through a React `cache()` wrapper or TanStack Query's own request dedupe. The underlying fetch remains `no-store`; there is no persistent data or full-route cache.
 
 ## 7. UI composition and state boundaries
 
@@ -312,7 +325,7 @@ The root layout sets `lang="es-MX"`, the preset-compatible Inter font variables,
 - A valid empty `items` array uses the shadcn Empty composition and links to `/vacantes` with “Quitar filtros”.
 - A next cursor renders one descriptive “Ver más vacantes” link. No count, page number, previous control, or disabled final-page placeholder appears.
 
-A feature-local `JobsNavigationIsland` owns only ephemeral pending state. It receives server-rendered result content as a slot, intercepts unmodified form/link navigation for `router.push`, and clears pending state when the canonical route key changes. It exposes `aria-busy`, an `aria-live="polite"` Mexico Spanish status, disables only the initiating control, and displays layout-matched row skeletons without making final correctness depend on streaming. This is not global application state and contains no fetched job cache.
+A feature-local `JobsNavigationIsland` owns only ephemeral pending state. It receives server-rendered result content as a slot, intercepts unmodified form/link navigation for `router.push`, and clears pending state when the canonical route key changes. It exposes `aria-busy`, an `aria-live="polite"` Mexico Spanish status, disables only the initiating control, and displays layout-matched row skeletons without making final correctness depend on streaming. This is not global application state and contains no job data; job data is read exclusively server-side through the request-scoped TanStack Query `QueryClient`, and no Zustand store or client query cache is introduced.
 
 ### 7.4 Detail
 
@@ -373,6 +386,7 @@ Vitest in jsdom covers pure or synchronous units:
 - date, salary-bound, and enum formatting;
 - list/detail Zod acceptance and rejection, including omitted optionals and malformed payloads;
 - typed timeout/status/schema mapping with mocked native fetch;
+- TanStack Query orchestration boundaries: query functions call only the server-only `requestJson` transport, each request/render boundary uses a fresh server `QueryClient` with no module-global or cross-request sharing, no `QueryClientProvider`, `HydrationBoundary`, dehydrated state, or client query cache appears, SSR-first output stays server-rendered, and no browser-direct fetch, Next proxy, or Zustand store appears;
 - synchronous result/detail/state rendering and omission behavior;
 - configuration invariants that keep `components.json` aliases at `@/components` and `@/components/ui`, `tsconfig` at `@/* -> ./src/*`, and CLI-managed output under `src/components/ui`.
 
@@ -454,4 +468,5 @@ Rollback selects the previous Amplify artifact or disables the public frontend b
 | Preset initialization silently chooses the wrong primitive base | Select Base UI explicitly with the current CLI and block on `shadcn info --json` unless `base` resolves to Base UI. |
 | Alias or resolved-path drift places primitives outside screaming architecture | Assert `components -> @/components`, `ui -> @/components/ui`, `@/* -> ./src/*`, and resolved UI output at `frontend/src/components/ui/` before and after adding components. |
 | Preset menu/chart options are mistaken for product scope | Preserve their tokens for future surfaces but install no charts and add no employer or candidate menus in this slice. |
+| TanStack Query is bypassed by direct server reads, browser fetches, a Next proxy, or a new client store | Feature query functions are the single application-facing request path over `requestJson`; tests and review block browser-direct access, proxy routes, and Zustand additions without a proven need. |
 | Current hosting document misleads future work | This design explicitly forbids ISR/streaming dependence; correcting shared documentation is a separate coordinated change. |

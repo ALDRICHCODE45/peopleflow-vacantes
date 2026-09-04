@@ -22,6 +22,21 @@ The estimate counts authored additions plus deletions. `frontend/pnpm-lock.yaml`
 
 Preset `b27M1Ev2` is the authoritative visual bootstrap. Its confirmed values MUST remain intact: Rhea style, Neutral base color, Violet theme, Neutral chart color, Inter heading and body typography, Lucide icons, Default radius, Default/Solid menu treatment, and Subtle menu accent. Tasks must not substitute Geist, generic tokens, custom radius scales, hand-recreated theme values, another icon family, or ad hoc primitive overrides. Menu/chart settings are preserved for future surfaces only; this change installs no charts and creates no employer menus.
 
+## State ownership reconciliation (authoritative maintainer decision)
+
+A later authoritative maintainer decision supersedes the original design's rejection of TanStack Query and is binding for all remaining implementation tasks:
+
+- TanStack Query orchestrates every application-facing API request server-side: SSR-first list/detail reads execute feature-owned `queryOptions` through `fetchQuery` on a fresh request-scoped server `QueryClient`.
+- A fresh server `QueryClient` is created per request/render boundary; never a module-global or cross-request shared client.
+- No `QueryClientProvider`, `HydrationBoundary`, dehydrated state, or client TanStack Query cache is used in this slice; result rendering stays server-side, and a client cache would require a future demonstrated client data consumer with a separately designed browser-safe query function and refetch policy.
+- `requestJson` remains the low-level server-only transport beneath that orchestration; it is never browser-reachable.
+- Zod validates every network boundary with feature-owned schemas.
+- URL parameters are authoritative for discovery filters and cursors.
+- Zustand is reserved for demonstrated client-local cross-component state that the URL and TanStack Query cannot own; it is NOT added in this slice, and no Zustand dependency or store may appear.
+- SSR-first rendering, no browser-direct API access, no Next route-handler proxy, and `cache: "no-store"` freshness are all preserved.
+
+Tasks 3.2, 3.3, 3.4, 4.2, 4.4, and 5.2 below carry the corresponding wording. `specs/public-job-discovery/spec.md` remains implementation-neutral and unchanged.
+
 ## Candidate and commit accounting
 
 - All checkboxes remain unchecked until the corresponding implementation commit lands.
@@ -61,15 +76,15 @@ Preset `b27M1Ev2` is the authoritative visual bootstrap. Its confirmed values MU
 
 ### 3.2 GREEN — implement shared transport and jobs data contracts
 
-- [ ] Implement `frontend/src/lib/env/server.ts` with `server-only` and strict origin/timeout rules; implement `frontend/src/lib/api/` request, timeout, status, JSON, and safe logging boundaries; implement `frontend/src/features/jobs/{schemas,api,url,formatters}/` and `types.ts` for validated root-level “/jobs” operations, deterministic `es-MX` output, exact scalar filters, canonical URLs, opaque cursors, and dynamic `cache: "no-store"` behavior. Run focused RED-to-GREEN Vitest, typecheck, lint, and mocked data-boundary commands; browser runtime is `N/A` until route composition exists. Rollback is the contract/data candidate only. <!-- sdd-owner: implementation -->
+- [ ] Implement `frontend/src/lib/env/server.ts` with `server-only` and strict origin/timeout rules; implement `frontend/src/lib/api/` request, timeout, status, JSON, and safe logging boundaries; implement `frontend/src/features/jobs/{schemas,api,url,formatters}/` and `types.ts` for validated root-level “/jobs” operations exposed through TanStack Query query functions (`queryOptions`) whose `queryFn` is the only caller of the server-only `requestJson` transport and whose successful payloads are decoded with the feature-owned Zod schemas, deterministic `es-MX` output, exact scalar filters, canonical URLs, opaque cursors, and dynamic `cache: "no-store"` behavior. The `@tanstack/react-query` dependency is added here if absent; no Zustand dependency or store, browser-direct fetch, or Next proxy may be introduced. Run focused RED-to-GREEN Vitest, typecheck, lint, and mocked data-boundary commands; browser runtime is `N/A` until route composition exists. Rollback is the contract/data candidate only. <!-- sdd-owner: implementation -->
 
 ### 3.3 TRIANGULATE — test failure classification and URL invariants
 
-- [ ] Prove with focused tests timeout, network, `429`, `5xx`, unexpected `4xx`, invalid JSON, schema rejection, detail `404`, malformed UUID short-circuit, omitted optionals, AND forwarding, canonical redirect comparison, currency exactness, cursor byte-for-byte URL transport, and filter cursor reset. Run the configured `cd frontend && pnpm test -- --run src/features src/lib` equivalent, inspect safe-log assertions, and record exact result and rollback boundary. <!-- sdd-owner: implementation -->
+- [ ] Prove with focused tests timeout, network, `429`, `5xx`, unexpected `4xx`, invalid JSON, schema rejection, detail `404`, malformed UUID short-circuit, omitted optionals, AND forwarding, canonical redirect comparison, currency exactness, cursor byte-for-byte URL transport, and filter cursor reset, and that the TanStack Query query functions are the only application-facing request path over `requestJson` (no bypass reads, browser fetches, or proxies). Run the configured `cd frontend && pnpm test -- --run src/features src/lib` equivalent, inspect safe-log assertions, and record exact result and rollback boundary. <!-- sdd-owner: implementation -->
 
 ### 3.4 REFACTOR — isolate domain ownership and deterministic helpers
 
-- [ ] Refactor `frontend/src/features/jobs/{api,schemas,url,formatters,types.ts}` and `frontend/src/lib/{api,env}` so route concerns remain absent from domain modules, no browser-direct fetch or proxy exists, no cursor is decoded/logged, and formatting has no hydration-dependent relative dates or invented salary periods. Re-run focused tests, typecheck, lint, and an API-unavailable production build. <!-- sdd-owner: implementation -->
+- [ ] Refactor `frontend/src/features/jobs/{api,schemas,url,formatters,types.ts}` and `frontend/src/lib/{api,env}` so route concerns remain absent from domain modules, no browser-direct fetch or proxy exists, no cursor is decoded/logged, the TanStack Query orchestration boundary over `requestJson` remains the single request path with no Zustand store, and formatting has no hydration-dependent relative dates or invented salary periods. Re-run focused tests, typecheck, lint, and an API-unavailable production build. <!-- sdd-owner: implementation -->
 
 ## 4. Vacancy list route and navigation states (PR 4)
 
@@ -79,7 +94,7 @@ Preset `b27M1Ev2` is the authoritative visual bootstrap. Its confirmed values MU
 
 ### 4.2 GREEN — implement list composition, controls, and states
 
-- [ ] Implement `frontend/src/app/(public)/layout.tsx`, `frontend/src/app/(public)/vacantes/page.tsx`, `frontend/src/app/(public)/vacantes/error.tsx`, and list-owned files under `frontend/src/features/jobs/components/` for awaited Next.js 15 `searchParams`, canonical redirect, server-rendered validated data, semantic rows, Spanish labels, empty/reset/error states, forward next link, and isolated `JobsNavigationIsland` pending behavior. Compose only CLI-managed primitives from `frontend/src/components/ui/`; business compositions remain in `frontend/src/features/jobs/components/`. Add no totals, sorting, multi-select, apply/auth, charts, employer menus, or unsupported fields. Run focused RED-to-GREEN tests, list Playwright tests against the fixture, typecheck, and lint; rollback is the list candidate. <!-- sdd-owner: implementation -->
+- [ ] Implement `frontend/src/app/(public)/layout.tsx`, `frontend/src/app/(public)/vacantes/page.tsx`, `frontend/src/app/(public)/vacantes/error.tsx`, and list-owned files under `frontend/src/features/jobs/components/` for awaited Next.js 15 `searchParams`, canonical redirect, server-rendered validated data via TanStack Query `fetchQuery` on a fresh request-scoped server `QueryClient` (thin Server Components that never call `requestJson` or fetch directly and render the returned validated data directly without hydrating a client query cache), semantic rows, Spanish labels, empty/reset/error states, forward next link, and isolated `JobsNavigationIsland` pending behavior. Compose only CLI-managed primitives from `frontend/src/components/ui/`; business compositions remain in `frontend/src/features/jobs/components/`. Add no totals, sorting, multi-select, apply/auth, charts, employer menus, or unsupported fields. Run focused RED-to-GREEN tests, list Playwright tests against the fixture, typecheck, and lint; rollback is the list candidate. <!-- sdd-owner: implementation -->
 
 ### 4.3 TRIANGULATE — verify list navigation and accessibility
 
@@ -87,7 +102,7 @@ Preset `b27M1Ev2` is the authoritative visual bootstrap. Its confirmed values MU
 
 ### 4.4 REFACTOR — preserve server-first list boundaries
 
-- [ ] Refactor list components and route composition to keep API data and result rendering server-side, keep the client island limited to ephemeral pending state, use FieldGroup/Field and resolved Base UI APIs, preserve the mobile `<768px` fallback and unique IDs, and remove duplicated or unsupported UI. Re-run focused tests, typecheck, lint, build, preset/configuration assertions, and fixture-offline verification. <!-- sdd-owner: implementation -->
+- [ ] Refactor list components and route composition to keep API data and result rendering server-side, keep the client island limited to ephemeral pending state with job data read solely server-side through the request-scoped TanStack Query `QueryClient` (no Zustand, no client query cache, no island-held data), use FieldGroup/Field and resolved Base UI APIs, preserve the mobile `<768px` fallback and unique IDs, and remove duplicated or unsupported UI. Re-run focused tests, typecheck, lint, build, preset/configuration assertions, and fixture-offline verification. <!-- sdd-owner: implementation -->
 
 ## 5. Vacancy detail route, metadata, and not-found/error states (PR 4)
 
@@ -97,7 +112,7 @@ Preset `b27M1Ev2` is the authoritative visual bootstrap. Its confirmed values MU
 
 ### 5.2 GREEN — implement detail page and boundaries
 
-- [ ] Implement `frontend/src/app/(public)/vacantes/[jobId]/page.tsx`, `error.tsx`, `not-found.tsx`, metadata generation, and detail-owned files under `frontend/src/features/jobs/components/` using awaited Next.js 15 `params`, UUID validation before API access, render-scoped dedupe around no-store operations, semantic `article`, safe React text rendering, Spanish formatting, list navigation, branded not-found, and separate retryable error states. Do not add save/share/apply/company-profile/benefits/structured sections. Run focused RED-to-GREEN tests, typecheck, lint, build, and detail Playwright tests; rollback is the detail candidate only. <!-- sdd-owner: implementation -->
+- [ ] Implement `frontend/src/app/(public)/vacantes/[jobId]/page.tsx`, `error.tsx`, `not-found.tsx`, metadata generation, and detail-owned files under `frontend/src/features/jobs/components/` using awaited Next.js 15 `params`, UUID validation before API access, render-scoped dedupe around no-store TanStack Query getJob reads executed with `fetchQuery` on the fresh request-scoped server `QueryClient` (`requestJson` as the only transport; no `HydrationBoundary` or client query cache), semantic `article`, safe React text rendering, Spanish formatting, list navigation, branded not-found, and separate retryable error states. Do not add save/share/apply/company-profile/benefits/structured sections. Run focused RED-to-GREEN tests, typecheck, lint, build, and detail Playwright tests; rollback is the detail candidate only. <!-- sdd-owner: implementation -->
 
 ### 5.3 TRIANGULATE — verify detail safety and SEO
 
