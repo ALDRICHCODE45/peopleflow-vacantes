@@ -861,3 +861,12 @@ Implementation landed as three work-unit commits: `d63bf3e` (`feat(backend): add
 - **Scope & arithmetic:** exact two-file candidate — `decode.go` 32+/11−, `apply-progress.md` 9+/0− = 52 changed lines ≤ 80 hard cap. `decode_test.go`, `tasks.md` byte-unchanged; no verify-report; task 6.2 GREEN checkbox untouched pending commit.
 - **Native evidence now:** generation 89, active ordinal 112, refreshed eligible-untracked inventory `sha256:0fc9c89f9fb57a5340cb06a0d61707dbf4d16b8d18d78a55fd8c28d114b47735` — no intended untracked files present.
 - **Rollback boundary:** revert `backend/internal/shared/httpjson/decode.go` to HEAD `65c8452` stub and remove this entry only; RED contract, tests, and prior evidence untouched. No final native settlement claimed.
+
+## WS6B-2b post-commit reconciliation — GREEN landed (generation 89 → 90, ordinal 113)
+
+- Commit `cf2f5a926d01879b8b02c6984d61c1899f9b66a0` (`feat(httpjson): enforce bounded JSON decoding`): exact two-file scope — `decode.go` 32+/11−, prior apply-progress entry 9+/0−; totals 41 additions + 11 deletions = 52 changed lines.
+- Prior native generation 89: revision `sha256:0f2b37c87d0e11d95935d76905c8d02fcc0aa50ac1dfb30f1a6049b3b3ba48e0`, evidence revision `sha256:73b98edacb663b82756454bc23da31e3c62e91547e7412262dcb8ac6e2ac7562`.
+- Post-commit verification PASS: focused `go test ./internal/shared/httpjson -run '^TestDecodeJSON_' -count=1`; package `go test ./internal/shared/httpjson -count=1`; full `go test ./... -count=1` all packages ok; `go vet ./...` clean; `gofmt -l` on both protected Go files empty; scoped `git diff --check` clean.
+- Checkbox delta: exactly one — task 6.2 GREEN `[ ]`→`[x]` (`<!-- sdd-owner: implementation -->` marker byte-preserved); RED+GREEN now checked, TRIANGULATE+REFACTOR unchecked; task state 78/100 with 100 owner markers.
+- Artifact-only runtime change: N/A — no runtime/code/test mutation; both protected Go files byte-unchanged (SHA-256 reconfirmed before and after editing).
+- Rollback boundary: revert the task 6.2 GREEN checkbox and remove only this appended reconciliation entry; the committed GREEN implementation remains untouched.
