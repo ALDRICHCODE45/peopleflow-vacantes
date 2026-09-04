@@ -124,7 +124,8 @@ type stubUserRepositoryForHandler struct {
 	mu         sync.Mutex
 	resolved   *identityentities.User
 	resolveErr error
-	getCalls   int
+	getCalls   int // GetByCognitoSub reads (D6: must stay 0 on gated paths)
+	byIDCalls  int // GetByID reads (addMember target validation)
 
 	// byID / byIDErr drive GetByID, which AddMember now calls to validate
 	// the target's user_type. Default (both nil) returns a recruiter so the
@@ -154,6 +155,7 @@ func (s *stubUserRepositoryForHandler) Create(_ context.Context, _ *identityenti
 func (s *stubUserRepositoryForHandler) GetByID(_ context.Context, _ uuid.UUID) (*identityentities.User, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.byIDCalls++
 	if s.byIDErr != nil {
 		return nil, s.byIDErr
 	}
@@ -812,8 +814,8 @@ func assertErrorMessage(t *testing.T, rec *httptest.ResponseRecorder, want strin
 
 func assertNoMemberWrites(t *testing.T, members *stubMemberRepositoryForHandler, users *stubUserRepositoryForHandler) {
 	t.Helper()
-	if members.createCalls != 0 || members.updateCalls != 0 || members.removeCalls != 0 || users.getCalls != 0 {
-		t.Fatalf("unexpected calls: create=%d update=%d remove=%d user_get=%d", members.createCalls, members.updateCalls, members.removeCalls, users.getCalls)
+	if members.createCalls != 0 || members.updateCalls != 0 || members.removeCalls != 0 || users.getCalls != 0 || users.byIDCalls != 0 {
+		t.Fatalf("unexpected calls: create=%d update=%d remove=%d user_get=%d user_by_id=%d", members.createCalls, members.updateCalls, members.removeCalls, users.getCalls, users.byIDCalls)
 	}
 }
 
@@ -1174,5 +1176,40 @@ func TestTriangulation_NotFoundMessagesDiffer(t *testing.T) {
 	json.Unmarshal(recB.Body.Bytes(), &envB)
 	if envA.Error == envB.Error {
 		t.Errorf("not_found messages must differ: got same %q twice", envA.Error)
+	}
+}
+
+// TestMemberHandlers_DecodeBoundary (WS6B-2 Wave A): both membership write
+// handlers must accept exactly one JSON value within the 1,048,576-byte cap —
+// a trailing second value yields invalid_request ("invalid JSON body"),
+// ignored padding past the cap yields payload_too_large (HTTP 413); neither
+// may reach the repositories (assertNoMemberWrites).
+func TestMemberHandlers_DecodeBoundary(t *testing.T) {
+	newDeps := func() (http.Handler, *stubMemberRepositoryForHandler, *stubUserRepositoryForHandler) {
+		mRepo := &stubMemberRepositoryForHandler{}
+		uRepo := &stubUserRepositoryForHandler{}
+		svc := newMemberHandlerService(mRepo, uRepo, &stubMemberCompanyRepositoryForHandler{})
+		router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: uuid.New(), Role: valueobjects.OwnerRole})
+		return router, mRepo, uRepo
+	}
+	for _, tc := range []struct {
+		name   string
+		method string
+		path   string
+		body   string
+		status int
+		code   httpjson.Code
+	}{
+		{"addMember trailing second value", http.MethodPost, "/me/company/members", `{"user_id":"` + uuid.New().String() + `","role":"recruiter"} {"extra":1}`, http.StatusBadRequest, httpjson.CodeInvalidRequest},
+		{"addMember oversized padding", http.MethodPost, "/me/company/members", waveAOversizedBody(t, `{"user_id":"`+uuid.New().String()+`","role":"recruiter"}`), http.StatusRequestEntityTooLarge, httpjson.CodePayloadTooLarge},
+		{"updateMemberRole trailing second value", http.MethodPatch, "/me/company/members/" + uuid.New().String(), `{"role":"owner"} {"extra":1}`, http.StatusBadRequest, httpjson.CodeInvalidRequest},
+		{"updateMemberRole oversized padding", http.MethodPatch, "/me/company/members/" + uuid.New().String(), waveAOversizedBody(t, `{"role":"owner"}`), http.StatusRequestEntityTooLarge, httpjson.CodePayloadTooLarge},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			router, mRepo, uRepo := newDeps()
+			rec := doReq(t, router, tc.method, tc.path, tc.body)
+			assertNoMemberWrites(t, mRepo, uRepo)
+			assertWaveADecodeEnvelope(t, rec, tc.status, tc.code)
+		})
 	}
 }

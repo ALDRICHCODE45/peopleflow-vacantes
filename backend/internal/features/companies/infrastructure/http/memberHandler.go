@@ -29,7 +29,6 @@
 package http
 
 import (
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -269,8 +268,11 @@ func (h *MemberHandler) addMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req addMemberRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
+	if def := httpjson.DecodeJSON(w, r, &req, maxJSONBodyBytes); def != nil {
+		if def.Code == httpjson.CodeInvalidRequest {
+			*def = httpjson.SafeMessage(*def, "invalid JSON body")
+		}
+		httpjson.WriteCatalogError(w, *def)
 		return
 	}
 
@@ -315,8 +317,11 @@ func (h *MemberHandler) updateMemberRole(w http.ResponseWriter, r *http.Request)
 	}
 
 	var req updateMemberRoleRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
+	if def := httpjson.DecodeJSON(w, r, &req, maxJSONBodyBytes); def != nil {
+		if def.Code == httpjson.CodeInvalidRequest {
+			*def = httpjson.SafeMessage(*def, "invalid JSON body")
+		}
+		httpjson.WriteCatalogError(w, *def)
 		return
 	}
 
@@ -440,12 +445,12 @@ func toUserSummary(u *entities.MemberUser) *userSummaryDTO {
 // 401 here so the handler never reaches the use case with a blank
 // subject.
 func requireSub(w http.ResponseWriter, r *http.Request) (string, bool) {
-claims := identitysecurity.ClaimsFromContext(r.Context())
-if claims.Subject == "" {
-httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeUnauthenticated))
-return "", false
-}
-return claims.Subject, true
+	claims := identitysecurity.ClaimsFromContext(r.Context())
+	if claims.Subject == "" {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeUnauthenticated))
+		return "", false
+	}
+	return claims.Subject, true
 }
 
 // requireCompanyContext reads the CompanyContext that RequireCompanyRole

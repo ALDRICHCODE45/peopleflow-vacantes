@@ -130,11 +130,13 @@ type stubUserRepo struct {
 	mu       sync.Mutex
 	resolved *identityentities.User
 	resErr   error
+	getCalls int // every user-repo read (GetByCognitoSub)
 }
 
 func (r *stubUserRepo) GetByCognitoSub(_ context.Context, _ string) (*identityentities.User, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.getCalls++
 	if r.resErr != nil {
 		return nil, r.resErr
 	}
@@ -546,6 +548,65 @@ func assertCatalogEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantSta
 		if env.Error != "an internal error occurred" {
 			t.Errorf("internal_error must use canonical generic message, got %q", env.Error)
 		}
+	}
+}
+
+// assertWaveADecodeEnvelope pins the Wave A decode-failure wire outcome:
+// catalog code + exact message — the legacy safe message "invalid JSON body"
+// for invalid_request, the canonical never-overridden "payload too large" for
+// payload_too_large.
+func assertWaveADecodeEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantStatus int, wantCode httpjson.Code) {
+	t.Helper()
+	assertCatalogEnvelope(t, rec, wantStatus, wantCode)
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode envelope: %v; body=%s", err, rec.Body.String())
+	}
+	wantMsg := "invalid JSON body"
+	if wantCode == httpjson.CodePayloadTooLarge {
+		wantMsg = "payload too large"
+	}
+	if env.Error != wantMsg {
+		t.Errorf("message: want %q, got %q", wantMsg, env.Error)
+	}
+}
+
+// waveAOversizedBody appends an ignored "pad" field until the body exceeds
+// the 1,048,576-byte decode cap.
+func waveAOversizedBody(t *testing.T, base string) string {
+	t.Helper()
+	return strings.TrimSuffix(base, "}") + `,"pad":"` + strings.Repeat("p", 1_048_576) + `"}`
+}
+
+// TestCreateCompany_DecodeBoundary (WS6B-2 Wave A): the create endpoint must
+// accept exactly one JSON value within the 1,048,576-byte cap — a trailing
+// second value yields invalid_request ("invalid JSON body"), ignored padding
+// past the cap yields payload_too_large (HTTP 413); neither may reach the use
+// case (no CreateWithOwner row).
+func TestCreateCompany_DecodeBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		body   string
+		status int
+		code   httpjson.Code
+	}{
+		{"trailing second JSON value", `{"name":"Acme SA de CV","rfc":"AAA010101AAA","industry_id":"tech"} {"extra":1}`, http.StatusBadRequest, httpjson.CodeInvalidRequest},
+		{"oversized ignored padding", waveAOversizedBody(t, `{"name":"Acme SA de CV","rfc":"AAA010101AAA","industry_id":"tech"}`), http.StatusRequestEntityTooLarge, httpjson.CodePayloadTooLarge},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bootstrap := &stubBootstrapRepo{}
+			users := &stubUserRepo{resolved: &identityentities.User{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), CognitoSub: "test-sub"}}
+			svc := usecases.NewCompanyServiceWithBootstrap(&stubRepo{}, users, bootstrap)
+			router := newTestRouter(NewCompanyHandler(svc))
+			rec := doPost(t, router, tc.body)
+			if users.getCalls != 0 {
+				t.Errorf("user lookup MUST NOT run on decode failure, got %d GetByCognitoSub calls", users.getCalls)
+			}
+			if bootstrap.company != nil || bootstrap.owner != nil {
+				t.Errorf("CreateWithOwner MUST NOT run on decode failure (company=%v owner=%v)", bootstrap.company, bootstrap.owner)
+			}
+			assertWaveADecodeEnvelope(t, rec, tc.status, tc.code)
+		})
 	}
 }
 

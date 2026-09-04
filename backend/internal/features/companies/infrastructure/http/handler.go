@@ -2,7 +2,6 @@
 package http
 
 import (
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -17,6 +16,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
+
+// maxJSONBodyBytes is the package-local request-body decode cap shared by
+// every JSON-accepting handler in this package (WS6B-2 Wave A).
+const maxJSONBodyBytes = 1_048_576
 
 // CompanyHandler adapts the companies use cases to the HTTP transport.
 type CompanyHandler struct {
@@ -156,8 +159,11 @@ func (h *CompanyHandler) createCompany(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req createCompanyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
+	if def := httpjson.DecodeJSON(w, r, &req, maxJSONBodyBytes); def != nil {
+		if def.Code == httpjson.CodeInvalidRequest {
+			*def = httpjson.SafeMessage(*def, "invalid JSON body")
+		}
+		httpjson.WriteCatalogError(w, *def)
 		return
 	}
 
@@ -347,8 +353,11 @@ func (h *CompanyHandler) updateCompany(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var in dtos.UpdateCompanyDto
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
+	if def := httpjson.DecodeJSON(w, r, &in, maxJSONBodyBytes); def != nil {
+		if def.Code == httpjson.CodeInvalidRequest {
+			*def = httpjson.SafeMessage(*def, "invalid JSON body")
+		}
+		httpjson.WriteCatalogError(w, *def)
 		return
 	}
 

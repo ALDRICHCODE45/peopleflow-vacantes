@@ -58,8 +58,9 @@ type stubUpdateServiceRepo struct {
 	getErr  error
 
 	// UpdateCompany path fields:
-	getForUpdateOut *entities.Company
-	getForUpdateErr error
+	getForUpdateCalls int
+	getForUpdateOut   *entities.Company
+	getForUpdateErr   error
 
 	updateCalls int
 	updateID    uuid.UUID
@@ -75,6 +76,7 @@ type stubUpdateServiceRepo struct {
 func (s *stubUpdateServiceRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*entities.Company, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.getForUpdateCalls++
 	if s.getForUpdateErr != nil {
 		return nil, s.getForUpdateErr
 	}
@@ -739,4 +741,35 @@ func mustHandlerRfc(t *testing.T, raw string) valueobjects.CompanyRfc {
 		t.Fatalf("NewCompanyRfc(%q): %v", raw, err)
 	}
 	return r
+}
+
+// TestUpdateCompanyHandler_DecodeBoundary (WS6B-2 Wave A): PATCH /me/company
+// must accept exactly one JSON value within the 1,048,576-byte cap — a
+// trailing second value yields invalid_request ("invalid JSON body"), ignored
+// padding past the cap yields payload_too_large (HTTP 413); neither may call
+// the service.
+func TestUpdateCompanyHandler_DecodeBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		body   string
+		status int
+		code   httpjson.Code
+	}{
+		{"trailing second JSON value", `{"name":"Acme"} {"extra":1}`, http.StatusBadRequest, httpjson.CodeInvalidRequest},
+		{"oversized ignored padding", waveAOversizedBody(t, `{"name":"Acme"}`), http.StatusRequestEntityTooLarge, httpjson.CodePayloadTooLarge},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &stubUpdateServiceRepo{}
+			cc := identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: uuid.New(), Role: valueobjects.OwnerRole}
+			router := newUpdateRouter(t, repo, cc)
+			rec := doPatch(t, router, tc.body, "", cc)
+			if repo.getForUpdateCalls != 0 {
+				t.Errorf("repo.GetCompanyForUpdate MUST NOT run on decode failure, got %d calls", repo.getForUpdateCalls)
+			}
+			if repo.updateCalls != 0 {
+				t.Errorf("service.UpdateCompany MUST NOT be called on decode failure, got %d calls", repo.updateCalls)
+			}
+			assertWaveADecodeEnvelope(t, rec, tc.status, tc.code)
+		})
+	}
 }
