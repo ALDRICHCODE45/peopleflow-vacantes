@@ -550,3 +550,54 @@ A maintainer explicitly authorized resetting only the prior blocked `task-3.2-ap
 ### Correction rollback boundary
 
 Revert the two corrected artifacts (`design.md`, `apply-progress.md`) to their pre-correction blobs, or revert all three OpenSpec artifacts to HEAD to remove the reconciliation candidate entirely; no repository byte outside `openspec/changes/frontend-public-job-discovery/` was touched by this correction.
+
+## Bounded strict-TDD GREEN sub-unit — server env validation (work unit `task-3.2-green-server-env`, Task 3.2 remains `[ ]`)
+
+First bounded GREEN sub-unit of Task 3.2 only: `frontend/src/lib/env/validate.ts` (new, 84 lines after final repository formatting) and `frontend/src/lib/env/server.ts` (new, 7 lines). No test, task, package, lockfile, config, backend, or shared-root byte was edited; nothing staged, committed, pushed, or opened as a PR; Task 3.2 stays unchecked because `requestJson`, jobs schemas/api/url/formatters, and TanStack Query query functions remain for later sub-units.
+
+### TDD cycle evidence
+
+| Cycle | Evidence |
+| --- | --- |
+| RED (pre-edit, committed by parent) | `corepack pnpm@10.34.5 exec vitest run src/lib/env/server.test.ts src/lib/api/transport.test.ts src/features/jobs/schemas.test.ts src/features/jobs/formatters.test.ts src/features/jobs/url.test.ts src/features/jobs/jobId.test.ts` from `frontend/`: exit 1; 6 failed test files; failures were only unresolved intentionally absent Task 3.2 modules (`./validate`, `./requestJson`, `./schemas`, `./formatters`, `./url`, `./api/getJob`). Node v22.22.1, pnpm 10.34.5. |
+| RED-equivalent (correction rerun) | Before correcting, `node --experimental-strip-types` probes against the prior uncommitted `validate.ts` (Node v22.22.1) demonstrated the gatekeeper defects live: raw origins returned un-normalized (`HTTP://127.0.0.1:8080/` accepted as-is), `https://host?` and `https://host#` accepted (empty query/fragment delimiters), and timeout strings `1e3` and ` 15000 ` accepted. |
+| GREEN | Implemented `validate.ts` (`DEFAULT_API_TIMEOUT_MS = 8000`; `validateServerEnv`; required `PEOPLEFLOW_API_BASE_URL`/`PEOPLEFLOW_SITE_URL`; absolute, pathless, credential-free http(s) origins rejecting any `?`/`#` delimiter including the empty form; production HTTPS; dev/test HTTP only for `127.0.0.1`/`localhost`/`::1` with IPv6 bracket normalization; timeout accepting only integer numbers or digit-only strings in 1000–30000 inclusive with default 8000; returns the normalized WHATWG origin via `url.origin`) and `server.ts` (guarded by exact `import "server-only"`, exporting the validated `process.env` result and re-exporting the validate API). Both new files were also reindented from a spurious global 4-space offset to the project's standard 2-space style; no behavioral change. |
+| GREEN result | `corepack pnpm@10.34.5 exec vitest run src/lib/env/server.test.ts` from `frontend/` → exit 0; Test Files 1 passed (1); Tests 5 passed (5). |
+| TRIANGULATE | Reran the exact committed six-file RED command from `frontend/`: Test Files 5 failed / 1 passed (6); Tests 5 passed (5). Failures are exclusively unresolved-import RED on intentionally absent future modules: `./requestJson` (`transport.test.ts`), `./schemas`, `./formatters`, `./url` (`url.test.ts`), `./api/getJob` (`jobId.test.ts`). |
+| REFACTOR | Post-correction reruns of the focused suite, focused lint, and the behavior probes stayed green; indentation normalization produced no behavioral change. |
+
+### Gatekeeper correction rerun (evidence hash `sha256:5faf6fdc322f038fa974f7cf2847d3562ab2b9bbe6e1654a9975f200a03ba407`)
+
+The previous evidence failed six gatekeeper checks; all are corrected in this rerun under fresh native authority `proceed`:
+
+1. Markdown cleanliness: the former checkbox-invariants row embedded unescaped pipe characters inside inline code within a table cell, producing a real MD056 (table column count) warning near line 576. The row was rewritten pipe-free and this appended section now has consistent table column counts. Every pre-unit byte through the old file ending is preserved — the file was restored byte-identical to its HEAD blob before re-appending only this section.
+2. `parseOrigin` returns the normalized WHATWG origin (`url.origin`) instead of the trimmed raw text, so casing, default ports (`:443`/`:80`), and a lone trailing slash normalize while valid non-default ports are preserved.
+3. Query or fragment delimiters are rejected even when empty (`https://host?`, `https://host#`) by inspecting the trimmed input for `?`/`#` in addition to `url.pathname`; credentials, path, and scheme rules are unchanged and exact.
+4. Timeout parsing accepts only `number` integers or digit-only (`/^\d+$/`) environment strings; scientific notation (`1e3`), whitespace-padded strings, objects, booleans, empty strings, non-integers, and out-of-range values are all rejected; 1000–30000 inclusive and the 8000 default are preserved.
+5. Changed-line accounting below now includes the `apply-progress.md` diff in the hard 400-line candidate total; production/authored source is stated separately.
+6. The rollback boundary below includes reverting this appended progress section while preserving all earlier history.
+
+### Verification commands and exact results
+
+| Check | Exact command | Result |
+| --- | --- | --- |
+| Focused GREEN | `corepack pnpm@10.34.5 exec vitest run src/lib/env/server.test.ts` (from `frontend/`, Node v22.22.1) | exit 0; Tests 5 passed (5) |
+| Six-file triangulation | the committed RED command above | Test Files 5 failed / 1 passed (6); Tests 5 passed (5); failures only on intentionally absent future modules |
+| Behavior probes | `node --experimental-strip-types` probe script importing `./src/lib/env/validate.ts` (Node v22.22.1) | pre-fix: raw origin returned, `https://host?`/`https://host#` accepted, `1e3`/` 15000 ` accepted; post-fix: normalized origins returned and every probe case rejected as required |
+| Focused lint | `corepack pnpm@10.34.5 exec eslint src/lib/env/validate.ts src/lib/env/server.ts` | 0 errors, 0 warnings |
+| Typecheck (attribution only) | `corepack pnpm@10.34.5 exec tsc --noEmit` (from `frontend/`) | errors are exclusively `TS2307 Cannot find module` for the intentionally absent future modules inside committed contract tests (`./requestJson`, `./schemas`, `./formatters`, `./url`, `./api/getJob`, `./jobId`); zero errors attributed to `server.ts` or `validate.ts` |
+| Runtime / browser verification | N/A | This environment-only unit introduces no application-facing request, route, or browser surface; browser runtime remains N/A until route composition exists. |
+| Markdown diagnostics | `markdownlint` is not installed in this repo; manual structural check of the appended section | no unescaped pipes inside cells; consistent column counts; no MD056 |
+| Whitespace gate | `git diff --check` | exit 0 |
+| Scope | `git status --porcelain` | exactly the six protected pre-existing modifications plus untracked `frontend/src/lib/env/server.ts` and `frontend/src/lib/env/validate.ts` and the modified `apply-progress.md`; nothing else |
+| Index | `git diff --cached --stat` | empty |
+| Protected hashes | `sha256sum` of the six protected paths | all six byte-identical to the handoff baselines |
+| Checkbox invariants | grep counts of checked and unchecked task rows in `tasks.md` (patterns for `- [x]` and `- [ ]`) | 6 checked / 16 unchecked (Task 3.2 intentionally unchecked) |
+
+### Changed-line accounting
+
+Hard 400-line candidate total includes production source AND this `apply-progress.md` diff: authored source `validate.ts` 84 lines after final repository formatting + `server.ts` 7 lines = 91 lines, plus the `apply-progress.md` appended-section diff of 51 added lines, for a total of 142 lines — inside the hard 400-line budget. Deletions from the six protected pre-existing formatter-only modifications are not part of this unit's authored candidate and remain untouched.
+
+### Rollback boundary
+
+Delete the two new files `frontend/src/lib/env/validate.ts` and `frontend/src/lib/env/server.ts` AND revert `apply-progress.md` to its HEAD blob (removing only this appended `task-3.2-green-server-env` section while preserving all earlier history); this removes only the env-validation GREEN sub-unit and returns the six-file suite to its committed RED state without touching any other byte.
