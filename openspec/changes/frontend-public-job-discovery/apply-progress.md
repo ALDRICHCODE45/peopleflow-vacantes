@@ -601,3 +601,149 @@ Hard 400-line candidate total includes production source AND this `apply-progres
 ### Rollback boundary
 
 Delete the two new files `frontend/src/lib/env/validate.ts` and `frontend/src/lib/env/server.ts` AND revert `apply-progress.md` to its HEAD blob (removing only this appended `task-3.2-green-server-env` section while preserving all earlier history); this removes only the env-validation GREEN sub-unit and returns the six-file suite to its committed RED state without touching any other byte.
+
+## Bounded strict-TDD GREEN sub-unit — generic JSON transport (work unit `task-3.2-green-request-json`, Task 3.2 remains `[ ]`)
+
+Second bounded GREEN sub-unit of Task 3.2 only: `frontend/src/lib/api/requestJson.ts` (new, 72 lines) and `frontend/src/lib/api/server.ts` (new, 4 lines, guarded by exact `import "server-only"` and re-exporting the core). The generic transport stays directly testable in `requestJson.ts`; the production import boundary is the guarded `server.ts` entry. No test, task, package, lockfile, Vitest configuration, backend, shared-root, route, or application-facing request/query orchestration byte was touched; nothing staged, committed, pushed, or opened as a PR. No TanStack Query, Zod, or Zustand was added. Task 3.2 stays unchecked because jobs schemas/api/url/formatters, TanStack Query query functions, and QueryClient composition remain for later sub-units; the API-state reconciliation remains authoritative.
+
+### Implemented behavior (matches the committed contract test exactly)
+
+Native `fetch` with `cache: "no-store"` and a single `accept: application/json` header (no cookies, authorization, referer, or arbitrary headers are forwarded); `AbortController` timeout defaulting to `DEFAULT_API_TIMEOUT_MS` imported from the pure `src/lib/env/validate.ts` module (never the guarded `process.env` entry) with reliable timer cleanup in a `finally` block; a `timedOut` flag distinguishes the transport's own timeout from any external abort; feature-provided decoder callback; typed discriminated success/error results; timeout and network classifications (both retryable); `429` and `5xx` as retryable status errors; every other non-2xx as non-retryable status; exact `notFoundStatus` equality as the sole not-found discriminator; invalid JSON and decoder/schema failures as non-retryable `invalid_response`; returned errors carry only kind/retryable/status fields — no response bodies, decoder details, URLs, query text, location, cursor, stack traces, or sensitive values. No logging exists in this unit (no logging is preferred and acceptable per the unit contract).
+
+### TDD cycle evidence
+
+| Cycle | Evidence |
+| --- | --- |
+| RED (pre-edit, committed by parent and independently rerun) | `corepack pnpm@10.34.5 exec vitest run src/lib/env/server.test.ts src/lib/api/transport.test.ts src/features/jobs/schemas.test.ts src/features/jobs/formatters.test.ts src/features/jobs/url.test.ts src/features/jobs/jobId.test.ts` from `frontend/`: exit 1; Test Files 5 failed / 1 passed (6); Tests 5 passed (5). The only failure mode was `Failed to resolve import "./requestJson"` in `transport.test.ts` plus the equally absent `./schemas`, `./formatters`, `./url`, and `./api/getJob`; the environment suite was GREEN. Node v22.22.1, pnpm 10.34.5. |
+| GREEN | Implemented `requestJson.ts` (typed `RequestJsonError`/`RequestJsonResult`/`RequestJsonOptions` discriminated unions; `AbortController` with `timedOut` flag and `finally`-cleared timer; `cache: "no-store"`; single `accept` header; retryable `429`/`>=500`; exact `notFoundStatus` equality; `invalid_response` for both JSON parse and decoder failures) and the guarded `server.ts` entry (`import "server-only"` plus core re-exports). |
+| GREEN result | `corepack pnpm@10.34.5 exec vitest run src/lib/api/transport.test.ts` from `frontend/` → exit 0; Test Files 1 passed (1); Tests 6 passed (6). |
+| TRIANGULATE | Reran the exact committed six-file command from `frontend/`: Test Files 4 failed / 2 passed (6); Tests 11 passed (11). GREEN suites exactly `src/lib/api/transport.test.ts` (6) and `src/lib/env/server.test.ts` (5); the four RED suites fail exclusively on unresolved-import RED for intentionally absent future modules `./formatters`, `./api/getJob` (and `./jobId`), `./schemas`, and `./url`. |
+| REFACTOR | No refactor was needed: the implementation is a single minimal function in project-standard 2-space style with discriminated unions, and the post-implementation rerun of the focused two-suite command (`transport.test.ts` + `server.test.ts`) stayed at 11 passed (11); focused lint stayed at 0 problems. |
+
+### Verification commands and exact results
+
+| Check | Exact command | Result |
+| --- | --- | --- |
+| Focused GREEN | `corepack pnpm@10.34.5 exec vitest run src/lib/api/transport.test.ts` (from `frontend/`, Node v22.22.1) | exit 0; Test Files 1 passed (1); Tests 6 passed (6) |
+| Six-file triangulation | the committed RED command above | Test Files 4 failed / 2 passed (6); Tests 11 passed (11); RED only on intentionally absent future modules |
+| Post-refactor focused rerun | `corepack pnpm@10.34.5 exec vitest run src/lib/api/transport.test.ts src/lib/env/server.test.ts` | exit 0; Test Files 2 passed (2); Tests 11 passed (11) |
+| Focused lint | `corepack pnpm@10.34.5 exec eslint src/lib/api/requestJson.ts src/lib/api/server.ts` | exit 0; 0 errors, 0 warnings |
+| Typecheck (attribution only) | `corepack pnpm@10.34.5 exec tsc --noEmit` (from `frontend/`) | exit 2; errors are exclusively `TS2307 Cannot find module` for the intentionally absent future modules inside committed contract tests (`./formatters`, `./api/getJob`, `./jobId`, `./schemas`, `./url`); zero errors attributed to `requestJson.ts` or `server.ts` (the `server-only` side-effect import resolves the same way it already does for `lib/env/server.ts`) |
+| Whitespace gate | `git diff --check` | exit 0 |
+| Scope | `git status --porcelain` | exactly the six protected pre-existing modifications, untracked `frontend/src/lib/api/requestJson.ts` and `frontend/src/lib/api/server.ts`, and the modified `apply-progress.md`; nothing else |
+| Index | `git diff --cached --stat` | empty |
+| Protected hashes | `sha256sum` of the six protected paths | all six byte-identical to the handoff baselines (`3b22e706…`, `75782ef6…`, `1fef9572…`, `d3a8ccc8…`, `18206dc2…`, `38ed1543…`) |
+| Checkbox invariants | grep counts of `- [x]` and `- [ ]` rows in `tasks.md` | 6 checked / 16 unchecked (Task 3.1 stays checked, Task 3.2 stays unchecked, totals 6/22) |
+| Runtime / browser verification | N/A | This unit introduces no application-facing request, route, or browser surface; the transport is server-only and not yet called by any query function or route, so browser runtime remains N/A until route composition exists. |
+
+### Changed-line accounting
+
+Inclusive hard 400-line accounting over the three authorized surfaces (`requestJson.ts`, `server.ts`, and this `apply-progress.md` diff): authored production source `requestJson.ts` 72 lines + `server.ts` 4 lines = 76 added lines, plus the `apply-progress.md` appended-section diff of 42 added lines = 118 changed lines total (0 deletions) — inside the hard 400-line budget. Deletions in the six protected pre-existing formatter-only modifications are not part of this unit's candidate and were never touched.
+
+### Rollback boundary
+
+Delete the two new files `frontend/src/lib/api/requestJson.ts` and `frontend/src/lib/api/server.ts` AND revert `apply-progress.md` to its pre-unit blob (SHA-256 `222e68b3ec6c9759f0be35da063a2f51e880fef39f8a6f13ac82a8aa456dae5b`, 603 lines), which removes only this appended `task-3.2-green-request-json` section while preserving all earlier history; the six-file suite returns to its committed RED state and no other byte is touched. `requestJson.ts` depends only on the already-landed `../env/validate` module, so no prior sub-unit is affected.
+
+## Correction rerun — transport-owned body-timeout classification (work unit `task-3.2-green-request-json`, single gatekeeper corrective rerun)
+
+This appended section is the authorized single corrective rerun under fresh native authority `proceed`. It supersedes only the two stale claims identified below; all earlier history above, including the complete first-attempt evidence sections, remains immutable.
+
+### Independent verification failures corrected
+
+1. Transport-owned timeout during body consumption (production correction in `requestJson.ts`): a timeout firing after response headers were received but while `response.json()` was still consuming the body was caught by the nested JSON catch and returned as non-retryable `invalid_response`. The JSON catch now checks the existing `timedOut` flag and returns `{ kind: "timeout", retryable: true }` whenever the transport-owned timeout fired at any point across the complete request/body-consumption lifecycle; genuine invalid JSON remains `{ kind: "invalid_response", retryable: false }`. The `finally`-cleared timer cleanup is unchanged and reliable.
+2. Stale typecheck exit-code claim (superseded): the previously appended section claimed `corepack pnpm@10.34.5 exec tsc --noEmit` exited 2. Fresh reruns observed the reproducible exit code 1 (six consecutive runs from `frontend/` plus a direct `node_modules/.bin/tsc --noEmit` invocation, all with byte-identical stdout); one first-invocation transient exit 2 was observed a single time and could not be reproduced. The authoritative reproducible result is exit 1, which explicitly supersedes the stale exit-2 claim.
+
+### TDD evidence (RED-equivalent → GREEN via probes, committed tests untouched)
+
+Committed tests could not be edited, so the semantic gap beyond `transport.test.ts` was demonstrated with `node --experimental-strip-types` probes (Node v22.22.1) over the real module, copied with only the relative import specifier rewritten for ESM resolution (behavior identical):
+
+| Cycle | Evidence |
+| --- | --- |
+| RED-equivalent (pre-correction probe) | Body-consumption timeout scenario returned `{"ok":false,"error":{"kind":"invalid_response","retryable":false}}` — the reported defect reproduced live. Regression guards already correct: genuine invalid JSON → `invalid_response`, headers-phase timeout → `timeout`. |
+| GREEN (production correction) | `requestJson.ts` JSON catch now returns retryable `timeout` when the `timedOut` flag is set, with a comment documenting the lifecycle invariant; no other behavior changed. |
+| GREEN-equivalent (post-correction probe) | Same probe: body-consumption timeout → `{"ok":false,"error":{"kind":"timeout","retryable":true}}`; genuine invalid JSON → `invalid_response` (retryable false); headers-phase timeout → `timeout`. No committed behavior regressed. |
+
+### Verification commands and exact results
+
+| Check | Exact command | Result |
+| --- | --- | --- |
+| Focused GREEN | `corepack pnpm@10.34.5 exec vitest run src/lib/api/transport.test.ts` (from `frontend/`, Node v22.22.1, pnpm 10.34.5) | exit 0; Test Files 1 passed (1); Tests 6 passed (6) |
+| Six-file triangulation | the committed RED command above | exit 1; Test Files 4 failed / 2 passed (6); Tests 11 passed (11); GREEN suites exactly `src/lib/api/transport.test.ts` (6) and `src/lib/env/server.test.ts` (5); the four RED suites fail exclusively on unresolved-import RED for intentionally absent future modules (`./formatters`, `./api/getJob` with `./jobId`, `./schemas`, `./url`) |
+| Focused lint | `corepack pnpm@10.34.5 exec eslint src/lib/api/requestJson.ts src/lib/api/server.ts` | exit 0; 0 errors, 0 warnings |
+| Typecheck (exact exit code + attribution) | `corepack pnpm@10.34.5 exec tsc --noEmit` (from `frontend/`) | reproducible exit 1 (six consecutive runs plus one direct `node_modules/.bin/tsc --noEmit` run, byte-identical stdout); errors are exclusively `TS2307 Cannot find module` for the intentionally absent future modules inside committed RED test files (`./formatters`, `./api/getJob`, `./jobId`, `./schemas`, `./url`); zero errors attributed to `requestJson.ts` or `server.ts`. This explicitly supersedes the stale exit-2 claim; the one transient exit-2 observation is recorded only for transparency and is not reproducible. |
+| Behavior probes | `node --experimental-strip-types probe.ts` (Node v22.22.1) | pre-fix: body-consumption timeout misclassified as `invalid_response`; post-fix: body-consumption timeout → retryable `timeout`, genuine invalid JSON → `invalid_response`, headers-phase timeout → `timeout` |
+| Whitespace gate | `git diff --check` | exit 0 |
+| Scope | `git status --porcelain` | exactly the six protected pre-existing modifications, untracked `frontend/src/lib/api/requestJson.ts` and `frontend/src/lib/api/server.ts`, and the modified `apply-progress.md`; nothing else |
+| Index | `git diff --cached --stat` | empty |
+| Protected hashes | `sha256sum` of the six protected paths | all six byte-identical to the handoff baselines (`3b22e706…`, `75782ef6…`, `1fef9572…`, `d3a8ccc8…`, `18206dc2…`, `38ed1543…`) |
+| Progress prefix integrity | first 603 lines of `apply-progress.md` | SHA-256 `222e68b3ec6c9759f0be35da063a2f51e880fef39f8a6f13ac82a8aa456dae5b` retained (append-only verified) |
+| Checkbox invariants | grep counts of `- [x]` and `- [ ]` rows in `tasks.md` | 6 checked / 16 unchecked (Task 3.1 stays checked, Task 3.2 stays unchecked, totals 6/22) |
+| Runtime / browser verification | N/A | This correction changes only server-side transport error classification; no application-facing request, route, or browser surface exists, so browser runtime remains N/A until route composition exists. |
+
+### Inclusive updated line accounting
+
+Hard 400-line candidate total over the authorized surfaces (`requestJson.ts`, `server.ts`, and the cumulative `apply-progress.md` diff): authored production source `requestJson.ts` 77 lines (72 baseline + 5 correction lines) + `server.ts` 4 lines = 81 lines, plus the cumulative `apply-progress.md` diff of 42 (first-attempt section) + 44 (this correction section) added lines, for an inclusive total of 167 changed lines (0 deletions) — inside the hard 400-line budget. Deletions in the six protected pre-existing modifications are not part of this unit's candidate and were never touched.
+
+### Updated rollback boundary
+
+Delete the two new files `frontend/src/lib/api/requestJson.ts` and `frontend/src/lib/api/server.ts` AND revert `apply-progress.md` to its pre-unit blob (SHA-256 `222e68b3ec6c9759f0be35da063a2f51e880fef39f8a6f13ac82a8aa456dae5b`, 603 lines), which removes both appended `task-3.2-green-request-json` sections (first-attempt and correction) while preserving all earlier history; the six-file suite returns to its committed RED state and no other byte is touched. `requestJson.ts` depends only on the already-landed `../env/validate` module, so no prior sub-unit is affected.
+
+## Maintainer-authorized final mechanical correction — requestJson.ts indentation normalization (work unit `task-3.2-green-request-json-indent-correction`, Task 3.2 remains `[ ]`)
+
+This appended section is the explicitly maintainer-authorized final mechanical correction under a fresh native reset at the required revision (native authority: `proceed` for this narrower objective, bound to remediate failed evidence `sha256:c7f1e520e1c1e888ec956c6ac3e6fb36450d38b69723789591d84f4aa4c96ef8`, hard 400-line budget). No attempt tokens or state were persisted anywhere.
+
+### Formatting-only change (no behavior change)
+
+The visibly inconsistent over-indentation of the `let payload` / nested `try` / `catch` block in `frontend/src/lib/api/requestJson.ts` (previously a 12-space base where the enclosing outer-`try` body uses 4 spaces) was normalized to the same two-space nesting style as the surrounding function. `diff -w` between the pre- and post-correction files is empty, proving the change is whitespace-only: zero changes to behavior, types, comments, control flow, names, imports, exports, or any other source content; line count stays 77.
+
+### Rerun results (Node v22.22.1, Corepack pnpm 10.34.5, from `frontend/`; committed tests unchanged)
+
+| Check | Exact command | Result |
+| --- | --- | --- |
+| Focused GREEN | `corepack pnpm@10.34.5 exec vitest run src/lib/api/transport.test.ts` | exit 0; Test Files 1 passed (1); Tests 6 passed (6) |
+| Six-file triangulation | the committed RED command (`server.test.ts transport.test.ts schemas.test.ts formatters.test.ts url.test.ts jobId.test.ts`) | 2 GREEN suites (`src/lib/api/transport.test.ts` 6, `src/lib/env/server.test.ts` 5), 4 intentional missing-module RED suites (`Failed to resolve import` for `./schemas`, `./formatters`, `./url`, `./api/getJob`), 11 passing executed tests, no assertion failures |
+| Focused lint | `corepack pnpm@10.34.5 exec eslint src/lib/api/requestJson.ts src/lib/api/server.ts` | exit 0; 0 errors, 0 warnings |
+| Typecheck (attribution) | `corepack pnpm@10.34.5 exec tsc --noEmit` | attribution run observed exit 2 (cold first invocation); three immediate reruns all exited 1 with byte-identical stdout, confirming the previously documented first-invocation exit-2 transient. Diagnostics across all runs are exclusively the five allowed `TS2307 Cannot find module` errors for intentionally absent future modules (`./formatters`, `./api/getJob`, `./jobId`, `./schemas`, `./url`); zero errors attributed to `requestJson.ts` or `server.ts` |
+| Whitespace gate | `git diff --check` | exit 0 |
+| Scope | `git status --porcelain` | exactly the six protected pre-existing modifications, modified `apply-progress.md`, and untracked `frontend/src/lib/api/requestJson.ts` + `frontend/src/lib/api/server.ts`; nothing else; branch `feat/frontend-foundation`, HEAD `f9bddf3`, empty index |
+| Protected hashes + progress prefix | `sha256sum` of six protected paths and first 603 lines of this file | all six byte-identical to the handoff baselines; first-603 prefix SHA-256 `222e68b3ec6c9759f0be35da063a2f51e880fef39f8a6f13ac82a8aa456dae5b` retained (append-only verified) |
+| Checkbox invariants | grep counts in `tasks.md` | 6 checked / 16 unchecked (Task 3.1 stays checked, Task 3.2 stays unchecked, totals 6/22) |
+| Runtime / browser verification | N/A | Formatting-only change to a server-only transport module with no application-facing request, route, or browser surface; browser runtime remains N/A until route composition exists. |
+
+### Inclusive updated line accounting
+
+Hard 400-line candidate total over the authorized surfaces: `requestJson.ts` 77 lines + `server.ts` 4 lines = 81 authored source lines, plus cumulative `apply-progress.md` additions of 86 lines pre-correction (42 first-attempt + 44 prior correction section) + 30 lines for this correction section (after the repository markdownlint autofix) = 116 cumulative progress additions, for an inclusive total of 197 changed lines (0 deletions) — inside the hard 400-line budget.
+
+### Rollback boundary (unchanged)
+
+Delete the two new API files `frontend/src/lib/api/requestJson.ts` and `frontend/src/lib/api/server.ts` AND restore `apply-progress.md` to its original 603-line pre-unit blob (SHA-256 `222e68b3ec6c9759f0be35da063a2f51e880fef39f8a6f13ac82a8aa456dae5b`), which removes every appended `task-3.2-green-request-json*` section while preserving all earlier history; the six-file suite returns to its committed RED state and no other byte is touched.
+
+## Corrective rerun — final indentation alignment in requestJson.ts (work unit `task-3.2-green-request-json-indent-correction`, single authorized corrective rerun)
+
+This appended section is the single authorized corrective rerun for the reset objective under fresh native authority `proceed` (same hard 400-line budget). It supersedes only the prior section's claim that indentation normalization was complete: fresh inspection found the `let payload` / nested JSON `try` / `catch` block still two spaces too deep (6-space base instead of 4). No attempt tokens or state were persisted.
+
+### Exact final alignment (formatting-only, no non-whitespace change)
+
+The block was dedented by exactly two spaces so that `let payload: unknown;`, the nested JSON `try {` / `} catch {` / `}`, and the immediately following decoder `try {` all sit at exactly four leading spaces inside the outer `try` body (verified programmatically by leading-space counting, not inferred from ESLint; the block was additionally printed back with visible whitespace and diffed byte-exact against the target block). Interior nesting is unchanged: `payload = await response.json();` at six spaces, comment/catch bodies at six/eight as designed. Line count stays 77; zero changes to behavior, types, comments, control flow, names, imports, or exports.
+
+### Rerun results (Node v22.22.1 via nvm, Corepack pnpm 10.34.5, from `frontend/`; committed tests unchanged)
+
+| Check | Exact command | Result |
+| --- | --- | --- |
+| Focused GREEN | `corepack pnpm@10.34.5 exec vitest run src/lib/api/transport.test.ts` | exit 0; Test Files 1 passed (1); Tests 6 passed (6) |
+| Six-file triangulation | the committed RED command (`server.test.ts transport.test.ts schemas.test.ts formatters.test.ts url.test.ts jobId.test.ts`) | exit 1; Test Files 4 failed / 2 passed (6); Tests 11 passed (11); 2 GREEN suites (`src/lib/api/transport.test.ts` 6, `src/lib/env/server.test.ts` 5) and 4 intentional missing-module RED suites (`Failed to resolve import` for `./formatters`, `./api/getJob`, `./schemas`, `./url`), no assertion failures |
+| Focused lint | `corepack pnpm@10.34.5 exec eslint src/lib/api/requestJson.ts src/lib/api/server.ts` | exit 0; 0 errors, 0 warnings |
+| Typecheck (exact exit code + attribution) | `corepack pnpm@10.34.5 exec tsc --noEmit` | reproducible exit 1 (two consecutive runs); exactly 5 diagnostics, all `TS2307 Cannot find module` in the four intentionally RED committed test files (`formatters.test.ts` 1, `jobId.test.ts` 2, `schemas.test.ts` 1, `url.test.ts` 1); zero errors attributed to `requestJson.ts` or `server.ts` |
+| Whitespace gate | `git diff --check` | exit 0 |
+| Scope | `git status --porcelain` | exactly the six protected pre-existing modifications, modified `apply-progress.md`, and untracked `frontend/src/lib/api/requestJson.ts` + `frontend/src/lib/api/server.ts`; nothing else; branch `feat/frontend-foundation`, HEAD `f9bddf3df068916f95e15b9b84868756cb76681c`, empty index |
+| Protected hashes + progress prefixes | `sha256sum` of six protected paths and of the preserved prefixes of this file | all six byte-identical to the handoff baselines (`3b22e706…`, `75782ef6…`, `1fef9572…`, `d3a8ccc8…`, `18206dc2…`, `38ed1543…`); first-603-line prefix SHA-256 `222e68b3ec6c9759f0be35da063a2f51e880fef39f8a6f13ac82a8aa456dae5b` and pre-correction 719-line full-file SHA-256 `9cd8d4e49e0c58df41e1ff160c8f2c2ac62d94db53b155c47db7c43645076f9e` both retained (append-only verified) |
+| Checkbox invariants | grep counts in `tasks.md` | 6 checked / 16 unchecked (Task 3.1 stays checked, Task 3.2 stays unchecked, totals 6/22) |
+| Runtime / browser verification | N/A | Formatting-only change to a server-only transport module with no application-facing request, route, or browser surface; browser runtime remains N/A until route composition exists. |
+
+### Inclusive updated line accounting
+
+Hard 400-line candidate total over the authorized surfaces: `requestJson.ts` 77 lines + `server.ts` 4 lines = 81 authored source lines, plus cumulative `apply-progress.md` additions of 116 lines pre-correction (42 first-attempt + 44 prior correction + 30 indentation section) + 30 lines for this corrective-rerun section = 227 changed lines (0 deletions) — inside the hard 400-line budget. Deletions in the six protected pre-existing modifications are not part of this unit's candidate and were never touched.
+
+### Rollback boundary (unchanged)
+
+Delete the two new API files `frontend/src/lib/api/requestJson.ts` and `frontend/src/lib/api/server.ts` AND restore `apply-progress.md` to its original 603-line pre-unit blob (SHA-256 `222e68b3ec6c9759f0be35da063a2f51e880fef39f8a6f13ac82a8aa456dae5b`), which removes every appended `task-3.2-green-request-json*` section while preserving all earlier history; the six-file suite returns to its committed RED state and no other byte is touched.
