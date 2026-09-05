@@ -7,7 +7,6 @@
 package http
 
 import (
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -21,6 +20,22 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 )
+
+// maxJSONBodyBytes is the package-local request-body decode cap shared by
+// every JSON-accepting handler in this package (WS6B-2 Wave B).
+const maxJSONBodyBytes int64 = 1_048_576
+
+// writeDecodeFailure writes a shared-decoder failure through the single
+// candidates encoding point: invalid_request keeps the exact safe message
+// ("invalid JSON body"); every other code — notably payload_too_large —
+// is written with its canonical catalog message.
+func writeDecodeFailure(w http.ResponseWriter, def *httpjson.Definition) {
+	if def.Code == httpjson.CodeInvalidRequest {
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(*def, "invalid JSON body"))
+		return
+	}
+	httpjson.WriteCatalogError(w, *def)
+}
 
 // CandidateHandler is the HTTP adapter for the candidates use cases.
 // It depends only on the application service; the persistence and
@@ -173,8 +188,8 @@ func (h *CandidateHandler) upsertMyProfile(w http.ResponseWriter, r *http.Reques
 	}
 
 	var req upsertProfileRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
+	if def := httpjson.DecodeJSON(w, r, &req, maxJSONBodyBytes); def != nil {
+		writeDecodeFailure(w, def)
 		return
 	}
 
@@ -236,8 +251,8 @@ func (h *CandidateHandler) replaceMyLanguages(w http.ResponseWriter, r *http.Req
 	}
 
 	var req replaceLanguagesRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
+	if def := httpjson.DecodeJSON(w, r, &req, maxJSONBodyBytes); def != nil {
+		writeDecodeFailure(w, def)
 		return
 	}
 

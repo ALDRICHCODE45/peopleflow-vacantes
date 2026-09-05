@@ -157,9 +157,14 @@ func (s *handlerStubRepo) Transition(ctx context.Context, id, jobID, companyID u
 type handlerStubUserRepo struct {
 	getByCognitoSubErr  error
 	getByCognitoSubUser *identityentities.User
+
+	// getByCognitoSubCalls counts identity resolutions so the decode-boundary
+	// non-vacuity gate can prove no use case ran on a rejected body.
+	getByCognitoSubCalls int
 }
 
 func (s *handlerStubUserRepo) GetByCognitoSub(ctx context.Context, cognitoSub string) (*identityentities.User, error) {
+	s.getByCognitoSubCalls++
 	if s.getByCognitoSubErr != nil {
 		return nil, s.getByCognitoSubErr
 	}
@@ -984,6 +989,102 @@ func TestTransitionApplication_BodyActorIDIgnored(t *testing.T) {
 	}
 	if strings.Contains(w.Body.String(), bodyActor) {
 		t.Errorf("the body actor_id %q must never reach the wire or the event", bodyActor)
+	}
+}
+
+// TestApplicationHandlers_DecodeBoundary pins the Wave-B decode boundary on
+// both applications body-decoding handlers (applyToJob, transitionApplication):
+// a viable first JSON value followed by a second JSON value must be 400
+// invalid_request with the canonical message "invalid request", and a viable
+// first value followed by more than 1,048,576 ignored whitespace bytes must
+// be 413 payload_too_large ("payload too large"). Every downstream counter
+// (user GetByCognitoSub, repository Create, GetByID, Transition) is asserted
+// zero BEFORE the envelope helper so RED cannot pass vacuously: the legacy
+// direct json.Decoder admitted trailing/oversized input and ran the use cases.
+func TestApplicationHandlers_DecodeBoundary(t *testing.T) {
+	oversizedPad := strings.Repeat(" ", 1_048_577) // one byte past the 1,048,576 cap
+
+	tests := []struct {
+		name        string
+		method      string
+		pathFmt     string
+		first       string // viable first JSON value so the legacy decoder reaches downstream
+		trailing    string // second JSON value, or oversized ignored whitespace
+		applyPath   bool
+		wantStatus  int
+		wantCode    string
+		wantMessage string
+	}{
+		{
+			name: "apply_to_job/trailing_second_json_value", method: http.MethodPost,
+			pathFmt: "/jobs/%s/applications", first: `{}`, trailing: ` {"repeat":true}`, applyPath: true,
+			wantStatus: http.StatusBadRequest, wantCode: "invalid_request", wantMessage: "invalid request",
+		},
+		{
+			name: "apply_to_job/oversized_ignored_whitespace", method: http.MethodPost,
+			pathFmt: "/jobs/%s/applications", first: `{}`, trailing: " " + oversizedPad, applyPath: true,
+			wantStatus: http.StatusRequestEntityTooLarge, wantCode: "payload_too_large", wantMessage: "payload too large",
+		},
+		{
+			name: "transition/trailing_second_json_value", method: http.MethodPatch,
+			pathFmt: "/jobs/%s/applications/%s/transition", first: `{"status":"in_review"}`, trailing: ` {"repeat":true}`,
+			wantStatus: http.StatusBadRequest, wantCode: "invalid_request", wantMessage: "invalid request",
+		},
+		{
+			name: "transition/oversized_ignored_whitespace", method: http.MethodPatch,
+			pathFmt: "/jobs/%s/applications/%s/transition", first: `{"status":"in_review"}`, trailing: " " + oversizedPad,
+			wantStatus: http.StatusRequestEntityTooLarge, wantCode: "payload_too_large", wantMessage: "payload too large",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := newHarness()
+			if tt.applyPath {
+				h.userRepo.getByCognitoSubUser = &identityentities.User{ID: uuid.New()}
+			} else {
+				h.repo.getByIDApp = submittedApp()
+			}
+
+			var req *http.Request
+			var path string
+			if tt.applyPath {
+				path = fmt.Sprintf(tt.pathFmt, uuid.New())
+				req = withClaims(httptest.NewRequest(tt.method, path, strings.NewReader(tt.first+tt.trailing)), "sub-1")
+			} else {
+				path = fmt.Sprintf(tt.pathFmt, uuid.New(), uuid.New())
+				req = withCompanyContext(httptest.NewRequest(tt.method, path, strings.NewReader(tt.first+tt.trailing)), identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
+			}
+			w := httptest.NewRecorder()
+			h.router.ServeHTTP(w, req)
+			assertDecodeBoundaryEnvelope(t, w, h, tt.wantStatus, tt.wantCode, tt.wantMessage)
+		})
+	}
+}
+
+// assertDecodeBoundaryEnvelope runs the non-vacuity gate (every downstream
+// counter zero, BEFORE the Fatalf-carrying envelope helper) then asserts the
+// exact status, catalog code, and message.
+func assertDecodeBoundaryEnvelope(t *testing.T, w *httptest.ResponseRecorder, h *harness, wantStatus int, wantCode, wantMessage string) {
+	t.Helper()
+	if h.userRepo.getByCognitoSubCalls != 0 {
+		t.Fatalf("user GetByCognitoSub MUST NOT run on decode failure, got %d calls", h.userRepo.getByCognitoSubCalls)
+	}
+	if h.repo.createCalls != 0 {
+		t.Fatalf("repository Create MUST NOT run on decode failure, got %d calls", h.repo.createCalls)
+	}
+	if h.repo.getByIDCalls != 0 {
+		t.Fatalf("repository GetByID MUST NOT run on decode failure, got %d calls", h.repo.getByIDCalls)
+	}
+	if h.repo.transitionCalls != 0 {
+		t.Fatalf("repository Transition MUST NOT run on decode failure, got %d calls", h.repo.transitionCalls)
+	}
+	assertCatalogEnvelope(t, w, wantStatus, wantCode)
+	var env catalogEnv
+	if err := json.Unmarshal(w.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode envelope: %v; body=%s", err, w.Body.String())
+	}
+	if env.Error != wantMessage {
+		t.Errorf("message: want %q, got %q", wantMessage, env.Error)
 	}
 }
 

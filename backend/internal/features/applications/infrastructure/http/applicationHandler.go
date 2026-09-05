@@ -19,7 +19,6 @@
 package http
 
 import (
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -34,6 +33,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
+
+// maxJSONBodyBytes is the package-local request-body decode cap shared by
+// every JSON-accepting handler in this package (WS6B-2 Wave B).
+const maxJSONBodyBytes int64 = 1_048_576
 
 // ApplicationHandler is the HTTP adapter for the applications use cases.
 // It depends only on the application service; the persistence and
@@ -100,8 +103,8 @@ func (h *ApplicationHandler) applyToJob(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var in dtos.ApplyRequestDto
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
+	if def := httpjson.DecodeJSON(w, r, &in, maxJSONBodyBytes); def != nil {
+		httpjson.WriteCatalogError(w, *def)
 		return
 	}
 
@@ -246,8 +249,8 @@ func (h *ApplicationHandler) transitionApplication(w http.ResponseWriter, r *htt
 	}
 
 	var in dtos.TransitionRequestDto
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
+	if def := httpjson.DecodeJSON(w, r, &in, maxJSONBodyBytes); def != nil {
+		httpjson.WriteCatalogError(w, *def)
 		return
 	}
 

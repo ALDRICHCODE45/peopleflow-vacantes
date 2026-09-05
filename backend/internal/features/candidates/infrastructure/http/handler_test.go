@@ -41,11 +41,19 @@ type stubCandidateRepo struct {
 	listErr      error
 	replacedWith []entities.Language
 	replaceErr   error
+
+	// Downstream-call counters for the decode-boundary non-vacuity gate:
+	// every post-decode repository path must be observable so a test can
+	// prove the decoder rejected the body before any use case ran.
+	upsertCalls  int
+	replaceCalls int
+	listCalls    int
 }
 
 func (r *stubCandidateRepo) UpsertProfile(_ context.Context, p *entities.CandidateProfile) (*entities.CandidateProfile, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.upsertCalls++
 	if r.upsertErr != nil {
 		return nil, r.upsertErr
 	}
@@ -68,6 +76,7 @@ func (r *stubCandidateRepo) GetProfileByUserID(_ context.Context, _ uuid.UUID) (
 func (r *stubCandidateRepo) ListLanguagesByUserID(_ context.Context, _ uuid.UUID) ([]entities.Language, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.listCalls++
 	if r.listErr != nil {
 		return nil, r.listErr
 	}
@@ -82,6 +91,7 @@ func (r *stubCandidateRepo) ListLanguagesByUserID(_ context.Context, _ uuid.UUID
 func (r *stubCandidateRepo) ReplaceLanguagesByUserID(_ context.Context, _ uuid.UUID, langs []entities.Language) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.replaceCalls++
 	if r.replaceErr != nil {
 		return r.replaceErr
 	}
@@ -97,11 +107,16 @@ type stubUserRepo struct {
 	mu         sync.Mutex
 	resolved   *identityentities.User
 	resolveErr error
+
+	// getCalls counts GetByCognitoSub identity resolutions so decode-boundary
+	// tests can prove no use case ran on a rejected body.
+	getCalls int
 }
 
 func (r *stubUserRepo) GetByCognitoSub(_ context.Context, _ string) (*identityentities.User, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.getCalls++
 	if r.resolveErr != nil {
 		return nil, r.resolveErr
 	}
@@ -456,6 +471,101 @@ func TestReplaceLanguages_InvalidCefrIsRejected(t *testing.T) {
 		t.Errorf("expected error mentioning CEFR, got: %s", rec.Body.String())
 	}
 	assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
+}
+
+// TestCandidateHandlers_DecodeBoundary pins the Wave-B decode boundary on
+// both candidates body-decoding handlers (upsertMyProfile, replaceMyLanguages):
+// a viable first JSON value followed by a second JSON value must be 400
+// invalid_request with the exact safe message "invalid JSON body", and a
+// viable first value followed by more than 1,048,576 ignored whitespace
+// bytes must be 413 payload_too_large ("payload too large"). Every
+// downstream counter is asserted zero BEFORE the envelope helper (which
+// Fatalfs) so RED cannot pass vacuously: the legacy direct json.Decoder
+// admitted trailing/oversized input and ran the use cases.
+func TestCandidateHandlers_DecodeBoundary(t *testing.T) {
+	oversizedPad := strings.Repeat(" ", 1_048_577) // one byte past the 1,048,576 cap
+
+	tests := []struct {
+		name        string
+		path        string
+		first       string // viable first JSON value so the legacy decoder reaches downstream
+		trailing    string // second JSON value, or oversized ignored whitespace
+		wantStatus  int
+		wantCode    httpjson.Code
+		wantMessage string
+	}{
+		{
+			name:        "upsert_profile/trailing_second_json_value",
+			path:        "/me/profile/",
+			first:       `{}`,
+			trailing:    ` {"repeat":true}`,
+			wantStatus:  http.StatusBadRequest,
+			wantCode:    httpjson.CodeInvalidRequest,
+			wantMessage: "invalid JSON body",
+		},
+		{
+			name:        "upsert_profile/oversized_ignored_whitespace",
+			path:        "/me/profile/",
+			first:       `{}`,
+			trailing:    " " + oversizedPad,
+			wantStatus:  http.StatusRequestEntityTooLarge,
+			wantCode:    httpjson.CodePayloadTooLarge,
+			wantMessage: "payload too large",
+		},
+		{
+			name:        "replace_languages/trailing_second_json_value",
+			path:        "/me/profile/languages/",
+			first:       `{"languages":[]}`,
+			trailing:    ` {"repeat":true}`,
+			wantStatus:  http.StatusBadRequest,
+			wantCode:    httpjson.CodeInvalidRequest,
+			wantMessage: "invalid JSON body",
+		},
+		{
+			name:        "replace_languages/oversized_ignored_whitespace",
+			path:        "/me/profile/languages/",
+			first:       `{"languages":[]}`,
+			trailing:    " " + oversizedPad,
+			wantStatus:  http.StatusRequestEntityTooLarge,
+			wantCode:    httpjson.CodePayloadTooLarge,
+			wantMessage: "payload too large",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			userID := uuid.New()
+			cRepo := &stubCandidateRepo{}
+			uRepo := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-abc"}}
+			router := newTestRouter(newTestHandler(cRepo, uRepo))
+
+			rec := doRequest(t, router, authedRequest(t, http.MethodPut, tt.path, tt.first+tt.trailing, "sub-abc"))
+
+			// Non-vacuity gate: assert every downstream counter is zero BEFORE
+			// the envelope helper. Under the legacy direct decoders these were
+			// non-zero — the rejected body reached the use cases.
+			if uRepo.getCalls != 0 {
+				t.Fatalf("user GetByCognitoSub MUST NOT run on decode failure, got %d calls", uRepo.getCalls)
+			}
+			if cRepo.upsertCalls != 0 {
+				t.Fatalf("candidate UpsertProfile MUST NOT run on decode failure, got %d calls", cRepo.upsertCalls)
+			}
+			if cRepo.replaceCalls != 0 {
+				t.Fatalf("candidate ReplaceLanguagesByUserID MUST NOT run on decode failure, got %d calls", cRepo.replaceCalls)
+			}
+			if cRepo.listCalls != 0 {
+				t.Fatalf("candidate ListLanguagesByUserID MUST NOT run on decode failure, got %d calls (post-write read included)", cRepo.listCalls)
+			}
+
+			assertCatalogEnvelope(t, rec, tt.wantStatus, tt.wantCode)
+			var env httpjson.ErrorEnvelope
+			if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+				t.Fatalf("decode envelope: %v; body=%s", err, rec.Body.String())
+			}
+			if env.Error != tt.wantMessage {
+				t.Errorf("message: want %q, got %q", tt.wantMessage, env.Error)
+			}
+		})
+	}
 }
 
 // TestUpsertProfile_UnexpectedErrorReturnsInternalError proves the
