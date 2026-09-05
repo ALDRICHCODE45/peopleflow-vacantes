@@ -20,7 +20,6 @@
 package http
 
 import (
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -36,6 +35,22 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
+
+// maxJSONBodyBytes is the package-local request-body decode cap shared
+// by every JSON-accepting handler in this package (WS6B-2E Wave C).
+const maxJSONBodyBytes int64 = 1_048_576
+
+// writeDecodeFailure writes a shared-decoder failure through the jobs
+// encoding point: invalid_request keeps the exact safe message ("invalid
+// JSON body"); every other code — notably payload_too_large — is written
+// with its canonical catalog message.
+func writeDecodeFailure(w http.ResponseWriter, def *httpjson.Definition) {
+	if def.Code == httpjson.CodeInvalidRequest {
+		httpjson.WriteCatalogError(w, httpjson.SafeMessage(*def, "invalid JSON body"))
+		return
+	}
+	httpjson.WriteCatalogError(w, *def)
+}
 
 // JobHandler adapts the jobs use cases to the HTTP transport.
 type JobHandler struct {
@@ -189,8 +204,8 @@ func (h *JobHandler) updateJob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var in dtos.UpdateJobDto
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
+	if def := httpjson.DecodeJSON(w, r, &in, maxJSONBodyBytes); def != nil {
+		writeDecodeFailure(w, def)
 		return
 	}
 
@@ -239,8 +254,8 @@ func (h *JobHandler) createJob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var in dtos.CreateJobDto
-	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
-		httpjson.WriteCatalogError(w, httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), "invalid JSON body"))
+	if def := httpjson.DecodeJSON(w, r, &in, maxJSONBodyBytes); def != nil {
+		writeDecodeFailure(w, def)
 		return
 	}
 

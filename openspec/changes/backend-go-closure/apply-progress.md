@@ -893,3 +893,57 @@ Implementation landed as three work-unit commits: `d63bf3e` (`feat(backend): add
 - **Preserved contract evidence:** candidates malformed/legacy selector `TestUpsertProfile_MalformedJSONReturns400` PASS (exact safe message "invalid JSON body" preserved); applications `TestApplyToJob_InvalidJSON400` + `TestTransitionApplication_InvalidJSON400` PASS (canonical "invalid request"); 413 message is canonical "payload too large" with `payload_too_large` never overridden on either feature. Unknown-field tolerance pinned by the still-passing server-managed-fields tests on both features. `TestTransport_Preconditions_NoServiceAndExactEnvelope` (nil-service malformed-json subtests) PASS.
 - **Hygiene (all observed):** task state unchanged 78/100 with 100 owner markers; task 6.2 RED+GREEN `[x]`, TRIANGULATE+REFACTOR `[ ]` (tasks.md byte-untouched — aggregate boxes intentionally NOT checked by Wave B); `git diff --cached --name-only -- backend openspec` empty; `git ls-files --others --exclude-standard -- backend openspec` empty; `git stash list` empty; `openspec/changes/backend-go-closure/verify-report.md` absent; protected shared hashes unchanged: decode.go `sha256:5036ec5fc3cb706fd567550c4f2da8f1bc5151ad4518a21c47d6275480087d02`, decode_test.go `sha256:2614ef036bdbabb9717b4dac786ca3de16977d0bb5af7afe64019ecb18d72abf`.
 - **Rollback boundary:** revert ONLY the four backend files `backend/internal/features/candidates/infrastructure/http/handler.go`, `.../handler_test.go`, `backend/internal/features/applications/infrastructure/http/applicationHandler.go`, `.../applicationHandler_test.go` via `git checkout HEAD --` on those four paths, and remove only this appended Wave-B suffix. Shared decoder, tasks.md, and all prior evidence untouched. No staging, no commit, no verify-report; independent verification NOT claimed (parent owns verify).
+
+## WS6B-2E Wave C — jobs create/update DecodeJSON (ws6b-2e-triangulate-wave-c-jobs-decodejson)
+
+Strict TDD active (`cd backend && go test ./...`). Scope: exactly two production decoder sites in `backend/internal/features/jobs/infrastructure/http/jobHandler.go` — `(*JobHandler).updateJob` and `(*JobHandler).createJob` — migrated to shared `httpjson.DecodeJSON` with package-local `maxJSONBodyBytes int64 = 1_048_576`; Wave D untouched; shared httpjson read-only.
+
+### RED (tests first; no production edit before this)
+
+`cd backend && go test ./internal/features/jobs/infrastructure/http -run '^(TestCreateJob_DecodeBoundary|TestUpdateJob_DecodeBoundary)$' -count=1 -v` → FAIL, 4/4 leaves RED, all counters recorded before the Fatalf-capable envelope checks (counters asserted with Errorf):
+
+- TestCreateJob_DecodeBoundary/trailing_second_json_value: `createCalls=1`, legacy status 201 (want 400).
+- TestCreateJob_DecodeBoundary/oversized_ignored_whitespace: `createCalls=1`, legacy status 201 (want 413).
+- TestUpdateJob_DecodeBoundary/trailing_second_json_value: `getForUpdateCalls=2`, `updateCalls=1`, legacy status 200 (want 400).
+- TestUpdateJob_DecodeBoundary/oversized_ignored_whitespace: `getForUpdateCalls=2`, `updateCalls=1`, legacy status 200 (want 413).
+
+Truthful deviation note: the first RED run panicked in `toEditorView` because the un-programmed create stub returned `(nil, nil)`; fixed by programming `createOut` (mirroring `TestCreateJob_SuccessReturns201EditorView`) so the legacy path completes end-to-end — the recorded RED above is the non-vacuous run after that test-only fix, still with zero production edits.
+
+### GREEN (production edit after RED)
+
+`(*JobHandler).updateJob` and `(*JobHandler).createJob` now call `httpjson.DecodeJSON(w, r, &in, maxJSONBodyBytes)`; failures route through a new jobs-local `writeDecodeFailure` (mirrors candidates): `invalid_request` keeps the exact message `invalid JSON body`; every other code (notably `payload_too_large`, canonical message `payload too large`) is written untouched. `encoding/json` import removed from `jobHandler.go`. Unknown-field tolerance preserved (no `DisallowUnknownFields`).
+
+`cd backend && go test ./internal/shared/httpjson -run '^TestDecodeJSON_' -count=1` → ok.
+`cd backend && go test ./internal/features/jobs/infrastructure/http -run '^(TestCreateJob_DecodeBoundary|TestUpdateJob_DecodeBoundary)$' -count=1 -v` → PASS, 4/4 leaves GREEN, every downstream counter zero on both boundary failures.
+
+### Legacy selectors preserved (malformed JSON + unknown-field tolerance)
+
+`cd backend && go test ./internal/features/jobs/infrastructure/http -run '^(TestCreateJob_MalformedBodyReturns400|TestCreateJob_BodyCompanyIDIgnored|TestCreateJob_StatusFieldIgnored|TestCreateJob_UnknownVOReturns400|TestUpdateJob_MalformedBodyReturns400|TestUpdateJob_BodyCompanyIDIgnored|TestUpdateJob_UnknownVOReturns400)$' -count=1` → ok (create malformed `invalid JSON body`; body `company_id`/`status` ignored; unknown VO 400s; update malformed 400).
+
+### Aggregate verification
+
+- `cd backend && go test ./internal/features/jobs/infrastructure/http -count=1` → ok.
+- `cd backend && go test ./internal/features/jobs/... -count=1` → ok (9 packages, no FAIL).
+- `cd backend && go test ./... -count=1` → 45 packages ok, zero FAIL lines.
+- `cd backend && go vet ./...` → clean, exit 0.
+- `cd backend && gofmt -l internal/features/jobs/infrastructure/http/jobHandler.go internal/features/jobs/infrastructure/http/createJobHandler_test.go internal/features/jobs/infrastructure/http/updateJobHandler_test.go` → no output after one `gofmt -w` correction of createJobHandler_test.go; truthful note: that file was ALREADY unformatted at HEAD (pre-existing mis-indentation in `createJobAssertCatalogEnvelope` and one `TestCreateJob_UnknownVOReturns400` block, verified via `git stash` round-trip); the Wave C test code itself was gofmt-clean.
+- `cd backend && grep -n 'json.NewDecoder\|json.Decoder' internal/features/jobs/infrastructure/http/jobHandler.go` → no matches, exit 1.
+- `git diff --check -- backend openspec` → clean, exit 0.
+- `git status --porcelain -- backend openspec` → exactly three ` M` lines (jobHandler.go, createJobHandler_test.go, updateJobHandler_test.go) before this suffix; `git diff --cached --name-only -- backend openspec` → empty; `git ls-files --others --exclude-standard -- backend openspec` → empty.
+
+### Budget arithmetic
+
+Pre-suffix `git diff --numstat -- backend/internal/features/jobs/infrastructure/http/jobHandler.go backend/internal/features/jobs/infrastructure/http/createJobHandler_test.go backend/internal/features/jobs/infrastructure/http/updateJobHandler_test.go openspec/changes/backend-go-closure/apply-progress.md`: 101+/10- createJobHandler_test.go (includes the pre-existing gofmt correction), 20+/5- jobHandler.go, 91+/0- updateJobHandler_test.go → 212+/15- = 227. Evidence suffix (this section) adds 54 lines/0 deletions; final four-path numstat: 101+/10- createJobHandler_test.go, 20+/5- jobHandler.go, 91+/0- updateJobHandler_test.go, 54+/0- apply-progress.md. Totals: 266 additions + 15 deletions = 281 ≤ 400.
+
+### Guards, tasks, protected files
+
+- Append-only prefix guard: pre-append `openspec/changes/backend-go-closure/apply-progress.md` = 114697 bytes, SHA-256 `c7521a70486d178d0398e84c63507da66cefc571d294bc5c9312918d34080f03` (= HEAD blob); post-append first-114697-byte rehash identical (PASS, fail-closed verified).
+- Protected shared decoder files unchanged: `backend/internal/shared/httpjson/decode.go` = `5036ec5fc3cb706fd567550c4f2da8f1bc5151ad4518a21c47d6275480087d02`; `backend/internal/shared/httpjson/decode_test.go` = `2614ef036bdbabb9717b4dac786ca3de16977d0bb5af7afe64019ecb18d72abf`.
+- Tasks (read-only check, no tasks.md edit): 78 checked / 22 unchecked / 100 total; 100 `sdd-owner: implementation` markers; task 6.2 RED + GREEN checked, TRIANGULATE + REFACTOR UNCHECKED (Wave C intentionally leaves them for Wave D).
+- `test ! -e openspec/changes/backend-go-closure/verify-report.md` → PASS (verify-report absent).
+- No stash retained (the single `git stash` round-trip for the gofmt provenance check was popped immediately; `git stash list` empty). No staging, no commit, no push. No receipt-driven review run.
+- Aggregate task 6.2 TRIANGULATE/REFACTOR remain intentionally unchecked; Wave C contributes only this unit's group-(c) jobs evidence.
+
+### Exact rollback
+
+Restore only these three backend paths from HEAD: `git checkout HEAD -- backend/internal/features/jobs/infrastructure/http/jobHandler.go backend/internal/features/jobs/infrastructure/http/createJobHandler_test.go backend/internal/features/jobs/infrastructure/http/updateJobHandler_test.go`, then delete only the new Wave C suffix (this `## WS6B-2E Wave C` section) from `openspec/changes/backend-go-closure/apply-progress.md`, restoring exactly 114697 bytes / SHA-256 `c7521a70486d178d0398e84c63507da66cefc571d294bc5c9312918d34080f03`. Explicitly preserve: shared decoder files, tasks.md, all prior progress bytes, Wave D, verify-report absence, and no staging/commit/push.

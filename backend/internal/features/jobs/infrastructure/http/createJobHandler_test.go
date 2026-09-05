@@ -317,10 +317,10 @@ func TestCreateJob_UnknownVOReturns400(t *testing.T) {
 			if !strings.Contains(rec.Body.String(), tt.want) {
 				t.Errorf("body must contain %q, got %q", tt.want, rec.Body.String())
 			}
-		if repo.createCalls != 0 {
-			t.Errorf("Create must NOT be called on bad VO, got %d calls", repo.createCalls)
-		}
-		createJobAssertCatalogEnvelope(t, rec, httpjson.CodeInvalidRequest)
+			if repo.createCalls != 0 {
+				t.Errorf("Create must NOT be called on bad VO, got %d calls", repo.createCalls)
+			}
+			createJobAssertCatalogEnvelope(t, rec, httpjson.CodeInvalidRequest)
 		})
 	}
 }
@@ -510,12 +510,103 @@ var _ context.Context
 
 // createJobAssertCatalogEnvelope checks that rec carries the catalog code field.
 func createJobAssertCatalogEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantCode httpjson.Code) {
-t.Helper()
-var env httpjson.ErrorEnvelope
-if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
-t.Fatalf("body not JSON: %v", err)
+	t.Helper()
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("body not JSON: %v", err)
+	}
+	if env.Code != wantCode {
+		t.Errorf("code: want %q, got %q", wantCode, env.Code)
+	}
 }
-if env.Code != wantCode {
-t.Errorf("code: want %q, got %q", wantCode, env.Code)
+
+// --- Wave-C decode boundary (WS6B-2E) -------------------------------
+
+// TestCreateJob_DecodeBoundary pins the Wave-C decode boundary on the
+// POST /jobs create handler: a viable first JSON value followed by a
+// second JSON value must be 400 invalid_request with the preserved
+// message "invalid JSON body", and a viable first value followed only
+// by ignored whitespace pushing the request above 1,048,576 bytes must
+// be 413 payload_too_large ("payload too large"). The legacy direct
+// json.Decoder admitted both bodies and ran Create (RED counter
+// createCalls=1); the counter gate below records that non-vacuity
+// BEFORE the Fatalf-capable envelope checks.
+func TestCreateJob_DecodeBoundary(t *testing.T) {
+	oversizedPad := strings.Repeat(" ", 1_048_577) // one byte past the 1,048,576 cap
+
+	tests := []struct {
+		name        string
+		trailing    string // second JSON value, or oversized ignored whitespace
+		wantStatus  int
+		wantCode    string
+		wantMessage string
+	}{
+		{
+			name:        "trailing_second_json_value",
+			trailing:    ` {"repeat":true}`,
+			wantStatus:  http.StatusBadRequest,
+			wantCode:    "invalid_request",
+			wantMessage: "invalid JSON body",
+		},
+		{
+			name:        "oversized_ignored_whitespace",
+			trailing:    " " + oversizedPad,
+			wantStatus:  http.StatusRequestEntityTooLarge,
+			wantCode:    "payload_too_large",
+			wantMessage: "payload too large",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// The stub returns a valid editor view so the LEGACY direct
+			// decoder (RED) completes the admitted bad-boundary request
+			// end-to-end with 201 and createCalls=1 (non-vacuous RED).
+			repo := &writeStubHandlerRepo{
+				createOut: &entities.JobForUpdate{
+					ID:             uuid.New(),
+					Title:          "Backend Engineer",
+					Description:    "Go + Postgres",
+					WorkMode:       valueobjects.Remote,
+					EmploymentType: valueobjects.FullTime,
+					Seniority:      valueobjects.SeniorSeniority,
+					JobStatus:      valueobjects.Draft,
+					SalaryCurrency: valueobjects.MXN,
+					UpdatedAt:      time.Now().UTC(),
+					Company:        entities.CompanyRef{ID: uuid.New(), Name: "Acme"},
+				},
+			}
+			router := newCreateJobRouter(repo, identitysecurity.CompanyContext{
+				CompanyID: uuid.New(),
+				Role:      companiesvalueobjects.RecruiterRole,
+			})
+			rec := doPost(t, router, "/jobs", validCreateBody()+tt.trailing, nil)
+			assertCreateDecodeBoundary(t, rec, repo, tt.wantStatus, tt.wantCode, tt.wantMessage)
+		})
+	}
 }
+
+// assertCreateDecodeBoundary runs the non-vacuity counter gate (every
+// downstream counter asserted with plain Errorf so ALL values are
+// reported, BEFORE the Fatalf-capable envelope checks) then asserts the
+// exact status, catalog code, and message. On GREEN each downstream
+// counter is zero; on RED the recorded values prove the legacy direct
+// decoder admitted the invalid boundary body end-to-end.
+func assertCreateDecodeBoundary(t *testing.T, rec *httptest.ResponseRecorder, repo *writeStubHandlerRepo, wantStatus int, wantCode, wantMessage string) {
+	t.Helper()
+	if repo.createCalls != 0 {
+		t.Errorf("Create MUST NOT run on a decode-boundary failure, got createCalls=%d", repo.createCalls)
+	}
+	if rec.Code != wantStatus {
+		t.Errorf("status: want %d, got %d (body %s)", wantStatus, rec.Code, rec.Body.String())
+	}
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("body not JSON: %v; body=%s", err, rec.Body.String())
+	}
+	if string(env.Code) != wantCode {
+		t.Errorf("code: want %q, got %q", wantCode, env.Code)
+	}
+	if env.Error != wantMessage {
+		t.Errorf("message: want %q, got %q", wantMessage, env.Error)
+	}
 }

@@ -858,3 +858,94 @@ func jobAssertCatalogEnvelope(t *testing.T, rec *httptest.ResponseRecorder, want
 		t.Errorf("code: want %q, got %q", wantCode, env.Code)
 	}
 }
+
+// --- Wave-C decode boundary (WS6B-2E) -------------------------------
+
+// TestUpdateJob_DecodeBoundary pins the Wave-C decode boundary on the
+// PATCH /jobs/{id} update handler: a viable first JSON value followed
+// by a second JSON value must be 400 invalid_request with the
+// preserved message "invalid JSON body", and a viable first value
+// followed only by ignored whitespace pushing the request above
+// 1,048,576 bytes must be 413 payload_too_large ("payload too large").
+// Two rows are queued with a valid CAS so the LEGACY direct decoder
+// (RED) reaches Update plus the post-write read: getForUpdateCalls=2,
+// updateCalls=1 — proving the bad body was admitted end-to-end before
+// the shared decoder landed. The counter gate below records that
+// non-vacuity BEFORE the Fatalf-capable envelope checks.
+func TestUpdateJob_DecodeBoundary(t *testing.T) {
+	jobID := uuid.New()
+	companyID := uuid.New()
+	rowTS := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	oversizedPad := strings.Repeat(" ", 1_048_577) // one byte past the 1,048,576 cap
+
+	tests := []struct {
+		name        string
+		trailing    string // second JSON value, or oversized ignored whitespace
+		wantStatus  int
+		wantCode    string
+		wantMessage string
+	}{
+		{
+			name:        "trailing_second_json_value",
+			trailing:    ` {"repeat":true}`,
+			wantStatus:  http.StatusBadRequest,
+			wantCode:    "invalid_request",
+			wantMessage: "invalid JSON body",
+		},
+		{
+			name:        "oversized_ignored_whitespace",
+			trailing:    " " + oversizedPad,
+			wantStatus:  http.StatusRequestEntityTooLarge,
+			wantCode:    "payload_too_large",
+			wantMessage: "payload too large",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &writeStubHandlerRepo{
+				getForUpdateResponses: []entities.JobForUpdate{
+					*makeJobForUpdate(jobID, companyID, valueobjects.Draft, rowTS),
+					*makeJobForUpdate(jobID, companyID, valueobjects.Draft, rowTS.Add(time.Second)),
+				},
+			}
+			router := newUpdateJobRouter(repo, identitysecurity.CompanyContext{
+				CompanyID: companyID,
+				Role:      companiesvalueobjects.RecruiterRole,
+			})
+			rec := doPatch(t, router, "/jobs/"+jobID.String(), `{"title":"New"}`+tt.trailing, map[string]string{
+				"If-Unmodified-Since": rowTS.Format(time.RFC3339),
+			})
+			assertUpdateDecodeBoundary(t, rec, repo, tt.wantStatus, tt.wantCode, tt.wantMessage)
+		})
+	}
+}
+
+// assertUpdateDecodeBoundary runs the non-vacuity counter gate (every
+// downstream counter asserted with plain Errorf so ALL values are
+// reported, BEFORE the Fatalf-capable envelope checks) then asserts the
+// exact status, catalog code, and message. On GREEN each downstream
+// counter is zero; on RED the recorded values prove the legacy direct
+// decoder admitted the invalid boundary body end-to-end (legacy RED
+// baseline: getForUpdateCalls=2, updateCalls=1).
+func assertUpdateDecodeBoundary(t *testing.T, rec *httptest.ResponseRecorder, repo *writeStubHandlerRepo, wantStatus int, wantCode, wantMessage string) {
+	t.Helper()
+	if repo.getForUpdateCalls != 0 {
+		t.Errorf("GetForUpdate MUST NOT run on a decode-boundary failure, got getForUpdateCalls=%d", repo.getForUpdateCalls)
+	}
+	if repo.updateCalls != 0 {
+		t.Errorf("Update MUST NOT run on a decode-boundary failure, got updateCalls=%d", repo.updateCalls)
+	}
+	if rec.Code != wantStatus {
+		t.Errorf("status: want %d, got %d (body %s)", wantStatus, rec.Code, rec.Body.String())
+	}
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("body not JSON: %v; body=%s", err, rec.Body.String())
+	}
+	if string(env.Code) != wantCode {
+		t.Errorf("code: want %q, got %q", wantCode, env.Code)
+	}
+	if env.Error != wantMessage {
+		t.Errorf("message: want %q, got %q", wantMessage, env.Error)
+	}
+}
