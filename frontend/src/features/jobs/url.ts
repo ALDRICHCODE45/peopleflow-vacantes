@@ -9,7 +9,14 @@
  * normalized, logged, or interpreted.
  */
 
-const FILTER_KEYS = ["q", "seniority", "work_mode", "employment_type", "location", "currency"] as const;
+const FILTER_KEYS = [
+  "q",
+  "seniority",
+  "work_mode",
+  "employment_type",
+  "location",
+  "currency",
+] as const;
 
 const CURSOR_KEY = "cursor";
 
@@ -28,7 +35,10 @@ const ENUM_VALUES = {
   work_mode: ["onsite", "remote", "hybrid"],
   employment_type: ["full_time", "part_time", "contract", "internship"],
   currency: ["MXN", "USD"],
-} as const satisfies Record<Exclude<FilterKey, "q" | "location">, readonly string[]>;
+} as const satisfies Record<
+  Exclude<FilterKey, "q" | "location">,
+  readonly string[]
+>;
 
 /** Canonical serialization order: the six filters first, then the cursor. */
 const SERIALIZATION_ORDER: readonly JobsQueryKey[] = ALL_KEYS;
@@ -47,7 +57,9 @@ function canonicalValue(key: JobsQueryKey, value: string): string | undefined {
   if (key === CURSOR_KEY) {
     return value === "" ? undefined : value;
   }
-  return (ENUM_VALUES[key] as readonly string[]).includes(value) ? value : undefined;
+  return (ENUM_VALUES[key] as readonly string[]).includes(value)
+    ? value
+    : undefined;
 }
 
 /** Counts occurrences of supported keys so repeated values can be dropped. */
@@ -103,7 +115,10 @@ export function isCanonicalJobsQuery(query: string): boolean {
  * applied, and the cursor always omitted — every filter add, change, or
  * clear starts a fresh, unpaginated result set.
  */
-export function buildFilterCommitUrl(currentUrl: string, patch: Partial<Record<FilterKey, string>>): string {
+export function buildFilterCommitUrl(
+  currentUrl: string,
+  patch: Partial<Record<FilterKey, string>>,
+): string {
   const parsed = parseJobsQuery(queryOf(currentUrl));
   const filters: JobsQuery = {};
   for (const key of FILTER_KEYS) {
