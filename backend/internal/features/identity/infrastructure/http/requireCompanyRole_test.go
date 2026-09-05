@@ -32,9 +32,9 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
-	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	identityrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/repositories"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/google/uuid"
 )
 
@@ -149,7 +149,7 @@ func (s *stubLivenessRepo) IsCompanyLive(_ context.Context, _ uuid.UUID) (bool, 
 var (
 	_ identityrepositories.UserRepository    = (*stubUserRepo)(nil)
 	_ repositories.CompanyMemberRepository   = (*stubMemberRepo)(nil)
-_ repositories.CompanyLivenessRepository = (*stubLivenessRepo)(nil)
+	_ repositories.CompanyLivenessRepository = (*stubLivenessRepo)(nil)
 )
 
 // --- helpers --------------------------------------------------------------
@@ -710,7 +710,7 @@ func TestRequireCompanyRole_InternalErrors(t *testing.T) {
 			users := &stubUserRepo{
 				resolved:   &identityentities.User{ID: userID, CognitoSub: "sub-internal-err"},
 				resolveErr: tt.userResolveErr,
-		}
+			}
 
 			var resolvedMember *entities.CompanyMember
 			if tt.memberErr == nil {

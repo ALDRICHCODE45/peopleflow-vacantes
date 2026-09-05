@@ -146,8 +146,6 @@ func RequireCompanyRole(
 	}
 }
 
-
-
 // respondForbiddenSafe writes a 403 catalog envelope with code "forbidden".
 // The safe message is the domain-specific reason, not the canonical
 // generic message.
