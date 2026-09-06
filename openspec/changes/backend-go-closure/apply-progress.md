@@ -1100,3 +1100,40 @@ Conclusion: Wave D (task 6.2 group (d), industries + identity handlers) is a tru
 **GREEN (request.go only; net file growth 27 → 82 lines = +55; review correction diff vs the frozen/staged RED candidate = 64 additions + 9 deletions = 73 lines ≤ 120 cap — these are distinct measures, not the same):** wraps `chimw.NewWrapResponseWriter` (status capture; implicit success `status==0` → `http.StatusOK`); one positive `time.Since(start)` duration; after dispatch route = `chi.RouteContext(...).RoutePattern()`, empty → bounded `unmatched` (raw `r.URL.Path` never logged/labeled); request ID via `chimw.GetReqID(r.Context())` (chi RequestID runs first; no second ID); exactly one `logger.Info` record with `request_id`/`method`/`path`/`status`/`duration` (slog KindDuration → positive fractional seconds)/`code_class` (bounded 2xx/4xx/5xx via `codeClass`, success → `2xx`); exactly one `httpMetrics.ObserveRequest(method, route, status, duration)` with the same bounded values; nil defaults `slog.Default()`/`rtmetrics.Default`; no exporter/endpoint/goroutine/global state; signature unchanged.
 **Verification (GREEN):** `cd backend && go test ./internal/runtime/middleware/ -count=1 -v` → PASS; `cd backend && go test ./... -count=1` → 47 ok, 0 FAIL; `cd backend && gofmt -l internal/runtime` + `go vet ./internal/runtime/...` → clean. `request.go` sha256 `2b033124aa33e89b467a35cb930bfd25bd94e640d72b497a0e108d6711fdbd97`.
 **Budget:** final candidate vs HEAD (exact numstat): metrics.go 40/0, metrics_test.go 30/0, request.go 82/0, request_test.go 169/0, apply-progress.md 66/0 — 387 additions + 0 deletions = exactly 387/400. Review correction diff vs the frozen/staged RED candidate: request.go 73 (64+/9−) + this evidence suffix 8 (8+/0−) = 81 total correction diff lines ≤ 120 cap; the earlier "+55 correction diff" claim conflated net file growth (27 → 82 lines) with correction diff lines and is superseded. Task 6.3 boxes remain unchecked (80/100 unchanged); no staging/restaging, no verify-report; prefix (first 143966 bytes, SHA-256 `1885c351…6c085`) preserved.
+
+## WS6C-1c — Post-commit reconciliation for the committed request-observability foundation (artifact-only, 2026-09-06 13:33 UTC)
+
+Artifact-only reconciliation unit: no code, no behavior, no RED cycle. This entry validates the already committed GREEN settlement of WS6C (work unit `ws6c-1c-request-foundation-post-commit-reconciliation`); it does not fabricate a new behavioral RED. The existing RED and GREEN evidence for the foundation is preserved unchanged as an append-only prefix; broader TRIANGULATE and REFACTOR requirements remain pending.
+
+### Verified committed baseline
+
+- Commit: `094316b1053849107fe329e3c17a499a0cceb58a` ("feat(runtime): add request observability foundation"); tree `5c2071f0c1be0586e6be124cdaed0837044aa142`.
+- Working tree clean (`git status --porcelain` empty), branch `main`, 48 commits ahead of `origin/main`, no push/stage/commit performed.
+- WS6C committed file SHA-256 (all match expected values):
+  - `backend/internal/runtime/metrics/metrics.go` → `c9a2a10669f344bdda1f8f1c35b9a902adcc075f78e96c9317a097f8735077b6`
+  - `backend/internal/runtime/metrics/metrics_test.go` → `59adb59159085c875b7ac7c9e78125161fdd1b2ae0961881cc24b80630b7149b`
+  - `backend/internal/runtime/middleware/request.go` → `2b033124aa33e89b467a35cb930bfd25bd94e640d72b497a0e108d6711fdbd97`
+  - `backend/internal/runtime/middleware/request_test.go` → `9aa0af25e09b2b2159cf39588fbc638473b3aa2353b58956927bd3b6ecd04858`
+
+### Rerun verification (current evidence, all pass)
+
+- `cd backend && go test ./...` → all packages `ok`, including `internal/runtime/metrics` (0.021s) and `internal/runtime/middleware` (0.018s); zero failures.
+- `cd backend && go vet ./internal/runtime/...` → clean (no findings).
+- `cd backend && gofmt -l internal/runtime` → empty output (exit 0).
+
+### Protected-path and census checks (unchanged)
+
+- `tasks.md`: 58,766 bytes, SHA-256 `78edc23c9ac772a5c67a1d52796a127b5de4356a975064930b3538fd1ec0899e`; Task 6.3 keeps all four boxes unchecked (RED/GREEN/TRIANGULATE/REFACTOR); census remains exactly 80 checked / 100 total.
+- Pre-append `apply-progress.md`: 154,101 bytes, SHA-256 `ed81076e368edc6c5adba317a0f729483305350e734992cf29917b17e4d8f9f0`; this entry is a pure append preserving those bytes as prefix.
+- `verify-report.md`: absent (not created by this unit).
+
+### Native generation lineage (acknowledged, not re-run)
+
+- Generation 100 / ordinal 127, `ws6c-1a-observability-red-contracts`, completed, evidence `sha256:23842dea5bc5838706564683407963454aeca2d32a892d93e38838cd215e9e01`.
+- Generation 101 / ordinal 128, `ws6c-1b-request-observability-green-correction`, completed, evidence `sha256:063fefa07649e93fbca68069626737549d85db3238a9b3eb31da30c1ab3b0d48`.
+- Receipt review lineage `review-f56fe6ad84e1fe1a`: approved the corrected target `sha256:00bbeb440bf523952660265d517adff9aad7feb199ea01ba0377b871c6ebe368`, consumed revision `sha256:6f28c803d3e123a86e28679aea06dab58f921c0195fb0fe2dea64a957aacf206`; acknowledged and burned — not queried or reused.
+
+### Scope discipline
+
+- Single edited file: `openspec/changes/backend-go-closure/apply-progress.md` (append-only). No `tasks.md` edits, no code edits, no verify-report, no staging/commit/push, no frontend or unrelated inspection, no next behavioral slice started.
+- Scope evidence: the candidate is append-only relative to the committed 154,101-byte prefix; all unit changes are additions at the end of `apply-progress.md` with no in-place edits to protected content, and no full-file digest claim is recorded here — the fresh independent verifier and native settlement own the final candidate digest. Numstat for the whole unit: 37 additions / 0 deletions (≤ 80-line native objective, ≤ 400-line review budget). Excluded harness state: `.pi/gentle-ai/sdd-preflight.json` is generated state from the new SDD harness, explicitly excluded from the native candidate per the user's classification (recorded in Engram observation 5402) — it is not product code and not candidate drift, and the prior evidence revision's classification of it as such was the sole cause of that revision's verifier failure.
