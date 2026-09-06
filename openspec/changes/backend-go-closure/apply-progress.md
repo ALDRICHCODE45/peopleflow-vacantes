@@ -1034,3 +1034,69 @@ Conclusion: Wave D (task 6.2 group (d), industries + identity handlers) is a tru
 - **Authorized write (task delta 78 → 80):** `tasks.md` — only Task 6.2 TRIANGULATE (line 237) and REFACTOR (line 238), line-targeted `sed '237s/^- \[ \] TRIANGULATE/- [x] TRIANGULATE/; 238s/^- \[ \] REFACTOR/- [x] REFACTOR/'`; zero other bytes changed; this corrective rerun did NOT touch `tasks.md` (byte-identical to the pre-correction candidate hash above). `apply-progress.md` — this append-only suffix, revised in place after the verifier finding; protected 137,595-byte prefix preserved byte-for-byte (`head -c 137595 apply-progress.md | sha256sum` → `983ff195daed67e0f38bc7ec2c7b4cd40c25900d1a967b8045a34cfc8330e32b`). Final counts: 80 checked / 20 unchecked / 100 total / 100 owner markers.
 - **Scope + 80-line budget + cleanup:** edits confined to the two allowed surfaces under `openspec/changes/backend-go-closure/`; no Go/code/test edits, no new files, no `verify-report.md`, no staging/commit/push/stash/reset/checkout, no frontend or other-worktree access. All gates ran read-only — no backups or background test processes left behind (the /tmp census scratch files are created, read, and deleted in the same corrective command sequence). Total diff ≤ 80 changed lines (2 tasks.md replacements + this 10-line suffix).
 - **Rollback boundary/proof:** rollback is bounded to restoring exactly these two paths to HEAD `cfc34356` (e.g. `git restore --source=cfc34356362a2134cdca425156ef7fd440cb301d -- openspec/changes/backend-go-closure/tasks.md openspec/changes/backend-go-closure/apply-progress.md`); NOT executed — the corrected candidate stands. Post-write proof: `git diff --numstat` covers only these two paths (tasks.md 2/2, apply-progress.md 10/0), prefix rehash matches, `git status --porcelain` shows only the two modified files with zero untracked entries, `git diff --check` clean, stash still empty, `verify-report.md` still absent.
+
+## Task 6.3 (WS6C-1) — Metrics ports + pass-through request-observability scaffold (RED-only candidate)
+
+### Baseline
+
+- Branch `main`, HEAD `2efd9911bc9b3e059206df4e216a00539a725e70`, worktree clean except this unit's own writes (see Scope). No staged files, no stash, `verify-report.md` absent.
+- Pre-append `apply-progress.md`: 143966 bytes, SHA-256 `1885c3510247763de7caf5129151f80fbb127503c2d14ab8e677ea8c5c16c085` (matches the authoritative baseline).
+- Strict TDD active (runner `cd backend && go test ./...`). This unit is RED-only: scaffolds emit nothing and no completion logging or metric call was implemented. Generation 99 (`ws6b-task-6.2-post-commit-reconciliation`) untouched.
+- Skills loaded: golang-how-to, chi, golang-testing, golang-observability (paths injected).
+
+### Change applied (4 new files, no existing file touched)
+
+- `backend/internal/runtime/metrics/metrics.go` (40 lines): narrow ports `HTTPMetrics` (`ObserveRequest(method, route string, status int, d time.Duration)`), `DBMetrics` (`ObservePool(acquired, idle, max int32)`), `ReadinessMetrics` (`SetReady(ready bool)`); no-op type `Noop` + shared value `Default` implementing all three with no exporter dependency or side effect.
+- `backend/internal/runtime/middleware/request.go` (27 lines): `RequestObservability(logger *slog.Logger, httpMetrics rtmetrics.HTTPMetrics) func(http.Handler) http.Handler` — compile-safe pass-through; emits nothing, never calls `httpMetrics`. No `cmd/api` wiring (forbidden surface).
+- `backend/internal/runtime/middleware/request_test.go` (169 lines): RED contract test `TestRequestObservability_EmitsOneCompletionRecordAndOneMetricPerRequest` composing chi `middleware.RequestID` before the scaffold, serving `/companies/{id}` with a fixed bounded `X-Request-Id` (`red-fixed-request-id-0001`); captured `slog.NewJSONHandler` proves the eventual contract: exactly one structured completion record with bounded fields `request_id`/`method`/`path`/`status`/`duration`/`code_class`, `path` pinned to the matched route pattern `/companies/{id}` (request URL `/companies/abc` intentionally differs, proving pattern-not-raw-URL), success code class pinned `"2xx"` (later-unit scope: catalog error propagation); `httpMetricsSpy` proves exactly one bounded metric observation (GET, `/companies/{id}`, 200, d>0). Both count checks (completion records, metric observations) are non-fatal `t.Errorf` so one RED run independently records two failure messages; all field assertions are guarded behind `len(completions) == 1` / `len(spy.observed) == 1` so no missing record is ever dereferenced and the metric check always executes.
+- `backend/internal/runtime/metrics/metrics_test.go` (30 lines): passing no-op/interface test `TestNoopDefaultIsSilent` plus compile-time `var _` assertions proving `Noop{}` satisfies all three ports.
+
+### Compile-safety evidence (independent, exact commands)
+
+- `cd backend && gofmt -l internal/runtime` → empty, exit 0.
+- `cd backend && go vet ./internal/runtime/...` → exit 0, no findings.
+- `cd backend && go test ./internal/runtime/metrics/ -count=1 -v` → `--- PASS: TestNoopDefaultIsSilent (0.00s)`; `ok ... internal/runtime/metrics 0.003s`, exit 0.
+
+### RED evidence (exact commands)
+
+- `cd backend && go test ./internal/runtime/middleware/ -count=1 -v` → exit 1; exactly one failing test with exactly two failure messages, both from that test: `request_test.go:118: completion records carrying bounded fields [request_id method path status duration code_class] = 0, want 1 — the stub middleware emits no completion record and the captured logs lack the required fields (captured records: 0)` AND `request_test.go:150: HTTP metric observations = 0, want exactly 1 — the stub middleware records no request metric`. Non-vacuous: route dispatch and response succeeded (`res.Code == 200` assertion passed before the failures); both failures are attributable only to missing log/metric emission, and both were actually emitted by the test run (the completion-count check is non-fatal, so the metric-spy assertion genuinely executed and observed zero observations).
+- `cd backend && go test ./... -count=1` → exit 1; census over output: 46 `ok` package lines (all pre-existing packages remain green — full green baseline of 46 verified before this unit: config/health/server/runtime packages, httpjson, and all feature packages), exactly 4 `FAIL` lines = 1 `--- FAIL: TestRequestObservability_EmitsOneCompletionRecordAndOneMetricPerRequest` test-header line + 2 bare `FAIL` summary lines + 1 package-level `FAIL ... internal/runtime/middleware 0.003s` line; exactly one failing test, the intended RED assertion. No pre-existing test regressed.
+
+### Files, hashes, arithmetic, budget
+
+- SHA-256 post-write: `metrics.go` `c9a2a10669f344bdda1f8f1c35b9a902adcc075f78e96c9317a097f8735077b6`; `metrics_test.go` `59adb59159085c875b7ac7c9e78125161fdd1b2ae0961881cc24b80630b7149b`; `request.go` `5a004129f4acf9eb44b24d7420913a951a2cd5b0d49b6dde317d40d005215740`; `request_test.go` `9aa0af25e09b2b2159cf39588fbc638473b3aa2353b58956927bd3b6ecd04858` (corrected RED candidate: non-fatal count checks + guarded field assertions).
+- Changed-line arithmetic (all-new files, 0 deletions): 40 + 30 + 27 + 169 = 266 authored changed lines (additions) + 58 OpenSpec apply-progress suffix lines = 324 total changed lines; hard budget 400 — within budget, no size exception used.
+
+### Scope, tasks, guards
+
+- `tasks.md` untouched: SHA-256 unchanged `78edc23c9ac772a5c67a1d52796a127b5de4356a975064930b3538fd1ec0899e`; task count unchanged at 80 checked / 20 unchecked / 100 total; no Task 6.3 box checked (RED does not complete the checkbox).
+- Working-tree state: `git status --porcelain -- backend openspec` → exactly two untracked dirs (`?? backend/internal/runtime/metrics/`, `?? backend/internal/runtime/middleware/`) plus this file; staged empty (`git diff --cached --name-only -- backend openspec` → empty); `git stash list` → empty; nothing staged, no commit, no push, no receipt review started.
+- `test ! -e openspec/changes/backend-go-closure/verify-report.md` → exit 0 (verify-report absent, not created).
+- Edit surfaces confined to the five allowed paths; `backend/cmd/api/**`, all existing runtime/domain/frontend files, and any other worktree untouched.
+- Prefix preservation: first 143966 bytes of this file remain byte-identical to the pre-append baseline SHA-256 `1885c3510247763de7caf5129151f80fbb127503c2d14ab8e677ea8c5c16c085`; this entry is the only delta.
+
+### TDD Cycle Evidence
+
+| Task | Phase | Command | Result |
+| --- | --- | --- | --- |
+| 6.3 RED scaffold | Compile safety | `go vet ./internal/runtime/...` + `go test ./internal/runtime/metrics/ -count=1` | vet clean; metrics package PASS |
+| 6.3 RED contract | RED | `go test ./internal/runtime/middleware/ -count=1 -v` | FAIL with two failure messages from one test: 0 completion records + 0 HTTP metric observations (both independently recorded; intended, non-vacuous) |
+| 6.3 RED contract | Suite isolation | `go test ./... -count=1` | 46 ok; exactly 4 FAIL lines (test header + 2 bare + package); only the new RED test fails |
+| 6.3 | GREEN | not run | intentionally out of this slice (RED-only candidate) |
+
+### Deviations from design/tasks
+
+- None material. Test scope narrowed to the first bounded slice per orchestrator instruction: successful response + success code class only; unknown-URL `unmatched` collapse, domain-log correlation, startup/shutdown logs, DB/readiness sampling, and forbidden-field scans remain in the broader Task 6.3 RED line and later units.
+
+### Remaining
+
+- Task 6.3 RED (broader line: remaining RED scenarios), GREEN, TRIANGULATE, REFACTOR — all `- [ ]` (lines 240–243), 80/100 total progress unchanged.
+- Candidate ready for independent verification: RED-only, all evidence above replayable; parent settles.
+
+## WS6C-1b GREEN correction — receipt-review finding R3-001 (request.go only)
+
+**RED preserved:** the authentic RED evidence above stands unchanged (behavioral: 0 completion records + 0 metric observations from the pass-through stub).
+
+**GREEN (request.go only; net file growth 27 → 82 lines = +55; review correction diff vs the frozen/staged RED candidate = 64 additions + 9 deletions = 73 lines ≤ 120 cap — these are distinct measures, not the same):** wraps `chimw.NewWrapResponseWriter` (status capture; implicit success `status==0` → `http.StatusOK`); one positive `time.Since(start)` duration; after dispatch route = `chi.RouteContext(...).RoutePattern()`, empty → bounded `unmatched` (raw `r.URL.Path` never logged/labeled); request ID via `chimw.GetReqID(r.Context())` (chi RequestID runs first; no second ID); exactly one `logger.Info` record with `request_id`/`method`/`path`/`status`/`duration` (slog KindDuration → positive fractional seconds)/`code_class` (bounded 2xx/4xx/5xx via `codeClass`, success → `2xx`); exactly one `httpMetrics.ObserveRequest(method, route, status, duration)` with the same bounded values; nil defaults `slog.Default()`/`rtmetrics.Default`; no exporter/endpoint/goroutine/global state; signature unchanged.
+**Verification (GREEN):** `cd backend && go test ./internal/runtime/middleware/ -count=1 -v` → PASS; `cd backend && go test ./... -count=1` → 47 ok, 0 FAIL; `cd backend && gofmt -l internal/runtime` + `go vet ./internal/runtime/...` → clean. `request.go` sha256 `2b033124aa33e89b467a35cb930bfd25bd94e640d72b497a0e108d6711fdbd97`.
+**Budget:** final candidate vs HEAD (exact numstat): metrics.go 40/0, metrics_test.go 30/0, request.go 82/0, request_test.go 169/0, apply-progress.md 66/0 — 387 additions + 0 deletions = exactly 387/400. Review correction diff vs the frozen/staged RED candidate: request.go 73 (64+/9−) + this evidence suffix 8 (8+/0−) = 81 total correction diff lines ≤ 120 cap; the earlier "+55 correction diff" claim conflated net file growth (27 → 82 lines) with correction diff lines and is superseded. Task 6.3 boxes remain unchecked (80/100 unchanged); no staging/restaging, no verify-report; prefix (first 143966 bytes, SHA-256 `1885c351…6c085`) preserved.
