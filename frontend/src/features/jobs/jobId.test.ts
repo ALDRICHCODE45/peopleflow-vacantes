@@ -1,5 +1,6 @@
+import { QueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getJob } from "./api/getJob";
+import { getJob, getJobQueryOptions } from "./api/getJob";
 import { isValidJobId } from "./jobId";
 
 const UUID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
@@ -29,6 +30,29 @@ describe("detail UUID prevalidation", () => {
         ok: false,
         error: { kind: "not_found" },
       });
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("detail queryOptions", () => {
+  it("builds a serializable array query key containing the exact jobId", () => {
+    const { queryKey } = getJobQueryOptions(UUID);
+    expect(Array.isArray(queryKey)).toBe(true);
+    expect(JSON.parse(JSON.stringify(queryKey))).toEqual(queryKey);
+    expect(queryKey).toContain(UUID);
+  });
+
+  it("short-circuits malformed identifiers through fetchQuery without any transport access", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const queryClient = new QueryClient();
+    for (const bad of MALFORMED) {
+      await expect(queryClient.fetchQuery(getJobQueryOptions(bad))).resolves
+        .toMatchObject({
+          ok: false,
+          error: { kind: "not_found" },
+        });
     }
     expect(fetchMock).not.toHaveBeenCalled();
   });
