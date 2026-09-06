@@ -7,7 +7,10 @@ const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
 
 function cssBlock(selector: string): string {
   const start = css.indexOf(`${selector} {`);
-  expect(start, `expected a ${selector} block in globals.css`).toBeGreaterThanOrEqual(0);
+  expect(
+    start,
+    `expected a ${selector} block in globals.css`,
+  ).toBeGreaterThanOrEqual(0);
   const end = css.indexOf("}", start);
   return css.slice(start, end);
 }

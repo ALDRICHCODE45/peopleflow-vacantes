@@ -20,8 +20,12 @@ describe("PeopleFlow brand", () => {
     const { container } = render(<PeopleFlowLogo />);
 
     const images = Array.from(container.querySelectorAll("img"));
-    const light = images.find((img) => (img.getAttribute("src") ?? "").includes("peopleflow-light"));
-    const dark = images.find((img) => (img.getAttribute("src") ?? "").includes("peopleflow-dark"));
+    const light = images.find((img) =>
+      (img.getAttribute("src") ?? "").includes("peopleflow-light"),
+    );
+    const dark = images.find((img) =>
+      (img.getAttribute("src") ?? "").includes("peopleflow-dark"),
+    );
 
     expect(light).toBeDefined();
     expect(dark).toBeDefined();

@@ -15,7 +15,10 @@ vi.mock("next/font/google", () => ({
 
 import RootLayout, { metadata } from "./layout";
 
-const layoutSource = readFileSync(join(process.cwd(), "src/app/layout.tsx"), "utf8");
+const layoutSource = readFileSync(
+  join(process.cwd(), "src/app/layout.tsx"),
+  "utf8",
+);
 
 describe("root layout", () => {
   it("renders the document with lang es-MX", () => {

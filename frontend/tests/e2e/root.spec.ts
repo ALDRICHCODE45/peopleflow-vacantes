@@ -65,7 +65,9 @@ function oklchToSrgb(L: number, C: number, H: number): Rgb {
 
 function parseAlpha(raw: string | undefined): number {
   if (!raw) return 1;
-  return raw.endsWith("%") ? Number.parseFloat(raw) / 100 : Number.parseFloat(raw);
+  return raw.endsWith("%")
+    ? Number.parseFloat(raw) / 100
+    : Number.parseFloat(raw);
 }
 
 function parseColor(input: string): Rgb {
@@ -91,7 +93,9 @@ function parseColor(input: string): Rgb {
   );
   if (rgb) {
     const part = (raw: string) =>
-      raw.endsWith("%") ? Number.parseFloat(raw) / 100 : Number.parseFloat(raw) / 255;
+      raw.endsWith("%")
+        ? Number.parseFloat(raw) / 100
+        : Number.parseFloat(raw) / 255;
     return {
       r: part(rgb[1]),
       g: part(rgb[2]),
@@ -120,23 +124,22 @@ function parseColor(input: string): Rgb {
 function relativeLuminance({ r, g, b, alpha }: Rgb): number {
   const linear = (v: number) =>
     v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-  return (
-    0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
-  ) * alpha;
+  return (0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)) * alpha;
 }
 
 function contrastRatio(foreground: string, background: string): number {
   const fg = parseColor(foreground);
   const bg = parseColor(background);
   // Composite the foreground over the background when it carries alpha.
-  const blended = fg.alpha < 1
-    ? {
-        r: fg.r * fg.alpha + bg.r * (1 - fg.alpha),
-        g: fg.g * fg.alpha + bg.g * (1 - fg.alpha),
-        b: fg.b * fg.alpha + bg.b * (1 - fg.alpha),
-        alpha: 1,
-      }
-    : fg;
+  const blended =
+    fg.alpha < 1
+      ? {
+          r: fg.r * fg.alpha + bg.r * (1 - fg.alpha),
+          g: fg.g * fg.alpha + bg.g * (1 - fg.alpha),
+          b: fg.b * fg.alpha + bg.b * (1 - fg.alpha),
+          alpha: 1,
+        }
+      : fg;
   const l1 = relativeLuminance(blended);
   const l2 = relativeLuminance(bg);
   return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
@@ -162,9 +165,9 @@ test.describe("minimal public root", () => {
     await expect(vacantesLinks).toHaveCount(1);
     await expect(vacantesLinks.first()).toHaveAttribute("href", "/vacantes");
 
-    const hrefs = await page.locator("a").evaluateAll((anchors) =>
-      anchors.map((a) => a.getAttribute("href")),
-    );
+    const hrefs = await page
+      .locator("a")
+      .evaluateAll((anchors) => anchors.map((a) => a.getAttribute("href")));
     for (const href of hrefs) {
       expect(["/", "/vacantes"]).toContain(href);
     }
@@ -184,7 +187,9 @@ for (const scheme of SCHEMES) {
     test.describe(`root foundation matrix — ${scheme} scheme, ${label} viewport`, () => {
       test.use({ colorScheme: scheme, viewport });
 
-      test(`renders accessible foundation at ${label} width`, async ({ page }) => {
+      test(`renders accessible foundation at ${label} width`, async ({
+        page,
+      }) => {
         const requestUrls: string[] = [];
         page.on("request", (request) => requestUrls.push(request.url()));
 
@@ -202,7 +207,10 @@ for (const scheme of SCHEMES) {
         await expect(h1).toHaveCount(1);
         const vacantesLinks = page.getByRole("link", { name: /vacantes/i });
         await expect(vacantesLinks).toHaveCount(1);
-        await expect(vacantesLinks.first()).toHaveAttribute("href", "/vacantes");
+        await expect(vacantesLinks.first()).toHaveAttribute(
+          "href",
+          "/vacantes",
+        );
         await expect(page.getByRole("button")).toHaveCount(0);
 
         // No horizontal overflow at either representative width.
@@ -222,9 +230,11 @@ for (const scheme of SCHEMES) {
           );
           // One PeopleFlow mark per color scheme; measure the visible one.
           const logo =
-            [...document.querySelectorAll<HTMLImageElement>("img[alt='PeopleFlow']")].find(
-              (img) => getComputedStyle(img).display !== "none",
-            ) ?? null;
+            [
+              ...document.querySelectorAll<HTMLImageElement>(
+                "img[alt='PeopleFlow']",
+              ),
+            ].find((img) => getComputedStyle(img).display !== "none") ?? null;
           return {
             bodyFont: computed(document.body).fontFamily,
             h1Font: h1El ? computed(h1El).fontFamily : null,
@@ -259,7 +269,10 @@ for (const scheme of SCHEMES) {
           `body text contrast (${styles.bodyColor} on ${styles.bodyBackground})`,
         ).toBeGreaterThanOrEqual(4.5);
         expect(
-          contrastRatio(styles.linkColor as string, styles.linkBackground as string),
+          contrastRatio(
+            styles.linkColor as string,
+            styles.linkBackground as string,
+          ),
           `vacantes link contrast (${styles.linkColor} on ${styles.linkBackground})`,
         ).toBeGreaterThanOrEqual(4.5);
 
@@ -287,13 +300,16 @@ for (const scheme of SCHEMES) {
         expect(focus).not.toBeNull();
         expect(focus?.href).toBe("/vacantes");
         expect(focus?.outlineStyle).not.toBe("none");
-        expect(Number.parseFloat(focus?.outlineWidth ?? "0")).toBeGreaterThan(0);
+        expect(Number.parseFloat(focus?.outlineWidth ?? "0")).toBeGreaterThan(
+          0,
+        );
 
         // No root API requests: same-origin /api traffic is also rejected.
         for (const url of requestUrls) {
           const parsed = new URL(url);
           expect(
-            (parsed.origin === BASE_URL && !parsed.pathname.startsWith("/api")) ||
+            (parsed.origin === BASE_URL &&
+              !parsed.pathname.startsWith("/api")) ||
               /^(data|blob|about):/.test(parsed.protocol),
             `unexpected request from root: ${url}`,
           ).toBe(true);
@@ -327,9 +343,9 @@ test.describe("preset b27M1Ev2 triangulation", () => {
     expect(componentsJson.iconLibrary).toBe("lucide");
     expect(componentsJson.menuColor).toBe("default");
     expect(componentsJson.menuAccent).toBe("subtle");
-    expect(
-      (componentsJson.aliases as Record<string, string>).ui,
-    ).toBe("@/components/ui");
+    expect((componentsJson.aliases as Record<string, string>).ui).toBe(
+      "@/components/ui",
+    );
 
     const tsconfig = JSON.parse(readFrontendFile("tsconfig.json"));
     expect(
@@ -351,9 +367,9 @@ test.describe("preset b27M1Ev2 triangulation", () => {
     const css = readFrontendFile("src/app/globals.css");
 
     // Violet theme: every --primary stop stays in the violet hue range.
-    const primaryHues = [...css.matchAll(/--primary:\s*oklch\(\s*[\d.]+\s+[\d.]+\s+([\d.]+)/g)].map(
-      (match) => Number.parseFloat(match[1]),
-    );
+    const primaryHues = [
+      ...css.matchAll(/--primary:\s*oklch\(\s*[\d.]+\s+[\d.]+\s+([\d.]+)/g),
+    ].map((match) => Number.parseFloat(match[1]));
     expect(primaryHues.length).toBeGreaterThanOrEqual(2);
     for (const hue of primaryHues) {
       expect(hue).toBeGreaterThan(280);
@@ -363,7 +379,9 @@ test.describe("preset b27M1Ev2 triangulation", () => {
     // Neutral chart tokens: zero chroma across all five stops per scheme block
     // (5 stops × :root + .dark + system-dark media block = 15 declarations).
     const chartStops = [
-      ...css.matchAll(/--chart-\d:\s*oklch\(\s*[\d.]+\s+([\d.]+)\s+[\d.]+\s*\)/g),
+      ...css.matchAll(
+        /--chart-\d:\s*oklch\(\s*[\d.]+\s+([\d.]+)\s+[\d.]+\s*\)/g,
+      ),
     ];
     expect(chartStops).toHaveLength(15);
     for (const stop of chartStops) {
@@ -385,7 +403,9 @@ test.describe("preset b27M1Ev2 triangulation", () => {
         /(?:text|bg|border|ring|outline|fill|stroke|shadow|decoration|accent|caret)-\[/,
       );
       expect(source, relativePath).not.toMatch(/rounded-\[/);
-      expect(source, relativePath).not.toMatch(/(?:from|import)\s+["']recharts/i);
+      expect(source, relativePath).not.toMatch(
+        /(?:from|import)\s+["']recharts/i,
+      );
       expect(source, relativePath).not.toMatch(
         /(?:DropdownMenu|Menubar|ContextMenu|NavigationMenu)/,
       );
@@ -398,9 +418,10 @@ test.describe("preset b27M1Ev2 triangulation", () => {
 
     const productPattern = /shell|brand|jobs|marketing|feature/i;
     for (const entry of readdirSync(uiDir, { recursive: true })) {
-      expect(String(entry), "product file inside src/components/ui").not.toMatch(
-        productPattern,
-      );
+      expect(
+        String(entry),
+        "product file inside src/components/ui",
+      ).not.toMatch(productPattern);
     }
   });
 });

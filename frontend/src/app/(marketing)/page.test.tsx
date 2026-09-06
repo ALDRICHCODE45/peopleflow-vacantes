@@ -7,12 +7,17 @@ import { join } from "node:path";
 
 import MarketingPage from "./page";
 
-const pageSource = readFileSync(join(process.cwd(), "src/app/(marketing)/page.tsx"), "utf8");
+const pageSource = readFileSync(
+  join(process.cwd(), "src/app/(marketing)/page.tsx"),
+  "utf8",
+);
 
 beforeAll(() => {
   vi.stubGlobal(
     "fetch",
-    vi.fn(() => Promise.reject(new Error("the minimal root must not call any API"))),
+    vi.fn(() =>
+      Promise.reject(new Error("the minimal root must not call any API")),
+    ),
   );
 });
 

@@ -6,10 +6,9 @@ import { join } from "node:path";
 const frontendRoot = process.cwd();
 
 function readJson(relativePath: string): Record<string, unknown> {
-  return JSON.parse(readFileSync(join(frontendRoot, relativePath), "utf8")) as Record<
-    string,
-    unknown
-  >;
+  return JSON.parse(
+    readFileSync(join(frontendRoot, relativePath), "utf8"),
+  ) as Record<string, unknown>;
 }
 
 describe("shadcn preset b27M1Ev2 identity invariants", () => {
@@ -17,9 +16,15 @@ describe("shadcn preset b27M1Ev2 identity invariants", () => {
     const componentsJson = readJson("components.json");
 
     expect(componentsJson.style).toBe("base-rhea"); // Rhea style, Base UI
-    expect((componentsJson.tailwind as Record<string, unknown>).baseColor).toBe("neutral"); // Neutral base
-    expect((componentsJson.tailwind as Record<string, unknown>).css).toBe("src/app/globals.css");
-    expect((componentsJson.tailwind as Record<string, unknown>).cssVariables).toBe(true);
+    expect((componentsJson.tailwind as Record<string, unknown>).baseColor).toBe(
+      "neutral",
+    ); // Neutral base
+    expect((componentsJson.tailwind as Record<string, unknown>).css).toBe(
+      "src/app/globals.css",
+    );
+    expect(
+      (componentsJson.tailwind as Record<string, unknown>).cssVariables,
+    ).toBe(true);
     expect(componentsJson.iconLibrary).toBe("lucide");
     expect(componentsJson.rsc).toBe(true);
     expect(componentsJson.menuColor).toBe("default");
@@ -32,10 +37,8 @@ describe("shadcn preset b27M1Ev2 identity invariants", () => {
 
   it("keeps the TypeScript alias mapped to the src directory", () => {
     const tsconfig = readJson("tsconfig.json");
-    const paths = (tsconfig.compilerOptions as Record<string, unknown>).paths as Record<
-      string,
-      string[]
-    >;
+    const paths = (tsconfig.compilerOptions as Record<string, unknown>)
+      .paths as Record<string, string[]>;
     expect(paths["@/*"]).toEqual(["./src/*"]);
   });
 
@@ -46,7 +49,10 @@ describe("shadcn preset b27M1Ev2 identity invariants", () => {
     const forbidden = /shell|brand|jobs|marketing|feature/i;
     const names = readdirSync(uiDir, { recursive: true }).map(String);
     for (const name of names) {
-      expect(forbidden.test(name), `${name} must not live under src/components/ui`).toBe(false);
+      expect(
+        forbidden.test(name),
+        `${name} must not live under src/components/ui`,
+      ).toBe(false);
     }
   });
 
@@ -68,7 +74,9 @@ describe("shadcn preset b27M1Ev2 identity invariants", () => {
     };
     expect(deps["lucide-react"]).toEqual(expect.any(String));
     const competingIconPackages = Object.keys(deps).filter((name) =>
-      /@icons|iconify|heroicons|tabler|phosphor|feather-icons|react-icons/.test(name),
+      /@icons|iconify|heroicons|tabler|phosphor|feather-icons|react-icons/.test(
+        name,
+      ),
     );
     expect(competingIconPackages).toEqual([]);
   });
