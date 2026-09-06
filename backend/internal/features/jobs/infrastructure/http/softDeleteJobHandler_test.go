@@ -480,12 +480,12 @@ var (
 
 // softDeleteJobAssertCatalogEnvelope checks that rec carries the catalog code field.
 func softDeleteJobAssertCatalogEnvelope(t *testing.T, rec *httptest.ResponseRecorder, wantCode httpjson.Code) {
-t.Helper()
-var env httpjson.ErrorEnvelope
-if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
-	t.Fatalf("body not JSON: %v", err)
-}
-if env.Code != wantCode {
-	t.Errorf("code: want %q, got %q", wantCode, env.Code)
-}
+	t.Helper()
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("body not JSON: %v", err)
+	}
+	if env.Code != wantCode {
+		t.Errorf("code: want %q, got %q", wantCode, env.Code)
+	}
 }

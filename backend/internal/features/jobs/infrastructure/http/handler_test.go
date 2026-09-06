@@ -155,6 +155,7 @@ func makeJob(id uuid.UUID, withLocation bool, withSalary bool) entities.Job {
 func timePtr(t time.Time) *time.Time { return &t }
 func strPtr(s string) *string        { return &s }
 func intPtr(i int) *int              { return &i }
+
 var _ = strPtr // silence unused — present for future refactors
 var _ = intPtr // silence unused — present for future refactors
 
