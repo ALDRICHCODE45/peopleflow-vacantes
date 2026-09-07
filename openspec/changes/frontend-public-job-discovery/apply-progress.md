@@ -959,3 +959,85 @@ Task 3.2 is closed: the implementation landed on `feat/frontend-foundation` thro
 - Rollback boundary: `git revert 45d1d2e` (plus the landed Task 3.2 sub-unit commits back to `c196f37` for the full Task 3.2 implementation) removes only this contract/data candidate; this closure adds no behavior to roll back beyond reverting the checkbox flip and truncating this section.
 - Task state: 7 checked / 15 unchecked (7/22 complete). Remaining: tasks 3.3, 3.4, 4.1–4.4, 5.1–5.4, 6.1–6.4, 7.1. Explicit no-push state: nothing staged, nothing committed, nothing pushed, no PR created by this work unit.
 - `.pi` preflight-file chronology (gatekeeper-corrected; exact observations only, no causality assigned): the parent proved a clean pre-phase worktree baseline with `.pi/` absent immediately before this SDD phase; after the phase, `.pi/gentle-ai/sdd-preflight.json` was observed present — 174 bytes, mtime `2026-09-06 20:43:07 -0600`, SHA-256 `43098a2b3589126267373d8c8a4336e0eb2456f3f6ceb80ac5f75cdff988c813` (read-only re-confirmed during this correction rerun, matching the parent's post-phase inspection exactly). The file is untracked (`?? .pi/`), excluded from the OpenSpec candidate, and no claim is made here about which process wrote it or about `.pi` state across the whole process lifetime. The previously appended wording that the untracked `.pi/gentle-ai/sdd-preflight.json` "predates this unit" is retracted as unsupported by the observed chronology. Cleanup requires fresh user authorization: the prior cleanup authorization was already consumed, so this correction deleted and modified no `.pi` byte.
+
+## Work unit `task-3.3-triangulate` — failure classification and URL invariants proven (Task 3.3 remains `[ ]`)
+
+Scope honored exactly: two modified focused test files (`frontend/src/features/jobs/jobId.test.ts` 47+/0−, `frontend/src/lib/api/transport.test.ts` 16+/0−), one new focused test file (`frontend/src/features/jobs/requestPath.test.ts`, 48 lines), and this append-only progress section. No production, config, package, lockfile, task, backend, or `.pi` byte changed; nothing staged, committed, pushed, or opened as a PR.
+
+### Existing-proof audit and gaps closed
+
+- Already proven by committed tests: timeout, network, 429, 5xx, unexpected 4xx (incl. bare list 404 and 400 under `notFoundStatus`), invalid JSON, decoder/schema rejection with leak checks, malformed-UUID short-circuit (direct + `fetchQuery`, fetch never called), omitted optionals, six-filter forwarding in one canonical request (AND semantics), `isCanonicalJobsQuery` redirect comparison, exact `MXN|USD` (schemas + formatters + URL `USD`), cursor byte-for-byte transport (`a+b%26c%3Dd` round trip), and filter cursor reset for all six filters.
+- Gaps closed by this unit: (1) detail 404 classified through the real `getJob` query function (previously only at the raw transport layer); (2) a global production request-path audit proving `requestJson.ts` is the only `fetch(` call site, the transport module is imported only by `getJob.ts`/`listJobs.ts`/the guarded façade, and no `route.ts` proxy or Zustand store exists; (3) an explicit no-logging assertion across failure classifications.
+
+### Checklist mapping (item → proving test)
+
+| Item | Test |
+| --- | --- |
+| timeout | `transport.test.ts` aborted request → retryable `timeout` |
+| network | `transport.test.ts` `fetch failed` → retryable `network` |
+| 429 / 5xx / unexpected 4xx | `transport.test.ts` (429, 503, 400, bare 404; 400 under `notFoundStatus`), `listJobs.test.ts` (404/503) |
+| invalid JSON / schema rejection | `transport.test.ts` (`invalid_response`, leak-free), `listJobs.test.ts` invalid payload rejected, leak-free |
+| detail 404 | NEW `jobId.test.ts` valid-UUID `getJob` 404 → exactly `{kind:"not_found",retryable:false,status:404}` at `http://127.0.0.1:8080/jobs/<uuid>`, plus 200 decode through `jobItemSchema` |
+| malformed UUID short-circuit | `jobId.test.ts` (direct + `fetchQuery`; fetch never called) |
+| omitted optionals | `schemas.test.ts` |
+| AND forwarding | `listJobs.test.ts` all six filters + cursor forwarded in one canonical `GET /jobs` request |
+| canonical redirect comparison | `url.test.ts` `isCanonicalJobsQuery` true/false matrix |
+| exact currency | `schemas.test.ts` (MXN/USD exact, EUR/mxn rejected), `formatters.test.ts` (`MXN 25,000 – MXN 40,000`, `USD 3,000`), `url.test.ts` exact uppercase `USD` |
+| cursor byte-for-byte transport | `url.test.ts` (`a b+c=d%e/f~gñ` decode-identical round trip), `listJobs.test.ts` (`a+b%26c%3Dd`) |
+| filter cursor reset | `url.test.ts` add/change/clear loop over all six filters |
+| only request path over guarded `requestJson` | NEW `requestPath.test.ts` (single `fetch(` site, façade-only importers, no `route.ts`, no Zustand) + per-file source-inspection tests |
+| safe-log assertions | inspected existing leak-free assertions; NEW `transport.test.ts` console-silent assertion across network/status/decoder failures |
+
+### TDD Cycle Evidence
+
+| Stage | Evidence |
+| --- | --- |
+| RED | N/A for production — test-only triangulation over already-correct committed behavior; no production RED was manufactured. Two intermediate failures were test-side corrections, not production defects: the new `getJob` test needed the same `lib/env/server` Vitest substitution `listJobs.test.ts` already uses (lazy env import resolves `server-only` under jsdom), and the request-path audit expectations were refined from identifier matches to import-statement matches (the façade and query functions legitimately mention the `requestJson` identifier). |
+| GREEN | First full run after corrections: `cd frontend && COREPACK_ENABLE_NETWORK=0 corepack pnpm@10.34.5 exec vitest run src/features src/lib` → exit 0, 9 files / 47 tests passed. |
+| TRIANGULATE | Literal configured form `cd frontend && COREPACK_ENABLE_NETWORK=0 corepack pnpm@10.34.5 test -- --run src/features src/lib` → exit 0, 15 files / 76 tests passed (full suite including task 2.x evidence suites). |
+| REFACTOR | No-op — additions are minimal focused characterization tests; focused `eslint` on all three touched files → 0 errors/0 warnings; `tsc --noEmit` → exit 0, no diagnostics. |
+
+### Runtime, hygiene, and accounting
+
+- Runtime/browser: N/A — no route composition exists yet (Tasks 4.x/5.x); all proof is at the unit/data-boundary layer as contracted for 3.3.
+- Toolchain: every command from `frontend/` with Node `v22.22.1` (nvm binary prepended to PATH) and explicit Corepack `pnpm@10.34.5`, `COREPACK_ENABLE_NETWORK=0`; no install, no download, no `pnpm dlx`/`npx`.
+- Hygiene: `git status --untracked-files=all` → exactly the three touched test files + untracked `.pi/gentle-ai/sdd-preflight.json` (SHA-256 `43098a2b3589126267373d8c8a4336e0eb2456f3f6ceb80ac5f75cdff988c813`, mtime `2026-09-06 21:07:21 -0600`, 174 bytes, read-only inspected, untouched; cleanup requires fresh user authorization); `git diff --check` exit 0; index empty; no stale `next-server`/`vitest` processes.
+- Budget: 47 + 16 + 48 = 111 authored test lines (0 deletions) + this appended section ≈ 40 lines = 160 changed lines (111 test + 49 progress), inside the hard 400-line budget.
+- Task 3.3 checkbox remains `- [ ]` per instruction: it closes only when the implementation commit lands, and no commit is authorized in this unit. Tasks 3.4+ untouched.
+
+### Rollback boundary
+
+`git checkout -- frontend/src/features/jobs/jobId.test.ts frontend/src/lib/api/transport.test.ts`, delete `frontend/src/features/jobs/requestPath.test.ts`, and truncate this progress file to its pre-append 961-line prefix (SHA-256 `f2e358681ff5f2492a2dd26623b29d4962ed9d89fdfce6824e232ff2f43ce4cd`). No other byte is touched; the focused suite returns to its committed 42-test state.
+
+## Work unit `task-3.3-triangulate` — corrective rerun: formatting-drift re-verification (supersedes stale exact line/accounting claims in the section above only)
+
+Gatekeeper finding: after the first Task 3.3 phase result was recorded, a post-run repository formatter reformatted the candidate files. This section re-verifies the exact current on-disk bytes and supersedes only the stale exact line counts and budget arithmetic in the `task-3.3-triangulate` section above; the test→checklist mapping, TDD-stage semantics, hygiene invariants, and rollback boundary recorded there remain in force. All prior text above is preserved byte-for-byte.
+
+### Reformatted candidate re-read (current bytes, this rerun)
+
+| File | First-run claim | Current state |
+| --- | --- | --- |
+| `frontend/src/features/jobs/jobId.test.ts` | 47+/0− | 47+/0− (unchanged, 129 lines) |
+| `frontend/src/lib/api/transport.test.ts` | 16+/0− | 94+/19− (153 lines; formatter re-wrap only) |
+| `frontend/src/features/jobs/requestPath.test.ts` | 48 lines, new | 53 physical lines, new (wrap/trailing-blank drift) |
+| `apply-progress.md` (first Task 3.3 section) | ≈40 lines | 49+/0− |
+
+Baseline invariants unchanged: HEAD `18568211533a2eb93ed6b4ef720f1c9ab0acd69a`, index empty, `git diff --check` clean, `.pi/gentle-ai/sdd-preflight.json` untouched (174 bytes, SHA-256 `43098a2b3589126267373d8c8a4336e0eb2456f3f6ceb80ac5f75cdff988c813`, mtime `2026-09-06 21:07:21 -0600`; still excluded, cleanup awaits fresh user authorization).
+
+### Behavioral neutrality of the drift
+
+- Re-read of all three test files confirms an identical describe/it inventory and assertion set versus the first-run report (`jobId.test.ts` 6 tests / 4 describes, `transport.test.ts` 7 tests / 1 describe, `requestPath.test.ts` 3 tests / 1 describe). The deltas are pure formatter re-wrapping. No test or production code was edited in this rerun.
+- Gates re-run on the current bytes, from `frontend/`, Node `v22.22.1`, `COREPACK_ENABLE_NETWORK=0`, Corepack `pnpm@10.34.5`; no install/download/`pnpm dlx`/`npx`:
+  - `corepack pnpm@10.34.5 exec vitest run src/features src/lib` → exit 0, 9 files / 47 tests passed (1.08s).
+  - `corepack pnpm@10.34.5 test -- --run src/features src/lib` → exit 0, 15 files / 76 tests passed (1.65s).
+  - Focused `eslint` on the three touched test files → exit 0, 0 errors / 0 warnings.
+  - `tsc --noEmit` → exit 0, no diagnostics.
+- LSP primary diagnostics on all three test files: 0. Verdict: the formatting drift is behavior-neutral; no test or production semantics regressed, so no semantic correction was needed.
+- Hygiene after rerun: no stale `next-server`/`vitest` processes; nothing staged, committed, or pushed.
+
+### Corrected changed-line accounting (supersedes the 160-line figure)
+
+- Pre-append changed lines excluding `.pi/**`: 47 + (94+19) + 53 (untracked) + 49 (first Task 3.3 progress section) = 262.
+- This appendix contributes 33 diff lines (as authored, then lightly adjusted by the repository markdownlint autofix), giving `apply-progress.md` a final 82+/0− diff. Corrected final total excluding `.pi/**`: 47 + 113 + 53 + 82 = **295 changed lines** (111 test-side authored lines preserved from the first unit, 151 reformat-accounting lines now counted, 33 corrective progress lines), inside the hard 400-line budget.
+- Task 3.3 checkbox remains `- [ ]`: it closes only when the implementation commit lands, and no commit is authorized. Tasks 3.4+ untouched.
+- Rollback boundary unchanged (same three test files plus progress-file truncation to the pre-Task-3.3 961-line prefix, SHA-256 `f2e358681ff5f2492a2dd26623b29d4962ed9d89fdfce6824e232ff2f43ce4cd`); this appendix truncates with the same operation.

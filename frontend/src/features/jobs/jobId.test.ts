@@ -11,10 +11,39 @@ vi.mock("../../lib/api/server", async () => {
   return { requestJson: transport.requestJson };
 });
 
+vi.mock("../../lib/env/server", () => ({
+  serverEnv: {
+    apiBaseUrl: "http://127.0.0.1:8080",
+    siteUrl: "http://127.0.0.1:3000",
+    apiTimeoutMs: 8000,
+  },
+}));
+
 import { getJob, getJobQueryOptions } from "./api/getJob";
 import { isValidJobId } from "./jobId";
+import { jobItemSchema } from "./schemas";
 
 const UUID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
+
+const validDetail = {
+  id: UUID,
+  title: "Ingeniera Frontend",
+  description: "Construye la experiencia de vacantes.",
+  work_mode: "remote",
+  employment_type: "full_time",
+  seniority: "senior",
+  salary_currency: "MXN",
+  company: { id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f", name: "Acme" },
+};
+const ok = (status: number, body?: unknown) => ({
+  ok: status < 300,
+  status,
+  json: async () => {
+    if (body !== undefined) return body;
+    throw new SyntaxError("Unexpected token 'N', is not valid JSON");
+  },
+});
+
 const MALFORMED = [
   "",
   "123",
@@ -54,6 +83,24 @@ describe("server-only transport boundary", () => {
     );
     expect(source).toMatch(/lib\/api\/server"/);
     expect(source).not.toMatch(/lib\/api\/requestJson/);
+  });
+});
+
+describe("detail query function failure classification", () => {
+  it("maps a backend 404 for a valid UUID to exactly not_found and decodes valid payloads", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(404)));
+    await expect(getJob(UUID)).resolves.toEqual({
+      ok: false,
+      error: { kind: "not_found", retryable: false, status: 404 },
+    });
+    const fetchMock = vi.fn().mockResolvedValue(ok(200, validDetail));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(getJob(UUID)).resolves.toEqual({
+      ok: true,
+      data: jobItemSchema.parse(validDetail),
+    });
+    const [calledUrl] = fetchMock.mock.calls[0] as [string];
+    expect(calledUrl).toBe(`http://127.0.0.1:8080/jobs/${UUID}`);
   });
 });
 
