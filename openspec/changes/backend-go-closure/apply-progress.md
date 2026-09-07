@@ -1137,3 +1137,35 @@ Artifact-only reconciliation unit: no code, no behavior, no RED cycle. This entr
 
 - Single edited file: `openspec/changes/backend-go-closure/apply-progress.md` (append-only). No `tasks.md` edits, no code edits, no verify-report, no staging/commit/push, no frontend or unrelated inspection, no next behavioral slice started.
 - Scope evidence: the candidate is append-only relative to the committed 154,101-byte prefix; all unit changes are additions at the end of `apply-progress.md` with no in-place edits to protected content, and no full-file digest claim is recorded here — the fresh independent verifier and native settlement own the final candidate digest. Numstat for the whole unit: 37 additions / 0 deletions (≤ 80-line native objective, ≤ 400-line review budget). Excluded harness state: `.pi/gentle-ai/sdd-preflight.json` is generated state from the new SDD harness, explicitly excluded from the native candidate per the user's classification (recorded in Engram observation 5402) — it is not product code and not candidate drift, and the prior evidence revision's classification of it as such was the sole cause of that revision's verifier failure.
+
+## WS6C-2a — Candidate `ws6c-2a-catalog-code-classification-propagation` (Task 6.3 bounded slice, strict TDD)
+
+Scope: safe post-normalization catalog-code propagation into the single request completion record. Randomized unknown-route evidence deferred to GREEN triangulation (code already collapses absent route patterns to `unmatched`). Four Task 6.3 boxes remain unchecked (intentional; this is one candidate unit). Attempt accounting: generation 104 was maintainer-reset solely on 243 > 240 line accounting (its 240-line cap omitted the OpenSpec evidence lines); generation 105 carries 400-line authority for this artifact-only reconciliation.
+
+### TDD Cycle Evidence
+
+| Phase | Test(s) | Command | Result |
+| --- | --- | --- | --- |
+| RED | `TestRequestObservability_PropagatesCatalogCodeClass` (new), `TestRequestObservability_PropagatesCatalogCodeClass_Triangulation` (new, written with the RED batch) | `cd backend && go test ./internal/runtime/middleware/ -run 'TestRequestObservability_PropagatesCatalogCodeClass' -count=1` | FAIL (authentic, behavioral): `code_class = "4xx", want canonical catalog code "not_found"`; triangulation subtests failed with `"5xx"` vs `"internal_error"` and `"4xx"` vs `"conflict"`. The ordinary-2xx subtest already passed (success classification untouched). Response status (404), envelope code, routing, and metric-count sanity held — failure was observability-only. |
+| GREEN | same tests | `cd backend && go test ./internal/runtime/middleware/ -count=1 -run 'TestRequestObservability_PropagatesCatalogCodeClass'` | PASS (2 tests + 3 subtests) |
+| TRIANGULATE | `TestRequestObservability_PropagatesCatalogCodeClass_Triangulation` | same focused command | PASS: unknown code `no_such_code`/418 normalizes to `internal_error`/500 BEFORE propagation; `WriteCatalogErrorData` propagates normalized `conflict` with data; ordinary non-catalog 2xx keeps bounded `2xx`. |
+| REFACTOR/verify | full suite | `cd backend && go test ./... -count=1` | exit 0 (all packages ok); scoped `gofmt -l` (3 changed files): clean; scoped `go vet ./internal/runtime/middleware/ ./internal/shared/httpjson/`: clean |
+
+### Files changed (numstat: 243 changed lines all-file total — 222 Go code/test lines + 21 OpenSpec evidence lines; budget 400, maintainer-authorized)
+
+- `backend/internal/runtime/middleware/request_test.go` (+167): RED + triangulation tests, `completionRecords` helper.
+- `backend/internal/runtime/middleware/request.go` (+31/−4): `observabilityResponseWriter` wrapping chi's `WrapResponseWriter` with the optional catalog-code capability; completion `code_class` uses the propagated normalized catalog code, falling back to `codeClass(status)` for non-catalog responses.
+- `backend/internal/shared/httpjson/errors.go` (+20): exported `CatalogCodeRecorder` optional interface (`RecordCatalogCode(code string)`); `WriteCatalogError`/`WriteCatalogErrorData` call `recordCatalogCode` only after `normalizeDefinition`, so only the canonical closed-set code is exposed — never definitions, messages, data, or raw errors.
+
+Design notes: structural interface matching keeps `httpjson` and `middleware` free of new imports/dependencies; metric contract (`ObserveRequest` signature and bounded route/status labels) unchanged; no `cmd/api`, lifecycle, DB/readiness, CORS/limiter, or exporter work touched.
+
+### WS6C-2a remediation (generation 105, attempt 2): `http.ResponseWriter` capability preservation
+
+| Phase | Test(s) | Command | Result |
+| --- | --- | --- | --- |
+| RED | `TestRequestObservability_PreservesChiResponseWriterCapabilities` (new, only this test run pre-fix) | `cd backend && go test ./internal/runtime/middleware/ -run 'TestRequestObservability_PreservesChiResponseWriterCapabilities' -count=1` | FAIL (authentic, behavioral): HTTP/1 matrix `{flusher:false hijacker:false readerFrom:false pusher:false}` vs chi baseline `{true,true,true,false}`; HTTP/2 all-false vs `{true,false,false,true}` — matching the verifier probe. Existing catalog tests were already green and were not relabeled. |
+| GREEN | same test | same focused command, post-fix | PASS (2 subtests): variant wrappers over the core (`obsFlush`/`obsFlushPush`/`obsFlushHijack`/`obsFlushHijackReadFrom`/`obsHijack`) mirror chi's own interface-presence gating, preserving Flusher/Hijacker/ReaderFrom (HTTP/1) and Flusher/Pusher (HTTP/2) without reflection, global state, or new dependencies. |
+| TRIANGULATE | full middleware package incl. catalog propagation (httptest recorder = flush-only combo proves `RecordCatalogCode` still surfaces) | `cd backend && go test ./internal/runtime/middleware/ ./internal/shared/httpjson/ -count=1` | PASS: both protocol matrices match chi's concrete wrapper exactly; protocol-inappropriate capabilities not newly exposed; propagation/count contracts unchanged. |
+| REFACTOR | `cd backend && go test ./... -count=1` | exit 0; scoped `gofmt -l` clean; scoped `go vet` clean |
+
+Final all-file numstat (399 changed lines, budget 400): request_test.go +255, request.go +88/−4, errors.go +20, apply-progress.md +32. Protected paths byte-identical: tasks.md 80/100 (all four Task 6.3 boxes unchecked); verify-report.md absent. This unit does not claim independent verification or native settlement.

@@ -87,15 +87,35 @@ func ListCodes() []Code {
 	}
 }
 
+// CatalogCodeRecorder is an optional http.ResponseWriter capability used by
+// request-observability middleware to capture the canonical catalog code of
+// the last normalized catalog error written. It carries only the closed,
+// bounded V1 code string — never definitions, messages, data, raw errors, or
+// any other response detail. Ordinary writers without this capability are
+// unaffected.
+type CatalogCodeRecorder interface {
+	RecordCatalogCode(code string)
+}
+
+// recordCatalogCode propagates the already-normalized code to the optional
+// capability, if present.
+func recordCatalogCode(w http.ResponseWriter, code Code) {
+	if rec, ok := w.(CatalogCodeRecorder); ok {
+		rec.RecordCatalogCode(string(code))
+	}
+}
+
 // WriteCatalogError writes a normalized catalog error without data.
 func WriteCatalogError(w http.ResponseWriter, def Definition) {
 	def = normalizeDefinition(def)
+	recordCatalogCode(w, def.Code)
 	WriteJSON(w, def.Status, ErrorEnvelope{Error: def.Message, Code: def.Code})
 }
 
 // WriteCatalogErrorData writes a normalized catalog error with safe conflict data.
 func WriteCatalogErrorData(w http.ResponseWriter, def Definition, data any) {
 	def = normalizeDefinition(def)
+	recordCatalogCode(w, def.Code)
 	if def.Code != CodeConflict {
 		data = nil
 	}
