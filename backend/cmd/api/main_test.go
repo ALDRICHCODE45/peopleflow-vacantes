@@ -27,16 +27,25 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"go/types"
+	"io/fs"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
+
+	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
 )
 
 // findFuncDecl returns the top-level function declaration named `name` in f (nil when absent).
@@ -1374,4 +1383,335 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 	}
 
 	t.Logf("parsed %s: all %d chi registrations match the pinned topology exactly", routerFile, len(got))
+}
+
+// TestStartupLog_EffectiveNonSecretConfig is the behavioral RED/GREEN test for
+// the Task 6.3 startup event (ws6c-3a): the helper must emit EXACTLY ONE
+// structured JSON record whose key set is the explicit non-secret allowlist —
+// addr, every effective server/readiness/drain timeout (canonical
+// time.Duration.String()), and the numeric JSON request-body cap — plus only
+// the standard slog keys (time/level/msg). event and action are stable semantic
+// keys. Durations are exact strings; the byte limit is a number. No environment
+// map, DSN, JWT/JWKS/PEM/token material, credential, error, or env key/value may
+// appear.
+func TestStartupLog_EffectiveNonSecretConfig(t *testing.T) {
+	cfg := runtimeconfig.ServerConfig{
+		Addr:              ":9099",
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       2 * time.Minute,
+		ReadinessTimeout:  2 * time.Second,
+		DrainTimeout:      10 * time.Second,
+	}
+	var buf bytes.Buffer
+	logStartupConfig(slog.New(slog.NewJSONHandler(&buf, nil)), cfg, 1_048_576)
+
+	lines := strings.Split(strings.TrimRight(buf.String(), "\n"), "\n")
+	if len(lines) != 1 || lines[0] == "" {
+		t.Fatalf("startup helper must emit EXACTLY ONE JSON record; got %d line(s): %q", len(lines), buf.String())
+	}
+	var rec map[string]any
+	if err := json.Unmarshal([]byte(lines[0]), &rec); err != nil {
+		t.Fatalf("startup record is not valid JSON: %v\nline: %s", err, lines[0])
+	}
+	want := map[string]any{
+		"level":               "INFO",
+		"msg":                 "startup",
+		"event":               "startup",
+		"action":              "startup_config",
+		"addr":                ":9099",
+		"read_header_timeout": "5s",
+		"read_timeout":        "10s",
+		"write_timeout":       "30s",
+		"idle_timeout":        "2m0s",
+		"readiness_timeout":   "2s",
+		"drain_timeout":       "10s",
+		"max_json_body_bytes": float64(1_048_576),
+	}
+	if _, ok := rec["time"]; !ok {
+		t.Errorf("standard slog key time missing from startup record: %s", lines[0])
+	}
+	delete(rec, "time")
+	if !reflect.DeepEqual(rec, want) {
+		t.Fatalf("startup record key set or values drifted (exact non-secret allowlist enforced);\n got: %v\nwant: %v", rec, want)
+	}
+
+	t.Run("no forbidden key or value fragments", func(t *testing.T) {
+		low := strings.ToLower(buf.String())
+		for _, frag := range []string{"database", "dsn", "jwt", "jwks", "pem", "secret", "token", "credential", "password", "error", "env"} {
+			if strings.Contains(low, frag) {
+				t.Errorf("startup record contains forbidden fragment %q: %s", frag, buf.String())
+			}
+		}
+	})
+}
+
+// TestBodyLimitBinding_Guarded pins the 1 MiB JSON request-body cap that the
+// startup event reports to the values actually enforced at decode time. The
+// limit is NOT centralized: the JSON-accepting feature handlers each compile
+// their own identical maxJSONBodyBytes constant, and main.go compiles
+// startupMaxJSONBodyBytes for the startup record; renaming or changing ANY
+// copy without the others fails here, keeping the startup value truthful.
+// Generation-110 correction (verifier blocker sha256:172d8636…0a4): beyond
+// the declaration pins — which could not prove the reported 1 MiB value
+// reaches decode time and omitted the companies member handler (a borrower
+// of the companies constant, not a declarer) — a bounded AST census over ALL
+// production feature .go files pins every production httpjson.DecodeJSON
+// call: exactly the five census files, two calls per file, ten total, exactly
+// four arguments, fourth argument the BARE identifier maxJSONBodyBytes.
+// Generation-111 correction (sha256:e090cf62…1bd): parser object ownership
+// binds both identifiers: local maxJSONBodyBytes shadows fail, and a local
+// httpjson receiver is rejected rather than counted as the imported package.
+func TestBodyLimitBinding_Guarded(t *testing.T) {
+	const want = int64(1_048_576)
+	cf := mustParse(t, compositionFile)
+	if got, ok := intConstValue(cf, "startupMaxJSONBodyBytes"); !ok || got != want {
+		t.Fatalf("composition root must pin startupMaxJSONBodyBytes to %d (the enforced 1 MiB cap the startup event reports); got %d, present=%v", want, got, ok)
+	}
+	calls := censusFeatureDecodeJSON(t, "../../internal/features")
+	var extra []string
+	for p := range calls {
+		if !slices.Contains(decodeJSONCensusFiles, p) {
+			extra = append(extra, p)
+		}
+	}
+	if len(extra) > 0 {
+		sort.Strings(extra)
+		t.Fatalf("every production feature httpjson.DecodeJSON call must live in the pinned census files; production feature file(s) omitted from the census contain call(s): %v", extra)
+	}
+	for _, p := range decodeJSONCensusFiles {
+		if lines := calls[p]; len(lines) != decodeJSONCallsPerFile {
+			t.Fatalf("%s must contain EXACTLY %d httpjson.DecodeJSON call(s) (full production census is %d); got %d at lines %v", p, decodeJSONCallsPerFile, decodeJSONCallsTotal, len(lines), lines)
+		}
+	}
+	total := 0
+	for _, lines := range calls {
+		total += len(lines)
+	}
+	if total != decodeJSONCallsTotal {
+		t.Fatalf("production feature httpjson.DecodeJSON census must count EXACTLY %d calls across the %d pinned files; got %d", decodeJSONCallsTotal, len(decodeJSONCensusFiles), total)
+	}
+	for _, p := range decodeJSONDeclaringFiles {
+		f := mustParse(t, p)
+		if got, ok := intConstValue(f, "maxJSONBodyBytes"); !ok || got != want {
+			t.Fatalf("guarded feature body limit drifted: %s must keep maxJSONBodyBytes == %d to match the startup-reported cap; got %d, present=%v", p, want, got, ok)
+		}
+	}
+	mf := mustParse(t, decodeJSONBorrowerFile)
+	if _, ok := intConstValue(mf, "maxJSONBodyBytes"); ok {
+		t.Fatalf("%s must BORROW the companies package maxJSONBodyBytes constant (the enforced 1 MiB cap) instead of declaring a second copy; found its own declaration", decodeJSONBorrowerFile)
+	}
+	t.Logf("guarded binding: startupMaxJSONBodyBytes in %s and maxJSONBodyBytes in %d declaring files all equal %d; census: EXACTLY %d production httpjson.DecodeJSON calls, %d per file across %d pinned files (incl. borrower %s), four args each, fourth argument bare maxJSONBodyBytes", compositionFile, len(decodeJSONDeclaringFiles), want, decodeJSONCallsTotal, decodeJSONCallsPerFile, len(decodeJSONCensusFiles), decodeJSONBorrowerFile)
+}
+
+// decodeJSONCensusFiles are the ONLY production feature files allowed to carry
+// httpjson.DecodeJSON calls (two per file).
+var decodeJSONCensusFiles = []string{
+	"../../internal/features/applications/infrastructure/http/applicationHandler.go",
+	"../../internal/features/candidates/infrastructure/http/handler.go",
+	"../../internal/features/companies/infrastructure/http/handler.go",
+	"../../internal/features/companies/infrastructure/http/memberHandler.go",
+	"../../internal/features/jobs/infrastructure/http/jobHandler.go",
+}
+
+// decodeJSONDeclaringFiles own a package-level maxJSONBodyBytes constant.
+var decodeJSONDeclaringFiles = []string{
+	"../../internal/features/applications/infrastructure/http/applicationHandler.go",
+	"../../internal/features/candidates/infrastructure/http/handler.go",
+	"../../internal/features/companies/infrastructure/http/handler.go",
+	"../../internal/features/jobs/infrastructure/http/jobHandler.go",
+}
+
+// decodeJSONBorrowerFile borrows the companies constant and declares no copy
+// of its own; that absence is pinned, not assumed.
+const decodeJSONBorrowerFile = "../../internal/features/companies/infrastructure/http/memberHandler.go"
+
+const (
+	decodeJSONCallsPerFile = 2
+	decodeJSONCallsTotal   = 10
+)
+
+// httpjsonImportPath is the shared decode helper the census resolves per file.
+const httpjsonImportPath = "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
+
+// censusFeatureDecodeJSON walks the production feature .go files under
+// featuresRoot (excluding _test.go), resolves each file's httpjson import, and
+// returns counted calls as file → call lines. A count requires the resolved
+// import receiver with id.Obj == nil; a local same-named receiver fails. Arg 4
+// must be bare maxJSONBodyBytes and bind to this file's package const, or be
+// unresolved (Obj == nil) in borrower files; a local shadow fails.
+func censusFeatureDecodeJSON(t *testing.T, featuresRoot string) map[string][]int {
+	t.Helper()
+	calls := make(map[string][]int)
+	if werr := filepath.WalkDir(featuresRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		fset := token.NewFileSet()
+		f, perr := parser.ParseFile(fset, path, nil, 0)
+		if perr != nil {
+			t.Fatalf("cannot parse production feature file %s: %v", path, perr)
+		}
+		localName, dotImported := resolveHTTPJSONImport(f)
+		if dotImported {
+			t.Fatalf("%s dot-imports the shared httpjson package; the decode census cannot resolve it", path)
+		}
+		if localName == "" {
+			return nil // no httpjson import: cannot contribute a resolved call
+		}
+		var pkgLimit *ast.Object
+		if f.Scope != nil {
+			pkgLimit = f.Scope.Objects["maxJSONBodyBytes"]
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			call, isCall := n.(*ast.CallExpr)
+			if !isCall {
+				return true
+			}
+			sel, isSel := call.Fun.(*ast.SelectorExpr)
+			if !isSel || sel.Sel.Name != "DecodeJSON" {
+				return true
+			}
+			id, isId := sel.X.(*ast.Ident)
+			if !isId || id.Name != localName {
+				return true // receiver is not the resolved httpjson package
+			}
+			line := fset.Position(call.Pos()).Line
+			if id.Obj != nil {
+				t.Fatalf("receiver of the DecodeJSON call in %s (line %d) resolves to a function-local %q, not the imported shared httpjson package; the census rejects it instead of counting it", path, line, localName)
+			}
+			if len(call.Args) != 4 {
+				t.Fatalf("httpjson.DecodeJSON call in %s (line %d) must take EXACTLY FOUR arguments; got %d", path, line, len(call.Args))
+			}
+			if arg4, isId := call.Args[3].(*ast.Ident); !isId || arg4.Name != "maxJSONBodyBytes" {
+				t.Fatalf("fourth argument of the httpjson.DecodeJSON call in %s (line %d) must be the BARE package constant identifier maxJSONBodyBytes (the enforced 1 MiB cap); got %s", path, line, types.ExprString(call.Args[3]))
+			} else if pkgLimit == nil {
+				if arg4.Obj != nil {
+					t.Fatalf("fourth argument of the httpjson.DecodeJSON call in %s (line %d) must remain unresolved in this file (the maxJSONBodyBytes const lives in a sibling file of the same package); got a function-local shadow owning its own object", path, line)
+				}
+			} else if arg4.Obj != pkgLimit {
+				t.Fatalf("fourth argument of the httpjson.DecodeJSON call in %s (line %d) must bind to this file's package-level maxJSONBodyBytes const object; got a different object (function-local shadow)", path, line)
+			}
+			calls[path] = append(calls[path], line)
+			return true
+		})
+		return nil
+	}); werr != nil {
+		t.Fatalf("cannot walk production feature tree %s: %v", featuresRoot, werr)
+	}
+	return calls
+}
+
+// resolveHTTPJSONImport resolves the local identifier bound to the shared
+// httpjson package in f ("httpjson" unless aliased; empty when not imported)
+// and flags dot imports. Ownership of the resolved identifier is verified at
+// each use site via parser object resolution (id.Obj), not by a declaration
+// scan.
+func resolveHTTPJSONImport(f *ast.File) (localName string, dotImported bool) {
+	for _, imp := range f.Imports {
+		if path, uerr := strconv.Unquote(imp.Path.Value); uerr == nil && path == httpjsonImportPath {
+			if imp.Name != nil && imp.Name.Name == "." {
+				dotImported = true
+				continue
+			}
+			localName = "httpjson"
+			if imp.Name != nil {
+				localName = imp.Name.Name
+			}
+		}
+	}
+	return
+}
+
+// intConstValue finds the package-level constant `name` in f and returns its
+// parsed int64 value (underscore-separated literals normalized). ok=false when
+// the constant is absent or its literal is not a plain integer.
+func intConstValue(f *ast.File, name string) (int64, bool) {
+	for _, d := range f.Decls {
+		gd, isGen := d.(*ast.GenDecl)
+		if !isGen || gd.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gd.Specs {
+			vs, isVal := spec.(*ast.ValueSpec)
+			if !isVal {
+				continue
+			}
+			for i, id := range vs.Names {
+				if id.Name != name || i >= len(vs.Values) {
+					continue
+				}
+				bl, isLit := vs.Values[i].(*ast.BasicLit)
+				if !isLit || bl.Kind != token.INT {
+					continue
+				}
+				v, err := strconv.ParseInt(strings.ReplaceAll(bl.Value, "_", ""), 10, 64)
+				if err != nil {
+					continue
+				}
+				return v, true
+			}
+		}
+	}
+	return 0, false
+}
+
+// TestStartupWiring_SingleStartupRecord pins the composition contract for the
+// startup event: run() calls logStartupConfig EXACTLY ONCE (replacing — never
+// duplicating — the former addr-only slog.Info("listening", ...) record), and
+// the call sits after validated server construction (server.New) and before
+// server.Run. The "listening" literal must be gone from main.go entirely.
+func TestStartupWiring_SingleStartupRecord(t *testing.T) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, compositionFile, nil, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("cannot parse %s: %v", compositionFile, err)
+	}
+	runFn := findFuncDecl(f, "run")
+	if runFn == nil {
+		t.Fatalf("func run not found in %s", compositionFile)
+	}
+	var logCalls, logLine, newLine, runLine int
+	ast.Inspect(runFn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		if id, isId := call.Fun.(*ast.Ident); isId && id.Name == "logStartupConfig" {
+			logCalls++
+			logLine = fset.Position(call.Pos()).Line
+		}
+		if sel, isSel := call.Fun.(*ast.SelectorExpr); isSel {
+			if id, isId := sel.X.(*ast.Ident); isId {
+				switch {
+				case id.Name == "server" && sel.Sel.Name == "New":
+					newLine = fset.Position(call.Pos()).Line
+				case id.Name == "server" && sel.Sel.Name == "Run":
+					runLine = fset.Position(call.Pos()).Line
+				}
+			}
+		}
+		return true
+	})
+	if logCalls != 1 {
+		t.Fatalf("run() must call logStartupConfig EXACTLY once (zero calls leaves no startup record; more duplicates it); got %d", logCalls)
+	}
+	if newLine == 0 || runLine == 0 || !(newLine < logLine && logLine < runLine) {
+		t.Fatalf("the single logStartupConfig call (line %d) must sit after validated server construction server.New (line %d) and before server.Run (line %d)", logLine, newLine, runLine)
+	}
+	listening := 0
+	ast.Inspect(f, func(n ast.Node) bool {
+		if bl, ok := n.(*ast.BasicLit); ok && bl.Kind == token.STRING && bl.Value == `"listening"` {
+			listening++
+		}
+		return true
+	})
+	if listening != 0 {
+		t.Fatalf("the replaced addr-only slog.Info(\"listening\", ...) startup record must be gone from %s; got %d literal(s) (replaced, never duplicated)", compositionFile, listening)
+	}
+	t.Logf("parsed %s: exactly one logStartupConfig call at line %d, ordered server.New(%d) < logStartupConfig < server.Run(%d); no \"listening\" literal remains", compositionFile, logLine, newLine, runLine)
 }

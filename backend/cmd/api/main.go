@@ -214,6 +214,39 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	slog.Info("listening", "addr", srv.Addr)
+	// Task 6.3 (ws6c-3a): one structured startup event with an explicit
+	// non-secret allowlist (address, effective timeouts, enforced JSON body
+	// cap), after server.New validates the config and before server.Run.
+	// Replaces the former addr-only slog.Info("listening", ...) record.
+	logStartupConfig(slog.Default(), cfg, startupMaxJSONBodyBytes)
 	return server.Run(ctx, srv, cfg.DrainTimeout)
+}
+
+// startupMaxJSONBodyBytes is the currently enforced 1 MiB JSON request-body
+// cap, reported at startup. It is deliberately NOT a centralization: each
+// JSON-accepting feature handler compiles its own identical constant, and
+// TestBodyLimitBinding_Guarded pins every copy to the same value so the
+// startup event stays truthful (changing any copy without the others fails).
+const startupMaxJSONBodyBytes int64 = 1_048_576
+
+// logStartupConfig emits the single structured startup event: an explicit
+// allowlist of effective, non-secret values — the listen address, every
+// server/readiness/drain timeout (canonical time.Duration.String() form), and
+// the numeric JSON request-body cap. It accepts only these narrow typed
+// inputs, structurally preventing any environment map, DSN, JWT/JWKS/PEM or
+// token material, arbitrary config object, or raw error from leaking into
+// the record.
+func logStartupConfig(logger *slog.Logger, cfg runtimeconfig.ServerConfig, maxBodyBytes int64) {
+	logger.Info("startup",
+		"event", "startup",
+		"action", "startup_config",
+		"addr", cfg.Addr,
+		"read_header_timeout", cfg.ReadHeaderTimeout.String(),
+		"read_timeout", cfg.ReadTimeout.String(),
+		"write_timeout", cfg.WriteTimeout.String(),
+		"idle_timeout", cfg.IdleTimeout.String(),
+		"readiness_timeout", cfg.ReadinessTimeout.String(),
+		"drain_timeout", cfg.DrainTimeout.String(),
+		"max_json_body_bytes", maxBodyBytes,
+	)
 }
