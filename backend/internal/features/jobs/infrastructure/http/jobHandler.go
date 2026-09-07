@@ -33,6 +33,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 
@@ -332,15 +333,23 @@ func (h *JobHandler) softDeleteJob(w http.ResponseWriter, r *http.Request) {
 // classifyAndWriteError centralizes the ErrJobNotFound → 404 / any
 // other → 500 mapping that both read handlers need. Unexpected errors
 // are logged with a FIXED message and error severity plus the catalog
-// code_class from the resolved definition — the log record carries no
-// method, path, or raw error content, so it cannot leak request
-// identity or sensitive payloads; the request middleware owns bounded
-// request correlation. `classifyError` is the flat dispatcher that
-// knows every domain sentinel the use cases can surface.
+// code_class — the log record carries no method, path, or raw error
+// content, so it cannot leak request identity or sensitive payloads; the
+// request middleware owns bounded request correlation (WS6C-6B). The one
+// bounded correlation field is `request_id`, read ONLY from the existing
+// chi request-ID context (never a header re-read, never a fabricated ID)
+// and omitted entirely when no request-ID middleware set one, so a bare
+// mount keeps the historical four-key bounded record.
+// `classifyError` is the flat dispatcher that knows every domain
+// sentinel the use cases can surface.
 func (h *JobHandler) classifyAndWriteError(w http.ResponseWriter, r *http.Request, err error) {
 	def := classifyError(err)
 	if def.Status == http.StatusInternalServerError {
-		slog.Error("jobs handler failed", "code_class", def.Code)
+		attrs := []any{"code_class", def.Code}
+		if reqID := chimw.GetReqID(r.Context()); reqID != "" {
+			attrs = append(attrs, "request_id", reqID)
+		}
+		slog.Error("jobs handler failed", attrs...)
 	}
 	httpjson.WriteCatalogError(w, def)
 }

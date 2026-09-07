@@ -27,8 +27,10 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
+	rtmiddleware "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/middleware"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 
@@ -682,6 +684,140 @@ func TestGetJob_ErrorLogTriangulation(t *testing.T) {
 			t.Errorf("unexpected logs on invalid UUID: want 0, got %d: %v", len(records), records)
 		}
 	})
+}
+
+// TestGetJob_InternalErrorLogRequestCorrelation (WS6C-6B) pins the
+// request-correlation contract for unexpected errors: with chi RequestID and
+// runtime RequestObservability mounted around the jobs routes, a 500
+// internal_error emits exactly ONE jobs error record and ONE HTTP completion
+// record, both carrying the SAME request ID. The jobs record stays
+// fixed-message ERROR with code_class=internal_error and the bounded key set
+// — never a raw path or raw error field — while the completion record reports
+// the matched chi route pattern (never the raw URL). Without a request-ID
+// context the jobs record keeps its existing bounded four-key shape with no
+// fabricated ID.
+func TestGetJob_InternalErrorLogRequestCorrelation(t *testing.T) {
+	const fixedReqID = "req-fixed-6b-correlation"
+
+	dsn := "postgres://svc:hunter2-dsn-SECRET-654321@db.internal:5432/app"
+	token := "bearer-token-MNOPQR-SECRET"
+	email := "victim-cv-6b@example.com"
+	cvKey := "cv-blob-s3://cv/secret-resume-6b.pdf"
+	rawErr := fmt.Sprintf("get job failed: dsn=%s token=%s email=%s cv=%s", dsn, token, email, cvKey)
+	id := uuid.MustParse("018e0000-0000-7000-8000-0000000000ee")
+	rawPath := "/jobs/" + id.String() + "?marker=sentinel-rawpath-6b"
+
+	cases := []struct {
+		name       string
+		fixedID    string
+		mountReqID bool
+	}{
+		{name: "supplied request id correlates both records", fixedID: fixedReqID, mountReqID: true},
+		{name: "middleware generated id correlates both records", fixedID: "", mountReqID: true},
+		{name: "no request id context keeps bounded four-key record", fixedID: "", mountReqID: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			buf := captureSlogJSON(t) // nonparallel: slog.Default is shared state
+			repo := &stubRepo{getByIDErr: errors.New(rawErr)}
+
+			router := chi.NewRouter()
+			if tc.mountReqID {
+				router.Use(chimw.RequestID)
+			}
+			router.Use(rtmiddleware.RequestObservability(slog.Default(), nil))
+			router.Mount("/jobs", NewJobHandler(usecases.NewJobService(repo)).Routes())
+
+			req := httptest.NewRequest(http.MethodGet, rawPath, nil)
+			if tc.fixedID != "" {
+				req.Header.Set("X-Request-Id", tc.fixedID)
+			}
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			// Response + repository evidence are unchanged by correlation.
+			if rec.Code != http.StatusInternalServerError {
+				t.Fatalf("want 500, got %d: %s", rec.Code, rec.Body.String())
+			}
+			if repo.getByIDCalls != 1 {
+				t.Fatalf("GetByID calls: want 1, got %d", repo.getByIDCalls)
+			}
+			assertCatalogEnvelope(t, rec, httpjson.CodeInternalError)
+
+			// Exactly one jobs error record + one HTTP completion record.
+			var jobsRec, completion map[string]any
+			for _, r := range decodeSlogRecords(t, buf) {
+				switch r["msg"] {
+				case "jobs handler failed":
+					if jobsRec != nil {
+						t.Fatalf("duplicate jobs error record: %v", r)
+					}
+					jobsRec = r
+				case "http request completed":
+					if completion != nil {
+						t.Fatalf("duplicate completion record: %v", r)
+					}
+					completion = r
+				default:
+					t.Fatalf("unexpected log record: %v", r)
+				}
+			}
+			if jobsRec == nil || completion == nil {
+				t.Fatalf("want exactly one jobs error record and one completion record, got: %v", decodeSlogRecords(t, buf))
+			}
+
+			// Both records carry the same nonempty request ID when a
+			// request-ID context exists (the supplied X-Request-Id wins when
+			// present, otherwise the middleware-generated ID).
+			completionID, _ := completion["request_id"].(string)
+			if tc.mountReqID {
+				if completionID == "" {
+					t.Fatalf("completion record request_id is empty, want nonempty")
+				}
+				if tc.fixedID != "" && completionID != tc.fixedID {
+					t.Errorf("completion request_id: want %q, got %q", tc.fixedID, completionID)
+				}
+				if jobsRec["request_id"] != completionID {
+					t.Errorf("request correlation: jobs record request_id %v != completion request_id %q", jobsRec["request_id"], completionID)
+				}
+			} else if got, ok := jobsRec["request_id"]; ok {
+				t.Errorf("jobs record must not fabricate request_id without a request-ID context, got %v", got)
+			}
+
+			// The jobs record keeps its fixed message/severity/code_class and
+			// the bounded key set — never raw path or raw error fields.
+			if got, ok := jobsRec["level"].(string); !ok || got != slog.LevelError.String() {
+				t.Errorf("jobs record level: want %q, got %v", slog.LevelError.String(), jobsRec["level"])
+			}
+			if got, ok := jobsRec["code_class"].(string); !ok || got != string(httpjson.CodeInternalError) {
+				t.Errorf("jobs record code_class: want %q, got %v", httpjson.CodeInternalError, jobsRec["code_class"])
+			}
+			for key := range jobsRec {
+				switch key {
+				case "time", "level", "msg", "code_class", "request_id":
+				default:
+					t.Errorf("jobs record has unbounded key %q (record: %v)", key, jobsRec)
+				}
+			}
+			for _, forbidden := range []string{"path", "error", "method", "status", "duration"} {
+				if _, ok := jobsRec[forbidden]; ok {
+					t.Errorf("jobs record must not carry %q field", forbidden)
+				}
+			}
+
+			// The completion path is the matched chi route pattern, never the raw URL.
+			if got := completion["path"]; got != "/jobs/{id}" {
+				t.Errorf("completion path: want matched route pattern %q, got %v (raw URL forbidden)", "/jobs/{id}", got)
+			}
+			if status, ok := completion["status"].(float64); !ok || int(status) != http.StatusInternalServerError {
+				t.Errorf("completion status: want 500, got %v", completion["status"])
+			}
+
+			assertNoLeak(t, "captured logs", buf.String(),
+				rawErr, dsn, token, email, cvKey, "sentinel-rawpath-6b", rawPath)
+			assertNoLeak(t, "captured logs", buf.String(), id.String())
+		})
+	}
 }
 
 // --- misc -----------------------------------------------------------------
