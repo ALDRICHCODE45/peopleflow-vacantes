@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
+	"math/rand"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -419,6 +421,84 @@ func TestRequestObservability_EmitsOneCompletionRecordAndOneMetricPerRequest(t *
 		}
 		if obs.duration <= 0 {
 			t.Errorf("metric duration = %v, want > 0", obs.duration)
+		}
+	}
+}
+
+// TestRequestObservability_RandomUnknownRoutesUseBoundedUnmatchedPath is the
+// Task 6.3 GREEN TRIANGULATION for randomized attacker-shaped unknown paths:
+// each unmatched request must collapse its raw URL into the single bounded
+// label "unmatched" on both the completion record's path and the metric
+// route, emitting exactly one 404 completion record and one metric
+// observation per request, with no raw path ever reaching the captured
+// JSON log bytes. Deterministic: fixed-seed PRNG, so the paths repeat on
+// every run.
+func TestRequestObservability_RandomUnknownRoutesUseBoundedUnmatchedPath(t *testing.T) {
+	t.Parallel()
+
+	rng := rand.New(rand.NewSource(1))
+	rawPaths := make([]string, 0, 6)
+	for i := 0; i < 6; i++ {
+		// Distinct URL-safe attacker-shaped paths: case index plus
+		// hexadecimal PRNG output.
+		rawPaths = append(rawPaths, fmt.Sprintf("/%x/%x/%d", rng.Uint64(), rng.Uint64(), i))
+	}
+
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	spy := &httpMetricsSpy{}
+
+	r := chi.NewRouter()
+	r.Use(chimw.RequestID)
+	r.Use(middleware.RequestObservability(logger, spy))
+	r.Get("/companies/{id}", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	for i, raw := range rawPaths {
+		before := len(spy.observed)
+		beforeRecords := len(completionRecords(t, &logs))
+
+		req := httptest.NewRequest(http.MethodGet, raw, nil)
+		req.Header.Set("X-Request-Id", fixedRequestID)
+		res := httptest.NewRecorder()
+		r.ServeHTTP(res, req)
+
+		if res.Code != http.StatusNotFound {
+			t.Fatalf("case %d (%q): response status = %d, want 404", i, raw, res.Code)
+		}
+		completions := completionRecords(t, &logs)
+		if got := len(completions) - beforeRecords; got != 1 {
+			t.Fatalf("case %d (%q): completion records emitted = %d, want exactly 1", i, raw, got)
+		}
+		rec := completions[len(completions)-1]
+		if got, _ := rec["path"].(string); got != "unmatched" {
+			t.Errorf("case %d: path = %q, want bounded %q (raw URL is forbidden)", i, got, "unmatched")
+		}
+		if got, _ := rec["method"].(string); got != http.MethodGet {
+			t.Errorf("case %d: method = %q, want %q", i, got, http.MethodGet)
+		}
+		if status, ok := rec["status"].(float64); !ok || int(status) != http.StatusNotFound {
+			t.Errorf("case %d: status = %v (%T), want number %d", i, rec["status"], rec["status"], http.StatusNotFound)
+		}
+		if got, _ := rec["code_class"].(string); got != "4xx" {
+			t.Errorf("case %d: code_class = %q, want bounded 404 class %q", i, got, "4xx")
+		}
+		if got := len(spy.observed) - before; got != 1 {
+			t.Fatalf("case %d: HTTP metric observations = %d, want exactly 1", i, got)
+		}
+		obs := spy.observed[len(spy.observed)-1]
+		if obs.route != "unmatched" {
+			t.Errorf("case %d: metric route = %q, want bounded %q", i, obs.route, "unmatched")
+		}
+		if obs.method != http.MethodGet || obs.status != http.StatusNotFound {
+			t.Errorf("case %d: metric method/status = %q/%d, want %q/%d", i, obs.method, obs.status, http.MethodGet, http.StatusNotFound)
+		}
+	}
+
+	for _, raw := range rawPaths {
+		if bytes.Contains(logs.Bytes(), []byte(raw)) {
+			t.Errorf("raw path %q leaked into captured JSON log bytes", raw)
 		}
 	}
 }

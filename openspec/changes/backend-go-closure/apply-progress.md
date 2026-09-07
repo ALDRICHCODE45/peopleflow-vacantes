@@ -1169,3 +1169,15 @@ Design notes: structural interface matching keeps `httpjson` and `middleware` fr
 | REFACTOR | `cd backend && go test ./... -count=1` | exit 0; scoped `gofmt -l` clean; scoped `go vet` clean |
 
 Final all-file numstat (399 changed lines, budget 400): request_test.go +255, request.go +88/−4, errors.go +20, apply-progress.md +32. Protected paths byte-identical: tasks.md 80/100 (all four Task 6.3 boxes unchecked); verify-report.md absent. This unit does not claim independent verification or native settlement.
+
+### WS6C-2b GREEN TRIANGULATE (generation 107): randomized unknown routes collapse to bounded `unmatched`
+
+Honestly GREEN TRIANGULATE — no RED claimed; the bounded `unmatched` behavior was already implemented in `request.go` and the fresh focused test passed against the untouched production code. No production-code change.
+
+| Phase | Test(s) | Command | Result |
+| --- | --- | --- | --- |
+| GREEN TRIANGULATE | `TestRequestObservability_RandomUnknownRoutesUseBoundedUnmatchedPath` (new; 6 deterministic fixed-seed attacker-shaped paths, reused `completionRecords` + `httpMetricsSpy`) | `cd backend && go test ./internal/runtime/middleware -run '^TestRequestObservability_RandomUnknownRoutesUseBoundedUnmatchedPath$' -count=1` | PASS: per request exactly one 404 completion record and one metric observation; every `path`/`route` = `unmatched`; method/status/`4xx` class pinned; zero raw paths in captured JSON log bytes. |
+| FULL | full backend suite | `cd backend && go test ./...` | exit 0, all packages `ok` (middleware package `0.004s`, rest cached) |
+| HYGIENE | formatting + whitespace hygiene | `cd backend && test -z "$(gofmt -l internal/runtime/middleware/request_test.go)"` and root `git diff --check` | gofmt check: empty output (clean); `git diff --check`: no output (clean) |
+
+Numstat: `request_test.go` +80/−0, `apply-progress.md` +12/−0 (evidence-only cell correction, line-for-line) = 92 changed lines total (budget 120). Protected: `tasks.md`, `request.go`, `errors.go`, `verify-report.md`, `.pi/gentle-ai/sdd-preflight.json` (hash `43098a…c813`) all untouched; Task 6.3 boxes remain unchecked. This unit does not claim independent verification or native settlement.
