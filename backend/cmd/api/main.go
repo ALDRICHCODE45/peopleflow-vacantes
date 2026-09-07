@@ -206,6 +206,10 @@ func run() error {
 		// Task 6.3 (design §8.3): compose the no-op HTTP metrics default —
 		// zero-dependency, no exporter, no metrics endpoint in this change.
 		httpMetrics: runtimemetrics.Default,
+		// Task 6.3 (ws6c-4a): inject the readiness-boundary logger and the
+		// shared no-op readiness gauge explicitly; health.Readyz keeps safe
+		// nil defaults for both. Still no exporter, no metrics endpoint.
+		readinessLogger: slog.Default(), readinessMetrics: runtimemetrics.Default,
 	})
 	// Hardened server + lifecycle from the runtime packages (WS6B-1a):
 	// Run serves until ctx is cancelled, drains with the configured

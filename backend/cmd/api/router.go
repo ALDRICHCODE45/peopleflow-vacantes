@@ -3,6 +3,7 @@
 package main
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -37,6 +38,13 @@ type routerDeps struct {
 	// composition root (main.go); RequestObservability also defaults the
 	// completion logger to slog.Default() when nil. No exporter/endpoint.
 	httpMetrics rtmetrics.HTTPMetrics
+	// readinessLogger/readinessMetrics = the readiness-boundary observability
+	// dependencies (Task 6.3, ws6c-4a); health.Readyz applies safe nil
+	// defaults (slog.Default / no-op) when either is nil. The metrics value
+	// is the shared no-op default composed by the composition root (main.go).
+	// No exporter/endpoint.
+	readinessLogger  *slog.Logger
+	readinessMetrics rtmetrics.ReadinessMetrics
 }
 
 // newRouter builds the chi router: middleware, health, all feature registrations
@@ -53,7 +61,7 @@ func newRouter(d routerDeps) chi.Router {
 
 	// Health (§8.1): static liveness; readiness pings once under the timeout.
 	r.Get("/healthz", health.Healthz(d.pool))
-	r.Get("/readyz", health.Readyz(d.pool, d.readinessTimeout))
+	r.Get("/readyz", health.Readyz(d.pool, d.readinessTimeout, d.readinessLogger, d.readinessMetrics))
 
 	// The ONLY industries registration (TestIndustriesRoute_SingleCanonicalRegistration).
 	industrieshttp.RegisterRoutes(r, d.queries)

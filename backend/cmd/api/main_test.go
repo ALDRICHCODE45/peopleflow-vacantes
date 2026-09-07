@@ -1222,12 +1222,34 @@ func TestRouterOwner_HealthAndReadinessMounted(t *testing.T) {
 			}
 			healthz++
 		case `"/readyz"`:
-			// Readiness: health.Readyz over the pool port AND the configured timeout, never an ad-hoc literal.
-			if owner.Name != "health" || hs.Sel.Name != "Readyz" ||
-				len(h.Args) != 2 || !referencesIdentifier(h, "pool") ||
-				!referencesIdentifier(h, "readinessTimeout") {
-				t.Errorf("/readyz must mount health.Readyz(pool, <readiness timeout>); got %s.%s", owner.Name, hs.Sel.Name)
+			// Readiness (ws6c-4a correction, ordinal 150): the registration
+			// must be the EXACT production call on the EXACT root-router
+			// receiver:
+			//
+			//	r.Get("/readyz", health.Readyz(d.pool, d.readinessTimeout,
+			//		d.readinessLogger, d.readinessMetrics))
+			//
+			// The Get receiver must be exactly the bare identifier r (a
+			// sub-router or any other receiver never satisfies this guard),
+			// and every readiness argument must be the EXACT direct selector
+			// expression at its position — identifiers nested anywhere inside
+			// a larger expression (the previous recursive
+			// referencesIdentifier scan) never satisfy the guard. The exact
+			// health-package owner check is preserved.
+			if !isSelectorOnReceiver(call.Fun, "r", "Get") {
+				t.Errorf("/readyz must be registered on the exact root-router receiver r.Get(...); got a non-root Get receiver for path %s", path)
 				return true
+			}
+			if owner.Name != "health" || hs.Sel.Name != "Readyz" || len(h.Args) != 4 {
+				t.Errorf("/readyz must mount health.Readyz(...); got %s.%s", owner.Name, hs.Sel.Name)
+				return true
+			}
+			wantReadyzArgs := [4]string{"pool", "readinessTimeout", "readinessLogger", "readinessMetrics"}
+			for i, wantArg := range wantReadyzArgs {
+				if !isSelectorOnReceiver(h.Args[i], "d", wantArg) {
+					t.Errorf("health.Readyz argument %d must be the EXACT direct selector d.%s (nested or non-direct expressions never satisfy the guard); got %s", i, wantArg, types.ExprString(h.Args[i]))
+					return true
+				}
 			}
 			readyz++
 		}

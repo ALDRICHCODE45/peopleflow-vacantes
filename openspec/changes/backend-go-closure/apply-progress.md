@@ -1260,3 +1260,81 @@ Invariants: committed prefix (first 165,180 bytes, SHA-256 `0b6d2956bd60ce43fbf4
 **Prefix preservation proof (before this append):** current-candidate `apply-progress.md` was 179,236 bytes, SHA-256 `da3aa66a021839301f08fe38c88ef41c3d9901b054fbbecd84602682350637db`; its first 175,001 bytes hash-object `62ca51f2d75509f47845340405e0de5b4f625c2b` equaled the HEAD blob, proving both the committed prefix and the generation-113 suffix were preserved byte-for-byte through this correction. Post-append prefix equality is verified by the apply envelope's byte-prefix check against the recorded 179,236-byte length and digest.
 
 **Invariants:** tasks.md untouched (ALL Task 6.3 boxes remain unchecked, no aggregate completion claimed); `.pi/gentle-ai/sdd-preflight.json` untouched (174 bytes, SHA-256 `43098a…c813`); no verify-report.md; no staging/commit/stash; changed paths limited to the three allowed surfaces. This correction does not claim independent verification or native settlement and does not settle the compact correction token.
+
+## ws6c-4a — Readiness gauge and safe failure classification
+
+Bounded OpenSpec Task 6.3 unit (compact objective generation 114, active attempt ordinal 149). Baseline preserved: apply-progress.md was 182,549 bytes, SHA-256 `788e0142e51e166bd43e6dd8fce1922838192a0659ca98005bd97df4a52ae1c4` before this append; this section is append-only.
+
+### Scope delivered
+
+Readiness (`/readyz`) previously preserved correct 200/503 responses but never called `metrics.ReadinessMetrics.SetReady` and never emitted a safely classified failure record. This unit adds exactly one readiness gauge observation after every `/readyz` ping outcome and exactly one request-correlated, safely classified structured log on failure only.
+
+- `health.Readyz` now accepts a logger (`*slog.Logger`) and `rtmetrics.ReadinessMetrics` with safe nil defaults (nil logger → `slog.Default()`, nil gauge → `runtimemetrics.Default` no-op).
+- Success: `SetReady(true)` exactly once after successful ping. Ordinary failure or readiness deadline: `SetReady(false)` exactly once.
+- Failure only: exactly one structured `ErrorContext` record with the chi request ID from the request context (`chimw.GetReqID`) plus closed bounded fields `event: "readiness"` and `classification ∈ {"ping_failed", "deadline"}` (deadline decided by `ctx.Err()`, never by the error value). The ping error is never attached or stringified.
+- Existing readiness status/body/timeout behavior preserved (200 `ok`, 503 `service_unavailable` catalog envelope, same timeout handling).
+- Wiring: `run` composes `readinessLogger: slog.Default()` and the shared no-op `readinessMetrics: runtimemetrics.Default` through `routerDeps` into `health.Readyz(d.pool, d.readinessTimeout, d.readinessLogger, d.readinessMetrics)`. Root middleware order unchanged: `middleware.RequestID` first, then `RequestObservability`, then `Recoverer`, then handlers.
+- Not included (out of unit scope): DB pool sampling, general domain/error-log correlation, aggregate security/no-exporter closure, Task 6.3 checkbox closure.
+
+### Strict TDD evidence (RED → GREEN → TRIANGULATE → REFACTOR)
+
+1. **Scaffold (compile-safe)**: `health.Readyz` extended to `(p Pinger, timeout time.Duration, logger *slog.Logger, ready rtmetrics.ReadinessMetrics)` but intentionally ignored both deps (`_, _ = logger, ready`); `routerDeps` gained `readinessLogger`/`readinessMetrics` fields and the `/readyz` mount passed them; `main_test.go` guard `TestRouterOwner_HealthAndReadinessMounted` updated from 2 to 4 args (exact non-secret-allowlist idiom unchanged). New behavioral test `TestReadyz_Observability` (readiness spy + captured JSON slog handler) with four named subtests.
+2. **RED** — exact command: `cd backend && go test ./internal/runtime/health -run '^TestReadyz_Observability$' -count=1 -v` → FAIL, all four subtests failed with exactly `readiness metric observations = 0, want exactly 1` (success/failure/deadline subtests) and `readiness failure records = 0, want exactly 1` (failure/deadline/request-id subtests). Existing `TestReadyz` (503 behavior, nil deps) remained green.
+3. **GREEN** — smallest implementation in `health.go` (nil-safe defaults, exactly-once `SetReady`, deadline-derived classification, one bounded `ErrorContext` record on failure only). RED command re-run → PASS, all four subtests.
+4. **TRIANGULATE** — subtests assert: success → exactly one true observation and zero failure records; ordinary ping error (`db: connection refused`) → exactly one false observation and exactly one safe record with `classification: "ping_failed"`; deadline (blocking pinger, 5ms timeout) → exactly one false observation and `classification: "deadline"` from the same closed field set; injected DB detail absent from both the 503 response body and the captured log; the record's `request_id` equals the chi `RequestID` middleware context value captured by a probe handler; every failure record's key set is exactly `time/level/msg/request_id/event/classification` (closed set assertion).
+5. **REFACTOR** — no scope broadening; only formatting (`gofmt -w health_test.go`; the pre-unit file was already non-gofmt) and comment tightening.
+
+### Verification commands (exact, all executed)
+
+- `cd backend && go test ./internal/runtime/health -run '^TestReadyz_Observability$' -count=1 -v` → **PASS** (GREEN/TRIANGULATE; FAIL pre-implementation as the authentic RED above).
+- `cd backend && go test ./internal/runtime/health ./internal/runtime/metrics ./cmd/api -count=1` → **ok** (all three packages).
+- `cd backend && go test ./...` → **exit 0**, no package failures.
+- `cd backend && go vet ./internal/runtime/health ./internal/runtime/metrics ./cmd/api` → **clean**.
+- `cd backend && test -z "$(gofmt -l internal/runtime/health/health.go internal/runtime/health/health_test.go cmd/api/router.go cmd/api/main.go cmd/api/main_test.go)"` → **clean**.
+- `git diff --check` → **clean** (no whitespace errors).
+
+### Changed-line accounting (`git diff --numstat`, ALL authorized paths including this progress append)
+
+> Ordinal-150 accounting correction: the first candidate (ordinal 149) listed only the five Go paths here and reported "236 added + 12 deleted = 248 changed lines", omitting the then-48-line progress append. The truthful first-candidate total was 284 additions + 12 deletions = 296 changed lines. Failed generic verifier evidence `sha256:600a3224d94bf53863b8aace9c923e3f4464df91676c9861ea8efa7764cccf7d` identified exactly this accounting defect (runtime behavior and every required command were green); the ordinal-150 correction fixes the accounting, strengthens the router guard, and reports the recomputed final exact numstat below.
+
+Final exact `git diff --numstat` (ordinal-150 corrected candidate, all six authorized paths):
+
+```
+4 0 backend/cmd/api/main.go
+27 5 backend/cmd/api/main_test.go
+9 1 backend/cmd/api/router.go
+37 4 backend/internal/runtime/health/health.go
+178 3 backend/internal/runtime/health/health_test.go
+74 0 openspec/changes/backend-go-closure/apply-progress.md
+```
+
+333 added + 13 deleted = 346 changed lines (corrected candidate vs HEAD, final after the generation-115 append below) — the first candidate's 296 was within the 320-line unit bound; the parent-directed ordinal-150 correction delta is accounted separately in the correction record below. `tasks.md` untouched — the two scopes are distinct: OVERALL task progress is 80/100 complete, while Task 6.3 itself is 0/4 complete with all four Task 6.3 boxes unchecked. No `verify-report.md` was created and no full-phase `sdd-verify` was invoked. No exporter, `/metrics` endpoint, new dependency, or pool sampler was added (go.mod/go.sum untouched; the wiring uses the pre-existing shared no-op `runtimemetrics.Default`).
+
+### Rollback boundary
+
+Revert the five modified Go files (`git checkout -- backend/internal/runtime/health/health.go backend/internal/runtime/health/health_test.go backend/cmd/api/router.go backend/cmd/api/main.go backend/cmd/api/main_test.go`) and remove this appended section to restore the exact baseline (182,549 bytes pre-append, SHA-256 `788e0142…`). Deferred Task 6.3 gaps (remaining RED/GREEN/TRIANGULATE/REFACTOR boxes: gate scripts, archguard, closure report, doc reconciliation) remain open and are not claimed by this unit.
+
+## ws6c-4a correction — ordinal 150: truthful accounting + exact router-guard binding
+
+**Failed verification:** generic verifier evidence `sha256:600a3224d94bf53863b8aace9c923e3f4464df91676c9861ea8efa7764cccf7d` rejected the ordinal-149 candidate despite green runtime behavior and every required command passing. Two defects, both corrected here and nothing else: (1) the ws6c-4a `git diff --numstat` accounting listed only the five Go paths and claimed 248 changed lines, omitting the then-48-line progress append (truthful first candidate: 284 additions + 12 deletions = 296); (2) `TestRouterOwner_HealthAndReadinessMounted` did not validate the `Get` receiver and recursively accepted identifiers nested anywhere in an argument, so a wrong-router registration or a nested/non-direct readiness argument could satisfy the guard.
+
+**Corrected guard (`backend/cmd/api/main_test.go` only):** the `/readyz` case now requires the EXACT production call on the EXACT root-router receiver — `r.Get("/readyz", health.Readyz(d.pool, d.readinessTimeout, d.readinessLogger, d.readinessMetrics))`: the `Get` receiver must be exactly the bare identifier `r` (`isSelectorOnReceiver(call.Fun, "r", "Get")`) and each of the four readiness arguments must be the EXACT direct selector at its position (`isSelectorOnReceiver(h.Args[i], "d", <name>)` for pool/readinessTimeout/readinessLogger/readinessMetrics); the previous recursive `referencesIdentifier` scan is removed from this guard. The exact health-package owner check and the `/healthz` guard are preserved unchanged. All production files are byte-identical to the ordinal-149 candidate.
+
+**Adversarial proof (external disposable copy `/tmp/ws6c4a-ord150-adversarial2.YUWcmB`, not a git worktree and not a repository-local path; the candidate itself was never mutated):** unmutated copy → `go test ./cmd/api -run '^TestRouterOwner_HealthAndReadinessMounted$' -count=1` → PASS, exit 0. Mutation (a) wrong `Get` receiver — `chi.NewRouter().Get("/readyz", health.Readyz(...))` — FAIL, exit 1: `/readyz must be registered on the exact root-router receiver r.Get(...); got a non-root Get receiver for path "/readyz"`. Mutation (b) nested/non-direct argument — `health.Readyz(d.pool, d.readinessTimeout, routerDeps{readinessLogger: d.readinessLogger}.readinessLogger, d.readinessMetrics)` (compile-safe; the removed recursive scan would have accepted it) — FAIL, exit 1: `router owner must register exactly one /healthz and one /readyz through the runtime health handlers (healthz=1 readyz=0)`. The mutated `router.go` was restored from the candidate before each mutation; the copy was removed afterward (`test ! -e` → CLEANUP-OK). An identical first proof run (`/tmp/ws6c4a-ord150-adversarial.9oWMxL`) produced the same FAIL outputs but was superseded because an inner pipe masked its exit-code capture (tail exited 0), so the exit codes were re-proven rigorously as above.
+
+**Verification (exact commands, all executed after the correction):**
+
+- `cd backend && go test ./internal/runtime/health -run '^TestReadyz_Observability$' -count=1 -v` → **PASS** (4/4 subtests; behavior unchanged).
+- `cd backend && go test ./internal/runtime/health ./internal/runtime/metrics ./cmd/api -count=1` → **ok** (all three packages).
+- `cd backend && go test ./...` → **exit 0**, no package failures.
+- `cd backend && go vet ./internal/runtime/health ./internal/runtime/metrics ./cmd/api` → **clean**.
+- `cd backend && test -z "$(gofmt -l internal/runtime/health/health.go internal/runtime/health/health_test.go cmd/api/router.go cmd/api/main.go cmd/api/main_test.go)"` → **clean**.
+- `git diff --check` → **clean**.
+
+**Correction diff accounting (recomputed after the correction; never a reused count):** `backend/cmd/api/main_test.go` went 8+/4− → 27+/5− (correction delta +19/−1); the in-place accounting fix and this correction record bring the progress append to 74+/0−. Final corrected candidate vs HEAD at ordinal 150: 329 additions + 13 deletions = 342 changed lines (342 − 296 = 46); the generation-115 append below revises the current final to 333 additions + 13 deletions = 346 changed lines. Correction delta vs the ordinal-149 candidate (296 lines): 46 changed lines (main_test.go +19/−1 = 20; progress append 48+ → 74+ = 26). The first candidate's 296 was within the 320-line unit bound; this ordinal-150 correction is a parent-directed defect-fix attempt (ordinal 150 of generation 114), not new unit scope.
+
+**Invariants:** the first 182,549 bytes of this file are preserved byte-for-byte (SHA-256 `788e0142e51e166bd43e6dd8fce1922838192a0659ca98005bd97df4a52ae1c4`); only `backend/cmd/api/main_test.go` and this file were edited; `tasks.md` untouched (80/100, Task 6.3 0/4 checked); `verify-report.md` absent; no staging/commit/push/stash/reset/worktree; no compact operation; the excluded `.pi` harness state was not opened or modified.
+
+## ws6c-4b correction — generation 115, ordinal 151: task-state scope clarification
+
+Maintainer-authorized compact reset (generation 115, ordinal 151, work unit `ws6c-4b-readiness-evidence-task-state-correction`, max 80 changed lines) remediating failed evidence `sha256:d3f56d0a9d444e0cbc009e4911f5652123a6ca93fc14ea70748d2c57edf4b10e`. Evidence-only correction — not a behavior RED cycle; no green behavior was relabeled. The ws6c-4a accounting sentence "Task 6.3 state remains 80/100 complete" conflated the two scopes; it now states explicitly that OVERALL task progress is 80/100 complete while Task 6.3 itself is 0/4 complete with all four boxes unchecked. No Go file or any other path touched; production/test bytes and the exact AST guard unchanged; `tasks.md` remains 80/100 overall with Task 6.3 0/4; `verify-report.md` absent; index and stash empty; the excluded `.pi` harness state untouched; the committed first 182,549 bytes of this file are preserved byte-for-byte (SHA-256 `788e0142e51e166bd43e6dd8fce1922838192a0659ca98005bd97df4a52ae1c4`). Final exact six-path numstat after this append: main.go 4/0, main_test.go 27/5, router.go 9/1, health.go 37/4, health_test.go 178/3, apply-progress.md 78/0 — total 333 additions + 13 deletions = 346 changed lines.
