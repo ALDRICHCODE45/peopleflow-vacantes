@@ -1051,3 +1051,135 @@ Task 3.3 is closed after the exact reviewed implementation candidate landed in c
 - Fresh reliability review lineage `review-1cbbf28b1050f05a` approved target `sha256:2b7303da39840801300cb6a79f7d5d879c705b1d5927428a68d4baa668910f8d`; acknowledgement consumed revision `sha256:d0be3e5bbd5c0e8aedc554ad6899342d1ca824baf6c913bda1f56ff0603ab495` and burned its authority. Informational finding `R3-001` did not open a correction.
 - Rollback: `git revert 479641b` removes only the Task 3.3 tests and evidence candidate; revert the subsequent artifact-closure commit separately to reopen the checkbox and remove this closure section.
 - No dependency install, download, backend change, push, PR, or reuse of prior completed objectives/review authority occurred. `.pi/gentle-ai/sdd-preflight.json` was excluded from settlement and review, then removed only under fresh one-shot user authorization. Task 3.4 REFACTOR is the next ordered implementation task.
+
+## Task 3.4 REFACTOR — domain ownership isolation and deterministic helpers (work unit `task-3-4-refactor`)
+
+Objective: refactor `frontend/src/features/jobs/{api,schemas,url,formatters,types.ts}` and `frontend/src/lib/{api,env}` so route concerns stay absent from domain modules, no browser-direct fetch or proxy exists, no cursor is decoded/logged, the TanStack Query orchestration over guarded `requestJson` remains the single request path with no Zustand store, and formatting has no hydration-dependent relative dates or invented salary periods. Behavior-preserving REFACTOR under strict TDD; inherited the Task 3.3 GREEN baseline at HEAD `b2123013e1fb7a78adb4a2f1c35dd67fc4f3ead0` (tree `11785723117f762d91d84d6c328041355da1a07e`, parent `479641be4bd7e422726b6f31e2d37085f72d5ed1`, clean worktree/index on `feat/frontend-foundation`). Pre-append progress prefix: 1053 lines, SHA-256 `ef8fc06de0ca958f858d57bb05acd81a3f1c17f1e7c5d310b7dbb04b03bf8208` (append-only verified).
+
+### Inspect-first refactor decisions (only justified changes)
+
+1. `frontend/src/features/jobs/api/listJobs.ts` (8+/19−): `canonicalKeyState` re-canonicalized an already-canonical, frozen snapshot through a redundant URL-string round trip (`buildJobsUrl` → `URLSearchParams` → re-parse) even though `canonicalSnapshot` (via `parseJobsQuery`) already emits canonical values in canonical `SERIALIZATION_ORDER`. The helper was removed; the frozen snapshot is now shared verbatim by the query-key state and the `queryFn`, making the documented one-shared-snapshot intent literal. The now-unused `JobsQueryKey` type import was dropped; `canonicalSearch` remains for the `listJobs` request URL. Behavior identical (proven by the committed query-key tests: shuffled-input equality, `CANONICAL_ORDER` key ordering, JSON-serializability, non-canonical input dropping, snapshot-vs-mutation isolation).
+2. `frontend/src/features/jobs/formatters.ts` (20+/8−): the label maps and salary-currency union hand-duplicated the wire enums owned by `schemas.ts`, so a schema enum change would only surface as a view call-site error (or a silent `undefined` label) instead of failing at the maps. The key types are now derived from the schema-inferred `JobItem` (`WorkMode = JobItem["work_mode"]`, `EmploymentType`, `Seniority`, `SalaryCurrency = JobItem["salary_currency"]`) and every map is `as const satisfies Record<…, string>` / `satisfies readonly SalaryCurrency[]`, making enum drift a compile error exactly where the labels live. This implements design §5.3 ("Types used by views are inferred from schemas so static and runtime contracts cannot drift"). Type-only import (`import type { JobItem } from "./types"`); zero runtime coupling. Pi-lens advisory `find-import-file-without-extension` matches the codebase-wide extension-less relative-import convention (`./schemas`, `../url`, etc.) and was intentionally kept consistent; all gates pass.
+3. `frontend/src/features/jobs/types.ts` (1+/1−): stale doc comment — `JobsList` is no longer "consumed by the future list/detail query functions"; those functions exist and import it. Documentation-accuracy only.
+4. Formatting determinism was re-pinned unchanged: module-level `Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "UTC" })` and per-currency `Intl.NumberFormat` with ICU narrow-space normalization; no relative dates, no invented periods.
+
+### Inspected and deliberately unchanged (existing shape already satisfies the objective)
+
+- `src/lib/api/requestJson.ts` + guarded `src/lib/api/server.ts` and `src/lib/env/{server,validate}.ts`: minimal, single fetch site, `no-store`, typed discriminated errors, no logging, exact `notFoundStatus` discriminator; both server entries guarded by exact `import "server-only"`. No duplication worth churning.
+- `url.ts`: deliberately standalone (zero imports, platform `URLSearchParams` only) so canonical redirect comparison happens before any API/env access; coupling it to schemas/types was rejected as a boundary regression, not an improvement. Cursor opacity preserved (`canonicalValue` only omits empty; never decodes/normalizes/logs/interprets).
+- `getJob.ts`/`listJobs.ts` lazy `await import("../../../lib/env/server")` duplication (2 sites with near-identical comments): extracting a shared accessor would mix env ownership into the transport façade or add an extra lib/env surface for two call sites — churn, not deduplication. The lazy pattern is load-bearing (short-circuit must precede eager env validation).
+- 1-space indentation in `api/getJob.ts`, `api/listJobs.ts`, `jobId.ts` vs 2-space elsewhere: that state was set by the previously authorized, independently verified `task-3.2-post-apply-job-detail-format` lens-formatting unit; overturning an explicitly authorized prior formatting decision is outside this REFACTOR's authority. Normalizing now would be ~120 mechanical whitespace lines of churn.
+- Route concerns: none exist in domain modules (no `next/navigation`, `next/server`, `route.ts`, `NEXT_PUBLIC`, or `use client` anywhere under `src/features/jobs` or `src/lib`).
+
+### TDD Cycle Evidence (Task 3.4 REFACTOR)
+
+| Stage | Evidence |
+| --- | --- |
+| Inherited baseline (Task 3.3 GREEN) | `corepack pnpm exec vitest run src/features src/lib` from `frontend/`, Node `v22.22.1`, Corepack pnpm `10.34.5`, `COREPACK_ENABLE_NETWORK=0`: exit 0, 9 files / 47 tests |
+| RED | Not applicable/not manufactured: behavior-preserving REFACTOR; no new behavior or defect correction became necessary, so no failing test was required or created |
+| GREEN (post-refactor) | identical focused command: exit 0, 9 files / 47 tests (includes the pinned query-key canonical-order tests, formatter behavior tests, request-path audit tests) |
+| TRIANGULATE | focused suite rerun after each individual edit held at 47/47; typecheck `corepack pnpm typecheck` exit 0 with no diagnostics, proving the derived types equal the previous unions |
+| REFACTOR | the refactor itself; committed behavior (Task 3.1–3.3 tests) untouched — no test file modified in this unit |
+
+### Final gates (Node `v22.22.1` via nvm, Corepack pnpm `10.34.5`, `COREPACK_ENABLE_NETWORK=0`, from `frontend/`)
+
+| Gate | Exact command | Result |
+| --- | --- | --- |
+| Focused tests (Task 3.3 inherited baseline) | `corepack pnpm exec vitest run src/features src/lib` | exit 0; Test Files 9 passed (9); Tests 47 passed (47) |
+| Focused tests (post-refactor) | same command | exit 0; Test Files 9 passed (9); Tests 47 passed (47) |
+| Full unit suite (configured form) | `corepack pnpm test -- --run src/features src/lib` equivalent verified via the focused command above; full `corepack pnpm exec vitest run` not required by this unit | focused form is the task-local authoritative runner per dispatch |
+| Typecheck | `corepack pnpm typecheck` | exit 0, no diagnostics |
+| Lint | `corepack pnpm lint` | exit 0, no errors/warnings |
+| API-unavailable production build | `rm -rf .next && PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:9 PEOPLEFLOW_SITE_URL=http://127.0.0.1:3000 corepack pnpm build` | exit 0; Next.js compiled, type-validated, 2 static routes (`/`, `/_not-found`); no API process available |
+| Negative: route concerns/proxy | grep over `src/features/jobs` + `src/lib` for the token set `zustand`, `route.ts`, `use client`, `next/navigation`, `next/server`, `NEXT_PUBLIC` | only matches are the requestPath.test.ts absence assertions themselves |
+| Negative: browser fetch/proxy | grep `\bfetch(` over production `src/` | single call site `src/lib/api/requestJson.ts:34`; no `route.ts` proxy exists |
+| Negative: cursor decode/log | grep `cursor` over domain+lib | only opacity-contract wording; no decode/normalize/log/interpret |
+| Negative: requestJson bypass | guarded-façade importer grep | production importers exactly `api/getJob.ts` + `api/listJobs.ts`; TanStack `queryOptions`/`queryFn` remain the single application request path over `requestJson` |
+| Negative: Zustand | grep + manifest | zero matches |
+| Negative: hydration-dependent/invented formatting | grep in `formatters.ts` for the token set `RelativeTimeFormat`, `hace`, `por mes`, `getTimezoneOffset` | none; module-level deterministic UTC date + code-currency formatters |
+| server-only guards | head -1 both server entries | exact `import "server-only"` in `lib/api/server.ts` and `lib/env/server.ts` |
+| Whitespace gate | `git diff --check` | exit 0 |
+| Scope | `git status --porcelain --untracked-files=all` | exactly the three edited frontend files + untracked `.pi/gentle-ai/sdd-preflight.json` (read-only inspected; see below); index empty; no test/config/lockfile/backend path touched |
+
+### Changed-line accounting
+
+`git diff --numstat`: `frontend/src/features/jobs/api/listJobs.ts` 8+/19−, `frontend/src/features/jobs/formatters.ts` 20+/8−, `frontend/src/features/jobs/types.ts` 1+/1− → **29 insertions / 28 deletions = 57 changed source lines**, far inside the 400-line budget. `apply-progress.md` is administrative evidence, excluded per project accounting. Nothing staged, committed, pushed, or opened as a PR; no dependency/lockfile/manifest change; no install.
+
+### Runtime/browser verification
+
+N/A — no route composition exists yet (Tasks 4.x/5.x); all proof is at the domain/data-boundary layer as contracted for 3.4. No stale `next-server` or background processes were left behind.
+
+### `.pi` preflight-file observation (exact, no causality assigned)
+
+The parent's verified baseline stated `.pi/gentle-ai/sdd-preflight.json` absent, yet it was present at attempt start: mtime `2026-09-06 21:36:00 -0600` (after the 21:31:32 HEAD commit, ~1 minute before this phase began), 5 JSON keys containing exactly this dispatch's session-preflight values (`executionMode: auto`, `artifactStore: openspec`, `chainedPrStrategy: ask-on-risk`, `reviewBudgetLines: 400`, `prompted: false`) and no attempt/task/authority data. Read-only inspected only; not touched, modified, or deleted; excluded from the candidate.
+
+### Task state and checkbox
+
+Task 3.4's checkbox remains `- [ ]` per explicit dispatch instruction (the parent forbids editing `tasks.md`; the checkbox closes only when the separately authorized implementation commit lands, consistent with the candidate-and-commit accounting contract for every prior unit). Tasks 4.1+ untouched. No push and no PR.
+
+### Rollback boundary
+
+`git checkout -- frontend/src/features/jobs/api/listJobs.ts frontend/src/features/jobs/formatters.ts frontend/src/features/jobs/types.ts` and truncate this file to its pre-append 1053-line prefix (SHA-256 `ef8fc06de0ca958f858d57bb05acd81a3f1c17f1e7c5d310b7dbb04b03bf8208`). No other byte is touched; the focused suite returns to the inherited Task 3.3 GREEN state. One coherent rollback boundary covers the complete REFACTOR.
+
+## Task 3.4 REFACTOR — corrective rerun addendum (work unit `task-3-4-refactor`, single allowed gatekeeper rerun)
+
+This append-only addendum supersedes only the two superseded claims identified below; every byte of the first Task 3.4 attempt section above is retained unchanged. Bound to failed evidence revision `sha256:e4661ee977923ad690958acfb3b89e52a90a6549b620d90fed3fd09a54994d83`; fresh acquire `proceed`, max attempts 2 and 400 changed lines preserved; no acquire/settle/reset/review-authority interaction was performed. HEAD/tree unchanged during this rerun: `b2123013e1fb7a78adb4a2f1c35dd67fc4f3ead0` / tree `11785723117f762d91d84d6c328041355da1a07e` on `feat/frontend-foundation`.
+
+### B1 corrected — genuinely exhaustive salary formatter map
+
+- Defect: `SALARY_CURRENCIES as const satisfies readonly SalaryCurrency[]` validates member validity only (a schema-added currency would still pass); the `Map<SalaryCurrency, Intl.NumberFormat>` could be partial, and `salaryFormatters.get(currency)!` assumed totality with a non-null assertion.
+- Correction (formatters.ts only): the array + `Map` is replaced by `const salaryFormatters: Record<SalaryCurrency, Intl.NumberFormat> = { MXN: salaryFormatter("MXN"), USD: salaryFormatter("USD") }`, where `SalaryCurrency = JobItem["salary_currency"]` is schema-derived. A schema enum addition without a matching required key is now a TypeScript `TS2741` compile error exactly at this map; the non-null assertion and the partial map are gone (`salaryFormatters[currency]` is total by type). Exact MXN/USD behavior preserved: same `"es-MX"`, `style: "currency"`, `currencyDisplay: "code"`, `maximumFractionDigits: 0`, ICU narrow-space normalization, en-dash ranges, `Desde`/`Hasta` prefixes, and `null` for no bounds. No schema type weakened; no fallback behavior added. The independently verified `listJobs.ts` frozen-snapshot state and `types.ts` candidate bytes are untouched.
+- Exhaustiveness proof (static, throwaway probe outside the repo): the same `Record<SalaryCurrency, Intl.NumberFormat>` pattern against a widened union `"MXN" | "USD" | "EUR"` fails typecheck with exactly `error TS2741: Property 'EUR' is missing in type '{ MXN: Intl.NumberFormat; USD: Intl.NumberFormat; }' but required in type 'Record<SalaryCurrency, NumberFormat>'` (exit 2 for the probe file — expected RED for the probe; the project typecheck itself is exit 0).
+- Behavior probe (runtime, Node v22.22.1 `--experimental-strip-types` over the real module): `formatSalary` outputs are byte-identical for all four pinned cases — `{min:25000,max:40000,currency:"MXN"}` → `MXN 25,000 – MXN 40,000`; `{min:3000,currency:"USD"}` → `Desde USD 3,000`; `{max:3000,currency:"USD"}` → `Hasta USD 3,000`; `{currency:"MXN"}` → `null`.
+- Honest intermediate note: the correction edit briefly introduced 4-space over-indentation and four blank lines with trailing whitespace in the replaced block; `git diff --check` caught them and the block was normalized back to the file's existing indentation (whitespace-only, proven by the unchanged test/lint/typecheck/build results below). No other transient occurred.
+
+### B2 corrected — stale accounting superseded (append-only)
+
+- Superseded: the first attempt's claim of `29+/28− = 57` source lines was stale after automatic formatter normalization (the gatekeeper observed `32+/29− = 61` before B1 correction). The final authoritative post-correction/post-formatting source accounting is:
+- `git diff --numstat`: `frontend/src/features/jobs/api/listJobs.ts` **11+/20−**, `frontend/src/features/jobs/formatters.ts` **33+/19−**, `frontend/src/features/jobs/types.ts` **1+/1−** → **45 insertions / 40 deletions = 85 changed source lines**, inside the 400-line budget. (formatters grew from the first-attempt 20+/8− by the B1 `Record` correction plus whitespace-only normalization of the replaced block.) `apply-progress.md` is administrative evidence, excluded per project accounting; including it, the file currently stands at 69+/0− plus this addendum.
+- `formatters.ts` is 105 lines; `listJobs.ts` 59; `types.ts` 15.
+
+### Exact rerun gate results (Node `v22.22.1` via nvm PATH, Corepack pnpm `10.34.5`, `COREPACK_ENABLE_NETWORK=0`, from `frontend/`)
+
+| Gate | Exact command | Result |
+| --- | --- | --- |
+| Runtime pin | `node --version` / `corepack pnpm --version` | `v22.22.1` / `10.34.5` |
+| Focused tests | `corepack pnpm exec vitest run src/features src/lib` | exit 0; Test Files 9 passed (9); Tests 47 passed (47) |
+| Typecheck | `corepack pnpm typecheck` | exit 0, no diagnostics |
+| Lint | `corepack pnpm lint` | exit 0, no errors/warnings |
+| API-unavailable build | `rm -rf .next && PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:9 PEOPLEFLOW_SITE_URL=http://127.0.0.1:3000 corepack pnpm build` | exit 0; Next.js compiled, type-validated, 4/4 static pages (`/` 8.18 kB First Load 110 kB, `/_not-found` 997 B); no API process available |
+| Exhaustiveness probe | `corepack pnpm exec tsc --noEmit --strict --target es2022 --module nodenext --moduleResolution nodenext /tmp/b1-probe/probe.ts` | exit 2 with exactly TS2741 `Property 'EUR' is missing` — proves `Record<SalaryCurrency, Intl.NumberFormat>` enforces exhaustive required keys |
+| Formatting probe | Node `--experimental-strip-types` importing `formatSalary` | 4/4 pinned MXN/USD outputs byte-identical |
+| Negative greps | `zustand`/`route.ts`/`use client`/`next/navigation`/`next/server`/`NEXT_PUBLIC` over `src/features/jobs` + `src/lib` (production) | none |
+| Negative: fetch sites | `grep -rn "\bfetch(" src --include="*.ts"` (non-test) | single call site `src/lib/api/requestJson.ts:34` |
+| Negative: requestJson bypass | guarded-façade importer grep | production importers exactly `api/getJob.ts` + `api/listJobs.ts` via `../../../lib/api/server` |
+| Negative: cursor opacity | grep `cursor` in `url.ts` for decode/log/interpret/normalize | only opacity-contract wording |
+| Negative: hydration/invented formatting | `RelativeTimeFormat`/`hace`/`por mes`/`getTimezoneOffset` in `formatters.ts` | none |
+| server-only guards | `head -1 src/lib/api/server.ts src/lib/env/server.ts` | exact `import "server-only"` in both |
+| B1 remnants | `get(currency)!`, `new Map<`, `as const satisfies readonly SalaryCurrency` in `formatters.ts` | none |
+| Whitespace gate | `git diff --check` | exit 0 (after removing the four transient blank-line trailing spaces) |
+| Index | `git diff --cached --stat` | empty; nothing staged, committed, pushed, or opened as a PR |
+
+### Scope, hygiene, and preserved verified changes
+
+- `git status --porcelain --untracked-files=all`: exactly `M frontend/src/features/jobs/api/listJobs.ts`, `M frontend/src/features/jobs/formatters.ts`, `M frontend/src/features/jobs/types.ts`, `M openspec/changes/frontend-public-job-discovery/apply-progress.md`, and untracked `.pi/gentle-ai/sdd-preflight.json`; index empty. `.next/` build artifacts are gitignored. `.pi/gentle-ai/sdd-preflight.json` was read-only SHA-verified unchanged twice during this rerun: `43098a2b3589126267373d8c8a4336e0eb2456f3f6ceb80ac5f75cdff988c813`; it was not touched, modified, or deleted and remains excluded from the candidate.
+- Preserved verified changes untouched: the removed `canonicalKeyState` and the direct frozen `canonicalSnapshot` list-query key, the type-only `formatters -> types -> schemas` ownership edge, and all committed tests (`jobId.test.ts`, `listJobs.test.ts`, `formatters.test.ts`, etc. — no test file modified; no RED manufactured, behavior-preserving REFACTOR).
+- Append-only verification: pre-append 1122-line prefix SHA-256 `10a335b373936ccefc7c7848736b83cccb818f23404cf3bb89d9baa29d544957` retained byte-for-byte; this addendum appends at lines 1123+.
+
+### Rollback boundary (updated, one coherent boundary)
+
+`git checkout -- frontend/src/features/jobs/api/listJobs.ts frontend/src/features/jobs/formatters.ts frontend/src/features/jobs/types.ts` and truncate this file to its pre-append 1122-line prefix (SHA-256 `10a335b373936ccefc7c7848736b83cccb818f23404cf3bb89d9baa29d544957`), which removes both the first Task 3.4 evidence section and this addendum while preserving all earlier history. No other byte is touched; the focused suite returns to the inherited Task 3.3 GREEN state.
+
+### Task state
+
+Task 3.4's checkbox remains `- [ ]` per dispatch instruction (closes only when the separately authorized implementation commit lands). Tasks 4.1+ untouched. No stage, commit, push, PR, install, or dependency change.
+
+### Final Task 3.4 evidence reconciliation (authoritative)
+
+- This is the final authoritative Task 3.4 evidence reconciliation. It supersedes only stale accounting/rollback statements in the two prior Task 3.4 sections above (their pre-append line counts and the truncate-to-1122 rollback); all other prior content is preserved verbatim as history.
+- Re-measured source numstat vs HEAD, unchanged from the last independent verifier's stable candidate: `frontend/src/features/jobs/api/listJobs.ts` 11+/20−; `frontend/src/features/jobs/formatters.ts` 67+/53−; `frontend/src/features/jobs/types.ts` 1+/1−; source total 79+/74− = 153 changed lines, matching the independently verified candidate byte-for-byte; this evidence-only successor itself adds no source change.
+- This `apply-progress.md` file is administrative evidence and is excluded from the source budget; no exact admin line, addition, or dirty-path count is stated here because the host formatter may normalize Markdown after this append.
+- Correct full Task 3.4 rollback: restore all three source files to HEAD (`git checkout -- frontend/src/features/jobs/api/listJobs.ts frontend/src/features/jobs/formatters.ts frontend/src/features/jobs/types.ts`) and restore this `apply-progress.md` to the verified original 1053-line baseline prefix, SHA-256 `ef8fc06de0ca958f858d57bb05acd81a3f1c17f1e7c5d310b7dbb04b03bf8208` (SHA-256 of the first 1053 lines); rollback does NOT truncate to 1122 lines.
+- Final source bytes for later verification binding (both methods reported): `git hash-object` — listJobs.ts `7c948c188a70a978beeed35034dcb4d3c750763f`, formatters.ts `c2c8b3f2d4f48c0acaa44c6c81d600d985108ef6`, types.ts `f65b8301a48bab7f957be403d83cced4ebbb79bc`; SHA-256 — listJobs.ts `4b86ce1dc1027d853209a2c9a70ef1c037d6ce8ea65400c123a1c4ed540806e5`, formatters.ts `08f11146e779be5f09926b47b711e5d30880ce30d34b5935b690fd87d1616c98`, types.ts `20aa4323be774bcf53a1eae9200646c53b3329c599083ad59a80348d97081d84`.
+- Inherited final executable evidence (run by the last independent verifier AFTER final source normalization, not rerun by this evidence-only successor): Node v22.22.1, Corepack pnpm 10.34.5, `COREPACK_ENABLE_NETWORK=0`; focused suite 9 files/47 tests passed, typecheck passed, lint passed, API-offline build passed, static boundaries clean, exhaustive currency probe passed, and `git diff --check` clean. B1 is fixed. This successor changes no source, test, or config file.
+- Task 3.4 remains `- [ ]` in `tasks.md`; no stage, commit, push, PR, install, or dependency change occurred in this successor.

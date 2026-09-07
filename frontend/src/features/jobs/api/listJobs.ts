@@ -5,7 +5,7 @@ import type { RequestJsonResult } from "../../../lib/api/server";
 import { jobsListSchema } from "../schemas";
 import type { JobsList } from "../types";
 import { buildJobsUrl, parseJobsQuery } from "../url";
-import type { JobsQuery, JobsQueryKey } from "../url";
+import type { JobsQuery } from "../url";
 
 /** Canonical search text (`""` or `"?..."`), reused from the URL helpers. */
 function canonicalSearch(query: JobsQuery): string {
@@ -22,27 +22,16 @@ function canonicalSnapshot(query: JobsQuery): JobsQuery {
  return Object.freeze(parseJobsQuery(raw.toString()));
 }
 
-/** Query-key state object rebuilt in canonical order from the canonical URL. */
-function canonicalKeyState(query: JobsQuery) {
- const state: Partial<Record<JobsQueryKey, string>> = {};
- for (const [key, value] of new URLSearchParams(canonicalSearch(query))) {
-  state[key as JobsQueryKey] = value;
- }
- return state;
-}
-
-/**
- * Feature-owned TanStack Query options for the root-level job list read.
- *
- * The snapshot taken at construction is shared by both the JSON-serializable
- * hierarchical key (`jobs` → `list` → state) and the `queryFn`, so later
- * mutation of the caller-owned input can never change the request issued
- * under an old key. No retry semantics are configured here.
- */
+/** Feature-owned TanStack Query options for the root-level job list read. */
 export function listJobsQueryOptions(query: JobsQuery) {
+ // One canonical, frozen snapshot shared verbatim by the key state and the
+ // `queryFn`: later mutation of the caller-owned input can never change the
+ // request issued under an old key, and no re-canonicalization pass is needed
+ // because `canonicalSnapshot` already emits canonical values in canonical
+ // serialization order. No retry semantics are configured here.
  const snapshot = canonicalSnapshot(query);
  return queryOptions({
-  queryKey: ["jobs", "list", canonicalKeyState(snapshot)],
+  queryKey: ["jobs", "list", snapshot],
   queryFn: () => listJobs(snapshot),
  });
 }
@@ -53,7 +42,9 @@ export function listJobsQueryOptions(query: JobsQuery) {
  * opaque value, payloads decode through `jobsListSchema`, and no list status
  * ever maps to not-found (no detail-only `notFoundStatus`).
  */
-export async function listJobs(query: JobsQuery): Promise<RequestJsonResult<JobsList>> {
+export async function listJobs(
+ query: JobsQuery,
+): Promise<RequestJsonResult<JobsList>> {
  // Loaded lazily so canonicalization and key building never trigger the
  // eager environment validation or the server-only import resolution.
  const { serverEnv } = await import("../../../lib/env/server");

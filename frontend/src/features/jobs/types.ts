@@ -10,6 +10,6 @@ export type JobItem = z.infer<typeof jobItemSchema>;
 
 /**
  * Validated wire shape of the root-level "/jobs" list envelope, inferred from
- * `jobsListSchema`; consumed by the future list/detail query functions.
+ * `jobsListSchema`; consumed by the list/detail query functions in `api/`.
  */
 export type JobsList = z.infer<typeof jobsListSchema>;
