@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const fixtureUrl = "http://127.0.0.1:4010";
+const appUrl = "http://127.0.0.1:3000";
 test.describe.configure({ mode: "serial" });
 test.beforeEach(async ({ request }) => {
   await request.get(`${fixtureUrl}/__reset`);
@@ -23,11 +24,31 @@ test("canonicalizes before API access", async ({ page, request }) => {
   page.on("request", (entry) => {
     if (entry.url().startsWith(fixtureUrl)) apiRequests.push(entry.url());
   });
-  await page.goto("/vacantes?currency=mxn&unknown=drop-me");
+
+  // The non-canonical request is inspected without following its redirect:
+  // Node fetch in manual mode exposes the raw 307 and its Location header.
+  const redirectResponse = await fetch(
+    `${appUrl}/vacantes?currency=mxn&unknown=drop-me`,
+    { redirect: "manual" },
+  );
+  await redirectResponse.body?.cancel();
+  expect(redirectResponse.status).toBe(307);
+  const location = new URL(redirectResponse.headers.get("location")!, appUrl);
+  expect(location.pathname).toBe("/vacantes");
+  expect(location.search).toBe("");
+
+  // Zero API access for the redirecting request: browser and server logs agree.
   expect(apiRequests).toEqual([]);
   await expect
     .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
     .toEqual([]);
+
+  // The canonical target is loaded separately and performs the expected
+  // unfiltered server fetch.
+  await page.goto("/vacantes");
+  await expect
+    .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
+    .toEqual([""]);
   await expect(page).toHaveURL("/vacantes");
 });
 
@@ -171,4 +192,81 @@ test("omits unavailable optional metadata", async ({ page }) => {
   await expect(page.getByRole("list")).not.toContainText(
     /undefined|ubicación no disponible|sueldo no disponible/i,
   );
+});
+
+test("raw empty and repeated query states redirect before API access", async ({
+  request,
+}) => {
+  for (const [raw, target] of [
+    ["/vacantes?q=", "/vacantes"],
+    ["/vacantes?q=&q=frontend", "/vacantes"],
+  ] as const) {
+    const response = await fetch(`${appUrl}${raw}`, { redirect: "manual" });
+    await response.body?.cancel();
+    expect(response.status).toBe(307);
+    const location = new URL(response.headers.get("location")!, appUrl);
+    expect(location.pathname + location.search).toBe(target);
+    await expect
+      .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
+      .toEqual([]);
+  }
+});
+
+test("browser Back restores URL-owned control values", async ({ page }) => {
+  await page.goto("/vacantes");
+  await page.getByLabel("Buscar vacantes").fill("frontend");
+  await page.getByRole("button", { name: "Buscar", exact: true }).click();
+  await page.waitForURL(/q=frontend/);
+  await page.getByLabel(/moneda/i).click();
+  await page.getByRole("option", { name: "USD" }).click();
+  await page.getByRole("button", { name: /aplicar filtros/i }).click();
+  await page.waitForURL(/q=frontend&currency=USD/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/vacantes\?q=frontend$/);
+  await expect(page.getByLabel(/moneda/i)).toHaveText(/Todas/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/vacantes$/);
+  await expect(page.getByLabel("Buscar vacantes")).toHaveValue("");
+});
+
+test("clears one scalar through its explicit null option", async ({ page }) => {
+  await page.goto("/vacantes?q=frontend&currency=MXN");
+  await page.getByLabel(/moneda/i).click();
+  await page.getByRole("option", { name: "Todas" }).click();
+  await page.getByRole("button", { name: /aplicar filtros/i }).click();
+  await expect(page).toHaveURL(/\/vacantes\?q=frontend$/);
+});
+
+test("modified next-link clicks keep native new-tab semantics", async ({
+  page,
+}) => {
+  await page.goto("/vacantes?currency=MXN");
+  const next = page.getByRole("link", { name: /ver más vacantes/i });
+  const [popup] = await Promise.all([
+    page.context().waitForEvent("page"),
+    next.click({ modifiers: ["Control"] }),
+  ]);
+  expect(popup).toBeTruthy();
+  await expect(page).toHaveURL(/currency=MXN/);
+  await expect(page.getByRole("status")).not.toContainText(/cargando/i);
+  await expect(next).not.toHaveAttribute("aria-busy", "true");
+  await popup.close();
+});
+
+test("mobile filters trigger meets touch-target size and dialog exposes Cerrar", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/vacantes");
+  const trigger = page.getByRole("button", { name: /filtros/i });
+  await expect(trigger).toBeVisible();
+  const box = await trigger.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+  await trigger.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toHaveAccessibleName(/filtros/i);
+  await expect(
+    dialog.getByRole("button", { name: "Cerrar filtros" }),
+  ).toBeVisible();
 });
