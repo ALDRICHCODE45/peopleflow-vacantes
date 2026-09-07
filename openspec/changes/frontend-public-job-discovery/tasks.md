@@ -84,7 +84,7 @@ Tasks 3.2, 3.3, 3.4, 4.2, 4.4, and 5.2 below carry the corresponding wording. `s
 
 ### 3.4 REFACTOR — isolate domain ownership and deterministic helpers
 
-- [ ] Refactor `frontend/src/features/jobs/{api,schemas,url,formatters,types.ts}` and `frontend/src/lib/{api,env}` so route concerns remain absent from domain modules, no browser-direct fetch or proxy exists, no cursor is decoded/logged, the TanStack Query orchestration boundary over `requestJson` remains the single request path with no Zustand store, and formatting has no hydration-dependent relative dates or invented salary periods. Re-run focused tests, typecheck, lint, and an API-unavailable production build. <!-- sdd-owner: implementation -->
+- [x] Refactor `frontend/src/features/jobs/{api,schemas,url,formatters,types.ts}` and `frontend/src/lib/{api,env}` so route concerns remain absent from domain modules, no browser-direct fetch or proxy exists, no cursor is decoded/logged, the TanStack Query orchestration boundary over `requestJson` remains the single request path with no Zustand store, and formatting has no hydration-dependent relative dates or invented salary periods. Re-run focused tests, typecheck, lint, and an API-unavailable production build. <!-- sdd-owner: implementation -->
 
 ## 4. Vacancy list route and navigation states (PR 4)
 
