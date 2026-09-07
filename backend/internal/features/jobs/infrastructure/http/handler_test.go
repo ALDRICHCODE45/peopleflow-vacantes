@@ -10,9 +10,12 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -177,6 +180,83 @@ func doGet(t *testing.T, router http.Handler, path string) *httptest.ResponseRec
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	return rec
+}
+
+// captureSlogJSON swaps the process-global default slog logger for a
+// JSON handler writing into the returned buffer and registers the
+// restore via t.Cleanup. Tests using it MUST stay non-parallel because
+// slog.Default is shared state.
+func captureSlogJSON(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	return &buf
+}
+
+// decodeSlogRecords splits a captured JSON slog stream into one
+// key/value map per emitted record.
+func decodeSlogRecords(t *testing.T, buf *bytes.Buffer) []map[string]any {
+	t.Helper()
+	var records []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		if line == "" {
+			continue
+		}
+		var rec map[string]any
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatalf("captured slog line is not JSON: %v: %q", err, line)
+		}
+		records = append(records, rec)
+	}
+	return records
+}
+
+// assertBoundedErrorRecord pins the exact bounded shape of the
+// unexpected-error log: exactly one record carrying precisely the keys
+// time/level/msg/code_class, the fixed message and ERROR severity, and
+// the given catalog code class — never method, path, or raw error.
+func assertBoundedErrorRecord(t *testing.T, records []map[string]any, wantCodeClass string) {
+	t.Helper()
+	if len(records) != 1 {
+		t.Fatalf("error log records: want exactly 1, got %d: %v", len(records), records)
+	}
+	rec := records[0]
+	for key := range rec {
+		switch key {
+		case "time", "level", "msg", "code_class":
+		default:
+			t.Errorf("error log has unbounded key %q (record: %v)", key, rec)
+		}
+	}
+	if got, ok := rec["msg"].(string); !ok || got != "jobs handler failed" {
+		t.Errorf("msg: want fixed %q, got %v", "jobs handler failed", rec["msg"])
+	}
+	if got, ok := rec["level"].(string); !ok || got != slog.LevelError.String() {
+		t.Errorf("level: want %q, got %v", slog.LevelError.String(), rec["level"])
+	}
+	if got, ok := rec["code_class"].(string); !ok || got != wantCodeClass {
+		t.Errorf("code_class: want %q, got %v", wantCodeClass, rec["code_class"])
+	}
+	ts, ok := rec["time"].(string)
+	if !ok {
+		t.Fatalf("time: want RFC3339 string, got %v", rec["time"])
+	}
+	if _, err := time.Parse(time.RFC3339, ts); err != nil {
+		t.Errorf("time %q is not RFC3339: %v", ts, err)
+	}
+}
+
+// assertNoLeak scans raw captured text for synthetic sensitive markers
+// and request-identity artifacts the bounded contract forbids.
+func assertNoLeak(t *testing.T, what, raw string, secrets ...string) {
+	t.Helper()
+	for _, s := range secrets {
+		if strings.Contains(raw, s) {
+			t.Errorf("%s must not contain %q: %s", what, s, raw)
+		}
+	}
 }
 
 // --- list endpoint --------------------------------------------------------
@@ -511,6 +591,97 @@ func TestGetJob_InternalErrorReturns500(t *testing.T) {
 		t.Fatalf("want 500, got %d: %s", rec.Code, rec.Body.String())
 	}
 	assertCatalogEnvelope(t, rec, httpjson.CodeInternalError)
+}
+
+// TestGetJob_InternalErrorLogIsBounded covers the bounded-log contract
+// for unexpected errors: when GetByID fails, the handler writes a 500
+// internal_error envelope and emits exactly ONE structured log record
+// with the fixed message/severity and the catalog code_class — never
+// method, path, the query marker, or any part of the raw error (the
+// synthetic DSN/token/email/CV-key markers must not survive anywhere).
+func TestGetJob_InternalErrorLogIsBounded(t *testing.T) {
+	buf := captureSlogJSON(t)
+
+	dsn := "postgres://svc:hunter2-dsn-SECRET-1234@db.internal:5432/app"
+	token := "bearer-token-ABCDEF-SECRET"
+	email := "victim-cv@example.com"
+	cvKey := "cv-blob-s3://cv/secret-resume.pdf"
+	rawErr := fmt.Sprintf("get job failed: dsn=%s token=%s email=%s cv=%s", dsn, token, email, cvKey)
+	repo := &stubRepo{getByIDErr: errors.New(rawErr)}
+	router := newTestRouter(repo)
+
+	id := uuid.MustParse("018e0000-0000-7000-8000-0000000000cc")
+	rec := doGet(t, router, "/jobs/"+id.String()+"?marker=sentinel-6a")
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("want 500, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if repo.getByIDCalls != 1 {
+		t.Fatalf("GetByID calls: want 1, got %d", repo.getByIDCalls)
+	}
+	assertCatalogEnvelope(t, rec, httpjson.CodeInternalError)
+	assertNoLeak(t, "response body", rec.Body.String(),
+		rawErr, dsn, token, email, cvKey, id.String(), "sentinel-6a", "/jobs/")
+
+	assertBoundedErrorRecord(t, decodeSlogRecords(t, buf), string(httpjson.CodeInternalError))
+	assertNoLeak(t, "error log", buf.String(),
+		rawErr, dsn, token, email, cvKey, id.String(), "sentinel-6a", "/jobs/")
+}
+
+// TestGetJob_ErrorLogTriangulation triangulates the bounded-log
+// contract across the other classification outcomes: a second distinct
+// error/UUID still emits the same bounded schema; a 404
+// (ErrJobNotFound) emits zero unexpected-error logs; an invalid UUID
+// emits zero repo calls and zero logs.
+func TestGetJob_ErrorLogTriangulation(t *testing.T) {
+	t.Run("second error uuid emits same bounded schema", func(t *testing.T) {
+		buf := captureSlogJSON(t)
+		repo := &stubRepo{getByIDErr: errors.New("second failure token=ZZZ-9-cv-blob")}
+		router := newTestRouter(repo)
+
+		id := uuid.MustParse("018e0000-0000-7000-8000-0000000000dd")
+		rec := doGet(t, router, "/jobs/"+id.String())
+
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("want 500, got %d: %s", rec.Code, rec.Body.String())
+		}
+		if repo.getByIDCalls != 1 {
+			t.Fatalf("GetByID calls: want 1, got %d", repo.getByIDCalls)
+		}
+		assertBoundedErrorRecord(t, decodeSlogRecords(t, buf), string(httpjson.CodeInternalError))
+		assertNoLeak(t, "error log", buf.String(), "second failure", "ZZZ-9-cv-blob", id.String(), "/jobs/")
+	})
+
+	t.Run("not found emits zero unexpected error logs", func(t *testing.T) {
+		buf := captureSlogJSON(t)
+		repo := &stubRepo{} // default GetByID → ErrJobNotFound
+		router := newTestRouter(repo)
+
+		rec := doGet(t, router, "/jobs/"+uuid.New().String())
+		if rec.Code != http.StatusNotFound {
+			t.Fatalf("want 404, got %d: %s", rec.Code, rec.Body.String())
+		}
+		if records := decodeSlogRecords(t, buf); len(records) != 0 {
+			t.Errorf("unexpected error logs on 404: want 0, got %d: %v", len(records), records)
+		}
+	})
+
+	t.Run("invalid uuid zero repo calls and zero logs", func(t *testing.T) {
+		buf := captureSlogJSON(t)
+		repo := &stubRepo{}
+		router := newTestRouter(repo)
+
+		rec := doGet(t, router, "/jobs/not-a-uuid")
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
+		}
+		if repo.getByIDCalls != 0 {
+			t.Errorf("GetByID calls: want 0, got %d", repo.getByIDCalls)
+		}
+		if records := decodeSlogRecords(t, buf); len(records) != 0 {
+			t.Errorf("unexpected logs on invalid UUID: want 0, got %d: %v", len(records), records)
+		}
+	})
 }
 
 // --- misc -----------------------------------------------------------------

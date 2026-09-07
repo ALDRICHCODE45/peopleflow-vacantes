@@ -330,15 +330,17 @@ func (h *JobHandler) softDeleteJob(w http.ResponseWriter, r *http.Request) {
 // --- classification & helpers -------------------------------------------
 
 // classifyAndWriteError centralizes the ErrJobNotFound → 404 / any
-// other → 500 mapping that both read handlers need. The real error
-// is logged at error severity so an operator can correlate with the
-// generic 5xx response the client sees. `classifyError` is the flat
-// dispatcher that knows every domain sentinel the use cases can
-// surface.
+// other → 500 mapping that both read handlers need. Unexpected errors
+// are logged with a FIXED message and error severity plus the catalog
+// code_class from the resolved definition — the log record carries no
+// method, path, or raw error content, so it cannot leak request
+// identity or sensitive payloads; the request middleware owns bounded
+// request correlation. `classifyError` is the flat dispatcher that
+// knows every domain sentinel the use cases can surface.
 func (h *JobHandler) classifyAndWriteError(w http.ResponseWriter, r *http.Request, err error) {
 	def := classifyError(err)
 	if def.Status == http.StatusInternalServerError {
-		slog.Error("jobs handler failed", "method", r.Method, "path", r.URL.Path, "error", err)
+		slog.Error("jobs handler failed", "code_class", def.Code)
 	}
 	httpjson.WriteCatalogError(w, def)
 }
