@@ -1194,3 +1194,55 @@ Task 3.4's checkbox remains `- [ ]` per dispatch instruction (closes only when t
 - No install, stage, push, PR, or dependency change occurred in this closure; rollback is `git revert f8a85bb` plus reverting the separate closure commit once created by the parent.
 - Task 3.4 is closed at 9/22 complete (13 pending); Task 4.1 RED is next.
 - Closure review identities: approved review target `sha256:6fef21afa14d1b09d9f3d2906074c261cc033688901fa41b4b5685b72021be2d`; consumed review revision `sha256:96a2e50be8d109f14c2ce018c0c11bbded3a9afb67c8f02fa41a57627fc28db5`; review lineage `review-e118b9d74bcbf41d` authority is burned and MUST NOT be reused.
+
+## Task 4.1 RED — vacancy list expectations
+
+- Added only RED evidence: `frontend/src/app/(public)/vacantes/page.test.tsx`, `frontend/tests/e2e/vacantes.spec.ts`, and test-only `frontend/tests/fixtures/jobs-server.mjs`. No Task 4.2 route, layout, error boundary, jobs component, QueryClient composition, config, or package state changed.
+- The fixture is a standalone Node HTTP process on `127.0.0.1:4010`, outside `src/` and production bundles. Its health/data probe returned `["?currency=MXN"]`; it was reset before Playwright and both fixture and production Next processes were SIGTERM-cleaned on command exit.
+- Harness safety evidence: Node `v22.22.1`, frontend-local Corepack pnpm `10.34.5`; existing jobs Vitest suite passed 15 files/76 tests; existing root Playwright suite passed 13/13 against a production `next start`; fixture syntax check, `pnpm typecheck`, and `pnpm lint` passed.
+- RED evidence: focused Vitest exited 1 with the sole failure `Cannot find module './page'` from the intentionally absent Task 4.2 `vacantes/page.tsx`. Focused Playwright exited 1: fixture health test passed and seven list assertions failed because production `/vacantes` returned 404—canonical redirect, validated semantic success/scalar filters, empty/reset, retryable error, pending/opaque next link, mobile titled Sheet, and omission-safe metadata are absent. This is attributable only to missing Task 4.2 behavior, not fixture startup, ports, package state, types, or lint.
+
+### TDD Cycle Evidence
+
+| Task | Test files | Layer | Safety net | RED | GREEN | TRIANGULATE | REFACTOR |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 4.1 | `page.test.tsx`, `vacantes.spec.ts`, `jobs-server.mjs` | page-data/E2E | 76 Vitest + 13 production Playwright passing | 1 unit + 7 browser assertions fail for absent route | Not authorized | Not started (RED only) | Not started |
+
+- Task 4.1 remains unchecked as required; no implementation commit is authorized. Workload boundary: PR 4 RED slice, `feature-branch-chain`, 153 test/fixture lines plus this concise evidence; below the 400-line cap.
+- Status consumed: `frontend-public-job-discovery` apply `ready`, repo-local root `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-frontend`, allowed edit root is the workspace, no action-context warnings.
+- Rollback boundary: remove the three new test/fixture files and truncate this file to its exact 1,196-line, 199,908-byte pre-append prefix (SHA-256 `8f922d3e416743bd741527bbee6cd187aa1d7ea46d6ce68ee`).
+
+## Task 4.1 RED corrective addendum
+
+- Narrowed the retry assertion to `role=alert` filtered by `/intentar de nuevo/i`; it no longer targets Next's empty route announcer or permits a future multi-alert conflict.
+- Final corrected RED: typecheck and focused lint passed; Vitest failed only for missing `vacantes/page.tsx`; fixture test passed, and seven Playwright checks failed only for absent Task 4.2 behavior on production `/vacantes` 404.
+- Final physical accounting: page test 31 + E2E 91 + fixture 53 + progress diff 22 = 197 changed lines; fixture/Next processes were cleaned and Task 4.1 remains unchecked.
+- Post-write host formatting supersedes only that exact administrative total: test/fixture scope remains 175 lines and the settlement-time `git diff --numstat` is authoritative; the complete candidate remains below 400 lines.
+
+## Task 4.1 RED proof repair — canonical request-log reconciliation
+
+- Native correction context consumed: `task-4-1-red-canonical-proof-repair`, fresh `proceed`, max two attempts / 400 changed lines, repo-local allowed root with no action-context warnings; failed evidence `sha256:c021aa80abd2c274eea28713a88b41cfdd60b7d40d4c06adee4bea1ec04b9720` is parent-owned for settlement.
+- Only `frontend/tests/e2e/vacantes.spec.ts` changed: file-level Playwright serial mode overrides global `fullyParallel`; every test resets `GET /__reset`; the isolated fixture health assertion is exact (`["?currency=MXN"]`); canonicalization now receives Playwright `request` and proves both browser-observed fixture URLs and fixture `GET /__requests` are exactly empty before its redirect assertion.
+- Node `v22.22.1`, frontend-local Corepack pnpm `10.34.5`, `COREPACK_ENABLE_NETWORK=0`: typecheck, focused E2E lint, fixture syntax, and `git diff --check` passed. Focused Vitest remains genuine RED solely for absent `vacantes/page.tsx` (`Cannot find module './page'`).
+- Production `next start` plus fixture on `127.0.0.1:4010`: `/vacantes` is 404; serial file run has the exact fixture health pass, then canonical redirect RED. Its server-side log was exactly `[]`; serial failure skips later tests by Playwright design, so the other six behavior tests were independently rerun and each remained RED only because Task 4.2 is absent. Fixture and Next were SIGTERM-cleaned; ports 3000/4010 are clear.
+- Production route/components remain absent. `page.test.tsx` and `jobs-server.mjs` hashes were preserved; preflight SHA-256 is `43098a2b3589126267373d8c8a4336e0eb2456f3f6ceb80ac5f75cdff988c813`; the original 199,908-byte progress prefix SHA-256 remains `8f922d3e416743bd741527b1ee12311576853bbee6cd187aa1d7ea46d6ce68ee`.
+
+### TDD Cycle Evidence — Task 4.1 repair
+
+| Stage | Evidence |
+| --- | --- |
+| RED | Focused Vitest still fails only for the intentionally absent Task 4.2 page; production fixture Playwright shows the health proof pass and all seven behavior contracts remain RED against `/vacantes` 404. |
+| GREEN | Not authorized; no production code was written. |
+| TRIANGULATE | Exact fixture request-log reset/health/canonical-empty assertions, typecheck, focused lint, syntax, and diff checks passed under the pinned runtime. |
+| REFACTOR | Not started; the repair is the minimal test-proof correction. |
+
+- Task 4.1 remains unchecked; no task checkbox, stage, commit, push, PR, review, package, lock, config, production, or Task 4.2 file changed. Settlement-time native/git accounting is authoritative and below 400 changed lines. Rollback: restore only the prior `vacantes.spec.ts` candidate and remove this appended reconciliation section; no production rollback exists.
+
+## Final closure — Task 4.1 RED complete
+
+- RED commit `cf148ed3fbd698b988dd7aec40974fc05e030116` (`test(frontend): define public vacancy list behavior`) landed: exactly three test-only files, 355 insertions, and no production files. Correct committed SHA-256 values: page test `8d20ff3a64c31e9b8e2c3cdc86611655fca2983da7b9f063282cb0a55c62ae6c`; E2E `25ed691ef0abcbb788dfabb201ab22d8b4895d4e0af817cb17553a628a9398c5`; fixture `35b6950159239cbe7860ccff441de5731bf5998d2c956cc20988d9c417027262`.
+- Independent verification passed: backend passed; frontend jobs/lib passed 9 files/47 tests; fixture health passed; typecheck, focused lint, fixture syntax, primary LSP, applicable pi-lens checks, and diff check passed. One auxiliary ast-grep lane was unavailable and is not clean.
+- Intentional RED remains: focused Vitest had exactly four failures for absent `error.tsx` / `JobsNavigationIsland`; ten Playwright behavior scenarios remained Task 4.2 404 RED. Before the canonical redirect failure, browser and server `GET /__requests` logs were both exactly empty.
+- Accounting and cleanup: the corrected candidate was 398/400 before commit; committed RED scope is 355 lines. Fixture/Next exited and ports 3000/4010 are free.
+- Native objective `task-4-1-red-independent-verification` settled `complete` with `sha256:5f297912a101b2e8dcb9e6d8150f36843504a6d8f0989b0b3b713c8cf9b742b1`, remediating `sha256:36d29b93a3ff76fbdb39c4793e715df64107f8f775b59b9f01e67e2a50a85c64`.
+- Rollback: revert `cf148ed`; it removes only the three Task 4.1 RED files. Task 4.2 remains unchecked and unstarted.

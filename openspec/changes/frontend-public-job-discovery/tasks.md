@@ -90,7 +90,7 @@ Tasks 3.2, 3.3, 3.4, 4.2, 4.4, and 5.2 below carry the corresponding wording. `s
 
 ### 4.1 RED — activate fixture and define list behavior
 
-- [ ] Add failing RTL/page-data and Playwright tests for `frontend/src/app/(public)/vacantes/page.tsx`, `error.tsx`, and `frontend/src/features/jobs/components/` covering canonical redirect before API access, validated success/empty/error output, scalar labeled filters, desktop filter column, mobile titled Base UI Sheet, pending announcements, reset link, list semantics, optional-field omission, and next-link filter/cursor preservation. Create or activate the minimal test-only jobs HTTP fixture under `frontend/tests/fixtures/` in this RED unit; it must never become a production route or bundle. Run focused Vitest and Playwright commands and record RED; rollback only list tests and fixture activation. <!-- sdd-owner: implementation -->
+- [x] Add failing RTL/page-data and Playwright tests for `frontend/src/app/(public)/vacantes/page.tsx`, `error.tsx`, and `frontend/src/features/jobs/components/` covering canonical redirect before API access, validated success/empty/error output, scalar labeled filters, desktop filter column, mobile titled Base UI Sheet, pending announcements, reset link, list semantics, optional-field omission, and next-link filter/cursor preservation. Create or activate the minimal test-only jobs HTTP fixture under `frontend/tests/fixtures/` in this RED unit; it must never become a production route or bundle. Run focused Vitest and Playwright commands and record RED; rollback only list tests and fixture activation. <!-- sdd-owner: implementation -->
 
 ### 4.2 GREEN — implement list composition, controls, and states
 
