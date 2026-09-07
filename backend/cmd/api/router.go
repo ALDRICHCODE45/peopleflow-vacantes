@@ -13,6 +13,8 @@ import (
 	industrieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/industries/infrastructure/http"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/health"
+	rtmetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
+	runtimemw "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -31,13 +33,23 @@ type routerDeps struct {
 	queries            *db.Queries
 	pool               health.Pinger
 	readinessTimeout   time.Duration
+	// httpMetrics = the no-op HTTP metrics default composed by the
+	// composition root (main.go); RequestObservability also defaults the
+	// completion logger to slog.Default() when nil. No exporter/endpoint.
+	httpMetrics rtmetrics.HTTPMetrics
 }
 
 // newRouter builds the chi router: middleware, health, all feature registrations
 // (exact multiset pinned by TestRouteTopology_ExactRegistrations).
 func newRouter(d routerDeps) chi.Router {
 	r := chi.NewRouter()
-	r.Use(middleware.RequestID, middleware.Logger, middleware.Recoverer)
+	// Task 6.3 production wiring (design §8.3): RequestID runs FIRST (the
+	// completion record's request_id is read from the request context, never
+	// a second generated ID), RequestObservability wraps Recoverer/handlers
+	// so each request emits exactly one structured completion record and one
+	// bounded metrics observation. chi's legacy middleware.Logger is removed:
+	// it duplicated per-request logging now owned by RequestObservability.
+	r.Use(middleware.RequestID, runtimemw.RequestObservability(nil, d.httpMetrics), middleware.Recoverer)
 
 	// Health (§8.1): static liveness; readiness pings once under the timeout.
 	r.Get("/healthz", health.Healthz(d.pool))

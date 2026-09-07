@@ -30,12 +30,217 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"os"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 )
+
+// findFuncDecl returns the top-level function declaration named `name` in f (nil when absent).
+func findFuncDecl(f *ast.File, name string) *ast.FuncDecl {
+	for _, d := range f.Decls {
+		if fn, ok := d.(*ast.FuncDecl); ok && fn.Name.Name == name {
+			return fn
+		}
+	}
+	return nil
+}
+
+// isPkgSelector reports whether e is exactly the qualified selector `pkg.name`.
+func isPkgSelector(e ast.Expr, pkg, name string) bool {
+	sel, ok := e.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	id, ok := sel.X.(*ast.Ident)
+	return ok && id.Name == pkg && sel.Sel.Name == name
+}
+
+// chiMiddlewareLocalName resolves the local package name (alias or base) of
+// the chi middleware import in f; "" when not imported. Resolving the real
+// alias means an import rename cannot hide a legacy Logger reference.
+func chiMiddlewareLocalName(f *ast.File) string {
+	for _, imp := range f.Imports {
+		p, err := strconv.Unquote(imp.Path.Value)
+		if err != nil || p != "github.com/go-chi/chi/v5/middleware" {
+			continue
+		}
+		if imp.Name != nil {
+			return imp.Name.Name
+		}
+		return p[strings.LastIndex(p, "/")+1:]
+	}
+	return ""
+}
+
+// isSelectorOnReceiver reports whether e is EXACTLY the selector
+// `<recv>.<name>` whose receiver is the bare identifier recv. The exact
+// structural binding Guards 1a/1b require: a chained call like
+// chi.NewRouter().Use carrying the same arguments, or an unrelated
+// owner containing a .httpMetrics selector (e.g.
+// routerDeps{httpMetrics: d.httpMetrics}.httpMetrics), must NOT match
+// (ws6c-2c gen-109 verifier correction — the previous permissive
+// subtree scan accepted both).
+func isSelectorOnReceiver(e ast.Expr, recv, name string) bool {
+	sel, ok := e.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	id, ok := sel.X.(*ast.Ident)
+	return ok && id.Name == recv && sel.Sel.Name == name
+}
+
+func isNilIdent(e ast.Expr) bool {
+	id, ok := e.(*ast.Ident)
+	return ok && id.Name == "nil"
+}
+
+// TestProductionComposition_RequestObservabilityWired pins the ws6c-2c
+// production-wiring slice (Task 6.3, design §8.3) with EXACT structural
+// binding, not permissive scanning: (1) the root chain is the single
+// top-level r.Use(...) directly inside func newRouter — exactly one root Use,
+// exactly three arguments, exactly ordered middleware.RequestID,
+// runtimemw.RequestObservability(nil, d.httpMetrics), middleware.Recoverer;
+// nested closure Uses (the /me Route subtree) never count, and an extra root
+// Use statement/argument — where an aliased legacy logger could hide — fails;
+// (2) chi's legacy request logger is detected via the router owner's real
+// import alias for go-chi/chi/v5/middleware (any <chiMW>.Logger reference
+// fails); (3) no-op composition is bound to the single newRouter(routerDeps{...})
+// call inside func run — the keyed field must be exactly
+// httpMetrics: runtimemetrics.Default; a runtimemetrics.Default reference
+// elsewhere (a decoy) does not satisfy it. Compile-safe AST walk.
+//
+// RED (preserved, not re-claimed): pre-wiring, the first failing run stopped
+// at the FIRST drift (t.Fatalf does not continue): "production r.Use chain
+// must install runtime RequestObservability exactly once; got 0 uses across
+// 2 Use calls" — it did not name every drift in a single run.
+//
+// Correction RED (gen-109, guard non-vacuity only — NOT production
+// behavior): external-temp probes previously PASSED INCORRECTLY under
+// the permissive guard: (1) chi.NewRouter().Use(...) carrying the same
+// three arguments (Use collected on Sel name alone); (2) the metrics
+// argument rewritten to routerDeps{httpMetrics: d.httpMetrics}.httpMetrics
+// (subtree scan matched any .httpMetrics selector). After the exact-binding
+// fix each probe fails for its intended assertion.
+func TestProductionComposition_RequestObservabilityWired(t *testing.T) {
+	rf := mustParse(t, routerFile)
+	cf := mustParse(t, compositionFile)
+
+	// Guard 1a: exactly one root Use, bound to newRouter's DIRECT body
+	// statements — a Use inside a FuncLit (the /me closure) is never collected.
+	routerFn := findFuncDecl(rf, "newRouter")
+	var rootUses []*ast.CallExpr
+	if routerFn != nil {
+		for _, stmt := range routerFn.Body.List {
+			es, ok := stmt.(*ast.ExprStmt)
+			if !ok {
+				continue
+			}
+			call, ok := es.X.(*ast.CallExpr)
+			if !ok {
+				continue
+			}
+			// Exact receiver binding: only `r.Use(...)` counts — a chained
+			// call like chi.NewRouter().Use(...) carrying the same arguments
+			// must never be collected (gen-109 correction).
+			if !isSelectorOnReceiver(call.Fun, "r", "Use") {
+				continue
+			}
+			rootUses = append(rootUses, call)
+		}
+	}
+	if len(rootUses) != 1 {
+		t.Fatalf("router owner %s must declare func newRouter with exactly ONE root-level r.Use(...) statement (additional root Use calls or arguments could hide aliased legacy logging); got %d", routerFile, len(rootUses))
+	}
+	use := rootUses[0]
+
+	if len(use.Args) != 3 {
+		t.Fatalf("root r.Use must carry exactly the three production middleware arguments (extra arguments could hide aliased legacy logging); got %d", len(use.Args))
+	}
+	if !isPkgSelector(use.Args[0], "middleware", "RequestID") {
+		t.Fatalf("root r.Use argument 1 must be exactly middleware.RequestID (the request_id must exist before the completion record is emitted); got %s", types.ExprString(use.Args[0]))
+	}
+	obsCall, ok := use.Args[1].(*ast.CallExpr)
+	if !ok || !isPkgSelector(obsCall.Fun, "runtimemw", "RequestObservability") {
+		t.Fatalf("root r.Use argument 2 must be exactly runtimemw.RequestObservability(...); got %s", types.ExprString(use.Args[1]))
+	}
+	// Exact metrics-owner binding: the argument must be exactly the
+	// selector d.httpMetrics — a compile-safe subtree that merely
+	// contains a .httpMetrics selector (e.g.
+	// routerDeps{httpMetrics: d.httpMetrics}.httpMetrics) is NOT the
+	// wiring (gen-109 correction).
+	if len(obsCall.Args) != 2 || !isNilIdent(obsCall.Args[0]) || !isSelectorOnReceiver(obsCall.Args[1], "d", "httpMetrics") {
+		t.Fatalf("runtimemw.RequestObservability must be called as (nil, d.httpMetrics) — the metrics argument must be EXACTLY the deps-field selector d.httpMetrics (a subtree containing a .httpMetrics selector does not count); the nil logger resolves to slog.Default() inside the middleware and the composed metrics must flow through; got %s", types.ExprString(obsCall.Args[1]))
+	}
+	if !isPkgSelector(use.Args[2], "middleware", "Recoverer") {
+		t.Fatalf("root r.Use argument 3 must be exactly middleware.Recoverer (observability wraps recovery so the completion record sees the recovered status); got %s", types.ExprString(use.Args[2]))
+	}
+
+	// Guard 2: no chi legacy Logger, detected via the real import alias.
+	chiMW := chiMiddlewareLocalName(rf)
+	legacyLoggerUses := 0
+	ast.Inspect(rf, func(n ast.Node) bool {
+		if sel, ok := n.(*ast.SelectorExpr); ok && sel.Sel.Name == "Logger" {
+			if id, isId := sel.X.(*ast.Ident); isId && id.Name == chiMW {
+				legacyLoggerUses++
+			}
+		}
+		return true
+	})
+	if legacyLoggerUses != 0 {
+		t.Fatalf("chi legacy %s.Logger must be removed from the production wiring (RequestObservability owns per-request logging; duplicates would double-log); got %d references", chiMW, legacyLoggerUses)
+	}
+
+	// Guard 3: no-op composition bound to newRouter(routerDeps{httpMetrics: ...}) inside run.
+	var newRouterCalls []*ast.CallExpr
+	if runFn := findFuncDecl(cf, "run"); runFn != nil {
+		ast.Inspect(runFn.Body, func(n ast.Node) bool {
+			if call, ok := n.(*ast.CallExpr); ok {
+				if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "newRouter" {
+					newRouterCalls = append(newRouterCalls, call)
+				}
+			}
+			return true
+		})
+	}
+	if len(newRouterCalls) != 1 {
+		t.Fatalf("run must contain exactly ONE newRouter(...) call; got %d", len(newRouterCalls))
+	}
+	var lit *ast.CompositeLit
+	if len(newRouterCalls[0].Args) == 1 {
+		if l, isLit := newRouterCalls[0].Args[0].(*ast.CompositeLit); isLit {
+			if id, isId := l.Type.(*ast.Ident); isId && id.Name == "routerDeps" {
+				lit = l
+			}
+		}
+	}
+	if lit == nil {
+		t.Fatalf("the newRouter call inside run must take a single routerDeps{...} composite literal; got %s", types.ExprString(newRouterCalls[0].Args[len(newRouterCalls[0].Args)-1]))
+	}
+	metricsFields := 0
+	for _, elt := range lit.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			t.Fatalf("the routerDeps composite must use keyed fields (positional elements break when the struct grows)")
+		}
+		key, ok := kv.Key.(*ast.Ident)
+		if !ok || key.Name != "httpMetrics" {
+			continue
+		}
+		metricsFields++
+		if !isPkgSelector(kv.Value, "runtimemetrics", "Default") {
+			t.Fatalf("routerDeps field httpMetrics must be exactly runtimemetrics.Default (the no-op default: zero dependencies, no exporter, no metrics endpoint); a runtimemetrics.Default reference anywhere else is a decoy and does not count; got %s", types.ExprString(kv.Value))
+		}
+	}
+	if metricsFields != 1 {
+		t.Fatalf("the routerDeps composite passed to newRouter inside run must set the keyed field httpMetrics exactly once; got %d", metricsFields)
+	}
+
+	t.Logf("parsed %s/%s: single root r.Use(middleware.RequestID, runtimemw.RequestObservability(nil, d.httpMetrics), middleware.Recoverer), no chi legacy Logger (alias %q resolved), run composes newRouter(routerDeps{httpMetrics: runtimemetrics.Default})", routerFile, compositionFile, chiMW)
+}
 
 func TestCompanyWriteRoutes_MountedBehindGates(t *testing.T) {
 	filePath := routerFile

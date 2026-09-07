@@ -31,6 +31,7 @@ import (
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
 	jobspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres"
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
+	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/server"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -202,6 +203,9 @@ func run() error {
 		companyHandler: companyHandler, memberHandler: memberHandler,
 		candidateHandler: candidateHandler, jobHandler: jobHandler, applicationHandler: applicationHandler,
 		queries: queries, pool: pool, readinessTimeout: cfg.ReadinessTimeout,
+		// Task 6.3 (design §8.3): compose the no-op HTTP metrics default —
+		// zero-dependency, no exporter, no metrics endpoint in this change.
+		httpMetrics: runtimemetrics.Default,
 	})
 	// Hardened server + lifecycle from the runtime packages (WS6B-1a):
 	// Run serves until ctx is cancelled, drains with the configured
