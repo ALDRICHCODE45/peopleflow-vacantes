@@ -80,7 +80,7 @@ Tasks 3.2, 3.3, 3.4, 4.2, 4.4, and 5.2 below carry the corresponding wording. `s
 
 ### 3.3 TRIANGULATE — test failure classification and URL invariants
 
-- [ ] Prove with focused tests timeout, network, `429`, `5xx`, unexpected `4xx`, invalid JSON, schema rejection, detail `404`, malformed UUID short-circuit, omitted optionals, AND forwarding, canonical redirect comparison, currency exactness, cursor byte-for-byte URL transport, and filter cursor reset, and that the TanStack Query query functions are the only application-facing request path over `requestJson` (no bypass reads, browser fetches, or proxies). Run the configured `cd frontend && pnpm test -- --run src/features src/lib` equivalent, inspect safe-log assertions, and record exact result and rollback boundary. <!-- sdd-owner: implementation -->
+- [x] Prove with focused tests timeout, network, `429`, `5xx`, unexpected `4xx`, invalid JSON, schema rejection, detail `404`, malformed UUID short-circuit, omitted optionals, AND forwarding, canonical redirect comparison, currency exactness, cursor byte-for-byte URL transport, and filter cursor reset, and that the TanStack Query query functions are the only application-facing request path over `requestJson` (no bypass reads, browser fetches, or proxies). Run the configured `cd frontend && pnpm test -- --run src/features src/lib` equivalent, inspect safe-log assertions, and record exact result and rollback boundary. <!-- sdd-owner: implementation -->
 
 ### 3.4 REFACTOR — isolate domain ownership and deterministic helpers
 

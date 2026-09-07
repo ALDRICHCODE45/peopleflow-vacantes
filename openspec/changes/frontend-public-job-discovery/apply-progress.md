@@ -1041,3 +1041,13 @@ Baseline invariants unchanged: HEAD `18568211533a2eb93ed6b4ef720f1c9ab0acd69a`, 
 - This appendix contributes 33 diff lines (as authored, then lightly adjusted by the repository markdownlint autofix), giving `apply-progress.md` a final 82+/0− diff. Corrected final total excluding `.pi/**`: 47 + 113 + 53 + 82 = **295 changed lines** (111 test-side authored lines preserved from the first unit, 151 reformat-accounting lines now counted, 33 corrective progress lines), inside the hard 400-line budget.
 - Task 3.3 checkbox remains `- [ ]`: it closes only when the implementation commit lands, and no commit is authorized. Tasks 3.4+ untouched.
 - Rollback boundary unchanged (same three test files plus progress-file truncation to the pre-Task-3.3 961-line prefix, SHA-256 `f2e358681ff5f2492a2dd26623b29d4962ed9d89fdfce6824e232ff2f43ce4cd`); this appendix truncates with the same operation.
+
+## Final closure — Task 3.3 TRIANGULATE complete
+
+Task 3.3 is closed after the exact reviewed implementation candidate landed in commit `479641be4bd7e422726b6f31e2d37085f72d5ed1` (`test(frontend): triangulate job API boundaries`). Its tree `fabc7602fb665f60e6f91883e9d5e577bfee4b0e` exactly matches the approved review candidate, and the Task 3.3 checkbox is now `[x]` (8 checked / 14 unchecked).
+
+- Strict-TDD evidence remains the Task 3.3 record above: focused 9 files / 47 tests and configured 15 files / 76 tests passed under Node `v22.22.1`, Corepack pnpm `10.34.5`, and `COREPACK_ENABLE_NETWORK=0`; lint, typecheck, LSP, and diff checks passed. No production behavior changed.
+- Native SDD objective `task-3.3-triangulate` settled complete against evidence `sha256:d23d866eaf1f72590fca16b4b6f18dbdeb1eb30a05aaa8686f3e78ad22f1ed89`; the distinct `task-3.3-implementation-commit` objective also settled complete against evidence `sha256:8ad217cd69c13185ca880a7942ceb11b8d3c472355140fe1d436faafdce6375e`.
+- Fresh reliability review lineage `review-1cbbf28b1050f05a` approved target `sha256:2b7303da39840801300cb6a79f7d5d879c705b1d5927428a68d4baa668910f8d`; acknowledgement consumed revision `sha256:d0be3e5bbd5c0e8aedc554ad6899342d1ca824baf6c913bda1f56ff0603ab495` and burned its authority. Informational finding `R3-001` did not open a correction.
+- Rollback: `git revert 479641b` removes only the Task 3.3 tests and evidence candidate; revert the subsequent artifact-closure commit separately to reopen the checkbox and remove this closure section.
+- No dependency install, download, backend change, push, PR, or reuse of prior completed objectives/review authority occurred. `.pi/gentle-ai/sdd-preflight.json` was excluded from settlement and review, then removed only under fresh one-shot user authorization. Task 3.4 REFACTOR is the next ordered implementation task.
