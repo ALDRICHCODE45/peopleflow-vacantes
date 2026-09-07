@@ -1,7 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
-import { requestJson } from "../../../lib/api/requestJson";
-import type { RequestJsonResult } from "../../../lib/api/requestJson";
+import { requestJson } from "../../../lib/api/server";
+import type { RequestJsonResult } from "../../../lib/api/server";
 import { isValidJobId } from "../jobId";
 import { jobItemSchema } from "../schemas";
 import type { JobItem } from "../types";

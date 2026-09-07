@@ -1,5 +1,16 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { QueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+// Substitutes the guarded `lib/api/server` module for Vitest only: "server-only"
+// cannot execute under jsdom, so the marker is not executed here; production
+// import correctness is established by the source-inspection test below.
+vi.mock("../../lib/api/server", async () => {
+  const transport = await import("../../lib/api/requestJson");
+  return { requestJson: transport.requestJson };
+});
+
 import { getJob, getJobQueryOptions } from "./api/getJob";
 import { isValidJobId } from "./jobId";
 
@@ -35,6 +46,17 @@ describe("detail UUID prevalidation", () => {
   });
 });
 
+describe("server-only transport boundary", () => {
+  it("imports the transport only through the guarded server-only façade", () => {
+    const source = readFileSync(
+      join(process.cwd(), "src/features/jobs/api/getJob.ts"),
+      "utf8",
+    );
+    expect(source).toMatch(/lib\/api\/server"/);
+    expect(source).not.toMatch(/lib\/api\/requestJson/);
+  });
+});
+
 describe("detail queryOptions", () => {
   it("builds a serializable array query key containing the exact jobId", () => {
     const { queryKey } = getJobQueryOptions(UUID);
@@ -48,11 +70,12 @@ describe("detail queryOptions", () => {
     vi.stubGlobal("fetch", fetchMock);
     const queryClient = new QueryClient();
     for (const bad of MALFORMED) {
-      await expect(queryClient.fetchQuery(getJobQueryOptions(bad))).resolves
-        .toMatchObject({
-          ok: false,
-          error: { kind: "not_found" },
-        });
+      await expect(
+        queryClient.fetchQuery(getJobQueryOptions(bad)),
+      ).resolves.toMatchObject({
+        ok: false,
+        error: { kind: "not_found" },
+      });
     }
     expect(fetchMock).not.toHaveBeenCalled();
   });
