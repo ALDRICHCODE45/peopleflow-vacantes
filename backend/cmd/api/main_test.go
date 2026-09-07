@@ -251,6 +251,156 @@ func TestProductionComposition_RequestObservabilityWired(t *testing.T) {
 	t.Logf("parsed %s/%s: single root r.Use(middleware.RequestID, runtimemw.RequestObservability(nil, d.httpMetrics), middleware.Recoverer), no chi legacy Logger (alias %q resolved), run composes newRouter(routerDeps{httpMetrics: runtimemetrics.Default})", routerFile, compositionFile, chiMW)
 }
 
+// TestProductionComposition_DBPoolMetricsWired pins the ws6c-5a production
+// wiring (Task 6.3, design §8.3) with exact structural binding against the
+// composition root's AST: (1) run() constructs the metrics-owned pinger
+// decorator exactly once as `poolPinger := runtimemetrics.NewDBObservedPinger(...)`
+// with the ORIGINAL pool as the decorated inner pinger, a sampler closure that
+// reads pool.Stat() and returns the current AcquiredConns/IdleConns/MaxConns,
+// and the shared no-op runtimemetrics.Default as DBMetrics; (2) the
+// newRouter(routerDeps{...}) composite binds pool: poolPinger — the decorated
+// readiness pinger, never the bare pool — so /healthz and /readyz pings sample
+// the pool; (3) at least one repository constructor still receives the bare
+// original pool, proving repositories keep the undecorated *pgxpool.Pool.
+// Compile-safe AST walk; the router and health packages are untouched by this
+// binding (the guard reads main.go only).
+func TestProductionComposition_DBPoolMetricsWired(t *testing.T) {
+	cf := mustParse(t, compositionFile)
+
+	runFn := findFuncDecl(cf, "run")
+	if runFn == nil {
+		t.Fatalf("composition root %s must declare func run", compositionFile)
+	}
+
+	// Guard 1: exactly one decorator construction inside run().
+	var ctorCalls []*ast.CallExpr
+	ast.Inspect(runFn.Body, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok && isPkgSelector(call.Fun, "runtimemetrics", "NewDBObservedPinger") {
+			ctorCalls = append(ctorCalls, call)
+		}
+		return true
+	})
+	if len(ctorCalls) != 1 {
+		t.Fatalf("run() must construct the DB pool metrics decorator via runtimemetrics.NewDBObservedPinger exactly once; got %d", len(ctorCalls))
+	}
+	ctor := ctorCalls[0]
+	if len(ctor.Args) != 3 {
+		t.Fatalf("NewDBObservedPinger must take (pinger, sampler, dbMetrics); got %d arguments", len(ctor.Args))
+	}
+	if id, ok := ctor.Args[0].(*ast.Ident); !ok || id.Name != "pool" {
+		t.Fatalf("NewDBObservedPinger argument 1 must be the ORIGINAL pool identifier (the decorator wraps the pool's own Ping); got %s", types.ExprString(ctor.Args[0]))
+	}
+	sampler, ok := ctor.Args[1].(*ast.FuncLit)
+	if !ok {
+		t.Fatalf("NewDBObservedPinger argument 2 must be a sampler closure over pgxpool.Stat(); got %s", types.ExprString(ctor.Args[1]))
+	}
+	// Single-snapshot binding (ord-153 correction): the sampler must capture
+	// exactly ONE `s := pool.Stat()` assignment and return all three counts
+	// from that SAME captured snapshot, in order. A mixed form like
+	// `return pool.Stat().AcquiredConns(), s.IdleConns(), s.MaxConns()`
+	// samples twice and binds inconsistent snapshots, so it must FAIL.
+	statAssigns := 0
+	snapName := ""
+	ast.Inspect(sampler.Body, func(n ast.Node) bool {
+		assign, ok := n.(*ast.AssignStmt)
+		if !ok || assign.Tok != token.DEFINE || len(assign.Lhs) != 1 || len(assign.Rhs) != 1 {
+			return true
+		}
+		lhs, ok := assign.Lhs[0].(*ast.Ident)
+		if !ok {
+			return true
+		}
+		call, ok := assign.Rhs[0].(*ast.CallExpr)
+		if !ok || !isSelectorOnReceiver(call.Fun, "pool", "Stat") {
+			return true
+		}
+		statAssigns++
+		snapName = lhs.Name
+		return true
+	})
+	if statAssigns != 1 {
+		t.Fatalf("the sampler must capture exactly ONE pool.Stat() snapshot into a single variable; got %d assignments", statAssigns)
+	}
+	last := sampler.Body.List[len(sampler.Body.List)-1]
+	ret, ok := last.(*ast.ReturnStmt)
+	if !ok || len(ret.Results) != 3 {
+		t.Fatalf("the sampler must end with a three-value return from one captured snapshot; got %T", last)
+	}
+	for i, want := range []string{"AcquiredConns", "IdleConns", "MaxConns"} {
+		call, isCall := ret.Results[i].(*ast.CallExpr)
+		if !isCall || !isSelectorOnReceiver(call.Fun, snapName, want) {
+			t.Fatalf("return value %d must be exactly %s.%s() — all three counts must come from the SAME captured pool.Stat() snapshot, in order; got %s", i+1, snapName, want, types.ExprString(ret.Results[i]))
+		}
+	}
+	if !isPkgSelector(ctor.Args[2], "runtimemetrics", "Default") {
+		t.Fatalf("NewDBObservedPinger argument 3 must be exactly runtimemetrics.Default (the shared no-op DBMetrics; no exporter/endpoint in this change); got %s", types.ExprString(ctor.Args[2]))
+	}
+
+	// Guard 2: routerDeps.pool is bound to the decorator variable, never the
+	// bare pool (a bare pool would mean pings bypass pool sampling).
+	var newRouterCalls []*ast.CallExpr
+	ast.Inspect(runFn.Body, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
+			if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "newRouter" {
+				newRouterCalls = append(newRouterCalls, call)
+			}
+		}
+		return true
+	})
+	if len(newRouterCalls) != 1 {
+		t.Fatalf("run must contain exactly ONE newRouter(...) call; got %d", len(newRouterCalls))
+	}
+	var lit *ast.CompositeLit
+	if len(newRouterCalls[0].Args) == 1 {
+		if l, isLit := newRouterCalls[0].Args[0].(*ast.CompositeLit); isLit {
+			if id, isId := l.Type.(*ast.Ident); isId && id.Name == "routerDeps" {
+				lit = l
+			}
+		}
+	}
+	if lit == nil {
+		t.Fatalf("the newRouter call inside run must take a single routerDeps{...} composite literal; got %s", types.ExprString(newRouterCalls[0].Args[len(newRouterCalls[0].Args)-1]))
+	}
+	poolField := 0
+	for _, elt := range lit.Elts {
+		kv, ok := elt.(*ast.KeyValueExpr)
+		if !ok {
+			t.Fatalf("the routerDeps composite must use keyed fields (positional elements break when the struct grows)")
+		}
+		key, ok := kv.Key.(*ast.Ident)
+		if !ok || key.Name != "pool" {
+			continue
+		}
+		poolField++
+		id, isId := kv.Value.(*ast.Ident)
+		if !isId || id.Name != "poolPinger" {
+			t.Fatalf("routerDeps field pool must be exactly the decorated pinger variable poolPinger (bare pool would bypass readiness pool sampling); got %s", types.ExprString(kv.Value))
+		}
+	}
+	if poolField != 1 {
+		t.Fatalf("the routerDeps composite must set the keyed field pool exactly once; got %d", poolField)
+	}
+
+	// Guard 3: repositories keep the ORIGINAL pool — at least one pool-owning
+	// repository constructor inside run() still receives the bare pool ident.
+	repoPoolArgs := 0
+	ast.Inspect(runFn.Body, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok && len(call.Args) > 0 {
+			for _, arg := range call.Args {
+				if id, isId := arg.(*ast.Ident); isId && id.Name == "pool" {
+					repoPoolArgs++
+				}
+			}
+		}
+		return true
+	})
+	if repoPoolArgs == 0 {
+		t.Fatalf("at least one repository constructor inside run() must still receive the original bare pool (only the readiness pinger is decorated)")
+	}
+
+	t.Logf("parsed %s: run() composes runtimemetrics.NewDBObservedPinger(pool, sampler over pool.Stat(), runtimemetrics.Default), binds routerDeps{pool: poolPinger}, and keeps the original pool for %d repository argument(s)", compositionFile, repoPoolArgs)
+}
+
 func TestCompanyWriteRoutes_MountedBehindGates(t *testing.T) {
 	filePath := routerFile
 

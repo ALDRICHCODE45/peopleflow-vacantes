@@ -197,12 +197,24 @@ func run() error {
 	// timeouts; server.New validates that every one of them is positive.
 	cfg := runtimeconfig.DefaultServerConfig(":" + port)
 
+	// Task 6.3 (ws6c-5a): every readiness ping samples the current pool
+	// state. The metrics-owned decorator wraps the pool ONLY as the
+	// readiness pinger passed through routerDeps.pool; every repository
+	// above keeps the original *pgxpool.Pool. Each ping (success or
+	// failure) samples pgxpool.Stat() exactly once and forwards the
+	// acquired/idle/max counts to DBMetrics.ObservePool. Still no
+	// exporter, no metrics endpoint, no background goroutine.
+	poolPinger := runtimemetrics.NewDBObservedPinger(pool, func() (int32, int32, int32) {
+		s := pool.Stat()
+		return s.AcquiredConns(), s.IdleConns(), s.MaxConns()
+	}, runtimemetrics.Default)
+
 	// WS6B-1b-b: router.go owns the chi router; the composition root passes it.
 	r := newRouter(routerDeps{
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
 		companyHandler: companyHandler, memberHandler: memberHandler,
 		candidateHandler: candidateHandler, jobHandler: jobHandler, applicationHandler: applicationHandler,
-		queries: queries, pool: pool, readinessTimeout: cfg.ReadinessTimeout,
+		queries: queries, pool: poolPinger, readinessTimeout: cfg.ReadinessTimeout,
 		// Task 6.3 (design §8.3): compose the no-op HTTP metrics default —
 		// zero-dependency, no exporter, no metrics endpoint in this change.
 		httpMetrics: runtimemetrics.Default,
