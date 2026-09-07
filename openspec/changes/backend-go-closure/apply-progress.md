@@ -1220,3 +1220,43 @@ Invariants: committed prefix (first 165,180 bytes, SHA-256 `0b6d2956bd60ce43fbf4
 **Numstat:** vs HEAD `2a5468d661e25307e94e7ca7a0e72685baa129bd`: main +34/−1, test +340/−0, suffix +19/−0; 35+340+19 = **394 ≤ 400**.
 **Correction accounting:** generation-112 begin `d3827fe0594563e3fba203d0d3bedf99a10ce1ed`: main 2+1=3, test 6+4=10, suffix 14+14=28; **41 ≤ 72**, carried 88+41 = **129 ≤ 160**.
 **Invariants/status:** first 171,937 bytes SHA-256 `a91c8704ef211d82ad990b56d8a23a84b7926ed544db3313d45c7411c5c073a7`; tasks/preflight unchanged; Task 6.3 remains unchecked, no aggregate completion/independent-verification/centralization claim, index/stash empty, verify-report absent.
+
+## ws6c-3b — Structured shutdown reason and graceful/forced classification (generation 113, work unit `ws6c-3b-shutdown-lifecycle-classification`)
+
+**Baseline:** branch `main`, HEAD `c6f771ced91ce225026891c7d5720361b24485bc`, tree `cf87727e1f5fc8e0eddfc1cf4d84998b7222c12f`, tracked worktree/index clean, sole untracked `.pi/gentle-ai/sdd-preflight.json` (excluded). Existing graceful/forced `Run` lifecycle behavior was already green and was NOT used as RED.
+
+**RED:** added three tests to `server_test.go` — `TestRun_GracefulShutdownEmitsOneGracefulRecord`, `TestRun_ForcedDrainTimeoutEmitsOneForcedRecord`, and triangulation `TestRun_PreCancellationListenerExitEmitsNoShutdownRecord` — with a captured-`slog.Default()` JSON buffer helper (restored via `t.Cleanup`; never parallel) and `assertShutdownRecord` enforcing the strict safe field allowlist (`time`/`level`/`msg` + `event`/`reason`/`classification`) and closed vocabulary (`reason=context_cancelled`, `classification=graceful|forced`). Exact command `cd backend && go test ./internal/runtime/server -run '^(TestRun_GracefulShutdownEmitsOneGracefulRecord|TestRun_ForcedDrainTimeoutEmitsOneForcedRecord|TestRun_PreCancellationListenerExitEmitsNoShutdownRecord)$' -count=1 -v` → behavioral failure: `got 0 shutdown records, want exactly 1 (captured: "")` for both record tests; the pre-cancellation absence test PASSED as intended (absence assertion, not RED).
+
+**GREEN:** `server.go` only — added closed-vocabulary constants, `logShutdownRecord(classification)` emitting one record via `slog.Info` (no context attrs, so no non-allowlisted fields can leak), called once after `Shutdown` success (`graceful`) and once after drain-timeout `Close` (`forced`, before the unchanged `errors.Join` return). The unexpected shutdown-error path still returns the error unchanged with NO record (single handling rule: errors are logged OR returned); pre-cancellation listener exits remain record-free. No goroutines, no metrics exporter/endpoint/dependency, no global mutable classification state, lifecycle semantics (one `Shutdown`, `Close` exactly once only on expiry, error returns) unchanged.
+
+**TRIANGULATE:** the observable pre-cancellation listener-exit case (`ErrServerClosed` before any cancellation) proves zero shutdown records; both record tests assert the exact key allowlist so any extra field (raw cause, error string, DSN, token) would fail. Field safety is also structural: the record is built from string constants only — no `err`, no ctx attrs — so raw context cause, listener/shutdown errors, request data, and DB details cannot enter the record.
+
+**REFACTOR:** none needed beyond the initial minimal shape; constants extracted, doc comment updated truthfully.
+
+| TDD cycle stage | Exact command | Result |
+| --- | --- | --- |
+| RED | `cd backend && go test ./internal/runtime/server -run '^(TestRun_GracefulShutdownEmitsOneGracefulRecord\|TestRun_ForcedDrainTimeoutEmitsOneForcedRecord\|TestRun_PreCancellationListenerExitEmitsNoShutdownRecord)$' -count=1 -v` | 2 behavioral FAILs (`got 0 shutdown records`) + 1 intended PASS |
+| GREEN | same command + `TestRun_GracefulShutdownDoesNotClose\|TestRun_ForcedDrainTimeoutClosesExactlyOnce` | 5/5 PASS |
+| REFACTOR | verification battery (below) | clean |
+
+**Verification (exact commands, observed):** focused pre-existing lifecycle pair PASS; full `cd backend && go test ./...` → 47 packages ok, 0 FAIL; `cd backend && go vet ./...` → clean; `gofmt -d` on both server files → empty; `git diff --check` → clean. Final numstat/hashes are returned by the apply-phase envelope rather than embedded here, to avoid self-referential digest claims.
+
+**Invariants:** `apply-progress.md` prefix (175,001 bytes, SHA-256 `5cd23f0a0f246cfe0ce9ea8b9959f89b422885bbb039981846ec7403e7cc80fd`) preserved byte-for-byte via append-only `>>`; `tasks.md` untouched (ALL Task 6.3 boxes remain unchecked — no aggregate completion claimed); `.pi/gentle-ai/sdd-preflight.json` untouched (174 bytes, SHA-256 `43098a…c813`); no `verify-report.md`; no staging/commit/stash; changed paths limited to `server.go`, `server_test.go`, and this suffix. This unit does not claim independent verification or native settlement.
+
+## ws6c-3b correction — generation-113 graceful-placement supersession (compact correction token active; not settled here)
+
+**Failed verification:** `sha256:bb51c0c66ef7c2264fd992cbf5dca9a0beb8695b912cb32df601b7fc0f102ec4` — `server.Run` emitted `classification=graceful` BEFORE consuming/classifying `serveErr`, so `TestRun_CancelRacingServeErrorClassifiesError` returned the unexpected listener error after emitting a misleading graceful record. **This correction explicitly SUPERSEDES the generation-113 suffix's claim that graceful emission occurs "after cancellation outcome is known": the truthful placement is after the listener result is consumed and classified as a successful shutdown outcome.** The failed suffix is preserved above unedited as an immutable prefix record of the failed candidate.
+
+**RED:** extended `TestRun_CancelRacingServeErrorClassifiesError` (test-only) to capture `slog.Default()` JSON output via the existing `captureShutdownLog` helper and assert zero shutdown records after the error assertion. Exact command `cd backend && go test ./internal/runtime/server -run '^TestRun_CancelRacingServeErrorClassifiesError$' -count=1 -v` against the unmodified generation-113 production candidate → behavioral failure `cancellation-racing serve error emitted 1 shutdown records, want 0` with the captured premature `classification=graceful` record shown verbatim in the failure message.
+
+**GREEN:** `server.go` only — moved `logShutdownRecord(classificationGraceful)` from before the `serveErr` consume to after `errors.Is(err, http.ErrServerClosed)` classification, immediately before the successful `return nil`; doc comment updated to state graceful emission follows listener-result classification. Forced path (record after drain-timeout `Close`, before the unchanged `errors.Join` return), all lifecycle/error returns, and the no-record error paths are untouched.
+
+| Stage | Exact command | Result |
+| --- | --- | --- |
+| RED | `cd backend && go test ./internal/runtime/server -run '^TestRun_CancelRacingServeErrorClassifiesError$' -count=1 -v` | behavioral FAIL: 1 premature graceful record, want 0 |
+| GREEN | verification command 1 (six-test selector, `-count=1 -v`) | 6/6 PASS incl. cancellation-race zero-record assertion |
+| REFACTOR | verification commands 2–5 (full suite, vet, gofmt, diff-check) | clean |
+
+**Prefix preservation proof (before this append):** current-candidate `apply-progress.md` was 179,236 bytes, SHA-256 `da3aa66a021839301f08fe38c88ef41c3d9901b054fbbecd84602682350637db`; its first 175,001 bytes hash-object `62ca51f2d75509f47845340405e0de5b4f625c2b` equaled the HEAD blob, proving both the committed prefix and the generation-113 suffix were preserved byte-for-byte through this correction. Post-append prefix equality is verified by the apply envelope's byte-prefix check against the recorded 179,236-byte length and digest.
+
+**Invariants:** tasks.md untouched (ALL Task 6.3 boxes remain unchecked, no aggregate completion claimed); `.pi/gentle-ai/sdd-preflight.json` untouched (174 bytes, SHA-256 `43098a…c813`); no verify-report.md; no staging/commit/stash; changed paths limited to the three allowed surfaces. This correction does not claim independent verification or native settlement and does not settle the compact correction token.
