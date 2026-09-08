@@ -1073,6 +1073,187 @@ func TestUpsertProfile_UnexpectedErrorLogCorrelationAndRedaction(t *testing.T) {
 	})
 }
 
+// runGetUnexpectedErrorScenario fires GET /me/profile with a valid subject
+// while the repository injects an unexpected error laden with synthetic
+// sensitive markers. It mirrors runUpsertUnexpectedErrorScenario: when
+// useRequestID is true the real chi RequestID middleware runs ahead of the
+// runtime RequestObservability middleware; the captured slog default is
+// installed BEFORE middleware construction so RequestObservability(nil, nil)
+// binds the capturing logger (metrics fall back to the bounded no-op
+// runtime default).
+func runGetUnexpectedErrorScenario(t *testing.T, useRequestID bool, requestIDHeader string) (*bytes.Buffer, *httptest.ResponseRecorder, *stubUserRepo) {
+	t.Helper()
+	userID := uuid.New()
+	cRepo := &stubCandidateRepo{getByIDErr: fmt.Errorf("db: %s", strings.Join(upsertSensitiveMarkers, "; "))}
+	uRepo := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-abc"}}
+
+	buf := captureCandidateSlogJSON(t)
+
+	router := chi.NewRouter()
+	if useRequestID {
+		router.Use(chimw.RequestID)
+	}
+	router.Use(middleware.RequestObservability(nil, nil))
+	router.Mount("/me/profile", newTestHandler(cRepo, uRepo).Routes())
+
+	req := authedRequest(t, http.MethodGet, "/me/profile/", "", "sub-abc")
+	if requestIDHeader != "" {
+		req.Header.Set("X-Request-Id", requestIDHeader)
+	}
+	rec := doRequest(t, router, req)
+	return buf, rec, uRepo
+}
+
+// TestGetProfile_UnexpectedErrorLogCorrelationAndRedaction pins the
+// WS6C-7C bounded unexpected-error contract for GET /me/profile,
+// mirroring the committed WS6C-7B upsert contract: the auxiliary ERROR
+// record carries exactly time/level/msg/code_class plus the correlated
+// request_id (omitted entirely when no RequestID middleware ran, never
+// fabricated or re-read from headers), the completion INFO record names
+// the matched chi route pattern — never the raw URL — and no sensitive
+// marker from the injected error reaches the logs or the wire. The
+// fixed auxiliary message contains no raw error content.
+func TestGetProfile_UnexpectedErrorLogCorrelationAndRedaction(t *testing.T) {
+	const suppliedID = "req-supplied-fixed-7c"
+	const auxMsg = "get my profile failed"
+	const completionMsg = "http request completed"
+
+	t.Run("supplied_request_id_correlated_and_redacted", func(t *testing.T) {
+		buf, rec, uRepo := runGetUnexpectedErrorScenario(t, true, suppliedID)
+
+		// Wire: canonical 500 internal_error envelope, nothing else leaks.
+		assertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+		var env httpjson.ErrorEnvelope
+		if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+			t.Fatalf("decode envelope: %v", err)
+		}
+		if env.Error != "an internal error occurred" {
+			t.Errorf("canonical message: want %q, got %q", "an internal error occurred", env.Error)
+		}
+		assertNoSensitiveMarker(t, "wire body", rec.Body.String())
+
+		// Exactly one identity resolution.
+		if uRepo.getCalls != 1 {
+			t.Errorf("identity resolutions = %d, want exactly 1", uRepo.getCalls)
+		}
+
+		// Exactly two records: one auxiliary ERROR + one completion INFO.
+		records := decodeCandidateSlogRecords(t, buf)
+		var auxRecords, completions []map[string]any
+		for _, r := range records {
+			switch r["msg"] {
+			case auxMsg:
+				auxRecords = append(auxRecords, r)
+			case completionMsg:
+				completions = append(completions, r)
+			}
+		}
+		if len(records) != 2 {
+			t.Fatalf("captured records = %d, want exactly 2 (%s ERROR + %s INFO): %v", len(records), auxMsg, completionMsg, records)
+		}
+		if len(auxRecords) != 1 || len(completions) != 1 {
+			t.Fatalf("want exactly 1 %q ERROR and 1 %q INFO, got %d aux / %d completion: %v", auxMsg, completionMsg, len(auxRecords), len(completions), records)
+		}
+		aux, completion := auxRecords[0], completions[0]
+
+		// Auxiliary record: exact bounded key set — no path, no raw error.
+		wantAux := map[string]bool{"time": true, "level": true, "msg": true, "code_class": true, "request_id": true}
+		for k := range aux {
+			if !wantAux[k] {
+				t.Errorf("auxiliary record has unbounded key %q (record: %v)", k, aux)
+			}
+			delete(wantAux, k)
+		}
+		for k := range wantAux {
+			t.Errorf("auxiliary record is missing required key %q (record: %v)", k, aux)
+		}
+		if got, _ := aux["level"].(string); got != slog.LevelError.String() {
+			t.Errorf("aux level = %v, want %q", aux["level"], slog.LevelError.String())
+		}
+		if got, _ := aux["code_class"].(string); got != string(httpjson.CodeInternalError) {
+			t.Errorf("aux code_class = %v, want %q", aux["code_class"], httpjson.CodeInternalError)
+		}
+		if got, _ := aux["request_id"].(string); got != suppliedID {
+			t.Errorf("aux request_id = %v, want supplied header value %q", aux["request_id"], suppliedID)
+		}
+
+		// Completion record: matched chi route pattern (bounded), never the
+		// raw URL — chi resolves the mount as "/me/profile" while the raw
+		// request URL here is "/me/profile/", so the equality proves bounded
+		// route naming — same request ID, propagated canonical catalog class.
+		if got, _ := completion["path"].(string); got != "/me/profile" {
+			t.Errorf("completion path = %v, want matched route pattern %q (never the raw URL %q)", completion["path"], "/me/profile", "/me/profile/")
+		}
+		if got, _ := completion["request_id"].(string); got != suppliedID {
+			t.Errorf("completion request_id = %v, want %q", completion["request_id"], suppliedID)
+		}
+		if got, _ := completion["level"].(string); got != slog.LevelInfo.String() {
+			t.Errorf("completion level = %v, want %q", completion["level"], slog.LevelInfo.String())
+		}
+		if got, _ := completion["code_class"].(string); got != string(httpjson.CodeInternalError) {
+			t.Errorf("completion code_class = %v, want %q", completion["code_class"], httpjson.CodeInternalError)
+		}
+
+		assertNoSensitiveMarker(t, "captured logs", buf.String())
+	})
+
+	t.Run("generated_request_id_when_header_absent", func(t *testing.T) {
+		buf, rec, _ := runGetUnexpectedErrorScenario(t, true, "")
+		assertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+		records := decodeCandidateSlogRecords(t, buf)
+		var aux, completion map[string]any
+		for _, r := range records {
+			switch r["msg"] {
+			case auxMsg:
+				aux = r
+			case completionMsg:
+				completion = r
+			}
+		}
+		if len(records) != 2 || aux == nil || completion == nil {
+			t.Fatalf("want exactly 2 records (auxiliary ERROR + completion INFO), got %d: %v", len(records), records)
+		}
+		auxID, _ := aux["request_id"].(string)
+		completionID, _ := completion["request_id"].(string)
+		if auxID == "" || completionID == "" || auxID != completionID {
+			t.Errorf("chi RequestID middleware must generate one nonempty ID shared by both records, got aux=%q completion=%q", auxID, completionID)
+		}
+		assertNoSensitiveMarker(t, "captured logs", buf.String())
+	})
+
+	t.Run("missing_request_id_middleware_omits_request_id", func(t *testing.T) {
+		buf, rec, _ := runGetUnexpectedErrorScenario(t, false, "req-header-must-be-ignored")
+		assertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+		found := false
+		for _, r := range decodeCandidateSlogRecords(t, buf) {
+			if r["msg"] != auxMsg {
+				continue
+			}
+			found = true
+			if _, ok := r["request_id"]; ok {
+				t.Errorf("request_id must be omitted entirely when no RequestID middleware ran (never fabricated, never re-read from headers): %v", r)
+			}
+			want := map[string]bool{"time": true, "level": true, "msg": true, "code_class": true}
+			for k := range r {
+				if !want[k] {
+					t.Errorf("auxiliary record has unbounded key %q (record: %v)", k, r)
+				}
+				delete(want, k)
+			}
+			for k := range want {
+				t.Errorf("auxiliary record is missing required key %q (record: %v)", k, r)
+			}
+			if got, _ := r["code_class"].(string); got != string(httpjson.CodeInternalError) {
+				t.Errorf("code_class = %v, want %q", r["code_class"], httpjson.CodeInternalError)
+			}
+		}
+		if !found {
+			t.Fatal("no auxiliary 'get my profile failed' record captured")
+		}
+		assertNoSensitiveMarker(t, "captured logs", buf.String())
+	})
+}
+
 // helpers to silence unused-import warnings when tests are added/removed.
 var _ = candidatesdtos.ReplaceMyLanguagesDto{}
 var _ = candidatesusecases.NewCandidateService
