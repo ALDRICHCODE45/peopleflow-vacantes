@@ -21,6 +21,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -34,7 +35,10 @@ import (
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identityrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/repositories"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	rtmiddleware "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/middleware"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
+	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 
@@ -667,39 +671,133 @@ func TestRequireCompanyRole_LivenessProbeCalledOnce(t *testing.T) {
 
 // --- 6. unexpected-error branch (require-company-role-internal-error slice) ---
 //
-// The three scenarios below pin the contract of the unexpected-error branch
-// for ALL THREE repository calls in RequireCompanyRole:
-//
-//   - User lookup unexpected error  → 500 + code:internal_error + canonical message
-//   - Membership lookup unexpected error → 500 + code:internal_error + canonical message
-//   - Liveness lookup unexpected error → 500 + code:internal_error + canonical message
-//
-// Each case asserts:
-//   1. HTTP 500 and catalog code "internal_error".
-//   2. Canonical message "an internal error occurred" is in the response body.
-//   3. The injected detail is ABSENT from the response body (non-leak).
-//   4. The injected detail IS PRESENT in the captured slog output (observability).
-//   5. The downstream handler is NOT invoked.
-//
-// A compact table-driven structure reuses the same helper per branch.
+// All three unexpected repository-error branches (user / membership /
+// liveness lookup) share one contract, exercised through the
+// production-faithful chain chi RequestID → runtime RequestObservability →
+// RequireAuth → RequireCompanyRole: 500 + canonical "internal_error"
+// envelope; exactly ONE auxiliary ERROR record and ONE INFO completion
+// record; a shared nonempty request_id on BOTH (caller-supplied and
+// middleware-generated IDs triangulated across the table); the auxiliary
+// record carries code_class=internal_error, the exact fixed branch
+// message, and nothing beyond the closed allowlist {time, level, msg,
+// code_class, request_id}; synthetic DSN/token/email/CV/query markers are
+// absent from log AND wire; the handler is NOT invoked.
+
+// Synthetic high-risk markers baked into the unexpected repository errors
+// below. None of them may ever reach the wire response or the server log.
+const (
+	syntheticDSN   = "postgres://svc:p4ss@db.internal:5432/peopleflow"
+	syntheticToken = "eyJhbGciOiJIUzI1NiJ9.synthetic-payload.sig"
+	syntheticEmail = "candidate.person@example.com"
+	syntheticCV    = "cv_full_text"
+	syntheticQuery = "SELECT * FROM users WHERE cognito_sub = 'synthetic'"
+)
+
+// syntheticMarkers is the marker set asserted absent in one pass.
+var syntheticMarkers = []string{
+	syntheticDSN, syntheticToken, syntheticEmail, syntheticCV, syntheticQuery,
+}
+
+// syntheticBoom builds an unexpected repository error carrying every
+// synthetic high-risk marker — exactly the kind of raw error the
+// auxiliary record must never echo.
+func syntheticBoom(what string) error {
+	return fmt.Errorf("boom: %s failed [%s] [%s] [%s] [%s] [%s]",
+		what, syntheticDSN, syntheticToken, syntheticEmail, syntheticCV, syntheticQuery)
+}
+
+// auxLogAllowlist is the closed key set for the auxiliary ERROR record:
+// time/level/msg from the JSON handler, code_class bounded classification,
+// request_id conditionally present. Anything else is a redaction violation.
+var auxLogAllowlist = map[string]bool{
+	"time": true, "level": true, "msg": true,
+	"code_class": true, "request_id": true,
+}
+
+// serveGuardedChain mounts the production-faithful chain — chi RequestID
+// (optional) → runtime RequestObservability → RequireAuth(allowAllVerifier)
+// → RequireCompanyRole(owner gate over a non-invoked handler) — and serves
+// one GET. Call only after installing the captured default logger.
+func serveGuardedChain(
+	t *testing.T,
+	users *stubUserRepo,
+	members *stubMemberRepo,
+	liveness *stubLivenessRepo,
+	withRequestIDMiddleware bool,
+	callerRequestID string,
+) (*httptest.ResponseRecorder, *bool) {
+	t.Helper()
+
+	invoked := false
+	guarded := RequireCompanyRole(users, members, liveness, valueobjects.OwnerRole)(
+		http.HandlerFunc(func(http.ResponseWriter, *http.Request) { invoked = true }))
+
+	r := chi.NewRouter()
+	if withRequestIDMiddleware {
+		r.Use(chimw.RequestID)
+	}
+	r.Use(rtmiddleware.RequestObservability(slog.Default(), nil))
+	r.Use(RequireAuth(allowAllVerifier{}))
+	r.Method(http.MethodGet, "/me/company/members", guarded)
+
+	req := httptest.NewRequest(http.MethodGet, "/me/company/members", nil)
+	req.Header.Set("Authorization", "Bearer synthetic-token")
+	if callerRequestID != "" {
+		req.Header.Set("X-Request-Id", callerRequestID)
+	}
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	return rec, &invoked
+}
+
+// decodeLogRecords splits the captured JSON slog stream into records.
+func decodeLogRecords(t *testing.T, logCapture *bytes.Buffer) []map[string]any {
+	t.Helper()
+	var records []map[string]any
+	dec := json.NewDecoder(bytes.NewReader(logCapture.Bytes()))
+	for dec.More() {
+		var rec map[string]any
+		if err := dec.Decode(&rec); err != nil {
+			t.Fatalf("decode captured slog record: %v", err)
+		}
+		records = append(records, rec)
+	}
+	return records
+}
 
 // TestRequireCompanyRole_InternalErrors proves all three unexpected-error
 // branches share the same 500 contract. Each row uses a private buffer-backed
-// slog logger to capture the injected detail in the server log.
+// slog logger and asserts the bounded auxiliary-log redaction contract.
 func TestRequireCompanyRole_InternalErrors(t *testing.T) {
 	const canonicalMsg = "an internal error occurred"
 
 	tests := []struct {
-		name           string
-		userResolveErr error // nil → user lookup succeeds; non-nil → returned
-		memberErr      error // nil → membership succeeds; non-nil → returned
-		live           bool
-		liveErr        error
-		injected       string // token that should appear in the log but NOT in the wire
+		name            string
+		userResolveErr  error // nil → user lookup succeeds; non-nil → returned
+		memberErr       error // nil → membership succeeds; non-nil → returned
+		live            bool
+		liveErr         error
+		wantAuxMsg      string // exact branch-specific fixed ERROR message
+		callerRequestID string // non-empty → caller-supplied X-Request-Id
 	}{
-		{name: "user lookup unexpected error", userResolveErr: errors.New("boom: user repo failed"), injected: "boom: user repo failed"},
-		{name: "membership lookup unexpected error", userResolveErr: nil, memberErr: errors.New("boom: membership lookup failed"), injected: "boom: membership lookup failed"},
-		{name: "liveness lookup unexpected error", userResolveErr: nil, memberErr: nil, live: true, liveErr: errors.New("boom: liveness check failed"), injected: "boom: liveness check failed"},
+		{
+			name:            "user lookup unexpected error",
+			userResolveErr:  syntheticBoom("user repo"),
+			wantAuxMsg:      "company role middleware: user lookup failed",
+			callerRequestID: "caller-supplied-id-user-branch",
+		},
+		{
+			name:       "membership lookup unexpected error",
+			memberErr:  syntheticBoom("membership lookup"),
+			wantAuxMsg: "company role middleware: membership lookup failed",
+		},
+		{
+			name:            "liveness lookup unexpected error",
+			live:            true,
+			liveErr:         syntheticBoom("liveness check"),
+			wantAuxMsg:      "company role middleware: liveness lookup failed",
+			callerRequestID: "caller-supplied-id-liveness-branch",
+		},
 	}
 
 	for _, tt := range tests {
@@ -719,23 +817,18 @@ func TestRequireCompanyRole_InternalErrors(t *testing.T) {
 			members := &stubMemberRepo{resolvedMember: resolvedMember, resolveErr: tt.memberErr}
 			liveness := &stubLivenessRepo{live: tt.live, liveErr: tt.liveErr}
 
-			// Capture slog output: redirect the global logger to a private buffer.
+			// Capture slog output: redirect the global logger to a private
+			// buffer FIRST, then build the chain so the observability
+			// middleware and the guard share the captured handler.
 			var logBuf bytes.Buffer
 			prev := slog.Default().Handler()
 			slog.SetDefault(slog.New(slog.NewJSONHandler(&logBuf, nil)))
 			t.Cleanup(func() { slog.SetDefault(slog.New(prev)) })
 
-			invoked := false
-			h := RequireCompanyRole(users, members, liveness, valueobjects.OwnerRole)(
-				http.HandlerFunc(func(http.ResponseWriter, *http.Request) { invoked = true }),
-			)
-			rec := httptest.NewRecorder()
-			h.ServeHTTP(rec, reqWithSub(http.MethodGet, "/me/company/members", "sub-internal-err"))
+			rec, invoked := serveGuardedChain(t, users, members, liveness, true, tt.callerRequestID)
 
-			// 1. HTTP 500 + catalog code "internal_error".
+			// 1. HTTP 500 + canonical catalog envelope.
 			assertCatalogEnvelope(t, rec, httpjson.CodeInternalError, http.StatusInternalServerError)
-
-			// 2. Exact canonical message "an internal error occurred" in body.
 			body := rec.Body.String()
 			var env httpjson.ErrorEnvelope
 			if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
@@ -745,23 +838,117 @@ func TestRequireCompanyRole_InternalErrors(t *testing.T) {
 				t.Errorf("error: want %q, got %q", canonicalMsg, env.Error)
 			}
 
-			// 3. Injected detail ABSENT from wire.
-			if strings.Contains(body, tt.injected) {
-				t.Errorf("body must NOT contain injected detail %q; got: %s", tt.injected, body)
+			// 2. Exactly one auxiliary ERROR record + one completion record.
+			records := decodeLogRecords(t, &logBuf)
+			var auxRecords, completionRecords []map[string]any
+			for _, record := range records {
+				switch record["level"] {
+				case "ERROR":
+					auxRecords = append(auxRecords, record)
+				case "INFO":
+					if record["msg"] == "http request completed" {
+						completionRecords = append(completionRecords, record)
+					}
+				}
+			}
+			if len(auxRecords) != 1 {
+				t.Fatalf("auxiliary ERROR records: want exactly 1, got %d; all records: %v", len(auxRecords), records)
+			}
+			if len(completionRecords) != 1 {
+				t.Fatalf("completion records: want exactly 1, got %d; all records: %v", len(completionRecords), records)
+			}
+			aux := auxRecords[0]
+			completion := completionRecords[0]
+
+			// 3. Shared nonempty request_id on BOTH records.
+			auxID, _ := aux["request_id"].(string)
+			completionID, _ := completion["request_id"].(string)
+			if auxID == "" {
+				t.Errorf("auxiliary record request_id: want nonempty shared ID, got %q", auxID)
+			}
+			if completionID == "" {
+				t.Errorf("completion record request_id: want nonempty shared ID, got %q", completionID)
+			}
+			if auxID != completionID {
+				t.Errorf("request_id correlation: auxiliary %q != completion %q", auxID, completionID)
+			}
+			if tt.callerRequestID != "" && auxID != tt.callerRequestID {
+				t.Errorf("caller-supplied X-Request-Id: want %q, got %q", tt.callerRequestID, auxID)
 			}
 
-			// 4. Injected detail PRESENT in captured server log.
-			// t.Logf exposes slog output in test results without a custom handler.
+			// 4. Bounded classification, exact fixed message, closed key set.
+			if got, _ := aux["code_class"].(string); got != "internal_error" {
+				t.Errorf("auxiliary code_class: want internal_error, got %q", got)
+			}
+			if got, _ := aux["msg"].(string); got != tt.wantAuxMsg {
+				t.Errorf("auxiliary msg: want %q, got %q", tt.wantAuxMsg, got)
+			}
+			for key := range aux {
+				if !auxLogAllowlist[key] {
+					t.Errorf("auxiliary record key %q is outside the redaction allowlist (record: %v)", key, aux)
+				}
+			}
+
+			// 5. Synthetic markers absent from BOTH the log and the wire body.
 			logOutput := logBuf.String()
-			t.Logf("server log capture: %s", logOutput)
-			if !strings.Contains(logOutput, tt.injected) {
-				t.Errorf("injected detail %q must appear in server log; got: %s", tt.injected, logOutput)
+			for _, marker := range syntheticMarkers {
+				if strings.Contains(logOutput, marker) {
+					t.Errorf("server log must NOT contain synthetic marker %q", marker)
+				}
+				if strings.Contains(body, marker) {
+					t.Errorf("response body must NOT contain synthetic marker %q", marker)
+				}
 			}
 
-			// 5. Downstream handler NOT invoked.
-			if invoked {
+			// 6. Downstream handler NOT invoked.
+			if *invoked {
 				t.Error("handler invoked despite internal error")
 			}
 		})
+	}
+}
+
+// TestRequireCompanyRole_AuxLogOmitsRequestIDWithoutRequestIDMiddleware is
+// the conditional-omission triangulation: with no chi RequestID middleware
+// in the chain the guard must omit the request_id key entirely (never log
+// an empty ID) while keeping the rest of the bounded contract intact.
+func TestRequireCompanyRole_AuxLogOmitsRequestIDWithoutRequestIDMiddleware(t *testing.T) {
+	users := &stubUserRepo{resolveErr: syntheticBoom("user repo")}
+	members := &stubMemberRepo{}
+	liveness := &stubLivenessRepo{live: true}
+
+	var logBuf bytes.Buffer
+	prev := slog.Default().Handler()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&logBuf, nil)))
+	t.Cleanup(func() { slog.SetDefault(slog.New(prev)) })
+
+	rec, invoked := serveGuardedChain(t, users, members, liveness, false, "")
+	assertCatalogEnvelope(t, rec, httpjson.CodeInternalError, http.StatusInternalServerError)
+	if *invoked {
+		t.Error("handler invoked despite internal error")
+	}
+
+	records := decodeLogRecords(t, &logBuf)
+	var aux []map[string]any
+	completions := 0
+	for _, record := range records {
+		if record["level"] == "ERROR" {
+			aux = append(aux, record)
+		}
+		if record["level"] == "INFO" && record["msg"] == "http request completed" {
+			completions++
+		}
+	}
+	if len(aux) != 1 {
+		t.Fatalf("auxiliary ERROR records: want exactly 1, got %d; all records: %v", len(aux), records)
+	}
+	if completions != 1 {
+		t.Fatalf("completion records: want exactly 1, got %d; all records: %v", completions, records)
+	}
+	if id, present := aux[0]["request_id"]; present {
+		t.Errorf("auxiliary record must omit request_id without a RequestID middleware; got %v", id)
+	}
+	if got, _ := aux[0]["code_class"].(string); got != "internal_error" {
+		t.Errorf("auxiliary code_class: want internal_error, got %q", got)
 	}
 }

@@ -18,6 +18,7 @@ import (
 	identityrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
+	chimw "github.com/go-chi/chi/v5/middleware"
 )
 
 // RequireCompanyRole returns a middleware that resolves the
@@ -85,7 +86,7 @@ func RequireCompanyRole(
 					return
 				}
 				// Unexpected error: log and return generic 500.
-				slog.Error("company role middleware: user lookup failed", "error", err)
+				logLookupFailure(r, "company role middleware: user lookup failed")
 				respondServerError(w)
 				return
 			}
@@ -96,7 +97,7 @@ func RequireCompanyRole(
 					respondForbiddenSafe(w, "not a member of any company")
 					return
 				}
-				slog.Error("company role middleware: membership lookup failed", "error", err)
+				logLookupFailure(r, "company role middleware: membership lookup failed")
 				respondServerError(w)
 				return
 			}
@@ -122,7 +123,7 @@ func RequireCompanyRole(
 					respondCompanyInactive(w)
 					return
 				}
-				slog.Error("company role middleware: liveness lookup failed", "error", err)
+				logLookupFailure(r, "company role middleware: liveness lookup failed")
 				respondServerError(w)
 				return
 			}
@@ -144,6 +145,23 @@ func RequireCompanyRole(
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// logLookupFailure is the bounded auxiliary logging seam for unexpected
+// repository failures in this middleware. The record carries ONLY the fixed
+// branch message, the bounded code_class=internal_error classification, and
+// the chi request ID (conditionally, when nonempty in the request context —
+// read via middleware.GetReqID, never generated or re-read from headers).
+// It deliberately excludes the raw error, path, URL, query, principal data,
+// and company/user IDs so the server log cannot leak DSNs, tokens, PII, or
+// raw DB error text. Correlation with the completion record comes from the
+// shared request context that chi's RequestID middleware populated.
+func logLookupFailure(r *http.Request, msg string) {
+	if id := chimw.GetReqID(r.Context()); id != "" {
+		slog.Error(msg, "code_class", "internal_error", "request_id", id)
+		return
+	}
+	slog.Error(msg, "code_class", "internal_error")
 }
 
 // respondForbiddenSafe writes a 403 catalog envelope with code "forbidden".
