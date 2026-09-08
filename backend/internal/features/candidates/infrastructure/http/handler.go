@@ -19,6 +19,7 @@ import (
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 )
 
 // maxJSONBodyBytes is the package-local request-body decode cap shared by
@@ -216,7 +217,17 @@ func (h *CandidateHandler) upsertMyProfile(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		def := classifyCandidateError(err)
 		if def.Code == httpjson.CodeInternalError {
-			slog.Error("upsert my profile failed", "error", err)
+			// Bounded unexpected-error record (WS6C-7B, mirroring the
+			// committed jobs handler): fixed message + catalog code_class,
+			// plus request_id read ONLY from the existing chi request-ID
+			// context and omitted when no RequestID middleware set one.
+			// No method, path, or raw error content — the request
+			// middleware owns bounded request correlation.
+			attrs := []any{"code_class", def.Code}
+			if reqID := chimw.GetReqID(r.Context()); reqID != "" {
+				attrs = append(attrs, "request_id", reqID)
+			}
+			slog.Error("upsert my profile failed", attrs...)
 		}
 		httpjson.WriteCatalogError(w, def)
 		return
