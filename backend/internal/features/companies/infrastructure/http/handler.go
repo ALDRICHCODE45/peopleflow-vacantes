@@ -289,7 +289,8 @@ func foundedYearToIntPtr(y *valueobjects.FoundedYear) *int {
 
 // logCompanyInternalError emits exactly one bounded, request-correlated
 // auxiliary ERROR record for an internal_error branch of the company read
-// (GET /companies/{id}) and create (POST /companies) handlers. The fields are
+// (GET /companies/{id}), create (POST /companies), and owner-write update
+// (PATCH /me/company) + delete (DELETE /me/company) handlers. The fields are
 // the closed set request_id/method/path/code_class plus slog's own
 // time/level/msg: the chi request ID (shared with the runtime
 // RequestObservability completion record), the HTTP method, the matched chi
@@ -298,9 +299,6 @@ func foundedYearToIntPtr(y *valueobjects.FoundedYear) *int {
 // 5xx response plus the shared request ID is all an operator needs to
 // correlate the failure, while concrete error detail (connection strings,
 // tokens, user data) stays out of log aggregation.
-//
-// File-local by design (no cross-feature abstraction): the update/delete
-// write-site logging is a later bounded unit and can adopt this same helper.
 func logCompanyInternalError(r *http.Request, msg string) {
 	route := "unmatched"
 	if rctx := chi.RouteContext(r.Context()); rctx != nil {
@@ -408,7 +406,7 @@ func (h *CompanyHandler) updateCompany(w http.ResponseWriter, r *http.Request) {
 		}
 		def := classifyUpdateCompanyError(err)
 		if def.Code == httpjson.CodeInternalError {
-			slog.Error("update company failed", "company_id", cc.CompanyID, "error", err)
+			logCompanyInternalError(r, "update company failed")
 		}
 		httpjson.WriteCatalogError(w, def)
 		return
@@ -457,7 +455,7 @@ func (h *CompanyHandler) deleteCompany(w http.ResponseWriter, r *http.Request) {
 		}
 		def := classifyDeleteCompanyError(err)
 		if def.Code == httpjson.CodeInternalError {
-			slog.Error("delete company failed", "company_id", cc.CompanyID, "error", err)
+			logCompanyInternalError(r, "delete company failed")
 		}
 		httpjson.WriteCatalogError(w, def)
 		return

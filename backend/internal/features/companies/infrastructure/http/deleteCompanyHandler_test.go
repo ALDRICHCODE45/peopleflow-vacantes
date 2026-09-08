@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -31,8 +32,10 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	rtmiddleware "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/middleware"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 
@@ -456,3 +459,110 @@ func TestDeleteCompanyHandler_NotFoundReturns404NoRepoCall(t *testing.T) {
 var _ = dtos.CompanyEditorViewDto{}
 
 var _ = json.Unmarshal
+
+// --- internal_error branch: bounded, request-correlated, redacted logging ---
+
+// TestDeleteCompanyHandler_InternalErrorLoggingCorrelatedAndRedacted pins the
+// write-site logging contract for DELETE /me/company (same contract the
+// create/get handlers already pin): when the use case surfaces an unexpected
+// error, the handler answers generic 500 + catalog internal_error and emits
+// exactly ONE auxiliary log record ("delete company failed") plus the runtime
+// RequestObservability completion record. The auxiliary record's key set is
+// closed (request_id/method/path/code_class), shares the chi request ID with
+// the completion record, uses the matched route pattern as path, and the raw
+// error text, the company_id, and any DSN/token detail never reach the logs.
+// Mounted through the production-faithful chain chi RequestID → runtime
+// RequestObservability → handler. No t.Parallel(): slog capture is
+// process-global.
+func TestDeleteCompanyHandler_InternalErrorLoggingCorrelatedAndRedacted(t *testing.T) {
+	const fixedRequestID = "companies-delete-fixed-request-id"
+	const auxMsg = "delete company failed"
+	const completionMsg = "http request completed"
+
+	row := mustCompany(uuid.New())
+	cc := identitysecurity.CompanyContext{CompanyID: row.ID, UserID: uuid.New(), Role: valueobjects.OwnerRole}
+	boom := errors.New("pg: delete failed: postgres://svc:hunter2@db.internal:5432/peopleflow token=abc123")
+	repo := &stubDeleteServiceRepo{
+		getForUpdateOut: row,
+		softDeleteErr:   boom,
+	}
+
+	logBuf := captureCompanySlog(t)
+
+	// Production-faithful chain: chi RequestID → runtime
+	// RequestObservability → handler.
+	r := chi.NewRouter()
+	r.Use(chimw.RequestID)
+	r.Use(rtmiddleware.RequestObservability(
+		slog.New(slog.NewJSONHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelInfo})),
+		nil,
+	))
+	handlers := NewCompanyHandler(usecases.NewCompanyService(repo)).CompanyHandlers()
+	r.Delete("/me/company", handlers.DeleteCompany)
+
+	req := httptest.NewRequest(http.MethodDelete, "/me/company", nil)
+	req.Header.Set("If-Unmodified-Since", row.UpdatedAt.Format(time.RFC3339))
+	req.Header.Set("X-Request-Id", fixedRequestID)
+	req = req.WithContext(identitysecurity.ContextWithCompanyContext(req.Context(), cc))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	// The wire contract is unchanged: generic 500 + catalog internal_error.
+	assertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+
+	// Exactly one auxiliary record + exactly one completion record.
+	records := decodeCompanySlogRecords(t, logBuf)
+	if len(records) != 2 {
+		t.Fatalf("slog records = %d (%s), want exactly 2 (auxiliary + completion)",
+			len(records), companyMsgList(records))
+	}
+
+	aux := companyRecordByMsg(t, records, auxMsg)
+	for k := range aux {
+		if !companyAuxAllowedKeys[k] {
+			t.Errorf("auxiliary record has unbounded key %q (record %v)", k, aux)
+		}
+	}
+	for k := range companyAuxAllowedKeys {
+		if _, ok := aux[k]; !ok {
+			t.Errorf("auxiliary record missing bounded key %q (record %v)", k, aux)
+		}
+	}
+	if got, _ := aux["request_id"].(string); got != fixedRequestID {
+		t.Errorf("auxiliary request_id = %q, want the fixed chi request ID %q", got, fixedRequestID)
+	}
+	if got, _ := aux["method"].(string); got != http.MethodDelete {
+		t.Errorf("auxiliary method = %q, want %q", got, http.MethodDelete)
+	}
+	if got, _ := aux["path"].(string); got != "/me/company" {
+		t.Errorf("auxiliary path = %q, want the matched chi route pattern %q (raw URL MUST NOT be logged)", got, "/me/company")
+	}
+	if got, _ := aux["code_class"].(string); got != string(httpjson.CodeInternalError) {
+		t.Errorf("auxiliary code_class = %q, want %q", got, httpjson.CodeInternalError)
+	}
+
+	// The runtime completion record shares the same fixed request ID.
+	comp := companyRecordByMsg(t, records, completionMsg)
+	if got, _ := comp["request_id"].(string); got != fixedRequestID {
+		t.Errorf("completion request_id = %q, want the same fixed ID %q shared with the auxiliary record", got, fixedRequestID)
+	}
+	if got, _ := comp["path"].(string); got != "/me/company" {
+		t.Errorf("completion path = %q, want the matched chi route pattern %q", got, "/me/company")
+	}
+	if got, _ := comp["code_class"].(string); got != string(httpjson.CodeInternalError) {
+		t.Errorf("completion code_class = %q, want %q", got, httpjson.CodeInternalError)
+	}
+
+	// Redaction across every captured log byte: the raw error text and every
+	// concrete identifier paired with it never reach the logs.
+	for _, forbidden := range []string{
+		boom.Error(),
+		"postgres://svc:hunter2@db.internal:5432/peopleflow",
+		"token=abc123",
+		row.ID.String(),
+	} {
+		if strings.Contains(logBuf.String(), forbidden) {
+			t.Errorf("captured logs MUST NOT contain %q; logs=%s", forbidden, logBuf.String())
+		}
+	}
+}
