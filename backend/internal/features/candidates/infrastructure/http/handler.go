@@ -256,7 +256,17 @@ func (h *CandidateHandler) listMyLanguages(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		def := classifyCandidateError(err)
 		if def.Code == httpjson.CodeInternalError {
-			slog.Error("list my languages failed", "error", err)
+			// Bounded unexpected-error record (WS6C-7D, mirroring the
+			// committed WS6C-7B/7C upsert and get): fixed message + catalog
+			// code_class, plus request_id read ONLY from the existing chi
+			// request-ID context and omitted when no RequestID middleware
+			// set one. No method, path, or raw error content — the request
+			// middleware owns bounded request correlation.
+			attrs := []any{"code_class", def.Code}
+			if reqID := chimw.GetReqID(r.Context()); reqID != "" {
+				attrs = append(attrs, "request_id", reqID)
+			}
+			slog.Error("list my languages failed", attrs...)
 		}
 		httpjson.WriteCatalogError(w, def)
 		return

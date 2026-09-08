@@ -1254,6 +1254,211 @@ func TestGetProfile_UnexpectedErrorLogCorrelationAndRedaction(t *testing.T) {
 	})
 }
 
+// runListLanguagesUnexpectedErrorScenario fires GET /me/profile/languages
+// with a valid subject while the repository injects an unexpected error
+// laden with synthetic sensitive markers. It mirrors runGetUnexpectedErrorScenario:
+// when useRequestID is true the real chi RequestID middleware runs ahead of the
+// runtime RequestObservability middleware; the captured slog default is
+// installed BEFORE middleware construction so RequestObservability(nil, nil)
+// binds the capturing logger (metrics fall back to the bounded no-op
+// runtime default).
+func runListLanguagesUnexpectedErrorScenario(t *testing.T, useRequestID bool, requestIDHeader string) (*bytes.Buffer, *httptest.ResponseRecorder, *stubCandidateRepo, *stubUserRepo) {
+	t.Helper()
+	userID := uuid.New()
+	cRepo := &stubCandidateRepo{listErr: fmt.Errorf("db: %s", strings.Join(upsertSensitiveMarkers, "; "))}
+	uRepo := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-abc"}}
+
+	buf := captureCandidateSlogJSON(t)
+
+	router := chi.NewRouter()
+	if useRequestID {
+		router.Use(chimw.RequestID)
+	}
+	router.Use(middleware.RequestObservability(nil, nil))
+	router.Mount("/me/profile", newTestHandler(cRepo, uRepo).Routes())
+
+	req := authedRequest(t, http.MethodGet, "/me/profile/languages/", "", "sub-abc")
+	if requestIDHeader != "" {
+		req.Header.Set("X-Request-Id", requestIDHeader)
+	}
+	rec := doRequest(t, router, req)
+	return buf, rec, cRepo, uRepo
+}
+
+// assertListLanguagesUnexpectedLogContract asserts the wire and bounded-log
+// contract shared by every WS6C-7D subtest except the request_id value itself:
+// the canonical 500 internal_error envelope with the generic non-leaking
+// message, no sensitive marker on the wire, exactly one identity resolution and
+// exactly one list repository call, exactly two log records (one auxiliary
+// ERROR + one completion INFO — any extra or duplicate record fails), the
+// auxiliary record's fixed level/code_class, and the completion record's exact
+// key set with its matched chi route pattern, INFO level, and propagated
+// canonical code class. It returns both records so each subtest can pin its
+// own request_id behavior and the auxiliary exact key set.
+func assertListLanguagesUnexpectedLogContract(t *testing.T, buf *bytes.Buffer, rec *httptest.ResponseRecorder, cRepo *stubCandidateRepo, uRepo *stubUserRepo) (aux, completion map[string]any) {
+	t.Helper()
+	const auxMsg = "list my languages failed"
+	const completionMsg = "http request completed"
+
+	// Wire: canonical 500 internal_error envelope with the generic
+	// non-leaking message; nothing else leaks.
+	assertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+	var env httpjson.ErrorEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode envelope: %v", err)
+	}
+	if env.Error != "an internal error occurred" {
+		t.Errorf("canonical message: want %q, got %q", "an internal error occurred", env.Error)
+	}
+	assertNoSensitiveMarker(t, "wire body", rec.Body.String())
+
+	// Exactly one identity resolution and exactly one list attempt.
+	if uRepo.getCalls != 1 {
+		t.Errorf("identity resolutions = %d, want exactly 1", uRepo.getCalls)
+	}
+	if cRepo.listCalls != 1 {
+		t.Errorf("list attempts = %d, want exactly 1", cRepo.listCalls)
+	}
+
+	// Exactly two records: one auxiliary ERROR + one completion INFO. Any
+	// extra, duplicate, or unknown record fails the count below.
+	records := decodeCandidateSlogRecords(t, buf)
+	var auxRecords, completions []map[string]any
+	for _, r := range records {
+		switch r["msg"] {
+		case auxMsg:
+			auxRecords = append(auxRecords, r)
+		case completionMsg:
+			completions = append(completions, r)
+		}
+	}
+	if len(records) != 2 {
+		t.Fatalf("captured records = %d, want exactly 2 (%s ERROR + %s INFO): %v", len(records), auxMsg, completionMsg, records)
+	}
+	if len(auxRecords) != 1 || len(completions) != 1 {
+		t.Fatalf("want exactly 1 %q ERROR and 1 %q INFO, got %d aux / %d completion: %v", auxMsg, completionMsg, len(auxRecords), len(completions), records)
+	}
+	aux, completion = auxRecords[0], completions[0]
+
+	// Auxiliary record: level and code class are fixed by contract; the
+	// request_id key presence/value and remaining exact key set are pinned
+	// per subtest.
+	if got, _ := aux["level"].(string); got != slog.LevelError.String() {
+		t.Errorf("aux level = %v, want %q", aux["level"], slog.LevelError.String())
+	}
+	if got, _ := aux["code_class"].(string); got != string(httpjson.CodeInternalError) {
+		t.Errorf("aux code_class = %v, want %q", aux["code_class"], httpjson.CodeInternalError)
+	}
+
+	// Completion record: exact bounded key set, matched chi route pattern
+	// (never the raw URL), INFO level, propagated canonical catalog class.
+	wantCompletion := map[string]bool{"time": true, "level": true, "msg": true, "request_id": true, "method": true, "path": true, "status": true, "duration": true, "code_class": true}
+	for k := range completion {
+		if !wantCompletion[k] {
+			t.Errorf("completion record has unbounded key %q (record: %v)", k, completion)
+		}
+		delete(wantCompletion, k)
+	}
+	for k := range wantCompletion {
+		t.Errorf("completion record is missing required key %q (record: %v)", k, completion)
+	}
+	if got, _ := completion["path"].(string); got != "/me/profile/languages" {
+		t.Errorf("completion path = %v, want matched route pattern %q (never the raw URL %q)", completion["path"], "/me/profile/languages", "/me/profile/languages/")
+	}
+	if got, _ := completion["level"].(string); got != slog.LevelInfo.String() {
+		t.Errorf("completion level = %v, want %q", completion["level"], slog.LevelInfo.String())
+	}
+	if got, _ := completion["code_class"].(string); got != string(httpjson.CodeInternalError) {
+		t.Errorf("completion code_class = %v, want %q", completion["code_class"], httpjson.CodeInternalError)
+	}
+
+	assertNoSensitiveMarker(t, "captured logs", buf.String())
+	return aux, completion
+}
+
+// assertExactKeys fails when record carries any key outside want or misses
+// any key inside want. It consumes want so each call site declares a fresh map.
+func assertExactKeys(t *testing.T, what string, record map[string]any, want map[string]bool) {
+	t.Helper()
+	for k := range record {
+		if !want[k] {
+			t.Errorf("%s has unbounded key %q (record: %v)", what, k, record)
+		}
+		delete(want, k)
+	}
+	for k := range want {
+		t.Errorf("%s is missing required key %q (record: %v)", what, k, record)
+	}
+}
+
+// TestListLanguages_UnexpectedErrorLogCorrelationAndRedaction pins the
+// WS6C-7D bounded unexpected-error contract for GET /me/profile/languages,
+// mirroring the committed WS6C-7B/7C upsert and get contracts: the auxiliary
+// ERROR record carries exactly time/level/msg/code_class plus the correlated
+// request_id (omitted entirely when no RequestID middleware ran, never
+// fabricated or re-read from headers), the completion INFO record carries its
+// exact bounded key set and names the matched chi route pattern — never the
+// raw URL — and no sensitive marker from the injected error reaches the logs
+// or the wire. The fixed auxiliary message contains no raw error content.
+func TestListLanguages_UnexpectedErrorLogCorrelationAndRedaction(t *testing.T) {
+	const suppliedID = "req-supplied-fixed-7d"
+
+	t.Run("supplied_request_id_correlated_and_redacted", func(t *testing.T) {
+		buf, rec, cRepo, uRepo := runListLanguagesUnexpectedErrorScenario(t, true, suppliedID)
+		aux, completion := assertListLanguagesUnexpectedLogContract(t, buf, rec, cRepo, uRepo)
+
+		// Auxiliary record: exact bounded key set including request_id —
+		// no path, no raw error.
+		assertExactKeys(t, "auxiliary record", aux, map[string]bool{"time": true, "level": true, "msg": true, "code_class": true, "request_id": true})
+		if got, _ := aux["request_id"].(string); got != suppliedID {
+			t.Errorf("aux request_id = %v, want supplied header value %q", aux["request_id"], suppliedID)
+		}
+
+		// Completion record correlates the same supplied request ID.
+		if got, _ := completion["request_id"].(string); got != suppliedID {
+			t.Errorf("completion request_id = %v, want %q", completion["request_id"], suppliedID)
+		}
+	})
+
+	t.Run("generated_request_id_when_header_absent", func(t *testing.T) {
+		buf, rec, cRepo, uRepo := runListLanguagesUnexpectedErrorScenario(t, true, "")
+		aux, completion := assertListLanguagesUnexpectedLogContract(t, buf, rec, cRepo, uRepo)
+
+		// Auxiliary record: exact bounded key set including request_id.
+		assertExactKeys(t, "auxiliary record", aux, map[string]bool{"time": true, "level": true, "msg": true, "code_class": true, "request_id": true})
+
+		// chi RequestID middleware generates one nonempty ID shared by
+		// both records (auxiliary + completion) when no header is supplied.
+		auxID, _ := aux["request_id"].(string)
+		completionID, _ := completion["request_id"].(string)
+		if auxID == "" || completionID == "" || auxID != completionID {
+			t.Errorf("chi RequestID middleware must generate one nonempty ID shared by both records, got aux=%q completion=%q", auxID, completionID)
+		}
+	})
+
+	t.Run("missing_request_id_middleware_omits_request_id", func(t *testing.T) {
+		buf, rec, cRepo, uRepo := runListLanguagesUnexpectedErrorScenario(t, false, "req-header-must-be-ignored")
+		aux, completion := assertListLanguagesUnexpectedLogContract(t, buf, rec, cRepo, uRepo)
+
+		// Auxiliary record: request_id must be omitted entirely when no
+		// RequestID middleware ran — never fabricated, never re-read from
+		// the raw header — leaving the exact bounded key set without it.
+		assertExactKeys(t, "auxiliary record", aux, map[string]bool{"time": true, "level": true, "msg": true, "code_class": true})
+
+		// Completion record: request_id must stay present per the canonical
+		// completion contract (request_id/method/path/status/duration/code_class
+		// always carried) and hold the empty value when no RequestID middleware
+		// ran — no fabricated or header-read ID. The type assertion must
+		// succeed, so a present nil/non-string value fails here too.
+		completionID, ok := completion["request_id"].(string)
+		if !ok {
+			t.Errorf("completion request_id must be a present string value per the canonical completion contract (record: %v)", completion)
+		} else if completionID != "" {
+			t.Errorf("completion request_id = %q, want empty when no RequestID middleware ran (raw header must be ignored)", completionID)
+		}
+	})
+}
+
 // helpers to silence unused-import warnings when tests are added/removed.
 var _ = candidatesdtos.ReplaceMyLanguagesDto{}
 var _ = candidatesusecases.NewCandidateService
