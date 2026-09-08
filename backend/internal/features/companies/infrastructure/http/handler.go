@@ -14,6 +14,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 
@@ -187,7 +188,7 @@ func (h *CompanyHandler) createCompany(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		def := classifyCreateCompanyError(err)
 		if def.Code == httpjson.CodeInternalError {
-			slog.Error("create company failed", "error", err)
+			logCompanyInternalError(r, "create company failed")
 		}
 		httpjson.WriteCatalogError(w, def)
 		return
@@ -207,7 +208,7 @@ func (h *CompanyHandler) getCompany(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		def := classifyGetCompanyError(err)
 		if def.Code == httpjson.CodeInternalError {
-			slog.Error("get company failed", "error", err)
+			logCompanyInternalError(r, "get company failed")
 		}
 		httpjson.WriteCatalogError(w, def)
 		return
@@ -286,10 +287,40 @@ func foundedYearToIntPtr(y *valueobjects.FoundedYear) *int {
 	return &v
 }
 
+// logCompanyInternalError emits exactly one bounded, request-correlated
+// auxiliary ERROR record for an internal_error branch of the company read
+// (GET /companies/{id}) and create (POST /companies) handlers. The fields are
+// the closed set request_id/method/path/code_class plus slog's own
+// time/level/msg: the chi request ID (shared with the runtime
+// RequestObservability completion record), the HTTP method, the matched chi
+// route pattern ("unmatched" when routing resolved no pattern — never the raw
+// URL), and the catalog code class. The raw error is never logged: the generic
+// 5xx response plus the shared request ID is all an operator needs to
+// correlate the failure, while concrete error detail (connection strings,
+// tokens, user data) stays out of log aggregation.
+//
+// File-local by design (no cross-feature abstraction): the update/delete
+// write-site logging is a later bounded unit and can adopt this same helper.
+func logCompanyInternalError(r *http.Request, msg string) {
+	route := "unmatched"
+	if rctx := chi.RouteContext(r.Context()); rctx != nil {
+		if p := rctx.RoutePattern(); p != "" {
+			route = p
+		}
+	}
+	slog.ErrorContext(r.Context(), msg,
+		"request_id", chimw.GetReqID(r.Context()),
+		"method", r.Method,
+		"path", route,
+		"code_class", string(httpjson.CodeInternalError),
+	)
+}
+
 // classifyCreateCompanyError maps a use-case error to a V1 catalog Definition.
 // Domain validation → invalid_request, duplicate → already_exists, anything else
-// → internal_error. The caller logs the real error when Code is internal_error.
-// ErrIndustryUnavailable is the dedicated WS2A 409 path.
+// → internal_error. On internal_error the caller emits exactly one bounded,
+// request-correlated auxiliary record (logCompanyInternalError) — never the raw
+// error or any concrete detail. ErrIndustryUnavailable is the dedicated WS2A 409 path.
 func classifyCreateCompanyError(err error) httpjson.Definition {
 	switch {
 	case errors.Is(err, entities.ErrUnknownSubject):

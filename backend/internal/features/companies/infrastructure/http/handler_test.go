@@ -1,9 +1,11 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,8 +20,10 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	rtmiddleware "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/middleware"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 
@@ -669,6 +673,219 @@ func TestGetCompany_CatalogCodeMapping(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rec := doGetWithRepo(t, tc.repo, tc.path)
 			assertCatalogEnvelope(t, rec, tc.wantStatus, tc.wantCode)
+		})
+	}
+}
+
+// --- Internal-error auxiliary logging: bounded + request-correlated ---------
+
+// companyAuxAllowedKeys is the closed key set for the auxiliary
+// "create company failed" / "get company failed" record (time/level/msg are
+// emitted by slog's JSONHandler itself). Anything else on the record — a raw
+// error, a company_id, a URL — is unbounded and forbidden.
+var companyAuxAllowedKeys = map[string]bool{
+	"time": true, "level": true, "msg": true,
+	"request_id": true, "method": true, "path": true, "code_class": true,
+}
+
+// captureCompanySlog installs a JSON slog.Default over a fresh buffer and
+// restores the previous default on cleanup. Tests using it MUST NOT call
+// t.Parallel(): slog.Default is process-global.
+func captureCompanySlog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo})))
+	t.Cleanup(func() { slog.SetDefault(prev) })
+	return &buf
+}
+
+// decodeCompanySlogRecords parses every captured JSON slog record so tests
+// select records by msg instead of relying on a single last line.
+func decodeCompanySlogRecords(t *testing.T, buf *bytes.Buffer) []map[string]any {
+	t.Helper()
+	var records []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		if line == "" {
+			continue
+		}
+		var rec map[string]any
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatalf("decode slog record: %v; raw=%s", err, buf.String())
+		}
+		records = append(records, rec)
+	}
+	return records
+}
+
+func companyRecordByMsg(t *testing.T, records []map[string]any, msg string) map[string]any {
+	t.Helper()
+	for _, rec := range records {
+		if rec["msg"] == msg {
+			return rec
+		}
+	}
+	t.Fatalf("no slog record with msg %q; captured msgs=%s", msg, companyMsgList(records))
+	return nil
+}
+
+func companyMsgList(records []map[string]any) string {
+	msgs := make([]string, 0, len(records))
+	for _, rec := range records {
+		m, _ := rec["msg"].(string)
+		msgs = append(msgs, m)
+	}
+	return strings.Join(msgs, ", ")
+}
+
+// TestCompanyTransport_UnexpectedErrors_CorrelatedAndRedacted drives the two
+// reachable unexpected-error sites (POST /companies create, GET
+// /companies/{id} get) through the production-faithful chain chi RequestID →
+// runtime RequestObservability → handler, with a fixed X-Request-Id. Behavior
+// under test: the response stays exactly 500 + catalog internal_error with the
+// canonical generic message, the handler emits exactly ONE auxiliary record
+// ("create company failed" / "get company failed") whose fields are bounded
+// and request-correlated (request_id shared with the completion record, HTTP
+// method, matched chi route pattern, code_class=internal_error), and the raw
+// error / concrete URL / UUID / request body (name, RFC) never reach any
+// captured log line. No t.Parallel(): slog capture is process-global.
+func TestCompanyTransport_UnexpectedErrors_CorrelatedAndRedacted(t *testing.T) {
+	const fixedRequestID = "companies-fixed-request-id"
+	const completionMsg = "http request completed"
+
+	cases := []struct {
+		name      string
+		method    string
+		path      string
+		body      string
+		handler   func() *CompanyHandler
+		auxMsg    string
+		wantRoute string
+		// forbidden substrings that must not appear in any captured log byte
+		forbidden []string
+	}{
+		{
+			name:   "create: unexpected bootstrap error",
+			method: http.MethodPost,
+			path:   "/companies",
+			body:   `{"name":"Acme SA de CV","rfc":"AAA010101AAA","industry_id":"tech"}`,
+			handler: func() *CompanyHandler {
+				boom := errors.New("pq: create failed: postgres://svc:hunter2@db.internal:5432/peopleflow")
+				return newTestHandlerWithBootstrap(&stubRepo{}, &stubBootstrapRepo{createErr: boom})
+			},
+			auxMsg:    "create company failed",
+			wantRoute: "/companies",
+			forbidden: []string{
+				"postgres://svc:hunter2@db.internal:5432/peopleflow",
+				"Acme SA de CV",
+				"AAA010101AAA",
+			},
+		},
+		{
+			name:   "get: unexpected repository error",
+			method: http.MethodGet,
+			path:   "/companies/88888888-8888-8888-8888-888888888888",
+			handler: func() *CompanyHandler {
+				boom := errors.New("pg: read timeout while scanning company row token=abc123")
+				return newTestHandler(&stubRepo{getErr: boom})
+			},
+			auxMsg:    "get company failed",
+			wantRoute: "/companies/{id}",
+			forbidden: []string{
+				"pg: read timeout while scanning company row token=abc123",
+				"88888888-8888-8888-8888-888888888888",
+				"token=abc123",
+			},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			logBuf := captureCompanySlog(t)
+			h := tc.handler()
+
+			// Production-faithful chain: chi RequestID → runtime
+			// RequestObservability → handler, mounted exactly like
+			// cmd/api/router.go (GET /companies/{id}, POST /companies).
+			r := chi.NewRouter()
+			r.Use(chimw.RequestID)
+			r.Use(rtmiddleware.RequestObservability(
+				slog.New(slog.NewJSONHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelInfo})),
+				nil,
+			))
+			hh := h.CompanyHandlers()
+			r.Post("/companies", hh.CreateCompany)
+			r.Get("/companies/{id}", hh.GetCompany)
+
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			req.Header.Set("X-Request-Id", fixedRequestID)
+			if tc.body != "" {
+				req.Header.Set("Content-Type", "application/json")
+			}
+			if tc.method == http.MethodPost {
+				// RequireAuth would inject Claims in production; the handler reads them.
+				req = req.WithContext(security.ContextWithClaims(req.Context(), security.Claims{Subject: "test-sub"}))
+			}
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+
+			// The wire contract is unchanged: generic 500 + catalog internal_error
+			// with the canonical generic message (no injected detail).
+			assertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+
+			// Exactly one auxiliary record + exactly one completion record.
+			records := decodeCompanySlogRecords(t, logBuf)
+			if len(records) != 2 {
+				t.Fatalf("slog records = %d (%s), want exactly 2 (auxiliary + completion)",
+					len(records), companyMsgList(records))
+			}
+
+			aux := companyRecordByMsg(t, records, tc.auxMsg)
+			for k := range aux {
+				if !companyAuxAllowedKeys[k] {
+					t.Errorf("auxiliary record has unbounded key %q (record %v)", k, aux)
+				}
+			}
+			for k := range companyAuxAllowedKeys {
+				if _, ok := aux[k]; !ok {
+					t.Errorf("auxiliary record missing bounded key %q (record %v)", k, aux)
+				}
+			}
+			if got, _ := aux["request_id"].(string); got != fixedRequestID {
+				t.Errorf("auxiliary request_id = %q, want the fixed chi request ID %q", got, fixedRequestID)
+			}
+			if got, _ := aux["method"].(string); got != tc.method {
+				t.Errorf("auxiliary method = %q, want %q", got, tc.method)
+			}
+			if got, _ := aux["path"].(string); got != tc.wantRoute {
+				t.Errorf("auxiliary path = %q, want the matched chi route pattern %q (raw URL/UUID MUST NOT be logged)", got, tc.wantRoute)
+			}
+			if got, _ := aux["code_class"].(string); got != string(httpjson.CodeInternalError) {
+				t.Errorf("auxiliary code_class = %q, want %q", got, httpjson.CodeInternalError)
+			}
+
+			// The runtime completion record: same fixed request ID, matched
+			// route pattern, status 500, internal_error class.
+			comp := companyRecordByMsg(t, records, completionMsg)
+			if got, _ := comp["request_id"].(string); got != fixedRequestID {
+				t.Errorf("completion request_id = %q, want the same fixed ID %q shared with the auxiliary record", got, fixedRequestID)
+			}
+			if got, _ := comp["path"].(string); got != tc.wantRoute {
+				t.Errorf("completion path = %q, want the matched chi route pattern %q", got, tc.wantRoute)
+			}
+			if s, ok := comp["status"].(float64); !ok || int(s) != http.StatusInternalServerError {
+				t.Errorf("completion status = %v (%T), want %d", comp["status"], comp["status"], http.StatusInternalServerError)
+			}
+			if got, _ := comp["code_class"].(string); got != string(httpjson.CodeInternalError) {
+				t.Errorf("completion code_class = %q, want %q", got, httpjson.CodeInternalError)
+			}
+
+			// Redaction across every captured log byte: the raw error text and
+			// every concrete identifier paired with it never reach the logs.
+			for _, forbidden := range tc.forbidden {
+				if strings.Contains(logBuf.String(), forbidden) {
+					t.Errorf("captured logs MUST NOT contain %q; logs=%s", forbidden, logBuf.String())
+				}
+			}
 		})
 	}
 }
