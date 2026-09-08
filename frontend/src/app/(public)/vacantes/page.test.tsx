@@ -58,6 +58,23 @@ afterEach(() => {
   push.mockReset();
 });
 
+describe("/vacantes approved composition", () => {
+  const pageSource = readFileSync(
+    join(process.cwd(), "src/app/(public)/vacantes/page.tsx"),
+    "utf8",
+  );
+
+  it("opens with the approved hero: eyebrow, H1, and exact factual support copy", () => {
+    const flatSource = pageSource.replace(/\s+/g, " ");
+    expect(flatSource).toContain("Bolsa de trabajo");
+    expect(flatSource).toContain("Encuentra tu próximo trabajo en tech");
+    expect(flatSource).toContain(
+      "Explora vacantes publicadas y filtra por modalidad, senioridad, ubicación y moneda.",
+    );
+    expect(pageSource).not.toMatch(/un clic|tiempo real/i);
+  });
+});
+
 describe("/vacantes synchronous boundaries", () => {
   it("uses a Client route error boundary whose retry calls reset", async () => {
     expect(

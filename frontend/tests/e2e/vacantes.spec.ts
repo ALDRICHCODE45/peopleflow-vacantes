@@ -88,7 +88,10 @@ test("renders validated semantic vacancies with labeled scalar desktop filters",
 }) => {
   await page.goto("/vacantes?currency=MXN");
   await expect(
-    page.getByRole("heading", { level: 1, name: /vacantes/i }),
+    page.getByRole("heading", {
+      level: 1,
+      name: /encuentra tu próximo trabajo en tech/i,
+    }),
   ).toBeVisible();
   await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
   await expect(page.getByLabel(/buscar/i)).toBeVisible();
