@@ -38,7 +38,12 @@ const server = createServer((request, response) => {
   }
   if (url.searchParams.get("q") === "empty")
     return send(response, 200, { items: [] });
-  const payload = { items: [job], next_cursor: "opaque a+b/c=" };
+  // First-page requests advertise the opaque next cursor; a cursor
+  // request models the nonempty final page: items are present but
+  // `next_cursor` is absent, so the frontend must omit pagination.
+  const payload = url.searchParams.has("cursor")
+    ? { items: [job] }
+    : { items: [job], next_cursor: "opaque a+b/c=" };
   if (
     url.searchParams.has("cursor") ||
     url.searchParams.get("q") === "pending-search" ||

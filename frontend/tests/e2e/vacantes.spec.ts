@@ -245,6 +245,79 @@ test("announces pending next navigation and preserves its opaque cursor", async 
   await expect(page.getByRole("status")).not.toContainText(/cargando/i);
 });
 
+test("forwards all six filters AND-shaped, resets the cursor on filter submission, preserves it on next, and omits pagination on the nonempty final page", async ({
+  page,
+  request,
+}) => {
+  const six =
+    "q=frontend&seniority=senior&work_mode=remote&employment_type=full_time&location=Monterrey&currency=MXN";
+  const cursor = "cursor=opaque+a%2Bb%2Fc%3D";
+  const filtered = (q: string) => six.replace("q=frontend", `q=${q}`);
+
+  // Prohibited pagination: forward next links/buttons, reverse controls,
+  // and numbered/total placeholders must be absent on every final page.
+  const expectNoPagination = async () => {
+    await expect(
+      page.getByRole("link", { name: /ver más vacantes|siguiente/i }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /ver más|siguiente/i }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("link", { name: /anterior|página anterior/i }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: /anterior|página anterior/i }),
+    ).toHaveCount(0);
+    await expect(page.getByText(/página \d+/i)).toHaveCount(0);
+    await expect(page.getByText(/de \d+ páginas?/i)).toHaveCount(0);
+    await expect(page.getByText(/\d+ vacantes/i)).toHaveCount(0);
+  };
+
+  // A canonical load with every supported filter plus an existing cursor
+  // forwards all six values AND-shaped in one exact server request; a
+  // cursor request answers the nonempty final page, so results are
+  // visible while every pagination control is omitted.
+  await page.goto(`/vacantes?${filtered("frontend")}&${cursor}`);
+  await expect(page).toHaveURL(`/vacantes?${filtered("frontend")}&${cursor}`);
+  await expect
+    .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
+    .toEqual([`?${filtered("frontend")}&${cursor}`]);
+  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expectNoPagination();
+
+  // Submitting a changed filter preserves all six active filters and
+  // resets pagination: the committed canonical URL omits the old cursor.
+  await page.getByLabel("Buscar vacantes").fill("react");
+  await page.getByRole("button", { name: "Buscar", exact: true }).click();
+  const commitUrl = `/vacantes?${filtered("react")}`;
+  await expect(page).toHaveURL(commitUrl);
+  await expect
+    .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
+    .toEqual([`?${filtered("frontend")}&${cursor}`, `?${filtered("react")}`]);
+
+  // The next link carries all six filters plus the exact fixture cursor
+  // (decoded value `opaque a+b/c=`); activating it requests that exact
+  // URL, which is again the nonempty final page without pagination.
+  const nextHref = `${commitUrl}&${cursor}`;
+  await expect(
+    page.getByRole("link", { name: /ver más vacantes/i }),
+  ).toHaveAttribute("href", nextHref);
+  await page.getByRole("link", { name: /ver más vacantes/i }).click();
+  await expect(page).toHaveURL(nextHref);
+  await expect(page.getByLabel("Buscar vacantes")).toHaveValue("react");
+  await expect
+    .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
+    .toEqual([
+      `?${filtered("frontend")}&${cursor}`,
+      `?${filtered("react")}`,
+      `?${filtered("react")}&${cursor}`,
+    ]);
+  await expect(page.getByRole("status")).not.toContainText(/cargando/i);
+  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expectNoPagination();
+});
+
 test("opens a titled Base UI mobile filters sheet", async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/vacantes");
