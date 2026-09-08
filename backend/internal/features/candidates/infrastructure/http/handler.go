@@ -297,7 +297,17 @@ func (h *CandidateHandler) replaceMyLanguages(w http.ResponseWriter, r *http.Req
 	if err := h.service.ReplaceMyLanguages(r.Context(), sub, dto); err != nil {
 		def := classifyCandidateError(err)
 		if def.Code == httpjson.CodeInternalError {
-			slog.Error("replace my languages failed", "error", err)
+			// Bounded unexpected-error record (WS6C-7E, mirroring the
+			// committed WS6C-7B/7C/7D contracts): fixed message + catalog
+			// code_class, plus request_id read ONLY from the existing chi
+			// request-ID context and omitted when no RequestID middleware set
+			// one. No method, path, or raw error content — the request
+			// middleware owns bounded request correlation.
+			attrs := []any{"code_class", def.Code}
+			if reqID := chimw.GetReqID(r.Context()); reqID != "" {
+				attrs = append(attrs, "request_id", reqID)
+			}
+			slog.Error("replace my languages failed", attrs...)
 		}
 		httpjson.WriteCatalogError(w, def)
 		return
@@ -309,7 +319,11 @@ func (h *CandidateHandler) replaceMyLanguages(w http.ResponseWriter, r *http.Req
 	if err != nil {
 		def := classifyCandidateError(err)
 		if def.Code == httpjson.CodeInternalError {
-			slog.Error("replace my languages: post-write read failed", "error", err)
+			attrs := []any{"code_class", def.Code}
+			if reqID := chimw.GetReqID(r.Context()); reqID != "" {
+				attrs = append(attrs, "request_id", reqID)
+			}
+			slog.Error("replace my languages: post-write read failed", attrs...)
 		}
 		httpjson.WriteCatalogError(w, def)
 		return

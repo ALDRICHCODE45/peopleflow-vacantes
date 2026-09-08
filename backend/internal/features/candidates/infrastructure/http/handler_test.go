@@ -1459,6 +1459,218 @@ func TestListLanguages_UnexpectedErrorLogCorrelationAndRedaction(t *testing.T) {
 	})
 }
 
+// runReplaceLanguagesUnexpectedErrorScenario fires PUT /me/profile/languages
+// with a valid subject and body while the repository injects an unexpected
+// error laden with synthetic sensitive markers on the branch under test:
+// the pre-write replace failure (replaceErr) or the post-write read failure
+// (listErr, with the replace itself succeeding and recording the normalized
+// list). It mirrors runListLanguagesUnexpectedErrorScenario: when useRequestID
+// is true the real chi RequestID middleware runs ahead of the runtime
+// RequestObservability middleware; the captured slog default is installed
+// BEFORE middleware construction so RequestObservability(nil, nil) binds the
+// capturing logger (metrics fall back to the bounded no-op runtime default).
+func runReplaceLanguagesUnexpectedErrorScenario(t *testing.T, postWriteFail, useRequestID bool, requestIDHeader string) (*bytes.Buffer, *httptest.ResponseRecorder, *stubCandidateRepo, *stubUserRepo) {
+	t.Helper()
+	userID := uuid.New()
+	markerErr := fmt.Errorf("db: %s", strings.Join(upsertSensitiveMarkers, "; "))
+	cRepo := &stubCandidateRepo{replaceErr: markerErr, listErr: markerErr}
+	if postWriteFail {
+		// Replace succeeds and records the normalized list; only the
+		// post-write list (the second resolution/listing) fails.
+		cRepo.replaceErr = nil
+	}
+	uRepo := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-abc"}}
+
+	buf := captureCandidateSlogJSON(t)
+
+	router := chi.NewRouter()
+	if useRequestID {
+		router.Use(chimw.RequestID)
+	}
+	router.Use(middleware.RequestObservability(nil, nil))
+	router.Mount("/me/profile", newTestHandler(cRepo, uRepo).Routes())
+
+	req := authedRequest(t, http.MethodPut, "/me/profile/languages/", `{"languages":[{"name":" English ","level":"B2"}]}`, "sub-abc")
+	if requestIDHeader != "" {
+		req.Header.Set("X-Request-Id", requestIDHeader)
+	}
+	rec := doRequest(t, router, req)
+	return buf, rec, cRepo, uRepo
+}
+
+// TestReplaceLanguages_UnexpectedErrorLogCorrelationAndRedaction pins the
+// WS6C-7E bounded unexpected-error contract for PUT /me/profile/languages,
+// covering both unexpected branches — the pre-write replace failure and the
+// post-write read failure after a successful replace — mirroring the
+// committed WS6C-7B/7C/7D contracts: the auxiliary ERROR record carries a
+// fixed per-branch message plus exactly time/level/msg/code_class and the
+// correlated request_id (omitted entirely when no RequestID middleware ran,
+// never fabricated or re-read from headers), with no path and no raw error
+// content; the completion INFO record carries its exact bounded key set with
+// the matched chi route pattern /me/profile/languages, status 500, and the
+// propagated canonical internal_error class — its request_id is always
+// present, empty when no RequestID middleware ran. No sensitive marker from
+// the injected errors reaches the logs or the wire.
+func TestReplaceLanguages_UnexpectedErrorLogCorrelationAndRedaction(t *testing.T) {
+	const suppliedID = "req-supplied-fixed-7e"
+	const replaceFailMsg = "replace my languages failed"
+	const postWriteFailMsg = "replace my languages: post-write read failed"
+	const completionMsg = "http request completed"
+	const rawHeader = "req-header-must-be-ignored"
+
+	tests := []struct {
+		name            string
+		postWriteFail   bool
+		useRequestID    bool
+		requestIDHeader string
+	}{
+		{name: "replace_fail/supplied_request_id_correlated_and_redacted", useRequestID: true, requestIDHeader: suppliedID},
+		{name: "replace_fail/generated_request_id_when_header_absent", useRequestID: true},
+		{name: "replace_fail/missing_request_id_middleware_omits_request_id", requestIDHeader: rawHeader},
+		{name: "post_write_read_fail/supplied_request_id_correlated_and_redacted", postWriteFail: true, useRequestID: true, requestIDHeader: suppliedID},
+		{name: "post_write_read_fail/generated_request_id_when_header_absent", postWriteFail: true, useRequestID: true},
+		{name: "post_write_read_fail/missing_request_id_middleware_omits_request_id", postWriteFail: true, requestIDHeader: rawHeader},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// slog.Default is shared process state: capture subtests must stay
+			// non-parallel, mirroring every other candidate capture test.
+			buf, rec, cRepo, uRepo := runReplaceLanguagesUnexpectedErrorScenario(t, tt.postWriteFail, tt.useRequestID, tt.requestIDHeader)
+
+			// Wire: canonical 500 internal_error envelope with the generic
+			// non-leaking message; nothing else leaks.
+			assertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+			var env httpjson.ErrorEnvelope
+			if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+				t.Fatalf("decode envelope: %v", err)
+			}
+			if env.Error != "an internal error occurred" {
+				t.Errorf("canonical message: want %q, got %q", "an internal error occurred", env.Error)
+			}
+			assertNoSensitiveMarker(t, "wire body", rec.Body.String())
+
+			// Downstream call shape per branch: the pre-write failure does one
+			// identity resolution and one replace attempt, never listing; the
+			// post-write failure additionally re-resolves and lists once (the
+			// second resolution), with the replace itself succeeding.
+			wantGetCalls, wantListCalls := 1, 0
+			if tt.postWriteFail {
+				wantGetCalls, wantListCalls = 2, 1
+			}
+			if uRepo.getCalls != wantGetCalls {
+				t.Errorf("identity resolutions = %d, want exactly %d", uRepo.getCalls, wantGetCalls)
+			}
+			if cRepo.replaceCalls != 1 {
+				t.Errorf("replace attempts = %d, want exactly 1", cRepo.replaceCalls)
+			}
+			if cRepo.listCalls != wantListCalls {
+				t.Errorf("list attempts = %d, want exactly %d", cRepo.listCalls, wantListCalls)
+			}
+
+			// Exactly two records: one auxiliary ERROR + one completion INFO.
+			// The fixed auxiliary message differs per branch and must contain
+			// no raw error content.
+			auxMsg := replaceFailMsg
+			if tt.postWriteFail {
+				auxMsg = postWriteFailMsg
+			}
+			records := decodeCandidateSlogRecords(t, buf)
+			var auxRecords, completions []map[string]any
+			for _, r := range records {
+				switch r["msg"] {
+				case auxMsg:
+					auxRecords = append(auxRecords, r)
+				case completionMsg:
+					completions = append(completions, r)
+				}
+			}
+			if len(records) != 2 {
+				t.Fatalf("captured records = %d, want exactly 2 (%s ERROR + %s INFO): %v", len(records), auxMsg, completionMsg, records)
+			}
+			if len(auxRecords) != 1 || len(completions) != 1 {
+				t.Fatalf("want exactly 1 %q ERROR and 1 %q INFO, got %d aux / %d completion: %v", auxMsg, completionMsg, len(auxRecords), len(completions), records)
+			}
+			aux, completion := auxRecords[0], completions[0]
+
+			// Auxiliary record: exact bounded key set — no path, no raw error
+			// content — plus request_id only when a RequestID middleware ran.
+			wantAux := map[string]bool{"time": true, "level": true, "msg": true, "code_class": true}
+			if tt.useRequestID {
+				wantAux["request_id"] = true
+			}
+			assertExactKeys(t, "auxiliary record", aux, wantAux)
+			if got, _ := aux["level"].(string); got != slog.LevelError.String() {
+				t.Errorf("aux level = %v, want %q", aux["level"], slog.LevelError.String())
+			}
+			if got, _ := aux["code_class"].(string); got != string(httpjson.CodeInternalError) {
+				t.Errorf("aux code_class = %v, want %q", aux["code_class"], httpjson.CodeInternalError)
+			}
+
+			// Completion record: exact bounded key set with the matched chi
+			// route pattern (never the raw URL), 500 status, INFO level, and
+			// the propagated canonical internal_error class.
+			assertExactKeys(t, "completion record", completion, map[string]bool{"time": true, "level": true, "msg": true, "request_id": true, "method": true, "path": true, "status": true, "duration": true, "code_class": true})
+			if got, _ := completion["path"].(string); got != "/me/profile/languages" {
+				t.Errorf("completion path = %v, want matched route pattern %q (never the raw URL %q)", completion["path"], "/me/profile/languages", "/me/profile/languages/")
+			}
+			if got, _ := completion["status"].(float64); got != 500 {
+				t.Errorf("completion status = %v, want 500", completion["status"])
+			}
+			if got, _ := completion["level"].(string); got != slog.LevelInfo.String() {
+				t.Errorf("completion level = %v, want %q", completion["level"], slog.LevelInfo.String())
+			}
+			if got, _ := completion["code_class"].(string); got != string(httpjson.CodeInternalError) {
+				t.Errorf("completion code_class = %v, want %q", completion["code_class"], httpjson.CodeInternalError)
+			}
+
+			// request_id behavior per middleware mode: supplied and generated
+			// IDs correlate both records; without the RequestID middleware the
+			// auxiliary omits request_id entirely and the completion always
+			// carries it as an empty string (raw header ignored).
+			switch {
+			case tt.requestIDHeader == suppliedID:
+				if got, _ := aux["request_id"].(string); got != suppliedID {
+					t.Errorf("aux request_id = %v, want supplied header value %q", aux["request_id"], suppliedID)
+				}
+				if got, _ := completion["request_id"].(string); got != suppliedID {
+					t.Errorf("completion request_id = %v, want %q", completion["request_id"], suppliedID)
+				}
+			case tt.useRequestID:
+				auxID, _ := aux["request_id"].(string)
+				completionID, _ := completion["request_id"].(string)
+				if auxID == "" || completionID == "" || auxID != completionID {
+					t.Errorf("chi RequestID middleware must generate one nonempty ID shared by both records, got aux=%q completion=%q", auxID, completionID)
+				}
+			default:
+				if _, ok := aux["request_id"]; ok {
+					t.Errorf("request_id must be omitted entirely when no RequestID middleware ran (never fabricated, never re-read from headers): %v", aux)
+				}
+				completionID, ok := completion["request_id"].(string)
+				if !ok {
+					t.Errorf("completion request_id must be a present string value per the canonical completion contract (record: %v)", completion)
+				} else if completionID != "" {
+					t.Errorf("completion request_id = %q, want empty when no RequestID middleware ran (raw header must be ignored)", completionID)
+				}
+			}
+
+			// Branch-specific repository echo: the pre-write failure never
+			// writes; the post-write failure stored the normalized list
+			// (lowercased + trimmed) before the read failed.
+			if !tt.postWriteFail {
+				if len(cRepo.replacedWith) != 0 {
+					t.Errorf("pre-write failure must not write, got %v", cRepo.replacedWith)
+				}
+			} else {
+				if len(cRepo.replacedWith) != 1 || cRepo.replacedWith[0].Name != "english" || cRepo.replacedWith[0].Level != valueobjects.B2 {
+					t.Errorf("post-write failure must have stored the normalized list, got %v", cRepo.replacedWith)
+				}
+			}
+
+			assertNoSensitiveMarker(t, "captured logs", buf.String())
+		})
+	}
+}
+
 // helpers to silence unused-import warnings when tests are added/removed.
 var _ = candidatesdtos.ReplaceMyLanguagesDto{}
 var _ = candidatesusecases.NewCandidateService
