@@ -221,7 +221,7 @@ func (h *MemberHandler) getMyMembership(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		def := classifyMemberError(err)
 		if def.Code == httpjson.CodeInternalError {
-			slog.Error("get my membership failed", "error", err)
+			logCompanyInternalError(r, "get my membership failed")
 		}
 		httpjson.WriteCatalogError(w, def)
 		return
@@ -247,7 +247,7 @@ func (h *MemberHandler) listMembers(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		def := classifyMemberError(err)
 		if def.Code == httpjson.CodeInternalError {
-			slog.Error("list members failed", "error", err)
+			logCompanyInternalError(r, "list members failed")
 		}
 		httpjson.WriteCatalogError(w, def)
 		return

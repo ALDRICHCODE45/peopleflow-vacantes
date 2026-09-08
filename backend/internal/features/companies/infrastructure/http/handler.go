@@ -288,9 +288,11 @@ func foundedYearToIntPtr(y *valueobjects.FoundedYear) *int {
 }
 
 // logCompanyInternalError emits exactly one bounded, request-correlated
-// auxiliary ERROR record for an internal_error branch of the company read
-// (GET /companies/{id}), create (POST /companies), and owner-write update
-// (PATCH /me/company) + delete (DELETE /me/company) handlers. The fields are
+// auxiliary ERROR record for an internal_error branch of any company or
+// company-membership handler in this package: the company read (GET
+// /companies/{id}), create (POST /companies), owner-write update (PATCH
+// /me/company) + delete (DELETE /me/company), and the membership reads (GET
+// /me/company, GET /me/company/members). The fields are
 // the closed set request_id/method/path/code_class plus slog's own
 // time/level/msg: the chi request ID (shared with the runtime
 // RequestObservability completion record), the HTTP method, the matched chi

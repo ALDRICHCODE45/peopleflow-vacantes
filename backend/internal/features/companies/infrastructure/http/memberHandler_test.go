@@ -22,8 +22,10 @@ import (
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	identityvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/valueobjects"
+	rtmiddleware "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/middleware"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 
@@ -845,56 +847,202 @@ func TestGetMyCompany_MemberButCompanyNotFound(t *testing.T) {
 	assertErrorMessage(t, rec, "company not found")
 }
 
-func TestGetMyCompany_UnexpectedCompanyError(t *testing.T) {
-	var logBuf bytes.Buffer
-	captureSlog(t, &logBuf)
-	userID := uuid.New()
-	member := &entities.CompanyMember{
-		ID: uuid.New(), UserID: userID, CompanyID: uuid.New(),
+// --- Unexpected-error READ logging: bounded + request-correlated ------------
+
+// TestMemberTransport_ReadUnexpectedErrors_CorrelatedAndRedacted drives the
+// two reachable unexpected-error READ sites (GET /me/company →
+// getMyMembership, GET /me/company/members → listMembers) through the
+// production-faithful chain chi RequestID → runtime RequestObservability →
+// handler, with a fixed X-Request-Id. Behavior under test: the response stays
+// exactly 500 + catalog internal_error with the canonical generic message (no
+// injected detail), the handler emits exactly ONE auxiliary record whose
+// fields are bounded and request-correlated (request_id shared with the
+// completion record, HTTP method, matched chi route pattern,
+// code_class=internal_error), and the raw error text / DSN / token / concrete
+// company UUID never reach any captured log byte. The write routes keep their
+// own dedicated tests; this table owns only the two read routes.
+//
+// Guard assertions preserved from the retired raw-detail tests
+// (TestGetMyCompany_UnexpectedCompanyError, TestListMembers_UnexpectedServiceError):
+// no membership writes on either failure path, and the gated list route never
+// re-resolves the user repository (design D6 — "resolves once").
+//
+// No t.Parallel(): slog capture is process-global. The slog capture, record
+// decoding, and the closed auxiliary key allowlist are reused from
+// handler_test.go (same package — single source of truth, no fixture
+// duplication).
+func TestMemberTransport_ReadUnexpectedErrors_CorrelatedAndRedacted(t *testing.T) {
+	const fixedRequestID = "members-fixed-request-id"
+	const completionMsg = "http request completed"
+
+	// get case fixtures: a resolved member whose company lookup fails with a
+	// DSN-and-token-laden unexpected error.
+	getUserID := uuid.New()
+	getCompanyID := uuid.New()
+	getMember := &entities.CompanyMember{
+		ID: uuid.New(), UserID: getUserID, CompanyID: getCompanyID,
 		Role:      valueobjects.OwnerRole,
 		CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(),
 	}
-	cRepo := &stubMemberCompanyRepositoryForHandler{getErr: errors.New("db: conn refused")}
-	mRepo := &stubMemberRepositoryForHandler{getByUserOut: member}
-	uRepo := &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: userID, CognitoSub: "sub"}}
-	svc := newMemberHandlerService(mRepo, uRepo, cRepo)
-	router := newMemberRouter(t, svc, "sub", identitysecurity.CompanyContext{})
-	rec := doReq(t, router, http.MethodGet, "/me/company", "")
-	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
-	body := rec.Body.String()
-	if strings.Contains(body, "conn refused") || strings.Contains(body, "db:") {
-		t.Errorf("injected detail must not appear in wire: %s", body)
-	}
-	logOut := logBuf.String()
-	if !strings.Contains(logOut, "conn refused") {
-		t.Errorf("injected detail must appear in slog; got: %s", logOut)
-	}
-	if mRepo.createCalls > 0 || mRepo.updateCalls > 0 || mRepo.removeCalls > 0 {
-		t.Errorf("no writes expected: create=%d update=%d remove=%d",
-			mRepo.createCalls, mRepo.updateCalls, mRepo.removeCalls)
-	}
-}
+	getBoom := errors.New("db: read timeout while scanning company row dsn=postgres://svc:hunter2@db.internal:5432/peopleflow token=abc123")
 
-func TestListMembers_UnexpectedServiceError(t *testing.T) {
-	var logBuf bytes.Buffer
-	captureSlog(t, &logBuf)
-	companyID := uuid.New()
-	mRepo := &stubMemberRepositoryForHandler{listErr: errors.New("pg: pool exhausted")}
-	svc := newMemberHandlerService(mRepo, &stubUserRepositoryForHandler{}, &stubMemberCompanyRepositoryForHandler{})
-	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
-	rec := doReq(t, router, http.MethodGet, "/me/company/members", "")
-	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
-	body := rec.Body.String()
-	if strings.Contains(body, "pool exhausted") {
-		t.Errorf("injected detail must not appear in wire: %s", body)
+	// list case fixtures: the gated list route fails inside the service.
+	listCompanyID := uuid.New()
+	listBoom := errors.New("pg: pool exhausted while listing members token=def456")
+
+	cases := []struct {
+		name      string
+		path      string
+		sub       string
+		cc        identitysecurity.CompanyContext
+		mRepo     *stubMemberRepositoryForHandler
+		uRepo     *stubUserRepositoryForHandler
+		cRepo     *stubMemberCompanyRepositoryForHandler
+		auxMsg    string
+		wantRoute string
+		// forbidden substrings that must not appear in any captured log byte
+		forbidden []string
+	}{
+		{
+			name:      "get my membership: unexpected company repository error",
+			path:      "/me/company",
+			sub:       "sub-owner",
+			mRepo:     &stubMemberRepositoryForHandler{getByUserOut: getMember},
+			uRepo:     &stubUserRepositoryForHandler{resolved: &identityentities.User{ID: getUserID, CognitoSub: "sub-owner"}},
+			cRepo:     &stubMemberCompanyRepositoryForHandler{getErr: getBoom},
+			auxMsg:    "get my membership failed",
+			wantRoute: "/me/company",
+			forbidden: []string{
+				"db: read timeout while scanning company row dsn=postgres://svc:hunter2@db.internal:5432/peopleflow token=abc123",
+				"postgres://svc:hunter2@db.internal:5432/peopleflow",
+				"token=abc123",
+				getCompanyID.String(),
+				getUserID.String(),
+			},
+		},
+		{
+			name:      "list members: unexpected service error",
+			path:      "/me/company/members",
+			sub:       "sub-recruiter",
+			cc:        identitysecurity.CompanyContext{CompanyID: listCompanyID, Role: valueobjects.OwnerRole},
+			mRepo:     &stubMemberRepositoryForHandler{listErr: listBoom},
+			uRepo:     &stubUserRepositoryForHandler{},
+			cRepo:     &stubMemberCompanyRepositoryForHandler{},
+			auxMsg:    "list members failed",
+			wantRoute: "/me/company/members",
+			forbidden: []string{
+				"pg: pool exhausted while listing members token=def456",
+				"token=def456",
+				listCompanyID.String(),
+			},
+		},
 	}
-	logOut := logBuf.String()
-	if !strings.Contains(logOut, "pool exhausted") {
-		t.Errorf("injected detail must appear in slog; got: %s", logOut)
-	}
-	if mRepo.createCalls > 0 || mRepo.updateCalls > 0 || mRepo.removeCalls > 0 {
-		t.Errorf("no writes expected: create=%d update=%d remove=%d",
-			mRepo.createCalls, mRepo.updateCalls, mRepo.removeCalls)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			logBuf := captureCompanySlog(t)
+			svc := newMemberHandlerService(tc.mRepo, tc.uRepo, tc.cRepo)
+			h := NewMemberHandler(svc)
+
+			// Production-faithful chain: chi RequestID → runtime
+			// RequestObservability → handler, mounted exactly like
+			// cmd/api/router.go (GET /company and GET /company/members under
+			// the /me slice; RequireAuth's Claims and RequireCompanyRole's
+			// CompanyContext are injected by the context middleware below).
+			r := chi.NewRouter()
+			r.Use(chimw.RequestID)
+			r.Use(rtmiddleware.RequestObservability(
+				slog.New(slog.NewJSONHandler(logBuf, nil)),
+				nil,
+			))
+			r.Use(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					ctx := identitysecurity.ContextWithClaims(req.Context(), identitysecurity.Claims{Subject: tc.sub})
+					if tc.cc.CompanyID != uuid.Nil {
+						ctx = identitysecurity.ContextWithCompanyContext(ctx, tc.cc)
+					}
+					next.ServeHTTP(w, req.WithContext(ctx))
+				})
+			})
+			hh := h.MemberHandlers()
+			r.Get("/me/company", hh.GetMyMembership)
+			r.Get("/me/company/members", hh.ListMembers)
+
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			req.Header.Set("X-Request-Id", fixedRequestID)
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+
+			// The wire contract is unchanged: generic 500 + catalog
+			// internal_error with the canonical generic message (no injected detail).
+			memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+
+			// Exactly one auxiliary record + exactly one completion record.
+			records := decodeCompanySlogRecords(t, logBuf)
+			if len(records) != 2 {
+				t.Fatalf("slog records = %d (%s), want exactly 2 (auxiliary + completion)",
+					len(records), companyMsgList(records))
+			}
+
+			// The auxiliary record: closed bounded key set, request-correlated.
+			aux := companyRecordByMsg(t, records, tc.auxMsg)
+			for k := range aux {
+				if !companyAuxAllowedKeys[k] {
+					t.Errorf("auxiliary record has unbounded key %q (record %v)", k, aux)
+				}
+			}
+			for k := range companyAuxAllowedKeys {
+				if _, ok := aux[k]; !ok {
+					t.Errorf("auxiliary record missing bounded key %q (record %v)", k, aux)
+				}
+			}
+			if got, _ := aux["request_id"].(string); got != fixedRequestID {
+				t.Errorf("auxiliary request_id = %q, want the fixed chi request ID %q", got, fixedRequestID)
+			}
+			if got, _ := aux["method"].(string); got != http.MethodGet {
+				t.Errorf("auxiliary method = %q, want %q", got, http.MethodGet)
+			}
+			if got, _ := aux["path"].(string); got != tc.wantRoute {
+				t.Errorf("auxiliary path = %q, want the matched chi route pattern %q (raw URL MUST NOT be logged)", got, tc.wantRoute)
+			}
+			if got, _ := aux["code_class"].(string); got != string(httpjson.CodeInternalError) {
+				t.Errorf("auxiliary code_class = %q, want %q", got, httpjson.CodeInternalError)
+			}
+
+			// The runtime completion record: same fixed request ID, matched
+			// route pattern, status 500, internal_error class.
+			comp := companyRecordByMsg(t, records, completionMsg)
+			if got, _ := comp["request_id"].(string); got != fixedRequestID {
+				t.Errorf("completion request_id = %q, want the same fixed ID %q shared with the auxiliary record", got, fixedRequestID)
+			}
+			if got, _ := comp["path"].(string); got != tc.wantRoute {
+				t.Errorf("completion path = %q, want the matched chi route pattern %q", got, tc.wantRoute)
+			}
+			if s, ok := comp["status"].(float64); !ok || int(s) != http.StatusInternalServerError {
+				t.Errorf("completion status = %v (%T), want %d", comp["status"], comp["status"], http.StatusInternalServerError)
+			}
+			if got, _ := comp["code_class"].(string); got != string(httpjson.CodeInternalError) {
+				t.Errorf("completion code_class = %q, want %q", got, httpjson.CodeInternalError)
+			}
+
+			// Redaction across every captured log byte: the raw error text and
+			// every concrete identifier paired with it never reach the logs.
+			for _, forbidden := range tc.forbidden {
+				if strings.Contains(logBuf.String(), forbidden) {
+					t.Errorf("captured logs MUST NOT contain %q; logs=%s", forbidden, logBuf.String())
+				}
+			}
+
+			// Preserved guard: no membership writes on either read failure path.
+			if tc.mRepo.createCalls != 0 || tc.mRepo.updateCalls != 0 || tc.mRepo.removeCalls != 0 {
+				t.Errorf("no membership writes expected: create=%d update=%d remove=%d",
+					tc.mRepo.createCalls, tc.mRepo.updateCalls, tc.mRepo.removeCalls)
+			}
+			// Preserved guard (gated list route only): the D6 resolver chain is
+			// never re-run — the user repository stays untouched.
+			if tc.cc.CompanyID != uuid.Nil && tc.uRepo.getCalls != 0 {
+				t.Errorf("userRepo.GetByCognitoSub must NOT be called on the gated list path: got %d", tc.uRepo.getCalls)
+			}
+		})
 	}
 }
 
