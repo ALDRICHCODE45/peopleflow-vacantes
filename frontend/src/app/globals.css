@@ -181,3 +181,18 @@
     display: block;
   }
 }
+
+/* Reduced motion: collapse nonessential transition/animation timing so
+   surfaces appear/disappear immediately instead of sliding, fading, or
+   looping. Visual and semantic states (focus rings, hover colors, disabled
+   opacity, open/closed presence) are untouched; only the movement is
+   removed for users who asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

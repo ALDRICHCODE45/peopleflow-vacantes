@@ -10,7 +10,11 @@ import { expect, test } from "@playwright/test";
 //
 // Deliberately out of scope (open Task 4.3 proofs): navigation refresh/share,
 // full AND/cursor behavior, final-page omission, empty reset activation,
-// 5xx/schema/timeout recovery, long-content wrapping, reduced motion.
+// 5xx/schema/timeout recovery, long-content wrapping.
+// Reduced motion is covered by the final Task 4.3 slice below: under an
+// emulated `prefers-reduced-motion: reduce` environment the representative
+// /vacantes controls must collapse nonessential transition/animation timing
+// while every keyboard and pending-state behavior keeps working.
 
 const VIEWPORTS = {
   desktop: { width: 1280, height: 720 },
@@ -323,5 +327,207 @@ test.describe("rendered list layout and preset token fidelity", () => {
         `unexpected inline style override: ${style ?? "null"}`,
       ).toBe(true);
     }
+  });
+});
+
+test.describe("reduced motion on vacancy controls", () => {
+  // Playwright 1.62 moved context emulation options under contextOptions;
+  // this is the documented equivalent of the removed top-level
+  // test.use({ reducedMotion: "reduce" }) option.
+  test.use({ contextOptions: { reducedMotion: "reduce" } });
+
+  type MotionStyle = {
+    transitionDuration: string;
+    animationDuration: string;
+    animationIterationCount: string;
+  };
+
+  // CSS transition/animation durations serialize as comma-separated time
+  // lists ("200ms", "0.15s, 100ms", "0s"); parse every entry in milliseconds
+  // so an assertion failure shows the real computed values instead of strings.
+  function parseTimesMs(value: string): number[] {
+    const parts = value
+      .split(",")
+      .map((part) => part.trim().toLowerCase())
+      .filter((part) => part.length > 0);
+    if (parts.length === 0) return [0];
+    return parts.map((part) => {
+      // Blink serializes sub-millisecond times in scientific notation
+      // (0.01ms computed as "1e-05s"), so exponents must parse.
+      const match = part.match(/^(-?[\d.]+(?:e-?\d+)?)(ms|s)$/);
+      if (!match) throw new Error(`unparseable CSS time: "${part}"`);
+      const amount = Number.parseFloat(match[1]);
+      return match[2] === "s" ? amount * 1000 : amount;
+    });
+  }
+
+  function assertMotionCollapsed(style: MotionStyle, label: string): void {
+    for (const ms of parseTimesMs(style.transitionDuration)) {
+      expect(
+        ms,
+        `${label} transition-duration must collapse under reduced motion (computed: ${style.transitionDuration})`,
+      ).toBeLessThan(1);
+    }
+    for (const ms of parseTimesMs(style.animationDuration)) {
+      expect(
+        ms,
+        `${label} animation-duration must collapse under reduced motion (computed: ${style.animationDuration})`,
+      ).toBeLessThan(1);
+    }
+    // A looping animation never "finishes" for users who asked for less
+    // motion, so every iteration count must be a finite value of at most 1.
+    for (const part of style.animationIterationCount
+      .split(",")
+      .map((part) => part.trim().toLowerCase())
+      .filter((part) => part.length > 0)) {
+      expect(
+        part,
+        `${label} animation-iteration-count must not loop under reduced motion (computed: ${style.animationIterationCount})`,
+      ).not.toBe("infinite");
+      expect(
+        Number.parseFloat(part),
+        `${label} animation-iteration-count must be at most 1 under reduced motion (computed: ${style.animationIterationCount})`,
+      ).toBeLessThanOrEqual(1);
+    }
+  }
+
+  function motionOf(
+    locator: import("@playwright/test").Locator,
+  ): Promise<MotionStyle> {
+    return locator.evaluate((el) => {
+      const computed = getComputedStyle(el);
+      return {
+        transitionDuration: computed.transitionDuration,
+        animationDuration: computed.animationDuration,
+        animationIterationCount: computed.animationIterationCount,
+      };
+    });
+  }
+
+  async function expectReducedMotionMatches(
+    page: import("@playwright/test").Page,
+  ): Promise<void> {
+    expect(
+      await page.evaluate(
+        () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+      ),
+    ).toBe(true);
+  }
+
+  test("desktop controls collapse nonessential motion and stay keyboard operable @a11y @reduced-motion", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto("/vacantes");
+    await expectReducedMotionMatches(page);
+
+    const search = page.getByLabel(/buscar/i);
+    const submit = page.getByRole("button", { name: /^buscar$/i });
+    const trigger = page.getByLabel(/moneda/i);
+    for (const [label, locator] of [
+      ["search input", search],
+      ["search submit button", submit],
+      ["currency select trigger", trigger],
+    ] as const) {
+      assertMotionCollapsed(await motionOf(locator), label);
+    }
+
+    // Keyboard Select: open the popup, highlight USD, commit, then submit the
+    // filters form with Enter so the canonical navigation completes without
+    // any pointing device. Timing assertions run while the popup is open so
+    // its enter/exit motion is covered as authored.
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    const popup = page.getByRole("listbox");
+    await expect(popup).toBeVisible();
+    assertMotionCollapsed(await motionOf(popup), "currency select popup");
+    const usd = page.getByRole("option", { name: "USD" });
+    for (let i = 0; i < 4; i++) {
+      if (await usd.evaluate((el) => el.hasAttribute("data-highlighted")))
+        break;
+      await page.keyboard.press("ArrowDown");
+    }
+    await expect
+      .poll(async () =>
+        usd.evaluate((el) => el.hasAttribute("data-highlighted")),
+      )
+      .toBe(true);
+    await page.keyboard.press("Enter");
+    // Base UI returns focus to the trigger after keyboard selection.
+    await expect(trigger).toBeFocused();
+
+    const apply = page.getByRole("button", { name: /aplicar filtros/i });
+    await apply.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL("/vacantes?currency=USD");
+    await expect(trigger).toHaveText(/^USD/);
+    await expect(
+      page.getByRole("list", { name: /listado de vacantes/i }),
+    ).toBeVisible();
+  });
+
+  test("pending search keeps exact announcement and initiator-only disablement under reduced motion @a11y @reduced-motion", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto("/vacantes");
+    await expectReducedMotionMatches(page);
+
+    const search = page.getByLabel(/buscar/i);
+    const submit = page.getByRole("button", { name: /^buscar$/i });
+    await search.fill("pending-search");
+    // Keyboard-only submission: Enter from the focused search input.
+    await search.press("Enter");
+
+    const status = page.getByRole("status");
+    await expect(status).toHaveText("Cargando…");
+    // Focus must stay on the search input the whole time pending state is
+    // announced; only the initiating submit button is disabled.
+    await expect(search).toBeFocused();
+    await expect(submit).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: /aplicar filtros/i }),
+    ).toBeEnabled();
+
+    await expect(page).toHaveURL(/q=pending-search/);
+    await expect(status).not.toHaveText(/cargando/i);
+    // Focus retention is proven while pending is announced; after the
+    // navigation completes the island currently resets focus to body (an
+    // app-level gap, out of this slice's test-only scope), so only the
+    // control state and results are asserted here.
+    await expect(search).toBeEnabled();
+    await expect(search).toHaveValue("pending-search");
+    await expect(
+      page.getByRole("list", { name: /listado de vacantes/i }),
+    ).toBeVisible();
+  });
+
+  test("mobile filters Sheet collapses motion and closes by keyboard Escape under reduced motion @a11y @reduced-motion", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/vacantes");
+    await expectReducedMotionMatches(page);
+
+    const trigger = page.getByRole("button", { name: /filtros/i });
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    // Both Sheet surfaces exist only while the dialog is open, so their
+    // computed motion is asserted in the open state.
+    assertMotionCollapsed(
+      await motionOf(page.locator('[data-slot="sheet-overlay"]')),
+      "Sheet overlay",
+    );
+    assertMotionCollapsed(
+      await motionOf(page.locator('[data-slot="sheet-content"]')),
+      "Sheet panel",
+    );
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).not.toBeVisible();
+    await expect(trigger).toBeFocused();
   });
 });
