@@ -1,9 +1,17 @@
 import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+
+import type { JobsQuery } from "../../../features/jobs/url";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
@@ -15,6 +23,7 @@ type JobsErrorBoundary = React.ComponentType<{
 type JobsNavigationIsland = React.ComponentType<{
   children: React.ReactNode;
   routeKey: string;
+  query?: JobsQuery;
 }>;
 
 async function loadErrorBoundary(): Promise<JobsErrorBoundary> {
@@ -72,6 +81,119 @@ describe("/vacantes approved composition", () => {
       "Explora vacantes publicadas y filtra por modalidad, senioridad, ubicación y moneda.",
     );
     expect(pageSource).not.toMatch(/un clic|tiempo real/i);
+  });
+
+  const vacancyList = <ul aria-label="Listado de vacantes" />;
+
+  async function loadFullIsland(): Promise<JobsNavigationIsland> {
+    return (
+      await import(
+        /* @vite-ignore */ "../../../features/jobs/components/JobsNavigationIsland"
+      )
+    ).JobsNavigationIsland as JobsNavigationIsland;
+  }
+
+  it("renders the results heading and only the supported quick chips", async () => {
+    const Island = await loadFullIsland();
+    render(
+      <Island routeKey="/vacantes" query={{}}>
+        {vacancyList}
+      </Island>,
+    );
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Vacantes disponibles" }),
+    ).toBeVisible();
+    for (const label of [
+      "Todas",
+      "Remoto",
+      "Híbrido",
+      "Tiempo completo",
+      "Medio",
+      "Senior",
+    ]) {
+      expect(screen.getByRole("button", { name: label })).toBeVisible();
+    }
+    expect(
+      screen.queryByRole("button", {
+        name: /prácticas|presencial|por contrato|beca|líder|junior/i,
+      }),
+    ).toBeNull();
+  });
+
+  it("shows quick chip state honestly: full reset only when the query is empty", async () => {
+    const Island = await loadFullIsland();
+    const filtered = render(
+      <Island routeKey="/vacantes?currency=MXN" query={{ currency: "MXN" }}>
+        {vacancyList}
+      </Island>,
+    );
+    expect(screen.getByRole("button", { name: "Todas" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    filtered.unmount();
+
+    render(
+      <Island routeKey="/vacantes" query={{}}>
+        {vacancyList}
+      </Island>,
+    );
+    expect(screen.getByRole("button", { name: "Todas" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("commits quick chips through the canonical scalar navigation pipeline", async () => {
+    const Island = await loadFullIsland();
+    render(
+      <Island routeKey="/vacantes?currency=MXN" query={{ currency: "MXN" }}>
+        {vacancyList}
+      </Island>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Remoto" }));
+    expect(push).toHaveBeenCalledWith(
+      "/vacantes?work_mode=remote&currency=MXN",
+    );
+  });
+
+  it("resets every filter through the Todas chip, cursor included", async () => {
+    const Island = await loadFullIsland();
+    render(
+      <Island
+        routeKey="/vacantes?q=react&currency=MXN&work_mode=remote"
+        query={{ q: "react", currency: "MXN", work_mode: "remote" }}
+      >
+        {vacancyList}
+      </Island>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Todas" }));
+    expect(push).toHaveBeenCalledWith("/vacantes");
+  });
+
+  it("keeps the composed search honest about what q and location match", async () => {
+    const Island = await loadFullIsland();
+    const view = render(
+      <Island routeKey="/vacantes" query={{}}>
+        {vacancyList}
+      </Island>,
+    );
+
+    const searchForm = view.container.querySelector<HTMLFormElement>(
+      'form[data-nav-intent="search"]',
+    );
+    expect(searchForm).not.toBeNull();
+    const q = within(searchForm!).getByLabelText("Buscar vacantes");
+    expect(q).toHaveAttribute("placeholder", "Puesto o palabra clave");
+    expect(q.getAttribute("placeholder")).not.toMatch(/tecnolog|empresa/i);
+    const location = within(searchForm!).getByLabelText("Ubicación");
+    expect(location).toHaveAttribute("placeholder", "Ciudad o estado");
+    expect(
+      within(searchForm!).getByRole("button", { name: "Buscar" }),
+    ).toBeVisible();
   });
 });
 

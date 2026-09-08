@@ -95,14 +95,17 @@ test("renders validated semantic vacancies with labeled scalar desktop filters",
   ).toBeVisible();
   await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
   await expect(page.getByLabel(/buscar/i)).toBeVisible();
+  // Labeled scalar filters live in the sidebar form; the hero location
+  // input shares the "Ubicación" label, so scope to the form.
+  const filtersForm = page.getByRole("form", { name: "Filtros" });
   for (const label of [
     /senioridad/i,
     /modalidad/i,
     /tipo de empleo/i,
-    /ubicación/i,
+    /^Ubicación$/,
     /moneda/i,
   ])
-    await expect(page.getByLabel(label)).toBeVisible();
+    await expect(filtersForm.getByLabel(label)).toBeVisible();
 });
 
 test("uses a 240–280px desktop filter column beside flexible results", async ({

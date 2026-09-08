@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { MapPinIcon, SearchIcon } from "lucide-react";
 
 import { Button } from "../../../components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "../../../components/ui/field";
@@ -22,6 +23,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "../../../components/ui/sheet";
+import { cn } from "../../../lib/utils";
 import {
   employmentTypeLabel,
   seniorityLabel,
@@ -35,10 +37,11 @@ import type { JobsQuery, JobsQueryKey } from "../url";
 
 /**
  * The single pending-navigation island for /vacantes: it owns every
- * client-side URL navigation (search commits, scalar-filter commits, and the
- * next link) plus the Base UI filter/Sheet composition, while fetched job data
- * stays server-rendered `children`. URL state is owned by the feature URL
- * helpers through `buildFilterCommitUrl`; nothing is cached client-side.
+ * client-side URL navigation (search commits, quick-chip and scalar-filter
+ * commits, and the next link) plus the Base UI filter/Sheet composition, while
+ * fetched job data stays server-rendered `children`. URL state is owned by the
+ * feature URL helpers through `buildFilterCommitUrl`; nothing is cached
+ * client-side.
  */
 export function JobsNavigationIsland({
   children,
@@ -167,51 +170,132 @@ export function JobsNavigationIsland({
     <div
       onSubmitCapture={handleRootSubmitCapture}
       onClickCapture={handleRootClickCapture}
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-6"
     >
-      {status}
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <form
-            data-nav-intent="search"
-            onSubmit={handleOwnedSubmit}
-            className="flex min-w-0 flex-1 items-end gap-2"
-          >
-            <FieldGroup className="min-w-0 flex-1 gap-0">
-              <Field className="min-w-0 flex-1">
-                <FieldLabel htmlFor="jobs-search">Buscar vacantes</FieldLabel>
-                <Input
-                  id="jobs-search"
-                  name="q"
-                  defaultValue={query.q ?? ""}
-                  placeholder="Puesto o palabra clave"
-                />
-              </Field>
-            </FieldGroup>
-            <Button type="submit">Buscar</Button>
-          </form>
-          <SheetTrigger
-            render={
-              <Button variant="outline" className="h-11 md:hidden">
-                Filtros
-              </Button>
-            }
+        {/* One composed search surface: accessible q and location inputs plus
+            the Buscar commit, styled as a single raised field group. The
+            pending live region hangs absolutely in the intentional
+            search-to-chips gap, so the idle state consumes no layout height. */}
+        <form
+          data-nav-intent="search"
+          onSubmit={handleOwnedSubmit}
+          className="relative flex flex-col gap-3 rounded-2xl border border-border bg-card/60 p-3 md:flex-row md:items-center"
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-border/60 bg-background/60 px-3.5 py-2.5 transition-colors focus-within:border-ring">
+            <SearchIcon
+              aria-hidden="true"
+              className="size-4 shrink-0 text-muted-foreground"
+            />
+            <div className="min-w-0 flex-1">
+              <label htmlFor="jobs-search" className="sr-only">
+                Buscar vacantes
+              </label>
+              <Input
+                id="jobs-search"
+                name="q"
+                defaultValue={query.q ?? ""}
+                placeholder="Puesto o palabra clave"
+                className="h-auto border-0 bg-transparent px-0 focus-visible:bg-transparent md:text-sm"
+              />
+            </div>
+          </div>
+          <div
+            aria-hidden="true"
+            className="hidden h-8 w-px bg-border md:block"
           />
+          <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-border/60 bg-background/60 px-3.5 py-2.5 transition-colors focus-within:border-ring">
+            <MapPinIcon
+              aria-hidden="true"
+              className="size-4 shrink-0 text-muted-foreground"
+            />
+            <div className="min-w-0 flex-1">
+              <label htmlFor="jobs-location" className="sr-only">
+                Ubicación
+              </label>
+              <Input
+                id="jobs-location"
+                name="location"
+                defaultValue={query.location ?? ""}
+                placeholder="Ciudad o estado"
+                className="h-auto border-0 bg-transparent px-0 focus-visible:bg-transparent md:text-sm"
+              />
+            </div>
+          </div>
+          <Button type="submit" size="lg" className="w-full md:w-auto">
+            <SearchIcon data-icon="inline-start" />
+            Buscar
+          </Button>
+          <div className="absolute left-0 top-full">{status}</div>
+        </form>
+
+        {/* Supported quick chips only: each commits its scalar patch through
+            the same canonical navigation pipeline as the forms, one line per
+            chip, and the pressed state mirrors the canonical query. */}
+        <div className="flex flex-wrap items-center gap-2">
+          {QUICK_FILTER_CHIPS.map((chip) => {
+            const active = chip.isActive(query);
+            return (
+              <button
+                key={chip.label}
+                type="button"
+                aria-pressed={active}
+                onClick={(event) =>
+                  startNavigation(
+                    buildFilterCommitUrl(routeKey, chip.patch),
+                    event.currentTarget,
+                    null,
+                  )
+                }
+                className={cn(
+                  "inline-flex h-9 items-center whitespace-nowrap rounded-full border px-4 text-sm font-medium transition-colors",
+                  active
+                    ? "border-primary/60 bg-primary/15 text-foreground"
+                    : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
+                )}
+              >
+                {chip.label}
+              </button>
+            );
+          })}
         </div>
-        <div className="flex flex-col gap-6 md:flex-row md:gap-8">
+
+        <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-6">
+          {/* Desktop sticky filter surface: supported scalar fields only,
+              grouped with a separator, beside the flexible results column. */}
           <form
             data-nav-intent="filters"
             onSubmit={handleOwnedSubmit}
             aria-label="Filtros"
-            className="hidden md:flex md:w-60 md:shrink-0 md:flex-col md:items-start md:gap-4"
+            className="hidden w-full shrink-0 flex-col gap-5 rounded-2xl border border-border bg-card/60 p-5 md:sticky md:top-24 md:flex md:w-60"
           >
             <FieldGroup className="w-full items-start gap-4">
               <FilterFields idPrefix="desktop-" query={query} />
             </FieldGroup>
-            <Button type="submit">Aplicar filtros</Button>
+            <div className="flex flex-col gap-2">
+              <Button type="submit">Aplicar filtros</Button>
+              <Button render={<a href="/vacantes" />} variant="ghost">
+                Limpiar filtros
+              </Button>
+            </div>
           </form>
-          <div className="flex min-w-0 flex-1 flex-col gap-2">{children}</div>
+          <div className="flex min-w-0 flex-1 flex-col gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">
+                Vacantes disponibles
+              </h2>
+              <SheetTrigger
+                render={
+                  <Button variant="outline" className="h-11 md:hidden">
+                    Filtros
+                  </Button>
+                }
+              />
+            </div>
+            <div className="flex min-w-0 flex-col gap-2">{children}</div>
+          </div>
         </div>
+
         <SheetContent side="right" showCloseButton={false} className="gap-0">
           <SheetHeader>
             <SheetTitle>Filtros</SheetTitle>
@@ -225,6 +309,9 @@ export function JobsNavigationIsland({
               <FilterFields idPrefix="mobile-" query={query} />
             </FieldGroup>
             <Button type="submit">Aplicar filtros</Button>
+            <Button render={<a href="/vacantes" />} variant="ghost">
+              Limpiar filtros
+            </Button>
           </form>
           <div className="px-6 pb-6">
             <SheetClose
@@ -240,6 +327,57 @@ export function JobsNavigationIsland({
     </div>
   );
 }
+
+type QuickFilterChip = {
+  label: string;
+  /** Scalar patch committed through `buildFilterCommitUrl`. */
+  patch: Partial<Record<Exclude<JobsQueryKey, "cursor">, string>>;
+  /** Whether the chip honestly reflects the current canonical query. */
+  isActive: (query: JobsQuery) => boolean;
+};
+
+/** The only supported quick chips: full reset plus one scalar value each. */
+const QUICK_FILTER_CHIPS: ReadonlyArray<QuickFilterChip> = [
+  {
+    // Honest full reset: clears all six filters (the helper always drops the
+    // cursor), active only when the canonical query is completely empty.
+    label: "Todas",
+    patch: {
+      q: "",
+      seniority: "",
+      work_mode: "",
+      employment_type: "",
+      location: "",
+      currency: "",
+    },
+    isActive: (query) => Object.keys(query).length === 0,
+  },
+  {
+    label: "Remoto",
+    patch: { work_mode: "remote" },
+    isActive: (query) => query.work_mode === "remote",
+  },
+  {
+    label: "Híbrido",
+    patch: { work_mode: "hybrid" },
+    isActive: (query) => query.work_mode === "hybrid",
+  },
+  {
+    label: "Tiempo completo",
+    patch: { employment_type: "full_time" },
+    isActive: (query) => query.employment_type === "full_time",
+  },
+  {
+    label: "Medio",
+    patch: { seniority: "mid" },
+    isActive: (query) => query.seniority === "mid",
+  },
+  {
+    label: "Senior",
+    patch: { seniority: "senior" },
+    isActive: (query) => query.seniority === "senior",
+  },
+];
 
 const SENIORITY_OPTIONS: ReadonlyArray<{ value: Seniority }> = [
   { value: "intern" },
@@ -274,24 +412,6 @@ function FilterFields({
   return (
     <>
       <Field>
-        <FieldLabel htmlFor={`${idPrefix}seniority`}>Senioridad</FieldLabel>
-        <Select name="seniority" defaultValue={query.seniority}>
-          <SelectTrigger id={`${idPrefix}seniority`}>
-            <SelectValue placeholder="Todas" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              <SelectItem value={null}>Todas</SelectItem>
-              {SENIORITY_OPTIONS.map(({ value }) => (
-                <SelectItem key={value} value={value}>
-                  {seniorityLabel(value)}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      </Field>
-      <Field>
         <FieldLabel htmlFor={`${idPrefix}work-mode`}>Modalidad</FieldLabel>
         <Select name="work_mode" defaultValue={query.work_mode}>
           <SelectTrigger id={`${idPrefix}work-mode`}>
@@ -303,6 +423,24 @@ function FilterFields({
               {WORK_MODE_OPTIONS.map(({ value }) => (
                 <SelectItem key={value} value={value}>
                   {workModeLabel(value)}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+      </Field>
+      <Field>
+        <FieldLabel htmlFor={`${idPrefix}seniority`}>Senioridad</FieldLabel>
+        <Select name="seniority" defaultValue={query.seniority}>
+          <SelectTrigger id={`${idPrefix}seniority`}>
+            <SelectValue placeholder="Todas" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectGroup>
+              <SelectItem value={null}>Todas</SelectItem>
+              {SENIORITY_OPTIONS.map(({ value }) => (
+                <SelectItem key={value} value={value}>
+                  {seniorityLabel(value)}
                 </SelectItem>
               ))}
             </SelectGroup>
@@ -356,7 +494,6 @@ function FilterFields({
           </SelectContent>
         </Select>
       </Field>
-      <Button render={<a href="/vacantes" />}>Limpiar filtros</Button>
     </>
   );
 }
