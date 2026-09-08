@@ -50,6 +50,37 @@ test("canonicalizes before API access", async ({ page, request }) => {
     .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
     .toEqual([""]);
   await expect(page).toHaveURL("/vacantes");
+
+  // The canonical URL owns the state: default controls show an empty
+  // search and the default currency, and the exact URL survives refresh.
+  await expect(page.getByLabel(/buscar/i)).toHaveValue("");
+  await expect(page.getByLabel(/moneda/i)).toHaveText(/Todas/);
+  const canonicalUrl = page.url();
+  await page.reload();
+  await expect(page).toHaveURL("/vacantes");
+  await expect(page.getByLabel(/buscar/i)).toHaveValue("");
+  await expect(page.getByLabel(/moneda/i)).toHaveText(/Todas/);
+  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expect
+    .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
+    .toEqual(["", ""]);
+
+  // Reopening the captured canonical URL in a second page reproduces the
+  // same unfiltered results from the fixture log; the owned page is
+  // closed before the test ends.
+  const shared = await page.context().newPage();
+  try {
+    await shared.goto(canonicalUrl);
+    await expect(shared).toHaveURL("/vacantes");
+    await expect(shared.getByLabel(/buscar/i)).toHaveValue("");
+    await expect(shared.getByLabel(/moneda/i)).toHaveText(/Todas/);
+    await expect
+      .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
+      .toEqual(["", "", ""]);
+    await expect(shared.getByRole("list")).toContainText("Ingeniera Frontend");
+  } finally {
+    await shared.close();
+  }
 });
 
 test("renders validated semantic vacancies with labeled scalar desktop filters", async ({
@@ -144,6 +175,7 @@ test("announces pending search navigation without blocking filters", async ({
 
 test("announces pending scalar-filter navigation without blocking search", async ({
   page,
+  request,
 }) => {
   await page.goto("/vacantes");
   await page.getByLabel(/moneda/i).click();
@@ -157,6 +189,42 @@ test("announces pending scalar-filter navigation without blocking search", async
   );
   await expect(page).toHaveURL(/currency=USD/);
   await expect(page.getByRole("status")).not.toContainText(/cargando/i);
+
+  // The scalar navigation commits the exact canonical URL, keeps the USD
+  // selection in the control, and the fixture log proves the exact USD
+  // server requests (the fixture returns the same payload for every
+  // filter, so row text alone cannot prove which request was made).
+  await expect(page).toHaveURL("/vacantes?currency=USD");
+  await expect
+    .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
+    .toEqual(["", "?currency=USD"]);
+  await expect(page.getByLabel(/moneda/i)).toHaveText(/^USD/);
+
+  // Refreshing and reopening the captured URL in a second page restore
+  // the USD selection with visible results; owned pages are closed
+  // before the test ends.
+  const usdUrl = page.url();
+  await page.reload();
+  await expect(page).toHaveURL("/vacantes?currency=USD");
+  await expect(page.getByLabel(/moneda/i)).toHaveText(/^USD/);
+  await expect(page.getByLabel(/buscar/i)).toHaveValue("");
+  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expect
+    .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
+    .toEqual(["", "?currency=USD", "?currency=USD"]);
+  const shared = await page.context().newPage();
+  try {
+    await shared.goto(usdUrl);
+    await expect(shared).toHaveURL("/vacantes?currency=USD");
+    await expect(shared.getByLabel(/moneda/i)).toHaveText(/^USD/);
+    await expect(shared.getByLabel(/buscar/i)).toHaveValue("");
+    await expect
+      .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
+      .toEqual(["", "?currency=USD", "?currency=USD", "?currency=USD"]);
+    await expect(shared.getByRole("list")).toContainText("Ingeniera Frontend");
+  } finally {
+    await shared.close();
+  }
 });
 
 test("announces pending next navigation and preserves its opaque cursor", async ({
