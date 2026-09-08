@@ -147,6 +147,74 @@ test("renders a retryable Spanish error without vacancy rows", async ({
   await expect(page.getByRole("list")).toHaveCount(0);
 });
 
+const recoverySearch = "?q=recovery&currency=MXN";
+
+/** Drives one armed-failure recovery: the fixture fails the initial
+ * request persistently, recovers healthily while keeping its request
+ * history, and the retry activation must restore the exact URL-owned
+ * controls and results with a fresh matching server request. */
+async function expectRecoveryAfterRetry(
+  page: import("@playwright/test").Page,
+  request: import("@playwright/test").APIRequestContext,
+  kind: "5xx" | "schema" | "timeout",
+) {
+  await request.get(`${fixtureUrl}/__failure?kind=${kind}`);
+  await page.goto(`/vacantes${recoverySearch}`);
+  const alert = page
+    .getByRole("alert")
+    .filter({ hasText: /intentar de nuevo/i });
+  await expect(alert).toContainText(/intentar de nuevo/i);
+  await expect(page.getByRole("list")).toHaveCount(0);
+
+  // The fixture recovers without clearing its request history: the
+  // armed initial failure is the last logged request, and the retry
+  // activation must append a fresh matching request after it.
+  await request.get(`${fixtureUrl}/__recover`);
+  const before = (await (
+    await request.get(`${fixtureUrl}/__requests`)
+  ).json()) as string[];
+  await expect(before[before.length - 1]).toBe(recoverySearch);
+
+  // URL-owned control state is preserved before the retry click.
+  await expect(page).toHaveURL(`/vacantes${recoverySearch}`);
+  await expect(page.getByLabel("Buscar vacantes")).toHaveValue("recovery");
+  await expect(page.getByLabel(/moneda/i)).toHaveText(/MXN/);
+
+  await page.getByRole("link", { name: /intentar de nuevo/i }).click();
+
+  await expect(page).toHaveURL(`/vacantes${recoverySearch}`);
+  await expect(page.getByLabel("Buscar vacantes")).toHaveValue("recovery");
+  await expect(page.getByLabel(/moneda/i)).toHaveText(/MXN/);
+  await expect(alert).toHaveCount(0);
+  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+
+  // A fresh same-query server request proves the recovery actually
+  // re-fetched (the last logged request matches the current query).
+  await expect
+    .poll(async () => {
+      const history = (await request
+        .get(`${fixtureUrl}/__requests`)
+        .then((response) => response.json())) as string[];
+      return (
+        history.length > before.length &&
+        history[history.length - 1] === recoverySearch
+      );
+    })
+    .toBe(true);
+}
+
+test("recovers after HTTP 5xx", async ({ page, request }) => {
+  await expectRecoveryAfterRetry(page, request, "5xx");
+});
+
+test("recovers after invalid schema", async ({ page, request }) => {
+  await expectRecoveryAfterRetry(page, request, "schema");
+});
+
+test("recovers after timeout", async ({ page, request }) => {
+  await expectRecoveryAfterRetry(page, request, "timeout");
+});
+
 async function expectPending(
   page: import("@playwright/test").Page,
   initiating: import("@playwright/test").Locator,
