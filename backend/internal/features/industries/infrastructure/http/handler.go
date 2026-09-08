@@ -9,6 +9,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 )
 
 // industriesReader is the minimal interface ListIndustries needs.
@@ -35,7 +36,7 @@ func ListIndustries(q industriesReader) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		rows, err := q.ListActiveIndustries(r.Context())
 		if err != nil {
-			slog.Error("list industries failed", "error", err)
+			slog.Error("list industries failed", boundedUnexpectedErrorAttrs(r.Context())...)
 			httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInternalError))
 			return
 		}
@@ -52,6 +53,20 @@ func ListIndustries(q industriesReader) http.HandlerFunc {
 
 		httpjson.WriteJSON(w, http.StatusOK, resp)
 	}
+}
+
+// boundedUnexpectedErrorAttrs builds the bounded auxiliary attributes for an
+// unexpected-error branch: the catalog code_class plus request_id read ONLY
+// from the existing chi request-ID context and omitted when no RequestID
+// middleware set one. No method, path, or raw error content — the request
+// middleware owns bounded request correlation, and the raw error must never
+// be logged at any level.
+func boundedUnexpectedErrorAttrs(ctx context.Context) []any {
+	attrs := []any{"code_class", httpjson.CodeInternalError}
+	if reqID := chimw.GetReqID(ctx); reqID != "" {
+		attrs = append(attrs, "request_id", reqID)
+	}
+	return attrs
 }
 
 // RegisterRoutes is the production-owned industries route registrar: the
