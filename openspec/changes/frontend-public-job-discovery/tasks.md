@@ -98,7 +98,7 @@ Tasks 3.2, 3.3, 3.4, 4.2, 4.4, and 5.2 below carry the corresponding wording. `s
 
 ### 4.3 TRIANGULATE — verify list navigation and accessibility
 
-- [ ] Run browser scenarios for unfiltered/filtered refresh and share, exact currency, AND forwarding, cursor reset/preservation, final-page omission, empty reset, 5xx/schema/timeout retry, mobile Sheet title/Escape/focus return, visible focus, long text wrapping, no horizontal overflow, both color schemes, and reduced motion. Confirm rendered controls and primitives retain semantic Violet/Neutral styling, Inter, Default radius, and no ad hoc overrides. Run configured list Playwright and axe commands, recording exact results and rollback scope. <!-- sdd-owner: implementation -->
+- [x] Run browser scenarios for unfiltered/filtered refresh and share, exact currency, AND forwarding, cursor reset/preservation, final-page omission, empty reset, 5xx/schema/timeout retry, mobile Sheet title/Escape/focus return, visible focus, long text wrapping, no horizontal overflow, both color schemes, and reduced motion. Confirm rendered controls and primitives retain semantic Violet/Neutral styling, Inter, Default radius, and no ad hoc overrides. Run configured list Playwright and axe commands, recording exact results and rollback scope. <!-- sdd-owner: implementation -->
 
 ### 4.4 REFACTOR — preserve server-first list boundaries
 
