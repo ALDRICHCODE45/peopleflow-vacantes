@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 const fixtureUrl = "http://127.0.0.1:4010";
 const appUrl = "http://127.0.0.1:3000";
@@ -485,4 +485,97 @@ test("mobile filters trigger meets touch-target size and dialog exposes Cerrar",
   await expect(
     dialog.getByRole("button", { name: "Cerrar filtros" }),
   ).toBeVisible();
+});
+
+test("long vacancy content remains readable", async ({ page }) => {
+  const longTitleSegment =
+    "plataformaoperativadedatosyobservabilidadintegraldistribuida";
+  const longCompany =
+    "Consultoría Integral de Ingeniería de Software y Datos Confiables";
+  const longLocation = "Zona Metropolitana Extendida Noreste";
+  const rectsOf = (locator: Locator) =>
+    locator.evaluate((el) =>
+      Array.from(el.getClientRects()).map((rect) => ({
+        left: rect.left,
+        right: rect.right,
+      })),
+    );
+
+  for (const viewport of [
+    { width: 375, height: 812 },
+    { width: 1280, height: 720 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.goto("/vacantes?q=long-content");
+    const list = page.getByRole("list");
+    const title = page.getByRole("link", { name: /observabilidad/i });
+    const company = list.getByText(longCompany);
+    const location = list.getByText(longLocation);
+
+    // Every supplied long text renders inside the semantic row.
+    await expect(title).toBeVisible();
+    await expect(title).toContainText(longTitleSegment);
+    await expect(company).toBeVisible();
+    await expect(location).toBeVisible();
+    await expect(list).toContainText("MXN 1,234,567");
+    await expect(list).toContainText("MXN 98,765,432");
+
+    // The row and the whole document stay inside the viewport: the
+    // uninterrupted title segment must not force horizontal overflow.
+    const listBox = await list.boundingBox();
+    expect(listBox).not.toBeNull();
+    expect(listBox!.x).toBeGreaterThanOrEqual(0);
+    expect(listBox!.x + listBox!.width).toBeLessThanOrEqual(viewport.width);
+    const documentWidth = await page.evaluate(() => ({
+      scrollWidth: document.scrollingElement!.scrollWidth,
+      clientWidth: document.scrollingElement!.clientWidth,
+    }));
+    expect(documentWidth.scrollWidth).toBeLessThanOrEqual(
+      documentWidth.clientWidth,
+    );
+
+    // No text box is clipped, truncated, nowrap, or fixed-height loss:
+    // no element in the row hides overflow, shows an ellipsis, or has
+    // content wider/taller than its own box.
+    const row = list.getByRole("listitem");
+    const clipped = await row.evaluate(
+      (li) =>
+        [li, ...li.querySelectorAll("h2, div, span, a")].filter((el) => {
+          const style = getComputedStyle(el);
+          return (
+            style.overflowX === "hidden" ||
+            style.overflowY === "hidden" ||
+            style.textOverflow === "ellipsis" ||
+            style.whiteSpace === "nowrap" ||
+            el.scrollWidth > el.clientWidth + 1 ||
+            el.scrollHeight > el.clientHeight + 1
+          );
+        }).length,
+    );
+    expect(clipped).toBe(0);
+
+    // Heading and detail boxes stack without overlapping.
+    const childBoxes = await row.evaluate((li) =>
+      Array.from(li.children).map((child) => {
+        const box = child.getBoundingClientRect();
+        return { top: box.top, bottom: box.bottom };
+      }),
+    );
+    expect(childBoxes).toHaveLength(2);
+    expect(childBoxes[0].bottom).toBeLessThanOrEqual(childBoxes[1].top);
+
+    // Every rendered text range stays horizontally inside the viewport.
+    for (const text of [title, company, location]) {
+      for (const rect of await rectsOf(text)) {
+        expect(rect.left).toBeGreaterThanOrEqual(0);
+        expect(rect.right).toBeLessThanOrEqual(viewport.width);
+      }
+    }
+
+    // The narrow viewport demonstrably wraps the long title onto
+    // multiple rendered lines.
+    if (viewport.width === 375) {
+      expect((await rectsOf(title)).length).toBeGreaterThanOrEqual(2);
+    }
+  }
 });

@@ -19,6 +19,30 @@ const job = {
     name: "Acme",
   },
 };
+// Isolated long-content vacancy for the wrapping/readability scenario: every
+// field is schema-valid, and the title contains one uninterrupted segment
+// that natural word wrapping cannot break, so a row without `overflow-wrap`
+// would force horizontal overflow on narrow viewports.
+const longContentJob = {
+  id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d90",
+  title:
+    "Ingeniería de Plataformas de Datos y Observabilidad para la plataformaoperativadedatosyobservabilidadintegraldistribuida",
+  description:
+    "Descripción extensa de prueba para el escenario de contenido largo.",
+  work_mode: "hybrid",
+  employment_type: "contract",
+  seniority: "lead",
+  salary_currency: "MXN",
+  location:
+    "San Nicolás de los Garza, Nuevo León, Zona Metropolitana Extendida Noreste",
+  salary_min: 1234567,
+  salary_max: 98765432,
+  published_at: "2026-02-14T09:30:00Z",
+  company: {
+    id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d91",
+    name: "Consultoría Integral de Ingeniería de Software y Datos Confiables",
+  },
+};
 
 function send(response, status, payload) {
   response.writeHead(status, { "content-type": "application/json" });
@@ -62,6 +86,8 @@ const server = createServer((request, response) => {
   }
   if (url.searchParams.get("q") === "empty")
     return send(response, 200, { items: [] });
+  if (url.searchParams.get("q") === "long-content")
+    return send(response, 200, { items: [longContentJob] });
   // Armed failure kinds reproduce the guarded failure classes: a 5xx
   // status, valid JSON that violates the item schema (invalid UUID),
   // and a delayed response beyond the production API timeout (its timer

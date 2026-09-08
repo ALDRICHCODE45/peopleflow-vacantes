@@ -83,7 +83,10 @@ function JobRow({ job }: { job: JobItem }) {
   ].filter((detail) => detail !== undefined);
 
   return (
-    <li key={job.id} className="flex flex-col gap-1.5 py-5">
+    <li
+      key={job.id}
+      className="flex flex-col gap-1.5 py-5 [overflow-wrap:anywhere]"
+    >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4">
         <h2 className="font-heading text-base font-medium text-foreground">
           <Link
