@@ -19,8 +19,10 @@ import (
 	applicationsvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	rtmiddleware "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/middleware"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 
@@ -88,14 +90,22 @@ func captureTransportSlog(t *testing.T) *bytes.Buffer {
 	return &buf
 }
 
-func lastSlogRecord(t *testing.T, buf *bytes.Buffer) map[string]any {
+// decodeTransportSlogRecords parses every captured JSON slog record so tests
+// can select records by msg instead of relying on a single last line.
+func decodeTransportSlogRecords(t *testing.T, buf *bytes.Buffer) []map[string]any {
 	t.Helper()
-	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
-	var rec map[string]any
-	if err := json.Unmarshal([]byte(lines[len(lines)-1]), &rec); err != nil {
-		t.Fatalf("decode slog record: %v; raw=%s", err, buf.String())
+	var records []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(buf.String()), "\n") {
+		if line == "" {
+			continue
+		}
+		var rec map[string]any
+		if err := json.Unmarshal([]byte(line), &rec); err != nil {
+			t.Fatalf("decode slog record: %v; raw=%s", err, buf.String())
+		}
+		records = append(records, rec)
 	}
-	return rec
+	return records
 }
 
 // submittedApp is the stored row every transition case reads back.
@@ -237,7 +247,19 @@ func TestTransport_Sentinels_AtHTTPBoundary(t *testing.T) {
 }
 
 // --- 3. Unexpected service-error sites ---------------------------------
-func TestTransport_UnexpectedServiceErrors(t *testing.T) {
+// TestTransport_UnexpectedServiceErrors_CorrelatedAndRedacted drives every
+// reachable unexpected service-error site through the same five Applications
+// routes mounted behind chi RequestID + the runtime RequestObservability
+// middleware. Behavior under test: the response stays exactly 500 + catalog
+// internal_error, the handler emits exactly ONE auxiliary "applications
+// handler failed" record with only bounded fields (request_id shared with the
+// completion record, method, matched chi route pattern, code_class), and the
+// raw error/URL/UUID never reaches any captured log line. No t.Parallel():
+// slog capture is process-global.
+func TestTransport_UnexpectedServiceErrors_CorrelatedAndRedacted(t *testing.T) {
+	const fixedRequestID = "transport-fixed-request-id"
+	const auxMsg = "applications handler failed"
+	const completionMsg = "http request completed"
 	jobID, appID := uuid.New(), uuid.New()
 	cases := []struct {
 		name, method, path  string
@@ -245,6 +267,7 @@ func TestTransport_UnexpectedServiceErrors(t *testing.T) {
 		setUp               func(*harness)
 		assertCounters      func(t *testing.T, h *harness)
 		inject              string
+		wantRoute           string
 	}{
 		{"apply_user_lookup", "POST", "/jobs/" + jobID.String() + "/applications", true, false,
 			func(h *harness) {
@@ -256,7 +279,7 @@ func TestTransport_UnexpectedServiceErrors(t *testing.T) {
 					t.Errorf("identity failed; Create MUST NOT be called, got %d", h.repo.createCalls)
 				}
 			},
-			"boom: user lookup failed"},
+			"boom: user lookup failed", "/jobs/{jobId}/applications"},
 		{"apply_create", "POST", "/jobs/" + jobID.String() + "/applications", true, false,
 			func(h *harness) {
 				h.userRepo.getByCognitoSubUser = &identityentities.User{ID: uuid.New()}
@@ -270,7 +293,7 @@ func TestTransport_UnexpectedServiceErrors(t *testing.T) {
 					t.Errorf("Transition MUST NOT be called, got %d", h.repo.transitionCalls)
 				}
 			},
-			"pg: connection refused"},
+			"pg: connection refused", "/jobs/{jobId}/applications"},
 		{"list_my_user_lookup", "GET", "/me/applications", true, false,
 			func(h *harness) { h.userRepo.getByCognitoSubErr = errors.New("boom: identity unreachable") },
 			func(t *testing.T, h *harness) {
@@ -278,7 +301,7 @@ func TestTransport_UnexpectedServiceErrors(t *testing.T) {
 					t.Errorf("identity failed; ListByCandidate MUST NOT be called, got %d", h.repo.listByCandidateCalls)
 				}
 			},
-			"boom: identity unreachable"},
+			"boom: identity unreachable", "/me/applications"},
 		{"list_my_list", "GET", "/me/applications", true, false,
 			func(h *harness) {
 				h.userRepo.getByCognitoSubUser = &identityentities.User{ID: uuid.New()}
@@ -289,7 +312,7 @@ func TestTransport_UnexpectedServiceErrors(t *testing.T) {
 					t.Errorf("ListByCandidate must be called once, got %d", h.repo.listByCandidateCalls)
 				}
 			},
-			"pg: read timeout"},
+			"pg: read timeout", "/me/applications"},
 		{"recruiter_list", "GET", "/jobs/" + jobID.String() + "/applications", false, true,
 			func(h *harness) { h.repo.listByJobErr = errors.New("pg: read timeout") },
 			func(t *testing.T, h *harness) {
@@ -301,7 +324,7 @@ func TestTransport_UnexpectedServiceErrors(t *testing.T) {
 						h.repo.createCalls, h.repo.getByIDCalls, h.repo.transitionCalls)
 				}
 			},
-			"pg: read timeout"},
+			"pg: read timeout", "/jobs/{jobId}/applications"},
 		{"recruiter_detail", "GET", "/jobs/" + jobID.String() + "/applications/" + appID.String(), false, true,
 			func(h *harness) { h.repo.getByIDErr = errors.New("pg: read timeout") },
 			func(t *testing.T, h *harness) {
@@ -309,7 +332,7 @@ func TestTransport_UnexpectedServiceErrors(t *testing.T) {
 					t.Errorf("GetByID must be called once, got %d", h.repo.getByIDCalls)
 				}
 			},
-			"pg: read timeout"},
+			"pg: read timeout", "/jobs/{jobId}/applications/{id}"},
 		{"transition_read", "PATCH", "/jobs/" + jobID.String() + "/applications/" + appID.String() + "/transition", false, true,
 			func(h *harness) { h.repo.getByIDErr = errors.New("pg: read timeout") },
 			func(t *testing.T, h *harness) {
@@ -320,7 +343,7 @@ func TestTransport_UnexpectedServiceErrors(t *testing.T) {
 					t.Errorf("read failed; Transition MUST NOT be called, got %d", h.repo.transitionCalls)
 				}
 			},
-			"pg: read timeout"},
+			"pg: read timeout", "/jobs/{jobId}/applications/{id}/transition"},
 		{"transition_write", "PATCH", "/jobs/" + jobID.String() + "/applications/" + appID.String() + "/transition", false, true,
 			func(h *harness) {
 				h.repo.getByIDApp = submittedApp()
@@ -337,16 +360,35 @@ func TestTransport_UnexpectedServiceErrors(t *testing.T) {
 					t.Errorf("Create MUST NOT be called, got %d", h.repo.createCalls)
 				}
 			},
-			"pg: write timeout"},
+			"pg: write timeout", "/jobs/{jobId}/applications/{id}/transition"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			logBuf := captureTransportSlog(t)
 			h := newHarness()
 			tc.setUp(h)
+
+			// Mount the same five Applications routes behind chi RequestID
+			// + the existing runtime RequestObservability middleware; the
+			// middleware shares the captured default-log buffer so auxiliary
+			// and completion records are parsed from one stream.
+			r := chi.NewRouter()
+			r.Use(chimw.RequestID)
+			r.Use(rtmiddleware.RequestObservability(
+				slog.New(slog.NewJSONHandler(logBuf, &slog.HandlerOptions{Level: slog.LevelInfo})),
+				nil,
+			))
+			hh := h.handler.ApplicationHandlers()
+			r.Post("/jobs/{jobId}/applications", hh.ApplyToJob)
+			r.Get("/me/applications", hh.ListMyApplications)
+			r.Get("/jobs/{jobId}/applications", hh.ListJobApplications)
+			r.Get("/jobs/{jobId}/applications/{id}", hh.GetApplication)
+			r.Patch("/jobs/{jobId}/applications/{id}/transition", hh.TransitionApplication)
+
 			req := httptest.NewRequest(tc.method, tc.path,
 				strings.NewReader(`{"status":"in_review","cover_letter":"hi"}`))
 			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Request-Id", fixedRequestID)
 			if tc.injectSub {
 				req = withClaims(req, "sub-internal")
 			}
@@ -354,22 +396,93 @@ func TestTransport_UnexpectedServiceErrors(t *testing.T) {
 				req = withCompanyContext(req, identitysecurity.CompanyContext{CompanyID: uuid.New(), UserID: makeRecruiterID()})
 			}
 			w := httptest.NewRecorder()
-			h.router.ServeHTTP(w, req)
+			r.ServeHTTP(w, req)
 
 			assertTransportEnvelope(t, w, http.StatusInternalServerError, httpjson.CodeInternalError,
 				"an internal error occurred", tc.inject)
 			tc.assertCounters(t, h)
 
-			rec := lastSlogRecord(t, logBuf)
-			if rec["method"] != tc.method {
-				t.Errorf("slog method: want %q, got %v", tc.method, rec["method"])
+			// Exactly one auxiliary record + exactly one completion record.
+			records := decodeTransportSlogRecords(t, logBuf)
+			if len(records) != 2 {
+				t.Fatalf("slog records = %d (%s), want exactly 2 (auxiliary + completion)",
+					len(records), rawMsgs(records))
 			}
-			if rec["path"] != tc.path {
-				t.Errorf("slog path: want %q, got %v", tc.path, rec["path"])
+
+			aux := recordByMsg(t, records, auxMsg)
+			// Bounded field set: no raw error, no raw URL, nothing else.
+			for k := range aux {
+				if !auxAllowedKeys[k] {
+					t.Errorf("auxiliary record has unbounded key %q (record %v)", k, aux)
+				}
 			}
-			if errAttr, ok := rec["error"].(string); !ok || !strings.Contains(errAttr, tc.inject) {
-				t.Errorf("slog error: want to contain %q, got %v", tc.inject, rec["error"])
+			for k := range auxAllowedKeys {
+				if _, ok := aux[k]; !ok {
+					t.Errorf("auxiliary record missing bounded key %q (record %v)", k, aux)
+				}
+			}
+			if got, _ := aux["request_id"].(string); got != fixedRequestID {
+				t.Errorf("auxiliary request_id = %q, want the fixed chi request ID %q", got, fixedRequestID)
+			}
+			if got, _ := aux["method"].(string); got != tc.method {
+				t.Errorf("auxiliary method = %q, want %q", got, tc.method)
+			}
+			if got, _ := aux["path"].(string); got != tc.wantRoute {
+				t.Errorf("auxiliary path = %q, want the matched chi route pattern %q (raw URL/UUID MUST NOT be logged)", got, tc.wantRoute)
+			}
+			if got, _ := aux["code_class"].(string); got != string(httpjson.CodeInternalError) {
+				t.Errorf("auxiliary code_class = %q, want %q", got, httpjson.CodeInternalError)
+			}
+
+			// The runtime completion record: same request ID, matched
+			// pattern, 500, internal_error class.
+			comp := recordByMsg(t, records, completionMsg)
+			if got, _ := comp["request_id"].(string); got != fixedRequestID {
+				t.Errorf("completion request_id = %q, want the same fixed ID %q shared with the auxiliary record", got, fixedRequestID)
+			}
+			if got, _ := comp["path"].(string); got != tc.wantRoute {
+				t.Errorf("completion path = %q, want the matched chi route pattern %q", got, tc.wantRoute)
+			}
+			if s, ok := comp["status"].(float64); !ok || int(s) != http.StatusInternalServerError {
+				t.Errorf("completion status = %v (%T), want %d", comp["status"], comp["status"], http.StatusInternalServerError)
+			}
+			if got, _ := comp["code_class"].(string); got != string(httpjson.CodeInternalError) {
+				t.Errorf("completion code_class = %q, want %q", got, httpjson.CodeInternalError)
+			}
+
+			// Redaction across every captured log byte: the raw injected
+			// error text (and therefore the concrete URL/UUID it would be
+			// paired with) must never reach any record.
+			if strings.Contains(logBuf.String(), tc.inject) {
+				t.Errorf("captured logs MUST NOT contain raw error detail %q; logs=%s", tc.inject, logBuf.String())
 			}
 		})
 	}
+}
+
+// auxAllowedKeys is the closed key set for the auxiliary "applications
+// handler failed" record (time/level/msg are emitted by slog's JSONHandler).
+var auxAllowedKeys = map[string]bool{
+	"time": true, "level": true, "msg": true,
+	"request_id": true, "method": true, "path": true, "code_class": true,
+}
+
+func recordByMsg(t *testing.T, records []map[string]any, msg string) map[string]any {
+	t.Helper()
+	for _, rec := range records {
+		if rec["msg"] == msg {
+			return rec
+		}
+	}
+	t.Fatalf("no slog record with msg %q; records=%s", msg, rawMsgs(records))
+	return nil
+}
+
+func rawMsgs(records []map[string]any) string {
+	msgs := make([]string, 0, len(records))
+	for _, rec := range records {
+		m, _ := rec["msg"].(string)
+		msgs = append(msgs, m)
+	}
+	return strings.Join(msgs, ", ")
 }

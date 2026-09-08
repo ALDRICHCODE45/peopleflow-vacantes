@@ -31,6 +31,7 @@ import (
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
 
@@ -266,13 +267,29 @@ func (h *ApplicationHandler) transitionApplication(w http.ResponseWriter, r *htt
 // --- classification & helpers -------------------------------------------
 
 // classifyAndWriteError centralizes error → catalog HTTP mapping for every
-// handler. The real error is logged at error severity when the classifier
-// lands on internal_error so an operator can correlate with the generic
-// 5xx response the client sees.
+// handler. When the classifier lands on internal_error the handler emits
+// exactly one auxiliary "applications handler failed" record whose fields are
+// bounded and request-correlated — the chi request ID (shared with the
+// runtime RequestObservability completion record), the HTTP method, the
+// matched chi route pattern (never the raw URL), and the catalog code class.
+// The raw error is never logged: the generic 5xx response plus the shared
+// request ID is all an operator needs to correlate the failure, while the
+// concrete error detail stays out of log aggregation.
 func (h *ApplicationHandler) classifyAndWriteError(w http.ResponseWriter, r *http.Request, err error) {
 	def := classifyApplicationError(err)
 	if def.Code == httpjson.CodeInternalError {
-		slog.Error("applications handler failed", "method", r.Method, "path", r.URL.Path, "error", err)
+		route := "unmatched"
+		if rctx := chi.RouteContext(r.Context()); rctx != nil {
+			if p := rctx.RoutePattern(); p != "" {
+				route = p
+			}
+		}
+		slog.ErrorContext(r.Context(), "applications handler failed",
+			"request_id", chimw.GetReqID(r.Context()),
+			"method", r.Method,
+			"path", route,
+			"code_class", string(httpjson.CodeInternalError),
+		)
 	}
 	httpjson.WriteCatalogError(w, def)
 }
