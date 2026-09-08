@@ -120,14 +120,21 @@ test("uses a 240–280px desktop filter column beside flexible results", async (
   expect(resultsBox!.width).toBeGreaterThan(filterBox!.width);
 });
 
-test("renders empty results with an unfiltered reset link", async ({
+test("activates the empty-state reset to the unfiltered canonical list", async ({
   page,
 }) => {
   await page.goto("/vacantes?q=empty");
-  await expect(page.getByText(/no hay vacantes/i)).toBeVisible();
-  await expect(
-    page.getByRole("link", { name: /quitar filtros/i }),
-  ).toHaveAttribute("href", "/vacantes");
+  const emptyHeading = page.getByText(/no hay vacantes/i);
+  await expect(emptyHeading).toBeVisible();
+  await page.getByRole("link", { name: /quitar filtros/i }).click();
+
+  // The reset action lands on the exact canonical route with no query
+  // state, default controls, and the unfiltered result list restored.
+  await expect(page).toHaveURL("/vacantes");
+  await expect(page.getByLabel(/buscar/i)).toHaveValue("");
+  await expect(page.getByLabel(/moneda/i)).toHaveText(/Todas/);
+  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expect(emptyHeading).toHaveCount(0);
 });
 
 test("renders a retryable Spanish error without vacancy rows", async ({
