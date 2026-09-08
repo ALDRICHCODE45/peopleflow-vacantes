@@ -5,12 +5,14 @@
 package http
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
+	chimw "github.com/go-chi/chi/v5/middleware"
 )
 
 // RequireAuth returns a middleware that verifies a Bearer token via the
@@ -40,7 +42,7 @@ func RequireAuth(verifier security.Verifier) func(http.Handler) http.Handler {
 
 			claims, err := verifier.Verify(r.Context(), token)
 			if err != nil {
-				slog.Debug("auth: token verification failed", "error", err)
+				slog.Debug("auth: token verification failed", boundedUnauthenticatedAttrs(r.Context())...)
 				respondUnauthorized(w, "invalid token")
 				return
 			}
@@ -49,6 +51,20 @@ func RequireAuth(verifier security.Verifier) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// boundedUnauthenticatedAttrs builds the bounded auxiliary attributes for
+// the RequireAuth verifier-failure branch: the catalog code_class plus
+// request_id read ONLY from the existing chi request-ID context and omitted
+// when no RequestID middleware set one. No method, path, body, identity, or
+// raw error content — the raw verifier error must never be logged at any
+// level, and the request middleware owns bounded request correlation.
+func boundedUnauthenticatedAttrs(ctx context.Context) []any {
+	attrs := []any{"code_class", httpjson.CodeUnauthenticated}
+	if reqID := chimw.GetReqID(ctx); reqID != "" {
+		attrs = append(attrs, "request_id", reqID)
+	}
+	return attrs
 }
 
 // respondUnauthorized writes a 401 catalog envelope. The body uses the

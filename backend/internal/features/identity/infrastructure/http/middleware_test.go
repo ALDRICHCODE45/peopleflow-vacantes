@@ -1,12 +1,17 @@
 package http
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,7 +21,10 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
+	rtmiddleware "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/middleware"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
+	"github.com/go-chi/chi/v5"
+	chimw "github.com/go-chi/chi/v5/middleware"
 	"github.com/lestrrat-go/jwx/v2/jwa"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
@@ -474,4 +482,188 @@ func TestRequireAuth_PEMMode_ExplicitSelection(t *testing.T) {
 	recBad := httptest.NewRecorder()
 	handler.ServeHTTP(recBad, bad)
 	assertCatalogEnvelope(t, recBad, httpjson.CodeUnauthenticated, http.StatusUnauthorized)
+}
+
+// --- WS6C: RequireAuth verifier-failure auxiliary log redaction & correlation
+
+// mwAuxTokenMarker is the synthetic bearer-token marker. The chain below
+// sends it as the actual Authorization credential, so any leak of the
+// supplied token fails the forbidden-marker assertion.
+var mwAuxTokenMarker = "tok-synthetic-ws6c-0f3a9c"
+
+// mwAuxMarkers carries one synthetic marker per forbidden class: bearer
+// token, DSN, email, CV key, signature detail, raw driver error. None of
+// them may ever appear in captured logs or on the wire.
+var mwAuxMarkers = []string{
+	mwAuxTokenMarker,
+	"postgres://svc:hunter2@db.internal:5432/peopleflow",
+	"candidate.personal@example.com",
+	"resumes/cv-synthetic-ws6c-key.pdf",
+	"signature=SYNTHETIC-MAC-DIGEST",
+	`pq: signature verify: crypto/rsa: verification error`,
+}
+
+// mwLeakyVerifier is a security.Verifier stub whose failure error carries
+// every synthetic high-risk marker — exactly the kind of raw verifier error
+// the RequireAuth auxiliary record must never echo.
+type mwLeakyVerifier struct{}
+
+func (mwLeakyVerifier) Verify(_ context.Context, _ string) (security.Claims, error) {
+	return security.Claims{}, fmt.Errorf("verify: %s", strings.Join(mwAuxMarkers, "; "))
+}
+
+// mwServeAuthChain mounts the production-shaped chain chi RequestID → runtime
+// RequestObservability → RequireAuth(mwLeakyVerifier) on the route
+// GET /protected and serves one request, returning the response recorder
+// and whether the downstream handler was invoked. Call only after installing
+// the captured DEBUG-level default logger. When requestIDHeader is non-empty
+// it is sent as X-Request-Id so chi's RequestID middleware adopts the caller
+// value; otherwise chi generates one. The sent bearer credential is exactly
+// mwAuxTokenMarker so a token leak trips the marker assertion.
+func mwServeAuthChain(t *testing.T, requestIDHeader string) (*httptest.ResponseRecorder, bool) {
+	t.Helper()
+
+	invoked := false
+	r := chi.NewRouter()
+	r.Use(chimw.RequestID)
+	r.Use(rtmiddleware.RequestObservability(nil, nil))
+	r.Method(http.MethodGet, "/protected", RequireAuth(mwLeakyVerifier{})(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		invoked = true
+	})))
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+mwAuxTokenMarker)
+	if requestIDHeader != "" {
+		req.Header.Set("X-Request-Id", requestIDHeader)
+	}
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	return rec, invoked
+}
+
+// TestRequireAuth_InvalidTokenLogIsRedactedAndCorrelated pins the WS6C
+// bounded RequireAuth verifier-failure contract: the canonical 401
+// unauthenticated envelope is unchanged and downstream is never invoked;
+// the auxiliary DEBUG record carries exactly time/level/msg/code_class plus
+// the correlated request_id shared with the runtime completion record
+// (adopted from the caller's X-Request-Id when supplied, otherwise generated
+// by chi's RequestID middleware), code_class is unauthenticated, the raw
+// verifier error is never logged at any level, and no synthetic marker from
+// the injected error reaches the logs or the wire.
+func TestRequireAuth_InvalidTokenLogIsRedactedAndCorrelated(t *testing.T) {
+	const suppliedID = "req-supplied-fixed-ws6c-auth"
+	const auxMsg = "auth: token verification failed"
+	const completionMsg = "http request completed"
+
+	cases := []struct {
+		name            string
+		requestIDHeader string
+	}{
+		{name: "supplied_request_id_is_correlated", requestIDHeader: suppliedID},
+		{name: "generated_request_id_when_header_absent", requestIDHeader: ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Capture slog output FIRST at DEBUG level, then build the chain
+			// so the runtime middleware and RequireAuth share the captured
+			// handler. slog.Default is shared state: stay non-parallel.
+			var logBuf bytes.Buffer
+			prev := slog.Default().Handler()
+			slog.SetDefault(slog.New(slog.NewJSONHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+			t.Cleanup(func() { slog.SetDefault(slog.New(prev)) })
+
+			rec, invoked := mwServeAuthChain(t, tc.requestIDHeader)
+
+			// 1. Canonical 401 unauthenticated envelope + WWW-Authenticate.
+			assertCatalogEnvelope(t, rec, httpjson.CodeUnauthenticated, http.StatusUnauthorized)
+			if rec.Header().Get("WWW-Authenticate") == "" {
+				t.Error("WWW-Authenticate header: want non-empty, got empty")
+			}
+			if invoked {
+				t.Error("downstream handler should not be invoked")
+			}
+
+			// 2. Exactly one auxiliary DEBUG record + one completion record.
+			dec := json.NewDecoder(bytes.NewReader(logBuf.Bytes()))
+			var records []map[string]any
+			for {
+				var recLine map[string]any
+				if err := dec.Decode(&recLine); err != nil {
+					if !errors.Is(err, io.EOF) {
+						t.Fatalf("captured slog stream is not valid JSON: %v: %q", err, logBuf.String())
+					}
+					break
+				}
+				records = append(records, recLine)
+			}
+			var auxRecords, completions []map[string]any
+			for _, record := range records {
+				switch record["msg"] {
+				case auxMsg:
+					auxRecords = append(auxRecords, record)
+				case completionMsg:
+					completions = append(completions, record)
+				}
+			}
+			if len(records) != 2 {
+				t.Fatalf("captured records = %d, want exactly 2 (%s DEBUG + %s INFO): %v", len(records), auxMsg, completionMsg, records)
+			}
+			if len(auxRecords) != 1 || len(completions) != 1 {
+				t.Fatalf("want exactly 1 %q DEBUG and 1 %q INFO, got %d aux / %d completion: %v", auxMsg, completionMsg, len(auxRecords), len(completions), records)
+			}
+			aux, completion := auxRecords[0], completions[0]
+
+			// 3. Auxiliary record: exact bounded key set — no error attribute,
+			// no method, path, body, or identity data.
+			wantAux := map[string]bool{"time": true, "level": true, "msg": true, "code_class": true, "request_id": true}
+			for k := range aux {
+				if !wantAux[k] {
+					t.Errorf("auxiliary record has unbounded key %q (record: %v)", k, aux)
+				}
+				delete(wantAux, k)
+			}
+			for k := range wantAux {
+				t.Errorf("auxiliary record is missing required key %q (record: %v)", k, aux)
+			}
+			if got, _ := aux["level"].(string); got != slog.LevelDebug.String() {
+				t.Errorf("aux level = %v, want %q", aux["level"], slog.LevelDebug.String())
+			}
+			if got, _ := aux["code_class"].(string); got != string(httpjson.CodeUnauthenticated) {
+				t.Errorf("aux code_class = %v, want %q", aux["code_class"], httpjson.CodeUnauthenticated)
+			}
+
+			// 4. Same non-empty request ID in both records.
+			auxID, _ := aux["request_id"].(string)
+			completionID, _ := completion["request_id"].(string)
+			if tc.requestIDHeader != "" && auxID != tc.requestIDHeader {
+				t.Errorf("aux request_id = %q, want supplied header value %q", auxID, tc.requestIDHeader)
+			}
+			if auxID == "" || completionID == "" || auxID != completionID {
+				t.Errorf("aux and completion records must share one nonempty request ID, got aux=%q completion=%q", auxID, completionID)
+			}
+
+			// 5. Completion record: matched route pattern, status 401, canonical code.
+			if got, _ := completion["path"].(string); got != "/protected" {
+				t.Errorf("completion path = %v, want matched route pattern %q", completion["path"], "/protected")
+			}
+			if got, _ := completion["status"].(float64); got != http.StatusUnauthorized {
+				t.Errorf("completion status = %v, want %d", completion["status"], http.StatusUnauthorized)
+			}
+			if got, _ := completion["code_class"].(string); got != string(httpjson.CodeUnauthenticated) {
+				t.Errorf("completion code_class = %v, want %q", completion["code_class"], httpjson.CodeUnauthenticated)
+			}
+
+			// 6. Synthetic markers absent from BOTH the log and the wire body.
+			logOutput := logBuf.String()
+			for _, marker := range mwAuxMarkers {
+				if strings.Contains(logOutput, marker) {
+					t.Errorf("captured logs must NOT contain synthetic marker %q", marker)
+				}
+				if strings.Contains(rec.Body.String(), marker) {
+					t.Errorf("response body must NOT contain synthetic marker %q: %s", marker, rec.Body.String())
+				}
+			}
+		})
+	}
 }
