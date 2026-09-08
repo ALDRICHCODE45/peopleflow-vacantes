@@ -108,6 +108,87 @@ test("renders validated semantic vacancies with labeled scalar desktop filters",
     await expect(filtersForm.getByLabel(label)).toBeVisible();
 });
 
+test("renders the approved hero and supported quick chips with honest state", async ({
+  page,
+}) => {
+  await page.goto("/vacantes");
+
+  // Hero composition: eyebrow, approved H1, and results heading.
+  await expect(page.getByText("Bolsa de trabajo")).toBeVisible();
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "Encuentra tu próximo trabajo en tech",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 2, name: "Vacantes disponibles" }),
+  ).toBeVisible();
+
+  // Truthful public chrome only: no theme toggle, auth, or publish actions.
+  await expect(page.locator("header").getByRole("button")).toHaveCount(0);
+  await expect(
+    page.getByText(/publicar vacante|ingresar|iniciar sesión/i),
+  ).toHaveCount(0);
+
+  // Supported quick chips only, with honest pressed state.
+  const todas = page.getByRole("button", { name: "Todas", exact: true });
+  await expect(todas).toHaveAttribute("aria-pressed", "true");
+  for (const label of [
+    "Remoto",
+    "Híbrido",
+    "Tiempo completo",
+    "Medio",
+    "Senior",
+  ]) {
+    await expect(
+      page.getByRole("button", { name: label, exact: true }),
+    ).toHaveAttribute("aria-pressed", "false");
+  }
+  await expect(
+    page.getByRole("button", { name: /prácticas|beca|presencial/i }),
+  ).toHaveCount(0);
+
+  // A chip commits through the canonical scalar pipeline and the pressed
+  // state follows the resulting canonical URL.
+  await page.getByRole("button", { name: "Remoto", exact: true }).click();
+  await expect(page).toHaveURL("/vacantes?work_mode=remote");
+  await expect(todas).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    page.getByRole("button", { name: "Remoto", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+
+  // The reset chip returns to the unfiltered canonical list.
+  await todas.click();
+  await expect(page).toHaveURL("/vacantes");
+  await expect(todas).toHaveAttribute("aria-pressed", "true");
+});
+
+test("renders surfaced vacancy cards with API-backed metadata only", async ({
+  page,
+}) => {
+  await page.goto("/vacantes?currency=MXN");
+  const list = page.getByRole("list");
+  await expect(list.getByRole("listitem").first()).toBeVisible();
+
+  // Supported metadata from the fixture vacancy is surfaced.
+  await expect(list).toContainText("Ingeniera Frontend");
+  await expect(list).toContainText("Acme");
+  await expect(list).toContainText("Remoto");
+  await expect(list).toContainText("Tiempo completo");
+
+  // A deterministic company-initials tile accompanies each card.
+  await expect(list.locator("span[aria-hidden='true']").first()).toHaveText(
+    /^[A-ZÁÉÍÓÚÑÜ·]{1,2}$/,
+  );
+
+  // No fabricated or unsupported metadata: no featured state, relative
+  // time, or salary period.
+  await expect(page.getByText(/destacada/i)).toHaveCount(0);
+  await expect(list).not.toContainText(/hace \d+/);
+  await expect(list).not.toContainText(/\/ mes/);
+});
+
 test("uses a 240–280px desktop filter column beside flexible results", async ({
   page,
 }) => {
