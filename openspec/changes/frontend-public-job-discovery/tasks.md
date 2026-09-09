@@ -108,7 +108,7 @@ Tasks 3.2, 3.3, 3.4, 4.2, 4.4, and 5.2 below carry the corresponding wording. `s
 
 ### 5.1 RED — define detail and metadata behavior
 
-- [ ] Add failing unit/page-data and Playwright tests for `frontend/src/app/(public)/vacantes/[jobId]/` and detail components covering UUID short-circuit, valid detail success, request-scoped dedupe for metadata/page, dynamic no-store reads, validated plain-text descriptions with paragraphs/line breaks, optional metadata omission, dynamic title/canonical metadata, branded `404` noindex behavior, and retryable service/schema failures. Use the fixture activated in 4.1, expanding only test-only routes/data as required; run focused frontend commands and record RED with rollback limited to detail tests/fixture additions. <!-- sdd-owner: implementation -->
+- [x] Add failing unit/page-data and Playwright tests for `frontend/src/app/(public)/vacantes/[jobId]/` and detail components covering UUID short-circuit, valid detail success, request-scoped dedupe for metadata/page, dynamic no-store reads, validated plain-text descriptions with paragraphs/line breaks, optional metadata omission, dynamic title/canonical metadata, branded `404` noindex behavior, and retryable service/schema failures. Use the fixture activated in 4.1, expanding only test-only routes/data as required; run focused frontend commands and record RED with rollback limited to detail tests/fixture additions. <!-- sdd-owner: implementation -->
 
 ### 5.2 GREEN — implement detail page and boundaries
 

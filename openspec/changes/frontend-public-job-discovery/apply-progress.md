@@ -1543,3 +1543,11 @@ Task 4.4 is **implementation-complete but intentionally left `- [ ]`** in `tasks
 - Task state: the Task 4.4 checkbox in `tasks.md` is now `- [x]` (13/22 tasks complete). Task 5.1 remains `- [ ]`, was not started, and `/vacantes/[jobId]` does not exist.
 - Rollback: `git revert 084a375` removes only this implementation commit's 9-file scope.
 - No push and no PR were performed. Nothing was staged by this work unit; the parent owns the authorized documentation commit.
+
+## Final closure — Task 5.1 RED complete
+
+- Pre-append prefix proof: the entire pre-append bytes of this file (1,545 lines) were hashed at SHA-256 `5b5fe37ca5d138ef3e4282effbe9ecf172945cd5270ab91904e6312d51bfe596` immediately before this append; every prior byte is preserved unchanged.
+- RED commit `6767d0cb2f0b9961c07edc3d900da77b8878a6c4` (`test(vacantes): define detail page behavior`) landed on `feat/frontend-foundation` at HEAD. Exact committed scope: 4 files / 339 insertions + 8 deletions = 347 changed lines — `frontend/src/app/(public)/vacantes/[jobId]/page.test.tsx` (+99), `frontend/src/features/jobs/components/JobDetailView.test.tsx` (+75), `frontend/tests/e2e/vacante-detalle.spec.ts` (+117), `frontend/tests/fixtures/jobs-server.mjs` (+48/−8).
+- Intentional RED (by design, not a defect): focused Vitest and Playwright fail only because the Task 5.2 production modules/routes (`[jobId]/page.tsx`, detail components) are absent; malformed UUID scenarios record zero fixture requests before the short-circuit, and static checks (typecheck, lint, diff check) are clean except the intentional missing-module type/LSP diagnostic.
+- Native review lineage `review-b2490ac157b6346b` was approved and acknowledged after correcting the newline assertion; no attempt token was acquired or settled by this executor (parent-owned).
+- Task state: the Task 5.1 checkbox in `tasks.md` is now `- [x]`; Task 5.2 remains `- [ ]`, unstarted, and `/vacantes/[jobId]` production routes do not exist. No push and no PR; nothing staged or committed by this closure. Rollback: revert `6767d0c` to remove only the RED test/fixture scope, and revert the closure commit to reopen Task 5.1.
