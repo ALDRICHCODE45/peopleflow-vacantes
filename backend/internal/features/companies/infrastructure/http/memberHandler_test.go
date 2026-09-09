@@ -1,7 +1,6 @@
 package http
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -55,6 +54,12 @@ type stubMemberRepositoryForHandler struct {
 	createCalls int
 	created     *entities.CompanyMember
 
+	// lastCreateCompanyID records the CompanyID carried by every member
+	// entity handed to Create — including failing calls — so tests can
+	// prove the injected CompanyContext ID reaches the write repository
+	// even when the write itself errors.
+	lastCreateCompanyID uuid.UUID
+
 	updateErr error
 	removeErr error
 
@@ -69,6 +74,7 @@ func (s *stubMemberRepositoryForHandler) Create(_ context.Context, m *entities.C
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.createCalls++
+	s.lastCreateCompanyID = m.CompanyID
 	if s.createErr != nil {
 		return s.createErr
 	}
@@ -797,12 +803,6 @@ var (
 	_ = dtos.UpdateMemberRoleDto{}
 )
 
-func captureSlog(t *testing.T, buf *bytes.Buffer) {
-	prev := slog.Default().Handler()
-	slog.SetDefault(slog.New(slog.NewJSONHandler(buf, nil)))
-	t.Cleanup(func() { slog.SetDefault(slog.New(prev)) })
-}
-
 func assertErrorMessage(t *testing.T, rec *httptest.ResponseRecorder, want string) {
 	t.Helper()
 	var env httpjson.ErrorEnvelope
@@ -1079,56 +1079,215 @@ func TestAddMember_UserNotFound(t *testing.T) {
 	assertErrorMessage(t, rec, "user not found")
 }
 
-// * Unexpected user repo error → 500; member writes untouched.
-func TestAddMember_UserLookupUnexpectedError(t *testing.T) {
-	var logBuf bytes.Buffer
-	captureSlog(t, &logBuf)
-	companyID := uuid.New()
-	uRepo := &stubUserRepositoryForHandler{byIDErr: errors.New("user repo: timeout")}
-	mRepo := &stubMemberRepositoryForHandler{}
-	svc := newMemberHandlerService(mRepo, uRepo, &stubMemberCompanyRepositoryForHandler{})
-	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
-	rec := doReq(t, router, http.MethodPost, "/me/company/members",
-		`{"user_id":"`+uuid.New().String()+`","role":"recruiter"}`)
-	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
-	body := rec.Body.String()
-	if strings.Contains(body, "timeout") || strings.Contains(body, "user repo") {
-		t.Errorf("injected detail must not appear in wire: %s", body)
-	}
-	logOut := logBuf.String()
-	if !strings.Contains(logOut, "timeout") {
-		t.Errorf("injected detail must appear in slog; got: %s", logOut)
-	}
-	if mRepo.createCalls > 0 || mRepo.updateCalls > 0 || mRepo.removeCalls > 0 {
-		t.Errorf("member writes must not be called: create=%d update=%d remove=%d",
-			mRepo.createCalls, mRepo.updateCalls, mRepo.removeCalls)
-	}
-}
+// TestMemberTransport_WriteUnexpectedErrors_CorrelatedAndRedacted drives the
+// four reachable unexpected-error WRITE sites (POST /me/company/members user
+// lookup + create, PATCH update, DELETE remove) through the production-faithful
+// chain chi RequestID → runtime RequestObservability → CompanyContext →
+// MemberHandlers with a fixed X-Request-Id. Behavior: the response stays
+// generic 500 + catalog internal_error, the handler emits exactly ONE bounded,
+// request-correlated auxiliary record (request_id shared with the completion
+// record, HTTP method, matched chi route TEMPLATE, code_class=internal_error),
+// and the raw error / DSN / token / company·user·member UUIDs / concrete URL /
+// request body never reach any captured log byte. Guards preserved from the
+// retired raw-detail tests: exact repository call counters per failure site,
+// the injected CompanyContext ID reaching the failed write repository, and D6
+// (GetByCognitoSub stays 0 on gated paths). No t.Parallel(): slog capture is
+// process-global. Reuses captureCompanySlog / decodeCompanySlogRecords /
+// companyAuxAllowedKeys / companyRecordByMsg from handler_test.go.
+func TestMemberTransport_WriteUnexpectedErrors_CorrelatedAndRedacted(t *testing.T) {
+	const (
+		fixedRequestID = "members-write-fixed-request-id"
+		completionMsg  = "http request completed"
+		leakDSN        = "postgres://svc:hunter2@db.internal:5432/peopleflow"
+	)
 
-// * Unexpected Create error → 500; Update/Remove untouched.
-func TestAddMember_CreateUnexpectedError(t *testing.T) {
-	var logBuf bytes.Buffer
-	captureSlog(t, &logBuf)
-	companyID := uuid.New()
-	mRepo := &stubMemberRepositoryForHandler{createErr: errors.New("pg: serializable conflict")}
-	svc := newMemberHandlerService(mRepo, &stubUserRepositoryForHandler{}, &stubMemberCompanyRepositoryForHandler{})
-	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
-	rec := doReq(t, router, http.MethodPost, "/me/company/members",
-		`{"user_id":"`+uuid.New().String()+`","role":"recruiter"}`)
-	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
-	body := rec.Body.String()
-	if strings.Contains(body, "serializable") || strings.Contains(body, "pg:") {
-		t.Errorf("injected detail must not appear in wire: %s", body)
+	// One DSN/token-laden error per failure site, all carrying secret-looking
+	// material that must never reach the logs.
+	lookupBoom := errors.New("identity repo: read timeout scanning user row dsn=" + leakDSN + " token=abc123")
+	createBoom := errors.New("pg: insert member failed: " + leakDSN + " token=create-token")
+	updateBoom := errors.New("tx: update role failed dsn=" + leakDSN + " token=update-token")
+	removeBoom := errors.New("db: delete member failed: " + leakDSN + " token=delete-token")
+
+	postCompanyID, postTargetID := uuid.New(), uuid.New()
+	postBody := `{"user_id":"` + postTargetID.String() + `","role":"recruiter"}`
+	patchCompanyID, patchMemberID := uuid.New(), uuid.New()
+	patchBody := `{"role":"owner"}`
+	deleteCompanyID, deleteMemberID := uuid.New(), uuid.New()
+
+	cases := []struct {
+		name       string
+		method     string
+		path       string
+		body       string
+		mRepo      *stubMemberRepositoryForHandler
+		uRepo      *stubUserRepositoryForHandler
+		companyID  uuid.UUID
+		auxMsg     string
+		wantRoute  string // matched chi route TEMPLATE; the raw URL must never be logged
+		wantByID   int    // exact repository call counters per failure site
+		wantCreate int
+		wantUpdate int
+		wantRemove int
+		// writeCompanyID: the failed write repository must have received the
+		// injected CompanyContext ID (never a body or sub-derived value).
+		writeCompanyID bool
+		forbidden      []string // must not appear in any captured log byte
+	}{
+		{
+			name:      "add member: unexpected user lookup error",
+			method:    http.MethodPost,
+			path:      "/me/company/members",
+			body:      postBody,
+			mRepo:     &stubMemberRepositoryForHandler{},
+			uRepo:     &stubUserRepositoryForHandler{byIDErr: lookupBoom},
+			companyID: postCompanyID,
+			auxMsg:    "add member failed",
+			wantRoute: "/me/company/members",
+			wantByID:  1,
+			forbidden: []string{lookupBoom.Error(), leakDSN, "token=abc123", postCompanyID.String(), postTargetID.String(), postBody},
+		},
+		{
+			name:           "add member: unexpected create error",
+			method:         http.MethodPost,
+			path:           "/me/company/members",
+			body:           postBody,
+			mRepo:          &stubMemberRepositoryForHandler{createErr: createBoom},
+			uRepo:          &stubUserRepositoryForHandler{},
+			companyID:      postCompanyID,
+			auxMsg:         "add member failed",
+			wantRoute:      "/me/company/members",
+			wantByID:       1,
+			wantCreate:     1,
+			writeCompanyID: true,
+			forbidden:      []string{createBoom.Error(), leakDSN, "token=create-token", postCompanyID.String(), postTargetID.String(), postBody},
+		},
+		{
+			name:           "update member role: unexpected service error",
+			method:         http.MethodPatch,
+			path:           "/me/company/members/" + patchMemberID.String(),
+			body:           patchBody,
+			mRepo:          &stubMemberRepositoryForHandler{updateErr: updateBoom},
+			uRepo:          &stubUserRepositoryForHandler{},
+			companyID:      patchCompanyID,
+			auxMsg:         "update member role failed",
+			wantRoute:      "/me/company/members/{id}",
+			wantUpdate:     1,
+			writeCompanyID: true,
+			forbidden:      []string{updateBoom.Error(), leakDSN, "token=update-token", patchCompanyID.String(), patchMemberID.String(), "/me/company/members/" + patchMemberID.String(), patchBody},
+		},
+		{
+			name:           "remove member: unexpected service error",
+			method:         http.MethodDelete,
+			path:           "/me/company/members/" + deleteMemberID.String(),
+			mRepo:          &stubMemberRepositoryForHandler{removeErr: removeBoom},
+			uRepo:          &stubUserRepositoryForHandler{},
+			companyID:      deleteCompanyID,
+			auxMsg:         "remove member failed",
+			wantRoute:      "/me/company/members/{id}",
+			wantRemove:     1,
+			writeCompanyID: true,
+			forbidden:      []string{removeBoom.Error(), leakDSN, "token=delete-token", deleteCompanyID.String(), deleteMemberID.String(), "/me/company/members/" + deleteMemberID.String()},
+		},
 	}
-	logOut := logBuf.String()
-	if !strings.Contains(logOut, "serializable conflict") {
-		t.Errorf("injected detail must appear in slog; got: %s", logOut)
-	}
-	if mRepo.createCalls == 0 {
-		t.Errorf("Create must be called")
-	}
-	if mRepo.updateCalls > 0 || mRepo.removeCalls > 0 {
-		t.Errorf("no unintended writes: update=%d remove=%d", mRepo.updateCalls, mRepo.removeCalls)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			logBuf := captureCompanySlog(t)
+			svc := newMemberHandlerService(tc.mRepo, tc.uRepo, &stubMemberCompanyRepositoryForHandler{})
+			h := NewMemberHandler(svc)
+
+			// Production-faithful chain: chi RequestID → runtime
+			// RequestObservability → CompanyContext → MemberHandlers adapters.
+			r := chi.NewRouter()
+			r.Use(chimw.RequestID)
+			r.Use(rtmiddleware.RequestObservability(slog.New(slog.NewJSONHandler(logBuf, nil)), nil))
+			cc := identitysecurity.CompanyContext{CompanyID: tc.companyID, Role: valueobjects.OwnerRole}
+			r.Use(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					next.ServeHTTP(w, req.WithContext(identitysecurity.ContextWithCompanyContext(req.Context(), cc)))
+				})
+			})
+			hh := h.MemberHandlers()
+			r.Post("/me/company/members", hh.AddMember)
+			r.Patch("/me/company/members/{id}", hh.UpdateMemberRole)
+			r.Delete("/me/company/members/{id}", hh.RemoveMember)
+
+			req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))
+			req.Header.Set("X-Request-Id", fixedRequestID)
+			if tc.body != "" {
+				req.Header.Set("Content-Type", "application/json")
+			}
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+
+			// Wire contract unchanged: generic 500 + catalog internal_error.
+			memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
+
+			// Exactly one auxiliary record + one completion record.
+			records := decodeCompanySlogRecords(t, logBuf)
+			if len(records) != 2 {
+				t.Fatalf("slog records = %d (%s), want exactly 2 (auxiliary + completion)", len(records), companyMsgList(records))
+			}
+
+			checkFields := func(rec map[string]any, want map[string]any) {
+				for k, v := range want {
+					if got := rec[k]; got != v {
+						t.Errorf("%q = %v (%T), want %v", k, got, got, v)
+					}
+				}
+			}
+
+			// Auxiliary record: closed bounded key set, request-correlated.
+			aux := companyRecordByMsg(t, records, tc.auxMsg)
+			for k := range aux {
+				if !companyAuxAllowedKeys[k] {
+					t.Errorf("auxiliary record has unbounded key %q (record %v)", k, aux)
+				}
+			}
+			for k := range companyAuxAllowedKeys {
+				if _, ok := aux[k]; !ok {
+					t.Errorf("auxiliary record missing bounded key %q (record %v)", k, aux)
+				}
+			}
+			checkFields(aux, map[string]any{
+				"request_id": fixedRequestID, "method": tc.method,
+				"path": tc.wantRoute, "code_class": string(httpjson.CodeInternalError),
+			})
+
+			// Completion record: same request ID, route template, 500, internal_error.
+			comp := companyRecordByMsg(t, records, completionMsg)
+			checkFields(comp, map[string]any{
+				"request_id": fixedRequestID, "path": tc.wantRoute,
+				"status": float64(http.StatusInternalServerError), "code_class": string(httpjson.CodeInternalError),
+			})
+
+			// Redaction across every captured log byte.
+			for _, s := range tc.forbidden {
+				if strings.Contains(logBuf.String(), s) {
+					t.Errorf("captured logs MUST NOT contain %q; logs=%s", s, logBuf.String())
+				}
+			}
+
+			// Guards preserved from the retired raw-detail tests.
+			if tc.uRepo.getCalls != 0 {
+				t.Errorf("userRepo.GetByCognitoSub must NOT be called on gated write paths, got %d", tc.uRepo.getCalls)
+			}
+			if tc.uRepo.byIDCalls != tc.wantByID || tc.mRepo.createCalls != tc.wantCreate ||
+				tc.mRepo.updateCalls != tc.wantUpdate || tc.mRepo.removeCalls != tc.wantRemove {
+				t.Errorf("repo calls: byID=%d create=%d update=%d remove=%d, want byID=%d create=%d update=%d remove=%d",
+					tc.uRepo.byIDCalls, tc.mRepo.createCalls, tc.mRepo.updateCalls, tc.mRepo.removeCalls,
+					tc.wantByID, tc.wantCreate, tc.wantUpdate, tc.wantRemove)
+			}
+			if tc.writeCompanyID {
+				got := map[string]uuid.UUID{
+					http.MethodPost:   tc.mRepo.lastCreateCompanyID,
+					http.MethodPatch:  tc.mRepo.lastUpdateCompanyID,
+					http.MethodDelete: tc.mRepo.lastRemoveCompanyID,
+				}[tc.method]
+				if got != tc.companyID {
+					t.Errorf("write repo company_id = %v, want the injected CompanyContext ID %v", got, tc.companyID)
+				}
+			}
+		})
 	}
 }
 
@@ -1176,36 +1335,6 @@ func TestUpdateMemberRole_MalformedJSONBody(t *testing.T) {
 	assertErrorMessage(t, rec, "invalid JSON body")
 }
 
-// * Unexpected UpdateRole error → 500; user repo not called.
-func TestUpdateMemberRole_UnexpectedServiceError(t *testing.T) {
-	var logBuf bytes.Buffer
-	captureSlog(t, &logBuf)
-	companyID := uuid.New()
-	mRepo := &stubMemberRepositoryForHandler{updateErr: errors.New("tx: rollback failed")}
-	uRepo := &stubUserRepositoryForHandler{}
-	svc := newMemberHandlerService(mRepo, uRepo, &stubMemberCompanyRepositoryForHandler{})
-	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
-	rec := doReq(t, router, http.MethodPatch, "/me/company/members/"+uuid.New().String(), `{"role":"owner"}`)
-	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
-	body := rec.Body.String()
-	if strings.Contains(body, "rollback") || strings.Contains(body, "tx:") {
-		t.Errorf("injected detail must not appear in wire: %s", body)
-	}
-	logOut := logBuf.String()
-	if !strings.Contains(logOut, "rollback failed") {
-		t.Errorf("injected detail must appear in slog; got: %s", logOut)
-	}
-	if mRepo.updateCalls == 0 {
-		t.Errorf("UpdateRole must be called")
-	}
-	if uRepo.getCalls > 0 {
-		t.Errorf("userRepo.GetByCognitoSub must NOT be called on gated path: got %d", uRepo.getCalls)
-	}
-	if mRepo.createCalls != 0 || mRepo.removeCalls != 0 {
-		t.Errorf("unrelated writes: create=%d remove=%d", mRepo.createCalls, mRepo.removeCalls)
-	}
-}
-
 // --- DELETE /me/company/members/{id} (gated) ---
 
 // * Missing CompanyContext → 500.
@@ -1238,36 +1367,6 @@ func TestRemoveMember_MemberNotFound(t *testing.T) {
 	rec := doReq(t, router, http.MethodDelete, "/me/company/members/"+uuid.New().String(), "")
 	memberAssertCatalogEnvelope(t, rec, http.StatusNotFound, httpjson.CodeNotFound)
 	assertErrorMessage(t, rec, "company member not found")
-}
-
-// * Unexpected Remove error → 500; user repo not called; Create/Update untouched.
-func TestRemoveMember_UnexpectedRemoveError(t *testing.T) {
-	var logBuf bytes.Buffer
-	captureSlog(t, &logBuf)
-	companyID := uuid.New()
-	mRepo := &stubMemberRepositoryForHandler{removeErr: errors.New("db: lock not acquired")}
-	uRepo := &stubUserRepositoryForHandler{}
-	svc := newMemberHandlerService(mRepo, uRepo, &stubMemberCompanyRepositoryForHandler{})
-	router := newMemberRouter(t, svc, "", identitysecurity.CompanyContext{CompanyID: companyID, Role: valueobjects.OwnerRole})
-	rec := doReq(t, router, http.MethodDelete, "/me/company/members/"+uuid.New().String(), "")
-	memberAssertCatalogEnvelope(t, rec, http.StatusInternalServerError, httpjson.CodeInternalError)
-	body := rec.Body.String()
-	if strings.Contains(body, "lock") || strings.Contains(body, "db:") {
-		t.Errorf("injected detail must not appear in wire: %s", body)
-	}
-	logOut := logBuf.String()
-	if !strings.Contains(logOut, "lock not acquired") {
-		t.Errorf("injected detail must appear in slog; got: %s", logOut)
-	}
-	if mRepo.removeCalls == 0 {
-		t.Errorf("Remove must be called")
-	}
-	if mRepo.createCalls > 0 || mRepo.updateCalls > 0 {
-		t.Errorf("no unintended writes: create=%d update=%d", mRepo.createCalls, mRepo.updateCalls)
-	}
-	if uRepo.getCalls > 0 {
-		t.Errorf("userRepo.GetByCognitoSub must NOT be called on gated path: got %d", uRepo.getCalls)
-	}
 }
 
 // --- Wire triangulation: same code, different safe messages ---

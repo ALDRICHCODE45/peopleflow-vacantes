@@ -30,7 +30,6 @@ package http
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/dtos"
@@ -289,7 +288,7 @@ func (h *MemberHandler) addMember(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		def := classifyMemberError(err)
 		if def.Code == httpjson.CodeInternalError {
-			slog.Error("add member failed", "error", err)
+			logCompanyInternalError(r, "add member failed")
 		}
 		httpjson.WriteCatalogError(w, def)
 		return
@@ -330,7 +329,7 @@ func (h *MemberHandler) updateMemberRole(w http.ResponseWriter, r *http.Request)
 	}); err != nil {
 		def := classifyMemberError(err)
 		if def.Code == httpjson.CodeInternalError {
-			slog.Error("update member role failed", "error", err)
+			logCompanyInternalError(r, "update member role failed")
 		}
 		httpjson.WriteCatalogError(w, def)
 		return
@@ -359,7 +358,7 @@ func (h *MemberHandler) removeMember(w http.ResponseWriter, r *http.Request) {
 	if err := h.service.RemoveMember(r.Context(), cc.CompanyID, memberID); err != nil {
 		def := classifyMemberError(err)
 		if def.Code == httpjson.CodeInternalError {
-			slog.Error("remove member failed", "error", err)
+			logCompanyInternalError(r, "remove member failed")
 		}
 		httpjson.WriteCatalogError(w, def)
 		return
