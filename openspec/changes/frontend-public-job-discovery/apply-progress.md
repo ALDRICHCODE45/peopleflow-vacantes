@@ -1477,3 +1477,69 @@ Task 3.4's checkbox remains `- [ ]` per dispatch instruction (closes only when t
 - Focused: `corepack pnpm exec playwright test tests/e2e/vacantes.spec.ts --project=chromium --workers=1 --grep 'resets the cursor on filter submission'` → 1 selected (nonzero), 1 passed / 0 failed, exit 0. Full: `corepack pnpm test:e2e --project=chromium --workers=1` → 38 selected (nonzero), 38 passed / 0 failed / 0 skipped (13 root + 17 vacantes + 8 a11y), exit 0; no flake observed in either run (the earlier one-off `root.spec.ts` dark-desktop transient did not reproduce).
 - Cleanup: only the owned `setsid` process groups (fixture PGID 3931869, next PGID 3937585) received TERM; no `jobs-server`/`next-server` processes remain, ports 3000/4010 re-verified free, `test-results/` removed; logs at `/tmp/finalbyte-g93/`.
 - Post-run hash proof: both source SHA-256 values re-verified byte-identical after all commands and cleanup, unchanged from the supplied values above; `git diff --check` clean; Task 4.3 stays open (`- [ ]`), `tasks.md` untouched; no stage, commit, push, PR, review, archive, or delivery action; no token acquired or persisted. Rollback scope unchanged from the two slices above.
+
+### Task 4.4 REFACTOR — server-first list boundaries preserved, demonstrated duplication removed (work unit `task-4-4-refactor`, Task 4.4 remains `[ ]`)
+
+Objective honored exactly: refactor list components and route composition for server-first boundaries with the client island limited to ephemeral pending/navigation state, FieldGroup/Field and resolved Base UI APIs, the mobile `<768px` fallback, and unique IDs — removing only demonstrated duplication, with no subjective visual polishing and no churn beyond the smallest justified changes. Baseline: branch `feat/frontend-foundation`, HEAD `0624d452ddc986189ba7ec2628760f6ee6578f17`, exactly the eight accepted unstaged visual-refinement files (169+/28−) present and preserved byte-for-byte throughout.
+
+#### Boundary audit (verified by source inspection; no change needed — already satisfied)
+
+- `page.tsx`: Server Component, `runtime = "nodejs"`, `dynamic = "force-dynamic"`; canonical redirect via `isCanonicalJobsQuery`/`redirect` thrown before any query client exists; fresh request-scoped `QueryClient` + one `fetchQuery(listJobsQueryOptions(query))`; validated result rendered directly. No `QueryClientProvider`, no `HydrationBoundary`, no dehydration, no client cache, no browser fetch, no Zustand.
+- `JobsResults.tsx`: thin Server Component rendering the validated `RequestJsonResult` union (`Awaited<ReturnType<typeof listJobs>>`, no transport import); success `<ul>`, empty state with reset link, `role="alert"` retry state; optional fields omitted only when absent.
+- `JobsNavigationIsland.tsx`: `"use client"` island owning only pending navigation state (submitter disable + `aria-busy` on the marked next link + `role=status aria-live=polite` announcement) and Sheet open state; zero job data, zero client query cache, zero durable filter state; commits route exclusively through feature `buildFilterCommitUrl`; URL parameters own filters and cursor.
+- FieldGroup/Field + resolved Base UI APIs in both filter forms; `SelectItem` inside `SelectGroup`; titled mobile Sheet; desktop form `hidden md:flex` / Sheet trigger `md:hidden` (mobile fallback below 768px); unique IDs via `idPrefix` (`desktop-`/`mobile-`) plus `jobs-search`/`jobs-location`.
+- Unsupported UI: none found — every control (hero, quick chips, search surface, scalar filters, empty/error states, next link) is asserted by committed unit tests, `vacantes.spec.ts`, or `vacantes-a11y.spec.ts`; no invented fields, totals, sorting, multi-select, apply/auth, charts, or employer menus.
+
+#### Demonstrated duplication removed (the only production edits)
+
+1. `frontend/src/app/(public)/vacantes/page.tsx` (2+/5− vs HEAD): `buildJobsUrl(query)` was computed twice for the identical value (`key` and `routeKey` of the island); hoisted into a single `routeKey` const used by both. Behavior-identical.
+2. `frontend/src/features/jobs/components/JobsNavigationIsland.tsx` (delta beyond the accepted refinement ≈ 49+/31−; file now 527 lines): the two composed search-field wrappers (`q` and `location`) were byte-identical ~20-line blocks differing only in icon/id/label/name/defaultValue/placeholder; extracted into one local `ComposedSearchField` component. The accepted visual-refinement bytes are preserved verbatim inside the component (`data-jobs-composed-field` marker, `focus-within:border-primary`, the inner Input's full `shadow-none`/transparent class list, sr-only label, size-4 muted icon); the composed-field explanation sentences moved from the form comment into the component doc. DOM output is identical; no className, role, id, or label change.
+
+- Deliberately not touched: `JobsResults.tsx` (already minimal; its accepted visual refinement is untouched — SHA-256 `005e8e266fa50fc8876fd4868ec47a9195041c0927dd7b94751d94a4bb301f48` before and after), `error.tsx` (outside allowed surfaces), the desktop/mobile button pairs (contextually distinct, asserted), and all visuals.
+
+#### Strict TDD note
+
+Behavior-preserving REFACTOR: the already-green committed behavioral suites were preserved untouched and re-run; no speculative behavior or RED was manufactured. `page.test.tsx` byte-identical before/after (`10d0574032a4ae9f465d8b110dad8d72146fb6bc0e0b2158131a7dd6ce06bb52`).
+
+#### Verification evidence (Node `v22.22.1` via nvm PATH, Corepack pnpm `10.34.5`, `COREPACK_ENABLE_NETWORK=0`, from `frontend/`)
+
+| Gate | Exact command | Result |
+| --- | --- | --- |
+| Baseline unit suite (pre-edit) | `corepack pnpm test` | 16 files / 91 tests passed |
+| Full unit suite incl. preset/configuration assertions (post-edit) | `corepack pnpm test` | exit 0; 16 files / 91 tests passed (includes `page.test.tsx` 10/10 island composition + pending navigation, `preset-identity.test.ts`, `globals.css.test.ts`) |
+| Typecheck | `corepack pnpm typecheck` | pass, no diagnostics |
+| Lint | `corepack pnpm lint` | pass, no errors/warnings |
+| API-offline production build (fixture offline) | `rm -rf .next && PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:9 PEOPLEFLOW_SITE_URL=http://127.0.0.1:3000 corepack pnpm build` | pass; `/` 176 B, `/_not-found`, `/vacantes` ƒ dynamic 72.7 kB First Load 193 kB — server-rendered on demand, no API/fixture process available |
+| List E2E (browser gate) | fixture `JOBS_FIXTURE_PORT=4010 node tests/fixtures/jobs-server.mjs` + production `next start` on 127.0.0.1:3100 (`NODE_ENV=development` loopback exception + `PEOPLEFLOW_API_TIMEOUT_MS=1000` so the fixture's 1500 ms timeout delay exceeds the API timeout, both documented harness settings) via a throwaway `/tmp` Playwright config (baseURL 3100; port 3000 occupied by the unrelated `houndfe-backend` PID 947183, not owned, untouched); committed spec bytes preserved — a `/tmp` copy differing only in the `appUrl` port ran | `vacantes.spec.ts`: 23 passed / 0 failed (canonical redirect with zero fixture requests, filters, cursor reset/preservation, final-page omission, empty/reset, 5xx/schema/timeout recovery, pending isolation, mobile Sheet, metadata omission) |
+| Accessibility E2E (same owned servers) | `playwright test tests/e2e/vacantes-a11y.spec.ts --config /tmp/task44-pw-repo.config.ts --project=chromium --workers=1` | 11 passed / 0 failed (axe WCAG A/AA matrix light/dark × desktop/mobile, Sheet a11y, focus visibility, token fidelity, reduced motion) |
+| Whitespace gate | `git diff --check` | exit 0, clean |
+| Protected-state integrity | `sha256sum` pre/post | all six other accepted-dirty files + `vacantes.spec.ts` + `page.test.tsx` + `JobsResults.tsx` + `tasks.md` byte-identical before/after (hashes listed above); only `page.tsx` (`0bcbbe27…` → `1a81805b…`) and `JobsNavigationIsland.tsx` (`abbad837…` → `87f5c578…`) changed |
+| Scope | `git status --porcelain` | exactly the eight accepted-dirty files plus `page.tsx` (this unit); nothing untracked, index empty; no stage/commit/push/PR |
+
+#### Process/port cleanup evidence
+
+- Owned fixture (PID 1998092) and owned `next start` (initial PID 1998093, restarted with the documented timeout setting as PID 2022471) received TERM against their process groups; verified gone via `pgrep` (no `jobs-server`, no owned `next-server`).
+- Ports 3100 and 4010 re-verified free via `ss -ltn`. Port 3000 remains bound by the pre-existing unrelated `houndfe-backend` process (PID 947183, different project) — observed, not owned, not killed.
+- Throwaway artifacts removed: `/tmp/task44-e2e/`, both `/tmp/task44-pw*.config.ts` files, `/tmp/task44-gate/` logs, and `frontend/test-results/`.
+
+#### Changed-line accounting
+
+Task 4.4 authored production delta: `page.tsx` 2+/5− = 7 changed lines + island extraction ≈ 49+/31− = 80 changed lines (attributed within the island's 64+/36− total vs HEAD, the remainder being the accepted visual refinement) ≈ **87 changed lines**, far below the 400-line budget. `apply-progress.md` is administrative evidence, excluded.
+
+#### Task state
+
+Task 4.4 is **implementation-complete but intentionally left `- [ ]`** in `tasks.md` (SHA-256 `2b0e370fb6ee4db6eab1e8050b2a93f65edaae8bf51399a8d8757bed2d1ea521`, byte-untouched): per the candidate-and-commit accounting contract, the checkbox closes only when the separately authorized implementation commit lands. Task 5.1 was not started and `/vacantes/[jobId]` was not created. No stage, commit, push, PR, review invocation, or native attempt acquire/settle occurred in this work unit.
+
+#### Rollback boundary
+
+`git checkout -- frontend/src/app/(public)/vacantes/page.tsx` and `git checkout -- frontend/src/features/jobs/components/JobsNavigationIsland.tsx` would lose the accepted visual refinement on the island (it shares the file); the precise reverse of this unit is: revert `page.tsx` to blob `0bcbbe27…` state (restore the duplicate `buildJobsUrl(query)` calls) and re-inline the two composed-field blocks from `ComposedSearchField` while keeping the accepted refinement classes. No other file participates.
+
+### Task 4.4 closure — complete (work unit `task-4.4-closure`, documentation-only)
+
+- Pre-append prefix proof: the entire pre-append bytes of this file (1,535 lines) were hashed at SHA-256 `1d209e75bfd1c6ec268790b4dac655c68635a05daa7b6335b2f69ff79b088f44` immediately before this append; every prior byte, including the full Task 4.4 REFACTOR evidence section above, is preserved unchanged.
+- Implementation commit: `084a37536303a8e919fc9a871fd545a4810f9d73` (`refactor(frontend): stabilize vacancy discovery experience`) landed on `feat/frontend-foundation`. Exact scope: 9 frontend files, 220 insertions / 64 deletions = 284 changed lines, below the 400-line review budget.
+- Verification: already recorded in the Task 4.4 REFACTOR evidence section above and not rerun (this closure is documentation-only): 91/91 unit tests including preset/configuration assertions, typecheck, lint, API-offline build, vacantes E2E 23/23, a11y 11/11, fixture-offline checks, cleanup, and diff check all passed.
+- Native review lineage `review-6cdcc4ce17b41c3a` approved and was acknowledged for target `sha256:29b1502d7715c86a2d6ec59717aa95381a2250843b0cd4fb0e46fd631edc5ae6`.
+- Task state: the Task 4.4 checkbox in `tasks.md` is now `- [x]` (13/22 tasks complete). Task 5.1 remains `- [ ]`, was not started, and `/vacantes/[jobId]` does not exist.
+- Rollback: `git revert 084a375` removes only this implementation commit's 9-file scope.
+- No push and no PR were performed. Nothing was staged by this work unit; the parent owns the authorized documentation commit.
