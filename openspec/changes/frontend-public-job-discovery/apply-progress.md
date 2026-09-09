@@ -1551,3 +1551,12 @@ Task 4.4 is **implementation-complete but intentionally left `- [ ]`** in `tasks
 - Intentional RED (by design, not a defect): focused Vitest and Playwright fail only because the Task 5.2 production modules/routes (`[jobId]/page.tsx`, detail components) are absent; malformed UUID scenarios record zero fixture requests before the short-circuit, and static checks (typecheck, lint, diff check) are clean except the intentional missing-module type/LSP diagnostic.
 - Native review lineage `review-b2490ac157b6346b` was approved and acknowledged after correcting the newline assertion; no attempt token was acquired or settled by this executor (parent-owned).
 - Task state: the Task 5.1 checkbox in `tasks.md` is now `- [x]`; Task 5.2 remains `- [ ]`, unstarted, and `/vacantes/[jobId]` production routes do not exist. No push and no PR; nothing staged or committed by this closure. Rollback: revert `6767d0c` to remove only the RED test/fixture scope, and revert the closure commit to reopen Task 5.1.
+
+## Final closure — Task 5.2 GREEN complete
+
+- Implementation commit `4aaf17b` landed on `feat/frontend-foundation`. Exact committed scope: 7 files, 355 insertions + 3 deletions = 358 changed lines — five new detail production files (`[jobId]/error.tsx`, `not-found.tsx`, `page-data.ts`, `page.tsx`, `JobDetailView.tsx`) plus two minimal Next.js `Link` gate corrections in `frontend/src/app/(public)/vacantes/page.test.tsx` and `frontend/src/features/jobs/components/JobsNavigationIsland.tsx`.
+- GREEN evidence: focused Vitest 14/14 passed; full unit suite 99/99 passed; `tsc --noEmit` typecheck passed; standard `eslint` lint passed; API-offline production build passed; detail E2E 8/8 passed; list regression E2E 23/23 passed; primary LSP diagnostics clean (zero diagnostics on all committed detail files); all `next-server`/`vitest` processes terminated; ports 3000/4010 verified free.
+- Native review `review-108c0cafd38f4884` approved and acknowledged; informational advisory `R3-detail-route-coverage` did not open a correction and does not reopen work.
+- Task state: the Task 5.2 checkbox in `tasks.md` is now `- [x]` (14/22 tasks complete). Task 5.3 remains `- [ ]`, unstarted, and `/vacantes/[jobId]` TRIANGULATE has not begun.
+- Rollback: `git revert 4aaf17b` removes only the seven-file detail candidate.
+- No push and no PR; nothing staged or committed by this closure; the parent owns the authorized documentation commit.
