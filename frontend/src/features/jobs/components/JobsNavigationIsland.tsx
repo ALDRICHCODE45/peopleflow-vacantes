@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MapPinIcon, SearchIcon } from "lucide-react";
 
@@ -254,7 +255,7 @@ export function JobsNavigationIsland({
             </FieldGroup>
             <div className="flex flex-col gap-2">
               <Button type="submit">Aplicar filtros</Button>
-              <Button render={<a href="/vacantes" />} variant="ghost">
+              <Button render={<Link href="/vacantes" />} variant="ghost">
                 Limpiar filtros
               </Button>
             </div>
@@ -289,7 +290,7 @@ export function JobsNavigationIsland({
               <FilterFields idPrefix="mobile-" query={query} />
             </FieldGroup>
             <Button type="submit">Aplicar filtros</Button>
-            <Button render={<a href="/vacantes" />} variant="ghost">
+            <Button render={<Link href="/vacantes" />} variant="ghost">
               Limpiar filtros
             </Button>
           </form>

@@ -10,6 +10,7 @@ import {
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import Link from "next/link";
 
 import type { JobsQuery } from "../../../features/jobs/url";
 
@@ -57,7 +58,7 @@ function NavigationFixture({
       <form action="/vacantes?currency=USD">
         <button>Aplicar filtros</button>
       </form>
-      <a href="/vacantes?cursor=opaque">Ver más vacantes</a>
+      <Link href="/vacantes?cursor=opaque">Ver más vacantes</Link>
     </Island>
   );
 }
