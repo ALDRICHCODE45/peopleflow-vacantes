@@ -73,8 +73,26 @@ describe("root layout", () => {
     expect(layoutSource).not.toMatch(/fetch\(/);
   });
 
-  it("loads Inter through next/font for heading and body roles", () => {
+  it("loads Inter through next/font for the body role", () => {
     expect(layoutSource).toMatch(/next\/font\/google/);
     expect(layoutSource).toMatch(/\bInter\b/);
+  });
+
+  it("loads Clash Display through the licensed Fontshare stylesheet with preconnects", () => {
+    // Fontshare's license requires hosted delivery: a global stylesheet link
+    // (never a CSS @import and never self-hosted font files), with preconnects
+    // for both the CSS API and the font CDN.
+    expect(layoutSource).toContain(
+      "https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap",
+    );
+    // Whitespace/format-tolerant preconnect assertions: both Fontshare
+    // origins must be preconnected, regardless of JSX attribute wrapping.
+    expect(layoutSource).toMatch(
+      /rel="preconnect"\s+href="https:\/\/api\.fontshare\.com"/,
+    );
+    expect(layoutSource).toMatch(
+      /rel="preconnect"\s+href="https:\/\/cdn\.fontshare\.com"/,
+    );
+    expect(layoutSource).not.toMatch(/@import/i);
   });
 });

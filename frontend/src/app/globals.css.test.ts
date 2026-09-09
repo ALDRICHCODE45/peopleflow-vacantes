@@ -49,8 +49,9 @@ describe("globals.css foundation tokens", () => {
     expect(css).toContain("outline-ring");
   });
 
-  it("applies Inter typography to headings and body", () => {
-    expect(css).toContain("--font-heading: var(--font-sans)");
+  it("applies Inter to the body and Clash Display to headings with an Inter fallback", () => {
+    expect(css).toContain('--font-heading: "Clash Display", var(--font-sans)');
+    expect(css).toContain("--font-sans: var(--font-sans)");
     expect(css).toMatch(/html\s*{\s*@apply font-sans/);
   });
 });
