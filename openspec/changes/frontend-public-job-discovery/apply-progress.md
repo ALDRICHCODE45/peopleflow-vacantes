@@ -1656,3 +1656,16 @@ Task 4.4 is **implementation-complete but intentionally left `- [ ]`** in `tasks
 - Task state: Task 6.2 is now `- [x]` (19/22 tasks complete). Task 6.3 (TRIANGULATE), Task 6.4 (REFACTOR), and Task 7.x remain untouched; their checkboxes are `- [ ]`.
 - Rollback: `git revert 9251079` removes only this test harness implementation; revert the later documentation closure commit to reopen Task 6.2.
 - No push and no PR.
+
+## Final closure — Task 6.3 TRIANGULATE complete
+
+- Pre-append state: 1,658 lines; SHA-256 `ef6fdaa562a9568687e7685761c81b33024f3a76fc20f8d14616f24fe4da477b`.
+- Evidence commit: `4aa85cfe580f99465bfe75b792ac243083999f98`; artifact `task-6-3-evidence.md`, `sha256:86d39b99625d6b5050d4b5adff546c45001cc342bad9e21a0eb64fda3896ac26`.
+- Offline toolchain: Node `v22.22.1`, Corepack `0.34.6`, pnpm `10.34.5`, cached packages only.
+- Gates passed: frozen install; preset decode/resolve/info; typecheck; lint; unit 99/99; E2E 68/68; a11y 16/16; final API-offline build.
+- Browser topology: fixture PGID `3485361` on `4010` (`/__health` → `{"ok":true}`); production `next start` PGID `3490757` on `3100`; both stayed healthy through browser gates.
+- Build identity: `BUILD_ID` `9OI_6F2JUgNgOlbGFSfmu`; output digest `88ff9ef38155afca46494122eaa040f6d684798e94b72b1d3315c051a89e4567`.
+- Blocking assertions passed: exact preset/Base UI/no-drift, semantic Violet/Neutral, Default radius, both schemes, and no charts, employer menus, build-time API fetch, backend, or shared-config changes.
+- Native evidence completion/remediation completed; RDD `review-903a6cd6617956bf` approved and acknowledged for target `sha256:ae1f2c8421a0f7f2f9c73897294a7eb54bbd75fd7785be2577b9a9800d075995`, consuming revision `sha256:bfaab62d720556563eaadf806e340a11ec3e689a7248b6085589f62c3044ac7e`.
+- Cleanup released ports `3000`/`3100`/`4010`; no product changes; rollback reverts only this OpenSpec closure; no push or PR.
+- State: 20/22 complete; Task 6.4 is next and Task 7.x remains unchecked.

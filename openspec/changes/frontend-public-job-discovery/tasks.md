@@ -134,7 +134,7 @@ Tasks 3.2, 3.3, 3.4, 4.2, 4.4, and 5.2 below carry the corresponding wording. `s
 
 ### 6.3 TRIANGULATE — execute complete local quality gates
 
-- [ ] Run from `frontend/` the complete sequence: `corepack pnpm install --frozen-lockfile`, `pnpm dlx shadcn@latest preset decode b27M1Ev2`, `pnpm dlx shadcn@latest preset resolve --json`, `pnpm dlx shadcn@latest info --json`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`, `pnpm test:a11y`, and `pnpm build`. Confirm preset identity/value, explicit Base UI, Tailwind v4, Lucide, Inter, aliases/resolved UI path, semantic Violet/Neutral styling, Default radius, both schemes, and no ad hoc overrides are blocking assertions; confirm no build-time API fetch, no charts, no employer menus, no backend/shared-config changes, and record generated snapshot identity plus each slice/work-unit line count. <!-- sdd-owner: implementation -->
+- [x] Run from `frontend/` the complete sequence: `corepack pnpm install --frozen-lockfile`, `pnpm dlx shadcn@latest preset decode b27M1Ev2`, `pnpm dlx shadcn@latest preset resolve --json`, `pnpm dlx shadcn@latest info --json`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, `pnpm test:e2e`, `pnpm test:a11y`, and `pnpm build`. Confirm preset identity/value, explicit Base UI, Tailwind v4, Lucide, Inter, aliases/resolved UI path, semantic Violet/Neutral styling, Default radius, both schemes, and no ad hoc overrides are blocking assertions; confirm no build-time API fetch, no charts, no employer menus, no backend/shared-config changes, and record generated snapshot identity plus each slice/work-unit line count. <!-- sdd-owner: implementation -->
 
 ### 6.4 REFACTOR — final bounded hardening and evidence
 
