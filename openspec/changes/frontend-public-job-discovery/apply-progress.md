@@ -1600,3 +1600,59 @@ Task 4.4 is **implementation-complete but intentionally left `- [ ]`** in `tasks
 - Rollback: `git revert 8614e04`; Task 6.2 remains the next ordered task.
 - Task state: Task 6.1 is now `- [x]` (18/22 tasks complete). Task 6.2 remains `- [ ]` and is the next ordered task; it is NOT implemented and the USD profile is NOT green in this closure.
 - No stage or commit was performed by this documentation-only closure; the parent owns the authorized documentation commit.
+
+## Final closure — Task 6.2 GREEN complete
+
+- Implementation commit `9251079968cacc9ac56ad059c7286d8fb1a3b54f` (`test(frontend): complete public jobs browser harness`) landed on `feat/frontend-foundation`; Task 6.2 checkbox in `tasks.md` is now `- [x]`. No push was made and no PR was created.
+
+### Pre-append prefix proof
+
+- Pre-append base bytes: `git show HEAD:openspec/changes/frontend-public-job-discovery/apply-progress.md`
+- Line count: 1,602 lines
+- Byte count: 314,938 bytes
+- SHA-256: `7d588bd73524f51df686621c36c84e890b7af43eb7530140d7b930e6c5277f80`
+- `prefix_preserved: true` — this section appends after byte 314,938 without altering any prior byte.
+
+### Commit identity and line accounting
+
+- Exact committed scope: five test-only files, **45 insertions / 24 deletions = 69 changed lines**:
+  - `frontend/playwright.config.ts`
+  - `frontend/tests/e2e/cross-cutting.spec.ts`
+  - `frontend/tests/e2e/root.spec.ts`
+  - `frontend/tests/e2e/vacantes.spec.ts`
+  - `frontend/tests/fixtures/jobs-server.mjs`
+- Toolchain: Node `22.23.2`, Corepack `0.34.6`, pnpm `10.34.5`, Next `15.5.25`, Vitest `3.2.7`.
+
+### Final gate results (all pass, zero failed/skipped/not-run)
+
+| Gate | Result |
+| ---- | ------ |
+| Typecheck | Pass |
+| Lint | Pass |
+| Unit | 99/99 across 18 files |
+| API-offline build | Pass |
+| Dark-desktop logo stabilization | 5/5 |
+| Focused USD profile | 1/1 |
+| Cross-cutting E2E | 4/4 |
+| Full E2E | 68/68 |
+| Accessibility/reduced-motion | 16/16 |
+
+### Server topology
+
+- Fixture `/__health` served on port 4010
+- Built `next start --port 3100` (never `next dev`)
+- `PEOPLEFLOW_API_TIMEOUT_MS=1000`
+- Owned PGIDs 2086566 and 2086831 terminated after verification
+- Final ports 3000/3100/4010 verified free
+
+### Evidence and RDD
+
+- Native generation 115 final evidence: `sha256:d3e4b489b481a4540fcb0b3c0a913e62d0cb1c5e2ba9d6b863e396918c4a857d`
+- Remediated failed evidence: `sha256:95687b1262366018874d4a7f7c4ae135bcbcbbd3e842e08565d9532071012d85`
+- RDD lineage `review-9007fe8a612fe200`; approved and acknowledged target identity `sha256:798cb41921d14619bfdb095d77b79ae8a1b5cb4e837e10e4d5bf5e38bbf9f9dc`; consumed revision `sha256:2e31ccb44500440866b3ce7ffa104f0266829abab29145613c5d203affb8581f`
+
+### Task state and rollback
+
+- Task state: Task 6.2 is now `- [x]` (19/22 tasks complete). Task 6.3 (TRIANGULATE), Task 6.4 (REFACTOR), and Task 7.x remain untouched; their checkboxes are `- [ ]`.
+- Rollback: `git revert 9251079` removes only this test harness implementation; revert the later documentation closure commit to reopen Task 6.2.
+- No push and no PR.
