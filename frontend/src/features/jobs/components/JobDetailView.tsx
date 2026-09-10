@@ -99,45 +99,36 @@ export function JobDetailView({ job }: { job: JobItem }) {
           job.published_at !== undefined) && (
           <dl className="mt-5 grid gap-4 border-t border-border pt-5 text-sm sm:grid-cols-3">
             {job.location !== undefined && (
-              <div className="flex items-start gap-2">
-                <MapPinIcon
-                  aria-hidden="true"
-                  className="mt-0.5 h-4 w-4 text-muted-foreground"
-                />
-                <div>
-                  <dt className="text-xs text-muted-foreground">Ubicación</dt>
-                  <dd className="mt-0.5 font-medium break-words text-foreground">
-                    {job.location}
-                  </dd>
-                </div>
+              <div>
+                <dt className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <MapPinIcon aria-hidden="true" className="h-4 w-4" />
+                  Ubicación
+                </dt>
+                <dd className="mt-0.5 font-medium break-words text-foreground">
+                  {job.location}
+                </dd>
               </div>
             )}
             {salary !== null && (
-              <div className="flex items-start gap-2">
-                <BanknoteIcon
-                  aria-hidden="true"
-                  className="mt-0.5 h-4 w-4 text-muted-foreground"
-                />
-                <div>
-                  <dt className="text-xs text-muted-foreground">Salario</dt>
-                  <dd className="mt-0.5 font-medium text-foreground">
-                    {salary}
-                  </dd>
-                </div>
+              <div>
+                <dt className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <BanknoteIcon aria-hidden="true" className="h-4 w-4" />
+                  Salario
+                </dt>
+                <dd className="mt-0.5 font-medium text-foreground">
+                  {salary}
+                </dd>
               </div>
             )}
             {job.published_at !== undefined && (
-              <div className="flex items-start gap-2">
-                <CalendarClockIcon
-                  aria-hidden="true"
-                  className="mt-0.5 h-4 w-4 text-muted-foreground"
-                />
-                <div>
-                  <dt className="text-xs text-muted-foreground">Publicada</dt>
-                  <dd className="mt-0.5 font-medium text-foreground">
-                    {formatPublishedDate(job.published_at)}
-                  </dd>
-                </div>
+              <div>
+                <dt className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <CalendarClockIcon aria-hidden="true" className="h-4 w-4" />
+                  Publicada
+                </dt>
+                <dd className="mt-0.5 font-medium text-foreground">
+                  {formatPublishedDate(job.published_at)}
+                </dd>
               </div>
             )}
           </dl>
