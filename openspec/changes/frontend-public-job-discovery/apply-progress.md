@@ -1581,3 +1581,22 @@ Task 4.4 is **implementation-complete but intentionally left `- [ ]`** in `tasks
 - Native SDD evidence revision `sha256:1c0cc13887ff4289ef7cbc6e6ed24c5c45dd74e4a34184a70901061b43df704e` settled the zero-source-change refactor objective.
 - Task state: Task 5.4 is now `- [x]` (17/22 tasks complete). Task 6.1 remains `- [ ]` and has not started. Rollback is only the Task 5.4 documentation closure commit.
 - No push and no PR were performed; the parent owns this documentation-only closure commit.
+
+## Final closure — Task 6.1 RED complete
+
+- Pre-append prefix proof: the entire pre-append bytes of this file (1,583 lines) were SHA-256 `e825e34bc8287f2af190ba6c100934d05187e8ce9bd2e8e47f365a300f99b87b`; every prior byte is preserved unchanged.
+- Implementation commit `8614e048cc3ce48e1a4b065db40aa23d1fb0a4c8` (`test(frontend): define cross-route evidence matrix`) landed on `feat/frontend-foundation`. Exact committed scope: exactly one file, `frontend/tests/e2e/cross-cutting.spec.ts`, 196 insertions, 0 deletions — no production, fixture, config, or dependency change.
+- Final committed file SHA-256: `cf881a7970fb369ece6f1d934ef6f57a377f06c75ed99c1792242f70d448ec5e`.
+- Final canonical candidate diff evidence: `sha256:4f907e4e8416e23d3ed3f487a806b98ce949e4809c81a7af5689a4ff5ebc9a98`.
+- Toolchain: Node `v22.22.1`, Corepack `0.34.6`, pnpm `10.34.5` offline.
+- Pre-review gates passed: ESLint/typecheck passed; API-offline production build passed.
+- Corrected Playwright result: exits 0. First three actual scenarios passed: root-to-list-to-detail navigation, browser Back/Forward restoring a canonical filtered URL with opaque cursor, and detail Back preserving `q=frontend&currency=USD`. Exactly one executed expected failure (`expectedStatus: failed`, actual failed) at the expected missing `Ingeniera Currency Proof` fixture profile — the test is live and correctly failing pending Task 6.2 GREEN.
+- Fixture evidence: HTTP 200/items and PeopleFlow list shell passed first.
+- Task 6.2 GREEN fixture profile: title `Ingeniera Currency Proof`, `salary_min: 100000`, `salary_max: 120000`, `salary_currency: USD`, rendered `USD 100,000 – USD 120,000`, replacing generic MXN for `q=currency-proof&currency=USD`. This profile is NOT green in this closure; it is the explicit Task 6.2 next-ordered objective.
+- SDD final evidence objective completed; review correction objective completed; no opaque attempt tokens persisted.
+- RDD lineage `review-23837829ab2dacaa`; approved and acknowledged target `sha256:ce805d8f558ae3c68519c24390b7a8107a68b4b767ed506e498d02090fb7357f`; consumed revision `sha256:26c9c773b505810c2698839b0677b6737ad18e0060972e5b7af539e5e4689777`.
+- Correction was exactly 2 diff lines (`test`→`test.fail`) within the 98-line review correction budget.
+- Owned processes/artifacts cleaned; ports 3100/4010 verified clear; no push and no PR.
+- Rollback: `git revert 8614e04`; Task 6.2 remains the next ordered task.
+- Task state: Task 6.1 is now `- [x]` (18/22 tasks complete). Task 6.2 remains `- [ ]` and is the next ordered task; it is NOT implemented and the USD profile is NOT green in this closure.
+- No stage or commit was performed by this documentation-only closure; the parent owns the authorized documentation commit.
