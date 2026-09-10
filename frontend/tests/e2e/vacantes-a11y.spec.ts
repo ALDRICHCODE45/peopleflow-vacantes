@@ -592,15 +592,15 @@ test.describe("reduced motion on vacancy controls", () => {
   });
 
   test("detail return link collapses motion and stays keyboard-operable @a11y @reduced-motion", async ({
-page,
+    page,
   }) => {
-await page.goto("/vacantes/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e");
-await expectReducedMotionMatches(page);
-const link = page.locator('a[href="/vacantes"]').first();
-assertMotionCollapsed(await motionOf(link), "detail return link");
-await link.focus();
-await page.keyboard.press("Enter");
-await expect(page).toHaveURL(/\/vacantes$/);
+    await page.goto("/vacantes/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e");
+    await expectReducedMotionMatches(page);
+    const link = page.locator('a[href="/vacantes"]').first();
+    assertMotionCollapsed(await motionOf(link), "detail return link");
+    await link.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/vacantes$/);
   });
 });
 
