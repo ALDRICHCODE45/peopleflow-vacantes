@@ -138,7 +138,7 @@ Tasks 3.2, 3.3, 3.4, 4.2, 4.4, and 5.2 below carry the corresponding wording. `s
 
 ### 6.4 REFACTOR — final bounded hardening and evidence
 
-- [ ] Apply only bounded fixes required by final evidence to `frontend/` (contrast, focus, copy, wrapping, reduced motion, fixture timing, lint/type issues, or exact preset drift), then rerun every affected focused command and the complete quality-gate sequence. Record a final review summary confirming no landing completion, auth, application, candidate/employer, backend, shared-root/config/docs, ISR, streaming-dependent, browser-direct API, chart, or employer-menu behavior was introduced; rollback names the exact final fixes. <!-- sdd-owner: implementation -->
+- [x] Apply only bounded fixes required by final evidence to `frontend/` (contrast, focus, copy, wrapping, reduced motion, fixture timing, lint/type issues, or exact preset drift), then rerun every affected focused command and the complete quality-gate sequence. Record a final review summary confirming no landing completion, auth, application, candidate/employer, backend, shared-root/config/docs, ISR, streaming-dependent, browser-direct API, chart, or employer-menu behavior was introduced; rollback names the exact final fixes. <!-- sdd-owner: implementation -->
 
 ## 7. Work-unit delivery checkpoints
 

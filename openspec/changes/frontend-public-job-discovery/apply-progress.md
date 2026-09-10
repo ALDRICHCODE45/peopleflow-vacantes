@@ -1669,3 +1669,12 @@ Task 4.4 is **implementation-complete but intentionally left `- [ ]`** in `tasks
 - Native evidence completion/remediation completed; RDD `review-903a6cd6617956bf` approved and acknowledged for target `sha256:ae1f2c8421a0f7f2f9c73897294a7eb54bbd75fd7785be2577b9a9800d075995`, consuming revision `sha256:bfaab62d720556563eaadf806e340a11ec3e689a7248b6085589f62c3044ac7e`.
 - Cleanup released ports `3000`/`3100`/`4010`; no product changes; rollback reverts only this OpenSpec closure; no push or PR.
 - State: 20/22 complete; Task 6.4 is next and Task 7.x remains unchecked.
+
+## Final closure — Task 6.4 REFACTOR complete
+
+- Evidence: `task-6-4-evidence.md`, SHA-256 `f84161634e4c80dca56f28e4fb73b016b063fa492e40d6545ca613bbe2a47c41` (byte-identical).
+- Zero-source audit complete; native `task-6-4-refactor-final-hardening` passed, remediating `9baa7f593692a0309a6d3b149b5ec5b52dceba32cb7f2f81f04ff750c8208aa9`. No landing completion, auth, application, candidate/employer, backend, shared-root/config/docs, ISR, streaming-dependent, browser-direct API, chart, or employer-menu behavior was introduced; there are no frontend fixes to roll back, only this four-file OpenSpec closure.
+- Typography: the 2026-09-10, Task-6.4-only user-approved ClashDisplay/Fontshare exception is normative in `design.md`'s Task 6.4 typography addendum; Inter body and all other preset checks remain binding.
+- All gates passed: frozen install, preset decode/resolve/info, typecheck, lint, unit 99/99, E2E 68/68, a11y 16/16, and final API-offline build.
+- Built `next start` with process-local `NODE_ENV=development`: fixture `4010`, app `3100`, `PEOPLEFLOW_API_TIMEOUT_MS=1000`; neither `next dev` nor production-environment parity.
+- Cleanup complete; no executable RDD occurred on this explicitly user-requested zero-source path; Task 6.4 is checked (21/22), Task 7.1 remains unchecked, and closure is prepared for immediate parent-authorized local commit (none claimed).

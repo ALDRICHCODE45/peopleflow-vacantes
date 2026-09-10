@@ -470,3 +470,7 @@ Rollback selects the previous Amplify artifact or disables the public frontend b
 | Preset menu/chart options are mistaken for product scope | Preserve their tokens for future surfaces but install no charts and add no employer or candidate menus in this slice. |
 | TanStack Query is bypassed by direct server reads, browser fetches, a Next proxy, or a new client store | Feature query functions are the single application-facing request path over `requestJson`; tests and review block browser-direct access, proxy routes, and Zustand additions without a proven need. |
 | Current hosting document misleads future work | This design explicitly forbids ISR/streaming dependence; correcting shared documentation is a separate coordinated change. |
+
+## Task 6.4 typography addendum — 2026-09-10
+
+Task 6.4 MUST retain ClashDisplay headings and the Fontshare stylesheet; this user-approved, scope-specific addendum overrides only the historical Inter-only heading/fontsheet prohibition. Inter remains required for body typography, and every other preset identity check remains binding.
