@@ -25,7 +25,7 @@ const COMPOSITION_FILES = [
   "src/components/shells/PublicShell.tsx",
 ] as const;
 
-const BASE_URL = "http://127.0.0.1:3000";
+const BASE_URL = process.env.PLAYWRIGHT_APP_ORIGIN ?? "http://127.0.0.1:3100";
 
 const VIEWPORTS = {
   desktop: { width: 1280, height: 720 },
@@ -220,6 +220,11 @@ for (const scheme of SCHEMES) {
             document.documentElement.clientWidth,
         );
         expect(overflowPx).toBeLessThanOrEqual(0);
+
+        // Wait for the visible brand asset before reading intrinsic dimensions.
+        const visibleLogo = page.locator("img[alt='PeopleFlow']:visible");
+        await expect(visibleLogo).toHaveJSProperty("naturalWidth", 1584);
+        await expect(visibleLogo).toHaveJSProperty("naturalHeight", 396);
 
         // Computed typography: Inter for body, Clash Display (Inter
         // fallback) for the heading role via --font-heading.

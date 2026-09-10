@@ -65,11 +65,32 @@ const longContentJob = {
   },
 };
 
+// Task 6.2 GREEN — dedicated USD currency-proof vacancy for exact title/salary
+// evidence profile. Returns only this vacancy with no next_cursor for the
+// specific query that the cross-cutting.spec.ts USD test exercises.
+const currencyProofJob = {
+  id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d94",
+  title: "Ingeniera Currency Proof",
+  description: "Prueba de salario en dólares.",
+  work_mode: "remote",
+  employment_type: "full_time",
+  seniority: "senior",
+  salary_currency: "USD",
+  salary_min: 100000,
+  salary_max: 120000,
+  published_at: "2026-02-14T09:30:00Z",
+  company: {
+    id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d95",
+    name: "Acme",
+  },
+};
+
 // Detail map: known ids answer `/jobs/{id}` with their bare job shape.
 const detailJobs = {
   [job.id]: job,
   [longContentJob.id]: longContentJob,
   [richDetailJob.id]: richDetailJob,
+  [currencyProofJob.id]: currencyProofJob,
 };
 
 function send(response, status, payload) {
@@ -139,6 +160,13 @@ const server = createServer((request, response) => {
     response.on("close", () => clearTimeout(timer));
     return;
   }
+  // Task 6.2 GREEN — dedicated USD currency-proof vacancy for exact title/salary
+  // evidence profile. Returns only this vacancy with no next_cursor.
+  if (
+    url.searchParams.get("q") === "currency-proof" &&
+    url.searchParams.get("currency") === "USD"
+  )
+    return send(response, 200, { items: [currencyProofJob] });
   if (
     url.searchParams.has("cursor") ||
     url.searchParams.get("q") === "pending-search" ||

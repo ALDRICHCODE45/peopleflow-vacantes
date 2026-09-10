@@ -25,7 +25,7 @@
 
 import { expect, test } from "@playwright/test";
 
-const APP_ORIGIN = process.env.PLAYWRIGHT_APP_ORIGIN ?? "http://127.0.0.1:3000";
+const APP_ORIGIN = process.env.PLAYWRIGHT_APP_ORIGIN ?? "http://127.0.0.1:3100";
 const FIXTURE_ORIGIN =
  process.env.PLAYWRIGHT_FIXTURE_ORIGIN ?? "http://127.0.0.1:4010";
 
@@ -146,26 +146,17 @@ test("detail navigation preserves the filtered list URL on Back", async ({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 4. INTENTIONAL RED — renders exact USD salary data from the currency evidence
-//    profile.  Task 6.2 GREEN adds the dedicated fixture vacancy; this test
-//    fails now because that vacancy does not yet exist in the fixture.
-//
-//    Harness proof before the RED gate:
-//    - Direct GET /jobs?q=currency-proof&currency=USD returns HTTP 200 with a
-//      valid items array (fixture is healthy; generic MXN data is served).
-//    - The PeopleFlow list shell renders (HTTP 200, results area present).
-//
-//    RED gate — the dedicated title and USD salary are absent because the
-//    Task 6.2 fixture vacancy does not exist yet.
+// 4. Task 6.2 GREEN — renders exact USD salary data from the currency evidence
+//    profile.  The dedicated fixture vacancy is added; this test passes with
+//    the exact title and USD salary range rendered.
 // ─────────────────────────────────────────────────────────────────────────────
 
-test.fail("renders exact USD salary data from the currency evidence profile", async ({
+test("renders exact USD salary data from the currency evidence profile", async ({
  page,
  request,
 }) => {
  // Harness proof A: fixture endpoint is reachable and schema-valid.
- // Current generic fixture returns HTTP 200 + valid items array.
- // This assertion stays green after Task 6.2 when the dedicated vacancy lands.
+ // Dedicated fixture returns HTTP 200 + valid items array.
  const apiResponse = await request.get(
   `${FIXTURE_ORIGIN}/jobs?q=currency-proof&currency=USD`,
  );
@@ -181,16 +172,12 @@ test.fail("renders exact USD salary data from the currency evidence profile", as
  // The list container itself is present (schema-valid PeopleFlow shell).
  await expect(page.getByRole("list")).toBeVisible();
 
- // RED gate — these fail now, pass after Task 6.2 GREEN.
- // Exact accessible link name (not regex): the dedicated title is unique and
- // absent from generic fixture data, so absence = profile missing.
+ // GREEN gate — exact accessible link name (not regex): the dedicated title.
  await expect(page.getByRole("link", { name: DEDICATED_TITLE })).toBeVisible();
 
  // Exact USD salary range rendered by the proven vacantes.spec.ts formatter.
  await expect(page.getByRole("list")).toContainText(USD_SALARY_RENDERED);
 
  // The generic MXN fallback must be absent once the dedicated profile exists.
- // (Currently passes because generic MXN data is served; remains green after
- // Task 6.2 because the dedicated profile replaces the generic vacancy.)
  await expect(page.getByRole("list")).not.toContainText(GENERIC_MXN_SALARY);
 });

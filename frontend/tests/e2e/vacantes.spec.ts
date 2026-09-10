@@ -1,7 +1,7 @@
 import { expect, test, type Locator } from "@playwright/test";
 
 const fixtureUrl = "http://127.0.0.1:4010";
-const appUrl = "http://127.0.0.1:3000";
+const appUrl = process.env.PLAYWRIGHT_APP_ORIGIN ?? "http://127.0.0.1:3100";
 test.describe.configure({ mode: "serial" });
 test.beforeEach(async ({ request }) => {
   await request.get(`${fixtureUrl}/__reset`);
