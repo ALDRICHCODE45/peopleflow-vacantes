@@ -1560,3 +1560,13 @@ Task 4.4 is **implementation-complete but intentionally left `- [ ]`** in `tasks
 - Task state: the Task 5.2 checkbox in `tasks.md` is now `- [x]` (14/22 tasks complete). Task 5.3 remains `- [ ]`, unstarted, and `/vacantes/[jobId]` TRIANGULATE has not begun.
 - Rollback: `git revert 4aaf17b` removes only the seven-file detail candidate.
 - No push and no PR; nothing staged or committed by this closure; the parent owns the authorized documentation commit.
+
+## Final closure — Task 5.3 TRIANGULATE complete
+
+- Pre-append prefix proof: the entire pre-append bytes of this file (1,562 lines) were SHA-256 `71f525404d23f56f09c35683926f6b4a31cfeb9088756b650cec092f04549927`; every prior byte is preserved unchanged.
+- TRIANGULATE commit `0ec4c51a2a6be213522cac53647239d82dba4183` (`test(vacantes): triangulate detail accessibility`) landed on `feat/frontend-foundation`. Exact committed scope: 3 files, 139 insertions + 35 deletions = 174 changed lines — `JobDetailView.tsx`, `vacante-detalle.spec.ts`, and `vacantes-a11y.spec.ts`.
+- Verification under Node 22 / pnpm 10 passed: `JobDetailView.test.tsx` 3/3, full unit 99/99, typecheck, standard lint, API-offline production build, detail E2E 12/12, and full accessibility E2E 16/16. The matrix covers visible/omitted/unsafe-looking detail, malformed UUID zero requests, 404/5xx/timeout/schema states, canonical/index metadata, keyboard, light/dark desktop/mobile axe, reduced motion, Inter/tokens/Default radius, and narrow/wide wrapping.
+- The first bounded run correctly exposed axe `definition-list`/`dlitem` failures. The settled correction moved each icon inside its `<dt>` and made every grouping `<div>` contain direct `<dt>/<dd>` children; evidence revision `sha256:71c9de0cb4c9e00c5f838638271c37185cdd8f850e2c62748e4e8d45dde8d079` then passed at 174/400 lines.
+- Native review `review-964b248d3653cca3` approved and was acknowledged for target `sha256:cf1b3339c9dfef8b32d8eb88303945021d14fc0148e3d0b7be4972904e4db2b0`.
+- Task state: Task 5.3 is now `- [x]` (16/22 tasks complete); Task 5.4 remains `- [ ]` and has not started. Rollback: `git revert 0ec4c51` removes only the three-file TRIANGULATE scope.
+- No push and no PR were performed; the parent owns this documentation-only closure commit.

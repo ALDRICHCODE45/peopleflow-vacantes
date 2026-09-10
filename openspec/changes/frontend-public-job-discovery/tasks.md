@@ -116,7 +116,7 @@ Tasks 3.2, 3.3, 3.4, 4.2, 4.4, and 5.2 below carry the corresponding wording. `s
 
 ### 5.3 TRIANGULATE — verify detail safety and SEO
 
-- [ ] Run browser and axe scenarios for visible detail, omitted optionals, long unsafe-looking text, malformed UUID with fixture request count zero, backend `404`, 5xx/timeout/invalid schema, metadata canonical/index rules, keyboard return link, both themes, reduced motion, and narrow/wide wrapping. Confirm detail surfaces preserve Inter, semantic Violet/Neutral hierarchy, Default radius, and absence of ad hoc overrides. Record exact configured E2E/axe results and rollback boundary. <!-- sdd-owner: implementation -->
+- [x] Run browser and axe scenarios for visible detail, omitted optionals, long unsafe-looking text, malformed UUID with fixture request count zero, backend `404`, 5xx/timeout/invalid schema, metadata canonical/index rules, keyboard return link, both themes, reduced motion, and narrow/wide wrapping. Confirm detail surfaces preserve Inter, semantic Violet/Neutral hierarchy, Default radius, and absence of ad hoc overrides. Record exact configured E2E/axe results and rollback boundary. <!-- sdd-owner: implementation -->
 
 ### 5.4 REFACTOR — simplify detail rendering and metadata reads
 
