@@ -3,11 +3,13 @@ import type { Locator, Page } from "@playwright/test";
 
 const fixtureUrl = "http://127.0.0.1:4010";
 // Fixture vacancies (tests/fixtures/jobs-server.mjs): main has no optional
-// metadata, rich carries full metadata plus a markup-like description, and
-// missing answers a backend 404. App origin comes from the harness baseURL.
+// metadata, rich carries full metadata plus a markup-like description, long
+// has an uninterrupted title segment and full optionals, and missing answers
+// a backend 404. App origin comes from the harness baseURL.
 const MAIN_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const RICH_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d92";
 const MISSING_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d99";
+const LONG_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d90";
 const richRequest = `/jobs/${RICH_ID}`;
 const missingRequest = `/jobs/${MISSING_ID}`;
 const NOT_FOUND_COPY = "Esta vacante no está disponible";
@@ -25,6 +27,15 @@ async function expectBranded404(page: Page) {
   await expect(page.getByText(NOT_FOUND_COPY)).toBeVisible();
   await expect(backLink(page)).toHaveAttribute("href", "/vacantes");
   await expect(robots(page)).toHaveAttribute("content", /noindex/i);
+}
+
+// Returns document scrollWidth - clientWidth; a value > 0 means horizontal overflow.
+function documentOverflowPx(page: Page) {
+  return page.evaluate(
+    () =>
+      document.documentElement.scrollWidth -
+      document.documentElement.clientWidth,
+  );
 }
 
 test.describe.configure({ mode: "serial" });
@@ -115,3 +126,72 @@ for (const kind of ["5xx", "schema", "timeout"] as const) {
     await expect(anyBack).toBeVisible();
   });
 }
+
+test("keyboard Tab+Enter activates the return link", async ({ page }) => {
+  await page.goto(`/vacantes/${MAIN_ID}`);
+  const link = backLink(page.getByRole("article"));
+  for (let presses = 0; presses < 20 && !(await link.evaluate((el) => el === document.activeElement)); presses++) {
+    await page.keyboard.press("Tab");
+  }
+  await expect(link).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/vacantes$/);
+});
+
+for (const [label, viewport] of [
+  ["narrow", { width: 375, height: 812 }],
+  ["wide", { width: 1280, height: 720 }],
+] as const) {
+  test(`long detail content wraps at ${label} width`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.goto(`/vacantes/${LONG_ID}`);
+    await expect(page.getByRole("article")).toBeVisible();
+    expect(await documentOverflowPx(page)).toBeLessThanOrEqual(0);
+  });
+}
+
+test("detail preserves preset typography, tokens, radius, and bounded UI", async ({
+  page,
+}) => {
+  await page.goto(`/vacantes/${MAIN_ID}`);
+  const article = page.getByRole("article");
+  const evidence = await article.evaluate((element) => {
+    const probe = document.createElement("span");
+    document.body.appendChild(probe);
+    const resolveColor = (token: string) => {
+      probe.style.color = `var(${token})`;
+      return getComputedStyle(probe).color;
+    };
+    const heading = element.querySelector("h1")!;
+    const description = element.querySelector("p")!;
+    const badge = element.querySelector("li")!;
+    const result = {
+      bodyFont: getComputedStyle(document.body).fontFamily,
+      headingFont: getComputedStyle(heading).fontFamily,
+      headingColor: getComputedStyle(heading).color,
+      foreground: resolveColor("--foreground"),
+      badgeColor: getComputedStyle(badge).color,
+      radius: getComputedStyle(document.documentElement)
+        .getPropertyValue("--radius")
+        .trim(),
+      inlineStyles: element.querySelectorAll("[style]").length,
+      descriptionColor: getComputedStyle(description).color,
+      mutedForeground: resolveColor("--muted-foreground"),
+    };
+    probe.remove();
+    return result;
+  });
+
+  expect(evidence.bodyFont).toMatch(/Inter/);
+  expect(evidence.headingFont).toMatch(/Inter/);
+  expect(evidence.headingColor).toBe(evidence.foreground);
+  expect(evidence.badgeColor).toBe(evidence.mutedForeground);
+  expect(evidence.descriptionColor).toBe(evidence.mutedForeground);
+  expect(evidence.radius).toMatch(/^(?:0?\.)625rem$/);
+  expect(evidence.inlineStyles).toBe(0);
+  await expect(
+    article.getByRole("button", {
+      name: /guardar|compartir|postular|solicitar|aplicar|beneficios/i,
+    }),
+  ).toHaveCount(0);
+});

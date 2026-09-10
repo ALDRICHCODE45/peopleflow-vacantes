@@ -587,4 +587,37 @@ test.describe("reduced motion on vacancy controls", () => {
     await expect(dialog).not.toBeVisible();
     await expect(trigger).toBeFocused();
   });
+
+  test("detail return link collapses motion and stays keyboard-operable @a11y @reduced-motion", async ({
+page,
+  }) => {
+await page.goto("/vacantes/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e");
+await expectReducedMotionMatches(page);
+const link = page.locator('a[href="/vacantes"]').first();
+assertMotionCollapsed(await motionOf(link), "detail return link");
+await link.focus();
+await page.keyboard.press("Enter");
+await expect(page).toHaveURL(/\/vacantes$/);
+  });
+});
+
+const DETAIL_RICH_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d92";
+
+test.describe("vacancy detail axe WCAG A/AA matrix", () => {
+  for (const scheme of SCHEMES) {
+    for (const [label, viewport] of Object.entries(VIEWPORTS)) {
+      test.describe(`${scheme} scheme, ${label} width`, () => {
+        test.use({ colorScheme: scheme, viewport });
+
+        test(`detail has no WCAG A/AA violations @a11y`, async ({ page }) => {
+          await page.goto(`/vacantes/${DETAIL_RICH_ID}`);
+          await expect(page.getByRole("article")).toBeVisible();
+          const results = await new AxeBuilder({ page })
+            .withTags(["wcag2a", "wcag2aa"])
+            .analyze();
+          expect(results.violations).toEqual([]);
+        });
+      });
+    }
+  }
 });
