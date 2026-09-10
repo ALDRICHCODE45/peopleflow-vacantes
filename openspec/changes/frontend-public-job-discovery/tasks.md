@@ -120,7 +120,7 @@ Tasks 3.2, 3.3, 3.4, 4.2, 4.4, and 5.2 below carry the corresponding wording. `s
 
 ### 5.4 REFACTOR — simplify detail rendering and metadata reads
 
-- [ ] Refactor only detail route/feature files to remove duplicate fetches, unsafe HTML-like rendering, fixed-height content, invented labels, or route-owned domain rules while keeping metadata and page output consistent. Re-run detail tests, typecheck, lint, axe, preset/configuration assertions, and API-offline production build before commit. <!-- sdd-owner: implementation -->
+- [x] Refactor only detail route/feature files to remove duplicate fetches, unsafe HTML-like rendering, fixed-height content, invented labels, or route-owned domain rules while keeping metadata and page output consistent. Re-run detail tests, typecheck, lint, axe, preset/configuration assertions, and API-offline production build before commit. <!-- sdd-owner: implementation -->
 
 ## 6. Browser, accessibility, visual evidence, and final hardening (PR 5)
 

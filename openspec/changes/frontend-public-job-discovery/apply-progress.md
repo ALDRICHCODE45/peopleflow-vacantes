@@ -1570,3 +1570,14 @@ Task 4.4 is **implementation-complete but intentionally left `- [ ]`** in `tasks
 - Native review `review-964b248d3653cca3` approved and was acknowledged for target `sha256:cf1b3339c9dfef8b32d8eb88303945021d14fc0148e3d0b7be4972904e4db2b0`.
 - Task state: Task 5.3 is now `- [x]` (16/22 tasks complete); Task 5.4 remains `- [ ]` and has not started. Rollback: `git revert 0ec4c51` removes only the three-file TRIANGULATE scope.
 - No push and no PR were performed; the parent owns this documentation-only closure commit.
+
+## Final closure — Task 5.4 REFACTOR complete (no source change)
+
+- Pre-append prefix proof: the entire pre-append bytes of this file (1,572 lines) were SHA-256 `2706344e9563a53f707f75d7573cda0d44a91bbb55c9352e5f9b7fa23e5248fc`; every prior byte is preserved unchanged.
+- Read-only audit found no demonstrated refactor target: `page-data.ts` already owns one fresh request-scoped `QueryClient`; metadata and page share the same cached scope; `JobDetailView.tsx` renders descriptions as safe React text with natural height and semantic wrapping; formatting/domain labels stay feature-owned; optional metadata remains omitted; route files only orchestrate awaited params, not-found/error mapping, metadata, and composition. The Task 5.3 `<dl>` correction is structurally sound and does not justify an abstraction.
+- Therefore Task 5.4 intentionally changes no frontend source and needs no source commit or native executable-change review. Creating churn would weaken the bounded refactor requirement rather than improve the implementation. The committed detail baseline remains `4aaf17b` plus TRIANGULATE correction/evidence commit `0ec4c51`.
+- Independent verification under Node 22 / pnpm 10 passed: focused detail unit/page-data 8/8, preset/configuration assertions 13/13, typecheck, standard lint, API-offline production build, detail E2E 12/12, and full axe E2E 16/16 including light/dark desktop/mobile detail coverage. Tracked frontend SHA-256 remained `27445906ec413c95f481fdf78489b4d948808ffd3b05d853d01658f072d3153d` before and after.
+- Browser checks used an owned Next development server because the production origin policy intentionally rejects the HTTP fixture; the production build gate itself passed. Owned fixture/Next processes exited and ports 3000/4010 were free.
+- Native SDD evidence revision `sha256:1c0cc13887ff4289ef7cbc6e6ed24c5c45dd74e4a34184a70901061b43df704e` settled the zero-source-change refactor objective.
+- Task state: Task 5.4 is now `- [x]` (17/22 tasks complete). Task 6.1 remains `- [ ]` and has not started. Rollback is only the Task 5.4 documentation closure commit.
+- No push and no PR were performed; the parent owns this documentation-only closure commit.
