@@ -130,7 +130,12 @@ for (const kind of ["5xx", "schema", "timeout"] as const) {
 test("keyboard Tab+Enter activates the return link", async ({ page }) => {
   await page.goto(`/vacantes/${MAIN_ID}`);
   const link = backLink(page.getByRole("article"));
-  for (let presses = 0; presses < 20 && !(await link.evaluate((el) => el === document.activeElement)); presses++) {
+  for (
+    let presses = 0;
+    presses < 20 &&
+    !(await link.evaluate((el) => el === document.activeElement));
+    presses++
+  ) {
     await page.keyboard.press("Tab");
   }
   await expect(link).toBeFocused();

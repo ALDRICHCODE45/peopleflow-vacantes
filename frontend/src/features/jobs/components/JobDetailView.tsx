@@ -115,9 +115,7 @@ export function JobDetailView({ job }: { job: JobItem }) {
                   <BanknoteIcon aria-hidden="true" className="h-4 w-4" />
                   Salario
                 </dt>
-                <dd className="mt-0.5 font-medium text-foreground">
-                  {salary}
-                </dd>
+                <dd className="mt-0.5 font-medium text-foreground">{salary}</dd>
               </div>
             )}
             {job.published_at !== undefined && (
