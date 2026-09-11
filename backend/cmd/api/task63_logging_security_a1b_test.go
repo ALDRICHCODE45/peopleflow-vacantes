@@ -23,6 +23,19 @@ type t63A1Finding struct {
 	PrefixLen    int
 }
 
+// t63A1bArgumentBoundaries returns message and attribute argument boundaries for a slog API.
+func t63A1bArgumentBoundaries(api string) (msgIndex, attrsIndex, prefixLen int) {
+	switch api {
+	case "Debug", "Info", "Warn", "Error":
+		return 0, 1, 0
+	case "DebugContext", "InfoContext", "WarnContext", "ErrorContext":
+		return 1, 2, 1
+	case "Log", "LogAttrs":
+		return 2, 3, 2
+	}
+	return 0, 0, 0
+}
+
 // t63A1bScan checks for canonical log/slog logging calls.
 func t63A1bScan(fset *token.FileSet, file *ast.File, info *types.Info) []t63A1Finding {
 	var findings []t63A1Finding
@@ -72,14 +85,12 @@ func t63A1bScan(fset *token.FileSet, file *ast.File, info *types.Info) []t63A1Fi
 			if pn, ok := info.Uses[x].(*types.PkgName); ok && pn.Imported() == slogPkg {
 				fn, ok := info.Uses[sel.Sel].(*types.Func)
 				if ok && fn.Pkg() == slogPkg && allowed[fn.Name()] {
-					finding := t63A1Finding{
+					msgIndex, attrsIndex, prefixLen := t63A1bArgumentBoundaries(fn.Name())
+					findings = append(findings, t63A1Finding{
 						API: fn.Name(), Receiver: "package", ImportPath: "log/slog", FnPkgPath: "log/slog",
 						Filename: pos.Filename, Line: pos.Line, Column: pos.Column,
-					}
-					if fn.Name() == "Info" {
-						finding.MsgIndex, finding.AttrsIndex, finding.PrefixLen = 0, 1, 0
-					}
-					findings = append(findings, finding)
+						MsgIndex: msgIndex, AttrsIndex: attrsIndex, PrefixLen: prefixLen,
+					})
 				}
 				return true
 			}
@@ -97,10 +108,12 @@ func t63A1bScan(fset *token.FileSet, file *ast.File, info *types.Info) []t63A1Fi
 		if !ok || signature.Recv() == nil || !types.Identical(signature.Recv().Type(), loggerPointer) {
 			return true
 		}
+		msgIndex, attrsIndex, prefixLen := t63A1bArgumentBoundaries(fn.Name())
 		findings = append(findings, t63A1Finding{
 			API: fn.Name(), Receiver: "method", ReceiverType: "*log/slog.Logger",
 			ImportPath: "log/slog", FnPkgPath: "log/slog", Filename: pos.Filename,
 			Line: pos.Line, Column: pos.Column,
+			MsgIndex: msgIndex, AttrsIndex: attrsIndex, PrefixLen: prefixLen,
 		})
 		return true
 	})
@@ -295,6 +308,71 @@ logger.LogAttrs(nil, sl.LevelInfo, "method")
 	}
 	for i := range wants {
 		t63A1bAssertBinding(t, findings[i], wants[i])
+	}
+}
+
+func TestTask63A1b_NormalizesArgumentBoundariesExactly(t *testing.T) {
+	src := `package p
+import sl "log/slog"
+
+func f(logger *sl.Logger) {
+sl.Debug("package")
+logger.Debug("method")
+sl.Info("package")
+logger.Info("method")
+sl.Warn("package")
+logger.Warn("method")
+sl.Error("package")
+logger.Error("method")
+sl.DebugContext(nil, "package")
+logger.DebugContext(nil, "method")
+sl.InfoContext(nil, "package")
+logger.InfoContext(nil, "method")
+sl.WarnContext(nil, "package")
+logger.WarnContext(nil, "method")
+sl.ErrorContext(nil, "package")
+logger.ErrorContext(nil, "method")
+sl.Log(nil, sl.LevelInfo, "package")
+logger.Log(nil, sl.LevelInfo, "method")
+sl.LogAttrs(nil, sl.LevelInfo, "package")
+logger.LogAttrs(nil, sl.LevelInfo, "method")
+}`
+	fset := token.NewFileSet()
+	file, diags, info := t63A1bParseWithTypes(fset, t63A1Fixture{Name: "boundaries.go", Source: src})
+	if file == nil || len(diags) != 0 {
+		t.Fatalf("expected valid typed fixture, file=%v diagnostics=%d", file != nil, len(diags))
+	}
+
+	wants := []struct {
+		api      string
+		receiver string
+		msg      int
+		attrs    int
+		prefix   int
+	}{
+		{"Debug", "package", 0, 1, 0}, {"Debug", "method", 0, 1, 0},
+		{"Info", "package", 0, 1, 0}, {"Info", "method", 0, 1, 0},
+		{"Warn", "package", 0, 1, 0}, {"Warn", "method", 0, 1, 0},
+		{"Error", "package", 0, 1, 0}, {"Error", "method", 0, 1, 0},
+		{"DebugContext", "package", 1, 2, 1}, {"DebugContext", "method", 1, 2, 1},
+		{"InfoContext", "package", 1, 2, 1}, {"InfoContext", "method", 1, 2, 1},
+		{"WarnContext", "package", 1, 2, 1}, {"WarnContext", "method", 1, 2, 1},
+		{"ErrorContext", "package", 1, 2, 1}, {"ErrorContext", "method", 1, 2, 1},
+		{"Log", "package", 2, 3, 2}, {"Log", "method", 2, 3, 2},
+		{"LogAttrs", "package", 2, 3, 2}, {"LogAttrs", "method", 2, 3, 2},
+	}
+	findings := t63A1bScan(fset, file, info)
+	if len(findings) != len(wants) {
+		t.Fatalf("findings count = %d, want %d", len(findings), len(wants))
+	}
+	for i, want := range wants {
+		got := findings[i]
+		if got.API != want.api || got.Receiver != want.receiver ||
+			got.MsgIndex != want.msg || got.AttrsIndex != want.attrs || got.PrefixLen != want.prefix {
+			t.Errorf("finding %d = {API:%q Receiver:%q MsgIndex:%d AttrsIndex:%d PrefixLen:%d}, want {API:%q Receiver:%q MsgIndex:%d AttrsIndex:%d PrefixLen:%d}",
+				i, got.API, got.Receiver, got.MsgIndex, got.AttrsIndex, got.PrefixLen,
+				want.api, want.receiver, want.msg, want.attrs, want.prefix)
+		}
 	}
 }
 
