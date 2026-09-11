@@ -41,7 +41,7 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
 
 	if err := run(); err != nil {
-		slog.Error("server failed", "error", err)
+		slog.Error("server failed", "code_class", "internal_error")
 		os.Exit(1)
 	}
 }
