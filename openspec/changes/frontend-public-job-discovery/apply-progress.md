@@ -3,16 +3,13 @@
 ## Current apply slice
 
 - Change: `frontend-public-job-discovery`
-- Work unit: `task-2.4-closure` (ACTIVE — close out the committed task 2.4 REFACTOR)
-- Delivery boundary: PR 2 of the selected feature-branch chain; tracker branch `feat/frontend-foundation`
-- State: task 2.4 REFACTOR committed at `8ac4932` (`refactor(frontend): stabilize shared shell composition`), exact scope `frontend/src/components/shells/PublicShell.tsx` at 9 insertions / 5 deletions = 14 committed lines; no push or PR was performed
-- Persisted checkbox: the task 2.4 checkbox is closed (`- [x]`, 5 checked / 17 unchecked) in `tasks.md` as part of this candidate; the native work unit `task-2.4-closure` itself is currently active and not yet settled
-- Settled prior native objectives: `task-2.4-refactor`, `task-2.4-independent-verification`, and `task-2.4-commit` are all settled complete
-- Final verification (Node `v22.22.1` / pnpm `10.34.5`): unit 6/6 files and 29/29 tests exit 0; typecheck pass; lint pass; API-offline Next `15.5.25` build pass; 13/13 root E2E and 4/4 axe pass; no stale server
-- Scope: the committed production delta is one path, 14 changed lines, below the 400-line review budget; the six protected formatter-only test diffs (98+/54−) remain unstaged and untouched
-- Out of scope and not started: every task 3+ item
-
-Prior slices remain fully documented below: task 1.1 bootstrap (committed at `8e488a4`, remediation attempt 2 and revalidation attempt 3 bound to evidence revision `sha256:f62828b3be7ebbf193d74abcaa6b29c70d5c5eeea3e9d0d3b4c327626c28d7e0`), task 2.1 RED (committed at `bfada71`), task 2.2 GREEN (committed at `8467124`), and task 2.3 TRIANGULATE (committed at `7e4a050`).
+- Work unit: `task-7.1-documentary-evidence` (PARTIAL — parent commit and checkbox closure remain required)
+- Delivery boundary: separate closure review boundary from landed `846329e483048f3c74389ea47a4b67f1c5935a62`; feature-branch-chain tracker `feat/frontend-foundation`; PR5 remains frozen at 400 changed lines
+- State: corrected documentary candidate `task-7-1-evidence.md` audits all 64 landed task commits individually, with per-commit manifest/stat selectors, dependencies, evidence pointers, and rollback order; `c4198ae` is a standalone formatting unit
+- Persisted checkbox: Task 7.1 remains `- [ ]` by repository rule until the parent commits the evidence; task state remains 21/22 complete
+- TDD/runtime: N/A — passive historical documentation only; no RED/GREEN production work and no backend/frontend test, build, or runtime command was run
+- Scope: only this current summary, the appended Task 7.1 addendum, and `task-7-1-evidence.md`; no staging, commit, push, PR, verify, sync, or archive
+- Writer routing: `openai-codex/gpt-5.6-terra`, thinking `high`
 
 ## Structured status consumed
 
@@ -1678,3 +1675,16 @@ Task 4.4 is **implementation-complete but intentionally left `- [ ]`** in `tasks
 - All gates passed: frozen install, preset decode/resolve/info, typecheck, lint, unit 99/99, E2E 68/68, a11y 16/16, and final API-offline build.
 - Built `next start` with process-local `NODE_ENV=development`: fixture `4010`, app `3100`, `PEOPLEFLOW_API_TIMEOUT_MS=1000`; neither `next dev` nor production-environment parity.
 - Cleanup complete; no executable RDD occurred on this explicitly user-requested zero-source path; Task 6.4 is checked (21/22), Task 7.1 remains unchecked, and closure is prepared for immediate parent-authorized local commit (none claimed).
+
+## Task 7.1 documentary evidence addendum — partial, uncommitted
+
+- `task-7-1-evidence.md` is a compact, Git-derived per-commit candidate audit for all 64 landed task commits, linked to the landed Task 6.4 closure `846329e483048f3c74389ea47a4b67f1c5935a62` rather than altering any historical prepared-for-commit prose.
+- It records reproducible `git diff-tree --name-status` selectors and per-commit stats, historical (not fresh) focused/runtime evidence citations, dependency-aware rollback patch order, the Task 4.4 shared-file warning, standalone `c4198ae` rollback, and ancillary `b900d8a` scope.
+- Correction: the prior aggregate-range matrix was replaced after independent review because aggregate manifests could omit paths cancelled by intermediate commits; historical cached-stat inspections remain unprovable where records lack them. The prior 205/200 overrun is user-accepted recovery history only: no local counter, token, or ledger is recreated.
+- No task checkbox changed: Task 7.1 remains `- [ ]` pending the parent’s local evidence commit. No test/build/runtime command, source edit, staging, commit, push, PR, verify, sync, or archive action occurred.
+
+### TDD Cycle Evidence
+
+| Task | Safety net | RED | GREEN | TRIANGULATE | REFACTOR |
+| --- | --- | --- | --- | --- | --- |
+| 7.1 documentary evidence | N/A — no production change | N/A | N/A | N/A | N/A — passive history/manifest audit only |
