@@ -68,6 +68,14 @@ func TestTask63A1c_DecodesFirstLiteralKeyEscape(t *testing.T) {
 	}
 }
 
+func TestTask63A1c_DecodesFirstRawStringLiteralKey(t *testing.T) {
+	call := &ast.CallExpr{Args: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: "`token`"}}}
+	key, ok := t63A1cFirstLiteralKey(call, 0)
+	if key != "token" || !ok {
+		t.Errorf("first literal key = (%q, %t), want (\"token\", true)", key, ok)
+	}
+}
+
 func t63A1cFirstLiteralKey(call *ast.CallExpr, attrsIndex int) (string, bool) {
 	if call == nil || attrsIndex < 0 || attrsIndex >= len(call.Args) {
 		return "", false
