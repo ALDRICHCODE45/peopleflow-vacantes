@@ -66,3 +66,27 @@ func t63A1cFirstLiteralKey(call *ast.CallExpr, attrsIndex int) (string, bool) {
 	}
 	return key, true
 }
+
+func TestTask63A1c_RejectsInvalidFirstLiteralKey(t *testing.T) {
+	tests := []struct {
+		name       string
+		call       *ast.CallExpr
+		attrsIndex int
+	}{
+		{name: "nil call"},
+		{name: "empty arguments at index zero", call: &ast.CallExpr{}, attrsIndex: 0},
+		{name: "negative index", call: &ast.CallExpr{Args: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: `"key"`}}}, attrsIndex: -1},
+		{name: "index equals argument length", call: &ast.CallExpr{Args: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: `"key"`}}}, attrsIndex: 1},
+		{name: "identifier instead of literal", call: &ast.CallExpr{Args: []ast.Expr{&ast.Ident{Name: "key"}}}},
+		{name: "integer literal", call: &ast.CallExpr{Args: []ast.Expr{&ast.BasicLit{Kind: token.INT, Value: "1"}}}},
+		{name: "malformed string literal", call: &ast.CallExpr{Args: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: `"unterminated`}}}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if key, ok := t63A1cFirstLiteralKey(tt.call, tt.attrsIndex); key != "" || ok {
+				t.Errorf("first literal key = (%q, %t), want (\"\", false)", key, ok)
+			}
+		})
+	}
+}
