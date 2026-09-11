@@ -102,6 +102,7 @@ func TestTask63A1c_RejectsInvalidFirstLiteralKey(t *testing.T) {
 		{name: "negative index", call: &ast.CallExpr{Args: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: `"key"`}}}, attrsIndex: -1},
 		{name: "index equals argument length", call: &ast.CallExpr{Args: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: `"key"`}}}, attrsIndex: 1},
 		{name: "identifier instead of literal", call: &ast.CallExpr{Args: []ast.Expr{&ast.Ident{Name: "key"}}}},
+		{name: "parenthesized string literal", call: &ast.CallExpr{Args: []ast.Expr{&ast.ParenExpr{X: &ast.BasicLit{Kind: token.STRING, Value: `"token"`}}}}},
 		{name: "integer literal", call: &ast.CallExpr{Args: []ast.Expr{&ast.BasicLit{Kind: token.INT, Value: "1"}}}},
 		{name: "malformed string literal", call: &ast.CallExpr{Args: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: `"unterminated`}}}},
 	}
