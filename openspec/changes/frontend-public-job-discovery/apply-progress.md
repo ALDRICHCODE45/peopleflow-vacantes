@@ -3,12 +3,12 @@
 ## Current apply slice
 
 - Change: `frontend-public-job-discovery`
-- Work unit: `task-7.1-documentary-evidence` (PARTIAL — parent commit and checkbox closure remain required)
+- Work unit: `task-7.1-documentary-evidence` (COMPLETE — mechanical closure pending parent commit only)
 - Delivery boundary: separate closure review boundary from landed `846329e483048f3c74389ea47a4b67f1c5935a62`; feature-branch-chain tracker `feat/frontend-foundation`; PR5 remains frozen at 400 changed lines
-- State: corrected documentary candidate `task-7-1-evidence.md` audits all 64 landed task commits individually, with per-commit manifest/stat selectors, dependencies, evidence pointers, and rollback order; `c4198ae` is a standalone formatting unit
-- Persisted checkbox: Task 7.1 remains `- [ ]` by repository rule until the parent commits the evidence; task state remains 21/22 complete
+- State: evidence landed in `c474afca8d39d13d6bd5437822d6231d06f6a718`; `task-7-1-evidence.md` audits all 64 landed task commits individually, with standalone `c4198ae` formatting scope
+- Persisted checkbox: Task 7.1 is `- [x]` after the evidence commit; task state is 22/22 complete; no later phase is launched here
 - TDD/runtime: N/A — passive historical documentation only; no RED/GREEN production work and no backend/frontend test, build, or runtime command was run
-- Scope: only this current summary, the appended Task 7.1 addendum, and `task-7-1-evidence.md`; no staging, commit, push, PR, verify, sync, or archive
+- Scope: only this mechanical summary/checkbox closure; no staging, commit, push, PR, verify, sync, or archive
 - Writer routing: `openai-codex/gpt-5.6-terra`, thinking `high`
 
 ## Structured status consumed
@@ -1688,3 +1688,9 @@ Task 4.4 is **implementation-complete but intentionally left `- [ ]`** in `tasks
 | Task | Safety net | RED | GREEN | TRIANGULATE | REFACTOR |
 | --- | --- | --- | --- | --- | --- |
 | 7.1 documentary evidence | N/A — no production change | N/A | N/A | N/A | N/A — passive history/manifest audit only |
+
+## Task 7.1 mechanical closure — evidence landed
+
+- Evidence commit `c474afca8d39d13d6bd5437822d6231d06f6a718` landed at 123 additions / 10 deletions = 133; Task 7.1 is mechanically checked 22/22.
+- Structural checks only: diff check/stat/cached-stat and task census; no test, build, runtime process, or later phase launch occurred.
+- Rollback selectors: `git revert c474afca8d39d13d6bd5437822d6231d06f6a718`; before the parent closure commit, `git restore --source=c474afca8d39d13d6bd5437822d6231d06f6a718 -- openspec/changes/frontend-public-job-discovery/tasks.md openspec/changes/frontend-public-job-discovery/apply-progress.md`; afterward revert closure commits newest-first.
