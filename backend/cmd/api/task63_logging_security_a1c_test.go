@@ -52,6 +52,14 @@ sl.Info("authentication rejected", "token", "tok-synthetic")
 	}
 }
 
+func TestTask63A1c_AcceptsEmptyStringLiteralKey(t *testing.T) {
+	call := &ast.CallExpr{Args: []ast.Expr{&ast.BasicLit{Kind: token.STRING, Value: `""`}}}
+	key, ok := t63A1cFirstLiteralKey(call, 0)
+	if key != "" || !ok {
+		t.Errorf("first literal key = (%q, %t), want (\"\", true)", key, ok)
+	}
+}
+
 func t63A1cFirstLiteralKey(call *ast.CallExpr, attrsIndex int) (string, bool) {
 	if call == nil || attrsIndex < 0 || attrsIndex >= len(call.Args) {
 		return "", false
