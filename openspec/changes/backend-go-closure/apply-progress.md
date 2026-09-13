@@ -1430,3 +1430,22 @@ Task 6.3 bounded slice: add existing chi request-ID correlation to, and remove r
 - `cd backend && go test ./...` → exit 0 (full suite actually run after the correction).
 - Diagnostics caveat: gopls/pi-lens Go analysis unavailable in this environment (single availability advisory, no code finding); `go vet` + full suite used as compiler-level diagnostics instead.
 - Deferrals (aggregate, not this subunit): repo-wide forbidden-field/security scan and no-exporter/no-endpoint assertion remain with Task 6.3 aggregate checkpoints; this unit claims only the upsert branch evidence above. Task 6.3 remains 0/4; overall remains 80/100. No commit/stage/push; HEAD `35fa83e` untouched.
+
+## Task 6.3 (WS6C) post-commit reconciliation — checkbox closure after the committed A2 guard
+
+Aggregate reconciliation unit (artifact-only; no code, no test file, no RED cycle). Prior Task 6.3 evidence entries above are preserved unedited; this entry only closes the four Task 6.3 checkboxes in `tasks.md` (lines 242–245) and records the aggregate evidence basis. Baseline: HEAD `dcb7c22` (`test(api): enforce observability closure`), working tree clean, nothing staged, `verify-report.md` absent; `apply-progress.md` pre-append state was 223,243 bytes, SHA-256 `918a3f1d6c3a94175e2252df942273168a36f4505a30f78be60e02d159dfa02c`, preserved byte-for-byte via append-only `>>`.
+
+Evidence basis for checking RED/GREEN/TRIANGULATE/REFACTOR (all four boxes):
+
+- RED: `Task 6.3 (WS6C-1) — Metrics ports + pass-through request-observability scaffold` — behavioral RED observed: stub middleware emitted 0 completion records and 0 HTTP metric observations; suite isolation confirmed (only the new RED test failed).
+- GREEN: WS6C-1b (request middleware + metrics implementation, GREEN correction under receipt finding R3-001), ws6c-2c (production wiring of `runtimemetrics.Default` into `backend/cmd/api/main.go`), ws6c-3a/3b (startup config + shutdown reason/graceful-vs-forced classification), ws6c-4a (+ordinal-150/151 corrections; readiness gauge and safe failure classification), ws6c-5a (+ordinal-153/154 corrections; DB pool sampling via `DBObservedPinger`).
+- TRIANGULATE: WS6C-2b (randomized unknown routes collapse to bounded `unmatched`), WS6C-6a/6B (jobs bounded error record + request-ID correlation), WS6C-7A/7b (RequireCompanyRole and candidate upsert correlation + redaction with synthetic-marker forbidden-field scans); final no-exporter/no-endpoint aggregate evidence is the committed guard `backend/cmd/api/task63_observability_a2_test.go` (commit `dcb7c22`), approved by RDD review `review-d34714220460e454` (acknowledged/burned) — compiled `./cmd/api` dependency closure contains zero external observability exporter packages and readiness binds exactly to `runtimemetrics.Default`; grep confirms no `/metrics` route exists under `backend/cmd/api/` or `backend/internal/runtime/`.
+- REFACTOR: full unit suite run repeatedly across the WS6C units (47 packages ok, 0 FAIL); the removal boundary holds — instrumentation implementation carries the behavior while the no-op default (`runtimemetrics.Default`) remains because composition callers depend on it.
+
+Freshly observed validation commands (this reconciliation, all read-only):
+
+- `cd backend && go test ./cmd/api -run 'TestTask63A2' -count=1 -v` → all three A2 tests PASS.
+- `cd backend && go test ./internal/runtime/metrics ./internal/runtime/middleware ./internal/runtime/health ./cmd/api -count=1` → ok ×4.
+- `cd backend && go test ./... -count=1` → 47 packages ok, 0 FAIL, exit 0.
+
+`tasks.md` edit: exactly the four Task 6.3 checkbox markers changed `- [ ]` → `- [x]` (lines 242–245); zero other bytes changed; file remains 58,766 bytes; final census 84 checked / 16 unchecked / 100 total with all 100 `sdd-owner: implementation` markers intact. Remaining unchecked boxes belong to Phase 7 (WS7A/WS7B/WS7C) and Phase 8 (A2 doc reconciliation) and are NOT claimed by this entry. No staging/commit/push/stash; no verify-report creation; no production or test code touched.
