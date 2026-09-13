@@ -15,11 +15,17 @@
 #   make test          # go test ./... -count=1
 #   make build         # go build ./...
 #   make vet           # go vet ./...
+#   make gate-build    # WS7A RED scaffold: pass-through stub (no real check)
+#   make closure-gate  # WS7A RED scaffold: pass-through stub (no real check)
 
 GOOSE ?= go tool goose
 SQLC  ?= go tool sqlc
 
-.PHONY: db-up db-down db-migrate db-status db-new sqlc run test test-integration build vet
+CLOSURE_STUB := bash scripts/closure/gate-stub.sh
+GATES := gate-build gate-vet gate-fmt gate-unit gate-race \
+	gate-integration gate-migrations gate-sqlc closure-gate
+
+.PHONY: db-up db-down db-migrate db-status db-new sqlc run test test-integration build vet $(GATES)
 
 db-up:
 	docker compose up -d
@@ -54,3 +60,9 @@ build:
 
 vet:
 	go vet ./...
+
+# WS7A RED scaffolds — every gate target delegates to the pass-through stub,
+# which emits a deterministic JSON pass receipt and exits 0 without running any
+# check. Task 7.1 GREEN replaces the delegation with real scripts.
+$(GATES):
+	$(CLOSURE_STUB) $@

@@ -1449,3 +1449,75 @@ Freshly observed validation commands (this reconciliation, all read-only):
 - `cd backend && go test ./... -count=1` → 47 packages ok, 0 FAIL, exit 0.
 
 `tasks.md` edit: exactly the four Task 6.3 checkbox markers changed `- [ ]` → `- [x]` (lines 242–245); zero other bytes changed; file remains 58,766 bytes; final census 84 checked / 16 unchecked / 100 total with all 100 `sdd-owner: implementation` markers intact. Remaining unchecked boxes belong to Phase 7 (WS7A/WS7B/WS7C) and Phase 8 (A2 doc reconciliation) and are NOT claimed by this entry. No staging/commit/push/stash; no verify-report creation; no production or test code touched.
+
+---
+
+## WS7A RED — Task 7.1 (pass-through gate scaffolds + mutation-fixture tests)
+
+> **Scope:** RED only. No GREEN, no checkbox change, no verify-report creation, no branch/PR/git operation, no production/runtime code touched. Authorized edit surfaces only: `backend/scripts/closure/gate-stub.sh` (new), `backend/scripts/closure/gates_test.go` (new), `backend/Makefile` (scaffold targets only), this file (append).
+
+### RED scaffolds (compile-safe)
+
+- `backend/scripts/closure/gate-stub.sh` (new, 23 lines): the one common pass-through stub. Receives the gate name as argv[1], emits a deterministic single-line JSON receipt `{"gate":"<name>","status":"pass","tool":"stub","exit_code":0}` on stdout, and exits 0 without running any check.
+- `backend/Makefile` (authorized scaffold edit, 39 additions / 3 deletions): added `CLOSURE_STUB := bash scripts/closure/gate-stub.sh`, all nine `.PHONY` gate targets (`gate-build`, `gate-vet`, `gate-fmt`, `gate-unit`, `gate-race`, `gate-integration`, `gate-migrations`, `gate-sqlc`, `closure-gate`), each a one-line stub delegation. Two pre-existing lines in `db-new` were rewritten equivalently (`@if [ -z ... exit 1` → `@test -n || { echo ...; false; }`) to keep the touched file shellcheck-clean; behavior is identical (empty NAME → usage message, make aborts, exit 2, verified).
+- `backend/scripts/closure/gates_test.go` (new, 419 lines): package `closure_test`. Common helpers: `repoRoot` (module root from test cwd), `copyTree`/`copyPath` (temp-copy of named inputs), `runGate` (`make -f <copied Makefile> <target>` against a temp dir), `runStubDirectly`, `parseReceipt` (skips make's recipe echo, decodes the JSON line), `requireGateFails` (core RED assertion: mutated fixture must yield non-zero exit AND a non-pass receipt; otherwise fails with "mutated fixture was incorrectly reported as pass").
+
+### Mutation fixtures (one per violation class named by task 7.1)
+
+| Test | Violation class seeded (in a `t.TempDir()` copy only) | Target |
+| ---- | ------------------------------------------------------ | ------ |
+| `TestGateBuild_MutationFails` | syntax break in `internal/runtime/server/server.go` | `gate-build` |
+| `TestGateVet_MutationFails` | `fmt.Sprintf("static", x)` vet finding in `cmd/migrate/main.go` | `gate-vet` |
+| `TestGateFmt_MutationFails` | unformatted Go file dropped into `scripts/closure/` | `gate-fmt` |
+| `TestGateUnit_MutationFails` | failing test `TestFixtureMustFail` in `internal/shared/httpjson` | `gate-unit` |
+| `TestGateRace_MutationFails` | two-goroutine unsynchronized counter in `internal/fixturerace` | `gate-race` |
+| `TestGateIntegration_MutationFails` | emitted `Action:"skip"` when `DATABASE_URL` unset (R4) | `gate-integration` |
+| `TestGateMigrations_MutationFails` | corrupted `00001_init.up.sql` (round-trip break) | `gate-migrations` |
+| `TestGateSqlc_MutationFails` | `SELECT DISTINCT` edit in `db/queries/industries.sql` without regeneration | `gate-sqlc` |
+| `TestClosureGate_MutationFails` | undefined-symbol build break under `internal/shared/httpjson` | `closure-gate` |
+| `TestGateReceipts_ShapeAndDeterminism` | (control, passes against RED stub) pins receipt shape, determinism, exit-code mirroring, and all nine Makefile targets existing and delegating to the stub | all nine |
+
+Every fixture copies the tree inputs into a temporary directory and seeds the violation there; the working tree is never mutated by a fixture.
+
+### Exact RED evidence (behavioral, not compile)
+
+Commands and results:
+
+- `cd backend && go test ./scripts/closure/ -count=1 -v` → the nine mutation tests FAIL; the receipt-contract control PASSES.
+- `cd backend && go test ./... -count=1` → 47 packages ok; the only FAIL is `github.com/aldrichcode45/peopleflow-vacantes/scripts/closure` (the RED package).
+- `cd backend && go vet ./scripts/...` → clean; `gofmt -l backend/scripts/` → empty.
+- `git status --porcelain` (after run) → only `M backend/Makefile` and `?? backend/scripts/`; fixtures left no residue.
+
+Exact failure output per test (representative; all nine share the same behavioral shape):
+
+```
+gates_test.go:197: mutated fixture was incorrectly reported as pass: gate="gate-build" status="pass" exit=0 receipt=bash scripts/closure/gate-stub.sh gate-build
+--- FAIL: TestGateBuild_MutationFails (0.03s)
+gates_test.go:348: mutated fixture was incorrectly reported as pass: gate="gate-sqlc" status="pass" exit=0 receipt=bash scripts/closure/gate-stub.sh gate-sqlc
+--- FAIL: TestGateSqlc_MutationFails (0.02s)
+```
+
+This is the exact RED reason named by task 7.1: "each stub target reports pass on the mutated fixture, so the fixture test expecting failure fails." `TestGateReceipts_ShapeAndDeterminism` intentionally passes at RED because it pins the stub's own RED contract (deterministic pass receipt, exit 0, one JSON line, `tool:"stub"`); GREEN will need to evolve it alongside the real scripts.
+
+### Hygiene and scope
+
+- Compile-safe: RED fails on assertions, never on missing symbols (fixed two iteration-time compile slips — a 5-arg `strings.Replace` and an invalid vet-seed literal — before recording evidence).
+- Review-budget arithmetic: stub 23 + test 419 + Makefile 39/3 (36 net) = 478 authored lines against the 400-line budget for RU18. This unit is scaffold+fixture heavy by construction (nine violation classes × temp-copy seeding). Per the budget contract the implementation is reported honestly rather than compressed; GREEN (real scripts) is a separate slice that replaces stub delegation, and the parent may treat GREEN+REFACTOR as the next review unit.
+- `git status --porcelain` clean of fixture residue; no staging/commit/fetch/push/stash/reset/worktree performed.
+- Task 7.1 checkboxes: NOT touched (all four remain `- [ ]`). No `verify-report.md` created.
+
+### Pending (not authorized in this unit)
+
+- GREEN: replace stub delegation with real scripts + machine-readable receipts under `backend/quality/receipts/`, `gate-integration` `go test -json` skip rejection with DB preflight, `gate-migrations` via built `cmd/migrate`, `gate-sqlc` temp-copy generate+diff.
+- TRIANGULATE: stale-receipt, skip-emission, sqlc-drift, unreachable-Postgres mutations.
+- REFACTOR: each required gate target end-to-end on disposable Postgres; `make closure-gate` remains expected NO-GO at that stage.
+
+## WS7A RED correction — compact table-driven candidate (supersedes the 546-line failed candidate)
+
+- **Supersession:** this record supersedes the failed WS7A RED candidate above (evidence `sha256:e84701c096802fb4546c2b15b6039e3b613b0877ab30cf2e17481ac7e3928c13`, 546 changed lines); the failed suffix is preserved byte-for-byte and nothing before this heading was edited. Surface unchanged: `backend/Makefile`, `backend/scripts/closure/gate-stub.sh` (unchanged, 23 lines), `backend/scripts/closure/gates_test.go` (rewritten compact), this append.
+- **Coverage preserved:** all nine independently named mutation classes remain (build break, vet finding, unformatted file, failing unit test, unsynchronized counter, emitted skip, migration round-trip break, sqlc drift, aggregate build break) as subtests of one table-driven RED test (`TestGate_MutationFixturesFailAgainstStub`, scenario table + narrow `seedEdit`/`seedFile` helpers); `TestGateReceipts_ShapeAndDeterminism` is the deterministic receipt control and PASSES. Every fixture seeds only inside `t.TempDir()`.
+- **Makefile:** `db-new` restored byte-identical to HEAD (verified against `git show HEAD:backend/Makefile`); the nine targets are compacted into a `$(GATES)` static pattern rule delegating `$(CLOSURE_STUB) $@` (14+/2− total). The lens SC1089 finding on the restored `db-new` recipe is a pre-existing shellcheck parse artifact of the `@`-prefixed recipe line (byte-identical to HEAD); rewriting it was exactly the rejected scope drift, so HEAD text is kept per the correction mandate and the conflict is documented here.
+- **Focused RED (behavioral, not compile):** `cd backend && go test ./scripts/closure/ -count=1 -v` → all nine mutation subtests FAIL with `mutated fixture was incorrectly reported as pass: gate="…" status="pass" exit=0` (the exact task-7.1 RED reason: stubs return pass) + control PASS; `go vet ./scripts/closure/` clean; `gofmt -l` clean.
+- **Broad:** `cd backend && go test ./... -count=1` → 47 test-bearing packages reported ok, 8 packages reported no test files, and `scripts/closure` was the only failing package (the RED package). Isolation confirmed twice.
+- **Complete line accounting (measured `git diff --numstat` + untracked, final candidate vs HEAD):** prior failed progress suffix 62+/0− + this correction record 10+/0− + `backend/Makefile` 14+/2− + untracked `backend/scripts/closure/gate-stub.sh` 23 + untracked `backend/scripts/closure/gates_test.go` 276 = **387 changed lines (385 additions + 2 deletions) ≤ 400 budget; no size exception used**.
+- **Not done (as mandated):** no GREEN, Task 7.1 checkboxes untouched (all four remain `- [ ]`), no verify-report created, no production/runtime feature edits, no staging/commit/fetch/push/stash/reset/worktree. Next action: independently verify the compact RED candidate against the recorded commands and invariants; no GREEN work, task reconciliation, staging, or commit is included.
