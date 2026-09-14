@@ -1,21 +1,30 @@
 // Package closure_test — WS7A RED mutation fixtures, compact table-driven form.
 //
-// Nine independently named violation classes (task 7.1) are each seeded into a
+// Ten independently named violation classes (task 7.1) are each seeded into a
 // TEMPORARY COPY of the tree inputs (t.TempDir; the working tree is never
 // mutated) and the matching gate target must FAIL with a failure receipt.
-// Against the RED pass-through stub every gate reports {"status":"pass"} on a
-// mutated fixture, so every mutation row fails behaviorally — that is the RED
-// evidence; the receipt contract test is the control that passes at RED.
+// RED (a6e52b8): the pass-through stub reported pass on every mutation, so
+// every row failed behaviorally. GREEN: the real scripts make every row pass.
 package closure_test
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
+
+func TestMain(m *testing.M) {
+	if os.Getenv("GATE_ACTIVE") == "1" {
+		os.Exit(0)
+	}
+	os.Exit(m.Run())
+}
 
 // gateTargets lists the nine scaffold targets in canonical order.
 var gateTargets = []string{
@@ -26,11 +35,19 @@ var gateTargets = []string{
 // receipt is the JSON object a gate emits on stdout. The RED stub always emits
 // status "pass"; GREEN must emit "fail" with a failure record on mutation.
 type receipt struct {
-	Gate     string `json:"gate"`
-	Status   string `json:"status"`
-	Tool     string `json:"tool"`
-	ExitCode int    `json:"exit_code"`
-	Failure  string `json:"failure,omitempty"`
+	Gate       string            `json:"gate"`
+	Status     string            `json:"status"`
+	Tool       string            `json:"tool"`
+	Command    string            `json:"command"`
+	Commit     string            `json:"commit"`
+	Tree       string            `json:"tree"`
+	StartedAt  string            `json:"started_at"`
+	EndedAt    string            `json:"ended_at"`
+	ExitCode   int               `json:"exit_code"`
+	TestCounts map[string]int    `json:"test_counts"`
+	SkipNames  []string          `json:"skip_names"`
+	Artifacts  map[string]string `json:"artifact_hashes"`
+	Failure    string            `json:"failure"`
 }
 
 // repoRoot is the backend module root, resolved from the test's location.
@@ -63,12 +80,13 @@ func runGate(t *testing.T, root, target string) (stdout, stderr string, err erro
 }
 
 // parseReceipt decodes exactly one JSON receipt line from stdout, skipping
-// make's recipe echo lines by scanning for the first line beginning with '{'.
+// make's recipe echo lines by scanning for the first line beginning with
+// '{"gate"' — go test -json events and captured logs are never receipts.
 func parseReceipt(t *testing.T, stdout string) receipt {
 	t.Helper()
 	var jsonLine string
 	for _, line := range strings.Split(stdout, "\n") {
-		if strings.HasPrefix(line, "{") {
+		if strings.HasPrefix(line, `{"gate"`) {
 			jsonLine = line
 			break
 		}
@@ -81,6 +99,17 @@ func parseReceipt(t *testing.T, stdout string) receipt {
 		t.Fatalf("decode receipt %q: %v", jsonLine, err)
 	}
 	return r
+}
+
+func receiptLine(t *testing.T, stdout string) string {
+	t.Helper()
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.HasPrefix(line, `{"gate"`) {
+			return line
+		}
+	}
+	t.Fatalf("no JSON receipt found in output: %q", stdout)
+	return ""
 }
 
 // fixtureInputs is the common superset every fixture copies into its temp dir
@@ -132,6 +161,7 @@ func seedFile(t *testing.T, dir, rel, content string) {
 type mutationFixture struct {
 	name   string // "<target>: <violation class>" — the class name pinned by RED
 	target string
+	extra  []string // additional inputs copied from root (e.g. ".env")
 	seed   func(t *testing.T, dir string)
 }
 
@@ -165,25 +195,14 @@ func TestFixtureRace(t *testing.T) {
 	_ = n
 }
 `
-	// fixtureSkipPkg seeds a test that emits an integration Action:"skip" when
-	// DATABASE_URL is unset (R4: zero unexpected skips).
 	fixtureSkipPkg = `package fixtureskip
 
-import (
-	"os"
-	"testing"
-)
+import "testing"
 
-func TestFixtureSkip(t *testing.T) {
-	if os.Getenv("DATABASE_URL") == "" {
-		t.Skip("integration fixture: DATABASE_URL unset")
-	}
-}
+func TestFixtureSkip(t *testing.T) { t.Skip("fixture: skip evidence is rejected") }
 `
 )
 
-// mutationFixtures returns the nine rows, one per violation class. Every seed
-// operates only inside the fixture's t.TempDir copy.
 func mutationFixtures() []mutationFixture {
 	return []mutationFixture{
 		{name: "gate-build: build break", target: "gate-build", seed: func(t *testing.T, d string) {
@@ -200,12 +219,16 @@ func mutationFixtures() []mutationFixture {
 			seedFile(t, d, filepath.Join("internal", "shared", "httpjson", "zz_fixture_test.go"), fixtureFailTest)
 		}},
 		{name: "gate-race: unsynchronized counter", target: "gate-race", seed: func(t *testing.T, d string) {
-			seedFile(t, d, filepath.Join("internal", "fixturerace", "race_test.go"), fixtureRacePkg)
+			// Seed into a covered package: the race gate races the WS6C-proven packages, so the violation must live inside one of them.
+			seedFile(t, d, filepath.Join("internal", "runtime", "middleware", "zz_fixture_race_test.go"), "package middleware_test\n\n"+strings.TrimPrefix(fixtureRacePkg, "package fixturerace\n\n"))
 		}},
-		{name: "gate-integration: emitted skip", target: "gate-integration", seed: func(t *testing.T, d string) {
+		{name: "gate-race: skipped test", target: "gate-race", seed: func(t *testing.T, d string) {
+			seedFile(t, d, filepath.Join("internal", "runtime", "middleware", "zz_fixture_skip_test.go"), strings.Replace(fixtureSkipPkg, "package fixtureskip", "package middleware_test", 1))
+		}},
+		{name: "gate-integration: emitted skip", target: "gate-integration", extra: []string{".env"}, seed: func(t *testing.T, d string) {
 			seedFile(t, d, filepath.Join("internal", "fixtureskip", "skip_test.go"), fixtureSkipPkg)
 		}},
-		{name: "gate-migrations: round-trip break", target: "gate-migrations", seed: func(t *testing.T, d string) {
+		{name: "gate-migrations: round-trip break", target: "gate-migrations", extra: []string{".env"}, seed: func(t *testing.T, d string) {
 			seedFile(t, d, filepath.Join("db", "migrations", "00001_init.up.sql"), "SELECT !!!broken_migration_sql;\n")
 		}},
 		{name: "gate-sqlc: sqlc drift", target: "gate-sqlc", seed: func(t *testing.T, d string) {
@@ -217,9 +240,8 @@ func mutationFixtures() []mutationFixture {
 	}
 }
 
-// requireGateFails is the core RED assertion: a mutated fixture MUST make the
-// gate fail (non-zero exit AND a non-pass receipt). Against the stub the gate
-// passes and this helper fails the test — the exact behavioral RED reason.
+// requireGateFails: a mutated fixture MUST fail the gate — non-zero process exit,
+// a failure receipt whose exit_code mirrors it (skip-only failures included), and a self-verifying receipt_integrity digest.
 func requireGateFails(t *testing.T, root, target string) {
 	t.Helper()
 	stdout, stderr, err := runGate(t, root, target)
@@ -228,49 +250,115 @@ func requireGateFails(t *testing.T, root, target string) {
 		t.Fatalf("mutated fixture was incorrectly reported as pass: gate=%q status=%q exit=0 receipt=%s stderr=%q",
 			r.Gate, r.Status, stdout, stderr)
 	}
-	if r := parseReceipt(t, stdout); r.Status == "pass" && r.ExitCode == 0 {
+	r := parseReceipt(t, stdout)
+	if r.Status == "pass" && r.ExitCode == 0 {
 		t.Fatalf("gate exited non-zero but the receipt still records pass: %s", stdout)
+	}
+	if r.Status != "fail" {
+		t.Fatalf("failure receipt status = %q, want fail (receipt=%s)", r.Status, stdout)
+	}
+	if r.ExitCode == 0 {
+		t.Fatalf("failure receipt records exit_code 0; want the gate's nonzero process exit mirrored: %s", stdout)
+	}
+	verifyReceiptIntegrity(t, stdout)
+	t.Logf("gate correctly failed on the mutated fixture: %s", r.Failure)
+}
+
+// verifyReceiptIntegrity recomputes the receipt's self-digest: receipt_integrity must equal the sha256 of the receipt line with artifact_hashes reset to {} (documented substitution).
+func verifyReceiptIntegrity(t *testing.T, stdout string) {
+	t.Helper()
+	line := receiptLine(t, stdout)
+	stripped := regexp.MustCompile(`"artifact_hashes":\{[^{}]*\}`).ReplaceAllString(line, `"artifact_hashes":{}`)
+	sum := sha256.Sum256([]byte(stripped))
+	var r receipt
+	if err := json.Unmarshal([]byte(line), &r); err != nil {
+		t.Fatalf("decode receipt: %v", err)
+	}
+	if want := "sha256:" + hex.EncodeToString(sum[:]); r.Artifacts["receipt_integrity"] != want {
+		t.Fatalf("receipt_integrity mismatch:\n recorded:  %s\n recomputed: %s", r.Artifacts["receipt_integrity"], want)
+	}
+	if !strings.HasPrefix(r.Artifacts["worktree_state"], "sha256:") {
+		t.Fatalf("receipt must bind a sha256 worktree_state, got %q", r.Artifacts["worktree_state"])
 	}
 }
 
-// TestGate_MutationFixturesFailAgainstStub drives the nine violation classes
-// through one scenario table; each subtest is one independently named class.
-func TestGate_MutationFixturesFailAgainstStub(t *testing.T) {
+func TestGate_MutationFixturesForceGateFailure(t *testing.T) {
 	root := repoRoot(t)
 	for _, f := range mutationFixtures() {
 		t.Run(f.name, func(t *testing.T) {
 			dir := t.TempDir()
-			copyTree(t, root, dir, fixtureInputs...)
+			copyTree(t, root, dir, append(fixtureInputs, f.extra...)...)
 			f.seed(t, dir)
 			requireGateFails(t, dir, f.target)
 		})
 	}
 }
 
-// TestGateReceipts_ShapeAndDeterminism is the control that passes at RED: per
-// gate it pins the stub's contract through the make layer — deterministic
-// pass receipt, exit 0, exactly one JSON line with the fixed fields, and the
-// target existing and delegating to the stub. GREEN must evolve this alongside
-// the real scripts.
-func TestGateReceipts_ShapeAndDeterminism(t *testing.T) {
+// TestGateReceipts_RealContractAndDelegation is the GREEN receipt control: every target delegates
+// to the real gate script (make -n), and a live fast gate emits a deterministic self-verifying receipt.
+func TestGateReceipts_RealContractAndDelegation(t *testing.T) {
 	root := repoRoot(t)
 	for _, gate := range gateTargets {
-		t.Run(gate+"/receipt_contract", func(t *testing.T) {
-			out1, _, err := runGate(t, root, gate)
-			if err != nil {
-				t.Fatalf("make %s: %v (RED contract: the stub target passes)", gate, err)
-			}
-			r := parseReceipt(t, out1)
-			if r.Gate != gate || r.Status != "pass" || r.Tool != "stub" || r.ExitCode != 0 {
-				t.Errorf("%s: receipt = %+v (want gate=%q status=pass tool=stub exit_code=0)", gate, r, gate)
-			}
-			if n := strings.Count(out1[strings.Index(out1, "{"):], "\n{"); n != 0 {
-				t.Errorf("%s: want exactly one JSON receipt line, got %d additional (%q)", gate, n, out1)
-			}
-			out2, _, err2 := runGate(t, root, gate)
-			if err2 != nil || out1 != out2 {
-				t.Errorf("%s: receipt not deterministic (err2=%v):\n first: %s\n second: %s", gate, err2, out1, out2)
+		t.Run(gate+"/delegates_to_real_script", func(t *testing.T) {
+			cmd := exec.Command("make", "-n", gate)
+			cmd.Dir = root
+			out, err := cmd.CombinedOutput()
+			if err != nil || !strings.Contains(string(out), "scripts/closure/gate "+gate) {
+				t.Fatalf("make -n %s must delegate to scripts/closure/gate: err=%v out=%s", gate, err, out)
 			}
 		})
 	}
+	t.Run("gate-fmt/real_receipt_contract", func(t *testing.T) {
+		out1, _, err := runGate(t, root, "gate-fmt")
+		if err != nil {
+			t.Fatalf("make gate-fmt: %v (the real tree must pass its own fmt gate)", err)
+		}
+		r := parseReceipt(t, out1)
+		if r.Gate != "gate-fmt" || r.Status != "pass" || r.ExitCode != 0 {
+			t.Errorf("gate-fmt receipt = %+v (want gate=gate-fmt status=pass exit_code=0)", r)
+		}
+		if r.Tool != "gofmt -l ." || r.Command != "make gate-fmt" {
+			t.Errorf("gate-fmt receipt tool/command = %q/%q (want gofmt -l . / make gate-fmt)", r.Tool, r.Command)
+		}
+		if r.Commit == "" || r.Tree == "" || r.StartedAt == "" || r.EndedAt == "" {
+			t.Errorf("gate-fmt receipt identity/timestamps incomplete: %+v", r)
+		}
+		if len(r.SkipNames) != 0 || r.Failure != "" {
+			t.Errorf("passing receipt must carry zero skips and empty failure: %+v", r)
+		}
+		data, err := os.ReadFile(filepath.Join(root, "quality", "receipts", "gate-fmt.json"))
+		if err != nil {
+			t.Fatalf("read receipt file: %v", err)
+		}
+		if got := strings.TrimSpace(string(data)); got != receiptLine(t, out1) {
+			t.Errorf("receipt file does not mirror stdout:\n file:   %s\n stdout: %s", got, receiptLine(t, out1))
+		}
+		out2, _, err2 := runGate(t, root, "gate-fmt")
+		if err2 != nil {
+			t.Fatalf("make gate-fmt (second run): %v", err2)
+		}
+		r2 := parseReceipt(t, out2)
+		if r2.Gate != r.Gate || r2.Status != r.Status || r2.Tool != r.Tool || r2.Command != r.Command || r2.Commit != r.Commit || r2.Tree != r.Tree {
+			t.Errorf("stable receipt fields not deterministic:\n first:  %+v\n second: %+v", r, r2)
+		}
+	})
+}
+
+// TestGate_DBPreflight_NeverExecutesDotenv (R1): a malicious .env (valid unreachable DSN + shell side effect) must fail the gate but NOT create the marker.
+func TestGate_DBPreflight_NeverExecutesDotenv(t *testing.T) {
+	root, dir := repoRoot(t), t.TempDir()
+	copyTree(t, root, dir, fixtureInputs...)
+	seedFile(t, dir, ".env", "DATABASE_URL=postgres://fixture:fixture@127.0.0.1:1/fixture?sslmode=disable\ntouch \"$PWD/pwned-marker\"\n")
+	requireGateFails(t, dir, "gate-integration")
+	if _, err := os.Stat(filepath.Join(dir, "pwned-marker")); err == nil {
+		t.Fatal(".env side-effect marker was created: dotenv was sourced as shell, not parsed as data")
+	}
+}
+
+// TestGate_GoFmtFailureFailsGate (R3): a failing gofmt -l command (exit status discarded by the mutation) must fail the gate.
+func TestGate_GoFmtFailureFailsGate(t *testing.T) {
+	root, dir := repoRoot(t), t.TempDir()
+	copyTree(t, root, dir, fixtureInputs...)
+	seedEdit(t, dir, filepath.Join("scripts", "closure", "gate"), `unformatted="$(gofmt -l .)"`, `unformatted="$(false)"`)
+	requireGateFails(t, dir, "gate-fmt")
 }

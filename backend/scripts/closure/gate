@@ -1,0 +1,158 @@
+#!/usr/bin/env bash
+# gate — WS7A GREEN closure-gate runner (task 7.1). One script behind every gate-* Makefile
+# target: runs the named check, scans test counts/skips, writes one JSON receipt to stdout AND
+# quality/receipts/<gate>.json mirroring exit status. GATE_ACTIVE=1 prevents recursion.
+set -uo pipefail
+export GATE_ACTIVE=1
+if [ $# -lt 1 ]; then echo 'usage: gate <gate-name>' >&2; exit 64; fi
+gate="$1"; receipts_dir="quality/receipts"
+out_file="$(mktemp "${TMPDIR:-/tmp}/gate-out.XXXXXX")"; err_file="$(mktemp "${TMPDIR:-/tmp}/gate-err.XXXXXX")"
+trap 'rm -f "$out_file" "$err_file"' EXIT
+started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+# db_probe: one robust parser+dial boundary — python3 urllib.parse (bracketed IPv6, reserved
+# credential chars, params) plus socket.create_connection with timeout. The DSN goes on stdin
+# (never argv/env/echo); NO fallback parsing: fail closed; nothing is ever printed.
+db_probe() {
+  printf '%s' "$DATABASE_URL" | python3 -c 'import sys,socket
+from urllib.parse import urlsplit
+try:
+    s = urlsplit(sys.stdin.read())
+    if not s.hostname:
+        sys.exit(1)
+    socket.create_connection((s.hostname, s.port or 5432), timeout=3).close()
+except Exception:
+    sys.exit(1)' 2>/dev/null
+}
+# db_preflight: missing/empty DATABASE_URL or an unreachable/malformed DSN
+# fails closed before any test runs (design §9). .env is parsed as data,
+# never sourced: only DATABASE_URL is read (optional single/double quotes
+# stripped); every other line is ignored and file content is never executed.
+db_preflight() {
+  if [ ! -f .env ]; then
+    echo "database preflight: backend/.env is required; missing DATABASE_URL fails the gate"; return 1
+  fi
+  envline="$(grep -m1 '^DATABASE_URL=' .env || true)"
+  DATABASE_URL="${envline#DATABASE_URL=}"
+  case "$DATABASE_URL" in
+    \"*\") DATABASE_URL="${DATABASE_URL#\"}"; DATABASE_URL="${DATABASE_URL%\"}" ;;
+    \'*\') DATABASE_URL="${DATABASE_URL#\'}"; DATABASE_URL="${DATABASE_URL%\'}" ;;
+  esac
+  [ -n "$DATABASE_URL" ] || { echo "database preflight: backend/.env must define a non-empty DATABASE_URL; missing DATABASE_URL fails the gate"; return 1; }
+  if ! db_probe; then
+    echo "database preflight: DATABASE_URL failed the connection probe (unreachable or malformed); fails the gate closed"; return 1
+  fi
+}
+check_command=$(case "$gate" in
+  gate-build)       printf 'go build ./...' ;;
+  gate-vet)         printf 'go vet ./...' ;;
+  gate-fmt)         printf 'gofmt -l .' ;;
+  gate-unit)        printf 'go test ./... -count=1 -v' ;;
+  gate-race)        printf 'go test -race -v -count=1 ./internal/runtime/middleware ./internal/runtime/health ./cmd/api' ;;
+  gate-integration) printf 'go test -tags=integration -p 1 ./... -count=1 -json' ;;
+  gate-migrations)  printf 'built cmd/migrate round trip (cmd/migrate integration harness)' ;;
+  gate-sqlc)        printf 'go tool sqlc generate in a clean temp copy, then diff' ;;
+  closure-gate)     printf 'all eight required gates in sequence' ;;
+esac)
+# run_check: stdout lands in out_file, stderr in err_file (go test -json stdout must stay pure JSON).
+run_check() {
+  case "$gate" in
+    gate-build) go build ./... ;;
+    gate-vet)   go vet ./... ;;
+    gate-fmt)
+      local unformatted
+      unformatted="$(gofmt -l .)" || { echo "gofmt -l . failed with exit status $?; formatter failure fails the gate"; return 1; }
+      if [ -n "$unformatted" ]; then
+        echo "unformatted Go files reported by gofmt -l (first: $(printf '%s\n' "$unformatted" | head -1); $(printf '%s\n' "$unformatted" | wc -l | tr -d ' ') total)"
+        return 1
+      fi ;;
+    gate-unit)  go test ./... -count=1 -v ;;
+    gate-race)  go test -race -v -count=1 ./internal/runtime/middleware ./internal/runtime/health ./cmd/api ;;
+    gate-integration)
+      db_preflight && go tool goose up || return 1
+      # Select only integration test-bearing packages BEFORE -json: Go emits
+      # package-level Action:"skip" events for no-test packages; reject ANY skip.
+      local pkgs
+      pkgs="$(go list -tags=integration -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./...)" || { echo "integration package selection failed"; return 1; }
+      [ -n "$pkgs" ] || { echo "no integration test-bearing packages found"; return 1; }
+      go test -tags=integration -p 1 -count=1 -json $pkgs ;;
+    gate-migrations)
+      db_preflight || return 1
+      # -v lifecycle lines: an absent or skipped boundary test cannot pass vacuously.
+      go test -tags=integration -p 1 -count=1 -v -run '^TestMigrateBinaryBoundary$' ./cmd/migrate || return 1
+      local mig_runs mig_passes
+      mig_runs="$(grep -c '^=== RUN   TestMigrateBinaryBoundary$' "$out_file")"; mig_passes="$(grep -c '^--- PASS: TestMigrateBinaryBoundary (' "$out_file")"
+      [ "$mig_runs" -eq 1 ] && [ "$mig_passes" -eq 1 ] || { echo "gate-migrations: boundary test lifecycle check failed — TestMigrateBinaryBoundary absent, skipped, or not run exactly once"; return 1; } ;;
+    gate-sqlc)
+      local tmp drift
+      tmp="$(mktemp -d)"
+      cp -a go.mod go.sum sqlc.yaml db internal "$tmp/" || { rm -rf "$tmp"; return 1; }
+      if ! ( cd "$tmp" && go tool sqlc generate ); then
+        rm -rf "$tmp"; echo "sqlc generate failed in the clean temp copy"; return 1
+      fi
+      drift="$(diff -r "$tmp/internal/db" internal/db 2>&1 | head -5)"; rm -rf "$tmp"
+      if [ -n "$drift" ]; then
+        echo "sqlc drift: generated outputs differ from the committed tree (first: $(printf '%s\n' "$drift" | head -1))"; return 1
+      fi ;;
+    closure-gate)
+      local sub failed=""
+      for sub in gate-build gate-vet gate-fmt gate-unit gate-race gate-integration gate-migrations gate-sqlc; do
+        bash scripts/closure/gate "$sub" || { failed="$sub"; break; }
+      done
+      if [ -n "$failed" ]; then
+        echo "closure-gate: sub-gate $failed failed (aggregate stays NO-GO until the report unit lands)"; return 1
+      fi ;;
+    *) echo "unknown gate: $gate" >&2; return 64 ;;
+  esac
+}
+run_check > "$out_file" 2> "$err_file"
+check_exit=$?; ended="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+counts_ok=0; counts_fail=0; counts_none=0; malformed=0
+if [ "$gate" = "gate-integration" ]; then
+  # Every -json stdout line must parse as a JSON event; malformed lines fail
+  # the gate instead of being silently discarded.
+  malformed="$(jq -Rsc 'split("\n") | [.[] | select(length > 0) | try fromjson catch null] | map(select(. == null)) | length' "$out_file")"
+  counts_ok="$(jq -Rsc 'split("\n") | [.[] | (fromjson? // empty) | select(.Action == "pass" and .Test == null)] | length' "$out_file")"
+  counts_fail="$(jq -Rsc 'split("\n") | [.[] | (fromjson? // empty) | select(.Action == "fail" and .Test == null)] | length' "$out_file")"
+  # ANY Action:"skip" event fails the gate — no whitelist, no package-level
+  # exemption (only test-bearing packages are selected, so no-test events
+  # cannot occur and no subtraction is needed).
+  skips_raw="$(jq -Rsc 'split("\n") | [.[] | (fromjson? // empty) | select(.Action == "skip") | if .Test then .Test else "package:" + .Package end] | unique' "$out_file")"
+  skip_json="$skips_raw"
+  counts_none=0
+else
+  skip_json="$(grep -oE -e 'SKIP: [^[:space:]]+' "$out_file" 2>/dev/null | awk '{print $2}' | sort -u | jq -Rsc 'split("\n") | map(select(length > 0))')"
+fi
+skip_count="$(printf '%s' "$skip_json" | jq 'length')"
+first_skip="$(printf '%s' "$skip_json" | jq -r '.[0] // ""')"
+status="pass"; failure=""; final_exit=0
+if [ "$malformed" -gt 0 ]; then
+  status="fail"; final_exit=1
+  failure="$malformed malformed go test -json event line(s); every emitted line must parse as a JSON event"
+elif [ "$check_exit" -ne 0 ]; then
+  status="fail"; final_exit=1
+  failure="$(grep -hm1 -E -e '[Ee]rror|FAIL|failed|drift|preflight|unformatted' "$out_file" "$err_file" 2>/dev/null | head -c 200)"
+  [ -n "$failure" ] || failure="check failed with exit code $check_exit"
+fi
+if [ "$skip_count" -gt 0 ]; then
+  status="fail"; final_exit=1
+  failure="emitted $skip_count test skip(s) (first: $first_skip); any Action:skip fails the gate"
+fi
+worktree_state="$( { git status --porcelain --untracked-files=all; git diff HEAD
+  git ls-files --others --exclude-standard -z | while IFS= read -r -d '' f; do printf '%s  %s\n' "$(sha256sum "$f" | cut -d' ' -f1)" "$f"; done
+} 2>/dev/null | sha256sum | cut -d' ' -f1)"
+commit="$(git rev-parse HEAD 2>/dev/null || echo git:unavailable)"
+tree="$(git rev-parse 'HEAD^{tree}' 2>/dev/null || echo git:unavailable)"
+mkdir -p "$receipts_dir" || { echo "receipt write failed: cannot create $receipts_dir" >&2; exit 1; }
+base_receipt="$(jq -n \
+  --arg gate "$gate" --arg status "$status" --arg tool "$check_command" --arg command "make $gate" \
+  --arg commit "$commit" --arg tree "$tree" --arg started "$started" --arg ended "$ended" \
+  --argjson exit_code "$final_exit" --arg failure "$failure" \
+  --argjson test_counts "$(printf '{"ok":%s,"fail":%s,"no_test_files":%s}' "$counts_ok" "$counts_fail" "$counts_none")" \
+  --argjson skip_names "$skip_json" \
+  '{gate:$gate, status:$status, tool:$tool, command:$command, commit:$commit, tree:$tree, started_at:$started, ended_at:$ended, exit_code:$exit_code, test_counts:$test_counts, skip_names:$skip_names, artifact_hashes:{}, failure:$failure}')"
+# receipt_integrity = sha256 of the receipt line with artifact_hashes reset to {}; verifiers recompute it by that exact substitution.
+integrity="$(printf '%s' "$base_receipt" | jq -j -c . | sha256sum | cut -d' ' -f1)"
+rendered="$(printf '%s\n' "$base_receipt" | jq -c --arg ws "$worktree_state" --arg ri "sha256:$integrity" '.artifact_hashes = {worktree_state: ("sha256:" + $ws), receipt_integrity: $ri}')" || { echo "receipt write failed: cannot render receipt JSON" >&2; exit 1; }
+printf '%s\n' "$rendered" > "$receipts_dir/$gate.json" || { echo "receipt write failed: cannot write $receipts_dir/$gate.json" >&2; exit 1; }
+printf '%s\n' "$rendered"
+exit "$final_exit"

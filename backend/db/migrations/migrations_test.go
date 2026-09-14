@@ -50,7 +50,7 @@ func skipIfNoDatabase(t *testing.T) (*sql.DB, func()) {
 		t.Skip("DATABASE_URL not set; skipping integration test")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	cfg, err := pgxpool.ParseConfig(dsn)

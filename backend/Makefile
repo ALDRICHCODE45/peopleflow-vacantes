@@ -15,13 +15,13 @@
 #   make test          # go test ./... -count=1
 #   make build         # go build ./...
 #   make vet           # go vet ./...
-#   make gate-build    # WS7A RED scaffold: pass-through stub (no real check)
-#   make closure-gate  # WS7A RED scaffold: pass-through stub (no real check)
+#   make gate-build    # WS7A GREEN: real gate, JSON receipt under quality/receipts/
+#   make closure-gate  # WS7A GREEN: all required gates in sequence
 
 GOOSE ?= go tool goose
 SQLC  ?= go tool sqlc
 
-CLOSURE_STUB := bash scripts/closure/gate-stub.sh
+CLOSURE_STUB := bash scripts/closure/gate
 GATES := gate-build gate-vet gate-fmt gate-unit gate-race \
 	gate-integration gate-migrations gate-sqlc closure-gate
 
@@ -61,8 +61,10 @@ build:
 vet:
 	go vet ./...
 
-# WS7A RED scaffolds — every gate target delegates to the pass-through stub,
-# which emits a deterministic JSON pass receipt and exits 0 without running any
-# check. Task 7.1 GREEN replaces the delegation with real scripts.
+# WS7A GREEN — every gate target runs the real check via scripts/closure/gate,
+# which captures output, scans test counts and emitted skips, and writes one
+# machine-readable JSON receipt (quality/receipts/<gate>.json) while mirroring
+# the check's exit status. The RED pass-through stub (gate-stub.sh) is kept as
+# historical RED evidence.
 $(GATES):
 	$(CLOSURE_STUB) $@
