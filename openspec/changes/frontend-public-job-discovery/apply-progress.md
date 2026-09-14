@@ -1553,8 +1553,8 @@ Applied matching production behavior to `JobsResults.tsx`: `companyInitials` hel
 - `JobsResults.tsx`: +65/−38 = **103 lines** (production delta)
 - `vacantes.spec.ts`: +81/−0 = **81 lines** (test contracts)
 - `vacantes-a11y.spec.ts`: +3/−3 = **6 lines** (a11y adjustments)
-- `apply-progress.md`: measured after this correction (40 lines)
-- Combined: 65 + 38 + 3 + 3 + 81 + 0 + 40 = **230 lines** ≤ 400
+- `apply-progress.md`: measured after this correction (41 lines)
+- Combined: 65 + 38 + 3 + 3 + 81 + 0 + 41 = **231 lines** ≤ 400
 
 ### Hygiene and rollback
 
