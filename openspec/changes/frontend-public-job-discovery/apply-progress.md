@@ -1609,3 +1609,14 @@ Applied matching production behavior to `JobsResults.tsx`: `companyInitials` hel
 - Process cleanup: owned fixture and Next process groups were terminated and reaped; generated `.next`, `test-results`, `playwright-report`, and `tsconfig.tsbuildinfo` were removed. No owned processes or listeners remained.
 - Rollback: revert `3f8fdd5` to remove only the four replayed test/fixture paths; this documentation closure is separately removable by reverting its commit.
 - Workload: complete unit is `347` replay lines + `2` task-checkbox lines + `10` documentation lines = **359 changed lines**, within the 400-line budget. Only `tasks.md` and this progress artifact remain for the closure commit; Task 5.2+ remain unchecked.
+
+## Task 5.2 GREEN corrective retry — committed detail implementation
+
+- RED: `3f8fdd5` (`test(vacantes): define detail page behavior`). GREEN: `1627364` (`feat(vacantes): add vacancy detail page`), exactly 7 frontend paths and **355+/3− = 358 implementation lines**; no frontend file was edited or replayed in this retry.
+- Corrected offline build: `PEOPLEFLOW_API_BASE_URL=https://127.0.0.1:9 PEOPLEFLOW_SITE_URL=https://example.invalid PEOPLEFLOW_API_TIMEOUT_MS=1000 corepack pnpm build` → pass (Next 15.5.25, 4/4 pages). Frozen install, typecheck, lint, and `corepack pnpm test` → pass; unit **18 files / 99 tests**.
+- Production runtime used `NODE_ENV=development PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:4010 PEOPLEFLOW_SITE_URL=http://127.0.0.1:3000 PEOPLEFLOW_API_TIMEOUT_MS=1000` with fixture 4010 and `next start` 3000. First parallel full run exposed harness pollution plus the known dark-logo decode race: 55 tests, 22 passed, 4 failed, 29 skipped. The serial corrected full retry passed **55/55**, including list/detail timeout recovery.
+- The first combined accessibility invocation inherited fixture state and had 5 failures; after fixture reset, the complete a11y run passed **11/11**. This is disclosed harness-only retry evidence; no product/detail/list failure remained on the corrected serial harness.
+- Backend runner `cd backend && go test ./...` passed; `git diff --check` passed. Full unit accounting: implementation **358** + task checkbox **2** + this documentation **11** = **371 changed lines**, under 400.
+- Cleanup: owned fixture/Next processes were terminated and reaped; `.next`, `test-results`, `playwright-report`, and temporary logs were removed; ports 3000/4010 were free. Recovery worktree is clean and the original worktree remains untouched (its pre-existing changes were not signaled).
+- Rollback: revert `docs(openspec): close recovered frontend task 5.2`; then revert `1627364` for the detail implementation, and `3f8fdd5` for its RED tests. No frontend or backend rollback was otherwise performed.
+- Persisted state: only Task 5.2 is `[x]`; Task 5.3 and later remain unchecked. This closure is limited to the two OpenSpec files and is committed as `docs(openspec): close recovered frontend task 5.2`.
