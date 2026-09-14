@@ -1531,3 +1531,22 @@ This is the exact RED reason named by task 7.1: "each stub target reports pass o
 **Scope:** no task checkbox, no verify-report, no staging/commit/fetch/push/reset/stash, no TRIANGULATE/REFACTOR, no RDD, no Git-object mutation; the packed empty blob remains the explicitly accepted base-only exception; only durable implementation facts are recorded.
 
 **Accounting (measured):** eight helper files 1+/1− each (16), untracked gate now 166 lines (exactly 15 comment-only deletions), Makefile 8+/6− (14), gates_test.go 140+/52− (192), .gitignore 2, this suffix 10 lines in place = exactly 400 changed lines across exactly 13 paths ≤ 400 budget; no size exception. Rollback: restore `/tmp/pfv-t71-timeout-backup.tar` contents (the exact 10 editable files captured pre-edit).
+
+## WS7A TRIANGULATE — Task 7.1 (backend-go-closure, RDD R2-001 correction)
+
+**Scope:** Applied only native RDD finding `R2-001` under lineage `review-d5ca61f66dc9fbe1`; TRIANGULATE remains unchecked, REFACTOR and Task 7.2 were not executed. The disposable skip, stale-receipt, unreachable-Postgres, missing-`DATABASE_URL`, ignored-receipt, and isolation evidence above is preserved.
+
+**Evidence:** The disposable `gate-integration` fixture removes every copied `_test.go` file carrying the integration build tag before seeding `TestFixtureSkip`; the parser emits exactly one `skip_names` entry. Each stale-receipt, skip-emission, sqlc-drift, unreachable-Postgres, and missing-`DATABASE_URL` case snapshots Git-visible state plus ignored-receipt hashes and asserts equality in `t.Cleanup`; temporary-copy isolation is retained.
+
+**Correction:** `gate-sqlc` now uses explicit `if [ -n "$drift" ]; then ...; return 1; fi`, so clean execution succeeds. `TestGate_SqlcDriftEmitsDriftSpecificFailure` first asserts clean process success and receipt `status=pass`/`exit_code=0`, then seeds SQL drift and retains `sqlc drift`/`differ`/`internal/db` assertions. The stale-receipt proof remains: `TestGate_StaleReceiptIsRejected` records stale plus `check_exit=42` failure, then proves refreshed success; all mutations stay temporary.
+
+**Verification:** RED focused R2-001 test failed with clean `gate-sqlc` exit 2; GREEN `cd backend && go test ./scripts/closure -run '^TestGate_SqlcDriftEmitsDriftSpecificFailure$' -count=1 -v` → PASS; `cd backend && go test ./...` → PASS. No real tree/receipt was mutated; no task checkbox, REFACTOR, Task 7.2, WS7C, verify report, staging, commit, push, reset, or stash was touched.
+
+**Final full Git numstat/accounting (candidate vs HEAD):**
+
+```
+backend/scripts/closure/gate                                      56  67
+backend/scripts/closure/gates_test.go                            247  11
+openspec/changes/backend-go-closure/apply-progress.md             19   0
+TOTAL                                                            322  78 = 400 changed lines
+```

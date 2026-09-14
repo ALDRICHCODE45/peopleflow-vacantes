@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -67,11 +68,13 @@ func repoRoot(t *testing.T) string {
 // runGate runs `make <target>` inside a disposable temp working directory that
 // contains a copied Makefile plus the fixture inputs the caller seeded, and
 // captures stdout/stderr. The real repo tree is never mutated: make runs with
-// -f against the copy and the stub is read-only by construction.
-func runGate(t *testing.T, root, target string) (stdout, stderr string, err error) {
+// -f against the copy and the stub is read-only by construction. Optional env
+// overrides (used by TRIANGULATE tests to bind GATE_GIT_DIR to a disposable repo).
+func runGate(t *testing.T, root, target string, env ...string) (stdout, stderr string, err error) {
 	t.Helper()
 	cmd := exec.Command("make", "-f", filepath.Join(root, "Makefile"), target)
 	cmd.Dir = root
+	cmd.Env = append(os.Environ(), env...)
 	var out, errBuf strings.Builder
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf
@@ -114,7 +117,7 @@ func receiptLine(t *testing.T, stdout string) string {
 
 // fixtureInputs is the common superset every fixture copies into its temp dir
 // (sqlc.yaml included so the sqlc row shares one input list).
-var fixtureInputs = []string{"Makefile", "go.mod", "go.sum", "sqlc.yaml", "cmd", "internal", "db", "scripts"}
+var fixtureInputs = []string{"Makefile", ".gitignore", "go.mod", "go.sum", "sqlc.yaml", "cmd", "internal", "db", "scripts"}
 
 // copyTree copies the named paths from root into dst preserving relative
 // structure (cp -a over each path; destination parents are created first).
@@ -296,22 +299,29 @@ func TestGate_MutationFixturesForceGateFailure(t *testing.T) {
 
 // TestGateReceipts_RealContractAndDelegation is the GREEN receipt control: every target delegates
 // to the real gate script (make -n), and a live fast gate emits a deterministic self-verifying receipt.
+// Receipt contract runs in a t.TempDir() copy so the real backend/quality/receipts/ directory is
+// never replaced by tests.
 func TestGateReceipts_RealContractAndDelegation(t *testing.T) {
 	root := repoRoot(t)
+	realStateBefore := repoSnapshot(t, root)
 	for _, gate := range gateTargets {
 		t.Run(gate+"/delegates_to_real_script", func(t *testing.T) {
+			dir := t.TempDir()
+			copyTree(t, root, dir, fixtureInputs...)
 			cmd := exec.Command("make", "-n", gate)
-			cmd.Dir = root
+			cmd.Dir = dir
 			out, err := cmd.CombinedOutput()
 			if err != nil || !strings.Contains(string(out), "scripts/closure/gate "+gate) {
-				t.Fatalf("make -n %s must delegate to scripts/closure/gate: err=%v out=%s", gate, err, out)
+				t.Fatalf("make -n %s must delegate in copy: err=%v out=%s", gate, err, out)
 			}
 		})
 	}
-	t.Run("gate-fmt/real_receipt_contract", func(t *testing.T) {
-		out1, _, err := runGate(t, root, "gate-fmt")
+	t.Run("gate-fmt/temp_copy_receipt_contract", func(t *testing.T) {
+		dir := t.TempDir()
+		copyTree(t, root, dir, fixtureInputs...)
+		out1, errOut, err := runGate(t, dir, "gate-fmt")
 		if err != nil {
-			t.Fatalf("make gate-fmt: %v (the real tree must pass its own fmt gate)", err)
+			t.Fatalf("gate-fmt (temp copy): %v stderr=%s stdout=%s", err, errOut, out1)
 		}
 		r := parseReceipt(t, out1)
 		if r.Gate != "gate-fmt" || r.Status != "pass" || r.ExitCode != 0 {
@@ -326,20 +336,23 @@ func TestGateReceipts_RealContractAndDelegation(t *testing.T) {
 		if len(r.SkipNames) != 0 || r.Failure != "" {
 			t.Errorf("passing receipt must carry zero skips and empty failure: %+v", r)
 		}
-		data, err := os.ReadFile(filepath.Join(root, "quality", "receipts", "gate-fmt.json"))
+		data, err := os.ReadFile(filepath.Join(dir, "quality", "receipts", "gate-fmt.json"))
 		if err != nil {
 			t.Fatalf("read receipt file: %v", err)
 		}
 		if got := strings.TrimSpace(string(data)); got != receiptLine(t, out1) {
 			t.Errorf("receipt file does not mirror stdout:\n file:   %s\n stdout: %s", got, receiptLine(t, out1))
 		}
-		out2, _, err2 := runGate(t, root, "gate-fmt")
+		out2, _, err2 := runGate(t, dir, "gate-fmt")
 		if err2 != nil {
-			t.Fatalf("make gate-fmt (second run): %v", err2)
+			t.Fatalf("gate-fmt (second run): %v", err2)
 		}
 		r2 := parseReceipt(t, out2)
 		if r2.Gate != r.Gate || r2.Status != r.Status || r2.Tool != r.Tool || r2.Command != r.Command || r2.Commit != r.Commit || r2.Tree != r.Tree {
 			t.Errorf("stable receipt fields not deterministic:\n first:  %+v\n second: %+v", r, r2)
+		}
+		if got := repoSnapshot(t, root); got != realStateBefore {
+			t.Errorf("real-root state changed by temp-copy run: before=%s after=%s", realStateBefore, got)
 		}
 	})
 }
@@ -361,4 +374,227 @@ func TestGate_GoFmtFailureFailsGate(t *testing.T) {
 	copyTree(t, root, dir, fixtureInputs...)
 	seedEdit(t, dir, filepath.Join("scripts", "closure", "gate"), `unformatted="$(gofmt -l .)"`, `unformatted="$(false)"`)
 	requireGateFails(t, dir, "gate-fmt")
+}
+
+// -- TRIANGULATE evidence (task 7.1) --
+// Each test below seeds into its own t.TempDir() copy only; the disposable git
+// repo used by the stale-receipt fixture is initialized inside that copy
+// (initDisposableGitRepo), so the real backend/ tree is never mutated by any
+// fixture, and the real backend/quality/receipts/ directory is only read,
+// never written by tests.
+
+func requireGateFailsWithMsg(t *testing.T, dir, target string, required ...string) {
+	t.Helper()
+	stdout, _, err := runGate(t, dir, target)
+	if err == nil {
+		t.Fatalf("mutated fixture reported pass: stdout=%q", stdout)
+	}
+	r := parseReceipt(t, stdout)
+	if r.Status != "fail" || r.ExitCode == 0 {
+		t.Fatalf("receipt must record fail+nonzero exit: %+v", r)
+	}
+	for _, kw := range required {
+		if !strings.Contains(r.Failure, kw) {
+			t.Fatalf("failure %q lacked required keyword %q", r.Failure, kw)
+		}
+	}
+	verifyReceiptIntegrity(t, stdout)
+}
+
+// initDisposableGitRepo makes dir a fresh git repo on main and commits its
+// current contents as one baseline. Used by TestGate_StaleReceiptIsRejected so
+// worktree_state can change when the fixture mutates a tracked file, all
+// without touching the real backend worktree.
+func initDisposableGitRepo(t *testing.T, dir string) {
+	t.Helper()
+	for _, args := range [][]string{
+		{"init", "--initial-branch=main", dir},
+		{"-C", dir, "config", "user.email", "tri@example.com"},
+		{"-C", dir, "config", "user.name", "T"},
+		{"-C", dir, "config", "commit.gpgsign", "false"},
+		{"-C", dir, "add", "-A"},
+		{"-C", dir, "commit", "-m", "baseline"},
+	} {
+		if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v: %s", strings.Join(args, " "), err, out)
+		}
+	}
+	if out, err := exec.Command("git", "-C", dir, "status", "--porcelain").CombinedOutput(); err != nil || len(strings.TrimSpace(string(out))) > 0 {
+		t.Fatalf("disposable repo not clean: err=%v out=%s", err, out)
+	}
+}
+
+func repoSnapshot(t *testing.T, root string) string {
+	t.Helper()
+	cmd := exec.Command("git", "-C", root, "status", "--porcelain", "--untracked-files=all")
+	status, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git status: %v", err)
+	}
+	cmd = exec.Command("git", "-C", root, "diff", "HEAD")
+	diff, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("git diff: %v", err)
+	}
+	h := sha256.New()
+	h.Write(status)
+	h.Write(diff)
+	rd := filepath.Join(root, "quality", "receipts")
+	filepath.Walk(rd, func(p string, info os.FileInfo, err error) error {
+		if err == nil && info != nil && !info.IsDir() {
+			b, e := os.ReadFile(p)
+			if e == nil {
+				fmt.Fprintf(h, "%s:%x", p, sha256.Sum256(b))
+			}
+		}
+		return nil
+	})
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func TestGate_StaleReceiptIsRejected(t *testing.T) {
+	root, dir := repoRoot(t), t.TempDir()
+	assertRealStateRestored(t, root, repoSnapshot(t, root))
+	copyTree(t, root, dir, fixtureInputs...)
+	initDisposableGitRepo(t, dir)
+	env := []string{"GATE_GIT_DIR=" + dir}
+
+	out1, errOut, err := runGate(t, dir, "gate-build", env...)
+	if err != nil {
+		t.Fatalf("gate-build (first run): %v stderr=%s stdout=%s", err, errOut, out1)
+	}
+	r1 := parseReceipt(t, out1)
+	if r1.Status != "pass" || r1.ExitCode != 0 || r1.Artifacts["worktree_state"] == "" {
+		t.Fatalf("first gate-build must pass with worktree_state: %+v", r1)
+	}
+
+	seedEdit(t, dir, "Makefile", "# WS7A GREEN", "# WS7A GREEN (tracked disposable mutation)")
+	fakeGo := filepath.Join(t.TempDir(), "go")
+	if err := os.WriteFile(fakeGo, []byte("#!/bin/sh\necho independent build failed >&2\nexit 42\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pathEnv := "PATH=" + filepath.Dir(fakeGo) + string(os.PathListSeparator) + os.Getenv("PATH")
+	out2, _, err2 := runGate(t, dir, "gate-build", append(env, pathEnv)...)
+	if err2 == nil {
+		t.Fatalf("gate must fail when stale and build fail independently; stdout=%q", out2)
+	}
+	r2 := parseReceipt(t, out2)
+	if r2.Status != "fail" || r2.ExitCode == 0 || !strings.Contains(r2.Failure, "stale receipt:") || !strings.Contains(r2.Failure, "check_exit=42") || !strings.Contains(r2.Failure, "independent build failed") {
+		t.Fatalf("failure receipt must retain stale and independent check diagnostics: %+v", r2)
+	}
+	verifyReceiptIntegrity(t, out2)
+
+	out3, errOut, err3 := runGate(t, dir, "gate-build", env...)
+	if err3 != nil {
+		t.Fatalf("refreshed current-state receipt must allow a normal pass: %v stderr=%s stdout=%s", err3, errOut, out3)
+	}
+	r3 := parseReceipt(t, out3)
+	if r3.Status != "pass" || r3.ExitCode != 0 {
+		t.Fatalf("third gate-build must pass: %+v", r3)
+	}
+}
+
+func removeIntegrationTests(t *testing.T, root string) {
+	t.Helper()
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() || !strings.HasSuffix(info.Name(), "_test.go") {
+			return nil
+		}
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if strings.Contains(string(contents), "//go:build integration") || strings.Contains(string(contents), "// +build integration") {
+			return os.Remove(path)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("remove copied integration tests: %v", err)
+	}
+}
+
+func assertRealStateRestored(t *testing.T, root, before string) {
+	t.Helper()
+	t.Cleanup(func() {
+		if after := repoSnapshot(t, root); after != before {
+			t.Errorf("real repository state changed: before=%s after=%s", before, after)
+		}
+	})
+}
+
+func TestGate_IntegrationSkipEmitsSkipSpecificFailure(t *testing.T) {
+	root, dir := repoRoot(t), t.TempDir()
+	assertRealStateRestored(t, root, repoSnapshot(t, root))
+	copyTree(t, root, dir, append(fixtureInputs, ".env")...)
+	removeIntegrationTests(t, dir)
+	seedFile(t, dir, filepath.Join("internal", "fixtureskip", "skip_test.go"), fixtureSkipPkg)
+	stdout, _, err := runGate(t, dir, "gate-integration")
+	if err == nil {
+		t.Fatal("skip fixture must fail")
+	}
+	r := parseReceipt(t, stdout)
+	requireGateFailsWithMsg(t, dir, "gate-integration", "skip", "Action:skip")
+	if len(r.SkipNames) != 1 || r.SkipNames[0] != "TestFixtureSkip" {
+		t.Fatalf("SkipNames=%v, want exactly [TestFixtureSkip]", r.SkipNames)
+	}
+}
+
+func TestGate_SqlcDriftEmitsDriftSpecificFailure(t *testing.T) {
+	root, dir := repoRoot(t), t.TempDir()
+	assertRealStateRestored(t, root, repoSnapshot(t, root))
+	copyTree(t, root, dir, fixtureInputs...)
+	stdout, _, err := runGate(t, dir, "gate-sqlc")
+	if err != nil {
+		t.Fatalf("clean gate-sqlc: %v", err)
+	}
+	if clean := parseReceipt(t, stdout); clean.Status != "pass" || clean.ExitCode != 0 {
+		t.Fatalf("clean receipt: status=%q exit_code=%d, want pass/0", clean.Status, clean.ExitCode)
+	}
+	seedEdit(t, dir, filepath.Join("db", "queries", "industries.sql"), "SELECT", "SELECT DISTINCT")
+	requireGateFailsWithMsg(t, dir, "gate-sqlc", "sqlc drift", "differ", "internal/db")
+}
+
+func TestGate_UnreachablePostgresFailsAtPreflight(t *testing.T) {
+	root, dir := repoRoot(t), t.TempDir()
+	assertRealStateRestored(t, root, repoSnapshot(t, root))
+	copyTree(t, root, dir, append(fixtureInputs, ".env")...)
+	seedFile(t, dir, ".env", "DATABASE_URL=postgres://fixture:fixture@127.0.0.1:1/fixture?sslmode=disable\n")
+	requireGateFailsWithMsg(t, dir, "gate-integration", "preflight", "connection probe")
+}
+
+func TestGate_MissingDatabaseURLFailsAtPreflight(t *testing.T) {
+	root, dir := repoRoot(t), t.TempDir()
+	assertRealStateRestored(t, root, repoSnapshot(t, root))
+	copyTree(t, root, dir, append(fixtureInputs, ".env")...)
+	seedFile(t, dir, ".env", "\n")
+	requireGateFailsWithMsg(t, dir, "gate-integration", "preflight", "DATABASE_URL")
+}
+
+// TestGate_AllMutationsUseTempCopies is a deterministic before/after snapshot of
+// the real backend worktree (forbidden paths) and the real quality/receipts/
+// directory. It does NOT skip when the candidate tree is dirty; instead it
+// asserts that running every mutation fixture leaves both sets byte-identical.
+// Pre-existing ignored receipts are preserved exactly.
+func TestGate_AllMutationsUseTempCopies(t *testing.T) {
+	root := repoRoot(t)
+	realStateBefore := repoSnapshot(t, root)
+	for _, f := range mutationFixtures() {
+		t.Run(f.name+"/no_real_root_residue", func(t *testing.T) {
+			before := repoSnapshot(t, root)
+			dir := t.TempDir()
+			copyTree(t, root, dir, append(fixtureInputs, f.extra...)...)
+			f.seed(t, dir)
+			runGate(t, dir, f.target)
+			if after := repoSnapshot(t, root); after != before {
+				t.Fatalf("real repository changed after %s: before=%s after=%s", f.name, before, after)
+			}
+		})
+	}
+	if got := repoSnapshot(t, root); got != realStateBefore {
+		t.Fatalf("real-root state drifted: before=%s after=%s", realStateBefore, got)
+	}
 }
