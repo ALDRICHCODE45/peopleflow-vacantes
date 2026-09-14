@@ -126,7 +126,7 @@ Tasks 3.2, 3.3, 3.4, 4.2, 4.4, and 5.2 below carry the corresponding wording. `s
 
 ### 6.1 RED — define the cross-route evidence matrix
 
-- [ ] Add failing Playwright/axe scenarios and fixture expectations under `frontend/tests/e2e/` and `frontend/tests/fixtures/` for root-to-list navigation, browser Back/Forward, filtered canonical URLs, opaque next cursor, list/detail success and required failure states, mobile Sheet, keyboard/focus, both themes, reduced motion, long content, no overflow, and API-offline build. Add focused configuration/visual assertions for exact `b27M1Ev2` identity and values, Inter heading/body, semantic Violet/Neutral styling, Default radius, both schemes, preserved Default/Solid menu and Subtle menu accent settings, and absence of ad hoc overrides; rely on the active fixture and record RED with rollback limited to evidence tests. <!-- sdd-owner: implementation -->
+- [x] Add failing Playwright/axe scenarios and fixture expectations under `frontend/tests/e2e/` and `frontend/tests/fixtures/` for root-to-list navigation, browser Back/Forward, filtered canonical URLs, opaque next cursor, list/detail success and required failure states, mobile Sheet, keyboard/focus, both themes, reduced motion, long content, no overflow, and API-offline build. Add focused configuration/visual assertions for exact `b27M1Ev2` identity and values, Inter heading/body, semantic Violet/Neutral styling, Default radius, both schemes, preserved Default/Solid menu and Subtle menu accent settings, and absence of ad hoc overrides; rely on the active fixture and record RED with rollback limited to evidence tests. <!-- sdd-owner: implementation -->
 
 ### 6.2 GREEN — complete browser, accessibility, and visual harness
 
