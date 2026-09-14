@@ -1566,3 +1566,36 @@ Applied matching production behavior to `JobsResults.tsx`: `companyInitials` hel
   2. `git revert 14ffb25`
   3. GREEN commit: `git revert c1ef947` removes production `JobsResults.tsx` changes
   4. RED commit: `git revert 91e43fa` removes test files
+
+## Task 4.4 REFACTOR — recovered and verified
+
+- Strict-TDD stage: baseline GREEN → bounded REFACTOR → GREEN. Old `084a37536303a8e919fc9a871fd545a4810f9d73` was a reference patch only; it was not cherry-picked and no old output was admitted as new evidence.
+- Authentic predecessor history is preserved: visual `b169af4` RED → `93b1d28` GREEN; navigation `7593549` RED → `55612d3` GREEN; API cards `91e43fa` RED → `c1ef947` GREEN.
+- Refactor commit: `7337840` (`refactor(frontend): stabilize vacancy discovery experience`) over exactly nine frontend paths; it preserves server-rendered job data, the client-only pending/navigation island, request-scoped TanStack Query reads, Base UI composition, mobile fallback, and unique IDs.
+
+### Fresh verification (Node `v22.22.1`, Corepack pnpm `10.34.5`)
+
+| Gate | Result |
+| ---- | ------ |
+| Baseline unit before refactor | 16/16 files, 90/90 tests passed |
+| Final unit | 16/16 files, 91/91 tests passed |
+| Typecheck / lint / diff check | passed |
+| API-offline production build | passed; `/vacantes` remained dynamic and no API was required at build time |
+| Full Playwright | first production run 46/47 because one dark-logo `naturalWidth` read raced image decode; immediate complete rerun passed 47/47 |
+| Full accessibility | 11/11 `@a11y` scenarios passed |
+| Preset/configuration assertions | included in the passing root Playwright matrix |
+
+- A development-server trial was rejected as evidence because Next's dev toolbar added three buttons to root assertions. Accepted browser evidence used the production build with the documented `NODE_ENV=development` loopback exception, fixture `127.0.0.1:4010`, app `127.0.0.1:3000`, and `PEOPLEFLOW_API_TIMEOUT_MS=1000`.
+- Non-fatal unit stderr remains visible: React warns about stylesheet-link placement in the test renderer, and Base UI warns that one rendered link should set `nativeButton={false}`. Neither gate failed; later hardening may remove these warnings.
+
+### Exact changed-line accounting
+
+- Frontend refactor (`950714f..7337840`): 217 additions + 64 deletions = **281 changed lines**.
+- OpenSpec closure: `apply-progress.md` adds **33 lines**; `tasks.md` changes 1 addition + 1 deletion = 2 lines.
+- Complete Task 4.4 unit: 281 + 33 + 2 = **316 changed lines** ≤ 400.
+
+### Closure, hygiene, and rollback
+
+- Task 4.4 is `[x]`; Tasks 5.1+ and 7.x remain unchecked. The original `feat/frontend-foundation` worktree was not mutated; no push, PR, branch/worktree deletion, or RDD action occurred.
+- Owned fixture/app process groups were terminated and reaped; ports 3100/4010 are free. Port 3000 is now held by an unrelated `houndfe-backend` process and was not signaled. Generated `.next`, `test-results`, `playwright-report`, and `tsconfig.tsbuildinfo` are removed after evidence capture.
+- Rollback: revert the latest OpenSpec closure commit first, then `git revert 7337840`; the three authentic RED→GREEN predecessor pairs remain intact.

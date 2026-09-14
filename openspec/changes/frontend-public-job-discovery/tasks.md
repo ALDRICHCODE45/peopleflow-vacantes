@@ -102,7 +102,7 @@ Tasks 3.2, 3.3, 3.4, 4.2, 4.4, and 5.2 below carry the corresponding wording. `s
 
 ### 4.4 REFACTOR — preserve server-first list boundaries
 
-- [ ] Refactor list components and route composition to keep API data and result rendering server-side, keep the client island limited to ephemeral pending state with job data read solely server-side through the request-scoped TanStack Query `QueryClient` (no Zustand, no client query cache, no island-held data), use FieldGroup/Field and resolved Base UI APIs, preserve the mobile `<768px` fallback and unique IDs, and remove duplicated or unsupported UI. Re-run focused tests, typecheck, lint, build, preset/configuration assertions, and fixture-offline verification. <!-- sdd-owner: implementation -->
+- [x] Refactor list components and route composition to keep API data and result rendering server-side, keep the client island limited to ephemeral pending state with job data read solely server-side through the request-scoped TanStack Query `QueryClient` (no Zustand, no client query cache, no island-held data), use FieldGroup/Field and resolved Base UI APIs, preserve the mobile `<768px` fallback and unique IDs, and remove duplicated or unsupported UI. Re-run focused tests, typecheck, lint, build, preset/configuration assertions, and fixture-offline verification. <!-- sdd-owner: implementation -->
 
 ## 5. Vacancy detail route, metadata, and not-found/error states (PR 4)
 
