@@ -51,4 +51,28 @@ describe("PublicShell", () => {
       /(iniciar|inicia)\s+sesi[oó]n|publicar|empleador|t[eé]rminos|privacidad|tema|candidato/i,
     );
   });
+
+  it("renders a sticky translucent 64px public header", () => {
+    const { container } = render(<PublicShell>contenido</PublicShell>);
+
+    const header = container.querySelector("header");
+    expect(header).not.toBeNull();
+    expect(header!.className).toContain("sticky");
+    expect(header!.className).toContain("backdrop-blur");
+    const headerInner = header!.querySelector("div");
+    expect(headerInner!.className).toContain("h-16");
+  });
+
+  it("renders static decorative ambient depth behind the content", () => {
+    const { container } = render(<PublicShell>contenido</PublicShell>);
+
+    const ambient = Array.from(
+      container.querySelectorAll("[aria-hidden='true']"),
+    );
+    expect(ambient.length).toBeGreaterThanOrEqual(2);
+    for (const layer of ambient) {
+      expect(layer.className).toContain("pointer-events-none");
+      expect(layer.textContent).toBe("");
+    }
+  });
 });

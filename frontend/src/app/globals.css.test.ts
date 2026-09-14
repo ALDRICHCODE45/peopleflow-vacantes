@@ -54,3 +54,28 @@ describe("globals.css foundation tokens", () => {
     expect(css).toMatch(/html\s*{\s*@apply font-sans/);
   });
 });
+
+describe("ambient depth for the public vacancy list", () => {
+  it("defines per-scheme ambient intensity tokens without touching preset identity", () => {
+    const root = cssBlock(":root");
+    expect(root).toContain("--pf-glow-alpha:");
+    expect(root).toContain("--pf-grid-dot-alpha:");
+
+    const mediaStart = css.indexOf("@media (prefers-color-scheme: dark)");
+    expect(mediaStart).toBeGreaterThanOrEqual(0);
+    const media = css.slice(mediaStart);
+    expect(media).toContain("--pf-glow-alpha:");
+    expect(media).toContain("--pf-grid-dot-alpha:");
+  });
+
+  it("drives the static top glow and masked dot grid from the semantic primary token", () => {
+    const glow = cssBlock(".pf-top-glow");
+    expect(glow).toContain("var(--primary)");
+    expect(glow).toContain("radial-gradient");
+
+    const grid = cssBlock(".pf-dot-grid");
+    expect(grid).toContain("var(--primary)");
+    expect(grid).toContain("radial-gradient");
+    expect(grid).toContain("mask-image");
+  });
+});
