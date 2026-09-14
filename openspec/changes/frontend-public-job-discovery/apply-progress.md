@@ -1553,8 +1553,8 @@ Applied matching production behavior to `JobsResults.tsx`: `companyInitials` hel
 - `JobsResults.tsx`: +65/−38 = **103 lines** (production delta)
 - `vacantes.spec.ts`: +81/−0 = **81 lines** (test contracts)
 - `vacantes-a11y.spec.ts`: +3/−3 = **6 lines** (a11y adjustments)
-- `apply-progress.md`: measured after this correction (36 lines)
-- Combined: 65 + 38 + 3 + 3 + 81 + 0 + 36 = **226 lines** ≤ 400
+- `apply-progress.md`: measured after this correction (40 lines)
+- Combined: 65 + 38 + 3 + 3 + 81 + 0 + 40 = **230 lines** ≤ 400
 
 ### Hygiene and rollback
 
@@ -1562,6 +1562,7 @@ Applied matching production behavior to `JobsResults.tsx`: `companyInitials` hel
 - Servers stopped by this run; ports verified free; test-results, playwright-report, and .next build artifacts cleaned
 - Parent gatekeeper found and terminated leftover owned fixture/Next process groups and removed generated `.next`, test-results, playwright-report, and tsconfig build info
 - Rollback order (distinguish by type):
-  1. This documentation correction: `git checkout -- openspec/changes/frontend-public-job-discovery/apply-progress.md`
-  2. GREEN commit: `git revert c1ef947` removes production `JobsResults.tsx` changes
-  3. RED commit: `git revert 91e43fa` removes test files
+  1. First, revert the latest documentation correction commit
+  2. `git revert 14ffb25`
+  3. GREEN commit: `git revert c1ef947` removes production `JobsResults.tsx` changes
+  4. RED commit: `git revert 91e43fa` removes test files
