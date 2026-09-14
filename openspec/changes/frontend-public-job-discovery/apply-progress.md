@@ -1662,3 +1662,14 @@ Applied matching production behavior to `JobsResults.tsx`: `companyInitials` hel
 - Node `v22.22.1` / pnpm `10.34.5`, offline frozen install, cached shadcn decode/resolve/info, typecheck, lint, unit **18 files / 99 tests**, backend `go test ./...`, and API-offline build all passed. Preset `b27M1Ev2`, Base UI, Tailwind v4, Lucide, Inter, aliases, and `frontend/src/components/ui` path assertions passed.
 - Production fixture topology (`127.0.0.1:4010`) plus Next (`127.0.0.1:3100`) passed full E2E **68/68** and a11y **16/16**. Output digest: `sha256:34cd8743a71e11a427525250ca116cb24c74d3863fb47f93dfce1afe1a48bde3`.
 - Generated outputs and owned temporary logs were removed; owned process groups were terminated/reaped; ports were free; final tree/status/hash guards matched the original baseline. Only Task 6.3 is checked; 6.4 and 7.x remain unchecked. Rollback is reverting `3cfff3c`.
+
+## Task 6.4 REFACTOR — zero-source hardening audit closure
+
+- Baseline was clean branch `recovery/frontend-public-job-discovery-tdd` at `08b75bc1c24ecc2da6954a0cabf1edbf6ec865d8`; baseline tree `5ebf30c808acab1e13ff8b6f219b92a5bd5c6ea3`.
+- Strict-TDD evidence: this was the authorized GREEN-baseline REFACTOR audit; no RED was invented and no frontend production, backend, test, config, dependency, or lockfile change was justified.
+- Complete offline cached sequence passed under Node `v22.22.1` / pnpm `10.34.5`: frozen install; shadcn decode/resolve/info for exact `b27M1Ev2`; typecheck; lint; 18 files/99 unit tests; `backend/go test ./...`; API-offline build with timeout 1000; production-fixture E2E 68/68; a11y 16/16.
+- Audit confirmed safe focus, contrast, Mexico Spanish copy, wrapping, reduced-motion behavior, and fixture timing. No landing completion, auth, application, candidate/employer, backend, shared-root/config/docs, ISR, streaming dependence, browser-direct API, charts, or employer menus. Exact Rhea/Neutral/Violet/Neutral-chart/Lucide/Inter/Default-radius/Default-menu/Subtle-accent/Base UI/Tailwind v4/alias constraints remain binding.
+- Four OpenSpec files changed only: this progress artifact, `design.md` (four-line normative Task 6.4 typography addendum), `task-6-4-evidence.md`, and `tasks.md` (only Task 6.4 marked `[x]`). Task 7.1 remains unchecked.
+- Final source/tree/hash/diff guards passed: frontend source was byte-identical to baseline, `git diff --check` passed, and no generated output, owned process, or listener remained after cleanup.
+- Environment limitation: browser evidence served the production build against the loopback fixture with `NODE_ENV=development`; this is not production-environment parity. Rollback is one revert of the closure commit.
+- Commit authorized exactly once as `docs(openspec): close recovered frontend task 6.4`; next recommended phase is `sdd-verify`.

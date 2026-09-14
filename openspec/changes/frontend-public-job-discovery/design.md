@@ -361,6 +361,11 @@ PeopleFlow brand assets and product-specific compositions layer on the preset's 
 
 Typography uses Inter for both heading and body roles, matching preset `b27M1Ev2`. It is loaded through `next/font` so production serves it without a runtime font stylesheet, with an appropriate system sans fallback and preset-consistent variables/weights. No display-font substitution is permitted in this slice. The preset's Default radius remains authoritative for primitives and product surfaces; no separate “medium” or agent-selected radius scale replaces it.
 
+**Task 6.4 typography addendum (normative):**
+Retain Clash Display headings via the Fontshare stylesheet as the already user-approved, scope-specific exception to the historic Inter-only heading prohibition.
+Inter remains body typography.
+Every other preset requirement remains binding.
+
 The preset's Neutral chart tokens and Default/Solid menu with Subtle accent remain intact for future compatible surfaces, but this change neither installs a chart component nor creates candidate/employer menus. The public shell's single vacancy link and the scoped mobile filter Sheet remain the only navigation/filter surfaces authorized here. Preset fidelity does not widen product scope.
 
 ## 9. Metadata and SEO
