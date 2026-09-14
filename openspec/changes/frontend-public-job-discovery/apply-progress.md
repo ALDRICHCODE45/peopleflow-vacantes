@@ -1534,14 +1534,14 @@ Strict-TDD replay on isolated `recovery/frontend-public-job-discovery-tdd` at `2
 
 Applied test-only expectations from reference commit to `vacantes.spec.ts` and `vacantes-a11y.spec.ts`; production unchanged. Authenticated RED via focused E2E harness (fixture + Next.js servers): "renders surfaced vacancy cards" failed because `span[aria-hidden='true']` with initials pattern not found.
 
-### GREEN commit: `91e43fa` — `feat(frontend): surface API-backed vacancy cards`
+### GREEN commit: `c1ef947` — `feat(frontend): surface API-backed vacancy cards`
 
 Applied matching production behavior to `JobsResults.tsx`: `companyInitials` helper for deterministic two-letter monogram; card-style layout with company initials tile; badge-style detail chips (work mode, employment type, seniority); hover/focus lift effects; structured company line with location; salary/date footer with border separator.
 
 ### GREEN verification (Node `v22.22.1`, Corepack pnpm `10.34.5`)
 
 | Gate | Command | Result |
-|------|---------|--------|
+| ------ | --------- | -------- |
 | Unit | `corepack pnpm test` | 16/16 files, 90/90 tests (exit 0) |
 | Typecheck | `corepack pnpm typecheck` | pass |
 | Lint | `corepack pnpm lint` | pass |
@@ -1550,14 +1550,18 @@ Applied matching production behavior to `JobsResults.tsx`: `companyInitials` hel
 
 ### Changed-line accounting
 
-- `JobsResults.tsx`: +103/−41 = **62 lines** (production delta)
+- `JobsResults.tsx`: +65/−38 = **103 lines** (production delta)
 - `vacantes.spec.ts`: +81/−0 = **81 lines** (test contracts)
 - `vacantes-a11y.spec.ts`: +3/−3 = **6 lines** (a11y adjustments)
-- `apply-progress.md`: +28/−0 = **28 lines** (evidence section)
-- Combined: 62 + 81 + 6 + 28 = **177 lines** ≤ 400
+- `apply-progress.md`: measured after this correction (36 lines)
+- Combined: 65 + 38 + 3 + 3 + 81 + 0 + 36 = **226 lines** ≤ 400
 
 ### Hygiene and rollback
 
 - Fixture on port 4010; Next.js on port 3000 (`PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:4010`)
-- Servers stopped; ports verified free; test-results cleaned
-- Rollback: `git revert 91e43fa` removes test and production changes; `git checkout HEAD~1 -- openspec/` for evidence
+- Servers stopped by this run; ports verified free; test-results, playwright-report, and .next build artifacts cleaned
+- Parent gatekeeper found and terminated leftover owned fixture/Next process groups and removed generated `.next`, test-results, playwright-report, and tsconfig build info
+- Rollback order (distinguish by type):
+  1. This documentation correction: `git checkout -- openspec/changes/frontend-public-job-discovery/apply-progress.md`
+  2. GREEN commit: `git revert c1ef947` removes production `JobsResults.tsx` changes
+  3. RED commit: `git revert 91e43fa` removes test files
