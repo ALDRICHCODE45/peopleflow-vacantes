@@ -242,16 +242,16 @@ export function JobsNavigationIsland({
                 aria-pressed={active}
                 onClick={(event) =>
                   startNavigation(
-        buildFilterCommitUrl(routeKey, chip.patch),
-        event.currentTarget,
-        null,
+                    buildFilterCommitUrl(routeKey, chip.patch),
+                    event.currentTarget,
+                    null,
                   )
                 }
                 className={cn(
                   "inline-flex h-9 items-center whitespace-nowrap rounded-full border px-4 text-sm font-medium transition-colors",
                   active
-        ? "border-primary/60 bg-primary/15 text-foreground"
-        : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
+                    ? "border-primary/60 bg-primary/15 text-foreground"
+                    : "border-border text-muted-foreground hover:border-primary/50 hover:text-foreground",
                 )}
               >
                 {chip.label}
@@ -287,7 +287,7 @@ export function JobsNavigationIsland({
               <SheetTrigger
                 render={
                   <Button variant="outline" className="h-11 md:hidden">
-        Filtros
+                    Filtros
                   </Button>
                 }
               />

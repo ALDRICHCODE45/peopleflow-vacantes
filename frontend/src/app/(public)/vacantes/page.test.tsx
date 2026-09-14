@@ -88,7 +88,7 @@ describe("/vacantes approved composition", () => {
   async function loadFullIsland(): Promise<JobsNavigationIsland> {
     return (
       await import(
-/* @vite-ignore */ "../../../features/jobs/components/JobsNavigationIsland"
+        /* @vite-ignore */ "../../../features/jobs/components/JobsNavigationIsland"
       )
     ).JobsNavigationIsland as JobsNavigationIsland;
   }
@@ -97,7 +97,7 @@ describe("/vacantes approved composition", () => {
     const Island = await loadFullIsland();
     render(
       <Island routeKey="/vacantes" query={{}}>
-{vacancyList}
+        {vacancyList}
       </Island>,
     );
 
@@ -116,7 +116,7 @@ describe("/vacantes approved composition", () => {
     }
     expect(
       screen.queryByRole("button", {
-name: /prácticas|presencial|por contrato|beca|líder|junior/i,
+        name: /prácticas|presencial|por contrato|beca|líder|junior/i,
       }),
     ).toBeNull();
   });
@@ -125,7 +125,7 @@ name: /prácticas|presencial|por contrato|beca|líder|junior/i,
     const Island = await loadFullIsland();
     const filtered = render(
       <Island routeKey="/vacantes?currency=MXN" query={{ currency: "MXN" }}>
-{vacancyList}
+        {vacancyList}
       </Island>,
     );
     expect(screen.getByRole("button", { name: "Todas" })).toHaveAttribute(
@@ -136,7 +136,7 @@ name: /prácticas|presencial|por contrato|beca|líder|junior/i,
 
     render(
       <Island routeKey="/vacantes" query={{}}>
-{vacancyList}
+        {vacancyList}
       </Island>,
     );
     expect(screen.getByRole("button", { name: "Todas" })).toHaveAttribute(
@@ -149,7 +149,7 @@ name: /prácticas|presencial|por contrato|beca|líder|junior/i,
     const Island = await loadFullIsland();
     render(
       <Island routeKey="/vacantes?currency=MXN" query={{ currency: "MXN" }}>
-{vacancyList}
+        {vacancyList}
       </Island>,
     );
 
@@ -163,10 +163,10 @@ name: /prácticas|presencial|por contrato|beca|líder|junior/i,
     const Island = await loadFullIsland();
     render(
       <Island
-routeKey="/vacantes?q=react&currency=MXN&work_mode=remote"
-query={{ q: "react", currency: "MXN", work_mode: "remote" }}
+        routeKey="/vacantes?q=react&currency=MXN&work_mode=remote"
+        query={{ q: "react", currency: "MXN", work_mode: "remote" }}
       >
-{vacancyList}
+        {vacancyList}
       </Island>,
     );
 
@@ -178,7 +178,7 @@ query={{ q: "react", currency: "MXN", work_mode: "remote" }}
     const Island = await loadFullIsland();
     const view = render(
       <Island routeKey="/vacantes" query={{}}>
-{vacancyList}
+        {vacancyList}
       </Island>,
     );
 
