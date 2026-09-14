@@ -72,6 +72,8 @@
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
     --radius: 0.625rem;
+    --pf-glow-alpha: 0.1;
+    --pf-grid-dot-alpha: 0.06;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: oklch(0.541 0.281 293.009);
@@ -101,6 +103,8 @@
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.556 0 0);
+    --pf-glow-alpha: 0.2;
+    --pf-grid-dot-alpha: 0.1;
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
@@ -150,6 +154,8 @@
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.556 0 0);
+    --pf-glow-alpha: 0.2;
+    --pf-grid-dot-alpha: 0.1;
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
@@ -177,12 +183,46 @@
     display: none;
   }
 
-  .brand-mark-dark {
-    display: block;
-  }
-}
+      .brand-mark-dark {
+        display: block;
+      }
+    }
 
-/* Reduced motion: collapse nonessential transition/animation timing so
+    /* /vacantes ambient depth helpers: static violet top glow and masked dot
+       grid, theme-aware through the semantic --primary token (preset Violet
+       identity) with per-scheme --pf-* intensity tokens defined alongside the
+       scheme token blocks above. Fully static by design — no animation or
+       transition, so the global reduced-motion collapse has nothing to suppress. */
+    .pf-top-glow {
+      background: radial-gradient(
+        56% 44% at 50% -6%,
+        color-mix(in oklab, var(--primary) calc(var(--pf-glow-alpha) * 100%), transparent),
+        color-mix(in oklab, var(--primary) calc(var(--pf-glow-alpha) * 23%), transparent)
+          46%,
+        transparent 72%
+      );
+    }
+
+    .pf-dot-grid {
+      background-image: radial-gradient(
+        color-mix(in oklab, var(--primary) calc(var(--pf-grid-dot-alpha) * 100%), transparent)
+          1px,
+        transparent 1.4px
+      );
+      background-size: 34px 34px;
+      -webkit-mask-image: radial-gradient(
+        74% 56% at 50% 0%,
+        var(--foreground) 28%,
+        transparent 78%
+      );
+      mask-image: radial-gradient(
+        74% 56% at 50% 0%,
+        var(--foreground) 28%,
+        transparent 78%
+      );
+    }
+
+    /* Reduced motion: collapse nonessential transition/animation timing so
    surfaces appear/disappear immediately instead of sliding, fading, or
    looping. Visual and semantic states (focus rings, hover colors, disabled
    opacity, open/closed presence) are untouched; only the movement is
