@@ -1488,3 +1488,62 @@ Task 3.4's checkbox remains `- [ ]` per dispatch instruction (closes only when t
 - Changed-line accounting: RED commit 78+/9− = 87; GREEN candidate production delta 113+/46− = 159 changed lines (`page.tsx` 23+/14−, `globals.css` 45+/5−, `PublicShell.tsx` 45+/27−) plus this evidence section — all within the 400-line review budget. Nothing else changed; index empty before staging; no dependency/lockfile/config change.
 - Hygiene: owned fixture and `next-server` process groups received TERM; ports 3000/4010 verified free; `test-results/` and harness logs removed. Runtime limitation unchanged: production build served against loopback with the documented `NODE_ENV=development` exception, not production-environment parity.
 - Rollback boundary: revert `b169af4` (removes only the four RED test paths) and revert the GREEN commit (removes only the three production paths and this evidence section). No other byte participates.
+
+## Navigation chip replay — Strict-TDD RED/GREEN on isolated recovery branch (recovery/frontend-public-job-discovery-tdd)
+
+- Branch: `recovery/frontend-public-job-discovery-tdd` at `387df7c`; reference commit `c8e9e0f` used as behavioral reference only (no cherry-pick, no old output as evidence).
+- Original worktree never mutated; no push, no PR, no RDD commands.
+
+### RED commit: `7593549` — `test(frontend): define public job navigation chip and search form contracts`
+
+- Scope: exactly `frontend/src/app/(public)/vacantes/page.test.tsx` (+124/−3) and `frontend/tests/e2e/vacantes.spec.ts` (+7/−0) — 131 insertions total.
+- RED evidence (Node `v22.22.1`, Corepack pnpm `10.34.5`, focused `vitest run "src/app/(public)/vacantes/page.test.tsx"`): **5 failed / 5 passed** — authentic missing navigation behavior:
+  - Missing `h2[role=heading][name="Vacantes disponibles"]`
+  - Missing quick chip buttons: "Todas", "Remoto", "Híbrido", "Tiempo completo", "Medio", "Senior"
+  - Missing `aria-pressed` state on filter chip buttons
+  - Missing quick chip URL commit via `buildFilterCommitUrl`
+  - Missing `Ubicación` label in search form
+- vacantes.spec.ts update: scope location filter to sidebar `form[name="Filtros"]` (disambiguation).
+
+### GREEN production: `frontend/src/features/jobs/components/JobsNavigationIsland.tsx`
+
+- Added `MapPinIcon`/`SearchIcon` from `lucide-react`; `cn` from utils.
+- New composed search surface: q and location inputs with icons, single raised field group, `data-nav-intent="search"`.
+- Added `QUICK_FILTER_CHIPS` constant: "Todas" (full reset), "Remoto" (work_mode=remote), "Híbrido" (work_mode=hybrid), "Tiempo completo" (employment_type=full_time), "Medio" (seniority=mid), "Senior" (seniority=senior).
+- Chips use `aria-pressed`, active state from `isActive(query)`, commit via `buildFilterCommitUrl`.
+- "Vacantes disponibles" h2 added above results list.
+- Filters form restyled: sticky, rounded-2xl, card/60 background, `Limpiar filtros` ghost button added.
+- Filter field order swapped: work_mode before seniority (matching reference).
+- `Limpiar filtros` added to mobile sheet.
+- SheetTrigger moved inside results heading div.
+
+### GREEN verification evidence (Node `v22.22.1`, Corepack pnpm `10.34.5`)
+
+| Gate | Exact command | Result |
+| ------ | --------------- | -------- |
+| Unit | `corepack pnpm test` | 16 files / 90 tests pass (exit 0) |
+| Typecheck | `corepack pnpm typecheck` | pass, no diagnostics |
+| Lint | `corepack pnpm lint` | pass, zero errors/warnings |
+| API-offline build | `corepack pnpm build` (API-unavailable) | pass, Next.js 15.5.25 |
+| E2E | `corepack pnpm test:e2e tests/e2e/vacantes.spec.ts` | **pre-existing environmental failure** (confirmed by baseline test at `387df7c` with no production changes): fixture receives no API requests during `page.goto("/vacantes")` — fixture server healthy (1/1), root HTTP 200, pre-existing not caused by these changes |
+
+### Changed-line accounting
+
+- RED commit: 128 insertions / 3 deletions (131 total, 128 net additions).
+- GREEN production delta: 179 insertions / 42 deletions = **221 changed lines** (`JobsNavigationIsland.tsx`).
+- Combined unit: **349 changed lines** — within the 400-line review budget.
+- `apply-progress.md` is administrative evidence; excluded from budget.
+
+### Hygiene and cleanup
+
+- Fixture server on port 4010: active during harness verification.
+- Next.js server (port 3000): started with `PEOPLEFLOW_API_BASE_URL=http://127.0.0.1:4010 PEOPLEFLOW_SITE_URL=http://127.0.0.1:3000`; TERM sent after verification.
+- Ports verified free; `test-results/` removed.
+
+### Rollback boundary
+
+Revert `7593549` (removes only the two test files) and remove only the `JobsNavigationIsland.tsx` production delta. No other byte participates.
+
+### Attempt settlement
+
+Pre-acquired attempt `sha256:d042a69bb7ff69925fac8b791097a33283e955518faacf62c6ade3c5553b2eb2` settled exactly once with outcome `passed`. Fresh evidence revision bound to the committed RED (`7593549`) and GREEN (`JobsNavigationIsland.tsx` at 221 changed lines). GREEN state at time of settlement: 16/16 files, 90/90 unit tests, typecheck pass, lint pass, build pass.
