@@ -1599,3 +1599,13 @@ Applied matching production behavior to `JobsResults.tsx`: `companyInitials` hel
 - Task 4.4 is `[x]`; Tasks 5.1+ and 7.x remain unchecked. The original `feat/frontend-foundation` worktree was not mutated; no push, PR, branch/worktree deletion, or RDD action occurred.
 - Owned fixture/app process groups were terminated and reaped; ports 3100/4010 are free. Port 3000 is now held by an unrelated `houndfe-backend` process and was not signaled. Generated `.next`, `test-results`, `playwright-report`, and `tsconfig.tsbuildinfo` are removed after evidence capture.
 - Rollback: revert the latest OpenSpec closure commit first, then `git revert 7337840`; the three authentic RED→GREEN predecessor pairs remain intact.
+
+## Task 5.1 RED replay — recovered and committed
+
+- Cherry-picked exactly `6767d0cb2f0b9961c07edc3d900da77b8878a6c4` as `3f8fdd53ef66e89d0ea8bbe3efdb4fd144714da8`, touching exactly the four authorized frontend test/fixture paths: **339 additions + 8 deletions = 347 changed lines**. No replayed frontend file was modified after cherry-pick.
+- Focused Vitest: **RED**, 2 suites failed, 5 tests failed, 16 suites passed, 91 tests passed; failures were missing Task 5.2 `page.tsx`, `not-found.tsx`, `error.tsx`, `page-data`, and `JobDetailView` modules. Typecheck: **RED**, one TS2307 for missing `./JobDetailView` in `JobDetailView.test.tsx`. These failures are attributable only to intentionally absent Task 5.2 production route/modules; no GREEN gate is claimed.
+- Focused detail Playwright harness: **RED**, 1 of 8 attempted scenarios ran and failed because the absent route returned Next's default 404 without branded `Esta vacante no está disponible`; the remaining 7 were not run after serial failure. This is the intentional absent-Task-5.2 boundary.
+- Lint: **passed** (exit 0). `git diff --check HEAD^ HEAD`: **passed** (exit 0).
+- Process cleanup: owned fixture and Next process groups were terminated and reaped; generated `.next`, `test-results`, `playwright-report`, and `tsconfig.tsbuildinfo` were removed. No owned processes or listeners remained.
+- Rollback: revert `3f8fdd5` to remove only the four replayed test/fixture paths; this documentation closure is separately removable by reverting its commit.
+- Workload: complete unit is `347` replay lines + `2` task-checkbox lines + `10` documentation lines = **359 changed lines**, within the 400-line budget. Only `tasks.md` and this progress artifact remain for the closure commit; Task 5.2+ remain unchecked.
