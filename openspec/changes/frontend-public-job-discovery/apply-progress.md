@@ -1514,8 +1514,8 @@ Task 3.4's checkbox remains `- [ ]` per dispatch instruction (closes only when t
 
 ### Changed-line accounting (corrected — all four navigation-unit paths included)
 
-- `page.test.tsx`: +124/−1 = **125 lines**; `JobsNavigationIsland.tsx`: +179/−42 = **221 lines**; `apply-progress.md`: +39/−0 = **39 lines**; `vacantes.spec.ts`: +7/−0 = **7 lines** (scope disambiguation).
-- Combined total: 125 + 221 + 39 + 7 = **392 changed lines** ≤ 400. The prior accounting excluded this 39-line evidence section from the total; corrected total includes it.
+- `page.test.tsx`: +123/−1 = **124 lines**; `JobsNavigationIsland.tsx`: +179/−42 = **221 lines**; `apply-progress.md`: +37/−0 = **37 lines**; `vacantes.spec.ts`: +7/−0 = **7 lines** (scope disambiguation).
+- Combined total: 124 + 221 + 37 + 7 = **389 changed lines** ≤ 400. The prior accounting excluded this 39-line evidence section from the total; corrected total includes it.
 
 ### Hygiene and rollback
 
