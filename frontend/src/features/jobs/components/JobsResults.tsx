@@ -1,6 +1,12 @@
 import * as React from "react";
 import Link from "next/link";
-import { SearchXIcon } from "lucide-react";
+import {
+  BriefcaseIcon,
+  Building2Icon,
+  GlobeIcon,
+  MapPinIcon,
+  SearchXIcon,
+} from "lucide-react";
 
 import { Button } from "../../../components/ui/button";
 import {
@@ -77,6 +83,13 @@ function ErrorState({ query }: { query: JobsQuery }) {
   );
 }
 
+/** Contextual icon per API-backed work mode, mirroring the reference board. */
+const WORK_MODE_ICONS = {
+  onsite: MapPinIcon,
+  remote: GlobeIcon,
+  hybrid: Building2Icon,
+} as const satisfies Record<JobItem["work_mode"], typeof MapPinIcon>;
+
 function JobRow({ job }: { job: JobItem }) {
   const salary = formatSalary({
     min: job.salary_min,
@@ -84,25 +97,33 @@ function JobRow({ job }: { job: JobItem }) {
     currency: job.salary_currency,
   });
   const details = [
-    { key: "work-mode", label: workModeLabel(job.work_mode) },
-    { key: "employment-type", label: employmentTypeLabel(job.employment_type) },
-    { key: "seniority", label: seniorityLabel(job.seniority) },
+    {
+      key: "work-mode",
+      label: workModeLabel(job.work_mode),
+      Icon: WORK_MODE_ICONS[job.work_mode],
+    },
+    {
+      key: "employment-type",
+      label: employmentTypeLabel(job.employment_type),
+      Icon: BriefcaseIcon,
+    },
+    { key: "seniority", label: seniorityLabel(job.seniority), Icon: null },
   ];
   const companyLine = job.location
     ? `${job.company.name} · ${job.location}`
     : job.company.name;
 
   return (
-    <li className="rounded-2xl border border-border bg-card p-5 [overflow-wrap:anywhere] transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10 focus-within:-translate-y-0.5 focus-within:border-primary/40 focus-within:shadow-lg focus-within:shadow-primary/10">
-      <div className="flex items-start gap-4">
+    <li className="rounded-2xl border border-border bg-card/60 p-4 [overflow-wrap:anywhere] transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md hover:shadow-primary/10 focus-within:-translate-y-0.5 focus-within:border-primary/40 focus-within:shadow-md focus-within:shadow-primary/10 sm:p-5">
+      <div className="flex items-start gap-3.5 sm:gap-4">
         <span
           aria-hidden="true"
-          className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary text-base font-semibold text-primary-foreground"
+          className="grid size-12 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-base font-semibold text-primary-foreground"
         >
           {companyInitials(job.company.name)}
         </span>
-        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-          <h3 className="font-heading text-lg font-semibold text-foreground">
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <h3 className="font-heading text-lg font-semibold tracking-tight text-foreground">
             <Link
               href={`/vacantes/${job.id}`}
               className="hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -111,12 +132,18 @@ function JobRow({ job }: { job: JobItem }) {
             </Link>
           </h3>
           <p className="text-sm text-muted-foreground">{companyLine}</p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="mt-1.5 flex flex-wrap gap-2">
             {details.map((detail) => (
               <span
                 key={detail.key}
-                className="rounded-md bg-muted px-2.5 py-1 text-xs text-muted-foreground"
+                className="flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs text-muted-foreground"
               >
+                {detail.Icon && (
+                  <detail.Icon
+                    aria-hidden="true"
+                    className="size-3.5 shrink-0"
+                  />
+                )}
                 {detail.label}
               </span>
             ))}
@@ -124,7 +151,7 @@ function JobRow({ job }: { job: JobItem }) {
         </div>
       </div>
       {(salary !== null || job.published_at !== undefined) && (
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border pt-3.5 text-sm text-muted-foreground">
+        <div className="mt-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border pt-3 text-sm text-muted-foreground">
           {salary !== null && (
             <span className="font-medium text-foreground">{salary}</span>
           )}

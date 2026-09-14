@@ -221,7 +221,8 @@ for (const scheme of SCHEMES) {
         );
         expect(overflowPx).toBeLessThanOrEqual(0);
 
-        // Computed Inter typography for both heading and body roles.
+        // Computed typography: Inter for body, Clash Display (Inter
+        // fallback) for the heading role via --font-heading.
         const styles = await page.evaluate(() => {
           const computed = (el: Element) => getComputedStyle(el);
           const h1El = document.querySelector("h1");
@@ -260,8 +261,7 @@ for (const scheme of SCHEMES) {
         });
 
         expect(styles.bodyFont).toMatch(/Inter/);
-        expect(styles.h1Font).toMatch(/Inter/);
-        expect(styles.h1Font).toBe(styles.bodyFont);
+        expect(styles.h1Font).toContain("Clash Display");
 
         // Semantic WCAG AA contrast for body text and the vacancy entry point.
         expect(
@@ -305,11 +305,17 @@ for (const scheme of SCHEMES) {
         );
 
         // No root API requests: same-origin /api traffic is also rejected.
+        // The licensed Fontshare stylesheet and its CDN font files are the
+        // only approved cross-origin loads.
         for (const url of requestUrls) {
           const parsed = new URL(url);
+          const fontshare =
+            parsed.protocol === "https:" &&
+            /(?:^|\.)fontshare\.com$/.test(parsed.hostname);
           expect(
             (parsed.origin === BASE_URL &&
               !parsed.pathname.startsWith("/api")) ||
+              fontshare ||
               /^(data|blob|about):/.test(parsed.protocol),
             `unexpected request from root: ${url}`,
           ).toBe(true);

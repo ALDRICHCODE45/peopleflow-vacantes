@@ -182,46 +182,26 @@ export function JobsNavigationIsland({
           onSubmit={handleOwnedSubmit}
           className="relative flex flex-col gap-3 rounded-2xl border border-border bg-card/60 p-3 md:flex-row md:items-center"
         >
-          <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-border/60 bg-background/60 px-3.5 py-2.5 transition-colors focus-within:border-ring">
-            <SearchIcon
-              aria-hidden="true"
-              className="size-4 shrink-0 text-muted-foreground"
-            />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="jobs-search" className="sr-only">
-                Buscar vacantes
-              </label>
-              <Input
-                id="jobs-search"
-                name="q"
-                defaultValue={query.q ?? ""}
-                placeholder="Puesto o palabra clave"
-                className="h-auto border-0 bg-transparent px-0 focus-visible:bg-transparent md:text-sm"
-              />
-            </div>
-          </div>
+          <ComposedSearchField
+            icon={SearchIcon}
+            id="jobs-search"
+            label="Buscar vacantes"
+            name="q"
+            defaultValue={query.q ?? ""}
+            placeholder="Puesto o palabra clave"
+          />
           <div
             aria-hidden="true"
             className="hidden h-8 w-px bg-border md:block"
           />
-          <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-border/60 bg-background/60 px-3.5 py-2.5 transition-colors focus-within:border-ring">
-            <MapPinIcon
-              aria-hidden="true"
-              className="size-4 shrink-0 text-muted-foreground"
-            />
-            <div className="min-w-0 flex-1">
-              <label htmlFor="jobs-location" className="sr-only">
-                Ubicación
-              </label>
-              <Input
-                id="jobs-location"
-                name="location"
-                defaultValue={query.location ?? ""}
-                placeholder="Ciudad o estado"
-                className="h-auto border-0 bg-transparent px-0 focus-visible:bg-transparent md:text-sm"
-              />
-            </div>
-          </div>
+          <ComposedSearchField
+            icon={MapPinIcon}
+            id="jobs-location"
+            label="Ubicación"
+            name="location"
+            defaultValue={query.location ?? ""}
+            placeholder="Ciudad o estado"
+          />
           <Button type="submit" size="lg" className="w-full md:w-auto">
             <SearchIcon data-icon="inline-start" />
             Buscar
@@ -324,6 +304,54 @@ export function JobsNavigationIsland({
           </div>
         </SheetContent>
       </Sheet>
+    </div>
+  );
+}
+
+/**
+ * One composed search input inside the raised search surface, shared by the
+ * q and location fields. The outer field wrapper owns the single
+ * focus-within indication (a brand-violet primary border) and the stable
+ * `data-jobs-composed-field` marker for browser assertions; the inner Input
+ * carries no border/ring/shadow of its own, and the label stays visible to
+ * assistive technology only.
+ */
+function ComposedSearchField({
+  icon: Icon,
+  id,
+  label,
+  name,
+  defaultValue,
+  placeholder,
+}: {
+  icon: typeof SearchIcon;
+  id: string;
+  label: string;
+  name: "q" | "location";
+  defaultValue: string;
+  placeholder: string;
+}) {
+  return (
+    <div
+      data-jobs-composed-field
+      className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-border/60 bg-background/60 px-3.5 py-2.5 transition-colors focus-within:border-primary"
+    >
+      <Icon
+        aria-hidden="true"
+        className="size-4 shrink-0 text-muted-foreground"
+      />
+      <div className="min-w-0 flex-1">
+        <label htmlFor={id} className="sr-only">
+          {label}
+        </label>
+        <Input
+          id={id}
+          name={name}
+          defaultValue={defaultValue}
+          placeholder={placeholder}
+          className="h-auto border-0 bg-transparent px-0 shadow-none focus-visible:bg-transparent focus-visible:border-transparent focus-visible:shadow-none focus-visible:ring-0 md:text-sm"
+        />
+      </div>
     </div>
   );
 }

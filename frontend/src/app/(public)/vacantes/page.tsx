@@ -51,6 +51,7 @@ export default async function VacantesPage({
   }
 
   const query: JobsQuery = parseJobsQuery(rawQuery);
+  const routeKey = buildJobsUrl(query);
 
   // Fresh request-scoped server client: one `fetchQuery` per render, no
   // provider, no hydration/dehydration, and no client cache crosses requests.
@@ -71,11 +72,7 @@ export default async function VacantesPage({
           ubicación y moneda.
         </p>
       </section>
-      <JobsNavigationIsland
-        key={buildJobsUrl(query)}
-        routeKey={buildJobsUrl(query)}
-        query={query}
-      >
+      <JobsNavigationIsland key={routeKey} routeKey={routeKey} query={query}>
         <JobsResults result={result} query={query} />
       </JobsNavigationIsland>
     </div>

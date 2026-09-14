@@ -145,6 +145,15 @@ test.describe("keyboard focus visibility on vacancy controls", () => {
       "next-page link",
     ] as const;
     const found = new Map<string, FocusStyles>();
+    // The two composed search fields own their focus indication on the
+    // outer wrapper (data-jobs-composed-field), never on the inner input.
+    let composedField: {
+      innerOutlineStyle: string;
+      innerHasVisibleBoxShadow: boolean;
+      innerBorderWidth: string;
+      wrapperBorderTopColor: string;
+      wrapperBorderTopWidth: string;
+    } | null = null;
     for (let i = 0; i < 60 && found.size < wanted.length; i++) {
       await page.keyboard.press("Tab");
       const name = await page.evaluate(() => {
@@ -178,6 +187,29 @@ test.describe("keyboard focus visibility on vacancy controls", () => {
         };
       });
       if (styles) found.set(name, styles);
+      if (name === "search input") {
+        composedField = await page.evaluate(() => {
+          const el = document.activeElement as HTMLElement | null;
+          const field =
+            el?.closest<HTMLElement>("[data-jobs-composed-field]") ?? null;
+          if (!el || !field) return null;
+          const inner = getComputedStyle(el);
+          const wrapper = getComputedStyle(field);
+          const innerShadowLengths = Array.from(
+            inner.boxShadow.matchAll(/-?\d+(?:\.\d+)?px/g),
+            (match) => Number.parseFloat(match[0]),
+          );
+          return {
+            innerOutlineStyle: inner.outlineStyle,
+            innerHasVisibleBoxShadow:
+              inner.boxShadow !== "none" &&
+              innerShadowLengths.some((length) => length !== 0),
+            innerBorderWidth: inner.borderTopWidth,
+            wrapperBorderTopColor: wrapper.borderTopColor,
+            wrapperBorderTopWidth: wrapper.borderTopWidth,
+          };
+        });
+      }
     }
 
     for (const name of wanted) {
@@ -188,6 +220,29 @@ test.describe("keyboard focus visibility on vacancy controls", () => {
         `${name} must show a visible outline or ring focus indicator`,
       ).toBe(true);
     }
+
+    // Composed search field: the inner input carries no border, outline,
+    // ring, or shadow on focus; the wrapper owns the single brand-violet
+    // focus-within indication as one primary-token border (no extra ring).
+    expect(
+      composedField,
+      "search input must live inside a composed field wrapper",
+    ).not.toBeNull();
+    expect(composedField!.innerOutlineStyle).toBe("none");
+    expect(composedField!.innerHasVisibleBoxShadow).toBe(false);
+    expect(Number.parseFloat(composedField!.innerBorderWidth)).toBe(0);
+    expect(
+      Number.parseFloat(composedField!.wrapperBorderTopWidth),
+    ).toBeGreaterThan(0);
+    const primaryColor = await page.evaluate(() => {
+      const probe = document.createElement("span");
+      document.body.appendChild(probe);
+      probe.style.color = "var(--primary)";
+      const primary = getComputedStyle(probe).color;
+      probe.remove();
+      return primary;
+    });
+    expect(composedField!.wrapperBorderTopColor).toBe(primaryColor);
   });
 });
 
@@ -210,7 +265,7 @@ test.describe("rendered list layout and preset token fidelity", () => {
     expect(await documentOverflowPx(page)).toBeLessThanOrEqual(0);
   });
 
-  test("Inter typography and semantic Violet/Neutral/Default-radius token ownership without inline overrides", async ({
+  test("heading/body typography roles and semantic Violet/Neutral/Default-radius token ownership without inline overrides", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
@@ -227,9 +282,11 @@ test.describe("rendered list layout and preset token fidelity", () => {
         jobTitleLink: font('[aria-label="Listado de vacantes"] a'),
       };
     });
+    // Inter stays the body/controls face; Clash Display (with the Inter
+    // fallback baked into --font-heading) owns the heading role.
     expect(typography.body).toMatch(/Inter/);
-    expect(typography.h1).toMatch(/Inter/);
-    expect(typography.jobTitleLink).toMatch(/Inter/);
+    expect(typography.h1).toContain("Clash Display");
+    expect(typography.jobTitleLink).toContain("Clash Display");
 
     // Semantic token ownership: each representative control's computed color
     // must equal the value the design token resolves to (a var() probe
