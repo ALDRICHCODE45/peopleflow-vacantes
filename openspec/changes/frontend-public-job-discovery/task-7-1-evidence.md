@@ -62,7 +62,7 @@ Three consecutive `apply-progress.md` corrections collapse #9's `JobsResults` ev
 
 The following paths are touched by more than one commit in the range; rollback must respect newest-first ordering so intermediate commits do not strand hunks:
 
-- `frontend/src/app/(public)/vacantes/page.test.tsx` — #1, #3, #5 (formatter), #17
+- `frontend/src/app/(public)/vacantes/page.test.tsx` — #1, #3, #6 (formatter), #17
 - `frontend/src/app/(public)/vacantes/page.tsx` — #2, #3, #13
 - `frontend/src/features/jobs/components/JobsNavigationIsland.tsx` — #5, #6 (formatter), #13, #17
 - `frontend/src/features/jobs/components/JobsResults.tsx` — #9, #13
@@ -98,4 +98,4 @@ If the entire recovered change is to be rolled back, the full revert order is th
 | HEAD identity | `git rev-parse HEAD` | `26bd8d47b8a73b95589e283c6668e5daa158f1dd` |
 | Branch identity | `git branch --show-current` | `recovery/frontend-public-job-discovery-tdd` |
 
-This audit task touches the working tree only by writing this single evidence file and is closed without staging, committing, pushing, or opening a PR in this unit.
+This evidence commit adds only this file; a separate mechanical commit closes Task 7.1. Neither commit changes product bytes, pushes, or opens a PR.

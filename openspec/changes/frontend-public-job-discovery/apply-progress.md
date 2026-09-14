@@ -3,16 +3,26 @@
 ## Current apply slice
 
 - Change: `frontend-public-job-discovery`
-- Work unit: `task-2.4-closure` (ACTIVE — close out the committed task 2.4 REFACTOR)
-- Delivery boundary: PR 2 of the selected feature-branch chain; tracker branch `feat/frontend-foundation`
-- State: task 2.4 REFACTOR committed at `8ac4932` (`refactor(frontend): stabilize shared shell composition`), exact scope `frontend/src/components/shells/PublicShell.tsx` at 9 insertions / 5 deletions = 14 committed lines; no push or PR was performed
-- Persisted checkbox: the task 2.4 checkbox is closed (`- [x]`, 5 checked / 17 unchecked) in `tasks.md` as part of this candidate; the native work unit `task-2.4-closure` itself is currently active and not yet settled
-- Settled prior native objectives: `task-2.4-refactor`, `task-2.4-independent-verification`, and `task-2.4-commit` are all settled complete
-- Final verification (Node `v22.22.1` / pnpm `10.34.5`): unit 6/6 files and 29/29 tests exit 0; typecheck pass; lint pass; API-offline Next `15.5.25` build pass; 13/13 root E2E and 4/4 axe pass; no stale server
-- Scope: the committed production delta is one path, 14 changed lines, below the 400-line review budget; the six protected formatter-only test diffs (98+/54−) remain unstaged and untouched
-- Out of scope and not started: every task 3+ item
+- Work unit: recovered `task-7.1` closure (passive documentary boundary evidence; no production, test, config, lockfile, or backend byte touched)
+- Delivery boundary: passive OpenSpec audit on `recovery/frontend-public-job-discovery-tdd` at clean baseline `26bd8d4`; no push, no PR, no implementation commit
+- State: Task 7.1 audit recorded in `task-7-1-evidence.md` (101 lines) and committed at `b17c045` (`docs(openspec): audit recovered frontend candidate boundaries`); 29 commits audited across `458850d12d1ab0a876965e863dc75b95b95fab01..26bd8d4` with `git diff --check` clean, `git status --porcelain` empty, and aggregate `git diff --shortstat` = `29 files changed, 2095 insertions(+), 163 deletions(-)`; formatting-only `387df7c` verified by empty `git diff -w`; documentary correction descendants and shared-path ordering risks catalogued
+- Persisted checkbox: Task 7.1 is now `- [x]` (22 checked / 0 unchecked) in `tasks.md`; the previous stale slice text is superseded and remains visible only as prior history
+- Settled prior native objectives (recovered history): every implementation task 1.1 through 6.4 plus the OpenSpec artifact-only closures for tasks 2.1–3.4
+- Out of scope and not started: any further SDD phase on this change — implementation, tests, deps, fixtures, and runtime evidence are untouched by this unit
+- Rollback boundary: revert `<closure-commit>` first, then `<evidence-commit>`; this removes only the two documentary commits and touches no source, test, config, lockfile, backend, or `.pi` byte
 
 Prior slices remain fully documented below: task 1.1 bootstrap (committed at `8e488a4`, remediation attempt 2 and revalidation attempt 3 bound to evidence revision `sha256:f62828b3be7ebbf193d74abcaa6b29c70d5c5eeea3e9d0d3b4c327626c28d7e0`), task 2.1 RED (committed at `bfada71`), task 2.2 GREEN (committed at `8467124`), and task 2.3 TRIANGULATE (committed at `7e4a050`).
+
+## Final closure — recovered Task 7.1 complete
+
+- Task 7.1 is closed: the passive documentary audit landed in commit `b17c045` (`docs(openspec): audit recovered frontend candidate boundaries`) and the closure lands here. No source, test, config, package, lockfile, backend, or `.pi` byte was edited, installed, generated, or formatted by either commit; no runtime was exercised; no push, PR, RDD, reset, or rescope occurred. The native objective was acquired and settled once as required.
+- Persisted checkbox: `tasks.md` now reads 22 checked / 0 unchecked (Task 7.1 flipped from `- [ ]` to `- [x]`). The previous "current apply slice" body that referenced the historical `task-2.4-closure` on the prior tracker branch `feat/frontend-foundation` was stale against the clean baseline `26bd8d4` and has been updated above to the recovered Task 7.1 state.
+- Measured stats (Git-measured on `26bd8d4..HEAD`, after this closure lands):
+  - `git diff --stat 26bd8d4..HEAD` reports 3 files changed across the two documentary commits: the new evidence file plus `tasks.md` and `apply-progress.md`.
+  - This closure commit alone (task 7.1 checkbox flip + the slice/closure update) lands below the 200-line Git-measured total ceiling reserved for this unit (its exact measured total is recorded by `git show --numstat <closure-commit>` at commit time).
+  - Audit-table stats (recorded in `task-7-1-evidence.md`, not this commit): 29 commits, 2095 insertions / 163 deletions aggregate across `458850d1..26bd8d4`; formatting-only `387df7c` proven by empty `git diff -w`; `git diff --check` clean.
+- Strict TDD: RED/GREEN/TRIANGULATE/REFACTOR are N/A for the documentary boundary evidence itself; the audited implementation commits retain their authentic classifications in the evidence table.
+- Rollback: `git revert <closure-commit>` reopens Task 7.1 and restores the previous slice text; `git revert b17c045` removes the evidence file. No other byte is touched.
 
 ## Structured status consumed
 

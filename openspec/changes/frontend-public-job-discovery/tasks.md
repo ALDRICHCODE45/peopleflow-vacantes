@@ -144,7 +144,7 @@ Tasks 3.2, 3.3, 3.4, 4.2, 4.4, and 5.2 below carry the corresponding wording. `s
 
 ### 7.1 Candidate boundaries
 
-- [ ] For each completed work unit, inspect `git diff --stat` and `git diff --cached --stat`, confirm one purpose, tests/docs travel with behavior, the unit is independently coherent, focused/runtime results are recorded, and the rollback boundary names exact removable files; use an outcome-focused Conventional Commit message and keep authored changes near or below 400 lines where practical. <!-- sdd-owner: implementation -->
+- [x] For each completed work unit, inspect `git diff --stat` and `git diff --cached --stat`, confirm one purpose, tests/docs travel with behavior, the unit is independently coherent, focused/runtime results are recorded, and the rollback boundary names exact removable files; use an outcome-focused Conventional Commit message and keep authored changes near or below 400 lines where practical. <!-- sdd-owner: implementation -->
 
 ### 7.2 Delivery policy — resolved before apply
 
