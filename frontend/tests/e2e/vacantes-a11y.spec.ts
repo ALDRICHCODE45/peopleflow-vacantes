@@ -257,7 +257,7 @@ test.describe("rendered list layout and preset token fidelity", () => {
         '[aria-label="Listado de vacantes"] a',
       )!;
       const detail = document.querySelector<HTMLElement>(
-        '[aria-label="Listado de vacantes"] li span',
+        '[aria-label="Listado de vacantes"] li p',
       )!;
       const evidence = {
         buttonBackground: withToken(
@@ -311,8 +311,8 @@ test.describe("rendered list layout and preset token fidelity", () => {
 
     // Default-radius token behavior: controls derive their radius from the
     // preset scale anchored at --radius (0.625rem) without hardcoding values.
-    // (Blink serializes the custom property with or without the leading zero.)
-    expect(tokenEvidence.rootRadiusAnchor).toMatch(/^\.?625rem$/);
+    // Blink may serialize the value as either `0.625rem` or `.625rem`.
+    expect(tokenEvidence.rootRadiusAnchor).toMatch(/^(?:0?\.)625rem$/);
     expect(tokenEvidence.controlRadius.buttonRadius).toBe(
       tokenEvidence.controlRadius.probeValue,
     );
