@@ -1648,3 +1648,10 @@ Applied matching production behavior to `JobsResults.tsx`: `companyInitials` hel
 - Task 6.2 fixture profile remains absent by design; no fixture, production, configuration, backend, or other source path was changed. Only Task 6.1 is now `[x]`; Tasks 6.2–6.4 and 7.x remain unchecked.
 - Complete Task 6.1 accounting: replay **196** + task checkbox **2** + this concise evidence append **8** = **206 changed lines**, within the 260-line requested total and below 400. Rollback: revert this OpenSpec closure commit, then revert `a0f3bd0`; this removes only the Task 6.1 evidence and replayed test.
 - Cleanup/recovery: owned fixture and Next process groups were terminated and reaped; ports 3000/4010 are free; `test-results`, `playwright-report`, and temporary logs were removed. Recovery branch is clean before this OpenSpec closure; the original frontend worktree remains unchanged with its pre-existing status and HEAD `b6cc81d8447d9a134fba6a3bfd5b96cdad38dbfe`. Settle the single acquired attempt once after this documentation commit.
+
+## Task 6.2 GREEN replay — complete
+
+- RED predecessor `a0f3bd0`; cherry-picked GREEN `9251079` as `1e719c8`, exactly five authorized paths and **45 additions + 24 deletions = 69 lines**. Replayed files were not edited or formatted.
+- Strict-TDD gates passed: unit **18 files / 99 tests**, typecheck, lint, API-offline build with `PEOPLEFLOW_API_TIMEOUT_MS=1000`, and `git diff --check`; production fixture harness on app `3100` passed cross-cutting **4/4** (including exact USD profile), full E2E **68/68**, and a11y **16/16**. No expected failure remains.
+- Complete Task 6.2 accounting: replay 69 + tasks checkbox 2 + this evidence append 7 = **78 changed lines**, including docs and ≤180. Only 6.2 is checked; 6.3+ remain unchecked.
+- Cleanup/rollback: fixture and Next process groups were terminated/reaped, owned outputs removed, and ports 3100/4010 verified free. Recovery branch is clean; original worktree remains unchanged. Rollback by reverting `docs(openspec): close recovered frontend task 6.2`, then `1e719c8`; no app production files, other paths, stash, formatter, amend, push, PR, or deletion were used.
