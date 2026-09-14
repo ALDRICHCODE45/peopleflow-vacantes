@@ -1620,3 +1620,14 @@ Applied matching production behavior to `JobsResults.tsx`: `companyInitials` hel
 - Cleanup: owned fixture/Next processes were terminated and reaped; `.next`, `test-results`, `playwright-report`, and temporary logs were removed; ports 3000/4010 were free. Recovery worktree is clean and the original worktree remains untouched (its pre-existing changes were not signaled).
 - Rollback: revert `docs(openspec): close recovered frontend task 5.2`; then revert `1627364` for the detail implementation, and `3f8fdd5` for its RED tests. No frontend or backend rollback was otherwise performed.
 - Persisted state: only Task 5.2 is `[x]`; Task 5.3 and later remain unchecked. This closure is limited to the two OpenSpec files and is committed as `docs(openspec): close recovered frontend task 5.2`.
+
+## Task 5.3 TRIANGULATE replay — complete
+
+- Cherry-picked exactly `0ec4c51a2a6be213522cac53647239d82dba4183` onto clean `ee7a400`; replay commit is `941c2b6` (`test(vacantes): triangulate detail accessibility`). Exact three frontend paths only: `139+ / 35- = 174` lines; no replayed frontend file was edited or formatted.
+- Strict-TDD TRIANGULATE evidence: `cd backend && go test ./...` passed; frontend frozen install, full unit **18 files / 99 tests**, typecheck, lint, API-offline build with `PEOPLEFLOW_API_TIMEOUT_MS=1000`, and `git diff --check` passed.
+- Production-build runtime used `NODE_ENV=development` only for the documented loopback HTTP fixture exception, with `PEOPLEFLOW_API_TIMEOUT_MS=1000`: focused detail Playwright **12/12 GREEN**; full `pnpm test:a11y` **16/16 GREEN**. No product/detail/a11y failure occurred; no focused retry was needed.
+- Preset/detail checks passed through the focused and a11y suites: safe text, optional omission, UUID/404/error handling, metadata, keyboard return, wrapping, reduced motion, both schemes, Inter, semantic tokens, radius, and no unsupported actions.
+- Complete Task 5.3 authored accounting: replay **174** + task checkbox **2** + this closure documentation **11** = **187 changed lines**, inclusive of docs and below the 400-line budget. No other task checkbox changed; 5.4+ remain unchecked.
+- Cleanup: owned fixture and Next process groups were terminated; stale recovery Next servers were killed; ports 3000/4010/3100 are free; generated `.next`, `test-results`, `playwright-report`, `tsconfig.tsbuildinfo`, and temporary logs were removed. Recovery branch is clean except the two intended OpenSpec files before closure commit; original worktree was not touched.
+- Rollback: revert `docs(openspec): close recovered frontend task 5.3`, then revert `941c2b6`; this removes only the Task 5.3 evidence and its exact three-file replay.
+- Closure commit authorized as `docs(openspec): close recovered frontend task 5.3`; pre-acquired attempt will be settled once after commit.
