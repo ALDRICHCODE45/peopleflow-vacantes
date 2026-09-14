@@ -1,6 +1,6 @@
 # Task 6.3 TRIANGULATE Evidence
 
-- Branch: `recovery/frontend-public-job-discovery`
+- Branch: `recovery/frontend-public-job-discovery-tdd`
 - HEAD: `b7fee8592eb77fcae6a5940f3752ab32ef2b7ae2`
 - HEAD tree: `75d1143e5a5e71c010363487afb2dbf517f50ddd`
 - Runtime: Node `v22.22.1`; pnpm `10.34.5`; local `shadcn` dependency `4.20.1`; `npm_config_offline=true`.

@@ -1655,3 +1655,10 @@ Applied matching production behavior to `JobsResults.tsx`: `companyInitials` hel
 - Strict-TDD gates passed: unit **18 files / 99 tests**, typecheck, lint, API-offline build with `PEOPLEFLOW_API_TIMEOUT_MS=1000`, and `git diff --check`; production fixture harness on app `3100` passed cross-cutting **4/4** (including exact USD profile), full E2E **68/68**, and a11y **16/16**. No expected failure remains.
 - Complete Task 6.2 accounting: replay 69 + tasks checkbox 2 + this evidence append 7 = **78 changed lines**, including docs and ≤180. Only 6.2 is checked; 6.3+ remain unchecked.
 - Cleanup/rollback: fixture and Next process groups were terminated/reaped, owned outputs removed, and ports 3100/4010 verified free. Recovery branch is clean; original worktree remains unchanged. Rollback by reverting `docs(openspec): close recovered frontend task 6.2`, then `1e719c8`; no app production files, other paths, stash, formatter, amend, push, PR, or deletion were used.
+
+## Task 6.3 TRIANGULATE — complete
+
+- Evidence artifact `task-6-3-evidence.md` committed at `3cfff3c` (`docs(openspec): record recovered frontend task 6.3 gates`); zero product/source lines changed.
+- Node `v22.22.1` / pnpm `10.34.5`, offline frozen install, cached shadcn decode/resolve/info, typecheck, lint, unit **18 files / 99 tests**, backend `go test ./...`, and API-offline build all passed. Preset `b27M1Ev2`, Base UI, Tailwind v4, Lucide, Inter, aliases, and `frontend/src/components/ui` path assertions passed.
+- Production fixture topology (`127.0.0.1:4010`) plus Next (`127.0.0.1:3100`) passed full E2E **68/68** and a11y **16/16**. Output digest: `sha256:34cd8743a71e11a427525250ca116cb24c74d3863fb47f93dfce1afe1a48bde3`.
+- Generated outputs and owned temporary logs were removed; owned process groups were terminated/reaped; ports were free; final tree/status/hash guards matched the original baseline. Only Task 6.3 is checked; 6.4 and 7.x remain unchecked. Rollback is reverting `3cfff3c`.
