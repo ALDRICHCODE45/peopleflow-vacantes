@@ -1,8 +1,10 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+
+import { assertUiPrimitiveInventory } from "../support/assert-ui-primitive-inventory";
 
 // Task 2.3 TRIANGULATE: the task 2.2 root smoke stays, and the foundation is
 // probed again from independent angles: width × color-scheme matrix, axe scans,
@@ -423,16 +425,7 @@ test.describe("preset b27M1Ev2 triangulation", () => {
     }
   });
 
-  test("resolved UI output stays under src/components/ui with CLI-owned primitives only", () => {
-    const uiDir = join(FRONTEND_ROOT, "src", "components", "ui");
-    if (!existsSync(uiDir)) return; // no primitive installed in this slice yet
-
-    const productPattern = /shell|brand|jobs|marketing|feature/i;
-    for (const entry of readdirSync(uiDir, { recursive: true })) {
-      expect(
-        String(entry),
-        "product file inside src/components/ui",
-      ).not.toMatch(productPattern);
-    }
+  test("enforces the required generic UI primitive inventory", () => {
+    assertUiPrimitiveInventory(FRONTEND_ROOT);
   });
 });
