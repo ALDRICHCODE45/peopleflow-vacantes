@@ -1,10 +1,44 @@
+import { createRequire } from "node:module";
+import type { ServerResponse } from "node:http";
+import { pathToFileURL } from "node:url";
 import { expect, test, type Locator } from "@playwright/test";
-import { renderToStaticMarkup } from "react-dom/server";
-import VacantesError from "../../src/app/(public)/vacantes/error";
 
 const fixtureUrl = "http://127.0.0.1:4010";
 const appUrl = process.env.PLAYWRIGHT_APP_ORIGIN ?? "http://127.0.0.1:3100";
+const errorHarnessUrl = "http://127.0.0.1:3101/__vacantes-error";
+type HarnessServer = {
+  close(): Promise<void>;
+  listen(): Promise<void>;
+  middlewares: {
+    use(path: string, handler: (_request: unknown, response: ServerResponse) => void): void;
+  };
+  transformIndexHtml(path: string, html: string): Promise<string>;
+};
+let errorHarness: HarnessServer | undefined;
+
 test.describe.configure({ mode: "serial" });
+test.beforeAll(async () => {
+  const viteRequire = createRequire(require.resolve("vitest/package.json"));
+  const vite = (await import(pathToFileURL(viteRequire.resolve("vite")).href)) as {
+    createServer(options: Record<string, unknown>): Promise<HarnessServer>;
+  };
+  errorHarness = await vite.createServer({
+    root: process.cwd(),
+    server: { host: "127.0.0.1", port: 3101, strictPort: true },
+    plugins: [{
+      name: "vacantes-error-harness",
+      configureServer(server: HarnessServer) {
+        server.middlewares.use("/__vacantes-error", async (_request, response) => {
+          const html = await server.transformIndexHtml("/__vacantes-error", `<main id="root"></main><script type="module">import { createElement } from "react"; import { createRoot } from "react-dom/client"; import VacantesError from "/src/app/(public)/vacantes/error.tsx"; createRoot(document.getElementById("root")).render(createElement(VacantesError, { error: new Error("fixture failure"), reset() {} }));</script>`);
+          response.setHeader("Content-Type", "text/html");
+          response.end(html);
+        });
+      },
+    }],
+  });
+  await errorHarness.listen();
+});
+test.afterAll(async () => errorHarness?.close());
 test.beforeEach(async ({ request }) => {
   await request.get(`${fixtureUrl}/__reset`);
 });
@@ -670,13 +704,7 @@ test("long vacancy content remains readable", async ({ page }) => {
 });
 
 test("renders the real list error boundary with one h1", async ({ page }) => {
-  const markup = renderToStaticMarkup(
-    VacantesError({
-      error: new Error("fixture failure"),
-      reset: () => undefined,
-    }),
-  );
-  await page.setContent(`<main>${markup}</main>`);
+  await page.goto(errorHarnessUrl);
   await expect(
     page.getByRole("heading", {
       level: 1,
