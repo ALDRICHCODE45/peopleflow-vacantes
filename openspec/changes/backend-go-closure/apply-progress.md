@@ -1744,3 +1744,14 @@ Additions: `5+127+159 = 291`. Deletions: `1+52+16 = 69`. **Total changed lines: 
 - **tasks.md edit (this unit):** line 261 only — Task 7.2 GREEN `- [ ]` → `- [x]` (1 changed line). RED at line 260 and TRIANGULATE/REFACTOR at 262–263, Task 7.3, and Phase 8 remain unchecked.
 - **apply-progress.md edit (this unit):** append-only entry measured as 10 additions / 0 deletions (`git diff --numstat`, final after the harness markdownlint reflow); combined with the tasks.md checkbox flip (1 addition / 1 deletion), the unit total is exactly 12 changed diff lines (≤40-line bound; ≤400-line review budget; no exception).
 - **Remaining Task 7.2 work:** TRIANGULATE (manifest mutation matrix) and REFACTOR (`gate-arch` wiring, aggregate `closure-gate` still expected NO-GO with zero unexplained rows) — both pending, then WS7C.
+
+## Task 7.2 (WS7B) — TRIANGULATE post-commit reconciliation (artifact-only; work unit `ws7b-triangulate-reconciliation`)
+
+- **Scope:** TRIANGULATE checkbox closure + committed-evidence record only. RED/GREEN entries above are preserved; REFACTOR (task 7.2), Task 7.3/WS7C, verify-report, staging, commit, and push remain untouched. No code, test, spec, design, or settlement work in this unit; the implementation/test candidate was already implemented, focused-tested, settled in two native SDD slices, approved/acknowledged by RDD, and committed.
+- **Committed candidate:** commit `36c8f183b8ee37e31fdb9dc54506270d48f72e4b` (`test(closure): triangulate traceability enforcement`, HEAD). Exact two-file scope: `backend/internal/tools/archguard/archguard.go` and `backend/internal/tools/archguard/archguard_test.go`.
+- **Cumulative commit stats:** `backend/internal/tools/archguard/archguard.go` +428/−0 and `backend/internal/tools/archguard/archguard_test.go` +304/−0; 732 insertions total.
+- **Prior focused verification (preserved, not rerun):** `cd backend && go test ./internal/tools/archguard -run '^TestTraceability_' -count=1` passed, proving the manifest mutation matrix (duplicate title, duplicate owner, missing row, extra row, unresolvable path/symbol, selector matching zero tests, zero anchors — each fails the checker) and the effective-set composition (canonical specs + change deltas, MODIFIED replacing canonical title) verified against the six deltas.
+- **Slice A settled evidence:** `sha256:850f2365d84a3b79b961d8fddd522d8a2b085527aad66ad47a63174f3ed8d6a9`.
+- **Slice B settled evidence:** `sha256:f35ac6851c80a71188856bdce0a143be572a304efc42f538238595a9e8373c2d`.
+- **Native review lineage:** `review-6252b3ee1ae019b1`, target `sha256:dbcb22534e9b9ebd8432941087fe77d53e470b3c8742ed1198787720d4afdf33`, approved and acknowledged/burned before commit.
+- **Structural checks (this unit, read-only):** exact checkbox state confirmed by readback; `git diff --check` clean; changed paths exactly the two authorized artifact files.
