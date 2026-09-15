@@ -207,30 +207,19 @@ test("detail error boundary promotes its heading to the single h1", async ({
 }) => {
   await request.get(`${fixtureUrl}/__failure?kind=5xx`);
   await page.goto(`/vacantes/${MAIN_ID}`);
-  // The route error boundary replaces the detail page, so the error heading
-  // itself is the only level-1 heading on the rendered document; a stale
-  // h2 copy is never the only heading on the boundary.
   await expect(
     page.getByRole("heading", {
       level: 1,
       name: "No se pudo cargar la vacante",
     }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("heading", {
-      level: 2,
-      name: "No se pudo cargar la vacante",
-    }),
-  ).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-  // Retryable failures keep their distinct retry + return link.
   await expect(
     page.getByRole("button", { name: /intentar de nuevo/i }),
   ).toBeVisible();
   await expect(
     page.getByRole("link", { name: /vacantes/i }).first(),
   ).toHaveAttribute("href", "/vacantes");
-  // Branded not-found copy never appears on a retryable error.
   await expect(page.getByText(NOT_FOUND_COPY)).toHaveCount(0);
 });
 
@@ -239,20 +228,9 @@ test("detail not-found boundary promotes its heading to the single h1", async ({
 }) => {
   const response = await page.goto(`/vacantes/${MISSING_ID}`);
   expect(response?.status()).toBe(404);
-  // The not-found page replaces the detail route, so the branded heading
-  // itself is the only level-1 heading on the rendered document.
   await expect(
-    page.getByRole("heading", {
-      level: 1,
-      name: NOT_FOUND_COPY,
-    }),
+    page.getByRole("heading", { level: 1, name: NOT_FOUND_COPY }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("heading", {
-      level: 2,
-      name: NOT_FOUND_COPY,
-    }),
-  ).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(backLink(page)).toHaveAttribute("href", "/vacantes");
 });

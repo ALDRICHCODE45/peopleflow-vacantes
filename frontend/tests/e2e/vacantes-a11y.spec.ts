@@ -624,6 +624,30 @@ test.describe("vacancy detail axe WCAG A/AA matrix", () => {
   }
 });
 
+const DETAIL_MAIN_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
+const DETAIL_NOT_FOUND_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d99";
+
+// Shared boundary evidence: named single h1, exactly one h1, then axe WCAG A/AA.
+async function expectBoundarySingleH1Axe(
+  page: import("@playwright/test").Page,
+  request: import("@playwright/test").APIRequestContext,
+  path: string,
+  failure: "5xx" | null,
+  headingName: string,
+) {
+  await request.get(`${fixtureUrl}/__reset`);
+  if (failure) await request.get(`${fixtureUrl}/__failure?kind=${failure}`);
+  await page.goto(path);
+  await expect(
+    page.getByRole("heading", { level: 1, name: headingName }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa"])
+    .analyze();
+  expect(results.violations).toEqual([]);
+}
+
 test.describe("vacancy detail error boundary accessibility", () => {
   for (const scheme of SCHEMES) {
     for (const [label, viewport] of Object.entries(VIEWPORTS)) {
@@ -634,22 +658,13 @@ test.describe("vacancy detail error boundary accessibility", () => {
           page,
           request,
         }) => {
-          await request.get(`${fixtureUrl}/__reset`);
-          await request.get(`${fixtureUrl}/__failure?kind=5xx`);
-          await page.goto(`/vacantes/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e`);
-          // Route boundary replaces the page; the error heading must own
-          // the single h1 of the rendered document.
-          await expect(
-            page.getByRole("heading", {
-              level: 1,
-              name: "No se pudo cargar la vacante",
-            }),
-          ).toBeVisible();
-          await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-          const results = await new AxeBuilder({ page })
-            .withTags(["wcag2a", "wcag2aa"])
-            .analyze();
-          expect(results.violations).toEqual([]);
+          await expectBoundarySingleH1Axe(
+            page,
+            request,
+            `/vacantes/${DETAIL_MAIN_ID}`,
+            "5xx",
+            "No se pudo cargar la vacante",
+          );
         });
       });
     }
@@ -666,19 +681,13 @@ test.describe("vacancy detail not-found boundary accessibility", () => {
           page,
           request,
         }) => {
-          await request.get(`${fixtureUrl}/__reset`);
-          await page.goto(`/vacantes/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d99`);
-          await expect(
-            page.getByRole("heading", {
-              level: 1,
-              name: "Esta vacante no está disponible",
-            }),
-          ).toBeVisible();
-          await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-          const results = await new AxeBuilder({ page })
-            .withTags(["wcag2a", "wcag2aa"])
-            .analyze();
-          expect(results.violations).toEqual([]);
+          await expectBoundarySingleH1Axe(
+            page,
+            request,
+            `/vacantes/${DETAIL_NOT_FOUND_ID}`,
+            null,
+            "Esta vacante no está disponible",
+          );
         });
       });
     }

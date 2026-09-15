@@ -10,31 +10,47 @@ type HarnessServer = {
   close(): Promise<void>;
   listen(): Promise<void>;
   middlewares: {
-    use(path: string, handler: (_request: unknown, response: ServerResponse) => void): void;
+    use(
+      path: string,
+      handler: (_r: unknown, response: ServerResponse) => void,
+    ): void;
   };
   transformIndexHtml(path: string, html: string): Promise<string>;
 };
+const errorHarnessHtml = `<main id="root"></main><script type="module">import { createElement } from "react"; import { createRoot } from "react-dom/client"; import VacantesError from "/src/app/(public)/vacantes/error.tsx"; createRoot(document.getElementById("root")).render(createElement(VacantesError, { error: new Error("fixture failure"), reset() {} }));</script>`;
 let errorHarness: HarnessServer | undefined;
 
 test.describe.configure({ mode: "serial" });
 test.beforeAll(async () => {
   const viteRequire = createRequire(require.resolve("vitest/package.json"));
-  const vite = (await import(pathToFileURL(viteRequire.resolve("vite")).href)) as {
+  const vite = (await import(
+    pathToFileURL(viteRequire.resolve("vite")).href
+  )) as {
     createServer(options: Record<string, unknown>): Promise<HarnessServer>;
   };
   errorHarness = await vite.createServer({
     root: process.cwd(),
+    esbuild: { jsx: "automatic" },
     server: { host: "127.0.0.1", port: 3101, strictPort: true },
-    plugins: [{
-      name: "vacantes-error-harness",
-      configureServer(server: HarnessServer) {
-        server.middlewares.use("/__vacantes-error", async (_request, response) => {
-          const html = await server.transformIndexHtml("/__vacantes-error", `<main id="root"></main><script type="module">import { createElement } from "react"; import { createRoot } from "react-dom/client"; import VacantesError from "/src/app/(public)/vacantes/error.tsx"; createRoot(document.getElementById("root")).render(createElement(VacantesError, { error: new Error("fixture failure"), reset() {} }));</script>`);
-          response.setHeader("Content-Type", "text/html");
-          response.end(html);
-        });
+    plugins: [
+      {
+        name: "vacantes-error-harness",
+        configureServer(server: HarnessServer) {
+          server.middlewares.use(
+            "/__vacantes-error",
+            async (_request, response) => {
+              response.setHeader("Content-Type", "text/html");
+              response.end(
+                await server.transformIndexHtml(
+                  "/__vacantes-error",
+                  errorHarnessHtml,
+                ),
+              );
+            },
+          );
+        },
       },
-    }],
+    ],
   });
   await errorHarness.listen();
 });
