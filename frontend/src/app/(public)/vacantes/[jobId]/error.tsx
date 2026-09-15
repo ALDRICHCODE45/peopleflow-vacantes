@@ -16,9 +16,9 @@ export default function VacanteDetailError({
 }) {
   return (
     <section role="alert" className="flex flex-col items-start gap-3 py-6">
-      <h2 className="font-heading text-xl font-medium text-foreground">
+      <h1 className="font-heading text-xl font-medium text-foreground">
         No se pudo cargar la vacante
-      </h2>
+      </h1>
       <p className="max-w-prose text-sm text-muted-foreground">
         El servicio de vacantes no respondió correctamente. Puedes reintentar la
         carga.

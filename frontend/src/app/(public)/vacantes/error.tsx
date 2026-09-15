@@ -15,9 +15,9 @@ export default function VacantesError({
 }) {
   return (
     <section role="alert" className="flex flex-col items-start gap-3 py-6">
-      <h2 className="font-heading text-xl font-medium text-foreground">
+      <h1 className="font-heading text-xl font-medium text-foreground">
         No se pudieron cargar las vacantes
-      </h2>
+      </h1>
       <p className="max-w-prose text-sm text-muted-foreground">
         Ocurrió un error inesperado. Puedes reintentar la carga.
       </p>
