@@ -149,3 +149,21 @@ Tasks 3.2, 3.3, 3.4, 4.2, 4.4, and 5.2 below carry the corresponding wording. `s
 ### 7.2 Delivery policy — resolved before apply
 
 The resolved values are `delivery_strategy: ask-on-risk`, `chain_strategy: feature-branch-chain`, tracker branch `feat/frontend-foundation`, and five PR slices. `Decision needed before apply: No`. The generated-only `size:exception` is approved only for one coherent `frontend/pnpm-lock.yaml` or shadcn-generated output snapshot; it never applies to handwritten/authored application source. `apply b27M1Ev2` remains an existing initialized-project operation, not a blank-project task, and the outdated `apply --preset ... .` form is forbidden.
+
+## 8. Post-Verify remediation
+
+### 8.1 RED→GREEN — UI primitive inventory
+
+- [ ] Add genuine failing unit cases proving that the UI primitive inventory check rejects a missing, empty, or incomplete `frontend/src/components/ui/` directory, then implement the smallest shared test-only helper under `frontend/tests/support/` and update the focused preset unit and root Playwright checks to use it. Require `button`, `empty`, `field`, `input`, `label`, `select`, `separator`, and `sheet`; allow additional generic primitives while continuing to reject product-specific names under `ui/`. Do not change production behavior, configuration, or dependencies. <!-- sdd-owner: implementation -->
+
+### 8.2 RED→GREEN — exactly one h1 on error and not-found pages
+
+- [ ] Add failing Playwright and accessibility tests asserting exactly one `<h1>` on the vacancy list error page, vacancy detail error page, and vacancy detail not-found page. Focused component/page/browser/a11y layers; only heading-level production edits allowed. <!-- sdd-owner: implementation -->
+
+### 8.3 RED→GREEN — actual USD result and every-predicate AND fixture-backed selection
+
+- [ ] Add failing E2E Playwright tests asserting actual USD currency appears in vacancy results and that every active filter predicate combines with AND logic (not OR). Tests use `fixture/list` data only. <!-- sdd-owner: implementation -->
+
+### 8.4 RED→GREEN — visible↔hidden request-time freshness and state matrix
+
+- [ ] Add failing fixture-backed E2E coverage that mutates a vacancy hidden→visible and visible→hidden across separate request-time renders, plus completed-response buffering checks for list success, list empty, list error, detail success, detail error, and detail not-found. Add only minimal test-fixture controls and list/detail assertions; preserve `cache: "no-store"`, dynamic server rendering, non-stream-dependent correctness, existing user-facing states, and production transport boundaries. <!-- sdd-owner: implementation -->

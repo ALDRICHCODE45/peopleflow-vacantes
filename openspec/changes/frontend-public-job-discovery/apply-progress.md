@@ -3,13 +3,19 @@
 ## Current apply slice
 
 - Change: `frontend-public-job-discovery`
-- Work unit: recovered `task-7.1` closure (passive documentary boundary evidence; no production, test, config, lockfile, or backend byte touched)
-- Delivery boundary: passive OpenSpec audit on `recovery/frontend-public-job-discovery-tdd` at clean baseline `26bd8d4`; no push, no PR, no implementation commit
-- State: Task 7.1 audit recorded in `task-7-1-evidence.md` (101 lines) and committed at `b17c045` (`docs(openspec): audit recovered frontend candidate boundaries`); 29 commits audited across `458850d12d1ab0a876965e863dc75b95b95fab01..26bd8d4` with `git diff --check` clean, `git status --porcelain` empty, and aggregate `git diff --shortstat` = `29 files changed, 2095 insertions(+), 163 deletions(-)`; formatting-only `387df7c` verified by empty `git diff -w`; documentary correction descendants and shared-path ordering risks catalogued
-- Persisted checkbox: Task 7.1 is now `- [x]` (22 checked / 0 unchecked) in `tasks.md`; the previous stale slice text is superseded and remains visible only as prior history
-- Settled prior native objectives (recovered history): every implementation task 1.1 through 6.4 plus the OpenSpec artifact-only closures for tasks 2.1–3.4
-- Out of scope and not started: any further SDD phase on this change — implementation, tests, deps, fixtures, and runtime evidence are untouched by this unit
-- Rollback boundary: revert `<closure-commit>` first, then `<evidence-commit>`; this removes only the two documentary commits and touches no source, test, config, lockfile, backend, or `.pi` byte
+- Work unit: pending `task-8.1` — UI primitive inventory (first unit of §8 Post-Verify Remediation; strict TDD RED→GREEN, non-vacuous shadcn/ui primitives, shared test-only helper, focused preset unit and root Playwright)
+- Delivery boundary: clean recovery HEAD `cc5c65a`; this commit adds only the §8 task definitions and provenance; no production, test, config, lockfile, or backend byte touched; no push, no PR, no RDD
+- State: Section 8 added to `tasks.md` with four unchecked tasks (8.1 C5, 8.2 C3, 8.3 C1, 8.4 C2); Task 8.1 is the current apply slice; tasks 8.2–8.4 are pending independent authorization
+- Persisted checkbox: tasks.md now reads 22 checked / 4 unchecked; §8 tasks are all `- [ ]`
+- Settled prior native objectives: every implementation task 1.1 through 7.1
+- Out of scope and not started: tasks 8.1–8.4 require independent user/native authorization, authentic RED before GREEN, separate focused evidence/closure, and <=400 lines each
+- Rollback boundary: `git revert <this-commit>` removes only this provenance commit and the §8 tasks without touching any prior history
+
+## Provenance
+
+- Source: read-only comparison of the preserved original candidate against the clean recovery baseline `cc5c65a`; no old checkmark states, evidence, or apply-progress records were imported
+- `c4-historical-tdd-exception.md` is invalid and was not imported; the old `verify-report.md`, old `apply-progress.md`, and historical `tasks.md` checkmarks were also explicitly rejected and not imported
+- Task census: 22 checked / 4 unchecked; the 4 unchecked correspond exactly to tasks 8.1–8.4
 
 Prior slices remain fully documented below: task 1.1 bootstrap (committed at `8e488a4`, remediation attempt 2 and revalidation attempt 3 bound to evidence revision `sha256:f62828b3be7ebbf193d74abcaa6b29c70d5c5eeea3e9d0d3b4c327626c28d7e0`), task 2.1 RED (committed at `bfada71`), task 2.2 GREEN (committed at `8467124`), and task 2.3 TRIANGULATE (committed at `7e4a050`).
 
