@@ -719,7 +719,47 @@ test("long vacancy content remains readable", async ({ page }) => {
   }
 });
 
-test("renders the real list error boundary with one h1", async ({ page }) => {
+    test("renders only the USD target when every list predicate is active", async ({
+      page,
+      request,
+    }) => {
+      // Every supported list predicate is active at once. The URL owns the
+      // canonical conjunctive state, and the fixture must answer it with the
+      // single vacancy matching all six predicates, never an OR of them.
+      const conjunctiveSearch =
+        "?q=conjuntiva&seniority=senior&work_mode=remote&employment_type=full_time&location=Monterrey&currency=USD";
+      await page.goto(`/vacantes${conjunctiveSearch}`);
+      await expect(page).toHaveURL(`/vacantes${conjunctiveSearch}`);
+
+      // The real list UI reflects the URL-owned active predicates.
+      await expect(page.getByLabel("Buscar vacantes")).toHaveValue("conjuntiva");
+      await expect(page.getByLabel(/moneda/i)).toHaveText(/^USD/);
+
+      // One exact server request carries all six predicates AND-shaped.
+      await expect
+        .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
+        .toEqual([conjunctiveSearch]);
+
+      // Only the one vacancy matching every active predicate may render.
+      const list = page.getByRole("list");
+      await expect(list.getByRole("listitem")).toHaveCount(1);
+      await expect(list).toContainText("Analista Conjuntiva de Datos");
+      await expect(list.getByText("USD 100,000 – USD 120,000")).toBeVisible();
+
+      // Each decoy fails exactly one predicate, so an OR evaluation would
+      // leak at least one decoy into the rendered list; AND must hide all.
+      for (const decoy of [
+        "Desarrolladora Senior de Plataformas",
+        "Ingeniera Conjuntiva Lead",
+        "Diseñadora Conjuntiva Híbrida",
+        "Scrum Master Conjuntiva",
+        "QA Conjuntiva Guadalajara",
+        "DevOps Conjuntiva MXN",
+      ])
+        await expect(list).not.toContainText(decoy);
+    });
+
+    test("renders the real list error boundary with one h1", async ({ page }) => {
   await page.goto(errorHarnessUrl);
   await expect(
     page.getByRole("heading", {
