@@ -6,6 +6,9 @@ const requests = [];
 // and cleared only by `/__recover` or `/__reset`, so a prefetch or an aborted
 // timeout request can never silently consume a one-shot failure.
 const failureState = { kind: null };
+// Task 8.4 GREEN — out-of-band visibility state, controlled through
+// `/__visibility` and applied to every later list or detail request.
+const hiddenJobs = new Set();
 const job = {
   id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e",
   title: "Ingeniera Frontend",
@@ -255,6 +258,7 @@ const server = createServer((request, response) => {
   if (url.pathname === "/__reset") {
     requests.length = 0;
     failureState.kind = null;
+    hiddenJobs.clear();
     return send(response, 200, { ok: true });
   }
   if (url.pathname === "/__failure") {
@@ -269,9 +273,10 @@ const server = createServer((request, response) => {
     const visible = url.searchParams.get("visible");
     if (id === null || (visible !== "true" && visible !== "false"))
       return send(response, 400, { error: "bad visibility control" });
-    // Task 8.4 RED — the control only validates and acknowledges the
-    // request; no hidden state exists yet, so list and detail requests
-    // keep serving the vacancy as visible.
+    // Task 8.4 GREEN — the toggle mutates the fixture's visibility state,
+    // which every later list/detail request observes at request time.
+    if (visible === "false") hiddenJobs.add(id);
+    else hiddenJobs.delete(id);
     return send(response, 200, { ok: true, visible });
   }
   if (url.pathname === "/__recover") {
@@ -292,12 +297,21 @@ const server = createServer((request, response) => {
   // `next_cursor` is absent, so the frontend must omit pagination. A
   // detail request's payload is the bare job, or `undefined` for an
   // unknown identifier, which is answered with a backend 404 below.
+  // Task 8.4 GREEN — hidden vacancies leave both the list payload and the
+  // detail lookup, mirroring the backend visibility boundary: a hidden
+  // vacancy is absent from `/jobs` results and `/jobs/{id}` answers 404.
   const payload =
     detailId !== undefined
       ? detailJobs[detailId]
-      : url.searchParams.has("cursor")
-        ? { items: [job] }
-        : { items: [job], next_cursor: "opaque a+b/c=" };
+      : (() => {
+          const base = url.searchParams.has("cursor")
+            ? { items: [job] }
+            : { items: [job], next_cursor: "opaque a+b/c=" };
+          return {
+            ...base,
+            items: base.items.filter((item) => !hiddenJobs.has(item.id)),
+          };
+        })();
   if (url.searchParams.get("q") === "error") {
     return send(response, 503, { error: "unavailable" });
   }
@@ -346,7 +360,10 @@ const server = createServer((request, response) => {
     url.searchParams.get("currency") === "USD"
   )
     return setTimeout(() => send(response, 200, payload), 300);
-  if (detailId !== undefined && payload === undefined)
+  if (
+    detailId !== undefined &&
+    (payload === undefined || hiddenJobs.has(detailId))
+  )
     return send(response, 404, { error: "not found" });
   return send(response, 200, payload);
 });
