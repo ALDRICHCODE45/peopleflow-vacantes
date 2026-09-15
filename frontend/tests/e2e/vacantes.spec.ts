@@ -1,11 +1,31 @@
 import { createRequire } from "node:module";
 import type { ServerResponse } from "node:http";
 import { pathToFileURL } from "node:url";
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const fixtureUrl = "http://127.0.0.1:4010";
+// Task 8.4 — the default fixture vacancy whose visibility the request-time
+// freshness matrix mutates through the fixture's `/__visibility` control.
+const MAIN_VACANCY_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
+const MAIN_VACANCY_TITLE = "Ingeniera Frontend";
 const appUrl = process.env.PLAYWRIGHT_APP_ORIGIN ?? "http://127.0.0.1:3100";
 const errorHarnessUrl = "http://127.0.0.1:3101/__vacantes-error";
+
+async function bufferMainDocuments(
+  page: Page,
+  url: string,
+  completedStatuses: number[],
+) {
+  await page.route(url, async (route) => {
+    if (route.request().resourceType() !== "document")
+      return route.continue();
+    const upstream = await route.fetch();
+    const body = await upstream.body();
+    completedStatuses.push(upstream.status());
+    await route.fulfill({ response: upstream, body });
+  });
+}
+
 type HarnessServer = {
   close(): Promise<void>;
   listen(): Promise<void>;
@@ -758,6 +778,74 @@ test("long vacancy content remains readable", async ({ page }) => {
       ])
         await expect(list).not.toContainText(decoy);
     });
+test("reflects request-time vacancy visibility across separate renders", async ({
+  page,
+  request,
+}) => {
+  // The fixture owns the vacancy's visibility; every `page.goto` is a
+  // separate request-time render that must consume the fixture state at
+  // that request (`cache: "no-store"`, no ISR, no cross-request cache).
+  const setVisibility = (visible: boolean) =>
+    request.get(
+      `${fixtureUrl}/__visibility?id=${MAIN_VACANCY_ID}&visible=${visible}`,
+    );
+  const requestHistory = async () =>
+    (await (await request.get(`${fixtureUrl}/__requests`)).json()) as string[];
+  const expectRequestLog = (renderCount: number) =>
+    expect
+      .poll(requestHistory)
+      .toEqual(Array.from({ length: renderCount }, () => ""));
+
+  // Hidden→visible: this first render starts with the vacancy hidden, so
+  // the unfiltered list must not surface it and must show the honest
+  // empty state instead.
+  await setVisibility(false);
+  await page.goto("/vacantes");
+  await expect(page.getByRole("main")).not.toContainText(MAIN_VACANCY_TITLE);
+  await expect(page.getByText(/no hay vacantes/i)).toBeVisible();
+  await expectRequestLog(1);
+
+  // The mutation lands out of band; only a fresh request-time render
+  // observes it: the same canonical URL now surfaces the vacancy.
+  await setVisibility(true);
+  await page.goto("/vacantes");
+  await expect(page.getByRole("list")).toContainText(MAIN_VACANCY_TITLE);
+  await expectRequestLog(2);
+
+  // Visible→hidden: a new render must drop the vacancy again.
+  await setVisibility(false);
+  await page.goto("/vacantes");
+  await expect(page.getByRole("main")).not.toContainText(MAIN_VACANCY_TITLE);
+  await expect(page.getByText(/no hay vacantes/i)).toBeVisible();
+  await expectRequestLog(3);
+});
+
+test("buffers each completed list response with its final state", async ({
+  page,
+}) => {
+  const completedStatuses: number[] = [];
+  await bufferMainDocuments(page, "**/vacantes*", completedStatuses);
+
+  const success = await page.goto("/vacantes");
+  expect(success?.status()).toBe(200);
+  expect(completedStatuses).toEqual([200]);
+  await expect(page.getByRole("list")).toContainText(MAIN_VACANCY_TITLE);
+
+  const empty = await page.goto("/vacantes?q=empty");
+  expect(empty?.status()).toBe(200);
+  expect(completedStatuses).toEqual([200, 200]);
+  await expect(page.getByText(/no hay vacantes/i)).toBeVisible();
+  await expect(page.getByRole("list")).toHaveCount(0);
+
+  const failure = await page.goto("/vacantes?q=error");
+  expect(failure?.status()).toBe(200);
+  expect(completedStatuses).toEqual([200, 200, 200]);
+  await expect(
+    page.getByRole("alert").filter({ hasText: /intentar de nuevo/i }),
+  ).toContainText(/intentar de nuevo/i);
+  await expect(page.getByRole("list")).toHaveCount(0);
+});
+
 
     test("renders the real list error boundary with one h1", async ({ page }) => {
   await page.goto(errorHarnessUrl);

@@ -18,6 +18,20 @@ const XSS_TEXT = "<script>alert('xss')</script>";
 const fixtureRequests = (request: APIRequestContext) =>
   request.get(`${fixtureUrl}/__requests`).then((r) => r.json());
 
+async function bufferMainDocuments(
+  page: Page,
+  completedStatuses: number[],
+) {
+  await page.route("**/vacantes/*", async (route) => {
+    if (route.request().resourceType() !== "document")
+      return route.continue();
+    const upstream = await route.fetch();
+    const body = await upstream.body();
+    completedStatuses.push(upstream.status());
+    await route.fulfill({ response: upstream, body });
+  });
+}
+
 const backLink = (scope: Page | Locator) =>
   scope.getByRole("link", { name: /volver a vacantes/i });
 
@@ -111,6 +125,84 @@ test("backend 404: noindex after API read", async ({ page, request }) => {
   await expectBranded404(page);
   // Unlike a malformed identifier, a valid UUID consults the API exactly once.
   await expect.poll(() => fixtureRequests(request)).toEqual([missingRequest]);
+});
+
+test("reflects request-time visibility changes on later detail requests", async ({
+  page,
+  request,
+}) => {
+  // The fixture owns the vacancy's public visibility. Every detail load is
+  // a separate request-time render: a hidden vacancy answers the backend
+  // visibility boundary (a 404), and only a fresh request observes the
+  // change back to visible.
+  const setVisibility = (visible: boolean) =>
+    request.get(`${fixtureUrl}/__visibility?id=${MAIN_ID}&visible=${visible}`);
+  const detailRequest = `/jobs/${MAIN_ID}`;
+
+  // Visible→hidden: this render must present the branded not-found state,
+  // never a cached article, after exactly one fresh API read.
+  await setVisibility(false);
+  const hidden = await page.goto(`/vacantes/${MAIN_ID}`);
+  expect(hidden?.status()).toBe(404);
+  await expectBranded404(page);
+  await expect.poll(() => fixtureRequests(request)).toEqual([detailRequest]);
+
+  // Hidden→visible: a later request-time render renders the article
+  // again from a fresh validated read.
+  await setVisibility(true);
+  const visible = await page.goto(`/vacantes/${MAIN_ID}`);
+  expect(visible?.status()).toBe(200);
+  await expect(
+    page
+      .getByRole("article")
+      .getByRole("heading", { level: 1, name: "Ingeniera Frontend" }),
+  ).toBeVisible();
+  await expect
+    .poll(() => fixtureRequests(request))
+    .toEqual([detailRequest, detailRequest]);
+});
+
+test("buffers each completed detail response with its final state", async ({
+  page,
+  request,
+}) => {
+  const completedStatuses: number[] = [];
+  await bufferMainDocuments(page, completedStatuses);
+
+  const success = await page.goto(`/vacantes/${MAIN_ID}`);
+  expect(success?.status()).toBe(200);
+  expect(completedStatuses).toEqual([200]);
+  await expect(
+    page
+      .getByRole("article")
+      .getByRole("heading", { level: 1, name: "Ingeniera Frontend" }),
+  ).toBeVisible();
+
+  await request.get(`${fixtureUrl}/__failure?kind=5xx`);
+  const failure = await page.goto(`/vacantes/${MAIN_ID}`);
+  expect(failure?.status()).toBe(500);
+  expect(completedStatuses).toEqual([200, 500]);
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: "No se pudo cargar la vacante",
+    }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /intentar de nuevo/i }),
+  ).toBeVisible();
+
+  // The armed failure is persistent by fixture contract: recover before
+  // exercising the backend-404 state so it answers its own definitive 404.
+  await request.get(`${fixtureUrl}/__recover`);
+
+  const missing = await page.goto(`/vacantes/${MISSING_ID}`);
+  expect(missing?.status()).toBe(404);
+  expect(completedStatuses).toEqual([200, 500, 404]);
+  await expect(
+    page.getByRole("heading", { level: 1, name: NOT_FOUND_COPY }),
+  ).toBeVisible();
+  await expect(backLink(page)).toHaveAttribute("href", "/vacantes");
 });
 
 for (const kind of ["5xx", "schema", "timeout"] as const) {

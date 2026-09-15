@@ -264,6 +264,16 @@ const server = createServer((request, response) => {
     failureState.kind = kind;
     return send(response, 200, { ok: true, kind });
   }
+  if (url.pathname === "/__visibility") {
+    const id = url.searchParams.get("id");
+    const visible = url.searchParams.get("visible");
+    if (id === null || (visible !== "true" && visible !== "false"))
+      return send(response, 400, { error: "bad visibility control" });
+    // Task 8.4 RED — the control only validates and acknowledges the
+    // request; no hidden state exists yet, so list and detail requests
+    // keep serving the vacancy as visible.
+    return send(response, 200, { ok: true, visible });
+  }
   if (url.pathname === "/__recover") {
     // Recovery keeps the request history: tests assert on the fresh
     // same-query request issued after the failure was armed.
