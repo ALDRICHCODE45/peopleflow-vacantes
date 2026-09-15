@@ -1,15 +1,26 @@
 // Package archguard enforces the backend-runtime Architecture Guard rules
-// (design A1): forbidden cross-feature infrastructure imports, the exact
-// documented narrow exceptions, route topology against composition-root
-// drift, error-catalog usage, and the locked non-goals.
+// (design A1): forbidden cross-feature imports, the exact documented narrow
+// exceptions, route topology against composition-root drift, error-catalog
+// usage, and the locked non-goals.
 //
-// RED SCAFFOLD (Task 7.2 / WS7B): every guard below is an accept-all stub
-// that reports no violation for any input. The fixture tests in
-// archguard_test.go already pin the required behavior, so the focused RED
-// command fails behaviorally ("accept-all guards report no violation on the
-// mutated fixtures"). GREEN replaces these bodies with real walking logic;
-// no test fixture is expected to change shape.
+// GREEN (Task 7.2 / WS7B, Slice A): every guard below is deterministic and
+// reports concrete violations naming the offender. The focused command
+// `go test ./internal/tools/archguard -run '^TestGuard_' -count=1` is the
+// pass criterion for this slice.
 package archguard
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os/exec"
+	"path"
+	"slices"
+	"sort"
+	"strings"
+)
 
 // Violation is one guard finding.
 type Violation struct {
@@ -56,40 +67,255 @@ type Topology struct {
 	Gated  []Route
 }
 
-// CheckCrossFeatureImports reports cross-feature imports of another feature's
-// infrastructure packages, naming the offender. Imports listed in
-// DocumentedExceptions stay allowed.
-//
-// RED STUB: returns no violations for every input.
-func CheckCrossFeatureImports(packages map[string][]string) []Violation {
-	_ = packages
-	return nil
+const (
+	ruleCrossFeatureImport = "cross-feature-infrastructure-import"
+	ruleRouteTopologyDrift = "route-topology-drift"
+	ruleAdhocCodeLiteral   = "error-catalog-adhoc-code"
+	ruleDirectErrorWrite   = "error-catalog-direct-write"
+	ruleNonGoal            = "locked-non-goal-path"
+
+	httpjsonPkgMarker = "/shared/httpjson"
+	featuresMarker    = "/features/"
+)
+
+// featureOf extracts the feature segment of an internal feature-owned package
+// path (.../features/<name>/...). It returns "" for paths that are not
+// feature-owned (shared, runtime, external).
+func featureOf(pkg string) string {
+	i := strings.Index(pkg, featuresMarker)
+	if i < 0 {
+		return ""
+	}
+	rest := pkg[i+len(featuresMarker):]
+	if j := strings.Index(rest, "/"); j >= 0 {
+		return rest[:j]
+	}
+	return rest
 }
 
-// CheckRouteTopology reports route-topology drift: a gated write route moved
-// onto a public mount, or a required middleware removed from the gated
-// subtree.
-//
-// RED STUB: returns no violations for every input.
+// isExcepted reports whether the import path is exactly one of the documented
+// exceptions, matched after the module prefix. No wildcards.
+func isExcepted(importPath string) bool {
+	for _, ex := range DocumentedExceptions {
+		if importPath == ex || strings.HasSuffix(importPath, "/"+ex) {
+			return true
+		}
+	}
+	return false
+}
+
+// sortViolations makes guard output deterministic regardless of map
+// iteration order.
+func sortViolations(violations []Violation) {
+	sort.Slice(violations, func(i, j int) bool {
+		if violations[i].File != violations[j].File {
+			return violations[i].File < violations[j].File
+		}
+		if violations[i].Rule != violations[j].Rule {
+			return violations[i].Rule < violations[j].Rule
+		}
+		return violations[i].Detail < violations[j].Detail
+	})
+}
+
+// CheckCrossFeatureImports reports imports of another feature's packages
+// outside the exact DocumentedExceptions set, naming the offender. Feature
+// code may not reach into a sibling feature's internals — infrastructure or
+// otherwise — unless the import is an exactly documented exception.
+func CheckCrossFeatureImports(packages map[string][]string) []Violation {
+	var violations []Violation
+	for pkg, imports := range packages {
+		pkgFeature := featureOf(pkg)
+		if pkgFeature == "" {
+			continue
+		}
+		for _, imp := range imports {
+			if isExcepted(imp) {
+				continue
+			}
+			impFeature := featureOf(imp)
+			if impFeature == "" || impFeature == pkgFeature {
+				continue
+			}
+			violations = append(violations, Violation{
+				Rule: ruleCrossFeatureImport,
+				File: pkg,
+				Detail: fmt.Sprintf(
+					"feature %q imports cross-feature package %q (owned by feature %q); only DocumentedExceptions are allowed",
+					pkgFeature, imp, impFeature,
+				),
+			})
+		}
+	}
+	sortViolations(violations)
+	return violations
+}
+
+// routeKey identifies a route by method and path.
+func routeKey(r Route) string {
+	return r.Method + " " + r.Path
+}
+
+// CheckRouteTopology reports route-topology drift against the declared
+// composition root: a gated write route moved onto a public mount, a gated
+// route missing from the gated subtree, or a required middleware removed
+// from a gated route.
 func CheckRouteTopology(want, got Topology) []Violation {
-	_, _ = want, got
-	return nil
+	gotPublic := make(map[string]Route, len(got.Public))
+	for _, r := range got.Public {
+		gotPublic[routeKey(r)] = r
+	}
+	gotGated := make(map[string]Route, len(got.Gated))
+	for _, r := range got.Gated {
+		gotGated[routeKey(r)] = r
+	}
+
+	var violations []Violation
+	for _, w := range want.Gated {
+		if !w.Gated {
+			continue
+		}
+		key := routeKey(w)
+		if _, onPublic := gotPublic[key]; onPublic {
+			violations = append(violations, Violation{
+				Rule:   ruleRouteTopologyDrift,
+				File:   key,
+				Detail: fmt.Sprintf("gated route %q moved onto a public mount; it must stay behind the authenticated subtree", key),
+			})
+			continue
+		}
+		g, present := gotGated[key]
+		if !present {
+			violations = append(violations, Violation{
+				Rule:   ruleRouteTopologyDrift,
+				File:   key,
+				Detail: fmt.Sprintf("gated route %q missing from the gated subtree", key),
+			})
+			continue
+		}
+		for _, mw := range w.Middleware {
+			if !slices.Contains(g.Middleware, mw) {
+				violations = append(violations, Violation{
+					Rule:   ruleRouteTopologyDrift,
+					File:   key,
+					Detail: fmt.Sprintf("required middleware %q removed from gated route %q", mw, key),
+				})
+			}
+		}
+	}
+	sortViolations(violations)
+	return violations
 }
 
 // CheckErrorCatalogUsage rejects ad-hoc `code` string literals outside
-// internal/shared/httpjson and direct feature error-JSON writes.
-//
-// RED STUB: returns no violations for every input.
+// internal/shared/httpjson and direct error-JSON byte writes outside the
+// catalog writer. Files under internal/shared/httpjson own the catalog and
+// are the only place raw error/code literals are allowed.
 func CheckErrorCatalogUsage(files []SourceFile) []Violation {
-	_ = files
-	return nil
+	var violations []Violation
+	for _, f := range files {
+		inHTTPJSON := strings.Contains(f.Path, httpjsonPkgMarker)
+		if inHTTPJSON {
+			continue
+		}
+		if strings.Contains(f.Content, `"code"`) {
+			violations = append(violations, Violation{
+				Rule:   ruleAdhocCodeLiteral,
+				File:   f.Path,
+				Detail: `ad-hoc "code" string literal outside internal/shared/httpjson; use the httpjson error-catalog writers`,
+			})
+		}
+		if strings.Contains(f.Content, `w.Write([]byte(`) && strings.Contains(f.Content, `"error`) {
+			violations = append(violations, Violation{
+				Rule:   ruleDirectErrorWrite,
+				File:   f.Path,
+				Detail: "direct error-JSON byte write outside internal/shared/httpjson; use the httpjson error-catalog writers",
+			})
+		}
+	}
+	sortViolations(violations)
+	return violations
 }
 
 // CheckNonGoals rejects newly introduced locked non-goal paths for this
 // closure: Docker, Terraform, workers, outbox, and deployment-resource paths.
-//
-// RED STUB: returns no violations for every input.
 func CheckNonGoals(paths []string) []Violation {
-	_ = paths
-	return nil
+	var violations []Violation
+	for _, p := range paths {
+		rule := nonGoalRule(p)
+		if rule == "" {
+			continue
+		}
+		violations = append(violations, Violation{
+			Rule:   ruleNonGoal,
+			File:   p,
+			Detail: fmt.Sprintf("path matches locked non-goal %q for this closure", rule),
+		})
+	}
+	sortViolations(violations)
+	return violations
+}
+
+// nonGoalRule returns the non-goal category a path belongs to, or "" when the
+// path is allowed. First match wins so a path yields at most one violation.
+func nonGoalRule(p string) string {
+	base := path.Base(p)
+	switch {
+	case strings.HasPrefix(base, "Dockerfile"):
+		return "docker"
+	case strings.HasSuffix(p, ".tf"):
+		return "terraform"
+	case containsSegment(p, "outbox"):
+		return "outbox"
+	case firstSegment(p) == "deploy" || containsSegment(p, "deploy"):
+		return "deployment-resource"
+	case strings.Contains(p, "worker"):
+		return "workers"
+	default:
+		return ""
+	}
+}
+
+// containsSegment reports whether a path contains dir as a complete path
+// segment.
+func containsSegment(p, dir string) bool {
+	return strings.HasPrefix(p, dir+"/") || strings.Contains(p, "/"+dir+"/")
+}
+
+// firstSegment returns the first path segment of p.
+func firstSegment(p string) string {
+	if i := strings.Index(p, "/"); i >= 0 {
+		return p[:i]
+	}
+	return p
+}
+
+// CheckRepositoryImports runs `go list -json ./...` in workdir, builds the
+// package import graph, and feeds it to CheckCrossFeatureImports.
+func CheckRepositoryImports(workdir string) ([]Violation, error) {
+	cmd := exec.Command("go", "list", "-json", "./...")
+	cmd.Dir = workdir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("go list -json ./... in %s: %w", workdir, err)
+	}
+
+	packages := make(map[string][]string)
+	dec := json.NewDecoder(bytes.NewReader(out))
+	for {
+		var pkg struct {
+			ImportPath string
+			Imports    []string
+		}
+		if err := dec.Decode(&pkg); err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return nil, fmt.Errorf("decoding go list output: %w", err)
+		}
+		if pkg.ImportPath != "" {
+			packages[pkg.ImportPath] = pkg.Imports
+		}
+	}
+	return CheckCrossFeatureImports(packages), nil
 }
