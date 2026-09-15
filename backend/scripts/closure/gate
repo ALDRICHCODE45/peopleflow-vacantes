@@ -118,18 +118,23 @@ worktree_state="$( { git status --porcelain --untracked-files=all; git diff HEAD
   git ls-files --others --exclude-standard -z | while IFS= read -r -d '' f; do printf '%s  %s\n' "$(sha256sum "$f" | cut -d' ' -f1)" "$f"; done
 } 2>/dev/null | sha256sum | cut -d' ' -f1)"
 # TRIANGULATE stale_receipt_check (design §10.2): if the prior receipt's
-# worktree_state differs from the current tree, the gate fails closed; the
-# machine-readable failure receipt is emitted below (prior receipt is
-# overwritten; preservation is not required).
-prior="$receipts_dir/$gate.json"; stale_msg=""
+# worktree_state differs from the current tree, the gate fails closed; preserve
+# its old tree binding so a retry cannot self-refresh.
+prior="$receipts_dir/$gate.json"; stale_msg=""; receipt_worktree_state="$worktree_state"
 if [ -f "$prior" ]; then
   old="$(jq -r '.artifact_hashes.worktree_state // ""' "$prior" 2>/dev/null | sed 's/^sha256://')"
   if [ -n "$old" ] && [ "$old" != "null" ] && [ "$old" != "$worktree_state" ]; then
     stale_msg="stale receipt: $prior was generated from a different tree state; recorded worktree_state=$old, current worktree_state=$worktree_state; stale receipts are blockers (design §10.2)"
+    receipt_worktree_state="$old"
   fi
 fi
+commit="$(git rev-parse --verify HEAD 2>/dev/null || echo git:unavailable)"
+tree="$(git rev-parse --verify 'HEAD^{tree}' 2>/dev/null || echo git:unavailable)"
 status="pass"; failure=""; final_exit=0; failures=()
 if [ -n "$stale_msg" ]; then failures+=("$stale_msg"); fi
+if [ "$commit" = "git:unavailable" ] || [ "$tree" = "git:unavailable" ]; then
+  failures+=("git commit/tree identity unavailable; receipts require a Git HEAD and tree")
+fi
 if [ "$malformed" -gt 0 ]; then failures+=("$malformed malformed go test -json event line(s); every emitted line must parse as a JSON event"); fi
 if [ "$check_exit" -ne 0 ]; then
   check_failure="$(grep -hm1 -E -e '[Ee]rror|FAIL|failed|drift|preflight|unformatted|stale' "$out_file" "$err_file" 2>/dev/null | head -c 200)"
@@ -141,9 +146,8 @@ if [ "${#failures[@]}" -gt 0 ]; then
   status="fail"; final_exit=1
   failure="$(IFS='; '; printf '%s' "${failures[*]}")"
 fi
-commit="$(git rev-parse HEAD 2>/dev/null || echo git:unavailable)"
-tree="$(git rev-parse 'HEAD^{tree}' 2>/dev/null || echo git:unavailable)"
 mkdir -p "$receipts_dir" || { echo "receipt write failed: cannot create $receipts_dir" >&2; exit 1; }
+
 base_receipt="$(jq -n \
   --arg gate "$gate" --arg status "$status" --arg tool "$check_command" --arg command "make $gate" \
   --arg commit "$commit" --arg tree "$tree" --arg started "$started" --arg ended "$ended" \
@@ -152,7 +156,7 @@ base_receipt="$(jq -n \
   --argjson skip_names "$skip_json" \
   '{gate:$gate, status:$status, tool:$tool, command:$command, commit:$commit, tree:$tree, started_at:$started, ended_at:$ended, exit_code:$exit_code, test_counts:$test_counts, skip_names:$skip_names, artifact_hashes:{}, failure:$failure}')"
 integrity="$(printf '%s' "$base_receipt" | jq -j -c . | sha256sum | cut -d' ' -f1)"
-rendered="$(printf '%s\n' "$base_receipt" | jq -c --arg ws "$worktree_state" --arg ri "sha256:$integrity" '.artifact_hashes = {worktree_state: ("sha256:" + $ws), receipt_integrity: $ri}')" || { echo "receipt write failed: cannot render receipt JSON" >&2; exit 1; }
+rendered="$(printf '%s\n' "$base_receipt" | jq -c --arg ws "$receipt_worktree_state" --arg ri "sha256:$integrity" '.artifact_hashes = {worktree_state: ("sha256:" + $ws), receipt_integrity: $ri}')" || { echo "receipt write failed: cannot render receipt JSON" >&2; exit 1; }
 printf '%s\n' "$rendered" > "$receipts_dir/$gate.json" || { echo "receipt write failed: cannot write $receipts_dir/$gate.json" >&2; exit 1; }
 printf '%s\n' "$rendered"
 exit "$final_exit"

@@ -21,13 +21,6 @@ import (
 	"testing"
 )
 
-func TestMain(m *testing.M) {
-	if os.Getenv("GATE_ACTIVE") == "1" {
-		os.Exit(0)
-	}
-	os.Exit(m.Run())
-}
-
 // gateTargets lists the nine scaffold targets in canonical order.
 var gateTargets = []string{
 	"gate-build", "gate-vet", "gate-fmt", "gate-unit", "gate-race",
@@ -132,6 +125,7 @@ func copyTree(t *testing.T, root, dst string, rels ...string) {
 			t.Fatalf("copy %s: %v: %s", rel, err, out)
 		}
 	}
+	initDisposableGitRepo(t, dst)
 }
 
 // seedEdit rewrites one copied file via a single strings.Replace.
@@ -163,10 +157,10 @@ func seedFile(t *testing.T, dir, rel, content string) {
 
 // mutationFixture is one independently named violation class from task 7.1.
 type mutationFixture struct {
-	name   string // "<target>: <violation class>" — the class name pinned by RED
-	target string
-	extra  []string // additional inputs copied from root (e.g. ".env")
-	seed   func(t *testing.T, dir string)
+	name    string // "<target>: <violation class>" — the class name pinned by RED
+	target  string
+	prepare func(t *testing.T, dir string)
+	seed    func(t *testing.T, dir string)
 }
 
 const (
@@ -207,6 +201,29 @@ func TestFixtureSkip(t *testing.T) { t.Skip("fixture: skip evidence is rejected"
 `
 )
 
+func prepareDBFailureShim(t *testing.T, dir string) {
+	t.Helper()
+	port := startFakePostgresListener(t)
+	seedFile(t, dir, ".env", fmt.Sprintf("DATABASE_URL=postgres://fixture:fixture@127.0.0.1:%d/fixture?sslmode=disable\n", port))
+	shimDir := t.TempDir()
+	shim := `#!/bin/sh
+if [ "$1" = list ]; then echo "github.com/aldrichcode45/peopleflow-vacantes/internal/fixtureskip"; exit 0; fi
+if echo "$*" | grep -q -- "TestMigrateBinaryBoundary"; then
+  echo '=== RUN   TestMigrateBinaryBoundary'
+  echo '--- FAIL: TestMigrateBinaryBoundary (0.00s)'
+  exit 1
+fi
+if echo "$*" | grep -q -- "-json"; then
+  echo '{"Action":"skip","Package":"github.com/aldrichcode45/peopleflow-vacantes/internal/fixtureskip","Test":"TestFixtureSkip"}'
+fi
+exit 0
+`
+	if err := os.WriteFile(filepath.Join(shimDir, "go"), []byte(shim), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", shimDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
 func mutationFixtures() []mutationFixture {
 	return []mutationFixture{
 		{name: "gate-build: build break", target: "gate-build", seed: func(t *testing.T, d string) {
@@ -229,10 +246,10 @@ func mutationFixtures() []mutationFixture {
 		{name: "gate-race: skipped test", target: "gate-race", seed: func(t *testing.T, d string) {
 			seedFile(t, d, filepath.Join("internal", "runtime", "middleware", "zz_fixture_skip_test.go"), strings.Replace(fixtureSkipPkg, "package fixtureskip", "package middleware_test", 1))
 		}},
-		{name: "gate-integration: emitted skip", target: "gate-integration", extra: []string{".env"}, seed: func(t *testing.T, d string) {
+		{name: "gate-integration: emitted skip", target: "gate-integration", prepare: prepareDBFailureShim, seed: func(t *testing.T, d string) {
 			seedFile(t, d, filepath.Join("internal", "fixtureskip", "skip_test.go"), fixtureSkipPkg)
 		}},
-		{name: "gate-migrations: round-trip break", target: "gate-migrations", extra: []string{".env"}, seed: func(t *testing.T, d string) {
+		{name: "gate-migrations: round-trip break", target: "gate-migrations", prepare: prepareDBFailureShim, seed: func(t *testing.T, d string) {
 			seedFile(t, d, filepath.Join("db", "migrations", "00001_init.up.sql"), "SELECT !!!broken_migration_sql;\n")
 		}},
 		{name: "gate-sqlc: sqlc drift", target: "gate-sqlc", seed: func(t *testing.T, d string) {
@@ -289,13 +306,34 @@ func verifyReceiptIntegrity(t *testing.T, stdout string) {
 func TestGate_MutationFixturesForceGateFailure(t *testing.T) {
 	root := repoRoot(t)
 	for _, f := range mutationFixtures() {
+		if os.Getenv("GATE_ACTIVE") == "1" && (f.target == "gate-unit" || f.target == "closure-gate") {
+			continue
+		}
 		t.Run(f.name, func(t *testing.T) {
 			dir := t.TempDir()
-			copyTree(t, root, dir, append(fixtureInputs, f.extra...)...)
+			copyTree(t, root, dir, fixtureInputs...)
+			if f.prepare != nil {
+				f.prepare(t, dir)
+			}
 			f.seed(t, dir)
 			requireGateFails(t, dir, f.target)
 		})
 	}
+}
+
+func TestGate_UnitRunsClosurePackage(t *testing.T) {
+	if os.Getenv("GATE_ACTIVE") == "1" {
+		return
+	}
+	root, dir := repoRoot(t), t.TempDir()
+	copyTree(t, root, dir, fixtureInputs...)
+	pattern := filepath.Join(dir, "scripts", "closure", "*")
+	if out, err := exec.Command("find", dir, "-name", "*_test.go", "!", "-path", pattern, "-delete").CombinedOutput(); err != nil {
+		t.Fatalf("remove non-closure tests: %v: %s", err, out)
+	}
+	seedFile(t, dir, filepath.Join("scripts", "closure", "zz_fixture_test.go"),
+		strings.Replace(fixtureFailTest, "package httpjson", "package closure_test", 1))
+	requireGateFails(t, dir, "gate-unit")
 }
 
 // TestGateReceipts_RealContractAndDelegation is the GREEN receipt control: every target delegates
@@ -358,6 +396,23 @@ func TestGateReceipts_RealContractAndDelegation(t *testing.T) {
 	})
 }
 
+func TestGate_ReceiptFailsWithoutGitIdentity(t *testing.T) {
+	root, dir := repoRoot(t), t.TempDir()
+	copyTree(t, root, dir, fixtureInputs...)
+	if err := os.RemoveAll(filepath.Join(dir, ".git")); err != nil {
+		t.Fatal(err)
+	}
+	stdout, _, err := runGate(t, dir, "gate-fmt")
+	if err == nil {
+		t.Fatalf("gate-fmt without Git identity must fail: %s", stdout)
+	}
+	r := parseReceipt(t, stdout)
+	if r.Status != "fail" || r.ExitCode == 0 || r.Commit != "git:unavailable" || r.Tree != "git:unavailable" || !strings.Contains(r.Failure, "git commit/tree identity unavailable") {
+		t.Fatalf("receipt did not fail closed on missing Git identity: %+v", r)
+	}
+	verifyReceiptIntegrity(t, stdout)
+}
+
 // TestGate_DBPreflight_NeverExecutesDotenv (R1): a malicious .env (valid unreachable DSN + shell side effect) must fail the gate but NOT create the marker.
 func TestGate_DBPreflight_NeverExecutesDotenv(t *testing.T) {
 	root, dir := repoRoot(t), t.TempDir()
@@ -402,10 +457,7 @@ func requireGateFailsWithMsg(t *testing.T, dir, target string, required ...strin
 	verifyReceiptIntegrity(t, stdout)
 }
 
-// initDisposableGitRepo makes dir a fresh git repo on main and commits its
-// current contents as one baseline. Used by TestGate_StaleReceiptIsRejected so
-// worktree_state can change when the fixture mutates a tracked file, all
-// without touching the real backend worktree.
+// initDisposableGitRepo gives every copied fixture stable commit/tree identity.
 func initDisposableGitRepo(t *testing.T, dir string) {
 	t.Helper()
 	for _, args := range [][]string{
@@ -457,7 +509,6 @@ func TestGate_StaleReceiptIsRejected(t *testing.T) {
 	root, dir := repoRoot(t), t.TempDir()
 	assertRealStateRestored(t, root, repoSnapshot(t, root))
 	copyTree(t, root, dir, fixtureInputs...)
-	initDisposableGitRepo(t, dir)
 	env := []string{"GATE_GIT_DIR=" + dir}
 
 	out1, errOut, err := runGate(t, dir, "gate-build", env...)
@@ -485,36 +536,23 @@ func TestGate_StaleReceiptIsRejected(t *testing.T) {
 	}
 	verifyReceiptIntegrity(t, out2)
 
-	out3, errOut, err3 := runGate(t, dir, "gate-build", env...)
-	if err3 != nil {
-		t.Fatalf("refreshed current-state receipt must allow a normal pass: %v stderr=%s stdout=%s", err3, errOut, out3)
+	out3, _, err3 := runGate(t, dir, "gate-build", env...)
+	if err3 == nil {
+		t.Fatalf("stale receipt retry must remain blocked: %s", out3)
 	}
 	r3 := parseReceipt(t, out3)
-	if r3.Status != "pass" || r3.ExitCode != 0 {
-		t.Fatalf("third gate-build must pass: %+v", r3)
+	if !strings.Contains(r3.Failure, "stale receipt:") || r3.Artifacts["worktree_state"] != r1.Artifacts["worktree_state"] {
+		t.Fatalf("retry must preserve the stale tree binding: first=%+v retry=%+v", r1, r3)
 	}
-}
-
-func removeIntegrationTests(t *testing.T, root string) {
-	t.Helper()
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if info.IsDir() || !strings.HasSuffix(info.Name(), "_test.go") {
-			return nil
-		}
-		contents, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		if strings.Contains(string(contents), "//go:build integration") || strings.Contains(string(contents), "// +build integration") {
-			return os.Remove(path)
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("remove copied integration tests: %v", err)
+	if err := os.Remove(filepath.Join(dir, "quality", "receipts", "gate-build.json")); err != nil {
+		t.Fatal(err)
+	}
+	out4, errOut, err4 := runGate(t, dir, "gate-build", env...)
+	if err4 != nil {
+		t.Fatalf("explicit receipt removal must allow recovery: %v stderr=%s stdout=%s", err4, errOut, out4)
+	}
+	if r4 := parseReceipt(t, out4); r4.Status != "pass" || r4.ExitCode != 0 {
+		t.Fatalf("recovered gate-build must pass: %+v", r4)
 	}
 }
 
@@ -530,8 +568,8 @@ func assertRealStateRestored(t *testing.T, root, before string) {
 func TestGate_IntegrationSkipEmitsSkipSpecificFailure(t *testing.T) {
 	root, dir := repoRoot(t), t.TempDir()
 	assertRealStateRestored(t, root, repoSnapshot(t, root))
-	copyTree(t, root, dir, append(fixtureInputs, ".env")...)
-	removeIntegrationTests(t, dir)
+	copyTree(t, root, dir, fixtureInputs...)
+	prepareDBFailureShim(t, dir)
 	seedFile(t, dir, filepath.Join("internal", "fixtureskip", "skip_test.go"), fixtureSkipPkg)
 	stdout, _, err := runGate(t, dir, "gate-integration")
 	if err == nil {
@@ -562,7 +600,7 @@ func TestGate_SqlcDriftEmitsDriftSpecificFailure(t *testing.T) {
 func TestGate_UnreachablePostgresFailsAtPreflight(t *testing.T) {
 	root, dir := repoRoot(t), t.TempDir()
 	assertRealStateRestored(t, root, repoSnapshot(t, root))
-	copyTree(t, root, dir, append(fixtureInputs, ".env")...)
+	copyTree(t, root, dir, fixtureInputs...)
 	seedFile(t, dir, ".env", "DATABASE_URL=postgres://fixture:fixture@127.0.0.1:1/fixture?sslmode=disable\n")
 	requireGateFailsWithMsg(t, dir, "gate-integration", "preflight", "connection probe")
 }
@@ -570,7 +608,7 @@ func TestGate_UnreachablePostgresFailsAtPreflight(t *testing.T) {
 func TestGate_MissingDatabaseURLFailsAtPreflight(t *testing.T) {
 	root, dir := repoRoot(t), t.TempDir()
 	assertRealStateRestored(t, root, repoSnapshot(t, root))
-	copyTree(t, root, dir, append(fixtureInputs, ".env")...)
+	copyTree(t, root, dir, fixtureInputs...)
 	seedFile(t, dir, ".env", "\n")
 	requireGateFailsWithMsg(t, dir, "gate-integration", "preflight", "DATABASE_URL")
 }
@@ -584,10 +622,16 @@ func TestGate_AllMutationsUseTempCopies(t *testing.T) {
 	root := repoRoot(t)
 	realStateBefore := repoSnapshot(t, root)
 	for _, f := range mutationFixtures() {
+		if os.Getenv("GATE_ACTIVE") == "1" && (f.target == "gate-unit" || f.target == "closure-gate") {
+			continue
+		}
 		t.Run(f.name+"/no_real_root_residue", func(t *testing.T) {
 			before := repoSnapshot(t, root)
 			dir := t.TempDir()
-			copyTree(t, root, dir, append(fixtureInputs, f.extra...)...)
+			copyTree(t, root, dir, fixtureInputs...)
+			if f.prepare != nil {
+				f.prepare(t, dir)
+			}
 			f.seed(t, dir)
 			runGate(t, dir, f.target)
 			if after := repoSnapshot(t, root); after != before {
@@ -649,7 +693,7 @@ func TestGate_DBPreflightBindsValidatedDotenvURL(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
-			copyTree(t, root, dir, append(fixtureInputs, ".env")...)
+			copyTree(t, root, dir, fixtureInputs...)
 			// .env wraps the dotenv DSN in current supported double quotes.
 			seedFile(t, dir, ".env", fmt.Sprintf("DATABASE_URL=%q\n", dotenvURL))
 			// Replace `go` with a shim that records per-child env (DATABASE_URL + the three

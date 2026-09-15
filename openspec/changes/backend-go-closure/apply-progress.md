@@ -1716,3 +1716,11 @@ openspec/changes/backend-go-closure/apply-progress.md  159  16   (159+/16−)
 ```
 
 Additions: `5+127+159 = 291`. Deletions: `1+52+16 = 69`. **Total changed lines: 360** (≤400-line review budget; no size exception used). Task 7.2, tasks.md, the verify-report.md, and any non-target path remain untouched. This acquire is recorded as the final apply-attempt evidence for the gate-script `go tool goose up` env-var blocker remediation; settle follows.
+
+## Task 7.1 post-close native-review correction (`review-bc08d00be579b508`)
+
+- **Scope:** only closure-gate invariants; Task 7.2, WS7C, `tasks.md`, and `verify-report.md` remain untouched.
+- **RED:** a clean temporary clone without `backend/.env` failed the unmodified closure tests while copying `.env`; test-only regressions against the unmodified gate showed `git:unavailable` pass receipts and a stale retry passing; restoring the old `GATE_ACTIVE` `TestMain` bypass made `TestGate_UnitRunsClosurePackage` fail because the seeded closure-package failure was hidden.
+- **GREEN:** default DB fixtures use a temporary TCP listener and fake `go` child; gate-unit runs closure tests while only self-recursive rows return; missing Git commit/tree fails; stale receipts preserve their prior tree hash until explicit receipt deletion.
+- **Verification:** `bash -n backend/scripts/closure/gate`, focused regressions, `go test ./scripts/closure -count=1`, `go test ./... -count=1`, and `go vet ./...` pass. A patched clean temporary clone with `backend/.env` absent also passes `go test ./... -count=1`; no live PostgreSQL or ignored receipt was used.
+- **Accounting:** `gate` 11+/7−, `gates_test.go` 96+/52−, this note 8+/0− = **174 changed lines**, within the captured 180-line correction plan.
