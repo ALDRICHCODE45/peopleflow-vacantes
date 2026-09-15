@@ -1550,3 +1550,26 @@ backend/scripts/closure/gates_test.go                            247  11
 openspec/changes/backend-go-closure/apply-progress.md             19   0
 TOTAL                                                            322  78 = 400 changed lines
 ```
+
+## WS7A RDD correction — db-preflight binding (lineage `review-05df619fccd92f3d`, max-changed-lines 175)
+
+**Scope:** Bounded native RDD correction for corroborated CRITICAL findings `R1-DB-PREFLIGHT-SUBSHELL`, `R3-dotenv-not-exported`, `R4-db-preflight-binding` on `gate-integration` and `gate-migrations`. No other finding, no gate work outside the db-preflight binding path, no Task 7.1 REFACTOR or Task 7.2, no verify-report, no task checkbox, no staging/commit/push/reset/stash.
+
+**Root cause:** `gate-integration` and `gate-migrations` invoked `db_preflight` through `db_preflight 2>&1 | sed 's/^/database preflight: /' >&2 && go tool goose up || return 1` (and the migrations-only variant); the pipeline subshell lost the function's `DATABASE_URL=...` assignment and the `sed` consumer swallowed the diagnostic stream, so subsequent `go tool goose up`, `go list -tags=integration`, `go test -tags=integration`, and the migrate-boundary `go test ... -run '^TestMigrateBinaryBoundary$'` ran with whatever inherited/empty `DATABASE_URL` the parent shell still held instead of the validated `.env` DSN.
+
+**Correction (production, 12+/5− in `backend/scripts/closure/gate`):**
+
+- `db_preflight` now sets and `export`s a caller-scope `validated_database_url` after a successful `db_probe`, with diagnostics still prefixed `database preflight:` emitted directly by the function.
+- `gate-integration` and `gate-migrations` call `db_preflight >&2 || return 1` directly (no sed pipeline) so the function's stdout (goes to err_file) and its caller-scope export (visible to subsequent commands) are preserved.
+- Each downstream child command binds `DATABASE_URL="$validated_database_url"` explicitly: `go tool goose up`, the `go list -tags=integration` package selection, the integration `go test -tags=integration -p 1 -count=1 -json`, and the migration `go test -tags=integration -p 1 -count=1 -v -run '^TestMigrateBinaryBoundary$' ./cmd/migrate`. An inherited `DATABASE_URL` therefore cannot redirect execution.
+
+**Strict TDD evidence (R1/R3/R4):**
+
+- **RED (gate as-shipped):** new `TestGate_DBPreflightBindsValidatedDotenvURL` (gate-integration × gate-migrations × {dotenv-only, conflicting-inherited}, four subtests) ran against the unmodified `backend/scripts/closure/gate`. All four subtests failed with the expected behavioral reasons: dotenv-only cases received `DATABASE_URL=""` at every child (`go shim recorded zero invocations`); conflicting-inherited cases received `postgres://inherited:...` at child #1 (`go child #1 received DATABASE_URL=…; want dotenv URL`). This is R1/R4 made observable. `go test -count=1 -run TestGate_DBPreflightBindsValidatedDotenvURL ./scripts/closure/` → 4 FAIL.
+- **GREEN (after the production edit):** same test PASS for all four subtests. `bash -n scripts/closure/gate` clean; `git diff --check` clean; `gofmt -l` clean; `go vet ./...` clean; `cd backend && go test -count=1 ./scripts/closure/` → PASS in ~104s; `cd backend && go test -count=1 ./...` → PASS in ~107s; the targeted test is included in both runs. Pre-existing `TestGate_DBPreflight_NeverExecutesDotenv`, `TestGate_UnreachablePostgresFailsAtPreflight`, `TestGate_MissingDatabaseURLFailsAtPreflight`, `TestGate_IntegrationSkipEmitsSkipSpecificFailure`, and `TestGate_StaleReceiptIsRejected` continue to PASS.
+
+**Deterministic temp-copy regression (gate-integration + gate-migrations, dotenv-only and conflicting inherited):** a local TCP listener on `127.0.0.1:0` passes the dotenv probe (closes accepted connections immediately so `socket.create_connection` succeeds); `go` is replaced by a shell shim in `PATH` that records every invocation's `DATABASE_URL` and emits only the minimum artifacts the gate parser consumes (one synthetic package name from `go list`, one JSON event from `go test -json`, `=== RUN`/`--- PASS` lifecycle from the migrations gate); the test asserts every recorded line equals the dotenv URL exactly, so an inherited `DATABASE_URL` would fail the assertion immediately.
+
+**Final Git numstat/accounting (this RDD correction candidate vs HEAD):** `backend/scripts/closure/gate` 12/5 + `backend/scripts/closure/gates_test.go` 124/0 + this suffix ~10/0 = **146 insertions + 5 deletions = 151 changed lines** ≤ 175 budget; no size exception.
+
+**Not done (as mandated):** no Task 7.1 REFACTOR end-to-end gates, no Task 7.2, no verify-report, no stage/commit/push/reset/stash, no RDD acknowledgement, no new dependencies, no behavior change outside the db-preflight binding path. Next action (parent-owned): settle the fresh SDD attempt once with the existing token, then resume review/routing.

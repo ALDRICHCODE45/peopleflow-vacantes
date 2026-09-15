@@ -23,6 +23,9 @@ try:
 except Exception: sys.exit(1)' 2>/dev/null
 }
 # db_preflight: missing/empty DATABASE_URL or unreachable DSN fails closed (design §9).
+# When called directly (not in a sed pipeline), the validated DSN remains in the
+# caller shell via `validated_database_url`, which is exported so goose, integration
+# package selection/tests, and migration-boundary tests can bind it explicitly.
 db_preflight() {
   if [ ! -f .env ]; then echo "database preflight: backend/.env is required; missing DATABASE_URL fails the gate"; return 1; fi
   envline="$(grep -m1 '^DATABASE_URL=' .env || true)"
@@ -33,6 +36,9 @@ db_preflight() {
   esac
   [ -n "$DATABASE_URL" ] || { echo "database preflight: backend/.env must define a non-empty DATABASE_URL; missing DATABASE_URL fails the gate"; return 1; }
   db_probe || { echo "database preflight: DATABASE_URL failed the connection probe (unreachable or malformed); fails the gate closed"; return 1; }
+  validated_database_url="$DATABASE_URL"
+  export validated_database_url
+  echo "database preflight: validated dotenv DATABASE_URL bound to goose/integration/migration children"
 }
 check_command=$(case "$gate" in
     gate-build)       printf 'go build ./...' ;;
@@ -59,13 +65,14 @@ run_check() {
     gate-unit)  go test ./... -count=1 -v ;;
     gate-race)  go test -race -v -count=1 ./internal/runtime/middleware ./internal/runtime/health ./cmd/api ;;
     gate-integration)
-      db_preflight 2>&1 | sed 's/^/database preflight: /' >&2 && go tool goose up || return 1
-      local pkgs; pkgs="$(go list -tags=integration -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./...)" || { echo "integration package selection failed"; return 1; }
+      db_preflight >&2 || return 1
+      DATABASE_URL="$validated_database_url" go tool goose up || return 1
+      local pkgs; pkgs="$(DATABASE_URL="$validated_database_url" go list -tags=integration -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./...)" || { echo "integration package selection failed"; return 1; }
       [ -n "$pkgs" ] || { echo "no integration test-bearing packages found"; return 1; }
-      go test -tags=integration -p 1 -count=1 -json $pkgs ;;
+      DATABASE_URL="$validated_database_url" go test -tags=integration -p 1 -count=1 -json $pkgs ;;
     gate-migrations)
-      db_preflight 2>&1 | sed 's/^/database preflight: /' >&2 || return 1
-      go test -tags=integration -p 1 -count=1 -v -run '^TestMigrateBinaryBoundary$' ./cmd/migrate || return 1
+      db_preflight >&2 || return 1
+      DATABASE_URL="$validated_database_url" go test -tags=integration -p 1 -count=1 -v -run '^TestMigrateBinaryBoundary$' ./cmd/migrate || return 1
       local mig_runs mig_passes
       mig_runs="$(grep -c '^=== RUN   TestMigrateBinaryBoundary$' "$out_file")"; mig_passes="$(grep -c '^--- PASS: TestMigrateBinaryBoundary (' "$out_file")"
       [ "$mig_runs" -eq 1 ] && [ "$mig_passes" -eq 1 ] || { echo "gate-migrations: boundary test lifecycle check failed — TestMigrateBinaryBoundary absent, skipped, or not run exactly once"; return 1; } ;;

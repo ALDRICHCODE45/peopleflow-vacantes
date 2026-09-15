@@ -12,6 +12,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -597,4 +598,127 @@ func TestGate_AllMutationsUseTempCopies(t *testing.T) {
 	if got := repoSnapshot(t, root); got != realStateBefore {
 		t.Fatalf("real-root state drifted: before=%s after=%s", realStateBefore, got)
 	}
+}
+
+// TestGate_DBPreflightBindsValidatedDotenvURL — bounded RDD correction for review-05df619fccd92f3d.
+//
+// Corroborated CRITICAL findings R1-DB-PREFLIGHT-SUBSHELL, R3-dotenv-not-exported,
+// R4-db-preflight-binding: the gate script (a) parses .env's DATABASE_URL, (b) probes
+// that exact URL, (c) keeps the parsed/validated DSN in the caller shell as
+// `validated_database_url` (exported), (d) invokes goose, integration package
+// selection, integration tests, and migration boundary tests with explicit
+// `DATABASE_URL="$validated_database_url"` binding so an inherited DATABASE_URL
+// cannot redirect execution, and (e) preserves `database preflight:` diagnostics
+// directly from the function without a sed pipeline that loses them.
+//
+// This test runs both gate-integration and gate-migrations with dotenv-only and
+// conflicting inherited DATABASE_URL. A fake `go` shim in PATH records every
+// child invocation's DATABASE_URL; a local TCP listener passes the dotenv probe.
+// Every recorded child must carry the dotenv URL exactly.
+func TestGate_DBPreflightBindsValidatedDotenvURL(t *testing.T) {
+	root := repoRoot(t)
+	port := startFakePostgresListener(t)
+	dotenvURL := fmt.Sprintf("postgres://dotenv:dotenv@127.0.0.1:%d/dotenv?sslmode=disable", port)
+	cases := []struct {
+		name       string
+		target     string
+		inheritURL string
+	}{
+		{"gate-integration/dotenv-only", "gate-integration", ""},
+		{"gate-integration/conflicting-inherited", "gate-integration", "postgres://inherited:inherited@127.0.0.1:1/inherited?sslmode=disable"},
+		{"gate-migrations/dotenv-only", "gate-migrations", ""},
+		{"gate-migrations/conflicting-inherited", "gate-migrations", "postgres://inherited:inherited@127.0.0.1:1/inherited?sslmode=disable"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			copyTree(t, root, dir, append(fixtureInputs, ".env")...)
+			// .env wraps the dotenv DSN in current supported double quotes.
+			seedFile(t, dir, ".env", fmt.Sprintf("DATABASE_URL=%q\n", dotenvURL))
+			// Replace `go` with a shim that records DATABASE_URL on every invocation
+			// and emits only the minimum artifacts the gate expects from each child
+			// (migrations boundary test lifecycle, list output, json event line).
+			shimDir := t.TempDir()
+			recorded := filepath.Join(shimDir, "recorded.txt")
+			fakeGo := "#!/bin/sh\n" +
+				"echo \"$DATABASE_URL\" >> " + recorded + "\n" +
+				"if [ \"$1\" = list ]; then echo \"github.com/aldrichcode45/peopleflow-vacantes/cmd/api\"; exit 0; fi\n" +
+				"if echo \"$@\" | grep -q -- \"TestMigrateBinaryBoundary\"; then " +
+				"echo '=== RUN   TestMigrateBinaryBoundary'; " +
+				"echo '--- PASS: TestMigrateBinaryBoundary (0.00s)'; exit 0; fi\n" +
+				"if echo \"$@\" | grep -q -- \"-json\"; then " +
+				"echo '{\"Time\":\"2024-01-01T00:00:00Z\",\"Action\":\"pass\",\"Package\":\"github.com/aldrichcode45/peopleflow-vacantes/cmd/api\"}'; exit 0; fi\n" +
+				"exit 0\n"
+			seedFile(t, shimDir, "go", fakeGo)
+			if err := os.Chmod(filepath.Join(shimDir, "go"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			// Save and restore PATH/DATABASE_URL: runGate appends after os.Environ(),
+			// but glibc's getenv returns the first envp match, so a later PATH override
+			// would not replace the inherited one. Mutating the test process's env via
+			// os.Setenv — with deferred restore — lets the gate's children see the
+			// shim and the chosen inherited DATABASE_URL cleanly.
+			oldPath, hadPath := os.LookupEnv("PATH")
+			oldURL, hadURL := os.LookupEnv("DATABASE_URL")
+			t.Cleanup(func() {
+				if hadPath {
+					_ = os.Setenv("PATH", oldPath)
+				} else {
+					_ = os.Unsetenv("PATH")
+				}
+				if hadURL {
+					_ = os.Setenv("DATABASE_URL", oldURL)
+				} else {
+					_ = os.Unsetenv("DATABASE_URL")
+				}
+			})
+			_ = os.Setenv("PATH", shimDir+string(os.PathListSeparator)+oldPath)
+			_ = os.Unsetenv("DATABASE_URL")
+			if tc.inheritURL != "" {
+				_ = os.Setenv("DATABASE_URL", tc.inheritURL)
+			}
+			stdout, stderr, err := runGate(t, dir, tc.target)
+			if err != nil {
+				t.Fatalf("gate must pass with a valid dotenv URL (RDD correction R1/R3/R4): target=%s inherit=%q err=%v\nstdout=%s\nstderr=%s",
+					tc.target, tc.inheritURL, err, stdout, stderr)
+			}
+			data, err := os.ReadFile(recorded)
+			if err != nil {
+				t.Fatalf("go shim never recorded a child invocation (gate never bound and ran go with the dotenv URL): %v", err)
+			}
+			body := strings.TrimSpace(string(data))
+			if body == "" {
+				t.Fatalf("go shim recorded zero invocations; expected goose/integration/package selection/migration children to all bind the dotenv URL")
+			}
+			for i, line := range strings.Split(body, "\n") {
+				if line != dotenvURL {
+					t.Fatalf("go child #%d received DATABASE_URL=%q; want %q (dotenv) so an inherited URL cannot redirect execution",
+						i+1, line, dotenvURL)
+				}
+			}
+		})
+	}
+}
+
+// startFakePostgresListener binds a TCP listener on 127.0.0.1:0 that accepts any
+// connection and closes it immediately, letting db_probe's socket.create_connection
+// succeed while the actual database remains absent.
+func startFakePostgresListener(t *testing.T) int {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	port := ln.Addr().(*net.TCPAddr).Port
+	go func() {
+		for {
+			c, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			_ = c.Close()
+		}
+	}()
+	return port
 }
