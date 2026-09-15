@@ -85,13 +85,163 @@ const currencyProofJob = {
   },
 };
 
-// Detail map: known ids answer `/jobs/{id}` with their bare job shape.
-const detailJobs = {
-  [job.id]: job,
-  [longContentJob.id]: longContentJob,
-  [richDetailJob.id]: richDetailJob,
-  [currencyProofJob.id]: currencyProofJob,
-};
+    // Task 8.3 GREEN — fixture-only sentinel dataset for the conjunctive
+    // every-predicate USD proof. The target matches all six supported
+    // predicates and each decoy fails exactly one, so an OR evaluation over
+    // the fully-conjunctive URL would leak at least one decoy while AND
+    // must return only the target.
+    const usdConjunctiveQ = "conjuntiva";
+    const usdConjunctiveTarget = {
+      id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d96",
+      title: "Analista Conjuntiva de Datos",
+      description: "Prueba conjuntiva de todos los predicados en dólares.",
+      work_mode: "remote",
+      employment_type: "full_time",
+      seniority: "senior",
+      salary_currency: "USD",
+      salary_min: 100000,
+      salary_max: 120000,
+      location: "Monterrey",
+      company: {
+        id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d97",
+        name: "Acme",
+      },
+    };
+    const usdConjunctiveDecoys = [
+      // Fails only `q`: the search term is absent from the title.
+      {
+        id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d98",
+        title: "Desarrolladora Senior de Plataformas",
+        description: "Decoy que falla solo la búsqueda.",
+        work_mode: "remote",
+        employment_type: "full_time",
+        seniority: "senior",
+        salary_currency: "USD",
+        salary_min: 100000,
+        salary_max: 120000,
+        location: "Monterrey",
+        company: {
+          id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d99",
+          name: "Acme",
+        },
+      },
+      // Fails only `seniority`.
+      {
+        id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d9a",
+        title: "Ingeniera Conjuntiva Lead",
+        description: "Decoy que falla solo la seniority.",
+        work_mode: "remote",
+        employment_type: "full_time",
+        seniority: "lead",
+        salary_currency: "USD",
+        salary_min: 100000,
+        salary_max: 120000,
+        location: "Monterrey",
+        company: {
+          id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7da2",
+          name: "Acme",
+        },
+      },
+      // Fails only `work_mode`.
+      {
+        id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d9b",
+        title: "Diseñadora Conjuntiva Híbrida",
+        description: "Decoy que falla solo la modalidad.",
+        work_mode: "hybrid",
+        employment_type: "full_time",
+        seniority: "senior",
+        salary_currency: "USD",
+        salary_min: 100000,
+        salary_max: 120000,
+        location: "Monterrey",
+        company: {
+          id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7da3",
+          name: "Acme",
+        },
+      },
+      // Fails only `employment_type`.
+      {
+        id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d9c",
+        title: "Scrum Master Conjuntiva",
+        description: "Decoy que falla solo el tipo de empleo.",
+        work_mode: "remote",
+        employment_type: "contract",
+        seniority: "senior",
+        salary_currency: "USD",
+        salary_min: 100000,
+        salary_max: 120000,
+        location: "Monterrey",
+        company: {
+          id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d9d",
+          name: "Acme",
+        },
+      },
+      // Fails only `location`.
+      {
+        id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d9e",
+        title: "QA Conjuntiva Guadalajara",
+        description: "Decoy que falla solo la ubicación.",
+        work_mode: "remote",
+        employment_type: "full_time",
+        seniority: "senior",
+        salary_currency: "USD",
+        salary_min: 100000,
+        salary_max: 120000,
+        location: "Guadalajara",
+        company: {
+          id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d9f",
+          name: "Acme",
+        },
+      },
+      // Fails only `currency`.
+      {
+        id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7da0",
+        title: "DevOps Conjuntiva MXN",
+        description: "Decoy que falla solo la moneda.",
+        work_mode: "remote",
+        employment_type: "full_time",
+        seniority: "senior",
+        salary_currency: "MXN",
+        salary_min: 100000,
+        salary_max: 120000,
+        location: "Monterrey",
+        company: {
+          id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7da1",
+          name: "Acme",
+        },
+      },
+    ];
+    const usdConjunctiveJobs = [usdConjunctiveTarget, ...usdConjunctiveDecoys];
+
+    // Deterministic fixture-only conjunctive evaluator: every present
+    // supported predicate (`q`, `seniority`, `work_mode`,
+    // `employment_type`, `location`, `currency`) must match. `cursor`
+    // stays pagination, never a predicate.
+    function matchesUsdConjunctive(item, searchParams) {
+      const q = searchParams.get("q");
+      if (q !== null && !item.title.toLowerCase().includes(q.toLowerCase()))
+        return false;
+      for (const [param, field] of [
+        ["seniority", "seniority"],
+        ["work_mode", "work_mode"],
+        ["employment_type", "employment_type"],
+        ["location", "location"],
+        ["currency", "salary_currency"],
+      ]) {
+        const value = searchParams.get(param);
+        if (value !== null && item[field] !== value) return false;
+      }
+      return true;
+    }
+
+    // Detail map: known ids answer `/jobs/{id}` with their bare job shape.
+    const detailJobs = {
+      [job.id]: job,
+      [longContentJob.id]: longContentJob,
+      [richDetailJob.id]: richDetailJob,
+      [currencyProofJob.id]: currencyProofJob,
+      [usdConjunctiveTarget.id]: usdConjunctiveTarget,
+    };
 
 function send(response, status, payload) {
   response.writeHead(status, { "content-type": "application/json" });
@@ -162,11 +312,24 @@ const server = createServer((request, response) => {
   }
   // Task 6.2 GREEN — dedicated USD currency-proof vacancy for exact title/salary
   // evidence profile. Returns only this vacancy with no next_cursor.
-  if (
-    url.searchParams.get("q") === "currency-proof" &&
-    url.searchParams.get("currency") === "USD"
-  )
-    return send(response, 200, { items: [currencyProofJob] });
+      if (
+        url.searchParams.get("q") === "currency-proof" &&
+        url.searchParams.get("currency") === "USD"
+      )
+        return send(response, 200, { items: [currencyProofJob] });
+      // Task 8.3 GREEN — the sentinel query serves the dedicated dataset
+      // evaluated conjunctively over every present supported predicate.
+      if (url.searchParams.get("q") === usdConjunctiveQ)
+        return send(response, 200, {
+          items: usdConjunctiveJobs.filter((item) =>
+            matchesUsdConjunctive(item, url.searchParams),
+          ),
+          // Pagination stays pagination: a cursor request answers the
+          // nonempty final page, a first page advertises the next cursor.
+          ...(url.searchParams.has("cursor")
+            ? {}
+            : { next_cursor: "opaque a+b/c=" }),
+        });
   if (
     url.searchParams.has("cursor") ||
     url.searchParams.get("q") === "pending-search" ||
