@@ -194,7 +194,7 @@ test("detail preserves preset typography, tokens, radius, and bounded UI", async
   expect(evidence.descriptionColor).toBe(evidence.mutedForeground);
   expect(evidence.radius).toMatch(/^(?:0?\.)625rem$/);
   expect(evidence.inlineStyles).toBe(0);
-await expect(
+  await expect(
     article.getByRole("button", {
       name: /guardar|compartir|postular|solicitar|aplicar|beneficios/i,
     }),

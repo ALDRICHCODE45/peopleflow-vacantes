@@ -209,40 +209,38 @@ describe("/vacantes synchronous boundaries", () => {
     const ErrorBoundary = await loadErrorBoundary();
     const reset = vi.fn();
     render(<ErrorBoundary error={new Error("upstream")} reset={reset} />);
-expect(screen.getByRole("alert")).toBeVisible();
-        fireEvent.click(screen.getByRole("button", { name: /intentar de nuevo/i }));
-        expect(reset).toHaveBeenCalledOnce();
-      });
+    expect(screen.getByRole("alert")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /intentar de nuevo/i }));
+    expect(reset).toHaveBeenCalledOnce();
+  });
 
-      it("promotes the route error boundary heading to a single clear h1", async () => {
-        const ErrorBoundary = await loadErrorBoundary();
-        const reset = vi.fn();
-        render(<ErrorBoundary error={new Error("upstream")} reset={reset} />);
-        // The error heading itself must be the only level-1 heading on the
-        // boundary; the route boundary replaces the page, so no other heading
-        // is rendered alongside it.
-        const heading = screen.getByRole("heading", {
-          level: 1,
-          name: "No se pudieron cargar las vacantes",
-        });
-        expect(heading).toBeVisible();
-        expect(heading.tagName).toBe("H1");
-        expect(
-          screen.queryByRole("heading", {
-            level: 2,
-            name: "No se pudieron cargar las vacantes",
-          }),
-        ).toBeNull();
-        expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-        // The retry button and the semantic alert region remain intact.
-        expect(screen.getByRole("alert")).toBeVisible();
-        fireEvent.click(
-          screen.getByRole("button", { name: /intentar de nuevo/i }),
-        );
-        expect(reset).toHaveBeenCalledOnce();
-      });
+  it("promotes the route error boundary heading to a single clear h1", async () => {
+    const ErrorBoundary = await loadErrorBoundary();
+    const reset = vi.fn();
+    render(<ErrorBoundary error={new Error("upstream")} reset={reset} />);
+    // The error heading itself must be the only level-1 heading on the
+    // boundary; the route boundary replaces the page, so no other heading
+    // is rendered alongside it.
+    const heading = screen.getByRole("heading", {
+      level: 1,
+      name: "No se pudieron cargar las vacantes",
+    });
+    expect(heading).toBeVisible();
+    expect(heading.tagName).toBe("H1");
+    expect(
+      screen.queryByRole("heading", {
+        level: 2,
+        name: "No se pudieron cargar las vacantes",
+      }),
+    ).toBeNull();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    // The retry button and the semantic alert region remain intact.
+    expect(screen.getByRole("alert")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /intentar de nuevo/i }));
+    expect(reset).toHaveBeenCalledOnce();
+  });
 
-      it.each(["Buscar", "Aplicar filtros"])(
+  it.each(["Buscar", "Aplicar filtros"])(
     "announces and isolates pending %s navigation",
     async (label) => {
       const Island = await loadNavigationIsland();

@@ -1,4 +1,6 @@
 import { expect, test, type Locator } from "@playwright/test";
+import { renderToStaticMarkup } from "react-dom/server";
+import VacantesError from "../../src/app/(public)/vacantes/error";
 
 const fixtureUrl = "http://127.0.0.1:4010";
 const appUrl = process.env.PLAYWRIGHT_APP_ORIGIN ?? "http://127.0.0.1:3100";
@@ -661,37 +663,26 @@ test("long vacancy content remains readable", async ({ page }) => {
 
     // The narrow viewport demonstrably wraps the long title onto
     // multiple rendered lines.
-if (viewport.width === 375) {
+    if (viewport.width === 375) {
       expect((await rectsOf(title)).length).toBeGreaterThanOrEqual(2);
     }
   }
 });
 
-test("list data error surface is reachable and owns its alert region", async ({
-  page,
-}) => {
-  // The list route error boundary replaces the page, so its heading must be
-  // the only level-1 heading on the rendered document. The strict RED/GREEN
-  // contract for the list heading level is proven by the focused vitest
-  // unit case (rendering the boundary component directly with jsdom + RTL);
-  // the route boundary is unreachable via any combination of fixture
-  // payload + page.route intercept because the production transport
-  // (`requestJson` in `lib/api/requestJson.ts`) catches every fetch /
-  // decode / decoder / abort failure and returns a typed result that the
-  // page renders through the in-page `JobsResults.ErrorState`. This
-  // scenario therefore exercises the same fixture-backed surface and
-  // asserts the boundary text is reachable and the page-level semantic
-  // alert region stays intact — the heading-level promotion is verified
-  // end-to-end by the focused vitest case, not duplicated here.
-  await page.goto("/vacantes?q=error");
-  const alertRegion = page
-    .getByRole("alert")
-    .filter({ hasText: /intentar de nuevo/i });
-  await expect(alertRegion).toBeVisible();
+test("renders the real list error boundary with one h1", async ({ page }) => {
+  const markup = renderToStaticMarkup(
+    VacantesError({
+      error: new Error("fixture failure"),
+      reset: () => undefined,
+    }),
+  );
+  await page.setContent(`<main>${markup}</main>`);
   await expect(
-    page
-      .getByRole("heading", { name: "No se pudieron cargar las vacantes" })
-      .first(),
+    page.getByRole("heading", {
+      level: 1,
+      name: "No se pudieron cargar las vacantes",
+    }),
   ).toBeVisible();
-  await expect(page.getByRole("list")).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
 });
