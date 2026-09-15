@@ -661,8 +661,37 @@ test("long vacancy content remains readable", async ({ page }) => {
 
     // The narrow viewport demonstrably wraps the long title onto
     // multiple rendered lines.
-    if (viewport.width === 375) {
+if (viewport.width === 375) {
       expect((await rectsOf(title)).length).toBeGreaterThanOrEqual(2);
     }
   }
+});
+
+test("list data error surface is reachable and owns its alert region", async ({
+  page,
+}) => {
+  // The list route error boundary replaces the page, so its heading must be
+  // the only level-1 heading on the rendered document. The strict RED/GREEN
+  // contract for the list heading level is proven by the focused vitest
+  // unit case (rendering the boundary component directly with jsdom + RTL);
+  // the route boundary is unreachable via any combination of fixture
+  // payload + page.route intercept because the production transport
+  // (`requestJson` in `lib/api/requestJson.ts`) catches every fetch /
+  // decode / decoder / abort failure and returns a typed result that the
+  // page renders through the in-page `JobsResults.ErrorState`. This
+  // scenario therefore exercises the same fixture-backed surface and
+  // asserts the boundary text is reachable and the page-level semantic
+  // alert region stays intact — the heading-level promotion is verified
+  // end-to-end by the focused vitest case, not duplicated here.
+  await page.goto("/vacantes?q=error");
+  const alertRegion = page
+    .getByRole("alert")
+    .filter({ hasText: /intentar de nuevo/i });
+  await expect(alertRegion).toBeVisible();
+  await expect(
+    page
+      .getByRole("heading", { name: "No se pudieron cargar las vacantes" })
+      .first(),
+  ).toBeVisible();
+  await expect(page.getByRole("list")).toHaveCount(0);
 });

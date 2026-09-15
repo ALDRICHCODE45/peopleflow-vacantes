@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+const fixtureUrl = "http://127.0.0.1:4010";
+
 // Task 4.3 TRIANGULATE (user-authorized bounded accessibility evidence subset):
 // independent /vacantes browser proof only — axe WCAG A/AA scans per width ×
 // color scheme, mobile Base UI Sheet title/Escape/focus-return, visible
@@ -609,14 +611,76 @@ test.describe("vacancy detail axe WCAG A/AA matrix", () => {
       test.describe(`${scheme} scheme, ${label} width`, () => {
         test.use({ colorScheme: scheme, viewport });
 
-        test(`detail has no WCAG A/AA violations @a11y`, async ({ page }) => {
-          await page.goto(`/vacantes/${DETAIL_RICH_ID}`);
-          await expect(page.getByRole("article")).toBeVisible();
-          const results = await new AxeBuilder({ page })
-            .withTags(["wcag2a", "wcag2aa"])
-            .analyze();
-          expect(results.violations).toEqual([]);
-        });
+test(`detail has no WCAG A/AA violations @a11y`, async ({ page }) => {
+              await page.goto(`/vacantes/${DETAIL_RICH_ID}`);
+              await expect(page.getByRole("article")).toBeVisible();
+              const results = await new AxeBuilder({ page })
+                .withTags(["wcag2a", "wcag2aa"])
+                .analyze();
+              expect(results.violations).toEqual([]);
+            });
+          });
+        }
+      }
+    });
+
+    test.describe("vacancy detail error boundary accessibility", () => {
+      for (const scheme of SCHEMES) {
+        for (const [label, viewport] of Object.entries(VIEWPORTS)) {
+          test.describe(`${scheme} scheme, ${label} width`, () => {
+            test.use({ colorScheme: scheme, viewport });
+
+            test(`detail error boundary has no WCAG A/AA violations and exactly one h1 @a11y`, async ({
+              page,
+              request,
+            }) => {
+              await request.get(`${fixtureUrl}/__failure?kind=5xx`);
+              await page.goto(`/vacantes/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e`);
+              // Route boundary replaces the page; the error heading must own
+              // the single h1 of the rendered document.
+              await expect(
+                page.getByRole("heading", {
+                  level: 1,
+                  name: "No se pudo cargar la vacante",
+                }),
+              ).toBeVisible();
+              await expect(
+                page.getByRole("heading", { level: 1 }),
+              ).toHaveCount(1);
+              const results = await new AxeBuilder({ page })
+                .withTags(["wcag2a", "wcag2aa"])
+                .analyze();
+              expect(results.violations).toEqual([]);
+            });
+          });
+        }
+      }
+    });
+
+    test.describe("vacancy detail not-found boundary accessibility", () => {
+      for (const scheme of SCHEMES) {
+        for (const [label, viewport] of Object.entries(VIEWPORTS)) {
+          test.describe(`${scheme} scheme, ${label} width`, () => {
+            test.use({ colorScheme: scheme, viewport });
+
+            test(`detail not-found boundary has no WCAG A/AA violations and exactly one h1 @a11y`, async ({
+              page,
+            }) => {
+              await page.goto(`/vacantes/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d99`);
+              await expect(
+                page.getByRole("heading", {
+                  level: 1,
+                  name: "Esta vacante no está disponible",
+                }),
+              ).toBeVisible();
+              await expect(
+                page.getByRole("heading", { level: 1 }),
+              ).toHaveCount(1);
+              const results = await new AxeBuilder({ page })
+                .withTags(["wcag2a", "wcag2aa"])
+                .analyze();
+              expect(results.violations).toEqual([]);
+            });
       });
     }
   }

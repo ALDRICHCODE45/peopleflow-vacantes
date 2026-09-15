@@ -25,27 +25,76 @@ describe("/vacantes/[jobId] route boundaries", () => {
     );
   });
 
-  it("renders the branded not-found state with a path back to the list", async () => {
-    const NotFound = await loadRoute("not-found");
-    render(<NotFound />);
-    expect(screen.getByText("Esta vacante no está disponible")).toBeVisible();
-    const back = screen.getByRole("link", { name: /volver a vacantes/i });
-    expect(back).toHaveAttribute("href", "/vacantes");
-  });
+it("renders the branded not-found state with a path back to the list", async () => {
+        const NotFound = await loadRoute("not-found");
+        render(<NotFound />);
+        expect(screen.getByText("Esta vacante no está disponible")).toBeVisible();
+        const back = screen.getByRole("link", { name: /volver a vacantes/i });
+        expect(back).toHaveAttribute("href", "/vacantes");
+      });
 
-  it("uses a client error boundary whose retry stays distinct from not-found", async () => {
-    expect(routeSource("error.tsx")).toMatch(/['"]use client['"]/);
-    const ErrorBoundary = await loadRoute("error");
-    const reset = vi.fn();
-    render(<ErrorBoundary error={new Error("upstream")} reset={reset} />);
-    expect(screen.getByRole("alert")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: /intentar de nuevo/i }));
-    expect(reset).toHaveBeenCalledOnce();
-    // Retryable service/schema failures are never presented as not found.
-    expect(screen.queryByText("Esta vacante no está disponible")).toBeNull();
-    const back = screen.getByRole("link", { name: /vacantes/i });
-    expect(back).toHaveAttribute("href", "/vacantes");
-  });
+      it("promotes the branded not-found heading to a single clear h1", async () => {
+        const NotFound = await loadRoute("not-found");
+        render(<NotFound />);
+        // The not-found heading itself must be the only level-1 heading; the
+        // not-found page replaces the detail route, so no other h1 is rendered.
+        const heading = screen.getByRole("heading", {
+          level: 1,
+          name: "Esta vacante no está disponible",
+        });
+        expect(heading).toBeVisible();
+        expect(heading.tagName).toBe("H1");
+        expect(
+          screen.queryByRole("heading", {
+            level: 2,
+            name: "Esta vacante no está disponible",
+          }),
+        ).toBeNull();
+        expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+        const back = screen.getByRole("link", { name: /volver a vacantes/i });
+        expect(back).toHaveAttribute("href", "/vacantes");
+      });
+
+      it("uses a client error boundary whose retry stays distinct from not-found", async () => {
+        expect(routeSource("error.tsx")).toMatch(/['"]use client['"]/);
+        const ErrorBoundary = await loadRoute("error");
+        const reset = vi.fn();
+        render(<ErrorBoundary error={new Error("upstream")} reset={reset} />);
+        expect(screen.getByRole("alert")).toBeVisible();
+        fireEvent.click(screen.getByRole("button", { name: /intentar de nuevo/i }));
+        expect(reset).toHaveBeenCalledOnce();
+        // Retryable service/schema failures are never presented as not found.
+        expect(screen.queryByText("Esta vacante no está disponible")).toBeNull();
+        const back = screen.getByRole("link", { name: /vacantes/i });
+        expect(back).toHaveAttribute("href", "/vacantes");
+      });
+
+      it("promotes the detail error boundary heading to a single clear h1", async () => {
+        const ErrorBoundary = await loadRoute("error");
+        const reset = vi.fn();
+        render(<ErrorBoundary error={new Error("upstream")} reset={reset} />);
+        // The error heading itself must be the only level-1 heading; the route
+        // boundary replaces the detail page, so no other h1 is rendered.
+        const heading = screen.getByRole("heading", {
+          level: 1,
+          name: "No se pudo cargar la vacante",
+        });
+        expect(heading).toBeVisible();
+        expect(heading.tagName).toBe("H1");
+        expect(
+          screen.queryByRole("heading", {
+            level: 2,
+            name: "No se pudo cargar la vacante",
+          }),
+        ).toBeNull();
+        expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+        // Retryable errors remain distinct from the branded not-found copy.
+        expect(screen.queryByText("Esta vacante no está disponible")).toBeNull();
+        const back = screen.getByRole("link", { name: /vacantes/i });
+        expect(back).toHaveAttribute("href", "/vacantes");
+        fireEvent.click(screen.getByRole("button", { name: /intentar de nuevo/i }));
+        expect(reset).toHaveBeenCalledOnce();
+      });
 });
 
 vi.mock("../../../../lib/api/server", async () => ({
