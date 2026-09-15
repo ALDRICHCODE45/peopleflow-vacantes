@@ -158,7 +158,7 @@ The resolved values are `delivery_strategy: ask-on-risk`, `chain_strategy: featu
 
 ### 8.2 RED→GREEN — exactly one h1 on error and not-found pages
 
-- [ ] Add failing Playwright and accessibility tests asserting exactly one `<h1>` on the vacancy list error page, vacancy detail error page, and vacancy detail not-found page. Focused component/page/browser/a11y layers; only heading-level production edits allowed. <!-- sdd-owner: implementation -->
+- [x] Add failing Playwright and accessibility tests asserting exactly one `<h1>` on the vacancy list error page, vacancy detail error page, and vacancy detail not-found page. Focused component/page/browser/a11y layers; only heading-level production edits allowed. <!-- sdd-owner: implementation -->
 
 ### 8.3 RED→GREEN — actual USD result and every-predicate AND fixture-backed selection
 
