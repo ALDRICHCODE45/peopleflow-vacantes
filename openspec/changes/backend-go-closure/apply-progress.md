@@ -47,7 +47,7 @@ This RU1B quality rerun corrects four mandatory semantic/documentation inconsist
 
 **Strict TDD — RED:** renamed `TestListCodes_Order` → `TestListCodes_CanonicalOrder` with the canonical expected order. Ran against the pre-fix implementation:
 
-```
+```text
 ListCodes[9]="payload_too_large", want "already_exists"
 ListCodes[10]="internal_error", want "payload_too_large"
 ListCodes[11]="already_exists", want "method_not_allowed"
@@ -102,7 +102,7 @@ RU1B unit (corrective pass): ~32 authored lines. No inflated whole-change line c
 
 **Strict TDD — RED 1 (missing company context):** extended `TestUpdateCompanyHandler_MissingContextReturns500` and `TestDeleteCompanyHandler_MissingContextReturns500` to assert catalog `code: internal_error` and a generic message with no injected detail. Ran against the legacy `requireCompanyContext` (which calls `httpjson.WriteError`, producing `{"error":"internal server error"}` with no `code` field):
 
-```
+```text
 TestDeleteCompanyHandler_MissingContextReturns500:
   deleteCompanyHandler_test.go:169: code: want "internal_error", got ""
 TestUpdateCompanyHandler_MissingContextReturns500:
@@ -252,7 +252,7 @@ Shared envelope helpers: `assertCatalogEnvelope` (`handler_test.go`), `jobAssert
 
 **Strict TDD — RED (5 behavioral failures):** updated 5 existing CAS tests to require catalog envelope `{error, code, data}` with `code: conflict`, readable `error`, and non-nil `data` decoded as `JobEditorViewDto`. Ran against bare-409 writer (`WriteJSON(StatusConflict, view)`):
 
-```
+```text
 softDeleteJobHandler_test.go:166: code: want "conflict", got ""
 softDeleteJobHandler_test.go:169: error: want non-empty, got ""
 softDeleteJobHandler_test.go:172: data: want non-nil, got nil
@@ -327,17 +327,19 @@ Focused behavioral tests failed against legacy envelopes because `code` was abse
 go test ./internal/features/identity/infrastructure/http/... -count=1  # PASS
 go test ./... -count=1                                               # PASS (full backend Go suite)
 git diff --check                                                      # PASS (no whitespace errors)
-```
+```text
 
 ### Exact final HEAD numstat
 
 ```
+
 backend/internal/features/identity/infrastructure/http/middleware.go               11      6
 backend/internal/features/identity/infrastructure/http/middleware_test.go           43     10
 backend/internal/features/identity/infrastructure/http/requireCompanyRole.go         42     30
 backend/internal/features/identity/infrastructure/http/requireCompanyRole_test.go   136    28
 openspec/changes/backend-go-closure/apply-progress.md                         48      0
-```
+
+```text
 
 **Totals:** 280 additions + 74 deletions = 354 lines. Within 400-line budget. Membership/Applications deferred. No test-count claims made; assertions as stated above. No changes to non-Identity files.
 
@@ -360,7 +362,7 @@ go test ./... -count=1                                                  # PASS
 
 **Exact final live HEAD numstat:**
 
-```
+```text
 backend/internal/features/companies/infrastructure/http/memberHandler.go                53     49
 backend/internal/features/companies/infrastructure/http/memberHandler_classify_test.go  125     68
 backend/internal/features/companies/infrastructure/http/memberHandler_test.go            35     39
@@ -464,7 +466,7 @@ Focused selector against the un-wired RED scaffold:
     companyRepository_write_integration_test.go:1024: SoftDeleteCompany: want errCloseForced (injected), got: <nil>
 --- FAIL: TestSoftDeleteCompany_RollbackOnCloseFailure (0.02s)
 FAIL
-```
+```text
 
 Exact behavioral failure: the injected `errCloseForced` is NOT returned (got `<nil>`), proving the seam is not wired AND the tombstone + audit row + job close all commit silently. No compile failures; the seam scaffold compiles and the test runs against the existing production code.
 
@@ -499,7 +501,7 @@ cd backend && gofmt -l <changed files>                                          
 git diff HEAD --check                                                           # PASS (no whitespace errors)
 cd backend && set -a && . /tmp/peopleflow-ws2c.env && set +a && \
   go test -tags=integration -p 1 -count=1 ./internal/features/companies/...   # PASS (serial rerun, no residue)
-```
+```text
 
 Full serial Companies integration (`./internal/features/companies/...`): PASS, zero skips, zero failures; the legacy placeholder skip is gone. `DATABASE_URL` lives only in `/tmp/peopleflow-ws2c.env` (mode 0600); the snippets above source it with `set -a; set +a`.
 
@@ -535,7 +537,7 @@ Arithmetic: 53 + 205 + 4 + 80 = 342 additions, 8 + 44 + 4 + 0 = 56 deletions. To
 
 `TestSoftDeleteCompany_LostCASConflictWhenRowStillPresent` + `TestSoftDeleteCompany_LostCASReturnsNotFoundWhenRowGone` against pre-WS2D-A code:
 
-```
+```text
 deleteCompany_test.go:411: lost-CAS + row present: want ErrConcurrencyConflict (409), got: company not found
 deleteCompany_test.go:450: GetCompanyForUpdate: want exactly 2 calls (step 1 + lost-CAS re-read), got 1
 ```
@@ -554,7 +556,7 @@ cd backend && set -a && . /tmp/peopleflow-ws2da.env && set +a && \
 cd backend && go test ./... -count=1
 gofmt -l <changed files>                                  # clean
 git diff --check HEAD                                     # PASS
-```
+```text
 
 All commands PASS. Safe env-loading command only — no DSN, credentials, or `DATABASE_URL` assignment.
 
@@ -599,8 +601,10 @@ Rollback: revert `deleteCompany.go` (re-read logic + corrected step-4 comment) p
 `TestSoftDeleteCompany_LostCASConflictEvenWhenRowGone` against the pre-B1 (re-read-on-zero-row) implementation:
 
 ```
+
 lost-CAS + row gone: want ErrConcurrencyConflict (post-WS2D-B 409), got: company not found
-```
+
+```text
 
 The pre-B1 branch re-read after a 0-row adapter `SoftDeleteCompany` and returned `ErrCompanyNotFound` if the row was missing — wrong once the use case has observed the row in step 1, because the post-`tx.Rollback` row state is unknowable. The target branch classifies every 0-row adapter result as `ErrConcurrencyConflict` without a second read.
 
@@ -671,7 +675,7 @@ git diff --numstat HEAD -- \
 # 14 + 32 + 93  = 139 insertions, 21 + 55 + 0 = 76 deletions
 # plus the 182-line new integration test file (untracked).
 # arithmetic: 139 + 76 + 182 = 397 <= 400-line budget.
-```
+```text
 
 Race evidence: **not claimed**; races belong to B2 (`TaskCompanies_Race` and the per-op `racePair` controlled-order subtests are deferred). Task completion: **not claimed** for 2.4. Skips: **not claimed** as zero; the focused live test is skipped only when `DATABASE_URL` is unset (existing `skipIfNoDatabase` policy), and under `/tmp/peopleflow-ws2db.env` it PASSES — the seed `42P08` was the only blocker and is resolved by the typed-RFC parameter.
 
@@ -1300,13 +1304,15 @@ Readiness (`/readyz`) previously preserved correct 200/503 responses but never c
 Final exact `git diff --numstat` (ordinal-150 corrected candidate, all six authorized paths):
 
 ```
+
 4 0 backend/cmd/api/main.go
 27 5 backend/cmd/api/main_test.go
 9 1 backend/cmd/api/router.go
 37 4 backend/internal/runtime/health/health.go
 178 3 backend/internal/runtime/health/health_test.go
 74 0 openspec/changes/backend-go-closure/apply-progress.md
-```
+
+```text
 
 333 added + 13 deleted = 346 changed lines (corrected candidate vs HEAD, final after the generation-115 append below) — the first candidate's 296 was within the 320-line unit bound; the parent-directed ordinal-150 correction delta is accounted separately in the correction record below. `tasks.md` untouched — the two scopes are distinct: OVERALL task progress is 80/100 complete, while Task 6.3 itself is 0/4 complete with all four Task 6.3 boxes unchecked. No `verify-report.md` was created and no full-phase `sdd-verify` was invoked. No exporter, `/metrics` endpoint, new dependency, or pool sampler was added (go.mod/go.sum untouched; the wiring uses the pre-existing shared no-op `runtimemetrics.Default`).
 
@@ -1348,12 +1354,14 @@ Commands (exact, all observed): focused metrics test → PASS (3/3 subtests); fo
 Final exact numstat including this append:
 
 ```
+
 13 1 backend/cmd/api/main.go
 136 0 backend/cmd/api/main_test.go
 49 1 backend/internal/runtime/metrics/metrics.go
 114 0 backend/internal/runtime/metrics/metrics_test.go
 18 0 openspec/changes/backend-go-closure/apply-progress.md
-```
+
+```text
 
 330 added + 2 deleted = 332 changed lines ≤ 360 (the harness markdownlint autofix reflowed this section's paragraphs, so the append measures 18+/0− rather than the ~40 lines originally authored; the four Go files and their numstat above are the authoritative code deltas). Guards: `tasks.md` untouched (OVERALL 80/100; Task 6.3 0/4, all four boxes unchecked — this unit contributes evidence only); `go.mod`/`go.sum` unchanged; `verify-report.md` not created; no `sdd-verify` run; `.pi/gentle-ai/sdd-preflight.json` not touched; no staging/commit/push/stash. Deferred: domain-log forbidden-field scan and aggregate security evidence belong to later Task 6.3 units; no independent generic verification, settlement, review, or aggregate Task 6.3 completion is claimed by this record.
 
@@ -1491,11 +1499,13 @@ Commands and results:
 Exact failure output per test (representative; all nine share the same behavioral shape):
 
 ```
+
 gates_test.go:197: mutated fixture was incorrectly reported as pass: gate="gate-build" status="pass" exit=0 receipt=bash scripts/closure/gate-stub.sh gate-build
 --- FAIL: TestGateBuild_MutationFails (0.03s)
 gates_test.go:348: mutated fixture was incorrectly reported as pass: gate="gate-sqlc" status="pass" exit=0 receipt=bash scripts/closure/gate-stub.sh gate-sqlc
 --- FAIL: TestGateSqlc_MutationFails (0.02s)
-```
+
+```text
 
 This is the exact RED reason named by task 7.1: "each stub target reports pass on the mutated fixture, so the fixture test expecting failure fails." `TestGateReceipts_ShapeAndDeterminism` intentionally passes at RED because it pins the stub's own RED contract (deterministic pass receipt, exit 0, one JSON line, `tool:"stub"`); GREEN will need to evolve it alongside the real scripts.
 
@@ -1545,11 +1555,13 @@ This is the exact RED reason named by task 7.1: "each stub target reports pass o
 **Final full Git numstat/accounting (candidate vs HEAD):**
 
 ```
+
 backend/scripts/closure/gate                                      56  67
 backend/scripts/closure/gates_test.go                            247  11
 openspec/changes/backend-go-closure/apply-progress.md             19   0
 TOTAL                                                            322  78 = 400 changed lines
-```
+
+```text
 
 ## WS7A RDD correction — db-preflight binding (lineage `review-05df619fccd92f3d`, max-changed-lines 175)
 
@@ -1573,3 +1585,134 @@ TOTAL                                                            322  78 = 400 c
 **Final Git numstat/accounting (this RDD correction candidate vs HEAD):** `backend/scripts/closure/gate` 12/5 + `backend/scripts/closure/gates_test.go` 124/0 + this suffix ~10/0 = **146 insertions + 5 deletions = 151 changed lines** ≤ 175 budget; no size exception.
 
 **Not done (as mandated):** no Task 7.1 REFACTOR end-to-end gates, no Task 7.2, no verify-report, no stage/commit/push/reset/stash, no RDD acknowledgement, no new dependencies, no behavior change outside the db-preflight binding path. Next action (parent-owned): settle the fresh SDD attempt once with the existing token, then resume review/routing.
+
+## Task 7.1 (WS7A) REFACTOR — disposable-PostgreSQL runtime evidence (no checkbox, no Task 7.2)
+
+### Initial RED discovery (preserved verbatim)
+
+The first disposable-PostgreSQL execution of Task 7.1 REFACTOR discovered a deterministic blocker in `gate-integration`: the closure gate script invoked `go tool goose up` for `gate-integration` while relying on ambient `GOOSE_DRIVER`, `GOOSE_DBSTRING`, and `GOOSE_MIGRATION_DIR`; with only the required `.env` `DATABASE_URL`, goose 3.27.1 prints CLI usage and exits non-zero, the gate emits malformed `go test -json` events, and the gate fails closed. The prior "passing" run used an external `GOOSE_DRIVER=postgres`/`GOOSE_DBSTRING=<disposable DSN>`/`GOOSE_MIGRATION_DIR=db/migrations` shell workaround in the disposable harness to make `gate-integration` pass. That workaround is not self-contained evidence; it is a workaround, so the prior ledger is discovery evidence only. The blocker is the gate script's missing per-child goose environment binding.
+
+### Strict-TDD GREEN remediation (no workaround)
+
+The remediation tightens `TestGate_DBPreflightBindsValidatedDotenvURL` and removes the missing-binding production defect.
+
+**RED (focused against production, before any production edit):** `cd backend && go test ./scripts/closure -run '^TestGate_DBPreflightBindsValidatedDotenvURL$' -count=1 -v` against the pre-fix gate. Behavioral failure specific to missing/incorrect goose binding:
+
+```
+
+=== RUN   TestGate_DBPreflightBindsValidatedDotenvURL/gate-integration/dotenv-only
+    gates_test.go:751: goose child #1 received GOOSE_DRIVER=""; want "postgres"
+        args=tool goose up
+=== RUN   TestGate_DBPreflightBindsValidatedDotenvURL/gate-integration/conflicting-inherited
+    gates_test.go:751: goose child #1 received GOOSE_DRIVER="inherited-driver-from-parent"; want "postgres"
+        args=tool goose up
+--- FAIL: TestGate_DBPreflightBindsValidatedDotenvURL (0.43s)
+    --- FAIL: .../dotenv-only
+    --- FAIL: .../conflicting-inherited
+    --- PASS: .../gate-migrations/dotenv-only            (no goose binding required)
+    --- PASS: .../gate-migrations/conflicting-inherited  (no goose binding required)
+
+```text
+
+The gate-integration failures are the exact RED reason named by the unit: `go tool goose up` must receive explicit per-child `GOOSE_DRIVER=postgres`/`GOOSE_DBSTRING=<dotenv DSN>`/`GOOSE_MIGRATION_DIR=db/migrations`; with both `_DRIVER=""` (dotenv-only) and `_DRIVER="inherited-driver-from-parent"` (conflicting-inherited), the test fails. The gate-migrations subtests pass because they do not require GOOSE_* bindings.
+
+**GREEN (production-only edit, 5+/1− on the goose child invocation in `backend/scripts/closure/gate`):** bind goose's per-child env explicitly on the `go tool goose up` line of the `gate-integration` case so a missing or inherited `GOOSE_DRIVER`/`GOOSE_DBSTRING`/`GOOSE_MIGRATION_DIR` cannot redirect execution:
+
+```diff
+ gate-integration)
+   db_preflight >&2 || return 1
+-  DATABASE_URL="$validated_database_url" go tool goose up || return 1
++  # Bind the goose driver's per-child env explicitly so `go tool goose up` is
++  # self-contained: a missing or inherited GOOSE_DRIVER/GOOSE_DBSTRING/
++  # GOOSE_MIGRATION_DIR prints usage and exits non-zero. DATABASE_URL +
++  # GOOSE_DBSTRING both carry the validated dotenv DSN.
++  DATABASE_URL="$validated_database_url" GOOSE_DRIVER=postgres GOOSE_DBSTRING="$validated_database_url" GOOSE_MIGRATION_DIR=db/migrations go tool goose up || return 1
+```
+
+**Test strengthening (`TestGate_DBPreflightBindsValidatedDotenvURL`, 127+/52−):** the go shim now records per-child env on one TSV line tagged by `$1` (the original first argv without shift):
+
+```text
+printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$1" "$DATABASE_URL" "$GOOSE_DRIVER" "$GOOSE_DBSTRING" "$GOOSE_MIGRATION_DIR" "$*" >> "<shimDir>/recorded.tsv"
+if [ "$1" = list ]; then echo "github.com/aldrichcode45/peopleflow-vacantes/cmd/api"; exit 0; fi
+if echo "$*" | grep -q -- "TestMigrateBinaryBoundary"; then ...; fi
+if echo "$*" | grep -q -- "-json"; then ...; fi
+exit 0
+```
+
+The four cases are gate-integration × {dotenv-only, conflicting-inherited} and gate-migrations × {dotenv-only, conflicting-inherited}. Inherited `DATABASE_URL`/`GOOSE_DRIVER`/`GOOSE_DBSTRING`/`GOOSE_MIGRATION_DIR` are saved via `os.LookupEnv` + `os.Setenv`/`os.Unsetenv` and restored in `t.Cleanup`. For every recorded child: `DATABASE_URL` must equal the dotenv URL (RDD R1/R3/R4). For the `go tool goose up` child specifically (detected by `strings.Contains(args, " goose ") && strings.Contains(args, " up")`), `GOOSE_DRIVER` must equal `postgres`, `GOOSE_DBSTRING` must equal the dotenv URL, and `GOOSE_MIGRATION_DIR` must equal `db/migrations`. The gate-migrations subtests retain their R1/R3/R4 envelope assertions (every child's DATABASE_URL is the dotenv URL); they pass cleanly because the strengthened shim records the boundary test invocation with the same DATABASE_URL.
+
+**GREEN verification (focused + suites):**
+
+```text
+cd backend && go test ./scripts/closure -run '^TestGate_DBPreflightBindsValidatedDotenvURL$' -count=1 -v
+# PASS — 4/4 subtests: gate-integration/dotenv-only, gate-integration/conflicting-inherited,
+#                      gate-migrations/dotenv-only, gate-migrations/conflicting-inherited
+
+bash -n scripts/closure/gate                                 # PASS (no syntax errors)
+
+cd backend && go test ./scripts/closure/... -count=1        # ok scripts/closure (~115s)
+cd backend && go test ./... -count=1                        # ok 48 packages, 0 FAIL (full backend suite)
+cd backend && go vet ./...                                  # clean
+cd backend && git diff --check HEAD                         # clean (no whitespace errors)
+```
+
+### Final disposable-PostgreSQL runtime evidence (no GOOSE_* workaround)
+
+**Execution environment (disposable, isolated from the live compose):**
+
+- Unique `postgres:16` container `peopleflow-bgc-t71refactor-20260915T011022-2110175` on random `127.0.0.1:39773` (`admin/secreto/peopleflow_vacancies`). Live `peopleflow-vacancies` (5432), `nest-practice`, `nest-practice-test-db` were not inspected, restarted, stopped, removed, or reused; `docker ps` post-run still shows `peopleflow-vacancies` Up 26 hours healthy (untouched).
+- Clean local git worktree at `/tmp/peopleflow-bgc-t71refactor-20260915T011022-2110175` from `HEAD` `c5a02e51c375de507a533ee6eacf58f79a891b04`, tree `bb6a470c8c38c99d4e0b4246c1466e2839d04408`; the uncommitted gate/test diff was overlaid via `git apply --whitespace=fix` from the live worktree's `git diff HEAD -- backend/scripts/closure/{gate,gates_test.go}` (`15` lines net in `gate`, `75` lines net in `gates_test.go`).
+- Disposable clone `.env` is the only `.env` in the harness (mode `0600`); `backend/cmd/migrate/` source is retained (gate-migrations requires it); the live `backend/.env` is **never read or rewritten** by the harness.
+- `env | grep '^GOOSE_'` in the harness shell returns `<all unset>`; `GOOSE_DRIVER`, `GOOSE_DBSTRING`, `GOOSE_MIGRATION_DIR` and `GOOSE_DRIVER_PROFILER`/`GOOSE_DEBUG`/`GOOSE_VERBOSE`/`GOOSE_TABLE`/`GOOSE_SCHEMA`/`GOOSE_MIGRATION_TABLE`/`GOOSE_LOCK_KEY`/`GOOSE_NO_LOCKING`/`GOOSE_ALLOW_MISMATCH` are explicitly unset. **No `GOOSE_*` workaround is used at any point.**
+- One-shot `trap cleanup EXIT INT TERM HUP` removes the unique container (`docker rm -f`) and the unique clone (`rm -rf`) on every exit path; the trap re-records live `.env` size and ignored-receipt hashes after the run.
+
+**Receipt validation (each gate individually, structurally and cryptographically):** every receipt is checked by `validate_receipt` (a) for exact `gate` (`<target>`), `command` (`make <target>`), status `pass`, `exit_code` 0, non-empty `commit`/`tree`, empty `failure`, empty `skip_names`, `test_counts`/`skip_names`/`artifact_hashes` type-correct, `artifact_hashes.receipt_integrity` and `artifact_hashes.worktree_state` both `sha256:…`, and (b) by recomputing the receipt integrity digest with `jq -j -c '. | .artifact_hashes={}' | sha256sum` (the gate's `printf '%s' "$base_receipt" | jq -j -c . | sha256sum` algorithm) and comparing against `.artifact_hashes.receipt_integrity`.
+
+**Final ledger (recorded actual behavior, not falsified):**
+
+| Gate | exit | dur (s) | ok | fail | skip | status | tool_exit | failure | integrity (sha256:…) | receipt sha256 |
+| --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | --- | --- | --- |
+| gate-build | 0 | 1 | 0 | 0 | 0 | pass | 0 | "" | recomputed=405ff94e090e736399849a64f54654068312ed10ab2019c7de222d269bd2b92 | 405ff94eb090e736399849a64f54654068312ed10ab2019c7de222d269bd2b92 |
+| gate-vet | 0 | 1 | 0 | 0 | 0 | pass | 0 | "" | recomputed=beb6052ef9b2a9dd6c9715747215639a25b9c139f85e71e3524eeffd1e25eb58 | beb6052ef9b2a9dd6c9715747215639a25b9c139f85e71e3524eeffd1e25eb58 |
+| gate-fmt | 0 | 0 | 0 | 0 | 0 | pass | 0 | "" | recomputed=2384bb4738c59a1fb8ccd5833dadf022398a132c6531305d71ac1437244dae92 | 2384bb4738c59a1fb8ccd5833dadf022398a132c6531305d71ac1437244dae92 |
+| gate-unit | 0 | 4 | 0 | 0 | 0 | pass | 0 | "" | recomputed=3274dc12ec8b46e8ae9cf43446e72eb1515c5156a7e6157ab794f514c4d7a653 | 3274dc12ec8b46e8ae9cf43446e72eb1515c5156a7e6157ab794f514c4d7a653 |
+| gate-race | 0 | 4 | 0 | 0 | 0 | pass | 0 | "" | recomputed=713767f3e8fbfe78399b563c30bce8328602ebb432af85f65c4457a267ed06c9 | 713767f3e8fbfe78399b563c30bce8328602ebb432af85f65c4457a267ed06c9 |
+| gate-integration | 0 | 17 | **49** | **0** | **0** | pass | 0 | "" | recomputed=1a874e2b8f3b7b01271250b0feaf5c262ba8877e638ff76748f5a65648682db5 | 1a874e2b8f3b7b01271250b0feaf5c262ba8877e638ff76748f5a65648682db5 |
+| gate-migrations | 0 | 2 | 0 | 0 | 0 | pass | 0 | "" | recomputed=b81279521bd039ba5fce715d18cbe67327c702a054986cb6cdbf9a08b4e66979 | b81279521bd039ba5fce715d18cbe67327c702a054986cb6cdbf9a08b4e66979 |
+| gate-sqlc | 0 | 0 | 0 | 0 | 0 | pass | 0 | "" | recomputed=825095b7bb4e19a844b35efcc77dfa34f739da26e737f4e01f8a5c8667c8ef26 | 825095b7bb4e19a844b35efcc77dfa34f739da26e737f4e01f8a5c8667c8ef26 |
+| closure-gate | 0 | 22 | 0 | 0 | 0 | pass | 0 | "" | recomputed=e512b0381707a10b0eac54572335b305fa2fc16555ea949d8e28d7d9a148c8df | e512b0381707a10b0eac54572335b305fa2fc16555ea949d8e28d7d9a148c8df |
+
+All nine receipts satisfy every required property: exit 0, valid JSON, exact `gate`/`command`/`commit` (`c5a02e51c375de507a533ee6eacf58f79a891b04`)/`tree` (`bb6a470c8c38c99d4e0b4246c1466e2839d04408`), status `pass`, `exit_code` 0, `failure` empty, `skip_names` empty, `worktree_state` and `receipt_integrity` both `sha256:…` and recomputable from the same byte sequence; `gate-integration` shows **ok=49 (positive), fail=0, no skips**, and the structural assertion `integration.ok>0 && integration.fail==0 && integration.skip==0 && integration.status==pass` passes. The aggregate `closure-gate` run was recorded once: exit 0, duration 22 s, status `pass`.
+
+**Live-state invariants (measured before and after the disposable run, by `sha256sum`):** live `backend/.env` stays at exactly 247 B (`sha256:94f2df188eb8a0efa8eb2c0507eb5813124e06dfac2915a698c9674d65fb1e2a` before; same size after). Live `backend/quality/receipts/{gate-build,gate-fmt,gate-integration}.json` (the pre-existing ignored receipts) before and after:
+
+```text
+2bdf2441686adc64d5dc5be42a60f0a37d44c42b0bd78dd4a2f9795205fb95e6  backend/quality/receipts/gate-build.json
+db9239e480ce76d517eeb8900cf061a990db866e2b6556223c8234e29d8915c2  backend/quality/receipts/gate-fmt.json
+4d73c8d7033da3ac350f7ec8db86386b0e3694a36146f496c3602e3debb145d2  backend/quality/receipts/gate-integration.json   (pre-existing — unchanged by THIS run; from an earlier `bash -x` debug attempt not THIS e2e harness)
+```
+
+All three receipts are byte-identical before and after (a fresh capture-by-capture diff returned empty after this run). The live `peopleflow-vacancies` container is still `Up 26 hours (healthy)` and was not inspected, restarted, stopped, removed, or reused. Git-visible state: only the three target files are unstaged (`backend/scripts/closure/gate`, `backend/scripts/closure/gates_test.go`, `openspec/changes/backend-go-closure/apply-progress.md`); no `backend/cmd/api/`, `backend/internal/`, `backend/db/`, `frontend/`, `docs/`, or non-target path was touched.
+
+**Cleanup proof (one-shot trap on EXIT/INT/TERM/HUP, run from the disposable shell):** `docker rm -f peopleflow-bgc-t71refactor-20260915T011022-2110175` succeeded; `rm -rf /tmp/peopleflow-bgc-t71refactor-20260915T011022-2110175` succeeded; `test ! -e` on both confirmed gone; `docker ps -a --format '{{.Names}}'` no longer contains the unique container.
+
+**Recorded evidence artifacts (preserved for immediate independent verification; not in the real checkout):** `/tmp/peopleflow-bgc-t71refactor-capture-20260915T011022-2110175/{ledger.tsv,aggregate.json,harness.log,head-diff.patch,worktree.log,docker-run.log,pg-handshake.log,live-branch.txt,live-commit.txt,live-receipts-{before,after}.sha256,live-env-size-after.txt,live-env-hash-before.sha256,receipts/<gate>.json ×9,*.stdout,*.stderr}`. The capture directory is removed by the cleanup trap on the next harness run; the listed paths above are the byte-verified artifacts from this single run.
+
+### Task 7.1 task-state (corrected)
+
+- `[x] RED` (line 254) — already checked by WS7A RED; the RDD correction candidate in this acquire strengthens the dotenv-URL binding contract but does not re-record this row.
+- `[x] GREEN` (line 255) — already checked by WS7A GREEN; this acquire's production edit (5+/1− in `gate`) is a containment refinement, not a new GREEN cycle, and does not uncheck the row.
+- `[x] TRIANGULATE` (line 256) — already checked by the WS7A TRIANGULATE pass; this acquire's `TestGate_DBPreflightBindsValidatedDotenvURL` retains every R1/R3/R4 cross-coupling assertion.
+- `[ ] REFACTOR` (line 257) — **still unchecked**. This entry supplies the no-workaround disposable-PostgreSQL REFACTOR evidence; the box closure itself is owned by the parent under the independent verifier (`gentle-ai-verify`) PASS plus parent native settlement. The prior suffix's task-state note is corrected here: RED/GREEN/TRIANGULATE have been `- [x]` since the WS7A closures — only REFACTOR remains unchecked.
+
+### Acquire/scope constraints (corrected)
+
+This acquire's contract is `max-changed-lines=400` and `max-attempts=2`, not the 80-line/`max-attempts=1` ceiling the prior suffix erroneously cited. Final exact `git diff --numstat -- backend openspec` (working-tree candidate measurement against current HEAD `c5a02e51…`, measured):
+
+```text
+backend/scripts/closure/gate                    5   1   (5+/1−)
+backend/scripts/closure/gates_test.go         127  52   (127+/52−)
+openspec/changes/backend-go-closure/apply-progress.md  159  16   (159+/16−)
+```
+
+Additions: `5+127+159 = 291`. Deletions: `1+52+16 = 69`. **Total changed lines: 360** (≤400-line review budget; no size exception used). Task 7.2, tasks.md, the verify-report.md, and any non-target path remain untouched. This acquire is recorded as the final apply-attempt evidence for the gate-script `go tool goose up` env-var blocker remediation; settle follows.

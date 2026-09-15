@@ -66,7 +66,11 @@ run_check() {
     gate-race)  go test -race -v -count=1 ./internal/runtime/middleware ./internal/runtime/health ./cmd/api ;;
     gate-integration)
       db_preflight >&2 || return 1
-      DATABASE_URL="$validated_database_url" go tool goose up || return 1
+      # Bind the goose driver's per-child env explicitly so `go tool goose up` is
+      # self-contained: a missing or inherited GOOSE_DRIVER/GOOSE_DBSTRING/
+      # GOOSE_MIGRATION_DIR prints usage and exits non-zero. DATABASE_URL +
+      # GOOSE_DBSTRING both carry the validated dotenv DSN.
+      DATABASE_URL="$validated_database_url" GOOSE_DRIVER=postgres GOOSE_DBSTRING="$validated_database_url" GOOSE_MIGRATION_DIR=db/migrations go tool goose up || return 1
       local pkgs; pkgs="$(DATABASE_URL="$validated_database_url" go list -tags=integration -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./...)" || { echo "integration package selection failed"; return 1; }
       [ -n "$pkgs" ] || { echo "no integration test-bearing packages found"; return 1; }
       DATABASE_URL="$validated_database_url" go test -tags=integration -p 1 -count=1 -json $pkgs ;;

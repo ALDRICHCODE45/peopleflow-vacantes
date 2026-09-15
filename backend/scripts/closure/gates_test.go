@@ -600,21 +600,28 @@ func TestGate_AllMutationsUseTempCopies(t *testing.T) {
 	}
 }
 
-// TestGate_DBPreflightBindsValidatedDotenvURL — bounded RDD correction for review-05df619fccd92f3d.
+// TestGate_DBPreflightBindsValidatedDotenvURL — bounded RDD correction for review-05df619fccd92f3d,
+// extended for the task-7.1 REFACTOR remediation (gate-integration `go tool goose up` self-containment).
 //
-// Corroborated CRITICAL findings R1-DB-PREFLIGHT-SUBSHELL, R3-dotenv-not-exported,
-// R4-db-preflight-binding: the gate script (a) parses .env's DATABASE_URL, (b) probes
-// that exact URL, (c) keeps the parsed/validated DSN in the caller shell as
-// `validated_database_url` (exported), (d) invokes goose, integration package
-// selection, integration tests, and migration boundary tests with explicit
-// `DATABASE_URL="$validated_database_url"` binding so an inherited DATABASE_URL
-// cannot redirect execution, and (e) preserves `database preflight:` diagnostics
-// directly from the function without a sed pipeline that loses them.
+// Findings covered:
+//   - R1-DB-PREFLIGHT-SUBSHELL, R3-dotenv-not-exported, R4-db-preflight-binding: the gate script
+//     (a) parses .env's DATABASE_URL, (b) probes that exact URL, (c) keeps the parsed/validated
+//     DSN in the caller shell as `validated_database_url` (exported), (d) invokes goose,
+//     integration package selection, integration tests, and migration boundary tests with
+//     explicit `DATABASE_URL="$validated_database_url"` binding so an inherited DATABASE_URL
+//     cannot redirect execution, and (e) preserves `database preflight:` diagnostics directly
+//     from the function without a sed pipeline that loses them.
+//   - R-REFACTOR-GOOSE-EXPLICIT (task-7.1 REFACTOR blocker from the first disposable-PostgreSQL
+//     execution): the `go tool goose up` child invocation must receive explicit per-child
+//     environment bindings so it never relies on ambient GOOSE_DRIVER/GOOSE_DBSTRING/
+//     GOOSE_MIGRATION_DIR — DATABASE_URL=<validated dotenv DSN>, GOOSE_DRIVER=postgres,
+//     GOOSE_DBSTRING=<same validated dotenv DSN>, GOOSE_MIGRATION_DIR=db/migrations.
 //
 // This test runs both gate-integration and gate-migrations with dotenv-only and
-// conflicting inherited DATABASE_URL. A fake `go` shim in PATH records every
-// child invocation's DATABASE_URL; a local TCP listener passes the dotenv probe.
-// Every recorded child must carry the dotenv URL exactly.
+// conflicting inherited DATABASE_URL and GOOSE_*. A fake `go` shim in PATH records every
+// child invocation's environment (TSV: child-invocation-no<TAB>DATABASE_URL<TAB>GOOSE_DRIVER<TAB>GOOSE_DBSTRING<TAB>GOOSE_MIGRATION_DIR<TAB>args); a local TCP listener passes the dotenv probe.
+// Every recorded child must carry the dotenv URL exactly and the goose child specifically
+// must carry the four required values.
 func TestGate_DBPreflightBindsValidatedDotenvURL(t *testing.T) {
 	root := repoRoot(t)
 	port := startFakePostgresListener(t)
@@ -623,11 +630,21 @@ func TestGate_DBPreflightBindsValidatedDotenvURL(t *testing.T) {
 		name       string
 		target     string
 		inheritURL string
+		// inherited GOOSE_* values — present if non-empty, absent when empty. The test sets them
+		// on the parent process and explicitly unsets them for the dotenv-only rows so RED is
+		// deterministic regardless of how the harness itself was invoked.
+		inheritGooseDriver string
+		inheritGooseDB     string
+		inheritGooseDir    string
 	}{
-		{"gate-integration/dotenv-only", "gate-integration", ""},
-		{"gate-integration/conflicting-inherited", "gate-integration", "postgres://inherited:inherited@127.0.0.1:1/inherited?sslmode=disable"},
-		{"gate-migrations/dotenv-only", "gate-migrations", ""},
-		{"gate-migrations/conflicting-inherited", "gate-migrations", "postgres://inherited:inherited@127.0.0.1:1/inherited?sslmode=disable"},
+		{"gate-integration/dotenv-only", "gate-integration", "", "", "", ""},
+		{"gate-integration/conflicting-inherited", "gate-integration",
+			"postgres://inherited:inherited@127.0.0.1:1/inherited?sslmode=disable",
+			"inherited-driver-from-parent", "postgres://inherited:inherited@127.0.0.1:1/inherited?sslmode=disable", "/tmp/inherited-migrations"},
+		{"gate-migrations/dotenv-only", "gate-migrations", "", "", "", ""},
+		{"gate-migrations/conflicting-inherited", "gate-migrations",
+			"postgres://inherited:inherited@127.0.0.1:1/inherited?sslmode=disable",
+			"inherited-driver-from-parent", "postgres://inherited:inherited@127.0.0.1:1/inherited?sslmode=disable", "/tmp/inherited-migrations"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -635,68 +652,126 @@ func TestGate_DBPreflightBindsValidatedDotenvURL(t *testing.T) {
 			copyTree(t, root, dir, append(fixtureInputs, ".env")...)
 			// .env wraps the dotenv DSN in current supported double quotes.
 			seedFile(t, dir, ".env", fmt.Sprintf("DATABASE_URL=%q\n", dotenvURL))
-			// Replace `go` with a shim that records DATABASE_URL on every invocation
-			// and emits only the minimum artifacts the gate expects from each child
-			// (migrations boundary test lifecycle, list output, json event line).
+			// Replace `go` with a shim that records per-child env (DATABASE_URL + the three
+			// GOOSE_* bindings) plus the full argv on one TSV line so the test can prove the
+			// goose child specifically receives the validated bindings. The shim also emits
+			// the minimum artifacts the gate parser consumes from each command (list output,
+			// migrations lifecycle lines, integration -json event) and otherwise exits 0.
 			shimDir := t.TempDir()
-			recorded := filepath.Join(shimDir, "recorded.txt")
-			fakeGo := "#!/bin/sh\n" +
-				"echo \"$DATABASE_URL\" >> " + recorded + "\n" +
-				"if [ \"$1\" = list ]; then echo \"github.com/aldrichcode45/peopleflow-vacantes/cmd/api\"; exit 0; fi\n" +
-				"if echo \"$@\" | grep -q -- \"TestMigrateBinaryBoundary\"; then " +
-				"echo '=== RUN   TestMigrateBinaryBoundary'; " +
-				"echo '--- PASS: TestMigrateBinaryBoundary (0.00s)'; exit 0; fi\n" +
-				"if echo \"$@\" | grep -q -- \"-json\"; then " +
-				"echo '{\"Time\":\"2024-01-01T00:00:00Z\",\"Action\":\"pass\",\"Package\":\"github.com/aldrichcode45/peopleflow-vacantes/cmd/api\"}'; exit 0; fi\n" +
-				"exit 0\n"
-			seedFile(t, shimDir, "go", fakeGo)
-			if err := os.Chmod(filepath.Join(shimDir, "go"), 0o755); err != nil {
+			recorded := filepath.Join(shimDir, "recorded.tsv")
+			shimContent := fmt.Sprintf(`#!/bin/sh
+# Record per-child env + argv on one TSV line. The first positional is treated as the
+# invocation tag so the test can identify which child is which; $0 (the program name)
+# is the shim path by construction, $1 is the first subcommand/flag (e.g. list, -json, test).
+# We DO NOT shift before recording — the tag column must match the original argv.
+printf '%%s\t%%s\t%%s\t%%s\t%%s\t%%s\n' "$1" "$DATABASE_URL" "$GOOSE_DRIVER" "$GOOSE_DBSTRING" "$GOOSE_MIGRATION_DIR" "$*" >> "%s"
+if [ "$1" = list ]; then echo "github.com/aldrichcode45/peopleflow-vacantes/cmd/api"; exit 0; fi
+if echo "$*" | grep -q -- "TestMigrateBinaryBoundary"; then
+  echo '=== RUN   TestMigrateBinaryBoundary'
+  echo '--- PASS: TestMigrateBinaryBoundary (0.00s)'
+  exit 0
+fi
+if echo "$*" | grep -q -- "-json"; then
+  echo '{"Time":"2024-01-01T00:00:00Z","Action":"pass","Package":"github.com/aldrichcode45/peopleflow-vacantes/cmd/api"}'
+  exit 0
+fi
+exit 0
+`, recorded)
+			shimPath := filepath.Join(shimDir, "go")
+			if err := os.WriteFile(shimPath, []byte(shimContent), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			// Save and restore PATH/DATABASE_URL: runGate appends after os.Environ(),
-			// but glibc's getenv returns the first envp match, so a later PATH override
-			// would not replace the inherited one. Mutating the test process's env via
-			// os.Setenv — with deferred restore — lets the gate's children see the
-			// shim and the chosen inherited DATABASE_URL cleanly.
+			// Save and restore PATH/DATABASE_URL/GOOSE_*: the test process's os.Setenv lets
+			// the gate's children see the shim and the chosen inherited env cleanly.
 			oldPath, hadPath := os.LookupEnv("PATH")
 			oldURL, hadURL := os.LookupEnv("DATABASE_URL")
+			oldDriver, hadDriver := os.LookupEnv("GOOSE_DRIVER")
+			oldDB, hadDB := os.LookupEnv("GOOSE_DBSTRING")
+			oldDir, hadDir := os.LookupEnv("GOOSE_MIGRATION_DIR")
 			t.Cleanup(func() {
-				if hadPath {
-					_ = os.Setenv("PATH", oldPath)
-				} else {
-					_ = os.Unsetenv("PATH")
-				}
-				if hadURL {
-					_ = os.Setenv("DATABASE_URL", oldURL)
-				} else {
-					_ = os.Unsetenv("DATABASE_URL")
-				}
+				restoreEnv("PATH", oldPath, hadPath)
+				restoreEnv("DATABASE_URL", oldURL, hadURL)
+				restoreEnv("GOOSE_DRIVER", oldDriver, hadDriver)
+				restoreEnv("GOOSE_DBSTRING", oldDB, hadDB)
+				restoreEnv("GOOSE_MIGRATION_DIR", oldDir, hadDir)
 			})
 			_ = os.Setenv("PATH", shimDir+string(os.PathListSeparator)+oldPath)
 			_ = os.Unsetenv("DATABASE_URL")
 			if tc.inheritURL != "" {
 				_ = os.Setenv("DATABASE_URL", tc.inheritURL)
 			}
+			if tc.inheritGooseDriver != "" {
+				_ = os.Setenv("GOOSE_DRIVER", tc.inheritGooseDriver)
+			} else {
+				_ = os.Unsetenv("GOOSE_DRIVER")
+			}
+			if tc.inheritGooseDB != "" {
+				_ = os.Setenv("GOOSE_DBSTRING", tc.inheritGooseDB)
+			} else {
+				_ = os.Unsetenv("GOOSE_DBSTRING")
+			}
+			if tc.inheritGooseDir != "" {
+				_ = os.Setenv("GOOSE_MIGRATION_DIR", tc.inheritGooseDir)
+			} else {
+				_ = os.Unsetenv("GOOSE_MIGRATION_DIR")
+			}
 			stdout, stderr, err := runGate(t, dir, tc.target)
 			if err != nil {
-				t.Fatalf("gate must pass with a valid dotenv URL (RDD correction R1/R3/R4): target=%s inherit=%q err=%v\nstdout=%s\nstderr=%s",
+				t.Fatalf("gate must pass with a valid dotenv URL: target=%s inherit=%q err=%v\nstdout=%s\nstderr=%s",
 					tc.target, tc.inheritURL, err, stdout, stderr)
 			}
 			data, err := os.ReadFile(recorded)
 			if err != nil {
-				t.Fatalf("go shim never recorded a child invocation (gate never bound and ran go with the dotenv URL): %v", err)
+				t.Fatalf("go shim never recorded a child invocation: %v", err)
 			}
 			body := strings.TrimSpace(string(data))
 			if body == "" {
-				t.Fatalf("go shim recorded zero invocations; expected goose/integration/package selection/migration children to all bind the dotenv URL")
+				t.Fatalf("go shim recorded zero invocations; expected goose/integration/package selection/migration children to all run")
 			}
+			// Order is deterministic per gate target: gate-integration runs goose up FIRST
+			// (child #1), then `go list` (child #2), then `go test -json` (child #3).
+			// gate-migrations runs only the boundary test. The first-invocation number per
+			// child is appended by the shim itself.
+			var gooseOK bool
 			for i, line := range strings.Split(body, "\n") {
-				if line != dotenvURL {
-					t.Fatalf("go child #%d received DATABASE_URL=%q; want %q (dotenv) so an inherited URL cannot redirect execution",
-						i+1, line, dotenvURL)
+				fields := strings.SplitN(line, "\t", 6)
+				if len(fields) != 6 {
+					t.Fatalf("child #%d recorded line has %d fields, want 6: %q", i+1, len(fields), line)
+				}
+				_, recordedURL, recordedDriver, recordedDB, recordedDir, args := fields[0], fields[1], fields[2], fields[3], fields[4], fields[5]
+				if recordedURL != dotenvURL {
+					t.Fatalf("child #%d received DATABASE_URL=%q; want %q (validated dotenv) so an inherited URL cannot redirect execution\nargs=%s",
+						i+1, recordedURL, dotenvURL, args)
+				}
+				// Only the `go tool goose up` child is required to carry the GOOSE_*
+				// bindings — go list and go test don't need them. We detect that child
+				// by argv containing "goose" with the "up" subcommand.
+				if strings.Contains(args, " goose ") && strings.Contains(args, " up") {
+					if recordedDriver != "postgres" {
+						t.Fatalf("goose child #%d received GOOSE_DRIVER=%q; want %q\nargs=%s", i+1, recordedDriver, "postgres", args)
+					}
+					if recordedDB != dotenvURL {
+						t.Fatalf("goose child #%d received GOOSE_DBSTRING=%q; want %q (same as validated dotenv)\nargs=%s", i+1, recordedDB, dotenvURL, args)
+					}
+					if recordedDir != "db/migrations" {
+						t.Fatalf("goose child #%d received GOOSE_MIGRATION_DIR=%q; want %q\nargs=%s", i+1, recordedDir, "db/migrations", args)
+					}
+					gooseOK = true
 				}
 			}
+			if tc.target == "gate-integration" && !gooseOK {
+				t.Fatalf("recorded invocations did not include `go tool goose up`; cannot prove R-REFACTOR-GOOSE-EXPLICIT binding.\nrecorded:\n%s", body)
+			}
 		})
+	}
+}
+
+// restoreEnv puts the test process back exactly as it was before os.Setenv/os.Unsetenv.
+func restoreEnv(key, oldVal string, had bool) {
+	if had {
+		_ = os.Setenv(key, oldVal)
+	} else {
+		_ = os.Unsetenv(key)
 	}
 }
 
