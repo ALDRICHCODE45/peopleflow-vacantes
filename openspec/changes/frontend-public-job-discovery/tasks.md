@@ -162,7 +162,7 @@ The resolved values are `delivery_strategy: ask-on-risk`, `chain_strategy: featu
 
 ### 8.3 RED→GREEN — actual USD result and every-predicate AND fixture-backed selection
 
-- [ ] Add failing E2E Playwright tests asserting actual USD currency appears in vacancy results and that every active filter predicate combines with AND logic (not OR). Tests use `fixture/list` data only. <!-- sdd-owner: implementation -->
+- [x] Add failing E2E Playwright tests asserting actual USD currency appears in vacancy results and that every active filter predicate combines with AND logic (not OR). Tests use `fixture/list` data only. <!-- sdd-owner: implementation -->
 
 ### 8.4 RED→GREEN — visible↔hidden request-time freshness and state matrix
 

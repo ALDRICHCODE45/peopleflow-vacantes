@@ -3,10 +3,20 @@
 ## Current apply slice
 
 - Change: `frontend-public-job-discovery`
-- Work unit: Task 8.1 C5 complete — non-vacuous UI primitive inventory reconstructed with authentic RED→GREEN; Task 8.2 C3 is next and remains independently authorized
-- Delivery boundary: three commits from clean recovery baseline `fb4a27d`: RED `06872f8`, GREEN `90c003c`, and this OpenSpec closure; no production/config/dependency/backend change, push, PR, or RDD
+- Work unit: Task 8.3 C1 complete — fixture-backed USD conjunctive selection proven RED→GREEN; Task 8.4 remains the sole unchecked task and is not authorized in this unit
+- Delivery boundary: three commits from clean recovery baseline `0736e236efeaa6fcf1f19fd10efbe49a0e27161c`: RED `9e5ec90`, GREEN `b0145c0`, and this OpenSpec closure `97fb2a9`; no production/config/dependency/backend change, push, PR, or RDD
+- State: aggregate `git diff --numstat 0736e236efeaa6fcf1f19fd10efbe49a0e27161c..HEAD` = 230 additions + 14 deletions = 244 changed lines, under the 300-line objective; settlement evidence revision `sha256:07e978c25e3cf72568d5c19aaacfa8ae80ecb8e95a0d87ac675b679acf35773a`, native state `complete`
+- Persisted checkbox: `tasks.md` reads 25 checked / 1 unchecked; only Task 8.4 remains unchecked
+- Verification: genuine RED (focused failure on rendered result selection), GREEN named-test pass, typecheck, full `vacantes.spec.ts` 25/25, and list Axe smoke 1/1 passed under Node v22.22.1 / pnpm 10.34.5
+- Scope: four authorized paths only; full Task 8.3 evidence is recorded in the Task 8.3 C1 closure below
+- Rollback boundary: revert closure, GREEN `b0145c0`, then RED `9e5ec90` newest-first
+
+## Historical apply slice — Task 8.1 C5
+
+- Work unit: Task 8.1 C5 complete — non-vacuous UI primitive inventory reconstructed with authentic RED→GREEN
+- Delivery boundary: three commits from clean recovery baseline `fb4a27d`: RED `06872f8`, GREEN `90c003c`, and that OpenSpec closure; no production/config/dependency/backend change, push, PR, or RDD
 - State: the compact final tests/helper are byte-identical to the preserved valid original candidate files; stale original evidence/checkmarks remain excluded
-- Persisted checkbox: `tasks.md` reads 23 checked / 3 unchecked; only Task 8.1 closed and Tasks 8.2–8.4 remain pending
+- Persisted checkbox at that closure: `tasks.md` read 23 checked / 3 unchecked; only Task 8.1 closed and Tasks 8.2–8.4 remained pending
 - Verification: independent RED 6 failed / 4 passed for the compiling throwing TODO stub; GREEN 10/10, typecheck, lint, API-offline build, and production root Playwright 13/13 passed under Node v22.22.1 / pnpm 10.34.5
 - Scope: five authorized paths only; final Git accounting is recorded in the Task 8.1 closure below
 - Rollback boundary: revert closure, GREEN, then RED newest-first via `git revert HEAD HEAD~1 HEAD~2`
@@ -1731,3 +1741,16 @@ Applied matching production behavior to `JobsResults.tsx`: `companyInitials` hel
 - Cleanup/process evidence: owned fixture (4010), production `next start` (3100, `NODE_ENV=development` loopback exception, `PEOPLEFLOW_API_TIMEOUT_MS=1000`), and spec-owned port-3101 Vite groups reaped after every run; ports 3100/3101/4010 verified free; generated `.next`, `test-results`, `playwright-report`, `tsconfig.tsbuildinfo`, and temp logs removed; no untracked files; only the authorized edit surfaces plus `tasks.md` changed.
 - Rollback newest-first: closure → GREEN `a2925b9` → compact RED `b2740d1` → prior failed harness `5704712` → blocked progress `13ce2e3` → corrective RED `4a2a91e` → original RED `22278cd`.
 - Persisted checkbox: Task 8.2 is now `- [x]` (24 checked / 2 unchecked). Tasks 8.3 and 8.4 remain text- and state-unchanged and unchecked.
+
+## Task 8.3 C1 — RED→GREEN complete (fixture-backed USD conjunctive selection)
+
+- Start state honored: branch `recovery/frontend-public-job-discovery-tdd`, HEAD `0736e236efeaa6fcf1f19fd10efbe49a0e27161c`, clean tree, tasks.md 24 checked / 2 unchecked, ports 3100/3101/4010 free. Runtime Node v22.22.1 / Corepack pnpm 10.34.5 (`COREPACK_ENABLE_NETWORK=0`). Native attempt continued under token `sha256:7f80bbc411d7a6cdd63d77338bdc724efec3d2e848e76d0384e572f23bb1c76a` (work unit `task-8.3-c1-usd-and-predicates`, max 300 lines); `acquire` state `proceed`.
+- RED commit `9e5ec90da8ff3ebb8f2483b1e972d5483a116f7d` (`test(frontend): specify USD conjunctive vacancy selection`, 41+/1− in `frontend/tests/e2e/vacantes.spec.ts` only): new focused definition named exactly `renders only the USD target when every list predicate is active` navigating the real list URL with all six active predicates (`q=conjuntiva&seniority=senior&work_mode=remote&employment_type=full_time&location=Monterrey&currency=USD`), asserting the exact six-predicate server request, one exact target row (`Analista Conjuntiva de Datos`), the exact visible salary `USD 100,000 – USD 120,000`, and absence of six decoy titles each failing exactly one predicate.
+- Genuine RED proof (fixture 4010 + production `next start` 3100, `NODE_ENV=development` loopback exception, `PEOPLEFLOW_API_TIMEOUT_MS=1000`; API-offline build passed first): `corepack pnpm exec playwright test tests/e2e/vacantes.spec.ts --grep "renders only the USD target when every list predicate is active"` → exactly 1 failed, solely on `toContainText("Analista Conjuntiva de Datos")` (list rendered the default fixture row `Ingeniera Frontend`); no `/__profile`, compilation, startup, fixture, or selector failure. Typecheck passed before the RED run.
+- GREEN commit `b0145c0b5971bfa2ede155087547d3f1b862c7f9` (`test(frontend): implement conjunctive USD fixture profile`, 175+/12− in `frontend/tests/fixtures/jobs-server.mjs` only): added the target plus six one-predicate decoys and a deterministic fixture-only evaluator (`matchesUsdConjunctive`) that ANDs every present supported predicate (`q`, `seniority`, `work_mode`, `employment_type`, `location`, `currency`); `cursor` remains pagination (cursor requests answer the nonempty final page, first pages advertise the next cursor). Sentinel query-driven dataset keyed on `q=conjuntiva`; existing default fixture behavior and all existing scenarios preserved; no `/__profile` or new control endpoint; no Task 8.4 visibility/buffering controls.
+- GREEN proof: same grep command → 1 passed. Direct fixture probes: full six-predicate query → only the target; `q=conjuntiva` alone → 6 items (target + five q-matching decoys, q-failing decoy excluded); `q=conjuntiva&currency=USD` → 5 items (MXN decoy excluded); default `/jobs` payload unchanged (`Ingeniera Frontend`, cursor advertised).
+- Final gates rerun: `corepack pnpm typecheck` exit 0; full `tests/e2e/vacantes.spec.ts` → 25/25 passed; Axe smoke `playwright test tests/e2e/vacantes-a11y.spec.ts --grep "at desktop width in light scheme"` → 1/1 passed. No production source, backend, shared config, package.json, lockfile, dependency, Task 8.4, or verify-report change.
+- Aggregate Git accounting from base `0736e236efeaa6fcf1f19fd10efbe49a0e27161c`: 216 additions + 13 deletions across the two implementation commits (229 changed lines) plus this closure docs commit (tasks.md checkbox flip + this section) — final aggregate measured by `git diff --numstat 0736e236efeaa6fcf1f19fd10efbe49a0e27161c..HEAD` after this commit lands, within the 300-line objective.
+- Cleanup/process facts: owned fixture (4010) and production Next (3100) processes reaped (TERM then KILL, including the `pnpm start` parent); spec-owned port-3101 Vite harness closed by Playwright teardown; ports 3100/3101/4010 verified free; `.next`, `test-results`, `playwright-report`, `tsconfig.tsbuildinfo`, and all temp logs removed; final tree clean at the closure commit.
+- Persisted checkbox: Task 8.3 is now `- [x]` (25 checked / 1 unchecked). Task 8.4 text and checkbox are untouched and remain the only unchecked task.
+- Rollback newest-first: closure docs commit → GREEN fixture `b0145c0` → RED test `9e5ec90`.
