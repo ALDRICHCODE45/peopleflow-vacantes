@@ -1700,3 +1700,10 @@ Applied matching production behavior to `JobsResults.tsx`: `companyInitials` hel
 - Cleanup: owned server group reaped; port 3100 free; `.next`, `test-results`, `playwright-report`, TypeScript build info, temporary RED materialization, and run-owned logs removed; recovery clean and original status fingerprint unchanged.
 - Rollback: revert closure, GREEN, then RED newest-first with `git revert HEAD HEAD~1 HEAD~2`.
 - Native correction: this candidate remediates rejected evidence `sha256:d26e20e62e52c5a060417653c2199786f54eb93966d58485682922a2b420cb3a`; authoritative settlement is recorded separately in the native ledger.
+
+## Task 8.2 C3 — blocked during RED recovery
+
+- Restored only the three authorized production headings to `h2`; preserved test-only fixture-reset/a11y changes and committed corrective RED tests as `4a2a91e` (`test(frontend): make list error boundary browser-reachable`).
+- Typecheck passed; focused Vitest produced exactly three expected semantic h2 failures. Focused browser tests produced expected h2 failures for detail variants and a11y, but the real list component harness failed in the Playwright transform with `__pw_type` React-element serialization; no list browser evidence was admitted.
+- GREEN was not attempted because the real-component browser harness could not run reliably. Task 8.2 remains unchecked; Tasks 8.3 and 8.4 remain unchecked.
+- Rollback newest-first: future closure, GREEN, corrective RED `4a2a91e`, original RED `22278cd`; production headings remain restored to h2.
