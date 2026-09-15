@@ -3,13 +3,13 @@
 ## Current apply slice
 
 - Change: `frontend-public-job-discovery`
-- Work unit: pending `task-8.1` — UI primitive inventory (first unit of §8 Post-Verify Remediation; strict TDD RED→GREEN, non-vacuous shadcn/ui primitives, shared test-only helper, focused preset unit and root Playwright)
-- Delivery boundary: clean recovery HEAD `cc5c65a`; this commit adds only the §8 task definitions and provenance; no production, test, config, lockfile, or backend byte touched; no push, no PR, no RDD
-- State: Section 8 added to `tasks.md` with four unchecked tasks (8.1 C5, 8.2 C3, 8.3 C1, 8.4 C2); Task 8.1 is the current apply slice; tasks 8.2–8.4 are pending independent authorization
-- Persisted checkbox: tasks.md now reads 22 checked / 4 unchecked; §8 tasks are all `- [ ]`
-- Settled prior native objectives: every implementation task 1.1 through 7.1
-- Out of scope and not started: tasks 8.1–8.4 require independent user/native authorization, authentic RED before GREEN, separate focused evidence/closure, and <=400 lines each
-- Rollback boundary: `git revert <this-commit>` removes only this provenance commit and the §8 tasks without touching any prior history
+- Work unit: Task 8.1 C5 complete — non-vacuous UI primitive inventory reconstructed with authentic RED→GREEN; Task 8.2 C3 is next and remains independently authorized
+- Delivery boundary: three commits from clean recovery baseline `fb4a27d`: RED `06872f8`, GREEN `90c003c`, and this OpenSpec closure; no production/config/dependency/backend change, push, PR, or RDD
+- State: the compact final tests/helper are byte-identical to the preserved valid original candidate files; stale original evidence/checkmarks remain excluded
+- Persisted checkbox: `tasks.md` reads 23 checked / 3 unchecked; only Task 8.1 closed and Tasks 8.2–8.4 remain pending
+- Verification: independent RED 6 failed / 4 passed for the compiling throwing TODO stub; GREEN 10/10, typecheck, lint, API-offline build, and production root Playwright 13/13 passed under Node v22.22.1 / pnpm 10.34.5
+- Scope: five authorized paths only; final Git accounting is recorded in the Task 8.1 closure below
+- Rollback boundary: revert closure, GREEN, then RED newest-first via `git revert HEAD HEAD~1 HEAD~2`
 
 ## Provenance
 
@@ -1689,3 +1689,14 @@ Applied matching production behavior to `JobsResults.tsx`: `companyInitials` hel
 - Final source/tree/hash/diff guards passed: frontend source was byte-identical to baseline, `git diff --check` passed, and no generated output, owned process, or listener remained after cleanup.
 - Environment limitation: browser evidence served the production build against the loopback fixture with `NODE_ENV=development`; this is not production-environment parity. Rollback is one revert of the closure commit.
 - Commit authorized exactly once as `docs(openspec): close recovered frontend task 6.4`; next recommended phase is `sdd-verify`.
+
+## Task 8.1 C5 — recovered RED→GREEN complete
+
+- RED `06872f8`: the compiling throwing TODO helper produced exactly 6 failing / 4 passing focused tests with behavioral assertion failures and no compile/import failure.
+- GREEN `90c003c`: the minimal final helper made the focused suite 10/10; final helper/preset/root files are byte-identical to the preserved valid original candidate.
+- Independent gates: typecheck, lint, API-offline build with `PEOPLEFLOW_API_TIMEOUT_MS=1000`, and production root Playwright 13/13 passed under Node v22.22.1 / pnpm 10.34.5.
+- Scope: only the helper, preset/root tests, this progress artifact, and the Task 8.1 checkbox changed; no production behavior, config, dependency, backend, push, PR, or RDD.
+- Accounting: final `git diff --numstat fb4a27d..HEAD` is 145 additions + 33 deletions = 178 changed lines across five authorized paths, below the 300-line objective.
+- Cleanup: owned server group reaped; port 3100 free; `.next`, `test-results`, `playwright-report`, TypeScript build info, temporary RED materialization, and run-owned logs removed; recovery clean and original status fingerprint unchanged.
+- Rollback: revert closure, GREEN, then RED newest-first with `git revert HEAD HEAD~1 HEAD~2`.
+- Native correction: this candidate remediates rejected evidence `sha256:d26e20e62e52c5a060417653c2199786f54eb93966d58485682922a2b420cb3a`; authoritative settlement is recorded separately in the native ledger.

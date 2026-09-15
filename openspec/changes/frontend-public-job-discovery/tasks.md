@@ -154,7 +154,7 @@ The resolved values are `delivery_strategy: ask-on-risk`, `chain_strategy: featu
 
 ### 8.1 RED→GREEN — UI primitive inventory
 
-- [ ] Add genuine failing unit cases proving that the UI primitive inventory check rejects a missing, empty, or incomplete `frontend/src/components/ui/` directory, then implement the smallest shared test-only helper under `frontend/tests/support/` and update the focused preset unit and root Playwright checks to use it. Require `button`, `empty`, `field`, `input`, `label`, `select`, `separator`, and `sheet`; allow additional generic primitives while continuing to reject product-specific names under `ui/`. Do not change production behavior, configuration, or dependencies. <!-- sdd-owner: implementation -->
+- [x] Add genuine failing unit cases proving that the UI primitive inventory check rejects a missing, empty, or incomplete `frontend/src/components/ui/` directory, then implement the smallest shared test-only helper under `frontend/tests/support/` and update the focused preset unit and root Playwright checks to use it. Require `button`, `empty`, `field`, `input`, `label`, `select`, `separator`, and `sheet`; allow additional generic primitives while continuing to reject product-specific names under `ui/`. Do not change production behavior, configuration, or dependencies. <!-- sdd-owner: implementation -->
 
 ### 8.2 RED→GREEN — exactly one h1 on error and not-found pages
 
