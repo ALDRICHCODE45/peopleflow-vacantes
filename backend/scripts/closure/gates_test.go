@@ -21,10 +21,10 @@ import (
 	"testing"
 )
 
-// gateTargets lists the nine scaffold targets in canonical order.
+// gateTargets lists the ten scaffold targets in canonical order.
 var gateTargets = []string{
 	"gate-build", "gate-vet", "gate-fmt", "gate-unit", "gate-race",
-	"gate-integration", "gate-migrations", "gate-sqlc", "closure-gate",
+	"gate-integration", "gate-migrations", "gate-sqlc", "gate-arch", "closure-gate",
 }
 
 // receipt is the JSON object a gate emits on stdout. The RED stub always emits
@@ -817,6 +817,151 @@ func restoreEnv(key, oldVal string, had bool) {
 	} else {
 		_ = os.Unsetenv(key)
 	}
+}
+
+// -- Task 7.2 REFACTOR: gate-arch wiring into closure-gate --
+//
+// The gate-arch fixtures use a repository-root-shaped temp tree
+// (<repo>/backend + <repo>/openspec + the traceability manifest): the archguard
+// repository validator resolves the manifest (whose evidence paths are
+// repository-relative) against that faithful shape, never the real tree.
+
+// copyRepoFixture copies the shared fixture inputs plus the traceability
+// manifest into <repo>/backend and the real openspec tree into <repo>/openspec,
+// then returns the repository root. The real tree is never mutated.
+func copyRepoFixture(t *testing.T, root string) string {
+	t.Helper()
+	repo := t.TempDir()
+	backendDir := filepath.Join(repo, "backend")
+	copyTree(t, root, backendDir, fixtureInputs...)
+	if err := os.MkdirAll(filepath.Join(backendDir, "quality"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := exec.Command("cp", "-a",
+		filepath.Join(root, "quality", "traceability.json"),
+		filepath.Join(backendDir, "quality", "traceability.json")).CombinedOutput(); err != nil {
+		t.Fatalf("copy traceability.json: %v: %s", err, out)
+	}
+	if out, err := exec.Command("cp", "-a",
+		filepath.Join(root, "..", "openspec"), filepath.Join(repo, "openspec")).CombinedOutput(); err != nil {
+		t.Fatalf("copy openspec: %v: %s", err, out)
+	}
+	return repo
+}
+
+// TestGate_GateArch_ValidateCurrentRepository is the gate-arch GREEN control:
+// against a faithful repository-root fixture copy, gate-arch must PASS —
+// cross-feature imports, error-catalog usage, locked non-goals, route topology,
+// and traceability structure/coverage all clean, i.e. zero unexplained
+// traceability-manifest rows — with a valid receipt.
+func TestGate_GateArch_ValidateCurrentRepository(t *testing.T) {
+	if os.Getenv("GATE_ACTIVE") == "1" {
+		return
+	}
+	root := repoRoot(t)
+	repo := copyRepoFixture(t, root)
+	stdout, stderr, err := runGate(t, filepath.Join(repo, "backend"), "gate-arch")
+	if err != nil {
+		t.Fatalf("gate-arch must pass on the unmutated repository copy: %v\nstderr=%s\nstdout=%s", err, stderr, stdout)
+	}
+	r := parseReceipt(t, stdout)
+	if r.Gate != "gate-arch" || r.Status != "pass" || r.ExitCode != 0 || r.Command != "make gate-arch" {
+		t.Fatalf("gate-arch receipt = %+v (want gate=gate-arch command='make gate-arch' status=pass exit_code=0)", r)
+	}
+	if len(r.SkipNames) != 0 || r.Failure != "" {
+		t.Fatalf("passing gate-arch receipt must carry zero skips and empty failure: %+v", r)
+	}
+	verifyReceiptIntegrity(t, stdout)
+}
+
+// TestGate_GateArch_MutationFixturesForceFailure seeds one violation class at a
+// time into a repository-root fixture copy; each must FAIL gate-arch with the
+// guard family named in the receipt failure.
+func TestGate_GateArch_MutationFixturesForceFailure(t *testing.T) {
+	if os.Getenv("GATE_ACTIVE") == "1" {
+		return
+	}
+	tests := []struct {
+		name     string
+		seed     func(t *testing.T, repo string)
+		required []string
+	}{
+		{
+			name: "gate-arch: ad-hoc code literal outside httpjson",
+			seed: func(t *testing.T, repo string) {
+				seedFile(t, filepath.Join(repo, "backend"),
+					filepath.Join("internal", "features", "jobs", "infrastructure", "http", "zz_fixture.go"),
+					"package http\n\n// zzFixtureCodeLiteral seeds an ad-hoc error-code literal outside httpjson.\nvar zzFixtureCodeLiteral = map[string]string{\"code\": \"not_found\"}\n")
+			},
+			required: []string{"error-catalog-adhoc-code", "zz_fixture.go"},
+		},
+		{
+			name: "gate-arch: locked non-goal path",
+			seed: func(t *testing.T, repo string) {
+				seedFile(t, filepath.Join(repo, "backend"), "Dockerfile", "FROM scratch\n")
+			},
+			required: []string{"locked-non-goal-path", "Dockerfile"},
+		},
+		{
+			name: "gate-arch: unexplained traceability-manifest row",
+			seed: func(t *testing.T, repo string) {
+				seedEdit(t, filepath.Join(repo, "backend"), filepath.Join("quality", "traceability.json"),
+					`"rows": [`,
+					`"rows": [
+        {"requirement": "Ghost Requirement", "capability": "jobs", "tier": "MUST", "owners": ["backend/ghost.go"], "evidence": {"path": "backend/cmd/api/main.go", "symbols": [], "tests": ["TestRouteTopology_ExactRegistrations"]}},`)
+			},
+			required: []string{"traceability", "Ghost Requirement"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := repoRoot(t)
+			repo := copyRepoFixture(t, root)
+			tt.seed(t, repo)
+			requireGateFailsWithMsg(t, filepath.Join(repo, "backend"), "gate-arch", tt.required...)
+		})
+	}
+}
+
+// prepareAllGatesPassShim binds a fake-listener .env and a fake `go` child whose
+// every invocation exits 0 with parser-satisfying output, so a closure-gate run
+// exercises the aggregate itself (including gate-arch) without a live database.
+func prepareAllGatesPassShim(t *testing.T, dir string) {
+	t.Helper()
+	port := startFakePostgresListener(t)
+	seedFile(t, dir, ".env", fmt.Sprintf("DATABASE_URL=postgres://fixture:fixture@127.0.0.1:%d/fixture?sslmode=disable\n", port))
+	shimDir := t.TempDir()
+	shim := `#!/bin/sh
+if [ "$1" = list ]; then echo "github.com/aldrichcode45/peopleflow-vacantes/cmd/api"; exit 0; fi
+if echo "$*" | grep -q -- "TestMigrateBinaryBoundary"; then
+  echo '=== RUN   TestMigrateBinaryBoundary'
+  echo '--- PASS: TestMigrateBinaryBoundary (0.00s)'
+  exit 0
+fi
+if echo "$*" | grep -q -- "-json"; then
+  echo '{"Time":"2024-01-01T00:00:00Z","Action":"pass","Package":"github.com/aldrichcode45/peopleflow-vacantes/cmd/api"}'
+  exit 0
+fi
+exit 0
+`
+	if err := os.WriteFile(filepath.Join(shimDir, "go"), []byte(shim), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", shimDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+// TestGate_ClosureGate_NamesPendingWS7CReportUnit (task 7.2 REFACTOR): with a
+// bounded fake `go` child so every sub-gate (including gate-arch) passes, the
+// aggregate closure-gate must still FAIL, and its receipt failure must name the
+// pending WS7C report unit — never an architecture/traceability defect.
+func TestGate_ClosureGate_NamesPendingWS7CReportUnit(t *testing.T) {
+	if os.Getenv("GATE_ACTIVE") == "1" {
+		return
+	}
+	root, dir := repoRoot(t), t.TempDir()
+	copyTree(t, root, dir, fixtureInputs...)
+	prepareAllGatesPassShim(t, dir)
+	requireGateFailsWithMsg(t, dir, "closure-gate", "report unit", "pending")
 }
 
 // startFakePostgresListener binds a TCP listener on 127.0.0.1:0 that accepts any

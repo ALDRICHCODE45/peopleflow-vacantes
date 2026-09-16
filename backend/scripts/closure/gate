@@ -49,7 +49,8 @@ check_command=$(case "$gate" in
     gate-integration) printf 'go test -tags=integration -p 1 ./... -count=1 -json' ;;
     gate-migrations)  printf 'built cmd/migrate round trip (cmd/migrate integration harness)' ;;
     gate-sqlc)        printf 'go tool sqlc generate in a clean temp copy, then diff' ;;
-    closure-gate)     printf 'all eight required gates in sequence' ;;
+    gate-arch)        printf 'archguard repository guards (cross-feature imports, ad-hoc code-literal scan, locked non-goals, traceability structure/coverage; route topology via TestRouteTopology_ExactRegistrations)' ;;
+    closure-gate)     printf 'all nine required gates in sequence' ;;
   esac)
 run_check() {
   case "$gate" in
@@ -89,13 +90,26 @@ run_check() {
             echo "sqlc drift: generated outputs differ from the committed tree (first: $(printf '%s\n' "$drift" | head -1))"
             return 1
           fi ;;
+    gate-arch)
+      # Task 7.2 REFACTOR (design §9): archguard repository guards. The route
+      # topology guard is delegated to the pinned router-owner test, which owns
+      # the exact (method, path, gating) composition-root topology.
+      go run ./cmd/archguard || return 1
+      go test -count=1 -run '^TestRouteTopology_ExactRegistrations$' ./cmd/api ;;
     closure-gate)
       local sub failed=""
-      for sub in gate-build gate-vet gate-fmt gate-unit gate-race gate-integration gate-migrations gate-sqlc; do
+      for sub in gate-build gate-vet gate-fmt gate-unit gate-race gate-integration gate-migrations gate-sqlc gate-arch; do
         bash scripts/closure/gate "$sub" || { failed="$sub"; break; }
       done
       if [ -n "$failed" ]; then
         echo "closure-gate: sub-gate $failed failed (aggregate stays NO-GO until the report unit lands)"
+        return 1
+      fi
+      # Task 7.2 REFACTOR: with every sub-gate passing, the aggregate stays
+      # NO-GO for exactly one reason — the WS7C report unit (task 7.3) has
+      # not generated the closure report artifacts yet.
+      if [ ! -f ../docs/backend-go-closure-traceability.md ] || [ ! -f ../docs/aws-go-no-go.md ]; then
+        echo "closure-gate: WS7C report unit pending — docs/backend-go-closure-traceability.md and docs/aws-go-no-go.md are absent; the aggregate stays NO-GO because the report unit is pending, not because any sub-gate failed"
         return 1
       fi ;;
     *) echo "unknown gate: $gate" >&2; return 64 ;;
