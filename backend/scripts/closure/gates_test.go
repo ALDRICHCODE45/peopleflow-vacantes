@@ -923,6 +923,49 @@ func TestGate_GateArch_MutationFixturesForceFailure(t *testing.T) {
 	}
 }
 
+// TestGate_GateArch_RouteTopologyLifecycleFailsClosed (R3-route-test-lifecycle):
+// the gate-arch route-topology invocation must expose observable test lifecycle
+// output and fail closed unless TestRouteTopology_ExactRegistrations runs exactly
+// once and passes. A skipped pinned test, or selector drift that makes the
+// pinned selector match zero tests, must each FAIL gate-arch.
+func TestGate_GateArch_RouteTopologyLifecycleFailsClosed(t *testing.T) {
+	if os.Getenv("GATE_ACTIVE") == "1" {
+		return
+	}
+	const pinnedDecl = "func TestRouteTopology_ExactRegistrations(t *testing.T) {"
+	tests := []struct {
+		name string
+		seed func(t *testing.T, repo string)
+	}{
+		{
+			name: "gate-arch: skipped route-topology test",
+			seed: func(t *testing.T, repo string) {
+				seedEdit(t, filepath.Join(repo, "backend"), filepath.Join("cmd", "api", "main_test.go"),
+					pinnedDecl, pinnedDecl+" t.Skip(\"fixture: skipped route topology fails the gate\")")
+			},
+		},
+		{
+			name: "gate-arch: zero-match selector drift",
+			seed: func(t *testing.T, repo string) {
+				// The pinned test itself stays present and passing (archguard's
+				// traceability check stays clean); only the gate's pinned selector
+				// drifts, so the route-topology invocation matches zero tests.
+				seedEdit(t, filepath.Join(repo, "backend"), filepath.Join("scripts", "closure", "gate"),
+					"-run '^TestRouteTopology_ExactRegistrations$'",
+					"-run '^TestRouteTopology_ExactRegistrationsAbsent$'")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := repoRoot(t)
+			repo := copyRepoFixture(t, root)
+			tt.seed(t, repo)
+			requireGateFailsWithMsg(t, filepath.Join(repo, "backend"), "gate-arch", "route topology lifecycle")
+		})
+	}
+}
+
 // prepareAllGatesPassShim binds a fake-listener .env and a fake `go` child whose
 // every invocation exits 0 with parser-satisfying output, so a closure-gate run
 // exercises the aggregate itself (including gate-arch) without a live database.
@@ -934,16 +977,21 @@ func prepareAllGatesPassShim(t *testing.T, dir string) {
 	shim := `#!/bin/sh
 if [ "$1" = list ]; then echo "github.com/aldrichcode45/peopleflow-vacantes/cmd/api"; exit 0; fi
 if echo "$*" | grep -q -- "TestMigrateBinaryBoundary"; then
-  echo '=== RUN   TestMigrateBinaryBoundary'
-  echo '--- PASS: TestMigrateBinaryBoundary (0.00s)'
-  exit 0
-fi
-if echo "$*" | grep -q -- "-json"; then
-  echo '{"Time":"2024-01-01T00:00:00Z","Action":"pass","Package":"github.com/aldrichcode45/peopleflow-vacantes/cmd/api"}'
-  exit 0
-fi
-exit 0
-`
+      echo '=== RUN   TestMigrateBinaryBoundary'
+      echo '--- PASS: TestMigrateBinaryBoundary (0.00s)'
+      exit 0
+    fi
+    if echo "$*" | grep -q -- "TestRouteTopology_ExactRegistrations"; then
+      echo '=== RUN   TestRouteTopology_ExactRegistrations'
+      echo '--- PASS: TestRouteTopology_ExactRegistrations (0.00s)'
+      exit 0
+    fi
+    if echo "$*" | grep -q -- "-json"; then
+      echo '{"Time":"2024-01-01T00:00:00Z","Action":"pass","Package":"github.com/aldrichcode45/peopleflow-vacantes/cmd/api"}'
+      exit 0
+    fi
+    exit 0
+    `
 	if err := os.WriteFile(filepath.Join(shimDir, "go"), []byte(shim), 0o755); err != nil {
 		t.Fatal(err)
 	}

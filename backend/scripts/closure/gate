@@ -94,8 +94,15 @@ run_check() {
       # Task 7.2 REFACTOR (design §9): archguard repository guards. The route
       # topology guard is delegated to the pinned router-owner test, which owns
       # the exact (method, path, gating) composition-root topology.
+      # R3-route-test-lifecycle: the pinned route-topology test must run exactly
+      # once and pass; skipped, zero-match, duplicated, or failing runs fail
+      # the gate closed via observable -v lifecycle output (gate-migrations
+      # pattern).
       go run ./cmd/archguard || return 1
-      go test -count=1 -run '^TestRouteTopology_ExactRegistrations$' ./cmd/api ;;
+      go test -count=1 -v -run '^TestRouteTopology_ExactRegistrations$' ./cmd/api || return 1
+      local arch_runs arch_passes
+      arch_runs="$(grep -c '^=== RUN   TestRouteTopology_ExactRegistrations$' "$out_file")"; arch_passes="$(grep -c '^--- PASS: TestRouteTopology_ExactRegistrations (' "$out_file")"
+      [ "$arch_runs" -eq 1 ] && [ "$arch_passes" -eq 1 ] || { echo "gate-arch: route topology lifecycle check failed — TestRouteTopology_ExactRegistrations absent, skipped, or not run exactly once"; return 1; } ;;
     closure-gate)
       local sub failed=""
       for sub in gate-build gate-vet gate-fmt gate-unit gate-race gate-integration gate-migrations gate-sqlc gate-arch; do
