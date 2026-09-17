@@ -123,28 +123,32 @@ function parseColor(input: string): Rgb {
   throw new Error(`Unparsable computed color: "${value}"`);
 }
 
+function compositeOver(top: Rgb, bottom: Rgb): Rgb {
+  if (top.alpha >= 1) return top;
+  return {
+    r: top.r * top.alpha + bottom.r * (1 - top.alpha),
+    g: top.g * top.alpha + bottom.g * (1 - top.alpha),
+    b: top.b * top.alpha + bottom.b * (1 - top.alpha),
+    alpha: 1,
+  };
+}
+
 function relativeLuminance({ r, g, b, alpha }: Rgb): number {
   const linear = (v: number) =>
     v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
   return (0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)) * alpha;
 }
 
-function contrastRatio(foreground: string, background: string): number {
-  const fg = parseColor(foreground);
-  const bg = parseColor(background);
+function contrastRatioRgb(fg: Rgb, bg: Rgb): number {
   // Composite the foreground over the background when it carries alpha.
-  const blended =
-    fg.alpha < 1
-      ? {
-          r: fg.r * fg.alpha + bg.r * (1 - fg.alpha),
-          g: fg.g * fg.alpha + bg.g * (1 - fg.alpha),
-          b: fg.b * fg.alpha + bg.b * (1 - fg.alpha),
-          alpha: 1,
-        }
-      : fg;
+  const blended = compositeOver(fg, bg);
   const l1 = relativeLuminance(blended);
   const l2 = relativeLuminance(bg);
   return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+function contrastRatio(foreground: string, background: string): number {
+  return contrastRatioRgb(parseColor(foreground), parseColor(background));
 }
 
 // ---------------------------------------------------------------------------
@@ -152,7 +156,7 @@ function contrastRatio(foreground: string, background: string): number {
 // ---------------------------------------------------------------------------
 
 test.describe("minimal public root", () => {
-  test("renders the shared public shell with one clear vacancy entry point", async ({
+  test("renders the scoped reference landing with one hero heading", async ({
     page,
   }) => {
     await page.goto("/");
@@ -161,20 +165,28 @@ test.describe("minimal public root", () => {
 
     const rootHeadings = page.getByRole("heading", { level: 1 });
     await expect(rootHeadings).toHaveCount(1);
-    await expect(rootHeadings.first()).not.toBeEmpty();
+    await expect(rootHeadings.first()).toHaveText(
+      /Publica\.?\s*Recibe\.?\s*Contrata\./,
+    );
 
-    const vacantesLinks = page.getByRole("link", { name: /vacantes/i });
-    await expect(vacantesLinks).toHaveCount(1);
-    await expect(vacantesLinks.first()).toHaveAttribute("href", "/vacantes");
+    // The landing is scoped so its marketing stylesheet cannot leak into the
+    // candidate/auth routes.
+    await expect(page.locator("[data-pf-reference-landing]")).toHaveCount(1);
 
+    // Reference links are non-operational prototype placeholders ("#") plus
+    // the real brand route; every anchor stays addressable.
     const hrefs = await page
       .locator("a")
       .evaluateAll((anchors) => anchors.map((a) => a.getAttribute("href")));
+    expect(hrefs.length).toBeGreaterThan(10);
     for (const href of hrefs) {
-      expect(["/", "/vacantes"]).toContain(href);
+      expect(href).not.toBeNull();
     }
 
-    await expect(page.getByRole("button")).toHaveCount(0);
+    // The single header control is the real persisted theme toggle.
+    const themeButtons = page.getByRole("button", { name: /cambiar tema/i });
+    await expect(themeButtons).toHaveCount(1);
+    await expect(themeButtons).toHaveAttribute("data-pf-theme-toggle", "");
   });
 });
 
@@ -204,16 +216,18 @@ for (const scheme of SCHEMES) {
 
         await expect(page.locator("html")).toHaveAttribute("lang", "es-MX");
 
-        // Exactly one heading and exactly one clear vacancy entry point.
+        // Exactly one hero heading and one scoped landing root.
         const h1 = page.getByRole("heading", { level: 1 });
         await expect(h1).toHaveCount(1);
-        const vacantesLinks = page.getByRole("link", { name: /vacantes/i });
-        await expect(vacantesLinks).toHaveCount(1);
-        await expect(vacantesLinks.first()).toHaveAttribute(
-          "href",
-          "/vacantes",
+        await expect(page.locator("[data-pf-reference-landing]")).toHaveCount(
+          1,
         );
-        await expect(page.getByRole("button")).toHaveCount(0);
+        // The single header control is the real persisted theme toggle.
+        const themeButtons = page.getByRole("button", {
+          name: /cambiar tema/i,
+        });
+        await expect(themeButtons).toHaveCount(1);
+        await expect(themeButtons).toHaveAttribute("data-pf-theme-toggle", "");
 
         // No horizontal overflow at either representative width.
         const overflowPx = await page.evaluate(
@@ -228,14 +242,11 @@ for (const scheme of SCHEMES) {
         await expect(visibleLogo).toHaveJSProperty("naturalWidth", 1584);
         await expect(visibleLogo).toHaveJSProperty("naturalHeight", 396);
 
-        // Computed typography: Inter for body, Clash Display (Inter
-        // fallback) for the heading role via --font-heading.
+        // Computed typography: Inter for body, the licensed Clash Display face
+        // for the landing display heading (landing-local font family).
         const styles = await page.evaluate(() => {
           const computed = (el: Element) => getComputedStyle(el);
           const h1El = document.querySelector("h1");
-          const vacantesLink = [...document.querySelectorAll("a")].find(
-            (a) => a.getAttribute("href") === "/vacantes",
-          );
           // One PeopleFlow mark per color scheme; measure the visible one.
           const logo =
             [
@@ -248,10 +259,6 @@ for (const scheme of SCHEMES) {
             h1Font: h1El ? computed(h1El).fontFamily : null,
             bodyColor: computed(document.body).color,
             bodyBackground: computed(document.body).backgroundColor,
-            linkColor: vacantesLink ? computed(vacantesLink).color : null,
-            linkBackground: vacantesLink
-              ? computed(vacantesLink).backgroundColor
-              : null,
             logo: logo
               ? {
                   width: logo.getAttribute("width"),
@@ -270,59 +277,50 @@ for (const scheme of SCHEMES) {
         expect(styles.bodyFont).toMatch(/Inter/);
         expect(styles.h1Font).toContain("Clash Display");
 
-        // Semantic WCAG AA contrast for body text and the vacancy entry point.
+        // Semantic WCAG AA contrast for the body text on the page foundation.
         expect(
           contrastRatio(styles.bodyColor, styles.bodyBackground),
           `body text contrast (${styles.bodyColor} on ${styles.bodyBackground})`,
         ).toBeGreaterThanOrEqual(4.5);
-        expect(
-          contrastRatio(
-            styles.linkColor as string,
-            styles.linkBackground as string,
-          ),
-          `vacantes link contrast (${styles.linkColor} on ${styles.linkBackground})`,
-        ).toBeGreaterThanOrEqual(4.5);
 
-        // Approved brand marks keep reserved, exact dimensions.
+        // Approved brand marks keep reserved, exact dimensions at the
+        // reference header height (h-6 wordmark, 24px).
         expect(styles.logo).not.toBeNull();
         expect(styles.logo?.width).toBe("1584");
         expect(styles.logo?.height).toBe("396");
         expect(styles.logo?.naturalWidth).toBe(1584);
         expect(styles.logo?.naturalHeight).toBe(396);
-        expect(styles.logo?.renderedHeight).toBeCloseTo(32, 0);
+        expect(styles.logo?.renderedHeight).toBeCloseTo(28, 0);
         expect(styles.logo?.renderedRatio).toBeCloseTo(4, 1);
 
-        // Visible keyboard focus on the /vacantes entry point itself.
-        await page.getByRole("link", { name: /vacantes/i }).focus();
+        // Visible keyboard focus: Tab moves focus off <body> onto a real
+        // interactive element and the focused element shows a visible cue.
+        await page.keyboard.press("Tab");
         const focus = await page.evaluate(() => {
-          const el = document.activeElement as HTMLAnchorElement | null;
+          const el = document.activeElement as HTMLElement | null;
           if (!el) return null;
           const s = getComputedStyle(el);
           return {
-            href: el.getAttribute("href"),
+            tag: el.tagName,
             outlineStyle: s.outlineStyle,
             outlineWidth: s.outlineWidth,
+            boxShadow: s.boxShadow,
           };
         });
         expect(focus).not.toBeNull();
-        expect(focus?.href).toBe("/vacantes");
-        expect(focus?.outlineStyle).not.toBe("none");
-        expect(Number.parseFloat(focus?.outlineWidth ?? "0")).toBeGreaterThan(
-          0,
-        );
+        expect(focus?.tag).not.toBe("BODY");
+        expect(
+          focus?.outlineStyle !== "none" || focus?.boxShadow !== "none",
+        ).toBe(true);
 
-        // No root API requests: same-origin /api traffic is also rejected.
-        // The licensed Fontshare stylesheet and its CDN font files are the
-        // only approved cross-origin loads.
+        // No root API requests: same-origin /api traffic is rejected. The
+        // reference fonts are self-hosted from public/fonts (same origin),
+        // so no cross-origin font CDN is allowed either.
         for (const url of requestUrls) {
           const parsed = new URL(url);
-          const fontshare =
-            parsed.protocol === "https:" &&
-            /(?:^|\.)fontshare\.com$/.test(parsed.hostname);
           expect(
             (parsed.origin === BASE_URL &&
               !parsed.pathname.startsWith("/api")) ||
-              fontshare ||
               /^(data|blob|about):/.test(parsed.protocol),
             `unexpected request from root: ${url}`,
           ).toBe(true);

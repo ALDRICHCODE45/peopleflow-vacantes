@@ -1,53 +1,56 @@
 import * as React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import { THEME_BOOTSTRAP_SCRIPT } from "@/components/theme/theme-preferences";
 import "./globals.css";
 
-// Preset b27M1Ev2 typography: Inter serves the body role; Clash Display is
-// layered on top as the heading role. Fontshare's license requires hosted
-// delivery, so the display face loads through their global stylesheet (with
-// preconnects) instead of next/font or self-hosted files.
+// Preset b27M1Ev2 typography: Inter serves the body role through the
+// framework-managed next/font loader (self-hosted at runtime, no network font
+// dependency). The heading role keeps the licensed "Clash Display" preference
+// in --font-heading (globals.css) and degrades to Inter when that face is not
+// available, so no hosted stylesheet or CDN preconnect is needed.
 const inter = Inter({
-  subsets: ["latin"],
-  display: "swap",
-  variable: "--font-sans",
+    subsets: ["latin"],
+    display: "swap",
+    variable: "--font-sans",
 });
 
 export const metadata: Metadata = {
-  title: {
-    default: "PeopleFlow",
-    template: "%s | PeopleFlow",
-  },
-  description:
-    "Descubre vacantes en PeopleFlow y encuentra tu próxima oportunidad.",
+    title: {
+        default: "PeopleFlow",
+        template: "%s | PeopleFlow",
+    },
+    description:
+        "Descubre vacantes en PeopleFlow y encuentra tu próxima oportunidad.",
 };
 
 export default function RootLayout({
-  children,
+    children,
 }: Readonly<{
-  children: React.ReactNode;
+    children: React.ReactNode;
 }>) {
-  return (
-    <html lang="es-MX" className={`${inter.variable} ${inter.className}`}>
-      {/* Fontshare delivery: warm the two origins, then load the display
-              face. Offline, the "Clash Display" stack falls back to Inter. */}
-      <link
-        rel="preconnect"
-        href="https://api.fontshare.com"
-        crossOrigin="anonymous"
-      />
-      <link
-        rel="preconnect"
-        href="https://cdn.fontshare.com"
-        crossOrigin="anonymous"
-      />
-      <link
-        rel="stylesheet"
-        href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap"
-      />
-      <body className="min-h-dvh bg-background font-sans text-foreground antialiased">
-        {children}
-      </body>
-    </html>
-  );
+    return (
+        <html
+            lang="es-MX"
+            className={`${inter.variable} ${inter.className}`}
+            // The pre-paint theme bootstrap mutates <html> before React hydrates;
+            // suppressHydrationWarning keeps that mutation from being reported as a
+            // hydration mismatch.
+            suppressHydrationWarning
+        >
+            {/* Pre-paint theme bootstrap: resolves the persisted manual choice (or
+          the OS preference) into the dark class / data-theme attribute before
+          first paint. It renders as the FIRST element of <body> — valid HTML
+          placement inside the React tree — and runs parser-blocking before
+          any following content is parsed, so neither the server render nor
+          hydration reads browser state. A <script> directly under <html> is
+          invalid placement and trips the Next hydration-error overlay. */}
+            <body className="min-h-dvh bg-background font-sans text-foreground antialiased">
+                <script data-pf-theme-bootstrap="">
+                    {THEME_BOOTSTRAP_SCRIPT}
+                </script>
+                {children}
+            </body>
+        </html>
+    );
 }

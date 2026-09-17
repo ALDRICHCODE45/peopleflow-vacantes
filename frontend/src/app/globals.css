@@ -47,24 +47,42 @@
     --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Approved semantic palette: reconciled with design/screens/assets/base.css
+   (the static HTML reference). Reference-to-semantic-token mapping, consumed
+   exactly in both themes — no color-space conversion, values used as authored:
+
+     --base      -> --background           (page foundation)
+     --ink       -> --foreground (+ *-foreground roles)
+     --surface   -> --card
+     --elevated  -> --popover
+     --surface2  -> --secondary / --muted / --accent
+     --line      -> --border / --input
+     --muted     -> --muted-foreground
+     --top-glow-alpha -> --pf-glow-alpha
+     --grid-dot-alpha -> --pf-grid-dot-alpha
+
+   Accent identity is NOT part of the reconciliation: --primary/--primary-
+   foreground keep the configured violet preset values, chart tokens stay
+   neutral, and --radius/--ring/--destructive are untouched. */
 :root {
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
+    color-scheme: light;
+    --background: #F7F5FB;
+    --foreground: #1A1626;
+    --card: #FFFFFF;
+    --card-foreground: #1A1626;
+    --popover: #FFFFFF;
+    --popover-foreground: #1A1626;
     --primary: oklch(0.491 0.27 292.581);
     --primary-foreground: oklch(0.969 0.016 293.756);
-    --secondary: oklch(0.967 0.001 286.375);
-    --secondary-foreground: oklch(0.21 0.006 285.885);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.439 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
+    --secondary: #F1EEF7;
+    --secondary-foreground: #1A1626;
+    --muted: #F1EEF7;
+    --muted-foreground: #6B6480;
+    --accent: #F1EEF7;
+    --accent-foreground: #1A1626;
     --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
+    --border: #E4DFF0;
+    --input: #E4DFF0;
     --ring: oklch(0.708 0 0);
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
@@ -72,8 +90,8 @@
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
     --radius: 0.625rem;
-    --pf-glow-alpha: 0.1;
-    --pf-grid-dot-alpha: 0.06;
+    --pf-glow-alpha: 0.12;
+    --pf-grid-dot-alpha: 0.07;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: oklch(0.541 0.281 293.009);
@@ -85,26 +103,27 @@
 }
 
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
+    color-scheme: dark;
+    --background: #0C0912;
+    --foreground: #F6F2FF;
+    --card: #15121F;
+    --card-foreground: #F6F2FF;
+    --popover: #1A1626;
+    --popover-foreground: #F6F2FF;
     --primary: oklch(0.432 0.232 292.759);
     --primary-foreground: oklch(0.969 0.016 293.756);
-    --secondary: oklch(0.274 0.006 286.033);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
+    --secondary: #171226;
+    --secondary-foreground: #F6F2FF;
+    --muted: #171226;
+    --muted-foreground: #A79FBF;
+    --accent: #171226;
+    --accent-foreground: #F6F2FF;
     --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
+    --border: #262233;
+    --input: #262233;
     --ring: oklch(0.556 0 0);
-    --pf-glow-alpha: 0.2;
-    --pf-grid-dot-alpha: 0.1;
+    --pf-glow-alpha: 0.22;
+    --pf-grid-dot-alpha: 0.11;
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
@@ -133,29 +152,35 @@
 }
 
 /* System-preference dark tokens: same values as the .dark block, applied
-   without a toggle. The .dark class block above stays for a future toggle. */
+   only while no explicit manual choice exists (the manual theme contract
+   gates this block with :root:not([data-theme])). */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
+  /* Manual theme contract: applies only until an explicit choice exists. The
+     pre-paint bootstrap sets data-theme on <html> for a persisted light/dark
+     choice, so the system preference owns the default without ever fighting
+     the manual control. */
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --background: #0C0912;
+    --foreground: #F6F2FF;
+    --card: #15121F;
+    --card-foreground: #F6F2FF;
+    --popover: #1A1626;
+    --popover-foreground: #F6F2FF;
     --primary: oklch(0.432 0.232 292.759);
     --primary-foreground: oklch(0.969 0.016 293.756);
-    --secondary: oklch(0.274 0.006 286.033);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
+    --secondary: #171226;
+    --secondary-foreground: #F6F2FF;
+    --muted: #171226;
+    --muted-foreground: #A79FBF;
+    --accent: #171226;
+    --accent-foreground: #F6F2FF;
     --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
+    --border: #262233;
+    --input: #262233;
     --ring: oklch(0.556 0 0);
-    --pf-glow-alpha: 0.2;
-    --pf-grid-dot-alpha: 0.1;
+    --pf-glow-alpha: 0.22;
+    --pf-grid-dot-alpha: 0.11;
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
     --chart-3: oklch(0.439 0 0);
@@ -178,15 +203,50 @@
   display: none;
 }
 
+/* Explicit manual choice: the resolved theme class owns the wordmark swap. */
+.dark .brand-mark-light {
+  display: none;
+}
+
+.dark .brand-mark-dark {
+  display: block;
+}
+
 @media (prefers-color-scheme: dark) {
-  .brand-mark-light {
+  /* System default only: gated the same way as the token block above, so a
+     persisted light choice on a dark-OS device still shows the light mark. */
+  :root:not([data-theme]) .brand-mark-light {
     display: none;
   }
 
-      .brand-mark-dark {
-        display: block;
-      }
-    }
+  :root:not([data-theme]) .brand-mark-dark {
+    display: block;
+  }
+}
+
+/* Manual theme control icon contract (theme-control markup contract from the
+   approved reference): the button carries data-pf-theme-toggle and three
+   lucide icons with pf-icon-sun / pf-icon-moon / pf-icon-system. CSS — not
+   React state — reveals the icon matching the resolved theme, so server
+   markup, first paint, and post-bootstrap paint all agree (no hydration
+   mismatch, no icon flash). */
+[data-pf-theme-toggle] .pf-icon-sun,
+[data-pf-theme-toggle] .pf-icon-moon,
+[data-pf-theme-toggle] .pf-icon-system {
+  display: none;
+}
+
+:root[data-theme="dark"] [data-pf-theme-toggle] .pf-icon-sun {
+  display: block;
+}
+
+:root[data-theme="light"] [data-pf-theme-toggle] .pf-icon-moon {
+  display: block;
+}
+
+:root:not([data-theme]) [data-pf-theme-toggle] .pf-icon-system {
+  display: block;
+}
 
     /* /vacantes ambient depth helpers: static violet top glow and masked dot
        grid, theme-aware through the semantic --primary token (preset Violet
