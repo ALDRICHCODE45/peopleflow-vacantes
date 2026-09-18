@@ -22,6 +22,16 @@ export type RequestJsonOptions<T, E = never> = {
   timeoutMs?: number;
   /** Exact status that maps to a not-found result; every other status never does. */
   notFoundStatus?: number;
+  /**
+   * Exact success status. When supplied, only a response carrying this status is
+   * a success: another success-class (`2xx`) response is an `invalid_response`,
+   * because the endpoint contract was violated rather than a server error
+   * reported, and its body is never decoded as an error envelope. Omitting the
+   * option keeps the historical "any 2xx" rule every read caller relies on.
+   * Non-2xx responses keep the existing status/not-found classification and
+   * envelope decoding whatever the expected status is.
+   */
+  expectedStatus?: number;
   /** HTTP method. Omitting it keeps the GET-only default every read caller relies on. */
   method?: string;
   /**
@@ -58,8 +68,21 @@ export async function requestJson<T, E = never>(
   try {
     const response = await fetch(url, buildRequestInit(options, controller.signal));
 
-    if (!response.ok) {
-      const status = response.status;
+    const status = response.status;
+    const succeeded =
+      options.expectedStatus === undefined
+        ? response.ok
+        : status === options.expectedStatus;
+
+    if (!succeeded) {
+      // A success-class body that misses the exact expected status is a success
+      // payload, not an error envelope: it is classified without being read.
+      if (response.ok) {
+        return {
+          ok: false,
+          error: { kind: "invalid_response", retryable: false },
+        };
+      }
       const envelope = await decodeErrorEnvelope(response, options.errorDecoder);
       if (
         options.notFoundStatus !== undefined &&

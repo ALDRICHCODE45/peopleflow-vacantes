@@ -288,6 +288,97 @@ describe("generic JSON transport", () => {
     });
   });
 
+  it("accepts any 2xx when no exact expected status is requested", async () => {
+    for (const statusCode of [200, 201, 202, 206]) {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(response(statusCode, { hello: "mundo" })),
+      );
+      await expect(requestJson(url, { decoder })).resolves.toEqual({
+        ok: true,
+        data: { hello: "mundo" },
+      });
+    }
+  });
+
+  it("accepts only the exact expected status and fails closed on any other 2xx", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(response(201, { hello: "mundo" })),
+    );
+    await expect(
+      requestJson(url, { decoder, expectedStatus: 201 }),
+    ).resolves.toEqual({ ok: true, data: { hello: "mundo" } });
+
+    const jsonSpy = vi.fn(async () => ({ hello: "mundo" }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, json: jsonSpy }),
+    );
+    const result = await requestJson(url, { decoder, expectedStatus: 201 });
+
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: "invalid_response", retryable: false },
+    });
+    expect(Object.hasOwn(result, "envelope")).toBe(false);
+    // The mismatched body is a success payload, so it is never read as an error envelope.
+    expect(jsonSpy).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain("mundo");
+  });
+
+  it("keeps the non-2xx classification, envelope decoding, and not-found discriminator under an expected status", async () => {
+    const envelope = { error: "unauthenticated", code: "unauthenticated" };
+    const errorDecoder = (value: unknown) =>
+      value as { error: string; code: string };
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(401, envelope)));
+    await expect(
+      requestJson(url, { decoder, expectedStatus: 201, errorDecoder }),
+    ).resolves.toEqual({
+      ok: false,
+      error: { kind: "status", retryable: false, status: 401 },
+      envelope,
+    });
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(503)));
+    await expect(
+      requestJson(url, { decoder, expectedStatus: 201 }),
+    ).resolves.toEqual({
+      ok: false,
+      error: { kind: "status", retryable: true, status: 503 },
+    });
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(404)));
+    await expect(
+      requestJson(url, {
+        decoder,
+        expectedStatus: 201,
+        notFoundStatus: 404,
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: { kind: "not_found", retryable: false, status: 404 },
+    });
+
+    // The exact-status rule never relaxes the decoder for a matching status.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(response(201, { hello: "mundo" })),
+    );
+    await expect(
+      requestJson(url, {
+        decoder: () => {
+          throw new Error("schema violation details");
+        },
+        expectedStatus: 201,
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      error: { kind: "invalid_response", retryable: false },
+    });
+  });
+
   it("never logs: every failure classification stays silent on the console", async () => {
     const methods = ["log", "info", "warn", "error", "debug"] as const;
     const spies = methods.map((m) =>
