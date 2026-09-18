@@ -1,0 +1,161 @@
+/**
+ * Route-scoped presence module for the official shadcn `dashboard-01`
+ * reproduction.
+ *
+ * Why this exists: the dashboard renders the generated block verbatim, so the
+ * measured geometry corrections and the portal coverage live here instead of in
+ * the generated files. The palette does NOT live here:
+ * `frontend/src/app/globals.css` is the single source of truth for the canonical
+ * PeopleFlow semantics (light, `.dark`, and the system-preference gate), and the
+ * dashboard inherits them through the same cascade as the rest of the product.
+ * No neutral or otherwise local color token is declared below, in either scheme,
+ * so this module can never shadow the canonical palette for the dashboard
+ * subtree or for the body-level portals.
+ *
+ * The module class is mounted on the `SidebarProvider` in the dashboard route
+ * and owns two scoped concerns:
+ *   1. the dashboard-only font role and geometry corrections below;
+ *   2. route presence, so portal-rendered content can be reached at all.
+ *
+ * Every provider-scoped rule is therefore mirrored with a `:has()` selector on
+ * `<body>` that reaches the local class, because portals (the mobile sidebar
+ * Sheet, dropdown menus, selects, drawers) mount under `<body>` and escape the
+ * provider subtree. Without it, the mobile drawer would render outside the
+ * dashboard subtree.
+ *
+ * Every rule carries two selectors on purpose:
+ *   - `.root` (the module class on the dashboard `SidebarProvider`) scopes the
+ *     provider subtree;
+ *   - `:global(body):has(.root)` scopes by *route presence* for the portals.
+ *
+ * `--radius` is restated for completeness even though the project already ships
+ * the official `0.625rem`; `--radius-*` derive from it in `globals.css`.
+ */
+
+.root,
+:global(body):has(.root) {
+  --radius: 0.625rem;
+
+  /* Approved scaffold: the heading role is the sans role. */
+  --font-heading: var(--font-sans);
+}
+
+/*
+ * Tailwind v4's `@theme inline` inlines the project's literal value into the
+ * `font-heading` utility (`.font-heading { font-family: "Clash Display",
+ * var(--font-sans); }`), so the alias above never reaches the generated
+ * `CardTitle`. Re-point the utility inside this subtree only.
+ */
+.root :global(.font-heading) {
+  font-family: var(--font-sans);
+}
+
+/*
+ * Measured geometry — radii.
+ *
+ * The screenshot-era block is the `registry/new-york-v4` rendering (verified
+ * with `shadcn view dashboard-01`), which rounds cards with `rounded-xl` and
+ * buttons with `rounded-md`; the Base UI `base-rhea` primitives this project
+ * vendors round them with `--radius-4xl` / `--radius-2xl` instead.
+ *
+ *   card   : `rounded-xl`  -> var(--radius-xl)  (14px at --radius: 0.625rem)
+ *   button : `rounded-md`  -> var(--radius-md)  (8px  at --radius: 0.625rem)
+ *
+ * Both selectors are listed so portal-rendered buttons (drawer footer) inherit
+ * the same geometry as the provider subtree.
+ */
+.root :global([data-slot="card"]),
+body:has(.root) :global([data-slot="card"]) {
+  border-radius: var(--radius-xl);
+}
+
+.root :global([data-slot="button"]),
+body:has(.root) :global([data-slot="button"]) {
+  border-radius: var(--radius-md);
+}
+
+/*
+ * Measured vertical geometry at the 1460x1013 reference.
+ *
+ * A single shared card-spacing value over-expanded both card surfaces: the KPI
+ * cards came out ~16-17px too tall and the chart card pushed everything below it
+ * down. The two surfaces therefore carry their own measured spacing, and the
+ * inter-section offsets are applied to the semantic markers instead of ordinal
+ * selectors.
+ *
+ *   KPI cards      : spacing * 4.6 (~18.4px) — removes the ~16-17px over-height
+ *   SectionCards   : +3px top, +2px bottom — KPI top ~83px, following chart
+ *                    top ~291px
+ *   chart card     : spacing * 5.5 (~22px)  — chart card height ~392px
+ *   data-table     : gap 24px -> 30px       — table top ~767px, tabs ~707px
+ *
+ * These rules stay inside the provider subtree on purpose: portal-rendered
+ * content (drawer) contains no KPI/chart/table surface, so it only needs the
+ * radius rules above.
+ */
+.root :global([data-pf-kpi-cards]) {
+  padding-top: 3px;
+  padding-bottom: 2px;
+}
+
+.root :global([data-pf-kpi-cards] [data-slot="card"]) {
+  --card-spacing: calc(var(--spacing) * 4.6);
+  /* Decoupled internal vertical axes. The +15px of internal additions
+     (8 top padding + 2 header gap + 4 card/footer gap + 1 footer gap) is offset
+     by dropping the bottom padding from 18.4px to 3.4px, so the card's outer
+     height stays 183.17px. */
+  padding-top: 26.4px;
+  padding-bottom: 3.4px;
+  /* Card-to-footer flex gap: 18.4px -> 22.4px. */
+  gap: 22.4px;
+  /* Root-cause stabilisation: the fourth card's wrapped line used to set the
+     grid row height, so the KPI row collapsed by 20px once that line was pinned
+     to nowrap. The measured row height is therefore declared explicitly instead
+     of being derived from whichever card happens to be tallest. */
+  min-height: 183.17px;
+}
+
+.root :global([data-pf-kpi-cards] [data-slot="card-header"]) {
+  /* Left padding 18.4px -> 24px. The right padding is deliberately untouched so
+     the right-aligned badge keeps its offset. */
+  padding-left: 24px;
+  /* Header row gap 6px -> 8px: moves the title, not the description. */
+  row-gap: 8px;
+}
+
+.root :global([data-pf-kpi-cards] [data-slot="card-footer"]) {
+  /* Footer left padding 18.4px -> 24px (no right-aligned content). */
+  padding-left: 24px;
+  /* Footer internal gap 6px -> 7px: moves the secondary line only. */
+  row-gap: 7px;
+}
+
+.root :global([data-pf-growth-footer]) {
+  /* Fourth card only: the reference keeps this line on one line at ~1186..1400.
+     The wrap it replaced also displaced the secondary line by ~21px, so the line
+     is pinned to a single line and lightly tracked in. Typography (14px size,
+     weight, line height, icon and gap) comes from the shared utilities and is
+     deliberately not re-declared. */
+  white-space: nowrap;
+  letter-spacing: -0.45px;
+}
+
+.root :global([data-pf-chart-card]) {
+  --card-spacing: calc(var(--spacing) * 5.5);
+  /* Horizontal boundary: the settled left edge is already at ~312, so only the
+     right side is trimmed by 3px to trim the stretched width. Vertical geometry,
+     content and the header are untouched. */
+  margin-right: 3px;
+}
+
+.root :global([data-pf-chart-card] [data-slot="card-header"]) {
+  /* Effective right padding 25px. It was 28px, but the chart card's right edge
+     moved 3px left with the margin above, so the padding drops by the same 3px to
+     keep the range control's right edge at ~1400. The left padding and the
+     heading stay put. */
+  padding-right: 25px;
+}
+
+.root :global([data-pf-data-table]) {
+  gap: 30px;
+}
