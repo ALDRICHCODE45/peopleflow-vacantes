@@ -6,9 +6,19 @@ import "@testing-library/jest-dom/vitest";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import EmployerDashboardPage, {
+import EmployerDashboardContent, {
   metadata,
 } from "./page";
+import { EmployerShell } from "@/components/company-dashboard/employer-shell";
+
+// Mirrors the (empresa) layout: the shell wraps the route content.
+function EmployerDashboardPage() {
+  return (
+    <EmployerShell>
+      <EmployerDashboardContent />
+    </EmployerShell>
+  );
+}
 import { formatTickLabel } from "@/components/company-dashboard/chart-area-interactive";
 
 // Vitest runs from frontend/, so cwd-relative paths keep the assertions stable.
@@ -319,7 +329,7 @@ describe("/empresa/dashboard renders the complete official dashboard-01 block", 
     // hand-written placeholder surface.
     expect(pageSource).not.toMatch(/data-pf-preview-regions|data-pf-employer-dashboard/);
     expect(pageSource).not.toMatch(/Prototipo visual, sin datos reales/);
-    expect(pageSource).toContain(
+    expect(pageSource).not.toContain(
       'from "@/components/company-dashboard/app-sidebar"',
     );
     expect(pageSource).toContain(
@@ -507,13 +517,6 @@ function renderedSeriesColors(): Record<string, string> {
 }
 
 describe("dashboard-01 canonical PeopleFlow semantic inheritance", () => {
-  it("applies the route-scoped module at the SidebarProvider boundary", () => {
-    expect(pageSource).toContain(
-      'import dashboardTheme from "@/components/company-dashboard/dashboard-01-theme.module.css"',
-    );
-    expect(pageSource).toMatch(/<SidebarProvider\s+className=\{dashboardTheme\.root\}/);
-  });
-
   it("carries the scoped class on the rendered composition root", () => {
     stubBrowserApis();
     render(<EmployerDashboardPage />);

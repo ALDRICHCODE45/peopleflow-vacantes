@@ -5,7 +5,17 @@ import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import Page, { metadata } from "./page";
+import PageContent, { metadata } from "./page";
+import { EmployerShell } from "@/components/company-dashboard/employer-shell";
+
+// Mirrors the (empresa) layout: the shell wraps the route content.
+function Page() {
+  return (
+    <EmployerShell>
+      <PageContent />
+    </EmployerShell>
+  );
+}
 
 // Vitest runs from frontend/, so cwd-relative paths keep the assertions stable.
 const pageSource = readFileSync(
@@ -123,26 +133,9 @@ describe("/empresa/vacantes/nueva employer route", () => {
 });
 
 describe("/empresa/vacantes/nueva composition boundary", () => {
-  it("composes the shell from the committed dashboard primitives", () => {
-    expect(pageSource).toContain(
-      'import { AppSidebar } from "@/components/company-dashboard/app-sidebar"',
-    );
-    expect(pageSource).toContain(
-      '} from "@/components/company-dashboard/ui/sidebar"',
-    );
-    expect(pageSource).toContain(
-      'import dashboardTheme from "@/components/company-dashboard/dashboard-01-theme.module.css"',
-    );
-
-    // Route-scoped theme module on the provider boundary, exactly as the
-    // committed dashboard route applies it.
-    expect(pageSource).toMatch(/<SidebarProvider\s+className=\{dashboardTheme\.root\}/);
-    expect(pageSource).toContain('"--sidebar-width": "calc(var(--spacing) * 72)"');
-    expect(pageSource).toContain('"--header-height": "calc(var(--spacing) * 12)"');
-    expect(pageSource).toContain('<AppSidebar variant="inset" />');
-    expect(pageSource).toContain("<SidebarInset>");
-
-    // Only the route-specific header plus the verified form body are mounted.
+  it("mounts only its header and the verified form body", () => {
+    // The (empresa) layout owns the single frame and guards the route tokens;
+    // this route contributes only its own header and the form body.
     expect(pageSource).toContain("<CreateVacancyHeader />");
     expect(pageSource).toContain("<CreateVacancyForm />");
   });
