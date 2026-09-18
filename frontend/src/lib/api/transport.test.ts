@@ -126,6 +126,168 @@ describe("generic JSON transport", () => {
     expect(JSON.stringify(result)).not.toContain("schema violation details");
   });
 
+  it("keeps the GET-only request shape when no caller sends a method, body, or headers", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(response(200, { hello: "mundo" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await requestJson(url, { decoder });
+    const [calledUrl, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(calledUrl).toBe(url);
+    expect(init.method === undefined || init.method === "GET").toBe(true);
+    expect(init.body).toBeUndefined();
+    const headers = new Headers(init.headers);
+    expect([...headers.keys()].sort()).toEqual(["accept"]);
+    // The transport never invents authorization for any caller.
+    expect(headers.get("authorization")).toBeNull();
+    expect(init.cache).toBe("no-store");
+  });
+
+  it("serializes a JSON body with the POST method and applies the JSON content type by default", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(response(201, { hello: "mundo" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const body = { title: "Ingeniera Frontend", salary_min: 25000 };
+    await expect(
+      requestJson(url, { decoder, method: "POST", body }),
+    ).resolves.toEqual({ ok: true, data: { hello: "mundo" } });
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(init.method).toBe("POST");
+    expect(init.body).toBe(JSON.stringify(body));
+    const headers = new Headers(init.headers);
+    expect(headers.get("accept")).toBe("application/json");
+    expect(headers.get("content-type")).toBe("application/json");
+    expect(headers.get("authorization")).toBeNull();
+  });
+
+  it("merges caller headers over the transport defaults so a JSON caller owns its content type", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(response(201, { hello: "mundo" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await requestJson(url, {
+      decoder,
+      method: "POST",
+      body: { hello: "mundo" },
+      headers: {
+        "content-type": "application/vnd.peopleflow+json",
+        "x-request-id": "req-1",
+        accept: "application/vnd.peopleflow+json",
+      },
+    });
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get("content-type")).toBe("application/vnd.peopleflow+json");
+    expect(headers.get("accept")).toBe("application/vnd.peopleflow+json");
+    expect(headers.get("x-request-id")).toBe("req-1");
+    expect(headers.get("authorization")).toBeNull();
+  });
+
+  it("attaches a decoded error envelope only when the caller supplies an error decoder", async () => {
+    const envelope = { error: "company is not active", code: "company_not_active" };
+    const errorDecoder = (value: unknown) =>
+      value as { error: string; code: string };
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(409, envelope)));
+    await expect(requestJson(url, { decoder, errorDecoder })).resolves.toEqual({
+      ok: false,
+      error: { kind: "status", retryable: false, status: 409 },
+      envelope,
+    });
+
+    // Without the opt-in decoder the failure result is byte-for-byte the old one.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(409, envelope)));
+    const undecoded = await requestJson(url, { decoder });
+    expect(undecoded).toEqual({
+      ok: false,
+      error: { kind: "status", retryable: false, status: 409 },
+    });
+    expect((undecoded as { envelope?: unknown }).envelope).toBeUndefined();
+
+    // A non-JSON body, and a decoder that rejects the body, keep the status
+    // classification and never surface error-body detail.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(500)));
+    const unparsable = await requestJson(url, { decoder, errorDecoder });
+    expect(unparsable).toEqual({
+      ok: false,
+      error: { kind: "status", retryable: true, status: 500 },
+    });
+    expect((unparsable as { envelope?: unknown }).envelope).toBeUndefined();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(response(500, { message: "raw failure detail" })),
+    );
+    const rejected = await requestJson(url, {
+      decoder,
+      errorDecoder: () => {
+        throw new Error("not an envelope: raw failure detail");
+      },
+    });
+    expect(rejected).toEqual({
+      ok: false,
+      error: { kind: "status", retryable: true, status: 500 },
+    });
+    expect(JSON.stringify(rejected)).not.toContain("raw failure detail");
+  });
+
+  it("attaches the envelope key only when an error decoder produced a value", async () => {
+    const envelope = { error: "forbidden", code: "forbidden" };
+    const errorDecoder = (value: unknown) =>
+      value as { error: string; code: string };
+
+    // No decoder: the legacy failure shape owns no `envelope` property at all.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(403, envelope)));
+    const noDecoder = await requestJson(url, { decoder });
+    expect(Object.hasOwn(noDecoder, "envelope")).toBe(false);
+    expect(noDecoder).toEqual({
+      ok: false,
+      error: { kind: "status", retryable: false, status: 403 },
+    });
+
+    // The not-found branch keeps the same legacy shape.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(404)));
+    const notFound = await requestJson(url, { decoder, notFoundStatus: 404 });
+    expect(Object.hasOwn(notFound, "envelope")).toBe(false);
+
+    // Unparsable error body.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(500)));
+    const unparsable = await requestJson(url, { decoder, errorDecoder });
+    expect(Object.hasOwn(unparsable, "envelope")).toBe(false);
+
+    // A decoder that rejects the body.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(response(500, { message: "raw failure detail" })),
+    );
+    const rejected = await requestJson(url, {
+      decoder,
+      errorDecoder: () => {
+        throw new Error("not an envelope: raw failure detail");
+      },
+    });
+    expect(Object.hasOwn(rejected, "envelope")).toBe(false);
+
+    // A decoder that resolves to no value.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(500, envelope)));
+    const undefinedEnvelope = await requestJson(url, {
+      decoder,
+      errorDecoder: () => undefined,
+    });
+    expect(Object.hasOwn(undefinedEnvelope, "envelope")).toBe(false);
+
+    // A decoded value is the only case that owns the key.
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(403, envelope)));
+    const decoded = await requestJson(url, { decoder, errorDecoder });
+    expect(Object.hasOwn(decoded, "envelope")).toBe(true);
+    expect(decoded).toEqual({
+      ok: false,
+      error: { kind: "status", retryable: false, status: 403 },
+      envelope,
+    });
+  });
+
   it("never logs: every failure classification stays silent on the console", async () => {
     const methods = ["log", "info", "warn", "error", "debug"] as const;
     const spies = methods.map((m) =>
