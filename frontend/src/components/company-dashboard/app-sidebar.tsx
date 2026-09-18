@@ -30,8 +30,8 @@ import {
 /**
  * Recruiting navigation for the employer dashboard prototype.
  *
- * Only `Dashboard` resolves to a real route; every other destination is an
- * unresolved product surface and therefore stays on the safe `#` placeholder.
+ * `Dashboard` and the primary create action resolve to real routes; every
+ * remaining destination is unresolved and stays on the safe `#` placeholder.
  */
 const data = {
   user: {
@@ -136,13 +136,24 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupContent className="flex flex-col gap-2">
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton
-                  tooltip="Nueva vacante"
-                  className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
-                >
-                  <IconCirclePlusFilled />
-                  <span>Nueva vacante</span>
-                </SidebarMenuButton>
+                {/*
+                  Progressive enhancement: the primary action is a native GET
+                  form, so the browser alone navigates to the create screen.
+                  The control therefore stays a button instead of becoming an
+                  anchor, and this sidebar needs no router, click handler or
+                  client navigation runtime. `SidebarMenuButton` declares no
+                  button type of its own, so the submit role is explicit here.
+                */}
+                <form action="/empresa/vacantes/nueva" method="get">
+                  <SidebarMenuButton
+                    type="submit"
+                    tooltip="Nueva vacante"
+                    className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
+                  >
+                    <IconCirclePlusFilled />
+                    <span>Nueva vacante</span>
+                  </SidebarMenuButton>
+                </form>
               </SidebarMenuItem>
             </SidebarMenu>
             <SidebarMenu>

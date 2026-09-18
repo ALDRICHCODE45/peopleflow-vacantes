@@ -8,6 +8,10 @@ import { join } from "node:path";
 import { AppSidebar } from "./app-sidebar";
 import { SidebarProvider } from "./ui/sidebar";
 
+// The create action navigates through a native GET form instead of the App
+// Router, so the suite needs no router mock: the browser owns the navigation.
+const CREATE_VACANCY_ROUTE = "/empresa/vacantes/nueva";
+
 // Vitest runs from frontend/, so cwd-relative paths keep the assertions stable.
 const source = readFileSync(
   join(process.cwd(), "src/components/company-dashboard/app-sidebar.tsx"),
@@ -232,6 +236,76 @@ describe("company dashboard sidebar navigation", () => {
     ]) {
       expect(source, `${dead} dead definition`).not.toContain(dead);
     }
+  });
+});
+
+describe("company dashboard sidebar create action", () => {
+  beforeEach(stubBrowserApis);
+
+  it("keeps the create action on native button semantics instead of a link", () => {
+    renderSidebar();
+
+    const cta = screen.getByRole("button", { name: "Nueva vacante" });
+
+    expect(cta.tagName).toBe("BUTTON");
+    // `SidebarMenuButton` defaults to a button and declares no type, so the
+    // submit role has to be explicit for the surrounding form to be used.
+    expect(cta).toHaveAttribute("type", "submit");
+    expect(cta.closest("a")).toBeNull();
+    expect(cta).not.toHaveAttribute("href");
+    expect(screen.queryByRole("link", { name: "Nueva vacante" })).toBeNull();
+  });
+
+  it("submits the create-vacancy route through a native GET form", () => {
+    renderSidebar();
+
+    const cta = screen.getByRole("button", { name: "Nueva vacante" });
+    const form = cta.closest("form");
+
+    expect(form, "surrounding create-vacancy form").not.toBeNull();
+    expect(form!.getAttribute("action")).toBe(CREATE_VACANCY_ROUTE);
+    expect(form!.getAttribute("method")).toBe("get");
+    // Native submission: the action is a real destination, so the control keeps
+    // working without the client runtime.
+    expect(form!.querySelector("a")).toBeNull();
+  });
+
+  it("declares no router, click handler or document navigation", () => {
+    // Progressive enhancement only: no App Router hook, no render-time exception
+    // control flow, no imperative navigation and no private Next context.
+    for (const forbidden of [
+      "next/navigation",
+      "useRouter",
+      "next/dist",
+      "onClick",
+      "window.location",
+      "try {",
+      "catch {",
+    ]) {
+      expect(
+        source,
+        `app-sidebar.tsx must not declare ${forbidden}`,
+      ).not.toContain(forbidden);
+    }
+
+    // The destination is bound declaratively to the form action.
+    expect(source).toContain(`action="${CREATE_VACANCY_ROUTE}"`);
+  });
+
+  it("leaves the remaining recruiting navigation on its anchors", () => {
+    renderSidebar();
+
+    for (const label of [...PRINCIPAL_ITEMS.slice(1), ...ORGANIZATION_ITEMS]) {
+      const link = screen.getByRole("link", { name: label });
+      expect(link.tagName, `${label} destination`).toBe("A");
+      expect(link).toHaveAttribute("href", "#");
+    }
+
+    // The create form is the only form in the shell, and it wraps only the
+    // create action.
+    const forms = document.querySelectorAll("form");
+    expect(forms).toHaveLength(1);
+    expect(forms[0].textContent).toContain("Nueva vacante");
   });
 });
 
