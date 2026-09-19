@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R1 review and commit
+- Current task: CCP-R2 review and commit
 - Push/PR: not authorized
 
 ## Goal
@@ -47,7 +47,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-05 — Visual polish and responsive states:** Loaded the existing Clash Display assets globally, replaced the external placeholder cover with a provenance-pinned local public-domain WebP through `next/image`, and corrected the enriched detail heading hierarchy. Preserved the intentional OS-only public theme behavior and deferred browser-only focus/overflow/contrast decisions to CCP-06. Authored 234/400 text lines plus one 206,060-byte binary asset. Verification: 44/44 focused, 143/144 adjacent with one proven pre-existing dashboard token failure, TypeScript and exact-scope ESLint PASS; independent verifier PASS. Commit evidence: `854c72c75f57372e60c547fa22f4027e072f3ce2`.
 - [x] **CCP-06 — Integrated browser acceptance:** Technical acceptance completed: desktop/mobile light/dark Playwright matrix, axe smoke, keyboard/focus, no-overflow, truthful-copy, route/SEO, regression suites, reduced motion, local asset/font loading, and request-boundary checks passed after correcting two dark-link contrast defects. Human review rejected the visual baseline and authorized a reference-faithful redesign. Contrast-fix commit evidence: `973fec9ffc51f57cdd9a14492895d5325f418d55`.
 - [x] **CCP-R1 — Public shell and theme controls:** Matched the reference public navbar with PeopleFlow brand, Vacantes/Empresas/Recursos, dark-light toggle, Ingresar, and Publicar vacante; kept placeholder actions non-mutating and mobile-safe. Authored 397/400 lines. Verification: 21/21 focused, 50/50 adjacent, 27/27 Chromium board, 18/18 audit cases, zero axe nodes/overflow, target sizes and theme persistence/restoration PASS; independent verifier PASS. Commit evidence: `310f58bf6491cba0e519273a93e31497d65a5702`.
-- [ ] **CCP-R2 — Prototype metrics and visual primitives:** Extend local-only enrichment with applicants, response time, featured/verified state and relative-time presentation; add reusable gradient/icon-tile/prototype disclosure primitives without wire/API changes. Forecast: 250–400 lines.
+- [x] **CCP-R2 — Prototype metrics and visual primitives:** Extended local-only enrichment with applicants, response time, featured/verified state, experience and relative-time presentation; added reusable monogram, verification, label, and prototype-disclosure primitives without wire/API changes. Authored 267/400 lines. Verification: 23/23 focused, 33/33 adjacent, TypeScript and exact-scope ESLint PASS; independent verifier PASS. Commit evidence: pending.
 - [ ] **CCP-R3 — Reference-faithful public cards:** Rebuild shared `VacancyCard` to the supplied horizontal left-content/right-salary layout with logo tile, metadata, description, skills/benefits, bookmark, CTA, verification, responsive stacking, and hover polish. Forecast: 300–400 lines.
 - [ ] **CCP-R4 — Reference-faithful detail layout:** Rebuild canonical vacancy detail to match `design/screens/vacante-detalle.html`: rich header, stat cards, structured content, benefits/company sections, two-column body, and sticky salary/action/share rail. Forecast: 300–400 lines.
 - [ ] **CCP-R5 — Prototype interactions:** Add accessible client islands for save/apply/share/bookmark feedback with explicit prototype disclosure and zero fetch/storage/business mutations. Forecast: 250–400 lines.
@@ -72,6 +72,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - CCP-05: independent verifier PASS. Local cover `acme-cover.webp` is 1600×900, 206,060 bytes, SHA-256 `1f1231ae8a0bf195deee5a466b2078cbacb217dc01a8a0047a3bd185761dd86f`; Commons/USDA public-domain provenance and transformation are committed alongside it. The adjacent dashboard `--brand-decorative-strong` failure is pre-existing in HEAD.
 - CCP-06 technical acceptance: original matrix found five serious dark-link contrast nodes at 2.14–2.15:1. Company/detail body links now use `text-foreground` with persistent underline; independent rerun passed 35/35 focused tests, TypeScript, ESLint, and 18 browser/axe cases with zero axe nodes. Existing suites resolved to board 27/27, detail 16/16, and cross-cutting remainder 3/3; its root-link first test remains pre-existing RED. Zero business/API mutations were observed; development-only Next diagnostic POSTs were caused by pre-existing Base UI warnings on the board.
 - CCP-R1: independent verifier PASS at 397/400. Real browser targets are ≥40px for logo/nav/login/toggle and ≥36px for the publish CTA; mobile hides desktop nav/login without overflow. Toggle click, `pf-theme` persistence, reload, cleanup, and system-mode restoration passed.
+- CCP-R2: independent verifier PASS at 267/400. Six new fields remain local to `PrototypeJobEnrichment`; wire schemas/API decoding are unchanged. Reusable UI helpers are server-safe, noninteractive, token-only, and explicitly disclose that prototype data/actions do not connect to a backend.
 
 ## Redesign feedback
 - The first visual baseline was technically accepted but human-rejected as too flat and too far from the committed design references.
@@ -79,4 +80,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Attempt native review for CCP-R1, then implement CCP-R2 local-only metrics and reference visual primitives.
+Commit CCP-R2, record its identity, attempt native review, then implement CCP-R3 reference-faithful shared public cards.

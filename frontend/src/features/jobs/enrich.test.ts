@@ -40,8 +40,22 @@ describe("prototype enrichment fixtures", () => {
       expect([entry.benefits.length >= 2, new Set(entry.benefits).size === entry.benefits.length, entry.requiredRequirements.length >= 1, entry.preferredRequirements.length >= 1]).toEqual([true, true, true, true]);
       for (const text of [...entry.benefits, ...entry.requiredRequirements, ...entry.preferredRequirements]) expect(text.trim()).toBe(text);
       expect(entry.payFrequency).toMatch(/^(monthly|yearly|hourly)$/u);
-      expect(JSON.stringify(entry)).not.toMatch(/rating|reviews|verified|applicants|views|popularity|%/u);
+      expect(Number.isInteger(entry.applicantCount) && entry.applicantCount > 0).toBe(true);
+      expect(Number.isInteger(entry.responseTimeDays) && entry.responseTimeDays > 0).toBe(true);
+      expect([typeof entry.featured, typeof entry.verifiedByPeopleFlow]).toEqual(["boolean", "boolean"]);
+      expect([entry.experienceLabel, entry.publishedAgoLabel].map((label) => label.trim().length > 0 && label.trim() === label)).toEqual([true, true]);
+      expect(entry.experienceLabel).toMatch(/^\d+\+ años$/u);
+      expect(entry.publishedAgoLabel).toMatch(/^Hace \d+ h$/u);
+      expect(JSON.stringify(entry)).not.toMatch(/rating|reviews|views|popularity|%/u);
     }
+  });
+  it("publishes one frozen metric set per demo vacancy and no extra field", () => {
+    const fields = ["applicantCount", "benefits", "closingDate", "department", "experienceLabel", "featured", "payFrequency", "preferredRequirements", "publishedAgoLabel", "requiredRequirements", "responseTimeDays", "skills", "verifiedByPeopleFlow"];
+    expect(Object.keys(ENTRIES[0]).sort()).toEqual([...fields].sort());
+    expect(ENTRIES[0]).toMatchObject({ applicantCount: 24, responseTimeDays: 3, featured: true, verifiedByPeopleFlow: true, experienceLabel: "5+ años", publishedAgoLabel: "Hace 2 h" });
+    expect(ENTRIES[1]).toMatchObject({ applicantCount: 41, responseTimeDays: 2, featured: false, verifiedByPeopleFlow: true, experienceLabel: "6+ años", publishedAgoLabel: "Hace 5 h" });
+    expect(Reflect.set(ENTRIES[0], "applicantCount", 99)).toBe(false);
+    expect(ENTRIES[0].applicantCount).toBe(24);
   });
   it("keeps the closing date optional, well formed, and typed", () => {
     const dates = ENTRIES.map((entry) => entry.closingDate);
@@ -76,6 +90,7 @@ describe("enrichJob", () => {
     expectTypeOf<Extract<"prototype", keyof JobItem>>().toEqualTypeOf<never>();
     expectTypeOf<Extract<keyof PrototypeJobEnrichment, keyof JobItem>>().toEqualTypeOf<never>();
     expectTypeOf<PrototypeJobEnrichment["closingDate"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<PrototypeJobEnrichment>().toMatchTypeOf<{ applicantCount: number; responseTimeDays: number; featured: boolean; verifiedByPeopleFlow: boolean; experienceLabel: string; publishedAgoLabel: string }>();
     // The wire schema still strips the enrichment, so nothing persisted changes.
     const parsed = jobItemSchema.safeParse(enrichJob(frontendJob));
     expect(parsed.success).toBe(true);
