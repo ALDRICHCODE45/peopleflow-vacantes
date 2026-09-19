@@ -122,11 +122,18 @@ run_check() {
         echo "closure-gate: sub-gate $failed failed (aggregate stays NO-GO until the report unit lands)"
         return 1
       fi
-      # Task 7.2 REFACTOR: with every sub-gate passing, the aggregate stays
-      # NO-GO for exactly one reason — the WS7C report unit (task 7.3) has
-      # not generated the closure report artifacts yet.
-      if [ ! -f ../docs/backend-go-closure-traceability.md ] || [ ! -f ../docs/aws-go-no-go.md ]; then
-        echo "closure-gate: WS7C report unit pending — docs/backend-go-closure-traceability.md and docs/aws-go-no-go.md are absent; the aggregate stays NO-GO because the report unit is pending, not because any sub-gate failed"
+      # CE-04: the nine sub-gates above are unchanged and run first. Only after
+      # every one of them passes does the aggregate run the closure report CLI
+      # and emit the aggregate receipt. The aggregate passes only on a GO
+      # decision; any non-zero report exit or non-GO decision is a NO-GO.
+      local report_out report_exit
+      report_out="$(go run ./cmd/closure-report)"; report_exit=$?
+      if [ "$report_exit" -ne 0 ]; then
+        echo "closure-gate: closure-report failed with exit $report_exit; aggregate stays NO-GO unless the report decision is GO"
+        return 1
+      fi
+      if [ "$report_out" != "closure-report: decision GO (0 blockers)" ]; then
+        echo "closure-gate: closure-report decision was not GO (the report failed the GO requirement); aggregate stays NO-GO unless the report decision is GO"
         return 1
       fi ;;
     *) echo "unknown gate: $gate" >&2; return 64 ;;

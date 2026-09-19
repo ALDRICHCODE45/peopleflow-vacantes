@@ -1061,13 +1061,22 @@ func TestGate_GateArch_RouteTopologyLifecycleFailsClosed(t *testing.T) {
 // prepareAllGatesPassShim binds a fake-listener .env and a fake `go` child whose
 // every invocation exits 0 with parser-satisfying output, so a closure-gate run
 // exercises the aggregate itself (including gate-arch) without a live database.
-func prepareAllGatesPassShim(t *testing.T, dir string) {
+// The same child answers the closure-report invocation with reportOut/reportExit
+// and appends one line to the returned marker path, so a fixture can prove the
+// aggregate actually invoked the reporter (CE-04) rather than inferring it.
+func prepareAllGatesPassShim(t *testing.T, dir, reportOut string, reportExit int) string {
 	t.Helper()
 	port := startFakePostgresListener(t)
 	seedFile(t, dir, ".env", fmt.Sprintf("DATABASE_URL=postgres://fixture:fixture@127.0.0.1:%d/fixture?sslmode=disable\n", port))
 	shimDir := t.TempDir()
-	shim := `#!/bin/sh
+	marker := filepath.Join(t.TempDir(), "closure-report-invoked")
+	shim := fmt.Sprintf(`#!/bin/sh
 if [ "$1" = list ]; then echo "github.com/aldrichcode45/peopleflow-vacantes/cmd/api"; exit 0; fi
+if echo "$*" | grep -q -- "run ./cmd/closure-report"; then
+  echo invoked >> %q
+  printf '%%s\n' %q
+  exit %d
+fi
 if echo "$*" | grep -q -- "TestMigrateBinaryBoundary"; then
       echo '=== RUN   TestMigrateBinaryBoundary'
       echo '--- PASS: TestMigrateBinaryBoundary (0.00s)'
@@ -1090,25 +1099,177 @@ if echo "$*" | grep -q -- "TestMigrateBinaryBoundary"; then
       exit 0
     fi
     exit 0
-    `
+    `, marker, reportOut, reportExit)
 	if err := os.WriteFile(filepath.Join(shimDir, "go"), []byte(shim), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", shimDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	return marker
 }
 
-// TestGate_ClosureGate_NamesPendingWS7CReportUnit (task 7.2 REFACTOR): with a
-// bounded fake `go` child so every sub-gate (including gate-arch) passes, the
-// aggregate closure-gate must still FAIL, and its receipt failure must name the
-// pending WS7C report unit — never an architecture/traceability defect.
-func TestGate_ClosureGate_NamesPendingWS7CReportUnit(t *testing.T) {
+// TestGate_ClosureGate_RequiresGoReportDecision (CE-04): the unchanged nine
+// sub-gates run first, and the aggregate passes only when the closure report CLI
+// exits 0 with a GO decision. A non-GO decision, a non-zero report exit, or a
+// non-GO stdout line keeps the aggregate NO-GO even though every sub-gate passed.
+func TestGate_ClosureGate_RequiresGoReportDecision(t *testing.T) {
 	if os.Getenv("GATE_ACTIVE") == "1" {
 		return
 	}
-	root, dir := repoRoot(t), t.TempDir()
-	copyTree(t, root, dir, fixtureInputs...)
-	prepareAllGatesPassShim(t, dir)
-	requireGateFailsWithMsg(t, dir, "closure-gate", "report unit", "pending")
+	tests := []struct {
+		name       string
+		reportOut  string
+		reportExit int
+		wantPass   bool
+		required   []string
+	}{
+		{name: "closure-gate: GO report passes the aggregate", reportOut: "closure-report: decision GO (0 blockers)", reportExit: 0, wantPass: true},
+		{name: "closure-gate: NO-GO report fails the aggregate", reportOut: "closure-report: decision NO-GO (3 blockers)", reportExit: 1, required: []string{"closure-report failed with exit 1"}},
+		{name: "closure-gate: report error fails the aggregate", reportOut: "", reportExit: 2, required: []string{"closure-report failed with exit 2"}},
+		{name: "closure-gate: non-GO stdout with zero exit fails the aggregate", reportOut: "closure-report: decision NO-GO (2 blockers)", reportExit: 0, required: []string{"decision was not GO"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := repoRoot(t)
+			repo := copyRepoFixture(t, root)
+			backendDir := filepath.Join(repo, "backend")
+			prepareAllGatesPassShim(t, backendDir, tt.reportOut, tt.reportExit)
+			stdout, stderr, err := runGate(t, backendDir, "closure-gate")
+			if tt.wantPass {
+				if err != nil {
+					t.Fatalf("closure-gate must pass on a GO report: %v\nstderr=%s\nstdout=%s", err, stderr, stdout)
+				}
+				if r := parseReceipt(t, stdout); r.Status != "pass" || r.ExitCode != 0 {
+					t.Fatalf("GO aggregate receipt = %+v (want status=pass exit_code=0)", r)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("closure-gate must fail when the report is not GO; stdout=%s", stdout)
+			}
+			requireGateFailsWithMsg(t, backendDir, "closure-gate", tt.required...)
+		})
+	}
+}
+
+// TestMakeClosureReportPinsCanonicalCLICommand proves the Make target and the
+// closure-gate aggregate are pinned to the same canonical report command.
+func TestMakeClosureReportPinsCanonicalCLICommand(t *testing.T) {
+	if os.Getenv("GATE_ACTIVE") == "1" {
+		return
+	}
+	root := repoRoot(t)
+	out, err := exec.Command("make", "-n", "-f", filepath.Join(root, "Makefile"), "closure-report").CombinedOutput()
+	if err != nil {
+		t.Fatalf("make -n closure-report: %v: %s", err, out)
+	}
+	if !strings.Contains(string(out), "go run ./cmd/closure-report") {
+		t.Fatalf("make closure-report must run the canonical report command; got %q", out)
+	}
+	gate, err := os.ReadFile(filepath.Join(root, "scripts", "closure", "gate"))
+	if err != nil {
+		t.Fatalf("read gate script: %v", err)
+	}
+	if !strings.Contains(string(gate), "go run ./cmd/closure-report") {
+		t.Fatalf("closure-gate must invoke the same canonical report command")
+	}
+}
+
+// seedPlaceholderReportDocs writes pre-existing placeholder report artifacts at
+// the exact generated paths, so a passing aggregate can only be explained by the
+// report invocation itself, never by doc presence.
+func seedPlaceholderReportDocs(t *testing.T, repo string) {
+	t.Helper()
+	seedFile(t, repo, filepath.Join("docs", closurereport.TraceabilityFile), "# placeholder (pre-existing)\n")
+	seedFile(t, repo, filepath.Join("docs", closurereport.GoNoGoFile), "# placeholder (pre-existing)\n")
+	seedFile(t, repo, filepath.Join("docs", closurereport.ReportJSONFile), "{}\n")
+}
+
+// TestGate_ClosureGate_InvokesClosureReport is the CE-04 primary behavioral RED:
+// an actual closure-gate fixture whose nine sub-gates all pass, with pre-existing
+// placeholder report docs already present, must still prove the aggregate ran
+// the report CLI. The pre-change aggregate only checks doc presence, so it never
+// invokes the reporter and the marker stays absent — an intended behavioral
+// failure, not a setup or missing-command error.
+func TestGate_ClosureGate_InvokesClosureReport(t *testing.T) {
+	if os.Getenv("GATE_ACTIVE") == "1" {
+		return
+	}
+	root := repoRoot(t)
+	repo := copyRepoFixture(t, root)
+	backendDir := filepath.Join(repo, "backend")
+	marker := prepareAllGatesPassShim(t, backendDir, "closure-report: decision GO (0 blockers)", 0)
+	seedPlaceholderReportDocs(t, repo)
+
+	stdout, stderr, err := runGate(t, backendDir, "closure-gate")
+	if err != nil {
+		t.Fatalf("closure-gate must pass when all nine sub-gates pass and the report decision is GO: %v\nstderr=%s\nstdout=%s", err, stderr, stdout)
+	}
+	invoked, readErr := os.ReadFile(marker)
+	if readErr != nil || strings.TrimSpace(string(invoked)) != "invoked" {
+		t.Fatalf("closure-gate never invoked the closure report CLI: marker %s read err=%v content=%q\nstdout=%s", marker, readErr, invoked, stdout)
+	}
+	r := parseReceipt(t, stdout)
+	if r.Gate != "closure-gate" || r.Status != "pass" || r.ExitCode != 0 {
+		t.Fatalf("closure-gate receipt = %+v (want gate=closure-gate status=pass exit_code=0)", r)
+	}
+}
+
+// TestGate_ReportArtifactsInvisibleToWorktreeIdentity is the CE-04 ignore RED:
+// the exact generated report paths must be ignored, so writing them (and writing
+// them again) never enters the gate's worktree_state preimage.
+func TestGate_ReportArtifactsInvisibleToWorktreeIdentity(t *testing.T) {
+	if os.Getenv("GATE_ACTIVE") == "1" {
+		return
+	}
+	root := repoRoot(t)
+	repoDir := filepath.Dir(root)
+	names := []string{closurereport.TraceabilityFile, closurereport.GoNoGoFile, closurereport.ReportJSONFile}
+	for _, name := range names {
+		rel := filepath.Join("docs", name)
+		if err := exec.Command("git", "-C", repoDir, "check-ignore", "-q", rel).Run(); err != nil {
+			t.Fatalf("generated report path %s is not ignored by the repository .gitignore (git check-ignore: %v); report writes would change worktree_state", rel, err)
+		}
+	}
+
+	fixture := t.TempDir()
+	if out, err := exec.Command("cp", filepath.Join(repoDir, ".gitignore"), filepath.Join(fixture, ".gitignore")).CombinedOutput(); err != nil {
+		t.Fatalf("copy root .gitignore: %v: %s", err, out)
+	}
+	initDisposableGitRepo(t, fixture)
+	docs := filepath.Join(fixture, "docs")
+	writeArtifacts := func() {
+		if err := os.MkdirAll(docs, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range names {
+			if err := os.WriteFile(filepath.Join(docs, name), []byte("# placeholder\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	writeArtifacts()
+	before := gitUntrackedStatus(t, fixture)
+	writeArtifacts()
+	after := gitUntrackedStatus(t, fixture)
+	if before != after {
+		t.Fatalf("repeated report writes changed worktree state inputs:\nbefore=%q\nafter=%q", before, after)
+	}
+	for _, name := range names {
+		if strings.Contains(before, filepath.Join("docs", name)) {
+			t.Fatalf("generated report path docs/%s must not appear in git status --untracked-files=all: %q", name, before)
+		}
+	}
+}
+
+// gitUntrackedStatus is the exact enumeration the gate's worktree_state digest
+// folds in, so an ignored report artifact can never disturb it.
+func gitUntrackedStatus(t *testing.T, dir string) string {
+	t.Helper()
+	out, err := exec.Command("git", "-C", dir, "status", "--porcelain", "--untracked-files=all").Output()
+	if err != nil {
+		t.Fatalf("git status in %s: %v", dir, err)
+	}
+	return string(out)
 }
 
 // startFakePostgresListener binds a TCP listener on 127.0.0.1:0 that accepts any
