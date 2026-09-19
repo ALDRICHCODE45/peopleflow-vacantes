@@ -36,7 +36,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Work-unit commits are required; browser and human acceptance happen after implementation slices.
 
 ## Tasks
-- [x] **CCP-01 — Prototype contracts and fixtures:** Added pure company-profile and enriched-job view models, fictional Acme fixture, disclosure, and strict unit tests. No React, fetch, schema, or transport changes. Authored 383/400 lines. Verification: 12/12 focused, 35/35 adjacent, TypeScript and exact-scope ESLint PASS. Commit evidence: pending.
+- [x] **CCP-01 — Prototype contracts and fixtures:** Added pure company-profile and enriched-job view models, fictional Acme fixture, disclosure, and strict unit tests. No React, fetch, schema, or transport changes. Authored 383/400 lines. Verification: 12/12 focused, 35/35 adjacent, TypeScript and exact-scope ESLint PASS. Commit evidence: `6646dc8e71bbf0b7166268374c424f78e7c06ee5`.
 - [ ] **CCP-02 — Company careers route:** Build `/empresas/[companyId]` with an asymmetric photographic hero, identity/about/work sections, compact facts, vacancy section, not-found behavior, metadata, and focused tests. Forecast: 300–400 lines.
 - [ ] **CCP-03 — Enriched vacancy cards:** Create a reusable richer vacancy card using department, skills, benefits, excerpt, salary/work metadata, and company link; integrate into the company page and improve the global board only where contracts remain honest. Forecast: 300–400 lines.
 - [ ] **CCP-04 — Enriched canonical vacancy detail:** Extend `/vacantes/[jobId]` with prototype disclosure, role requirements/skills/benefits, and an accessible company profile block linking to the careers page; preserve canonical/SEO/not-found and truthful action boundaries. Forecast: 300–400 lines.
@@ -56,4 +56,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - CCP-01: independent verifier PASS under Node 22.23.2 and pnpm 10.34.5; no browser claim for this pure-model slice.
 
 ## Next step
-Commit CCP-01, record its identity, attempt native review, then begin CCP-02.
+Attempt native review for CCP-01, then begin CCP-02.
