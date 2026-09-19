@@ -1,9 +1,11 @@
 package archguard
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -13,6 +15,53 @@ const (
 	atomicGateSQLSource = "backend/db/queries/companies.sql"
 	atomicGateGoSource  = "backend/internal/features/companies/infrastructure/postgres/companyRepository.go"
 )
+
+// TestRealManifest_EveryDeclaredAnchorResolves is the CE-05 strict-traceability
+// regression: every evidence anchor declared by the real
+// backend/quality/traceability.json manifest must resolve against the real
+// candidate tree through the unfiltered production anchor rule. The gate-level
+// checker deliberately skips descriptive symbol anchors, so this test is the
+// only place that measures them, and it must report zero violations: an
+// unresolved claim is a dishonest row, never a warning. It never filters,
+// renames, or weakens CheckManifestAnchors — the production rule is the
+// criterion.
+func TestRealManifest_EveryDeclaredAnchorResolves(t *testing.T) {
+	layout, err := DetectLayout(".")
+	if err != nil {
+		t.Fatalf("detecting the repository layout from the package directory: %v", err)
+	}
+	manifest, err := LoadTraceManifest(filepath.Join(layout.Backend, "quality", "traceability.json"))
+	if err != nil {
+		t.Fatalf("loading the real traceability manifest: %v", err)
+	}
+	idx, err := BuildAnchorIndex(layout.Repo)
+	if err != nil {
+		t.Fatalf("building the repository anchor index: %v", err)
+	}
+
+	violations := CheckManifestAnchors(manifest.Rows, idx)
+	if len(violations) == 0 {
+		return
+	}
+
+	byRule := map[string]int{}
+	for _, v := range violations {
+		byRule[v.Rule]++
+	}
+	rules := make([]string, 0, len(byRule))
+	for rule := range byRule {
+		rules = append(rules, rule)
+	}
+	sort.Strings(rules)
+	parts := make([]string, 0, len(rules))
+	for _, rule := range rules {
+		parts = append(parts, fmt.Sprintf("%s=%d", rule, byRule[rule]))
+	}
+	t.Errorf("the real manifest declares %d unresolved evidence anchors by rule: %s", len(violations), strings.Join(parts, " "))
+	for _, v := range violations {
+		t.Errorf("%s: %s", v.Rule, v.Detail)
+	}
+}
 
 // TestRealManifest_CompaniesAtomicIndustryGateAnchorsAreOwnerBacked is the WS7C
 // regression for the companies active-industry gate row: BuildAnchorIndex indexes
