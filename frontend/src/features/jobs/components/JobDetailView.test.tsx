@@ -1,13 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
-import { formatClosingDate, formatSalary, payFrequencyLabel, workModeLabel } from "../formatters";
+import {
+  employmentTypeLabel,
+  formatClosingDate,
+  formatPublishedDate,
+  formatSalary,
+  payFrequencyLabel,
+  seniorityLabel,
+  workModeLabel,
+} from "../formatters";
 import { PROTOTYPE_COMPANY_ID } from "../../company-profile/model";
 import { ACME_PROTOTYPE_PROFILE } from "../../company-profile/prototype-companies";
 import { enrichJob } from "../enrich";
 import type { PrototypeJobView } from "../enrich";
 import type { JobItem } from "../types";
+import { PROTOTYPE_DISCLOSURE, companyInitials, prototypeApplicantsLabel } from "./prototype-ui";
 import { JobDetailView } from "./JobDetailView";
 
 /** Font-size utilities share the `text-` prefix with the color utilities below. */
@@ -18,6 +29,9 @@ const textColorUtilities = (className: string) =>
     .split(/\s+/)
     .filter((utility) => utility.includes("text-"))
     .filter((utility) => !FONT_SIZE_TOKENS.has(utility.slice(utility.lastIndexOf("text-") + 5)));
+/** Any Tailwind palette utility would be a raw color: only tokens are allowed. */
+const RAW_COLOR_UTILITY =
+  /(?:^|\s|[a-z-]+:)(?:text|bg|border)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|white|black)-\d{2,3}(?:\s|$)/;
 
 const baseJob: JobItem = {
   id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e",
@@ -60,6 +74,8 @@ describe("JobDetailView validated rendering", () => {
     }
     const back = view.getByRole("link", { name: /volver a vacantes/i });
     expect(back).toHaveAttribute("href", "/vacantes");
+    // A wire-only vacancy never links the header company name anywhere.
+    expect(view.getByText(fullJob.company.name).closest("a")).toBeNull();
   });
 
   it("renders the description as escaped plain text with paragraphs and line breaks", () => {
@@ -115,11 +131,9 @@ describe("JobDetailView prototype role block", () => {
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getAllByRole("paragraph")).toHaveLength(4);
     expect(container.querySelectorAll("article img, article script")).toHaveLength(0);
-    // The header badge stays the article's first list item and the prototype
-    // block adds no inline style.
-    expect(container.querySelector("article li")?.textContent).toBe(
-      workModeLabel(enrichedJob.work_mode),
-    );
+    // The breadcrumb stays the article's first list item, so no prototype list
+    // can precede the header, and the view adds no inline style.
+    expect(container.querySelector("article li")?.textContent).toBe("Vacantes");
     expect(container.querySelectorAll("article [style]")).toHaveLength(0);
   });
 
@@ -184,10 +198,10 @@ describe("JobDetailView prototype role block", () => {
     expectHighContrastBodyLink(link);
     expect(screen.getByText(ACME_PROTOTYPE_PROFILE.disclosure.label)).toBeVisible();
     expect(screen.getByText(ACME_PROTOTYPE_PROFILE.disclosure.statement)).toBeVisible();
-    // A bare company name stays the header text: the profile link never claims it.
-    const company = screen.getByText(baseJob.company.name);
-    expect(company).toBeVisible();
-    expect(company.closest("a")).toBeNull();
+    // The header company becomes a link only under that same exact opt-in match.
+    const company = screen.getByRole("link", { name: baseJob.company.name });
+    expect(company).toHaveAttribute("href", `/empresas/${PROTOTYPE_COMPANY_ID}`);
+    expectHighContrastBodyLink(company);
   });
 
   it("omits the closing date when the enrichment declares none", () => {
@@ -240,5 +254,129 @@ describe("JobDetailView prototype role block", () => {
     expect(screen.getByRole("heading", { level: 2, name: /prototipo/i })).toBeVisible();
     expect(screen.queryByRole("link", { name: /conoce a/i })).toBeNull();
     expect(screen.queryByText(ACME_PROTOTYPE_PROFILE.disclosure.statement)).toBeNull();
+    expect(screen.getByText("Otra Empresa").closest("a")).toBeNull();
+  });
+});
+
+describe("JobDetailView reference header, stats, and scaffold (CCP-R4A)", () => {
+  const enrichedJob = enrichJob(baseJob);
+  const fullJob: JobItem = {
+    ...baseJob,
+    location: "Monterrey, Nuevo León",
+    salary_min: 30000,
+    salary_max: 45000,
+    published_at: "2026-02-14T09:30:00Z",
+  };
+  const viewSource = readFileSync(join(process.cwd(), "src/features/jobs/components/JobDetailView.tsx"), "utf8");
+  const region = (container: HTMLElement, name: string) => {
+    const element = container.querySelector<HTMLElement>(`article [data-detail-region='${name}']`);
+    if (element === null) throw new Error(`missing detail region: ${name}`);
+    return element;
+  };
+  const stat = (container: HTMLElement, key: string) => {
+    const card = container.querySelector(`article [data-detail-stat='${key}']`);
+    if (card === null) throw new Error(`missing detail stat: ${key}`);
+    return card;
+  };
+
+  it("keeps the canonical list breadcrumb with its exact href, label, and current title", () => {
+    render(<JobDetailView job={fullJob} />);
+    const nav = screen.getByRole("navigation", { name: "Ruta de navegación" });
+    const link = within(nav).getByRole("link", { name: "Volver a vacantes" });
+    expect(link).toHaveAttribute("href", "/vacantes");
+    expect(link).toHaveTextContent("Vacantes");
+    expect(link).toHaveClass("min-h-10");
+    expect(within(nav).getByText(fullJob.title).closest("li")).toHaveAttribute("aria-current", "page");
+    // The leading return affordance belongs to the link: no decorative glyph
+    // sits before it, so the icon never reads as a dead back control.
+    expect(link.closest("li")!.firstElementChild).toBe(link);
+  });
+
+  it("rebuilds the header with monogram, featured state, metrics, and disclosure", () => {
+    const { container } = render(<JobDetailView job={enrichedJob} />);
+    const header = region(container, "header");
+    const prototype = enrichedJob.prototype!;
+    expect(within(header).getByText(companyInitials(baseJob.company.name))).toHaveAttribute("aria-hidden", "true");
+    expect(within(header).getByRole("heading", { level: 1, name: baseJob.title })).toBeVisible();
+    for (const text of ["Destacada", "Publicación", prototype.publishedAgoLabel, "Postulantes", prototypeApplicantsLabel(prototype.applicantCount)]) {
+      expect(within(header).getByText(text)).toBeVisible();
+    }
+    expect(within(header).getByRole("note")).toHaveTextContent(PROTOTYPE_DISCLOSURE);
+    expect(container.querySelectorAll("article [style]")).toHaveLength(0);
+    const classes = [...container.querySelectorAll("article *")].map((node) => node.getAttribute("class") ?? "").join(" ");
+    expect(classes).not.toMatch(RAW_COLOR_UTILITY);
+  });
+
+  it("renders the four reference stat cards on a two-then-four column grid", () => {
+    const { container } = render(<JobDetailView job={enrichedJob} />);
+    const prototype = enrichedJob.prototype!;
+    const stats = region(container, "stats");
+    expect(stats.className).toMatch(/(?:^|\s)grid-cols-2(?:\s|$)/);
+    expect(stats.className).toMatch(/lg:grid-cols-4/);
+    const expected = [
+      ["modality", "Modalidad", workModeLabel(baseJob.work_mode)],
+      ["schedule", "Jornada", employmentTypeLabel(baseJob.employment_type)],
+      ["experience", "Experiencia", prototype.experienceLabel],
+      ["area", "Área", prototype.department],
+    ] as const;
+    for (const [key, label, value] of expected) {
+      const card = stat(container, key);
+      expect(card.querySelector("dt")?.textContent).toContain(label);
+      expect(card.querySelector("dd")?.textContent).toContain(value);
+      // Each label carries one decorative icon tile, never a text substitute.
+      expect(card.querySelector("dt [aria-hidden='true'] svg")).not.toBeNull();
+    }
+  });
+
+  it("keeps the neutral wire-only stats without prototype metrics or disclosure", () => {
+    const { container } = render(<JobDetailView job={fullJob} />);
+    const header = region(container, "header");
+    for (const absent of ["Destacada", "Postulantes"]) expect(within(header).queryByText(absent)).toBeNull();
+    expect(within(header).queryByRole("note")).toBeNull();
+    expect(stat(container, "area").querySelector("dd")?.textContent).toBe("Sin especificar");
+    expect(stat(container, "experience").querySelector("dd")?.textContent).toBe(seniorityLabel(fullJob.seniority));
+  });
+
+  it("keeps the content column and the rail in one responsive scaffold", () => {
+    const { container } = render(<JobDetailView job={fullJob} />);
+    const content = region(container, "content");
+    const rail = region(container, "rail");
+    expect(content.parentElement).toBe(rail.parentElement);
+    const scaffold = content.parentElement!.className;
+    expect(scaffold).toMatch(/(?:^|\s)grid(?:\s|$)/);
+    expect(scaffold).toMatch(/lg:grid-cols-\[minmax\(0,1fr\)_21rem\]/);
+    // Below lg the scaffold stays one column: no unscoped column count.
+    expect(scaffold).not.toMatch(/(?:^|\s)grid-cols-\d/);
+    expect(content).toHaveTextContent("Sobre la vacante");
+    expect(rail).toHaveTextContent("Salario");
+    expect(container.querySelector("article [data-detail-card='salary']")).not.toBeNull();
+  });
+
+  it("keeps long and markup-like wire text as escaped plain text with no new action", () => {
+    const longTitle = "Ingeniería de Plataformas de Datos y Observabilidad para la plataformaoperativadedatosyobservabilidadintegraldistribuida";
+    const unsafeLocation = "<img src=x onerror=alert(1)> Lugar muy largo sin cortes naturales ni espacios intermedios";
+    const job: PrototypeJobView = { ...fullJob, title: longTitle, location: unsafeLocation };
+    const { container } = render(<JobDetailView job={job} />);
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(screen.getAllByRole("paragraph")).toHaveLength(1);
+    expect(container.querySelectorAll("article img, article script")).toHaveLength(0);
+    expect(screen.getByRole("article")).toHaveTextContent(longTitle);
+    expect(screen.getByRole("article")).toHaveTextContent(unsafeLocation);
+  });
+
+  it("keeps the wire date and the relative label as separate disclosed terms", () => {
+    const { container } = render(<JobDetailView job={enrichJob(fullJob)} />);
+    const header = region(container, "header");
+    const prototype = enrichedJob.prototype!;
+    expect(within(header).getByText("Publicada")).toBeVisible();
+    expect(within(header).getByText(formatPublishedDate(fullJob.published_at!))).toBeVisible();
+    expect(within(header).getByText(prototype.publishedAgoLabel)).toBeVisible();
+    // The board browser contract relies on this: the fictional relative label never carries the wire "Publicada" wording, so an enriched vacancy without a wire date publishes no fabricated claim.
+    expect(prototype.publishedAgoLabel).not.toMatch(/publicada/i);
+  });
+
+  it("stays a server-safe view with no client hook, request, storage, or action", () => {
+    expect(viewSource).toMatch(/<article/);
+    expect(viewSource).not.toMatch(/["']use client["']|use[A-Z]\w*\(|fetch\(|localStorage|sessionStorage|<button|onClick|onSubmit|style=\{\{/);
   });
 });

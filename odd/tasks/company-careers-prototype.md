@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R3B review and commit
+- Current task: CCP-R4A review and commit
 - Push/PR: not authorized
 
 ## Goal
@@ -50,7 +50,8 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R2 — Prototype metrics and visual primitives:** Extended local-only enrichment with applicants, response time, featured/verified state, experience and relative-time presentation; added reusable monogram, verification, label, and prototype-disclosure primitives without wire/API changes. Authored 267/400 lines. Verification: 23/23 focused, 33/33 adjacent, TypeScript and exact-scope ESLint PASS; independent verifier PASS. Commit evidence: `74b22d9212a4dee6e7abf8515aa585a6bd14b588`.
 - [x] **CCP-R3A — Reference vacancy card component:** Rebuilt shared `VacancyCard` to the supplied horizontal left-content/right-salary layout with logo tile, metadata, full-DOM/clamped description, skills/benefits, enriched-only bookmark affordance, CTA, verification, responsive stacking, and hover polish. Authored 303/400 lines. Commit evidence: `2af4911395b1a976db98e73ee7287629ed89971c`.
 - [x] **CCP-R3B — Card browser contracts and integration:** Updated global-board/company-page browser contracts, added a >220-code-point fixture, removed obsolete flat-card assumptions, and verified hover, responsive stacking, clamp safety, focus, prototype disclosure, wire-only exclusion, and zero business mutations. Authored 296/300 lines. Verification: 58/58 unit, TypeScript/ESLint PASS, 27/27 ordinary Chromium, 12/12 a11y/reduced-motion, and 2/2 isolated 3002/4011 long-content/company; independent verifier PASS. Commit evidence: `3ee5cc070b14e72f458a34d98db4ee06316e590b`.
-- [ ] **CCP-R4 — Reference-faithful detail layout:** Rebuild canonical vacancy detail to match `design/screens/vacante-detalle.html`: rich header, stat cards, structured content, benefits/company sections, two-column body, and sticky salary/action/share rail. Forecast: 300–400 lines.
+- [x] **CCP-R4A — Vacancy detail header and stats:** Rebuilt the canonical detail header with a 40px breadcrumb target, monogram, featured state, title/company metadata, four reference stat cards, and the responsive two-column content/rail scaffold while preserving canonical/SEO/not-found/safe text. Authored 397/400 lines. Verification: 20/20 focused, 46/46 adjacent, TypeScript and exact-scope ESLint PASS; independent verifier PASS. Commit evidence: pending.
+- [ ] **CCP-R4B — Vacancy detail content and sticky rail:** Refine responsibilities/requirements/skills/benefits into the reference structure, add colored token-only benefit tiles and the sticky salary/action/company/share rail with non-persistent affordances, then update browser contracts. Forecast: 300–400 lines.
 - [ ] **CCP-R5 — Prototype interactions:** Add accessible client islands for save/apply/share/bookmark feedback with explicit prototype disclosure and zero fetch/storage/business mutations. Forecast: 250–400 lines.
 - [ ] **CCP-R6 — Redesign browser acceptance:** Update obsolete truthfulness assertions to prototype-scoped contracts; run light/dark desktop/mobile Playwright, axe, keyboard, hover, overflow, canonical, safe-text, and zero-business-mutation acceptance; request human visual approval.
 
@@ -81,4 +82,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Attempt native review for CCP-R3A/R3B, then implement CCP-R4 reference-faithful vacancy detail.
+Commit CCP-R4A, record its identity, attempt native review, then complete content, sticky rail and browser contracts in CCP-R4B.

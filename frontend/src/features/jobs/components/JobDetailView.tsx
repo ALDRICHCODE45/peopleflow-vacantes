@@ -6,9 +6,13 @@ import {
   BriefcaseIcon,
   Building2Icon,
   CalendarClockIcon,
+  ChevronRightIcon,
+  ClockIcon,
   GlobeIcon,
+  LayoutGridIcon,
   MapPinIcon,
   TrendingUpIcon,
+  UsersIcon,
 } from "lucide-react";
 
 import { findCompanyProfile } from "../../company-profile/model";
@@ -23,6 +27,25 @@ import {
   seniorityLabel,
   workModeLabel,
 } from "../formatters";
+import { CompanyMonogram, PrototypeDisclosure, prototypeApplicantsLabel } from "./prototype-ui";
+
+/** Contextual icon per wire work mode, mirroring the public board rows. */
+const WORK_MODE_ICONS = {
+  onsite: MapPinIcon,
+  remote: GlobeIcon,
+  hybrid: Building2Icon,
+} as const satisfies Record<PrototypeJobView["work_mode"], typeof MapPinIcon>;
+
+const cardSurface = "rounded-2xl border border-border bg-card/60";
+const featuredBadge = "rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-foreground";
+const statTile = "grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-foreground";
+const statValue = "break-words font-medium text-foreground";
+const metaValue = "mt-0.5 font-medium break-words text-foreground";
+const focusRing =
+  "rounded-md transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+/* Body links keep `text-foreground` with an always-visible underline, because the accent token fails AA for body text on the dark page background. */
+const bodyLink =
+  "font-medium text-foreground underline decoration-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
 /**
  * Splits the validated description on blank lines into paragraphs; single
@@ -74,7 +97,6 @@ function prototypeProfile(job: PrototypeJobView) {
 function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
   const prototype = job.prototype;
   if (prototype === undefined) return null;
-  const profile = prototypeProfile(job);
   const closingDate =
     prototype.closingDate === undefined
       ? null
@@ -162,38 +184,24 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
           </div>
         </dl>
       </div>
-
-      {profile !== undefined && (
-        <div className="flex flex-col gap-2 rounded-xl border border-border bg-background/70 p-4">
-          <strong className="text-xs font-semibold tracking-wide text-foreground uppercase">
-            {profile.disclosure.label}
-          </strong>
-          <div className="text-sm leading-relaxed text-muted-foreground">
-            {profile.disclosure.statement}
-          </div>
-          <Link
-            href={`/empresas/${profile.companyId}`}
-            className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-foreground underline decoration-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            Conoce a {profile.name}
-          </Link>
-        </div>
-      )}
     </section>
   );
 }
 
 /**
- * Server-rendered validated detail view: one semantic `article` with the title,
- * company, only the supported contract metadata that is actually present
- * (absent optionals are omitted, never fabricated), the plain-text description,
- * and — only for a vacancy the prototype enrichment knows — a clearly
- * disclosed prototype role block that may link to the fictional company
- * profile. No save/share/apply/verified/popularity action or claim exists here,
- * and the wire salary stays in its own header slot rather than inside the
- * disclosed prototype block.
+ * Server-rendered validated detail view in the reference composition: the
+ * breadcrumb to the canonical board, the identity header (monogram, title,
+ * featured state, company, wire and prototype metadata, prototype disclosure),
+ * four stat cards, and the responsive content/rail scaffold. Only the wire
+ * description renders as `p` elements: every other text node is a span, term,
+ * or definition. The company links to its canonical profile only under the same
+ * exact opt-in match as the disclosed prototype block, the wire salary keeps its
+ * own rail slot, and no client directive, hook, request, storage, or action is
+ * involved here.
  */
 export function JobDetailView({ job }: { job: PrototypeJobView }) {
+  const prototype = job.prototype;
+  const profile = prototypeProfile(job);
   const salary =
     job.salary_min !== undefined || job.salary_max !== undefined
       ? formatSalary({
@@ -202,88 +210,123 @@ export function JobDetailView({ job }: { job: PrototypeJobView }) {
           currency: job.salary_currency,
         })
       : null;
+  /* Labeled terms instead of one separator line, so the relative prototype label never fuses with the wire publication date. */
+  const meta = [
+    { key: "location", label: "Ubicación", Icon: MapPinIcon, value: job.location },
+    {
+      key: "published",
+      label: "Publicada",
+      Icon: CalendarClockIcon,
+      value: job.published_at === undefined ? undefined : formatPublishedDate(job.published_at),
+    },
+    { key: "relative", label: "Publicación", Icon: ClockIcon, value: prototype?.publishedAgoLabel },
+    {
+      key: "applicants",
+      label: "Postulantes",
+      Icon: UsersIcon,
+      value: prototype === undefined ? undefined : prototypeApplicantsLabel(prototype.applicantCount),
+    },
+  ].filter((item) => item.value !== undefined);
+  const stats = [
+    { key: "modality", label: "Modalidad", Icon: WORK_MODE_ICONS[job.work_mode], value: workModeLabel(job.work_mode) },
+    { key: "schedule", label: "Jornada", Icon: BriefcaseIcon, value: employmentTypeLabel(job.employment_type) },
+    {
+      key: "experience",
+      label: "Experiencia",
+      Icon: TrendingUpIcon,
+      value: prototype?.experienceLabel ?? seniorityLabel(job.seniority),
+    },
+    { key: "area", label: "Área", Icon: LayoutGridIcon, value: prototype?.department ?? "Sin especificar" },
+  ];
 
   return (
-    <article className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-6 py-8">
-      <Link
-        href="/vacantes"
-        className="inline-flex items-center gap-1.5 self-start text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <ArrowLeftIcon aria-hidden="true" className="h-4 w-4" />
-        Volver a vacantes
-      </Link>
+    <article className="flex w-full flex-col gap-6">
+      {/* Breadcrumb: the canonical board link plus the current title; truncation protects 375px and the link keeps the return-path accessible name. */}
+      <nav aria-label="Ruta de navegación" className="text-sm text-muted-foreground">
+        <ol className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
+          <li className="flex min-w-0 items-center gap-1.5">
+            <Link href="/vacantes" aria-label="Volver a vacantes" className={`${focusRing} inline-flex min-h-10 items-center gap-1.5`}>
+              <ArrowLeftIcon aria-hidden="true" className="size-4 shrink-0" />Vacantes
+            </Link>
+            <ChevronRightIcon aria-hidden="true" className="size-3.5 shrink-0" />
+          </li>
+          <li className="min-w-0" aria-current="page"><span className="block truncate">{job.title}</span></li>
+        </ol>
+      </nav>
 
-      <div className="rounded-2xl border border-border bg-card/60 p-6 md:p-7">
-        <h1 className="break-words font-heading text-3xl font-bold tracking-tight text-foreground md:text-4xl">
-          {job.title}
-        </h1>
-        <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-          <Building2Icon aria-hidden="true" className="h-4 w-4" />
-          <span>{job.company.name}</span>
+      <header data-detail-region="header" className={`${cardSurface} p-6 md:p-7`}>
+        <div className="flex items-start gap-4">
+          <CompanyMonogram name={job.company.name} />
+          <div className="flex min-w-0 flex-1 flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
+              <h1 className="break-words font-heading text-2xl font-bold tracking-tight text-foreground md:text-3xl">{job.title}</h1>
+              {prototype?.featured === true && <span data-detail-flag="featured" className={featuredBadge}>Destacada</span>}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {profile === undefined ? (
+                <span>{job.company.name}</span>
+              ) : (
+                <Link href={`/empresas/${profile.companyId}`} className={`${bodyLink} text-sm`}>{job.company.name}</Link>
+              )}
+            </div>
+            {meta.length > 0 && (
+              <dl className="flex flex-wrap gap-x-8 gap-y-3">
+                {meta.map(({ key, label, Icon, value }) => (
+                  <div key={key} data-detail-meta={key}>
+                    <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Icon aria-hidden="true" className="size-3.5 shrink-0" />{label}
+                    </dt>
+                    <dd className={metaValue}>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            {prototype !== undefined && <PrototypeDisclosure />}
+          </div>
         </div>
-        <ul className="mt-4 flex flex-wrap gap-2">
-          <li className="flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-[13px] text-muted-foreground">
-            <GlobeIcon aria-hidden="true" className="h-3.5 w-3.5" />
-            <span>{workModeLabel(job.work_mode)}</span>
-          </li>
-          <li className="flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-[13px] text-muted-foreground">
-            <BriefcaseIcon aria-hidden="true" className="h-3.5 w-3.5" />
-            <span>{employmentTypeLabel(job.employment_type)}</span>
-          </li>
-          <li className="flex items-center gap-1.5 rounded-lg bg-muted/60 px-2.5 py-1 text-[13px] text-muted-foreground">
-            <TrendingUpIcon aria-hidden="true" className="h-3.5 w-3.5" />
-            <span>{seniorityLabel(job.seniority)}</span>
-          </li>
-        </ul>
-        {(job.location !== undefined ||
-          salary !== null ||
-          job.published_at !== undefined) && (
-          <dl className="mt-5 grid gap-4 border-t border-border pt-5 text-sm sm:grid-cols-3">
-            {job.location !== undefined && (
-              <div>
-                <dt className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <MapPinIcon aria-hidden="true" className="h-4 w-4" />
-                  Ubicación
-                </dt>
-                <dd className="mt-0.5 font-medium break-words text-foreground">
-                  {job.location}
-                </dd>
-              </div>
-            )}
+      </header>
+
+      <dl data-detail-region="stats" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {stats.map(({ key, label, Icon, value }) => (
+          <div key={key} data-detail-stat={key} className={`${cardSurface} flex flex-col gap-2 p-4`}>
+            <dt className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span aria-hidden="true" className={statTile}><Icon className="size-3.5" /></span>{label}
+            </dt>
+            <dd className={statValue}>{value}</dd>
+          </div>
+        ))}
+      </dl>
+
+      {/* Responsive scaffold: one content column with the rail beside it from `lg` up, marked so the rail can grow without reshaping the page. */}
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]">
+        <div data-detail-region="content" className="flex min-w-0 flex-col gap-6">
+          <section className={`${cardSurface} bg-card/40 p-6 md:p-7`}>
+            <h2 className="font-heading text-xl font-semibold text-foreground">Sobre la vacante</h2>
+            <div className="mt-4"><DescriptionParagraphs description={job.description} /></div>
+          </section>
+          <PrototypeRoleSection job={job} />
+        </div>
+
+        {(salary !== null || profile !== undefined) && (
+          <aside data-detail-region="rail" className="flex min-w-0 flex-col gap-6">
             {salary !== null && (
-              <div>
-                <dt className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <BanknoteIcon aria-hidden="true" className="h-4 w-4" />
-                  Salario
+              <dl data-detail-card="salary" className={`${cardSurface} flex flex-col gap-1 p-6`}>
+                <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <BanknoteIcon aria-hidden="true" className="size-3.5 shrink-0" />Salario
                 </dt>
-                <dd className="mt-0.5 font-medium text-foreground">{salary}</dd>
-              </div>
+                <dd className="font-heading text-2xl font-bold tracking-tight text-foreground">{salary}</dd>
+              </dl>
             )}
-            {job.published_at !== undefined && (
-              <div>
-                <dt className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <CalendarClockIcon aria-hidden="true" className="h-4 w-4" />
-                  Publicada
-                </dt>
-                <dd className="mt-0.5 font-medium text-foreground">
-                  {formatPublishedDate(job.published_at)}
-                </dd>
-              </div>
+            {profile !== undefined && (
+              <section data-detail-card="company" className={`${cardSurface} flex flex-col gap-2 bg-card/40 p-6`}>
+                <strong className="text-xs font-semibold tracking-wide text-foreground uppercase">{profile.disclosure.label}</strong>
+                <div className="text-sm leading-relaxed text-muted-foreground">{profile.disclosure.statement}</div>
+                <Link href={`/empresas/${profile.companyId}`} className={`${bodyLink} inline-flex items-center gap-1.5 self-start text-sm`}>Conoce a {profile.name}</Link>
+              </section>
             )}
-          </dl>
+          </aside>
         )}
       </div>
-
-      <div className="rounded-2xl border border-border bg-card/40 p-6 md:p-7">
-        <h2 className="font-heading text-xl font-semibold text-foreground">
-          Sobre la vacante
-        </h2>
-        <div className="mt-4">
-          <DescriptionParagraphs description={job.description} />
-        </div>
-      </div>
-
-      <PrototypeRoleSection job={job} />
     </article>
   );
 }
