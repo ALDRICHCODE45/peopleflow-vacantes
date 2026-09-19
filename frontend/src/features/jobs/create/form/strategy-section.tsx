@@ -5,6 +5,7 @@ import {
   Combobox, ComboboxChip, ComboboxChips, ComboboxChipsInput,
   ComboboxContent, ComboboxEmpty, ComboboxItem, ComboboxList, ComboboxValue,
 } from "@/components/ui/combobox";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -210,12 +211,10 @@ export function StrategySection({ values, onChange }: StrategySectionProps) {
           <FieldLabel htmlFor={CLOSING_DATE_ID}>
             Fecha de cierre<span className="text-muted-foreground">(opcional)</span>
           </FieldLabel>
-          <Input
+          <DatePickerField
             id={CLOSING_DATE_ID}
-            type="date"
             value={values.closingDate}
-            onChange={(event) => update({ closingDate: event.target.value })}
-            className="w-fit"
+            onChange={(next) => update({ closingDate: next })}
           />
           <FieldDescription>Fecha límite para recibir postulaciones.</FieldDescription>
         </Field>

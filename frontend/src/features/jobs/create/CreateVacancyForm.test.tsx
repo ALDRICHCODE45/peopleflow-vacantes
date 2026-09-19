@@ -152,10 +152,8 @@ describe("CreateVacancyForm contract surface", () => {
       screen.getByRole("combobox", { name: "Habilidades y tecnologías" }),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Agregar idioma" })).toBeVisible();
-    expect(screen.getByLabelText(/fecha de cierre/i)).toHaveAttribute(
-      "type",
-      "date",
-    );
+    // The closing date is the reusable DatePickerField, not a native date input.
+    expect(screen.getByLabelText(/fecha de cierre/i)).not.toHaveAttribute("type", "date");
     expect(screen.getByRole("group", { name: "Beneficios" })).toBeVisible();
     expect(screen.getByRole("group", { name: "Frecuencia de pago" })).toBeVisible();
     expect(screen.getByText("Sin preguntas de filtro")).toBeVisible();

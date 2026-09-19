@@ -22,6 +22,33 @@ import {
 } from "./prototype-model";
 import type { LanguageRequirement, VacancyPrototypeValues } from "./prototype-model";
 
+// Layered unit boundary: DatePickerField owns its behavior in its own focused
+// suite, so this file replaces the whole field with a wiring probe that reports
+// the id/aria-labelledby it received and emits one fixed civil date.
+vi.mock("@/components/ui/date-picker-field", () => ({
+  DatePickerField: ({
+    id,
+    "aria-labelledby": labelledBy,
+    value,
+    onChange,
+  }: {
+    id: string;
+    "aria-labelledby"?: string;
+    value: string;
+    onChange: (next: string) => void;
+  }) => (
+    <button
+      type="button"
+      id={id}
+      aria-labelledby={labelledBy}
+      data-value={value}
+      onClick={() => onChange("2026-12-31")}
+    >
+      Fecha de cierre
+    </button>
+  ),
+}));
+
 const FORM_DIR = join(process.cwd(), "src", "features", "jobs", "create", "form");
 const source = readFileSync(join(FORM_DIR, "strategy-section.tsx"), "utf8");
 
@@ -132,18 +159,16 @@ describe("StrategySection fields", () => {
       screen.getByRole("combobox", { name: "Habilidades y tecnologías" }),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Agregar idioma" })).toBeVisible();
-    expect(screen.getByLabelText(/fecha de cierre/iu)).toHaveAttribute(
-      "type",
-      "date",
-    );
+    // No native date control remains: the field is the reusable DatePickerField.
+    const closingDate = screen.getByLabelText(/fecha de cierre/iu);
+    expect(closingDate).not.toHaveAttribute("type", "date");
+    expect(closingDate.tagName).toBe("BUTTON");
   });
 
   it("reports a closing date change without mutating the caller values", () => {
     const { values, onChange } = renderSection();
 
-    fireEvent.change(screen.getByLabelText(/fecha de cierre/iu), {
-      target: { value: "2026-12-31" },
-    });
+    fireEvent.click(screen.getByLabelText(/fecha de cierre/iu));
 
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(firstPayload(onChange).closingDate).toBe("2026-12-31");

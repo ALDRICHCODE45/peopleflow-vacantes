@@ -18,6 +18,33 @@ import { VACANCY_FORM_SECTIONS, sectionAnchorId } from "./section-metadata";
 import { INITIAL_PROTOTYPE_VALUES, MAX_LANGUAGES } from "./prototype-model";
 import type { VacancyPrototypeValues } from "./prototype-model";
 
+// Layered unit boundary: DatePickerField owns its behavior in its own focused
+// suite, so this file replaces the whole field with a wiring probe that reports
+// the id/aria-labelledby it received and emits one fixed civil date.
+vi.mock("@/components/ui/date-picker-field", () => ({
+  DatePickerField: ({
+    id,
+    "aria-labelledby": labelledBy,
+    value,
+    onChange,
+  }: {
+    id: string;
+    "aria-labelledby"?: string;
+    value: string;
+    onChange: (next: string) => void;
+  }) => (
+    <button
+      type="button"
+      id={id}
+      aria-labelledby={labelledBy}
+      data-value={value}
+      onClick={() => onChange("2026-12-31")}
+    >
+      Fecha de cierre
+    </button>
+  ),
+}));
+
 const FORM_DIR = join(process.cwd(), "src", "features", "jobs", "create", "form");
 const source = readFileSync(join(FORM_DIR, "vacancy-form-sections.tsx"), "utf8");
 
@@ -139,10 +166,10 @@ describe("VacancyFormSections composition", () => {
     expect(screen.getByLabelText("Idioma 1")).toHaveValue("Inglés");
     expect(screen.getByRole("combobox", { name: "Nivel 1" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Agregar idioma" })).toBeEnabled();
-    expect(screen.getByLabelText(/fecha de cierre/iu)).toHaveAttribute(
-      "type",
-      "date",
-    );
+    // No native date control remains: the field is the reusable DatePickerField.
+    const closingDate = screen.getByLabelText(/fecha de cierre/iu);
+    expect(closingDate).not.toHaveAttribute("type", "date");
+    expect(closingDate.tagName).toBe("BUTTON");
 
     expect(screen.getAllByRole("checkbox")).toHaveLength(8);
     expect(screen.getByRole("group", { name: "Frecuencia de pago" })).toBeVisible();
@@ -265,9 +292,7 @@ describe("VacancyFormSections callback routing", () => {
       }),
     );
 
-    fireEvent.change(screen.getByLabelText(/fecha de cierre/iu), {
-      target: { value: "2026-12-31" },
-    });
+    fireEvent.click(screen.getByLabelText(/fecha de cierre/iu));
     expect(onChangePrototype).toHaveBeenLastCalledWith(
       expect.objectContaining({ closingDate: "2026-12-31" }),
     );
