@@ -4,17 +4,18 @@
 
 ## Dónde estamos
 
-**Backend: walking skeleton vivo + 8 bounded contexts DELIVERED (`companies` incl. membership, `identity`, `candidates`, `jobs` incl. write-side, `applications`, `audit_events`, `company-membership`) + catálogo `industries`. Auth Cognito real (verifier RS256) montada en rutas autenticadas. Búsqueda full-text de vacantes viva. Lado escritura de empresas (owner-only) entregado.**
+**Backend: walking skeleton vivo + 7 features DELIVERED (`companies` incl. membership, `identity`, `candidates`, `jobs` incl. write-side, `applications`, `audit_events`, `industries`). Auth Cognito real montada en rutas autenticadas (**JWKS** en producción; PEM estático solo local/test). Búsqueda full-text de vacantes viva. Lado escritura de empresas (owner-only) entregado.**
 
 ### Infraestructura base (lista y compilando)
 
-- ✅ Módulo Go en `backend/go.mod` (módulo único; `api` y `workers` irán como binarios en `cmd/`).
+- ✅ Módulo Go en `backend/go.mod` (módulo único; `api`, `migrate`, `postconfirmation` y `archguard` ya viven como binarios en `cmd/`; los workers Go son `future/non-MVP`).
 - ✅ Herramientas pineadas con `go tool` (no global): goose v3.27.1, sqlc v1.31.1.
 - ✅ `backend/docker-compose.yml`: Postgres **16** local con healthcheck (`pg_isready`).
-- ✅ Migraciones goose aplicadas (versión 8): `00001_create_industries` (catálogo + 9 filas semilla), `00002_create_companies` (FK `industry_id`), `00003_companies_profile` (perfil rico, ~10 campos nullable), `00004_companies_active_default` (status nace `active` — decisión MVP), `00005_create_users` (puente Cognito), `00006_create_candidate_profiles` (+ `candidate_languages`), `00007_jobs` (vacantes + `search_vector`), `00008_jobs_seed` (dev-only).
+- ✅ Migraciones goose aplicadas (versión actual `00011`): `00001_create_industries` (catálogo + 9 filas semilla), `00002_create_companies` (FK `industry_id`), `00003_companies_profile` (perfil rico, ~10 campos nullable), `00004_companies_active_default` (status nace `active` — decisión MVP), `00005_create_users` (puente Cognito), `00006_create_candidate_profiles` (+ `candidate_languages`), `00007_jobs` (vacantes + `search_vector`), `00008_jobs_seed` (dev-only), `00009_create_company_members`, `00010_create_applications`, `00011_create_audit_events` (append-only).
+- ✅ `cmd/migrate` — ejecutable propio: goose con las migraciones embebidas (`go:embed`), comandos `up`/`down`/`status`, fallo clasificado con código de salida 3.
 - ✅ sqlc configurado (`backend/sqlc.yaml`: pgx/v5, override `uuid`→`google/uuid`) + código generado en `internal/db/`.
 - ✅ Queries en `backend/db/queries/companies.sql`: `CreateCompany`, `GetCompanyByID`.
-- ✅ Composition root `backend/cmd/api/main.go`: pool pgx + chi + `/healthz` (pinguea DB) + graceful shutdown. **Corre y responde 200.**
+- ✅ Composition root `backend/cmd/api/main.go`: pool pgx + chi + `/healthz` (liveness del proceso, sin tocar la DB) + `/readyz` (readiness de DB; 503 con body seguro cuando no está lista) + graceful shutdown. **Corre y responde 200.**
 
 ### Feature `companies` (arquitectura hexagonal — ✅ DELIVERED)
 
@@ -25,22 +26,22 @@
 - ✅ **Perfil rico** (migración `00003`): `description`, `size` (TEXT+CHECK: startup/small/medium/large/enterprise), `founded_year` (SMALLINT+CHECK 1800–2200, regla autoritativa en el VO), `city`, `country`, `linkedin_url`, `instagram_url`, `facebook_url`, `twitter_url`, `cover_image_url`.
 - ✅ **Error mapping pgconn**: SQLSTATE → sentinel de dominio → HTTP (23505→409 Conflict, 23503→400 Bad Request).
 - ✅ **Tests**: 50 verdes (`go test ./... -count=1`), strict TDD. Build/vet/race limpios.
-- 🔲 **Pendiente**: `UpdateCompany` / `DeleteCompany` (ya desbloqueados con `identity` — ver Deuda).
+- ✅ **`UpdateCompany` / `DeleteCompany`** — ENTREGADO (2026-08-26, `companies-write`): `PATCH /me/company` (parcial + CAS) y `DELETE /me/company` (soft-delete + cierre transaccional de vacantes), ambos owner-only.
 
 ### Feature `identity` (✅ DELIVERED)
 
-- ✅ Tabla `users` (migración `00005`), puente Cognito→Postgres vía `users.cognito_sub`. `ON CONFLICT (cognito_sub) WHERE deleted_at IS NULL DO NOTHING RETURNING ...` (idempotente, ready para la Lambda PostConfirmation).
+- ✅ Tabla `users` (migración `00005`), puente Cognito→Postgres vía `users.cognito_sub`. `ON CONFLICT (cognito_sub) WHERE deleted_at IS NULL DO NOTHING RETURNING ...` (idempotente; lo consume el ejecutable `cmd/postconfirmation`).
 - ✅ Dominio `User` + VOs (`Email`, `FullName`, `UserType`), repo Postgres con `mapCreateError`, use case `EnsureUser`/`GetUserByCognitoSub`.
-- ✅ **Auth real**: verifier RS256 (`jwk.ParseKey` con `WithPEM` — PKCS#1 y PKIX) + middleware `RequireAuth` fail-closed.
+- ✅ **Auth real**: verifier RS256 con **JWKS** de Cognito en producción (selección por `kid`, cache acotado, refresh de rotación) + modo PEM estático explícito solo local/test, y middleware `RequireAuth` fail-closed.
 
 ### Feature `candidates` (✅ DELIVERED)
 
 - ✅ Migración `00006`: `candidate_profiles` (1:1 con `users`) + `candidate_languages`.
 - ✅ Dominio `CandidateProfile` + VOs (`EducationLevel`, `SalaryPeriod`, `CefrLevel`, `NormalizeSkills`), use cases self-service (`GetMyProfile`/`UpsertMyProfile`/`ReplaceMyLanguages`/`ListMyLanguages` con resolución `cognito_sub → users.id`).
-- ✅ Endpoints autenticados: `GET/PUT /me/profile` + `/me/languages` (reemplazo atómico de idiomas en `pgx.Tx`).
+- ✅ Endpoints autenticados: `GET/PUT /me/profile` + `GET/PUT /me/profile/languages` (reemplazo atómico de idiomas en `pgx.Tx`).
 - ✅ `RequireAuth` montado en `/me/*`. 21/21 tareas, verify PASS WITH WARNINGS (18/18 escenarios, 0 CRITICAL).
 
-### Feature `jobs` (✅ DELIVERED — public-read slice)
+### Feature `jobs` (✅ DELIVERED — public-read + write-side)
 
 - ✅ Migración `00007`: tabla `jobs` (`status` `draft/published/closed`, nace `draft`; `work_mode`/`employment_type`/`seniority`/`salary_currency` con CHECK; `search_vector` STORED generado + GIN + índices). `00008`: seed dev-only (3 empresas `active` + 6 vacantes `published`, idempotente).
 - ✅ Búsqueda full-text `'spanish'` (`websearch_to_tsquery` + `ts_rank`) + filtros (`seniority`, `work_mode`, `employment_type`, `location`, `currency`) + paginación keyset 3-tuple `(ts_rank, published_at, id)`.
@@ -71,7 +72,7 @@
 7. ✅ **`companies-write`** — DELIVERED (2026-08-26). `PATCH /me/company` (parcial + CAS If-Unmodified-Since, rfc/industry inmutables) y `DELETE /me/company` (soft-delete + cierre transaccional de vacantes), ambos owner-only. Spec canónica `companies` creada (9 req / 45 escenarios).
 8. ✅ **`companies-audit`** — DELIVERED (2026-08-26). `CompanyUpdated`/`CompanyDeleted` emitidos desde los write paths owner-only de companies (co-write atómico fail-closed en el mismo `pgx.Tx`). Vocabulario de eventos cerrado expandido a 4 (audit_events); metadata PII-free (`CompanyUpdated` → `{}`, `CompanyDeleted` → `{jobs_closed}`).
 
-Decisión abierta para discutir cuando toque: ¿quién valida que `industry_id` exista? Hoy lo garantiza el FK (DB). Evaluar si además se valida contra el catálogo activo en la capa de aplicación.
+✅ **Validación de `industry_id`** — RESUELTO (`atomic-active-sql-gate`): la creación de empresa exige que la industria exista **y** esté activa dentro de la misma sentencia/transacción SQL (sin ventana TOCTOU; las industrias inactivas no son seleccionables). El error estable es `industry_unavailable`.
 
 ## Deuda técnica / Follow-ups (no perder de vista)
 
@@ -86,11 +87,11 @@ Decisión abierta para discutir cuando toque: ¿quién valida que `industry_id` 
 - 🔲 **Test de CHECK constraints a nivel DB** (además del VO) en `companies` (`size`, `founded_year`) — evidencia por `information_schema`, no inspección estática.
 - 🔲 **Separar commits RED de GREEN** en ciclos futuros (práctica; hoy el TDD RED-first no es git-reconstruible).
 - 🔲 **Frontend** (`Next.js`) — mockups HTML listos en `design/screens/`, sin código de app.
-- 🔲 **Lambda PostConfirmation** de Cognito → `users` (el backend ya es idempotente para recibirla).
+- ✅ **PostConfirmation de Cognito** — ENTREGADO: ejecutable `cmd/postconfirmation` (adaptador del trigger PostConfirmation, errores propagados como fallo de Lambda) sobre el `PostConfirmationHandler` idempotente de `identity`.
 - ✅ **Audit events para companies** — ENTREGADO (2026-08-26, `companies-audit`): `CompanyUpdated`/`CompanyDeleted` co-escritos atómicamente desde `PATCH/DELETE /me/company`. Vocabulario cerrado de audit_events a 4 eventos.
 - ✅ **Hardening read-side `c.deleted_at IS NULL`** en queries públicas de jobs (`SearchJobs` + `GetJobByID`) — ENTREGADO: el inline-close tapa la fuga del flujo de borrado; el predicado es defense-in-depth para un futuro code path que deje una vacante `published` con empresa tombstonada. Cubierto por tests de integración (Search + GetByID, fixture con empresa `active` + `deleted_at` seteado).
 - 🔲 **Restore/undelete de empresa** — el mecanismo inverso del soft-delete (fuera de scope de `companies-write`).
-- 🔲 **`infra/` (Terraform)** y **`workers/`** — vacíos.
+- 🔲 **`infra/` (Terraform)** y **`workers/`** — placeholders vacíos; pertenecen a la fase AWS `future/non-MVP`.
 - ✅ **Enforcement "empresa viva" en escritura** — ENTREGADO en dos capas complementarias: (a) los write paths de jobs (`CreateJob`, `UpdateJob`, `SoftDeleteJob`, `GetJobForUpdate`) y el apply gate de applications (`CreateApplication`) rechazan empresas tombstoned (`status='active'` + `deleted_at` seteado — `SoftDeleteCompany` preserva el status, así que `status='active'` solo no es gate de "empresa viva"). Jobs → `ErrCompanyNotActive` (409) / `ErrJobNotFound` en `GetJobForUpdate`; applications → `ErrJobNotApplicable` (404). Cubierto por tests de integración live-DB (fixture empresa active + tombstone + job published, RED→GREEN). Companion del hardening read-side (b59604c). (b) `RequireCompanyRole` endurecido con un gate de liveness de empresa (`require-company-role-tombstone-gate`): la middleware resuelve la membresía del sujeto y ANTES de comparar el rol sondea la liveness de la empresa (mismo predicado `deleted_at IS NULL` de `GetCompanyByID`); empresa tombstonada (`deleted_at IS NOT NULL`) o empresa inexistente (`ErrCompanyNotFound`) colapsan al MISMO `403 Forbidden` con reason `company is inactive`, el handler nunca corre y no se inyecta `CompanyContext`. Cubre TODA ruta role-gated: `POST /jobs`, `PATCH /jobs/{id}`, `DELETE /jobs/{id}`, `GET/PATCH /jobs/{jobId}/applications[/...]` (list / detail / transition), `PATCH /me/company`, `DELETE /me/company`, y las mutaciones de `company_members` (list / add / update / remove del subtree `/me/company/members`). No aplica a rutas `RequireAuth`-only: `GET /me/company` (R7-S3 devuelve `404 company not found`: `GetCompanyByID` filtra `deleted_at IS NULL`; la fila de membership sobrevive solo como historial en DB, sin archived-company response), `POST /jobs/{jobId}/applications` (apply candidato — sigue `404 job not applicable` si la JOB-empresa está tombstonada), `GET /me/applications`, `/me/profile`. Las guardas SQL del punto (a) se RETIENEN como defense-in-depth: un bypass o mis-wire de la middleware seguiría viendo `ErrCompanyNotActive` (409) / `ErrJobNotFound` (404) / `ErrJobNotApplicable` (404) según la ruta, pero la API de producción nunca alcanza esas status para empresa-miembro tombstonada (siempre `403 company is inactive` primero).
 - 🔲 **Conversión FX de salarios** — hoy el filtro `currency` es match exacto (USD/MXN first-class), sin conversión.
 

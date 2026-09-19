@@ -1,9 +1,9 @@
 # Modelo de Datos — Proyecto 04: Plataforma Pública de Vacantes
 
-Base de datos: **PostgreSQL 16** (RDS Multi-AZ, vía RDS Proxy).
-Este documento consolida todas las decisiones de modelado y el DDL completo de las tablas (9 de entidad + el catálogo de referencia `industries`).
+Base de datos: **PostgreSQL 16** local. `future/non-MVP`: RDS Multi-AZ vía RDS Proxy (fase AWS).
+Este documento consolida todas las decisiones de modelado y el DDL de las 9 tablas entregadas (8 de entidad + el catálogo de referencia `industries`).
 
-Arquitectura de referencia: ver memoria `architecture/proyecto-04-vacantes-aws` y diagrama Excalidraw (https://app.excalidraw.com/s/9kHweo4tLb6/6VfQhv4lo5D).
+Arquitectura de referencia: ver memoria `architecture/proyecto-04-vacantes-aws` y diagrama Excalidraw (https://app.excalidraw.com/s/9kHweo4tLb6/6VfQhv4lo5D) — `future/non-MVP`.
 
 ---
 
@@ -25,8 +25,7 @@ No hay una política global; cada tabla usa la estrategia que corresponde a lo q
 | Tabla | Estrategia | Razón |
 |---|---|---|
 | `companies`, `users`, `jobs` | Soft delete (`deleted_at`) | Histórico de negocio, posibilidad de reactivación, integridad de FKs |
-| `applications` | Anonimización (`anonymized_at`) | PII de candidatos: la LFPDPPP (derechos ARCO, Cancelación) exige borrado real de datos personales. Se borra PII y CV de S3, se conserva la fila anonimizada para métricas |
-| `invitations` | Hard delete | Datos efímeros que expiran |
+| `applications` | Anonimización (`anonymized_at`) | PII de candidatos: la LFPDPPP (derechos ARCO, Cancelación) exige borrado real. Hoy solo existe la columna `anonymized_at`; el ciclo completo (borrado de PII y del CV en S3) es `future/non-MVP` |
 | `audit_events` | Nunca se borra | Append-only; es evidencia de auditoría |
 | `industries` | Desactivación (`active`) | Catálogo de referencia: no se borra, se marca `active = false`; las empresas que ya lo referencian siguen apuntando a una fila válida |
 
@@ -39,7 +38,7 @@ No hay una política global; cada tabla usa la estrategia que corresponde a lo q
 - **Por qué no lookup tables**: se justifican cuando el negocio administra los valores en runtime. Aquí los estados son parte de la lógica de dominio (cambian con deploy de código, disparan eventos).
 - **Patrón**: Go define el vocabulario (constantes tipadas), Postgres lo hace cumplir (CHECK). Cambiar valores = migración trivial de drop/add constraint.
 - **Excepción `audit_events.event_type`**: no lleva CHECK — se agregan tipos de evento constantemente y no se quiere una migración por cada uno.
-- **Excepción `companies.industry_id` (lookup table)**: la industria SÍ se modela como tabla de referencia (`industries`) con FK, no como CHECK. Cumple el criterio que esta misma sección define: es un catálogo **administrado en runtime** por el negocio (un admin agrega/desactiva industrias sin deploy) y requiere metadata (label i18n es/en, orden de despliegue). Validación en capas: frontend ofrece las opciones (UX), Go valida contra el catálogo activo (dominio), el FK garantiza integridad (DB, última línea).
+- **Excepción `companies.industry_id` (lookup table)**: la industria SÍ se modela como tabla de referencia (`industries`) con FK, no como CHECK. Cumple el criterio que esta misma sección define: es un catálogo **administrado en runtime** por el negocio (un admin agrega/desactiva industrias sin deploy) y requiere metadata (label i18n es/en, orden de despliegue). Validación en capas: el frontend ofrece las opciones (UX); en Go, el dominio solo rechaza un `industry_id` **vacío** **antes** de tocar la DB (validación pre-SQL), y la existencia **y** el `active = true` los hace cumplir el create gate SQL atómico de `CreateCompany` (CTE `active_industry` con `FOR UPDATE` en la **misma** sentencia). El **FK** `industry_id → industries(id)` queda como **backstop** de **integridad** referencial, no como el gate de negocio.
 
 ### 1.4 Timestamps
 
@@ -70,7 +69,7 @@ Regla: **lo que se filtra, se estructura; lo que se lee, va a full-text.**
 
 - Filtros exactos (seniority, work_mode, ciudad, años de experiencia, skills) → columnas estructuradas con índices B-tree/GIN.
 - Texto libre ("Golang, Next.js, AWS", "Full Stack developer") → `tsvector` generado (`GENERATED ALWAYS ... STORED`) con índice GIN, config `'spanish'`, pesos `setweight` (título A > resumen/descripción B).
-- Tanto `jobs` como `candidate_profiles` tienen `search_vector` (búsqueda en ambas direcciones: candidatos buscan vacantes, reclutadores buscan candidatos).
+- Tanto `jobs` como `candidate_profiles` tienen `search_vector`. Hoy está entregada la búsqueda de vacantes (candidatos buscan vacantes); la búsqueda de candidatos por reclutadores es `future/non-MVP`.
 
 ### 1.9 Campos del PRD de candidato
 
@@ -87,7 +86,6 @@ Basado en `docs/Estructura de Formulario de Candidato - Sistema de Reclutamiento
 ```
 industries ──< companies ──< company_members >── users ──1:1── candidate_profiles
 companies ──< jobs ──< applications >── users (candidate)   users ──< candidate_languages
-companies ──< invitations
 audit_events (sin FKs — append-only, sobrevive a sus actores)
 ```
 
@@ -99,18 +97,32 @@ audit_events (sin FKs — append-only, sobrevive a sus actores)
 
 ```sql
 CREATE TABLE companies (
-    id           UUID PRIMARY KEY,
-    name         TEXT NOT NULL,
-    rfc          TEXT NOT NULL,
-    industry_id  TEXT NOT NULL REFERENCES industries (id),
-    website      TEXT,
-    logo_url     TEXT,
-    status       TEXT NOT NULL DEFAULT 'active'
+    id                 UUID PRIMARY KEY,
+    name               TEXT NOT NULL,
+    rfc                TEXT NOT NULL,
+    industry_id        TEXT NOT NULL REFERENCES industries (id),
+    website            TEXT,
+    logo_url           TEXT,
+    status             TEXT NOT NULL DEFAULT 'active'
         CONSTRAINT companies_status_check
         CHECK (status IN ('pending_verification', 'active', 'suspended')),
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at   TIMESTAMPTZ
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at         TIMESTAMPTZ,
+    description        TEXT,
+    size               TEXT
+        CONSTRAINT companies_size_check
+        CHECK (size IS NULL OR size IN ('startup', 'small', 'medium', 'large', 'enterprise')),
+    founded_year       SMALLINT
+        CONSTRAINT companies_founded_year_check
+        CHECK (founded_year IS NULL OR (founded_year >= 1800 AND founded_year <= 2200)),
+    city               TEXT,
+    country            TEXT,
+    linkedin_url       TEXT,
+    instagram_url      TEXT,
+    facebook_url       TEXT,
+    twitter_url        TEXT,
+    cover_image_url    TEXT
 );
 
 CREATE INDEX companies_industry_id_idx ON companies (industry_id);
@@ -120,7 +132,9 @@ CREATE UNIQUE INDEX companies_rfc_unique
 ```
 
 Notas:
+- **Esquema consolidado de `00002` + `00003` + `00004`**: `00002` crea la tabla base, `00003` agrega las columnas de perfil al final (por eso van después de `deleted_at`), y `00004` cambia el DEFAULT de `status` a `'active'`.
 - `status` nace en `active` (decisión MVP): no hay pipeline de verificación en el primer funcional. La validación básica (name/rfc/industry) es el único gate. `suspended` es el takedown manual. `pending_verification` queda reservada para el flujo avanzado diferido — ver `docs/flujo-verificacion-empresas.md`.
+- **Perfil rico**: `size` con CHECK (`startup`/`small`/`medium`/`large`/`enterprise`, `NULL` permitido) y `founded_year` con CHECK estático `1800..2200` (`NULL` permitido). El rango estricto con cota móvil (`currentYear + 1`) es regla del VO `FoundedYear`, que corre antes de la DB; el CHECK de la DB es defense-in-depth y ambos deben moverse juntos.
 - Índice único parcial en `rfc`: la unicidad aplica solo entre empresas vivas.
 - `industry_id` es FK obligatoria a `industries` (catálogo, ver §3.1.1). `ON DELETE` por default (RESTRICT): no se puede borrar una industria en uso. El índice `companies_industry_id_idx` es manual porque Postgres **no** indexa automáticamente la columna que origina un FK (solo la PK referenciada).
 
@@ -169,7 +183,7 @@ CREATE UNIQUE INDEX users_email_unique
 
 Notas:
 - Sin `password` (vive en Cognito), sin `role`/`company_id` (viven en `company_members`).
-- Fila creada por el backend cuando Cognito dispara la Lambda PostConfirmation.
+- Fila creada por el backend cuando Cognito dispara el trigger PostConfirmation (ejecutable `cmd/postconfirmation`).
 
 ### 3.3 `candidate_profiles`
 
@@ -219,7 +233,7 @@ CREATE INDEX candidate_profiles_city_idx
 Notas:
 - PK = `user_id` (relación 1:1 con `users`; estructura garantiza un solo perfil por user, JOIN gratis).
 - `skills`: normalizar a lowercase en Go antes de guardar ("Go" ≠ "go" para el índice).
-- `search_vector` habilita búsquedas de reclutadores tipo "Full Stack developer".
+- `search_vector` habilita búsquedas tipo "Full Stack developer"; la búsqueda de candidatos por reclutadores es `future/non-MVP` (sin endpoint entregado).
 
 ### 3.4 `candidate_languages`
 
@@ -244,98 +258,83 @@ Notas:
 ```sql
 CREATE TABLE company_members (
     id          UUID PRIMARY KEY,
-    company_id  UUID NOT NULL REFERENCES companies (id),
     user_id     UUID NOT NULL REFERENCES users (id),
+    company_id  UUID NOT NULL REFERENCES companies (id),
     role        TEXT NOT NULL
         CONSTRAINT company_members_role_check
         CHECK (role IN ('owner', 'recruiter')),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-
-    CONSTRAINT company_members_user_unique UNIQUE (user_id)
-);
-```
-
-Notas:
-- `UNIQUE (user_id)` implementa el Modelo A (una empresa por usuario). Migrar a multi-empresa = dropear este constraint.
-
-### 3.6 `invitations`
-
-```sql
-CREATE TABLE invitations (
-    id          UUID PRIMARY KEY,
-    company_id  UUID NOT NULL REFERENCES companies (id),
-    invited_by  UUID NOT NULL REFERENCES users (id),
-    email       TEXT NOT NULL,
-    role        TEXT NOT NULL DEFAULT 'recruiter'
-        CONSTRAINT invitations_role_check CHECK (role IN ('recruiter')),
-    token_hash  TEXT NOT NULL,
-    status      TEXT NOT NULL DEFAULT 'pending'
-        CONSTRAINT invitations_status_check
-        CHECK (status IN ('pending', 'accepted', 'expired', 'revoked')),
-    expires_at  TIMESTAMPTZ NOT NULL,
-    accepted_at TIMESTAMPTZ,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX invitations_pending_unique
-    ON invitations (company_id, email) WHERE status = 'pending';
+CREATE UNIQUE INDEX company_members_user_id_unique
+    ON company_members (user_id);
+
+CREATE INDEX company_members_company_id_idx
+    ON company_members (company_id);
 ```
 
-Notas:
-- `token_hash`: se guarda el hash SHA-256 del token de invitación, nunca el token crudo (mismo principio que passwords).
-- Índice único parcial: una sola invitación pendiente por (empresa, email); permite re-invitar tras expirar.
+Notas (alineadas con la migración `00009`):
+- `company_members_user_id_unique` implementa el Modelo A (una empresa por usuario). Es un índice UNIQUE **no parcial** porque el borrado de membresía es hard delete: reinsertar el mismo `user_id` después de un remove es intencional. Migrar a multi-empresa = dropear ese índice.
+- `company_members_company_id_idx` sirve los joins por FK y la query `ListByCompanyID` (`WHERE company_id = $1`); Postgres no indexa automáticamente la columna que origina un FK.
+- `role` queda acotado por el CHECK nombrado `company_members_role_check` (`owner`/`recruiter`): el VO `MemberRole` valida en la aplicación y el CHECK es la última línea de defensa en la DB.
+- `created_at` y `updated_at` son `NOT NULL DEFAULT now()`; `updated_at` lo actualiza el cambio de rol.
 
-### 3.7 `jobs`
+### 3.6 `jobs`
 
 ```sql
 CREATE TABLE jobs (
-    id              UUID PRIMARY KEY,
-    company_id      UUID NOT NULL REFERENCES companies (id),
-    created_by      UUID NOT NULL REFERENCES users (id),
-    title           TEXT NOT NULL,
-    description     TEXT NOT NULL,
-    location        TEXT,
-    work_mode       TEXT NOT NULL
+    id               UUID PRIMARY KEY,
+    company_id       UUID NOT NULL REFERENCES companies (id),
+    title            TEXT NOT NULL,
+    description      TEXT NOT NULL,
+    work_mode        TEXT NOT NULL
         CONSTRAINT jobs_work_mode_check
         CHECK (work_mode IN ('onsite', 'remote', 'hybrid')),
-    employment_type TEXT NOT NULL
+    employment_type  TEXT NOT NULL
         CONSTRAINT jobs_employment_type_check
         CHECK (employment_type IN ('full_time', 'part_time', 'contract', 'internship')),
-    seniority       TEXT NOT NULL
+    seniority        TEXT NOT NULL
         CONSTRAINT jobs_seniority_check
         CHECK (seniority IN ('intern', 'junior', 'mid', 'senior', 'lead')),
-    salary_min      INTEGER,
-    salary_max      INTEGER,
-    salary_currency TEXT DEFAULT 'MXN',
-    status          TEXT NOT NULL DEFAULT 'draft'
+    status           TEXT NOT NULL DEFAULT 'draft'
         CONSTRAINT jobs_status_check
         CHECK (status IN ('draft', 'published', 'closed')),
-    published_at    TIMESTAMPTZ,
-    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at      TIMESTAMPTZ,
+    location         TEXT,
+    salary_min       INTEGER,
+    salary_max       INTEGER,
+    salary_currency  TEXT NOT NULL DEFAULT 'MXN'
+        CONSTRAINT jobs_salary_currency_check
+        CHECK (salary_currency IN ('USD', 'MXN')),
+    published_at     TIMESTAMPTZ,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at       TIMESTAMPTZ,
+    CONSTRAINT jobs_published_integrity_check
+        CHECK (status <> 'published' OR published_at IS NOT NULL),
 
-    search_vector   tsvector GENERATED ALWAYS AS (
+    search_vector    tsvector GENERATED ALWAYS AS (
         setweight(to_tsvector('spanish', coalesce(title, '')), 'A') ||
         setweight(to_tsvector('spanish', coalesce(description, '')), 'B')
     ) STORED
 );
 
 CREATE INDEX jobs_search_idx ON jobs USING GIN (search_vector);
+CREATE INDEX jobs_company_id_idx ON jobs (company_id);
 CREATE INDEX jobs_public_listing_idx
     ON jobs (published_at DESC)
     WHERE status = 'published' AND deleted_at IS NULL;
-CREATE INDEX jobs_seniority_idx
-    ON jobs (seniority)
-    WHERE status = 'published' AND deleted_at IS NULL;
 ```
 
-Notas:
-- `seniority` estructurado: tanto reclutadores como candidatos filtran por esto. Filtro exacto > buscar "senior" en texto (falsos positivos).
+Notas (alineadas con la migración `00007`):
+- La propiedad se deriva de la empresa vía `company_members`: la tabla no guarda un autor por fila, y `seniority` no tiene índice dedicado (se filtra sobre columnas estructuradas).
+- `salary_currency` es `NOT NULL DEFAULT 'MXN'` con CHECK (`USD`/`MXN`).
+- `jobs_published_integrity_check`: una vacante `published` siempre tiene `published_at`.
+- `jobs_company_id_idx`: B-tree para el join por FK y las queries por empresa.
 - `search_vector` mantenido por Postgres (`GENERATED ... STORED`): sin triggers, imposible desincronizar.
 - `jobs_public_listing_idx` (parcial): sirve la query más caliente — listado público de vacantes publicadas, recientes primero.
 
-### 3.8 `applications`
+### 3.7 `applications`
 
 ```sql
 CREATE TABLE applications (
@@ -365,11 +364,11 @@ CREATE INDEX applications_by_candidate_idx
 
 Notas:
 - `UNIQUE (job_id, candidate_id)`: nadie aplica dos veces a la misma vacante (regla de negocio como estructura).
-- `cv_s3_key` propio = **snapshot** del CV al momento de aplicar (si el candidato actualiza su CV, el reclutador sigue viendo el documento con el que aplicó).
-- `anonymized_at` implementa la cancelación LFPDPPP: PII fuera, CV borrado de S3, fila conservada para métricas.
+- `cv_s3_key` propio = **snapshot** del CV al momento de aplicar. La columna está entregada y es nullable; `future/non-MVP`: el ciclo de vida del CV en S3 (almacenamiento y borrado real).
+- `anonymized_at` es la columna de cancelación LFPDPPP: `future/non-MVP`, el flujo efectivo (PII fuera, CV borrado de S3, fila conservada para métricas) todavía no está implementado.
 - `source`: campo movido desde el PRD de candidato — es dato de la aplicación, no del perfil.
 
-### 3.9 `audit_events`
+### 3.8 `audit_events`
 
 ```sql
 CREATE TABLE audit_events (
@@ -404,38 +403,45 @@ Las queries calientes del producto, para validar que el modelo las sirve natural
 ### 4.1 Candidato busca vacantes por texto ("Golang, Next.js, AWS")
 
 ```sql
-SELECT id, title, location, work_mode, seniority, salary_min, salary_max,
-       ts_rank(search_vector, query) AS rank
-FROM jobs,
-     websearch_to_tsquery('spanish', 'golang next.js aws') AS query
-WHERE status = 'published'
-  AND deleted_at IS NULL
-  AND search_vector @@ query
-ORDER BY rank DESC, published_at DESC
+SELECT j.id, j.title, j.location, j.work_mode, j.seniority, j.salary_min, j.salary_max,
+       ts_rank(j.search_vector, websearch_to_tsquery('spanish', 'golang next.js aws')) AS rank
+FROM jobs j
+JOIN companies c ON c.id = j.company_id
+WHERE j.status = 'published'
+  AND j.deleted_at IS NULL
+  AND c.status = 'active'
+  AND c.deleted_at IS NULL
+  AND j.search_vector @@ websearch_to_tsquery('spanish', 'golang next.js aws')
+ORDER BY rank DESC, j.published_at DESC
 LIMIT 20;
 ```
 
 - `websearch_to_tsquery` parsea texto libre del usuario de forma segura (no lanza error de sintaxis con input raro).
 - El ranking pesa título (A) sobre descripción (B).
+- La visibilidad es la canónica de `jobs.sql`: la vacante `published` y viva, **y** la empresa dueña `active` y no tombstoned (`c.status = 'active'` + `c.deleted_at IS NULL`).
 
 ### 4.2 Candidato busca con filtros estructurados + texto ("Senior python developer")
 
 ```sql
-SELECT id, title, location, work_mode, salary_min, salary_max
-FROM jobs,
-     websearch_to_tsquery('spanish', 'python developer') AS query
-WHERE status = 'published'
-  AND deleted_at IS NULL
-  AND seniority = 'senior'
-  AND work_mode IN ('remote', 'hybrid')
-  AND search_vector @@ query
-ORDER BY ts_rank(search_vector, query) DESC
+SELECT j.id, j.title, j.location, j.work_mode, j.salary_min, j.salary_max
+FROM jobs j
+JOIN companies c ON c.id = j.company_id
+WHERE j.status = 'published'
+  AND j.deleted_at IS NULL
+  AND c.status = 'active'
+  AND c.deleted_at IS NULL
+  AND j.seniority = 'senior'
+  AND j.work_mode IN ('remote', 'hybrid')
+  AND j.search_vector @@ websearch_to_tsquery('spanish', 'python developer')
+ORDER BY ts_rank(j.search_vector, websearch_to_tsquery('spanish', 'python developer')) DESC
 LIMIT 20;
 ```
 
-- El seniority va por filtro exacto, el resto por FTS. UI recomendada: facetas (seniority, modalidad, ubicación) + caja de texto.
+- El seniority va por filtro exacto, el resto por FTS, siempre sobre vacantes visibles (misma dupla `c.status = 'active'` + `c.deleted_at IS NULL`). UI recomendada: facetas (seniority, modalidad, ubicación) + caja de texto.
 
-### 4.3 Reclutador busca candidatos (skills + localidad + experiencia)
+### 4.3 `future/non-MVP` — Reclutador busca candidatos (skills + localidad + experiencia)
+
+Ilustrativa, no entregada: el endpoint de búsqueda de candidatos por reclutadores es `future/non-MVP`.
 
 ```sql
 SELECT u.id, u.full_name, cp.professional_title, cp.city,
@@ -449,7 +455,7 @@ ORDER BY cp.years_of_experience DESC
 LIMIT 20;
 ```
 
-### 4.4 Reclutador busca candidatos por texto ("Full Stack developer")
+### 4.4 `future/non-MVP` — Reclutador busca candidatos por texto ("Full Stack developer")
 
 ```sql
 SELECT u.id, u.full_name, cp.professional_title, cp.city,
@@ -496,8 +502,8 @@ ORDER BY a.created_at DESC;
 
 ## 5. Pendientes / temas abiertos
 
-- [ ] Elegir herramienta de migraciones (goose vs golang-migrate) — corre como one-off ECS task antes de cada deploy.
-- [ ] Definir TTL de retención para `applications` no anonimizadas (política LFPDPPP).
+- ✅ Herramienta de migraciones decidida: **goose**, ejecutada por el ejecutable `cmd/migrate` (binario autocontenido con migraciones embebidas). `future/non-MVP`: el despliegue como ECS task one-off antes de cada deploy.
+- [ ] `future/non-MVP`: definir TTL de retención para `applications` no anonimizadas (política LFPDPPP).
 - [ ] Aviso de privacidad: debe declarar explícitamente `birth_date` y salario actual con su finalidad.
-- [ ] Catálogo inicial de `event_type` para `audit_events` (UserRegistered, CompanyCreated, JobPublished, ApplicationSubmitted, InvitationSent — alineado con eventos de EventBridge).
+- ✅ Vocabulario cerrado de `event_type` para `audit_events`: 4 eventos entregados (`ApplicationSubmitted`, `ApplicationTransitioned`, `CompanyUpdated`, `CompanyDeleted`). `future/non-MVP`: publicar eventos de integración hacia EventBridge/SQS en la fase AWS.
 - [ ] Evaluar paginación keyset (cursor por `created_at`/`id`) en listados públicos cuando crezca el volumen.
