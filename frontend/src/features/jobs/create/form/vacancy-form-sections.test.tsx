@@ -6,6 +6,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
@@ -13,6 +14,7 @@ import "@testing-library/jest-dom/vitest";
 import { VacancyFormSections } from "./vacancy-form-sections";
 import { INITIAL_VALUES } from "./model";
 import type { VacancyFormValues, VacancyFieldErrors } from "./model";
+import { VACANCY_FORM_SECTIONS, sectionAnchorId } from "./section-metadata";
 import { INITIAL_PROTOTYPE_VALUES, MAX_LANGUAGES } from "./prototype-model";
 import type { VacancyPrototypeValues } from "./prototype-model";
 
@@ -316,5 +318,94 @@ describe("VacancyFormSections boundaries", () => {
     expect(source).not.toMatch(/createJob|requestJson|lib\/api/);
     expect(source).not.toMatch(/\bfetch\s*\(/u);
     expect(source.split("\n").length).toBeLessThanOrEqual(220);
+  });
+});
+
+describe("VacancyFormSections layout foundation", () => {
+  it("renders the foundation chrome and anchors only for the migrated sections", () => {
+    const { container } = renderSections();
+
+    // Only Información básica and Compensación migrated; the four sections left
+    // for NVS-10 keep the legacy chrome and must not claim the new marker.
+    const foundation = container.querySelectorAll("[data-pf-section-card]");
+    expect(foundation).toHaveLength(2);
+    const migrated = ["basic-information", "compensation"] as const;
+    expect(migrated.map(sectionAnchorId)).toEqual(
+      Array.from(foundation, (card) => card.id),
+    );
+    for (const card of foundation) expect(card.className).toContain("h-fit");
+
+    for (const section of VACANCY_FORM_SECTIONS.slice(2)) {
+      const legacy = screen
+        .getByRole("heading", { name: section.title })
+        .closest('[data-slot="card"]');
+      expect(legacy).not.toHaveAttribute("data-pf-section-card");
+      expect(legacy).not.toHaveAttribute("data-size", "sm");
+      expect(legacy?.querySelector(".size-8.rounded-xl")).not.toBeNull();
+    }
+
+    // A stretched grid row is what inflated Compensación into a blank panel.
+    const grid = container.querySelector("[data-pf-form-sections]");
+    expect(grid?.className).toContain("items-start");
+
+    // Canonical order, exact Spanish title, one heading per section.
+    const titles = VACANCY_FORM_SECTIONS.map((section) => section.title);
+    const headings = screen
+      .getAllByRole("heading")
+      .map((heading) => heading.textContent ?? "")
+      .filter((text) => titles.includes(text));
+    expect(headings).toEqual(titles);
+  });
+
+  it("reflows the choice grids and reports the Jornada contract value", async () => {
+    const { container, onChange } = renderSections();
+
+    // Modalidad, Jornada, Seniority, and Moneda own a shared responsive grid.
+    const grids = container.querySelectorAll("[data-pf-choice-grid]");
+    expect(grids).toHaveLength(4);
+    for (const grid of grids) expect(grid.className).toContain("grid-cols-1");
+
+    // The column count is declared per section: Jornada two, Modalidad three.
+    const jornada = screen.getByRole("group", { name: "Jornada" });
+    expect(jornada.className).toContain("sm:grid-cols-2");
+    const modalidad = screen.getByRole("group", { name: "Modalidad" });
+    expect(modalidad.className).toContain("sm:grid-cols-3");
+
+    const fullTime = within(jornada).getByRole("button", {
+      name: "Tiempo completo",
+    });
+    expect(fullTime.className).toContain("min-w-0");
+    expect(fullTime.className).toContain("whitespace-normal");
+    expect(fullTime.className).not.toContain("whitespace-nowrap");
+
+    // Same control and contract value as before the migration.
+    fireEvent.click(fullTime);
+    expect(onChange).toHaveBeenCalledWith("employmentType", "full_time");
+
+    // One roving tab stop; arrows move focus inside the same choice set.
+    const choices = within(jornada).getAllByRole("button");
+    expect(
+      choices.filter((choice) => choice.getAttribute("tabindex") !== "-1"),
+    ).toHaveLength(1);
+    choices[0].focus();
+    fireEvent.keyDown(choices[0], { key: "ArrowRight" });
+    await waitFor(() => expect(choices[1]).toHaveFocus());
+  });
+
+  it("keeps the enum error wiring on the migrated choice grid", () => {
+    renderSections({
+      errors: { employment_type: "Elegí una jornada de trabajo." },
+    });
+
+    const jornada = screen.getByRole("group", { name: "Jornada" });
+    expect(jornada).toHaveAttribute("id", "vacancy-employment-type");
+    expect(jornada).toHaveAttribute("aria-invalid", "true");
+    expect(jornada).toHaveAttribute(
+      "aria-describedby",
+      "vacancy-employment-type-error",
+    );
+    expect(
+      document.getElementById("vacancy-employment-type-error"),
+    ).toHaveTextContent("Elegí una jornada de trabajo.");
   });
 });

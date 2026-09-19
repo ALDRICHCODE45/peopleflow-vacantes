@@ -16,7 +16,9 @@ import type { VacancyPrototypeValues } from "./prototype-model";
  * the wire contract, and nothing here can turn prototype state into a request.
  *
  * Layout: one column by default, two at `xl`, with the taller requirements and
- * screening cards spanning both columns.
+ * screening cards spanning both columns. Rows are top-aligned (`items-start`) so
+ * every card keeps its natural content height instead of stretching to match a
+ * taller neighbour.
  */
 
 export type VacancyFormSectionsProps = {
@@ -40,7 +42,10 @@ export function VacancyFormSections({
   onChangePrototype,
 }: VacancyFormSectionsProps) {
   return (
-    <div data-pf-form-sections="" className="grid min-w-0 gap-5 xl:grid-cols-2">
+    <div
+      data-pf-form-sections=""
+      className="grid min-w-0 items-start gap-5 xl:grid-cols-2"
+    >
       <BasicInformationSection
         title={values.title}
         location={values.location}

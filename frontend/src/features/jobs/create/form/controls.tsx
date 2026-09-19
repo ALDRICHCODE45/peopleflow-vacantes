@@ -1,12 +1,7 @@
 import * as React from "react";
 import type { LucideIcon } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Field,
   FieldError,
@@ -14,7 +9,8 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { ChoiceGrid, ChoiceGridItem } from "./choice-grid";
+import type { ChoiceGridColumns } from "./choice-grid";
 import { controlId, errorId, groupTitleId, pickOption } from "./model";
 import type { VacancyField } from "./model";
 
@@ -31,16 +27,17 @@ export type FormSectionProps = {
   children: React.ReactNode;
 };
 
-/** Compact card shell shared by the three contract sections. */
+/**
+ * Legacy card shell still rendered by the sections that have not migrated. It
+ * keeps its original chrome on purpose: only the migrated sections adopt the new
+ * foundation card, so no excluded section inherits it transitively.
+ */
 export function FormSection({ icon: Icon, title, children }: FormSectionProps) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2.5">
-          <span
-            aria-hidden="true"
-            className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary"
-          >
+          <span aria-hidden="true" className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
             <Icon className="size-4" />
           </span>
           <h2 className="font-heading text-base font-medium">{title}</h2>
@@ -102,6 +99,8 @@ export type OptionFieldProps<T extends string> = {
   field: VacancyField;
   title: string;
   options: ReadonlyArray<{ value: T; label: string }>;
+  /** Choice columns from `sm` up; the grid is one column on phones. */
+  columns?: ChoiceGridColumns;
   value: T | "";
   /** Present only while this field is invalid, so `aria-invalid` stays truthful. */
   error?: string;
@@ -113,6 +112,7 @@ export function OptionField<T extends string>({
   field,
   title,
   options,
+  columns,
   value,
   error,
   onChange,
@@ -122,26 +122,26 @@ export function OptionField<T extends string>({
   return (
     <Field data-invalid={invalid}>
       <FieldTitle id={groupTitleId(field)}>{title}</FieldTitle>
-      <ToggleGroup
+      <ChoiceGrid
         id={controlId(field)}
+        columns={columns}
         aria-labelledby={groupTitleId(field)}
         aria-invalid={invalid}
         aria-describedby={invalid ? errorId(field) : undefined}
-        className="flex-wrap"
         value={value === "" ? [] : [value]}
         onValueChange={(next) => onChange(pickOption(options, next[0]))}
       >
         {options.map((option) => (
-          <ToggleGroupItem
+          <ChoiceGridItem
             key={option.value}
             value={option.value}
             variant="outline"
             size="sm"
           >
             {option.label}
-          </ToggleGroupItem>
+          </ChoiceGridItem>
         ))}
-      </ToggleGroup>
+      </ChoiceGrid>
       <FieldError id={errorId(field)}>{error}</FieldError>
     </Field>
   );

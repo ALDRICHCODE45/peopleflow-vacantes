@@ -2,9 +2,11 @@ import { WalletIcon } from "lucide-react";
 
 import { FieldGroup } from "@/components/ui/field";
 import type { SalaryCurrency } from "../../formatters";
-import { FormSection, OptionField, TextField } from "./controls";
+import { OptionField, TextField } from "./controls";
+import { FormSectionCard } from "./form-section-card";
 import { SALARY_CURRENCY_OPTIONS } from "./model";
 import type { VacancyFieldErrors } from "./model";
+import { sectionAnchorId, sectionTitle } from "./section-metadata";
 
 export type CompensationSectionProps = {
   salaryCurrency: SalaryCurrency;
@@ -32,12 +34,17 @@ export function CompensationSection({
   onChangeSalaryMax,
 }: CompensationSectionProps) {
   return (
-    <FormSection icon={WalletIcon} title="Compensación">
+    <FormSectionCard
+      id={sectionAnchorId("compensation")}
+      icon={WalletIcon}
+      title={sectionTitle("compensation")}
+    >
       <FieldGroup className="gap-4">
         <OptionField
           field="salary_currency"
           title="Moneda"
           options={SALARY_CURRENCY_OPTIONS}
+          columns={2}
           value={salaryCurrency}
           error={errors.salary_currency}
           onChange={(value) =>
@@ -68,6 +75,6 @@ export function CompensationSection({
           />
         </div>
       </FieldGroup>
-    </FormSection>
+    </FormSectionCard>
   );
 }

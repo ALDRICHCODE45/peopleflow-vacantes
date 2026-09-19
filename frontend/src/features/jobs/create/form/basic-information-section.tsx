@@ -2,13 +2,15 @@ import { FileTextIcon } from "lucide-react";
 
 import { FieldGroup } from "@/components/ui/field";
 import type { EmploymentType, Seniority, WorkMode } from "../../formatters";
-import { FormSection, OptionField, TextField } from "./controls";
+import { OptionField, TextField } from "./controls";
+import { FormSectionCard } from "./form-section-card";
 import {
   EMPLOYMENT_TYPE_OPTIONS,
   SENIORITY_OPTIONS,
   WORK_MODE_OPTIONS,
 } from "./model";
 import type { VacancyFieldErrors } from "./model";
+import { sectionAnchorId, sectionTitle } from "./section-metadata";
 
 export type BasicInformationSectionProps = {
   title: string;
@@ -40,7 +42,11 @@ export function BasicInformationSection({
   onChangeSeniority,
 }: BasicInformationSectionProps) {
   return (
-    <FormSection icon={FileTextIcon} title="Información básica">
+    <FormSectionCard
+      id={sectionAnchorId("basic-information")}
+      icon={FileTextIcon}
+      title={sectionTitle("basic-information")}
+    >
       <FieldGroup className="gap-4">
         <TextField
           field="title"
@@ -63,15 +69,17 @@ export function BasicInformationSection({
           field="work_mode"
           title="Modalidad"
           options={WORK_MODE_OPTIONS}
+          columns={3}
           value={workMode}
           error={errors.work_mode}
           onChange={onChangeWorkMode}
         />
-        <div className="grid gap-4 sm:grid-cols-2">
+        <FieldGroup className="gap-4">
           <OptionField
             field="employment_type"
             title="Jornada"
             options={EMPLOYMENT_TYPE_OPTIONS}
+            columns={2}
             value={employmentType}
             error={errors.employment_type}
             onChange={onChangeEmploymentType}
@@ -80,12 +88,13 @@ export function BasicInformationSection({
             field="seniority"
             title="Seniority"
             options={SENIORITY_OPTIONS}
+            columns={3}
             value={seniority}
             error={errors.seniority}
             onChange={onChangeSeniority}
           />
-        </div>
+        </FieldGroup>
       </FieldGroup>
-    </FormSection>
+    </FormSectionCard>
   );
 }
