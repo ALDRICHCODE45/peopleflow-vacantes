@@ -129,6 +129,9 @@ describe("JobDetailView prototype role block", () => {
     expect(screen.getByText(payFrequencyLabel(prototype.payFrequency))).toBeVisible();
     expect(screen.getByText(formatClosingDate(prototype.closingDate!))).toBeVisible();
     for (const label of ["Indispensables", "Deseables"]) {
+      expect(screen.getByRole("heading", { level: 4, name: label })).toBeVisible();
+    }
+    for (const label of ["Requisitos", "Habilidades y beneficios"]) {
       expect(screen.getByRole("heading", { level: 3, name: label })).toBeVisible();
     }
     for (const text of [
@@ -168,12 +171,25 @@ describe("JobDetailView prototype role block", () => {
     expect(screen.queryByText("Cierre de postulaciones")).toBeNull();
   });
 
+  it("nests the prototype block headings inside the page hierarchy", () => {
+    const { container } = render(<JobDetailView job={enrichedJob} />);
+    const block = container.querySelector("section[aria-labelledby='prototipo-vacante']");
+    const headings = [...(block?.querySelectorAll("h1, h2, h3, h4, h5, h6") ?? [])];
+    expect(headings.map((heading) => [heading.tagName, heading.textContent])).toEqual([
+      ["H2", `Prototipo · ${enrichedJob.prototype!.department}`],
+      ["H3", "Requisitos"],
+      ["H4", "Indispensables"],
+      ["H4", "Deseables"],
+      ["H3", "Habilidades y beneficios"],
+    ]);
+  });
+
   it("keeps heading levels in document order with no skipped level", () => {
     const { container } = render(<JobDetailView job={enrichedJob} />);
     const levels = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")].map((heading) =>
       Number(heading.tagName.slice(1)),
     );
-    expect(levels).toEqual([1, 2, 2, 2, 3, 3, 2]);
+    expect(levels).toEqual([1, 2, 2, 3, 4, 4, 3]);
     levels.forEach((level, index) => {
       if (index > 0) expect(level - levels[index - 1]).toBeLessThanOrEqual(1);
     });

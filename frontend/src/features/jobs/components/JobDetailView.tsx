@@ -67,7 +67,9 @@ function prototypeProfile(job: PrototypeJobView) {
  * description. Every value is fictional demo enrichment, so the block never
  * fuses with the wire metadata: it carries no image and no paragraph (the
  * description paragraphs stay the article's only `p` elements), and every
- * requirement, skill, and benefit renders as escaped plain text.
+ * requirement, skill, and benefit renders as escaped plain text. The block is
+ * an h2 sibling of the page's other sections, with its own groups as h3 and the
+ * two requirement lists as h4, so the page keeps one unbroken outline.
  */
 function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
   const prototype = job.prototype;
@@ -107,10 +109,10 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
       </div>
 
       <div className="flex flex-col gap-3">
-        <h2 className="font-heading text-base font-semibold text-foreground">
+        <h3 className="font-heading text-base font-semibold text-foreground">
           Requisitos
-        </h2>
-        <h3 className="text-sm font-semibold text-foreground">Indispensables</h3>
+        </h3>
+        <h4 className="text-sm font-semibold text-foreground">Indispensables</h4>
         <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
           {prototype.requiredRequirements.map((requirement) => (
             <li
@@ -121,7 +123,7 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
             </li>
           ))}
         </ul>
-        <h3 className="mt-1 text-sm font-semibold text-foreground">Deseables</h3>
+        <h4 className="mt-1 text-sm font-semibold text-foreground">Deseables</h4>
         <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
           {prototype.preferredRequirements.map((requirement) => (
             <li
@@ -135,9 +137,9 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
       </div>
 
       <div className="flex flex-col gap-3">
-        <h2 className="font-heading text-base font-semibold text-foreground">
+        <h3 className="font-heading text-base font-semibold text-foreground">
           Habilidades y beneficios
-        </h2>
+        </h3>
         <dl className="flex flex-col gap-2 text-sm">
           <div className="flex flex-wrap items-baseline gap-2">
             <dt className="font-medium text-foreground">Habilidades</dt>

@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-04 review and commit
+- Current task: CCP-05 review and commit
 - Push/PR: not authorized
 
 ## Goal
@@ -41,7 +41,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-03A — Company vacancy cards:** Created the reusable richer vacancy card plus frozen local prototype job fixtures and rendered both fictional Acme roles on the company page. No API fetch or global-board change. Authored 399/400 lines. Verification: 25/25 focused, 352 adjacent writer regression, TypeScript, exact-scope ESLint, and Next build PASS; independent verifier PASS after two corrected findings. Commit evidence: `38fe435ef3a8e40b80e39f2e70386a5f680ef8f2`.
 - [x] **CCP-03B — Global board card integration:** Replaced the existing board row with the reusable card and opportunistically enriched only known prototype ids while preserving wire-only fallback, filters, pagination, empty/error states, and long-content behavior. Updated the stale initials-tile browser contract to assert semantic card structure. Authored 384/400 lines. Verification: 8/8 focused, 23/23 adjacent, TypeScript and exact-scope ESLint PASS; two focused Chromium scenarios passed in the writer harness; independent verifier PASS. Commit evidence: `974209da693dc14a9da984654375b46f1e165331`.
 - [x] **CCP-04 — Enriched canonical vacancy detail:** Extended `/vacantes/[jobId]` with prototype disclosure, role requirements/skills/benefits/pay cadence/closing date, and an accessible company profile link; preserved canonical/SEO/not-found, safe text, and truthful action boundaries. Updated two stale Playwright company-name locators to exact matching. Authored 384/400 lines. Verification: 23/23 focused, 59/59 adjacent, TypeScript and exact-scope ESLint PASS; full detail Chromium suite 16/16 PASS; independent verifier PASS. Commit evidence: `a807d37a77a47610f18444ff3a8a0b5038853b68`.
-- [ ] **CCP-05 — Visual polish and responsive states:** Apply the selected design system, real cover asset, loading/empty/error treatment, reduced motion, responsive geometry, light/dark contrast, and cross-page consistency without unrelated redesign. Forecast: 250–400 lines.
+- [x] **CCP-05 — Visual polish and responsive states:** Loaded the existing Clash Display assets globally, replaced the external placeholder cover with a provenance-pinned local public-domain WebP through `next/image`, and corrected the enriched detail heading hierarchy. Preserved the intentional OS-only public theme behavior and deferred browser-only focus/overflow/contrast decisions to CCP-06. Authored 234/400 text lines plus one 206,060-byte binary asset. Verification: 44/44 focused, 143/144 adjacent with one proven pre-existing dashboard token failure, TypeScript and exact-scope ESLint PASS; independent verifier PASS. Commit evidence: pending.
 - [ ] **CCP-06 — Integrated browser acceptance:** Run desktop/mobile light/dark Playwright, axe smoke, keyboard/focus, no-overflow, truthful-copy, route/SEO, regression suites, and request-boundary checks; request human visual acceptance.
 
 ## Acceptance criteria
@@ -59,6 +59,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - CCP-03A: independent verifier initially found mutable exported entries and unsafe excerpt truncation; both were corrected and reverified PASS at 399/400 authored lines.
 - CCP-03B: independent verifier PASS; the old decorative initials assertion was intentionally replaced by semantic H3/canonical link/company link/two-child card evidence. The port 3001 dev server was restarted after a production build overwrote its `.next` cache.
 - CCP-04: independent verifier initially found two strict-mode substring locator conflicts after adding `Conoce a Acme`; both Playwright assertions now use exact matching and reverified PASS. `vacante-detalle.spec.ts` passed 16/16 in Chromium; the identical cross-cutting assertion remains covered semantically because that serial file has an unrelated pre-existing first-test failure.
+- CCP-05: independent verifier PASS. Local cover `acme-cover.webp` is 1600×900, 206,060 bytes, SHA-256 `1f1231ae8a0bf195deee5a466b2078cbacb217dc01a8a0047a3bd185761dd86f`; Commons/USDA public-domain provenance and transformation are committed alongside it. The adjacent dashboard `--brand-decorative-strong` failure is pre-existing in HEAD.
 
 ## Next step
-Attempt native review for CCP-04 and confirm the live enriched detail route before CCP-05 visual polish.
+Commit CCP-05, record its identity, attempt native review, then run CCP-06 integrated browser acceptance across company, board, and detail routes.

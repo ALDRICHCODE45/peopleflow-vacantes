@@ -8,6 +8,9 @@ import {
  * logistics and operations technology firm. The website uses the RFC 2606
  * reserved `.example` domain, so the prototype can never point at a real
  * company, and no customer, performance, or verification metric is claimed.
+ * The cover is a self-hosted public-domain photograph; its source, creator,
+ * license, and transformation live beside the file in
+ * `public/company/acme-cover.PROVENANCE.txt`.
  */
 const ACME_PROFILE: CompanyProfile = {
   companyId: PROTOTYPE_COMPANY_ID,
@@ -22,7 +25,7 @@ const ACME_PROFILE: CompanyProfile = {
   foundedYear: 2016,
   website: "https://acme-logistica.example",
   workStyle: "Híbrido: tres días en oficina y dos remotos.",
-  coverPhoto: { url: "https://picsum.photos/seed/acme-logistica-anden/1600/900", alt: "Cajas apiladas en un andén de carga con un montacargas en operación." },
+  coverPhoto: { url: "/company/acme-cover.webp", alt: "Trabajadores operando montacargas entre tarimas con suministros dentro de un almacén grande." },
   disclosure: { isPrototype: true, label: "Prototipo", statement: "Este perfil es un prototipo: Acme es una empresa ficticia para mostrar la página de carreras; no publica vacantes reales." },
 };
 /** Freezes the profile and the nested blocks a page renders. */

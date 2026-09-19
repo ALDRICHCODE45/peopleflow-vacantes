@@ -4,6 +4,44 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* --------------------------------------------------------------------------
+   Public heading face: Clash Display, self-hosted.
+
+   The app-wide `--font-heading` token asks for the family "Clash Display" with
+   the Inter body stack as its fallback, so the three licensed weight files
+   below are registered here under exactly that name for every public route.
+   The files are served from /public/fonts and were fetched once from the
+   foundry CDN (family, foundry, license, and hashes in
+   public/fonts/clash-display.PROVENANCE.txt), so no stylesheet, preconnect, or
+   CSS @import to a remote origin is needed at runtime. `font-display: swap`
+   keeps text visible in the fallback face while a weight loads.
+   The marketing landing registers the same files under a landing-local family
+   name, which is why that surface can keep its own scoping.
+   -------------------------------------------------------------------------- */
+@font-face {
+  font-family: "Clash Display";
+  src: url("/fonts/clash-display-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Clash Display";
+  src: url("/fonts/clash-display-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Clash Display";
+  src: url("/fonts/clash-display-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme inline {
     --font-heading: "Clash Display", var(--font-sans);
     --font-sans: var(--font-sans);

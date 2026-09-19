@@ -1,4 +1,5 @@
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { ExternalLinkIcon } from "lucide-react";
 
@@ -71,8 +72,19 @@ export function CompanyCareersView({
         </div>
         <figure className="lg:col-span-5">
           <div className="overflow-hidden rounded-2xl border border-border bg-muted">
-            {/* eslint-disable-next-line @next/next/no-img-element -- the remote prototype cover stays a native img until the asset slice owns remote image configuration */}
-            <img src={profile.coverPhoto.url} alt={profile.coverPhoto.alt} width={1600} height={900} loading="eager" fetchPriority="high" className="h-full w-full object-cover" />
+            {/* The cover is a shipped local asset (provenance next to the file),
+                so the route keeps its own origin: no remote image configuration
+                and no third-party request. `priority` marks it as this route's
+                LCP image; `sizes` matches the 5/12 hero column. */}
+            <Image
+              src={profile.coverPhoto.url}
+              alt={profile.coverPhoto.alt}
+              width={1600}
+              height={900}
+              priority
+              sizes="(min-width: 1024px) 40vw, 100vw"
+              className="h-full w-full object-cover"
+            />
           </div>
         </figure>
       </section>

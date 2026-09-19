@@ -95,9 +95,14 @@ describe("/empresas/[companyId] source boundaries", () => {
     expect(pageSource).toMatch(/from "\.\.\/\.\.\/\.\.\/\.\.\/features\/jobs\/prototype-jobs"/);
     expect(pageSource).toMatch(/jobs=\{ACME_PROTOTYPE_JOBS\}/);
     expect(viewSource).toMatch(/from "\.\.\/jobs\/components\/VacancyCard"/);
-    // The cover stays a native img until the asset migration slice owns the
-    // remote image configuration an optimized loader would need.
-    expect(viewSource).toMatch(/<img\b/);
-    expect(viewSource).not.toMatch(/from\s+["']next\/image["']/);
+    // The cover is served through next/image from the profile fixture: the
+    // local asset path belongs to the model contract (asserted in
+    // features/company-profile/model.test.ts) and is not restated here.
+    expect(viewSource).toMatch(/from\s+["']next\/image["']/);
+    expect(viewSource).toMatch(/<Image\b/);
+    expect(viewSource).toMatch(/src=\{profile\.coverPhoto\.url\}/);
+    // No native <img element and no remote image origin may come back.
+    expect(viewSource).not.toMatch(/<img\b/);
+    expect(viewSource).not.toMatch(/picsum|https?:\/\/[^"'\s]*\.(?:png|jpe?g|webp|avif)/u);
   });
 });

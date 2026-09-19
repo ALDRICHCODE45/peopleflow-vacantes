@@ -5,6 +5,13 @@ import { join } from "node:path";
 // Vitest runs from frontend/, so cwd-relative paths keep the assertions stable.
 const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
 
+// Every @font-face body in the stylesheet, in source order. The face for the
+// heading role is asserted below so the declared family can never become an
+// unresolved reference to a face nobody ships.
+const fontFaceBlocks = [...css.matchAll(/@font-face\s*\{([^}]*)\}/gu)].map(
+  (match) => match[1],
+);
+
 function cssBlock(selector: string): string {
   const start = css.indexOf(`${selector} {`);
   expect(
@@ -151,6 +158,47 @@ describe("globals.css foundation tokens", () => {
     expect(root).toContain("--chart-1: oklch(0.87 0 0)");
     expect(root).toContain("--chart-5: oklch(0.269 0 0)");
     expect(root).toContain("--destructive: oklch(0.577 0.245 27.325)");
+  });
+});
+
+describe("public heading font", () => {
+  const WEIGHTS = ["500", "600", "700"];
+
+  it("registers the licensed Clash Display weights from local woff2 assets", () => {
+    expect(fontFaceBlocks).toHaveLength(WEIGHTS.length);
+    fontFaceBlocks.forEach((block, index) => {
+      const weight = WEIGHTS[index];
+      expect(block, `weight ${weight} family`).toContain(
+        'font-family: "Clash Display"',
+      );
+      expect(block, `weight ${weight} source`).toContain(
+        `url("/fonts/clash-display-${weight}.woff2") format("woff2")`,
+      );
+      expect(block, `weight ${weight} weight`).toContain(
+        `font-weight: ${weight}`,
+      );
+      expect(block, `weight ${weight} style`).toContain("font-style: normal");
+      expect(block, `weight ${weight} display`).toContain("font-display: swap");
+    });
+  });
+
+  it("lets the declared heading token resolve against that family", () => {
+    // The registered family name is exactly the one --font-heading asks for.
+    expect(css).toContain('--font-heading: "Clash Display", var(--font-sans)');
+    expect(css).toContain("--font-sans: var(--font-sans)");
+  });
+
+  it("keeps every font source local with no remote font dependency", () => {
+    const fontUrls = [...css.matchAll(/url\(([^)]*)\)/gu)].map((match) =>
+      match[1].trim().replace(/^["']|["']$/gu, ""),
+    );
+    expect(fontUrls).toHaveLength(WEIGHTS.length);
+    for (const url of fontUrls)
+      expect(url).toMatch(/^\/fonts\/clash-display-\d{3}\.woff2$/u);
+    // No hosted stylesheet, CDN reference, or remote face may be reintroduced.
+    expect(css).not.toMatch(/https?:\/\//u);
+    expect(css).not.toMatch(/@import\s+(url\()?["']?https?:/u);
+    expect(css).not.toMatch(/fontshare|googleapis|gstatic|cdn\./iu);
   });
 });
 

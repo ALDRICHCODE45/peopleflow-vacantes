@@ -54,9 +54,18 @@ describe("CompanyCareersView media, disclosure, and honesty", () => {
     expect(container.textContent).toContain(profile.disclosure.label);
     expect(container.textContent).toContain(profile.disclosure.statement);
     const image = container.querySelector("img");
-    expect([image?.getAttribute("alt"), image?.getAttribute("src")]).toEqual([profile.coverPhoto.alt, profile.coverPhoto.url]);
+    expect(image?.getAttribute("alt")).toBe(profile.coverPhoto.alt);
+    // next/image may serve the byte-identical local file through its optimizer,
+    // so the resolved URL only has to point at the asset this repo ships.
+    const src = image?.getAttribute("src") ?? "";
+    expect(decodeURIComponent(src)).toContain(profile.coverPhoto.url);
+    expect(src).not.toMatch(/^(?:https?:)?\/\/|picsum/iu);
     expect([image?.getAttribute("width"), image?.getAttribute("height")]).toEqual(["1600", "900"]);
-    expect([image?.getAttribute("loading"), image?.getAttribute("fetchpriority")]).toEqual(["eager", "high"]);
+    expect(image?.getAttribute("sizes")).toBe("(min-width: 1024px) 40vw, 100vw");
+    expect(image?.getAttribute("srcset")).toContain(encodeURIComponent(profile.coverPhoto.url));
+    expect(image?.className).toContain("object-cover");
+    // `priority` keeps the cover from being deferred: it is this route's LCP image.
+    expect(image?.getAttribute("loading")).not.toBe("lazy");
     expect(image?.closest("a")).toBeNull();
     expect(image?.parentElement?.className).toContain("bg-muted");
     const external = Array.from(container.querySelectorAll("a[href^='http']"));

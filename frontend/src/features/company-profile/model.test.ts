@@ -12,6 +12,7 @@ import {
   PROTOTYPE_COMPANY_PROFILES,
 } from "./prototype-companies";
 const dir = join(process.cwd(), "src", "features", "company-profile");
+const publicDir = join(process.cwd(), "public");
 const modelSource = readFileSync(join(dir, "model.ts"), "utf8");
 const fixtureSource = readFileSync(join(dir, "prototype-companies.ts"), "utf8");
 const profile = ACME_PROTOTYPE_PROFILE;
@@ -46,15 +47,32 @@ describe("prototype company fixture", () => {
     const narrative = `${profile.about} ${profile.mission} ${profile.whatWeDo}`.toLowerCase();
     expect([narrative.includes("logístic"), narrative.includes("operacion")]).toEqual([true, true]);
   });
-  it("uses a reserved domain, a real photo cover, and an explicit disclosure", () => {
+  it("uses a reserved domain, a provenance-pinned local cover, and an explicit disclosure", () => {
     const website = new URL(profile.website);
-    const cover = new URL(profile.coverPhoto.url);
     const alt = profile.coverPhoto.alt;
     expect([website.protocol, website.hostname.endsWith(".example")]).toEqual(["https:", true]);
-    expect([cover.protocol, cover.hostname]).toEqual(["https:", "picsum.photos"]);
-    expect(cover.pathname).toMatch(/^\/seed\/[a-z0-9-]+\/\d+\/\d+$/u);
-    expect(profile.coverPhoto.url).not.toMatch(/data:|\.svg|placeholder/iu);
-    expect([alt.split(" ").length >= 5, /logístic|operaci|carga|anden|almac|embarque/iu.test(alt), /^(imagen|foto|cover)$/iu.test(alt)]).toEqual([true, true, false]);
+    // The cover is a shipped local asset: never a remote, generated, or placeholder source.
+    expect(profile.coverPhoto.url).toBe("/company/acme-cover.webp");
+    expect(profile.coverPhoto.url).not.toMatch(/^(?:https?:)?\/\/|data:|\.svg|placeholder/iu);
+    const coverBytes = readFileSync(join(publicDir, "company", "acme-cover.webp"));
+    expect(coverBytes.subarray(0, 4).toString("ascii")).toBe("RIFF");
+    expect(coverBytes.subarray(8, 12).toString("ascii")).toBe("WEBP");
+    // The asset's provenance travels with the repository, next to the file.
+    const provenance = readFileSync(join(publicDir, "company", "acme-cover.PROVENANCE.txt"), "utf8");
+    for (const fact of [
+      "https://commons.wikimedia.org/wiki/File:Workers_drive_Forklifts_laden_with_USAID_goods_inside_a_large_warehouse_-_20110826-FS-LSC-0138_-_Flickr_-_USDAgov.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/a/a5/Workers_drive_Forklifts_laden_with_USAID_goods_inside_a_large_warehouse_-_20110826-FS-LSC-0138_-_Flickr_-_USDAgov.jpg",
+      "U.S. Department of Agriculture",
+      "Lance Cheung",
+      "20110826-FS-LSC-0138",
+      "Public domain",
+      "3800x2802",
+      "1600x900",
+      "WebP",
+    ]) {
+      expect(provenance, fact).toContain(fact);
+    }
+    expect([alt.split(" ").length >= 5, /montacargas|almac|bodega|tarima|carga/iu.test(alt), /^(imagen|foto|cover)$/iu.test(alt)]).toEqual([true, true, false]);
     expect(profile.disclosure).toMatchObject({ isPrototype: true });
     expect(profile.disclosure.label).toMatch(/prototipo/iu);
     expect(profile.disclosure.statement).toMatch(/ficticia|prototipo/iu);
