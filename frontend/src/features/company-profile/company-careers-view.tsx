@@ -2,6 +2,8 @@ import * as React from "react";
 import Link from "next/link";
 import { ExternalLinkIcon } from "lucide-react";
 
+import type { PrototypeJobView } from "../jobs/enrich";
+import { VacancyCard } from "../jobs/components/VacancyCard";
 import type { CompanyProfile } from "./model";
 
 /** Keyboard focus ring shared by every interactive element on this page. */
@@ -30,12 +32,18 @@ function whatWeDoHighlights(whatWeDo: string): string[] {
 
 /**
  * Server-rendered careers profile for one fictional prototype company: identity
- * and cover first, then the facts, narrative, and the truthful vacancy seam the
- * card slice fills in. Every string comes from the profile fixture, so the view
- * never invents a metric, credential, or action, and no directive, hook,
- * provider, or request lives in this module.
+ * and cover first, then the facts, narrative, and the vacancy list the caller
+ * supplies as local prototype fixtures. Every string comes from the profile and
+ * the frozen vacancy fixtures, so the view never invents a metric, credential,
+ * or action, and no directive, hook, provider, or request lives in this module.
  */
-export function CompanyCareersView({ profile }: { profile: CompanyProfile }) {
+export function CompanyCareersView({
+  profile,
+  jobs,
+}: {
+  profile: CompanyProfile;
+  jobs: readonly PrototypeJobView[];
+}) {
   const highlights = whatWeDoHighlights(profile.whatWeDo);
   const facts = [
     { label: "Ubicación", value: profile.location },
@@ -110,17 +118,29 @@ export function CompanyCareersView({ profile }: { profile: CompanyProfile }) {
         </div>
       </div>
 
-      {/* Vacancy seam: the prototype lists no vacancy here yet, so the section
-          says exactly that and points at the real public board instead. */}
+      {/* Vacancy seam: with no fixture the prototype says exactly that and
+          points at the real public board; with fixtures it lists the company's
+          own roles through the reusable card, whose company line stays plain
+          text because the reader is already on the company's page. */}
       <section aria-labelledby="vacantes" className="flex flex-col gap-3 border-t border-border pt-10">
         <h2 id="vacantes" className={headingClass}>Vacantes</h2>
-        <p className="max-w-prose leading-relaxed text-muted-foreground">
-          {profile.name} todavía no lista sus vacantes en esta página del prototipo. Mientras
-          tanto, puedes revisar las vacantes publicadas en PeopleFlow.
-        </p>
-        <Link href="/vacantes" className={`self-start ${linkClass}`}>
-          Ver vacantes publicadas
-        </Link>
+        {jobs.length === 0 ? (
+          <>
+            <p className="max-w-prose leading-relaxed text-muted-foreground">
+              {profile.name} todavía no lista sus vacantes en esta página del prototipo. Mientras
+              tanto, puedes revisar las vacantes publicadas en PeopleFlow.
+            </p>
+            <Link href="/vacantes" className={`self-start ${linkClass}`}>
+              Ver vacantes publicadas
+            </Link>
+          </>
+        ) : (
+          <ul aria-label={`Vacantes en ${profile.name}`} className="mt-3 flex flex-col gap-4">
+            {jobs.map((job) => (
+              <VacancyCard key={job.id} job={job} />
+            ))}
+          </ul>
+        )}
       </section>
     </article>
   );

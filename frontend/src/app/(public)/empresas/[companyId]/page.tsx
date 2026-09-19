@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { CompanyCareersView } from "../../../../features/company-profile/company-careers-view";
 import { findCompanyProfile } from "../../../../features/company-profile/model";
 import { PROTOTYPE_COMPANY_PROFILES } from "../../../../features/company-profile/prototype-companies";
+import { ACME_PROTOTYPE_JOBS } from "../../../../features/jobs/prototype-jobs";
 
 // The profile lookup is local and per-request, and metadata reads the validated
 // site origin, so the route is rendered on demand and never cached under an id.
@@ -55,5 +56,8 @@ export default async function EmpresaPage({ params }: EmpresaPageProps) {
     notFound();
   }
 
-  return <CompanyCareersView profile={profile} />;
+  // The vacancy list is a frozen local fixture read, not a request: only the
+  // feature-local prototype-jobs module reaches the enrichment and the company
+  // filter, so the route stays free of transport and client state.
+  return <CompanyCareersView profile={profile} jobs={ACME_PROTOTYPE_JOBS} />;
 }

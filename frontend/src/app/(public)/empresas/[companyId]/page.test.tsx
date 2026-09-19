@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { PROTOTYPE_COMPANY_ID, PROTOTYPE_COMPANY_SOURCE_NAME } from "../../../../features/company-profile/model";
 import { ACME_PROTOTYPE_PROFILE } from "../../../../features/company-profile/prototype-companies";
+import { ACME_PROTOTYPE_JOBS } from "../../../../features/jobs/prototype-jobs";
 
 const routeDir = join(process.cwd(), "src/app/(public)/empresas/[companyId]");
 const featureDir = join(process.cwd(), "src/features/company-profile");
@@ -54,6 +55,15 @@ describe("/empresas/[companyId] page behavior", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(ACME_PROTOTYPE_PROFILE.name);
     expect(screen.getByRole("heading", { level: 2, name: "Vacantes" })).toBeVisible();
   });
+
+  it("passes the local prototype fixture list into the vacancy section", async () => {
+    const Page = (await load("page.tsx")).default;
+    render(await Page({ params: paramsFor(PROTOTYPE_COMPANY_ID) }));
+    const list = screen.getByRole("list", { name: `Vacantes en ${ACME_PROTOTYPE_PROFILE.name}` });
+    const items = within(list).getAllByRole("listitem");
+    expect(items).toHaveLength(ACME_PROTOTYPE_JOBS.length);
+    expect(items.map((item) => item.querySelector("h3")?.textContent)).toEqual(ACME_PROTOTYPE_JOBS.map((job) => job.title));
+  });
 });
 
 describe("/empresas/[companyId] route-local not found", () => {
@@ -80,6 +90,11 @@ describe("/empresas/[companyId] source boundaries", () => {
     expect(pageSource).toMatch(/\bnotFound\(\)/);
     expect(pageSource).toMatch(/export async function generateMetadata/);
     expect(pageSource).toMatch(/dynamic\s*=\s*"force-dynamic"/);
+    // The page hands the local frozen prototype fixtures to the view; only that
+    // feature-local module may reach the CCP-01 enrichment and company filter.
+    expect(pageSource).toMatch(/from "\.\.\/\.\.\/\.\.\/\.\.\/features\/jobs\/prototype-jobs"/);
+    expect(pageSource).toMatch(/jobs=\{ACME_PROTOTYPE_JOBS\}/);
+    expect(viewSource).toMatch(/from "\.\.\/jobs\/components\/VacancyCard"/);
     // The cover stays a native img until the asset migration slice owns the
     // remote image configuration an optimized loader would need.
     expect(viewSource).toMatch(/<img\b/);

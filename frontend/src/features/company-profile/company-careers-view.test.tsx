@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
+import type { PrototypeJobView } from "../jobs/enrich";
+import { ACME_PROTOTYPE_JOBS } from "../jobs/prototype-jobs";
 import { CompanyCareersView } from "./company-careers-view";
 import { ACME_PROTOTYPE_PROFILE } from "./prototype-companies";
 
 const profile = ACME_PROTOTYPE_PROFILE;
-const view = () => render(<CompanyCareersView profile={profile} />);
+const view = (jobs: readonly PrototypeJobView[] = []) => render(<CompanyCareersView profile={profile} jobs={jobs} />);
+/** The capability list of the page, scoped so vacancy cards never leak into it. */
+const capabilityItems = (container: HTMLElement) => Array.from(container.querySelector("h2#que-hacemos")?.closest("section")?.querySelectorAll("li") ?? []).map((item) => item.textContent ?? "");
 /** Claim-like or action-like copy this prototype must never render. */
 const FORBIDDEN_COPY = /aplicar|postular|guardar|verificad|popular|recomendad|candidat|opiniones|calificaci|\d+\s*%|\+?\d+\s*(empleados|contrataciones|clientes)/iu;
 
@@ -14,8 +18,8 @@ afterEach(() => cleanup());
 
 describe("CompanyCareersView headings and narrative", () => {
   it("renders one H1 and exactly the three H2 sections in document order", () => {
-    view();
-    const headings = screen.getAllByRole("heading");
+    view(ACME_PROTOTYPE_JOBS);
+    const headings = screen.getAllByRole("heading").filter((node) => node.tagName === "H1" || node.tagName === "H2");
     expect(headings.map((node) => node.tagName)).toEqual(["H1", "H2", "H2", "H2"]);
     expect(headings[0]).toHaveTextContent(profile.name);
     expect(headings.slice(1).map((node) => node.textContent)).toEqual([`Sobre ${profile.name}`, "Qué hacemos", "Vacantes"]);
@@ -24,7 +28,7 @@ describe("CompanyCareersView headings and narrative", () => {
   it("renders the profile narrative and a list of its own capabilities", () => {
     const { container } = view();
     for (const value of [profile.tagline, profile.about, profile.mission]) expect(container.textContent).toContain(value);
-    const highlights = Array.from(container.querySelectorAll("li")).map((item) => item.textContent ?? "");
+    const highlights = capabilityItems(container);
     expect(highlights.length).toBeGreaterThanOrEqual(3);
     // Every highlight is verbatim profile content, never an invented claim.
     for (const highlight of highlights) expect(profile.whatWeDo.toLowerCase()).toContain(highlight.toLowerCase());
@@ -32,8 +36,8 @@ describe("CompanyCareersView headings and narrative", () => {
 
   it("keeps the whole sentence when a profile has nothing to enumerate", () => {
     const whatWeDo = "Operamos bodegas.";
-    const { container } = render(<CompanyCareersView profile={{ ...profile, whatWeDo }} />);
-    expect(Array.from(container.querySelectorAll("li")).map((item) => item.textContent)).toEqual([whatWeDo]);
+    const { container } = render(<CompanyCareersView profile={{ ...profile, whatWeDo }} jobs={[]} />);
+    expect(capabilityItems(container)).toEqual([whatWeDo]);
   });
 
   it("lists the profile facts in a description list", () => {
@@ -67,5 +71,26 @@ describe("CompanyCareersView media, disclosure, and honesty", () => {
     expect(vacancySection?.textContent).toContain(profile.name);
     expect(Array.from(vacancySection?.querySelectorAll("a") ?? []).map((anchor) => anchor.getAttribute("href"))).toEqual(["/vacantes"]);
     expect(container.querySelectorAll("button")).toHaveLength(0);
+  });
+});
+
+describe("CompanyCareersView vacancies", () => {
+  it("lists the company's own prototype vacancies with the reusable card", () => {
+    const { container } = view(ACME_PROTOTYPE_JOBS);
+    expect(FORBIDDEN_COPY.test(container.textContent ?? "")).toBe(false);
+    const list = screen.getByRole("list", { name: `Vacantes en ${profile.name}` });
+    const items = within(list).getAllByRole("listitem");
+    expect(items).toHaveLength(ACME_PROTOTYPE_JOBS.length);
+    expect(items.map((item) => item.querySelector("h3")?.textContent)).toEqual(ACME_PROTOTYPE_JOBS.map((job) => job.title));
+    expect(items.map((item) => item.querySelector("a")?.getAttribute("href"))).toEqual(ACME_PROTOTYPE_JOBS.map((job) => `/vacantes/${job.id}`));
+    for (const item of items) expect(item.querySelector("a")).toHaveTextContent(item.querySelector("h3")?.textContent ?? "");
+  });
+
+  it("keeps the company's own name plain text and never links a vacancy back to itself", () => {
+    const { container } = view(ACME_PROTOTYPE_JOBS);
+    const list = screen.getByRole("list", { name: `Vacantes en ${profile.name}` });
+    expect(within(list).getAllByText(profile.name).every((node) => node.closest("a") === null)).toBe(true);
+    expect(screen.queryByText(/todavía no lista/iu)).toBeNull();
+    expect(Array.from(container.querySelectorAll("a[href^='/empresas']"))).toHaveLength(0);
   });
 });

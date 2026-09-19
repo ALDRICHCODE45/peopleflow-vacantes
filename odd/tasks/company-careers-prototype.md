@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-02 review and commit
+- Current task: CCP-03A review and commit
 - Push/PR: not authorized
 
 ## Goal
@@ -38,7 +38,8 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 ## Tasks
 - [x] **CCP-01 — Prototype contracts and fixtures:** Added pure company-profile and enriched-job view models, fictional Acme fixture, disclosure, and strict unit tests. No React, fetch, schema, or transport changes. Authored 383/400 lines. Verification: 12/12 focused, 35/35 adjacent, TypeScript and exact-scope ESLint PASS. Commit evidence: `6646dc8e71bbf0b7166268374c424f78e7c06ee5`.
 - [x] **CCP-02 — Company careers route:** Built `/empresas/[companyId]` with an asymmetric photographic hero, identity/about/work sections, compact facts, truthful vacancy seam, not-found behavior, metadata, and focused tests. Authored 370/400 lines. Verification: 11/11 focused, 34/34 adjacent, TypeScript, exact-scope ESLint, and Next build PASS. Commit evidence: `9a9534f7a751ffdda49bafae4c33ac207a5a44bc`.
-- [ ] **CCP-03 — Enriched vacancy cards:** Create a reusable richer vacancy card using department, skills, benefits, excerpt, salary/work metadata, and company link; integrate into the company page and improve the global board only where contracts remain honest. Forecast: 300–400 lines.
+- [x] **CCP-03A — Company vacancy cards:** Created the reusable richer vacancy card plus frozen local prototype job fixtures and rendered both fictional Acme roles on the company page. No API fetch or global-board change. Authored 399/400 lines. Verification: 25/25 focused, 352 adjacent writer regression, TypeScript, exact-scope ESLint, and Next build PASS; independent verifier PASS after two corrected findings. Commit evidence: pending.
+- [ ] **CCP-03B — Global board card integration:** Replace the existing board row with the reusable card and opportunistically enrich only known prototype ids while preserving wire-only fallback, filters, pagination, empty/error states, and long-content behavior. Forecast: 180–300 lines.
 - [ ] **CCP-04 — Enriched canonical vacancy detail:** Extend `/vacantes/[jobId]` with prototype disclosure, role requirements/skills/benefits, and an accessible company profile block linking to the careers page; preserve canonical/SEO/not-found and truthful action boundaries. Forecast: 300–400 lines.
 - [ ] **CCP-05 — Visual polish and responsive states:** Apply the selected design system, real cover asset, loading/empty/error treatment, reduced motion, responsive geometry, light/dark contrast, and cross-page consistency without unrelated redesign. Forecast: 250–400 lines.
 - [ ] **CCP-06 — Integrated browser acceptance:** Run desktop/mobile light/dark Playwright, axe smoke, keyboard/focus, no-overflow, truthful-copy, route/SEO, regression suites, and request-boundary checks; request human visual acceptance.
@@ -55,6 +56,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 ## Evidence
 - CCP-01: independent verifier PASS under Node 22.23.2 and pnpm 10.34.5; no browser claim for this pure-model slice.
 - CCP-02: independent verifier PASS under Node 22.23.2 and pnpm 10.34.5; browser/axe/human visual acceptance remains deferred.
+- CCP-03A: independent verifier initially found mutable exported entries and unsafe excerpt truncation; both were corrected and reverified PASS at 399/400 authored lines.
 
 ## Next step
-Run native review for CCP-02, then expose the isolated worktree through a dev server for human browser review before CCP-03.
+Commit CCP-03A, record its identity, attempt native review, and keep the browser route available. Then integrate the same card into the global board as CCP-03B.
