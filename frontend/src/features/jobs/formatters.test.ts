@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   employmentTypeLabel,
+  formatClosingDate,
   formatPublishedDate,
   formatSalary,
+  payFrequencyLabel,
   seniorityLabel,
   workModeLabel,
 } from "./formatters";
@@ -37,6 +39,23 @@ describe("jobs es-MX formatters", () => {
     );
     expect(formatPublishedDate("2026-01-15T02:30:00+05:00")).toBe(
       "14 de enero de 2026",
+    );
+  });
+
+  it("maps every prototype pay frequency to a fixed Mexico Spanish label", () => {
+    expect(payFrequencyLabel("monthly")).toBe("Mensual");
+    expect(payFrequencyLabel("yearly")).toBe("Anual");
+    expect(payFrequencyLabel("hourly")).toBe("Por hora");
+  });
+
+  it("formats prototype closing dates deterministically in long es-MX UTC form", () => {
+    expect(formatClosingDate("2026-03-31")).toBe("31 de marzo de 2026");
+    // Explicit offsets crossing the UTC calendar boundary prove the UTC rendering:
+    expect(formatClosingDate("2026-03-31T23:30:00-06:00")).toBe(
+      "1 de abril de 2026",
+    );
+    expect(formatClosingDate("2026-03-31T02:30:00+05:00")).toBe(
+      "30 de marzo de 2026",
     );
   });
 

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { JobDetailView } from "../../../../features/jobs/components/JobDetailView";
+import { enrichJob } from "../../../../features/jobs/enrich";
 import { createVacanteDetailScope } from "./page-data";
 
 // The detail read is request-scoped: it must run on the Node server on every
@@ -75,5 +76,8 @@ export default async function VacanteDetailPage({
     throw new Error("La vacante no pudo cargarse");
   }
 
-  return <JobDetailView job={result.job} />;
+  // The prototype enrichment is attached here, at the route boundary: the
+  // request-scoped read and the metadata above stay pure wire data, and an
+  // unknown vacancy is copied through untouched by `enrichJob`.
+  return <JobDetailView job={enrichJob(result.job)} />;
 }

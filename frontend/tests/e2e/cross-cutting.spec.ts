@@ -75,7 +75,7 @@ test("root link opens the list and a vacancy opens its detail", async ({
  await expect(page).toHaveURL(/\/vacantes\/[a-f0-9-]+$/);
  const article = page.getByRole("article");
  await expect(article.getByRole("heading", { level: 1 })).toBeVisible();
- await expect(article.getByText("Acme")).toBeVisible();
+ await expect(article.getByText("Acme", { exact: true })).toBeVisible();
  await expect(
   article.getByRole("link", { name: /volver a vacantes/i }),
  ).toBeVisible();

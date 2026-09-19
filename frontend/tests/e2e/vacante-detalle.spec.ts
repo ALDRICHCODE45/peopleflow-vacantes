@@ -74,7 +74,7 @@ test("renders only validated contract data", async ({ page }) => {
   await expect(
     article.getByRole("heading", { level: 1, name: "Ingeniera Frontend" }),
   ).toBeVisible();
-  await expect(article.getByText("Acme")).toBeVisible();
+  await expect(article.getByText("Acme", { exact: true })).toBeVisible();
   for (const label of ["Remoto", "Tiempo completo", "Senior"]) {
     await expect(article.getByText(label, { exact: true })).toBeVisible();
   }

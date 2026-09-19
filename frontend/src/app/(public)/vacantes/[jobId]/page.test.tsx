@@ -74,6 +74,51 @@ describe("/vacantes/[jobId] route boundaries", () => {
   });
 });
 
+describe("/vacantes/[jobId] caller enrichment boundary (CCP-04)", () => {
+  // Wire-only fixture: the same demo vacancy the enrichment knows by exact id.
+  const jobId = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
+  const wireJob = {
+    id: jobId,
+    title: "Ingeniera Frontend",
+    description: "Construye la experiencia de vacantes.",
+    work_mode: "remote",
+    employment_type: "full_time",
+    seniority: "senior",
+    salary_currency: "MXN",
+    company: { id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f", name: "Acme" },
+  };
+
+  it("enriches the validated vacancy in the route, never in the request-scoped read", () => {
+    const source = routeSource("page.tsx");
+    expect(source).toMatch(
+      /import \{ enrichJob \} from "\.\.\/\.\.\/\.\.\/\.\.\/features\/jobs\/enrich";/u,
+    );
+    expect(source).toMatch(/<JobDetailView job=\{enrichJob\(result\.job\)\} \/>/u);
+    // Wire metadata stays wire: SEO keeps reading the validated fields.
+    expect(source).toMatch(/result\.job\.title/u);
+    expect(source).toMatch(/metaDescription\(result\.job\.description\)/u);
+    // The data scope keeps returning the untouched wire vacancy.
+    expect(routeSource("page-data.ts")).not.toMatch(/enrich|prototype|empresas/iu);
+  });
+
+  it("renders the disclosed prototype role block from a wire-only read", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => wireJob }),
+    );
+    const VacanteDetailPage = await loadRoute("page");
+    render(await VacanteDetailPage({ params: Promise.resolve({ jobId }) }));
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Prototipo · Ingeniería" }),
+    ).toBeVisible();
+    expect(screen.getByRole("link", { name: "Conoce a Acme" })).toHaveAttribute(
+      "href",
+      "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f",
+    );
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+});
+
 vi.mock("../../../../lib/api/server", async () => ({
   requestJson: (await import("../../../../lib/api/requestJson")).requestJson,
 }));
