@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R4A review and commit
+- Current task: CCP-R4B vacancy detail content and sticky rail
 - Push/PR: not authorized
 
 ## Goal
@@ -51,7 +51,8 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R3A — Reference vacancy card component:** Rebuilt shared `VacancyCard` to the supplied horizontal left-content/right-salary layout with logo tile, metadata, full-DOM/clamped description, skills/benefits, enriched-only bookmark affordance, CTA, verification, responsive stacking, and hover polish. Authored 303/400 lines. Commit evidence: `2af4911395b1a976db98e73ee7287629ed89971c`.
 - [x] **CCP-R3B — Card browser contracts and integration:** Updated global-board/company-page browser contracts, added a >220-code-point fixture, removed obsolete flat-card assumptions, and verified hover, responsive stacking, clamp safety, focus, prototype disclosure, wire-only exclusion, and zero business mutations. Authored 296/300 lines. Verification: 58/58 unit, TypeScript/ESLint PASS, 27/27 ordinary Chromium, 12/12 a11y/reduced-motion, and 2/2 isolated 3002/4011 long-content/company; independent verifier PASS. Commit evidence: `3ee5cc070b14e72f458a34d98db4ee06316e590b`.
 - [x] **CCP-R4A — Vacancy detail header and stats:** Rebuilt the canonical detail header with a 40px breadcrumb target, monogram, featured state, title/company metadata, four reference stat cards, and the responsive two-column content/rail scaffold while preserving canonical/SEO/not-found/safe text. Authored 397/400 lines. Verification: 20/20 focused, 46/46 adjacent, TypeScript and exact-scope ESLint PASS; independent verifier PASS. Commit evidence: `a1091cd7e5cca59008ec6de022e291c4cee8249f`.
-- [ ] **CCP-R4B — Vacancy detail content and sticky rail:** Refine responsibilities/requirements/skills/benefits into the reference structure, add colored token-only benefit tiles and the sticky salary/action/company/share rail with non-persistent affordances, then update browser contracts. Forecast: 300–400 lines.
+- [ ] **CCP-R4B — Vacancy detail content and sticky rail:** Refine responsibilities/requirements/skills/benefits into the reference structure, add colored token-only benefit tiles, and build the sticky salary/action/company/share rail with disabled non-persistent affordances. Forecast: 300–400 lines.
+- [ ] **CCP-R4C — Vacancy detail browser contracts:** Update canonical detail browser contracts for desktop/mobile geometry, sticky rail, full safe text, disabled affordances, focus/targets, light/dark accessibility, and zero business mutations. Forecast: 150–300 lines.
 - [ ] **CCP-R5 — Prototype interactions:** Add accessible client islands for save/apply/share/bookmark feedback with explicit prototype disclosure and zero fetch/storage/business mutations. Forecast: 250–400 lines.
 - [ ] **CCP-R6 — Redesign browser acceptance:** Update obsolete truthfulness assertions to prototype-scoped contracts; run light/dark desktop/mobile Playwright, axe, keyboard, hover, overflow, canonical, safe-text, and zero-business-mutation acceptance; request human visual approval.
 
@@ -82,4 +83,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Attempt native review for CCP-R4A, then complete content, sticky rail and browser contracts in CCP-R4B.
+Implement CCP-R4B with strict TDD: structured content, benefit tiles, and sticky salary/action/company/share rail. Then reconcile canonical detail browser contracts in CCP-R4C.
