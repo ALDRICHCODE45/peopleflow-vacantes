@@ -19,6 +19,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/tools/closurereport"
 )
 
 // gateTargets lists the ten scaffold targets in canonical order.
@@ -285,11 +287,18 @@ func requireGateFails(t *testing.T, root, target string) {
 	t.Logf("gate correctly failed on the mutated fixture: %s", r.Failure)
 }
 
-// verifyReceiptIntegrity recomputes the receipt's self-digest: receipt_integrity must equal the sha256 of the receipt line with artifact_hashes reset to {} (documented substitution).
+// receiptIntegrityPreimage removes only the receipt_integrity member from one
+// compact producer receipt line, so the integrity-bound worktree_state stays
+// inside the digest preimage.
+func receiptIntegrityPreimage(line string) string {
+	return regexp.MustCompile(`,"receipt_integrity":"sha256:[0-9a-f]{64}"`).ReplaceAllString(line, "")
+}
+
+// verifyReceiptIntegrity recomputes the receipt's self-digest: receipt_integrity must equal the sha256 of the receipt line with only the receipt_integrity member removed from artifact_hashes, so the bound worktree_state stays inside the preimage (documented substitution).
 func verifyReceiptIntegrity(t *testing.T, stdout string) {
 	t.Helper()
 	line := receiptLine(t, stdout)
-	stripped := regexp.MustCompile(`"artifact_hashes":\{[^{}]*\}`).ReplaceAllString(line, `"artifact_hashes":{}`)
+	stripped := receiptIntegrityPreimage(line)
 	sum := sha256.Sum256([]byte(stripped))
 	var r receipt
 	if err := json.Unmarshal([]byte(line), &r); err != nil {
@@ -394,6 +403,89 @@ func TestGateReceipts_RealContractAndDelegation(t *testing.T) {
 			t.Errorf("real-root state changed by temp-copy run: before=%s after=%s", realStateBefore, got)
 		}
 	})
+}
+
+func TestGateReceiptParity_ValidPass(t *testing.T) {
+	root := repoRoot(t)
+	before := repoSnapshot(t, root)
+	dir := t.TempDir()
+	copyTree(t, root, dir, fixtureInputs...)
+
+	stdout, stderr, err := runGate(t, dir, "gate-fmt")
+	if err != nil {
+		t.Fatalf("gate-fmt must pass in a disposable tree: %v stderr=%s stdout=%s", err, stderr, stdout)
+	}
+
+	rawLine := receiptLine(t, stdout)
+	validated, err := closurereport.ValidateReceipt([]byte(rawLine))
+	if err != nil {
+		t.Fatalf("ValidateReceipt(raw producer receipt): %v", err)
+	}
+	if validated.Gate != "gate-fmt" || validated.Status != "pass" || validated.ExitCode != 0 {
+		t.Fatalf("validated pass receipt = %+v", validated)
+	}
+	if validated.Commit == "" || validated.Commit == "git:unavailable" || validated.Tree == "" || validated.Tree == "git:unavailable" {
+		t.Fatalf("validated pass receipt must contain real commit and tree IDs: %+v", validated)
+	}
+	if after := repoSnapshot(t, root); after != before {
+		t.Fatalf("real-root state changed by disposable gate-fmt: before=%s after=%s", before, after)
+	}
+}
+
+// TestGateReceiptParity_WorktreeStateIsIntegrityBound pins producer/consumer
+// parity on the integrity-bound worktree_state: the produced receipt satisfies the
+// consumer, and swapping its worktree_state without resealing fails validation.
+func TestGateReceiptParity_WorktreeStateIsIntegrityBound(t *testing.T) {
+	root, dir := repoRoot(t), t.TempDir()
+	copyTree(t, root, dir, fixtureInputs...)
+
+	stdout, stderr, err := runGate(t, dir, "gate-fmt")
+	if err != nil {
+		t.Fatalf("gate-fmt in a disposable tree: %v stderr=%s", err, stderr)
+	}
+	line := receiptLine(t, stdout)
+	verifyReceiptIntegrity(t, stdout)
+	validated, err := closurereport.ValidateReceipt([]byte(line))
+	if err != nil {
+		t.Fatalf("produced receipt must satisfy the consumer: %v", err)
+	}
+	if !strings.HasPrefix(validated.ArtifactHashes.WorktreeState, "sha256:") {
+		t.Fatalf("produced receipt must bind a sha256 worktree_state: %+v", validated.ArtifactHashes)
+	}
+	tampered := strings.Replace(line, validated.ArtifactHashes.WorktreeState, "sha256:"+strings.Repeat("4", 64), 1)
+	if _, err := closurereport.ValidateReceipt([]byte(tampered)); err == nil {
+		t.Fatal("a worktree_state swap without resealing must fail receipt validation")
+	}
+}
+
+func TestGateReceiptParity_GitUnavailableFailure(t *testing.T) {
+	root := repoRoot(t)
+	before := repoSnapshot(t, root)
+	dir := t.TempDir()
+	copyTree(t, root, dir, fixtureInputs...)
+	if err := os.RemoveAll(filepath.Join(dir, ".git")); err != nil {
+		t.Fatalf("remove disposable .git: %v", err)
+	}
+
+	stdout, stderr, err := runGate(t, dir, "gate-fmt")
+	if err == nil {
+		t.Fatalf("gate-fmt without disposable Git identity must fail: stderr=%s stdout=%s", stderr, stdout)
+	}
+
+	rawLine := receiptLine(t, stdout)
+	validated, validateErr := closurereport.ValidateReceipt([]byte(rawLine))
+	if validateErr != nil {
+		t.Fatalf("ValidateReceipt(raw producer receipt): %v", validateErr)
+	}
+	if validated.Status != "fail" || validated.ExitCode != 1 || validated.Commit != "git:unavailable" || validated.Tree != "git:unavailable" {
+		t.Fatalf("validated unavailable-Git receipt = %+v", validated)
+	}
+	if !strings.Contains(validated.Failure, "git commit/tree identity unavailable; receipts require a Git HEAD and tree") {
+		t.Fatalf("validated unavailable-Git receipt omitted producer reason: %+v", validated)
+	}
+	if after := repoSnapshot(t, root); after != before {
+		t.Fatalf("real-root state changed by disposable no-Git gate-fmt: before=%s after=%s", before, after)
+	}
 }
 
 func TestGate_ReceiptFailsWithoutGitIdentity(t *testing.T) {
@@ -986,6 +1078,13 @@ if echo "$*" | grep -q -- "TestMigrateBinaryBoundary"; then
       echo '--- PASS: TestRouteTopology_ExactRegistrations (0.00s)'
       exit 0
     fi
+    if echo "$*" | grep -q -- "test ./... "; then
+      echo '=== RUN   TestBinaryAPISafeFailureBoundary'
+      echo '--- PASS: TestBinaryAPISafeFailureBoundary (0.00s)'
+      echo '=== RUN   TestBinaryPostConfirmationSafeFailureBoundary'
+      echo '--- PASS: TestBinaryPostConfirmationSafeFailureBoundary (0.00s)'
+      exit 0
+    fi
     if echo "$*" | grep -q -- "-json"; then
       echo '{"Time":"2024-01-01T00:00:00Z","Action":"pass","Package":"github.com/aldrichcode45/peopleflow-vacantes/cmd/api"}'
       exit 0
@@ -1033,4 +1132,171 @@ func startFakePostgresListener(t *testing.T) int {
 		}
 	}()
 	return port
+}
+
+// -- CE-03: gate-unit runtime-boundary lifecycle pinning --
+//
+// gate-unit already runs the untagged suite verbosely; CE-03 adds exactly-once
+// lifecycle checks for the two CE-02 runtime-boundary tests, mirroring the
+// gate-migrations/gate-arch lifecycle pattern. The fixtures below drive a fake
+// `go` child that reproduces the exact `go test -v` lifecycle lines, so the
+// pinned selector checks are the only behavior under test and no live gate runs.
+
+// Pinned untagged runtime-boundary tests gate-unit must observe exactly once.
+const (
+	unitAPIBoundaryTest              = "TestBinaryAPISafeFailureBoundary"
+	unitPostConfirmationBoundaryTest = "TestBinaryPostConfirmationSafeFailureBoundary"
+)
+
+// unitLifecycleRecord renders the exact `go test -v` lifecycle pair a passing
+// test emits, so a fixture can declare presence, absence, duplication, or rename.
+func unitLifecycleRecord(name string) string {
+	return "=== RUN   " + name + "\n--- PASS: " + name + " (0.01s)\n"
+}
+
+// prepareUnitLifecycleShim installs a fake `go` child whose only behavior for
+// gate-unit's verbose suite run is to echo the fixture-declared lifecycle
+// output, isolating the gate's own selector checks from any real test run.
+func prepareUnitLifecycleShim(t *testing.T, output string) {
+	t.Helper()
+	shimDir := t.TempDir()
+	shim := `#!/bin/sh
+# CE-03 fixture child: gate-unit's verbose suite output is fully controlled so
+# the pinned lifecycle checks are the only variable under test.
+if [ "$1" = "test" ]; then
+  cat "$GATE_UNIT_FAKE_OUTPUT"
+  exit 0
+fi
+exit 0
+`
+	if err := os.WriteFile(filepath.Join(shimDir, "go"), []byte(shim), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	declared := filepath.Join(t.TempDir(), "gate-unit-lifecycle.txt")
+	if err := os.WriteFile(declared, []byte(output), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", shimDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	t.Setenv("GATE_UNIT_FAKE_OUTPUT", declared)
+}
+
+// TestGate_UnitRuntimeBoundaryLifecycleFailsClosed pins gate-unit's CE-03
+// selector contract: each untagged runtime-boundary test must run exactly once
+// and pass. A renamed, removed, duplicated, selector-colliding, or skipped
+// lifecycle record must fail the gate closed — including when the generic skip
+// guard itself is weakened — while a complete run still passes.
+func TestGate_UnitRuntimeBoundaryLifecycleFailsClosed(t *testing.T) {
+	if os.Getenv("GATE_ACTIVE") == "1" {
+		return
+	}
+	const (
+		apiMessage              = "API runtime-boundary lifecycle"
+		postConfirmationMessage = "PostConfirmation runtime-boundary lifecycle"
+	)
+	complete := unitLifecycleRecord(unitAPIBoundaryTest) + unitLifecycleRecord(unitPostConfirmationBoundaryTest)
+	skippedAPI := "=== RUN   " + unitAPIBoundaryTest + "\n--- SKIP: " + unitAPIBoundaryTest + " (0.00s)\n"
+	tests := []struct {
+		name     string
+		output   string
+		seed     func(t *testing.T, dir string)
+		wantPass bool
+		wantMsg  string
+	}{
+		{
+			name:     "complete lifecycle records keep gate-unit passing",
+			output:   complete,
+			wantPass: true,
+		},
+		{
+			name:    "renamed API boundary lifecycle record",
+			output:  unitLifecycleRecord(unitAPIBoundaryTest+"Renamed") + unitLifecycleRecord(unitPostConfirmationBoundaryTest),
+			wantMsg: apiMessage,
+		},
+		{
+			name:    "removed API boundary lifecycle record",
+			output:  unitLifecycleRecord(unitPostConfirmationBoundaryTest),
+			wantMsg: apiMessage,
+		},
+		{
+			name:    "renamed PostConfirmation boundary lifecycle record",
+			output:  unitLifecycleRecord(unitAPIBoundaryTest) + unitLifecycleRecord(unitPostConfirmationBoundaryTest+"Renamed"),
+			wantMsg: postConfirmationMessage,
+		},
+		{
+			name:    "removed PostConfirmation boundary lifecycle record",
+			output:  unitLifecycleRecord(unitAPIBoundaryTest),
+			wantMsg: postConfirmationMessage,
+		},
+		{
+			name:    "duplicate API boundary lifecycle record",
+			output:  complete + unitLifecycleRecord(unitAPIBoundaryTest),
+			wantMsg: apiMessage,
+		},
+		{
+			name:    "pinned name as a substring of a renamed API boundary",
+			output:  unitLifecycleRecord(unitAPIBoundaryTest+"Suffix") + unitLifecycleRecord(unitPostConfirmationBoundaryTest),
+			wantMsg: apiMessage,
+		},
+		{
+			name:    "skipped API boundary lifecycle record",
+			output:  skippedAPI + unitLifecycleRecord(unitPostConfirmationBoundaryTest),
+			wantMsg: "skip",
+		},
+		{
+			name:   "weakened skip guard cannot mask a skipped API boundary",
+			output: skippedAPI + unitLifecycleRecord(unitPostConfirmationBoundaryTest),
+			seed: func(t *testing.T, dir string) {
+				// Loosen the generic skip guard: even then, the lifecycle PASS
+				// requirement must still catch the skipped boundary.
+				seedEdit(t, dir, filepath.Join("scripts", "closure", "gate"),
+					`if [ "$skip_count" -gt 0 ]; then`, `if [ "$skip_count" -gt 2 ]; then`)
+			},
+			wantMsg: "lifecycle check",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root, dir := repoRoot(t), t.TempDir()
+			copyTree(t, root, dir, fixtureInputs...)
+			if tt.seed != nil {
+				tt.seed(t, dir)
+			}
+			prepareUnitLifecycleShim(t, tt.output)
+
+			if tt.wantPass {
+				stdout, stderr, err := runGate(t, dir, "gate-unit")
+				if err != nil {
+					t.Fatalf("complete lifecycle records must not fail gate-unit: %v\nstderr=%s\nstdout=%s", err, stderr, stdout)
+				}
+				r := parseReceipt(t, stdout)
+				if r.Gate != "gate-unit" || r.Status != "pass" || r.ExitCode != 0 {
+					t.Fatalf("gate-unit receipt = %+v (want gate=gate-unit status=pass exit_code=0)", r)
+				}
+				verifyReceiptIntegrity(t, stdout)
+				return
+			}
+			requireGateFailsWithMsg(t, dir, "gate-unit", tt.wantMsg)
+		})
+	}
+}
+
+// TestGate_UnitRuntimeBoundaryPinsRealTests guards the pin itself: the two
+// lifecycle names gate-unit requires must be declared by the real CE-02 boundary
+// test files, so a stale pin can never make gate-unit unsatisfiable on the real
+// tree. It reads the real files only and derives no eligibility evidence.
+func TestGate_UnitRuntimeBoundaryPinsRealTests(t *testing.T) {
+	root := repoRoot(t)
+	pins := []struct{ name, rel string }{
+		{unitAPIBoundaryTest, filepath.Join("cmd", "api", "main_binaryboundary_test.go")},
+		{unitPostConfirmationBoundaryTest, filepath.Join("cmd", "postconfirmation", "main_binaryboundary_test.go")},
+	}
+	for _, pin := range pins {
+		src, err := os.ReadFile(filepath.Join(root, pin.rel))
+		if err != nil {
+			t.Fatalf("read pinned boundary test file %s: %v", pin.rel, err)
+		}
+		if !strings.Contains(string(src), "func "+pin.name+"(t *testing.T) {") {
+			t.Fatalf("gate-unit pins %q, which %s does not declare", pin.name, pin.rel)
+		}
+	}
 }

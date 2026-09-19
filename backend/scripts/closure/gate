@@ -63,7 +63,17 @@ run_check() {
         echo "unformatted Go files reported by gofmt -l (first: $(printf '%s\n' "$unformatted" | head -1); $(printf '%s\n' "$unformatted" | wc -l | tr -d ' ') total)"
         return 1
       fi ;;
-    gate-unit)  go test ./... -count=1 -v ;;
+    gate-unit)
+      # CE-03: the two untagged runtime-boundary tests must each run exactly once
+      # and pass (the gate-migrations lifecycle pattern). The test command stays
+      # byte-identical and its failure returns non-zero immediately, so a failing
+      # `go test` can never be masked by the selector checks below.
+      go test ./... -count=1 -v || return 1
+      local unit_runs unit_passes
+      unit_runs="$(grep -c '^=== RUN   TestBinaryAPISafeFailureBoundary$' "$out_file")"; unit_passes="$(grep -c '^--- PASS: TestBinaryAPISafeFailureBoundary (' "$out_file")"
+      [ "$unit_runs" -eq 1 ] && [ "$unit_passes" -eq 1 ] || { echo "gate-unit: API runtime-boundary lifecycle check failed — TestBinaryAPISafeFailureBoundary absent, renamed, skipped, or not run exactly once"; return 1; }
+      unit_runs="$(grep -c '^=== RUN   TestBinaryPostConfirmationSafeFailureBoundary$' "$out_file")"; unit_passes="$(grep -c '^--- PASS: TestBinaryPostConfirmationSafeFailureBoundary (' "$out_file")"
+      [ "$unit_runs" -eq 1 ] && [ "$unit_passes" -eq 1 ] || { echo "gate-unit: PostConfirmation runtime-boundary lifecycle check failed — TestBinaryPostConfirmationSafeFailureBoundary absent, renamed, skipped, or not run exactly once"; return 1; } ;;
     gate-race)  go test -race -v -count=1 ./internal/runtime/middleware ./internal/runtime/health ./cmd/api ;;
     gate-integration)
       db_preflight >&2 || return 1
@@ -135,7 +145,8 @@ else
 fi
 skip_count="$(printf '%s' "$skip_json" | jq 'length')"
 first_skip="$(printf '%s' "$skip_json" | jq -r '.[0] // ""')"
-worktree_state="$( { git status --porcelain --untracked-files=all; git diff HEAD
+# From the repository root, so root-level untracked content (OpenSpec inputs) is bound too.
+worktree_state="$( cd "$(git rev-parse --show-toplevel 2>/dev/null || echo .)" && { git status --porcelain --untracked-files=all; git diff HEAD
   git ls-files --others --exclude-standard -z | while IFS= read -r -d '' f; do printf '%s  %s\n' "$(sha256sum "$f" | cut -d' ' -f1)" "$f"; done
 } 2>/dev/null | sha256sum | cut -d' ' -f1)"
 # TRIANGULATE stale_receipt_check (design §10.2): if the prior receipt's
@@ -172,12 +183,16 @@ mkdir -p "$receipts_dir" || { echo "receipt write failed: cannot create $receipt
 base_receipt="$(jq -n \
   --arg gate "$gate" --arg status "$status" --arg tool "$check_command" --arg command "make $gate" \
   --arg commit "$commit" --arg tree "$tree" --arg started "$started" --arg ended "$ended" \
+  --arg ws "$receipt_worktree_state" \
   --argjson exit_code "$final_exit" --arg failure "$failure" \
   --argjson test_counts "$(printf '{"ok":%s,"fail":%s,"no_test_files":%s}' "$counts_ok" "$counts_fail" "$counts_none")" \
   --argjson skip_names "$skip_json" \
-  '{gate:$gate, status:$status, tool:$tool, command:$command, commit:$commit, tree:$tree, started_at:$started, ended_at:$ended, exit_code:$exit_code, test_counts:$test_counts, skip_names:$skip_names, artifact_hashes:{}, failure:$failure}')"
+  '{gate:$gate, status:$status, tool:$tool, command:$command, commit:$commit, tree:$tree, started_at:$started, ended_at:$ended, exit_code:$exit_code, test_counts:$test_counts, skip_names:$skip_names, artifact_hashes:{worktree_state:("sha256:" + $ws)}, failure:$failure}')"
+# receipt_integrity binds every receipt member except itself: only that one member
+# is excluded from the preimage, so the worktree_state cannot be swapped without
+# resealing (matching receiptIntegrityPreimage in internal/tools/closurereport).
 integrity="$(printf '%s' "$base_receipt" | jq -j -c . | sha256sum | cut -d' ' -f1)"
-rendered="$(printf '%s\n' "$base_receipt" | jq -c --arg ws "$receipt_worktree_state" --arg ri "sha256:$integrity" '.artifact_hashes = {worktree_state: ("sha256:" + $ws), receipt_integrity: $ri}')" || { echo "receipt write failed: cannot render receipt JSON" >&2; exit 1; }
+rendered="$(printf '%s\n' "$base_receipt" | jq -c --arg ri "sha256:$integrity" '.artifact_hashes.receipt_integrity = $ri')" || { echo "receipt write failed: cannot render receipt JSON" >&2; exit 1; }
 printf '%s\n' "$rendered" > "$receipts_dir/$gate.json" || { echo "receipt write failed: cannot write $receipts_dir/$gate.json" >&2; exit 1; }
 printf '%s\n' "$rendered"
 exit "$final_exit"
