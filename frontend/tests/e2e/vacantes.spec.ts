@@ -197,11 +197,57 @@ test("renders the approved hero and supported quick chips with honest state", as
     page.getByRole("heading", { level: 2, name: "Vacantes disponibles" }),
   ).toBeVisible();
 
-  // Truthful public chrome only: no theme toggle, auth, or publish actions.
-  await expect(page.locator("header").getByRole("button")).toHaveCount(0);
+  // Truthful public chrome: one persisted theme toggle plus the prototype
+  // link cluster. Every destination is a real route or an in-page placeholder;
+  // no legal or employer copy is fabricated.
+  const header = page.locator("header");
   await expect(
-    page.getByText(/publicar vacante|ingresar|iniciar sesión/i),
-  ).toHaveCount(0);
+    header.getByRole("button", { name: /cambiar tema/i }),
+  ).toHaveCount(1);
+  for (const [label, href] of [
+    ["Vacantes", "/vacantes"],
+    ["Empresas", "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f"],
+    ["Recursos", "#recursos"],
+    ["Ingresar", "/candidato/login"],
+    ["Publicar vacante", "/empresa/vacantes/nueva"],
+  ] as const) {
+    await expect(
+      header.getByRole("link", { name: label, exact: true }),
+    ).toHaveAttribute("href", href);
+  }
+  await expect(
+    header.getByRole("link", { name: "Recursos", exact: true }),
+  ).toHaveAttribute("title", "Próximamente");
+
+  // The visible control really flips and persists the document theme: a clean
+  // page owns no explicit choice, one click stores the opposite of the resolved
+  // system theme, and the pre-paint bootstrap re-applies it after a reload.
+  const themeToggle = header.getByRole("button", { name: /cambiar tema/i });
+  const html = page.locator("html");
+  expect(await page.evaluate(() => localStorage.getItem("pf-theme"))).toBeNull();
+  const startedDark = await html.evaluate((el) =>
+    el.classList.contains("dark"),
+  );
+  const flipped = startedDark ? "light" : "dark";
+  await themeToggle.click();
+  await expect(html).toHaveAttribute("data-theme", flipped);
+  expect(await html.evaluate((el) => el.classList.contains("dark"))).toBe(
+    flipped === "dark",
+  );
+  expect(await page.evaluate(() => localStorage.getItem("pf-theme"))).toBe(
+    flipped,
+  );
+  await page.reload();
+  await expect(html).toHaveAttribute("data-theme", flipped);
+  expect(await page.evaluate(() => localStorage.getItem("pf-theme"))).toBe(
+    flipped,
+  );
+  // Restore the prior preference through the same single key, then confirm the
+  // document falls back to system resolution.
+  await page.evaluate(() => localStorage.removeItem("pf-theme"));
+  await page.reload();
+  expect(await page.evaluate(() => localStorage.getItem("pf-theme"))).toBeNull();
+  expect(await html.evaluate((el) => el.getAttribute("data-theme"))).toBeNull();
 
   // Supported quick chips only, with honest pressed state.
   const todas = page.getByRole("button", { name: "Todas", exact: true });
@@ -234,6 +280,85 @@ test("renders the approved hero and supported quick chips with honest state", as
   await todas.click();
   await expect(page).toHaveURL("/vacantes");
   await expect(todas).toHaveAttribute("aria-pressed", "true");
+
+  // Real pointer targets, measured in the browser at the reference widths
+  // instead of inferred from classes.
+  const measureHeader = async (viewport: { width: number; height: number }) => {
+    await page.setViewportSize(viewport);
+    await page.goto("/vacantes");
+    return page.evaluate(() => {
+      const header = document.querySelector("header")!;
+      const linkByName = (name: string) =>
+        [...header.querySelectorAll("a")].find(
+          (a) => a.textContent?.trim() === name,
+        ) ?? null;
+      const rectOf = (element: Element | null) => {
+        if (!element) return null;
+        const { width, height } = element.getBoundingClientRect();
+        return { width: Math.round(width), height: Math.round(height) };
+      };
+      return {
+        logo: rectOf(header.querySelector("a[aria-label='PeopleFlow']")),
+        navVacantes: rectOf(linkByName("Vacantes")),
+        navEmpresas: rectOf(linkByName("Empresas")),
+        navRecursos: rectOf(linkByName("Recursos")),
+        login: rectOf(linkByName("Ingresar")),
+        publish: rectOf(linkByName("Publicar vacante")),
+        themeToggle: rectOf(header.querySelector("[data-pf-theme-toggle]")),
+        overflow:
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      };
+    });
+  };
+
+  const desktop = await measureHeader({ width: 1440, height: 900 });
+  test
+    .info()
+    .annotations.push({ type: "header targets @1440", description: JSON.stringify(desktop) });
+  for (const name of [
+    "logo",
+    "navVacantes",
+    "navEmpresas",
+    "navRecursos",
+    "login",
+    "themeToggle",
+  ] as const) {
+    expect(desktop[name], `${name} exists @1440`).not.toBeNull();
+    expect(
+      desktop[name]!.height,
+      `${name} target height @1440`,
+    ).toBeGreaterThanOrEqual(40);
+  }
+  // The icon-only toggle needs a >=40px square; the shared Button `lg` publish
+  // CTA keeps its >=36px height.
+  expect(desktop.themeToggle!.width).toBeGreaterThanOrEqual(40);
+  expect(desktop.publish!.height).toBeGreaterThanOrEqual(36);
+  expect(desktop.overflow).toBeLessThanOrEqual(0);
+
+  const mobile = await measureHeader({ width: 375, height: 812 });
+  test
+    .info()
+    .annotations.push({ type: "header targets @375", description: JSON.stringify(mobile) });
+  // Desktop-only destinations collapse entirely; the retained targets keep
+  // their size and the document stays overflow-free.
+  for (const name of [
+    "navVacantes",
+    "navEmpresas",
+    "navRecursos",
+    "login",
+  ] as const) {
+    expect(mobile[name]!.width, `${name} width @375`).toBe(0);
+    expect(mobile[name]!.height, `${name} height @375`).toBe(0);
+  }
+  for (const name of ["logo", "themeToggle"] as const) {
+    expect(
+      mobile[name]!.height,
+      `${name} target height @375`,
+    ).toBeGreaterThanOrEqual(40);
+  }
+  expect(mobile.publish!.height).toBeGreaterThanOrEqual(36);
+  expect(mobile.overflow).toBeLessThanOrEqual(0);
 });
 
 test("renders surfaced vacancy cards with API-backed metadata only", async ({

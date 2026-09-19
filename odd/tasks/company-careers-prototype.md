@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-06 human visual acceptance
+- Current task: CCP-R1 review and commit
 - Push/PR: not authorized
 
 ## Goal
@@ -24,7 +24,10 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Join company profile and enriched vacancy fields locally in the view layer using existing `company.id` / job ids.
 - Keep `jobItemSchema`, `jobsListSchema`, `api/*`, request-path inventory, backend, and write contracts unchanged.
 - Mark company/profile enrichment as fictional prototype data.
-- Use the existing PeopleFlow theme/tokens and one real photographic cover asset; do not invent verification, candidate, popularity, or performance metrics.
+- Render applicant counts, response-time estimates, verification, save/apply/share controls, and relative-time labels only from local prototype enrichment; keep them visually scoped as non-persistent demonstration features and emit zero business mutations.
+- Use the existing PeopleFlow theme/tokens and one real photographic cover asset.
+- Treat `design/screens/vacante-detalle.html`, `design/screens/vacantes-listado.html`, and the user-supplied screenshots as the visual/composition source of truth for the redesign.
+- Apply the horizontal vacancy-card redesign to public cards on `/vacantes` and `/empresas/[companyId]`; leave the employer create-form `VacancyPreview` unchanged.
 
 ## Constraints
 - Strict TDD from `openspec/config.yaml`; Node 22.23.2.
@@ -42,14 +45,21 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-03B — Global board card integration:** Replaced the existing board row with the reusable card and opportunistically enriched only known prototype ids while preserving wire-only fallback, filters, pagination, empty/error states, and long-content behavior. Updated the stale initials-tile browser contract to assert semantic card structure. Authored 384/400 lines. Verification: 8/8 focused, 23/23 adjacent, TypeScript and exact-scope ESLint PASS; two focused Chromium scenarios passed in the writer harness; independent verifier PASS. Commit evidence: `974209da693dc14a9da984654375b46f1e165331`.
 - [x] **CCP-04 — Enriched canonical vacancy detail:** Extended `/vacantes/[jobId]` with prototype disclosure, role requirements/skills/benefits/pay cadence/closing date, and an accessible company profile link; preserved canonical/SEO/not-found, safe text, and truthful action boundaries. Updated two stale Playwright company-name locators to exact matching. Authored 384/400 lines. Verification: 23/23 focused, 59/59 adjacent, TypeScript and exact-scope ESLint PASS; full detail Chromium suite 16/16 PASS; independent verifier PASS. Commit evidence: `a807d37a77a47610f18444ff3a8a0b5038853b68`.
 - [x] **CCP-05 — Visual polish and responsive states:** Loaded the existing Clash Display assets globally, replaced the external placeholder cover with a provenance-pinned local public-domain WebP through `next/image`, and corrected the enriched detail heading hierarchy. Preserved the intentional OS-only public theme behavior and deferred browser-only focus/overflow/contrast decisions to CCP-06. Authored 234/400 text lines plus one 206,060-byte binary asset. Verification: 44/44 focused, 143/144 adjacent with one proven pre-existing dashboard token failure, TypeScript and exact-scope ESLint PASS; independent verifier PASS. Commit evidence: `854c72c75f57372e60c547fa22f4027e072f3ce2`.
-- [ ] **CCP-06 — Integrated browser acceptance:** Technical acceptance complete: desktop/mobile light/dark Playwright matrix, axe smoke, keyboard/focus, no-overflow, truthful-copy, route/SEO, regression suites, reduced motion, local asset/font loading, and request-boundary checks passed after correcting two dark-link contrast defects. Human visual acceptance remains pending. Contrast-fix commit evidence: `973fec9ffc51f57cdd9a14492895d5325f418d55`.
+- [x] **CCP-06 — Integrated browser acceptance:** Technical acceptance completed: desktop/mobile light/dark Playwright matrix, axe smoke, keyboard/focus, no-overflow, truthful-copy, route/SEO, regression suites, reduced motion, local asset/font loading, and request-boundary checks passed after correcting two dark-link contrast defects. Human review rejected the visual baseline and authorized a reference-faithful redesign. Contrast-fix commit evidence: `973fec9ffc51f57cdd9a14492895d5325f418d55`.
+- [x] **CCP-R1 — Public shell and theme controls:** Matched the reference public navbar with PeopleFlow brand, Vacantes/Empresas/Recursos, dark-light toggle, Ingresar, and Publicar vacante; kept placeholder actions non-mutating and mobile-safe. Authored 397/400 lines. Verification: 21/21 focused, 50/50 adjacent, 27/27 Chromium board, 18/18 audit cases, zero axe nodes/overflow, target sizes and theme persistence/restoration PASS; independent verifier PASS. Commit evidence: pending.
+- [ ] **CCP-R2 — Prototype metrics and visual primitives:** Extend local-only enrichment with applicants, response time, featured/verified state and relative-time presentation; add reusable gradient/icon-tile/prototype disclosure primitives without wire/API changes. Forecast: 250–400 lines.
+- [ ] **CCP-R3 — Reference-faithful public cards:** Rebuild shared `VacancyCard` to the supplied horizontal left-content/right-salary layout with logo tile, metadata, description, skills/benefits, bookmark, CTA, verification, responsive stacking, and hover polish. Forecast: 300–400 lines.
+- [ ] **CCP-R4 — Reference-faithful detail layout:** Rebuild canonical vacancy detail to match `design/screens/vacante-detalle.html`: rich header, stat cards, structured content, benefits/company sections, two-column body, and sticky salary/action/share rail. Forecast: 300–400 lines.
+- [ ] **CCP-R5 — Prototype interactions:** Add accessible client islands for save/apply/share/bookmark feedback with explicit prototype disclosure and zero fetch/storage/business mutations. Forecast: 250–400 lines.
+- [ ] **CCP-R6 — Redesign browser acceptance:** Update obsolete truthfulness assertions to prototype-scoped contracts; run light/dark desktop/mobile Playwright, axe, keyboard, hover, overflow, canonical, safe-text, and zero-business-mutation acceptance; request human visual approval.
 
 ## Acceptance criteria
 - Company page communicates identity before vacancies and fits the hero thesis in the initial desktop viewport.
 - Cover photography is real and carries meaningful alt/decorative treatment.
-- Vacancy cards are substantially more useful without fabricating backend guarantees.
-- Detail remains canonical at `/vacantes/[jobId]` and clearly separates fictional enrichment from wire data.
-- No apply/save/verified/popularity claims are introduced.
+- Public vacancy cards match the supplied horizontal reference layout on the global board and company microsite, including responsive right-rail stacking and restrained hover interaction.
+- Detail remains canonical at `/vacantes/[jobId]`, closely matches `design/screens/vacante-detalle.html`, and clearly separates fictional enrichment/actions from wire data.
+- Apply/save/share, applicants, response time, and PeopleFlow verification are visibly scoped as non-persistent prototype features and trigger no business mutations.
+- Public pages expose a working dark/light toggle while preserving automatic system-theme behavior.
 - Existing `/vacantes` filters, pagination, error/empty states, and transport inventory remain intact.
 - No horizontal overflow at 375px or 1440px; visible focus; WCAG A/AA axe smoke has no serious/critical candidate-caused issues.
 
@@ -61,6 +71,12 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - CCP-04: independent verifier initially found two strict-mode substring locator conflicts after adding `Conoce a Acme`; both Playwright assertions now use exact matching and reverified PASS. `vacante-detalle.spec.ts` passed 16/16 in Chromium; the identical cross-cutting assertion remains covered semantically because that serial file has an unrelated pre-existing first-test failure.
 - CCP-05: independent verifier PASS. Local cover `acme-cover.webp` is 1600×900, 206,060 bytes, SHA-256 `1f1231ae8a0bf195deee5a466b2078cbacb217dc01a8a0047a3bd185761dd86f`; Commons/USDA public-domain provenance and transformation are committed alongside it. The adjacent dashboard `--brand-decorative-strong` failure is pre-existing in HEAD.
 - CCP-06 technical acceptance: original matrix found five serious dark-link contrast nodes at 2.14–2.15:1. Company/detail body links now use `text-foreground` with persistent underline; independent rerun passed 35/35 focused tests, TypeScript, ESLint, and 18 browser/axe cases with zero axe nodes. Existing suites resolved to board 27/27, detail 16/16, and cross-cutting remainder 3/3; its root-link first test remains pre-existing RED. Zero business/API mutations were observed; development-only Next diagnostic POSTs were caused by pre-existing Base UI warnings on the board.
+- CCP-R1: independent verifier PASS at 397/400. Real browser targets are ≥40px for logo/nav/login/toggle and ≥36px for the publish CTA; mobile hides desktop nav/login without overflow. Toggle click, `pf-theme` persistence, reload, cleanup, and system-mode restoration passed.
+
+## Redesign feedback
+- The first visual baseline was technically accepted but human-rejected as too flat and too far from the committed design references.
+- Public cards, not the employer create-form preview, own the supplied card redesign.
+- Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Attempt native review for the CCP-06 contrast correction and request human visual acceptance at the live port 3001 routes. Do not close CCP-06 until the user accepts the visual result.
+Commit CCP-R1, record its identity, attempt native review, then implement CCP-R2 local-only metrics and reference visual primitives.
