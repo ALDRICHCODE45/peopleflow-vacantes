@@ -24,6 +24,19 @@ function previewRail(): HTMLElement {
   return card as HTMLElement;
 }
 
+/** The completion card of the rail, scoped so section copy cannot satisfy it. */
+function completionCard(): HTMLElement {
+  const card = document.querySelector("[data-pf-completion-summary]");
+  if (card === null) {
+    throw new Error("The completion card was not rendered");
+  }
+  return card as HTMLElement;
+}
+
+/** Document order check: does `second` render after `first`? */
+const follows = (first: Element, second: Element) =>
+  (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+
 const titleInput = () =>
   screen.getByRole("textbox", { name: /título del puesto/i });
 const descriptionInput = () =>
@@ -66,9 +79,16 @@ function fillRequiredFields(labels: RequiredFieldLabels = {}) {
 
 let fetchSpy: ReturnType<typeof vi.fn>;
 
+/** jsdom has no PointerEvent, so the Base UI checkbox dispatches through this. */
+class TestPointerEvent extends MouseEvent {
+  readonly pointerType = "mouse";
+  readonly pointerId = 1;
+}
+
 beforeEach(() => {
   fetchSpy = vi.fn();
   vi.stubGlobal("fetch", fetchSpy);
+  vi.stubGlobal("PointerEvent", TestPointerEvent);
 });
 
 afterEach(() => {
@@ -498,6 +518,73 @@ describe("CreateVacancyForm invalid-submit focus", () => {
 
   it("derives the contract description from the local-only rich value", () => {
     expect(source).toMatch(/toPlainText/);
+  });
+});
+
+describe("CreateVacancyForm completion rail", () => {
+  it("reports observable content between the preview and the save card", () => {
+    render(<CreateVacancyForm />);
+
+    const card = completionCard();
+    const save = saveButton().closest("[data-slot='card']");
+    if (save === null) throw new Error("The save card was not rendered");
+
+    // Rail order stays preview, progress, save.
+    expect(
+      screen
+        .getByRole("complementary", { name: "Vista previa y guardado" })
+        .querySelectorAll("[data-pf-completion-summary]"),
+    ).toHaveLength(1);
+    expect(follows(previewRail(), card)).toBe(true);
+    expect(follows(card, save)).toBe(true);
+
+    expect(
+      within(card).getByRole("heading", { name: "Progreso de la vacante" }),
+    ).toBeVisible();
+    expect(
+      within(card).getByText(
+        "Seguimiento de las secciones con contenido. No valida el formulario ni confirma que se guardó.",
+      ),
+    ).toBeVisible();
+    expect(within(card).getByText("0 de 6 secciones completas")).toBeVisible();
+  });
+
+  it("updates the count from the live values without claiming a save", () => {
+    render(<CreateVacancyForm />);
+    const card = completionCard();
+
+    // A title alone is not basic information yet: the three enums are missing.
+    typeInto(titleInput(), "Backend Developer");
+    expect(within(card).getByText("0 de 6 secciones completas")).toBeVisible();
+
+    fillRequiredFields();
+    expect(within(card).getByText("2 de 6 secciones completas")).toBeVisible();
+    expect(within(card).getAllByText("Completa")).toHaveLength(2);
+    expect(within(card).getAllByText("Pendiente")).toHaveLength(4);
+
+    typeInto(salaryMinInput(), "25000");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Seguro de salud" }));
+    const bar = within(card).getByRole("progressbar", {
+      name: "Secciones de la vacante con contenido",
+    });
+    expect(within(card).getByText("4 de 6 secciones completas")).toBeVisible();
+    expect(bar).toHaveAttribute("aria-valuenow", "4");
+    expect(bar).toHaveAttribute("aria-valuetext", "4 de 6 secciones completas");
+
+    // Progress stays observational: no request, no save or autosave claim, and
+    // it never absorbs the auth-blocked outcome of the save card.
+    const text = card.textContent ?? "";
+    expect(text).toMatch(/ni confirma que se guardó/i);
+    expect(text).not.toMatch(
+      /autoguardado|guardado automáticamente|borrador guardado|listo para guardar/i,
+    );
+    expect(text).not.toMatch(/iniciar sesión como reclutador/i);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    fireEvent.click(saveButton());
+    expect(screen.getByRole("status")).toHaveTextContent(AUTH_NOTICE);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(within(card).getByText("4 de 6 secciones completas")).toBeVisible();
   });
 });
 
