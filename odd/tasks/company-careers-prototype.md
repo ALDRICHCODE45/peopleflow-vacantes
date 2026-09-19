@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-05 review and commit
+- Current task: CCP-06 human visual acceptance
 - Push/PR: not authorized
 
 ## Goal
@@ -42,7 +42,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-03B — Global board card integration:** Replaced the existing board row with the reusable card and opportunistically enriched only known prototype ids while preserving wire-only fallback, filters, pagination, empty/error states, and long-content behavior. Updated the stale initials-tile browser contract to assert semantic card structure. Authored 384/400 lines. Verification: 8/8 focused, 23/23 adjacent, TypeScript and exact-scope ESLint PASS; two focused Chromium scenarios passed in the writer harness; independent verifier PASS. Commit evidence: `974209da693dc14a9da984654375b46f1e165331`.
 - [x] **CCP-04 — Enriched canonical vacancy detail:** Extended `/vacantes/[jobId]` with prototype disclosure, role requirements/skills/benefits/pay cadence/closing date, and an accessible company profile link; preserved canonical/SEO/not-found, safe text, and truthful action boundaries. Updated two stale Playwright company-name locators to exact matching. Authored 384/400 lines. Verification: 23/23 focused, 59/59 adjacent, TypeScript and exact-scope ESLint PASS; full detail Chromium suite 16/16 PASS; independent verifier PASS. Commit evidence: `a807d37a77a47610f18444ff3a8a0b5038853b68`.
 - [x] **CCP-05 — Visual polish and responsive states:** Loaded the existing Clash Display assets globally, replaced the external placeholder cover with a provenance-pinned local public-domain WebP through `next/image`, and corrected the enriched detail heading hierarchy. Preserved the intentional OS-only public theme behavior and deferred browser-only focus/overflow/contrast decisions to CCP-06. Authored 234/400 text lines plus one 206,060-byte binary asset. Verification: 44/44 focused, 143/144 adjacent with one proven pre-existing dashboard token failure, TypeScript and exact-scope ESLint PASS; independent verifier PASS. Commit evidence: `854c72c75f57372e60c547fa22f4027e072f3ce2`.
-- [ ] **CCP-06 — Integrated browser acceptance:** Run desktop/mobile light/dark Playwright, axe smoke, keyboard/focus, no-overflow, truthful-copy, route/SEO, regression suites, and request-boundary checks; request human visual acceptance.
+- [ ] **CCP-06 — Integrated browser acceptance:** Technical acceptance complete: desktop/mobile light/dark Playwright matrix, axe smoke, keyboard/focus, no-overflow, truthful-copy, route/SEO, regression suites, reduced motion, local asset/font loading, and request-boundary checks passed after correcting two dark-link contrast defects. Human visual acceptance remains pending. Contrast-fix commit evidence: pending.
 
 ## Acceptance criteria
 - Company page communicates identity before vacancies and fits the hero thesis in the initial desktop viewport.
@@ -60,6 +60,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - CCP-03B: independent verifier PASS; the old decorative initials assertion was intentionally replaced by semantic H3/canonical link/company link/two-child card evidence. The port 3001 dev server was restarted after a production build overwrote its `.next` cache.
 - CCP-04: independent verifier initially found two strict-mode substring locator conflicts after adding `Conoce a Acme`; both Playwright assertions now use exact matching and reverified PASS. `vacante-detalle.spec.ts` passed 16/16 in Chromium; the identical cross-cutting assertion remains covered semantically because that serial file has an unrelated pre-existing first-test failure.
 - CCP-05: independent verifier PASS. Local cover `acme-cover.webp` is 1600×900, 206,060 bytes, SHA-256 `1f1231ae8a0bf195deee5a466b2078cbacb217dc01a8a0047a3bd185761dd86f`; Commons/USDA public-domain provenance and transformation are committed alongside it. The adjacent dashboard `--brand-decorative-strong` failure is pre-existing in HEAD.
+- CCP-06 technical acceptance: original matrix found five serious dark-link contrast nodes at 2.14–2.15:1. Company/detail body links now use `text-foreground` with persistent underline; independent rerun passed 35/35 focused tests, TypeScript, ESLint, and 18 browser/axe cases with zero axe nodes. Existing suites resolved to board 27/27, detail 16/16, and cross-cutting remainder 3/3; its root-link first test remains pre-existing RED. Zero business/API mutations were observed; development-only Next diagnostic POSTs were caused by pre-existing Base UI warnings on the board.
 
 ## Next step
-Attempt native review for CCP-05, then run CCP-06 integrated browser acceptance across company, board, and detail routes.
+Commit the CCP-06 contrast correction, record its identity, attempt native review, and request human visual acceptance at the live port 3001 routes. Do not close CCP-06 until the user accepts the visual result.

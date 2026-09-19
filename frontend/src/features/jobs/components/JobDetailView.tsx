@@ -173,7 +173,7 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
           </div>
           <Link
             href={`/empresas/${profile.companyId}`}
-            className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-primary underline-offset-4 transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex items-center gap-1.5 self-start text-sm font-medium text-foreground underline decoration-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             Conoce a {profile.name}
           </Link>

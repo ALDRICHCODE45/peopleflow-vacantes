@@ -13,6 +13,14 @@ const view = (jobs: readonly PrototypeJobView[] = []) => render(<CompanyCareersV
 const capabilityItems = (container: HTMLElement) => Array.from(container.querySelector("h2#que-hacemos")?.closest("section")?.querySelectorAll("li") ?? []).map((item) => item.textContent ?? "");
 /** Claim-like or action-like copy this prototype must never render. */
 const FORBIDDEN_COPY = /aplicar|postular|guardar|verificad|popular|recomendad|candidat|opiniones|calificaci|\d+\s*%|\+?\d+\s*(empleados|contrataciones|clientes)/iu;
+/** Font-size utilities share the `text-` prefix with the color utilities below. */
+const FONT_SIZE_TOKENS = new Set(["xs", "sm", "base", "lg", "xl", "2xl", "3xl", "4xl", "5xl", "6xl", "7xl", "8xl", "9xl"]);
+/** Every text-color utility a class list applies, keeping its variant prefix. */
+const textColorUtilities = (className: string) =>
+  className
+    .split(/\s+/)
+    .filter((utility) => utility.includes("text-"))
+    .filter((utility) => !FONT_SIZE_TOKENS.has(utility.slice(utility.lastIndexOf("text-") + 5)));
 
 afterEach(() => cleanup());
 
@@ -80,6 +88,40 @@ describe("CompanyCareersView media, disclosure, and honesty", () => {
     expect(vacancySection?.textContent).toContain(profile.name);
     expect(Array.from(vacancySection?.querySelectorAll("a") ?? []).map((anchor) => anchor.getAttribute("href"))).toEqual(["/vacantes"]);
     expect(container.querySelectorAll("button")).toHaveLength(0);
+  });
+});
+
+describe("CompanyCareersView link contrast", () => {
+  /**
+   * Both body-sized links of this page must keep theme-aware high-contrast
+   * text: WCAG AA needs 4.5:1 for body text, and `text-primary` only reaches
+   * ~2.1:1 on the dark page background. The base color must therefore be the
+   * semantic `text-foreground` token, which is defined for the light and the
+   * dark theme alike, with no theme- or state-scoped color override, and the
+   * affordance must be the always-visible underline instead of hover only.
+   */
+  const expectHighContrastBodyLink = (link: HTMLElement) => {
+    const { className } = link;
+    expect(className).toMatch(/(?:^|\s)text-(?:sm|base)(?:\s|$)/);
+    const colors = textColorUtilities(className);
+    expect(colors.length).toBeGreaterThan(0);
+    for (const color of colors) expect(color).toMatch(/^(?:[a-z-]+:)*text-foreground$/);
+    expect(className).not.toMatch(/(?:^|\s)(?:[a-z-]+:)*text-primary(?:\/\d+)?(?:\s|$)/);
+    expect(className).toMatch(/(?:^|\s)underline(?:\s|$)/);
+    expect(className).not.toMatch(/(?:^|\s)no-underline(?:\s|$)/);
+    expect(className).toMatch(/focus-visible:outline-ring/);
+  };
+
+  it("keeps the board and website links readable in both themes without text-primary", () => {
+    view();
+    for (const name of [`Sitio web de ${profile.name}`, "Ver vacantes publicadas"]) {
+      expectHighContrastBodyLink(screen.getByRole("link", { name }));
+    }
+  });
+
+  it("keeps a high-contrast website link while the company has its own vacancies", () => {
+    view(ACME_PROTOTYPE_JOBS);
+    expectHighContrastBodyLink(screen.getByRole("link", { name: `Sitio web de ${profile.name}` }));
   });
 });
 

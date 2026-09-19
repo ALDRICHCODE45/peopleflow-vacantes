@@ -10,6 +10,15 @@ import type { PrototypeJobView } from "../enrich";
 import type { JobItem } from "../types";
 import { JobDetailView } from "./JobDetailView";
 
+/** Font-size utilities share the `text-` prefix with the color utilities below. */
+const FONT_SIZE_TOKENS = new Set(["xs", "sm", "base", "lg", "xl", "2xl", "3xl", "4xl", "5xl", "6xl", "7xl", "8xl", "9xl"]);
+/** Every text-color utility a class list applies, keeping its variant prefix. */
+const textColorUtilities = (className: string) =>
+  className
+    .split(/\s+/)
+    .filter((utility) => utility.includes("text-"))
+    .filter((utility) => !FONT_SIZE_TOKENS.has(utility.slice(utility.lastIndexOf("text-") + 5)));
+
 const baseJob: JobItem = {
   id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e",
   title: "Ingeniera Frontend",
@@ -80,6 +89,25 @@ describe("JobDetailView validated rendering", () => {
 
 describe("JobDetailView prototype role block", () => {
   const enrichedJob = enrichJob(baseJob);
+
+  /**
+   * The company-profile link is body-sized, so WCAG AA requires 4.5:1: its
+   * base color must be the semantic `text-foreground` token, which is defined
+   * for the light and the dark theme alike, with no theme- or state-scoped
+   * color override, and its affordance must be the always-visible underline
+   * instead of hover only. `text-primary` reaches only ~2.1:1 on the dark
+   * page background, so it may not be the base or the hover text color.
+   */
+  const expectHighContrastBodyLink = (link: HTMLElement) => {
+    const { className } = link;
+    expect(className).toMatch(/(?:^|\s)text-(?:sm|base)(?:\s|$)/);
+    const colors = textColorUtilities(className);
+    expect(colors.length).toBeGreaterThan(0);
+    for (const color of colors) expect(color).toMatch(/^(?:[a-z-]+:)*text-foreground$/);
+    expect(className).not.toMatch(/(?:^|\s)(?:[a-z-]+:)*text-primary(?:\/\d+)?(?:\s|$)/);
+    expect(className).toMatch(/(?:^|\s)underline(?:\s|$)/);
+    expect(className).not.toMatch(/(?:^|\s)no-underline(?:\s|$)/);
+  };
 
   it("keeps one H1, the four description paragraphs, and no image or script", () => {
     const job: PrototypeJobView = { ...enrichedJob, description: UNSAFE_DESCRIPTION };
@@ -153,6 +181,7 @@ describe("JobDetailView prototype role block", () => {
     render(<JobDetailView job={enrichedJob} />);
     const link = screen.getByRole("link", { name: `Conoce a ${ACME_PROTOTYPE_PROFILE.name}` });
     expect(link).toHaveAttribute("href", `/empresas/${PROTOTYPE_COMPANY_ID}`);
+    expectHighContrastBodyLink(link);
     expect(screen.getByText(ACME_PROTOTYPE_PROFILE.disclosure.label)).toBeVisible();
     expect(screen.getByText(ACME_PROTOTYPE_PROFILE.disclosure.statement)).toBeVisible();
     // A bare company name stays the header text: the profile link never claims it.

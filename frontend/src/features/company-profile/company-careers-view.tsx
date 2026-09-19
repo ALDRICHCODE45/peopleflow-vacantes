@@ -10,8 +10,14 @@ import type { CompanyProfile } from "./model";
 /** Keyboard focus ring shared by every interactive element on this page. */
 const focusRing =
   "rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
-/** The one violet affordance: the two navigation links of this page. */
-const linkClass = `text-sm font-medium text-primary underline-offset-4 transition-colors hover:underline ${focusRing}`;
+/**
+ * The two body-sized navigation links of this page. They use the semantic
+ * `text-foreground` token rather than the violet accent: `--primary` only
+ * reaches ~2.1:1 on the dark page background, while body text needs 4.5:1.
+ * The underline stays visible without hover, and hover only strengthens its
+ * decoration color, so neither state depends on a low-contrast color.
+ */
+const linkClass = `text-sm font-medium text-foreground underline decoration-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground ${focusRing}`;
 const headingClass =
   "font-heading text-2xl font-semibold tracking-tight text-foreground";
 
