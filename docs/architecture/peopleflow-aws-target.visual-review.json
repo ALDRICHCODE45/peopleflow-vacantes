@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "specification": {
+    "path": "peopleflow-aws-target.architecture.json",
+    "sha256": "bc8fe671ded49f8cf9a6a24743ebf2cbca179c7677a26760441c931d21627531",
+    "bytes": 8672
+  },
+  "artifact": {
+    "path": "peopleflow-aws-target.html",
+    "sha256": "8e4a734278497c473098c3bb82f5ecc4af4a98a779ccbddd8aee987cc495de49",
+    "bytes": 827108
+  },
+  "deterministicDelivery": {
+    "status": "pass",
+    "qualityProfile": "showcase",
+    "checksPassed": 9,
+    "checkCount": 9,
+    "errors": 0,
+    "warnings": 0,
+    "repositoryEvidenceReferences": 15
+  },
+  "automatedBrowserEvidence": {
+    "command": "Archify visual-check",
+    "status": "pass",
+    "state": {
+      "detail": "read",
+      "motion": "still"
+    },
+    "measurements": [
+      {"viewport": "1440x900", "theme": "light", "containment": "pass", "readability": "pass", "viewerChrome": "pass"},
+      {"viewport": "1600x1000", "theme": "light", "containment": "pass", "readability": "pass", "viewerChrome": "pass"},
+      {"viewport": "1920x1080", "theme": "light", "containment": "pass", "readability": "pass", "viewerChrome": "pass"},
+      {"viewport": "2048x1320", "theme": "light", "containment": "pass", "readability": "pass", "viewerChrome": "pass"}
+    ]
+  },
+  "perceptualReview": {
+    "status": "passed",
+    "correctionRounds": 1,
+    "screenshotsInspected": [
+      "peopleflow-aws-target.visual-check.1440x900.light.png",
+      "peopleflow-aws-target.visual-check.1440x900.dark.png",
+      "peopleflow-aws-target.visual-check.2048x1320.light.png",
+      "peopleflow-aws-target.visual-check.2048x1320.dark.png"
+    ],
+    "observations": [
+      "Light and dark themes preserve contrast, node fit, route labels, boundaries, legend, controls, and meeting cards.",
+      "The public request path, identity branch, persistence path, and future asynchronous branch remain visually distinct.",
+      "The architecture-target and not-yet-deployed status is visible in the AWS boundary and the Estado real hoy card.",
+      "No clipping, horizontal or vertical overflow, card truncation, conspicuous empty lower band, route crossing, or label collision is visible.",
+      "The first automated browser run exposed vertical overflow; one bounded composition correction compacted the authored vertical layout before the passing delivery."
+    ]
+  }
+}

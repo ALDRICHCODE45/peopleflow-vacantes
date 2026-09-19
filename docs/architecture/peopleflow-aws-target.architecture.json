@@ -1,0 +1,235 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "PeopleFlow — Arquitectura objetivo en AWS",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/ALDRICHCODE45/peopleflow-vacantes",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "3bbbc2a72d6b22dfde8478f041282f3cd0c2e509"
+    },
+    "views": [
+      {
+        "id": "solicitud-publica",
+        "label": "Solicitud pública",
+        "focus": ["usuarios", "amplify", "alb", "api", "proxy", "postgres"],
+        "note": "Del navegador a la API Go y al estado relacional privado."
+      },
+      {
+        "id": "identidad",
+        "label": "Identidad y alta",
+        "focus": ["usuarios", "amplify", "cognito", "api", "postconfirmation", "proxy", "postgres"],
+        "note": "Autenticación Cognito, validación JWKS y sincronización PostConfirmation."
+      },
+      {
+        "id": "eventos",
+        "label": "Trabajo asíncrono",
+        "focus": ["api", "eventbridge", "sqs", "workers"],
+        "note": "Rama futura para eventos de integración, reintentos y workers Go."
+      }
+    ],
+    "viewBox": [1300, 620]
+  },
+  "components": [
+    {
+      "id": "usuarios",
+      "type": "external",
+      "label": "Usuarios",
+      "sublabel": "candidatos + empresas",
+      "pos": [25, 240],
+      "size": [135, 74],
+      "sources": [
+        {"path": "docs/modelo-de-datos-proyecto-04.md", "label": "Identidad y roles"}
+      ]
+    },
+    {
+      "id": "amplify",
+      "type": "frontend",
+      "label": "AWS Amplify Hosting",
+      "sublabel": "Next.js · SSR/RSC · ISR",
+      "tag": "PLANIFICADO",
+      "pos": [200, 235],
+      "size": [165, 84],
+      "sources": [
+        {"path": "docs/decision-frontend-hosting.md", "label": "Decisión de hosting"}
+      ]
+    },
+    {
+      "id": "alb",
+      "type": "security",
+      "label": "Application Load Balancer",
+      "sublabel": "entrada HTTPS pública",
+      "tag": "DISEÑO OBJETIVO",
+      "pos": [400, 235],
+      "size": [170, 84],
+      "sources": [
+        {"path": "README.md", "label": "Backend ECS/Fargate"}
+      ]
+    },
+    {
+      "id": "api",
+      "type": "backend",
+      "label": "ECS/Fargate · API Go",
+      "sublabel": "monolito modular · chi",
+      "tag": "CÓDIGO LISTO · CLOUD PENDIENTE",
+      "pos": [610, 230],
+      "size": [195, 94],
+      "sources": [
+        {"path": "docs/arquitectura-backend-proyecto-04.md", "label": "Arquitectura Go"},
+        {"path": "README.md", "label": "Estado AWS"}
+      ]
+    },
+    {
+      "id": "proxy",
+      "type": "database",
+      "label": "Amazon RDS Proxy",
+      "sublabel": "pool y control de conexiones",
+      "tag": "PLANIFICADO",
+      "pos": [850, 235],
+      "size": [170, 84],
+      "sources": [
+        {"path": "docs/modelo-de-datos-proyecto-04.md", "label": "Persistencia objetivo"}
+      ]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "Amazon RDS PostgreSQL 16",
+      "sublabel": "Multi-AZ · cifrado · privado",
+      "tag": "PLANIFICADO",
+      "pos": [1065, 230],
+      "size": [200, 94],
+      "sources": [
+        {"path": "docs/modelo-de-datos-proyecto-04.md", "label": "Modelo de datos"}
+      ]
+    },
+    {
+      "id": "cognito",
+      "type": "security",
+      "label": "Amazon Cognito",
+      "sublabel": "User Pool · Groups · JWKS",
+      "tag": "PLANIFICADO",
+      "pos": [400, 35],
+      "size": [175, 84],
+      "sources": [
+        {"path": "docs/modelo-de-datos-proyecto-04.md", "label": "Identidad"},
+        {"path": "docs/arquitectura-backend-proyecto-04.md", "label": "Validación JWT"}
+      ]
+    },
+    {
+      "id": "postconfirmation",
+      "type": "backend",
+      "label": "Lambda PostConfirmation",
+      "sublabel": "cmd/postconfirmation · idempotente",
+      "tag": "CÓDIGO LISTO · LAMBDA PENDIENTE",
+      "pos": [650, 30],
+      "size": [210, 94],
+      "sources": [
+        {"path": "docs/arquitectura-backend-proyecto-04.md", "label": "Ejecutable Lambda"},
+        {"path": "docs/modelo-de-datos-proyecto-04.md", "label": "Puente Cognito/Postgres"}
+      ]
+    },
+    {
+      "id": "eventbridge",
+      "type": "messagebus",
+      "label": "Amazon EventBridge",
+      "sublabel": "eventos de integración",
+      "tag": "FUTURE / NON-MVP",
+      "pos": [605, 445],
+      "size": [205, 84],
+      "sources": [
+        {"path": "docs/arquitectura-backend-proyecto-04.md", "label": "Eventos futuros"}
+      ]
+    },
+    {
+      "id": "sqs",
+      "type": "messagebus",
+      "label": "Amazon SQS",
+      "sublabel": "colas · reintentos · DLQ",
+      "tag": "FUTURE / NON-MVP",
+      "pos": [850, 445],
+      "size": [170, 84],
+      "sources": [
+        {"path": "docs/arquitectura-backend-proyecto-04.md", "label": "Transporte futuro"}
+      ]
+    },
+    {
+      "id": "workers",
+      "type": "backend",
+      "label": "Workers Go en Fargate",
+      "sublabel": "consumidores asíncronos",
+      "tag": "FUTURE / NON-MVP",
+      "pos": [1065, 440],
+      "size": [200, 94],
+      "sources": [
+        {"path": "README.md", "label": "Workers pendientes"},
+        {"path": "docs/arquitectura-backend-proyecto-04.md", "label": "Rama asíncrona"}
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "AWS · región por seleccionar · arquitectura objetivo no desplegada",
+      "wraps": ["amplify", "alb", "api", "proxy", "postgres", "cognito", "postconfirmation", "eventbridge", "sqs", "workers"],
+      "pad": 24
+    },
+    {
+      "kind": "security-group",
+      "label": "VPC objetivo · workloads y datos sin exposición directa",
+      "wraps": ["api", "proxy", "postgres", "postconfirmation", "workers"],
+      "pad": 16
+    },
+    {
+      "kind": "security-group",
+      "label": "Plano de datos privado",
+      "wraps": ["proxy", "postgres"],
+      "pad": 12
+    }
+  ],
+  "connections": [
+    {"id": "web", "from": "usuarios", "to": "amplify", "label": "HTTPS", "variant": "emphasis"},
+    {"id": "frontend-auth", "from": "amplify", "to": "cognito", "label": "OIDC / OAuth 2.0", "variant": "security", "fromSide": "top", "toSide": "bottom"},
+    {"id": "frontend-api", "from": "amplify", "to": "alb", "label": "REST + JWT", "variant": "emphasis", "labelAt": [382.5, 210]},
+    {"id": "alb-api", "from": "alb", "to": "api", "label": "HTTPS", "variant": "security"},
+    {"id": "jwks", "from": "api", "to": "cognito", "label": "JWKS · RS256", "variant": "security", "fromSide": "top", "toSide": "bottom", "via": [[707.5, 175], [487.5, 175]]},
+    {"id": "api-db", "from": "api", "to": "proxy", "label": "pgx/v5 · SQL", "variant": "emphasis", "labelAt": [827.5, 345]},
+    {"id": "proxy-db", "from": "proxy", "to": "postgres", "label": "TLS · pool", "variant": "security", "labelAt": [1042.5, 210]},
+    {"id": "cognito-trigger", "from": "cognito", "to": "postconfirmation", "label": "trigger", "variant": "security"},
+    {"id": "lambda-db", "from": "postconfirmation", "to": "proxy", "label": "alta idempotente", "variant": "dashed", "fromSide": "right", "toSide": "top", "via": [[935, 77]], "labelAt": [900, 150]},
+    {"id": "publish", "from": "api", "to": "eventbridge", "label": "publicar evento", "variant": "dashed", "fromSide": "bottom", "toSide": "top", "route": "straight", "labelAt": [655, 360]},
+    {"id": "route-event", "from": "eventbridge", "to": "sqs", "label": "reglas", "variant": "dashed"},
+    {"id": "consume", "from": "sqs", "to": "workers", "label": "poll + DLQ", "variant": "dashed", "labelAt": [1042.5, 550]}
+  ],
+  "cards": [
+    {
+      "dot": "amber",
+      "title": "Estado real hoy",
+      "items": [
+        "El backend Go, cmd/migrate y cmd/postconfirmation están entregados y verificados",
+        "No existen todavía recursos AWS, Terraform, Dockerfile ni pipelines CI/CD",
+        "El diagrama describe el objetivo aprobado; no afirma infraestructura desplegada"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Seguridad por diseño",
+      "items": [
+        "TLS en cada cruce; PostgreSQL nunca recibe tráfico público directo",
+        "Cognito mantiene identidad; Postgres conserva el dominio y cognito_sub",
+        "IAM de mínimo privilegio y secretos administrados son requisitos de la fase foundation"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Entrega y operación",
+      "items": [
+        "cmd/migrate se ejecutará como tarea ECS one-off antes del rollout de la API",
+        "CloudWatch, alarmas, DLQ, backups y pruebas de restauración deben cerrar el deployment",
+        "EventBridge, SQS, workers y outbox/dispatcher permanecen fuera del MVP actual"
+      ]
+    }
+  ]
+}
