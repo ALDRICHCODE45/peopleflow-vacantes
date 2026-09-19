@@ -137,6 +137,55 @@ func CheckRepository(layout RepositoryLayout) ([]Violation, error) {
 	return violations, nil
 }
 
+// EvidenceScan is the split real-tree observation the closure report consumes
+// for the two independent native criteria: the locked non-goal path scan
+// (criterion 10) and the architecture guard scan (criterion 11). The two
+// results are observed independently: an empty slice is a real observation of
+// that domain only, and neither slice can stand in for the other.
+type EvidenceScan struct {
+	NonGoal      []Violation
+	Architecture []Violation
+}
+
+// ScanEvidence runs the two real-tree scans behind the closure report's
+// independent C10/C11 observations, reusing the package's private tree
+// collectors and the repository import scan:
+//
+//   - NonGoal is the locked non-goal path scan over every backend file path.
+//   - Architecture is the design A1 native source observation: the forbidden
+//     cross-feature import guard over the repository package graph, plus the
+//     error-catalog rules over non-test feature sources (ad-hoc `code` literals
+//     and direct error-JSON writes).
+//
+// Scope boundary: route topology is owned by the pinned router-owner test
+// (TestRouteTopology_ExactRegistrations) and is therefore gate-level evidence
+// through the required gate-arch receipt, which the report requires as a passing
+// same-identity receipt. It is deliberately NOT re-derived from test-only AST
+// truth here, and no other architecture domain is delegated to a receipt: the
+// import guard is observed natively. A failed collector or a failed import scan
+// returns an error and no observations, so an unobserved domain can never be
+// mistaken for a clean one.
+func ScanEvidence(layout RepositoryLayout) (EvidenceScan, error) {
+	paths, err := backendFilePaths(layout.Backend)
+	if err != nil {
+		return EvidenceScan{}, err
+	}
+	files, err := featureSourceFiles(layout.Backend)
+	if err != nil {
+		return EvidenceScan{}, err
+	}
+	imports, err := CheckRepositoryImports(layout.Backend)
+	if err != nil {
+		return EvidenceScan{}, err
+	}
+	architecture := append(imports, CheckErrorCatalogUsage(files)...)
+	sortViolations(architecture)
+	return EvidenceScan{
+		NonGoal:      CheckNonGoals(paths),
+		Architecture: architecture,
+	}, nil
+}
+
 // featureSourceFiles collects non-test .go files under internal/features.
 func featureSourceFiles(backend string) ([]SourceFile, error) {
 	var files []SourceFile

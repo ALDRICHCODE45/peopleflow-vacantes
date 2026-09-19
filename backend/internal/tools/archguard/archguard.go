@@ -577,6 +577,17 @@ func BuildAnchorIndex(root string) (AnchorIndex, error) {
 			return err
 		}
 		rel = filepath.ToSlash(rel)
+		if rel == ".git" {
+			// Only a real .git directory may be skipped as a subtree. In a
+			// linked Git worktree the root .git is a regular file, and
+			// filepath.WalkDir reads SkipDir on a non-directory entry as
+			// "skip the remaining files of the containing directory", which
+			// would drop every ordinary root sibling from the index.
+			if d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
+		}
 		idx.Paths[rel] = true
 		if d.IsDir() {
 			return nil

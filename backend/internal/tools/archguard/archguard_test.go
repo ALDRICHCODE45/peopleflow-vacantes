@@ -559,3 +559,196 @@ func TestTraceability_AnchorBoundary(t *testing.T) {
 			ruleTraceSelectorNoMatches, "TestMissingAnchor/sub")
 	})
 }
+
+// TestTraceability_AnchorIndexExcludesRootGitDir pins the root .git exclusion for .git-only paths and symbols.
+func TestTraceability_AnchorIndexExcludesRootGitDir(t *testing.T) {
+	root, ghost := t.TempDir(), ".git/gentle-ai/candidate-views/v/ghost.go"
+	writeGoFixture(t, root, ghost, anchorServiceSource)
+	idx, err := BuildAnchorIndex(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if idx.Paths[".git"] || idx.Paths[ghost] || idx.Symbols["AnchorService"] {
+		t.Fatalf("root .git content must not be indexed: %+v", idx)
+	}
+	rows := []TraceabilityRow{{Capability: "x", Requirement: "y", Evidence: RowEvidence{Path: ghost, Symbols: []string{"AnchorService"}}}}
+	wantViolations(t, "root .git anchors", CheckManifestAnchors(rows, idx), 2)
+}
+
+// TestTraceability_AnchorIndexTreatsRootGitFileAsPlainEntry pins the linked
+// Git worktree layout: there the repository root `.git` is a regular file (a
+// gitdir pointer), not a directory. Traversal must exclude only that entry and
+// keep indexing its ordinary root siblings, because filepath.WalkDir reads a
+// SkipDir return on a non-directory entry as "skip the remaining files of the
+// containing directory". `.git` sorts before every ordinary root name, so a
+// leaked SkipDir on that file empties the whole index.
+func TestTraceability_AnchorIndexTreatsRootGitFileAsPlainEntry(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".git"),
+		[]byte("gitdir: /repo/.git/worktrees/backend\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	const ordinary = "ordinary_source.go"
+	writeGoFixture(t, root, ordinary, anchorServiceSource)
+
+	idx, err := BuildAnchorIndex(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if idx.Paths[".git"] {
+		t.Fatalf("root .git file must not be indexed as a path: %+v", idx.Paths)
+	}
+	if !idx.Paths[ordinary] {
+		t.Fatalf("ordinary root source after the root .git file is missing from the anchor index: %+v", idx.Paths)
+	}
+	if !idx.Symbols["AnchorService"] || !idx.Symbols["AnchorRoute"] {
+		t.Fatalf("ordinary root source declarations missing from the anchor index: %+v", idx.Symbols)
+	}
+	if !idx.Routes["GET /anchor-route"] {
+		t.Fatalf("ordinary root source route literal missing from the anchor index: %+v", idx.Routes)
+	}
+	if !containsPhrase(idx.Contents, "anchor prose phrase fixture") {
+		t.Fatalf("ordinary root source content missing from the anchor index: %+v", idx.Contents)
+	}
+	rows := []TraceabilityRow{{
+		Capability:  "x",
+		Requirement: "y",
+		Evidence:    RowEvidence{Path: ordinary, Symbols: []string{"AnchorService"}},
+	}}
+	if got := CheckManifestAnchors(rows, idx); len(got) != 0 {
+		t.Fatalf("ordinary root source anchors rejected: %+v", got)
+	}
+}
+
+// --- BC-06A: production-callable split real-tree scan (C10 / C11 seam) ---
+
+// scanEvidenceFixture writes a minimal, self-contained Go module into a
+// temporary root and returns the layout ScanEvidence observes. Only temporary
+// roots are walked: the real backend tree is never touched.
+func scanEvidenceFixture(t *testing.T) RepositoryLayout {
+	t.Helper()
+	root := t.TempDir()
+	writeGoFixture(t, root, "backend/go.mod", "module fixture\n\ngo 1.21\n")
+	writeGoFixture(t, root, "backend/internal/features/jobs/infrastructure/http/handler.go",
+		"package http\n\n// ListJobs is clean feature source: no ad-hoc code literal.\nfunc ListJobs() {}\n")
+	return RepositoryLayout{Backend: filepath.Join(root, "backend"), Repo: root}
+}
+
+// TestScanEvidence_SplitRealTreeScans proves ScanEvidence reports the two
+// native domains separately: a locked non-goal path hit is a NonGoal violation
+// only, and an ad-hoc code literal in feature source is an Architecture
+// violation only. A merged or accept-all result fails this test behaviorally.
+func TestScanEvidence_SplitRealTreeScans(t *testing.T) {
+	layout := scanEvidenceFixture(t)
+	writeGoFixture(t, layout.Backend, "internal/features/companies/infrastructure/http/adhoc.go",
+		"package http\n\nvar payload = map[string]string{\"code\": \"not_found\"}\n")
+	if err := os.MkdirAll(filepath.Join(layout.Backend, "deploy"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(layout.Backend, "deploy", "worker-lambda.yaml"), []byte("kind: Lambda\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	scan, err := ScanEvidence(layout)
+	if err != nil {
+		t.Fatalf("ScanEvidence over a complete fixture tree: %v", err)
+	}
+	if len(scan.NonGoal) != 1 {
+		t.Fatalf("NonGoal got %d violation(s), want 1 (empty is the accept-all scaffold behavior): %+v", len(scan.NonGoal), scan.NonGoal)
+	}
+	if len(scan.Architecture) != 1 {
+		t.Fatalf("Architecture got %d violation(s), want 1 (empty is the accept-all scaffold behavior): %+v", len(scan.Architecture), scan.Architecture)
+	}
+	wantRuleNamed(t, scan.NonGoal, ruleNonGoal, "deploy/worker-lambda.yaml")
+	wantRuleNamed(t, scan.Architecture, ruleAdhocCodeLiteral, "internal/features/companies/infrastructure/http/adhoc.go")
+}
+
+// TestScanEvidence_ObservedScansStayIndependent proves the two observation
+// states cannot collapse into one: a non-goal hit leaves the architecture scan
+// an explicitly observed clean result, and an architecture hit leaves the
+// non-goal scan an explicitly observed clean result. Neither scan can be
+// inferred from the other.
+func TestScanEvidence_ObservedScansStayIndependent(t *testing.T) {
+	t.Run("non-goal hit leaves the architecture scan observed-clean", func(t *testing.T) {
+		layout := scanEvidenceFixture(t)
+		writeGoFixture(t, layout.Backend, "deploy/worker-lambda.yaml", "kind: Lambda\n")
+
+		scan, err := ScanEvidence(layout)
+		if err != nil {
+			t.Fatalf("ScanEvidence: %v", err)
+		}
+		wantRuleNamed(t, scan.NonGoal, ruleNonGoal, "deploy/worker-lambda.yaml")
+		if len(scan.Architecture) != 0 {
+			t.Fatalf("architecture scan must stay an observed-clean empty result; got %+v", scan.Architecture)
+		}
+	})
+
+	t.Run("architecture hit leaves the non-goal scan observed-clean", func(t *testing.T) {
+		layout := scanEvidenceFixture(t)
+		writeGoFixture(t, layout.Backend, "internal/features/jobs/infrastructure/http/direct.go",
+			"package http\n\nfunc fail(w writer) { w.Write([]byte(\"{\\\"error\\\": \\\"boom\\\"}\")) }\n")
+
+		scan, err := ScanEvidence(layout)
+		if err != nil {
+			t.Fatalf("ScanEvidence: %v", err)
+		}
+		wantRuleNamed(t, scan.Architecture, ruleDirectErrorWrite, "internal/features/jobs/infrastructure/http/direct.go")
+		if len(scan.NonGoal) != 0 {
+			t.Fatalf("non-goal scan must stay an observed-clean empty result; got %+v", scan.NonGoal)
+		}
+	})
+}
+
+// TestScanEvidence_FailsClosedWithoutTheRealTree proves a failed collector is
+// an error with no observations: an unobserved domain must never be silently
+// reported as observed-clean.
+func TestScanEvidence_FailsClosedWithoutTheRealTree(t *testing.T) {
+	root := t.TempDir()
+	layout := RepositoryLayout{Backend: filepath.Join(root, "backend"), Repo: root}
+
+	scan, err := ScanEvidence(layout)
+	if err == nil {
+		t.Fatalf("ScanEvidence must fail closed on an absent backend tree; got %+v", scan)
+	}
+	if len(scan.NonGoal) != 0 || len(scan.Architecture) != 0 {
+		t.Fatalf("failed scan returned observations: %+v", scan)
+	}
+}
+
+// TestScanEvidence_ArchitectureIncludesRepositoryImports proves the native
+// architecture observation covers the cross-feature import guard: a forbidden
+// import the repository import scan reports must appear in Architecture. Route
+// topology is the only domain left to gate-level receipt evidence, so a passing
+// gate-arch receipt can never stand in for this native observation.
+func TestScanEvidence_ArchitectureIncludesRepositoryImports(t *testing.T) {
+	layout := scanEvidenceFixture(t)
+	writeGoFixture(t, layout.Backend, "internal/features/jobs/infrastructure/postgres/repo.go",
+		"package postgres\n\nfunc Save() {}\n")
+	writeGoFixture(t, layout.Backend, "internal/features/companies/infrastructure/http/importing.go",
+		"package http\n\nimport _ \"fixture/internal/features/jobs/infrastructure/postgres\"\n")
+
+	scan, err := ScanEvidence(layout)
+	if err != nil {
+		t.Fatalf("ScanEvidence over a resolvable fixture module: %v", err)
+	}
+	wantRuleNamed(t, scan.Architecture, ruleCrossFeatureImport, "internal/features/jobs/infrastructure/postgres")
+}
+
+// TestScanEvidence_ImportScanFailureReturnsNoObservations proves the import scan
+// fails closed: a repository whose import graph cannot be resolved returns an
+// error and no observations, so a failed architecture derivation can never be
+// reported as an observed-clean result.
+func TestScanEvidence_ImportScanFailureReturnsNoObservations(t *testing.T) {
+	root := t.TempDir()
+	writeGoFixture(t, root, "backend/internal/features/jobs/infrastructure/http/handler.go",
+		"package http\n\nfunc ListJobs() {}\n")
+	layout := RepositoryLayout{Backend: filepath.Join(root, "backend"), Repo: root}
+
+	scan, err := ScanEvidence(layout)
+	if err == nil {
+		t.Fatalf("ScanEvidence must fail closed when the repository import scan cannot run; got %+v", scan)
+	}
+	if len(scan.NonGoal) != 0 || len(scan.Architecture) != 0 {
+		t.Fatalf("failed scan returned observations: %+v", scan)
+	}
+}
