@@ -8,6 +8,7 @@ import { ACME_WIRE_JOBS } from "../prototype-jobs";
 import type { JobItem } from "../types";
 import type { JobsQuery } from "../url";
 import { JobsResults } from "./JobsResults";
+import { PROTOTYPE_DISCLOSURE } from "./prototype-ui";
 
 type ResultsProps = Parameters<typeof JobsResults>[0];
 
@@ -46,6 +47,9 @@ const listOf = (items: JobItem[]): ResultsProps["result"] => ({
 
 afterEach(() => cleanup());
 
+/** Every anchor target rendered inside `root`, in document order. */
+const hrefsOf = (root: Element) => Array.from(root.querySelectorAll("a")).map((node) => node.getAttribute("href"));
+
 describe("JobsResults board composition", () => {
   it("renders a known prototype vacancy through the enriched card and links its canonical profile", () => {
     const { container } = render(
@@ -56,9 +60,10 @@ describe("JobsResults board composition", () => {
     // children, one H3, canonical detail link, and an opted-in company link.
     const item = container.querySelector("li");
     expect(item?.children).toHaveLength(2);
-    // The replaced private row's decorative initials tile is gone: the card
-    // owns the item structure, so no aria-hidden span remains inside it.
-    expect(item?.querySelectorAll("span[aria-hidden='true']")).toHaveLength(0);
+    // The replaced private row's tile is gone: the card's one aria-hidden span
+    // is its monogram decoration, and the company name itself stays link text.
+    const monogram = item?.querySelectorAll("span[aria-hidden='true']");
+    expect([monogram?.length, monogram?.[0].textContent]).toEqual([1, "Ac"]);
     expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(1);
     expect(
       screen.getByRole("link", { name: FRONTEND_JOB.title }),
@@ -70,7 +75,7 @@ describe("JobsResults board composition", () => {
 
     const text = container.textContent ?? "";
     for (const value of [
-      "Prototipo",
+      PROTOTYPE_DISCLOSURE,
       "Ingeniería",
       FRONTEND_JOB.description,
       "Habilidades",
@@ -90,10 +95,9 @@ describe("JobsResults board composition", () => {
 
     expect(screen.getByText("Acme").closest("a")).toBeNull();
     expect(screen.queryByRole("link", { name: "Acme" })).toBeNull();
-    expect(container.querySelectorAll("a")).toHaveLength(1);
-    expect(
-      screen.getByRole("link", { name: WIRE_ONLY_ACME_JOB.title }),
-    ).toHaveAttribute("href", `/vacantes/${WIRE_ONLY_ACME_JOB.id}`);
+    // The card owns exactly its two canonical detail affordances — the H3 title
+    // link and the rail CTA — and still links no company at all.
+    expect(hrefsOf(container)).toEqual([`/vacantes/${WIRE_ONLY_ACME_JOB.id}`, `/vacantes/${WIRE_ONLY_ACME_JOB.id}`]);
 
     const text = container.textContent ?? "";
     for (const value of [
@@ -119,10 +123,12 @@ describe("JobsResults board composition", () => {
       <JobsResults result={listOf([unknownCompany])} query={{}} />,
     );
 
-    expect(container.textContent).toContain("Prototipo");
+    expect(container.textContent).toContain("Ingeniería");
+    expect(container.textContent).toContain(PROTOTYPE_DISCLOSURE);
     expect(screen.queryByRole("link", { name: "Otra Empresa" })).toBeNull();
     expect(screen.getByText("Otra Empresa").closest("a")).toBeNull();
-    expect(container.querySelectorAll("a")).toHaveLength(1);
+    // Both anchors stay canonical detail links: no company anchor exists.
+    expect(hrefsOf(container)).toEqual([`/vacantes/${FRONTEND_JOB.id}`, `/vacantes/${FRONTEND_JOB.id}`]);
   });
 
   it("preserves wire order, per-item structure, and only the enriched company links", () => {

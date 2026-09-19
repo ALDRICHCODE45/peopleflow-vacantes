@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R2 review and commit
+- Current task: CCP-R3B review and commit
 - Push/PR: not authorized
 
 ## Goal
@@ -48,7 +48,8 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-06 — Integrated browser acceptance:** Technical acceptance completed: desktop/mobile light/dark Playwright matrix, axe smoke, keyboard/focus, no-overflow, truthful-copy, route/SEO, regression suites, reduced motion, local asset/font loading, and request-boundary checks passed after correcting two dark-link contrast defects. Human review rejected the visual baseline and authorized a reference-faithful redesign. Contrast-fix commit evidence: `973fec9ffc51f57cdd9a14492895d5325f418d55`.
 - [x] **CCP-R1 — Public shell and theme controls:** Matched the reference public navbar with PeopleFlow brand, Vacantes/Empresas/Recursos, dark-light toggle, Ingresar, and Publicar vacante; kept placeholder actions non-mutating and mobile-safe. Authored 397/400 lines. Verification: 21/21 focused, 50/50 adjacent, 27/27 Chromium board, 18/18 audit cases, zero axe nodes/overflow, target sizes and theme persistence/restoration PASS; independent verifier PASS. Commit evidence: `310f58bf6491cba0e519273a93e31497d65a5702`.
 - [x] **CCP-R2 — Prototype metrics and visual primitives:** Extended local-only enrichment with applicants, response time, featured/verified state, experience and relative-time presentation; added reusable monogram, verification, label, and prototype-disclosure primitives without wire/API changes. Authored 267/400 lines. Verification: 23/23 focused, 33/33 adjacent, TypeScript and exact-scope ESLint PASS; independent verifier PASS. Commit evidence: `74b22d9212a4dee6e7abf8515aa585a6bd14b588`.
-- [ ] **CCP-R3 — Reference-faithful public cards:** Rebuild shared `VacancyCard` to the supplied horizontal left-content/right-salary layout with logo tile, metadata, description, skills/benefits, bookmark, CTA, verification, responsive stacking, and hover polish. Forecast: 300–400 lines.
+- [x] **CCP-R3A — Reference vacancy card component:** Rebuilt shared `VacancyCard` to the supplied horizontal left-content/right-salary layout with logo tile, metadata, full-DOM/clamped description, skills/benefits, enriched-only bookmark affordance, CTA, verification, responsive stacking, and hover polish. Authored 303/400 lines. Commit evidence: `2af4911395b1a976db98e73ee7287629ed89971c`.
+- [x] **CCP-R3B — Card browser contracts and integration:** Updated global-board/company-page browser contracts, added a >220-code-point fixture, removed obsolete flat-card assumptions, and verified hover, responsive stacking, clamp safety, focus, prototype disclosure, wire-only exclusion, and zero business mutations. Authored 296/300 lines. Verification: 58/58 unit, TypeScript/ESLint PASS, 27/27 ordinary Chromium, 12/12 a11y/reduced-motion, and 2/2 isolated 3002/4011 long-content/company; independent verifier PASS. Commit evidence: pending.
 - [ ] **CCP-R4 — Reference-faithful detail layout:** Rebuild canonical vacancy detail to match `design/screens/vacante-detalle.html`: rich header, stat cards, structured content, benefits/company sections, two-column body, and sticky salary/action/share rail. Forecast: 300–400 lines.
 - [ ] **CCP-R5 — Prototype interactions:** Add accessible client islands for save/apply/share/bookmark feedback with explicit prototype disclosure and zero fetch/storage/business mutations. Forecast: 250–400 lines.
 - [ ] **CCP-R6 — Redesign browser acceptance:** Update obsolete truthfulness assertions to prototype-scoped contracts; run light/dark desktop/mobile Playwright, axe, keyboard, hover, overflow, canonical, safe-text, and zero-business-mutation acceptance; request human visual approval.
@@ -80,4 +81,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Attempt native review for CCP-R2, then implement CCP-R3 reference-faithful shared public cards.
+Commit CCP-R3B, record its identity, attempt native review, then implement CCP-R4 reference-faithful vacancy detail.

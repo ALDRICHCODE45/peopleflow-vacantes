@@ -3,13 +3,28 @@ import type { ServerResponse } from "node:http";
 import { pathToFileURL } from "node:url";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-const fixtureUrl = "http://127.0.0.1:4010";
+const fixtureUrl = process.env.JOBS_FIXTURE_ORIGIN ?? "http://127.0.0.1:4010";
 // Task 8.4 — the default fixture vacancy whose visibility the request-time
 // freshness matrix mutates through the fixture's `/__visibility` control.
 const MAIN_VACANCY_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const MAIN_VACANCY_TITLE = "Ingeniera Frontend";
 const appUrl = process.env.PLAYWRIGHT_APP_ORIGIN ?? "http://127.0.0.1:3100";
 const errorHarnessUrl = "http://127.0.0.1:3101/__vacantes-error";
+// The canonical company microsite the known prototype vacancy links to.
+const PROTOTYPE_COMPANY_HREF = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
+// Mirrors the card's shared disclosure primitive without importing app modules.
+const PROTOTYPE_DISCLOSURE = "Datos y acciones de demostración: este prototipo no se conecta a ningún backend, no guarda información y no envía postulaciones reales.";
+// Every R2/R3 authorized prototype extra of the enriched fixture vacancy.
+const PROTOTYPE_CARD_LABELS = ["Destacada", "Hace 2 h", "24 postulantes", "Ingeniería", "Habilidades", "Beneficios", "SALARIO MENSUAL", "Responde en ~3 días", "Verificada por PeopleFlow"] as const;
+// Every prototype-only label an unknown wire id must never render.
+const PROTOTYPE_ONLY_LABELS = ["Destacada", "postulante", "Responde en", "Verificada por PeopleFlow", "Prototipo", "Habilidades", "Beneficios", "SALARIO MENSUAL"] as const;
+// Document horizontal overflow in pixels; anything above zero fails.
+const overflowPx = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+// The two direct card regions, in viewport coordinates.
+const regionsOf = (card: Locator) => card.evaluate((li) => Array.from(li.children).map((child) => {
+  const box = child.getBoundingClientRect();
+  return { top: Math.round(box.top), bottom: Math.round(box.bottom), left: Math.round(box.left), right: Math.round(box.right) };
+}));
 
 async function bufferMainDocuments(
   page: Page,
@@ -361,40 +376,88 @@ test("renders the approved hero and supported quick chips with honest state", as
   expect(mobile.overflow).toBeLessThanOrEqual(0);
 });
 
-test("renders surfaced vacancy cards with API-backed metadata only", async ({
+test("renders the known vacancy as a disclosed prototype card with the reference layout and zero mutations", async ({
   page,
 }) => {
+  // Any non-GET request is a mutation except Next's dev-only diagnostics.
+  const nonGet: string[] = [];
+  page.on("request", (entry) => {
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(entry.method()))
+      nonGet.push(`${entry.method()} ${entry.url()}`);
+  });
+
+  // Desktop: one horizontal row, salary rail right of the content, no overflow.
+  await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/vacantes?currency=MXN");
   const list = page.getByRole("list");
-  await expect(list.getByRole("listitem").first()).toBeVisible();
-
-  // Supported metadata from the fixture vacancy is surfaced.
-  await expect(list).toContainText("Ingeniera Frontend");
-  await expect(list).toContainText("Acme");
-  await expect(list).toContainText("Remoto");
-  await expect(list).toContainText("Tiempo completo");
-
-  // Every surfaced vacancy is the reusable board card: one H3 whose link is
-  // the canonical detail route, the company metadata the card owns (resolved
-  // through the prototype profile), and exactly two stacked children.
   const card = list.getByRole("listitem").first();
-  await expect(card.getByRole("heading", { level: 3 })).toHaveText(
-    MAIN_VACANCY_TITLE,
-  );
-  await expect(
-    card.getByRole("heading", { level: 3 }).getByRole("link"),
-  ).toHaveAttribute("href", `/vacantes/${MAIN_VACANCY_ID}`);
-  await expect(card.getByRole("link", { name: "Acme" })).toHaveAttribute(
-    "href",
-    "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f",
-  );
+  await expect(list.getByRole("listitem")).toHaveCount(1);
+  for (const value of ["Ingeniera Frontend", "Remoto", "Tiempo completo", "Senior"])
+    await expect(list).toContainText(value);
+  await expect(card.getByRole("heading", { level: 3 })).toHaveText(MAIN_VACANCY_TITLE);
+  await expect(card.getByRole("heading", { level: 3 }).getByRole("link")).toHaveAttribute("href", `/vacantes/${MAIN_VACANCY_ID}`);
+  await expect(card.getByRole("link", { name: "Acme" })).toHaveAttribute("href", PROTOTYPE_COMPANY_HREF);
   expect(await card.evaluate((li) => li.children.length)).toBe(2);
+  // The R2/R3 authorized extras are visible, each scoped by the demo note.
+  for (const label of PROTOTYPE_CARD_LABELS)
+    await expect(card).toContainText(label);
+  await expect(card.getByRole("note")).toHaveCount(1);
+  await expect(card.getByRole("note")).toHaveText(PROTOTYPE_DISCLOSURE);
+  const [content, rail] = await regionsOf(card);
+  const edges = await card.evaluate((li) => {
+    const style = getComputedStyle(li.children[1]);
+    return { top: Number.parseFloat(style.borderTopWidth), left: Number.parseFloat(style.borderLeftWidth), divider: style.borderLeftColor, border: getComputedStyle(li).borderTopColor, shadow: getComputedStyle(li).boxShadow };
+  });
+  test.info().annotations.push({ type: "card regions @1440", description: JSON.stringify({ content, rail, edges }) });
+  expect([rail.left >= content.right, Math.abs(rail.top - content.top) <= 1]).toEqual([true, true]);
+  expect([edges.top, edges.left > 0, edges.divider === edges.border, edges.shadow]).toEqual([0, true, true, "none"]);
+  expect(await overflowPx(page)).toBeLessThanOrEqual(0);
 
-  // No fabricated or unsupported metadata: no featured state, relative
-  // time, or salary period.
-  await expect(page.getByText(/destacada/i)).toHaveCount(0);
-  await expect(list).not.toContainText(/hace \d+/);
-  await expect(list).not.toContainText(/\/ mes/);
+  // Desktop hover polish: a small upward shift, a stronger border, a shadow.
+  await card.evaluate((li) => li.scrollIntoView({ block: "center" }));
+  const restingY = await card.evaluate((li) => Math.round(li.getBoundingClientRect().top));
+  await card.hover();
+  await expect.poll(async () => card.evaluate((li) => Math.round(li.getBoundingClientRect().top))).toBeLessThan(restingY);
+  const hovered = await card.evaluate((li) => ({ top: Math.round(li.getBoundingClientRect().top), shadow: getComputedStyle(li).boxShadow, border: getComputedStyle(li).borderTopColor, translate: getComputedStyle(li).translate }));
+  test.info().annotations.push({ type: "card hover @1440", description: JSON.stringify({ restingY, delta: hovered.top - restingY, hovered }) });
+  expect([hovered.top < restingY, hovered.top - restingY >= -4, hovered.shadow !== "none", hovered.border !== edges.border]).toEqual([true, true, true, true]);
+
+  // Canonical CTA >=40px and keyboard-reachable with a ring; the demo bookmark
+  // stays a disabled, inert placeholder until R5.
+  const cta = card.getByRole("link", { name: "Ver vacante" });
+  const bookmark = card.getByRole("button");
+  const [ctaBox, bookmarkBox] = await Promise.all([cta.boundingBox(), bookmark.boundingBox()]);
+  test.info().annotations.push({ type: "card targets @1440", description: JSON.stringify({ ctaBox, bookmarkBox }) });
+  expect([Math.round(ctaBox!.height), Math.round(bookmarkBox!.width), Math.round(bookmarkBox!.height)], "card target sizes").toEqual([40, 40, 40]);
+  await expect(bookmark).toBeDisabled();
+  await expect(bookmark).toHaveAttribute("aria-label", "Guardar vacante (solo demostración)");
+  for (let tab = 0; tab < 60; tab++) {
+    await page.keyboard.press("Tab");
+    if (await cta.evaluate((el) => el === document.activeElement)) break;
+  }
+  await expect(cta).toBeFocused();
+  const focus = await cta.evaluate((el) => ({ visible: el.matches(":focus-visible"), width: Number.parseFloat(getComputedStyle(el).outlineWidth || "0") }));
+  expect([focus.visible, focus.width > 0]).toEqual([true, true]);
+  // The inert bookmark cannot navigate or request; the canonical CTA does.
+  await bookmark.click({ force: true });
+  await expect(page).toHaveURL("/vacantes?currency=MXN");
+  await cta.click();
+  await expect(page).toHaveURL(`/vacantes/${MAIN_VACANCY_ID}`);
+
+  // An unknown id stays wire-only: two regions, the canonical CTA, no company
+  // link, no prototype label, no note, and no save/bookmark control.
+  await page.goto("/vacantes?q=long-content");
+  const wireOnly = page.getByRole("list").getByRole("listitem").first();
+  await expect(wireOnly.getByRole("heading", { level: 3 }).getByRole("link")).toHaveAttribute("href", /\/vacantes\/[0-9a-f-]+$/u);
+  expect(await wireOnly.evaluate((li) => li.children.length)).toBe(2);
+  for (const absent of PROTOTYPE_ONLY_LABELS) await expect(wireOnly).not.toContainText(absent);
+  await expect(wireOnly).not.toContainText(/hace \d+|\d+ postulantes/iu);
+  await expect([await wireOnly.getByRole("note").count(), await wireOnly.getByRole("button").count()]).toEqual([0, 0]);
+  await expect(wireOnly.getByRole("link", { name: "Consultoría Integral de Ingeniería de Software y Datos Confiables" })).toHaveCount(0);
+
+  const diagnostics = nonGet.filter((entry) => entry.includes("__nextjs") || entry.includes("/_next/"));
+  test.info().annotations.push({ type: "non-GET requests", description: JSON.stringify({ diagnostics, mutations: nonGet.filter((e) => !diagnostics.includes(e)) }) });
+  expect(nonGet.filter((entry) => !diagnostics.includes(entry))).toEqual([]);
 });
 
 test("uses a 240–280px desktop filter column beside flexible results", async ({
@@ -782,12 +845,18 @@ test("mobile filters trigger meets touch-target size and dialog exposes Cerrar",
   ).toBeVisible();
 });
 
-test("long vacancy content remains readable", async ({ page }) => {
+test("long vacancy content remains readable", async ({ page, request }) => {
   const longTitleSegment =
     "plataformaoperativadedatosyobservabilidadintegraldistribuida";
   const longCompany =
     "Consultoría Integral de Ingeniería de Software y Datos Confiables";
   const longLocation = "Zona Metropolitana Extendida Noreste";
+  // The fixture's authoritative description, normalized exactly as the card
+  // normalizes it: every code point must reach the DOM, so any pre-render
+  // character budget — the truncation this scenario exists to catch — breaks it.
+  const [longJob] = (await (await request.get(`${fixtureUrl}/jobs?q=long-content`)).json()).items as { description: string }[];
+  const longDescription = longJob.description.replace(/\s+/gu, " ").trim();
+  expect(Array.from(longDescription).length).toBeGreaterThan(220);
   const rectsOf = (locator: Locator) =>
     locator.evaluate((el) =>
       Array.from(el.getClientRects()).map((rect) => ({
@@ -815,8 +884,7 @@ test("long vacancy content remains readable", async ({ page }) => {
     await expect(list).toContainText("MXN 1,234,567");
     await expect(list).toContainText("MXN 98,765,432");
 
-    // The row and the whole document stay inside the viewport: the
-    // uninterrupted title segment must not force horizontal overflow.
+    // The row and the whole document stay inside the viewport.
     const listBox = await list.boundingBox();
     expect(listBox).not.toBeNull();
     expect(listBox!.x).toBeGreaterThanOrEqual(0);
@@ -829,13 +897,24 @@ test("long vacancy content remains readable", async ({ page }) => {
       documentWidth.clientWidth,
     );
 
-    // No text box is clipped, truncated, nowrap, or fixed-height loss:
-    // no element in the row hides overflow, shows an ellipsis, or has
-    // content wider/taller than its own box.
+    // The wire-only card keeps its wire facts and its canonical CTA.
+    for (const value of ["Híbrido", "Por contrato", "Líder", "SALARIO", "Ver vacante", longDescription])
+      await expect(list).toContainText(value);
+
+    // Nothing but the excerpt may clip: no other element in the row hides
+    // overflow, shows an ellipsis, or has content wider or taller than its box.
     const row = list.getByRole("listitem");
-    const clipped = await row.evaluate(
-      (li) =>
-        [li, ...li.querySelectorAll("h2, div, span, a")].filter((el) => {
+    const clipping = await row.evaluate((li) => {
+      const excerpt = li.querySelector("p.line-clamp-2");
+      const excerptStyle = excerpt === null ? null : getComputedStyle(excerpt);
+      return {
+        text: excerpt?.textContent ?? null,
+        nodes: excerpt?.childNodes.length ?? null, elements: excerpt?.children.length ?? null,
+        markup: excerpt?.innerHTML ?? null,
+        overflow: excerptStyle?.overflowY ?? null,
+        clamp: excerptStyle?.webkitLineClamp ?? null,
+        clamped: excerpt !== null && excerpt.scrollHeight > excerpt.clientHeight + 1,
+        clipped: [li, ...li.querySelectorAll("h3, div, span, a, p:not(.line-clamp-2)")].filter((el) => {
           const style = getComputedStyle(el);
           return (
             style.overflowX === "hidden" ||
@@ -846,18 +925,24 @@ test("long vacancy content remains readable", async ({ page }) => {
             el.scrollHeight > el.clientHeight + 1
           );
         }).length,
-    );
-    expect(clipped).toBe(0);
+      };
+    });
+    // The excerpt is the one authorized clip: a single text-only node holding
+    // the complete normalized wire text, clamped to two lines by CSS.
+    expect([clipping.text, clipping.nodes, clipping.elements, clipping.markup?.includes("<") ?? null, clipping.overflow, clipping.clamp, clipping.clamped, clipping.clipped]).toEqual([longDescription, 1, 0, false, "hidden", "2", true, 0]);
 
-    // Heading and detail boxes stack without overlapping.
-    const childBoxes = await row.evaluate((li) =>
-      Array.from(li.children).map((child) => {
-        const box = child.getBoundingClientRect();
-        return { top: box.top, bottom: box.bottom };
-      }),
-    );
+    // Regions never overlap: stacked at 375, side by side at desktop width.
+    const childBoxes = await row.evaluate((li) => Array.from(li.children).map((child) => {
+      const box = child.getBoundingClientRect();
+      return { top: box.top, bottom: box.bottom, left: box.left, right: box.right };
+    }));
     expect(childBoxes).toHaveLength(2);
-    expect(childBoxes[0].bottom).toBeLessThanOrEqual(childBoxes[1].top);
+    test.info().annotations.push({ type: `board card regions @${viewport.width}`, description: JSON.stringify(childBoxes) });
+    if (viewport.width === 375) {
+      expect(childBoxes[0].bottom).toBeLessThanOrEqual(childBoxes[1].top + 1);
+    } else {
+      expect(childBoxes[0].right).toBeLessThanOrEqual(childBoxes[1].left + 1);
+    }
 
     // Every rendered text range stays horizontally inside the viewport.
     for (const text of [title, company, location]) {
@@ -867,8 +952,7 @@ test("long vacancy content remains readable", async ({ page }) => {
       }
     }
 
-    // The narrow viewport demonstrably wraps the long title onto
-    // multiple rendered lines.
+    // The narrow viewport wraps the long title onto multiple rendered lines.
     if (viewport.width === 375) {
       expect((await rectsOf(title)).length).toBeGreaterThanOrEqual(2);
     }

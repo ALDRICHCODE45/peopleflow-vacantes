@@ -52,7 +52,7 @@ const longContentJob = {
   title:
     "Ingeniería de Plataformas de Datos y Observabilidad para la plataformaoperativadedatosyobservabilidadintegraldistribuida",
   description:
-    "Descripción extensa de prueba para el escenario de contenido largo.",
+    "Contexto del equipo de plataforma.\n\n\tResponsabilidades del rol: <script>alert('xss')</script> construir  flujos   de datos confiables; revisar <img src=x onerror=alert(1)> tableros operativos; documentar decisiones de arquitectura y acompañar a otras personas en el diseño de servicios de observabilidad distribuida de extremo a extremo. 🙂 Cierre del anuncio de prueba.",
   work_mode: "hybrid",
   employment_type: "contract",
   seniority: "lead",

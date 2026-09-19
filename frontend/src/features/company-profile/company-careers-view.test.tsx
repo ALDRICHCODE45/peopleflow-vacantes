@@ -4,6 +4,7 @@ import "@testing-library/jest-dom/vitest";
 
 import type { PrototypeJobView } from "../jobs/enrich";
 import { ACME_PROTOTYPE_JOBS } from "../jobs/prototype-jobs";
+import { PROTOTYPE_DISCLOSURE } from "../jobs/components/prototype-ui";
 import { CompanyCareersView } from "./company-careers-view";
 import { ACME_PROTOTYPE_PROFILE } from "./prototype-companies";
 
@@ -128,8 +129,17 @@ describe("CompanyCareersView link contrast", () => {
 describe("CompanyCareersView vacancies", () => {
   it("lists the company's own prototype vacancies with the reusable card", () => {
     const { container } = view(ACME_PROTOTYPE_JOBS);
-    expect(FORBIDDEN_COPY.test(container.textContent ?? "")).toBe(false);
     const list = screen.getByRole("list", { name: `Vacantes en ${profile.name}` });
+    // The page around the cards still fabricates nothing; the R2/R3 labels the
+    // cards carry are scoped by the shared disclosure note checked below.
+    const pageText = container.textContent ?? "";
+    const cardsText = list.textContent ?? "";
+    expect([
+      FORBIDDEN_COPY.test(pageText.replace(cardsText, "")),
+      FORBIDDEN_COPY.test(cardsText.replaceAll("Verificada por PeopleFlow", "")),
+    ]).toEqual([false, false]);
+    expect(within(list).getAllByRole("note").map((note) => note.textContent)).toEqual(ACME_PROTOTYPE_JOBS.map(() => PROTOTYPE_DISCLOSURE));
+    expect([within(list).getAllByText("Destacada").length, within(list).getAllByText("Verificada por PeopleFlow").length]).toEqual([1, 2]);
     const items = within(list).getAllByRole("listitem");
     expect(items).toHaveLength(ACME_PROTOTYPE_JOBS.length);
     expect(items.map((item) => item.querySelector("h3")?.textContent)).toEqual(ACME_PROTOTYPE_JOBS.map((job) => job.title));
