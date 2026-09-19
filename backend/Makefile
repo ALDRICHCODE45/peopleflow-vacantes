@@ -18,6 +18,7 @@
 #   make gate-build    # WS7A GREEN: real gate, JSON receipt under quality/receipts/
 #   make gate-arch     # WS7B: archguard repository guards (task 7.2 REFACTOR)
 #   make closure-gate  # WS7A GREEN: all required gates in sequence
+#   make closure-report # CE-04: generate the docs/ closure report artifacts (GO/NO-GO)
 
 GOOSE ?= go tool goose
 SQLC  ?= go tool sqlc
@@ -26,7 +27,7 @@ CLOSURE_STUB := bash scripts/closure/gate
 GATES := gate-build gate-vet gate-fmt gate-unit gate-race \
 	gate-integration gate-migrations gate-sqlc gate-arch closure-gate
 
-.PHONY: db-up db-down db-migrate db-status db-new sqlc run test test-integration build vet $(GATES)
+.PHONY: db-up db-down db-migrate db-status db-new sqlc run test test-integration build vet closure-report $(GATES)
 
 db-up:
 	docker compose up -d
@@ -71,3 +72,9 @@ vet:
 # historical RED evidence.
 $(GATES):
 	$(CLOSURE_STUB) $@
+
+# CE-04: the report driver is a first-class Make target, deliberately NOT part of
+# $(GATES) — closure-gate invokes it after the nine sub-gates, and it must never
+# become a tenth evidence gate or enter the aggregate gate set.
+closure-report:
+	go run ./cmd/closure-report
