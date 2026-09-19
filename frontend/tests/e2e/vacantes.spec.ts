@@ -249,10 +249,21 @@ test("renders surfaced vacancy cards with API-backed metadata only", async ({
   await expect(list).toContainText("Remoto");
   await expect(list).toContainText("Tiempo completo");
 
-  // A deterministic company-initials tile accompanies each card.
-  await expect(list.locator("span[aria-hidden='true']").first()).toHaveText(
-    /^[A-ZÁÉÍÓÚÑÜ·]{1,2}$/,
+  // Every surfaced vacancy is the reusable board card: one H3 whose link is
+  // the canonical detail route, the company metadata the card owns (resolved
+  // through the prototype profile), and exactly two stacked children.
+  const card = list.getByRole("listitem").first();
+  await expect(card.getByRole("heading", { level: 3 })).toHaveText(
+    MAIN_VACANCY_TITLE,
   );
+  await expect(
+    card.getByRole("heading", { level: 3 }).getByRole("link"),
+  ).toHaveAttribute("href", `/vacantes/${MAIN_VACANCY_ID}`);
+  await expect(card.getByRole("link", { name: "Acme" })).toHaveAttribute(
+    "href",
+    "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f",
+  );
+  expect(await card.evaluate((li) => li.children.length)).toBe(2);
 
   // No fabricated or unsupported metadata: no featured state, relative
   // time, or salary period.
