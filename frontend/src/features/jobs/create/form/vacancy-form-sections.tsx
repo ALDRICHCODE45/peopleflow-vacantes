@@ -3,6 +3,7 @@ import { BenefitsSection } from "./benefits-section";
 import { CompensationSection } from "./compensation-section";
 import { RequirementsSection } from "./requirements-section";
 import { ScreeningSection } from "./screening-section";
+import { SectionNavigator } from "./section-navigator";
 import { StrategySection } from "./strategy-section";
 import type { VacancyFieldErrors, VacancyFormValues } from "./model";
 import type { VacancyPrototypeValues } from "./prototype-model";
@@ -14,6 +15,8 @@ import type { VacancyPrototypeValues } from "./prototype-model";
  * contract values and their error slots drive every POST /jobs field, while the
  * prototype values drive the local-only exploratory fields. Nothing here parses
  * the wire contract, and nothing here can turn prototype state into a request.
+ *
+ * The section navigator sits above this grid.
  *
  * Layout: one column by default, two at `xl`, with the taller requirements and
  * screening cards spanning both columns. Rows are top-aligned (`items-start`) so
@@ -42,10 +45,13 @@ export function VacancyFormSections({
   onChangePrototype,
 }: VacancyFormSectionsProps) {
   return (
-    <div
-      data-pf-form-sections=""
-      className="grid min-w-0 items-start gap-5 xl:grid-cols-2"
-    >
+    <div className="flex min-w-0 flex-col gap-5">
+      <SectionNavigator />
+
+      <div
+        data-pf-form-sections=""
+        className="grid min-w-0 items-start gap-5 xl:grid-cols-2"
+      >
       <BasicInformationSection
         title={values.title}
         location={values.location}
@@ -93,6 +99,7 @@ export function VacancyFormSections({
 
       <div className="min-w-0 xl:col-span-2">
         <ScreeningSection values={prototypeValues} onChange={onChangePrototype} />
+      </div>
       </div>
     </div>
   );

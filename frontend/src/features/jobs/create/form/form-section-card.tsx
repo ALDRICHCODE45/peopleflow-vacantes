@@ -26,7 +26,12 @@ export function FormSectionCard({
   children,
 }: FormSectionCardProps) {
   return (
-    <Card id={id} data-pf-section-card="" size="sm" className={cn("h-fit", className)}>
+    <Card
+      id={id}
+      data-pf-section-card=""
+      size="sm"
+      className={cn("h-fit scroll-mt-24", className)}
+    >
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <span
@@ -35,7 +40,10 @@ export function FormSectionCard({
           >
             <Icon className="size-4" />
           </span>
-          <h2 className="font-heading text-base font-medium">{title}</h2>
+          {/* Focus destination of the section navigator, never a tab stop. */}
+          <h2 tabIndex={-1} className="font-heading text-base font-medium">
+            {title}
+          </h2>
         </CardTitle>
       </CardHeader>
       <CardContent>{children}</CardContent>

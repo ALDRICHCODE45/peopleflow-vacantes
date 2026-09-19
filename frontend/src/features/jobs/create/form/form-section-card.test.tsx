@@ -30,5 +30,11 @@ describe("FormSectionCard", () => {
       container.querySelector('[data-slot="card-header"] svg')?.closest("[aria-hidden]"),
     ).not.toBeNull();
     expect(container.querySelector("#vacancy-section-compensation")).not.toBeNull();
+
+    // The heading is the navigator's focus target, never a new tab stop, and the
+    // card clears the sticky bar it scrolls under.
+    expect(screen.getByRole("heading", { level: 2, name: "Compensación" })).toHaveAttribute("tabindex", "-1");
+    expect(container.querySelectorAll("[tabindex]")).toHaveLength(1);
+    expect(container.querySelector("#vacancy-section-compensation")?.className).toContain("scroll-mt-24");
   });
 });

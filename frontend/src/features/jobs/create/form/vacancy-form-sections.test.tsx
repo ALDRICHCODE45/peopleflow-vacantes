@@ -457,3 +457,32 @@ describe("VacancyFormSections layout foundation", () => {
     ).toHaveTextContent("Elegí una jornada de trabajo.");
   });
 });
+
+describe("VacancyFormSections section navigator", () => {
+  it("sits above the form grid without changing the grid or the section order", () => {
+    const { container } = renderSections();
+
+    const nav = screen.getByRole("navigation", { name: "Secciones de la vacante" });
+    const grid = container.querySelector("[data-pf-form-sections]");
+    // The canonical grid contract survives the navigator untouched.
+    expect(grid?.className).toBe("grid min-w-0 items-start gap-5 xl:grid-cols-2");
+    // The navigator precedes that grid in document order.
+    expect(nav.compareDocumentPosition(grid as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(within(nav).getAllByRole("link").map((item) => item.textContent)).toEqual(
+      VACANCY_FORM_SECTIONS.map((section) => section.title),
+    );
+    // The index adds a landmark, never a heading.
+    expect(within(nav).queryAllByRole("heading")).toHaveLength(0);
+  });
+
+  it("scrolls the anchored card and focuses its heading on a plain click", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    renderSections();
+    fireEvent.click(screen.getByRole("link", { name: "Beneficios y frecuencia de pago" }));
+
+    const card = document.getElementById(sectionAnchorId("benefits-pay-frequency"));
+    expect(scrollIntoView.mock.instances[0]).toBe(card);
+    expect(card?.querySelector("h2")).toHaveFocus();
+  });
+});
