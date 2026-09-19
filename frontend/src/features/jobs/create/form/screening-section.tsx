@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/empty";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { FormSection } from "./controls";
+import { FormSectionCard } from "./form-section-card";
 import {
   MAX_SCREENING_QUESTIONS,
   addScreeningQuestion,
@@ -17,6 +17,7 @@ import {
   updateScreeningQuestion,
 } from "./prototype-model";
 import type { VacancyPrototypeValues } from "./prototype-model";
+import { sectionAnchorId, sectionTitle } from "./section-metadata";
 
 /**
  * Local-only screening questions.
@@ -57,7 +58,11 @@ export function ScreeningSection({ values, onChange }: ScreeningSectionProps) {
   }
 
   return (
-    <FormSection icon={ListChecksIcon} title="Preguntas de filtro">
+    <FormSectionCard
+      id={sectionAnchorId("screening")}
+      icon={ListChecksIcon}
+      title={sectionTitle("screening")}
+    >
       <FieldGroup className="gap-4">
         <p className="text-sm text-muted-foreground">
           Son opcionales: podés publicar la vacante sin ninguna y agregar hasta{" "}
@@ -133,6 +138,6 @@ export function ScreeningSection({ values, onChange }: ScreeningSectionProps) {
           </Button>
         </div>
       </FieldGroup>
-    </FormSection>
+    </FormSectionCard>
   );
 }

@@ -1,9 +1,10 @@
 import { ClipboardListIcon } from "lucide-react";
 
 import { FieldGroup } from "@/components/ui/field";
-import { FormSection } from "./controls";
+import { FormSectionCard } from "./form-section-card";
 import { controlId, errorId } from "./model";
 import { RichTextField } from "./rich-text-field";
+import { sectionAnchorId, sectionTitle } from "./section-metadata";
 
 export type RequirementsSectionProps = {
   /**
@@ -39,7 +40,11 @@ export function RequirementsSection({
   onChangePreferredRequirements,
 }: RequirementsSectionProps) {
   return (
-    <FormSection icon={ClipboardListIcon} title="Descripción y requisitos">
+    <FormSectionCard
+      id={sectionAnchorId("description-requirements")}
+      icon={ClipboardListIcon}
+      title={sectionTitle("description-requirements")}
+    >
       <FieldGroup className="gap-6">
         <RichTextField
           id={controlId("description")}
@@ -70,6 +75,6 @@ export function RequirementsSection({
           placeholder="Ej.: Experiencia previa con PostgreSQL."
         />
       </FieldGroup>
-    </FormSection>
+    </FormSectionCard>
   );
 }

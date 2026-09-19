@@ -10,9 +10,10 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { FormSection } from "./controls";
+import { FormSectionCard } from "./form-section-card";
 import { BENEFIT_OPTIONS, PAY_FREQUENCY_OPTIONS } from "./prototype-model";
 import type { BenefitKey, PayFrequency, VacancyPrototypeValues } from "./prototype-model";
+import { sectionAnchorId, sectionTitle } from "./section-metadata";
 
 /**
  * Local-only benefits and pay frequency.
@@ -54,7 +55,11 @@ export function BenefitsSection({ values, onChange }: BenefitsSectionProps) {
   }
 
   return (
-    <FormSection icon={GiftIcon} title="Beneficios y frecuencia de pago">
+    <FormSectionCard
+      id={sectionAnchorId("benefits-pay-frequency")}
+      icon={GiftIcon}
+      title={sectionTitle("benefits-pay-frequency")}
+    >
       <FieldGroup className="gap-6">
         <FieldSet>
           <FieldLegend>Beneficios</FieldLegend>
@@ -97,6 +102,6 @@ export function BenefitsSection({ values, onChange }: BenefitsSectionProps) {
           </ToggleGroup>
         </Field>
       </FieldGroup>
-    </FormSection>
+    </FormSectionCard>
   );
 }

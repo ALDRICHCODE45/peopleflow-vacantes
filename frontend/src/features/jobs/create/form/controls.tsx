@@ -1,7 +1,5 @@
 import * as React from "react";
-import type { LucideIcon } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Field,
   FieldError,
@@ -15,38 +13,11 @@ import { controlId, errorId, groupTitleId, pickOption } from "./model";
 import type { VacancyField } from "./model";
 
 /**
- * Shared form presentation controls: the compact section shell plus the two
- * contract-field controls. Each control owns only its own accessibility wiring
- * (label, error slot, aria state); value state and validation stay in the model
- * and the composition root.
+ * Shared form presentation controls: the two contract-field controls. Each
+ * control owns only its own accessibility wiring (label, error slot, aria
+ * state); value state and validation stay in the model and the composition
+ * root. Section chrome belongs to the shared `FormSectionCard`.
  */
-
-export type FormSectionProps = {
-  icon: LucideIcon;
-  title: string;
-  children: React.ReactNode;
-};
-
-/**
- * Legacy card shell still rendered by the sections that have not migrated. It
- * keeps its original chrome on purpose: only the migrated sections adopt the new
- * foundation card, so no excluded section inherits it transitively.
- */
-export function FormSection({ icon: Icon, title, children }: FormSectionProps) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2.5">
-          <span aria-hidden="true" className="grid size-8 place-items-center rounded-xl bg-primary/10 text-primary">
-            <Icon className="size-4" />
-          </span>
-          <h2 className="font-heading text-base font-medium">{title}</h2>
-        </CardTitle>
-      </CardHeader>
-      <CardContent>{children}</CardContent>
-    </Card>
-  );
-}
 
 export type TextFieldProps = {
   field: VacancyField;

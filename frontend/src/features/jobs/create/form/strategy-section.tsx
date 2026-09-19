@@ -10,12 +10,13 @@ import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { FormSection } from "./controls";
+import { FormSectionCard } from "./form-section-card";
 import {
   CEFR_LEVEL_OPTIONS, DEPARTMENTS, LANGUAGES, MAX_LANGUAGES, MAX_SKILLS, SKILLS,
   addLanguageRequirement, removeLanguageRequirement, updateLanguageRequirement,
   type CefrLevel, type LanguageRequirement, type VacancyPrototypeValues,
 } from "./prototype-model";
+import { sectionAnchorId, sectionTitle } from "./section-metadata";
 
 /**
  * Local-only strategy fields: area, technologies, languages, and closing date.
@@ -117,7 +118,11 @@ export function StrategySection({ values, onChange }: StrategySectionProps) {
   }
 
   return (
-    <FormSection icon={TargetIcon} title="Estrategia de contratación">
+    <FormSectionCard
+      id={sectionAnchorId("strategy")}
+      icon={TargetIcon}
+      title={sectionTitle("strategy")}
+    >
       <FieldGroup className="gap-4">
         <Field>
           <FieldTitle id={DEPARTMENT_TITLE_ID}>Área o departamento</FieldTitle>
@@ -215,6 +220,6 @@ export function StrategySection({ values, onChange }: StrategySectionProps) {
           <FieldDescription>Fecha límite para recibir postulaciones.</FieldDescription>
         </Field>
       </FieldGroup>
-    </FormSection>
+    </FormSectionCard>
   );
 }

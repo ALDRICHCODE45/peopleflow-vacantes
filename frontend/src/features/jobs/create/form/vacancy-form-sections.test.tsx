@@ -313,6 +313,22 @@ describe("VacancyFormSections boundaries", () => {
     }
   });
 
+  it("retires the legacy section shell now that every section migrated", () => {
+    const controls = readFileSync(join(FORM_DIR, "controls.tsx"), "utf8");
+
+    expect(controls).not.toMatch(/export function FormSection\(/);
+    expect(controls).not.toMatch(/FormSectionProps/);
+    expect(controls).not.toMatch(/from "@\/components\/ui\/card"/);
+
+    for (const entry of readdirSync(FORM_DIR)) {
+      if (!entry.endsWith(".tsx") || entry.endsWith(".test.tsx")) continue;
+      expect(
+        readFileSync(join(FORM_DIR, entry), "utf8"),
+        `${entry} must not use the retired legacy section shell`,
+      ).not.toMatch(/<FormSection[\s>]|FormSectionProps/);
+    }
+  });
+
   it("owns no save, request, schema, or credential concern", () => {
     expect(source).not.toMatch(/attemptDraftSave|createJobRequestSchema|schemas|zod/);
     expect(source).not.toMatch(/createJob|requestJson|lib\/api/);
@@ -322,26 +338,33 @@ describe("VacancyFormSections boundaries", () => {
 });
 
 describe("VacancyFormSections layout foundation", () => {
-  it("renders the foundation chrome and anchors only for the migrated sections", () => {
+  it("renders exactly one foundation card per section with its canonical anchor and title", () => {
     const { container } = renderSections();
 
-    // Only Información básica and Compensación migrated; the four sections left
-    // for NVS-10 keep the legacy chrome and must not claim the new marker.
+    // Every section migrated, so the legacy chrome is gone from the whole tree.
     const foundation = container.querySelectorAll("[data-pf-section-card]");
-    expect(foundation).toHaveLength(2);
-    const migrated = ["basic-information", "compensation"] as const;
-    expect(migrated.map(sectionAnchorId)).toEqual(
-      Array.from(foundation, (card) => card.id),
+    expect(foundation).toHaveLength(6);
+    expect(VACANCY_FORM_SECTIONS).toHaveLength(6);
+    expect(Array.from(foundation, (card) => card.id)).toEqual(
+      VACANCY_FORM_SECTIONS.map((section) => sectionAnchorId(section.id)),
     );
-    for (const card of foundation) expect(card.className).toContain("h-fit");
+    for (const card of foundation) {
+      expect(card).toHaveAttribute("data-size", "sm");
+      expect(card.className).toContain("h-fit");
+    }
 
-    for (const section of VACANCY_FORM_SECTIONS.slice(2)) {
-      const legacy = screen
-        .getByRole("heading", { name: section.title })
+    // No card without the new marker and no legacy icon chip survives.
+    for (const card of container.querySelectorAll('[data-slot="card"]')) {
+      expect(card).toHaveAttribute("data-pf-section-card");
+      expect(card.querySelector(".size-8.rounded-xl")).toBeNull();
+    }
+
+    // Every heading sits inside the card anchored for its own section.
+    for (const section of VACANCY_FORM_SECTIONS) {
+      const card = screen
+        .getByRole("heading", { level: 2, name: section.title })
         .closest('[data-slot="card"]');
-      expect(legacy).not.toHaveAttribute("data-pf-section-card");
-      expect(legacy).not.toHaveAttribute("data-size", "sm");
-      expect(legacy?.querySelector(".size-8.rounded-xl")).not.toBeNull();
+      expect(card?.id).toBe(sectionAnchorId(section.id));
     }
 
     // A stretched grid row is what inflated Compensación into a blank panel.

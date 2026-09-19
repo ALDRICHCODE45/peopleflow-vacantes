@@ -11,6 +11,7 @@ import {
 import "@testing-library/jest-dom/vitest";
 
 import { StrategySection, capSelectedSkills, pickCefr } from "./strategy-section";
+import { sectionAnchorId, sectionTitle } from "./section-metadata";
 import {
   CEFR_LEVEL_OPTIONS,
   DEPARTMENTS,
@@ -264,13 +265,39 @@ describe("StrategySection languages", () => {
   });
 });
 
+describe("StrategySection layout foundation", () => {
+  it("renders one migrated foundation card anchored on the canonical metadata", () => {
+    renderSection();
+
+    const card = screen
+      .getByRole("heading", { level: 2, name: sectionTitle("strategy") })
+      .closest('[data-slot="card"]');
+
+    expect(card).toHaveAttribute("data-pf-section-card");
+    expect(card).toHaveAttribute("id", sectionAnchorId("strategy"));
+    expect(card).toHaveAttribute("data-size", "sm");
+    expect(card?.className).toContain("h-fit");
+    // One card only: it owns its section chrome and no legacy shell survives.
+    expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(1);
+    expect(card?.querySelector(".size-8.rounded-xl")).toBeNull();
+  });
+
+  it("composes the shared card through the canonical section metadata", () => {
+    expect(source).toMatch(/from "\.\/form-section-card"/);
+    expect(source).toMatch(/<FormSectionCard/);
+    expect(source).toMatch(/sectionAnchorId\("strategy"\)/);
+    expect(source).toMatch(/sectionTitle\("strategy"\)/);
+    expect(source).not.toMatch(/from "\.\/controls"/);
+    expect(source).not.toMatch(/<FormSection[\s>]/);
+  });
+});
+
 describe("StrategySection boundaries", () => {
   it("reuses the isolated prototype model and documented shadcn primitives", () => {
     expect(source).toMatch(/from "\.\/prototype-model"/);
     expect(source).toMatch(/from "@\/components\/ui\/combobox"/);
     expect(source).toMatch(/from "@\/components\/ui\/select"/);
     expect(source).toMatch(/from "@\/components\/ui\/input"/);
-    expect(source).toMatch(/from "\.\/controls"/);
     expect(source).toMatch(
       /addLanguageRequirement|removeLanguageRequirement|updateLanguageRequirement/,
     );
