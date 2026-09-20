@@ -25,6 +25,8 @@ const regionsOf = (card: Locator) => card.evaluate((li) => Array.from(li.childre
   const box = child.getBoundingClientRect();
   return { top: Math.round(box.top), bottom: Math.round(box.bottom), left: Math.round(box.left), right: Math.round(box.right) };
 }));
+// The navigation island's paragraph live region; prototype feedback statuses are spans.
+const navStatus = (page: Page) => page.locator("p[role='status']");
 
 async function bufferMainDocuments(
   page: Page,
@@ -423,14 +425,36 @@ test("renders the known vacancy as a disclosed prototype card with the reference
   expect([hovered.top < restingY, hovered.top - restingY >= -4, hovered.shadow !== "none", hovered.border !== edges.border]).toEqual([true, true, true, true]);
 
   // Canonical CTA >=40px and keyboard-reachable with a ring; the demo bookmark
-  // stays a disabled, inert placeholder until R5.
+  // is an enabled, in-memory toggle that announces honest feedback.
   const cta = card.getByRole("link", { name: "Ver vacante" });
   const bookmark = card.getByRole("button");
+  const announcement = card.getByRole("status");
   const [ctaBox, bookmarkBox] = await Promise.all([cta.boundingBox(), bookmark.boundingBox()]);
   test.info().annotations.push({ type: "card targets @1440", description: JSON.stringify({ ctaBox, bookmarkBox }) });
   expect([Math.round(ctaBox!.height), Math.round(bookmarkBox!.width), Math.round(bookmarkBox!.height)], "card target sizes").toEqual([40, 40, 40]);
-  await expect(bookmark).toBeDisabled();
+  await expect(bookmark).toBeEnabled();
+  await expect(bookmark).toHaveAttribute("type", "button");
+  await expect(bookmark).toHaveAttribute("aria-pressed", "false");
+  await expect(announcement).toBeEmpty();
+
+  // Keyboard: the focused bookmark toggles on and announces honestly.
+  await bookmark.focus();
+  await page.keyboard.press("Space");
+  await expect(bookmark).toHaveAttribute("aria-pressed", "true");
+  await expect(bookmark).toHaveAttribute("aria-label", "Guardar vacante (marcada solo en esta demostración)");
+  await expect(announcement).toHaveText("Guardado de demostración activado: no se guardó nada real.");
+
+  // Mouse: a second activation returns to unpressed and re-announces the inverse.
+  await bookmark.click();
+  await expect(bookmark).toHaveAttribute("aria-pressed", "false");
   await expect(bookmark).toHaveAttribute("aria-label", "Guardar vacante (solo demostración)");
+  await expect(announcement).toHaveText("Guardado de demostración desactivado: no se modificó nada real.");
+
+  // The interaction preserves the canonical two-region geometry and card identity.
+  expect(await card.evaluate((li) => li.children.length)).toBe(2);
+  const [contentAfter, railAfter] = await regionsOf(card);
+  expect([railAfter.left >= contentAfter.right, Math.abs(railAfter.top - contentAfter.top) <= 1]).toEqual([true, true]);
+
   for (let tab = 0; tab < 60; tab++) {
     await page.keyboard.press("Tab");
     if (await cta.evaluate((el) => el === document.activeElement)) break;
@@ -438,21 +462,20 @@ test("renders the known vacancy as a disclosed prototype card with the reference
   await expect(cta).toBeFocused();
   const focus = await cta.evaluate((el) => ({ visible: el.matches(":focus-visible"), width: Number.parseFloat(getComputedStyle(el).outlineWidth || "0") }));
   expect([focus.visible, focus.width > 0]).toEqual([true, true]);
-  // The inert bookmark cannot navigate or request; the canonical CTA does.
-  await bookmark.click({ force: true });
+  // The in-memory toggle never navigates; the canonical CTA still does.
   await expect(page).toHaveURL("/vacantes?currency=MXN");
   await cta.click();
   await expect(page).toHaveURL(`/vacantes/${MAIN_VACANCY_ID}`);
 
   // An unknown id stays wire-only: two regions, the canonical CTA, no company
-  // link, no prototype label, no note, and no save/bookmark control.
+  // link, no prototype label, no note, and no save/bookmark control or status.
   await page.goto("/vacantes?q=long-content");
   const wireOnly = page.getByRole("list").getByRole("listitem").first();
   await expect(wireOnly.getByRole("heading", { level: 3 }).getByRole("link")).toHaveAttribute("href", /\/vacantes\/[0-9a-f-]+$/u);
   expect(await wireOnly.evaluate((li) => li.children.length)).toBe(2);
   for (const absent of PROTOTYPE_ONLY_LABELS) await expect(wireOnly).not.toContainText(absent);
   await expect(wireOnly).not.toContainText(/hace \d+|\d+ postulantes/iu);
-  await expect([await wireOnly.getByRole("note").count(), await wireOnly.getByRole("button").count()]).toEqual([0, 0]);
+  await expect([await wireOnly.getByRole("note").count(), await wireOnly.getByRole("button").count(), await wireOnly.getByRole("status").count()]).toEqual([0, 0, 0]);
   await expect(wireOnly.getByRole("link", { name: "Consultoría Integral de Ingeniería de Software y Datos Confiables" })).toHaveCount(0);
 
   const diagnostics = nonGet.filter((entry) => entry.includes("__nextjs") || entry.includes("/_next/"));
@@ -578,7 +601,7 @@ async function expectPending(
   initiating: import("@playwright/test").Locator,
   usable: import("@playwright/test").Locator,
 ) {
-  const status = page.getByRole("status");
+  const status = navStatus(page);
   await expect(status).toHaveAttribute("aria-live", "polite");
   await expect(status).toContainText(/cargando/i);
   await expect(initiating).toBeDisabled();
@@ -602,7 +625,7 @@ test("announces pending search navigation without blocking filters", async ({
     page.getByRole("button", { name: /aplicar filtros/i }),
   );
   await expect(page).toHaveURL(/q=pending-search/);
-  await expect(page.getByRole("status")).not.toContainText(/cargando/i);
+  await expect(navStatus(page)).not.toContainText(/cargando/i);
   await expect(search).toBeEnabled();
 });
 
@@ -621,7 +644,7 @@ test("announces pending scalar-filter navigation without blocking search", async
     page.getByRole("button", { name: /^buscar$/i }),
   );
   await expect(page).toHaveURL(/currency=USD/);
-  await expect(page.getByRole("status")).not.toContainText(/cargando/i);
+  await expect(navStatus(page)).not.toContainText(/cargando/i);
 
   // The scalar navigation commits the exact canonical URL, keeps the USD
   // selection in the control, and the fixture log proves the exact USD
@@ -670,12 +693,12 @@ test("announces pending next navigation and preserves its opaque cursor", async 
     /q=frontend.*currency=MXN.*cursor=opaque\+a%2Bb%2Fc%3D/,
   );
   await next.click();
-  await expect(page.getByRole("status")).toHaveAttribute("aria-live", "polite");
-  await expect(page.getByRole("status")).toContainText(/cargando/i);
+  await expect(navStatus(page)).toHaveAttribute("aria-live", "polite");
+  await expect(navStatus(page)).toContainText(/cargando/i);
   await expect(next).toHaveAttribute("aria-busy", "true");
   await expect(page.getByRole("button", { name: /^buscar$/i })).toBeEnabled();
   await expect(page).toHaveURL(/cursor=opaque\+a%2Bb%2Fc%3D/);
-  await expect(page.getByRole("status")).not.toContainText(/cargando/i);
+  await expect(navStatus(page)).not.toContainText(/cargando/i);
 });
 
 test("forwards all six filters AND-shaped, resets the cursor on filter submission, preserves it on next, and omits pagination on the nonempty final page", async ({
@@ -746,7 +769,7 @@ test("forwards all six filters AND-shaped, resets the cursor on filter submissio
       `?${filtered("react")}`,
       `?${filtered("react")}&${cursor}`,
     ]);
-  await expect(page.getByRole("status")).not.toContainText(/cargando/i);
+  await expect(navStatus(page)).not.toContainText(/cargando/i);
   await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
   await expectNoPagination();
 });
@@ -822,7 +845,7 @@ test("modified next-link clicks keep native new-tab semantics", async ({
   ]);
   expect(popup).toBeTruthy();
   await expect(page).toHaveURL(/currency=MXN/);
-  await expect(page.getByRole("status")).not.toContainText(/cargando/i);
+  await expect(navStatus(page)).not.toContainText(/cargando/i);
   await expect(next).not.toHaveAttribute("aria-busy", "true");
   await popup.close();
 });

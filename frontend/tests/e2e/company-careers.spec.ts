@@ -59,6 +59,17 @@ test("company careers cards keep the reference region contract and disclose ever
   expect([mobileRail.top >= mobileContent.bottom, Math.abs(mobileRail.left - mobileContent.left) <= 1]).toEqual([true, true]);
   expect(await overflowPx(page)).toBeLessThanOrEqual(0);
 
+  // The same shared card island hydrates on this route: the enriched card's
+  // bookmark toggles in memory and announces truthful demo feedback, scoped to
+  // this card so the board's full interaction contract is not duplicated.
+  const frontendCard = list.getByRole("listitem").filter({ has: page.getByRole("heading", { level: 3, name: "Ingeniera Frontend" }) });
+  const bookmark = frontendCard.getByRole("button");
+  await expect(bookmark).toHaveAttribute("aria-pressed", "false");
+  await bookmark.click();
+  await expect(bookmark).toHaveAttribute("aria-pressed", "true");
+  await expect(bookmark).toHaveAttribute("aria-label", "Guardar vacante (marcada solo en esta demostración)");
+  await expect(frontendCard.getByRole("status")).toHaveText("Guardado de demostración activado: no se guardó nada real.");
+
   // Frozen local fixtures: no card interaction reaches the jobs API, and the
   // canonical CTA navigates without any mutating request.
   expect(apiTraffic).toEqual([]);

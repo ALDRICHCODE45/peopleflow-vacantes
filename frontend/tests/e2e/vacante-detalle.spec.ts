@@ -1,7 +1,7 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
-const fixtureUrl = "http://127.0.0.1:4010";
+const fixtureUrl = process.env.PLAYWRIGHT_FIXTURE_ORIGIN ?? "http://127.0.0.1:4010";
 // Fixture vacancies (tests/fixtures/jobs-server.mjs): main has no optional
 // metadata, rich carries full metadata plus a markup-like description, long
 // has an uninterrupted title segment and full optionals, and missing answers
@@ -16,15 +16,17 @@ const NOT_FOUND_COPY = "Esta vacante no está disponible";
 const XSS_TEXT = "<script>alert('xss')</script>";
 // Canonical company profile both enriched demo vacancies resolve to.
 const COMPANY_PROFILE_PATH = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
-// The five disclosed demonstration controls in rail order (apply, save, then
-// the three share affordances) with the minimum target size each one keeps.
+const DISCLOSURE_ID = "proceso-prototipo";
 const DEMO_CONTROLS = [
-  { name: "Postularme (solo demostración)", minTargetPx: 44 },
-  { name: "Guardar vacante (solo demostración)", minTargetPx: 44 },
-  { name: "Copiar enlace (solo demostración)", minTargetPx: 40 },
-  { name: "Compartir en redes (solo demostración)", minTargetPx: 40 },
-  { name: "Enviar por correo (solo demostración)", minTargetPx: 40 },
+  { name: "Postularme (solo demostración)", minTargetPx: 44, mode: "momentary", described: true, feedback: "Postulación de demostración: no se envió ninguna postulación real." },
+  { name: "Guardar vacante (solo demostración)", minTargetPx: 44, mode: "toggle", described: true, feedback: "Guardado de demostración activado: no se guardó nada real." },
+  { name: "Copiar enlace (solo demostración)", minTargetPx: 40, mode: "momentary", described: false, feedback: "Copiar enlace es solo una demostración: no se copió nada." },
+  { name: "Compartir en redes (solo demostración)", minTargetPx: 40, mode: "momentary", described: false, feedback: "Compartir en redes es solo una demostración: no se compartió nada." },
+  { name: "Enviar por correo (solo demostración)", minTargetPx: 40, mode: "momentary", described: false, feedback: "Enviar por correo es solo una demostración: no se envió ningún correo." },
 ] as const;
+const SAVE_ACTIVE_LABEL = "Guardar vacante (marcada solo en esta demostración)";
+const SAVE_ACTIVE_FEEDBACK = "Guardado de demostración activado: no se guardó nada real.";
+const SAVE_INACTIVE_FEEDBACK = "Guardado de demostración desactivado: no se modificó nada real.";
 
 const fixtureRequests = (request: APIRequestContext) =>
   request.get(`${fixtureUrl}/__requests`).then((r) => r.json());
@@ -100,6 +102,23 @@ const focusStep = (page: Page) =>
       ring: style !== null && style.boxShadow !== "none",
     };
   });
+
+const announcementOf = (control: Locator) =>
+  control.locator("xpath=following-sibling::*[1][@role='status']");
+
+async function tabCycle(page: Page, limit = 80): Promise<FocusStep[]> {
+  const steps: FocusStep[] = [];
+  let anchor = "";
+  for (let presses = 0; presses < limit; presses++) {
+    await page.keyboard.press("Tab");
+    const step = await focusStep(page);
+    const identity = `${step.tag}|${step.name}|${step.href ?? ""}`;
+    if (presses === 0) anchor = identity;
+    else if (identity === anchor) break;
+    steps.push(step);
+  }
+  return steps;
+}
 
 async function expectBranded404(page: Page) {
   await expect(page.getByText(NOT_FOUND_COPY)).toBeVisible();
@@ -329,8 +348,10 @@ for (const [label, viewport] of [
   test(`long detail content wraps at ${label} width`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await page.goto(`/vacantes/${LONG_ID}`);
-    await expect(page.getByRole("article")).toBeVisible();
+    const article = page.getByRole("article");
+    await expect(article).toBeVisible();
     expect(await documentOverflowPx(page)).toBeLessThanOrEqual(0);
+    await expect([await article.getByRole("button").count(), await article.getByRole("status").count()]).toEqual([0, 0]);
   });
 }
 
@@ -481,50 +502,90 @@ test("rich detail keeps the complete safe description and a separately scoped ve
   await expect(content.getByText("Verificada por PeopleFlow")).toHaveCount(0);
 });
 
-test("rich detail exposes exactly five named disabled demonstration controls", async ({
+test("rich detail exposes exactly five named enabled demonstration controls", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/vacantes/${RICH_ID}`);
   const article = articleOf(page);
   await expect(article.getByRole("button")).toHaveCount(DEMO_CONTROLS.length);
-  for (const { name, minTargetPx } of DEMO_CONTROLS) {
+  await expect(article.locator(`#${DISCLOSURE_ID}`)).toHaveCount(1);
+  for (const { name, minTargetPx, mode, described } of DEMO_CONTROLS) {
     const button = article.getByRole("button", { name });
     await expect(button).toBeVisible();
-    await expect(button).toBeDisabled();
-    await expect(button).toHaveAttribute("aria-disabled", "true");
+    await expect(button).toBeEnabled();
     // A demonstration affordance is never a submit target.
     await expect(button).toHaveAttribute("type", "button");
+    await expect(button).toHaveAttribute("title", name);
     expect(await minTargetSizePx(button)).toBeGreaterThanOrEqual(minTargetPx);
+    expect(await button.getAttribute("aria-describedby")).toBe(described ? DISCLOSURE_ID : null);
+    if (mode === "toggle") {
+      await expect(button).toHaveAttribute("aria-pressed", "false");
+    } else {
+      expect(await button.getAttribute("aria-pressed")).toBeNull();
+    }
   }
   // The breadcrumb return link keeps its own 40px target.
   expect(await minTargetSizePx(article.getByRole("link", { name: "Volver a vacantes" }))).toBeGreaterThanOrEqual(40);
 });
 
-test("rich detail keeps article links keyboard reachable and disabled controls out of tab order", async ({
+test("rich detail keeps the three links and five controls keyboard reachable in document order", async ({
   page,
 }) => {
   await page.goto(`/vacantes/${RICH_ID}`);
   const article = articleOf(page);
   await expect(article.getByRole("link")).toHaveCount(3);
 
-  const steps: FocusStep[] = [];
-  for (let presses = 0; presses < 40; presses++) {
-    await page.keyboard.press("Tab");
-    steps.push(await focusStep(page));
-  }
+  // One full Tab cycle, discovered from the first stop instead of a fixed count.
+  const cycle = await tabCycle(page);
+  const articleSteps = cycle.filter((step) => step.inArticle && (step.tag === "A" || step.tag === "BUTTON"));
 
-  // The three article links are reachable in document order, each with its own
-  // accessible name and a visible focus-visible treatment.
-  const links = steps.filter((step) => step.inArticle && step.tag === "A").filter((step, index, articleLinks) => articleLinks.findIndex((link) => link.name === step.name && link.href === step.href) === index);
-  expect(links.map((step) => [step.name, step.href])).toEqual([
-    ["Volver a vacantes", "/vacantes"],
-    ["Acme", COMPANY_PROFILE_PATH],
-    ["Conoce a Acme", COMPANY_PROFILE_PATH],
+  expect(articleSteps.map((step) => [step.tag, step.name, step.href])).toEqual([
+    ["A", "Volver a vacantes", "/vacantes"],
+    ["A", "Acme", COMPANY_PROFILE_PATH],
+    ["BUTTON", "Postularme (solo demostración)", null],
+    ["BUTTON", "Guardar vacante (solo demostración)", null],
+    ["A", "Conoce a Acme", COMPANY_PROFILE_PATH],
+    ["BUTTON", "Copiar enlace (solo demostración)", null],
+    ["BUTTON", "Compartir en redes (solo demostración)", null],
+    ["BUTTON", "Enviar por correo (solo demostración)", null],
   ]);
-  expect(links.every((step) => step.focusVisible && (step.outline || step.ring))).toBe(true);
-  // Every disabled demonstration button is skipped by sequential focus.
-  expect(steps.filter((step) => step.tag === "BUTTON" && step.disabled)).toEqual([]);
+  expect(articleSteps.every((step) => step.focusVisible && (step.outline || step.ring))).toBe(true);
+  // No demonstration control is disabled, so none is dropped from sequential focus.
+  expect(articleSteps.filter((step) => step.disabled)).toEqual([]);
+});
+
+test("rich detail announces truthful demonstration feedback that replaces and clears itself", async ({
+  page,
+}) => {
+  await page.goto(`/vacantes/${RICH_ID}`);
+  const article = articleOf(page);
+  const apply = article.getByRole("button", { name: "Postularme (solo demostración)" });
+  const applyFeedback = "Postulación de demostración: no se envió ninguna postulación real.";
+
+  // A momentary action confirms honestly and is never pressed.
+  await apply.click();
+  await expect(announcementOf(apply)).toHaveText(applyFeedback);
+  expect(await apply.getAttribute("aria-pressed")).toBeNull();
+
+  await announcementOf(apply).locator("span").evaluate((node) => node.setAttribute("data-announcement-probe", "fresh"));
+  await apply.click();
+  await expect(announcementOf(apply)).toHaveText(applyFeedback);
+  await expect(announcementOf(apply).locator("[data-announcement-probe]")).toHaveCount(0);
+  // The confirmation clears on its own timer, awaited by polling, not a sleep.
+  await expect(announcementOf(apply)).toBeEmpty({ timeout: 6000 });
+
+  // The save toggle round-trips by keyboard and mouse.
+  const save = article.getByRole("button", { name: "Guardar vacante (solo demostración)", exact: true });
+  const savePressed = article.getByRole("button", { name: SAVE_ACTIVE_LABEL, exact: true });
+  await expect(save).toHaveAttribute("aria-pressed", "false");
+  await save.focus();
+  await page.keyboard.press("Space");
+  await expect(savePressed).toHaveAttribute("aria-pressed", "true");
+  await expect(announcementOf(savePressed)).toHaveText(SAVE_ACTIVE_FEEDBACK);
+  await savePressed.click();
+  await expect(save).toHaveAttribute("aria-pressed", "false");
+  await expect(announcementOf(save)).toHaveText(SAVE_INACTIVE_FEEDBACK);
 });
 
 test("rich detail keeps canonical company links, indexable metadata, and an unbroken heading outline", async ({
@@ -556,31 +617,57 @@ test("rich detail keeps canonical company links, indexable metadata, and an unbr
   });
 });
 
-test("rich detail registers zero non-GET business requests", async ({ page }) => {
+test("rich detail registers zero non-GET business requests, storage writes, or share calls", async ({ page }) => {
   const nonGet: string[] = [];
   page.on("request", (entry) => {
-    // Only the framework's own development diagnostics under /_next/ are exempt.
-    if (
-      ["POST", "PUT", "PATCH", "DELETE"].includes(entry.method()) &&
-      !entry.url().includes("/_next/")
-    ) {
+    // Only the framework's own development diagnostics are exempt.
+    const diagnostics =
+      entry.url().includes("/_next/") || entry.url().includes("__nextjs");
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(entry.method()) && !diagnostics) {
       nonGet.push(`${entry.method()} ${entry.url()}`);
     }
   });
+  // The clipboard and Web Share APIs are instrumented before the app loads.
+  await page.addInitScript(() => {
+    const calls: string[] = [];
+    (window as unknown as { __prototypeShareCalls: string[] }).__prototypeShareCalls = calls;
+    const record = (api: string) => { calls.push(api); return Promise.resolve(); };
+    const clipboard = navigator.clipboard as Clipboard | undefined;
+    if (clipboard !== undefined) {
+      clipboard.writeText = () => record("clipboard.writeText");
+      clipboard.write = () => record("clipboard.write");
+    }
+    navigator.share = () => record("share");
+  });
 
   await page.goto(`/vacantes/${RICH_ID}`);
+  const article = articleOf(page);
   await expect(
-    articleOf(page).getByRole("heading", {
-      level: 1,
-      name: "Desarrolladora Go",
-    }),
+    article.getByRole("heading", { level: 1, name: "Desarrolladora Go" }),
   ).toBeVisible();
-  // Even a dispatched activation of every disabled demonstration control
-  // reaches no backend: the server-rendered view owns no handler.
-  for (const { name } of DEMO_CONTROLS) {
-    await articleOf(page).getByRole("button", { name }).dispatchEvent("click");
+  const storageBefore = await page.evaluate(() =>
+    JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
+  );
+
+  for (const { name, mode, feedback } of DEMO_CONTROLS) {
+    const control = article.getByRole("button", { name });
+    await control.click();
+    // The toggle keeps its pressed identity after its accessible name flips.
+    const announcement = mode === "toggle"
+      ? announcementOf(article.getByRole("button", { pressed: true }))
+      : announcementOf(control);
+    await expect(announcement).toHaveText(feedback);
   }
-  await page.keyboard.press("Tab");
-  await page.waitForTimeout(250);
+  await page.waitForTimeout(300);
   expect(nonGet).toEqual([]);
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { __prototypeShareCalls: string[] }).__prototypeShareCalls,
+    ),
+  ).toEqual([]);
+  expect(
+    await page.evaluate(() =>
+      JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
+    ),
+  ).toBe(storageBefore);
 });
