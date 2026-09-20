@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R5 prototype interactions
+- Current task: CCP-R5A prototype feedback island and wiring
 - Push/PR: not authorized
 
 ## Goal
@@ -53,7 +53,8 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R4A — Vacancy detail header and stats:** Rebuilt the canonical detail header with a 40px breadcrumb target, monogram, featured state, title/company metadata, four reference stat cards, and the responsive two-column content/rail scaffold while preserving canonical/SEO/not-found/safe text. Authored 397/400 lines. Verification: 20/20 focused, 46/46 adjacent, TypeScript and exact-scope ESLint PASS; independent verifier PASS. Commit evidence: `a1091cd7e5cca59008ec6de022e291c4cee8249f`.
 - [x] **CCP-R4B — Vacancy detail content and sticky rail:** Built structured requirements/skills/benefits, semantic token-only benefit tiles, and the sticky salary/action/company/share rail with disabled non-persistent controls, conditional PeopleFlow verification, semantic headings, and honest wire-only/no-empty-rail fallback. Authored 379/400 lines. Verification: 32/32 focused, 408/408 adjacent, TypeScript and exact-scope ESLint PASS; independent verifier PASS after three corrected findings; native review approved and acknowledged. Runtime harness: N/A—CCP-R4C owns browser contracts. Rollback boundary: `JobDetailView.tsx/.test.tsx` detail content and rail behavior. Commit evidence: `9f57182d4ff617b947c6539520dbcb1363c0f2c3`.
 - [x] **CCP-R4C — Vacancy detail browser contracts:** Reconciled canonical detail Playwright contracts for desktop/mobile geometry, real sticky behavior, complete safe text, disabled affordances, target size/focus, canonical metadata, heading order, light/dark accessibility, and zero business mutations; fixed long-title mobile overflow with `min-w-0`. Authored 296/300 lines. Verification: 22/22 focused Chromium, 20/20 axe matrix, TypeScript and exact-scope ESLint PASS; independent verifier PASS after environment rebuild, overflow diagnosis, and focus-cycle correction; native review approved and acknowledged. Runtime harness: production build plus loopback app/fixture at 3100/4010. Rollback boundary: detail `h1` minimum width and canonical detail browser contracts. Commit evidence: `f985e341964a859b9639f90c040b1c1d20ff5601`.
-- [ ] **CCP-R5 — Prototype interactions:** Add accessible client islands for save/apply/share/bookmark feedback with explicit prototype disclosure and zero fetch/storage/business mutations. Forecast: 250–400 lines.
+- [ ] **CCP-R5A — Prototype feedback island and wiring:** Add one reusable serializable client island for bookmark/save toggles and momentary apply/share feedback; keep card/detail views server-rendered and preserve zero fetch/storage/clipboard/share/business mutations. Forecast: 350–400 lines.
+- [ ] **CCP-R5B — Prototype interaction browser contracts:** Reconcile detail/card/company Playwright contracts for enabled keyboard-reachable controls, live-region feedback, repeated activation, and zero business mutations. Forecast: 180–250 lines.
 - [ ] **CCP-R6 — Redesign browser acceptance:** Update obsolete truthfulness assertions to prototype-scoped contracts; run light/dark desktop/mobile Playwright, axe, keyboard, hover, overflow, canonical, safe-text, and zero-business-mutation acceptance; request human visual approval.
 
 ## Acceptance criteria
@@ -83,4 +84,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Implement CCP-R5 with strict TDD: accessible client feedback for save/apply/share/bookmark prototype actions, explicit non-persistence disclosure, and zero fetch/storage/business mutations.
+Implement CCP-R5A with strict TDD: one reusable client feedback island plus server-component wiring and focused unit boundaries. Clipboard/share APIs and every persistence/network path remain out of scope.
