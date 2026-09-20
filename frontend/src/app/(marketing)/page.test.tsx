@@ -339,18 +339,45 @@ describe("employer marketing page (reference replica)", () => {
     expect(pageSource).not.toMatch(/overflow-x-hidden/);
   });
 
-  it("keeps the exact reference accent text palette in both themes", () => {
+  it("keeps AA light accent text and the exact reference accents in dark", () => {
     const lightBlock = landingCss.split(".dark .pf-reference-landing")[0];
-    // Light theme must use the reference values verbatim; the earlier AA
-    // darkening was unauthorized visual drift under the user's IGUAL command.
-    expect(lightBlock).toContain("--pf-on-cyan: #22d3ee");
-    expect(lightBlock).toContain("--pf-on-green: #34d07a");
-    expect(lightBlock).toContain("--pf-on-amber: #e0a83e");
+    const darkBlock = landingCss.match(
+      /\.dark \.pf-reference-landing \{([^}]*)\}/,
+    )?.[1];
+    expect(darkBlock).toBeDefined();
+
+    // Light surface chips need the darker same-hue shades so accent text
+    // clears WCAG AA (>= 4.5:1); the exact reference accents are kept for
+    // dark, where they pass on the near-black palette.
+    expect(lightBlock).toMatch(/--pf-on-green:\s*#166534;/);
+    expect(lightBlock).toMatch(/--pf-on-cyan:\s*#155e75;/);
+    expect(lightBlock).toMatch(/--pf-on-amber:\s*#92400e;/);
+    // The reference accents must never be declared on the light palette.
+    expect(lightBlock).not.toMatch(
+      /--pf-on-(?:green|cyan|amber):\s*#(?:34d07a|22d3ee|e0a83e);/,
+    );
+
+    expect(darkBlock).toMatch(/--pf-on-green:\s*#34d07a;/);
+    expect(darkBlock).toMatch(/--pf-on-cyan:\s*#22d3ee;/);
+    expect(darkBlock).toMatch(/--pf-on-amber:\s*#e0a83e;/);
+
+    // Neither the reference accents nor the previously rejected shades may
+    // leak back in as light declarations.
     for (const recolored of ["#0e7490", "#146c34", "#8a5a00"]) {
       expect(landingCss).not.toContain(recolored);
     }
+
+    // Text utilities follow the same boundary: cyan is darkened on light and
+    // restored to the raw token on dark, and the text-only brand color is
+    // lightened on dark without touching the shared --pf-brand channel.
     expect(landingCss).toMatch(
-      /\.pf-reference-landing \.text-cyan \{\s*color: rgb\(var\(--pf-cyan\)\);\s*\}/,
+      /\.pf-reference-landing \.text-cyan \{\s*\/\*[\s\S]*?\*\/\s*color: rgb\(14 116 144\);\s*\}/,
+    );
+    expect(landingCss).toMatch(
+      /\.dark \.pf-reference-landing \.text-cyan \{\s*color: rgb\(var\(--pf-cyan\)\);\s*\}/,
+    );
+    expect(landingCss).toMatch(
+      /\.dark \.pf-reference-landing \.text-brand \{\s*color: rgb\(192 132 252\);\s*\}/,
     );
   });
 

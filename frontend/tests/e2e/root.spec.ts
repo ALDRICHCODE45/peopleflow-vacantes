@@ -333,6 +333,55 @@ for (const scheme of SCHEMES) {
         page,
       }) => {
         await page.goto("/");
+
+        // The reveal-on-scroll island mounts asynchronously and paints every
+        // `.reveal` section at opacity 0 until its IntersectionObserver
+        // (threshold 0.14) marks it `in`. Axe skips content that is still
+        // hidden, so the scan must run on the fully revealed page. Walk every
+        // `.reveal` into view (two animation frames per stop so the observer
+        // callback is processed before scrolling on), then poll until the
+        // lifecycle has settled: at least one `.reveal` exists and every
+        // `.reveal` under the landing root carries class `in` with computed
+        // opacity exactly 1. No fixed sleeps, no scan-time hiding, and no axe
+        // exclusions.
+        await page.evaluate(async () => {
+          const nextFrame = () =>
+            new Promise((resolve) =>
+              requestAnimationFrame(() => resolve(null)),
+            );
+          const root = document.querySelector("[data-pf-reference-landing]");
+          const reveals = Array.from(root?.querySelectorAll(".reveal") ?? []);
+          for (const reveal of reveals) {
+            reveal.scrollIntoView({ block: "center" });
+            await nextFrame();
+            await nextFrame();
+          }
+          window.scrollTo(0, 0);
+          await nextFrame();
+        });
+
+        await expect
+          .poll(async () =>
+            page.evaluate(() => {
+              const root = document.querySelector(
+                "[data-pf-reference-landing]",
+              );
+              if (!root || !root.classList.contains("pf-motion-ready")) {
+                return false;
+              }
+              const reveals = Array.from(root.querySelectorAll(".reveal"));
+              if (reveals.length === 0) {
+                return false;
+              }
+              return reveals.every(
+                (element) =>
+                  element.classList.contains("in") &&
+                  getComputedStyle(element).opacity === "1",
+              );
+            }),
+          )
+          .toBe(true);
+
         const results = await new AxeBuilder({ page })
           .withTags(["wcag2a", "wcag2aa"])
           .analyze();

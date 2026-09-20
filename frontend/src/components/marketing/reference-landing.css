@@ -77,14 +77,14 @@
   --pf-grid-dot-alpha: 0.07;
   --pf-grid-line-alpha: 0.05;
   --pf-top-glow-alpha: 0.12;
-  /* Exact reference accent-text values (the reference markup paints these as
-     inline styles): cyan #22d3ee, green #34d07a, amber #e0a83e. On the light
-     palette they sit below WCAG AA, but that is an inherent limitation of the
-     reference design and is recorded (not silently recolored) per the user's
-     IGUAL instruction. See correction-1/contrast-limitation.md. */
-  --pf-on-green: #34d07a;
-  --pf-on-cyan: #22d3ee;
-  --pf-on-amber: #e0a83e;
+  /* Accent-text tokens consumed by the reference markup's inline styles. The
+     reference cyan #22d3ee / green #34d07a / amber #e0a83e only reach ~1.5:1
+     on their light tinted chips, so the light theme uses darker same-hue
+     shades that meet WCAG AA (>= 4.5:1) while preserving the hue identity;
+     the exact reference values are restored for dark in the block below. */
+  --pf-on-green: #166534;
+  --pf-on-cyan: #155e75;
+  --pf-on-amber: #92400e;
 
   /* Accent identity — fixed across themes (reference theme.js) */
   --pf-brand: 147 54 234;
@@ -111,6 +111,10 @@
   --pf-grid-dot-alpha: 0.11;
   --pf-grid-line-alpha: 0.035;
   --pf-top-glow-alpha: 0.22;
+  /* Exact reference accent-text values; they clear AA on the dark palette. */
+  --pf-on-green: #34d07a;
+  --pf-on-cyan: #22d3ee;
+  --pf-on-amber: #e0a83e;
 }
 
 /* --------------------------------------------------------------------------
@@ -183,7 +187,17 @@
 .pf-reference-landing .text-brand {
   color: rgb(var(--pf-brand));
 }
+/* The raw brand channel (#9336ea) only reaches ~3:1 on the dark surfaces, so
+   the dark landing lightens the text-only brand color. `--pf-brand` itself is
+   untouched, keeping the primary CTA's white-on-brand contrast intact. */
+.dark .pf-reference-landing .text-brand {
+  color: rgb(192 132 252);
+}
 .pf-reference-landing .text-cyan {
+  /* Darker same-hue cyan so cyan text clears AA on light surfaces. */
+  color: rgb(14 116 144);
+}
+.dark .pf-reference-landing .text-cyan {
   color: rgb(var(--pf-cyan));
 }
 .pf-reference-landing .text-glow {
