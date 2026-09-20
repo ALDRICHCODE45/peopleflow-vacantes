@@ -1,9 +1,10 @@
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRightIcon, BookmarkIcon, BriefcaseIcon, Building2Icon, ClockIcon, GlobeIcon, MapPinIcon, UsersIcon, ZapIcon } from "lucide-react";
+import { ArrowRightIcon, BriefcaseIcon, Building2Icon, ClockIcon, GlobeIcon, MapPinIcon, UsersIcon, ZapIcon } from "lucide-react";
 
 import type { PrototypeJobView } from "../enrich";
 import { employmentTypeLabel, formatPublishedDate, formatSalary, payFrequencyLabel, seniorityLabel, workModeLabel } from "../formatters";
+import { PrototypeFeedbackButton } from "./prototype-feedback-island";
 import { CompanyMonogram, PrototypeDisclosure, VerifiedByPeopleFlow, prototypeApplicantsLabel, prototypeResponseLabel } from "./prototype-ui";
 
 /** Contextual icon per wire work mode, mirroring the public board rows. */
@@ -35,7 +36,7 @@ const cardClass = "group grid gap-5 rounded-2xl border border-border bg-card/60 
 const railClass = "flex min-w-0 flex-col gap-3 border-t border-border pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-6";
 const railLabel = "text-xs font-semibold tracking-wide text-muted-foreground uppercase";
 const ctaClass = `${focusRing} inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3.5 text-sm font-semibold text-foreground transition-colors duration-150 hover:border-primary/50 hover:bg-muted`;
-const bookmarkClass = `${focusRing} grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-background text-muted-foreground disabled:opacity-50`;
+const bookmarkClass = `${focusRing} grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-background text-muted-foreground`;
 const featuredClass = "rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-foreground";
 
 /**
@@ -46,12 +47,11 @@ const featuredClass = "rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semib
  * count, relative publication label, department, the complete normalized
  * description clipped to two lines, skills, benefits, pay cadence, response
  * estimate, verification, and the disclosure that scopes all of it. The salary
- * lives in its own rail. A known prototype vacancy carries a deliberately
- * disabled, inert bookmark affordance and a wire-only vacancy carries no save
- * control at all, so no card here performs a business mutation. Exactly two
- * element children keep the card stable for the board and the company page, and
- * no fetch, state, hook, request, storage, raw color, or inline style is
- * involved.
+ * lives in its own rail. A known prototype vacancy carries the bookmark client
+ * island, and a wire-only vacancy carries no save control at all, so no card
+ * here performs a business mutation while the card itself stays a server
+ * component: it forwards plain strings to the island and owns no fetch, state,
+ * hook, request, storage, raw color, or inline style.
  */
 export function VacancyCard({ job, companyHref }: { job: PrototypeJobView; companyHref?: string }) {
   const prototype = job.prototype;
@@ -83,9 +83,14 @@ export function VacancyCard({ job, companyHref }: { job: PrototypeJobView; compa
             </div>
           </div>
           {prototype !== undefined && (
-            <button type="button" disabled aria-label="Guardar vacante (solo demostración)" title="Guardar vacante (solo demostración)" className={bookmarkClass}>
-              <BookmarkIcon aria-hidden="true" className="size-4" />
-            </button>
+            <PrototypeFeedbackButton
+              mode="toggle"
+              icon="bookmark"
+              label="Guardar vacante (solo demostración)" activeLabel="Guardar vacante (marcada solo en esta demostración)"
+              activeFeedback="Guardado de demostración activado: no se guardó nada real."
+              inactiveFeedback="Guardado de demostración desactivado: no se modificó nada real."
+              className={bookmarkClass}
+            />
           )}
         </div>
 

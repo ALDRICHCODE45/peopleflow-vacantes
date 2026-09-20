@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -32,6 +33,10 @@ const textColorUtilities = (className: string) =>
 /** Any Tailwind palette utility would be a raw color: only tokens are allowed. */
 const RAW_COLOR_UTILITY =
   /(?:^|\s|[a-z-]+:)(?:text|bg|border)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|white|black)-\d{2,3}(?:\s|$)/;
+/** Every prop a server view may forward across the server/client boundary. */
+const ISLAND_PROPS = ["mode", "icon", "label", "activeLabel", "text", "className", "iconClassName", "iconPosition", "iconOnly", "describedBy", "title", "feedback", "activeFeedback", "inactiveFeedback"];
+/** The five demonstration island names, in rail order. */
+const DEMO_NAMES = ["Postularme (solo demostración)", "Guardar vacante (solo demostración)", "Copiar enlace (solo demostración)", "Compartir en redes (solo demostración)", "Enviar por correo (solo demostración)"] as const;
 
 const baseJob: JobItem = {
   id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e",
@@ -378,15 +383,18 @@ describe("JobDetailView reference header, stats, and scaffold (CCP-R4A)", () => 
     expect(prototype.publishedAgoLabel).not.toMatch(/publicada/i);
   });
 
-  it("stays a server-safe view with no client hook, request, storage, or mutation", () => {
+  it("stays a server-safe view that forwards only serializable island props", () => {
     expect(viewSource).toMatch(/<article/);
-    expect(viewSource).not.toMatch(/["']use client["']|use[A-Z]\w*\(|fetch\(|localStorage|sessionStorage|onClick|onSubmit|style=\{\{/);
-    // Every interactive-looking control is a disabled, non-persistent affordance.
-    const buttons = viewSource.match(/<button\b[^>]*>/g) ?? [];
-    expect(buttons.length).toBeGreaterThan(0);
-    for (const button of buttons) {
-      expect(button).toMatch(/\bdisabled\b/);
-      expect(button).not.toMatch(/\bon[A-Z]\w*=/);
+    expect(viewSource).not.toMatch(/["']use client["']|use[A-Z]\w*\(|fetch\(|localStorage|sessionStorage|onClick|onSubmit|style=\{\{|navigator|clipboard|window\.|mailto/u);
+    // Every prototype control is the client island: no raw button remains here.
+    expect(viewSource).not.toMatch(/<button\b/u);
+    expect(viewSource).toContain("./prototype-feedback-island");
+    const islands = [...viewSource.matchAll(/<PrototypeFeedbackButton\b[\s\S]*?\/>/gu)].map((match) => match[0]);
+    expect(islands).toHaveLength(3);
+    for (const island of islands) {
+      expect(island).not.toMatch(/=>|function|\{\s*\(/u);
+      // React's `key` is a framework slot, not a prop forwarded to the island.
+      for (const name of island.matchAll(/(?:^|\s)([a-z][a-zA-Z]*)=/gu)) expect(["key", ...ISLAND_PROPS]).toContain(name[1]);
     }
   });
 });
@@ -463,24 +471,29 @@ describe("JobDetailView reference content and sticky rail (CCP-R4B)", () => {
     expect(rail.className).not.toMatch(/(?:^|\s)absolute(?:\s|$)/);
   });
 
-  it("keeps prototype apply and save actions explicitly disabled and non-persistent", () => {
+  it("enables the five demonstration islands with stable names and one pressed toggle", () => {
     render(<JobDetailView job={enrichedJob} />);
-    for (const name of ["Postularme (solo demostración)", "Guardar vacante (solo demostración)"]) {
-      const button = screen.getByRole("button", { name });
-      expect(button).toBeDisabled();
-      expect(button).toHaveAttribute("aria-disabled", "true");
-      expect(button.getAttribute("title")).toMatch(/demostración/i);
-      expect(button).not.toHaveAttribute("type", "submit");
+    const controls = screen.getAllByRole("button");
+    expect(controls.map((control) => control.getAttribute("aria-label"))).toEqual([...DEMO_NAMES]);
+    const [apply, save, ...shares] = controls;
+    expect([apply.getAttribute("aria-pressed"), apply.className.includes("active:scale-[0.96]"), apply.getAttribute("title")]).toEqual([null, true, DEMO_NAMES[0]]);
+    expect([save.getAttribute("aria-pressed"), save.textContent]).toEqual(["false", "Guardar"]);
+    for (const control of [apply, save, ...shares]) {
+      expect([control.matches(":enabled"), control.getAttribute("type"), control.getAttribute("aria-disabled")]).toEqual([true, "button", null]);
     }
   });
 
-  it("exposes a fully disabled share affordance with accessible names", () => {
+  it("announces truthful momentary feedback for every apply and share island", async () => {
+    const user = userEvent.setup();
     render(<JobDetailView job={enrichedJob} />);
-    for (const label of ["Copiar enlace", "Compartir en redes", "Enviar por correo"]) {
-      const button = screen.getByRole("button", { name: `${label} (solo demostración)` });
-      expect(button).toBeDisabled();
-      expect(button).toHaveAttribute("aria-disabled", "true");
+    const [apply, save, ...shares] = DEMO_NAMES.map((name) => screen.getByRole("button", { name }));
+    for (const [control, message] of [[apply, "no se envió ninguna postulación real"], [shares[0], "no se copió nada"], [shares[1], "no se compartió nada"], [shares[2], "no se envió ningún correo"]] as const) {
+      await user.click(control);
+      expect(screen.getAllByRole("status").map((region) => region.textContent).filter((text) => text?.includes(message))).toHaveLength(1);
     }
+    expect([save.getAttribute("aria-pressed"), screen.getAllByRole("status").every((region) => region.className === "sr-only")]).toEqual(["false", true]);
+    await user.click(save);
+    expect(save.getAttribute("aria-pressed")).toBe("true");
   });
 
   it("renders the company profile context and canonical link in the rail", () => {
@@ -499,6 +512,7 @@ describe("JobDetailView reference content and sticky rail (CCP-R4B)", () => {
     expect(rail).toHaveTextContent("Salario");
     expect(rail).toHaveTextContent(formatSalary({ min: 20000, max: 30000, currency: "MXN" })!);
     expect(within(rail).queryByRole("button")).toBeNull();
+    expect(container.querySelectorAll("article [role='status']")).toHaveLength(0);
     expect(card(container, "company")).toBeNull();
     expect(card(container, "share")).toBeNull();
     expect(card(container, "actions")).toBeNull();

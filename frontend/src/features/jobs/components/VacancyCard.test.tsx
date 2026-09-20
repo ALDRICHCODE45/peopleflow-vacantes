@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -35,6 +36,8 @@ const payRailJob = (payFrequency: JobPayFrequency): PrototypeJobView => ({
 });
 /** Every class list rendered inside `root`, to prove the card stays token-only. */
 const classesOf = (root: Element) => Array.from(root.querySelectorAll("[class]")).map((node) => node.getAttribute("class") ?? "").join(" ");
+/** Every prop the card may forward across the server/client boundary. */
+const ISLAND_PROPS = ["mode", "icon", "label", "activeLabel", "text", "className", "iconClassName", "iconPosition", "iconOnly", "describedBy", "title", "feedback", "activeFeedback", "inactiveFeedback"];
 
 afterEach(() => cleanup());
 
@@ -53,7 +56,7 @@ describe("VacancyCard layout and affordances", () => {
     expect(rail.textContent).toContain("SALARIO MENSUAL");
   });
 
-  it("renders the company monogram, the canonical H3 title link, and a disabled bookmark affordance", () => {
+  it("renders the company monogram, the canonical H3 title link, and an enabled bookmark toggle", () => {
     const { container } = render(<VacancyCard job={enriched} />);
     const headings = screen.getAllByRole("heading", { level: 3 });
     expect([headings.length, headings[0].textContent]).toEqual([1, FRONTEND_JOB.title]);
@@ -61,7 +64,7 @@ describe("VacancyCard layout and affordances", () => {
     expect([titleLink.getAttribute("href"), titleLink.className]).toEqual([`/vacantes/${FRONTEND_JOB.id}`, expect.stringMatching(/focus-visible:outline/u)]);
     expect(container.querySelector("span[aria-hidden='true']")?.textContent).toBe("Ac");
     const bookmark = container.querySelector("button");
-    expect([bookmark?.getAttribute("type"), bookmark?.disabled, bookmark?.getAttribute("aria-label"), bookmark?.getAttribute("title")]).toEqual(["button", true, "Guardar vacante (solo demostración)", "Guardar vacante (solo demostración)"]);
+    expect([bookmark?.getAttribute("type"), bookmark?.disabled, bookmark?.getAttribute("aria-label"), bookmark?.getAttribute("title"), bookmark?.getAttribute("aria-pressed")]).toEqual(["button", false, "Guardar vacante (solo demostración)", "Guardar vacante (solo demostración)", "false"]);
     expect([bookmark?.className.includes("size-10"), bookmark?.getAttributeNames().some((name) => name.startsWith("on"))]).toEqual([true, false]);
     expect(container.querySelectorAll("button")).toHaveLength(1);
   });
@@ -149,6 +152,34 @@ describe("VacancyCard responsive, motion, and token contract", () => {
     const rail = classesOf(container.querySelector("li") as Element);
     expect([rail.includes("md:border-l"), rail.includes("md:pl-6"), container.querySelectorAll("li > *")]).toEqual([true, true, expect.objectContaining({ length: 2 })]);
     expect([container.querySelectorAll("[style]").length, RAW_COLOR.test(classesOf(container))]).toEqual([0, false]);
+  });
+});
+
+describe("VacancyCard prototype feedback island (CCP-R5A)", () => {
+  it("toggles the enriched bookmark island without ever claiming a real save", async () => {
+    const user = userEvent.setup();
+    const { container } = render(<VacancyCard job={enriched} />);
+    const bookmark = screen.getByRole("button", { name: "Guardar vacante (solo demostración)" });
+    const status = container.querySelector("[role='status']");
+    expect([status?.getAttribute("aria-live"), status?.className, status?.textContent]).toEqual(["polite", "sr-only", ""]);
+    await user.click(bookmark);
+    expect([bookmark.getAttribute("aria-pressed"), status?.textContent]).toEqual(["true", "Guardado de demostración activado: no se guardó nada real."]);
+    await user.click(bookmark);
+    expect([bookmark.getAttribute("aria-pressed"), status?.textContent]).toEqual(["false", "Guardado de demostración desactivado: no se modificó nada real."]);
+  });
+
+  it("keeps a wire-only card action-free and forwards only serializable island props", () => {
+    const { container } = render(<VacancyCard job={wireOnly} />);
+    expect(container.querySelectorAll("button, [role='status']")).toHaveLength(0);
+    expect(source).not.toMatch(/<button\b/u);
+    expect(source).toContain("./prototype-feedback-island");
+    const islands = [...source.matchAll(/<PrototypeFeedbackButton\b[\s\S]*?\/>/gu)].map((match) => match[0]);
+    expect(islands.length).toBeGreaterThan(0);
+    for (const island of islands) {
+      expect(island).not.toMatch(/=>|function|\{\s*\(/u);
+      // React's `key` is a framework slot, not a prop forwarded to the island.
+      for (const name of island.matchAll(/(?:^|\s)([a-z][a-zA-Z]*)=/gu)) expect(["key", ...ISLAND_PROPS]).toContain(name[1]);
+    }
   });
 });
 

@@ -2,9 +2,7 @@ import * as React from "react";
 import Link from "next/link";
 import {
   ArrowLeftIcon,
-  ArrowRightIcon,
   BanknoteIcon,
-  BookmarkIcon,
   BriefcaseIcon,
   Building2Icon,
   CalendarClockIcon,
@@ -16,10 +14,7 @@ import {
   HeartPulseIcon,
   LaptopIcon,
   LayoutGridIcon,
-  LinkIcon,
-  MailIcon,
   MapPinIcon,
-  Share2Icon,
   SparklesIcon,
   TrendingUpIcon,
   UsersIcon,
@@ -38,6 +33,7 @@ import {
   seniorityLabel,
   workModeLabel,
 } from "../formatters";
+import { PrototypeFeedbackButton } from "./prototype-feedback-island";
 import { CompanyMonogram, PrototypeDisclosure, VerifiedByPeopleFlow, prototypeApplicantsLabel, prototypeResponseLabel } from "./prototype-ui";
 
 /** Contextual icon per wire work mode, mirroring the public board rows. */
@@ -57,12 +53,12 @@ const focusRing =
 /* Body links keep `text-foreground` with an always-visible underline, because the accent token fails AA for body text on the dark page background. */
 const bodyLink =
   "font-medium text-foreground underline decoration-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-/** Primary apply affordance: a token tint, disabled until R5 wires real feedback. */
-const actionPrimary = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/15 px-4 text-sm font-semibold text-foreground disabled:opacity-70";
-/** Secondary save affordance, equally inert in this slice. */
-const actionGhost = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold text-muted-foreground disabled:opacity-60";
+/** Primary apply affordance: a token tint owned by the momentary apply island. */
+const actionPrimary = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/15 px-4 text-sm font-semibold text-foreground";
+/** Secondary save affordance, styled for the toggle save island. */
+const actionGhost = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold text-muted-foreground";
 const shareButton =
-  "grid h-10 flex-1 place-items-center rounded-lg border border-border bg-background text-muted-foreground disabled:opacity-60";
+  "grid h-10 flex-1 place-items-center rounded-lg border border-border bg-background text-muted-foreground";
 /** One benefit tile: tinted token surface, decorative icon, and complete safe text. */
 const benefitTile =
   "flex min-w-0 items-center gap-3 rounded-xl border border-border bg-card/60 p-3 text-sm text-muted-foreground";
@@ -87,16 +83,12 @@ function benefitIcon(benefit: string): typeof SparklesIcon {
   return BENEFIT_ICON_RULES.find(({ pattern }) => pattern.test(benefit))?.Icon ?? SparklesIcon;
 }
 
-/** Non-persistent share affordances: three inert icon buttons in the rail. */
-const SHARE_ACTIONS: ReadonlyArray<{
-  readonly key: string;
-  readonly label: string;
-  readonly Icon: typeof LinkIcon;
-}> = [
-  { key: "link", label: "Copiar enlace", Icon: LinkIcon },
-  { key: "share", label: "Compartir en redes", Icon: Share2Icon },
-  { key: "mail", label: "Enviar por correo", Icon: MailIcon },
-];
+/** Non-persistent share affordances: three momentary demonstration islands. */
+const SHARE_ACTIONS = [
+  { key: "copy", label: "Copiar enlace", feedback: "Copiar enlace es solo una demostración: no se copió nada." },
+  { key: "share", label: "Compartir en redes", feedback: "Compartir en redes es solo una demostración: no se compartió nada." },
+  { key: "mail", label: "Enviar por correo", feedback: "Enviar por correo es solo una demostración: no se envió ningún correo." },
+] as const;
 
 /**
  * Splits the validated description on blank lines into paragraphs; single
@@ -259,10 +251,11 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
  * scaffold. Only the wire description renders as `p` elements: every other
  * text node is a span, term, or definition. The company links to its canonical
  * profile only under the same exact opt-in match as the disclosed prototype
- * block; the rail carries the wire salary, the explicitly disabled prototype
- * apply/save/share affordances, and the profile context, and it is omitted
- * entirely when neither salary nor an exact profile resolves. No client
- * directive, hook, request, storage, or business mutation is involved here.
+ * block; the rail carries the wire salary, the prototype apply/save/share
+ * feedback islands, and the profile context, and it is omitted entirely when
+ * neither salary nor an exact profile resolves. This view stays a server
+ * component: it forwards plain strings to the island and owns no client
+ * directive, hook, request, storage, or business mutation.
  */
 export function JobDetailView({ job }: { job: PrototypeJobView }) {
   const prototype = job.prototype;
@@ -394,14 +387,15 @@ export function JobDetailView({ job }: { job: PrototypeJobView }) {
                   <ZapIcon aria-hidden="true" className="size-4 shrink-0" />
                   {prototypeResponseLabel(prototype.responseTimeDays)}
                 </span>
-                <button type="button" disabled aria-disabled="true" aria-label="Postularme (solo demostración)" aria-describedby="proceso-prototipo" title="Postularme (solo demostración)" className={actionPrimary}>
-                  Postularme
-                  <ArrowRightIcon aria-hidden="true" className="size-4 shrink-0" />
-                </button>
-                <button type="button" disabled aria-disabled="true" aria-label="Guardar vacante (solo demostración)" aria-describedby="proceso-prototipo" title="Guardar vacante (solo demostración)" className={actionGhost}>
-                  <BookmarkIcon aria-hidden="true" className="size-4 shrink-0" />
-                  Guardar
-                </button>
+                <PrototypeFeedbackButton
+                  mode="momentary" icon="apply" label="Postularme (solo demostración)" text="Postularme" iconPosition="end" describedBy="proceso-prototipo"
+                  className={actionPrimary} feedback="Postulación de demostración: no se envió ninguna postulación real."
+                />
+                <PrototypeFeedbackButton
+                  mode="toggle" icon="bookmark" label="Guardar vacante (solo demostración)" text="Guardar" describedBy="proceso-prototipo" className={actionGhost}
+                  activeLabel="Guardar vacante (marcada solo en esta demostración)" activeFeedback="Guardado de demostración activado: no se guardó nada real."
+                  inactiveFeedback="Guardado de demostración desactivado: no se modificó nada real."
+                />
                 {prototype.verifiedByPeopleFlow && <VerifiedByPeopleFlow />}
               </section>
             )}
@@ -429,10 +423,8 @@ export function JobDetailView({ job }: { job: PrototypeJobView }) {
               <section data-detail-card="share" className={`${cardSurface} bg-card/40 p-5`}>
                 <h3 className="text-sm font-semibold text-foreground">Compartir vacante</h3>
                 <div className="mt-3 flex items-center gap-2">
-                  {SHARE_ACTIONS.map(({ key, label, Icon }) => (
-                    <button key={key} type="button" disabled aria-disabled="true" aria-label={`${label} (solo demostración)`} title={`${label} (solo demostración)`} className={shareButton}>
-                      <Icon aria-hidden="true" className="size-[18px]" />
-                    </button>
+                  {SHARE_ACTIONS.map(({ key, label, feedback }) => (
+                    <PrototypeFeedbackButton key={key} mode="momentary" icon={key} label={`${label} (solo demostración)`} feedback={feedback} iconOnly iconClassName="size-[18px]" className={shareButton} />
                   ))}
                 </div>
               </section>
