@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R6C1 company accessibility contract
+- Current task: CCP-R6C2 final integrated acceptance
 - Push/PR: not authorized
 
 ## Goal
@@ -57,7 +57,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R5B — Prototype interaction browser contracts:** Reconciled detail/board/company Playwright contracts for enabled keyboard-reachable controls, toggle and repeated momentary live-region feedback, storage stability, isolated current fixture routing, and zero business mutations. Authored 241/250 lines. Verification: production build and 51/51 focused Chromium PASS on isolated ports 3100/4011, TypeScript and exact-scope ESLint PASS; independent verifier PASS after live-region scoping, exact save-state selection, and fixture-origin correction; native review approved and acknowledged. Runtime harness: isolated current fixture plus built app, preserving recovery fixture 4010. Rollback boundary: three public browser interaction specs. Commit evidence: `4c06bd45ddb4bcc53fb16c007f58e6c98ae4efed`.
 - [x] **CCP-R6A — Integrated acceptance contracts:** Added the user-selected first-position marketing entry point to `/vacantes`; restored the root→board→detail/Back/Forward journey; parameterized the a11y fixture; reconciled semantic logo/company/status selectors, intentional Recharts 3.x and Tabler dashboard dependency boundaries, and the dashboard decorative token across light/explicit-dark/system-dark themes. Authored 76/90 lines. Verification: 831/831 full Vitest PASS, production build PASS, TypeScript and full ESLint PASS, 37/37 targeted Chromium PASS with only the four R6B root axe cells excluded; independent verifier PASS; native review approved and acknowledged. External recovery fixture 4010 preserved. Commit evidence: `23d9d4420daafbd531e4b35120dccedaf8d26325`.
 - [x] **CCP-R6B — Root accessibility contrast:** Stabilized full-document reveal readiness before axe without fixed sleeps/exclusions/hiding, reducing the transient scan to 18 genuine steady-state nodes; introduced AA-safe same-hue light accent text while preserving exact dark accent identity and primary CTA brand color; aligned the frozen palette contract. Authored 120/180 lines. Verification: strict RED 4 failing cells/18 nodes → GREEN 4/4 root axe, full root 13/13, full Vitest 831/831, TypeScript/full ESLint/build PASS; independent verifier PASS after requiring every reveal to be `in` at opacity 1; native review approved and acknowledged with one non-blocking reveal-readiness advisory. External 4010 and foreign 3001 preserved. Commit evidence: `5a03f0c2f84cc8ff0ae18ab8315194224041d09d`.
-- [ ] **CCP-R6C1 — Company accessibility contract:** Add the missing company careers WCAG A/AA light/dark desktop/mobile matrix exposed by the first full acceptance run. Forecast: 30–70 lines.
+- [x] **CCP-R6C1 — Company accessibility contract:** Added the missing company careers WCAG A/AA matrix across light/dark desktop 1440×900 and mobile 375×812 while preserving the existing geometry/interaction contract. Authored 34/70 lines. Verification: company axe 4/4 and full company spec 5/5 Chromium PASS, production build/TypeScript/exact ESLint PASS; independent verifier PASS; native review approved and acknowledged. Recovery 4010 and foreign 3001 preserved. Commit evidence: `78089b41f6418135fe287950206a12ffc155bdd8`.
 - [ ] **CCP-R6C2 — Final integrated acceptance:** Re-run the complete committed-tree corpus, generate a bounded timeout-safe visual pack outside the repository, and request human visual approval. Verification-only unless final evidence exposes candidate drift.
 
 ## Acceptance criteria
@@ -87,4 +87,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Complete CCP-R6C1 with strict TDD by adding the missing company axe matrix, then rerun CCP-R6C2 and generate the visual approval pack with bounded waits.
+Run CCP-R6C2 from the committed tree and generate the bounded visual pack; automated completion must be followed by mandatory human visual approval.
