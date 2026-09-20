@@ -324,7 +324,7 @@ export function JobDetailView({ job }: { job: PrototypeJobView }) {
           <CompanyMonogram name={job.company.name} />
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
-              <h1 className="break-words font-heading text-2xl font-bold tracking-tight text-foreground md:text-3xl">{job.title}</h1>
+              <h1 className="min-w-0 break-words font-heading text-2xl font-bold tracking-tight text-foreground md:text-3xl">{job.title}</h1>
               {prototype?.featured === true && <span data-detail-flag="featured" className={featuredBadge}>Destacada</span>}
             </div>
             <div className="text-sm text-muted-foreground">

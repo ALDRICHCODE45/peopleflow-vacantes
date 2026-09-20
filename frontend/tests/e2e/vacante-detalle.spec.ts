@@ -14,6 +14,17 @@ const richRequest = `/jobs/${RICH_ID}`;
 const missingRequest = `/jobs/${MISSING_ID}`;
 const NOT_FOUND_COPY = "Esta vacante no está disponible";
 const XSS_TEXT = "<script>alert('xss')</script>";
+// Canonical company profile both enriched demo vacancies resolve to.
+const COMPANY_PROFILE_PATH = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
+// The five disclosed demonstration controls in rail order (apply, save, then
+// the three share affordances) with the minimum target size each one keeps.
+const DEMO_CONTROLS = [
+  { name: "Postularme (solo demostración)", minTargetPx: 44 },
+  { name: "Guardar vacante (solo demostración)", minTargetPx: 44 },
+  { name: "Copiar enlace (solo demostración)", minTargetPx: 40 },
+  { name: "Compartir en redes (solo demostración)", minTargetPx: 40 },
+  { name: "Enviar por correo (solo demostración)", minTargetPx: 40 },
+] as const;
 
 const fixtureRequests = (request: APIRequestContext) =>
   request.get(`${fixtureUrl}/__requests`).then((r) => r.json());
@@ -36,6 +47,59 @@ const backLink = (scope: Page | Locator) =>
   scope.getByRole("link", { name: /volver a vacantes/i });
 
 const robots = (page: Page) => page.locator('meta[name="robots"]');
+
+const articleOf = (page: Page) => page.getByRole("article");
+
+/** One stable data-attribute region of the canonical detail article. */
+const detailRegion = (page: Page, name: string) =>
+  articleOf(page).locator(`[data-detail-region='${name}']`);
+
+/** Viewport-space edges of one element, rounded to whole pixels. */
+const boxOf = (locator: Locator) =>
+  locator.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    return { top: Math.round(box.top), bottom: Math.round(box.bottom), left: Math.round(box.left), right: Math.round(box.right) };
+  });
+
+/** Smallest pointer-target dimension of one element, in CSS pixels. */
+const minTargetSizePx = (locator: Locator) =>
+  locator.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    // Raw value: a sub-threshold dimension must never round up to pass.
+    return Math.min(box.width, box.height);
+  });
+
+/** One sequential-focus stop plus the focus treatment it received. */
+type FocusStep = {
+  tag: string;
+  name: string;
+  href: string | null;
+  inArticle: boolean;
+  disabled: boolean;
+  focusVisible: boolean;
+  outline: boolean;
+  ring: boolean;
+};
+
+/** Reads the current focus stop; a real Tab keypress supplies focus-visible. */
+const focusStep = (page: Page) =>
+  page.evaluate((): FocusStep => {
+    const element =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const style = element === null ? null : getComputedStyle(element);
+    return {
+      tag: element?.tagName ?? "",
+      name: (element?.getAttribute("aria-label") ?? element?.textContent ?? "").replace(/\s+/g, " ").trim(),
+      href: element instanceof HTMLAnchorElement ? element.getAttribute("href") : null,
+      inArticle: element !== null && element.closest("article") !== null,
+      disabled: element instanceof HTMLButtonElement ? element.disabled : false,
+      focusVisible: element?.matches(":focus-visible") ?? false,
+      outline: style !== null && style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0,
+      ring: style !== null && style.boxShadow !== "none",
+    };
+  });
 
 async function expectBranded404(page: Page) {
   await expect(page.getByText(NOT_FOUND_COPY)).toBeVisible();
@@ -74,9 +138,21 @@ test("renders only validated contract data", async ({ page }) => {
   await expect(
     article.getByRole("heading", { level: 1, name: "Ingeniera Frontend" }),
   ).toBeVisible();
-  await expect(article.getByText("Acme", { exact: true })).toBeVisible();
-  for (const label of ["Remoto", "Tiempo completo", "Senior"]) {
-    await expect(article.getByText(label, { exact: true })).toBeVisible();
+  // The enriched Acme vacancy links the company in the header and repeats it in
+  // the rail, so the canonical company link is the unambiguous identity contract.
+  await expect(
+    article.getByRole("link", { name: "Acme", exact: true }),
+  ).toHaveAttribute("href", COMPANY_PROFILE_PATH);
+  // The reference stat cards own the wire mode, the wire schedule, and the
+  // prototype experience label, so each value is asserted in its own card.
+  for (const [key, value] of [
+    ["modality", "Remoto"],
+    ["schedule", "Tiempo completo"],
+    ["experience", "5+ años"],
+  ] as const) {
+    await expect(article.locator(`[data-detail-stat='${key}'] dd`)).toHaveText(
+      value,
+    );
   }
   await expect(backLink(article)).toHaveAttribute("href", "/vacantes");
   // Omitted optionals stay omitted: no salary, date, or location copy.
@@ -89,16 +165,27 @@ test("safe description and full metadata", async ({ page, baseURL }) => {
   const response = await page.goto(`/vacantes/${RICH_ID}`);
   expect(response?.status()).toBe(200);
   const article = page.getByRole("article");
+  const header = detailRegion(page, "header");
   await expect(article.locator("script")).toHaveCount(0);
   await expect(article.locator("img")).toHaveCount(0);
   await expect(article.getByText(XSS_TEXT)).toBeVisible();
   // Blank lines split paragraphs; a single break stays inside one paragraph.
-  const paragraphs = article.getByRole("paragraph");
+  // Only the wire description is a content-region paragraph: the article also
+  // carries prototype notes and the rail's PeopleFlow verification row.
+  const paragraphs = detailRegion(page, "content").getByRole("paragraph");
   await expect(paragraphs).toHaveCount(4);
   await expect(paragraphs.last()).toHaveText(/Línea uno\nLínea dos\./);
-  await expect(article.getByText(/MXN/)).toBeVisible();
-  await expect(article.getByText(/publicada/i)).toBeVisible();
-  await expect(article.getByText(/Monterrey/)).toBeVisible();
+  await expect(article.locator("[data-detail-card='salary']")).toContainText(
+    /MXN/,
+  );
+  await expect(
+    header.locator("[data-detail-meta='published'] dd"),
+  ).toBeVisible();
+  // The rail profile context repeats the same city, so the wire location stays
+  // scoped to its own header term instead of matching both.
+  await expect(header.locator("[data-detail-meta='location'] dd")).toHaveText(
+    "Monterrey, Nuevo León",
+  );
   // Dynamic title, self-canonical URL, and indexable robots metadata.
   await expect(page).toHaveTitle(/Desarrolladora Go \| PeopleFlow/);
   const canonical = page.locator('link[rel="canonical"]');
@@ -251,7 +338,7 @@ test("detail preserves preset typography, tokens, radius, and bounded UI", async
   page,
 }) => {
   await page.goto(`/vacantes/${MAIN_ID}`);
-  const article = page.getByRole("article");
+  const article = articleOf(page);
   const evidence = await article.evaluate((element) => {
     const probe = document.createElement("span");
     document.body.appendChild(probe);
@@ -260,14 +347,20 @@ test("detail preserves preset typography, tokens, radius, and bounded UI", async
       return getComputedStyle(probe).color;
     };
     const heading = element.querySelector("h1")!;
-    const description = element.querySelector("p")!;
-    const badge = element.querySelector("li")!;
+    // The wire description is the content region's own paragraph; the
+    // article's first paragraph is instead the prototype disclosure note.
+    const description = element.querySelector(
+      "[data-detail-region='content'] p",
+    )!;
+    const statLabel = element.querySelector(
+      "[data-detail-region='stats'] dt",
+    )!;
     const result = {
       bodyFont: getComputedStyle(document.body).fontFamily,
       headingFont: getComputedStyle(heading).fontFamily,
       headingColor: getComputedStyle(heading).color,
       foreground: resolveColor("--foreground"),
-      badgeColor: getComputedStyle(badge).color,
+      statLabelColor: getComputedStyle(statLabel).color,
       radius: getComputedStyle(document.documentElement)
         .getPropertyValue("--radius")
         .trim(),
@@ -280,17 +373,13 @@ test("detail preserves preset typography, tokens, radius, and bounded UI", async
   });
 
   expect(evidence.bodyFont).toMatch(/Inter/);
-  expect(evidence.headingFont).toMatch(/Inter/);
+  // CCP-05 loaded the brand display face globally: headings are Clash Display.
+  expect(evidence.headingFont).toMatch(/Clash Display/);
   expect(evidence.headingColor).toBe(evidence.foreground);
-  expect(evidence.badgeColor).toBe(evidence.mutedForeground);
+  expect(evidence.statLabelColor).toBe(evidence.mutedForeground);
   expect(evidence.descriptionColor).toBe(evidence.mutedForeground);
   expect(evidence.radius).toMatch(/^(?:0?\.)625rem$/);
   expect(evidence.inlineStyles).toBe(0);
-  await expect(
-    article.getByRole("button", {
-      name: /guardar|compartir|postular|solicitar|aplicar|beneficios/i,
-    }),
-  ).toHaveCount(0);
 });
 
 test("detail error boundary promotes its heading to the single h1", async ({
@@ -325,4 +414,173 @@ test("detail not-found boundary promotes its heading to the single h1", async ({
   ).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(backLink(page)).toHaveAttribute("href", "/vacantes");
+});
+
+// CCP-R4C bounded contracts: every assertion below is scoped to a semantic
+// region, role, or stable data attribute of the enriched RICH detail fixture.
+
+test("rich detail rail stays sticky beside content and stacks statically below lg", async ({
+  page,
+}) => {
+  const geometry = async () => {
+    const [content, rail, style] = await Promise.all([
+      boxOf(detailRegion(page, "content")),
+      boxOf(detailRegion(page, "rail")),
+      detailRegion(page, "rail").evaluate((element) => {
+        const computed = getComputedStyle(element);
+        return { position: computed.position, top: computed.top };
+      }),
+    ]);
+    return { content, rail, style, overflow: await documentOverflowPx(page) };
+  };
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/vacantes/${RICH_ID}`);
+  const desktop = await geometry();
+  test.info().annotations.push({ type: "detail geometry @1440", description: JSON.stringify(desktop) });
+  // `lg:top-24` is 96px: the rail sits beside the content from the same row top.
+  expect([desktop.style, desktop.rail.left >= desktop.content.right, Math.abs(desktop.rail.top - desktop.content.top) <= 1, desktop.overflow]).toEqual([{ position: "sticky", top: "96px" }, true, true, 0]);
+  // Scroll to the rail's own document position: it must pin at its 96px offset.
+  const railTop = await detailRegion(page, "rail").evaluate((element) => element.getBoundingClientRect().top + window.scrollY);
+  await page.evaluate((top) => window.scrollTo(0, top), railTop);
+  await expect.poll(async () => (await boxOf(detailRegion(page, "rail"))).top).toBe(96);
+  await page.evaluate(() => window.scrollTo(0, 0));
+
+  await page.setViewportSize({ width: 375, height: 812 });
+  const mobile = await geometry();
+  test.info().annotations.push({ type: "detail geometry @375", description: JSON.stringify(mobile) });
+  // Below lg the rail returns to normal flow: static, stacked, same left edge.
+  expect([mobile.style, mobile.rail.top >= mobile.content.bottom, Math.abs(mobile.rail.left - mobile.content.left) <= 1, mobile.overflow]).toEqual([{ position: "static", top: "auto" }, true, true, 0]);
+});
+
+test("rich detail keeps the complete safe description and a separately scoped verification claim", async ({
+  page,
+}) => {
+  await page.goto(`/vacantes/${RICH_ID}`);
+  const content = detailRegion(page, "content");
+  const rail = detailRegion(page, "rail");
+  const paragraphs = content.getByRole("paragraph");
+  // Exact ordered proof of the complete fixture description, in four parts.
+  await expect(paragraphs).toHaveText([
+    "Primer párrafo de la vacante.",
+    XSS_TEXT,
+    "Segundo párrafo con <img src=x onerror=alert(1)> incrustado.",
+    "Línea uno\nLínea dos.",
+  ]);
+  // Markup-like description text stays literal characters, never elements.
+  await expect(content.getByText(XSS_TEXT)).toBeVisible();
+  await expect(
+    content.getByText("Segundo párrafo con <img src=x onerror=alert(1)> incrustado."),
+  ).toBeVisible();
+  await expect(
+    content.locator("script, img, iframe, object, embed, b, em"),
+  ).toHaveCount(0);
+  // The PeopleFlow verification row is a disclosed prototype rail claim, so it
+  // never leaks into the wire description region.
+  await expect(rail.getByText("Verificada por PeopleFlow")).toBeVisible();
+  await expect(content.getByText("Verificada por PeopleFlow")).toHaveCount(0);
+});
+
+test("rich detail exposes exactly five named disabled demonstration controls", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/vacantes/${RICH_ID}`);
+  const article = articleOf(page);
+  await expect(article.getByRole("button")).toHaveCount(DEMO_CONTROLS.length);
+  for (const { name, minTargetPx } of DEMO_CONTROLS) {
+    const button = article.getByRole("button", { name });
+    await expect(button).toBeVisible();
+    await expect(button).toBeDisabled();
+    await expect(button).toHaveAttribute("aria-disabled", "true");
+    // A demonstration affordance is never a submit target.
+    await expect(button).toHaveAttribute("type", "button");
+    expect(await minTargetSizePx(button)).toBeGreaterThanOrEqual(minTargetPx);
+  }
+  // The breadcrumb return link keeps its own 40px target.
+  expect(await minTargetSizePx(article.getByRole("link", { name: "Volver a vacantes" }))).toBeGreaterThanOrEqual(40);
+});
+
+test("rich detail keeps article links keyboard reachable and disabled controls out of tab order", async ({
+  page,
+}) => {
+  await page.goto(`/vacantes/${RICH_ID}`);
+  const article = articleOf(page);
+  await expect(article.getByRole("link")).toHaveCount(3);
+
+  const steps: FocusStep[] = [];
+  for (let presses = 0; presses < 40; presses++) {
+    await page.keyboard.press("Tab");
+    steps.push(await focusStep(page));
+  }
+
+  // The three article links are reachable in document order, each with its own
+  // accessible name and a visible focus-visible treatment.
+  const links = steps.filter((step) => step.inArticle && step.tag === "A").filter((step, index, articleLinks) => articleLinks.findIndex((link) => link.name === step.name && link.href === step.href) === index);
+  expect(links.map((step) => [step.name, step.href])).toEqual([
+    ["Volver a vacantes", "/vacantes"],
+    ["Acme", COMPANY_PROFILE_PATH],
+    ["Conoce a Acme", COMPANY_PROFILE_PATH],
+  ]);
+  expect(links.every((step) => step.focusVisible && (step.outline || step.ring))).toBe(true);
+  // Every disabled demonstration button is skipped by sequential focus.
+  expect(steps.filter((step) => step.tag === "BUTTON" && step.disabled)).toEqual([]);
+});
+
+test("rich detail keeps canonical company links, indexable metadata, and an unbroken heading outline", async ({
+  page,
+  baseURL,
+}) => {
+  await page.goto(`/vacantes/${RICH_ID}`);
+  const article = articleOf(page);
+  // Both company affordances are opt-in and point at the canonical profile.
+  await expect(
+    article.getByRole("link", { name: "Acme", exact: true }),
+  ).toHaveAttribute("href", COMPANY_PROFILE_PATH);
+  await expect(
+    article.getByRole("link", { name: "Conoce a Acme" }),
+  ).toHaveAttribute("href", COMPANY_PROFILE_PATH);
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+    "href",
+    `${baseURL}/vacantes/${RICH_ID}`,
+  );
+  await expect(robots(page)).toHaveAttribute("content", /index/i);
+  await expect(robots(page)).not.toHaveAttribute("content", /noindex/i);
+
+  // One h1 leads the document and no level is ever skipped downwards.
+  const levels = await article.locator("h1, h2, h3, h4, h5, h6").evaluateAll((nodes) => nodes.map((node) => Number(node.tagName.slice(1))));
+  expect(levels[0]).toBe(1);
+  expect(levels.filter((level) => level === 1)).toHaveLength(1);
+  levels.forEach((level, index) => {
+    if (index > 0) expect(level - levels[index - 1]).toBeLessThanOrEqual(1);
+  });
+});
+
+test("rich detail registers zero non-GET business requests", async ({ page }) => {
+  const nonGet: string[] = [];
+  page.on("request", (entry) => {
+    // Only the framework's own development diagnostics under /_next/ are exempt.
+    if (
+      ["POST", "PUT", "PATCH", "DELETE"].includes(entry.method()) &&
+      !entry.url().includes("/_next/")
+    ) {
+      nonGet.push(`${entry.method()} ${entry.url()}`);
+    }
+  });
+
+  await page.goto(`/vacantes/${RICH_ID}`);
+  await expect(
+    articleOf(page).getByRole("heading", {
+      level: 1,
+      name: "Desarrolladora Go",
+    }),
+  ).toBeVisible();
+  // Even a dispatched activation of every disabled demonstration control
+  // reaches no backend: the server-rendered view owns no handler.
+  for (const { name } of DEMO_CONTROLS) {
+    await articleOf(page).getByRole("button", { name }).dispatchEvent("click");
+  }
+  await page.keyboard.press("Tab");
+  await page.waitForTimeout(250);
+  expect(nonGet).toEqual([]);
 });
