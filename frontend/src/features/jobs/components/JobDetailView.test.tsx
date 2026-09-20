@@ -18,7 +18,7 @@ import { ACME_PROTOTYPE_PROFILE } from "../../company-profile/prototype-companie
 import { enrichJob } from "../enrich";
 import type { PrototypeJobView } from "../enrich";
 import type { JobItem } from "../types";
-import { PROTOTYPE_DISCLOSURE, companyInitials, prototypeApplicantsLabel } from "./prototype-ui";
+import { PROTOTYPE_DISCLOSURE, companyInitials, prototypeApplicantsLabel, prototypeResponseLabel } from "./prototype-ui";
 import { JobDetailView } from "./JobDetailView";
 
 /** Font-size utilities share the `text-` prefix with the color utilities below. */
@@ -129,7 +129,8 @@ describe("JobDetailView prototype role block", () => {
     const job: PrototypeJobView = { ...enrichedJob, description: UNSAFE_DESCRIPTION };
     const { container } = render(<JobDetailView job={job} />);
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(screen.getAllByRole("paragraph")).toHaveLength(4);
+    const content = container.querySelector("[data-detail-region='content']");
+    expect(within(content as HTMLElement).getAllByRole("paragraph")).toHaveLength(4);
     expect(container.querySelectorAll("article img, article script")).toHaveLength(0);
     // The breadcrumb stays the article's first list item, so no prototype list
     // can precede the header, and the view adds no inline style.
@@ -157,7 +158,8 @@ describe("JobDetailView prototype role block", () => {
       container.querySelectorAll("article img, article script, article b, article em"),
     ).toHaveLength(0);
     // Only the wire description is a paragraph: the prototype block is not.
-    expect(screen.getAllByRole("paragraph")).toHaveLength(1);
+    const content = container.querySelector("[data-detail-region='content']");
+    expect(within(content as HTMLElement).getAllByRole("paragraph")).toHaveLength(1);
   });
 
   it("renders the disclosed prototype role content from the enrichment only", () => {
@@ -173,17 +175,17 @@ describe("JobDetailView prototype role block", () => {
     for (const label of ["Indispensables", "Deseables"]) {
       expect(screen.getByRole("heading", { level: 4, name: label })).toBeVisible();
     }
-    for (const label of ["Requisitos", "Habilidades y beneficios"]) {
+    for (const label of ["Requisitos", "Habilidades", "Beneficios"]) {
       expect(screen.getByRole("heading", { level: 3, name: label })).toBeVisible();
     }
     for (const text of [
       ...prototype.requiredRequirements,
       ...prototype.preferredRequirements,
       ...prototype.skills,
+      ...prototype.benefits,
     ]) {
       expect(screen.getByText(text)).toBeVisible();
     }
-    expect(screen.getByText(prototype.benefits.join(" · "))).toBeVisible();
     // The wire salary keeps its own header slot; the pay frequency is disclosed
     // separately and never fuses into the salary string.
     const salary = formatSalary({ min: 30000, max: 45000, currency: "MXN" })!;
@@ -223,7 +225,8 @@ describe("JobDetailView prototype role block", () => {
       ["H3", "Requisitos"],
       ["H4", "Indispensables"],
       ["H4", "Deseables"],
-      ["H3", "Habilidades y beneficios"],
+      ["H3", "Habilidades"],
+      ["H3", "Beneficios"],
     ]);
   });
 
@@ -232,7 +235,7 @@ describe("JobDetailView prototype role block", () => {
     const levels = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")].map((heading) =>
       Number(heading.tagName.slice(1)),
     );
-    expect(levels).toEqual([1, 2, 2, 3, 4, 4, 3]);
+    expect(levels).toEqual([1, 2, 2, 3, 4, 4, 3, 3, 3, 3, 3]);
     levels.forEach((level, index) => {
       if (index > 0) expect(level - levels[index - 1]).toBeLessThanOrEqual(1);
     });
@@ -375,8 +378,175 @@ describe("JobDetailView reference header, stats, and scaffold (CCP-R4A)", () => 
     expect(prototype.publishedAgoLabel).not.toMatch(/publicada/i);
   });
 
-  it("stays a server-safe view with no client hook, request, storage, or action", () => {
+  it("stays a server-safe view with no client hook, request, storage, or mutation", () => {
     expect(viewSource).toMatch(/<article/);
-    expect(viewSource).not.toMatch(/["']use client["']|use[A-Z]\w*\(|fetch\(|localStorage|sessionStorage|<button|onClick|onSubmit|style=\{\{/);
+    expect(viewSource).not.toMatch(/["']use client["']|use[A-Z]\w*\(|fetch\(|localStorage|sessionStorage|onClick|onSubmit|style=\{\{/);
+    // Every interactive-looking control is a disabled, non-persistent affordance.
+    const buttons = viewSource.match(/<button\b[^>]*>/g) ?? [];
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const button of buttons) {
+      expect(button).toMatch(/\bdisabled\b/);
+      expect(button).not.toMatch(/\bon[A-Z]\w*=/);
+    }
+  });
+});
+
+describe("JobDetailView reference content and sticky rail (CCP-R4B)", () => {
+  const enrichedJob = enrichJob(baseJob);
+  const fullJob: JobItem = {
+    ...baseJob,
+    location: "Monterrey, Nuevo León",
+    salary_min: 30000,
+    salary_max: 45000,
+    published_at: "2026-02-14T09:30:00Z",
+  };
+  // No prototype enrichment and no matching profile: only wire salary remains.
+  const unknownCompany = { id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d99", name: "Otra Empresa" };
+  const wireOnlySalaryJob: JobItem = {
+    ...baseJob,
+    company: unknownCompany,
+    salary_min: 20000,
+    salary_max: 30000,
+  };
+  const wireOnlyBareJob: JobItem = { ...baseJob, company: unknownCompany };
+  const region = (container: HTMLElement, name: string) => {
+    const element = container.querySelector<HTMLElement>(`article [data-detail-region='${name}']`);
+    if (element === null) throw new Error(`missing detail region: ${name}`);
+    return element;
+  };
+  const card = (container: HTMLElement, name: string) =>
+    container.querySelector<HTMLElement>(`article [data-detail-card='${name}']`);
+
+  it("splits requirements, skills, and benefits into reference sections", () => {
+    render(<JobDetailView job={enrichedJob} />);
+    const prototype = enrichedJob.prototype!;
+    for (const label of ["Requisitos", "Habilidades", "Beneficios"]) {
+      expect(screen.getByRole("heading", { level: 3, name: label })).toBeVisible();
+    }
+    for (const label of ["Indispensables", "Deseables"]) {
+      expect(screen.getByRole("heading", { level: 4, name: label })).toBeVisible();
+    }
+    for (const text of [
+      ...prototype.requiredRequirements,
+      ...prototype.preferredRequirements,
+      ...prototype.skills,
+      ...prototype.benefits,
+    ]) {
+      expect(screen.getByText(text)).toBeVisible();
+    }
+  });
+
+  it("renders every benefit as one token-only tile with a decorative icon", () => {
+    const { container } = render(<JobDetailView job={enrichedJob} />);
+    const prototype = enrichedJob.prototype!;
+    const tiles = [...container.querySelectorAll<HTMLElement>("article [data-benefit-tile]")];
+    expect(tiles).toHaveLength(prototype.benefits.length);
+    expect(tiles.map((tile) => tile.textContent)).toEqual([...prototype.benefits]);
+    for (const tile of tiles) {
+      expect(tile.querySelector("[aria-hidden='true'] svg")).not.toBeNull();
+    }
+    // The tile surfaces are semantic tokens only, never a raw palette utility.
+    const classes = [...container.querySelectorAll("article *")].map((node) => node.getAttribute("class") ?? "").join(" ");
+    expect(classes).not.toMatch(RAW_COLOR_UTILITY);
+  });
+
+  it("builds the desktop sticky rail while the scaffold stacks below lg", () => {
+    const { container } = render(<JobDetailView job={enrichedJob} />);
+    const rail = region(container, "rail");
+    const content = region(container, "content");
+    expect(content.parentElement).toBe(rail.parentElement);
+    expect(rail.className).toMatch(/lg:sticky/);
+    expect(rail.className).toMatch(/lg:top-24/);
+    expect(rail.className).toMatch(/lg:self-start/);
+    // Below lg the rail stays in normal flow: no unconditional positioning.
+    expect(rail.className).not.toMatch(/(?:^|\s)sticky(?:\s|$)/);
+    expect(rail.className).not.toMatch(/(?:^|\s)absolute(?:\s|$)/);
+  });
+
+  it("keeps prototype apply and save actions explicitly disabled and non-persistent", () => {
+    render(<JobDetailView job={enrichedJob} />);
+    for (const name of ["Postularme (solo demostración)", "Guardar vacante (solo demostración)"]) {
+      const button = screen.getByRole("button", { name });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button.getAttribute("title")).toMatch(/demostración/i);
+      expect(button).not.toHaveAttribute("type", "submit");
+    }
+  });
+
+  it("exposes a fully disabled share affordance with accessible names", () => {
+    render(<JobDetailView job={enrichedJob} />);
+    for (const label of ["Copiar enlace", "Compartir en redes", "Enviar por correo"]) {
+      const button = screen.getByRole("button", { name: `${label} (solo demostración)` });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("aria-disabled", "true");
+    }
+  });
+
+  it("renders the company profile context and canonical link in the rail", () => {
+    const { container } = render(<JobDetailView job={enrichedJob} />);
+    const company = card(container, "company");
+    expect(company).not.toBeNull();
+    expect(within(company!).getByText(ACME_PROTOTYPE_PROFILE.companySize)).toBeVisible();
+    expect(within(company!).getByText(ACME_PROTOTYPE_PROFILE.location)).toBeVisible();
+    const link = within(company!).getByRole("link", { name: `Conoce a ${ACME_PROTOTYPE_PROFILE.name}` });
+    expect(link).toHaveAttribute("href", `/empresas/${PROTOTYPE_COMPANY_ID}`);
+  });
+
+  it("keeps only the wire salary card for a vacancy without prototype or profile", () => {
+    const { container } = render(<JobDetailView job={wireOnlySalaryJob} />);
+    const rail = region(container, "rail");
+    expect(rail).toHaveTextContent("Salario");
+    expect(rail).toHaveTextContent(formatSalary({ min: 20000, max: 30000, currency: "MXN" })!);
+    expect(within(rail).queryByRole("button")).toBeNull();
+    expect(card(container, "company")).toBeNull();
+    expect(card(container, "share")).toBeNull();
+    expect(card(container, "actions")).toBeNull();
+  });
+
+  it("omits the rail entirely when neither salary nor an exact profile resolves", () => {
+    const { container } = render(<JobDetailView job={wireOnlyBareJob} />);
+    expect(container.querySelector("article [data-detail-region='rail']")).toBeNull();
+    expect(region(container, "content")).toHaveTextContent("Sobre la vacante");
+  });
+
+  it("keeps the wire-only salary rail when no prototype enrichment exists", () => {
+    const { container } = render(<JobDetailView job={fullJob} />);
+    expect(card(container, "salary")).not.toBeNull();
+    expect(card(container, "actions")).toBeNull();
+    expect(card(container, "share")).toBeNull();
+  });
+
+  it("keeps actions and share without a salary card when the profile matches but no salary exists", () => {
+    const { container } = render(<JobDetailView job={enrichedJob} />);
+    expect(card(container, "salary")).toBeNull();
+    expect(card(container, "actions")).not.toBeNull();
+    expect(card(container, "company")).not.toBeNull();
+    expect(card(container, "share")).not.toBeNull();
+    expect(region(container, "rail")).toHaveTextContent(prototypeResponseLabel(enrichedJob.prototype!.responseTimeDays));
+  });
+
+  it("escapes markup-like benefit text and keeps one decorative icon per tile", () => {
+    const unsafeBenefit = "<img src=x onerror=alert(1)>";
+    const job: PrototypeJobView = {
+      ...enrichedJob,
+      prototype: { ...enrichedJob.prototype!, benefits: [unsafeBenefit, "Bono anual"] },
+    };
+    const { container } = render(<JobDetailView job={job} />);
+    const tiles = [...container.querySelectorAll<HTMLElement>("article [data-benefit-tile]")];
+    expect(tiles.map((tile) => tile.textContent)).toEqual([unsafeBenefit, "Bono anual"]);
+    expect(container.querySelectorAll("article img, article script")).toHaveLength(0);
+    for (const tile of tiles) {
+      expect(tile.querySelector("[aria-hidden='true'] svg")).not.toBeNull();
+    }
+  });
+
+  it("scopes the PeopleFlow verification row to the prototype claim", () => {
+    const { rerender } = render(<JobDetailView job={enrichedJob} />);
+    expect(screen.getByText("Verificada por PeopleFlow")).toBeVisible();
+    rerender(<JobDetailView job={{ ...enrichedJob, prototype: { ...enrichedJob.prototype!, verifiedByPeopleFlow: false } }} />);
+    expect(screen.queryByText("Verificada por PeopleFlow")).toBeNull();
+    rerender(<JobDetailView job={wireOnlyBareJob} />);
+    expect(screen.queryByText("Verificada por PeopleFlow")).toBeNull();
   });
 });
