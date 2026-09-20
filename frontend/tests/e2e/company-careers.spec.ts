@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const COMPANY_PATH = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
@@ -78,4 +79,37 @@ test("company careers cards keep the reference region contract and disclose ever
   const diagnostics = nonGet.filter((entry) => entry.includes("__nextjs") || entry.includes("/_next/"));
   test.info().annotations.push({ type: "non-GET requests", description: JSON.stringify({ diagnostics, mutations: nonGet.filter((e) => !diagnostics.includes(e)) }) });
   expect(nonGet.filter((entry) => !diagnostics.includes(entry))).toEqual([]);
+});
+
+// The complete 92-test acceptance corpus had no company-page axe scan, so the
+// root/list/detail/company WCAG A/AA matrix was incomplete; this closes it.
+const COMPANY_VIEWPORTS = {
+  desktop: { width: 1440, height: 900 },
+  mobile: { width: 375, height: 812 },
+} as const;
+
+const COMPANY_SCHEMES = ["light", "dark"] as const;
+
+test.describe("company careers axe WCAG A/AA matrix", () => {
+  for (const scheme of COMPANY_SCHEMES) {
+    for (const [label, viewport] of Object.entries(COMPANY_VIEWPORTS)) {
+      test.describe(`${scheme} scheme, ${label} ${viewport.width}x${viewport.height}`, () => {
+        test.use({ colorScheme: scheme, viewport });
+
+        test(`company careers has no WCAG A/AA violations at ${label} width in ${scheme} scheme @a11y`, async ({
+          page,
+        }) => {
+          await page.goto(COMPANY_PATH);
+          await expect(
+            page.getByRole("list", { name: "Vacantes en Acme" }),
+          ).toBeVisible();
+          expect(page.viewportSize()).toEqual(viewport);
+          const results = await new AxeBuilder({ page })
+            .withTags(["wcag2a", "wcag2aa"])
+            .analyze();
+          expect(results.violations).toEqual([]);
+        });
+      });
+    }
+  }
 });
