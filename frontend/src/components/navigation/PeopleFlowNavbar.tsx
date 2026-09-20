@@ -41,10 +41,13 @@ const CandidateNavbar = React.memo(function CandidateNavbar() {
 });
 
 // Marketing nav mirrors design/landing-preview exactly: full-width sticky
-// header, brand + four product links, a quiet login link, the shared theme
-// control and one primary CTA. The reference has no mobile sheet, so there is
-// no hamburger here. Links are non-operational prototype placeholders.
+// header, brand + the Vacantes entry point + four product links, a quiet login
+// link, the shared theme control and one primary CTA. The reference has no
+// mobile sheet, so there is no hamburger here. Only Vacantes is a real route;
+// the four product links stay non-operational prototype placeholders.
 const MARKETING_NAV_LINKS = [
+  // Candidate entry point: the only real destination in this nav.
+  { label: "Vacantes", href: "/vacantes" },
   { label: "Producto", href: "#" },
   { label: "Soluciones", href: "#" },
   { label: "Precios", href: "#" },
@@ -99,9 +102,9 @@ const MarketingNavbar = React.memo(function MarketingNavbar() {
  * - `candidate` mode: brand + single Vacantes link + theme toggle.
  *   No hamburger, no extra CTAs, no mobile menu.
  *
- * - `marketing` mode: the reference landing header (brand + Producto /
- *   Soluciones / Precios / Recursos + Iniciar sesión + theme toggle +
- *   Empezar gratis). All links are non-operational `#` placeholders.
+ * - `marketing` mode: the reference landing header (brand + Vacantes +
+ *   Producto / Soluciones / Precios / Recursos + Iniciar sesión + theme toggle
+ *   + Empezar gratis). Only Vacantes is a real route; the rest stay `#`.
  *
  * Both modes share the same theme control. The component is a client boundary
  * because ThemeToggle is a client leaf; the static landing content remains

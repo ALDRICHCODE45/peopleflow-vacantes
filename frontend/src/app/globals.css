@@ -104,6 +104,7 @@
    neutral, and --radius/--ring/--destructive are untouched. */
 :root {
     color-scheme: light;
+    --brand-decorative-strong: oklch(0.54 0.15 292.581);
     --background: #F7F5FB;
     --foreground: #1A1626;
     --card: #FFFFFF;
@@ -142,6 +143,7 @@
 
 .dark {
     color-scheme: dark;
+    --brand-decorative-strong: oklch(0.70 0.14 292.759);
     --background: #0C0912;
     --foreground: #F6F2FF;
     --card: #15121F;
@@ -199,6 +201,7 @@
      the manual control. */
   :root:not([data-theme]) {
     color-scheme: dark;
+    --brand-decorative-strong: oklch(0.70 0.14 292.759);
     --background: #0C0912;
     --foreground: #F6F2FF;
     --card: #15121F;

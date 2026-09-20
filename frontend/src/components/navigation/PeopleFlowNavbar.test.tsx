@@ -115,7 +115,18 @@ describe("PeopleFlowNavbar marketing mode", () => {
     expect(brandLink).toHaveAttribute("href", "/");
   });
 
-  it("renders the reference nav link set as placeholder links", () => {
+  it("renders Vacantes as a real first nav link to /vacantes", () => {
+    stubMatchMedia();
+    renderMarketingNavbar();
+    const header = document.querySelector("header")!;
+    const vacantes = findHeaderLink(header, "Vacantes");
+    expect(vacantes).toBeDefined();
+    expect(vacantes).toHaveAttribute("href", "/vacantes");
+    // Candidate discoverability: Vacantes leads the marketing nav list.
+    expect(Array.from(header.querySelectorAll("ul a"))[0]).toBe(vacantes);
+  });
+
+  it("renders the four product links as placeholders", () => {
     stubMatchMedia();
     renderMarketingNavbar();
     const header = document.querySelector("header")!;

@@ -10,8 +10,8 @@ import { assertUiPrimitiveInventory } from "../support/assert-ui-primitive-inven
 // probed again from independent angles: width × color-scheme matrix, axe scans,
 // computed Inter typography, WCAG AA contrast, focus visibility, reserved image
 // dimensions, exact b27M1Ev2 preset identity, absence of ad hoc raw-color /
-// custom-radius / primitive-style overrides, absence of charts and employer
-// menus, and absence of root API requests.
+// custom-radius / primitive-style overrides, the intentional Recharts 3.x
+// dashboard adoption and employer-menu absence, and no root API requests.
 
 const FRONTEND_ROOT = process.cwd();
 
@@ -238,7 +238,8 @@ for (const scheme of SCHEMES) {
         expect(overflowPx).toBeLessThanOrEqual(0);
 
         // Wait for the visible brand asset before reading intrinsic dimensions.
-        const visibleLogo = page.locator("img[alt='PeopleFlow']:visible");
+        // Scoped to the marketing navbar: the footer repeats the same mark.
+        const visibleLogo = page.locator("#nav img[alt='PeopleFlow']:visible");
         await expect(visibleLogo).toHaveJSProperty("naturalWidth", 1584);
         await expect(visibleLogo).toHaveJSProperty("naturalHeight", 396);
 
@@ -247,11 +248,12 @@ for (const scheme of SCHEMES) {
         const styles = await page.evaluate(() => {
           const computed = (el: Element) => getComputedStyle(el);
           const h1El = document.querySelector("h1");
-          // One PeopleFlow mark per color scheme; measure the visible one.
+          // One PeopleFlow mark per color scheme inside #nav; measure the
+          // visible one (the footer repeats the same mark).
           const logo =
             [
               ...document.querySelectorAll<HTMLImageElement>(
-                "img[alt='PeopleFlow']",
+                "#nav img[alt='PeopleFlow']",
               ),
             ].find((img) => getComputedStyle(img).display !== "none") ?? null;
           return {
@@ -371,7 +373,9 @@ test.describe("preset b27M1Ev2 triangulation", () => {
     expect(deps.tailwindcss).toMatch(/^4\./); // Tailwind CSS v4
     expect(deps["@base-ui/react"]).toEqual(expect.any(String)); // explicit Base UI
     expect(deps["lucide-react"]).toEqual(expect.any(String)); // Lucide icons
-    expect(deps.recharts).toBeUndefined(); // no chart library installed
+    // Recharts 3.x is intentionally adopted by the employer dashboard charts;
+    // this preset slice pins that adopted major instead of forbidding charts.
+    expect(deps.recharts).toMatch(/^3\./);
   });
 
   test("globals.css keeps Violet theme, Neutral chart tokens, and Default radius", () => {

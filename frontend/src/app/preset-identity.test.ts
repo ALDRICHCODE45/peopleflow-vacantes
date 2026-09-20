@@ -131,17 +131,22 @@ describe("shadcn preset b27M1Ev2 identity invariants", () => {
     expect(deps["@tailwindcss/postcss"]).toMatch(/^4\./);
   });
 
-  it("keeps Lucide as the only icon family", () => {
+  it("keeps Lucide as the general icon family and only the intentional Tabler dashboard family", () => {
     const pkg = readJson("package.json");
     const deps = {
       ...(pkg.dependencies as Record<string, string>),
       ...(pkg.devDependencies as Record<string, string>),
     };
+    // Lucide remains the preset/global family (components.json iconLibrary);
+    // the employer dashboard block intentionally adopts Tabler, so that single
+    // package is required here instead of competing with Lucide.
     expect(deps["lucide-react"]).toEqual(expect.any(String));
-    const competingIconPackages = Object.keys(deps).filter((name) =>
-      /@icons|iconify|heroicons|tabler|phosphor|feather-icons|react-icons/.test(
-        name,
-      ),
+    expect(deps["@tabler/icons-react"]).toEqual(expect.any(String));
+    const competingIconPackages = Object.keys(deps).filter(
+      (name) =>
+        /@icons|iconify|heroicons|tabler|phosphor|feather-icons|react-icons/.test(
+          name,
+        ) && name !== "@tabler/icons-react",
     );
     expect(competingIconPackages).toEqual([]);
   });

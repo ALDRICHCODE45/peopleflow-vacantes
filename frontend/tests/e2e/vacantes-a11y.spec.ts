@@ -1,7 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-const fixtureUrl = "http://127.0.0.1:4010";
+// Isolated acceptance harness can keep the recovery fixture at 4010 while
+// pointing this spec at another fixture origin.
+const fixtureUrl = process.env.JOBS_FIXTURE_ORIGIN ?? "http://127.0.0.1:4010";
 
 // Task 4.3 TRIANGULATE (user-authorized bounded accessibility evidence subset):
 // independent /vacantes browser proof only — axe WCAG A/AA scans per width ×
@@ -538,7 +540,9 @@ test.describe("reduced motion on vacancy controls", () => {
     // Keyboard-only submission: Enter from the focused search input.
     await search.press("Enter");
 
-    const status = page.getByRole("status");
+    // Pending-search announcement lives in the navigation island; the card
+    // feedback island owns its own role="status" span, so scope to the nav <p>.
+    const status = page.locator("p[role='status']");
     await expect(status).toHaveText("Cargando…");
     // Focus must stay on the search input the whole time pending state is
     // announced; only the initiating submit button is disabled.
