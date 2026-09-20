@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R6 redesign browser acceptance
+- Current task: CCP-R6A integrated acceptance contracts
 - Push/PR: not authorized
 
 ## Goal
@@ -55,7 +55,9 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R4C — Vacancy detail browser contracts:** Reconciled canonical detail Playwright contracts for desktop/mobile geometry, real sticky behavior, complete safe text, disabled affordances, target size/focus, canonical metadata, heading order, light/dark accessibility, and zero business mutations; fixed long-title mobile overflow with `min-w-0`. Authored 296/300 lines. Verification: 22/22 focused Chromium, 20/20 axe matrix, TypeScript and exact-scope ESLint PASS; independent verifier PASS after environment rebuild, overflow diagnosis, and focus-cycle correction; native review approved and acknowledged. Runtime harness: production build plus loopback app/fixture at 3100/4010. Rollback boundary: detail `h1` minimum width and canonical detail browser contracts. Commit evidence: `f985e341964a859b9639f90c040b1c1d20ff5601`.
 - [x] **CCP-R5A — Prototype feedback island and wiring:** Added one reusable serializable client island for bookmark/save toggles and momentary apply/share feedback while keeping card/detail views server-rendered; feedback is in-memory, truthfully disclosed, keyboard-native, live-region announced, and free of fetch/storage/clipboard/share/business mutations. Authored 396/400 lines. Verification: 51/51 focused, 416/416 adjacent, TypeScript and exact-scope ESLint PASS; independent verifier PASS; native review approved and acknowledged. Runtime harness: N/A—CCP-R5B owns browser interaction contracts. Rollback boundary: `prototype-feedback-island*` plus card/detail island wiring and focused tests. Commit evidence: `5e6a6775af706904b053eed9d46d5a6738d4a336`.
 - [x] **CCP-R5B — Prototype interaction browser contracts:** Reconciled detail/board/company Playwright contracts for enabled keyboard-reachable controls, toggle and repeated momentary live-region feedback, storage stability, isolated current fixture routing, and zero business mutations. Authored 241/250 lines. Verification: production build and 51/51 focused Chromium PASS on isolated ports 3100/4011, TypeScript and exact-scope ESLint PASS; independent verifier PASS after live-region scoping, exact save-state selection, and fixture-origin correction; native review approved and acknowledged. Runtime harness: isolated current fixture plus built app, preserving recovery fixture 4010. Rollback boundary: three public browser interaction specs. Commit evidence: `4c06bd45ddb4bcc53fb16c007f58e6c98ae4efed`.
-- [ ] **CCP-R6 — Redesign browser acceptance:** Update obsolete truthfulness assertions to prototype-scoped contracts; run light/dark desktop/mobile Playwright, axe, keyboard, hover, overflow, canonical, safe-text, and zero-business-mutation acceptance; request human visual approval.
+- [ ] **CCP-R6A — Integrated acceptance contracts:** Add the user-selected marketing entry point to `/vacantes`; reconcile root/cross-cutting/a11y/preset assertions with intentional current dependencies, local feedback regions, isolated fixture routing, and the dashboard decorative token. Forecast: 50–90 lines.
+- [ ] **CCP-R6B — Root accessibility contrast:** Stabilize root axe timing, then correct only steady-state WCAG A/AA contrast failures across light/dark desktop/mobile without diluting the reference identity. Forecast: 60–180 lines.
+- [ ] **CCP-R6C — Final integrated acceptance:** Run full unit, build, light/dark desktop/mobile Playwright, axe, keyboard, hover, reduced-motion, overflow, canonical, safe-text, storage, and zero-business-mutation acceptance; request human visual approval. Verification-only unless final evidence exposes candidate drift.
 
 ## Acceptance criteria
 - Company page communicates identity before vacancies and fits the hero thesis in the initial desktop viewport.
@@ -84,4 +86,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Run CCP-R6 integrated acceptance: reconcile remaining cross-cutting assertions, execute the full light/dark desktop/mobile, axe, keyboard, hover, overflow, canonical, safe-text, and zero-mutation matrix, then request human visual approval.
+Complete CCP-R6A: reconcile the stale global acceptance contracts and dashboard decorative token, then verify and commit the bounded slice before addressing root contrast in CCP-R6B.
