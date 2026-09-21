@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R7D2 human visual inspection
+- Current task: CCP-R7C marketing login integration
 - Push/PR: not authorized
 
 ## Goal
@@ -96,4 +96,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Obtain human visual approval for both live animated login routes at 3100, then implement CCP-R7C marketing login integration.
+Implement CCP-R7C with strict TDD: replace the marketing login placeholder with the shared accessible menu while preserving the reference navigation and CTA.
