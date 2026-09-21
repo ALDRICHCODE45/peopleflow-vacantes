@@ -270,7 +270,7 @@ describe("employer marketing page (reference replica)", () => {
     expect(themeButtons[0]!.closest("header")).not.toBeNull();
   });
 
-  it("renders the reference navigation link set as placeholder links", () => {
+  it("keeps product placeholders and renders the shared login menu", () => {
     render(<MarketingPage />);
 
     const header = document.querySelector("header")!;
@@ -281,11 +281,14 @@ describe("employer marketing page (reference replica)", () => {
       expect(link, `nav link ${label}`).toBeDefined();
       expect(link).toHaveAttribute("href", "#");
     }
-    const login = Array.from(header.querySelectorAll("a")).find(
-      (a) => a.textContent?.trim() === "Iniciar sesión",
-    );
-    expect(login).toBeDefined();
-    expect(login).toHaveAttribute("href", "#");
+    expect(
+      Array.from(header.querySelectorAll("a")).find(
+        (a) => a.textContent?.trim() === "Iniciar sesión",
+      ),
+    ).toBeUndefined();
+    const login = screen.getByRole("button", { name: "Ingresar" });
+    expect(login).toHaveAttribute("aria-haspopup", "menu");
+    expect(login).toHaveAttribute("aria-expanded", "false");
   });
 
   it("keeps every prototype anchor addressable (placeholder '#' allowed)", () => {
