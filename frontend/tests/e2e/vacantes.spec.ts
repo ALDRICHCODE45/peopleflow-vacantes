@@ -225,13 +225,15 @@ test("renders the approved hero and supported quick chips with honest state", as
     ["Vacantes", "/vacantes"],
     ["Empresas", "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f"],
     ["Recursos", "#recursos"],
-    ["Ingresar", "/candidato/login"],
     ["Publicar vacante", "/empresa/vacantes/nueva"],
   ] as const) {
     await expect(
       header.getByRole("link", { name: label, exact: true }),
     ).toHaveAttribute("href", href);
   }
+  // The login entry is one menu trigger now, not a flat candidate-only link.
+  await expect(header.getByRole("link", { name: "Ingresar", exact: true })).toHaveCount(0);
+  await expect(header.getByRole("button", { name: "Ingresar", exact: true })).toHaveCount(1);
   await expect(
     header.getByRole("link", { name: "Recursos", exact: true }),
   ).toHaveAttribute("title", "Próximamente");
@@ -309,6 +311,7 @@ test("renders the approved hero and supported quick chips with honest state", as
         [...header.querySelectorAll("a")].find(
           (a) => a.textContent?.trim() === name,
         ) ?? null;
+      const menuTrigger = header.querySelector("button[aria-haspopup='menu']");
       const rectOf = (element: Element | null) => {
         if (!element) return null;
         const { width, height } = element.getBoundingClientRect();
@@ -319,7 +322,7 @@ test("renders the approved hero and supported quick chips with honest state", as
         navVacantes: rectOf(linkByName("Vacantes")),
         navEmpresas: rectOf(linkByName("Empresas")),
         navRecursos: rectOf(linkByName("Recursos")),
-        login: rectOf(linkByName("Ingresar")),
+        login: rectOf(menuTrigger),
         publish: rectOf(linkByName("Publicar vacante")),
         themeToggle: rectOf(header.querySelector("[data-pf-theme-toggle]")),
         overflow:
@@ -359,21 +362,17 @@ test("renders the approved hero and supported quick chips with honest state", as
     .annotations.push({ type: "header targets @375", description: JSON.stringify(mobile) });
   // Desktop-only destinations collapse entirely; the retained targets keep
   // their size and the document stays overflow-free.
-  for (const name of [
-    "navVacantes",
-    "navEmpresas",
-    "navRecursos",
-    "login",
-  ] as const) {
+  for (const name of ["navVacantes", "navEmpresas", "navRecursos"] as const) {
     expect(mobile[name]!.width, `${name} width @375`).toBe(0);
     expect(mobile[name]!.height, `${name} height @375`).toBe(0);
   }
-  for (const name of ["logo", "themeToggle"] as const) {
+  for (const name of ["logo", "themeToggle", "login"] as const) {
     expect(
       mobile[name]!.height,
       `${name} target height @375`,
     ).toBeGreaterThanOrEqual(40);
   }
+  expect(mobile.login!.width).toBeGreaterThanOrEqual(40);
   expect(mobile.publish!.height).toBeGreaterThanOrEqual(36);
   expect(mobile.overflow).toBeLessThanOrEqual(0);
 });
@@ -1100,4 +1099,55 @@ test("buffers each completed list response with its final state", async ({
   ).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
+});
+
+test("keeps the dual-login menu runtime-safe on desktop and mobile", async ({
+  page,
+}) => {
+  // Only the group crash is in scope; CCP-R7B1 owns the nativeButton sites.
+  const groupErrors: string[] = [];
+  page.on("pageerror", (error) => {
+    if (/MenuGroupContext/.test(error.message)) groupErrors.push(error.message);
+  });
+  const trigger = page.locator("header").getByRole("button", { name: "Ingresar", exact: true });
+  for (const [width, height] of [
+    [1440, 900],
+    [375, 812],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/vacantes");
+    await expect(trigger).toHaveCount(1);
+    await expect(trigger).toBeVisible();
+    expect((await trigger.boundingBox())!.height).toBeGreaterThanOrEqual(40);
+    // One click opens the popup with exactly the two login destinations.
+    await trigger.click();
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const menu = page.getByRole("menu");
+    await expect(menu).toBeVisible();
+    await expect(menu.getByRole("menuitem")).toHaveCount(2);
+    for (const [name, href] of [
+      ["Candidato", "/candidato/login"],
+      ["Empresa", "/empresa/login"],
+    ] as const)
+      await expect(
+        menu.getByRole("menuitem", { name, exact: true }),
+      ).toHaveAttribute("href", href);
+    // The open popup adds no overflow and stays inside the viewport.
+    const popup = (await menu.boundingBox())!;
+    expect([
+      (await overflowPx(page)) <= 0,
+      popup.x >= 0,
+      Math.round(popup.x + popup.width) <= width,
+    ]).toEqual([true, true, true]);
+    // Escape closes with focus return; the keyboard re-opens without navigating.
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    await page.keyboard.press(width === 375 ? "Space" : "Enter");
+    await expect(menu).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(trigger).toBeFocused();
+    await expect(page).toHaveURL("/vacantes");
+  }
+  expect(groupErrors).toEqual([]);
 });

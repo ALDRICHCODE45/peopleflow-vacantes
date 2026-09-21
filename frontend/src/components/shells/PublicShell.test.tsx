@@ -1,12 +1,21 @@
 import * as React from "react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { render, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 import { PublicShell } from "./PublicShell";
 
-// ─── MatchMedia stub (ThemeToggle is a client leaf inside the shell) ──────────
-function stubMatchMedia() {
+// The shell consumes the shared menu, so it must not re-own a candidate-login
+// anchor. Source-level because the popup lives in a jsdom-unreachable portal.
+const source = readFileSync(
+  join(process.cwd(), "src/components/shells/PublicShell.tsx"),
+  "utf8",
+);
+
+// ─── Browser API stubs (ThemeToggle and the menu trigger are client leaves) ───
+function stubBrowserApis() {
   vi.stubGlobal(
     "matchMedia",
     vi.fn(() => ({
@@ -14,6 +23,14 @@ function stubMatchMedia() {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     })),
+  );
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
   );
 }
 
@@ -26,8 +43,15 @@ afterEach(() => {
 const EMPRESAS_HREF = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
 
 function renderShell() {
-  stubMatchMedia();
+  stubBrowserApis();
   return render(<PublicShell>contenido</PublicShell>);
+}
+
+/** The single Ingresar menu trigger, matched by accessible name. */
+function ingresarTrigger(container: HTMLElement) {
+  return within(container.querySelector("header")!).getByRole("button", {
+    name: /^ingresar$/i,
+  });
 }
 
 /** Find a header link whose trimmed text matches exactly. */
@@ -124,23 +148,46 @@ describe("PublicShell", () => {
       "logo",
       container.querySelector("header a[aria-label='PeopleFlow']"),
     );
-    for (const label of ["Vacantes", "Empresas", "Recursos", "Ingresar"]) {
+    for (const label of ["Vacantes", "Empresas", "Recursos"]) {
       expectMin40Target(label, headerLink(container, label) ?? null);
     }
   });
 
-  it("renders Ingresar to /candidato/login, hidden at tight mobile widths", () => {
+  it("mounts exactly one Ingresar menu trigger, not a candidate-only link", () => {
     const { container } = renderShell();
 
-    const ingresar = headerLink(container, "Ingresar");
-    expect(ingresar).toBeDefined();
-    expect(ingresar).toHaveAttribute("href", "/candidato/login");
-    // Exactly one display mechanism: a variant-scoped hide cannot be defeated
-    // by a competing base display utility, and the >=640px state stays flex.
-    const tokens = classTokens(ingresar!);
-    expect(tokens.has("inline-flex")).toBe(true);
-    expect(tokens.has("max-sm:hidden")).toBe(true);
-    expect(tokens.has("hidden")).toBe(false);
+    // The shared menu owns the destinations, so the shell owns no login link.
+    expect(headerLink(container, "Ingresar")).toBeUndefined();
+    const ingresar = ingresarTrigger(container);
+    expect(ingresar).toHaveAttribute("aria-haspopup", "menu");
+    expect(ingresar).toHaveAttribute("aria-expanded", "false");
+    expect(source.match(/<IngresarMenu\b/g)).toHaveLength(1);
+    expect(source).not.toContain("/candidato/login");
+    // Exactly one trigger, ordered theme control -> menu -> publish CTA.
+    const publish = headerLink(container, "Publicar vacante")!;
+    const actions = Array.from(publish.parentElement!.children);
+    expect(actions).toHaveLength(3);
+    expect(actions[0]).toHaveAttribute("data-pf-theme-toggle");
+    expect(actions[1]).toBe(ingresar);
+    expect(actions[2]).toBe(publish);
+  });
+
+  it("keeps the Ingresar trigger visible at 375px with a 40px focus target", () => {
+    const { container } = renderShell();
+
+    const tokens = classTokens(ingresarTrigger(container));
+    // The only login entry point must never be hidden at tight mobile widths.
+    const hiddenTokens = Array.from(tokens).filter((t) => /:?hidden$/.test(t));
+    expect(hiddenTokens).toHaveLength(0);
+    expect(tokens.has("min-h-10")).toBe(true);
+    // Trigger-only className keeps the shared focus ring on the shell control.
+    for (const token of [
+      "focus-visible:outline-2",
+      "focus-visible:outline-offset-2",
+      "focus-visible:outline-ring",
+    ]) {
+      expect(tokens.has(token)).toBe(true);
+    }
   });
 
   it("renders Publicar vacante to the employer create route with shared button styling", () => {
@@ -184,19 +231,22 @@ describe("PublicShell", () => {
       "/vacantes",
       EMPRESAS_HREF,
       "#recursos",
-      // Placeholder auth/publish routes stay truthful and non-mutating.
-      "/candidato/login",
+      // Login destinations live inside the Ingresar menu popup, so the publish
+      // CTA is the only auth-adjacent anchor left in the closed DOM.
       "/empresa/vacantes/nueva",
     ];
     expect(hrefs).toHaveLength(allowedHrefs.length);
     for (const href of hrefs) {
       expect(allowedHrefs).toContain(href);
     }
+    // Closed menu: no candidate-login anchor is duplicated in the shell DOM.
+    expect(hrefs).not.toContain("/candidato/login");
     // No invented legal or employer-side destinations.
     expect(container).not.toHaveTextContent(
       /t[eé]rminos|privacidad|empleador/i,
     );
-    expect(container.querySelectorAll("button")).toHaveLength(1);
+    // Theme control plus the single Ingresar menu trigger.
+    expect(container.querySelectorAll("button")).toHaveLength(2);
   });
 
   it("renders a restrained footer", () => {

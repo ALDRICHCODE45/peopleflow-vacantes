@@ -122,6 +122,19 @@ describe("IngresarMenu destination contract", () => {
     );
   });
 
+  it("nests the Ingresar como label and both items inside one DropdownMenuGroup", () => {
+    // Base UI group parts throw without a Group ancestor, so the label and both
+    // destinations must live inside the single group, as nav-user already does.
+    expect(source.match(/<DropdownMenuGroup\b/g)).toHaveLength(1);
+    const group = source.match(/<DropdownMenuGroup>[\s\S]*?<\/DropdownMenuGroup>/)![0];
+    // The entry-count test above pins both totals, so in-group counts prove
+    // nothing was left outside the group.
+    expect(group.match(/<DropdownMenuLabel\b/g)).toHaveLength(1);
+    expect(group.match(/<DropdownMenuItem\b/g)).toHaveLength(2);
+    expect(group).toContain('href="/candidato/login"');
+    expect(group).toContain('href="/empresa/login"');
+  });
+
   it("reuses the shared menu primitive and Button variants without a custom popup", () => {
     expect(source).toContain('from "@/components/ui/dropdown-menu"');
     expect(source).toContain('from "@/components/ui/button"');

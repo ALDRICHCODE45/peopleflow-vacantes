@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { PROTOTYPE_COMPANY_ID } from "../../features/company-profile/model";
 import { PeopleFlowLogo } from "../brand/logo";
+import { IngresarMenu } from "../navigation/IngresarMenu";
 import { ThemeToggle } from "../theme/theme-toggle";
 import { buttonVariants } from "../ui/button";
 
@@ -42,7 +43,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
       />
       <div className="relative z-10 flex min-h-dvh flex-col">
         <header className="sticky top-0 z-30 border-b border-border/70 bg-background/70 backdrop-blur-xl">
-          <div className={`${shellContainer} flex h-16 items-center gap-6`}>
+          <div className={`${shellContainer} flex h-16 items-center gap-6 max-sm:gap-1 max-sm:px-3`}>
             <Link
               href="/"
               aria-label="PeopleFlow"
@@ -77,16 +78,11 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
                 Recursos
               </Link>
             </nav>
-            <div className="ml-auto flex items-center gap-3">
+            <div className="ml-auto flex items-center gap-3 max-sm:gap-1.5">
               <ThemeToggle className="size-10 rounded-lg" />
-              {/* Hidden at tight mobile via a variant-scoped display rule, so
-                  no competing base display utility can defeat the hide. */}
-              <Link
-                href="/candidato/login"
-                className={`${focusRing} ${navTarget} ${navItem} text-sm max-sm:hidden`}
-              >
-                Ingresar
-              </Link>
+              {/* Shared dual-login menu: one visible trigger for both
+                  audiences, keeping the >=40px focus ring on the trigger. */}
+              <IngresarMenu className={focusRing} />
               <Link
                 href="/empresa/vacantes/nueva"
                 className={buttonVariants({ size: "lg" })}
