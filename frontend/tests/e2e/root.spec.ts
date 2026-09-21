@@ -183,10 +183,18 @@ test.describe("minimal public root", () => {
       expect(href).not.toBeNull();
     }
 
-    // The single header control is the real persisted theme toggle.
+    // The marketing header owns exactly one Ingresar menu trigger and one
+    // persisted theme toggle; the primary CTA stays a non-operational link.
+    const nav = page.locator("#nav");
+    await expect(
+      nav.getByRole("button", { name: "Ingresar", exact: true }),
+    ).toHaveCount(1);
     const themeButtons = page.getByRole("button", { name: /cambiar tema/i });
     await expect(themeButtons).toHaveCount(1);
     await expect(themeButtons).toHaveAttribute("data-pf-theme-toggle", "");
+    await expect(
+      nav.getByRole("link", { name: "Empezar gratis", exact: true }),
+    ).toHaveAttribute("href", "#");
   });
 });
 
@@ -222,7 +230,12 @@ for (const scheme of SCHEMES) {
         await expect(page.locator("[data-pf-reference-landing]")).toHaveCount(
           1,
         );
-        // The single header control is the real persisted theme toggle.
+        // The marketing header owns exactly one Ingresar menu trigger and one
+        // persisted theme toggle at both representative widths.
+        const nav = page.locator("#nav");
+        await expect(
+          nav.getByRole("button", { name: "Ingresar", exact: true }),
+        ).toHaveCount(1);
         const themeButtons = page.getByRole("button", {
           name: /cambiar tema/i,
         });
@@ -334,6 +347,20 @@ for (const scheme of SCHEMES) {
       }) => {
         await page.goto("/");
 
+        // Wait for the reveal island to hydrate first: `pf-motion-ready` is
+        // added in the same effect that attaches the observer, so the walk
+        // cannot race past sections that would then never be observed.
+        await expect
+          .poll(async () =>
+            page.evaluate(
+              () =>
+                document
+                  .querySelector("[data-pf-reference-landing]")
+                  ?.classList.contains("pf-motion-ready") ?? false,
+            ),
+          )
+          .toBe(true);
+
         // The reveal-on-scroll island mounts asynchronously and paints every
         // `.reveal` section at opacity 0 until its IntersectionObserver
         // (threshold 0.14) marks it `in`. Axe skips content that is still
@@ -389,6 +416,75 @@ for (const scheme of SCHEMES) {
       });
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Marketing login menu: one trigger, two real destinations, real focus.
+// ---------------------------------------------------------------------------
+
+const MARKETING_MENU_DESTINATIONS = [
+  ["Candidato", "/candidato/login"],
+  ["Empresa", "/empresa/login"],
+] as const;
+
+for (const [label, viewport] of Object.entries(VIEWPORTS)) {
+  test.describe(`marketing login menu — ${label} viewport`, () => {
+    test.use({ viewport });
+
+    test(`opens exactly the two login destinations at ${label} width`, async ({ page }) => {
+      const runtimeErrors: string[] = [];
+      page.on("pageerror", (error) => runtimeErrors.push(error.message));
+      page.on("console", (message) => {
+        if (message.type() === "error") runtimeErrors.push(message.text());
+      });
+
+      await page.goto("/");
+      // Realistic hydration: document load, bounded network idle, one beat.
+      await page.waitForLoadState("load");
+      await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => undefined);
+      await page.waitForTimeout(100);
+
+      const trigger = page.locator("#nav").getByRole("button", { name: "Ingresar", exact: true });
+      await expect(trigger).toHaveCount(1);
+
+      // Exactly one non-retried click opens the popup.
+      await trigger.click();
+      await expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+      const menu = page.getByRole("menu");
+      await expect(menu).toBeVisible();
+      await expect(menu.getByRole("menuitem")).toHaveCount(2);
+      for (const [name, href] of MARKETING_MENU_DESTINATIONS) {
+        await expect(
+          menu.getByRole("menuitem", { name, exact: true }),
+        ).toHaveAttribute("href", href);
+      }
+
+      // The open popup stays inside the viewport and adds no overflow.
+      const overflowPx = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflowPx).toBeLessThanOrEqual(0);
+      const popup = (await menu.boundingBox())!;
+      expect([
+        popup.x >= 0,
+        Math.round(popup.x + popup.width) <= viewport.width,
+        Math.round(popup.y + popup.height) <= viewport.height,
+      ]).toEqual([true, true, true]);
+
+      // Escape closes with focus return; the keyboard reopens without leaving.
+      await page.keyboard.press("Escape");
+      await expect(menu).toHaveCount(0);
+      await expect(trigger).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(menu).toBeVisible();
+      await expect(menu.getByRole("menuitem")).toHaveCount(2);
+      await page.keyboard.press("Escape");
+      await expect(trigger).toBeFocused();
+
+      // The interaction never left the root route or logged a runtime error.
+      expect(new URL(page.url()).pathname).toBe("/");
+      expect(runtimeErrors).toEqual([]);
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------
