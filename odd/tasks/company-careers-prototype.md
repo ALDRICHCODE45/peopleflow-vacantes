@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R6C2 final integrated acceptance
+- Current task: CCP-R7A shared dual-login menu
 - Push/PR: not authorized
 
 ## Goal
@@ -58,7 +58,12 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R6A — Integrated acceptance contracts:** Added the user-selected first-position marketing entry point to `/vacantes`; restored the root→board→detail/Back/Forward journey; parameterized the a11y fixture; reconciled semantic logo/company/status selectors, intentional Recharts 3.x and Tabler dashboard dependency boundaries, and the dashboard decorative token across light/explicit-dark/system-dark themes. Authored 76/90 lines. Verification: 831/831 full Vitest PASS, production build PASS, TypeScript and full ESLint PASS, 37/37 targeted Chromium PASS with only the four R6B root axe cells excluded; independent verifier PASS; native review approved and acknowledged. External recovery fixture 4010 preserved. Commit evidence: `23d9d4420daafbd531e4b35120dccedaf8d26325`.
 - [x] **CCP-R6B — Root accessibility contrast:** Stabilized full-document reveal readiness before axe without fixed sleeps/exclusions/hiding, reducing the transient scan to 18 genuine steady-state nodes; introduced AA-safe same-hue light accent text while preserving exact dark accent identity and primary CTA brand color; aligned the frozen palette contract. Authored 120/180 lines. Verification: strict RED 4 failing cells/18 nodes → GREEN 4/4 root axe, full root 13/13, full Vitest 831/831, TypeScript/full ESLint/build PASS; independent verifier PASS after requiring every reveal to be `in` at opacity 1; native review approved and acknowledged with one non-blocking reveal-readiness advisory. External 4010 and foreign 3001 preserved. Commit evidence: `5a03f0c2f84cc8ff0ae18ab8315194224041d09d`.
 - [x] **CCP-R6C1 — Company accessibility contract:** Added the missing company careers WCAG A/AA matrix across light/dark desktop 1440×900 and mobile 375×812 while preserving the existing geometry/interaction contract. Authored 34/70 lines. Verification: company axe 4/4 and full company spec 5/5 Chromium PASS, production build/TypeScript/exact ESLint PASS; independent verifier PASS; native review approved and acknowledged. Recovery 4010 and foreign 3001 preserved. Commit evidence: `78089b41f6418135fe287950206a12ffc155bdd8`.
-- [ ] **CCP-R6C2 — Final integrated acceptance:** Re-run the complete committed-tree corpus, generate a bounded timeout-safe visual pack outside the repository, and request human visual approval. Verification-only unless final evidence exposes candidate drift.
+- [ ] **CCP-R6C2 — Final integrated acceptance:** Automated evidence is GREEN on the committed tree: 831/831 Vitest, 96/96 Chromium, production build/TypeScript/full ESLint PASS, root/list/detail/company axe matrices PASS, and an 8/8 timeout-safe visual pack was generated. Human visual approval was deferred after inspection exposed missing candidate/employer login entry points; rerun and approval move to CCP-R7E after restoration.
+- [ ] **CCP-R7A — Shared dual-login menu:** Build one accessible `Ingresar` dropdown with Candidato and Empresa destinations using the existing Base UI menu primitive. Forecast: 120–220 lines.
+- [ ] **CCP-R7B — Public-shell login integration:** Replace the hidden candidate-only link with the shared menu across desktop/mobile while preserving Publicar vacante and public navigation. Forecast: 40–100 lines.
+- [ ] **CCP-R7C — Marketing login integration:** Replace the marketing `#` login placeholder with the shared menu while preserving Vacantes and Empezar gratis. Forecast: 50–120 lines.
+- [ ] **CCP-R7D — Truthful prototype login routes:** Recreate candidate and employer login screens from the repository design references with `noindex`, explicit prototype disclosure, and zero backend/storage/navigation claims. Forecast: 260–400 lines.
+- [ ] **CCP-R7E — Login browser contracts and final visual approval:** Verify menu keyboard/Escape/focus/mobile behavior, both login routes, zero mutations/persistence, full corpus, refreshed visual pack, and mandatory human visual approval. Forecast: 140–260 lines.
 
 ## Acceptance criteria
 - Company page communicates identity before vacancies and fits the hero thesis in the initial desktop viewport.
@@ -87,4 +92,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Run CCP-R6C2 from the committed tree and generate the bounded visual pack; automated completion must be followed by mandatory human visual approval.
+Implement CCP-R7A with strict TDD: add the shared accessible Ingresar menu and verify exact candidate/employer destinations before integrating either shell.
