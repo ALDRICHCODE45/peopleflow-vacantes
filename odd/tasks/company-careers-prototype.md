@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R7B1 systemic Base UI link-button semantics
+- Current task: CCP-R7C marketing login integration
 - Push/PR: not authorized
 
 ## Goal
@@ -61,7 +61,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [ ] **CCP-R6C2 — Final integrated acceptance:** Automated evidence is GREEN on the committed tree: 831/831 Vitest, 96/96 Chromium, production build/TypeScript/full ESLint PASS, root/list/detail/company axe matrices PASS, and an 8/8 timeout-safe visual pack was generated. Human visual approval was deferred after inspection exposed missing candidate/employer login entry points; rerun and approval move to CCP-R7E after restoration.
 - [x] **CCP-R7A — Shared dual-login menu:** Built one reusable client dropdown on the existing Base UI/Button primitives with a 40px `Ingresar` trigger, Lucide chevron, semantic popup tokens, and exactly Candidato→`/candidato/login` plus Empresa→`/empresa/login`; trigger styling is the only optional surface. Authored 185/220 lines. Verification: focused 7/7 and adjacent navigation 24/24 Vitest PASS, TypeScript/exact ESLint PASS; independent verifier PASS after removing jsdom interaction; native review approved and acknowledged with destination behavior explicitly deferred to CCP-R7E Playwright. Commit evidence: `dd91a1de89a8ee21ca7ae6a7d7205be0aef0584e`.
 - [x] **CCP-R7B — Runtime-safe public-shell login integration:** Replaced the hidden candidate-only link with the shared desktop/mobile menu, preserved Publicar vacante/public navigation, corrected Base UI menu grouping, and added runtime click/Escape/focus/keyboard/375px overflow proof. Implementation: `214ef36c1789c52cedc4ff9f5f548d86c9f3f53f`; 840/840 unit, 28/28 Chromium vacancy, TypeScript/ESLint clean; native review approved and acknowledged.
-- [ ] **CCP-R7B1 — Systemic Base UI link-button semantics:** Correct every current shared `Button render={<Link>}` call site missing `nativeButton={false}` in job navigation/results and add one root-class console-boundary contract. Forecast: 40–120 lines.
+- [x] **CCP-R7B1 — Systemic Base UI link-button semantics:** Replaced all five job navigation `Button render={<Link>}` compositions with semantic Next links styled by `buttonVariants`, eliminating Base UI diagnostics without degrading anchors to buttons. Implementation: `8f74852d7fcd8df3a372bb92d2c725593f3b934e`; 18/18 unit, 29/29 Chromium vacancy, TypeScript/ESLint clean; native review approved and acknowledged.
 - [ ] **CCP-R7C — Marketing login integration:** Replace the marketing `#` login placeholder with the shared menu while preserving Vacantes and Empezar gratis. Forecast: 50–120 lines.
 - [ ] **CCP-R7D — Truthful prototype login routes:** Recreate candidate and employer login screens from the repository design references with `noindex`, explicit prototype disclosure, and zero backend/storage/navigation claims. Forecast: 260–400 lines.
 - [ ] **CCP-R7E — Login browser contracts and final visual approval:** Verify menu keyboard/Escape/focus/mobile behavior, both login routes, zero mutations/persistence, full corpus, refreshed visual pack, and mandatory human visual approval. Forecast: 140–260 lines.
@@ -93,4 +93,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Complete CCP-R7B1 by correcting all five current shared `Button render={<Link>}` call sites and proving `/vacantes`, empty, and error states emit no Base UI native-button diagnostics.
+Implement CCP-R7C with strict TDD: replace the marketing navbar's placeholder login link with the shared menu while preserving Vacantes and Empezar gratis.
