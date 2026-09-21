@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R7D2C integrate and prove login animations
+- Current task: CCP-R7D2 human visual inspection
 - Push/PR: not authorized
 
 ## Goal
@@ -65,7 +65,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R7D1 — Recover truthful login shells:** Recovered the previously authored but never committed shared candidate/employer shell and both routes from the protected recovery worktree with `noindex`, explicit prototype disclosure, static branded fallback, and zero backend/storage/submission claims. Authored 372/400 lines. Verification: 13/13 focused, 44/44 adjacent, TypeScript/exact ESLint clean, both live routes HTTP 200; independent verifier PASS; four-lens native review approved and acknowledged. Implementation: `a54864e34b4b5fd065d64bc06b39deeb38df3f29`.
 - [x] **CCP-R7D2A — Recover login shader parity:** Copied the byte-exact reference fragment shader, Three.js vertex parity anchor, OGL vertex adaptation, shared config/vectors/media contracts, and distinct candidate/employer palettes into an engine-independent module. Authored 256/300 lines. Verification: 9/9 focused, 22/22 auth, TypeScript/ESLint clean; independent verifier PASS; four-lens native review approved and acknowledged. Implementation: `224a0dd23b49133e69f052f69868492817fe7053`.
 - [x] **CCP-R7D2B — Port FloatingLines to OGL:** Implemented the desktop-gated OGL client leaf with pointer damping, resize/DPR, reduced-motion static frame, live theme blending, failure containment, teardown, and a compact essential unit contract. Authored 398/400 lines. Verification: 3/3 focused, 25/25 auth, TypeScript/ESLint clean; independent verifier caught and reverified reduced-motion palette ordering; four-lens native review approved and acknowledged. Implementation: `9766c809d1792a84c63ede8ac2e37e54753d6cda`.
-- [ ] **CCP-R7D2C — Integrate and prove login animations:** Mount the OGL leaf in both recovered shells and verify with real-browser WebGL the per-variant canvas/palettes, theme, responsive/reduced-motion restarts, frame advance, failure-safe shell, cleanup, and zero runtime errors. Forecast: 280–400 lines.
+- [x] **CCP-R7D2C — Integrate and prove login animations:** Mounted the OGL leaf in both shells and added a Chromium-safe, one-expression integer compatibility transform while preserving the byte-exact design shader anchor. Authored 399/400 lines. Verification: 27/27 auth, 7/7 real Chromium; per-variant rendered pixel bias, theme blend/redraw, mobile absence/no overflow, reduced-motion static stability, reciprocal cleanup, WebGL failure-safe shell, and zero business mutations proved. Independent verifier PASS; four-lens native review approved and acknowledged. Implementation: `c62acdadd9991094eedad078f2487a18d7277e7a`.
 - [ ] **CCP-R7C — Marketing login integration:** Replace the marketing `#` login placeholder with the shared menu while preserving Vacantes and Empezar gratis. Forecast: 50–120 lines.
 - [ ] **CCP-R7E — Login browser contracts and final visual approval:** Verify menu keyboard/Escape/focus/mobile behavior, both login routes, zero mutations/persistence, full corpus, refreshed visual pack, and mandatory human visual approval. Forecast: 140–260 lines.
 
@@ -96,4 +96,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Implement CCP-R7D2C with strict TDD: mount FloatingLines in both shells and prove the exact candidate/employer animations with real-browser WebGL across theme, motion, viewport, cleanup, and failure-safe conditions.
+Obtain human visual approval for both live animated login routes at 3100, then implement CCP-R7C marketing login integration.
