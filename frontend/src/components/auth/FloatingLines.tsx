@@ -128,19 +128,17 @@ function buildFloatingLines(
     // carrying the selected palette, instead of the default white gradient.
     const applyTheme = (theme: ResolvedTheme, draw = true) => {
       const light = theme === "light";
+      // Literal reference parity with `applyShaderTheme`: light composites with
+      // `multiply` over the warm page and dark with `screen` over black, and the
+      // committed palette for the theme is fed to the shader RAW. No host filter
+      // and no channel transform exists in either theme.
       host.style.mixBlendMode = light ? "multiply" : "screen";
-      // Light compositing: CSS `invert(1)` runs on this host before `multiply`,
-      // so the black-background shader is fed the per-channel complement of the
-      // committed light palette. invert(black) = white (neutral for multiply),
-      // and invert(complement stroke) restores the visible deep palette. Dark
-      // keeps the original `screen` blend, palette and bytes untouched.
-      host.style.filter = light ? "invert(1)" : "";
       const stops = light
         ? FLOATING_LINES_VARIANTS[options.variant].lightPalette
         : FLOATING_LINES_VARIANTS[options.variant].darkGradient;
       stops.forEach((value, index) => {
         const [r, g, b] = hexToRgb(value);
-        gradient[index].set(light ? [1 - r, 1 - g, 1 - b] : [r, g, b]);
+        gradient[index].set([r, g, b]);
       });
       // Reduced motion has no RAF loop: redraw its single static frame here.
       if (draw && reducedMotion) renderer.render({ scene: mesh });
@@ -198,7 +196,6 @@ function buildFloatingLines(
         if (frameId) window.cancelAnimationFrame(frameId);
         runCleanups();
         host.style.mixBlendMode = "";
-        host.style.filter = "";
       },
     };
   } catch (error) {
@@ -209,7 +206,6 @@ function buildFloatingLines(
       // Teardown must never mask the original initialization failure.
     }
     host.style.mixBlendMode = "";
-    host.style.filter = "";
     throw error;
   }
 }

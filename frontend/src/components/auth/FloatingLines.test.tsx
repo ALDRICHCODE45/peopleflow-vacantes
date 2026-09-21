@@ -57,9 +57,6 @@ afterEach(() => {
 const hostOf = (c: HTMLElement) => c.querySelector("[data-floating-lines-host]") as HTMLElement;
 const channelOf = (hex: string, offset: number) => Number.parseInt(hex.replace("#", "").slice(offset, offset + 2), 16) / 255;
 const expectStops = (actual: ArrayLike<ArrayLike<number>>, hexes: readonly string[]) => hexes.forEach((hex, i) => [0, 2, 4].forEach((o, c) => expect(actual[i][c]).toBeCloseTo(channelOf(hex, o), 5)));
-// Light feeds the black-background shader the per-channel complement of the
-// committed VISIBLE light palette; CSS `invert(1)` restores it before multiply.
-const expectComplementStops = (actual: ArrayLike<ArrayLike<number>>, hexes: readonly string[]) => hexes.forEach((hex, i) => [0, 2, 4].forEach((o, c) => expect(actual[i][c]).toBeCloseTo(1 - channelOf(hex, o), 5)));
 
 it("mounts one animated desktop canvas with frozen shaders/config/gradient, then tears down", async () => {
   vi.stubGlobal("devicePixelRatio", 3);
@@ -117,10 +114,12 @@ it("renders one themed static frame at time 4 with no RAF or pointer listeners, 
     document.documentElement.setAttribute("data-theme", "light");
   });
   await waitFor(() => expect(s.renders).toBe(2));
+  // Literal reference parity: light keeps the host unfiltered and feeds the raw
+  // committed light palette exactly (no per-channel complement).
   expect(host.style.mixBlendMode).toBe("multiply");
-  expect(host.style.filter).toBe("invert(1)");
-  expectComplementStops(s.snapshots[1], FLOATING_LINES_VARIANTS.candidate.lightPalette);
-  // Switching back to dark clears the filter and restores the exact dark gradient.
+  expect(host.style.filter).toBe("");
+  expectStops(s.snapshots[1], FLOATING_LINES_VARIANTS.candidate.lightPalette);
+  // Switching back to dark restores `screen` and the exact dark gradient.
   act(() => {
     document.documentElement.classList.add("dark");
     document.documentElement.setAttribute("data-theme", "dark");
@@ -131,7 +130,7 @@ it("renders one themed static frame at time 4 with no RAF or pointer listeners, 
   expectStops(s.snapshots[2], FLOATING_LINES_VARIANTS.candidate.darkGradient);
 });
 
-it("sets multiply + invert(1) with complement uniforms in light and clears both on dispose", async () => {
+it("applies multiply with the raw light palette and no host filter, then clears on dispose", async () => {
   const { container, unmount } = render(<FloatingLines variant="employer" />);
   const host = hostOf(container);
   await waitFor(() => expect(host.querySelector("canvas")).not.toBeNull());
@@ -143,8 +142,8 @@ it("sets multiply + invert(1) with complement uniforms in light and clears both 
     document.documentElement.setAttribute("data-theme", "light");
   });
   await waitFor(() => expect(host.style.mixBlendMode).toBe("multiply"));
-  expect(host.style.filter).toBe("invert(1)");
-  expectComplementStops(
+  expect(host.style.filter).toBe("");
+  expectStops(
     s.progs[0].uniforms.lineGradient.value as Float32Array[],
     FLOATING_LINES_VARIANTS.employer.lightPalette,
   );
@@ -153,7 +152,7 @@ it("sets multiply + invert(1) with complement uniforms in light and clears both 
   expect(host.style.filter).toBe("");
 });
 
-it("clears both blended styles when initialization fails after theming", async () => {
+it("clears the blend style when initialization fails after theming", async () => {
   document.documentElement.classList.remove("dark");
   document.documentElement.setAttribute("data-theme", "light");
   s.failSize = true;
@@ -161,7 +160,8 @@ it("clears both blended styles when initialization fails after theming", async (
   const { container } = render(<FloatingLines variant="candidate" />);
   const host = hostOf(container);
   await waitFor(() => expect(host).toHaveAttribute("data-floating-lines-state", "failed"));
-  // applyTheme ran before the throw, so both styles must be reset by cleanup.
+  // applyTheme ran before the throw, so the blend style must be reset by
+  // cleanup; no host filter is ever applied in either theme.
   expect(host.style.mixBlendMode).toBe("");
   expect(host.style.filter).toBe("");
   expect(host.querySelector("canvas")).toBeNull();

@@ -19,7 +19,7 @@ const CANVAS = `${HOST} canvas`;
 
 type Variant = keyof typeof ROUTES;
 type Rgb = { r: number; g: number; b: number };
-type Sample = { r: number; g: number; b: number; lit: number; hash: number; inverted: boolean; visible: Rgb };
+type Sample = { r: number; g: number; b: number; lit: number; hash: number };
 const distance = (a: Rgb, b: Rgb) => Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
 
 /** Collects every runtime error the browser reports for the rest of the test. */
@@ -63,10 +63,10 @@ async function setTheme(page: Page, theme: "light" | "dark") {
  * frame is what makes a reduced-motion static redraw observable.
  *
  * The buffer is sampled BEFORE CSS compositing, so `r/g/b` and `lit` are the raw
- * shader bytes (light therefore arrives as complement strokes over black). The
- * `inverted` flag and `visible` triple apply the host's own computed `invert(1)`
- * so visual assertions measure what the user actually sees after `multiply`,
- * while `lit` keeps proving the raw shader really drew nonblack line pixels.
+ * shader bytes for the committed per-theme palette, matching the design's
+ * `applyShaderTheme`: both themes feed the palette RAW with no host filter and
+ * no channel transform. No inverted/transformed reinterpretation is needed;
+ * `lit` proves the shader really drew nonblack line pixels.
  */
 async function shaderSample(page: Page, theme?: "light" | "dark"): Promise<Sample> {
   return page.evaluate(async (next) => {
@@ -105,9 +105,7 @@ async function shaderSample(page: Page, theme?: "light" | "dark"): Promise<Sampl
       hash = ((hash ^ pixels[index]!) * 16777619) >>> 0;
     }
     const mean = { r: r / samples, g: g / samples, b: b / samples };
-    const inverted = !!host && getComputedStyle(host).filter.includes("invert(1)");
-    const visible = inverted ? { r: 255 - mean.r, g: 255 - mean.g, b: 255 - mean.b } : mean;
-    return { ...mean, lit: lit / samples, hash, inverted, visible };
+    return { ...mean, lit: lit / samples, hash };
   }, theme ?? null);
 }
 
@@ -182,12 +180,12 @@ test.describe("login FloatingLines WebGL animation", () => {
     // Candidate starts at cyan #22d3ee, employer at violet #9336ea: the candidate
     // buffer is greener and the employer buffer clearly redder.
     expect(
-      candidate.visible.g - employer.visible.g,
-      `candidate green ${candidate.visible.g.toFixed(2)} vs employer ${employer.visible.g.toFixed(2)}`,
+      candidate.g - employer.g,
+      `candidate green ${candidate.g.toFixed(2)} vs employer ${employer.g.toFixed(2)}`,
     ).toBeGreaterThan(1);
     expect(
-      employer.visible.r - candidate.visible.r,
-      `employer red ${employer.visible.r.toFixed(2)} vs candidate ${candidate.visible.r.toFixed(2)}`,
+      employer.r - candidate.r,
+      `employer red ${employer.r.toFixed(2)} vs candidate ${candidate.r.toFixed(2)}`,
     ).toBeGreaterThan(1);
   });
 
@@ -204,50 +202,39 @@ test.describe("login FloatingLines WebGL animation", () => {
     await page.getByRole("button", { name: /cambiar tema/i }).click();
     await expect(html).toHaveAttribute("data-theme", "light");
     await expect(host).toHaveCSS("mix-blend-mode", "multiply");
-    await expect(host).toHaveCSS("filter", "invert(1)");
+    await expect(host).toHaveCSS("filter", "none");
     await expect(host).toHaveAttribute("data-floating-lines-state", "ready-animated");
     await expect(page.locator("canvas")).toHaveCount(1);
     const light = await litSample(page);
-    expect(distance(dark.visible, light.visible), `visible pixels dark ${dark.visible.r.toFixed(2)}/${dark.visible.g.toFixed(2)}/${dark.visible.b.toFixed(2)} light ${light.visible.r.toFixed(2)}/${light.visible.g.toFixed(2)}/${light.visible.b.toFixed(2)}`).toBeGreaterThan(1);
+    expect(distance(dark, light), `raw framebuffer dark ${dark.r.toFixed(2)}/${dark.g.toFixed(2)}/${dark.b.toFixed(2)} light ${light.r.toFixed(2)}/${light.g.toFixed(2)}/${light.b.toFixed(2)}`).toBeGreaterThan(1);
   });
 
-  test("keeps both light-mode panels predominantly light with real line signal", async ({ page }) => {
+  test("keeps both light-mode panels on multiply with no filter and real line signal", async ({ page }) => {
     const errors = trackRuntimeErrors(page);
     const light: Partial<Record<Variant, Sample>> = {};
     for (const variant of ["employer", "candidate"] as const) {
       await openLogin(page, variant, "ready-animated");
       await setTheme(page, "light");
       const host = page.locator(HOST);
+      // Literal reference parity: light composites with multiply and NO host filter.
       await expect(host).toHaveCSS("mix-blend-mode", "multiply");
-      await expect(host).toHaveCSS("filter", "invert(1)");
-      // Warm --base fallback: multiply of the inverted white framebuffer is neutral.
+      await expect(host).toHaveCSS("filter", "none");
+      // The warm --base fallback panel is untouched by the leaf.
       await expect(page.locator(PANEL)).toHaveCSS("background-color", "rgb(247, 245, 251)");
       await expect(page.locator(CANVAS)).toHaveCount(1);
       await expect(page.locator("canvas")).toHaveCount(1);
-      // `litSample` still reads RAW bytes: the shader genuinely drew line pixels.
-      const sample = await litSample(page);
-      expect(sample.inverted, `${variant}: the light host must invert before multiply`).toBe(true);
-      // Transformed framebuffer is predominantly light, never opaque black.
-      // Calibrated from measured values, not permissive guesses: the per-channel
-      // floor sits ~15 below the measured light minimum (employer green 164.88)
-      // and the mean floor sits below the measured animated band (candidate
-      // 189.60-190.22, employer 195.89), so a near-white panel passes while an
-      // opaque-black regression (mean ~= 0) cannot.
-      expect(sample.visible.r, `${variant}: transformed red ${sample.visible.r.toFixed(2)}`).toBeGreaterThan(150);
-      expect(sample.visible.g, `${variant}: transformed green ${sample.visible.g.toFixed(2)}`).toBeGreaterThan(150);
-      expect(sample.visible.b, `${variant}: transformed blue ${sample.visible.b.toFixed(2)}`).toBeGreaterThan(150);
-      const mean = (sample.visible.r + sample.visible.g + sample.visible.b) / 3;
-      expect(mean, `${variant}: transformed mean RGB ${mean.toFixed(2)}`).toBeGreaterThan(185);
-      light[variant] = sample;
+      // `litSample` reads the RAW committed light palette: the shader genuinely
+      // drew line pixels with no channel reinterpretation.
+      light[variant] = await litSample(page);
     }
-    // Distinct variant identities survive the light transform.
+    // Distinct variant identities survive the light palette.
     expect(
-      light.candidate!.visible.g - light.employer!.visible.g,
-      `light candidate green ${light.candidate!.visible.g.toFixed(2)} vs employer ${light.employer!.visible.g.toFixed(2)}`,
+      light.candidate!.g - light.employer!.g,
+      `light candidate green ${light.candidate!.g.toFixed(2)} vs employer ${light.employer!.g.toFixed(2)}`,
     ).toBeGreaterThan(1);
     expect(
-      light.employer!.visible.r - light.candidate!.visible.r,
-      `light employer red ${light.employer!.visible.r.toFixed(2)} vs candidate ${light.candidate!.visible.r.toFixed(2)}`,
+      light.employer!.r - light.candidate!.r,
+      `light employer red ${light.employer!.r.toFixed(2)} vs candidate ${light.candidate!.r.toFixed(2)}`,
     ).toBeGreaterThan(1);
     expect(errors.uncaught).toEqual([]);
     expect(errors.consoleErrors).toEqual([]);
@@ -308,8 +295,8 @@ test.describe("login FloatingLines reduced motion", () => {
     // A theme change still redraws that single static frame.
     const light = await litSample(page, "light");
     await expect(page.locator(HOST)).toHaveAttribute("data-floating-lines-state", "ready-static");
-    await expect(page.locator(HOST)).toHaveCSS("filter", "invert(1)");
-    expect(distance(dark.visible, light.visible), `static visible frame dark ${dark.visible.r.toFixed(2)}/${dark.visible.g.toFixed(2)}/${dark.visible.b.toFixed(2)} light ${light.visible.r.toFixed(2)}/${light.visible.g.toFixed(2)}/${light.visible.b.toFixed(2)}`).toBeGreaterThan(1);
+    await expect(page.locator(HOST)).toHaveCSS("filter", "none");
+    expect(distance(dark, light), `static framebuffer dark ${dark.r.toFixed(2)}/${dark.g.toFixed(2)}/${dark.b.toFixed(2)} light ${light.r.toFixed(2)}/${light.g.toFixed(2)}/${light.b.toFixed(2)}`).toBeGreaterThan(1);
     expect(errors.uncaught).toEqual([]);
     expect(errors.consoleErrors).toEqual([]);
   });
