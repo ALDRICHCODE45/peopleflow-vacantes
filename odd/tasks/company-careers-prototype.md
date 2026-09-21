@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R7C marketing login integration
+- Current task: CCP-R7D1 recover truthful login shells
 - Push/PR: not authorized
 
 ## Goal
@@ -62,8 +62,9 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R7A — Shared dual-login menu:** Built one reusable client dropdown on the existing Base UI/Button primitives with a 40px `Ingresar` trigger, Lucide chevron, semantic popup tokens, and exactly Candidato→`/candidato/login` plus Empresa→`/empresa/login`; trigger styling is the only optional surface. Authored 185/220 lines. Verification: focused 7/7 and adjacent navigation 24/24 Vitest PASS, TypeScript/exact ESLint PASS; independent verifier PASS after removing jsdom interaction; native review approved and acknowledged with destination behavior explicitly deferred to CCP-R7E Playwright. Commit evidence: `dd91a1de89a8ee21ca7ae6a7d7205be0aef0584e`.
 - [x] **CCP-R7B — Runtime-safe public-shell login integration:** Replaced the hidden candidate-only link with the shared desktop/mobile menu, preserved Publicar vacante/public navigation, corrected Base UI menu grouping, and added runtime click/Escape/focus/keyboard/375px overflow proof. Implementation: `214ef36c1789c52cedc4ff9f5f548d86c9f3f53f`; 840/840 unit, 28/28 Chromium vacancy, TypeScript/ESLint clean; native review approved and acknowledged.
 - [x] **CCP-R7B1 — Systemic Base UI link-button semantics:** Replaced all five job navigation `Button render={<Link>}` compositions with semantic Next links styled by `buttonVariants`, eliminating Base UI diagnostics without degrading anchors to buttons. Implementation: `8f74852d7fcd8df3a372bb92d2c725593f3b934e`; 18/18 unit, 29/29 Chromium vacancy, TypeScript/ESLint clean; native review approved and acknowledged.
+- [ ] **CCP-R7D1 — Recover truthful login shells:** Recover the previously authored but never committed shared candidate/employer login shell and both routes from the protected recovery worktree; add `noindex`, explicit prototype disclosure, static visual fallback, and zero backend/storage/submission claims. Forecast: 280–400 lines.
+- [ ] **CCP-R7D2 — Recover login visual enhancement:** Port the recovered decorative FloatingLines panel to the repository's existing OGL stack without package/lockfile changes, preserving reduced-motion, theme, failure fallback, and hidden-mobile behavior. Forecast: 280–400 lines.
 - [ ] **CCP-R7C — Marketing login integration:** Replace the marketing `#` login placeholder with the shared menu while preserving Vacantes and Empezar gratis. Forecast: 50–120 lines.
-- [ ] **CCP-R7D — Truthful prototype login routes:** Recreate candidate and employer login screens from the repository design references with `noindex`, explicit prototype disclosure, and zero backend/storage/navigation claims. Forecast: 260–400 lines.
 - [ ] **CCP-R7E — Login browser contracts and final visual approval:** Verify menu keyboard/Escape/focus/mobile behavior, both login routes, zero mutations/persistence, full corpus, refreshed visual pack, and mandatory human visual approval. Forecast: 140–260 lines.
 
 ## Acceptance criteria
@@ -93,4 +94,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Implement CCP-R7C with strict TDD: replace the marketing navbar's placeholder login link with the shared menu while preserving Vacantes and Empezar gratis.
+Implement CCP-R7D1 with strict TDD by recovering the protected login shell into this branch, proving both routes are truthful/noindex/no-submit prototypes, then show the live pages before restoring the decorative OGL panel.
