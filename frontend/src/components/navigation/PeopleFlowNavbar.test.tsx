@@ -1,9 +1,19 @@
 import * as React from "react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 import { PeopleFlowNavbar } from "@/components/navigation/PeopleFlowNavbar";
+
+// The marketing header composes the shared login menu instead of owning a
+// placeholder anchor. Source-level because the Base UI menu popup lives in a
+// jsdom-unreachable portal, matching the IngresarMenu/PublicShell precedents.
+const source = readFileSync(
+  join(process.cwd(), "src", "components", "navigation", "PeopleFlowNavbar.tsx"),
+  "utf8",
+);
 
 // ─── MatchMedia stub (matches ThemeToggle / PublicShell pattern) ──────────────
 function stubMatchMedia() {
@@ -14,6 +24,15 @@ function stubMatchMedia() {
       addEventListener: vi.fn(),
       removeEventListener: vi.fn(),
     })),
+  );
+  // The shared menu root also reads ResizeObserver while it mounts.
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
   );
 }
 
@@ -38,6 +57,11 @@ function findHeaderLink(header: Element, label: string) {
   return Array.from(header.querySelectorAll("a")).find(
     (a) => a.textContent?.trim() === label,
   );
+}
+
+/** The single shared Ingresar trigger, matched by accessible name. */
+function ingresarTrigger() {
+  return screen.getByRole("button", { name: /^ingresar$/i });
 }
 
 // ─── Candidate mode tests (frozen contract — unchanged) ──────────────────────
@@ -80,6 +104,9 @@ describe("PeopleFlowNavbar candidate mode", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /iniciar sesión/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^ingresar$/i }),
     ).not.toBeInTheDocument();
   });
 
@@ -137,13 +164,27 @@ describe("PeopleFlowNavbar marketing mode", () => {
     }
   });
 
-  it("renders the Iniciar sesión link as a placeholder", () => {
+  it("renders one accessible Ingresar menu trigger instead of a login placeholder", () => {
     stubMatchMedia();
     renderMarketingNavbar();
     const header = document.querySelector("header")!;
-    const login = findHeaderLink(header, "Iniciar sesión");
-    expect(login).toBeDefined();
-    expect(login).toHaveAttribute("href", "#");
+    // The shared menu owns the destinations, so no direct login anchor remains.
+    expect(findHeaderLink(header, "Iniciar sesión")).toBeUndefined();
+    expect(findHeaderLink(header, "Ingresar")).toBeUndefined();
+    const triggers = screen.getAllByRole("button", { name: /^ingresar$/i });
+    expect(triggers).toHaveLength(1);
+    expect(triggers[0]).toHaveAttribute("aria-haspopup", "menu");
+    expect(triggers[0]).toHaveAttribute("aria-expanded", "false");
+    // The login entry stays visible at mobile width via its compact shared
+    // trigger: it is never hidden and reserves the 40px target.
+    const tokens = new Set(triggers[0].className.split(/\s+/).filter(Boolean));
+    expect(Array.from(tokens).filter((t) => /:?hidden$/.test(t))).toHaveLength(
+      0,
+    );
+    expect(tokens.has("min-h-10")).toBe(true);
+    expect(tokens.has("max-sm:px-0")).toBe(true);
+    // Closed menu: no auth destination is duplicated outside the popup.
+    expect(header).not.toHaveTextContent(/candidato|empresa/i);
   });
 
   it("renders the Empezar gratis primary CTA as a placeholder", () => {
@@ -153,6 +194,18 @@ describe("PeopleFlowNavbar marketing mode", () => {
     const cta = findHeaderLink(header, "Empezar gratis");
     expect(cta).toBeDefined();
     expect(cta).toHaveAttribute("href", "#");
+  });
+
+  it("orders the header actions Ingresar menu, theme toggle, then Empezar gratis", () => {
+    stubMatchMedia();
+    renderMarketingNavbar();
+    const header = document.querySelector("header")!;
+    const cta = findHeaderLink(header, "Empezar gratis")!;
+    const actions = Array.from(cta.parentElement!.children);
+    expect(actions).toHaveLength(3);
+    expect(actions[0]).toBe(ingresarTrigger());
+    expect(actions[1]).toHaveAttribute("data-pf-theme-toggle");
+    expect(actions[2]).toBe(cta);
   });
 
   it("renders the sticky reference header shell", () => {
@@ -171,15 +224,33 @@ describe("PeopleFlowNavbar marketing mode", () => {
     expect(toggles[0]).toHaveAttribute("data-pf-theme-toggle");
   });
 
-  it("renders no mobile hamburger or sheet (reference nav has none)", () => {
+  it("renders exactly the shared login trigger and theme toggle, never a hamburger", () => {
     stubMatchMedia();
     renderMarketingNavbar();
     const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(1);
-    expect(buttons[0]).toHaveAttribute("data-pf-theme-toggle");
+    // Two controls only: the shared Ingresar menu and the theme toggle.
+    expect(buttons).toHaveLength(2);
+    const trigger = ingresarTrigger();
+    const toggle = screen.getByRole("button", { name: /cambiar tema/i });
+    expect(buttons).toContain(trigger);
+    expect(buttons).toContain(toggle);
+    // The login entry is the shared menu, not a sheet/hamburger control.
+    expect(trigger).not.toHaveAttribute("data-pf-theme-toggle");
+    expect(toggle).not.toHaveAttribute("aria-haspopup");
     expect(
       screen.queryByRole("button", { name: /abr?ir?.*men[úu]/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("composes the shared IngresarMenu once without re-owning menu logic", () => {
+    // Shared component is used exactly once; destinations must not be
+    // duplicated in the navbar.
+    expect(source).toContain('from "@/components/navigation/IngresarMenu"');
+    expect(source.match(/<IngresarMenu\b/g)).toHaveLength(1);
+    expect(source).not.toContain("/candidato/login");
+    expect(source).not.toContain("/empresa/login");
+    expect(source).not.toContain("@base-ui/react/menu");
+    expect(source).not.toContain("DropdownMenu");
   });
 
   it("renders the reference h-7 wordmark in the marketing nav", () => {

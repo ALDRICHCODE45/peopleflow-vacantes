@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 
 import { PeopleFlowLogo } from "@/components/brand/logo";
+import { IngresarMenu } from "@/components/navigation/IngresarMenu";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
 export type NavbarMode = "candidate" | "marketing";
@@ -41,10 +42,12 @@ const CandidateNavbar = React.memo(function CandidateNavbar() {
 });
 
 // Marketing nav mirrors design/landing-preview exactly: full-width sticky
-// header, brand + the Vacantes entry point + four product links, a quiet login
-// link, the shared theme control and one primary CTA. The reference has no
-// mobile sheet, so there is no hamburger here. Only Vacantes is a real route;
-// the four product links stay non-operational prototype placeholders.
+// header, brand + the Vacantes entry point + four product links, the shared
+// login menu carrying the previous quiet login weight, the shared theme
+// control and one primary CTA. The reference has no mobile sheet, so there is
+// no hamburger here; the shared trigger collapses to its compact 40px target
+// so login stays reachable at mobile width. Only Vacantes is a real route; the
+// four product links stay non-operational prototype placeholders.
 const MARKETING_NAV_LINKS = [
   // Candidate entry point: the only real destination in this nav.
   { label: "Vacantes", href: "/vacantes" },
@@ -61,9 +64,9 @@ const MarketingNavbar = React.memo(function MarketingNavbar() {
       data-pf-marketing-navbar=""
       className="sticky top-0 z-50 border-b border-transparent backdrop-blur-md transition-colors duration-300"
     >
-      <nav className="mx-auto flex max-w-[1280px] items-center justify-between px-8 py-5">
+      <nav className="mx-auto flex max-w-[1280px] items-center justify-between px-5 py-5 sm:px-8">
         <div className="flex items-center gap-10">
-          <Link href="/" aria-label="PeopleFlow" className="select-none">
+          <Link href="/" aria-label="PeopleFlow" className="shrink-0 select-none">
             <PeopleFlowLogo className="h-7 w-auto" />
           </Link>
           <ul className="hidden items-center gap-8 text-[15px] text-muted md:flex">
@@ -76,17 +79,12 @@ const MarketingNavbar = React.memo(function MarketingNavbar() {
             ))}
           </ul>
         </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="#"
-            className="hidden text-[15px] text-muted transition hover:text-ink sm:block"
-          >
-            Iniciar sesión
-          </Link>
+        <div className="flex items-center gap-2 sm:gap-4">
+          <IngresarMenu className="text-[15px] font-normal text-muted hover:text-ink" />
           <ThemeToggle className="size-9 rounded-lg border-line bg-surface/40 text-muted hover:border-brand/60 hover:bg-surface/60 hover:text-ink" />
           <Link
             href="#"
-            className="btn btn-primary rounded-xl bg-brand px-5 py-2.5 text-[14px] font-semibold text-white"
+            className="btn btn-primary rounded-xl bg-brand px-4 py-2.5 text-[14px] font-semibold text-white sm:px-5"
           >
             Empezar gratis
           </Link>
@@ -103,8 +101,10 @@ const MarketingNavbar = React.memo(function MarketingNavbar() {
  *   No hamburger, no extra CTAs, no mobile menu.
  *
  * - `marketing` mode: the reference landing header (brand + Vacantes +
- *   Producto / Soluciones / Precios / Recursos + Iniciar sesión + theme toggle
- *   + Empezar gratis). Only Vacantes is a real route; the rest stay `#`.
+ *   Producto / Soluciones / Precios / Recursos + the shared Ingresar menu +
+ *   theme toggle + Empezar gratis). Only Vacantes is a real route; the rest
+ *   stay `#`. The Ingresar menu keeps both login destinations in one shared
+ *   popup, so no login anchor is duplicated here.
  *
  * Both modes share the same theme control. The component is a client boundary
  * because ThemeToggle is a client leaf; the static landing content remains
