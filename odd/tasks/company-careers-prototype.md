@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R7A shared dual-login menu
+- Current task: CCP-R7B public-shell login integration
 - Push/PR: not authorized
 
 ## Goal
@@ -59,7 +59,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R6B — Root accessibility contrast:** Stabilized full-document reveal readiness before axe without fixed sleeps/exclusions/hiding, reducing the transient scan to 18 genuine steady-state nodes; introduced AA-safe same-hue light accent text while preserving exact dark accent identity and primary CTA brand color; aligned the frozen palette contract. Authored 120/180 lines. Verification: strict RED 4 failing cells/18 nodes → GREEN 4/4 root axe, full root 13/13, full Vitest 831/831, TypeScript/full ESLint/build PASS; independent verifier PASS after requiring every reveal to be `in` at opacity 1; native review approved and acknowledged with one non-blocking reveal-readiness advisory. External 4010 and foreign 3001 preserved. Commit evidence: `5a03f0c2f84cc8ff0ae18ab8315194224041d09d`.
 - [x] **CCP-R6C1 — Company accessibility contract:** Added the missing company careers WCAG A/AA matrix across light/dark desktop 1440×900 and mobile 375×812 while preserving the existing geometry/interaction contract. Authored 34/70 lines. Verification: company axe 4/4 and full company spec 5/5 Chromium PASS, production build/TypeScript/exact ESLint PASS; independent verifier PASS; native review approved and acknowledged. Recovery 4010 and foreign 3001 preserved. Commit evidence: `78089b41f6418135fe287950206a12ffc155bdd8`.
 - [ ] **CCP-R6C2 — Final integrated acceptance:** Automated evidence is GREEN on the committed tree: 831/831 Vitest, 96/96 Chromium, production build/TypeScript/full ESLint PASS, root/list/detail/company axe matrices PASS, and an 8/8 timeout-safe visual pack was generated. Human visual approval was deferred after inspection exposed missing candidate/employer login entry points; rerun and approval move to CCP-R7E after restoration.
-- [ ] **CCP-R7A — Shared dual-login menu:** Build one accessible `Ingresar` dropdown with Candidato and Empresa destinations using the existing Base UI menu primitive. Forecast: 120–220 lines.
+- [x] **CCP-R7A — Shared dual-login menu:** Built one reusable client dropdown on the existing Base UI/Button primitives with a 40px `Ingresar` trigger, Lucide chevron, semantic popup tokens, and exactly Candidato→`/candidato/login` plus Empresa→`/empresa/login`; trigger styling is the only optional surface. Authored 185/220 lines. Verification: focused 7/7 and adjacent navigation 24/24 Vitest PASS, TypeScript/exact ESLint PASS; independent verifier PASS after removing jsdom interaction; native review approved and acknowledged with destination behavior explicitly deferred to CCP-R7E Playwright. Commit evidence: `dd91a1de89a8ee21ca7ae6a7d7205be0aef0584e`.
 - [ ] **CCP-R7B — Public-shell login integration:** Replace the hidden candidate-only link with the shared menu across desktop/mobile while preserving Publicar vacante and public navigation. Forecast: 40–100 lines.
 - [ ] **CCP-R7C — Marketing login integration:** Replace the marketing `#` login placeholder with the shared menu while preserving Vacantes and Empezar gratis. Forecast: 50–120 lines.
 - [ ] **CCP-R7D — Truthful prototype login routes:** Recreate candidate and employer login screens from the repository design references with `noindex`, explicit prototype disclosure, and zero backend/storage/navigation claims. Forecast: 260–400 lines.
@@ -92,4 +92,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Implement CCP-R7A with strict TDD: add the shared accessible Ingresar menu and verify exact candidate/employer destinations before integrating either shell.
+Implement CCP-R7B with strict TDD: replace the public shell's hidden candidate-only link with the shared menu across desktop and mobile while preserving Publicar vacante.
