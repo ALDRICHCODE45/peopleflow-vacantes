@@ -2,12 +2,21 @@ import * as React from "react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import CandidateLoginPage, { metadata as candidateMetadata } from "../../app/(auth)/candidato/login/page";
 import EmployerLoginPage, { metadata as employerMetadata } from "../../app/(auth)/empresa/login/page";
 import { LoginScreen } from "./LoginScreen";
 
 const DISCLOSURE = "Vista previa: acceso aún no disponible.";
+
+// Vitest runs from frontend/, so the CSS-module source is read directly: jsdom
+// never loads the stylesheet, and the panel fallback is a visual contract.
+const visualPanelCss = readFileSync(
+  join(process.cwd(), "src/components/auth/login-screen.module.css"),
+  "utf8",
+);
 
 // CCP-R7D2C: jsdom has no WebGL, so the OGL leaf is stubbed here and the real
 // canvas/palette/blend proof lives in the Chromium slice. The stub renders the
@@ -99,7 +108,7 @@ describe("LoginScreen navigation and theme control", () => {
 });
 
 describe("LoginScreen static visual panel", () => {
-  it("renders one decorative desktop-only panel with the fixed white wordmark", () => {
+  it("renders one decorative desktop-only panel with both approved theme marks", () => {
     const { container } = render(<LoginScreen variant="employer" />);
     const panel = container.querySelector("[data-login-visual-panel]");
     expect(panel).not.toBeNull();
@@ -107,10 +116,24 @@ describe("LoginScreen static visual panel", () => {
     // Desktop-only: hidden below lg, visible from lg up.
     expect(panel?.className).toContain("hidden");
     expect(panel?.className).toContain("lg:block");
-    const wordmarks = Array.from(panel!.querySelectorAll("img"));
-    expect(wordmarks).toHaveLength(1);
-    expect(wordmarks[0]!.getAttribute("src") ?? "").toContain("peopleflow-dark.webp");
-    expect(wordmarks[0]!.getAttribute("alt")).toBe("");
+    // Both approved marks, swapped by theme through the canonical brand
+    // classes instead of a hard-coded, permanently white wordmark.
+    const marks = Array.from(panel!.querySelectorAll("img"));
+    expect(marks).toHaveLength(2);
+    expect(marks[0]!.getAttribute("src") ?? "").toContain("peopleflow-light.webp");
+    expect(marks[1]!.getAttribute("src") ?? "").toContain("peopleflow-dark.webp");
+    expect(marks[0]!.className).toContain("brand-mark-light");
+    expect(marks[1]!.className).toContain("brand-mark-dark");
+    // The panel stays decorative: the marks live inside the aria-hidden stage.
+    for (const mark of marks) expect(mark.closest("[aria-hidden='true']")).not.toBeNull();
+  });
+
+  it("keeps a theme-aware panel fallback: warm light base over the dark baseline", () => {
+    // Dark baseline stays the repository --background value.
+    expect(visualPanelCss).toContain("#0c0912");
+    // Explicit/system light becomes the warm --base so the inverted white
+    // framebuffer multiplies neutrally instead of over an opaque black panel.
+    expect(visualPanelCss).toMatch(/:global\(html:not\(\.dark\)\)\s+\.visualPanel\.visualPanel\s*\{[^}]*#f7f5fb/i);
   });
 
   it("keeps one main landmark and the mobile brand link", () => {

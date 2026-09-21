@@ -11,7 +11,7 @@ type Gl = { canvas: HTMLCanvasElement; getExtension: () => { loseContext(): void
 type Rend = { gl: Gl | null; options: Record<string, unknown>; dpr: number };
 type Prog = { uniforms: Record<string, { value: unknown }>; vertex: string; fragment: string };
 
-const s = vi.hoisted(() => ({ rends: [] as Rend[], progs: [] as Prog[], renders: 0, raf: [] as Array<() => void>, cancelled: 0, lost: 0, disconnected: 0, added: [] as string[], snapshots: [] as number[][][] }));
+const s = vi.hoisted(() => ({ rends: [] as Rend[], progs: [] as Prog[], renders: 0, raf: [] as Array<() => void>, cancelled: 0, lost: 0, disconnected: 0, added: [] as string[], snapshots: [] as number[][][], failSize: false }));
 const media = { desktop: true, reduced: false };
 
 vi.mock("ogl", () => {
@@ -20,7 +20,7 @@ vi.mock("ogl", () => {
     gl = mkGl();
     options: Record<string, unknown> = {};
     dpr = 1;
-    setSize = (w: number, h: number) => { this.gl.drawingBufferWidth = Math.round(w * this.dpr); this.gl.drawingBufferHeight = Math.round(h * this.dpr); };
+    setSize = (w: number, h: number) => { if (s.failSize) throw new Error("FloatingLines: resize denied"); this.gl.drawingBufferWidth = Math.round(w * this.dpr); this.gl.drawingBufferHeight = Math.round(h * this.dpr); };
     render = () => { s.renders += 1; s.snapshots.push((s.progs[0].uniforms.lineGradient.value as Float32Array[]).map((stop) => Array.from(stop))); };
     constructor(options: Record<string, unknown> = {}) { this.options = options; this.dpr = typeof options.dpr === "number" ? options.dpr : 1; s.rends.push(this); }
   }
@@ -36,6 +36,9 @@ vi.mock("ogl", () => {
 beforeEach(() => {
   media.desktop = true;
   media.reduced = false;
+  // jsdom shares one documentElement across tests: never inherit a theme.
+  document.documentElement.classList.remove("dark");
+  document.documentElement.removeAttribute("data-theme");
   vi.stubGlobal("matchMedia", (q: string) => ({ matches: q === FLOATING_LINES_MEDIA_QUERIES.desktop ? media.desktop : q === FLOATING_LINES_MEDIA_QUERIES.reducedMotion ? media.reduced : true, addEventListener: () => {}, removeEventListener: () => {} }));
   vi.stubGlobal("ResizeObserver", class { observe() { /* noop */ } disconnect() { s.disconnected += 1; } });
   vi.stubGlobal("requestAnimationFrame", (cb: () => void) => { s.raf.push(cb); return s.raf.length; });
@@ -48,11 +51,15 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  Object.assign(s, { rends: [], progs: [], renders: 0, raf: [], cancelled: 0, lost: 0, disconnected: 0, added: [], snapshots: [] });
+  Object.assign(s, { rends: [], progs: [], renders: 0, raf: [], cancelled: 0, lost: 0, disconnected: 0, added: [], snapshots: [], failSize: false });
 });
 
 const hostOf = (c: HTMLElement) => c.querySelector("[data-floating-lines-host]") as HTMLElement;
-const expectStops = (actual: number[][], hexes: readonly string[]) => hexes.forEach((hex, i) => [0, 2, 4].forEach((o, c) => expect(actual[i][c]).toBeCloseTo(Number.parseInt(hex.replace("#", "").slice(o, o + 2), 16) / 255, 5)));
+const channelOf = (hex: string, offset: number) => Number.parseInt(hex.replace("#", "").slice(offset, offset + 2), 16) / 255;
+const expectStops = (actual: ArrayLike<ArrayLike<number>>, hexes: readonly string[]) => hexes.forEach((hex, i) => [0, 2, 4].forEach((o, c) => expect(actual[i][c]).toBeCloseTo(channelOf(hex, o), 5)));
+// Light feeds the black-background shader the per-channel complement of the
+// committed VISIBLE light palette; CSS `invert(1)` restores it before multiply.
+const expectComplementStops = (actual: ArrayLike<ArrayLike<number>>, hexes: readonly string[]) => hexes.forEach((hex, i) => [0, 2, 4].forEach((o, c) => expect(actual[i][c]).toBeCloseTo(1 - channelOf(hex, o), 5)));
 
 it("mounts one animated desktop canvas with frozen shaders/config/gradient, then tears down", async () => {
   vi.stubGlobal("devicePixelRatio", 3);
@@ -100,13 +107,64 @@ it("renders one themed static frame at time 4 with no RAF or pointer listeners, 
   expect(s.renders).toBe(1);
   expect(s.raf).toHaveLength(0);
   expect(s.added).not.toContain("mousemove");
-  // The FIRST static frame already carries the candidate dark palette.
+  // The FIRST static frame already carries the candidate dark palette, with no
+  // filter and the original `screen` blend.
   expectStops(s.snapshots[0], FLOATING_LINES_VARIANTS.candidate.darkGradient);
+  expect(host.style.mixBlendMode).toBe("screen");
+  expect(host.style.filter).toBe("");
   act(() => {
     document.documentElement.classList.remove("dark");
     document.documentElement.setAttribute("data-theme", "light");
   });
   await waitFor(() => expect(s.renders).toBe(2));
   expect(host.style.mixBlendMode).toBe("multiply");
-  expectStops(s.snapshots[1], FLOATING_LINES_VARIANTS.candidate.lightPalette);
+  expect(host.style.filter).toBe("invert(1)");
+  expectComplementStops(s.snapshots[1], FLOATING_LINES_VARIANTS.candidate.lightPalette);
+  // Switching back to dark clears the filter and restores the exact dark gradient.
+  act(() => {
+    document.documentElement.classList.add("dark");
+    document.documentElement.setAttribute("data-theme", "dark");
+  });
+  await waitFor(() => expect(s.renders).toBe(3));
+  expect(host.style.mixBlendMode).toBe("screen");
+  expect(host.style.filter).toBe("");
+  expectStops(s.snapshots[2], FLOATING_LINES_VARIANTS.candidate.darkGradient);
+});
+
+it("sets multiply + invert(1) with complement uniforms in light and clears both on dispose", async () => {
+  const { container, unmount } = render(<FloatingLines variant="employer" />);
+  const host = hostOf(container);
+  await waitFor(() => expect(host.querySelector("canvas")).not.toBeNull());
+  // Default resolved theme here is dark: exact committed uniforms, no filter.
+  expect(host.style.mixBlendMode).toBe("screen");
+  expect(host.style.filter).toBe("");
+  expectStops(s.progs[0].uniforms.lineGradient.value as Float32Array[], FLOATING_LINES_VARIANTS.employer.darkGradient);
+  act(() => {
+    document.documentElement.setAttribute("data-theme", "light");
+  });
+  await waitFor(() => expect(host.style.mixBlendMode).toBe("multiply"));
+  expect(host.style.filter).toBe("invert(1)");
+  expectComplementStops(
+    s.progs[0].uniforms.lineGradient.value as Float32Array[],
+    FLOATING_LINES_VARIANTS.employer.lightPalette,
+  );
+  unmount();
+  expect(host.style.mixBlendMode).toBe("");
+  expect(host.style.filter).toBe("");
+});
+
+it("clears both blended styles when initialization fails after theming", async () => {
+  document.documentElement.classList.remove("dark");
+  document.documentElement.setAttribute("data-theme", "light");
+  s.failSize = true;
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => { /* expected diagnostic */ });
+  const { container } = render(<FloatingLines variant="candidate" />);
+  const host = hostOf(container);
+  await waitFor(() => expect(host).toHaveAttribute("data-floating-lines-state", "failed"));
+  // applyTheme ran before the throw, so both styles must be reset by cleanup.
+  expect(host.style.mixBlendMode).toBe("");
+  expect(host.style.filter).toBe("");
+  expect(host.querySelector("canvas")).toBeNull();
+  expect(warn).toHaveBeenCalled();
+  warn.mockRestore();
 });

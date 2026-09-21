@@ -11,9 +11,11 @@
    The `.x.x` doubled-class form outranks the single-class Tailwind utilities
    shipped inside buttonVariants, so the CTA recolor wins regardless of order.
 
-   The desktop visual panel is the STATIC branded fallback: it stays dark in
-   BOTH themes because it hosts the fixed WHITE wordmark, and the variant tint
-   keeps it branded until CCP-R7D2 layers the reference OGL motion on top. */
+   The desktop visual panel is the STATIC branded fallback: its background is
+   theme-aware (warm light --base / dark baseline) so the OGL leaf's light
+   `invert(1)` + `multiply` composition stays neutral over it, and it hosts the
+   canonical theme-swapped PeopleFlow wordmarks until CCP-R7D2 layers the
+   reference OGL motion on top. */
 
 .accentEmployer {
   --pf-login-accent-link: #7b22c9;
@@ -40,9 +42,17 @@
 }
 
 .visualPanel.visualPanel {
-  /* The repository dark --background value: the panel is permanently dark. */
+  /* Dark baseline: the repository dark --background value. */
   background-color: #0c0912;
   background-image: radial-gradient(90% 70% at 22% 78%, var(--pf-login-visual-tint), transparent 70%);
+}
+
+/* Light (explicit choice or system default, i.e. anything but the resolved
+   `.dark` class): the warm --base light value. The FloatingLines host is
+   `invert(1)` + `multiply`, so its black framebuffer becomes white and
+   multiplies neutrally over this warm surface instead of blackening the panel. */
+:global(html:not(.dark)) .visualPanel.visualPanel {
+  background-color: #f7f5fb;
 }
 
 .accentText.accentText { color: var(--pf-login-accent-link); }
