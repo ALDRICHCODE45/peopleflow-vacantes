@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { MapPinIcon, SearchIcon } from "lucide-react";
 
-import { Button } from "../../../components/ui/button";
+import { Button, buttonVariants } from "../../../components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "../../../components/ui/field";
 import { Input } from "../../../components/ui/input";
 import {
@@ -255,9 +255,15 @@ export function JobsNavigationIsland({
             </FieldGroup>
             <div className="flex flex-col gap-2">
               <Button type="submit">Aplicar filtros</Button>
-              <Button render={<Link href="/vacantes" />} variant="ghost">
+              {/* Button-styled navigation stays a real anchor: routing it
+                  through the shared Button would make Base UI treat the link as
+                  a non-native button. */}
+              <Link
+                href="/vacantes"
+                className={buttonVariants({ variant: "ghost" })}
+              >
                 Limpiar filtros
-              </Button>
+              </Link>
             </div>
           </form>
           <div className="flex min-w-0 flex-1 flex-col gap-4">
@@ -290,9 +296,12 @@ export function JobsNavigationIsland({
               <FilterFields idPrefix="mobile-" query={query} />
             </FieldGroup>
             <Button type="submit">Aplicar filtros</Button>
-            <Button render={<Link href="/vacantes" />} variant="ghost">
+            <Link
+              href="/vacantes"
+              className={buttonVariants({ variant: "ghost" })}
+            >
               Limpiar filtros
-            </Button>
+            </Link>
           </form>
           <div className="px-6 pb-6">
             <SheetClose

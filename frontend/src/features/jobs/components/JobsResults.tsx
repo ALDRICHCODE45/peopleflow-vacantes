@@ -2,7 +2,7 @@ import * as React from "react";
 import Link from "next/link";
 import { SearchXIcon } from "lucide-react";
 
-import { Button } from "../../../components/ui/button";
+import { buttonVariants } from "../../../components/ui/button";
 import {
   Empty,
   EmptyContent,
@@ -44,7 +44,12 @@ function EmptyState() {
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button render={<Link href="/vacantes" />}>Quitar filtros</Button>
+        {/* Button-styled navigation stays a real anchor: routing it through the
+            shared Button would make Base UI treat the link as a non-native
+            button. */}
+        <Link href="/vacantes" className={buttonVariants()}>
+          Quitar filtros
+        </Link>
       </EmptyContent>
     </Empty>
   );
@@ -62,9 +67,9 @@ function ErrorState({ query }: { query: JobsQuery }) {
       <p className="max-w-prose text-sm text-muted-foreground">
         El servicio de vacantes no respondió correctamente.
       </p>
-      <Button render={<Link href={buildJobsUrl(query)} />}>
+      <Link href={buildJobsUrl(query)} className={buttonVariants()}>
         Intentar de nuevo
-      </Button>
+      </Link>
     </section>
   );
 }
@@ -117,18 +122,13 @@ export function JobsResults({
       </ul>
       {next_cursor && (
         <div className="flex justify-center pt-4">
-          <Button
-            size="lg"
-            variant="outline"
-            render={
-              <Link
-                href={buildJobsUrl({ ...query, cursor: next_cursor })}
-                data-jobs-next-link="true"
-              />
-            }
+          <Link
+            href={buildJobsUrl({ ...query, cursor: next_cursor })}
+            data-jobs-next-link="true"
+            className={buttonVariants({ variant: "outline", size: "lg" })}
           >
             Ver más vacantes
-          </Button>
+          </Link>
         </div>
       )}
     </>

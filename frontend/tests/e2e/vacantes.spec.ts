@@ -16,6 +16,9 @@ const PROTOTYPE_COMPANY_HREF = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
 const PROTOTYPE_DISCLOSURE = "Datos y acciones de demostración: este prototipo no se conecta a ningún backend, no guarda información y no envía postulaciones reales.";
 // Every R2/R3 authorized prototype extra of the enriched fixture vacancy.
 const PROTOTYPE_CARD_LABELS = ["Destacada", "Hace 2 h", "24 postulantes", "Ingeniería", "Habilidades", "Beneficios", "SALARIO MENSUAL", "Responde en ~3 días", "Verificada por PeopleFlow"] as const;
+// The Base UI development diagnostic that fires whenever a shared `Button`
+// renders a root that is not a native <button>.
+const NATIVE_BUTTON_DIAGNOSTIC = /nativeButton|expected a native <button>/u;
 // Every prototype-only label an unknown wire id must never render.
 const PROTOTYPE_ONLY_LABELS = ["Destacada", "postulante", "Responde en", "Verificada por PeopleFlow", "Prototipo", "Habilidades", "Beneficios", "SALARIO MENSUAL"] as const;
 // Document horizontal overflow in pixels; anything above zero fails.
@@ -1099,6 +1102,58 @@ test("buffers each completed list response with its final state", async ({
   ).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
   await expect(page.getByRole("heading", { level: 2 })).toHaveCount(0);
+});
+
+test("keeps button-styled board navigation on real links without native-button diagnostics", async ({
+  page,
+}) => {
+  // CCP-R7B1: these five button-styled board actions are anchors, never Base UI
+  // buttons, so they must keep their link role and log nothing.
+  const diagnostics: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error" && NATIVE_BUTTON_DIAGNOSTIC.test(message.text()))
+      diagnostics.push(message.text().split("\n")[0]);
+  });
+  // The currency Select opens only hydrated, which also flushes the diagnostic
+  // effect; every action must be a real anchor with Base UI artifacts absent.
+  const expectHydrated = async () => {
+    await page.locator("#desktop-currency").click();
+    await expect(page.getByRole("listbox")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+  };
+  const expectActionLink = async (link: Locator, href: string | RegExp) => {
+    await expect(link).toHaveAttribute("href", href);
+    await expect(
+      link.evaluate((el) =>
+        [el.tagName, el.getAttribute("role"), el.getAttribute("type"), el.getAttribute("data-slot")].join("|"),
+      ),
+    ).resolves.toBe("A|||");
+    await expect(link).toBeVisible();
+  };
+  const states = [
+    { url: "/vacantes", actions: [[/limpiar filtros/i, "/vacantes"], [/ver más vacantes/i, /^\/vacantes\?cursor=/]] },
+    { url: "/vacantes?q=empty", actions: [[/quitar filtros/i, "/vacantes"]] },
+    { url: "/vacantes?q=error", actions: [[/intentar de nuevo/i, "/vacantes?q=error"]] },
+  ];
+  for (const { url, actions } of states) {
+    await page.goto(url);
+    for (const [name, href] of actions)
+      await expectActionLink(page.getByRole("link", { name }), href);
+    await expectHydrated();
+  }
+  // The mobile reset link only mounts with the Sheet, whose open dialog is the
+  // fifth site's client proof.
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/vacantes");
+  await page.getByRole("button", { name: /filtros/i }).click();
+  const sheet = page.getByRole("dialog");
+  await expect(sheet).toHaveAccessibleName(/filtros/i);
+  await expectActionLink(
+    sheet.getByRole("link", { name: /limpiar filtros/i }),
+    "/vacantes",
+  );
+  expect(diagnostics).toEqual([]);
 });
 
 test("keeps the dual-login menu runtime-safe on desktop and mobile", async ({
