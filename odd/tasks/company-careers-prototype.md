@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R7D2A recover login shader parity
+- Current task: CCP-R7D2B port FloatingLines to OGL
 - Push/PR: not authorized
 
 ## Goal
@@ -63,7 +63,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R7B — Runtime-safe public-shell login integration:** Replaced the hidden candidate-only link with the shared desktop/mobile menu, preserved Publicar vacante/public navigation, corrected Base UI menu grouping, and added runtime click/Escape/focus/keyboard/375px overflow proof. Implementation: `214ef36c1789c52cedc4ff9f5f548d86c9f3f53f`; 840/840 unit, 28/28 Chromium vacancy, TypeScript/ESLint clean; native review approved and acknowledged.
 - [x] **CCP-R7B1 — Systemic Base UI link-button semantics:** Replaced all five job navigation `Button render={<Link>}` compositions with semantic Next links styled by `buttonVariants`, eliminating Base UI diagnostics without degrading anchors to buttons. Implementation: `8f74852d7fcd8df3a372bb92d2c725593f3b934e`; 18/18 unit, 29/29 Chromium vacancy, TypeScript/ESLint clean; native review approved and acknowledged.
 - [x] **CCP-R7D1 — Recover truthful login shells:** Recovered the previously authored but never committed shared candidate/employer shell and both routes from the protected recovery worktree with `noindex`, explicit prototype disclosure, static branded fallback, and zero backend/storage/submission claims. Authored 372/400 lines. Verification: 13/13 focused, 44/44 adjacent, TypeScript/exact ESLint clean, both live routes HTTP 200; independent verifier PASS; four-lens native review approved and acknowledged. Implementation: `a54864e34b4b5fd065d64bc06b39deeb38df3f29`.
-- [ ] **CCP-R7D2A — Recover login shader parity:** Copy the reference FloatingLines fragment shader, Three.js vertex parity anchor, shared config, and distinct candidate/employer palettes into a tested engine-independent module. Forecast: 230–300 lines.
+- [x] **CCP-R7D2A — Recover login shader parity:** Copied the byte-exact reference fragment shader, Three.js vertex parity anchor, OGL vertex adaptation, shared config/vectors/media contracts, and distinct candidate/employer palettes into an engine-independent module. Authored 256/300 lines. Verification: 9/9 focused, 22/22 auth, TypeScript/ESLint clean; independent verifier PASS; four-lens native review approved and acknowledged. Implementation: `224a0dd23b49133e69f052f69868492817fe7053`.
 - [ ] **CCP-R7D2B — Port FloatingLines to OGL:** Implement the desktop-gated OGL client leaf with pointer damping, resize/DPR, reduced-motion static frame, live theme blending, failure containment, and teardown. Forecast: 330–400 lines.
 - [ ] **CCP-R7D2C — Integrate and prove login animations:** Mount the OGL leaf in both recovered shells and verify per-variant canvas/palettes, theme, responsive/reduced-motion behavior, frame advance, cleanup, and zero runtime errors. Forecast: 160–260 lines.
 - [ ] **CCP-R7C — Marketing login integration:** Replace the marketing `#` login placeholder with the shared menu while preserving Vacantes and Empezar gratis. Forecast: 50–120 lines.
@@ -96,4 +96,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Implement CCP-R7D2A with strict TDD by freezing the exact design shader/config/palette contract before writing the OGL host.
+Implement CCP-R7D2B with strict TDD: build the desktop-gated OGL FloatingLines client leaf against the frozen design shader/config contract.
