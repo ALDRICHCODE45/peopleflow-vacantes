@@ -1,6 +1,4 @@
 import * as React from "react";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
@@ -11,9 +9,15 @@ import { LoginScreen } from "./LoginScreen";
 
 const DISCLOSURE = "Vista previa: acceso aún no disponible.";
 
-// CCP-R7D1: the OGL motion belongs to CCP-R7D2, so this slice must ship the
-// static fallback only. The source assertion keeps that slice boundary honest.
-const shellSource = readFileSync(join(process.cwd(), "src/components/auth/LoginScreen.tsx"), "utf8");
+// CCP-R7D2C: jsdom has no WebGL, so the OGL leaf is stubbed here and the real
+// canvas/palette/blend proof lives in the Chromium slice. The stub renders the
+// leaf's own host element and echoes the `variant` prop, which is exactly what
+// the shell must wire.
+vi.mock("./FloatingLines", () => ({
+  FloatingLines: ({ variant, className }: { variant: string; className?: string }) => (
+    <div data-floating-lines-host="" data-floating-lines-variant={variant} className={className} />
+  ),
+}));
 
 beforeAll(() => {
   // The shell mounts the persisted ThemeToggle client leaf; jsdom implements
@@ -117,10 +121,32 @@ describe("LoginScreen static visual panel", () => {
     expect(brandLink!.querySelectorAll("img").length).toBeGreaterThan(0);
   });
 
-  it("defers the OGL motion: no FloatingLines leaf exists in this slice", () => {
-    const { container } = render(<LoginScreen variant="candidate" />);
-    expect(container.querySelector("[data-floating-lines-host]")).toBeNull();
-    expect(shellSource).not.toMatch(/FloatingLines/);
+  it("mounts exactly one variant-wired FloatingLines host inside the decorative panel", () => {
+    for (const [variant, heading] of [
+      ["employer", "Ingresa a tu cuenta"],
+      ["candidate", "Ingresa a tu perfil"],
+    ] as const) {
+      const { container, unmount } = render(<LoginScreen variant={variant} />);
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(heading);
+      const panel = container.querySelector("[data-login-visual-panel]");
+      expect(panel).not.toBeNull();
+      const hosts = panel!.querySelectorAll("[data-floating-lines-host]");
+      // Exactly one animated leaf, inside the (already aria-hidden) panel.
+      expect(hosts).toHaveLength(1);
+      expect(hosts[0]).toHaveAttribute("data-floating-lines-variant", variant);
+      // No second host anywhere in the shell.
+      expect(container.querySelectorAll("[data-floating-lines-host]")).toHaveLength(1);
+      unmount();
+    }
+  });
+
+  it("keeps the animated leaf as the first child under the z-10 white wordmark and the static tint layer", () => {
+    const { container } = render(<LoginScreen variant="employer" />);
+    const panel = container.querySelector("[data-login-visual-panel]")!;
+    expect(panel.firstElementChild).toBe(panel.querySelector("[data-floating-lines-host]"));
+    // The static branded tint stays wired on the panel as the fallback layer.
+    expect(panel.className).toMatch(/visualPanel/);
+    expect(panel.lastElementChild!.className).toContain("z-10");
   });
 });
 

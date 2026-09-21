@@ -8,16 +8,18 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Separator } from "../ui/separator";
+import { FloatingLines } from "./FloatingLines";
 import styles from "./login-screen.module.css";
 
 // LOGIN-01: shared shell for both login routes; a server component whose own
-// only client leaf is the existing persisted ThemeToggle. Authentication is NOT
-// wired: there is no <form>, fetch, router, storage, action, credential name or
+// client leaves are the existing persisted ThemeToggle and the OGL
+// FloatingLines panel (LOGIN-02 / CCP-R7D2C). Authentication is NOT wired:
+// there is no <form>, fetch, router, storage, action, credential name or
 // submit surface. The credential area is a labelled non-form grouping, every
 // auth action is disabled, and both credential inputs are readOnly with a fixed
 // empty value, so nothing can be typed, submitted, transmitted or stored. The
-// desktop visual panel is the STATIC branded fallback (variant tint + fixed
-// white wordmark); the reference OGL motion belongs to LOGIN-02 / CCP-R7D2.
+// desktop visual panel keeps the STATIC branded fallback (variant tint + fixed
+// white wordmark) under the animation and for any WebGL failure.
 
 export type LoginVariant = "employer" | "candidate";
 
@@ -65,8 +67,11 @@ export function LoginScreen({ variant }: { variant: LoginVariant }) {
       {/* Desktop visual panel: decorative, aria-hidden and outside the
           accessibility tree, hidden below lg. The WHITE wordmark is fixed on
           purpose because the panel stays dark in both themes, so the shared
-          light/dark mark swap must not reach it. */}
+          light/dark mark swap must not reach it. The OGL leaf owns breakpoint
+          gating, reduced motion, theme blending and WebGL-failure containment
+          itself; the static tint and the wordmark stay underneath/above it. */}
       <div aria-hidden="true" data-login-visual-panel="" className={`${styles.visualPanel} ${styles.visualPanel} relative hidden overflow-hidden border-r border-border lg:block`}>
+        <FloatingLines variant={variant} />
         <div className="pointer-events-none relative z-10 p-12">
           <span className="inline-block w-fit">
             <Image src="/brand/peopleflow-dark.webp" alt="" width={1584} height={396} priority className="h-7 w-auto" />

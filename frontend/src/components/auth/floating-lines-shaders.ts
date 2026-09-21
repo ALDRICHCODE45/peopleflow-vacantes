@@ -53,6 +53,24 @@ export const FLOATING_LINES_FRAGMENT_SHADER = `precision highp float;
       }`;
 
 /**
+ * CCP-R7D2C — runtime Chromium compatibility patch, exactly ONE substitution.
+ *
+ * Chromium's GLSL ES 1.00 compiler rejects the frozen reference statement
+ * `int j=min(i+1,lineGradientCount-1);` (`min` is float-only before GLSL ES
+ * 3.00), so the reference bytes cannot link there:
+ *   ERROR: 0:10: 'min' : no matching overloaded function found
+ *   ERROR: 0:10: '=' : cannot convert from 'const mediump float' to 'mediump int'
+ * The substitution below is the integer ternary equivalent of the same intent
+ * and changes no other byte. `FLOATING_LINES_FRAGMENT_SHADER` stays the
+ * byte-exact design parity anchor, and the parity suite asserts that reversing
+ * this substitution reconstructs it exactly.
+ */
+export const FLOATING_LINES_OGL_FRAGMENT_SHADER = FLOATING_LINES_FRAGMENT_SHADER.replace(
+     "int j=min(i+1,lineGradientCount-1);",
+     "int j=(i+1<lineGradientCount)?i+1:lineGradientCount-1;",
+);
+
+/**
  * The exact reference `cfg`, WITHOUT the per-variant `linesGradient`: every
  * scalar and every wave vector below is byte-identical in BOTH design screens,
  * so it is shared once. `top`/`mid`/`bot` are the reference's wave-position

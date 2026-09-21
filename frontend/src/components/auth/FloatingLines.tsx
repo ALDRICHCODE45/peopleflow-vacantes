@@ -6,8 +6,8 @@ import { Mesh, Program, Renderer, Triangle } from "ogl";
 import { SYSTEM_DARK_QUERY, type ResolvedTheme } from "../theme/theme-preferences";
 import {
   FLOATING_LINES_CONFIG,
-  FLOATING_LINES_FRAGMENT_SHADER,
   FLOATING_LINES_MEDIA_QUERIES,
+  FLOATING_LINES_OGL_FRAGMENT_SHADER,
   FLOATING_LINES_OGL_VERTEX_SHADER,
   FLOATING_LINES_REDUCED_MOTION_FRAME_TIME,
   FLOATING_LINES_VARIANTS,
@@ -103,7 +103,7 @@ function buildFloatingLines(
     };
     const program = new Program(gl, {
       vertex: FLOATING_LINES_OGL_VERTEX_SHADER,
-      fragment: FLOATING_LINES_FRAGMENT_SHADER,
+      fragment: FLOATING_LINES_OGL_FRAGMENT_SHADER,
       uniforms,
     });
     cleanups.push(() => program.remove());

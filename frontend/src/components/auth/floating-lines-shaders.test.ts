@@ -7,6 +7,7 @@ import {
   FLOATING_LINES_CONFIG,
   FLOATING_LINES_FRAGMENT_SHADER,
   FLOATING_LINES_MEDIA_QUERIES,
+  FLOATING_LINES_OGL_FRAGMENT_SHADER,
   FLOATING_LINES_OGL_VERTEX_SHADER,
   FLOATING_LINES_REDUCED_MOTION_FRAME_TIME,
   FLOATING_LINES_VARIANTS,
@@ -68,6 +69,24 @@ describe("FloatingLines reference contract (CCP-R7D2A)", () => {
       expect(FLOATING_LINES_FRAGMENT_SHADER, `fragment shader drift vs ${reference.label}`).toBe(reference.fragmentShader);
     }
     expect(CANDIDATE.fragmentShader, "the two reference screens must share identical fragment bytes").toBe(EMPLOYER.fragmentShader);
+  });
+
+  it("derives the runtime OGL fragment shader with exactly one compatibility substitution", () => {
+    // Chromium's GLSL ES 1.00 compiler rejects integer `min`, so the frozen
+    // reference bytes cannot link there; the runtime shader substitutes that one
+    // statement and changes nothing else.
+    const reference = "int j=min(i+1,lineGradientCount-1);";
+    const runtime = "int j=(i+1<lineGradientCount)?i+1:lineGradientCount-1;";
+    expect(FLOATING_LINES_FRAGMENT_SHADER).toContain(reference);
+    expect(FLOATING_LINES_OGL_FRAGMENT_SHADER).toContain(runtime);
+    expect(FLOATING_LINES_OGL_FRAGMENT_SHADER).not.toContain(reference);
+    // No integer `min` survives: the reference carries exactly one, the runtime none.
+    expect(FLOATING_LINES_FRAGMENT_SHADER.match(/min\(/g)).toHaveLength(1);
+    expect(FLOATING_LINES_OGL_FRAGMENT_SHADER).not.toContain("min(");
+    // Reversing the substitution reconstructs the frozen anchor byte-for-byte.
+    expect(FLOATING_LINES_OGL_FRAGMENT_SHADER.replaceAll(runtime, reference)).toBe(FLOATING_LINES_FRAGMENT_SHADER);
+    // The design sources keep their own Chromium-invalid bytes: parity is untouched.
+    for (const source of REFERENCES) expect(source.fragmentShader).toContain(reference);
   });
 
   it("exports the reference Three.js vertex shader as the exact parity anchor", () => {

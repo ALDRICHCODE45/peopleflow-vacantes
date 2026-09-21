@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { FLOATING_LINES_CONFIG, FLOATING_LINES_FRAGMENT_SHADER, FLOATING_LINES_MEDIA_QUERIES, FLOATING_LINES_OGL_VERTEX_SHADER, FLOATING_LINES_REDUCED_MOTION_FRAME_TIME, FLOATING_LINES_VARIANTS } from "./floating-lines-shaders";
+import { FLOATING_LINES_CONFIG, FLOATING_LINES_MEDIA_QUERIES, FLOATING_LINES_OGL_FRAGMENT_SHADER, FLOATING_LINES_OGL_VERTEX_SHADER, FLOATING_LINES_REDUCED_MOTION_FRAME_TIME, FLOATING_LINES_VARIANTS } from "./floating-lines-shaders";
 import { FloatingLines } from "./FloatingLines";
 
 // Compact CCP-R7D2B lifecycle contract over an in-memory ogl stand-in (jsdom
@@ -64,7 +64,7 @@ it("mounts one animated desktop canvas with frozen shaders/config/gradient, then
   expect(s.rends).toHaveLength(1);
   expect(s.rends[0].options).toMatchObject({ alpha: false, antialias: true, dpr: 2 });
   expect(s.raf).toHaveLength(1);
-  expect(s.progs[0].vertex).toBe(FLOATING_LINES_OGL_VERTEX_SHADER); expect(s.progs[0].fragment).toBe(FLOATING_LINES_FRAGMENT_SHADER);
+  expect(s.progs[0].vertex).toBe(FLOATING_LINES_OGL_VERTEX_SHADER); expect(s.progs[0].fragment).toBe(FLOATING_LINES_OGL_FRAGMENT_SHADER);
   const u = s.progs[0].uniforms;
   expect(u.animationSpeed.value).toBe(FLOATING_LINES_CONFIG.animationSpeed);
   expect(u.topLineCount.value).toBe(FLOATING_LINES_CONFIG.lineCount);
