@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R7D3 light-mode animation compositing correction
+- Current task: CCP-R7E final integrated acceptance and visual approval
 - Push/PR: not authorized
 
 ## Goal
@@ -66,7 +66,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R7D2A — Recover login shader parity:** Copied the byte-exact reference fragment shader, Three.js vertex parity anchor, OGL vertex adaptation, shared config/vectors/media contracts, and distinct candidate/employer palettes into an engine-independent module. Authored 256/300 lines. Verification: 9/9 focused, 22/22 auth, TypeScript/ESLint clean; independent verifier PASS; four-lens native review approved and acknowledged. Implementation: `224a0dd23b49133e69f052f69868492817fe7053`.
 - [x] **CCP-R7D2B — Port FloatingLines to OGL:** Implemented the desktop-gated OGL client leaf with pointer damping, resize/DPR, reduced-motion static frame, live theme blending, failure containment, teardown, and a compact essential unit contract. Authored 398/400 lines. Verification: 3/3 focused, 25/25 auth, TypeScript/ESLint clean; independent verifier caught and reverified reduced-motion palette ordering; four-lens native review approved and acknowledged. Implementation: `9766c809d1792a84c63ede8ac2e37e54753d6cda`.
 - [x] **CCP-R7D2C — Integrate and prove login animations:** Mounted the OGL leaf in both shells and added a Chromium-safe, one-expression integer compatibility transform while preserving the byte-exact design shader anchor. Authored 399/400 lines. Verification: 27/27 auth, 7/7 real Chromium; per-variant rendered pixel bias, theme blend/redraw, mobile absence/no overflow, reduced-motion static stability, reciprocal cleanup, WebGL failure-safe shell, and zero business mutations proved. Independent verifier PASS; four-lens native review approved and acknowledged. Implementation: `c62acdadd9991094eedad078f2487a18d7277e7a`.
-- [ ] **CCP-R7D3 — Correct light-mode animation compositing:** Replace the opaque-black multiply result with white-neutral light compositing, make the visual panel and wordmark theme-aware, and prove both variants remain vivid in light/dark without regressing motion, reduced motion, mobile gating, or fallback. Forecast: 90–180 lines.
+- [x] **CCP-R7D3 — Correct light-mode animation compositing:** Replaced the opaque-black multiply result with complemented light uniforms plus `invert(1)`/`multiply`, added theme-aware warm-light/dark panel fallbacks and approved black/white wordmarks, and preserved the existing dark animation. Authored 235/400 lines. Verification: 32/32 auth+brand units, 8/8 focused Chromium, TypeScript/exact ESLint/diff-check PASS; independent verifier PASS with valid four-image 1440×900 visual evidence; four-lens native review approved and acknowledged. Implementation: `dd9073a0b669cf7de01fa2ae49dd90baf8a007cb`.
 - [x] **CCP-R7C — Marketing login integration:** Replaced the marketing `#` login placeholder with the shared Ingresar menu, preserved action order and reference content, and tightened mobile geometry without hiding controls. Authored 117/120 lines. Verification: 27/27 navigation units, typecheck/ESLint clean, independent hydrated Chromium desktop/mobile proof for destinations, Escape/focus return, and zero overflow/errors; native reliability review approved and acknowledged. Implementation: `0f40616c0219072908a9952b9b5d186e11dd00d1`.
 - [ ] **CCP-R7E — Login browser contracts and final visual approval:** Verify menu keyboard/Escape/focus/mobile behavior, both login routes, zero mutations/persistence, full corpus, refreshed visual pack, and mandatory human visual approval. Forecast: 140–260 lines.
 
@@ -97,4 +97,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Fix CCP-R7D3 with strict TDD, rerun the affected auth/browser matrix, then repeat CCP-R7E final acceptance and regenerate the visual pack for human approval.
+Run CCP-R7E full committed-tree acceptance, regenerate the 14-case visual pack, and request final human visual approval.
