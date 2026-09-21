@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R7D4 exact design animation parity
+- Current task: CCP-R7D4 direct browser validation
 - Push/PR: not authorized
 
 ## Goal
@@ -67,7 +67,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R7D2B — Port FloatingLines to OGL:** Implemented the desktop-gated OGL client leaf with pointer damping, resize/DPR, reduced-motion static frame, live theme blending, failure containment, teardown, and a compact essential unit contract. Authored 398/400 lines. Verification: 3/3 focused, 25/25 auth, TypeScript/ESLint clean; independent verifier caught and reverified reduced-motion palette ordering; four-lens native review approved and acknowledged. Implementation: `9766c809d1792a84c63ede8ac2e37e54753d6cda`.
 - [x] **CCP-R7D2C — Integrate and prove login animations:** Mounted the OGL leaf in both shells and added a Chromium-safe, one-expression integer compatibility transform while preserving the byte-exact design shader anchor. Authored 399/400 lines. Verification: 27/27 auth, 7/7 real Chromium; per-variant rendered pixel bias, theme blend/redraw, mobile absence/no overflow, reduced-motion static stability, reciprocal cleanup, WebGL failure-safe shell, and zero business mutations proved. Independent verifier PASS; four-lens native review approved and acknowledged. Implementation: `c62acdadd9991094eedad078f2487a18d7277e7a`.
 - [x] **CCP-R7D3 — Correct light-mode animation compositing (human-rejected):** Replaced the opaque-black multiply result with complemented light uniforms plus `invert(1)`/`multiply`, added theme-aware panel fallbacks and wordmarks, and preserved dark behavior. Automated verification passed, but the user rejected the reinterpreted light visual because it did not copy the committed `design/` implementation literally. Implementation: `dd9073a0b669cf7de01fa2ae49dd90baf8a007cb`.
-- [ ] **CCP-R7D4 — Restore exact design animation parity:** Remove the complemented/inverted reinterpretation and copy the reference theme logic from both design login files exactly: raw committed light palettes with `multiply`, original dark palettes with `screen`, no visual filter, while preserving OGL lifecycle/fallback/mobile/reduced-motion safety. Validate focused automation, then let the user inspect directly at `3100`; no screenshot pack required. Forecast: 40–120 lines.
+- [x] **CCP-R7D4 — Restore exact design animation parity:** Removed the complemented/inverted reinterpretation and copied the theme logic from both design login files literally: raw committed light palettes with `multiply`, original dark palettes with `screen`, and no visual filter, while preserving OGL lifecycle/fallback/mobile/reduced-motion safety. Authored 101/120 lines. Verification: 32/32 auth+brand, 8/8 focused Chromium, TypeScript/exact ESLint/diff-check PASS; independent verifier PASS. Full 872/872 Vitest also passed incidentally. Implementation: `f09d848f36d42b0315e5e331b425198c4ed947a2`. Awaiting direct user validation at `3100`; no screenshot pack required.
 - [x] **CCP-R7C — Marketing login integration:** Replaced the marketing `#` login placeholder with the shared Ingresar menu, preserved action order and reference content, and tightened mobile geometry without hiding controls. Authored 117/120 lines. Verification: 27/27 navigation units, typecheck/ESLint clean, independent hydrated Chromium desktop/mobile proof for destinations, Escape/focus return, and zero overflow/errors; native reliability review approved and acknowledged. Implementation: `0f40616c0219072908a9952b9b5d186e11dd00d1`.
 - [ ] **CCP-R7E — Login browser contracts and final visual approval:** Verify menu keyboard/Escape/focus/mobile behavior, both login routes, zero mutations/persistence, full corpus, refreshed visual pack, and mandatory human visual approval. Forecast: 140–260 lines.
 
@@ -98,4 +98,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Implement CCP-R7D4 as literal `design/` theme parity, run focused verification, and hand the live `3100` routes to the user for browser validation before final closure.
+User validates `/candidato/login` and `/empresa/login` directly at `3100`; if approved, record final evidence and close CCP-R7E without another screenshot pack.
