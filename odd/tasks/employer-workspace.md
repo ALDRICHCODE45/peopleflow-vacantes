@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Delivery: bounded work-unit commits on `feature/company-careers-prototype`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: EW-06 team/users workspace
+- Current task: EW-06A team model and fixtures
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -44,7 +44,10 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - [x] **EW-04B — Pipeline board surface:** Built the per-position kanban experience with four contract-aligned columns, local search, representative non-interactive candidate cards, honest sample disclosure, and contained horizontal scrolling. Authored 347/400 lines. Verification: 27/27 focused tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting all Spanish count agreement. Commit: `56a73db`.
 - [x] **EW-04C — Pipeline list mode and switching:** Added an accessible Tablero/Lista mode switch and responsive semantic list over the exact same filtered candidate set and search state. Authored 317/400 lines. Verification: 49/49 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `0061d62`.
 - [x] **EW-05 — Pipeline route:** Mounted `/empresa/vacantes/[jobId]/pipeline` with exact local fixture resolution, Vacantes breadcrumb, vacancy status, truthful portfolio history/team context, non-persistence disclosure, exact candidate scoping, metadata, and framework not-found handling. Authored 398/400 diff lines including the copy correction. Verification: 74/74 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `44efc0e`.
-- [ ] **EW-06 — Team/users workspace:** Build `/empresa/equipo` with member search/filtering, owner/recruiter roles, account status, workload context, and a clearly non-persistent invitation affordance.
+- [ ] **EW-06A — Team model and fixtures:** Define strict frozen local team-member fixtures with only `owner`/`recruiter`, prototype-local `active`/`invited` account states, and vacancy-derived workload totals.
+- [ ] **EW-06B — Team workspace surface:** Build metrics, member search/status filtering, responsive non-interactive member rows, empty recovery, and token-only accessible presentation.
+- [ ] **EW-06C — Team invitation affordance:** Add an inline local-only invitation form that validates input, never persists or appends a member, and explicitly reports that nothing was sent or saved.
+- [ ] **EW-06D — Team route:** Mount `/empresa/equipo` through the shared employer shell with metadata, header, and truthful local-demo disclosure.
 - [ ] **EW-07 — Dashboard connections:** Connect approved dashboard vacancy and pipeline entry points to the new routes without regressing metrics, chart, recent candidates, or create-vacancy behavior.
 - [ ] **EW-08 — Integrated employer acceptance:** Prove live navigation, vacancy filtering, pipeline board/list switching, team UX, keyboard/focus, responsive overflow, accessibility, and zero business mutations in Chromium.
 
@@ -85,4 +88,4 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - Independent verification found and corrected one truthfulness defect: the all-stage portfolio total is now described as historical rather than currently in process. Reverification: 74/74 tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS.
 
 ## Next step
-Implement EW-06 as a frozen local team/users workspace at `/empresa/equipo` with truthful roles, status, workload context, and non-persistent invitation affordance.
+Implement EW-06A with six frozen Nexo Labs members, closed role/status vocabularies, and workload totals cross-checked against the committed vacancy portfolio.
