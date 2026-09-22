@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Delivery: bounded work-unit commits on `feature/company-careers-prototype`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: EW-06D team route
+- Current task: EW-07 dashboard connections
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -47,7 +47,7 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - [x] **EW-06A — Team model and fixtures:** Defined six strict frozen Nexo Labs members with closed `owner`/`recruiter` roles, prototype-local `active`/`invited` states, vacancy-derived workload totals, unique identity boundaries, and one local prototype owner. Authored 377/400 lines. Verification: 18/18 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after tightening collection and whitespace invariants. Commit: `1b71dfd`.
 - [x] **EW-06B — Team workspace surface:** Built four derived metrics, diacritic-insensitive member search, accessible status filtering, deterministic non-interactive responsive rows, complete role/status/workload facts, dynamic result announcements, and honest empty recovery. Authored 378/400 lines. Verification: 33/33 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting agreement, workload completeness, and desktop accessibility. Commit: `36a532d`.
 - [x] **EW-06C — Team invitation affordance:** Added an accessible inline local-only invitation prototype with owner/recruiter selection, local validation, clean attempt lifecycle, and explicit no-send/no-save feedback; it owns no collection or callback and cannot append a member. Authored 395/400 lines. Verification: 35/35 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting stale error/status lifecycle. Commit: `e9a9ad1`.
-- [ ] **EW-06D — Team route:** Mount `/empresa/equipo` through the shared employer shell with metadata, header, and truthful local-demo disclosure.
+- [x] **EW-06D — Team route:** Mounted `/empresa/equipo` through the shared employer shell with metadata, active navigation, consultation-only intro copy, route-level local-demo disclosure, one invitation affordance, and the six-member workspace. Authored 329/400 lines. Verification: 84/84 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting overstated management copy. Commit: `67abee2`.
 - [ ] **EW-07 — Dashboard connections:** Connect approved dashboard vacancy and pipeline entry points to the new routes without regressing metrics, chart, recent candidates, or create-vacancy behavior.
 - [ ] **EW-08 — Integrated employer acceptance:** Prove live navigation, vacancy filtering, pipeline board/list switching, team UX, keyboard/focus, responsive overflow, accessibility, and zero business mutations in Chromium.
 
@@ -95,6 +95,9 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - EW-06C implementation: `e9a9ad1`.
 - The invitation affordance validates locally, exposes no member collection or callback, never contacts transport/storage/router APIs, and reports exactly that no invitation was sent and no change was saved.
 - Independent verification corrected stale error/ARIA and prior-result messages when a new attempt begins. Reverification: 35/35 tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS.
+- EW-06D implementation: `67abee2`.
+- The server route reuses exactly one layout-owned employer shell, mounts one invitation and one workspace over the frozen six-member fixture, and preserves active Equipo navigation and shared header controls.
+- Independent verification corrected the intro from unsupported management language to truthful consultation language. Reverification: 84/84 tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS.
 
 ## Next step
-Implement EW-06D and mount the committed team workspace and invitation affordance at `/empresa/equipo` through the shared employer shell.
+Implement EW-07 by connecting only approved dashboard vacancy and pipeline entry points to the canonical employer routes without changing metrics, chart, recent-candidate content, or create-vacancy behavior.
