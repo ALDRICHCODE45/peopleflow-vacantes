@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Delivery: bounded work-unit commits on `feature/company-careers-prototype`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: EW-07 dashboard connections
+- Current task: EW-08 integrated employer acceptance
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -48,7 +48,7 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - [x] **EW-06B — Team workspace surface:** Built four derived metrics, diacritic-insensitive member search, accessible status filtering, deterministic non-interactive responsive rows, complete role/status/workload facts, dynamic result announcements, and honest empty recovery. Authored 378/400 lines. Verification: 33/33 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting agreement, workload completeness, and desktop accessibility. Commit: `36a532d`.
 - [x] **EW-06C — Team invitation affordance:** Added an accessible inline local-only invitation prototype with owner/recruiter selection, local validation, clean attempt lifecycle, and explicit no-send/no-save feedback; it owns no collection or callback and cannot append a member. Authored 395/400 lines. Verification: 35/35 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting stale error/status lifecycle. Commit: `e9a9ad1`.
 - [x] **EW-06D — Team route:** Mounted `/empresa/equipo` through the shared employer shell with metadata, active navigation, consultation-only intro copy, route-level local-demo disclosure, one invitation affordance, and the six-member workspace. Authored 329/400 lines. Verification: 84/84 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting overstated management copy. Commit: `67abee2`.
-- [ ] **EW-07 — Dashboard connections:** Add a server-rendered `Vacantes activas` panel derived from the frozen active Nexo vacancies, with one portfolio link and one canonical per-position pipeline link per row, without changing metrics, chart, recent candidates, or create-vacancy behavior. Exclude the reference's global-pipeline link because no truthful canonical global route exists.
+- [x] **EW-07 — Dashboard connections:** Added a server-rendered `Vacantes activas` panel derived from the frozen active Nexo vacancies, with one portfolio link and one canonical per-position pipeline link per row, while preserving metrics, chart, recent candidates, and create-vacancy behavior. Excluded the reference's global-pipeline link because no truthful canonical global route exists. Authored 394/400 lines. Verification: 245/245 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `34dd04d`.
 - [ ] **EW-08 — Integrated employer acceptance:** Prove live navigation, vacancy filtering, pipeline board/list switching, team UX, keyboard/focus, responsive overflow, accessibility, and zero business mutations in Chromium.
 
 ## Acceptance criteria
@@ -98,6 +98,9 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - EW-06D implementation: `67abee2`.
 - The server route reuses exactly one layout-owned employer shell, mounts one invitation and one workspace over the frozen six-member fixture, and preserves active Equipo navigation and shared header controls.
 - Independent verification corrected the intro from unsupported management language to truthful consultation language. Reverification: 84/84 tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS.
+- EW-07 implementation: `34dd04d`.
+- The dashboard now adds three current active Nexo vacancies between the chart and recent-candidate table, with a portfolio link and one accessible canonical pipeline link per semantic non-interactive row. KPI/chart/table/data snapshots remain unchanged.
+- Parent readback corrected literal `candidato(s)` copy to natural singular/plural before independent verification. Final verification: 245/245 tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS.
 
 ## Next step
-Implement EW-07 as an additive active-vacancies dashboard panel between the existing chart and recent-candidates table. Derive only `state === "active"` rows and candidate history totals from committed fixtures; do not reproduce the reference's drifted paused row, relative dates, or unsupported global-pipeline destination.
+Implement EW-08 integrated Chromium acceptance across dashboard, vacancy portfolio, pipeline board/list, and team workspace, including mobile/desktop layout, keyboard/focus, accessibility, navigation, and zero business mutations.
