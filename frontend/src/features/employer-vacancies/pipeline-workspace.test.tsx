@@ -26,6 +26,8 @@ const renderWorkspace = (vacancy: EmployerVacancy = backend, candidates: readonl
 const column = (root: HTMLElement, stage: VacancyPipelineStage) => root.querySelector(`[data-pf-pipeline-column="${stage}"]`) as HTMLElement;
 const cardIds = (root: Element) => Array.from(root.querySelectorAll("[data-pf-pipeline-card]")).map((node) => node.getAttribute("data-pf-pipeline-card"));
 const cardIdsIn = (root: HTMLElement, stage: VacancyPipelineStage) => cardIds(column(root, stage));
+const list = (root: HTMLElement) => root.querySelector("[data-pf-pipeline-list]") as HTMLElement;
+const rowIds = (root: Element) => Array.from(root.querySelectorAll("[data-pf-pipeline-row]")).map((node) => node.getAttribute("data-pf-pipeline-row"));
 afterEach(() => cleanup());
 
 describe("PipelineWorkspace board structure", () => {
@@ -185,6 +187,169 @@ describe("PipelineWorkspace Spanish count agreement", () => {
     const multiple = renderWorkspace(backend, pair);
     expect(column(multiple.container, "submitted")).toHaveAttribute("aria-label", "Nuevos: 2 candidatos");
     expect(multiple.container.querySelector('[data-pf-pipeline-column-count="submitted"]')).toHaveTextContent("2");
+  });
+});
+
+describe("PipelineWorkspace view switch", () => {
+  it("offers a labelled Vista del pipeline group defaulting to a pressed Tablero", () => {
+    renderWorkspace();
+    const group = screen.getByRole("group", { name: "Vista del pipeline" });
+    const tabs = Array.from(group.querySelectorAll("button"));
+    expect(tabs.map((tab) => tab.textContent?.trim())).toEqual(["Tablero", "Lista"]);
+    expect(tabs.map((tab) => tab.getAttribute("aria-pressed"))).toEqual(["true", "false"]);
+    expect(tabs[0].className).toContain("bg-primary");
+    expect(tabs[1].className).not.toContain("bg-primary");
+    expect(tabs[1].className).toContain("hover:bg-muted");
+  });
+
+  it("gives both view buttons 40px targets, visible focus, and distinct column and list icons", () => {
+    renderWorkspace();
+    const icons = Array.from(screen.getByRole("group", { name: "Vista del pipeline" }).querySelectorAll("button")).map((tab) => {
+      expect(tab.className).toContain("h-10");
+      expect(tab.className).toContain("focus-visible:ring-3");
+      const icon = tab.querySelector("svg");
+      expect(icon).not.toBeNull();
+      expect(icon?.getAttribute("aria-hidden")).toBe("true");
+      return icon?.outerHTML ?? "";
+    });
+    expect(icons[0]).not.toEqual(icons[1]);
+  });
+
+  it("switches to the list representation and back while hiding the inactive view", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+    expect(container.querySelector("[data-pf-pipeline-board]")).not.toBeNull();
+    expect(list(container)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+    expect(container.querySelector("[data-pf-pipeline-board]")).toBeNull();
+    expect(list(container)).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Tablero" })).toHaveAttribute("aria-pressed", "false");
+    await user.click(screen.getByRole("button", { name: "Tablero" }));
+    expect(container.querySelector("[data-pf-pipeline-board]")).not.toBeNull();
+    expect(list(container)).toBeNull();
+    expect(screen.getByRole("button", { name: "Tablero" })).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+describe("PipelineWorkspace list mode over the filtered set", () => {
+  it("lists the exact same candidate inventory, once each, in the filtered order", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+    const boardInventory = cardIds(container).slice().sort();
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+    const rows = rowIds(container);
+    expect(rows).toEqual(backendCandidates.map((candidate) => candidate.id));
+    expect(rows.slice().sort()).toEqual(boardInventory);
+    expect(new Set(rows).size).toBe(backendCandidates.length);
+  });
+
+  it("reuses the live search filter without a divergent candidate set", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+    await user.type(screen.getByLabelText("Buscar candidato"), "postgres");
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+    expect(rowIds(container)).toEqual(["lucia-fernandez", "diego-salazar"]);
+    expect(container.querySelectorAll("[data-pf-pipeline-search]")).toHaveLength(1);
+    expect(container.querySelectorAll("[data-pf-pipeline-list]")).toHaveLength(1);
+  });
+
+  it("renders the truthful facts and visible status text of each row", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+    const lucia = container.querySelector('[data-pf-pipeline-row="lucia-fernandez"]') as HTMLElement;
+    for (const value of ["Lucía Fernández", "Backend Developer Senior", "Nuevos", "8 años", "Node.js", "PostgreSQL", "88%", "LinkedIn", "Valeria Ortiz", "Sin comentarios", "Coordinar llamada inicial"]) {
+      expect(lucia).toHaveTextContent(value);
+    }
+    expect(container.querySelector('[data-pf-pipeline-row="renata-vargas"]')).toHaveTextContent("Contratados");
+    expect(container.querySelector('[data-pf-pipeline-row="diego-salazar"]')).toHaveTextContent("4 comentarios");
+    expect(container.querySelector('[data-pf-pipeline-next-step="diego-salazar"]')).toHaveTextContent("Agendar entrevista técnica");
+    expect(container.querySelector('[data-pf-pipeline-next-step="renata-vargas"]')).toBeNull();
+  });
+
+  it("keeps the search query and filtered rows across both modes", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+    const search = screen.getByLabelText("Buscar candidato");
+    await user.type(search, "postgres");
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+    expect(search).toHaveValue("postgres");
+    expect(rowIds(container)).toEqual(["lucia-fernandez", "diego-salazar"]);
+    await user.click(screen.getByRole("button", { name: "Tablero" }));
+    expect(search).toHaveValue("postgres");
+    expect(cardIds(container).slice().sort()).toEqual(["diego-salazar", "lucia-fernandez"]);
+  });
+
+  it("keeps the shared empty-search recovery honest in list mode", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+    await user.type(screen.getByLabelText("Buscar candidato"), "zzz");
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+    expect(rowIds(container)).toEqual([]);
+    expect(container.querySelector("[data-pf-pipeline-list-empty]")).toHaveTextContent("Sin candidatos que coincidan con la búsqueda.");
+    expect(container.querySelector("[data-pf-pipeline-recovery]")).not.toBeNull();
+    await user.click(container.querySelector("[data-pf-pipeline-clear]") as HTMLElement);
+    expect(screen.getByLabelText("Buscar candidato")).toHaveValue("");
+    expect(rowIds(container)).toHaveLength(4);
+  });
+
+  it("contains narrow-screen overflow in the list region and keeps every row non-interactive", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+    const region = list(container);
+    expect(region.className).toContain("overflow-x-auto");
+    expect(region.getAttribute("role")).toBe("region");
+    expect(region).toHaveAttribute("tabindex", "0");
+    const table = region.querySelector("table") as HTMLElement;
+    expect(/min-w-\[/u.test(table.className)).toBe(true);
+    for (const row of region.querySelectorAll("[data-pf-pipeline-row]")) {
+      expect(row.tagName).toBe("TR");
+      expect(row.querySelectorAll("a, button, input, [role='button']")).toHaveLength(0);
+      expect(row.hasAttribute("draggable")).toBe(false);
+      expect(row.hasAttribute("style")).toBe(false);
+    }
+  });
+
+  it("states the sample copy and local-only boundary identically in list mode", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+    expect(container.querySelector("[data-pf-pipeline-sample]")).toHaveTextContent(visibleCandidatesCopy(4, vacancyCandidateTotal(backend.candidateCounts)));
+    expect(container.querySelectorAll("[style]")).toHaveLength(0);
+    expect(container.querySelectorAll("[data-pf-pipeline-card]")).toHaveLength(0);
+  });
+  it("shows an honest empty-vacancy list without inventing a clear action", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace(backend, []);
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+    expect(rowIds(container)).toEqual([]);
+    expect(container.querySelector("[data-pf-pipeline-list-empty]")).toHaveTextContent("Sin candidatos en esta vacante.");
+    expect(container.querySelector("[data-pf-pipeline-clear]")).toBeNull();
+    expect(container.querySelector("[data-pf-pipeline-sample]")).toHaveTextContent(visibleCandidatesCopy(0, vacancyCandidateTotal(backend.candidateCounts)));
+  });
+
+  it("keeps singular experience and comment agreement inside list rows", async () => {
+    const user = userEvent.setup();
+    const candidate: PipelineCandidate = { ...backendCandidates[0], id: "single-unit", yearsOfExperience: 1, commentCount: 1 };
+    const { container } = renderWorkspace(backend, [candidate]);
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+    const row = container.querySelector('[data-pf-pipeline-row="single-unit"]') as HTMLElement;
+    expect(row.textContent).toContain("1 año de experiencia");
+    expect(row.textContent).not.toContain("1 años");
+    expect(row.textContent).toContain("1 comentario");
+    expect(row.textContent).not.toContain("1 comentarios");
+  });
+});
+
+describe("PipelineWorkspace view switch boundary", () => {
+  it("keeps the mode switch purely local UI state over a single filtered source", () => {
+    expect(source.match(/const filtered = /gu)).toHaveLength(1);
+    expect(source.match(/data-pf-pipeline-search/gu)).toHaveLength(1);
+    for (const forbidden of ["window.history", "URLSearchParams", "location.search", "useSearchParams", "pushState", "replaceState"]) {
+      expect(source, `pipeline-workspace.tsx must not declare ${forbidden}`).not.toContain(forbidden);
+    }
   });
 });
 
