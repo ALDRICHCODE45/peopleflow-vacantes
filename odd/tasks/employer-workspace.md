@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Delivery: bounded work-unit commits on `feature/company-careers-prototype`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: EW-04 pipeline model and modes
+- Current task: EW-04A pipeline candidate model
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -40,7 +40,8 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - [x] **EW-02 — Employer vacancy model:** Added validated, deeply frozen local Nexo Labs vacancy fixtures with truthful local publication state, four-stage pipeline counts, and canonical pipeline URLs. Authored 372/400 lines. Verification: 19/19 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `5cc3ff0`.
 - [x] **EW-03A — Employer vacancy portfolio surface:** Built the reference-faithful client surface with truthful summary metrics, accessible composable search/status filters, responsive non-clickable vacancy rows, and one semantic pipeline action per position. Authored 321/400 lines. Verification: 25/25 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting empty-recovery honesty and feature-layer coupling. Commit: `7f638c2`.
 - [x] **EW-03B — Employer vacancy portfolio route:** Mounted the portfolio at `/empresa/vacantes` with shared header context, metadata, semantic create-vacancy CTA, truthful prototype disclosure, and route-level tests. Authored 275/400 lines. Verification: 42/42 route+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `9446cf4`.
-- [ ] **EW-04 — Pipeline model and modes:** Add frozen candidate fixtures and build the per-position pipeline board/list experience with application-status stages, accessible switching, and truthful non-persistent controls.
+- [ ] **EW-04A — Pipeline candidate model:** Add validated, deeply frozen local candidate fixtures for every vacancy, using only application-contract statuses and deterministic recruiter-facing enrichment.
+- [ ] **EW-04B — Pipeline board/list modes:** Build the per-position board/list client experience with the same candidate set, accessible mode switching, filters, and truthful non-persistent controls.
 - [ ] **EW-05 — Pipeline route:** Build `/empresa/vacantes/[jobId]/pipeline` with breadcrumb context, vacancy status, not-found handling, and responsive integration inside the employer shell.
 - [ ] **EW-06 — Team/users workspace:** Build `/empresa/equipo` with member search/filtering, owner/recruiter roles, account status, workload context, and a clearly non-persistent invitation affordance.
 - [ ] **EW-07 — Dashboard connections:** Connect approved dashboard vacancy and pipeline entry points to the new routes without regressing metrics, chart, recent candidates, or create-vacancy behavior.
@@ -71,4 +72,4 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - The server route reuses the single employer shell/header, mounts all six frozen vacancies, links to `/empresa/vacantes/nueva`, discloses local non-persistent data, and passed 42/42 route+adjacent tests plus TypeScript/ESLint/diff-check/LSP.
 
 ## Next step
-Implement EW-04, the shared per-position pipeline model and board/list experience.
+Implement EW-04A, then the board/list client experience in EW-04B so the pure data boundary and interactive UI remain separately reviewable.
