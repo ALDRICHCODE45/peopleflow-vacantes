@@ -514,6 +514,76 @@ test("reuses the approved floating navbar on the public vacancy board", async ({
   await page.reload();
 });
 
+test("widens only the /vacantes island by 7px at desktop and floats the featured status bubble", async ({
+  page,
+}) => {
+  const island = page.locator("[data-jobs-navigation-island]");
+  const card = page.getByRole("list").getByRole("listitem").first();
+  const featured = card.locator("[data-prototype-featured]");
+
+  // Island outward expansion, resolved margins, and document overflow.
+  const measureIsland = () =>
+    island.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      const parentBox = element.parentElement!.getBoundingClientRect();
+      const style = getComputedStyle(element);
+      return [
+        parentBox.left - box.left,
+        box.right - parentBox.right,
+        style.marginLeft,
+        style.marginRight,
+        document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ] as const;
+    });
+
+  // Pill straddle, containment, right inset, and bookmark/salary clearance.
+  const measureBubble = (withSalary: boolean) =>
+    featured.evaluate((element, salary) => {
+      const owner = element.closest("li")!;
+      const box = element.getBoundingClientRect();
+      const cardBox = owner.getBoundingClientRect();
+      const bookmarkBox = owner.querySelector("button")!.getBoundingClientRect();
+      const salaryBox = [...owner.querySelectorAll("p")]
+        .find((node) => node.textContent?.startsWith("SALARIO"))!
+        .getBoundingClientRect();
+      const overlaps = (a: DOMRect, b: DOMRect) =>
+        a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+      return [
+        box.top < cardBox.top && box.bottom > cardBox.top,
+        box.left >= cardBox.left && box.right <= cardBox.right,
+        cardBox.right - box.right > 0,
+        overlaps(box, bookmarkBox),
+        salary ? overlaps(box, salaryBox) : false,
+      ];
+    }, withSalary);
+
+  // Desktop 1440 and 1024: 7px outward per side, no document overflow, and one
+  // featured pill straddling the top border clear of bookmark and salary rail.
+  for (const [width, height] of [[1440, 900], [1024, 768]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto("/vacantes?currency=MXN");
+    await expect(island).toHaveCount(1);
+    const [left, right, marginLeft, marginRight, overflow] = await measureIsland();
+    expect([marginLeft, marginRight]).toEqual(["-7px", "-7px"]);
+    expect([Math.abs(left - 7) <= 1, Math.abs(right - 7) <= 1, overflow <= 0]).toEqual([true, true, true]);
+    await expect(featured).toHaveCount(1);
+    await expect(featured).toHaveText("Destacada");
+    await expect(featured).toBeVisible();
+    await expect(featured.locator("[data-prototype-featured-dot]")).toHaveCount(1);
+    expect(await card.evaluate((li) => li.children.length)).toBe(2);
+    expect(await measureBubble(true)).toEqual([true, true, true, false, false]);
+  }
+
+  // 375px: no added negative margin, flush with the content box, no document
+  // overflow, and the pill still straddles the top edge clear of the bookmark.
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto("/vacantes?currency=MXN");
+  const [left, right, marginLeft, marginRight, overflow] = await measureIsland();
+  expect([marginLeft, marginRight]).toEqual(["0px", "0px"]);
+  expect([Math.abs(left) <= 1, Math.abs(right) <= 1, overflow <= 0]).toEqual([true, true, true]);
+  expect(await measureBubble(false)).toEqual([true, true, true, false, false]);
+});
+
 test("renders the known vacancy as a disclosed prototype card with the reference layout and zero mutations", async ({
   page,
 }) => {

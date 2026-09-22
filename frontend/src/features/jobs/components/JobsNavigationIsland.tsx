@@ -169,9 +169,10 @@ export function JobsNavigationIsland({
 
   return (
     <div
+      data-jobs-navigation-island
       onSubmitCapture={handleRootSubmitCapture}
       onClickCapture={handleRootClickCapture}
-      className="flex flex-col gap-6"
+      className="flex flex-col gap-6 md:-mx-[7px]"
     >
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
         {/* One composed search surface: accessible q and location inputs plus

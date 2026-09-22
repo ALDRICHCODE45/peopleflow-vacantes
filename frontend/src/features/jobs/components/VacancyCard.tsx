@@ -31,13 +31,22 @@ const focusRing = "rounded-md focus-visible:outline-2 focus-visible:outline-offs
 const chip = "flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs text-muted-foreground";
 const metaRow = "flex items-center gap-1.5";
 /** Reference surface, grid, and the one restrained hover lift of the card. */
-const cardClass = "group grid gap-5 rounded-2xl border border-border bg-card/60 p-4 [overflow-wrap:anywhere] transition-[translate,border-color,box-shadow] duration-200 ease-out hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 focus-within:border-primary/40 motion-safe:hover:-translate-y-0.5 motion-safe:focus-within:-translate-y-0.5 motion-reduce:translate-none motion-reduce:transition-none md:grid-cols-[minmax(0,1fr)_16rem] md:gap-6 md:p-6";
+const cardClass = "group relative grid gap-5 overflow-visible rounded-2xl border border-border bg-card/60 p-4 [overflow-wrap:anywhere] transition-[translate,border-color,box-shadow] duration-200 ease-out hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5 focus-within:border-primary/40 motion-safe:hover:-translate-y-0.5 motion-safe:focus-within:-translate-y-0.5 motion-reduce:translate-none motion-reduce:transition-none md:grid-cols-[minmax(0,1fr)_16rem] md:gap-6 md:p-6";
 /** One integrated salary rail: stacked under the content, a bordered column at md. */
 const railClass = "flex min-w-0 flex-col gap-3 border-t border-border pt-4 md:border-t-0 md:border-l md:pt-0 md:pl-6";
 const railLabel = "text-xs font-semibold tracking-wide text-muted-foreground uppercase";
 const ctaClass = `${focusRing} inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl border border-border bg-background px-3.5 text-sm font-semibold text-foreground transition-colors duration-150 hover:border-primary/50 hover:bg-muted`;
 const bookmarkClass = `${focusRing} grid size-10 shrink-0 place-items-center rounded-xl border border-border bg-background text-muted-foreground`;
-const featuredClass = "rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-foreground";
+/**
+ * Featured status bubble: it straddles the card's upper-right border like a
+ * connectivity pill, so it consumes no grid region. `-top-3` keeps its lower
+ * half inside the card's own padding while clearing the bookmark and the
+ * salary rail label; the positive `right` inset keeps it inside the card's
+ * horizontal bounds at both widths.
+ */
+const featuredPillClass = "absolute -top-3 right-4 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-card px-2.5 py-1 text-xs font-semibold leading-none text-foreground shadow-sm md:right-6";
+/** The pill's status dot, drawn from the semantic brand token only. */
+const featuredDotClass = "size-1.5 shrink-0 rounded-full bg-primary";
 
 /**
  * One public vacancy as a list item in the reference horizontal shape: the
@@ -79,7 +88,6 @@ export function VacancyCard({ job, companyHref }: { job: PrototypeJobView; compa
                   ? job.company.name
                   : <Link href={companyHref} className={`font-medium text-foreground underline decoration-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground ${focusRing}`}>{job.company.name}</Link>}
               </p>
-              {prototype?.featured === true && <span className={featuredClass}>Destacada</span>}
             </div>
           </div>
           {prototype !== undefined && (
@@ -93,6 +101,13 @@ export function VacancyCard({ job, companyHref }: { job: PrototypeJobView; compa
             />
           )}
         </div>
+
+        {prototype?.featured === true && (
+          <span data-prototype-featured className={featuredPillClass}>
+            <span data-prototype-featured-dot className={featuredDotClass} />
+            Destacada
+          </span>
+        )}
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
           {job.location !== undefined && <span className={metaRow}><MapPinIcon aria-hidden="true" className="size-3.5 shrink-0" />{job.location}</span>}

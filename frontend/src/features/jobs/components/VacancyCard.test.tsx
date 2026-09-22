@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
@@ -180,6 +180,46 @@ describe("VacancyCard prototype feedback island (CCP-R5A)", () => {
       // React's `key` is a framework slot, not a prop forwarded to the island.
       for (const name of island.matchAll(/(?:^|\s)([a-z][a-zA-Z]*)=/gu)) expect(["key", ...ISLAND_PROPS]).toContain(name[1]);
     }
+  });
+});
+
+describe("VacancyCard featured status bubble (CCP-R9A)", () => {
+  it("floats one card-level Destacada status pill outside the company metadata row", () => {
+    const { container } = render(<VacancyCard job={enriched} />);
+    const card = container.querySelector("li") as HTMLElement;
+    const pill = container.querySelector("[data-prototype-featured]") as HTMLElement;
+    const companyRow = screen.getByText("Acme").parentElement as HTMLElement;
+    expect(pill).not.toBeNull();
+    // The pill belongs to the card, never to the company metadata row it left.
+    expect([card.contains(pill), companyRow.contains(pill), companyRow.className.includes("flex-wrap"), pill.closest("li")]).toEqual([true, false, true, card]);
+    expect([pill.tagName, pill.textContent]).toEqual(["SPAN", "Destacada"]);
+    for (const utility of ["absolute", "inline-flex", "items-center", "gap-1.5", "rounded-full", "border", "bg-card", "text-foreground", "shadow-sm"]) expect(pill.className).toContain(utility);
+    // Negative top with a positive right inset: the pill straddles the top
+    // border instead of hanging off the right edge.
+    expect(pill.className).toMatch(/(?:^|\s)-top-[0-9.]+/u);
+    expect(pill.className).toMatch(/(?:^|\s)md:right-[0-9.]+(?:\s|$)/u);
+    expect(pill.className).not.toMatch(/(?:^|\s)-right-/u);
+    const dot = pill.querySelector("[data-prototype-featured-dot]") as HTMLElement;
+    expect([dot?.tagName, dot?.textContent, dot?.className.includes("rounded-full"), dot?.className.includes("bg-primary"), dot?.className.includes("size-1.5")]).toEqual(["SPAN", "", true, true, true]);
+    // Absolute positioning resolves against the relatively positioned card.
+    for (const pattern of [/(?:^|\s)relative(?:\s|$)/u, /(?:^|\s)overflow-visible(?:\s|$)/u]) expect(card.className).toMatch(pattern);
+    expect(screen.getAllByText("Destacada")).toHaveLength(1);
+  });
+
+  it("renders the pill once for a featured card and never for plain or wire-only cards", () => {
+    const { container } = render(<ul><VacancyCard job={enriched} /><VacancyCard job={goJob} /><VacancyCard job={wireOnly} /></ul>);
+    const [featured, plain, wire] = Array.from(container.querySelectorAll("li"));
+    expect([featured, plain, wire].map((card) => card.querySelectorAll("[data-prototype-featured]").length)).toEqual([1, 0, 0]);
+    expect([within(featured).getAllByText("Destacada").length, within(plain).queryAllByText("Destacada").length, within(wire).queryAllByText("Destacada").length]).toEqual([1, 0, 0]);
+    // The floating pill stays inside the card's content region, so the shared
+    // two-region grid contract keeps exactly two element children.
+    for (const card of [featured, plain, wire]) expect(card.children).toHaveLength(2);
+  });
+
+  it("keeps the floating pill strictly token-only with no raw paint or inline style", () => {
+    const { container } = render(<VacancyCard job={enriched} />);
+    expect(RAW_COLOR.test(classesOf(container))).toBe(false);
+    expect(container.querySelectorAll("[style]")).toHaveLength(0);
   });
 });
 
