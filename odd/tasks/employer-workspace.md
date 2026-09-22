@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Delivery: bounded work-unit commits on `feature/company-careers-prototype`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: EW-03A employer vacancy portfolio surface
+- Current task: EW-03B employer vacancy portfolio route
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -38,7 +38,7 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 ## Tasks
 - [x] **EW-01 — Employer navigation foundation:** Turned Vacantes and Equipo into real destinations, made the shared sidebar route-aware, and generalized the employer header for titles and breadcrumbs while preserving unresolved prototypes. Authored 389/400 code/test lines. Verification: 126/126 adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `59dea2f`.
 - [x] **EW-02 — Employer vacancy model:** Added validated, deeply frozen local Nexo Labs vacancy fixtures with truthful local publication state, four-stage pipeline counts, and canonical pipeline URLs. Authored 372/400 lines. Verification: 19/19 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `5cc3ff0`.
-- [ ] **EW-03A — Employer vacancy portfolio surface:** Build the reference-faithful client surface with truthful summary metrics, accessible search/status filters, responsive vacancy rows, and one semantic pipeline action per position.
+- [x] **EW-03A — Employer vacancy portfolio surface:** Built the reference-faithful client surface with truthful summary metrics, accessible composable search/status filters, responsive non-clickable vacancy rows, and one semantic pipeline action per position. Authored 321/400 lines. Verification: 25/25 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting empty-recovery honesty and feature-layer coupling. Commit: `7f638c2`.
 - [ ] **EW-03B — Employer vacancy portfolio route:** Mount the portfolio at `/empresa/vacantes` with shared header context, metadata, create-vacancy CTA, truthful prototype disclosure, and route-level tests.
 - [ ] **EW-04 — Pipeline model and modes:** Add frozen candidate fixtures and build the per-position pipeline board/list experience with application-status stages, accessible switching, and truthful non-persistent controls.
 - [ ] **EW-05 — Pipeline route:** Build `/empresa/vacantes/[jobId]/pipeline` with breadcrumb context, vacancy status, not-found handling, and responsive integration inside the employer shell.
@@ -64,6 +64,9 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - EW-02 implementation: `5cc3ff0`.
 - Six deterministic Nexo Labs fixtures validate through strict zod schemas, cover active/paused/closed states, and expose only `submitted`/`in_review`/`hired`/`rejected` candidate counts.
 - Deep-freeze, exact lookup, canonical route, totals, summary, invalid-input, and source-boundary contracts passed 9/9 focused and 19/19 focused+adjacent tests; TypeScript, ESLint, diff-check, and LSP diagnostics PASS.
+- EW-03A implementation: `7f638c2`.
+- The portfolio derives 3 active, 1 paused, 30 in-process, and 2 closed metrics; exposes search plus four counted state filters; renders six semantic rows with exactly one canonical pipeline link each; and stays token-only and mutation-free.
+- Independent verification found and reverified two corrections: an empty portfolio never offers a clear action that cannot restore results, and the employer feature owns its UTC-pinned Spanish date formatter instead of depending on the public jobs feature.
 
 ## Next step
-Implement EW-03A, then mount it at `/empresa/vacantes` in EW-03B so each work unit stays below 400 authored lines.
+Implement EW-03B and mount the approved portfolio surface at `/empresa/vacantes`.
