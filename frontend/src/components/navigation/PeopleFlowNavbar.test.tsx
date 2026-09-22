@@ -153,14 +153,30 @@ describe("PeopleFlowNavbar marketing mode", () => {
     expect(Array.from(header.querySelectorAll("ul a"))[0]).toBe(vacantes);
   });
 
-  it("renders the four product links as placeholders", () => {
+  it("renders only real nav destinations, in order, with no placeholder", () => {
     stubMatchMedia();
     renderMarketingNavbar();
     const header = document.querySelector("header")!;
-    for (const label of ["Producto", "Soluciones", "Precios", "Recursos"]) {
-      const link = findHeaderLink(header, label);
-      expect(link, `nav link ${label}`).toBeDefined();
-      expect(link).toHaveAttribute("href", "#");
+    expect(findHeaderLink(header, "Producto")).toHaveAttribute(
+      "href",
+      "#producto",
+    );
+    expect(findHeaderLink(header, "Soluciones")).toHaveAttribute(
+      "href",
+      "#soluciones",
+    );
+    // Unsupported destinations are removed from the DOM entirely instead of
+    // surviving as non-operational `#` placeholders.
+    expect(findHeaderLink(header, "Precios")).toBeUndefined();
+    expect(findHeaderLink(header, "Recursos")).toBeUndefined();
+    expect(
+      Array.from(header.querySelectorAll("ul a")).map((a) =>
+        a.getAttribute("href"),
+      ),
+    ).toEqual(["/vacantes", "#producto", "#soluciones"]);
+    // Every marketing nav anchor must lead somewhere real.
+    for (const anchor of Array.from(header.querySelectorAll("a"))) {
+      expect(anchor.getAttribute("href"), anchor.textContent!).not.toBe("#");
     }
   });
 
@@ -187,13 +203,13 @@ describe("PeopleFlowNavbar marketing mode", () => {
     expect(header).not.toHaveTextContent(/candidato|empresa/i);
   });
 
-  it("renders the Empezar gratis primary CTA as a placeholder", () => {
+  it("points the Empezar gratis primary CTA at the closing section", () => {
     stubMatchMedia();
     renderMarketingNavbar();
     const header = document.querySelector("header")!;
     const cta = findHeaderLink(header, "Empezar gratis");
     expect(cta).toBeDefined();
-    expect(cta).toHaveAttribute("href", "#");
+    expect(cta).toHaveAttribute("href", "#empezar");
   });
 
   it("orders the header actions Ingresar menu, theme toggle, then Empezar gratis", () => {
@@ -208,12 +224,18 @@ describe("PeopleFlowNavbar marketing mode", () => {
     expect(actions[2]).toBe(cta);
   });
 
-  it("renders the sticky reference header shell", () => {
+  it("renders the sticky reference header shell with a floating inner surface", () => {
     stubMatchMedia();
     renderMarketingNavbar();
     const header = document.querySelector("[data-pf-marketing-navbar]");
     expect(header).toBeInTheDocument();
-    expect(header).toHaveClass("sticky", "top-0", "backdrop-blur-md");
+    // The shell keeps positioning + the scroll-state class owner...
+    expect(header).toHaveClass("sticky", "top-0");
+    expect(header!.className).not.toContain("backdrop-blur-md");
+    // ...while the detached capsule owns the surface treatment.
+    const surface = header!.querySelector("nav[data-pf-nav-floating]");
+    expect(surface).not.toBeNull();
+    expect(surface).toHaveClass("rounded-2xl", "backdrop-blur-md", "mx-auto");
   });
 
   it("renders one accessible theme toggle button", () => {

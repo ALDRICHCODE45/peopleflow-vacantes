@@ -335,10 +335,32 @@
    6. Landing-only effects copied from the reference <style> block.
    -------------------------------------------------------------------------- */
 
-/* Nav scrolled backdrop — inherits the theme's base channel. */
-.pf-reference-landing #nav.scrolled {
-  background-color: rgb(var(--pf-base) / 0.72);
-  border-bottom-color: rgb(var(--pf-line) / 0.9);
+/* Floating marketing nav capsule. The sticky `#nav` shell owns positioning and
+   the `.scrolled` state class; this detached inner surface owns the visual
+   treatment, using the scoped landing channel tokens. */
+.pf-reference-landing #nav [data-pf-nav-floating] {
+  border-color: rgb(var(--pf-line) / 0.85);
+  background-color: rgb(var(--pf-surface) / 0.55);
+  /* Layered depth: one inset hairline plus one soft cast shadow, never a glow. */
+  box-shadow:
+    inset 0 1px 0 0 rgb(var(--pf-overlay) / 0.04),
+    0 10px 30px -24px rgb(var(--pf-overlay) / 0.7);
+}
+
+/* Scrolled state: a slightly firmer backdrop and border on the capsule. */
+.pf-reference-landing #nav.scrolled [data-pf-nav-floating] {
+  border-color: rgb(var(--pf-line));
+  background-color: rgb(var(--pf-base) / 0.88);
+  box-shadow:
+    inset 0 1px 0 0 rgb(var(--pf-overlay) / 0.05),
+    0 18px 44px -26px rgb(var(--pf-overlay) / 0.85);
+}
+
+/* Explicit keyboard focus for every marketing navbar control. The brand channel
+   clears 3:1 on both theme surfaces (the shared Button keeps its inner ring). */
+.pf-reference-landing #nav :is(a, button):focus-visible {
+  outline: 2px solid rgb(var(--pf-brand));
+  outline-offset: 2px;
 }
 
 /* Aurora host. The reference overrides the shared `.aurora` mask off entirely

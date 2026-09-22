@@ -379,7 +379,10 @@ function SystemCard({
 
 export function TwoSystemsSection() {
   return (
-    <section className="relative z-10 mx-auto max-w-[1280px] px-8 py-24">
+    <section
+      id="soluciones"
+      className="relative z-10 mx-auto max-w-[1280px] scroll-mt-28 px-8 py-24"
+    >
       <div className="reveal mx-auto mb-16 max-w-[720px] text-center">
         <p className="eyebrow mb-4 font-mono text-[12px] font-semibold uppercase text-glow">
           Un ecosistema, dos sistemas
@@ -862,7 +865,10 @@ function ShowcaseCard({ card }: { card: ShowcaseCardModel }) {
 
 export function ShowcaseSection() {
   return (
-    <section className="relative z-10 mx-auto max-w-[1280px] px-8 py-24">
+    <section
+      id="producto"
+      className="relative z-10 mx-auto max-w-[1280px] scroll-mt-28 px-8 py-24"
+    >
       <div className="reveal mx-auto mb-12 max-w-[660px] text-center">
         <p className="eyebrow mb-4 font-mono text-[12px] font-semibold uppercase text-brand">
           El producto
@@ -927,7 +933,10 @@ export function ShowcaseSection() {
 
 export function ClosingCtaSection() {
   return (
-    <section className="relative z-10 mx-auto max-w-[1280px] px-8 py-20">
+    <section
+      id="empezar"
+      className="relative z-10 mx-auto max-w-[1280px] scroll-mt-28 px-8 py-20"
+    >
       <div className="reveal relative overflow-hidden rounded-3xl border border-line bg-surface/50 px-8 py-20 text-center backdrop-blur-sm">
         <div className="glow-purple pointer-events-none absolute left-1/2 top-1/2 h-[520px] w-[720px] -translate-x-1/2 -translate-y-1/2" />
         <div className="relative">

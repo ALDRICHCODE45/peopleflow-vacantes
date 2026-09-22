@@ -194,9 +194,186 @@ test.describe("minimal public root", () => {
     await expect(themeButtons).toHaveAttribute("data-pf-theme-toggle", "");
     await expect(
       nav.getByRole("link", { name: "Empezar gratis", exact: true }),
-    ).toHaveAttribute("href", "#");
+    ).toHaveAttribute("href", "#empezar");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Floating marketing navbar: detached capsule, real destinations, no overflow.
+// ---------------------------------------------------------------------------
+
+const NAV_LINK_DESTINATIONS = [
+  ["Vacantes", "/vacantes"],
+  ["Producto", "#producto"],
+  ["Soluciones", "#soluciones"],
+];
+
+const NAV_HASH_DESTINATIONS = [
+  ["Producto", "producto"],
+  ["Soluciones", "soluciones"],
+  ["Empezar gratis", "empezar"],
+] as const;
+
+test.describe("floating marketing navbar", () => {
+  test("detaches the header into a floating capsule that owns the scrolled state", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto("/");
+
+    const nav = page.locator("#nav");
+    const capsule = nav.locator("[data-pf-nav-floating]");
+    await expect(capsule).toHaveCount(1);
+
+    // Side/top breathing room with the concentric 16px capsule radius.
+    const navBox = (await nav.boundingBox())!;
+    const box = (await capsule.boundingBox())!;
+    expect(navBox.x).toBe(0);
+    expect(box.x).toBeGreaterThanOrEqual(16);
+    expect(box.y).toBeGreaterThanOrEqual(8);
+    expect(Math.round(box.x + box.width)).toBeLessThanOrEqual(1280 - 16);
+    expect(
+      await capsule.evaluate((el) => getComputedStyle(el).borderTopLeftRadius),
+    ).toBe("16px");
+
+    // The shell stays transparent and lets the capsule paint the surface.
+    const transparent = "rgba(0, 0, 0, 0)";
+    const background = (target: typeof nav) =>
+      target.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(await background(nav)).toBe(transparent);
+    const resting = await background(capsule);
+    expect(resting).not.toBe(transparent);
+
+    // Real destinations only: Precios/Recursos are removed from the DOM.
+    const links = await nav
+      .locator("ul a")
+      .evaluateAll((els) =>
+        els.map((el) => [el.textContent?.trim(), el.getAttribute("href")]),
+      );
+    expect(links).toEqual(NAV_LINK_DESTINATIONS);
+    await expect(
+      nav.getByRole("link", { name: "Precios", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      nav.getByRole("link", { name: "Recursos", exact: true }),
+    ).toHaveCount(0);
+
+    // Scrolling retargets the backdrop to the capsule while the shell stays
+    // pinned, transparent, and the owner of the `scrolled` state class.
+    await expect(nav).not.toHaveClass(/scrolled/);
+    await page.evaluate(() => window.scrollTo(0, 600));
+    await expect(nav).toHaveClass(/scrolled/);
+    await expect(nav).toHaveCSS("position", "sticky");
+    expect(await background(nav)).toBe(transparent);
+    // The capsule colour transition settles into the scrolled backdrop.
+    await expect.poll(() => background(capsule)).not.toBe(resting);
+    expect(Math.round((await nav.boundingBox())!.y)).toBe(0);
+  });
+
+  test("drives every marketing navbar destination to a real place", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto("/");
+
+    const nav = page.locator("#nav");
+    await expect(
+      nav.getByRole("link", { name: "Empezar gratis", exact: true }),
+    ).toHaveAttribute("href", "#empezar");
+
+    for (const [label, id] of NAV_HASH_DESTINATIONS) {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await nav.getByRole("link", { name: label, exact: true }).click();
+      await expect.poll(() => new URL(page.url()).hash).toBe(`#${id}`);
+
+      const navBox = (await nav.boundingBox())!;
+      const sectionBox = (await page.locator(`#${id}`).boundingBox())!;
+      // The anchored section clears the floating navbar instead of hiding
+      // behind it, and it really moved into view.
+      expect(
+        sectionBox.y,
+        `#${id} must not be covered by the floating navbar`,
+      ).toBeGreaterThanOrEqual(Math.round(navBox.y + navBox.height) - 1);
+      expect(sectionBox.y).toBeGreaterThan(0);
+    }
+
+    await page.goto("/");
+    await nav.getByRole("link", { name: "Vacantes", exact: true }).click();
+    await expect(page).toHaveURL(/\/vacantes$/);
+  });
+
+  test("keeps every control inside 375px, with desktop links hidden", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/");
+
+    const nav = page.locator("#nav");
+    for (const label of ["Vacantes", "Producto", "Soluciones"]) {
+      await expect(
+        nav.getByRole("link", { name: label, exact: true }),
+      ).toBeHidden();
+    }
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0);
+
+    // Brand, login, theme and CTA stay visible inside the viewport.
+    const selectors = [
+      "a[aria-label='PeopleFlow']",
+      "button[aria-haspopup='menu']",
+      "[data-pf-theme-toggle]",
+      "a.btn-primary",
+    ];
+    const controls = await nav.evaluate((el, targets) =>
+      targets.map((selector) => {
+        const node = el.querySelector(selector);
+        if (!node) return null;
+        return { selector, ...node.getBoundingClientRect().toJSON() };
+      }),
+      selectors,
+    );
+    expect(controls.filter(Boolean)).toHaveLength(4);
+    for (const control of controls) {
+      if (!control) continue;
+      expect(control.width, control.selector).toBeGreaterThan(0);
+      expect(control.x, control.selector).toBeGreaterThanOrEqual(0);
+      expect(control.right, control.selector).toBeLessThanOrEqual(375);
+      expect(control.bottom, control.selector).toBeLessThanOrEqual(812);
+    }
+  });
+
+  test("gives the marketing navbar an explicit keyboard focus treatment", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto("/");
+
+    await page.keyboard.press("Tab");
+    const focus = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el) return null;
+      const s = getComputedStyle(el);
+      return {
+        inNav: Boolean(el.closest("#nav")),
+        outlineStyle: s.outlineStyle,
+        outlineWidth: s.outlineWidth,
+        outlineOffset: s.outlineOffset,
+      };
+    });
+    expect(focus).toEqual({
+      inNav: true,
+      outlineStyle: "solid",
+      outlineWidth: "2px",
+      outlineOffset: "2px",
+    });
+  });
+});
+
 
 // ---------------------------------------------------------------------------
 // Width × color-scheme matrix: typography, contrast, focus, images, requests.

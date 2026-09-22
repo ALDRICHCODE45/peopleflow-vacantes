@@ -51,6 +51,13 @@ afterAll(() => {
   vi.unstubAllGlobals();
 });
 
+/** Find a header link whose trimmed text matches exactly. */
+function findHeaderLink(header: Element, label: string) {
+  return Array.from(header.querySelectorAll("a")).find(
+    (a) => a.textContent?.trim() === label,
+  );
+}
+
 /** Assert `first` precedes `second` in document order. */
 function precedes(first: Element, second: Element) {
   return Boolean(
@@ -270,25 +277,38 @@ describe("employer marketing page (reference replica)", () => {
     expect(themeButtons[0]!.closest("header")).not.toBeNull();
   });
 
-  it("keeps product placeholders and renders the shared login menu", () => {
+  it("renders the supported product anchors and the shared login menu", () => {
     render(<MarketingPage />);
 
     const header = document.querySelector("header")!;
-    for (const label of ["Producto", "Soluciones", "Precios", "Recursos"]) {
-      const link = Array.from(header.querySelectorAll("a")).find(
-        (a) => a.textContent?.trim() === label,
-      );
-      expect(link, `nav link ${label}`).toBeDefined();
-      expect(link).toHaveAttribute("href", "#");
-    }
-    expect(
-      Array.from(header.querySelectorAll("a")).find(
-        (a) => a.textContent?.trim() === "Iniciar sesión",
-      ),
-    ).toBeUndefined();
+    expect(findHeaderLink(header, "Producto")).toHaveAttribute(
+      "href",
+      "#producto",
+    );
+    expect(findHeaderLink(header, "Soluciones")).toHaveAttribute(
+      "href",
+      "#soluciones",
+    );
+    // Unsupported destinations are gone from the DOM instead of rendering as
+    // non-operational `#` placeholders.
+    expect(findHeaderLink(header, "Precios")).toBeUndefined();
+    expect(findHeaderLink(header, "Recursos")).toBeUndefined();
     const login = screen.getByRole("button", { name: "Ingresar" });
     expect(login).toHaveAttribute("aria-haspopup", "menu");
     expect(login).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("exposes the anchored landing sections with a navbar scroll offset", () => {
+    render(<MarketingPage />);
+
+    // Every in-page nav destination resolves to a real section that
+    // compensates for the floating navbar through an explicit scroll margin.
+    for (const id of ["producto", "soluciones", "empezar"]) {
+      const section = document.getElementById(id);
+      expect(section, `section #${id}`).not.toBeNull();
+      expect(section!.tagName).toBe("SECTION");
+      expect(section!.className).toMatch(/scroll-mt-\d+/);
+    }
   });
 
   it("keeps every prototype anchor addressable (placeholder '#' allowed)", () => {
@@ -394,6 +414,20 @@ describe("employer marketing page (reference replica)", () => {
     // Never a global theme-control rule: candidate/auth keep their own sizing.
     expect(landingCss).not.toMatch(
       /(^|\n)\[data-pf-theme-toggle\]\s+svg\s*\{/,
+    );
+  });
+
+  it("retargets the scrolled navbar styling to the floating surface", () => {
+    expect(landingCss).toMatch(
+      /\.pf-reference-landing #nav\.scrolled \[data-pf-nav-floating\] \{[^}]*\}/,
+    );
+    expect(landingCss).not.toMatch(
+      /(^|\n)\.pf-reference-landing #nav\.scrolled \{/,
+    );
+    // Every marketing navbar control carries an explicit brand-token focus cue
+    // that clears 3:1 on both theme surfaces.
+    expect(landingCss).toMatch(
+      /\.pf-reference-landing #nav :is\(a, button\):focus-visible \{[^}]*outline: 2px solid rgb\(var\(--pf-brand\)\);[\s\S]*?outline-offset: 2px;/,
     );
   });
 
