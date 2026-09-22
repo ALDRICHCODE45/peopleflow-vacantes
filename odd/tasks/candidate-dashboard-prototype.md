@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Branch: `feature/candidate-dashboard-prototype`
 - Base: completed employer workspace commit `febaf18`
-- Current task: CDP-07B editable local profile surface
+- Current task: CDP-07B1 controlled profile fields editor
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -46,7 +46,8 @@ Build a coherent candidate-side PeopleFlow workspace with Dashboard, Postulacion
 - [x] **CDP-06A — Applications workspace surface:** Built a props-only searchable/status-filtered Postulaciones surface with exact counted filters, live result agreement, semantic non-clickable rows, canonical-or-historical job treatment, honest recovery/true-empty states, and no candidate-side mutation. Authored 339/400 lines; verification: 33/33 workspace+model tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `b719f7a`.
 - [x] **CDP-06B — Applications route integration:** Replaced only `/candidato/postulaciones` preview with CandidateHeader plus the verified workspace and frozen applications at the route boundary, preserving Dashboard and the remaining three previews. Authored 192/400 diff lines; verification: 106/106 candidate route/component/model tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `d2b64be`.
 - [x] **CDP-07A — Profile draft adapter and validation:** Added deterministic profile-to-form conversion and a non-throwing declared-input parser with strict integer/currency handling, schema-backed skills/languages normalization, stable Spanish field issues, timestamp preservation, and no React/persistence/transport coupling. Authored 398/400 lines; verification: 49/49 candidate feature tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `40a46f9`.
-- [ ] **CDP-07B — Editable local profile surface:** Build accessible profile sections, skills/languages controls, local review, reset behavior, and an explicit no-save disclosure over draft helpers.
+- [ ] **CDP-07B1 — Controlled profile fields editor:** Build accessible backend-aligned scalar, skills, and language controls over draft values/errors without owning persistence or submission state.
+- [ ] **CDP-07B2 — Editable local profile workspace:** Compose the controlled editor with in-memory draft state, local review, error focus, reset behavior, and an explicit no-save disclosure.
 - [ ] **CDP-07C — Profile route integration:** Replace only `/candidato/perfil` preview with CandidateHeader plus the verified profile workspace and frozen profile at the route boundary.
 - [ ] **CDP-08 — CV workspace and route:** Add `/candidato/cvs` with frozen CV inventory, primary/current context, preview-safe metadata, disabled upload/replacement actions, and no generated-success claims.
 - [ ] **CDP-09 — Account workspace and route:** Add `/candidato/cuenta` with fictional identity details, read-only provider/security context, and disabled email/password controls without auth/session claims.
@@ -74,4 +75,4 @@ Build a coherent candidate-side PeopleFlow workspace with Dashboard, Postulacion
 - Two strictly local CV metadata entries expose one Spanish primary and one English secondary document with no URL, upload key/status, download state, generated/AI claim, storage handle, or callback. Independent verification: 20/20 candidate model tests, TypeScript, ESLint, diff-check, and source readback PASS; 391/400 authored lines.
 
 ## Next step
-Implement CDP-07B as an accessible in-memory form over the verified draft adapter, with clear review/reset semantics and no persistence claim.
+Implement CDP-07B1 as a controlled accessible field editor so CDP-07B2 can own only local form orchestration, review, reset, and disclosure.
