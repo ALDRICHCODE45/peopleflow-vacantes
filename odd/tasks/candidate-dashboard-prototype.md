@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Branch: `feature/candidate-dashboard-prototype`
 - Base: completed employer workspace commit `febaf18`
-- Current task: CDP-02 applications and CV portfolio model
+- Current task: CDP-03 candidate shell and route-aware navigation
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -38,7 +38,7 @@ Build a coherent candidate-side PeopleFlow workspace with Dashboard, Postulacion
 
 ## Tasks
 - [x] **CDP-01 — Candidate identity and profile model:** Defined strict candidate identity/profile contracts and one deeply frozen fictional Mexican candidate fixture using backend-aligned vocabularies and normalization boundaries. Authored 381/400 lines; verification: 9/9 focused tests, TypeScript, ESLint, diff-check, and source readback PASS. Commit: `2637f5c`.
-- [ ] **CDP-02 — Applications and CV portfolio model:** Define strict frozen application and CV metadata fixtures, status/source labels, summaries, canonical public-job links, and truthful no-upload boundaries.
+- [x] **CDP-02 — Applications and CV portfolio model:** Defined strict frozen application/CV metadata fixtures, exact status/source labels, derived summaries, two canonical public-job links plus two honest historical null links, and truthful no-upload boundaries. Authored 391/400 lines; verification: 20/20 candidate model tests, TypeScript, ESLint, diff-check, and source readback PASS. Commit: `dede71b`.
 - [ ] **CDP-03 — Candidate shell and route-aware navigation:** Add the `(candidato)` route group, shared candidate shell/sidebar/header, five real destinations, cyan visual identity, mobile drawer, and fictional candidate footer without copying employer content.
 - [ ] **CDP-04 — Candidate dashboard overview:** Build derived summary cards, profile-completeness guidance, recent applications, CV snapshot, and local-demo disclosure from props only.
 - [ ] **CDP-05 — Candidate dashboard route:** Mount `/candidato/dashboard` through the shared shell with metadata, frozen fixtures, correct active navigation, and route-level contracts.
@@ -65,6 +65,9 @@ Build a coherent candidate-side PeopleFlow workspace with Dashboard, Postulacion
 - User approved the cyan derived visual direction, full five-route scope, locally editable profile, and honest disabled CV/account mutations.
 - CDP-01 defines exact candidate identity plus backend-aligned profile, education, salary-period, CEFR, skills, language, date, and timestamp boundaries without modelling auth/session state or the reserved CV storage key.
 - The fictional Ximena Barrera identity/profile graph and display dictionaries are deeply frozen. Independent verification: 9/9 focused tests, TypeScript, scoped ESLint, `git diff --check`, and source readback PASS; 381/400 authored lines.
+- CDP-02 implementation: `dede71b`.
+- Four application fixtures cover all existing stages and four representative sources. Only the two committed Acme jobs expose exact canonical detail links; hired/rejected historical jobs expose `null` instead of dead destinations.
+- Two strictly local CV metadata entries expose one Spanish primary and one English secondary document with no URL, upload key/status, download state, generated/AI claim, storage handle, or callback. Independent verification: 20/20 candidate model tests, TypeScript, ESLint, diff-check, and source readback PASS; 391/400 authored lines.
 
 ## Next step
-Implement CDP-02 applications/CV portfolio modelling with strict RED-first schema and fixture contracts, then independently verify and commit the bounded work unit.
+Implement CDP-03 shared candidate shell, route-aware navigation, and five real placeholder route destinations without reusing employer content.
