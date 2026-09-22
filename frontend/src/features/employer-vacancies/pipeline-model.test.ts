@@ -141,3 +141,15 @@ describe("pipeline candidate fixtures", () => {
     }
   });
 });
+
+describe("visibleCandidatesCopy count agreement", () => {
+  it("uses the singular noun when the vacancy total is one", () => {
+    expect(visibleCandidatesCopy(1, 1)).toBe("Mostrando 1 de 1 candidato de esta vacante en esta vista de demostración.");
+    expect(visibleCandidatesCopy(1, 1)).not.toContain("candidatos");
+  });
+
+  it("keeps the plural noun for plural or zero totals", () => {
+    expect(visibleCandidatesCopy(1, 7)).toBe("Mostrando 1 de 7 candidatos de esta vacante en esta vista de demostración.");
+    expect(visibleCandidatesCopy(0, 7)).toBe("Mostrando 0 de 7 candidatos de esta vacante en esta vista de demostración.");
+  });
+});

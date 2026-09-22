@@ -133,5 +133,6 @@ export function summarizeCandidateStages(
  * so this helper never claims the visible cards equal the vacancy summary.
  */
 export function visibleCandidatesCopy(visibleCount: number, vacancyTotal: number): string {
-  return `Mostrando ${visibleCount} de ${vacancyTotal} candidatos de esta vacante en esta vista de demostración.`;
+  const noun = vacancyTotal === 1 ? "candidato" : "candidatos";
+  return `Mostrando ${visibleCount} de ${vacancyTotal} ${noun} de esta vacante en esta vista de demostración.`;
 }
