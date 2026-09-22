@@ -29,8 +29,8 @@ const DESTINATIONS: Destination[] = [
   { segment: "cuenta", title: "Cuenta", Page: CuentaPage, metadata: cuentaMetadata },
 ];
 const SEGMENTS = DESTINATIONS.map((destination) => destination.segment);
-// Dashboard and Postulaciones already mount verified workspaces, so only Perfil, CVs and Cuenta stay placeholders.
-const PLACEHOLDER_DESTINATIONS = DESTINATIONS.filter((destination) => destination.segment !== "dashboard" && destination.segment !== "postulaciones");
+// Dashboard, Postulaciones and Perfil already mount verified workspaces, so only CVs and Cuenta stay placeholders.
+const PLACEHOLDER_DESTINATIONS = DESTINATIONS.filter((destination) => destination.segment === "cvs" || destination.segment === "cuenta");
 const routeSource = (segment: string) => readFileSync(join(process.cwd(), `src/app/(candidato)/candidato/${segment}/page.tsx`), "utf8");
 
 function stubBrowserApis(innerWidth = 1280) {
@@ -112,6 +112,12 @@ describe("candidate destinations resolve as honest content-only routes", () => {
     render(<CandidateShell><PostulacionesPage /></CandidateShell>);
     expect(document.querySelector("[data-pf-applications-workspace]")).not.toBeNull();
     expect(document.querySelector('[data-pf-destination="Postulaciones"]')).toBeNull();
+  });
+
+  it("mounts the verified local profile workspace instead of a destination preview", () => {
+    render(<CandidateShell><PerfilPage /></CandidateShell>);
+    expect(document.querySelector("[data-pf-profile-workspace]")).not.toBeNull();
+    expect(document.querySelector('[data-pf-destination="Perfil"]')).toBeNull();
   });
 
   it.each(DESTINATIONS)("$title activates only its own sidebar destination", ({ segment, title, Page }) => {
