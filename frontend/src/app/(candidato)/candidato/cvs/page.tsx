@@ -1,26 +1,24 @@
 import type { Metadata } from "next"
 
-import { CandidateDestinationShell } from "@/components/candidate-dashboard/candidate-destination-shell"
+import { CandidateHeader } from "@/components/candidate-dashboard/candidate-header"
+import { CvWorkspace } from "@/features/candidate/cv-workspace"
+import { CANDIDATE_CVS } from "@/features/candidate/prototype-portfolio"
 
 export const metadata: Metadata = {
   title: "CVs",
 }
 
 /**
- * Candidate CV placeholder: the shared `(candidato)` layout mounts the candidate
- * shell, so this route owns only its header and honest local preview. CDP-08
- * replaces this shell with the frozen CV inventory and disabled upload actions.
+ * Candidate CV route: the `(candidato)` layout owns the single shell, so this
+ * page owns only its header plus the props-only CV workspace. The frozen
+ * inventory is supplied here, at the route boundary, so the workspace stays
+ * fixture-independent; the page fetches, stores, navigates and mutates nothing.
  */
 export default function Page() {
   return (
-    <CandidateDestinationShell
-      title="CVs"
-      summary="Tus documentos de CV y cuál se comparte con cada postulación."
-      preview={[
-        "Inventario de CV con idioma y formato.",
-        "CV principal frente a documentos secundarios.",
-        "Acciones de carga y reemplazo, hoy no disponibles.",
-      ]}
-    />
+    <>
+      <CandidateHeader title="CVs" />
+      <CvWorkspace cvs={CANDIDATE_CVS} />
+    </>
   )
 }

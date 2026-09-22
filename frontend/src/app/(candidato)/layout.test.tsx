@@ -29,8 +29,8 @@ const DESTINATIONS: Destination[] = [
   { segment: "cuenta", title: "Cuenta", Page: CuentaPage, metadata: cuentaMetadata },
 ];
 const SEGMENTS = DESTINATIONS.map((destination) => destination.segment);
-// Dashboard, Postulaciones and Perfil already mount verified workspaces, so only CVs and Cuenta stay placeholders.
-const PLACEHOLDER_DESTINATIONS = DESTINATIONS.filter((destination) => destination.segment === "cvs" || destination.segment === "cuenta");
+// Dashboard, Postulaciones, Perfil and CVs already mount verified workspaces, so only Cuenta stays a placeholder.
+const PLACEHOLDER_DESTINATIONS = DESTINATIONS.filter((destination) => destination.segment === "cuenta");
 const routeSource = (segment: string) => readFileSync(join(process.cwd(), `src/app/(candidato)/candidato/${segment}/page.tsx`), "utf8");
 
 function stubBrowserApis(innerWidth = 1280) {
@@ -118,6 +118,12 @@ describe("candidate destinations resolve as honest content-only routes", () => {
     render(<CandidateShell><PerfilPage /></CandidateShell>);
     expect(document.querySelector("[data-pf-profile-workspace]")).not.toBeNull();
     expect(document.querySelector('[data-pf-destination="Perfil"]')).toBeNull();
+  });
+
+  it("mounts the verified CV inventory instead of a destination preview", () => {
+    render(<CandidateShell><CvsPage /></CandidateShell>);
+    expect(document.querySelector("[data-pf-cv-workspace]")).not.toBeNull();
+    expect(document.querySelector('[data-pf-destination="CVs"]')).toBeNull();
   });
 
   it.each(DESTINATIONS)("$title activates only its own sidebar destination", ({ segment, title, Page }) => {
