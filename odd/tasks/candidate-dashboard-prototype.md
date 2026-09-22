@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Branch: `feature/candidate-dashboard-prototype`
 - Base: completed employer workspace commit `febaf18`
-- Current task: CDP-10 integrated candidate acceptance
+- Current task: complete
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -53,7 +53,7 @@ Build a coherent candidate-side PeopleFlow workspace with Dashboard, Postulacion
 - [x] **CDP-08B — CV route integration:** Replaced only `/candidato/cvs` preview with CandidateHeader plus the verified inventory and frozen CV props at the route boundary, leaving Cuenta as the sole remaining preview. Authored 184/400 diff lines; verification: 175/175 candidate route/component/feature tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `9bdac91`.
 - [x] **CDP-09A — Read-only account surface:** Built a props-only fictional identity/security view with semantic identity/access facts, exact unavailable auth/provider/verification context, and three disabled email/password/session controls linked to one clear explanation. Tightened ambiguous agreement after independent review. Authored 259/400 lines; verification: 187/187 candidate tests, focused correction tests, TypeScript, ESLint, diff-check, LSP/source readback, and correction re-review PASS. Commit: `6543894`.
 - [x] **CDP-09B — Account route integration:** Replaced the final `/candidato/cuenta` preview with CandidateHeader plus the verified account workspace and frozen identity at the route boundary; all five candidate destinations now render real workspaces. Authored 193/400 diff lines; verification: 195/195 candidate route/component/feature tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `552c4f3`.
-- [ ] **CDP-10 — Integrated candidate acceptance:** Prove all routes, navigation, keyboard/focus, responsive overflow, candidate-scoped serious/critical Axe checks, and zero network/storage/business mutations in Chromium.
+- [x] **CDP-10 — Integrated candidate acceptance:** Added five serial Chromium flows plus a five-route × two-viewport matrix covering keyboard navigation, applications, local profile review/reset, disabled CV/account actions, full-document Axe execution, finite overflow samples, strict GET/HEAD-only traffic, forbidden-origin/API/port guards, and method-plus-snapshot storage audits. Hardened mobile hydration/drawer handling without masking the shared drawer behavior. Authored 368/400 lines; independent verification: 5/5 Playwright tests, 10/10 matrix cases, 0 serious/critical Axe violations, 0 overflow failures, 0 disallowed traffic/storage writes, 1,247/1,247 full Vitest tests, TypeScript, ESLint, diff-check, and LSP/source review PASS. Commit: `e4e528c`.
 
 ## Acceptance criteria
 - The candidate workspace is visually related to the candidate login without copying the employer's user, organization, metrics, or recruiting operations.
@@ -77,4 +77,4 @@ Build a coherent candidate-side PeopleFlow workspace with Dashboard, Postulacion
 - Two strictly local CV metadata entries expose one Spanish primary and one English secondary document with no URL, upload key/status, download state, generated/AI claim, storage handle, or callback. Independent verification: 20/20 candidate model tests, TypeScript, ESLint, diff-check, and source readback PASS; 391/400 authored lines.
 
 ## Next step
-Implement CDP-10 integrated Chromium acceptance across all five candidate routes and desktop/mobile viewports, including navigation, interactions, overflow, candidate-scoped accessibility, and zero network/storage/business mutations.
+Candidate dashboard prototype is complete. Await user review or a separately bounded refinement request; do not push, open a PR, merge, or deploy without explicit authorization.
