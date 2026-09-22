@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Delivery: bounded work-unit commits on `feature/company-careers-prototype`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: EW-06C team invitation affordance
+- Current task: EW-06D team route
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -46,7 +46,7 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - [x] **EW-05 — Pipeline route:** Mounted `/empresa/vacantes/[jobId]/pipeline` with exact local fixture resolution, Vacantes breadcrumb, vacancy status, truthful portfolio history/team context, non-persistence disclosure, exact candidate scoping, metadata, and framework not-found handling. Authored 398/400 diff lines including the copy correction. Verification: 74/74 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `44efc0e`.
 - [x] **EW-06A — Team model and fixtures:** Defined six strict frozen Nexo Labs members with closed `owner`/`recruiter` roles, prototype-local `active`/`invited` states, vacancy-derived workload totals, unique identity boundaries, and one local prototype owner. Authored 377/400 lines. Verification: 18/18 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after tightening collection and whitespace invariants. Commit: `1b71dfd`.
 - [x] **EW-06B — Team workspace surface:** Built four derived metrics, diacritic-insensitive member search, accessible status filtering, deterministic non-interactive responsive rows, complete role/status/workload facts, dynamic result announcements, and honest empty recovery. Authored 378/400 lines. Verification: 33/33 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting agreement, workload completeness, and desktop accessibility. Commit: `36a532d`.
-- [ ] **EW-06C — Team invitation affordance:** Add an inline local-only invitation form that validates input, never persists or appends a member, and explicitly reports that nothing was sent or saved.
+- [x] **EW-06C — Team invitation affordance:** Added an accessible inline local-only invitation prototype with owner/recruiter selection, local validation, clean attempt lifecycle, and explicit no-send/no-save feedback; it owns no collection or callback and cannot append a member. Authored 395/400 lines. Verification: 35/35 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting stale error/status lifecycle. Commit: `e9a9ad1`.
 - [ ] **EW-06D — Team route:** Mount `/empresa/equipo` through the shared employer shell with metadata, header, and truthful local-demo disclosure.
 - [ ] **EW-07 — Dashboard connections:** Connect approved dashboard vacancy and pipeline entry points to the new routes without regressing metrics, chart, recent candidates, or create-vacancy behavior.
 - [ ] **EW-08 — Integrated employer acceptance:** Prove live navigation, vacancy filtering, pipeline board/list switching, team UX, keyboard/focus, responsive overflow, accessibility, and zero business mutations in Chromium.
@@ -92,6 +92,9 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - EW-06B implementation: `36a532d`.
 - The read-only team surface derives all metrics and filters from props, keeps rows non-interactive, stacks labelled facts on narrow screens, and exposes live result counts without fixture coupling.
 - Independent verification corrected singular metric labels, zero-vacancy/nonzero-candidate workload disclosure, and desktop accessibility of row field labels. Reverification: 33/33 tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS.
+- EW-06C implementation: `e9a9ad1`.
+- The invitation affordance validates locally, exposes no member collection or callback, never contacts transport/storage/router APIs, and reports exactly that no invitation was sent and no change was saved.
+- Independent verification corrected stale error/ARIA and prior-result messages when a new attempt begins. Reverification: 35/35 tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS.
 
 ## Next step
-Implement EW-06C as a local-only invitation affordance that validates inputs but never sends, saves, or appends a member.
+Implement EW-06D and mount the committed team workspace and invitation affordance at `/empresa/equipo` through the shared employer shell.
