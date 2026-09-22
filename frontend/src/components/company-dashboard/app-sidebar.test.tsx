@@ -5,11 +5,17 @@ import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+// Route awareness comes from the App Router pathname hook; the suite drives it
+// directly instead of mounting the router. The create action still navigates
+// through a native GET form, so no imperative navigation is exercised here.
+const { pathnameMock } = vi.hoisted(() => ({
+  pathnameMock: vi.fn<() => string | null>(() => "/empresa/dashboard"),
+}));
+vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
+
 import { AppSidebar } from "./app-sidebar";
 import { SidebarProvider } from "./ui/sidebar";
 
-// The create action navigates through a native GET form instead of the App
-// Router, so the suite needs no router mock: the browser owns the navigation.
 const CREATE_VACANCY_ROUTE = "/empresa/vacantes/nueva";
 
 // Vitest runs from frontend/, so cwd-relative paths keep the assertions stable.
@@ -25,6 +31,24 @@ const PRINCIPAL_ITEMS = [
   "Mensajes",
 ] as const;
 const ORGANIZATION_ITEMS = ["Equipo", "Reportes", "Configuración"] as const;
+
+// Destinations backed by real App Router routes, and the unresolved prototypes
+// that must stay on the honest `#` placeholder.
+const RESOLVED_DESTINATIONS = {
+  Dashboard: "/empresa/dashboard",
+  Vacantes: "/empresa/vacantes",
+  Equipo: "/empresa/equipo",
+} as const;
+const PROTOTYPE_ITEMS = [
+  "Candidatos",
+  "Mensajes",
+  "Reportes",
+  "Configuración",
+] as const;
+const ALL_ITEMS = [
+  ...Object.keys(RESOLVED_DESTINATIONS),
+  ...PROTOTYPE_ITEMS,
+] as const;
 
 // jsdom implements neither matchMedia nor ResizeObserver; the sidebar reads the
 // first through `useIsMobile`, so it is stubbed to the desktop branch.
@@ -53,11 +77,19 @@ function stubBrowserApis() {
   vi.stubGlobal("innerWidth", 1280);
 }
 
-function renderSidebar() {
+function renderSidebar(pathname: string | null = "/empresa/dashboard") {
+  pathnameMock.mockReturnValue(pathname);
   return render(
     <SidebarProvider>
       <AppSidebar />
     </SidebarProvider>,
+  );
+}
+
+/** The nav labels currently carrying the active state. */
+function activeLabels(): string[] {
+  return ALL_ITEMS.filter((label) =>
+    screen.getByRole("link", { name: label }).hasAttribute("data-active"),
   );
 }
 
@@ -156,38 +188,63 @@ describe("company dashboard sidebar navigation", () => {
     expect(labels).toEqual([...ORGANIZATION_ITEMS]);
   });
 
-  it("keeps Dashboard as the only real route and the rest as safe prototypes", () => {
+  it("binds the resolved destinations and keeps the rest as safe prototypes", () => {
     renderSidebar();
 
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
-      "href",
-      "/empresa/dashboard",
-    );
+    for (const [label, href] of Object.entries(RESOLVED_DESTINATIONS)) {
+      expect(
+        screen.getByRole("link", { name: label }),
+        `${label} destination`,
+      ).toHaveAttribute("href", href);
+    }
 
-    for (const label of [...PRINCIPAL_ITEMS.slice(1), ...ORGANIZATION_ITEMS]) {
+    for (const label of PROTOTYPE_ITEMS) {
       expect(
         screen.getByRole("link", { name: label }),
         `${label} prototype target`,
       ).toHaveAttribute("href", "#");
     }
-
-    const hrefs = Array.from(document.querySelectorAll("a")).map((anchor) =>
-      anchor.getAttribute("href"),
-    );
-    expect(new Set(hrefs)).toEqual(new Set(["#", "/empresa/dashboard"]));
   });
 
-  it("marks Dashboard as the active destination", () => {
-    renderSidebar();
+  it.each([
+    ["/empresa/dashboard", "Dashboard"],
+    ["/empresa/vacantes", "Vacantes"],
+    // Nested vacancy routes keep their section active.
+    ["/empresa/vacantes/nueva", "Vacantes"],
+    ["/empresa/vacantes/abc-123/pipeline", "Vacantes"],
+    ["/empresa/vacantes/", "Vacantes"],
+    ["/empresa/equipo", "Equipo"],
+    ["/empresa/equipo/maria-lopez", "Equipo"],
+  ])("activates only %s on the %s section", (pathname, expected) => {
+    renderSidebar(pathname);
 
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
-      "data-active",
-    );
-    for (const label of [...PRINCIPAL_ITEMS.slice(1), ...ORGANIZATION_ITEMS]) {
-      expect(
-        screen.getByRole("link", { name: label }),
-        `${label} must not be marked active`,
-      ).not.toHaveAttribute("data-active");
+    expect(activeLabels()).toEqual([expected]);
+  });
+
+  it("does not activate a section for a sibling route that shares its prefix", () => {
+    // `/empresa/vacantes-archivadas` is not a child of `/empresa/vacantes`.
+    renderSidebar("/empresa/vacantes-archivadas");
+
+    expect(activeLabels()).toEqual([]);
+  });
+
+  it("activates nothing on an unmatched employer route", () => {
+    renderSidebar("/empresa/reportes");
+
+    expect(activeLabels()).toEqual([]);
+  });
+
+  it("never activates the unresolved prototypes", () => {
+    for (const pathname of ["#", "", "/", null]) {
+      renderSidebar(pathname);
+
+      for (const label of PROTOTYPE_ITEMS) {
+        expect(
+          screen.getByRole("link", { name: label }),
+          `${label} must not be marked active on ${String(pathname)}`,
+        ).not.toHaveAttribute("data-active");
+      }
+      cleanup();
     }
   });
 
@@ -271,11 +328,12 @@ describe("company dashboard sidebar create action", () => {
   });
 
   it("declares no router, click handler or document navigation", () => {
-    // Progressive enhancement only: no App Router hook, no render-time exception
-    // control flow, no imperative navigation and no private Next context.
+    // Progressive enhancement only: route awareness is limited to the App Router
+    // pathname hook; no imperative navigation, click handling, render-time
+    // exception control flow or private Next context may appear.
     for (const forbidden of [
-      "next/navigation",
       "useRouter",
+      "useSearchParams",
       "next/dist",
       "onClick",
       "window.location",
@@ -290,12 +348,24 @@ describe("company dashboard sidebar create action", () => {
 
     // The destination is bound declaratively to the form action.
     expect(source).toContain(`action="${CREATE_VACANCY_ROUTE}"`);
+    // The only App Router hook the sidebar owns is the pathname.
+    expect(source).toContain('from "next/navigation"');
+    expect(source).toContain("usePathname");
   });
 
-  it("leaves the remaining recruiting navigation on its anchors", () => {
+  it("resolves real destinations through Next links", () => {
+    renderSidebar("/empresa/vacantes");
+
+    // The router-backed destinations use `next/link`, so client navigation and
+    // prefetching stay with the framework instead of raw anchors.
+    expect(source).toContain('import Link from "next/link"');
+    expect(screen.getByRole("link", { name: "Vacantes" }).tagName).toBe("A");
+  });
+
+  it("leaves the unresolved recruiting navigation on its anchors", () => {
     renderSidebar();
 
-    for (const label of [...PRINCIPAL_ITEMS.slice(1), ...ORGANIZATION_ITEMS]) {
+    for (const label of PROTOTYPE_ITEMS) {
       const link = screen.getByRole("link", { name: label });
       expect(link.tagName, `${label} destination`).toBe("A");
       expect(link).toHaveAttribute("href", "#");

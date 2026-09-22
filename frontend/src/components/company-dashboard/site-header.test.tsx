@@ -50,6 +50,14 @@ function renderHeader() {
   );
 }
 
+function renderHeaderWith(props: React.ComponentProps<typeof SiteHeader>) {
+  return render(
+    <SidebarProvider>
+      <SiteHeader {...props} />
+    </SidebarProvider>,
+  );
+}
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -97,6 +105,75 @@ describe("company dashboard header content", () => {
     expect(header.className).toContain("border-b");
     expect(container.className).toContain("px-4");
     expect(container.className).toContain("lg:px-6");
+  });
+});
+
+describe("company dashboard header route context", () => {
+  beforeEach(stubBrowserApis);
+
+  it("keeps Dashboard as the default title without a breadcrumb", () => {
+    renderHeader();
+
+    const header = document.querySelector("header")!;
+    const heading = within(header).getByRole("heading", { level: 1 });
+    expect(within(header).queryByRole("navigation")).toBeNull();
+    expect(heading).toHaveTextContent("Dashboard");
+    expect(heading).not.toHaveAttribute("aria-current");
+  });
+
+  it("accepts a route title", () => {
+    renderHeaderWith({ title: "Equipo" });
+
+    const header = document.querySelector("header")!;
+    expect(within(header).getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Equipo",
+    );
+  });
+
+  it("renders a linked parent crumb with the current label, status and shell", () => {
+    renderHeaderWith({
+      title: "Ingeniero Backend",
+      parent: { label: "Vacantes", href: "/empresa/vacantes" },
+      status: <span>Publicada</span>,
+    });
+
+    const header = document.querySelector("header")!;
+    const nav = within(header).getByRole("navigation", {
+      name: "Ruta de navegación",
+    });
+    // The landmark carries only the linked ancestor...
+    expect(within(nav).getByRole("link", { name: "Vacantes" })).toHaveAttribute(
+      "href",
+      "/empresa/vacantes",
+    );
+    // ...the current label stays the heading, with status and aria-current.
+    const heading = within(header).getByRole("heading", { level: 1 });
+    expect(heading).toHaveTextContent("Ingeniero Backend");
+    expect(heading).toHaveAttribute("aria-current", "page");
+    expect(nav.contains(heading)).toBe(false);
+    expect(within(header).getByText("Publicada")).toBeVisible();
+    // One heading and one shell control set: the crumb adds no second frame.
+    expect(within(header).getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(
+      within(header).getAllByRole("button", { name: /toggle sidebar/i }),
+    ).toHaveLength(1);
+    expect(document.querySelectorAll("[data-pf-theme-toggle]")).toHaveLength(1);
+    expect(header.querySelector("[data-slot='separator']")).not.toBeNull();
+    // The parent crumb is a Next link, not a raw anchor.
+    expect(source).toContain('import Link from "next/link"');
+  });
+
+  it("keeps the default title when only partial context is supplied", () => {
+    renderHeaderWith({
+      parent: { label: "Vacantes", href: "/empresa/vacantes" },
+      status: <span>Borrador</span>,
+    });
+
+    const header = document.querySelector("header")!;
+    expect(within(header).getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Dashboard",
+    );
+    expect(within(header).getByText("Borrador")).toBeVisible();
   });
 });
 

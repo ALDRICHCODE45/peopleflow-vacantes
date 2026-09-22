@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 import { PeopleFlowLogo } from "@/components/brand/logo"
 import { NavUser } from "./nav-user"
@@ -27,11 +28,21 @@ import {
   IconUsersGroup,
 } from "@tabler/icons-react"
 
+type NavItem = {
+  title: string
+  url: string
+  icon: React.ReactNode
+}
+
+/** The honest placeholder for destinations that are not routes yet. */
+const UNRESOLVED_URL = "#"
+
 /**
  * Recruiting navigation for the employer dashboard prototype.
  *
- * `Dashboard` and the primary create action resolve to real routes; every
- * remaining destination is unresolved and stays on the safe `#` placeholder.
+ * `Dashboard`, `Vacantes` and `Equipo` resolve to real routes and light up from
+ * the current pathname; every remaining destination is unresolved and stays on
+ * the safe `#` placeholder, which is never marked active.
  */
 const data = {
   user: {
@@ -50,45 +61,81 @@ const data = {
     },
     {
       title: "Vacantes",
-      url: "#",
+      url: "/empresa/vacantes",
       icon: <IconBriefcase />,
     },
     {
       title: "Candidatos",
-      url: "#",
+      url: UNRESOLVED_URL,
       icon: <IconUsers />,
     },
     {
       title: "Mensajes",
-      url: "#",
+      url: UNRESOLVED_URL,
       icon: <IconMessage />,
     },
   ],
   navOrganization: [
     {
       title: "Equipo",
-      url: "#",
+      url: "/empresa/equipo",
       icon: <IconUsersGroup />,
     },
     {
       title: "Reportes",
-      url: "#",
+      url: UNRESOLVED_URL,
       icon: <IconChartBar />,
     },
     {
       title: "Configuración",
-      url: "#",
+      url: UNRESOLVED_URL,
       icon: <IconSettings />,
     },
   ],
 }
 
+/**
+ * A destination is active on its own route and on any route nested below it, so
+ * `/empresa/vacantes/nueva` and `/empresa/vacantes/:id/pipeline` keep `Vacantes`
+ * lit. Unresolved prototypes and unknown pathnames stay inactive.
+ */
+function isActiveDestination(url: string, pathname: string | null): boolean {
+  if (url === UNRESOLVED_URL || !pathname) return false
+  return pathname === url || pathname.startsWith(`${url}/`)
+}
+
+function NavLink({
+  item,
+  pathname,
+}: {
+  item: NavItem
+  pathname: string | null
+}) {
+  const isResolved = item.url !== UNRESOLVED_URL
+  return (
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        tooltip={item.title}
+        isActive={isActiveDestination(item.url, pathname)}
+        render={
+          isResolved ? <Link href={item.url} /> : <a href={item.url} />
+        }
+      >
+        {item.icon}
+        <span>{item.title}</span>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  )
+}
+
 function NavGroup({
   label,
   items,
+  pathname,
 }: {
   label: string
-  items: { title: string; url: string; icon: React.ReactNode }[]
+  items: NavItem[]
+  pathname: string | null
 }) {
   return (
     <SidebarGroup>
@@ -96,16 +143,7 @@ function NavGroup({
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton
-                tooltip={item.title}
-                isActive={item.url !== "#"}
-                render={<a href={item.url} />}
-              >
-                {item.icon}
-                <span>{item.title}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+            <NavLink key={item.title} item={item} pathname={pathname} />
           ))}
         </SidebarMenu>
       </SidebarGroupContent>
@@ -114,6 +152,8 @@ function NavGroup({
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const pathname = usePathname()
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -141,8 +181,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   form, so the browser alone navigates to the create screen.
                   The control therefore stays a button instead of becoming an
                   anchor, and this sidebar needs no router, click handler or
-                  client navigation runtime. `SidebarMenuButton` declares no
-                  button type of its own, so the submit role is explicit here.
+                  client navigation runtime for the action itself.
+                  `SidebarMenuButton` declares no button type of its own, so the
+                  submit role is explicit here.
                 */}
                 <form action="/empresa/vacantes/nueva" method="get">
                   <SidebarMenuButton
@@ -158,21 +199,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             </SidebarMenu>
             <SidebarMenu>
               {data.navPrincipal.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    tooltip={item.title}
-                    isActive={item.url !== "#"}
-                    render={<a href={item.url} />}
-                  >
-                    {item.icon}
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
+                <NavLink key={item.title} item={item} pathname={pathname} />
               ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <NavGroup label="Organización" items={data.navOrganization} />
+        <NavGroup
+          label="Organización"
+          items={data.navOrganization}
+          pathname={pathname}
+        />
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} />

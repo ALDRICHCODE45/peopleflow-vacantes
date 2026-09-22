@@ -152,19 +152,18 @@ describe("/empresa/dashboard renders the complete official dashboard-01 block", 
       ).toBeGreaterThan(0);
     }
 
-    // Only Dashboard is a real route; the remaining surfaces stay prototypes.
-    expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute(
-      "href",
-      "/empresa/dashboard",
-    );
-    for (const label of [
-      "Vacantes",
-      "Candidatos",
-      "Mensajes",
-      "Equipo",
-      "Reportes",
-      "Configuración",
-    ]) {
+    // Dashboard, Vacantes and Equipo are real routes; the rest stay prototypes.
+    for (const [label, href] of [
+      ["Dashboard", "/empresa/dashboard"],
+      ["Vacantes", "/empresa/vacantes"],
+      ["Equipo", "/empresa/equipo"],
+    ] as const) {
+      expect(
+        screen.getByRole("link", { name: label }),
+        `${label} destination`,
+      ).toHaveAttribute("href", href);
+    }
+    for (const label of ["Candidatos", "Mensajes", "Reportes", "Configuración"]) {
       expect(
         screen.getByRole("link", { name: label }),
         `${label} prototype target`,
