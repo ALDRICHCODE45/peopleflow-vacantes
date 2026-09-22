@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Delivery: bounded work-unit commits on `feature/company-careers-prototype`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: EW-04C pipeline list mode and switching
+- Current task: EW-05 pipeline route
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -42,7 +42,7 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - [x] **EW-03B — Employer vacancy portfolio route:** Mounted the portfolio at `/empresa/vacantes` with shared header context, metadata, semantic create-vacancy CTA, truthful prototype disclosure, and route-level tests. Authored 275/400 lines. Verification: 42/42 route+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `9446cf4`.
 - [x] **EW-04A — Pipeline candidate model:** Added validated, deeply frozen local candidate fixtures for every vacancy, using only application-contract statuses and bounded deterministic recruiter-facing enrichment. Authored 383/400 lines. Verification: 39/39 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting per-stage subset honesty, schema bounds, and Spanish copy. Commit: `3eed666`.
 - [x] **EW-04B — Pipeline board surface:** Built the per-position kanban experience with four contract-aligned columns, local search, representative non-interactive candidate cards, honest sample disclosure, and contained horizontal scrolling. Authored 347/400 lines. Verification: 27/27 focused tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting all Spanish count agreement. Commit: `56a73db`.
-- [ ] **EW-04C — Pipeline list mode and switching:** Add an accessible Tablero/Lista mode switch and a responsive list representation over the exact same filtered candidate set.
+- [x] **EW-04C — Pipeline list mode and switching:** Added an accessible Tablero/Lista mode switch and responsive semantic list over the exact same filtered candidate set and search state. Authored 317/400 lines. Verification: 49/49 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `0061d62`.
 - [ ] **EW-05 — Pipeline route:** Build `/empresa/vacantes/[jobId]/pipeline` with breadcrumb context, vacancy status, not-found handling, and responsive integration inside the employer shell.
 - [ ] **EW-06 — Team/users workspace:** Build `/empresa/equipo` with member search/filtering, owner/recruiter roles, account status, workload context, and a clearly non-persistent invitation affordance.
 - [ ] **EW-07 — Dashboard connections:** Connect approved dashboard vacancy and pipeline entry points to the new routes without regressing metrics, chart, recent candidates, or create-vacancy behavior.
@@ -77,6 +77,9 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - EW-04B implementation: `56a73db`.
 - The board always exposes Nuevo/En revisión/Contratado/Descartado columns, filters locally by name/title/skill, renders each candidate once in a non-interactive card, contains narrow-screen overflow inside the board region, and discloses the visible sample against vacancy totals.
 - Independent verification corrected and reverified natural singular/plural copy for years, comments, column aria labels, and sample totals; 27/27 focused tests plus TypeScript/ESLint/diff-check/LSP PASS.
+- EW-04C implementation: `0061d62`.
+- The 40px Tablero/Lista controls expose pressed state, preserve one search query and candidate set, and switch between the original board and a semantic nine-column table with contained focusable overflow and non-interactive rows.
+- Independent verification: 49/49 tests, TypeScript, ESLint, diff-check, and two-file LSP diagnostics PASS.
 
 ## Next step
-Implement EW-04C list mode and the accessible Tablero/Lista switch over the board's existing filtered state.
+Implement EW-05 and mount the pipeline workspace at `/empresa/vacantes/[jobId]/pipeline` with vacancy context and not-found handling.
