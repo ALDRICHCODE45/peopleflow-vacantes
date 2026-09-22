@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Branch: `feature/candidate-dashboard-prototype`
 - Base: completed employer workspace commit `febaf18`
-- Current task: CDP-08B CV route integration
+- Current task: CDP-09 account workspace and route
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -50,7 +50,7 @@ Build a coherent candidate-side PeopleFlow workspace with Dashboard, Postulacion
 - [x] **CDP-07B2 — Editable local profile workspace:** Composed the controlled editor into one noValidate local form with private draft state, truthful dirty status, schema-backed review, repeatable first-error focus, reset restoration, and explicit no-save/no-send messaging. Authored 330/400 lines; verification: 48/48 workspace+fields+draft+model tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `637cdf2`.
 - [x] **CDP-07C — Profile route integration:** Replaced only `/candidato/perfil` preview with CandidateHeader plus the verified profile workspace and the frozen profile at the route boundary, preserving Dashboard/Postulaciones and the remaining CVs/Cuenta previews. Authored 202/400 diff lines; verification: 153/153 candidate route/component/feature tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `b980a61`.
 - [x] **CDP-08A — CV inventory surface:** Built a props-only semantic CV inventory with derived primary/no-primary/empty summaries, deterministic non-mutating order, bounded metadata, and visibly disabled upload/replacement/download/primary actions with one accessible explanation. Authored 303/400 lines; verification: 87/87 candidate feature tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `2a05ebe`.
-- [ ] **CDP-08B — CV route integration:** Replace only `/candidato/cvs` preview with CandidateHeader plus the verified inventory and frozen CV props at the route boundary.
+- [x] **CDP-08B — CV route integration:** Replaced only `/candidato/cvs` preview with CandidateHeader plus the verified inventory and frozen CV props at the route boundary, leaving Cuenta as the sole remaining preview. Authored 184/400 diff lines; verification: 175/175 candidate route/component/feature tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `9bdac91`.
 - [ ] **CDP-09 — Account workspace and route:** Add `/candidato/cuenta` with fictional identity details, read-only provider/security context, and disabled email/password controls without auth/session claims.
 - [ ] **CDP-10 — Integrated candidate acceptance:** Prove all routes, navigation, keyboard/focus, responsive overflow, candidate-scoped serious/critical Axe checks, and zero network/storage/business mutations in Chromium.
 
@@ -76,4 +76,4 @@ Build a coherent candidate-side PeopleFlow workspace with Dashboard, Postulacion
 - Two strictly local CV metadata entries expose one Spanish primary and one English secondary document with no URL, upload key/status, download state, generated/AI claim, storage handle, or callback. Independent verification: 20/20 candidate model tests, TypeScript, ESLint, diff-check, and source readback PASS; 391/400 authored lines.
 
 ## Next step
-Implement CDP-08B by replacing only the CVs placeholder with CandidateHeader plus CvWorkspace and the frozen CV inventory at the route boundary.
+Split CDP-09 as needed to deliver a truthful read-only account/security surface and replace the final Cuenta preview without adding auth/session behavior.
