@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R8C public floating-navbar browser contract
+- Current task: direct browser validation of unified floating navbar
 - Push/PR: not authorized
 
 ## Goal
@@ -72,7 +72,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R7E — Login browser contracts and final visual approval:** The hydrated full matrix passed 872/872 Vitest, TypeScript, full ESLint, production build, and 120/120 serial Chromium against isolated `3100/4011`, covering menu keyboard/Escape/focus/mobile behavior, both login routes, accessibility, timeout recovery, and zero business mutations/persistence. After the final literal-design correction, 32/32 auth+brand and 8/8 focused Chromium passed again. The user directly inspected both live routes and approved the current result as perfect on 2026-09-21. No screenshot pack was required for final human approval.
 - [x] **CCP-R8A — Floating landing navbar and real destinations:** Elevated the marketing navbar into a detached floating surface, preserved responsive/accessibility behavior, wired Vacantes to its route and Producto/Soluciones/Empezar gratis to real landing sections, and removed unsupported Precios/Recursos links. Authored 398/400 lines. Verification: 43/43 focused units, 19/19 root Chromium, TypeScript/exact ESLint/diff-check PASS; independent verifier PASS. Implementation: `7ae127542fdf75c02895033063c60773e2637fd9`.
 - [x] **CCP-R8B — Reuse floating navbar across public pages:** Added a shared `public` mode that reuses the approved floating frame on the vacancy board, canonical detail, and company careers routes through `PublicShell`; preserved truthful Vacantes/Empresas/login/theme/publish actions, removed the unsupported Recursos placeholder, and left login/dashboard/create layouts unchanged. Authored 386/400 lines. Verification: 44/44 focused plus 23/23 adjacent units, TypeScript/exact ESLint/diff-check PASS; independent verifier PASS. Implementation: `d81882b9180d8120bd2b009b8bd2bbd6407bd9c7`.
-- [ ] **CCP-R8C — Public floating-navbar browser contract:** Prove the shared public capsule is inset/sticky, truthful, overflow-free and fully reachable at desktop/mobile on the vacancy board while preserving board behavior and login/theme interactions. Forecast: 100–160 lines.
+- [x] **CCP-R8C — Public floating-navbar browser contract:** Proved the shared public capsule is inset and truly sticky after scroll, has positive side gutters, exposes an exact truthful action/link inventory, remains overflow-free and reachable at 1440px/375px, and preserves board/login/theme interactions. Authored 154/160 lines. Verification: 30/30 serial Chromium, exact ESLint/diff-check PASS; independent verifier initially found three weak assertions, all corrected and reverified PASS. Implementation: `cd3f8cf03da5c31496eb730ffec81221d8b6d77d`.
 
 ## Acceptance criteria
 - Company page communicates identity before vacancies and fits the hero thesis in the initial desktop viewport.
@@ -101,4 +101,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Close CCP-R8C browser evidence, then hand the unified landing/public navbar to the user for direct validation at `3100`. Push, PR, merge, and deployment remain unauthorized.
+User validates the unified floating navbar directly at `3100` on landing, vacancy board, detail, and company routes. Push, PR, merge, and deployment remain unauthorized.
