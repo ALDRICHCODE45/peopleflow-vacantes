@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Branch: `feature/candidate-dashboard-prototype`
 - Base: completed employer workspace commit `febaf18`
-- Current task: CDP-06 applications workspace and route
+- Current task: CDP-06B applications route integration
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -43,7 +43,8 @@ Build a coherent candidate-side PeopleFlow workspace with Dashboard, Postulacion
 - [x] **CDP-03B — Candidate route group and destination shells:** Added the `(candidato)` layout plus five honest real destination pages so every navigation link resolves before feature surfaces replace the previews. The layout owns one shell/main and mirrors exact sidebar-cookie semantics; pages own content only. Authored 392/400 lines; verification: 45/45 focused+shell tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `aca9958`.
 - [x] **CDP-04 — Candidate dashboard overview:** Built a props-only candidate overview with four derived metrics, transparent 13-field profile completeness, deterministic recent applications, exact four-status breakdown, truthful profile/CV guidance, neutral inventory copy, and local-demo disclosure. Authored 399/400 lines; verification: 34/34 overview+model tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `86be189`.
 - [x] **CDP-05 — Candidate dashboard route:** Replaced only the dashboard placeholder with CandidateHeader plus the verified props-only overview, supplying the four frozen fixtures at the route boundary while preserving the layout-owned shell and the other four previews. Authored 174/400 diff lines; verification: 86/86 candidate route/component/model tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `c3cd1ba`.
-- [ ] **CDP-06 — Applications workspace and route:** Add `/candidato/postulaciones` with searchable/status-filtered semantic rows, honest empty recovery, canonical job links, and no candidate-side status mutation.
+- [x] **CDP-06A — Applications workspace surface:** Built a props-only searchable/status-filtered Postulaciones surface with exact counted filters, live result agreement, semantic non-clickable rows, canonical-or-historical job treatment, honest recovery/true-empty states, and no candidate-side mutation. Authored 339/400 lines; verification: 33/33 workspace+model tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `b719f7a`.
+- [ ] **CDP-06B — Applications route integration:** Replace only `/candidato/postulaciones` preview with CandidateHeader plus the verified workspace and frozen applications at the route boundary.
 - [ ] **CDP-07 — Editable local profile and route:** Add `/candidato/perfil` with accessible backend-aligned sections, local validation, skills/languages controls, in-memory-only edits, reset behavior, and explicit no-save disclosure.
 - [ ] **CDP-08 — CV workspace and route:** Add `/candidato/cvs` with frozen CV inventory, primary/current context, preview-safe metadata, disabled upload/replacement actions, and no generated-success claims.
 - [ ] **CDP-09 — Account workspace and route:** Add `/candidato/cuenta` with fictional identity details, read-only provider/security context, and disabled email/password controls without auth/session claims.
@@ -71,4 +72,4 @@ Build a coherent candidate-side PeopleFlow workspace with Dashboard, Postulacion
 - Two strictly local CV metadata entries expose one Spanish primary and one English secondary document with no URL, upload key/status, download state, generated/AI claim, storage handle, or callback. Independent verification: 20/20 candidate model tests, TypeScript, ESLint, diff-check, and source readback PASS; 391/400 authored lines.
 
 ## Next step
-Implement CDP-06 Postulaciones as a searchable/status-filtered, non-mutating candidate workspace over the frozen application portfolio, then replace only its preview route after the surface is independently verified.
+Implement CDP-06B by replacing only the Postulaciones placeholder with CandidateHeader plus the verified workspace and frozen application props, preserving every other route.
