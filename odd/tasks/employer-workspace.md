@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Delivery: bounded work-unit commits on `feature/company-careers-prototype`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: EW-04B pipeline board/list modes
+- Current task: EW-04B pipeline board surface
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -41,7 +41,8 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - [x] **EW-03A — Employer vacancy portfolio surface:** Built the reference-faithful client surface with truthful summary metrics, accessible composable search/status filters, responsive non-clickable vacancy rows, and one semantic pipeline action per position. Authored 321/400 lines. Verification: 25/25 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting empty-recovery honesty and feature-layer coupling. Commit: `7f638c2`.
 - [x] **EW-03B — Employer vacancy portfolio route:** Mounted the portfolio at `/empresa/vacantes` with shared header context, metadata, semantic create-vacancy CTA, truthful prototype disclosure, and route-level tests. Authored 275/400 lines. Verification: 42/42 route+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `9446cf4`.
 - [x] **EW-04A — Pipeline candidate model:** Added validated, deeply frozen local candidate fixtures for every vacancy, using only application-contract statuses and bounded deterministic recruiter-facing enrichment. Authored 383/400 lines. Verification: 39/39 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting per-stage subset honesty, schema bounds, and Spanish copy. Commit: `3eed666`.
-- [ ] **EW-04B — Pipeline board/list modes:** Build the per-position board/list client experience with the same candidate set, accessible mode switching, filters, and truthful non-persistent controls.
+- [ ] **EW-04B — Pipeline board surface:** Build the per-position kanban experience with four contract-aligned columns, local search, representative candidate cards, and honest sample disclosure.
+- [ ] **EW-04C — Pipeline list mode and switching:** Add an accessible Tablero/Lista mode switch and a responsive list representation over the exact same filtered candidate set.
 - [ ] **EW-05 — Pipeline route:** Build `/empresa/vacantes/[jobId]/pipeline` with breadcrumb context, vacancy status, not-found handling, and responsive integration inside the employer shell.
 - [ ] **EW-06 — Team/users workspace:** Build `/empresa/equipo` with member search/filtering, owner/recruiter roles, account status, workload context, and a clearly non-persistent invitation affordance.
 - [ ] **EW-07 — Dashboard connections:** Connect approved dashboard vacancy and pipeline entry points to the new routes without regressing metrics, chart, recent candidates, or create-vacancy behavior.
@@ -75,4 +76,4 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - Independent verification: 39/39 focused+adjacent tests, TypeScript, scoped ESLint, diff-check, and six-file LSP diagnostics PASS.
 
 ## Next step
-Implement EW-04B, the shared accessible board/list client experience over one candidate set.
+Implement EW-04B first, then add EW-04C list mode and accessible switching over the same state so both visual modes remain reviewable under the 400-line limit.
