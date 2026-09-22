@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: direct browser validation of vacancy-card polish
+- Current task: complete; employer workspace expansion continues in `odd/tasks/employer-workspace.md`
 - Push/PR: not authorized
 
 ## Goal
@@ -102,4 +102,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-User compares `/vacantes` and the company careers vacancy cards directly at `3100`. Push, PR, merge, and deployment remain unauthorized.
+The public careers prototype and vacancy-card polish are complete and human-approved. Continue the employer product surface in `odd/tasks/employer-workspace.md`. Push, PR, merge, and deployment remain unauthorized.
