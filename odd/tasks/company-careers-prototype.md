@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R9A vacancy board width and featured status bubble
+- Current task: direct browser validation of vacancy-card polish
 - Push/PR: not authorized
 
 ## Goal
@@ -73,7 +73,7 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R8A — Floating landing navbar and real destinations:** Elevated the marketing navbar into a detached floating surface, preserved responsive/accessibility behavior, wired Vacantes to its route and Producto/Soluciones/Empezar gratis to real landing sections, and removed unsupported Precios/Recursos links. Authored 398/400 lines. Verification: 43/43 focused units, 19/19 root Chromium, TypeScript/exact ESLint/diff-check PASS; independent verifier PASS. Implementation: `7ae127542fdf75c02895033063c60773e2637fd9`.
 - [x] **CCP-R8B — Reuse floating navbar across public pages:** Added a shared `public` mode that reuses the approved floating frame on the vacancy board, canonical detail, and company careers routes through `PublicShell`; preserved truthful Vacantes/Empresas/login/theme/publish actions, removed the unsupported Recursos placeholder, and left login/dashboard/create layouts unchanged. Authored 386/400 lines. Verification: 44/44 focused plus 23/23 adjacent units, TypeScript/exact ESLint/diff-check PASS; independent verifier PASS. Implementation: `d81882b9180d8120bd2b009b8bd2bbd6407bd9c7`.
 - [x] **CCP-R8C — Public floating-navbar browser contract:** Proved the shared public capsule is inset and truly sticky after scroll, has positive side gutters, exposes an exact truthful action/link inventory, remains overflow-free and reachable at 1440px/375px, and preserves board/login/theme interactions. Authored 154/160 lines. Verification: 30/30 serial Chromium, exact ESLint/diff-check PASS; independent verifier initially found three weak assertions, all corrected and reverified PASS. Implementation: `cd3f8cf03da5c31496eb730ffec81221d8b6d77d`.
-- [ ] **CCP-R9A — Vacancy board width and featured status bubble:** Expand only the public vacancy search/list island by exactly 7px on each side at desktop so cards gain breathing room without changing company/public-shell width. Move the shared `Destacada` marker out of the company row into a floating status bubble straddling the vacancy card's upper-right corner, preserving bookmark/salary/mobile readability. Forecast: 100–220 lines.
+- [x] **CCP-R9A — Vacancy board width and featured status bubble:** Expanded only the public vacancy search/list island exactly 7px outward per side at desktop, leaving mobile/company/public-shell widths unchanged. Moved the shared `Destacada` marker out of company metadata into a token-only floating status bubble straddling the card's upper-right border without bookmark/salary overlap. Authored 191/220 lines. Verification: 18/18 focused and 444/444 adjacent units, 31/31 board plus 29/29 company/a11y Chromium, TypeScript/exact ESLint/diff-check PASS; independent verifier PASS. Implementation: `5adf31b6cfb611171651e537687b935bb73fe224`.
 
 ## Acceptance criteria
 - Company page communicates identity before vacancies and fits the hero thesis in the initial desktop viewport.
@@ -102,4 +102,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Implement and verify CCP-R9A at `3100`, then let the user compare the board and company cards directly. Push, PR, merge, and deployment remain unauthorized.
+User compares `/vacantes` and the company careers vacancy cards directly at `3100`. Push, PR, merge, and deployment remain unauthorized.
