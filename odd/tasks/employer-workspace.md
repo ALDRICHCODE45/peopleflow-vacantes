@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Delivery: bounded work-unit commits on `feature/company-careers-prototype`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: EW-06B team workspace surface
+- Current task: EW-06C team invitation affordance
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -45,7 +45,7 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - [x] **EW-04C — Pipeline list mode and switching:** Added an accessible Tablero/Lista mode switch and responsive semantic list over the exact same filtered candidate set and search state. Authored 317/400 lines. Verification: 49/49 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `0061d62`.
 - [x] **EW-05 — Pipeline route:** Mounted `/empresa/vacantes/[jobId]/pipeline` with exact local fixture resolution, Vacantes breadcrumb, vacancy status, truthful portfolio history/team context, non-persistence disclosure, exact candidate scoping, metadata, and framework not-found handling. Authored 398/400 diff lines including the copy correction. Verification: 74/74 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `44efc0e`.
 - [x] **EW-06A — Team model and fixtures:** Defined six strict frozen Nexo Labs members with closed `owner`/`recruiter` roles, prototype-local `active`/`invited` states, vacancy-derived workload totals, unique identity boundaries, and one local prototype owner. Authored 377/400 lines. Verification: 18/18 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after tightening collection and whitespace invariants. Commit: `1b71dfd`.
-- [ ] **EW-06B — Team workspace surface:** Build metrics, member search/status filtering, responsive non-interactive member rows, empty recovery, and token-only accessible presentation.
+- [x] **EW-06B — Team workspace surface:** Built four derived metrics, diacritic-insensitive member search, accessible status filtering, deterministic non-interactive responsive rows, complete role/status/workload facts, dynamic result announcements, and honest empty recovery. Authored 378/400 lines. Verification: 33/33 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting agreement, workload completeness, and desktop accessibility. Commit: `36a532d`.
 - [ ] **EW-06C — Team invitation affordance:** Add an inline local-only invitation form that validates input, never persists or appends a member, and explicitly reports that nothing was sent or saved.
 - [ ] **EW-06D — Team route:** Mount `/empresa/equipo` through the shared employer shell with metadata, header, and truthful local-demo disclosure.
 - [ ] **EW-07 — Dashboard connections:** Connect approved dashboard vacancy and pipeline entry points to the new routes without regressing metrics, chart, recent candidates, or create-vacancy behavior.
@@ -89,6 +89,9 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - EW-06A implementation: `1b71dfd`.
 - Team fixtures preserve backend role vocabulary while keeping member account state explicitly prototype-local. Recruiter workload totals are cross-checked against submitted+in-review vacancy totals, never the representative candidate-card sample.
 - Independent verification tightened the parse boundary to reject surrounding identity whitespace, duplicate ids, case-insensitive duplicate emails, and any owner count other than the single local prototype owner. Reverification: 18/18 tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS.
+- EW-06B implementation: `36a532d`.
+- The read-only team surface derives all metrics and filters from props, keeps rows non-interactive, stacks labelled facts on narrow screens, and exposes live result counts without fixture coupling.
+- Independent verification corrected singular metric labels, zero-vacancy/nonzero-candidate workload disclosure, and desktop accessibility of row field labels. Reverification: 33/33 tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS.
 
 ## Next step
-Implement EW-06B as the read-only team metrics/search/status-filter workspace with responsive non-interactive member rows and empty recovery.
+Implement EW-06C as a local-only invitation affordance that validates inputs but never sends, saves, or appends a member.
