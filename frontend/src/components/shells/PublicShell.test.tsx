@@ -119,14 +119,12 @@ describe("PublicShell", () => {
     expect(empresas).toHaveAttribute("href", EMPRESAS_HREF);
   });
 
-  it("renders Recursos as an in-page placeholder flagged Próximamente", () => {
+  it("removes the unsupported Recursos placeholder entirely", () => {
     const { container } = renderShell();
 
-    const recursos = headerLink(container, "Recursos");
-    expect(recursos).toBeDefined();
-    // No invented route: the anchor stays on the current page and says so.
-    expect(recursos).toHaveAttribute("href", "#recursos");
-    expect(recursos).toHaveAttribute("title", "Próximamente");
+    // The placeholder is gone from the DOM and from the shell source.
+    expect(headerLink(container, "Recursos")).toBeUndefined();
+    expect(source).not.toMatch(/Recursos|#recursos/);
   });
 
   it("renders the persisted theme toggle as the header client leaf", () => {
@@ -148,9 +146,23 @@ describe("PublicShell", () => {
       "logo",
       container.querySelector("header a[aria-label='PeopleFlow']"),
     );
-    for (const label of ["Vacantes", "Empresas", "Recursos"]) {
+    for (const label of ["Vacantes", "Empresas"]) {
       expectMin40Target(label, headerLink(container, label) ?? null);
     }
+  });
+
+  it("delegates the header to the shared public navbar without owning it inline", () => {
+    const { container } = renderShell();
+
+    // The shell composes the shared navbar in public mode at runtime...
+    const header = container.querySelector("header[data-pf-public-navbar]");
+    expect(header).not.toBeNull();
+    expect(header!.querySelector("nav[data-pf-nav-floating]")).not.toBeNull();
+    // ...and owns no duplicated inline header markup in source.
+    expect(source).toMatch(/<PeopleFlowNavbar mode="public" \/>/);
+    expect(source).not.toMatch(
+      /<header|<nav|<IngresarMenu|ThemeToggle|buttonVariants|PROTOTYPE_COMPANY_ID/,
+    );
   });
 
   it("mounts exactly one Ingresar menu trigger, not a candidate-only link", () => {
@@ -161,14 +173,13 @@ describe("PublicShell", () => {
     const ingresar = ingresarTrigger(container);
     expect(ingresar).toHaveAttribute("aria-haspopup", "menu");
     expect(ingresar).toHaveAttribute("aria-expanded", "false");
-    expect(source.match(/<IngresarMenu\b/g)).toHaveLength(1);
     expect(source).not.toContain("/candidato/login");
-    // Exactly one trigger, ordered theme control -> menu -> publish CTA.
+    // Exactly one trigger, ordered menu -> theme control -> publish CTA.
     const publish = headerLink(container, "Publicar vacante")!;
     const actions = Array.from(publish.parentElement!.children);
     expect(actions).toHaveLength(3);
-    expect(actions[0]).toHaveAttribute("data-pf-theme-toggle");
-    expect(actions[1]).toBe(ingresar);
+    expect(actions[0]).toBe(ingresar);
+    expect(actions[1]).toHaveAttribute("data-pf-theme-toggle");
     expect(actions[2]).toBe(publish);
   });
 
@@ -203,21 +214,19 @@ describe("PublicShell", () => {
     expect(publish!.className).toContain("h-9");
   });
 
-  it("hides the desktop nav until md and keeps the 6xl header container", () => {
+  it("hides the desktop destinations until md inside the shared capsule", () => {
     const { container } = renderShell();
 
     const nav = container.querySelector("header nav");
     expect(nav).not.toBeNull();
     expect(nav).toHaveAccessibleName(/navegación principal/i);
-    expect(nav!.className).toContain("hidden");
-    expect(nav!.className).toContain("md:flex");
-    for (const label of ["Vacantes", "Empresas", "Recursos"]) {
+    const list = nav!.querySelector("[data-pf-public-nav-links]");
+    expect(list).not.toBeNull();
+    expect(list!.className).toContain("hidden");
+    expect(list!.className).toContain("md:flex");
+    for (const label of ["Vacantes", "Empresas"]) {
       expect(headerLink(container, label)).toBeDefined();
     }
-
-    const headerInner = container.querySelector("header > div");
-    expect(headerInner!.className).toContain("h-16");
-    expect(headerInner!.className).toContain("max-w-6xl");
   });
 
   it("renders only the allowed truthful public links", () => {
@@ -230,7 +239,6 @@ describe("PublicShell", () => {
       "/",
       "/vacantes",
       EMPRESAS_HREF,
-      "#recursos",
       // Login destinations live inside the Ingresar menu popup, so the publish
       // CTA is the only auth-adjacent anchor left in the closed DOM.
       "/empresa/vacantes/nueva",
@@ -255,15 +263,17 @@ describe("PublicShell", () => {
     expect(container.querySelector("footer")).not.toBeNull();
   });
 
-  it("renders a sticky translucent 64px public header", () => {
+  it("renders a sticky floating public navbar capsule", () => {
     const { container } = renderShell();
 
     const header = container.querySelector("header");
     expect(header).not.toBeNull();
     expect(header!.className).toContain("sticky");
-    expect(header!.className).toContain("backdrop-blur");
-    const headerInner = header!.querySelector("div");
-    expect(headerInner!.className).toContain("h-16");
+    expect(header!.className).toContain("top-0");
+    // The detached capsule owns the translucent surface treatment.
+    const capsule = header!.querySelector("[data-pf-nav-floating]")!;
+    expect(capsule.className).toContain("backdrop-blur-md");
+    expect(capsule.className).toContain("bg-background/70");
   });
 
   it("renders static decorative ambient depth behind the content", () => {

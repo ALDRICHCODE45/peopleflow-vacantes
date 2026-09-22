@@ -1,31 +1,10 @@
 import * as React from "react";
-import Link from "next/link";
 
-import { PROTOTYPE_COMPANY_ID } from "../../features/company-profile/model";
-import { PeopleFlowLogo } from "../brand/logo";
-import { IngresarMenu } from "../navigation/IngresarMenu";
-import { ThemeToggle } from "../theme/theme-toggle";
-import { buttonVariants } from "../ui/button";
+import { PeopleFlowNavbar } from "../navigation/PeopleFlowNavbar";
 
-const focusRing =
-  "rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
-
-// Shared page container: one width/padding rhythm for header, main, and footer,
-// inherited by the root and future vacancy routes.
+// Shared page container: one width/padding rhythm for main and footer,
+// inherited by the root and every vacancy route.
 const shellContainer = "mx-auto w-full max-w-6xl px-4 md:px-6";
-
-// Every plain-text header link owns the same layout: a >=40px pointer target
-// (min-h-10) with vertical centering, so text height is never the hit box.
-const navTarget = "inline-flex min-h-10 items-center";
-
-// Quiet nav item: muted by default, foreground on hover, so the public
-// destinations share one honest resting/hover pair.
-const navItem =
-  "text-muted-foreground transition-colors hover:text-foreground";
-
-// Empresas points at the canonical prototype company microsite already owned
-// by the company-profile model, so the header never invents a route.
-const EMPRESAS_HREF = `/empresas/${PROTOTYPE_COMPANY_ID}`;
 
 export function PublicShell({ children }: { children: React.ReactNode }) {
   return (
@@ -42,56 +21,9 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
         className="pf-dot-grid pointer-events-none fixed inset-x-0 top-0 z-0 h-[520px]"
       />
       <div className="relative z-10 flex min-h-dvh flex-col">
-        <header className="sticky top-0 z-30 border-b border-border/70 bg-background/70 backdrop-blur-xl">
-          <div className={`${shellContainer} flex h-16 items-center gap-6 max-sm:gap-1 max-sm:px-3`}>
-            <Link
-              href="/"
-              aria-label="PeopleFlow"
-              className={`${focusRing} ${navTarget} shrink-0`}
-            >
-              <PeopleFlowLogo className="h-6 w-auto" />
-            </Link>
-            {/* Desktop destinations only: hidden below md so the 375px header
-                keeps logo, theme control, and one compact publish CTA. */}
-            <nav
-              aria-label="Navegación principal"
-              className="ml-2 hidden items-center gap-6 text-sm md:flex"
-            >
-              <Link
-                href="/vacantes"
-                className={`${focusRing} ${navTarget} font-semibold text-foreground transition-colors hover:text-foreground`}
-              >
-                Vacantes
-              </Link>
-              <Link
-                href={EMPRESAS_HREF}
-                className={`${focusRing} ${navTarget} ${navItem}`}
-              >
-                Empresas
-              </Link>
-              {/* Visual prototype affordance: no invented resource route. */}
-              <Link
-                href="#recursos"
-                title="Próximamente"
-                className={`${focusRing} ${navTarget} ${navItem}`}
-              >
-                Recursos
-              </Link>
-            </nav>
-            <div className="ml-auto flex items-center gap-3 max-sm:gap-1.5">
-              <ThemeToggle className="size-10 rounded-lg" />
-              {/* Shared dual-login menu: one visible trigger for both
-                  audiences, keeping the >=40px focus ring on the trigger. */}
-              <IngresarMenu className={focusRing} />
-              <Link
-                href="/empresa/vacantes/nueva"
-                className={buttonVariants({ size: "lg" })}
-              >
-                Publicar vacante
-              </Link>
-            </div>
-          </div>
-        </header>
+        {/* The header is delegated to the shared navbar so the floating
+            capsule stays identical across public browsing routes. */}
+        <PeopleFlowNavbar mode="public" />
         <main className={`${shellContainer} flex-1 py-10 md:py-12`}>
           {children}
         </main>

@@ -52,6 +52,13 @@ function renderMarketingNavbar() {
   return render(<PeopleFlowNavbar mode="marketing" />);
 }
 
+// ─── Public mode helpers ─────────────────────────────────────────────────────
+
+// Literal, not imported from the implementation: the canonical prototype
+// company route must stay truthful even if that constant drifts.
+const EMPRESAS_HREF = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
+const renderPublicNavbar = () => render(<PeopleFlowNavbar mode="public" />);
+
 /** Find a header link whose trimmed text matches exactly. */
 function findHeaderLink(header: Element, label: string) {
   return Array.from(header.querySelectorAll("a")).find(
@@ -264,11 +271,11 @@ describe("PeopleFlowNavbar marketing mode", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("composes the shared IngresarMenu once without re-owning menu logic", () => {
-    // Shared component is used exactly once; destinations must not be
+  it("composes the shared IngresarMenu without re-owning menu logic", () => {
+    // Shared component is used exactly once per mode; destinations must not be
     // duplicated in the navbar.
     expect(source).toContain('from "@/components/navigation/IngresarMenu"');
-    expect(source.match(/<IngresarMenu\b/g)).toHaveLength(1);
+    expect(source.match(/<IngresarMenu\b/g)).toHaveLength(2);
     expect(source).not.toContain("/candidato/login");
     expect(source).not.toContain("/empresa/login");
     expect(source).not.toContain("@base-ui/react/menu");
@@ -282,6 +289,120 @@ describe("PeopleFlowNavbar marketing mode", () => {
     const marks = header.querySelectorAll("img[alt='PeopleFlow']");
     expect(marks.length).toBeGreaterThanOrEqual(1);
     expect(marks[0].className).toContain("h-7");
+  });
+});
+
+// ─── Public mode tests (shared floating capsule on browsing routes) ──────────
+
+describe("PeopleFlowNavbar public mode", () => {
+  it("renders the PeopleFlow brand link to / with an honest 40px target", () => {
+    stubMatchMedia();
+    renderPublicNavbar();
+    const brand = document.querySelector("header a[aria-label='PeopleFlow']")!;
+    expect(brand).toHaveAttribute("href", "/");
+    // The brand keeps an honest >=40px pointer target at every width.
+    expect(brand).toHaveClass("inline-flex", "min-h-10", "items-center");
+  });
+
+  it("renders only real public destinations, in order, with no Recursos", () => {
+    stubMatchMedia();
+    renderPublicNavbar();
+    const header = document.querySelector("header")!;
+    const links = Array.from(
+      header.querySelectorAll("[data-pf-public-nav-links] a"),
+    );
+    expect(
+      links.map((a) => [a.textContent?.trim(), a.getAttribute("href")]),
+    ).toEqual([
+      ["Vacantes", "/vacantes"],
+      ["Empresas", EMPRESAS_HREF],
+    ]);
+    // The unsupported placeholder is removed and no anchor is a bare hash.
+    expect(findHeaderLink(header, "Recursos")).toBeUndefined();
+    for (const anchor of Array.from(header.querySelectorAll("a"))) {
+      expect(anchor.getAttribute("href"), anchor.textContent!).not.toBe("#");
+    }
+  });
+
+  it("renders the sticky shell and the shared floating capsule surface", () => {
+    stubMatchMedia();
+    renderPublicNavbar();
+    const header = document.querySelector("header[data-pf-public-navbar]")!;
+    // The sticky shell owns positioning but never the surface treatment.
+    expect(header).toHaveClass("sticky", "top-0");
+    expect(header.className).not.toContain("backdrop-blur-md");
+    const surface = header.querySelector("nav[data-pf-nav-floating]")!;
+    expect(surface.getAttribute("aria-label")).toBe("Navegación principal");
+    expect(surface).toHaveClass(
+      "mx-auto", "rounded-2xl", "border", "border-border/80",
+      "bg-background/70", "shadow-lg", "backdrop-blur-md",
+      "max-w-[1280px]",
+    );
+  });
+
+  it("shares the exact marketing capsule frame without duplicating markup", () => {
+    stubMatchMedia();
+    const marketing = renderMarketingNavbar();
+    const frame = document.querySelector("nav[data-pf-nav-floating]")!;
+    marketing.unmount();
+    renderPublicNavbar();
+    // One shared frame: identical geometry and surface tokens in both modes.
+    expect(
+      document.querySelector("nav[data-pf-nav-floating]")!.className,
+    ).toBe(frame.className);
+  });
+
+  it("orders the public actions Ingresar, theme, then Publicar vacante", () => {
+    stubMatchMedia();
+    renderPublicNavbar();
+    const header = document.querySelector("header")!;
+    const cta = findHeaderLink(header, "Publicar vacante")!;
+    expect(cta).toHaveAttribute("href", "/empresa/vacantes/nueva");
+    const actions = Array.from(cta.parentElement!.children);
+    expect(actions).toHaveLength(3);
+    expect(actions[0]).toBe(ingresarTrigger());
+    expect(actions[1]).toHaveAttribute("data-pf-theme-toggle");
+    expect(actions[2]).toBe(cta);
+  });
+
+  it("keeps the Ingresar trigger and CTA reachable with intact labels at 375px", () => {
+    stubMatchMedia();
+    renderPublicNavbar();
+    // The Ingresar trigger keeps its >=40px target and never hides on mobile.
+    expect(ingresarTrigger()).toHaveClass("min-h-10");
+    expect(ingresarTrigger().className).not.toMatch(/(?:^|\s)\S*hidden(?:\s|$)/);
+    // The CTA compacts padding/typography below sm, never its label.
+    const cta = findHeaderLink(document.querySelector("header")!, "Publicar vacante")!;
+    expect(cta.className).toContain("max-sm:px-2.5");
+    expect(cta.className).toContain("max-sm:text-[13px]");
+    expect(cta.textContent?.trim()).toBe("Publicar vacante");
+  });
+
+  it("hides the desktop public destinations below md", () => {
+    stubMatchMedia();
+    renderPublicNavbar();
+    const list = document.querySelector("header [data-pf-public-nav-links]")!;
+    expect(list.className).toContain("hidden");
+    expect(list.className).toContain("md:flex");
+  });
+
+  it("renders exactly the shared login trigger and theme toggle, never a hamburger", () => {
+    stubMatchMedia();
+    renderPublicNavbar();
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(2);
+    expect(buttons).toContain(ingresarTrigger());
+    expect(
+      screen.getByRole("button", { name: /cambiar tema/i }),
+    ).toBeInTheDocument();
+    // The login entry is the shared menu, not a sheet/hamburger control.
+    expect(
+      screen.queryByRole("button", { name: /abr?ir?.*men[úu]/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the removed Recursos placeholder out of the navbar source", () => {
+    expect(source).not.toMatch(/"Recursos"|#recursos/);
   });
 });
 
