@@ -6,7 +6,7 @@
 - Branch: `feature/company-careers-prototype`
 - Base: `cf2942198ecf90858382999c3b1d545d7321534e`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: CCP-R8A floating landing navbar and real destinations
+- Current task: CCP-R8B reuse floating navbar across public pages
 - Push/PR: not authorized
 
 ## Goal
@@ -70,7 +70,8 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - [x] **CCP-R7D4 — Restore exact design animation parity:** Removed the complemented/inverted reinterpretation and copied the theme logic from both design login files literally: raw committed light palettes with `multiply`, original dark palettes with `screen`, and no visual filter, while preserving OGL lifecycle/fallback/mobile/reduced-motion safety. Authored 101/120 lines. Verification: 32/32 auth+brand, 8/8 focused Chromium, TypeScript/exact ESLint/diff-check PASS; independent verifier PASS. Full 872/872 Vitest also passed incidentally. Implementation: `f09d848f36d42b0315e5e331b425198c4ed947a2`. Awaiting direct user validation at `3100`; no screenshot pack required.
 - [x] **CCP-R7C — Marketing login integration:** Replaced the marketing `#` login placeholder with the shared Ingresar menu, preserved action order and reference content, and tightened mobile geometry without hiding controls. Authored 117/120 lines. Verification: 27/27 navigation units, typecheck/ESLint clean, independent hydrated Chromium desktop/mobile proof for destinations, Escape/focus return, and zero overflow/errors; native reliability review approved and acknowledged. Implementation: `0f40616c0219072908a9952b9b5d186e11dd00d1`.
 - [x] **CCP-R7E — Login browser contracts and final visual approval:** The hydrated full matrix passed 872/872 Vitest, TypeScript, full ESLint, production build, and 120/120 serial Chromium against isolated `3100/4011`, covering menu keyboard/Escape/focus/mobile behavior, both login routes, accessibility, timeout recovery, and zero business mutations/persistence. After the final literal-design correction, 32/32 auth+brand and 8/8 focused Chromium passed again. The user directly inspected both live routes and approved the current result as perfect on 2026-09-21. No screenshot pack was required for final human approval.
-- [ ] **CCP-R8A — Floating landing navbar and real destinations:** Elevate only the marketing navbar into a detached floating surface, preserve responsive/accessibility behavior, wire Vacantes to its route and Producto/Soluciones/Empezar gratis to real landing sections, and remove unsupported Precios/Recursos links until truthful content exists. Keep candidate/public-shell navigation unchanged. Forecast: 160–280 lines.
+- [x] **CCP-R8A — Floating landing navbar and real destinations:** Elevated the marketing navbar into a detached floating surface, preserved responsive/accessibility behavior, wired Vacantes to its route and Producto/Soluciones/Empezar gratis to real landing sections, and removed unsupported Precios/Recursos links. Authored 398/400 lines. Verification: 43/43 focused units, 19/19 root Chromium, TypeScript/exact ESLint/diff-check PASS; independent verifier PASS. Implementation: `7ae127542fdf75c02895033063c60773e2637fd9`.
+- [ ] **CCP-R8B — Reuse floating navbar across public pages:** Reuse the approved floating navbar on the public vacancy board, canonical vacancy detail, and company careers routes through `PublicShell`, with landing anchors resolving back to `/`, while leaving candidate/employer login and employer dashboard/create flows unchanged. Preserve public-page actions and responsive accessibility. Forecast: 120–260 lines.
 
 ## Acceptance criteria
 - Company page communicates identity before vacancies and fits the hero thesis in the initial desktop viewport.
@@ -99,4 +100,4 @@ Prototype subject: `Acme`, treated explicitly as a fictional Mexican technology 
 - Exact layout and interaction details matter more than withholding unimplemented product features; those features will render as explicitly non-persistent prototype affordances.
 
 ## Next step
-Implement CCP-R8A as one bounded marketing-only work unit, verify live anchor/navigation behavior at `3100`, and hand the updated landing to the user for direct browser validation. Push, PR, merge, and deployment remain unauthorized.
+Implement CCP-R8B as one bounded public-shell reuse slice, verify board/detail/company navigation and mobile fit at `3100`, then hand the unified public navbar to the user for direct browser validation. Push, PR, merge, and deployment remain unauthorized.
