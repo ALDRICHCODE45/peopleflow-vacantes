@@ -89,8 +89,8 @@ describe("VacancyPortfolio vacancy rows", () => {
     const { container } = renderPortfolio();
     const backend = container.querySelector('[data-pf-vacancy-row="backend-developer-senior"]') as HTMLElement;
     for (const value of [
-      "Backend Developer (Senior)", "Remoto", "Tiempo completo", "6 candidatos · 5 en proceso", "Activa", "Valeria Ortiz", "9 de marzo de 2026",
-      "Nuevos: 3 · En revisión: 2 · Contratados: 0 · Descartados: 1",
+      "Backend Developer (Senior)", "Remoto", "Tiempo completo", "7 candidatos · 5 en proceso", "Activa", "Valeria Ortiz", "9 de marzo de 2026",
+      "Nuevos: 3 · En revisión: 2 · Contratados: 1 · Descartados: 1",
     ]) {
       expect(backend).toHaveTextContent(value);
     }

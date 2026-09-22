@@ -55,8 +55,8 @@ describe("employer vacancy fixtures", () => {
   });
   it("derives exact per-vacancy totals and the portfolio summary", () => {
     expect(NEXO_VACANCIES.map((vacancy) => vacancyInProcessCount(vacancy.candidateCounts))).toEqual([5, 11, 8, 5, 0, 1]);
-    expect(NEXO_VACANCIES.map((vacancy) => vacancyCandidateTotal(vacancy.candidateCounts))).toEqual([6, 15, 11, 6, 9, 4]);
-    expect(summarizeEmployerVacancies(NEXO_VACANCIES)).toEqual({ total: 6, active: 3, paused: 1, closed: 2, totalCandidates: 51, inProcessCandidates: 30 });
+    expect(NEXO_VACANCIES.map((vacancy) => vacancyCandidateTotal(vacancy.candidateCounts))).toEqual([7, 15, 11, 6, 9, 4]);
+    expect(summarizeEmployerVacancies(NEXO_VACANCIES)).toEqual({ total: 6, active: 3, paused: 1, closed: 2, totalCandidates: 52, inProcessCandidates: 30 });
     expect(summarizeEmployerVacancies([])).toEqual({ total: 0, active: 0, paused: 0, closed: 0, totalCandidates: 0, inProcessCandidates: 0 });
     expect(vacancyInProcessCount({ submitted: 0, in_review: 0, hired: 4, rejected: 5 })).toBe(0);
   });

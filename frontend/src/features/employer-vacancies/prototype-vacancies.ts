@@ -20,7 +20,7 @@ const NEXO_VACANCY_SOURCE: readonly EmployerVacancy[] = [
     publishedAt: "2026-03-09T15:00:00Z",
     recruiter: "Valeria Ortiz",
     teamSize: 6,
-    candidateCounts: { submitted: 3, in_review: 2, hired: 0, rejected: 1 },
+    candidateCounts: { submitted: 3, in_review: 2, hired: 1, rejected: 1 },
   },
   {
     id: "frontend-engineer-react",
