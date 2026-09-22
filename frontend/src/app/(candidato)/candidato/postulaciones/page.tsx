@@ -1,26 +1,24 @@
 import type { Metadata } from "next"
 
-import { CandidateDestinationShell } from "@/components/candidate-dashboard/candidate-destination-shell"
+import { CandidateHeader } from "@/components/candidate-dashboard/candidate-header"
+import { ApplicationsWorkspace } from "@/features/candidate/applications-workspace"
+import { CANDIDATE_APPLICATIONS } from "@/features/candidate/prototype-portfolio"
 
 export const metadata: Metadata = {
   title: "Postulaciones",
 }
 
 /**
- * Candidate applications placeholder: the shared `(candidato)` layout mounts the
- * candidate shell, so this route owns only its header and honest local preview.
- * CDP-06 replaces this shell with the searchable, status-filtered applications.
+ * Candidate applications route: the `(candidato)` layout owns the single shell,
+ * so this page owns only its header plus the props-only workspace. The frozen
+ * fixture is supplied at this route boundary, and the page fetches, stores,
+ * navigates and mutates nothing.
  */
 export default function Page() {
   return (
-    <CandidateDestinationShell
-      title="Postulaciones"
-      summary="Seguí el estado de cada postulación y la fuente por la que llegaste a la vacante."
-      preview={[
-        "Listado de postulaciones con estado y fuente.",
-        "Búsqueda por puesto y filtros por estado.",
-        "Enlaces a las vacantes públicas cuando existan.",
-      ]}
-    />
+    <>
+      <CandidateHeader title="Postulaciones" />
+      <ApplicationsWorkspace applications={CANDIDATE_APPLICATIONS} />
+    </>
   )
 }
