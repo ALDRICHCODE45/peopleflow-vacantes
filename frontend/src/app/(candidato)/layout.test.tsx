@@ -29,6 +29,7 @@ const DESTINATIONS: Destination[] = [
   { segment: "cuenta", title: "Cuenta", Page: CuentaPage, metadata: cuentaMetadata },
 ];
 const SEGMENTS = DESTINATIONS.map((destination) => destination.segment);
+const PLACEHOLDER_DESTINATIONS = DESTINATIONS.filter((destination) => destination.segment !== "dashboard");
 const routeSource = (segment: string) => readFileSync(join(process.cwd(), `src/app/(candidato)/candidato/${segment}/page.tsx`), "utf8");
 
 function stubBrowserApis(innerWidth = 1280) {
@@ -90,7 +91,7 @@ describe("candidate destinations resolve as honest content-only routes", () => {
     expect(document.querySelectorAll("main")).toHaveLength(1);
   });
 
-  it.each(DESTINATIONS)("$title renders a local preview with an honest disclosure", ({ title, Page }) => {
+  it.each(PLACEHOLDER_DESTINATIONS)("$title renders a local preview with an honest disclosure", ({ title, Page }) => {
     render(<CandidateShell><Page /></CandidateShell>);
     const preview = document.querySelector(`[data-pf-destination="${title}"] [data-pf-destination-preview]`);
     expect(preview).not.toBeNull();
@@ -98,6 +99,12 @@ describe("candidate destinations resolve as honest content-only routes", () => {
     expect(disclosure).toHaveAttribute("role", "note");
     expect(disclosure).toHaveTextContent(/no guarda cambios/i);
     expect(preview!.querySelectorAll("li").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("mounts the verified dashboard overview instead of a destination preview", () => {
+    render(<CandidateShell><DashboardPage /></CandidateShell>);
+    expect(document.querySelector("[data-pf-candidate-overview]")).not.toBeNull();
+    expect(document.querySelector('[data-pf-destination="Dashboard"]')).toBeNull();
   });
 
   it.each(DESTINATIONS)("$title activates only its own sidebar destination", ({ segment, title, Page }) => {

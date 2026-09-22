@@ -1,26 +1,30 @@
 import type { Metadata } from "next"
 
-import { CandidateDestinationShell } from "@/components/candidate-dashboard/candidate-destination-shell"
+import { CandidateDashboardOverview } from "@/components/candidate-dashboard/candidate-dashboard-overview"
+import { CandidateHeader } from "@/components/candidate-dashboard/candidate-header"
+import { CANDIDATE_IDENTITY, CANDIDATE_PROFILE } from "@/features/candidate/prototype-candidate"
+import { CANDIDATE_APPLICATIONS, CANDIDATE_CVS } from "@/features/candidate/prototype-portfolio"
 
 export const metadata: Metadata = {
   title: "Dashboard",
 }
 
 /**
- * Candidate dashboard placeholder: the shared `(candidato)` layout mounts the
- * candidate shell, so this route owns only its header and honest local preview.
- * CDP-04/CDP-05 replace this shell with the derived overview from frozen props.
+ * Candidate dashboard route: the `(candidato)` layout owns the single shell, so
+ * this page owns only its header plus the props-only overview. Every metric is
+ * derived from the four committed frozen fixtures; the page fetches, stores,
+ * navigates and mutates nothing.
  */
 export default function Page() {
   return (
-    <CandidateDestinationShell
-      title="Dashboard"
-      summary="Tu resumen de búsqueda: postulaciones recientes, estado del perfil y CV principal en un solo lugar."
-      preview={[
-        "Resumen de postulaciones activas y su estado.",
-        "Guía de perfil completo con lo que falta cargar.",
-        "Aplicaciones recientes y tu CV principal.",
-      ]}
-    />
+    <>
+      <CandidateHeader title="Dashboard" />
+      <CandidateDashboardOverview
+        identity={CANDIDATE_IDENTITY}
+        profile={CANDIDATE_PROFILE}
+        applications={CANDIDATE_APPLICATIONS}
+        cvs={CANDIDATE_CVS}
+      />
+    </>
   )
 }
