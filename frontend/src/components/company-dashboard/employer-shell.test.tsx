@@ -93,6 +93,17 @@ describe("EmployerShell shared employer frame", () => {
     expect(cookie("sidebar_state")).toBeUndefined();
   });
 
+  it("clips horizontal overflow on the shared inset without a nested scroll boundary", () => {
+    renderShell();
+    const inset = document.querySelector("[data-slot='sidebar-inset']") as HTMLElement;
+    expect(inset).not.toBeNull();
+    // `overflow-x-clip` contains wide route content in the shared frame without
+    // adding a scroll container; `overflow-x-hidden` would instead create a
+    // nested horizontal scrolling boundary inside the inset.
+    expect(inset.className).toContain("overflow-x-clip");
+    expect(inset.className).not.toContain("overflow-x-hidden");
+  });
+
   it("keeps the Ctrl/Meta+B desktop shortcut from the primitive", async () => {
     const user = userEvent.setup();
     renderShell();

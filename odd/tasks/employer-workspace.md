@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Delivery: bounded work-unit commits on `feature/company-careers-prototype`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: EW-08 integrated employer acceptance
+- Current task: EW-08 integrated employer acceptance verified; commit authorization pending
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -49,7 +49,7 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - [x] **EW-06C — Team invitation affordance:** Added an accessible inline local-only invitation prototype with owner/recruiter selection, local validation, clean attempt lifecycle, and explicit no-send/no-save feedback; it owns no collection or callback and cannot append a member. Authored 395/400 lines. Verification: 35/35 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting stale error/status lifecycle. Commit: `e9a9ad1`.
 - [x] **EW-06D — Team route:** Mounted `/empresa/equipo` through the shared employer shell with metadata, active navigation, consultation-only intro copy, route-level local-demo disclosure, one invitation affordance, and the six-member workspace. Authored 329/400 lines. Verification: 84/84 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS after correcting overstated management copy. Commit: `67abee2`.
 - [x] **EW-07 — Dashboard connections:** Added a server-rendered `Vacantes activas` panel derived from the frozen active Nexo vacancies, with one portfolio link and one canonical per-position pipeline link per row, while preserving metrics, chart, recent candidates, and create-vacancy behavior. Excluded the reference's global-pipeline link because no truthful canonical global route exists. Authored 394/400 lines. Verification: 245/245 focused+adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `34dd04d`.
-- [ ] **EW-08 — Integrated employer acceptance:** Prove live navigation, vacancy filtering, pipeline board/list switching, team UX, keyboard/focus, responsive overflow, accessibility, and zero business mutations in Chromium.
+- [ ] **EW-08 — Integrated employer acceptance:** Live Chromium coverage now proves dashboard navigation, vacancy filtering, pipeline board/list switching, team UX, keyboard operation, desktop/mobile overflow containment, candidate-scoped accessibility, and zero network/storage/business mutations. Implementation and independent verification are complete; the work-unit commit awaits explicit authorization.
 
 ## Acceptance criteria
 - Sidebar active state follows the current employer route and never marks unresolved `#` destinations active.
@@ -101,6 +101,10 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - EW-07 implementation: `34dd04d`.
 - The dashboard now adds three current active Nexo vacancies between the chart and recent-candidate table, with a portfolio link and one accessible canonical pipeline link per semantic non-interactive row. KPI/chart/table/data snapshots remain unchanged.
 - Parent readback corrected literal `candidato(s)` copy to natural singular/plural before independent verification. Final verification: 245/245 tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS.
+- EW-08 implementation is verified and awaiting commit authorization.
+- A 346-line Chromium contract exercises four real interaction flows plus an eight-case dashboard/portfolio/pipeline/team × desktop/mobile matrix. The matrix reports zero document overflow, candidate-scoped serious/critical Axe violations, non-Next write methods, foreign/API/3001/4010 traffic, and local/session storage writes.
+- Browser diagnosis found wide pipeline board/list descendants escaping the shared employer `main` at 375px despite correct internal scroll regions. `SidebarInset` now uses `overflow-x-clip`, reducing board/list document overflow from 538px/142px to zero while preserving internal horizontal scrolling.
+- Final independent verification: 36/36 focused Vitest tests and 5/5 Chromium tests PASS; all eight responsive matrix cases execute; TypeScript, scoped ESLint, `git diff --check`, and LSP diagnostics PASS. Known full-dashboard contrast findings remain pre-existing and outside the deliberately scoped ActiveVacancies audit.
 
 ## Next step
-Implement EW-08 integrated Chromium acceptance across dashboard, vacancy portfolio, pipeline board/list, and team workspace, including mobile/desktop layout, keyboard/focus, accessibility, navigation, and zero business mutations.
+After explicit authorization, create the EW-08 Conventional Commit, record its identity here, and close the employer workspace expansion without pushing, opening a PR, merging, or deploying.
