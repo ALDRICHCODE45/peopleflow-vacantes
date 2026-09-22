@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Delivery: bounded work-unit commits on `feature/company-careers-prototype`
 - Worktree: `/home/aldrich_coder45/Desktop/workspace/peopleflow-vacantes-company-careers-prototype`
-- Current task: EW-01 employer navigation foundation
+- Current task: EW-02 employer vacancy model
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -36,7 +36,7 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - Work-unit commits keep tests and docs with behavior. No push, PR, merge, or deploy.
 
 ## Tasks
-- [ ] **EW-01 — Employer navigation foundation:** Turn Vacantes and Equipo into real destinations, make the shared sidebar route-aware, and generalize the employer header for titles and breadcrumbs while preserving unresolved prototypes.
+- [x] **EW-01 — Employer navigation foundation:** Turned Vacantes and Equipo into real destinations, made the shared sidebar route-aware, and generalized the employer header for titles and breadcrumbs while preserving unresolved prototypes. Authored 389/400 code/test lines. Verification: 126/126 adjacent tests, TypeScript, ESLint, diff-check, and LSP diagnostics PASS. Commit: `59dea2f`.
 - [ ] **EW-02 — Employer vacancy model:** Add validated, deeply frozen local employer-vacancy fixtures with truthful publication state, pipeline counts, and canonical pipeline URLs.
 - [ ] **EW-03 — Employer vacancy portfolio:** Build `/empresa/vacantes` with reference-faithful summary metrics, responsive status filters, vacancy rows, and a semantic pipeline action for every position.
 - [ ] **EW-04 — Pipeline model and modes:** Add frozen candidate fixtures and build the per-position pipeline board/list experience with application-status stages, accessible switching, and truthful non-persistent controls.
@@ -55,7 +55,11 @@ High-density recruiting operations UI with calm violet-led surfaces, compact met
 - No horizontal document overflow at 375px or 1440px; focus indicators remain visible; serious/critical candidate-caused axe violations are zero.
 
 ## Evidence
-- Pending.
+- EW-01 implementation: `59dea2f`.
+- `Dashboard`, `Vacantes`, and `Equipo` are real Next destinations; nested vacancy/team paths retain the correct active section while unresolved prototype links remain `#` and inactive.
+- `SiteHeader` preserves the dashboard default and accepts a custom title, linked parent breadcrumb, and status context without duplicating shell controls.
+- Strict TDD: initial focused RED covered missing routes/active state/header props; GREEN reached 42 focused tests. An adjacent dashboard expectation then failed, was corrected without behavior changes, and the full employer slice passed 126/126.
+- Independent verification: TypeScript, exact-scope ESLint, `git diff --check`, and five-file LSP diagnostics PASS. Protected `dashboard-01-theme.module.css` remained untouched.
 
 ## Next step
-Proceed to EW-02 (employer vacancy model) after the parent records the EW-01 work-unit commit.
+Implement EW-02 (the validated, deeply frozen employer vacancy model).
