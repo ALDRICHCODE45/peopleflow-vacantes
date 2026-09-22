@@ -4,7 +4,7 @@
 - Workflow: ODD
 - Branch: `feature/candidate-dashboard-prototype`
 - Base: completed employer workspace commit `febaf18`
-- Current task: CDP-05 candidate dashboard route integration
+- Current task: CDP-06 applications workspace and route
 - Push/PR/merge/deploy: not authorized
 - RDD: clone-local disabled; do not reactivate
 
@@ -42,7 +42,7 @@ Build a coherent candidate-side PeopleFlow workspace with Dashboard, Postulacion
 - [x] **CDP-03A — Candidate shell and navigation primitives:** Built the shared candidate shell/sidebar/header, route-aware five-destination navigation, cyan visual identity, mobile drawer, and fictional candidate footer without copying employer content. All brand/navigation/account targets stay at least 40px, with 48px expanded destination rows. Authored 398/400 lines; verification: 155/155 candidate+company tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `717675c`.
 - [x] **CDP-03B — Candidate route group and destination shells:** Added the `(candidato)` layout plus five honest real destination pages so every navigation link resolves before feature surfaces replace the previews. The layout owns one shell/main and mirrors exact sidebar-cookie semantics; pages own content only. Authored 392/400 lines; verification: 45/45 focused+shell tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `aca9958`.
 - [x] **CDP-04 — Candidate dashboard overview:** Built a props-only candidate overview with four derived metrics, transparent 13-field profile completeness, deterministic recent applications, exact four-status breakdown, truthful profile/CV guidance, neutral inventory copy, and local-demo disclosure. Authored 399/400 lines; verification: 34/34 overview+model tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `86be189`.
-- [ ] **CDP-05 — Candidate dashboard route:** Mount `/candidato/dashboard` through the shared shell with metadata, frozen fixtures, correct active navigation, and route-level contracts.
+- [x] **CDP-05 — Candidate dashboard route:** Replaced only the dashboard placeholder with CandidateHeader plus the verified props-only overview, supplying the four frozen fixtures at the route boundary while preserving the layout-owned shell and the other four previews. Authored 174/400 diff lines; verification: 86/86 candidate route/component/model tests, TypeScript, ESLint, diff-check, and LSP/source readback PASS. Commit: `c3cd1ba`.
 - [ ] **CDP-06 — Applications workspace and route:** Add `/candidato/postulaciones` with searchable/status-filtered semantic rows, honest empty recovery, canonical job links, and no candidate-side status mutation.
 - [ ] **CDP-07 — Editable local profile and route:** Add `/candidato/perfil` with accessible backend-aligned sections, local validation, skills/languages controls, in-memory-only edits, reset behavior, and explicit no-save disclosure.
 - [ ] **CDP-08 — CV workspace and route:** Add `/candidato/cvs` with frozen CV inventory, primary/current context, preview-safe metadata, disabled upload/replacement actions, and no generated-success claims.
@@ -71,4 +71,4 @@ Build a coherent candidate-side PeopleFlow workspace with Dashboard, Postulacion
 - Two strictly local CV metadata entries expose one Spanish primary and one English secondary document with no URL, upload key/status, download state, generated/AI claim, storage handle, or callback. Independent verification: 20/20 candidate model tests, TypeScript, ESLint, diff-check, and source readback PASS; 391/400 authored lines.
 
 ## Next step
-Implement CDP-05 by replacing only the dashboard placeholder with CandidateHeader, the verified overview, and frozen route-boundary props while preserving the shared layout and the other four honest destination previews.
+Implement CDP-06 Postulaciones as a searchable/status-filtered, non-mutating candidate workspace over the frozen application portfolio, then replace only its preview route after the surface is independently verified.
