@@ -353,14 +353,19 @@ test("announces pending scalar-filter navigation without blocking search", async
   await expect(page.getByRole("status")).not.toContainText(/cargando/i);
 
   // The scalar navigation commits the exact canonical URL, keeps the USD
-  // selection in the control, and the fixture log proves the exact USD
-  // server requests (the fixture returns the same payload for every
-  // filter, so row text alone cannot prove which request was made).
+  // selection in the control, and both the fixture log and the rendered
+  // rows prove the exact USD result selection (the fixture evaluates the
+  // mixed MXN/USD pool currency-exactly, so the ordinary MXN fallback job
+  // can no longer satisfy a currency=USD request).
   await expect(page).toHaveURL("/vacantes?currency=USD");
   await expect
     .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
     .toEqual(["", "?currency=USD"]);
   await expect(page.getByLabel(/moneda/i)).toHaveText(/^USD/);
+  await expect(page.getByRole("list")).toContainText(
+    "Ingeniera Currency Proof",
+  );
+  await expect(page.getByRole("list")).not.toContainText("Ingeniera Frontend");
 
   // Refreshing and reopening the captured URL in a second page restore
   // the USD selection with visible results; owned pages are closed
@@ -370,7 +375,9 @@ test("announces pending scalar-filter navigation without blocking search", async
   await expect(page).toHaveURL("/vacantes?currency=USD");
   await expect(page.getByLabel(/moneda/i)).toHaveText(/^USD/);
   await expect(page.getByLabel(/buscar/i)).toHaveValue("");
-  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expect(page.getByRole("list")).toContainText(
+    "Ingeniera Currency Proof",
+  );
   await expect
     .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
     .toEqual(["", "?currency=USD", "?currency=USD"]);
@@ -383,10 +390,48 @@ test("announces pending scalar-filter navigation without blocking search", async
     await expect
       .poll(async () => (await request.get(`${fixtureUrl}/__requests`)).json())
       .toEqual(["", "?currency=USD", "?currency=USD", "?currency=USD"]);
-    await expect(shared.getByRole("list")).toContainText("Ingeniera Frontend");
+    await expect(shared.getByRole("list")).toContainText(
+      "Ingeniera Currency Proof",
+    );
+    await expect(shared.getByRole("list")).not.toContainText(
+      "Ingeniera Frontend",
+    );
   } finally {
     await shared.close();
   }
+});
+
+// Task 8.3 / C1 — focused fixture-backed proofs over mixed vacancies:
+// exact currency selection and full-AND combined filtering must be
+// observable in the rendered result set, not only in the forwarded URL.
+test("renders only the actual USD vacancy for currency=USD over the mixed fixture pool", async ({
+  page,
+}) => {
+  await page.goto("/vacantes?currency=USD");
+  const list = page.getByRole("list");
+  // The fixture pool spans MXN and USD vacancies: exact USD selection must
+  // render the actual USD result and never the ordinary MXN fallback job.
+  await expect(list).toContainText("Ingeniera Currency Proof");
+  await expect(list).toContainText("USD 100,000");
+  await expect(list).not.toContainText("Ingeniera Frontend");
+  await expect(list).not.toContainText(/MXN/);
+});
+
+test("renders only the vacancy matching every predicate of the combined scalar-filter request", async ({
+  page,
+}) => {
+  await page.goto(
+    "/vacantes?q=and-proof&seniority=senior&work_mode=remote&employment_type=full_time&location=Monterrey&currency=MXN",
+  );
+  const list = page.getByRole("list");
+  // The fixture and-proof pool holds one exact six-predicate match plus
+  // three single-predicate near misses; only the exact AND match may
+  // render, so a forwarding-only or partial-OR result set fails here.
+  await expect(list).toContainText("Ingeniera And Proof");
+  await expect(list).toContainText("Monterrey");
+  await expect(list).toContainText(/MXN \d/);
+  await expect(list.getByRole("listitem")).toHaveCount(1);
+  await expect(list).not.toContainText(/And Proof (Híbrida|Junior|Dólares)/);
 });
 
 test("announces pending next navigation and preserves its opaque cursor", async ({
@@ -665,4 +710,75 @@ test("long vacancy content remains readable", async ({ page }) => {
       expect((await rectsOf(title)).length).toBeGreaterThanOrEqual(2);
     }
   }
+});
+
+// Task 8.4 / C2 — visibility freshness: hiding and re-showing the fixture
+// vacancy must flip the rendered list across separate request-time renders
+// (fresh document requests), which is only possible with dynamic `no-store`
+// reads; no same-document client cache can serve the mutated state.
+test("C2: visibility mutations flip the rendered list across separate request-time renders", async ({
+  page,
+  request,
+}) => {
+  // Visible → hidden.
+  await page.goto("/vacantes");
+  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  const hide = await request.get(`${fixtureUrl}/__visibility?hidden=1`);
+  expect(hide.status()).toBe(200);
+  expect(await hide.json()).toEqual({ ok: true, hidden: true });
+  await page.reload();
+  await expect(page.getByText(/no hay vacantes/i)).toBeVisible();
+  await expect(page.getByRole("listitem")).toHaveCount(0);
+
+  // Hidden → visible: the next request-time render restores the vacancy.
+  const show = await request.get(`${fixtureUrl}/__visibility?hidden=0`);
+  expect(show.status()).toBe(200);
+  expect(await show.json()).toEqual({ ok: true, hidden: false });
+  await page.reload();
+  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+  await expect(page.getByText(/no hay vacantes/i)).toHaveCount(0);
+});
+
+// Task 8.4 / C2 — completed-response buffering matrix (list half): each
+// navigation arms a deterministic fixture delay, captures the document
+// response, waits until that HTTP response completes, and only then asserts
+// the final document state (correctness never depends on partial streams).
+test("C2: buffered list success renders final rows after the response completes", async ({
+  page,
+  request,
+}) => {
+  const armed = await request.get(`${fixtureUrl}/__delay?ms=300`);
+  expect(armed.status()).toBe(200);
+  expect(await armed.json()).toEqual({ ok: true, ms: 300 });
+  const response = await page.goto("/vacantes");
+  expect(response?.status()).toBe(200);
+  await response!.finished();
+  await expect(page.getByRole("list")).toContainText("Ingeniera Frontend");
+});
+
+test("C2: buffered list empty renders the final empty state after the response completes", async ({
+  page,
+  request,
+}) => {
+  const armed = await request.get(`${fixtureUrl}/__delay?ms=300`);
+  expect(armed.status()).toBe(200);
+  const response = await page.goto("/vacantes?q=empty");
+  expect(response?.status()).toBe(200);
+  await response!.finished();
+  await expect(page.getByText(/no hay vacantes/i)).toBeVisible();
+  await expect(page.getByRole("listitem")).toHaveCount(0);
+});
+
+test("C2: buffered list error renders the final retryable state after the response completes", async ({
+  page,
+  request,
+}) => {
+  const armed = await request.get(`${fixtureUrl}/__delay?ms=300`);
+  expect(armed.status()).toBe(200);
+  const response = await page.goto("/vacantes?q=error");
+  await response!.finished();
+  await expect(
+    page.getByRole("alert").filter({ hasText: /intentar de nuevo/i }),
+  ).toBeVisible();
+  await expect(page.getByRole("list")).toHaveCount(0);
 });

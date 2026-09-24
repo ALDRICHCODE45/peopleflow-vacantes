@@ -6,6 +6,11 @@ const requests = [];
 // and cleared only by `/__recover` or `/__reset`, so a prefetch or an aborted
 // timeout request can never silently consume a one-shot failure.
 const failureState = { kind: null };
+// Task 8.4 / C2 — deterministic test-only controls: visibility of the
+// main vacancy (list membership and its detail answer) plus an armed
+// response delay so buffering assertions can await completed responses.
+const visibilityState = { hidden: false };
+const delayState = { ms: 0 };
 const job = {
   id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e",
   title: "Ingeniera Frontend",
@@ -85,6 +90,87 @@ const currencyProofJob = {
   },
 };
 
+// Task 8.3 / C1 — mixed and-proof pool for the combined scalar-filter
+// proof: one exact six-predicate match plus three single-predicate near
+// misses (hybrid mode, junior seniority, USD currency), so only a strict
+// AND evaluation of every active predicate yields a single exact result.
+const andProofCompany = {
+  id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d97",
+  name: "Acme",
+};
+const andProofExactJob = {
+  id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d96",
+  title: "Ingeniera And Proof",
+  description:
+    "Vacante de prueba AND: senior, remota, tiempo completo, Monterrey, MXN.",
+  work_mode: "remote",
+  employment_type: "full_time",
+  seniority: "senior",
+  salary_currency: "MXN",
+  location: "Monterrey, Nuevo León",
+  salary_min: 50000,
+  salary_max: 80000,
+  published_at: "2026-02-14T09:30:00Z",
+  company: andProofCompany,
+};
+const andProofHybridMissJob = {
+  ...andProofExactJob,
+  id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d98",
+  title: "Ingeniera And Proof Híbrida",
+  work_mode: "hybrid",
+};
+const andProofJuniorMissJob = {
+  ...andProofExactJob,
+  id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d99",
+  title: "Ingeniera And Proof Junior",
+  seniority: "junior",
+};
+const andProofUsdMissJob = {
+  ...andProofExactJob,
+  id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d9a",
+  title: "Ingeniera And Proof Dólares",
+  salary_currency: "USD",
+};
+const andProofPool = [
+  andProofExactJob,
+  andProofHybridMissJob,
+  andProofJuniorMissJob,
+  andProofUsdMissJob,
+];
+// Currency-only requests evaluate over this mixed MXN/USD pool, so
+// `currency=USD` renders only the actual USD vacancy and never the
+// ordinary MXN fallback job.
+const currencyPool = [job, currencyProofJob];
+
+// Task 8.3 / C1 — strict scalar-filter evaluation: `q` matches every
+// token case-insensitively across title/description, enum filters are
+// exact, `location` is a case-insensitive substring, and `currency` is
+// the exact single wire value. Every active predicate must match (AND).
+function qTokens(value) {
+  return (value ?? "")
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+}
+function matchesEveryPredicate(vacancy, searchParams) {
+  const haystack = `${vacancy.title} ${vacancy.description}`.toLowerCase();
+  const q = searchParams.get("q");
+  if (q && !qTokens(q).every((token) => haystack.includes(token))) return false;
+  for (const key of ["seniority", "work_mode", "employment_type"]) {
+    const value = searchParams.get(key);
+    if (value && vacancy[key] !== value) return false;
+  }
+  const location = searchParams.get("location");
+  if (
+    location &&
+    !(vacancy.location ?? "").toLowerCase().includes(location.toLowerCase())
+  )
+    return false;
+  const currency = searchParams.get("currency");
+  if (currency && vacancy.salary_currency !== currency) return false;
+  return true;
+}
+
 // Detail map: known ids answer `/jobs/{id}` with their bare job shape.
 const detailJobs = {
   [job.id]: job,
@@ -105,6 +191,8 @@ const server = createServer((request, response) => {
   if (url.pathname === "/__reset") {
     requests.length = 0;
     failureState.kind = null;
+    visibilityState.hidden = false;
+    delayState.ms = 0;
     return send(response, 200, { ok: true });
   }
   if (url.pathname === "/__failure") {
@@ -120,6 +208,22 @@ const server = createServer((request, response) => {
     failureState.kind = null;
     return send(response, 200, { ok: true });
   }
+  if (url.pathname === "/__visibility") {
+    const hidden = url.searchParams.get("hidden");
+    if (hidden !== "0" && hidden !== "1")
+      return send(response, 400, { error: "hidden must be 0 or 1" });
+    visibilityState.hidden = hidden === "1";
+    return send(response, 200, { ok: true, hidden: visibilityState.hidden });
+  }
+  if (url.pathname === "/__delay") {
+    const ms = Number(url.searchParams.get("ms") ?? "0");
+    if (!Number.isInteger(ms) || ms < 0 || ms > 5000)
+      return send(response, 400, {
+        error: "ms must be an integer between 0 and 5000",
+      });
+    delayState.ms = ms;
+    return send(response, 200, { ok: true, ms });
+  }
   // Detail requests target `/jobs/{id}` and log the exact pathname; list
   // requests keep logging only the search text, as the list specs assert.
   const detailId = url.pathname.match(/^\/jobs\/([^/]+)$/)?.[1];
@@ -127,6 +231,14 @@ const server = createServer((request, response) => {
     return send(response, 404, { error: "not found" });
 
   requests.push(detailId === undefined ? url.search : url.pathname);
+  // Task 8.4 / C2 — the armed delay applies only to data responses (every
+  // request reaching this point is a `/jobs` request), never to control
+  // endpoints, so health/readiness polling stays immediate.
+  const respond = (target, status, payload) => {
+    if (delayState.ms > 0)
+      return setTimeout(() => send(target, status, payload), delayState.ms);
+    return send(target, status, payload);
+  };
   // First-page requests advertise the opaque next cursor; a cursor
   // request models the nonempty final page: items are present but
   // `next_cursor` is absent, so the frontend must omit pagination. A
@@ -134,26 +246,34 @@ const server = createServer((request, response) => {
   // unknown identifier, which is answered with a backend 404 below.
   const payload =
     detailId !== undefined
-      ? detailJobs[detailId]
+      ? visibilityState.hidden && detailId === job.id
+        ? undefined
+        : detailJobs[detailId]
       : url.searchParams.has("cursor")
-        ? { items: [job] }
-        : { items: [job], next_cursor: "opaque a+b/c=" };
+        ? { items: visibilityState.hidden ? [] : [job] }
+        : visibilityState.hidden
+          ? { items: [] }
+          : { items: [job], next_cursor: "opaque a+b/c=" };
   if (url.searchParams.get("q") === "error") {
-    return send(response, 503, { error: "unavailable" });
+    return respond(response, 503, { error: "unavailable" });
   }
   if (url.searchParams.get("q") === "empty")
-    return send(response, 200, { items: [] });
+    return respond(response, 200, { items: [] });
   if (url.searchParams.get("q") === "long-content")
-    return send(response, 200, { items: [longContentJob] });
+    return respond(response, 200, { items: [longContentJob] });
   // Armed failure kinds reproduce the guarded failure classes: a 5xx
   // status, valid JSON that violates the item schema (invalid UUID),
   // and a delayed response beyond the production API timeout (its timer
   // is cleared when the aborted response closes).
   if (failureState.kind === "5xx")
-    return send(response, 500, { error: "internal server error" });
+    return respond(response, 500, { error: "internal server error" });
   if (failureState.kind === "schema") {
     const bad = { ...job, id: "not-a-uuid" };
-    return send(response, 200, detailId !== undefined ? bad : { items: [bad] });
+    return respond(
+      response,
+      200,
+      detailId !== undefined ? bad : { items: [bad] },
+    );
   }
   if (failureState.kind === "timeout") {
     const timer = setTimeout(() => send(response, 200, payload), 1500);
@@ -166,7 +286,40 @@ const server = createServer((request, response) => {
     url.searchParams.get("q") === "currency-proof" &&
     url.searchParams.get("currency") === "USD"
   )
-    return send(response, 200, { items: [currencyProofJob] });
+    return respond(response, 200, { items: [currencyProofJob] });
+  // Task 8.3 / C1 — dedicated and-proof marker query evaluates every
+  // active predicate with strict AND semantics over the mixed pool, so a
+  // forwarding-only response, an OR match, or the MXN fallback cannot
+  // satisfy the focused combined-filter assertions.
+  if (!detailId && url.searchParams.get("q") === "and-proof") {
+    const items = andProofPool.filter((vacancy) =>
+      matchesEveryPredicate(vacancy, url.searchParams),
+    );
+    const payload = url.searchParams.has("cursor")
+      ? { items }
+      : { items, next_cursor: "opaque a+b/c=" };
+    return respond(response, 200, payload);
+  }
+  // Task 8.3 / C1 — currency-only requests evaluate the exact single
+  // currency over the mixed MXN/USD pool; `currency=USD` keeps the 300ms
+  // delay so the pending announcement stays observable.
+  if (
+    detailId === undefined &&
+    !url.searchParams.has("q") &&
+    !url.searchParams.has("cursor") &&
+    url.searchParams.has("currency")
+  ) {
+    const currency = url.searchParams.get("currency");
+    const items = currencyPool.filter(
+      (vacancy) => vacancy.salary_currency === currency,
+    );
+    if (currency === "USD")
+      return setTimeout(
+        () => send(response, 200, { items, next_cursor: "opaque a+b/c=" }),
+        300,
+      );
+    return respond(response, 200, { items, next_cursor: "opaque a+b/c=" });
+  }
   if (
     url.searchParams.has("cursor") ||
     url.searchParams.get("q") === "pending-search" ||
@@ -174,8 +327,8 @@ const server = createServer((request, response) => {
   )
     return setTimeout(() => send(response, 200, payload), 300);
   if (detailId !== undefined && payload === undefined)
-    return send(response, 404, { error: "not found" });
-  return send(response, 200, payload);
+    return respond(response, 404, { error: "not found" });
+  return respond(response, 200, payload);
 });
 
 server.listen(port, "127.0.0.1", () => {

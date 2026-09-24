@@ -24,7 +24,12 @@ const backLink = (scope: Page | Locator) =>
 const robots = (page: Page) => page.locator('meta[name="robots"]');
 
 async function expectBranded404(page: Page) {
-  await expect(page.getByText(NOT_FOUND_COPY)).toBeVisible();
+  const headings = page.getByRole("heading", {
+    level: 1,
+    name: NOT_FOUND_COPY,
+  });
+  await expect(headings).toHaveCount(1);
+  await expect(headings).toBeVisible();
   await expect(backLink(page)).toHaveAttribute("href", "/vacantes");
   await expect(robots(page)).toHaveAttribute("content", /noindex/i);
 }
@@ -119,9 +124,12 @@ for (const kind of ["5xx", "schema", "timeout"] as const) {
     await page.goto(`/vacantes/${MAIN_ID}`);
     // Retryable failures never masquerade as the branded not-found page.
     await expect(page.getByText(NOT_FOUND_COPY)).toHaveCount(0);
-    await expect(
-      page.getByText(/intentar de nuevo|no se pudo cargar la vacante/i).first(),
-    ).toBeVisible();
+    const headings = page.getByRole("heading", {
+      level: 1,
+      name: "No se pudo cargar la vacante",
+    });
+    await expect(headings).toHaveCount(1);
+    await expect(headings).toBeVisible();
     const anyBack = page.getByRole("link", { name: /vacantes/i }).first();
     await expect(anyBack).toBeVisible();
   });
@@ -199,4 +207,86 @@ test("detail preserves preset typography, tokens, radius, and bounded UI", async
       name: /guardar|compartir|postular|solicitar|aplicar|beneficios/i,
     }),
   ).toHaveCount(0);
+});
+
+// Task 8.4 / C2 — detail visibility freshness: the same detail URL renders
+// the vacancy, then the branded 404 after the fixture hides it, then the
+// vacancy again, each across separate request-time renders.
+test("C2: visibility mutations flip the rendered detail across separate request-time renders", async ({
+  page,
+  request,
+}) => {
+  const article = page.getByRole("article");
+  const heading = article.getByRole("heading", {
+    level: 1,
+    name: "Ingeniera Frontend",
+  });
+
+  // Visible → hidden: a fresh render of the same URL answers backend 404.
+  await page.goto(`/vacantes/${MAIN_ID}`);
+  await expect(heading).toBeVisible();
+  const hide = await request.get(`${fixtureUrl}/__visibility?hidden=1`);
+  expect(hide.status()).toBe(200);
+  expect(await hide.json()).toEqual({ ok: true, hidden: true });
+  const hiddenResponse = await page.reload();
+  expect(hiddenResponse?.status()).toBe(404);
+  await expectBranded404(page);
+
+  // Hidden → visible: the next request-time render restores the vacancy.
+  const show = await request.get(`${fixtureUrl}/__visibility?hidden=0`);
+  expect(show.status()).toBe(200);
+  const restoredResponse = await page.reload();
+  expect(restoredResponse?.status()).toBe(200);
+  await expect(heading).toBeVisible();
+});
+
+// Task 8.4 / C2 — completed-response buffering matrix (detail half): each
+// navigation arms a deterministic fixture delay, captures the document
+// response, waits until that HTTP response completes, and only then asserts
+// the final document state.
+test("C2: buffered detail success renders the final article after the response completes", async ({
+  page,
+  request,
+}) => {
+  const armed = await request.get(`${fixtureUrl}/__delay?ms=300`);
+  expect(armed.status()).toBe(200);
+  const response = await page.goto(`/vacantes/${MAIN_ID}`);
+  expect(response?.status()).toBe(200);
+  await response!.finished();
+  await expect(
+    page
+      .getByRole("article")
+      .getByRole("heading", { level: 1, name: "Ingeniera Frontend" }),
+  ).toBeVisible();
+});
+
+test("C2: buffered detail error renders the final retryable state after the response completes", async ({
+  page,
+  request,
+}) => {
+  await request.get(`${fixtureUrl}/__failure?kind=5xx`);
+  const armed = await request.get(`${fixtureUrl}/__delay?ms=300`);
+  expect(armed.status()).toBe(200);
+  const response = await page.goto(`/vacantes/${MAIN_ID}`);
+  await response!.finished();
+  await expect(page.getByText(NOT_FOUND_COPY)).toHaveCount(0);
+  const headings = page.getByRole("heading", {
+    level: 1,
+    name: "No se pudo cargar la vacante",
+  });
+  await expect(headings).toHaveCount(1);
+  await expect(headings).toBeVisible();
+});
+
+test("C2: buffered detail not-found renders the final branded 404 after the response completes", async ({
+  page,
+  request,
+}) => {
+  const armed = await request.get(`${fixtureUrl}/__delay?ms=300`);
+  expect(armed.status()).toBe(200);
+  const response = await page.goto(`/vacantes/${MISSING_ID}`);
+  expect(response?.status()).toBe(404);
+  await response!.finished();
+  await expectBranded404(page);
+  await expect.poll(() => fixtureRequests(request)).toEqual([missingRequest]);
 });
