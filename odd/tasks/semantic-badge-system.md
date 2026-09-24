@@ -32,7 +32,7 @@ The current references show two mismatched treatments: thin outlined application
 
 - [x] **BADGE-01 — Establish the primitive contract:** Added semantic variants, tokenized destructive styling, optional decorative status dot, reduced radius, and focused primitive tests in `b9b67e5`.
 - [x] **BADGE-02 — Migrate product status badges:** Replaced duplicated application/pipeline/publication/member tone maps and the raw pipeline-route status span with semantic variants while preserving labels and facts in `f7e76fa`.
-- [ ] **BADGE-03 — Reconcile remaining badge consumers and guidance:** Migrate divergent dashboard/featured/role treatments where semantic pastel styling is intended, keep neutral chips/counters distinct, update affected tests, and record the durable design rule.
+- [x] **BADGE-03 — Reconcile remaining badge consumers and guidance:** Migrated divergent dashboard/featured/role treatments, kept neutral chips/counters distinct, updated affected tests, and recorded the durable design rule in `7698fc3`.
 - [ ] **BADGE-04 — Verify and close:** Run focused/full unit, TypeScript, ESLint, production build, LSP diagnostics, and isolated light/dark responsive visual acceptance; record exact evidence and residual risks.
 
 ## Initial Audit
@@ -55,6 +55,11 @@ The current references show two mismatched treatments: thin outlined application
 - BADGE-02 focused verification: 7/7 files and 146/146 tests passed; TypeScript and focused ESLint passed under Node 22.23.2.
 - Final callback-annotation verification: 2/2 files and 61/61 tests passed; TypeScript and focused ESLint passed with zero warnings.
 - Product status badges now expose exact semantic `data-variant` and `data-dot` contracts; counters, match scores, skills, filters, metadata, and completeness remain dotless.
+- `f7bb55b fix(ui): resolve Badge Base UI imports` switched the Badge primitive to package-root Base UI exports; 17/17 Badge tests, TypeScript, focused ESLint, and refreshed LSP diagnostics passed.
+- `7698fc3 feat(ui): complete semantic badge migration`
+- BADGE-03 focused route/component verification: 8/8 files and 214/214 tests passed. Employer dashboard tests retained their non-failing zero-size Recharts warnings.
+- Read-only TypeScript (`--incremental false`), focused ESLint, and `git diff --check` passed under Node 22.23.2.
+- The data-table helper's dynamic test RegExp was replaced with a safe accessible-name predicate; its focused suite passed 46/46 and Pi Lens reported no remaining finding.
 
 ## Delivery Boundary
 
