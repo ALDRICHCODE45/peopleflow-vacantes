@@ -4,7 +4,7 @@ import * as React from "react";
 import { SearchIcon } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
@@ -19,9 +19,9 @@ type StatusFilter = "all" | TeamMemberStatus;
 const STATUS_FILTERS: ReadonlyArray<{ value: StatusFilter; label: string }> = [
   { value: "all", label: "Todas" }, { value: "active", label: "Activas" }, { value: "invited", label: "Pendientes" },
 ];
-/** Status tint: the label text always carries the meaning, color only supplements it. */
-const STATUS_BADGE: Readonly<Record<TeamMemberStatus, string>> = { active: "border-primary/40 bg-primary/12 text-foreground", invited: "border-border bg-secondary text-foreground" };
-const STATUS_DOT: Readonly<Record<TeamMemberStatus, string>> = { active: "bg-primary", invited: "bg-muted-foreground" };
+/** Member-status variant: the label text always carries the meaning and the
+    shared Badge variant only supplements it. */
+const STATUS_VARIANT: Readonly<Record<TeamMemberStatus, BadgeVariant>> = { active: "success", invited: "review" };
 
 const FOCUS = "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none";
 const FILTER = `inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors duration-200 ${FOCUS}`;
@@ -71,8 +71,7 @@ function TeamMemberRow({ member }: { member: TeamMember }) {
       <div className={CELL}>
         <span className={NARROW_LABEL}>Estado</span>
         <div className="mt-0.5 lg:mt-0">
-          <Badge variant="outline" className={STATUS_BADGE[member.status]}>
-            <span aria-hidden="true" className={cn("size-1.5 rounded-full", STATUS_DOT[member.status])} />
+          <Badge variant={STATUS_VARIANT[member.status]} dot>
             {TEAM_MEMBER_STATUS_LABELS[member.status]}
           </Badge>
         </div>

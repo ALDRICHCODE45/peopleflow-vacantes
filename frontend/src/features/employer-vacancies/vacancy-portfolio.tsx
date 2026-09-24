@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { SearchIcon } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
@@ -21,9 +21,9 @@ const STATUS_FILTERS: ReadonlyArray<{ value: StatusFilter; label: string }> = [
 ];
 /** Spanish stage labels shared with the existing employer pipeline vocabulary. */
 const STAGE_LABELS: Readonly<Record<VacancyPipelineStage, string>> = { submitted: "Nuevos", in_review: "En revisión", hired: "Contratados", rejected: "Descartados" };
-/** Publication-state tint: text always carries the meaning, color supplements it. */
-const STATUS_BADGE: Readonly<Record<EmployerVacancyState, string>> = { active: "border-primary/40 bg-primary/12 text-foreground", paused: "border-border bg-secondary text-foreground", closed: "border-border bg-transparent text-muted-foreground" };
-const STATUS_DOT: Readonly<Record<EmployerVacancyState, string>> = { active: "bg-primary", paused: "bg-muted-foreground", closed: "bg-muted-foreground" };
+/** Publication-state variant: text always carries the meaning and the shared
+    Badge variant only supplements it. */
+const STATUS_VARIANT: Readonly<Record<EmployerVacancyState, BadgeVariant>> = { active: "accent", paused: "review", closed: "neutral" };
 /** Equal-width pipeline segments, one per stage, decorative next to the text. */
 const PIPELINE_BAR: Readonly<Record<VacancyPipelineStage, string>> = { submitted: "bg-primary", in_review: "bg-primary/60", hired: "bg-primary/35", rejected: "bg-muted-foreground/40" };
 
@@ -61,8 +61,7 @@ function VacancyRow({ vacancy }: { vacancy: EmployerVacancy }) {
         </div>
       </div>
       <div>
-        <Badge variant="outline" className={STATUS_BADGE[vacancy.state]}>
-          <span aria-hidden="true" className={cn("size-1.5 rounded-full", STATUS_DOT[vacancy.state])} />
+        <Badge variant={STATUS_VARIANT[vacancy.state]} dot>
           {EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]}
         </Badge>
       </div>

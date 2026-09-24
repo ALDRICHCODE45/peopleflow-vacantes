@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/company-dashboard/site-header";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import {
   EMPLOYER_VACANCY_STATE_LABELS,
   findEmployerVacancy,
@@ -29,11 +30,12 @@ type PipelineRouteProps = {
   params: Promise<{ jobId: string }>;
 };
 
-/** Publication-state tint: the Spanish text label always carries the meaning. */
-const STATUS_BADGE: Readonly<Record<EmployerVacancyState, string>> = {
-  active: "border-primary/40 bg-primary/15 text-foreground",
-  paused: "border-border bg-secondary text-foreground",
-  closed: "border-border bg-transparent text-muted-foreground",
+/** Publication-state variant: the Spanish text label always carries the meaning
+    and the shared Badge variant only supplements it. */
+const STATUS_VARIANT: Readonly<Record<EmployerVacancyState, BadgeVariant>> = {
+  active: "accent",
+  paused: "review",
+  closed: "neutral",
 };
 
 /** Spanish singular/plural agreement for the pipeline counters. */
@@ -70,12 +72,13 @@ export default async function PipelinePage({ params }: PipelineRouteProps) {
         title={vacancy.title}
         parent={{ label: "Vacantes", href: "/empresa/vacantes" }}
         status={
-          <span
+          <Badge
             data-pf-vacancy-status={vacancy.state}
-            className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11.5px] font-semibold ${STATUS_BADGE[vacancy.state]}`}
+            variant={STATUS_VARIANT[vacancy.state]}
+            dot
           >
             {EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]}
-          </span>
+          </Badge>
         }
       />
       <div className="flex flex-1 flex-col">

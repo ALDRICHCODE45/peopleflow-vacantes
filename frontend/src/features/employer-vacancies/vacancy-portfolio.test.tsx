@@ -6,7 +6,7 @@ import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { vacancyPipelineHref } from "./model";
+import { EMPLOYER_VACANCY_STATE_LABELS, vacancyPipelineHref } from "./model";
 import { NEXO_VACANCIES } from "./prototype-vacancies";
 import { VacancyPortfolio } from "./vacancy-portfolio";
 
@@ -95,6 +95,33 @@ describe("VacancyPortfolio vacancy rows", () => {
       expect(backend).toHaveTextContent(value);
     }
     expect(backend.querySelector("time")).toHaveAttribute("datetime", "2026-03-09T15:00:00Z");
+  });
+});
+
+describe("VacancyPortfolio publication-state Badges", () => {
+  const STATE_VARIANTS = { active: "accent", paused: "review", closed: "neutral" } as const;
+
+  it("maps each publication state onto the shared semantic Badge with a decorative dot", () => {
+    const { container } = renderPortfolio();
+    for (const vacancy of NEXO_VACANCIES) {
+      const row = container.querySelector(`[data-pf-vacancy-row="${vacancy.id}"]`) as HTMLElement;
+      const badge = row.querySelector("[data-slot='badge']") as HTMLElement;
+      expect(badge, vacancy.id).not.toBeNull();
+      expect(badge).toHaveAttribute("data-variant", STATE_VARIANTS[vacancy.state]);
+      expect(badge).toHaveAttribute("data-dot");
+      expect(badge).toHaveTextContent(EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]);
+      // The leading dot is the shared recipe's `::before`, never a manual child.
+      expect(badge.childNodes).toHaveLength(1);
+      expect(badge.querySelectorAll("*")).toHaveLength(0);
+    }
+  });
+
+  it("deletes the duplicated local tone and dot class maps", () => {
+    expect(source).toContain("type BadgeVariant");
+    expect(source).toMatch(/STATUS_VARIANT: Readonly<Record<EmployerVacancyState, BadgeVariant>>/u);
+    expect(source).not.toContain("STATUS_BADGE");
+    expect(source).not.toContain("STATUS_DOT");
+    expect(source).not.toContain("border-border bg-secondary text-foreground");
   });
 });
 

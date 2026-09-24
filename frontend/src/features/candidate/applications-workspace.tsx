@@ -5,7 +5,7 @@ import { ArrowUpRight, Briefcase, CalendarClock, CalendarDays, Ellipsis, Externa
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -48,16 +48,15 @@ const STATUS_FILTERS: readonly { readonly value: StatusFilter; readonly label: s
 ];
 
 /**
- * Supplemental status color through the semantic `--status-*` tokens: the tone
- * is badge text and border over a low-opacity background of the same token, so
- * the Spanish status text always carries the meaning and the color only adds to
- * it. No raw color value is authored here.
+ * Semantic status variant per application state: the Spanish label always
+ * carries the meaning, and the shared Badge variant reinforces it through the
+ * `--status-*` tokens. No raw color value or local tone recipe is authored here.
  */
-const STATUS_TONE: Readonly<Record<ApplicationStatus, string>> = {
-  submitted: "border-status-info/40 bg-status-info/10 text-status-info",
-  in_review: "border-status-review/40 bg-status-review/10 text-status-review",
-  hired: "border-status-success/40 bg-status-success/10 text-status-success",
-  rejected: "border-status-danger/40 bg-status-danger/10 text-status-danger",
+const STATUS_VARIANT: Readonly<Record<ApplicationStatus, BadgeVariant>> = {
+  submitted: "info",
+  in_review: "review",
+  hired: "success",
+  rejected: "danger",
 };
 
 /** Diacritic- and case-insensitive needle, so "ACME" and "disenadora" both match. */
@@ -129,9 +128,10 @@ function ApplicationIdentity({ density }: { readonly density: keyof typeof IDENT
   );
 }
 
-/** Status as text inside its semantic tone: the Spanish label carries the meaning. */
+/** Status as text inside its semantic variant: the Spanish label carries the
+    meaning and the shared decorative dot only supplements it. */
 function ApplicationStatusBadge({ status }: { readonly status: ApplicationStatus }) {
-  return <Badge variant="outline" className={STATUS_TONE[status]}>{APPLICATION_STATUS_LABELS[status]}</Badge>;
+  return <Badge variant={STATUS_VARIANT[status]} dot>{APPLICATION_STATUS_LABELS[status]}</Badge>;
 }
 
 /**
@@ -410,7 +410,7 @@ export function ApplicationsWorkspace({ applications }: ApplicationsWorkspacePro
           variant="outline"
           spacing={0}
           value={[view]}
-          onValueChange={(next) => {
+          onValueChange={(next: string[]) => {
             // Base UI can emit an empty array when the active item is toggled off; ignore it so one view stays selected.
             const [nextView] = next;
             if (nextView === "cards" || nextView === "list") setView(nextView);

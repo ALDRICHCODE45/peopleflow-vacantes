@@ -18,6 +18,8 @@ const stripComments = (source: string) => source.replace(/\/\*[\s\S]*?\*\//gu, "
 /** Rendered copy may not expose implementation status; `\b` keeps `localStorage` and data ids intact. */
 const IMPLEMENTATION_STATUS_COPY = /\b(?:demo|mock|prototip\w*|fictici\w*|prueba|test|local|no disponible|no implementado|no se guarda|no se env[ií]a|no se sube)\b/iu;
 const CANONICAL_LINKS = ["/candidato/postulaciones", "/candidato/perfil", "/candidato/cvs"] as const, STATUS_LABELS = ["Enviada", "En revisión", "Contratada", "Rechazada"] as const;
+const STATUS_VARIANTS = { submitted: "info", in_review: "review", hired: "success", rejected: "danger" } as const;
+const STATUS_TOKENS = { submitted: "status-info", in_review: "status-review", hired: "status-success", rejected: "status-danger" } as const;
 
 /** An empty-but-valid profile: every scored field unset, still schema-valid. */
 function emptyProfile(): CandidateProfile {
@@ -210,6 +212,14 @@ describe("candidate dashboard overview", () => {
     // Rendered copy must stay product-facing: no implementation-status disclosure.
     expect(IMPLEMENTATION_STATUS_COPY.test(stripComments(SOURCE))).toBe(false);
     expect(SOURCE).not.toContain("data-pf-candidate-overview-disclosure");
+    // The semantic mapping and completeness variant replaced the local tone recipes.
+    expect(SOURCE).toContain("type BadgeVariant");
+    expect(SOURCE).toMatch(/STATUS_VARIANT: Readonly<Record<ApplicationStatus, BadgeVariant>>/u);
+    expect(SOURCE).toContain("<Badge variant={STATUS_VARIANT[status]} dot>");
+    expect(SOURCE).toContain('variant={completeness.percentage === 100 ? "success" : "review"}');
+    for (const recipe of ["STATUS_TONE", "COMPLETE_BADGE", "INCOMPLETE_BADGE", "border-status-"]) {
+      expect(SOURCE, `candidate-dashboard-overview.tsx must not keep ${recipe}`).not.toContain(recipe);
+    }
   });
   it("keeps token-only paint, responsive candidate grids and no translucent handmade surface", () => {
     // globals.css owns the preset; the overview only consumes semantic tokens.
@@ -267,12 +277,38 @@ describe("candidate dashboard overview", () => {
     expect(container.querySelectorAll('[data-slot="item"]')).toHaveLength(4);
   });
 
-  it("renders each recent status with its canonical semantic Badge", () => {
+  it("renders each recent status as a semantic Badge variant with a decorative dot", () => {
     renderOverview();
     const rows = within(section("recent-applications")).getAllByRole("listitem");
-    expect(within(rows[0]).getByText("Enviada")).toHaveClass("text-status-info");
-    expect(within(rows[1]).getByText("En revisión")).toHaveClass("text-status-review");
-    expect(within(rows[2]).getByText("Contratada")).toHaveClass("text-status-success");
+    const expected = [
+      ["Enviada", "submitted"],
+      ["En revisión", "in_review"],
+      ["Contratada", "hired"],
+    ] as const;
+    for (const [index, [label, status]] of expected.entries()) {
+      const node = within(rows[index]).getByText(label);
+      expect(node).toHaveAttribute("data-slot", "badge");
+      expect(node).toHaveAttribute("data-variant", STATUS_VARIANTS[status]);
+      expect(node).toHaveAttribute("data-dot");
+      expect(node.className).toContain(STATUS_TOKENS[status]);
+      // The dot is the shared recipe's `::before`, never a manually rendered child.
+      expect(node.childNodes).toHaveLength(1);
+      expect(node.querySelectorAll("*")).toHaveLength(0);
+    }
+  });
+
+  it("renders the completeness badge as the dotless success/review variant", () => {
+    renderOverview();
+    const complete = screen.getByText("Completo");
+    expect(complete).toHaveAttribute("data-slot", "badge");
+    expect(complete).toHaveAttribute("data-variant", "success");
+    expect(complete).not.toHaveAttribute("data-dot");
+    cleanup();
+    renderOverview({ profile: profileWithout("professionalTitle") });
+    const incomplete = screen.getByText("Incompleto");
+    expect(incomplete).toHaveAttribute("data-variant", "review");
+    expect(incomplete).not.toHaveAttribute("data-dot");
+    expect(incomplete.querySelectorAll("*")).toHaveLength(0);
   });
 
   it("paints the proportional status bar from canonical semantic tokens only", () => {

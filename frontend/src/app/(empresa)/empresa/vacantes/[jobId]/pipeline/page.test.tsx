@@ -158,6 +158,26 @@ describe("/empresa/vacantes/[jobId]/pipeline header context", () => {
       unmount();
     }
   });
+
+  it("renders the header status through the shared Badge with the vacancy-state variant and dot", async () => {
+    const variants = { active: "accent", paused: "review", closed: "neutral" } as const;
+    for (const vacancy of NEXO_VACANCIES) {
+      const { container, unmount } = await renderPipeline(vacancy.id);
+      const status = container.querySelector("[data-pf-vacancy-status]") as HTMLElement;
+      expect(status, vacancy.id).not.toBeNull();
+      expect(status.tagName).toBe("SPAN");
+      expect(status).toHaveAttribute("data-slot", "badge");
+      expect(status).toHaveAttribute("data-pf-vacancy-status", vacancy.state);
+      expect(status).toHaveAttribute("data-variant", variants[vacancy.state]);
+      expect(status).toHaveAttribute("data-dot");
+      expect(status).toHaveTextContent(EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]);
+      // The leading dot is the shared recipe's `::before`, never a manual child.
+      expect(status.childNodes).toHaveLength(1);
+      expect(status.querySelectorAll("*")).toHaveLength(0);
+      expect(status).toBeVisible();
+      unmount();
+    }
+  });
 });
 
 describe("/empresa/vacantes/[jobId]/pipeline content", () => {
@@ -269,5 +289,14 @@ describe("/empresa/vacantes/[jobId]/pipeline source boundaries", () => {
     expect(pageSource).not.toContain("company-dashboard/employer-shell");
     expect(pageSource).not.toContain("company-dashboard/ui/sidebar");
     expect(pageSource).not.toMatch(/\brobots\b|\bcanonical\b/u);
+  });
+
+  it("exposes the header status through the shared Badge instead of a raw span recipe", () => {
+    expect(pageSource).toContain('import { Badge, type BadgeVariant } from "@/components/ui/badge"');
+    expect(pageSource).toMatch(/STATUS_VARIANT: Readonly<Record<EmployerVacancyState, BadgeVariant>>/u);
+    expect(pageSource).toMatch(/<Badge\b[^>]*dot/u);
+    expect(pageSource).not.toContain("STATUS_BADGE");
+    expect(pageSource).not.toMatch(/border-primary\/15/u);
+    expect(pageSource).not.toMatch(/inline-flex items-center rounded-full border/u);
   });
 });

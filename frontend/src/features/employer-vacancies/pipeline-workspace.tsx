@@ -4,7 +4,7 @@ import * as React from "react";
 import { Columns3Icon, ListIcon, SearchIcon } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -18,18 +18,17 @@ import { CANDIDATE_SOURCE_LABELS, CANDIDATE_STATUS_LABELS, summarizeCandidateSta
 import type { PipelineCandidate } from "./pipeline-model";
 
 /**
- * Supplemental stage accent: the Spanish label always carries the meaning, so
- * the dot and the count Badge only reinforce it. The tone is badge text and
- * border over a low-opacity background of the same semantic `--status-*` token,
- * so no raw color value is authored here.
+ * Semantic stage variant: the Spanish label always carries the meaning, so the
+ * shared Badge variant only reinforces it through the `--status-*` tokens. No
+ * raw color value or local tone recipe is authored here.
  */
-const STAGE_TONE: Readonly<Record<VacancyPipelineStage, string>> = {
-  submitted: "border-status-info/40 bg-status-info/10 text-status-info",
-  in_review: "border-status-review/40 bg-status-review/10 text-status-review",
-  hired: "border-status-success/40 bg-status-success/10 text-status-success",
-  rejected: "border-status-danger/40 bg-status-danger/10 text-status-danger",
+const STAGE_VARIANT: Readonly<Record<VacancyPipelineStage, BadgeVariant>> = {
+  submitted: "info",
+  in_review: "review",
+  hired: "success",
+  rejected: "danger",
 };
-/** Supplementary dot color, derived from the same semantic stage vocabulary. */
+/** Supplementary dot color for the non-Badge column-heading stage marker. */
 const STAGE_DOT: Readonly<Record<VacancyPipelineStage, string>> = {
   submitted: "bg-status-info",
   in_review: "bg-status-review",
@@ -72,11 +71,12 @@ const matchesQuery = (candidate: PipelineCandidate, needle: string): boolean =>
 /** Honest zero-comment copy, shared by both representations. */
 const commentCopy = (count: number) => (count === 0 ? "Sin comentarios" : plural(count, "comentario", "comentarios"));
 
-/** Match-score Badge shared by the board card and the list row; the optional
-    stage tone echoes the reference's small colored priority label. */
-function MatchScore({ score, tone }: { score: number; tone?: string }) {
+/** Match-score Badge shared by the board card and the list row. A counter is
+    not a status, so it never opts into the decorative dot even when it reuses a
+    semantic stage variant for color. */
+function MatchScore({ score, variant }: { score: number; variant?: BadgeVariant }) {
   return (
-    <Badge variant="outline" className={`font-bold tabular-nums${tone ? ` ${tone}` : ""}`}><span className="sr-only">Compatibilidad </span>{score}%</Badge>
+    <Badge variant={variant ?? "outline"} className="font-bold tabular-nums"><span className="sr-only">Compatibilidad </span>{score}%</Badge>
   );
 }
 
@@ -103,7 +103,7 @@ function CandidateCard({ candidate }: { candidate: PipelineCandidate }) {
           <CardTitle><h3 className="text-balance text-[14px] leading-snug font-semibold text-foreground">{candidate.fullName}</h3></CardTitle>
           <p className={`mt-0.5 text-pretty leading-snug ${META}`}>{candidate.professionalTitle}</p>
         </div>
-        <MatchScore score={candidate.matchScore} tone={STAGE_TONE[candidate.status]} />
+        <MatchScore score={candidate.matchScore} variant={STAGE_VARIANT[candidate.status]} />
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         <p className={META}>{plural(candidate.yearsOfExperience, "año", "años")} de experiencia</p>
@@ -130,7 +130,7 @@ function BoardColumn({ stage, count, candidates }: { stage: VacancyPipelineStage
           <span aria-hidden="true" className={`size-2.5 rounded-full ${STAGE_DOT[stage]}`} />
           <h3 className="text-[13.5px] font-semibold text-foreground">{label}</h3>
         </div>
-        <Badge variant="outline" data-pf-pipeline-column-count={stage} className={`text-[11px] font-semibold tabular-nums ${STAGE_TONE[stage]}`}>{count}</Badge>
+        <Badge variant={STAGE_VARIANT[stage]} data-pf-pipeline-column-count={stage} className="text-[11px] font-semibold tabular-nums">{count}</Badge>
       </header>
       {candidates.length === 0 ? (
         <Empty data-pf-pipeline-column-empty={stage} className="border border-dashed border-border p-4">
@@ -159,7 +159,7 @@ function ViewSwitch({ view, onChange }: { view: PipelineView; onChange: (next: P
       variant="outline"
       spacing={0}
       value={[view]}
-      onValueChange={(next) => {
+      onValueChange={(next: string[]) => {
         // Base UI emits an empty array when the active item is toggled off; ignoring it keeps one view always selected.
         const [nextView] = next;
         if (nextView === "board" || nextView === "list") onChange(nextView);
@@ -188,7 +188,7 @@ function CandidateRow({ candidate }: { candidate: PipelineCandidate }) {
         <p className={`mt-0.5 ${META}`}>{candidate.professionalTitle}</p>
       </TableCell>
       <TableCell className={CELL}>
-        <Badge variant="outline" className={`text-[12px] font-semibold tabular-nums ${STAGE_TONE[candidate.status]}`}>{CANDIDATE_STATUS_LABELS[candidate.status]}</Badge>
+        <Badge variant={STAGE_VARIANT[candidate.status]} dot className="text-[12px] font-semibold tabular-nums">{CANDIDATE_STATUS_LABELS[candidate.status]}</Badge>
       </TableCell>
       <TableCell className={`${CELL} ${META}`}>{plural(candidate.yearsOfExperience, "año", "años")} de experiencia</TableCell>
       <TableCell className={CELL}>

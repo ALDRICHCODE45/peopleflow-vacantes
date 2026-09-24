@@ -19,7 +19,8 @@ const IMPLEMENTATION_STATUS_COPY = /\b(?:demo|mock|prototip\w*|fictici\w*|prueba
 const FILTER_LABELS = ["Todas", "Enviadas", "En revisión", "Contratadas", "Rechazadas"] as const;
 const SEARCH_LABEL = "Buscar por puesto o empresa";
 const STATUS_TEXT = { submitted: "Enviada", in_review: "En revisión", hired: "Contratada", rejected: "Rechazada" } as const;
-const STATUS_TONES = { submitted: "status-info", in_review: "status-review", hired: "status-success", rejected: "status-danger" } as const;
+const STATUS_VARIANTS = { submitted: "info", in_review: "review", hired: "success", rejected: "danger" } as const;
+const STATUS_TOKENS = { submitted: "status-info", in_review: "status-review", hired: "status-success", rejected: "status-danger" } as const;
 const block = (pattern: RegExp) => GLOBALS.match(pattern)?.[1] ?? "";
 const LIGHT = block(/:root \{\s*color-scheme: light;([\s\S]*?)\n\}/u);
 const DARK = block(/\.dark \{([\s\S]*?)\n\}/u);
@@ -188,19 +189,25 @@ describe("applications workspace cards view", () => {
     expect(container.querySelector("a[href='#']")).toBeNull();
   });
 
-  it("renders status through a shadcn Badge with four token tones defined in @theme, light, explicit-dark and system-dark blocks", () => {
+  it("maps every application status onto the exact semantic Badge variant with a decorative dot", () => {
     const { container } = renderWorkspace();
-    const tones = new Set<string>();
+    const variants = new Set<string>();
     for (const application of CANDIDATE_APPLICATIONS) {
       const node = badge(row(container, application));
       expect(node).not.toBeNull();
       expect(node).toHaveTextContent(STATUS_TEXT[application.status]);
-      expect(node.className).toContain(STATUS_TONES[application.status]);
+      expect(node).toHaveAttribute("data-slot", "badge");
+      expect(node).toHaveAttribute("data-variant", STATUS_VARIANTS[application.status]);
+      expect(node).toHaveAttribute("data-dot");
+      expect(node.className).toContain(STATUS_TOKENS[application.status]);
       expect(RAW_COLOR.test(node.className)).toBe(false);
-      tones.add(STATUS_TONES[application.status]);
+      // The dot is the shared recipe's `::before`, never a manually rendered child.
+      expect(node.childNodes).toHaveLength(1);
+      expect(node.querySelectorAll("*")).toHaveLength(0);
+      variants.add(STATUS_VARIANTS[application.status]);
     }
-    expect(tones).toEqual(new Set(["status-info", "status-review", "status-success", "status-danger"]));
-    for (const token of Object.values(STATUS_TONES)) {
+    expect(variants).toEqual(new Set(["info", "review", "success", "danger"]));
+    for (const token of Object.values(STATUS_TOKENS)) {
       expect(GLOBALS).toMatch(new RegExp(`--color-${token}:\\s*var\\(--${token}\\)`, "u"));
       for (const body of [LIGHT, DARK, SYSTEM_DARK]) expect(body, `--${token} definition`).toContain(`--${token}:`);
     }
@@ -584,6 +591,12 @@ describe("applications workspace contract", () => {
     // Rendered copy must stay product-facing: no implementation-status disclosure.
     expect(IMPLEMENTATION_STATUS_COPY.test(stripComments(SOURCE))).toBe(false);
     expect(SOURCE).not.toContain("data-pf-applications-disclosure");
+    // The semantic mapping replaced the duplicated local tone recipe.
+    expect(SOURCE).toContain("type BadgeVariant");
+    expect(SOURCE).toMatch(/STATUS_VARIANT: Readonly<Record<ApplicationStatus, BadgeVariant>>/u);
+    expect(SOURCE).toContain("<Badge variant={STATUS_VARIANT[status]} dot>");
+    expect(SOURCE).not.toContain("STATUS_TONE");
+    for (const token of Object.values(STATUS_TOKENS)) expect(SOURCE, token).not.toContain(`border-${token}/40`);
   });
 
   it("centers the workspace on the approved profile measure with a single padding owner", () => {

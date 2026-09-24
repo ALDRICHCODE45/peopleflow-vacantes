@@ -2,7 +2,7 @@ import Link from "next/link"
 import { ArrowUpRight, BriefcaseBusiness, CircleCheckBig, Clock3, FileText, Files, Link2Off } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
+import { Badge, type BadgeVariant } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
@@ -65,16 +65,16 @@ const formatFileSize = (bytes: number): string => bytes >= 1024 * 1024 ? `${DECI
 const countLabel = (count: number, singular: string, plural: string): string => `${count} ${count === 1 ? singular : plural}`
 
 /**
- * Canonical semantic status tones: the Spanish label always carries the meaning
- * and the `--status-*` token only reinforces it as Badge text and border over a
- * low-opacity background of the same token. No legacy grayscale/violet token
- * and no raw color value is authored here.
+ * Canonical semantic status variants: the Spanish label always carries the
+ * meaning and the shared Badge variant reinforces it through the `--status-*`
+ * tokens. No legacy grayscale/violet token and no raw color value is authored
+ * here.
  */
-const STATUS_TONE: Readonly<Record<ApplicationStatus, string>> = {
-  submitted: "border-status-info/40 bg-status-info/10 text-status-info",
-  in_review: "border-status-review/40 bg-status-review/10 text-status-review",
-  hired: "border-status-success/40 bg-status-success/10 text-status-success",
-  rejected: "border-status-danger/40 bg-status-danger/10 text-status-danger",
+const STATUS_VARIANT: Readonly<Record<ApplicationStatus, BadgeVariant>> = {
+  submitted: "info",
+  in_review: "review",
+  hired: "success",
+  rejected: "danger",
 }
 /** The same four tokens paint the proportional bar segments and legend dots. */
 const STATUS_BAR: Readonly<Record<ApplicationStatus, string>> = {
@@ -83,10 +83,6 @@ const STATUS_BAR: Readonly<Record<ApplicationStatus, string>> = {
   hired: "bg-status-success",
   rejected: "bg-status-danger",
 }
-
-/** Semantic completeness Badge: success when every scored field is present, review otherwise. */
-const COMPLETE_BADGE = "border-status-success/40 bg-status-success/10 text-status-success"
-const INCOMPLETE_BADGE = "border-status-review/40 bg-status-review/10 text-status-review"
 
 /**
  * Navigation keeps the anchor element and its link role: the shadcn Button
@@ -113,9 +109,10 @@ function Medallion({ icon: Icon }: Readonly<{ icon: LucideIcon }>) {
   )
 }
 
-/** Status as text inside its semantic tone: the Spanish label carries the meaning. */
+/** Status as text inside its semantic variant: the Spanish label carries the
+    meaning and the shared decorative dot only supplements it. */
 function StatusBadge({ status }: Readonly<{ status: ApplicationStatus }>) {
-  return <Badge variant="outline" className={STATUS_TONE[status]}>{APPLICATION_STATUS_LABELS[status]}</Badge>
+  return <Badge variant={STATUS_VARIANT[status]} dot>{APPLICATION_STATUS_LABELS[status]}</Badge>
 }
 
 /** One derived KPI tile: icon medallion, exact label, tabular value and detail. */
@@ -269,7 +266,7 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
               <CardHeader>
                 <h3 id="candidate-overview-profile" className="font-heading text-base font-semibold text-foreground">Tu perfil</h3>
                 <CardAction>
-                  <Badge variant="outline" className={completeness.percentage === 100 ? COMPLETE_BADGE : INCOMPLETE_BADGE}>
+                  <Badge variant={completeness.percentage === 100 ? "success" : "review"}>
                     {completeness.percentage === 100 ? "Completo" : "Incompleto"}
                   </Badge>
                 </CardAction>

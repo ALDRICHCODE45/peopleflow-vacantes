@@ -95,8 +95,12 @@ describe("TeamWorkspace member rows", () => {
     expect(rowText(container, "andrea-pena")).toContain("Sin vacantes asignadas");
     expect(rowText(container, "lucia-navarro")).toContain(TEAM_MEMBER_STATUS_LABELS.invited);
     expect(rowText(container, "lucia-navarro")).toContain("Sin vacantes asignadas");
-    // Meaning lives in the text; the dot is decorative and hidden from assistive tech.
-    expect(rowOf(container, "valeria-ortiz").querySelector("[aria-hidden='true']")).not.toBeNull();
+    // Meaning lives in the text; the dot is the shared Badge `::before` and the
+    // avatar stays decorative, so neither adds accessible copy.
+    const valeriaBadge = rowOf(container, "valeria-ortiz").querySelector("[data-slot='badge']") as HTMLElement;
+    expect(valeriaBadge).toHaveAttribute("data-dot");
+    expect(valeriaBadge.querySelectorAll("*")).toHaveLength(0);
+    expect(rowOf(container, "valeria-ortiz").querySelector("[data-pf-team-avatar][aria-hidden='true']")).not.toBeNull();
     expect(rowText(container, "valeria-ortiz")).not.toContain("1 vacantes");
   });
 
@@ -135,6 +139,32 @@ describe("TeamWorkspace member rows", () => {
     for (const row of rows) {
       expect([row.tagName, row.closest("a"), row.closest("button"), row.querySelectorAll("a, button, input, select, textarea, [tabindex]").length]).toEqual(["LI", null, null, 0]);
     }
+  });
+});
+
+describe("TeamWorkspace status Badges", () => {
+  const STATUS_VARIANTS = { active: "success", invited: "review" } as const;
+
+  it("maps each member status onto the shared semantic Badge with a decorative dot", () => {
+    const { container } = renderTeam();
+    for (const member of NEXO_TEAM_MEMBERS) {
+      const badge = rowOf(container, member.id).querySelector("[data-slot='badge']") as HTMLElement;
+      expect(badge, member.id).not.toBeNull();
+      expect(badge).toHaveAttribute("data-variant", STATUS_VARIANTS[member.status]);
+      expect(badge).toHaveAttribute("data-dot");
+      expect(badge).toHaveTextContent(TEAM_MEMBER_STATUS_LABELS[member.status]);
+      // The leading dot is the shared recipe's `::before`, never a manual child.
+      expect(badge.childNodes).toHaveLength(1);
+      expect(badge.querySelectorAll("*")).toHaveLength(0);
+    }
+  });
+
+  it("deletes the duplicated local tone and dot class maps", () => {
+    expect(source).toContain("type BadgeVariant");
+    expect(source).toMatch(/STATUS_VARIANT: Readonly<Record<TeamMemberStatus, BadgeVariant>>/u);
+    expect(source).not.toContain("STATUS_BADGE");
+    expect(source).not.toContain("STATUS_DOT");
+    expect(source).not.toContain("border-border bg-secondary text-foreground");
   });
 });
 

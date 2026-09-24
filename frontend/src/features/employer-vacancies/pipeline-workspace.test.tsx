@@ -21,6 +21,7 @@ const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|color-mix)\(/u;
 const classesOf = (root: Element) => Array.from(root.querySelectorAll("[class]")).map((node) => node.getAttribute("class") ?? "").join(" ");
 const slot = (root: Element, name: string) => root.querySelector(`[data-slot="${name}"]`) as HTMLElement;
 const STATUS_TONES = { submitted: "status-info", in_review: "status-review", hired: "status-success", rejected: "status-danger" } as const;
+const STAGE_VARIANTS = { submitted: "info", in_review: "review", hired: "success", rejected: "danger" } as const;
 const backend = NEXO_VACANCIES.find((vacancy) => vacancy.id === "backend-developer-senior") as EmployerVacancy;
 const backendCandidates = NEXO_CANDIDATES.filter((candidate) => candidate.vacancyId === backend.id);
 const renderWorkspace = (vacancy: EmployerVacancy = backend, candidates: readonly PipelineCandidate[] = backendCandidates) =>
@@ -43,9 +44,12 @@ describe("PipelineWorkspace board structure", () => {
       const count = container.querySelector(`[data-pf-pipeline-column-count="${stage}"]`) as HTMLElement;
       expect(count).toHaveTextContent("1");
       expect(count).toHaveAttribute("data-slot", "badge");
+      expect(count).toHaveAttribute("data-variant", STAGE_VARIANTS[stage]);
       expect(count.className).toContain(STATUS_TONES[stage]);
-      expect(count.className).not.toMatch(/bg-primary/u);
       expect(RAW_COLOR.test(count.className)).toBe(false);
+      // A stage count is a counter, not a status, so it never takes the dot.
+      expect(count).not.toHaveAttribute("data-dot");
+      expect(count.className).not.toContain("before:");
     }
   });
 
@@ -80,6 +84,48 @@ describe("PipelineWorkspace candidate cards", () => {
     }
     const badges = Array.from(card.querySelectorAll("[data-slot='badge']"));
     for (const value of ["Node.js", "PostgreSQL", "88%"]) expect(badges.some((node) => node.textContent?.includes(value))).toBe(true);
+  });
+
+  it("keeps match scores, skills and stage counters dotless while only status labels carry the dot", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+    const card = container.querySelector('[data-pf-pipeline-card="lucia-fernandez"]') as HTMLElement;
+    const badges = Array.from(card.querySelectorAll("[data-slot='badge']"));
+    const score = badges.find((node) => node.textContent?.includes("88%")) as HTMLElement;
+    expect(score).toHaveAttribute("data-variant", STAGE_VARIANTS.submitted);
+    expect(score).not.toHaveAttribute("data-dot");
+    expect(score.className).not.toContain("before:");
+    for (const skill of ["Node.js", "PostgreSQL"]) {
+      const chip = badges.find((node) => node.textContent === skill) as HTMLElement;
+      expect(chip, skill).toHaveAttribute("data-variant", "outline");
+      expect(chip).not.toHaveAttribute("data-dot");
+    }
+    for (const stage of VACANCY_PIPELINE_STAGES) {
+      const count = container.querySelector(`[data-pf-pipeline-column-count="${stage}"]`) as HTMLElement;
+      expect(count, stage).not.toHaveAttribute("data-dot");
+    }
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+    const listScore = Array.from(container.querySelectorAll('[data-pf-pipeline-row] [data-slot="badge"]')).find((node) => node.textContent?.includes("88%")) as HTMLElement;
+    expect(listScore).toHaveAttribute("data-variant", "outline");
+    expect(listScore).not.toHaveAttribute("data-dot");
+  });
+
+  it("keeps the column-heading stage marker as a non-Badge dot outside the migrated labels", () => {
+    const { container } = renderWorkspace();
+    for (const stage of VACANCY_PIPELINE_STAGES) {
+      const marker = column(container, stage).querySelector("header [aria-hidden='true']") as HTMLElement;
+      expect(marker, stage).not.toBeNull();
+      expect(marker.getAttribute("data-slot")).toBeNull();
+      expect(marker.className).toContain(STATUS_TONES[stage]);
+    }
+  });
+
+  it("replaces the duplicated stage tone recipe with the typed semantic variant map", () => {
+    expect(source).toContain("type BadgeVariant");
+    expect(source).toMatch(/STAGE_VARIANT: Readonly<Record<VacancyPipelineStage, BadgeVariant>>/u);
+    expect(source).toContain("<Badge variant={STAGE_VARIANT[candidate.status]} dot");
+    expect(source).not.toContain("STAGE_TONE");
+    for (const token of Object.values(STATUS_TONES)) expect(source, token).not.toContain(`border-${token}/40`);
   });
 
   it("only renders a next step when the candidate has one", () => {
@@ -305,7 +351,12 @@ describe("PipelineWorkspace list mode over the filtered set", () => {
     expect(container.querySelector('[data-pf-pipeline-row="renata-vargas"]')).toHaveTextContent("Contratados");
     const statusBadge = Array.from(lucia.querySelectorAll("[data-slot='badge']")).find((node) => node.textContent === CANDIDATE_STATUS_LABELS.submitted);
     expect(statusBadge).not.toBeNull();
+    expect(statusBadge).toHaveAttribute("data-variant", STAGE_VARIANTS.submitted);
+    expect(statusBadge).toHaveAttribute("data-dot");
     expect(statusBadge?.className).toContain(STATUS_TONES.submitted);
+    // The dot is the shared recipe's `::before`, never a manually rendered child.
+    expect(statusBadge?.childNodes).toHaveLength(1);
+    expect(statusBadge?.querySelectorAll("*")).toHaveLength(0);
     expect(container.querySelector('[data-pf-pipeline-row="diego-salazar"]')).toHaveTextContent("4 comentarios");
     expect(container.querySelector('[data-pf-pipeline-next-step="diego-salazar"]')).toHaveTextContent("Agendar entrevista técnica");
     expect(container.querySelector('[data-pf-pipeline-next-step="renata-vargas"]')).toBeNull();
