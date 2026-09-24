@@ -210,6 +210,11 @@ describe("/vacantes synchronous boundaries", () => {
     const reset = vi.fn();
     render(<ErrorBoundary error={new Error("upstream")} reset={reset} />);
     expect(screen.getByRole("alert")).toBeVisible();
+    const headings = screen.getAllByRole("heading", { level: 1 });
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveAccessibleName(
+      "No se pudieron cargar las vacantes",
+    );
     fireEvent.click(screen.getByRole("button", { name: /intentar de nuevo/i }));
     expect(reset).toHaveBeenCalledOnce();
   });
