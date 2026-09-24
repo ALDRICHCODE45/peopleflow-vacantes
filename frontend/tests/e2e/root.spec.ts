@@ -10,8 +10,8 @@ import { assertUiPrimitiveInventory } from "../support/assert-ui-primitive-inven
 // probed again from independent angles: width × color-scheme matrix, axe scans,
 // computed Inter typography, WCAG AA contrast, focus visibility, reserved image
 // dimensions, exact b27M1Ev2 preset identity, absence of ad hoc raw-color /
-// custom-radius / primitive-style overrides, absence of charts and employer
-// menus, and absence of root API requests.
+// custom-radius / primitive-style overrides, the intentional Recharts 3.x
+// dashboard adoption and employer-menu absence, and no root API requests.
 
 const FRONTEND_ROOT = process.cwd();
 
@@ -123,28 +123,32 @@ function parseColor(input: string): Rgb {
   throw new Error(`Unparsable computed color: "${value}"`);
 }
 
+function compositeOver(top: Rgb, bottom: Rgb): Rgb {
+  if (top.alpha >= 1) return top;
+  return {
+    r: top.r * top.alpha + bottom.r * (1 - top.alpha),
+    g: top.g * top.alpha + bottom.g * (1 - top.alpha),
+    b: top.b * top.alpha + bottom.b * (1 - top.alpha),
+    alpha: 1,
+  };
+}
+
 function relativeLuminance({ r, g, b, alpha }: Rgb): number {
   const linear = (v: number) =>
     v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
   return (0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)) * alpha;
 }
 
-function contrastRatio(foreground: string, background: string): number {
-  const fg = parseColor(foreground);
-  const bg = parseColor(background);
+function contrastRatioRgb(fg: Rgb, bg: Rgb): number {
   // Composite the foreground over the background when it carries alpha.
-  const blended =
-    fg.alpha < 1
-      ? {
-          r: fg.r * fg.alpha + bg.r * (1 - fg.alpha),
-          g: fg.g * fg.alpha + bg.g * (1 - fg.alpha),
-          b: fg.b * fg.alpha + bg.b * (1 - fg.alpha),
-          alpha: 1,
-        }
-      : fg;
+  const blended = compositeOver(fg, bg);
   const l1 = relativeLuminance(blended);
   const l2 = relativeLuminance(bg);
   return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+
+function contrastRatio(foreground: string, background: string): number {
+  return contrastRatioRgb(parseColor(foreground), parseColor(background));
 }
 
 // ---------------------------------------------------------------------------
@@ -152,7 +156,7 @@ function contrastRatio(foreground: string, background: string): number {
 // ---------------------------------------------------------------------------
 
 test.describe("minimal public root", () => {
-  test("renders the shared public shell with one clear vacancy entry point", async ({
+  test("renders the scoped reference landing with one hero heading", async ({
     page,
   }) => {
     await page.goto("/");
@@ -161,22 +165,215 @@ test.describe("minimal public root", () => {
 
     const rootHeadings = page.getByRole("heading", { level: 1 });
     await expect(rootHeadings).toHaveCount(1);
-    await expect(rootHeadings.first()).not.toBeEmpty();
+    await expect(rootHeadings.first()).toHaveText(
+      /Publica\.?\s*Recibe\.?\s*Contrata\./,
+    );
 
-    const vacantesLinks = page.getByRole("link", { name: /vacantes/i });
-    await expect(vacantesLinks).toHaveCount(1);
-    await expect(vacantesLinks.first()).toHaveAttribute("href", "/vacantes");
+    // The landing is scoped so its marketing stylesheet cannot leak into the
+    // candidate/auth routes.
+    await expect(page.locator("[data-pf-reference-landing]")).toHaveCount(1);
 
+    // Reference links are non-operational prototype placeholders ("#") plus
+    // the real brand route; every anchor stays addressable.
     const hrefs = await page
       .locator("a")
       .evaluateAll((anchors) => anchors.map((a) => a.getAttribute("href")));
+    expect(hrefs.length).toBeGreaterThan(10);
     for (const href of hrefs) {
-      expect(["/", "/vacantes"]).toContain(href);
+      expect(href).not.toBeNull();
     }
 
-    await expect(page.getByRole("button")).toHaveCount(0);
+    // The marketing header owns exactly one Ingresar menu trigger and one
+    // persisted theme toggle; the primary CTA stays a non-operational link.
+    const nav = page.locator("#nav");
+    await expect(
+      nav.getByRole("button", { name: "Ingresar", exact: true }),
+    ).toHaveCount(1);
+    const themeButtons = page.getByRole("button", { name: /cambiar tema/i });
+    await expect(themeButtons).toHaveCount(1);
+    await expect(themeButtons).toHaveAttribute("data-pf-theme-toggle", "");
+    await expect(
+      nav.getByRole("link", { name: "Empezar gratis", exact: true }),
+    ).toHaveAttribute("href", "#empezar");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Floating marketing navbar: detached capsule, real destinations, no overflow.
+// ---------------------------------------------------------------------------
+
+const NAV_LINK_DESTINATIONS = [
+  ["Vacantes", "/vacantes"],
+  ["Producto", "#producto"],
+  ["Soluciones", "#soluciones"],
+];
+
+const NAV_HASH_DESTINATIONS = [
+  ["Producto", "producto"],
+  ["Soluciones", "soluciones"],
+  ["Empezar gratis", "empezar"],
+] as const;
+
+test.describe("floating marketing navbar", () => {
+  test("detaches the header into a floating capsule that owns the scrolled state", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto("/");
+
+    const nav = page.locator("#nav");
+    const capsule = nav.locator("[data-pf-nav-floating]");
+    await expect(capsule).toHaveCount(1);
+
+    // Side/top breathing room with the concentric 16px capsule radius.
+    const navBox = (await nav.boundingBox())!;
+    const box = (await capsule.boundingBox())!;
+    expect(navBox.x).toBe(0);
+    expect(box.x).toBeGreaterThanOrEqual(16);
+    expect(box.y).toBeGreaterThanOrEqual(8);
+    expect(Math.round(box.x + box.width)).toBeLessThanOrEqual(1280 - 16);
+    expect(
+      await capsule.evaluate((el) => getComputedStyle(el).borderTopLeftRadius),
+    ).toBe("16px");
+
+    // The shell stays transparent and lets the capsule paint the surface.
+    const transparent = "rgba(0, 0, 0, 0)";
+    const background = (target: typeof nav) =>
+      target.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(await background(nav)).toBe(transparent);
+    const resting = await background(capsule);
+    expect(resting).not.toBe(transparent);
+
+    // Real destinations only: Precios/Recursos are removed from the DOM.
+    const links = await nav
+      .locator("ul a")
+      .evaluateAll((els) =>
+        els.map((el) => [el.textContent?.trim(), el.getAttribute("href")]),
+      );
+    expect(links).toEqual(NAV_LINK_DESTINATIONS);
+    await expect(
+      nav.getByRole("link", { name: "Precios", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      nav.getByRole("link", { name: "Recursos", exact: true }),
+    ).toHaveCount(0);
+
+    // Scrolling retargets the backdrop to the capsule while the shell stays
+    // pinned, transparent, and the owner of the `scrolled` state class.
+    await expect(nav).not.toHaveClass(/scrolled/);
+    await page.evaluate(() => window.scrollTo(0, 600));
+    await expect(nav).toHaveClass(/scrolled/);
+    await expect(nav).toHaveCSS("position", "sticky");
+    expect(await background(nav)).toBe(transparent);
+    // The capsule colour transition settles into the scrolled backdrop.
+    await expect.poll(() => background(capsule)).not.toBe(resting);
+    expect(Math.round((await nav.boundingBox())!.y)).toBe(0);
+  });
+
+  test("drives every marketing navbar destination to a real place", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto("/");
+
+    const nav = page.locator("#nav");
+    await expect(
+      nav.getByRole("link", { name: "Empezar gratis", exact: true }),
+    ).toHaveAttribute("href", "#empezar");
+
+    for (const [label, id] of NAV_HASH_DESTINATIONS) {
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await nav.getByRole("link", { name: label, exact: true }).click();
+      await expect.poll(() => new URL(page.url()).hash).toBe(`#${id}`);
+
+      const navBox = (await nav.boundingBox())!;
+      const sectionBox = (await page.locator(`#${id}`).boundingBox())!;
+      // The anchored section clears the floating navbar instead of hiding
+      // behind it, and it really moved into view.
+      expect(
+        sectionBox.y,
+        `#${id} must not be covered by the floating navbar`,
+      ).toBeGreaterThanOrEqual(Math.round(navBox.y + navBox.height) - 1);
+      expect(sectionBox.y).toBeGreaterThan(0);
+    }
+
+    await page.goto("/");
+    await nav.getByRole("link", { name: "Vacantes", exact: true }).click();
+    await expect(page).toHaveURL(/\/vacantes$/);
+  });
+
+  test("keeps every control inside 375px, with desktop links hidden", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 812 });
+    await page.goto("/");
+
+    const nav = page.locator("#nav");
+    for (const label of ["Vacantes", "Producto", "Soluciones"]) {
+      await expect(
+        nav.getByRole("link", { name: label, exact: true }),
+      ).toBeHidden();
+    }
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0);
+
+    // Brand, login, theme and CTA stay visible inside the viewport.
+    const selectors = [
+      "a[aria-label='PeopleFlow']",
+      "button[aria-haspopup='menu']",
+      "[data-pf-theme-toggle]",
+      "a.btn-primary",
+    ];
+    const controls = await nav.evaluate((el, targets) =>
+      targets.map((selector) => {
+        const node = el.querySelector(selector);
+        if (!node) return null;
+        return { selector, ...node.getBoundingClientRect().toJSON() };
+      }),
+      selectors,
+    );
+    expect(controls.filter(Boolean)).toHaveLength(4);
+    for (const control of controls) {
+      if (!control) continue;
+      expect(control.width, control.selector).toBeGreaterThan(0);
+      expect(control.x, control.selector).toBeGreaterThanOrEqual(0);
+      expect(control.right, control.selector).toBeLessThanOrEqual(375);
+      expect(control.bottom, control.selector).toBeLessThanOrEqual(812);
+    }
+  });
+
+  test("gives the marketing navbar an explicit keyboard focus treatment", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto("/");
+
+    await page.keyboard.press("Tab");
+    const focus = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el) return null;
+      const s = getComputedStyle(el);
+      return {
+        inNav: Boolean(el.closest("#nav")),
+        outlineStyle: s.outlineStyle,
+        outlineWidth: s.outlineWidth,
+        outlineOffset: s.outlineOffset,
+      };
+    });
+    expect(focus).toEqual({
+      inNav: true,
+      outlineStyle: "solid",
+      outlineWidth: "2px",
+      outlineOffset: "2px",
+    });
+  });
+});
+
 
 // ---------------------------------------------------------------------------
 // Width × color-scheme matrix: typography, contrast, focus, images, requests.
@@ -204,16 +401,23 @@ for (const scheme of SCHEMES) {
 
         await expect(page.locator("html")).toHaveAttribute("lang", "es-MX");
 
-        // Exactly one heading and exactly one clear vacancy entry point.
+        // Exactly one hero heading and one scoped landing root.
         const h1 = page.getByRole("heading", { level: 1 });
         await expect(h1).toHaveCount(1);
-        const vacantesLinks = page.getByRole("link", { name: /vacantes/i });
-        await expect(vacantesLinks).toHaveCount(1);
-        await expect(vacantesLinks.first()).toHaveAttribute(
-          "href",
-          "/vacantes",
+        await expect(page.locator("[data-pf-reference-landing]")).toHaveCount(
+          1,
         );
-        await expect(page.getByRole("button")).toHaveCount(0);
+        // The marketing header owns exactly one Ingresar menu trigger and one
+        // persisted theme toggle at both representative widths.
+        const nav = page.locator("#nav");
+        await expect(
+          nav.getByRole("button", { name: "Ingresar", exact: true }),
+        ).toHaveCount(1);
+        const themeButtons = page.getByRole("button", {
+          name: /cambiar tema/i,
+        });
+        await expect(themeButtons).toHaveCount(1);
+        await expect(themeButtons).toHaveAttribute("data-pf-theme-toggle", "");
 
         // No horizontal overflow at either representative width.
         const overflowPx = await page.evaluate(
@@ -224,23 +428,22 @@ for (const scheme of SCHEMES) {
         expect(overflowPx).toBeLessThanOrEqual(0);
 
         // Wait for the visible brand asset before reading intrinsic dimensions.
-        const visibleLogo = page.locator("img[alt='PeopleFlow']:visible");
+        // Scoped to the marketing navbar: the footer repeats the same mark.
+        const visibleLogo = page.locator("#nav img[alt='PeopleFlow']:visible");
         await expect(visibleLogo).toHaveJSProperty("naturalWidth", 1584);
         await expect(visibleLogo).toHaveJSProperty("naturalHeight", 396);
 
-        // Computed typography: Inter for body, Clash Display (Inter
-        // fallback) for the heading role via --font-heading.
+        // Computed typography: Inter for body, the licensed Clash Display face
+        // for the landing display heading (landing-local font family).
         const styles = await page.evaluate(() => {
           const computed = (el: Element) => getComputedStyle(el);
           const h1El = document.querySelector("h1");
-          const vacantesLink = [...document.querySelectorAll("a")].find(
-            (a) => a.getAttribute("href") === "/vacantes",
-          );
-          // One PeopleFlow mark per color scheme; measure the visible one.
+          // One PeopleFlow mark per color scheme inside #nav; measure the
+          // visible one (the footer repeats the same mark).
           const logo =
             [
               ...document.querySelectorAll<HTMLImageElement>(
-                "img[alt='PeopleFlow']",
+                "#nav img[alt='PeopleFlow']",
               ),
             ].find((img) => getComputedStyle(img).display !== "none") ?? null;
           return {
@@ -248,10 +451,6 @@ for (const scheme of SCHEMES) {
             h1Font: h1El ? computed(h1El).fontFamily : null,
             bodyColor: computed(document.body).color,
             bodyBackground: computed(document.body).backgroundColor,
-            linkColor: vacantesLink ? computed(vacantesLink).color : null,
-            linkBackground: vacantesLink
-              ? computed(vacantesLink).backgroundColor
-              : null,
             logo: logo
               ? {
                   width: logo.getAttribute("width"),
@@ -270,59 +469,50 @@ for (const scheme of SCHEMES) {
         expect(styles.bodyFont).toMatch(/Inter/);
         expect(styles.h1Font).toContain("Clash Display");
 
-        // Semantic WCAG AA contrast for body text and the vacancy entry point.
+        // Semantic WCAG AA contrast for the body text on the page foundation.
         expect(
           contrastRatio(styles.bodyColor, styles.bodyBackground),
           `body text contrast (${styles.bodyColor} on ${styles.bodyBackground})`,
         ).toBeGreaterThanOrEqual(4.5);
-        expect(
-          contrastRatio(
-            styles.linkColor as string,
-            styles.linkBackground as string,
-          ),
-          `vacantes link contrast (${styles.linkColor} on ${styles.linkBackground})`,
-        ).toBeGreaterThanOrEqual(4.5);
 
-        // Approved brand marks keep reserved, exact dimensions.
+        // Approved brand marks keep reserved, exact dimensions at the
+        // reference header height (h-6 wordmark, 24px).
         expect(styles.logo).not.toBeNull();
         expect(styles.logo?.width).toBe("1584");
         expect(styles.logo?.height).toBe("396");
         expect(styles.logo?.naturalWidth).toBe(1584);
         expect(styles.logo?.naturalHeight).toBe(396);
-        expect(styles.logo?.renderedHeight).toBeCloseTo(32, 0);
+        expect(styles.logo?.renderedHeight).toBeCloseTo(28, 0);
         expect(styles.logo?.renderedRatio).toBeCloseTo(4, 1);
 
-        // Visible keyboard focus on the /vacantes entry point itself.
-        await page.getByRole("link", { name: /vacantes/i }).focus();
+        // Visible keyboard focus: Tab moves focus off <body> onto a real
+        // interactive element and the focused element shows a visible cue.
+        await page.keyboard.press("Tab");
         const focus = await page.evaluate(() => {
-          const el = document.activeElement as HTMLAnchorElement | null;
+          const el = document.activeElement as HTMLElement | null;
           if (!el) return null;
           const s = getComputedStyle(el);
           return {
-            href: el.getAttribute("href"),
+            tag: el.tagName,
             outlineStyle: s.outlineStyle,
             outlineWidth: s.outlineWidth,
+            boxShadow: s.boxShadow,
           };
         });
         expect(focus).not.toBeNull();
-        expect(focus?.href).toBe("/vacantes");
-        expect(focus?.outlineStyle).not.toBe("none");
-        expect(Number.parseFloat(focus?.outlineWidth ?? "0")).toBeGreaterThan(
-          0,
-        );
+        expect(focus?.tag).not.toBe("BODY");
+        expect(
+          focus?.outlineStyle !== "none" || focus?.boxShadow !== "none",
+        ).toBe(true);
 
-        // No root API requests: same-origin /api traffic is also rejected.
-        // The licensed Fontshare stylesheet and its CDN font files are the
-        // only approved cross-origin loads.
+        // No root API requests: same-origin /api traffic is rejected. The
+        // reference fonts are self-hosted from public/fonts (same origin),
+        // so no cross-origin font CDN is allowed either.
         for (const url of requestUrls) {
           const parsed = new URL(url);
-          const fontshare =
-            parsed.protocol === "https:" &&
-            /(?:^|\.)fontshare\.com$/.test(parsed.hostname);
           expect(
             (parsed.origin === BASE_URL &&
               !parsed.pathname.startsWith("/api")) ||
-              fontshare ||
               /^(data|blob|about):/.test(parsed.protocol),
             `unexpected request from root: ${url}`,
           ).toBe(true);
@@ -333,6 +523,69 @@ for (const scheme of SCHEMES) {
         page,
       }) => {
         await page.goto("/");
+
+        // Wait for the reveal island to hydrate first: `pf-motion-ready` is
+        // added in the same effect that attaches the observer, so the walk
+        // cannot race past sections that would then never be observed.
+        await expect
+          .poll(async () =>
+            page.evaluate(
+              () =>
+                document
+                  .querySelector("[data-pf-reference-landing]")
+                  ?.classList.contains("pf-motion-ready") ?? false,
+            ),
+          )
+          .toBe(true);
+
+        // The reveal-on-scroll island mounts asynchronously and paints every
+        // `.reveal` section at opacity 0 until its IntersectionObserver
+        // (threshold 0.14) marks it `in`. Axe skips content that is still
+        // hidden, so the scan must run on the fully revealed page. Walk every
+        // `.reveal` into view (two animation frames per stop so the observer
+        // callback is processed before scrolling on), then poll until the
+        // lifecycle has settled: at least one `.reveal` exists and every
+        // `.reveal` under the landing root carries class `in` with computed
+        // opacity exactly 1. No fixed sleeps, no scan-time hiding, and no axe
+        // exclusions.
+        await page.evaluate(async () => {
+          const nextFrame = () =>
+            new Promise((resolve) =>
+              requestAnimationFrame(() => resolve(null)),
+            );
+          const root = document.querySelector("[data-pf-reference-landing]");
+          const reveals = Array.from(root?.querySelectorAll(".reveal") ?? []);
+          for (const reveal of reveals) {
+            reveal.scrollIntoView({ block: "center" });
+            await nextFrame();
+            await nextFrame();
+          }
+          window.scrollTo(0, 0);
+          await nextFrame();
+        });
+
+        await expect
+          .poll(async () =>
+            page.evaluate(() => {
+              const root = document.querySelector(
+                "[data-pf-reference-landing]",
+              );
+              if (!root || !root.classList.contains("pf-motion-ready")) {
+                return false;
+              }
+              const reveals = Array.from(root.querySelectorAll(".reveal"));
+              if (reveals.length === 0) {
+                return false;
+              }
+              return reveals.every(
+                (element) =>
+                  element.classList.contains("in") &&
+                  getComputedStyle(element).opacity === "1",
+              );
+            }),
+          )
+          .toBe(true);
+
         const results = await new AxeBuilder({ page })
           .withTags(["wcag2a", "wcag2aa"])
           .analyze();
@@ -340,6 +593,75 @@ for (const scheme of SCHEMES) {
       });
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Marketing login menu: one trigger, two real destinations, real focus.
+// ---------------------------------------------------------------------------
+
+const MARKETING_MENU_DESTINATIONS = [
+  ["Candidato", "/candidato/login"],
+  ["Empresa", "/empresa/login"],
+] as const;
+
+for (const [label, viewport] of Object.entries(VIEWPORTS)) {
+  test.describe(`marketing login menu — ${label} viewport`, () => {
+    test.use({ viewport });
+
+    test(`opens exactly the two login destinations at ${label} width`, async ({ page }) => {
+      const runtimeErrors: string[] = [];
+      page.on("pageerror", (error) => runtimeErrors.push(error.message));
+      page.on("console", (message) => {
+        if (message.type() === "error") runtimeErrors.push(message.text());
+      });
+
+      await page.goto("/");
+      // Realistic hydration: document load, bounded network idle, one beat.
+      await page.waitForLoadState("load");
+      await page.waitForLoadState("networkidle", { timeout: 5000 }).catch(() => undefined);
+      await page.waitForTimeout(100);
+
+      const trigger = page.locator("#nav").getByRole("button", { name: "Ingresar", exact: true });
+      await expect(trigger).toHaveCount(1);
+
+      // Exactly one non-retried click opens the popup.
+      await trigger.click();
+      await expect(trigger).toHaveAttribute("aria-expanded", "true");
+
+      const menu = page.getByRole("menu");
+      await expect(menu).toBeVisible();
+      await expect(menu.getByRole("menuitem")).toHaveCount(2);
+      for (const [name, href] of MARKETING_MENU_DESTINATIONS) {
+        await expect(
+          menu.getByRole("menuitem", { name, exact: true }),
+        ).toHaveAttribute("href", href);
+      }
+
+      // The open popup stays inside the viewport and adds no overflow.
+      const overflowPx = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      expect(overflowPx).toBeLessThanOrEqual(0);
+      const popup = (await menu.boundingBox())!;
+      expect([
+        popup.x >= 0,
+        Math.round(popup.x + popup.width) <= viewport.width,
+        Math.round(popup.y + popup.height) <= viewport.height,
+      ]).toEqual([true, true, true]);
+
+      // Escape closes with focus return; the keyboard reopens without leaving.
+      await page.keyboard.press("Escape");
+      await expect(menu).toHaveCount(0);
+      await expect(trigger).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(menu).toBeVisible();
+      await expect(menu.getByRole("menuitem")).toHaveCount(2);
+      await page.keyboard.press("Escape");
+      await expect(trigger).toBeFocused();
+
+      // The interaction never left the root route or logged a runtime error.
+      expect(new URL(page.url()).pathname).toBe("/");
+      expect(runtimeErrors).toEqual([]);
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -373,7 +695,9 @@ test.describe("preset b27M1Ev2 triangulation", () => {
     expect(deps.tailwindcss).toMatch(/^4\./); // Tailwind CSS v4
     expect(deps["@base-ui/react"]).toEqual(expect.any(String)); // explicit Base UI
     expect(deps["lucide-react"]).toEqual(expect.any(String)); // Lucide icons
-    expect(deps.recharts).toBeUndefined(); // no chart library installed
+    // Recharts 3.x is intentionally adopted by the employer dashboard charts;
+    // this preset slice pins that adopted major instead of forbidding charts.
+    expect(deps.recharts).toMatch(/^3\./);
   });
 
   test("globals.css keeps Violet theme, Neutral chart tokens, and Default radius", () => {

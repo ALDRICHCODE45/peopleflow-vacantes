@@ -6,10 +6,15 @@ const requests = [];
 // and cleared only by `/__recover` or `/__reset`, so a prefetch or an aborted
 // timeout request can never silently consume a one-shot failure.
 const failureState = { kind: null };
-// Task 8.4 / C2 — deterministic test-only controls: visibility of the
-// main vacancy (list membership and its detail answer) plus an armed
-// response delay so buffering assertions can await completed responses.
+// Task 8.4 — request-time visibility. `hiddenJobs` is the id-keyed contract
+// (`/__visibility?id=&visible=`) applied to every later list or detail read;
+// `visibilityState.hidden` is the C2 contract (`/__visibility?hidden=0|1`)
+// that hides the main fixture vacancy from both reads.
+const hiddenJobs = new Set();
 const visibilityState = { hidden: false };
+// Task 8.4 / C2 — armed response delay so buffering assertions can await
+// completed responses. It applies only to `/jobs` data responses, never to
+// the control endpoints.
 const delayState = { ms: 0 };
 const job = {
   id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e",
@@ -48,13 +53,14 @@ const richDetailJob = {
 // Isolated long-content vacancy for the wrapping/readability scenario: every
 // field is schema-valid, and the title contains one uninterrupted segment
 // that natural word wrapping cannot break, so a row without `overflow-wrap`
-// would force horizontal overflow on narrow viewports.
+// would force horizontal overflow on narrow viewports. The description stays
+// long enough that a pre-render character budget would be observable.
 const longContentJob = {
   id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d90",
   title:
     "Ingeniería de Plataformas de Datos y Observabilidad para la plataformaoperativadedatosyobservabilidadintegraldistribuida",
   description:
-    "Descripción extensa de prueba para el escenario de contenido largo.",
+    "Contexto del equipo de plataforma.\n\n\tResponsabilidades del rol: <script>alert('xss')</script> construir  flujos   de datos confiables; revisar <img src=x onerror=alert(1)> tableros operativos; documentar decisiones de arquitectura y acompañar a otras personas en el diseño de servicios de observabilidad distribuida de extremo a extremo. 🙂 Cierre del anuncio de prueba.",
   work_mode: "hybrid",
   employment_type: "contract",
   seniority: "lead",
@@ -142,6 +148,134 @@ const andProofPool = [
 // ordinary MXN fallback job.
 const currencyPool = [job, currencyProofJob];
 
+// Task 8.3 GREEN — fixture-only sentinel dataset for the conjunctive
+// every-predicate USD proof. The target matches all six supported predicates
+// and each decoy fails exactly one, so an OR evaluation over the fully
+// conjunctive URL would leak at least one decoy while AND must return only the
+// target.
+const usdConjunctiveQ = "conjuntiva";
+const usdConjunctiveTarget = {
+  id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d96",
+  title: "Analista Conjuntiva de Datos",
+  description: "Prueba conjuntiva de todos los predicados en dólares.",
+  work_mode: "remote",
+  employment_type: "full_time",
+  seniority: "senior",
+  salary_currency: "USD",
+  salary_min: 100000,
+  salary_max: 120000,
+  location: "Monterrey",
+  company: {
+    id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d97",
+    name: "Acme",
+  },
+};
+const usdConjunctiveDecoys = [
+  // Fails only `q`: the search term is absent from the title.
+  {
+    id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d98",
+    title: "Desarrolladora Senior de Plataformas",
+    description: "Decoy que falla solo la búsqueda.",
+    work_mode: "remote",
+    employment_type: "full_time",
+    seniority: "senior",
+    salary_currency: "USD",
+    salary_min: 100000,
+    salary_max: 120000,
+    location: "Monterrey",
+    company: {
+      id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d99",
+      name: "Acme",
+    },
+  },
+  // Fails only `seniority`.
+  {
+    id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d9a",
+    title: "Ingeniera Conjuntiva Lead",
+    description: "Decoy que falla solo la seniority.",
+    work_mode: "remote",
+    employment_type: "full_time",
+    seniority: "lead",
+    salary_currency: "USD",
+    salary_min: 100000,
+    salary_max: 120000,
+    location: "Monterrey",
+    company: {
+      id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7da2",
+      name: "Acme",
+    },
+  },
+  // Fails only `work_mode`.
+  {
+    id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d9b",
+    title: "Diseñadora Conjuntiva Híbrida",
+    description: "Decoy que falla solo la modalidad.",
+    work_mode: "hybrid",
+    employment_type: "full_time",
+    seniority: "senior",
+    salary_currency: "USD",
+    salary_min: 100000,
+    salary_max: 120000,
+    location: "Monterrey",
+    company: {
+      id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7da3",
+      name: "Acme",
+    },
+  },
+  // Fails only `employment_type`.
+  {
+    id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d9c",
+    title: "Scrum Master Conjuntiva",
+    description: "Decoy que falla solo el tipo de empleo.",
+    work_mode: "remote",
+    employment_type: "contract",
+    seniority: "senior",
+    salary_currency: "USD",
+    salary_min: 100000,
+    salary_max: 120000,
+    location: "Monterrey",
+    company: {
+      id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d9d",
+      name: "Acme",
+    },
+  },
+  // Fails only `location`.
+  {
+    id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d9e",
+    title: "QA Conjuntiva Guadalajara",
+    description: "Decoy que falla solo la ubicación.",
+    work_mode: "remote",
+    employment_type: "full_time",
+    seniority: "senior",
+    salary_currency: "USD",
+    salary_min: 100000,
+    salary_max: 120000,
+    location: "Guadalajara",
+    company: {
+      id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d9f",
+      name: "Acme",
+    },
+  },
+  // Fails only `currency`.
+  {
+    id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7da0",
+    title: "DevOps Conjuntiva MXN",
+    description: "Decoy que falla solo la moneda.",
+    work_mode: "remote",
+    employment_type: "full_time",
+    seniority: "senior",
+    salary_currency: "MXN",
+    salary_min: 100000,
+    salary_max: 120000,
+    location: "Monterrey",
+    company: {
+      id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7da1",
+      name: "Acme",
+    },
+  },
+];
+const usdConjunctiveJobs = [usdConjunctiveTarget, ...usdConjunctiveDecoys];
+
 // Task 8.3 / C1 — strict scalar-filter evaluation: `q` matches every
 // token case-insensitively across title/description, enum filters are
 // exact, `location` is a case-insensitive substring, and `currency` is
@@ -171,12 +305,33 @@ function matchesEveryPredicate(vacancy, searchParams) {
   return true;
 }
 
+// Deterministic fixture-only conjunctive evaluator: every present supported
+// predicate (`q`, `seniority`, `work_mode`, `employment_type`, `location`,
+// `currency`) must match. `cursor` stays pagination, never a predicate.
+function matchesUsdConjunctive(item, searchParams) {
+  const q = searchParams.get("q");
+  if (q !== null && !item.title.toLowerCase().includes(q.toLowerCase()))
+    return false;
+  for (const [param, field] of [
+    ["seniority", "seniority"],
+    ["work_mode", "work_mode"],
+    ["employment_type", "employment_type"],
+    ["location", "location"],
+    ["currency", "salary_currency"],
+  ]) {
+    const value = searchParams.get(param);
+    if (value !== null && item[field] !== value) return false;
+  }
+  return true;
+}
+
 // Detail map: known ids answer `/jobs/{id}` with their bare job shape.
 const detailJobs = {
   [job.id]: job,
   [longContentJob.id]: longContentJob,
   [richDetailJob.id]: richDetailJob,
   [currencyProofJob.id]: currencyProofJob,
+  [usdConjunctiveTarget.id]: usdConjunctiveTarget,
 };
 
 function send(response, status, payload) {
@@ -186,11 +341,16 @@ function send(response, status, payload) {
 
 const server = createServer((request, response) => {
   const url = new URL(request.url ?? "/", `http://${request.headers.host}`);
+  // Task 8.4 — a vacancy is hidden when it is id-hidden (source contract) or
+  // when the C2 toggle hides the main fixture vacancy.
+  const isHidden = (id) =>
+    hiddenJobs.has(id) || (visibilityState.hidden && id === job.id);
   if (url.pathname === "/__health") return send(response, 200, { ok: true });
   if (url.pathname === "/__requests") return send(response, 200, requests);
   if (url.pathname === "/__reset") {
     requests.length = 0;
     failureState.kind = null;
+    hiddenJobs.clear();
     visibilityState.hidden = false;
     delayState.ms = 0;
     return send(response, 200, { ok: true });
@@ -209,6 +369,18 @@ const server = createServer((request, response) => {
     return send(response, 200, { ok: true });
   }
   if (url.pathname === "/__visibility") {
+    const id = url.searchParams.get("id");
+    const visible = url.searchParams.get("visible");
+    // Id-keyed contract: `/__visibility?id=<id>&visible=true|false` toggles
+    // one vacancy's visibility through the fixture's hidden set.
+    if (id !== null || visible !== null) {
+      if (id === null || (visible !== "true" && visible !== "false"))
+        return send(response, 400, { error: "bad visibility control" });
+      if (visible === "false") hiddenJobs.add(id);
+      else hiddenJobs.delete(id);
+      return send(response, 200, { ok: true, visible });
+    }
+    // C2 contract: `/__visibility?hidden=0|1` hides the main vacancy.
     const hidden = url.searchParams.get("hidden");
     if (hidden !== "0" && hidden !== "1")
       return send(response, 400, { error: "hidden must be 0 or 1" });
@@ -243,17 +415,18 @@ const server = createServer((request, response) => {
   // request models the nonempty final page: items are present but
   // `next_cursor` is absent, so the frontend must omit pagination. A
   // detail request's payload is the bare job, or `undefined` for an
-  // unknown identifier, which is answered with a backend 404 below.
+  // unknown or hidden identifier, which is answered with a backend 404 below.
+  // Task 8.4 — hidden vacancies leave both the list payload and the detail
+  // lookup, mirroring the backend visibility boundary.
+  const listItems = [job].filter((item) => !isHidden(item.id));
   const payload =
     detailId !== undefined
-      ? visibilityState.hidden && detailId === job.id
+      ? isHidden(detailId)
         ? undefined
         : detailJobs[detailId]
       : url.searchParams.has("cursor")
-        ? { items: visibilityState.hidden ? [] : [job] }
-        : visibilityState.hidden
-          ? { items: [] }
-          : { items: [job], next_cursor: "opaque a+b/c=" };
+        ? { items: listItems }
+        : { items: listItems, next_cursor: "opaque a+b/c=" };
   if (url.searchParams.get("q") === "error") {
     return respond(response, 503, { error: "unavailable" });
   }
@@ -295,11 +468,24 @@ const server = createServer((request, response) => {
     const items = andProofPool.filter((vacancy) =>
       matchesEveryPredicate(vacancy, url.searchParams),
     );
-    const payload = url.searchParams.has("cursor")
+    const filtered = url.searchParams.has("cursor")
       ? { items }
       : { items, next_cursor: "opaque a+b/c=" };
-    return respond(response, 200, payload);
+    return respond(response, 200, filtered);
   }
+  // Task 8.3 GREEN — the conjunctive sentinel query serves the dedicated
+  // dataset evaluated conjunctively over every present supported predicate.
+  if (url.searchParams.get("q") === usdConjunctiveQ)
+    return respond(response, 200, {
+      items: usdConjunctiveJobs.filter((item) =>
+        matchesUsdConjunctive(item, url.searchParams),
+      ),
+      // Pagination stays pagination: a cursor request answers the nonempty
+      // final page, a first page advertises the next cursor.
+      ...(url.searchParams.has("cursor")
+        ? {}
+        : { next_cursor: "opaque a+b/c=" }),
+    });
   // Task 8.3 / C1 — currency-only requests evaluate the exact single
   // currency over the mixed MXN/USD pool; `currency=USD` keeps the 300ms
   // delay so the pending announcement stays observable.

@@ -1,0 +1,61 @@
+/* LOGIN-01 - shared candidate/employer login shell.
+
+   Variant accent tokens are LOCAL to this screen: the global preset identity
+   keeps its violet --primary while the candidate surface uses the cyan
+   reference accent. Audited AA pairs (both themes):
+     employer CTA   #9336EA + #FFFFFF text  -> ~5.3:1
+     candidate CTA  #22D3EE + #0C0912 text  -> ~10.9:1
+     employer link  #7B22C9 on #F7F5FB -> ~6.7:1 / #B266FF on #0C0912 -> ~5.9:1
+     candidate link #0E7490 on #F7F5FB -> ~5:1   / #22D3EE on #0C0912 -> ~10.9:1
+
+   The `.x.x` doubled-class form outranks the single-class Tailwind utilities
+   shipped inside buttonVariants, so the CTA recolor wins regardless of order.
+
+   The desktop visual panel is the STATIC branded fallback: its background is
+   theme-aware (warm light --base / dark baseline) so the OGL leaf's light
+   `invert(1)` + `multiply` composition stays neutral over it, and it hosts the
+   canonical theme-swapped PeopleFlow wordmarks until CCP-R7D2 layers the
+   reference OGL motion on top. */
+
+.accentEmployer {
+  --pf-login-accent-link: #7b22c9;
+  --pf-login-cta-bg: #9336ea;
+  --pf-login-cta-fg: #ffffff;
+  --pf-login-visual-tint: rgb(147 54 234 / 18%);
+}
+
+:global(.dark) .accentEmployer {
+  --pf-login-accent-link: #b266ff;
+  --pf-login-visual-tint: rgb(147 54 234 / 24%);
+}
+
+.accentCandidate {
+  --pf-login-accent-link: #0e7490;
+  --pf-login-cta-bg: #22d3ee;
+  --pf-login-cta-fg: #0c0912;
+  --pf-login-visual-tint: rgb(34 211 238 / 14%);
+}
+
+:global(.dark) .accentCandidate {
+  --pf-login-accent-link: #22d3ee;
+  --pf-login-visual-tint: rgb(34 211 238 / 18%);
+}
+
+.visualPanel.visualPanel {
+  /* Dark baseline: the repository dark --background value. */
+  background-color: #0c0912;
+  background-image: radial-gradient(90% 70% at 22% 78%, var(--pf-login-visual-tint), transparent 70%);
+}
+
+/* Light (explicit choice or system default, i.e. anything but the resolved
+   `.dark` class): the warm --base light value. The FloatingLines host is
+   `invert(1)` + `multiply`, so its black framebuffer becomes white and
+   multiplies neutrally over this warm surface instead of blackening the panel. */
+:global(html:not(.dark)) .visualPanel.visualPanel {
+  background-color: #f7f5fb;
+}
+
+.accentText.accentText { color: var(--pf-login-accent-link); }
+.cta.cta { background-color: var(--pf-login-cta-bg); color: var(--pf-login-cta-fg); }
+.cta.cta:hover:enabled { filter: brightness(1.06); }
+.checkbox.checkbox { accent-color: var(--pf-login-accent-link); }

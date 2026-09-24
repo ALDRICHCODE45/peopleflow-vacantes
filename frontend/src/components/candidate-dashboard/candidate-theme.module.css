@@ -1,0 +1,7 @@
+/* CPR-14 — PeopleFlow's violet primary lives in the global preset (globals.css). The
+   candidate shell opts into that shared palette only through the `.root` class below:
+   this module deliberately declares no token overrides and no candidate-specific accent,
+   so the global violet is never replaced by a candidate-scoped restatement. */
+.root {
+  color-scheme: inherit;
+}

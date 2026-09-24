@@ -7,22 +7,57 @@ export type RequestJsonError =
   | { kind: "not_found"; retryable: false; status: number }
   | { kind: "invalid_response"; retryable: false };
 
-export type RequestJsonResult<T> =
+/**
+ * Transport outcome. `envelope` is the decoded non-2xx body and exists only for
+ * callers that supply `errorDecoder`; every other caller keeps the exact
+ * pre-envelope result shape (`E` defaults to `never`).
+ */
+export type RequestJsonResult<T, E = never> =
   | { ok: true; data: T }
-  | { ok: false; error: RequestJsonError };
+  | { ok: false; error: RequestJsonError; envelope?: E };
 
-export type RequestJsonOptions<T> = {
+export type RequestJsonOptions<T, E = never> = {
   /** Feature-owned decoder; the shared transport never imports feature schemas. */
   decoder: (value: unknown) => T;
   timeoutMs?: number;
   /** Exact status that maps to a not-found result; every other status never does. */
   notFoundStatus?: number;
+  /**
+   * Exact success status. When supplied, only a response carrying this status is
+   * a success: another success-class (`2xx`) response is an `invalid_response`,
+   * because the endpoint contract was violated rather than a server error
+   * reported, and its body is never decoded as an error envelope. Omitting the
+   * option keeps the historical "any 2xx" rule every read caller relies on.
+   * Non-2xx responses keep the existing status/not-found classification and
+   * envelope decoding whatever the expected status is.
+   */
+  expectedStatus?: number;
+  /** HTTP method. Omitting it keeps the GET-only default every read caller relies on. */
+  method?: string;
+  /**
+   * JSON-serializable request body. When present the transport serializes it
+   * with `JSON.stringify` and applies a `content-type: application/json` header
+   * unless the caller supplied its own.
+   */
+  body?: unknown;
+  /**
+   * Extra request headers, merged over the transport defaults so a JSON caller
+   * owns its content type and any tracing header. The transport never injects
+   * `authorization`: authentication is the caller's explicit decision.
+   */
+  headers?: HeadersInit;
+  /**
+   * Optional decoder for a non-2xx JSON body. When supplied, the decoded value
+   * is attached to the failure result as `envelope`; an absent, unparsable, or
+   * rejected body leaves it undefined without changing the classification.
+   */
+  errorDecoder?: (value: unknown) => E;
 };
 
-export async function requestJson<T>(
+export async function requestJson<T, E = never>(
   url: string,
-  options: RequestJsonOptions<T>,
-): Promise<RequestJsonResult<T>> {
+  options: RequestJsonOptions<T, E>,
+): Promise<RequestJsonResult<T, E>> {
   const controller = new AbortController();
   let timedOut = false;
   const timer = setTimeout(() => {
@@ -31,31 +66,41 @@ export async function requestJson<T>(
   }, options.timeoutMs ?? DEFAULT_API_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
-      cache: "no-store",
-      headers: { accept: "application/json" },
-      signal: controller.signal,
-    });
+    const response = await fetch(url, buildRequestInit(options, controller.signal));
 
-    if (!response.ok) {
-      const status = response.status;
+    const status = response.status;
+    const succeeded =
+      options.expectedStatus === undefined
+        ? response.ok
+        : status === options.expectedStatus;
+
+    if (!succeeded) {
+      // A success-class body that misses the exact expected status is a success
+      // payload, not an error envelope: it is classified without being read.
+      if (response.ok) {
+        return {
+          ok: false,
+          error: { kind: "invalid_response", retryable: false },
+        };
+      }
+      const envelope = await decodeErrorEnvelope(response, options.errorDecoder);
       if (
         options.notFoundStatus !== undefined &&
         status === options.notFoundStatus
       ) {
-        return {
-          ok: false,
-          error: { kind: "not_found", retryable: false, status },
-        };
+        return failureResult(
+          { kind: "not_found", retryable: false, status },
+          envelope,
+        );
       }
-      return {
-        ok: false,
-        error: {
+      return failureResult(
+        {
           kind: "status",
           retryable: status === 429 || status >= 500,
           status,
         },
-      };
+        envelope,
+      );
     }
 
     let payload: unknown;
@@ -89,5 +134,65 @@ export async function requestJson<T>(
     };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/**
+ * Builds a failure result. The `envelope` key is attached only when a decoder
+ * actually produced a value, so a caller without `errorDecoder` (or whose body
+ * could not be decoded) keeps the strict legacy runtime shape: no own
+ * `envelope` property at all.
+ */
+function failureResult<T, E>(
+  error: RequestJsonError,
+  envelope: E | undefined,
+): RequestJsonResult<T, E> {
+  return envelope === undefined
+    ? { ok: false, error }
+    : { ok: false, error, envelope };
+}
+
+/**
+ * Builds the fetch init from the transport defaults plus the caller's optional
+ * method, JSON body, and header overrides. A read caller that passes none of
+ * them keeps the previous request byte-for-byte: no `method`, no `body`, and
+ * the single `accept` header.
+ */
+function buildRequestInit<T, E>(
+  options: RequestJsonOptions<T, E>,
+  signal: AbortSignal,
+): RequestInit {
+  const headers = new Headers({ accept: "application/json" });
+  if (options.headers !== undefined) {
+    new Headers(options.headers).forEach((value, name) => headers.set(name, value));
+  }
+
+  const init: RequestInit = { cache: "no-store", headers, signal };
+  if (options.method !== undefined) init.method = options.method;
+  if (options.body !== undefined) {
+    init.body = JSON.stringify(options.body);
+    // A JSON caller may set its own content type; the default only fills the gap.
+    if (!headers.has("content-type")) {
+      headers.set("content-type", "application/json");
+    }
+  }
+  return init;
+}
+
+/**
+ * Decodes a non-2xx JSON body into the caller's envelope type. A missing
+ * decoder, an unparsable body, or a rejecting decoder all collapse to
+ * `undefined`: the failure classification never depends on the error body, and
+ * no error-body detail can leak through the result.
+ */
+async function decodeErrorEnvelope<E>(
+  response: Response,
+  decoder?: (value: unknown) => E,
+): Promise<E | undefined> {
+  if (decoder === undefined) return undefined;
+  try {
+    return decoder(await response.json());
+  } catch {
+    return undefined;
   }
 }

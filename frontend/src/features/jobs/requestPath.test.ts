@@ -24,15 +24,16 @@ describe("single application-facing request path", () => {
     expect(fetchCallers.map(rel)).toEqual(["lib/api/requestJson.ts"]);
   });
 
-  it("reaches the transport only through the two guarded query functions", () => {
+  it("reaches the transport only through the guarded API functions", () => {
     const importers = files.filter((file) =>
       /lib\/api\/server"/.test(source(file)),
     );
     expect(importers.map(rel).sort()).toEqual([
       "features/jobs/api/getJob.ts",
       "features/jobs/api/listJobs.ts",
+      "features/jobs/create/createJob.ts",
     ]);
-    // The transport module is imported only by the two query functions and the guarded façade.
+    // The transport module is imported only by guarded API functions and the guarded façade.
     const transportImporters = files.filter(
       (file) =>
         /from "[^"]*lib\/api\/(?:server|requestJson)"/.test(source(file)) ||
@@ -41,6 +42,7 @@ describe("single application-facing request path", () => {
     expect(transportImporters.map(rel).sort()).toEqual([
       "features/jobs/api/getJob.ts",
       "features/jobs/api/listJobs.ts",
+      "features/jobs/create/createJob.ts",
       "lib/api/server.ts",
     ]);
   });

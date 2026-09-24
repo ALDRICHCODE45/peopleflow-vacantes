@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { MapPinIcon, SearchIcon } from "lucide-react";
 
-import { Button } from "../../../components/ui/button";
+import { Button, buttonVariants } from "../../../components/ui/button";
 import { Field, FieldGroup, FieldLabel } from "../../../components/ui/field";
 import { Input } from "../../../components/ui/input";
 import {
@@ -169,9 +169,10 @@ export function JobsNavigationIsland({
 
   return (
     <div
+      data-jobs-navigation-island
       onSubmitCapture={handleRootSubmitCapture}
       onClickCapture={handleRootClickCapture}
-      className="flex flex-col gap-6"
+      className="flex flex-col gap-6 md:-mx-[7px]"
     >
       <Sheet open={filtersOpen} onOpenChange={setFiltersOpen}>
         {/* One composed search surface: accessible q and location inputs plus
@@ -255,9 +256,15 @@ export function JobsNavigationIsland({
             </FieldGroup>
             <div className="flex flex-col gap-2">
               <Button type="submit">Aplicar filtros</Button>
-              <Button render={<Link href="/vacantes" />} variant="ghost">
+              {/* Button-styled navigation stays a real anchor: routing it
+                  through the shared Button would make Base UI treat the link as
+                  a non-native button. */}
+              <Link
+                href="/vacantes"
+                className={buttonVariants({ variant: "ghost" })}
+              >
                 Limpiar filtros
-              </Button>
+              </Link>
             </div>
           </form>
           <div className="flex min-w-0 flex-1 flex-col gap-4">
@@ -290,9 +297,12 @@ export function JobsNavigationIsland({
               <FilterFields idPrefix="mobile-" query={query} />
             </FieldGroup>
             <Button type="submit">Aplicar filtros</Button>
-            <Button render={<Link href="/vacantes" />} variant="ghost">
+            <Link
+              href="/vacantes"
+              className={buttonVariants({ variant: "ghost" })}
+            >
               Limpiar filtros
-            </Button>
+            </Link>
           </form>
           <div className="px-6 pb-6">
             <SheetClose
@@ -357,6 +367,30 @@ function ComposedSearchField({
   );
 }
 
+
+const SENIORITY_OPTIONS: ReadonlyArray<{ value: Seniority }> = [
+  { value: "intern" },
+  { value: "junior" },
+  { value: "mid" },
+  { value: "senior" },
+  { value: "lead" },
+];
+
+const WORK_MODE_OPTIONS: ReadonlyArray<{ value: WorkMode }> = [
+  { value: "onsite" },
+  { value: "remote" },
+  { value: "hybrid" },
+];
+
+const EMPLOYMENT_TYPE_OPTIONS: ReadonlyArray<{ value: EmploymentType }> = [
+  { value: "full_time" },
+  { value: "part_time" },
+  { value: "contract" },
+  { value: "internship" },
+];
+
+const CURRENCY_OPTIONS = ["MXN", "USD"] as const;
+
 type QuickFilterChip = {
   label: string;
   /** Scalar patch committed through `buildFilterCommitUrl`. */
@@ -407,29 +441,6 @@ const QUICK_FILTER_CHIPS: ReadonlyArray<QuickFilterChip> = [
     isActive: (query) => query.seniority === "senior",
   },
 ];
-
-const SENIORITY_OPTIONS: ReadonlyArray<{ value: Seniority }> = [
-  { value: "intern" },
-  { value: "junior" },
-  { value: "mid" },
-  { value: "senior" },
-  { value: "lead" },
-];
-
-const WORK_MODE_OPTIONS: ReadonlyArray<{ value: WorkMode }> = [
-  { value: "onsite" },
-  { value: "remote" },
-  { value: "hybrid" },
-];
-
-const EMPLOYMENT_TYPE_OPTIONS: ReadonlyArray<{ value: EmploymentType }> = [
-  { value: "full_time" },
-  { value: "part_time" },
-  { value: "contract" },
-  { value: "internship" },
-];
-
-const CURRENCY_OPTIONS = ["MXN", "USD"] as const;
 
 function FilterFields({
   idPrefix,

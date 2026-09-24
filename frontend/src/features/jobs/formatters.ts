@@ -1,3 +1,4 @@
+import type { JobPayFrequency } from "./enrich";
 import type { JobItem } from "./types";
 
 /**
@@ -29,6 +30,23 @@ const SENIORITY_LABELS = {
 export type WorkMode = JobItem["work_mode"];
 export type EmploymentType = JobItem["employment_type"];
 export type Seniority = JobItem["seniority"];
+export type PayFrequency = JobPayFrequency;
+
+/**
+ * Exhaustive Mexico Spanish labels for the prototype pay-frequency union, so a
+ * frequency added to the enrichment without a label here fails to typecheck
+ * instead of rendering `undefined`.
+ */
+const PAY_FREQUENCY_LABELS = {
+ monthly: "Mensual",
+ yearly: "Anual",
+ hourly: "Por hora",
+} as const satisfies Record<JobPayFrequency, string>;
+
+/** How often a prototype vacancy claims to pay, in Mexico Spanish. */
+export function payFrequencyLabel(value: JobPayFrequency): string {
+ return PAY_FREQUENCY_LABELS[value];
+}
 
 export function workModeLabel(value: WorkMode): string {
  return WORK_MODE_LABELS[value];
@@ -50,6 +68,17 @@ const publishedDateFormat = new Intl.DateTimeFormat("es-MX", {
 
 export function formatPublishedDate(value: string): string {
  return publishedDateFormat.format(new Date(value));
+}
+
+/** Deterministic long-form Mexico Spanish closing date, always rendered in UTC. */
+const closingDateFormat = new Intl.DateTimeFormat("es-MX", {
+ dateStyle: "long",
+ timeZone: "UTC",
+});
+
+/** Prototype-only closing date; the wire contract has no such field. */
+export function formatClosingDate(value: string): string {
+ return closingDateFormat.format(new Date(value));
 }
 
 export type SalaryCurrency = JobItem["salary_currency"];

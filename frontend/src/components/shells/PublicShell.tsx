@@ -1,12 +1,9 @@
 import * as React from "react";
-import Link from "next/link";
-import { PeopleFlowLogo } from "../brand/logo";
 
-const focusRing =
-  "rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
+import { PeopleFlowNavbar } from "../navigation/PeopleFlowNavbar";
 
-// Shared page container: one width/padding rhythm for header, main, and footer,
-// inherited by the root and future vacancy routes.
+// Shared page container: one width/padding rhythm for main and footer,
+// inherited by the root and every vacancy route.
 const shellContainer = "mx-auto w-full max-w-6xl px-4 md:px-6";
 
 export function PublicShell({ children }: { children: React.ReactNode }) {
@@ -24,27 +21,9 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
         className="pf-dot-grid pointer-events-none fixed inset-x-0 top-0 z-0 h-[520px]"
       />
       <div className="relative z-10 flex min-h-dvh flex-col">
-        <header className="sticky top-0 z-30 border-b border-border/70 bg-background/70 backdrop-blur-xl">
-          <div
-            className={`${shellContainer} flex h-16 items-center justify-between gap-4`}
-          >
-            <Link href="/" aria-label="PeopleFlow" className={focusRing}>
-              <PeopleFlowLogo />
-            </Link>
-            <nav aria-label="Navegación principal">
-              {/* Truthful public navigation only: the brand entry point and the
-                  vacancy board. No auth, publish, legal, or theme actions. A
-                  quiet opaque surface/foreground hit target keeps the
-                  AA-checked token pair measured by the root contrast test. */}
-              <Link
-                href="/vacantes"
-                className={`${focusRing} inline-flex items-center rounded-md bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-accent-foreground`}
-              >
-                Vacantes
-              </Link>
-            </nav>
-          </div>
-        </header>
+        {/* The header is delegated to the shared navbar so the floating
+            capsule stays identical across public browsing routes. */}
+        <PeopleFlowNavbar mode="public" />
         <main className={`${shellContainer} flex-1 py-10 md:py-12`}>
           {children}
         </main>

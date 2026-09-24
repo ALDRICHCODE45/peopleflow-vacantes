@@ -1,14 +1,8 @@
 import * as React from "react";
 import Link from "next/link";
-import {
-  BriefcaseIcon,
-  Building2Icon,
-  GlobeIcon,
-  MapPinIcon,
-  SearchXIcon,
-} from "lucide-react";
+import { SearchXIcon } from "lucide-react";
 
-import { Button } from "../../../components/ui/button";
+import { buttonVariants } from "../../../components/ui/button";
 import {
   Empty,
   EmptyContent,
@@ -17,33 +11,25 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "../../../components/ui/empty";
+import { findCompanyProfile } from "../../company-profile/model";
+import { PROTOTYPE_COMPANY_PROFILES } from "../../company-profile/prototype-companies";
 import { listJobs } from "../api/listJobs";
-import {
-  employmentTypeLabel,
-  formatPublishedDate,
-  formatSalary,
-  seniorityLabel,
-  workModeLabel,
-} from "../formatters";
+import { enrichJob } from "../enrich";
+import type { PrototypeJobView } from "../enrich";
 import { buildJobsUrl } from "../url";
 import type { JobsQuery } from "../url";
-import type { JobItem } from "../types";
+import { VacancyCard } from "./VacancyCard";
 
 /** The guarded list read's result union, derived without importing the transport façade. */
 type ListJobsResult = Awaited<ReturnType<typeof listJobs>>;
 
 // Server-rendered result states for the /vacantes list read: the page renders
-// the validated `RequestJsonResult` union directly — surfaced vacancy cards,
-// the empty state with an unfiltered reset link, and the retryable error
-// state. Only API-backed metadata is ever rendered; optional fields are
+// the validated `RequestJsonResult` union directly — the reusable vacancy card
+// for every item, the empty state with an unfiltered reset link, and the
+// retryable error state. Each wire item is enriched locally before rendering,
+// so only the vacancies the prototype knows gain extras and a company link,
+// and only API-backed metadata is otherwise rendered; optional fields are
 // omitted instead of fabricated.
-
-/** Deterministic two-letter monogram derived from the company name. */
-function companyInitials(name: string): string {
-  const words = name.trim().split(/\s+/).slice(0, 2);
-  const initials = words.map((word) => word.charAt(0)).join("");
-  return initials === "" ? "·" : initials.toUpperCase();
-}
 
 function EmptyState() {
   return (
@@ -58,7 +44,12 @@ function EmptyState() {
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent>
-        <Button render={<Link href="/vacantes" />}>Quitar filtros</Button>
+        {/* Button-styled navigation stays a real anchor: routing it through the
+            shared Button would make Base UI treat the link as a non-native
+            button. */}
+        <Link href="/vacantes" className={buttonVariants()}>
+          Quitar filtros
+        </Link>
       </EmptyContent>
     </Empty>
   );
@@ -76,92 +67,27 @@ function ErrorState({ query }: { query: JobsQuery }) {
       <p className="max-w-prose text-sm text-muted-foreground">
         El servicio de vacantes no respondió correctamente.
       </p>
-      <Button render={<Link href={buildJobsUrl(query)} />}>
+      <Link href={buildJobsUrl(query)} className={buttonVariants()}>
         Intentar de nuevo
-      </Button>
+      </Link>
     </section>
   );
 }
 
-/** Contextual icon per API-backed work mode, mirroring the reference board. */
-const WORK_MODE_ICONS = {
-  onsite: MapPinIcon,
-  remote: GlobeIcon,
-  hybrid: Building2Icon,
-} as const satisfies Record<JobItem["work_mode"], typeof MapPinIcon>;
-
-function JobRow({ job }: { job: JobItem }) {
-  const salary = formatSalary({
-    min: job.salary_min,
-    max: job.salary_max,
-    currency: job.salary_currency,
+/**
+ * Canonical careers link for one vacancy, or `undefined` for every vacancy the
+ * prototype does not know. The enrichment is the gate — an unknown id whose
+ * company name happens to match the prototype stays plain text — and the target
+ * resolves by exact id, then exact source name, to the one canonical
+ * `/empresas/<companyId>` route.
+ */
+function companyHrefFor(job: PrototypeJobView): string | undefined {
+  if (job.prototype === undefined) return undefined;
+  const profile = findCompanyProfile(PROTOTYPE_COMPANY_PROFILES, {
+    id: job.company.id,
+    name: job.company.name,
   });
-  const details = [
-    {
-      key: "work-mode",
-      label: workModeLabel(job.work_mode),
-      Icon: WORK_MODE_ICONS[job.work_mode],
-    },
-    {
-      key: "employment-type",
-      label: employmentTypeLabel(job.employment_type),
-      Icon: BriefcaseIcon,
-    },
-    { key: "seniority", label: seniorityLabel(job.seniority), Icon: null },
-  ];
-  const companyLine = job.location
-    ? `${job.company.name} · ${job.location}`
-    : job.company.name;
-
-  return (
-    <li className="rounded-2xl border border-border bg-card/60 p-4 [overflow-wrap:anywhere] transition-[transform,border-color,box-shadow] duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md hover:shadow-primary/10 focus-within:-translate-y-0.5 focus-within:border-primary/40 focus-within:shadow-md focus-within:shadow-primary/10 sm:p-5">
-      <div className="flex items-start gap-3.5 sm:gap-4">
-        <span
-          aria-hidden="true"
-          className="grid size-12 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-base font-semibold text-primary-foreground"
-        >
-          {companyInitials(job.company.name)}
-        </span>
-        <div className="flex min-w-0 flex-1 flex-col gap-1">
-          <h3 className="font-heading text-lg font-semibold tracking-tight text-foreground">
-            <Link
-              href={`/vacantes/${job.id}`}
-              className="hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-            >
-              {job.title}
-            </Link>
-          </h3>
-          <p className="text-sm text-muted-foreground">{companyLine}</p>
-          <div className="mt-1.5 flex flex-wrap gap-2">
-            {details.map((detail) => (
-              <span
-                key={detail.key}
-                className="flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs text-muted-foreground"
-              >
-                {detail.Icon && (
-                  <detail.Icon
-                    aria-hidden="true"
-                    className="size-3.5 shrink-0"
-                  />
-                )}
-                {detail.label}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
-      {(salary !== null || job.published_at !== undefined) && (
-        <div className="mt-3.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border pt-3 text-sm text-muted-foreground">
-          {salary !== null && (
-            <span className="font-medium text-foreground">{salary}</span>
-          )}
-          {job.published_at && (
-            <span>Publicada: {formatPublishedDate(job.published_at)}</span>
-          )}
-        </div>
-      )}
-    </li>
-  );
+  return profile === undefined ? undefined : `/empresas/${profile.companyId}`;
 }
 
 export function JobsResults({
@@ -183,24 +109,26 @@ export function JobsResults({
   return (
     <>
       <ul aria-label="Listado de vacantes" className="flex flex-col gap-3">
-        {items.map((job) => (
-          <JobRow key={job.id} job={job} />
-        ))}
+        {items.map((job) => {
+          const view = enrichJob(job);
+          return (
+            <VacancyCard
+              key={view.id}
+              job={view}
+              companyHref={companyHrefFor(view)}
+            />
+          );
+        })}
       </ul>
       {next_cursor && (
         <div className="flex justify-center pt-4">
-          <Button
-            size="lg"
-            variant="outline"
-            render={
-              <Link
-                href={buildJobsUrl({ ...query, cursor: next_cursor })}
-                data-jobs-next-link="true"
-              />
-            }
+          <Link
+            href={buildJobsUrl({ ...query, cursor: next_cursor })}
+            data-jobs-next-link="true"
+            className={buttonVariants({ variant: "outline", size: "lg" })}
           >
             Ver más vacantes
-          </Button>
+          </Link>
         </div>
       )}
     </>

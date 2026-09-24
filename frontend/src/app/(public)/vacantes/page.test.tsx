@@ -209,6 +209,19 @@ describe("/vacantes synchronous boundaries", () => {
     const ErrorBoundary = await loadErrorBoundary();
     const reset = vi.fn();
     render(<ErrorBoundary error={new Error("upstream")} reset={reset} />);
+    const heading = screen.getByRole("heading", {
+      level: 1,
+      name: "No se pudieron cargar las vacantes",
+    });
+    expect(heading).toBeVisible();
+    expect(heading.tagName).toBe("H1");
+    expect(
+      screen.queryByRole("heading", {
+        level: 2,
+        name: "No se pudieron cargar las vacantes",
+      }),
+    ).toBeNull();
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("alert")).toBeVisible();
     const headings = screen.getAllByRole("heading", { level: 1 });
     expect(headings).toHaveLength(1);

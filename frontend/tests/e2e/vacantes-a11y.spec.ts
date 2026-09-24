@@ -1,6 +1,10 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+// Isolated acceptance harness can keep the recovery fixture at 4010 while
+// pointing this spec at another fixture origin.
+const fixtureUrl = process.env.JOBS_FIXTURE_ORIGIN ?? "http://127.0.0.1:4010";
+
 // Task 4.3 TRIANGULATE (user-authorized bounded accessibility evidence subset):
 // independent /vacantes browser proof only — axe WCAG A/AA scans per width ×
 // color scheme, mobile Base UI Sheet title/Escape/focus-return, visible
@@ -539,7 +543,9 @@ test.describe("reduced motion on vacancy controls", () => {
     // Keyboard-only submission: Enter from the focused search input.
     await search.press("Enter");
 
-    const status = page.getByRole("status");
+    // Pending-search announcement lives in the navigation island; the card
+    // feedback island owns its own role="status" span, so scope to the nav <p>.
+    const status = page.locator("p[role='status']");
     await expect(status).toHaveText("Cargando…");
     // Focus must stay on the search input the whole time pending state is
     // announced; only the initiating submit button is disabled.
@@ -619,6 +625,78 @@ test.describe("vacancy detail axe WCAG A/AA matrix", () => {
             .withTags(["wcag2a", "wcag2aa"])
             .analyze();
           expect(results.violations).toEqual([]);
+        });
+      });
+    }
+  }
+});
+
+// Detail boundary ids: the main vacancy drives the retryable error boundary,
+// and the unknown id drives the branded not-found boundary.
+const DETAIL_MAIN_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
+const DETAIL_NOT_FOUND_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d99";
+
+// Shared boundary evidence: named single h1, exactly one h1, then axe WCAG A/AA.
+async function expectBoundarySingleH1Axe(
+  page: import("@playwright/test").Page,
+  request: import("@playwright/test").APIRequestContext,
+  path: string,
+  failure: "5xx" | null,
+  headingName: string,
+) {
+  await request.get(`${fixtureUrl}/__reset`);
+  if (failure) await request.get(`${fixtureUrl}/__failure?kind=${failure}`);
+  await page.goto(path);
+  await expect(
+    page.getByRole("heading", { level: 1, name: headingName }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  const results = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa"])
+    .analyze();
+  expect(results.violations).toEqual([]);
+}
+
+test.describe("vacancy detail error boundary accessibility", () => {
+  for (const scheme of SCHEMES) {
+    for (const [label, viewport] of Object.entries(VIEWPORTS)) {
+      test.describe(`${scheme} scheme, ${label} width`, () => {
+        test.use({ colorScheme: scheme, viewport });
+
+        test(`detail error boundary has no WCAG A/AA violations and exactly one h1 @a11y`, async ({
+          page,
+          request,
+        }) => {
+          await expectBoundarySingleH1Axe(
+            page,
+            request,
+            `/vacantes/${DETAIL_MAIN_ID}`,
+            "5xx",
+            "No se pudo cargar la vacante",
+          );
+        });
+      });
+    }
+  }
+});
+
+test.describe("vacancy detail not-found boundary accessibility", () => {
+  for (const scheme of SCHEMES) {
+    for (const [label, viewport] of Object.entries(VIEWPORTS)) {
+      test.describe(`${scheme} scheme, ${label} width`, () => {
+        test.use({ colorScheme: scheme, viewport });
+
+        test(`detail not-found boundary has no WCAG A/AA violations and exactly one h1 @a11y`, async ({
+          page,
+          request,
+        }) => {
+          await expectBoundarySingleH1Axe(
+            page,
+            request,
+            `/vacantes/${DETAIL_NOT_FOUND_ID}`,
+            null,
+            "Esta vacante no está disponible",
+          );
         });
       });
     }
