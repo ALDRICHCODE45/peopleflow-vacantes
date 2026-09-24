@@ -30,7 +30,7 @@ The current references show two mismatched treatments: thin outlined application
 
 ## Tasks
 
-- [ ] **BADGE-01 — Establish the primitive contract:** Add semantic variants, tokenized destructive styling, optional decorative status dot, reduced radius, and focused primitive tests.
+- [x] **BADGE-01 — Establish the primitive contract:** Added semantic variants, tokenized destructive styling, optional decorative status dot, reduced radius, and focused primitive tests in `b9b67e5`.
 - [ ] **BADGE-02 — Migrate product status badges:** Replace duplicated application/pipeline/publication/member tone maps and raw status spans with semantic variants while preserving labels and facts.
 - [ ] **BADGE-03 — Reconcile remaining badge consumers and guidance:** Migrate divergent dashboard/featured/role treatments where semantic pastel styling is intended, keep neutral chips/counters distinct, update affected tests, and record the durable design rule.
 - [ ] **BADGE-04 — Verify and close:** Run focused/full unit, TypeScript, ESLint, production build, LSP diagnostics, and isolated light/dark responsive visual acceptance; record exact evidence and residual risks.
@@ -43,6 +43,14 @@ The current references show two mismatched treatments: thin outlined application
 - The employer pipeline route and public job detail contain raw span-based badge treatments.
 - Neutral metadata chips and interactive filters are separate concepts and must not be forced into status variants.
 - Existing status tokens meet the established contrast contract and remain the color source of truth.
+
+## Evidence
+
+- `b9b67e5 feat(ui): add semantic badge variants`
+- Focused Badge tests: 1/1 file, 17/17 tests passed under Node 22.23.2.
+- TypeScript and focused ESLint passed with no warnings.
+- `badge.tsx` contains no raw `red-*` palette class and no conflict marker.
+- Pi Lens still reports unresolved installed `@base-ui/react/*` subpaths on both the changed Badge and unchanged shadcn primitives such as `button.tsx`; project `tsc --noEmit` resolves them successfully, so this is retained as a workspace-LSP limitation rather than a source error.
 
 ## Delivery Boundary
 
