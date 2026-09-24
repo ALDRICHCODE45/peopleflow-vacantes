@@ -1,14 +1,51 @@
 import { describe, expect, it } from "vitest";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+import { assertUiPrimitiveInventory } from "../../tests/support/assert-ui-primitive-inventory";
 
 // Vitest runs from frontend/, so cwd-relative paths keep the assertions stable.
 const frontendRoot = process.cwd();
+const requiredUiPrimitives = [
+  "button",
+  "empty",
+  "field",
+  "input",
+  "label",
+  "select",
+  "separator",
+  "sheet",
+] as const;
 
 function readJson(relativePath: string): Record<string, unknown> {
   return JSON.parse(
     readFileSync(join(frontendRoot, relativePath), "utf8"),
   ) as Record<string, unknown>;
+}
+
+function withUiInventory(
+  primitiveNames: readonly string[] | undefined,
+  assertion: (root: string) => void,
+): void {
+  const root = mkdtempSync(join(tmpdir(), "peopleflow-ui-inventory-"));
+  try {
+    if (primitiveNames) {
+      const uiDir = join(root, "src", "components", "ui");
+      mkdirSync(uiDir, { recursive: true });
+      for (const name of primitiveNames)
+        writeFileSync(join(uiDir, `${name}.tsx`), "");
+    }
+    assertion(root);
+  } finally {
+    rmSync(root, { force: true, recursive: true });
+  }
 }
 
 describe("shadcn preset b27M1Ev2 identity invariants", () => {
@@ -42,18 +79,46 @@ describe("shadcn preset b27M1Ev2 identity invariants", () => {
     expect(paths["@/*"]).toEqual(["./src/*"]);
   });
 
-  it("keeps product compositions out of the CLI-managed ui directory", () => {
-    const uiDir = join(frontendRoot, "src/components/ui");
-    if (!existsSync(uiDir)) return;
+  it("requires the CLI-managed UI directory to exist", () => {
+    withUiInventory(undefined, (root) => {
+      expect(() => assertUiPrimitiveInventory(root)).toThrow(
+        /src\/components\/ui must exist/,
+      );
+    });
+  });
 
-    const forbidden = /shell|brand|jobs|marketing|feature/i;
-    const names = readdirSync(uiDir, { recursive: true }).map(String);
-    for (const name of names) {
-      expect(
-        forbidden.test(name),
-        `${name} must not live under src/components/ui`,
-      ).toBe(false);
-    }
+  it("rejects an empty CLI-managed UI directory", () => {
+    withUiInventory([], (root) => {
+      expect(() => assertUiPrimitiveInventory(root)).toThrow(
+        /missing required primitives: button/,
+      );
+    });
+  });
+
+  it("rejects an incomplete CLI-managed UI directory", () => {
+    withUiInventory(requiredUiPrimitives.slice(0, -1), (root) => {
+      expect(() => assertUiPrimitiveInventory(root)).toThrow(
+        /missing required primitives: sheet/,
+      );
+    });
+  });
+
+  it("rejects product compositions under the CLI-managed UI directory", () => {
+    withUiInventory([...requiredUiPrimitives, "jobs-card"], (root) => {
+      expect(() => assertUiPrimitiveInventory(root)).toThrow(
+        /jobs-card\.tsx must not live under src\/components\/ui/,
+      );
+    });
+  });
+
+  it("allows additional generic UI primitives", () => {
+    withUiInventory([...requiredUiPrimitives, "tooltip"], (root) => {
+      expect(() => assertUiPrimitiveInventory(root)).not.toThrow();
+    });
+  });
+
+  it("keeps the installed UI primitive inventory generic and complete", () => {
+    assertUiPrimitiveInventory(frontendRoot);
   });
 
   it("keeps Tailwind CSS v4 as the styling runtime", () => {
