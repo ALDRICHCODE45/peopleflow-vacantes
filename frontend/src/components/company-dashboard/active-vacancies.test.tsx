@@ -156,7 +156,39 @@ describe("ActiveVacancies interaction and token-only contract", () => {
     }
   });
 
-  it("keeps the responsive panel token-only and free of Card primitives, data-slot, and inline styles", () => {
+  it("renders each active status through the shared accent Badge with a decorative dot", () => {
+    render(<ActiveVacancies vacancies={vacancies} />);
+
+    const statuses = Array.from(
+      panel().querySelectorAll("[data-pf-active-vacancy-status]"),
+    ) as HTMLElement[];
+
+    // One status surface per rendered active row, in row order, each still on
+    // the pre-existing hook the dashboard shell relies on.
+    expect(statuses).toHaveLength(3);
+
+    for (const status of statuses) {
+      expect(status).toHaveAttribute("data-pf-active-vacancy-status", "");
+      expect(status).toHaveAttribute("data-slot", "badge");
+      expect(status).toHaveAttribute("data-variant", "accent");
+      expect(status).toHaveAttribute("data-dot");
+      // Shared compact geometry, not the old hand-rolled pill radius. The
+      // dot's own `before:rounded-full` is a dot class, not an element radius,
+      // so the radius assertions are token-exact.
+      const statusClasses = status.className.split(/\s+/u);
+      expect(statusClasses).toContain("rounded-md");
+      expect(statusClasses).not.toContain("rounded-full");
+      // The label is unchanged and the dot stays the recipe's `::before`, so
+      // the status keeps no manual decorative child and no extra accessible
+      // text.
+      expect(status.textContent).toBe(EMPLOYER_VACANCY_STATE_LABELS.active);
+      expect(status.querySelectorAll("*")).toHaveLength(0);
+      expect(status.childNodes).toHaveLength(1);
+      expect(status.firstChild?.nodeType).toBe(Node.TEXT_NODE);
+    }
+  });
+
+  it("keeps the responsive panel token-only and free of Card primitives and inline styles", () => {
     render(<ActiveVacancies vacancies={vacancies} />);
 
     const sectionEl = panel();
@@ -254,10 +286,23 @@ describe("ActiveVacancies source contract", () => {
     expect(source).not.toMatch(/href=\{?["'`]?\/empresa\/vacantes\//u);
   });
 
-  it("composes the panel without Card primitives, data-slot, or raw color", () => {
-    expect(source).not.toContain("data-slot");
+  it("composes the panel without Card primitives, card slots, or raw color", () => {
+    // Only the Card primitive and its slots stay forbidden; the shared Badge
+    // legitimately exposes `data-slot="badge"` through the recipe.
+    expect(source).not.toMatch(/data-slot=["']card/u);
     expect(source).not.toMatch(/from\s+["']@\/components\/ui\/card/u);
     expect(source).not.toMatch(RAW_COLOR);
+  });
+
+  it("delegates the active status surface to the shared accent Badge recipe", () => {
+    expect(source).toContain('import { Badge } from "@/components/ui/badge"');
+
+    const badgeTag = /<Badge\b[\s\S]*?>/u.exec(source)?.[0] ?? "";
+    expect(badgeTag, "status Badge tag").toContain("data-pf-active-vacancy-status");
+    expect(badgeTag, "status Badge tag").toContain('variant="accent"');
+    expect(badgeTag, "status Badge tag").toMatch(/\bdot\b/u);
+    // The old pill hand-rolled the accent fill inline; it may not come back.
+    expect(source).not.toContain("bg-primary/12");
   });
 
   it("renders natural Spanish agreement, never the literal (s) marker", () => {

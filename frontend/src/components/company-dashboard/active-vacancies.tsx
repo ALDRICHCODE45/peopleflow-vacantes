@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { Badge } from "@/components/ui/badge";
 import {
   EMPLOYER_VACANCY_STATE_LABELS,
   vacancyCandidateTotal,
@@ -92,12 +93,13 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVac
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
-                  <span
+                  <Badge
                     data-pf-active-vacancy-status=""
-                    className="inline-flex items-center rounded-full border border-primary/40 bg-primary/12 px-2.5 py-0.5 text-[11.5px] font-semibold text-foreground"
+                    variant="accent"
+                    dot
                   >
                     {EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]}
-                  </span>
+                  </Badge>
                   <Link
                     href={vacancyPipelineHref(vacancy.id)}
                     data-pf-active-vacancy-pipeline={vacancy.id}
