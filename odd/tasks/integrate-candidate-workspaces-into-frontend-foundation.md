@@ -17,7 +17,7 @@ Merge the completed `feature/candidate-dashboard-prototype` product work into `f
 - [x] **INT-01 — Preserve target remediation:** Audited the dirty target worktree and confirmed the changes were unique verified post-Verify work, not stale artifacts. Committed them as `5f567ac`, `7ce4a7d`, `9aa5c31`, and `76c7045` before integration.
 - [x] **INT-02 — Merge and resolve:** Merged `feature/candidate-dashboard-prototype` into `feat/frontend-foundation`; resolved and staged every frontend and OpenSpec conflict while preserving the target API/filter/freshness contracts and the source product composition.
 - [x] **INT-03 — Verify integrated tree:** Focused conflict tests, TypeScript, ESLint, full unit tests, production build, and isolated safe browser acceptance passed without contacting protected fixture services.
-- [ ] **INT-04 — Close integration evidence:** Record the merge commit, exact verification results, residual risks, and delivery boundary.
+- [x] **INT-04 — Close integration evidence:** Recorded merge commit `69c4bd6`, exact verification results, residual risks, the unavailable native review, and the delivery boundary.
 
 ## Evidence
 
@@ -33,7 +33,9 @@ Merge the completed `feature/candidate-dashboard-prototype` product work into `f
 - Isolated Chromium acceptance on port 3120: 30/30 tests passed in 4.4m (candidate 9, employer 5, login 16), with no Axe or prohibited-traffic assertion failures. The owned server was stopped and port 3120 was confirmed free. Public-job browser specs remained intentionally skipped because they require protected fixture services.
 - Browser command shell reported Node 22.23.2; the pnpm launcher path belonged to a Node 24 installation, so the exact server/Playwright interpreter could not be confirmed retrospectively. Non-browser verification and build used the required Node 22.23.2 environment.
 - Final LSP cleanup added explicit Base UI callback types in the chart and table integrations. Focused verification passed 2/2 files and 57/57 tests; TypeScript and focused ESLint passed. Existing zero-size chart warnings remained non-failing.
+- Merge commit: `69c4bd655df199ac0810b09c616a9a8a14daaeee`, with parents `b36eb31fb24ededc1567c138eafcffa38b6aa3c6` and `2676691bd722081747e6d29cdf9f7f50868b6d5f`.
+- Native Gentle review inspection remained unavailable with `package-local-binary-missing`; no lineage was created and no review mutation occurred.
 
 ## Delivery Boundary
 
-Commit and local merge are authorized. Push, pull request, deployment, release, package installation, remote operation, and protected-service mutation remain unauthorized.
+The local merge and evidence commits are authorized. The user separately authorized one offline frozen dependency synchronization for this worktree; it completed from the local pnpm store without network access. Push, pull request, deployment, release, further package installation, remote operation, and protected-service mutation remain unauthorized.
