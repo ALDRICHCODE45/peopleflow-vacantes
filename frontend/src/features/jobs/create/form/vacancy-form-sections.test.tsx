@@ -198,7 +198,7 @@ describe("VacancyFormSections composition", () => {
     expect(screen.getAllByLabelText(/^Idioma /u)).toHaveLength(MAX_LANGUAGES);
   });
 
-  it("renders the rich formatting surfaces without claiming a saved format", () => {
+  it("renders the rich formatting surfaces without implementation-status copy", () => {
     renderSections();
 
     for (const label of [
@@ -211,9 +211,9 @@ describe("VacancyFormSections composition", () => {
       ).toBeVisible();
     }
     expect(
-      screen.getAllByText("Formato visual de prototipo; todavía no se guarda."),
-    ).toHaveLength(3);
-    expect(screen.getAllByText("Prototipo")).toHaveLength(2);
+      screen.queryByText(/formato visual de prototipo|todavía no se guarda/i),
+    ).toBeNull();
+    expect(screen.queryByText("Prototipo")).toBeNull();
   });
 
   it("forwards contract errors to the fields that own them", () => {
@@ -227,7 +227,7 @@ describe("VacancyFormSections composition", () => {
     expect(textbox("Título del puesto")).toHaveAttribute("aria-invalid", "true");
     expect(textbox("Descripción del puesto")).toHaveAttribute(
       "aria-describedby",
-      "vacancy-description-disclosure vacancy-description-error",
+      "vacancy-description-error",
     );
   });
 });

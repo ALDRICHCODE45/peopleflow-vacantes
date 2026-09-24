@@ -152,7 +152,8 @@ describe("/empresa/dashboard renders the complete official dashboard-01 block", 
       ).toBeGreaterThan(0);
     }
 
-    // Dashboard, Vacantes and Equipo are real routes; the rest stay prototypes.
+    // Dashboard, Vacantes and Equipo are real routes; the rest are presentation
+    // placeholders that stay invisible to navigation but visible to the user.
     for (const [label, href] of [
       ["Dashboard", "/empresa/dashboard"],
       ["Vacantes", "/empresa/vacantes"],
@@ -164,10 +165,24 @@ describe("/empresa/dashboard renders the complete official dashboard-01 block", 
       ).toHaveAttribute("href", href);
     }
     for (const label of ["Candidatos", "Mensajes", "Reportes", "Configuración"]) {
+      const placeholder = screen.getByRole("button", { name: label });
+      expect(placeholder, `${label} prototype target`).toHaveAttribute(
+        "type",
+        "button",
+      );
       expect(
-        screen.getByRole("link", { name: label }),
-        `${label} prototype target`,
-      ).toHaveAttribute("href", "#");
+        placeholder,
+        `${label} must not carry a destination`,
+      ).not.toHaveAttribute("href");
+      expect(placeholder, `${label} must stay enabled`).toBeEnabled();
+      expect(
+        placeholder,
+        `${label} must not be marked active`,
+      ).not.toHaveAttribute("data-active");
+      expect(
+        screen.queryByRole("link", { name: label }),
+        `${label} must not render an anchor`,
+      ).toBeNull();
     }
 
     for (const stock of [
@@ -844,14 +859,15 @@ describe("dashboard-01 header theme control", () => {
     expect(group!.children).toHaveLength(1);
   });
 
-  it("keeps a >=32px control without redeclaring the header height or padding", () => {
+  it("keeps the 40px control target without redeclaring the header height or padding", () => {
     render(<EmployerDashboardPage />);
 
     const toggle = screen.getByRole("button", { name: "Cambiar tema" });
 
-    // The canonical `size="icon"` is 32px: the narrowest control that meets the
-    // standard hit-area target without touching the fixed header height.
-    expect(toggle.className).toMatch(/(^|\s)size-8(\s|$)/);
+    // The shared theme control owns the global 40px target while the fixed
+    // route header keeps its established height and padding.
+    expect(toggle.className).toMatch(/(^|\s)size-10(\s|$)/);
+    expect(toggle.className).not.toMatch(/(^|\s)size-8(\s|$)/);
 
     const header = document.querySelector("header")!;
     const container = header.firstElementChild as HTMLElement;

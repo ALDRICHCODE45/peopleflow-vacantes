@@ -17,8 +17,8 @@ const containerClass = "mx-auto w-full max-w-6xl px-6";
 const focusRing =
   "rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 
-// Public header links own the same >=40px pointer target as the shell's old
-// inline bar, so text height is never the hit box.
+// Every navbar mode shares one >=40px pointer target, so a link's text height
+// is never the hit box: brand marks and plain-text destinations both carry it.
 const navTarget = "inline-flex min-h-10 items-center";
 
 // One detached floating capsule shared by the marketing landing and every
@@ -46,7 +46,11 @@ const CandidateNavbar = React.memo(function CandidateNavbar() {
     <header className="sticky top-0 z-30 border-b border-border/70 bg-background/70 backdrop-blur-xl">
       <div className={`${containerClass} flex h-16 items-center gap-6`}>
         {/* Brand */}
-        <Link href="/" aria-label="PeopleFlow" className={`${focusRing} shrink-0`}>
+        <Link
+          href="/"
+          aria-label="PeopleFlow"
+          className={`${focusRing} ${navTarget} shrink-0`}
+        >
           <PeopleFlowLogo className="h-6 w-auto" />
         </Link>
 
@@ -54,7 +58,7 @@ const CandidateNavbar = React.memo(function CandidateNavbar() {
         <nav aria-label="Navegación principal">
           <Link
             href="/vacantes"
-            className={`${focusRing} text-sm font-medium text-muted-foreground transition-colors hover:text-foreground`}
+            className={`${focusRing} ${navTarget} text-sm font-medium text-muted-foreground transition-colors hover:text-foreground`}
           >
             Vacantes
           </Link>
@@ -81,7 +85,7 @@ const MARKETING_NAV_LINKS = [
 
 // In-page targets stay plain anchors: the browser owns the hash jump and the
 // section `scroll-margin`, so the router never has to emulate anchor scrolling.
-const marketingLinkClass = "transition hover:text-ink";
+const marketingLinkClass = `transition hover:text-ink ${navTarget}`;
 
 const MarketingNavbar = React.memo(function MarketingNavbar() {
   return (
@@ -97,7 +101,7 @@ const MarketingNavbar = React.memo(function MarketingNavbar() {
           <Link
             href="/"
             aria-label="PeopleFlow"
-            className="shrink-0 select-none"
+            className={`${navTarget} shrink-0 select-none`}
           >
             <PeopleFlowLogo className="h-7 w-auto" />
           </Link>
@@ -119,10 +123,10 @@ const MarketingNavbar = React.memo(function MarketingNavbar() {
         </div>
         <div className="flex items-center gap-1.5 sm:gap-4">
           <IngresarMenu className="text-[15px] font-normal text-muted hover:text-ink" />
-          <ThemeToggle className="size-9 rounded-lg border-line bg-surface/40 text-muted hover:border-brand/60 hover:bg-surface/60 hover:text-ink" />
+          <ThemeToggle className="size-10 rounded-lg border-line bg-surface/40 text-muted hover:border-brand/60 hover:bg-surface/60 hover:text-ink" />
           <a
             href="#empezar"
-            className="btn btn-primary whitespace-nowrap rounded-xl bg-brand px-3 py-2.5 text-[13px] font-semibold text-white sm:px-5 sm:text-[14px]"
+            className="btn btn-primary min-h-10 whitespace-nowrap rounded-xl bg-brand px-3 py-2.5 text-[13px] font-semibold text-white sm:px-5 sm:text-[14px]"
           >
             Empezar gratis
           </a>
@@ -186,7 +190,7 @@ const PublicNavbar = React.memo(function PublicNavbar() {
             href="/empresa/vacantes/nueva"
             className={cn(
               buttonVariants({ size: "lg" }),
-              "max-sm:px-2.5 max-sm:text-[13px]",
+              "min-h-10 max-sm:px-2.5 max-sm:text-[13px]",
             )}
           >
             Publicar vacante

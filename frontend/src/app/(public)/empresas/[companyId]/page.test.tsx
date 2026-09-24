@@ -14,6 +14,8 @@ const routeSource = (file: string) => readFileSync(join(routeDir, file), "utf8")
 const featureSource = (file: string) => readFileSync(join(featureDir, file), "utf8");
 const load = async (file: string) => await import(/* @vite-ignore */ `${routeDir}/${file}`);
 const paramsFor = (companyId: string) => Promise.resolve({ companyId });
+/** Rendered implementation-status vocabulary banned from any visible text. */
+const RENDERED_STATUS_COPY = /\b(?:demo|mock|prototip\w*|fictici\w*|prueba|test|local|no disponible|no implementado|no se guarda|no se env[ií]a|no se copi[oó]|no se comparti[oó])\b/iu;
 /** The framework not-found signal, stubbed so the page contract is observable. */
 const NEXT_NOT_FOUND = new Error("NEXT_NOT_FOUND");
 
@@ -56,6 +58,13 @@ describe("/empresas/[companyId] page behavior", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Vacantes" })).toBeVisible();
   });
 
+  it("renders no implementation-status disclosure or prototype note", async () => {
+    const Page = (await load("page.tsx")).default;
+    const { container } = render(await Page({ params: paramsFor(PROTOTYPE_COMPANY_ID) }));
+    expect(container.textContent ?? "").not.toMatch(RENDERED_STATUS_COPY);
+    expect(container.querySelector("[role='note']")).toBeNull();
+  });
+
   it("passes the local prototype fixture list into the vacancy section", async () => {
     const Page = (await load("page.tsx")).default;
     render(await Page({ params: paramsFor(PROTOTYPE_COMPANY_ID) }));
@@ -74,6 +83,7 @@ describe("/empresas/[companyId] route-local not found", () => {
     expect(screen.getByRole("heading", { level: 1 })).toBeVisible();
     expect(container.querySelectorAll("h2")).toHaveLength(0);
     expect(Array.from(container.querySelectorAll("a")).map((anchor) => [anchor.getAttribute("href"), anchor.textContent])).toEqual([["/vacantes", expect.stringMatching(/vacantes/iu)]]);
+    expect(container.textContent ?? "").not.toMatch(/prototipo|ficticia|demostraci/iu);
   });
 });
 

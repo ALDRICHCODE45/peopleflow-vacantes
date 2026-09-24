@@ -8,9 +8,19 @@ import { ACME_WIRE_JOBS } from "../prototype-jobs";
 import type { JobItem } from "../types";
 import type { JobsQuery } from "../url";
 import { JobsResults } from "./JobsResults";
-import { PROTOTYPE_DISCLOSURE } from "./prototype-ui";
 
 type ResultsProps = Parameters<typeof JobsResults>[0];
+
+/** Comments never render, so they are stripped before scanning shipping source. */
+const withoutComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\//gu, " ").replace(/\/\/[^\n]*/gu, " ");
+/**
+ * Implementation-status display copy banned from shipping source. Each entry is
+ * prose, never a technical identifier such as `PrototypeJobView` or
+ * `data-detail-card="prototype"`, and comments are stripped before the scan.
+ */
+const STATUS_DISPLAY_COPY = /demostraci[óo]n|fictici[ao]s?|solo demostraci|marcada solo|no se guard[óo]|no se guarda|no se copi[óo]|no se comparti[óo]|no se envi[oó]|no se env[ií]a|no disponible|no implementado|\bPrototipo\b|\bprototipo\b/iu;
+/** Rendered implementation-status vocabulary banned from any visible text. */
+const RENDERED_STATUS_COPY = /\b(?:demo|mock|prototip\w*|fictici\w*|prueba|test|local|no disponible|no implementado|no se guarda|no se env[ií]a|no se copi[oó]|no se comparti[oó])\b/iu;
 
 const [FRONTEND_JOB, GO_JOB] = ACME_WIRE_JOBS;
 const ACME_COMPANY_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
@@ -75,7 +85,6 @@ describe("JobsResults board composition", () => {
 
     const text = container.textContent ?? "";
     for (const value of [
-      PROTOTYPE_DISCLOSURE,
       "Ingeniería",
       FRONTEND_JOB.description,
       "Habilidades",
@@ -124,7 +133,7 @@ describe("JobsResults board composition", () => {
     );
 
     expect(container.textContent).toContain("Ingeniería");
-    expect(container.textContent).toContain(PROTOTYPE_DISCLOSURE);
+    expect([container.querySelectorAll("[role='note']").length, RENDERED_STATUS_COPY.test(container.textContent ?? "")]).toEqual([0, false]);
     expect(screen.queryByRole("link", { name: "Otra Empresa" })).toBeNull();
     expect(screen.getByText("Otra Empresa").closest("a")).toBeNull();
     // Both anchors stay canonical detail links: no company anchor exists.
@@ -229,5 +238,9 @@ describe("JobsResults server boundary", () => {
     }
     // The replaced private row and its monogram/icon tables are gone.
     expect(source).not.toMatch(/companyInitials|WORK_MODE_ICONS|function JobRow/u);
+  });
+
+  it("ships no implementation-status display copy outside comments or identifiers", () => {
+    expect(withoutComments(source)).not.toMatch(STATUS_DISPLAY_COPY);
   });
 });

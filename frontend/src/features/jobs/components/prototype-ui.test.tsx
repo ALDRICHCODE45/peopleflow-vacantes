@@ -4,8 +4,6 @@ import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import {
-  PROTOTYPE_DISCLOSURE,
-  PrototypeDisclosure,
   VerifiedByPeopleFlow,
   CompanyMonogram,
   companyInitials,
@@ -16,6 +14,19 @@ import {
 const source = readFileSync(join(process.cwd(), "src", "features", "jobs", "components", "prototype-ui.tsx"), "utf8");
 /** Every literal color this token-only module must never carry. */
 const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|color-mix)\(/u;
+/** Comments never render, so they are stripped before any source copy scan. */
+const withoutComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\//gu, " ").replace(/\/\/[^\n]*/gu, " ");
+/**
+ * Implementation-status display copy banned from shipping source. Every entry
+ * is a phrase that only reads as prose, so technical identifiers such as
+ * `PrototypeJobEnrichment`, `prototypeApplicantsLabel`, or a `./prototype-*`
+ * module path can never match, and comments are stripped first.
+ */
+const STATUS_DISPLAY_COPY =
+  /demostraci[óo]n|fictici[ao]s?|solo demostraci|marcada solo|no se guard[óo]|no se guarda|no se copi[óo]|no se comparti[óo]|no se envi[oó]|no se env[ií]a|no disponible|no implementado|\bPrototipo\b|\bprototipo\b/iu;
+/** Rendered implementation-status vocabulary banned from any visible text. */
+const RENDERED_STATUS_COPY =
+  /\b(?:demo|mock|prototip\w*|fictici\w*|prueba|test|local|no disponible|no implementado|no se guarda|no se env[ií]a|no se copi[oó]|no se comparti[oó])\b/iu;
 
 describe("companyInitials", () => {
   it("builds a one or two mark initials string from any company name", () => {
@@ -51,14 +62,22 @@ describe("prototype labels", () => {
   });
 });
 
-describe("PROTOTYPE_DISCLOSURE", () => {
-  it("is one trimmed Spanish sentence that names the demonstration boundary", () => {
-    expect(PROTOTYPE_DISCLOSURE).toBe(PROTOTYPE_DISCLOSURE.trim());
-    expect(PROTOTYPE_DISCLOSURE.split("\n")).toHaveLength(1);
-    expect(PROTOTYPE_DISCLOSURE).toContain("demostración");
-    expect(PROTOTYPE_DISCLOSURE).toContain("no se conecta a ningún backend");
-    expect(PROTOTYPE_DISCLOSURE.endsWith(".")).toBe(true);
-    expect(PROTOTYPE_DISCLOSURE).not.toMatch(/[—–]/u);
+describe("public copy boundary", () => {
+  it("renders no implementation-status disclosure or status note", () => {
+    const { container, unmount } = render(
+      <>
+        <CompanyMonogram name="Acme" />
+        <VerifiedByPeopleFlow />
+      </>,
+    );
+    expect(container.textContent ?? "").not.toMatch(RENDERED_STATUS_COPY);
+    expect(container.querySelector("[role='note']")).toBeNull();
+    expect(container.querySelector("[role='status']")).toBeNull();
+    unmount();
+  });
+
+  it("keeps the shipping source free of implementation-status display copy", () => {
+    expect(withoutComments(source)).not.toMatch(STATUS_DISPLAY_COPY);
   });
 });
 
@@ -98,15 +117,6 @@ describe("VerifiedByPeopleFlow", () => {
     const row = container.firstElementChild as HTMLElement;
     expect([container.querySelector("svg")?.getAttribute("aria-hidden"), row.className.includes("text-muted-foreground")]).toEqual(["true", true]);
     expect([row.hasAttribute("style"), RAW_COLOR.test(row.className)]).toEqual([false, false]);
-  });
-});
-
-describe("PrototypeDisclosure", () => {
-  it("exposes the shared disclosure copy as a note with small text", () => {
-    render(<PrototypeDisclosure />);
-    const note = screen.getByRole("note");
-    expect(note.textContent).toBe(PROTOTYPE_DISCLOSURE);
-    expect([note.tagName, note.classList.contains("text-xs")]).toEqual(["P", true]);
   });
 });
 

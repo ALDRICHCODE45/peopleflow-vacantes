@@ -27,7 +27,7 @@ export function CompletionSummary({ values, prototypeValues }: CompletionSummary
     <Card size="sm" data-pf-completion-summary="">
       <CardHeader>
         <CardTitle><h2 className="font-heading text-base font-medium">Progreso de la vacante</h2></CardTitle>
-        <CardDescription>Seguimiento de las secciones con contenido. No valida el formulario ni confirma que se guardó.</CardDescription>
+        <CardDescription>Revisá qué secciones tienen contenido antes de guardar el borrador.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <p className="text-xs font-medium">{count}</p>

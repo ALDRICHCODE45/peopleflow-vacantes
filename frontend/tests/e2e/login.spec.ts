@@ -5,11 +5,10 @@ import { expect, test, type Page } from "@playwright/test";
 // static fallback tint, and requires lit pixels first: no cell can pass on the
 // fallback alone. Shell truthfulness/axe/keyboard/mutation corpus stay with R7E.
 // Reuses the live preview server (PLAYWRIGHT_APP_ORIGIN, default :3100) and never
-// clicks a disabled auth action.
+// activates an auth action (UISC-02 keeps every one of them enabled and inert).
 
 const ROUTES = { employer: "/empresa/login", candidate: "/candidato/login" } as const;
 const HEADINGS = { employer: "Ingresa a tu cuenta", candidate: "Ingresa a tu perfil" } as const;
-const DISCLOSURE = "Vista previa: acceso aún no disponible.";
 const DESKTOP = { width: 1280, height: 720 };
 const MOBILE = { width: 375, height: 812 };
 const FIXTURE_ORIGIN = process.env.JOBS_FIXTURE_ORIGIN ?? "http://127.0.0.1:4010";
@@ -39,7 +38,6 @@ async function openLogin(page: Page, variant: Variant, state: string) {
   await expect(
     page.getByRole("heading", { level: 1, name: HEADINGS[variant], exact: true }),
   ).toBeVisible();
-  await expect(page.getByText(DISCLOSURE)).toBeVisible();
   await expect(page.locator(PANEL)).toHaveAttribute("aria-hidden", "true");
   await expect(page.locator(HOST)).toHaveCount(1);
   await expect(page.locator(HOST)).toHaveAttribute("data-floating-lines-state", state);
@@ -268,7 +266,7 @@ test.describe("login FloatingLines mobile gating", () => {
     await expect(page.locator(PANEL)).toBeHidden();
     await expect(page.locator(HOST)).toBeHidden();
     await expect(page.locator(CANVAS)).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Ingresar" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Ingresar" })).toBeEnabled();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
@@ -322,8 +320,9 @@ test.describe("login FloatingLines WebGL failure containment", () => {
     });
     await openLogin(page, "employer", "failed");
     await expect(page.locator(CANVAS)).toHaveCount(0);
-    // The shell stays truthful and usable, with no uncaught error.
-    await expect(page.getByRole("button", { name: "Ingresar" })).toBeDisabled();
+    // The shell stays usable with every action enabled: the failure is contained
+    // by the decorative panel, not by disabling the form column.
+    await expect(page.getByRole("button", { name: "Ingresar" })).toBeEnabled();
     await expect(page.getByRole("link", { name: /ingresa aquí/i })).toBeVisible();
     expect(errors.uncaught, "a contained WebGL failure must not escape uncaught").toEqual([]);
     // The only console error allowed is ogl's own diagnostic inside the leaf.

@@ -12,8 +12,9 @@ const appUrl = process.env.PLAYWRIGHT_APP_ORIGIN ?? "http://127.0.0.1:3100";
 const errorHarnessUrl = "http://127.0.0.1:3101/__vacantes-error";
 // The canonical company microsite the known prototype vacancy links to.
 const PROTOTYPE_COMPANY_HREF = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
-// Mirrors the card's shared disclosure primitive without importing app modules.
-const PROTOTYPE_DISCLOSURE = "Datos y acciones de demostración: este prototipo no se conecta a ningún backend, no guarda información y no envía postulaciones reales.";
+// UISC-03A: no rendered implementation-status vocabulary may survive on the
+// public board. Every banned token is prose, never a route, id, or fixture.
+const PROHIBITED_DISPLAY_COPY = /demostraci|fictici|\bprototipo\b|no se guarda|no se env[ií]a|no se copi[oó]|no se comparti[oó]/iu;
 // Every R2/R3 authorized prototype extra of the enriched fixture vacancy.
 const PROTOTYPE_CARD_LABELS = ["Destacada", "Hace 2 h", "24 postulantes", "Ingeniería", "Habilidades", "Beneficios", "SALARIO MENSUAL", "Responde en ~3 días", "Verificada por PeopleFlow"] as const;
 // The Base UI development diagnostic that fires whenever a shared `Button`
@@ -351,10 +352,10 @@ test("renders the approved hero and supported quick chips with honest state", as
       `${name} target height @1440`,
     ).toBeGreaterThanOrEqual(40);
   }
-  // The icon-only toggle needs a >=40px square; the shared Button `lg` publish
-  // CTA keeps its >=36px height.
+  // The icon-only toggle needs a >=40px square; the publish CTA raises the
+  // shared Button `lg` geometry to the same >=40px minimum.
   expect(desktop.themeToggle!.width).toBeGreaterThanOrEqual(40);
-  expect(desktop.publish!.height).toBeGreaterThanOrEqual(36);
+  expect(desktop.publish!.height).toBeGreaterThanOrEqual(40);
   expect(desktop.overflow).toBeLessThanOrEqual(0);
 
   const mobile = await measureHeader({ width: 375, height: 812 });
@@ -374,7 +375,7 @@ test("renders the approved hero and supported quick chips with honest state", as
     ).toBeGreaterThanOrEqual(40);
   }
   expect(mobile.login!.width).toBeGreaterThanOrEqual(40);
-  expect(mobile.publish!.height).toBeGreaterThanOrEqual(36);
+  expect(mobile.publish!.height).toBeGreaterThanOrEqual(40);
   expect(mobile.overflow).toBeLessThanOrEqual(0);
 });
 
@@ -606,11 +607,11 @@ test("renders the known vacancy as a disclosed prototype card with the reference
   await expect(card.getByRole("heading", { level: 3 }).getByRole("link")).toHaveAttribute("href", `/vacantes/${MAIN_VACANCY_ID}`);
   await expect(card.getByRole("link", { name: "Acme" })).toHaveAttribute("href", PROTOTYPE_COMPANY_HREF);
   expect(await card.evaluate((li) => li.children.length)).toBe(2);
-  // The R2/R3 authorized extras are visible, each scoped by the demo note.
+  // The R2/R3 authorized extras are visible without any implementation-status copy.
   for (const label of PROTOTYPE_CARD_LABELS)
     await expect(card).toContainText(label);
-  await expect(card.getByRole("note")).toHaveCount(1);
-  await expect(card.getByRole("note")).toHaveText(PROTOTYPE_DISCLOSURE);
+  await expect(card.getByRole("note")).toHaveCount(0);
+  await expect(list).not.toContainText(PROHIBITED_DISPLAY_COPY);
   const [content, rail] = await regionsOf(card);
   const edges = await card.evaluate((li) => {
     const style = getComputedStyle(li.children[1]);
@@ -630,31 +631,27 @@ test("renders the known vacancy as a disclosed prototype card with the reference
   test.info().annotations.push({ type: "card hover @1440", description: JSON.stringify({ restingY, delta: hovered.top - restingY, hovered }) });
   expect([hovered.top < restingY, hovered.top - restingY >= -4, hovered.shadow !== "none", hovered.border !== edges.border]).toEqual([true, true, true, true]);
 
-  // Canonical CTA >=40px and keyboard-reachable with a ring; the demo bookmark
-  // is an enabled, in-memory toggle that announces honest feedback.
+  // Canonical CTA >=40px and keyboard-reachable with a ring; the save control
+  // is an enabled, intentionally inert placeholder.
   const cta = card.getByRole("link", { name: "Ver vacante" });
   const bookmark = card.getByRole("button");
-  const announcement = card.getByRole("status");
   const [ctaBox, bookmarkBox] = await Promise.all([cta.boundingBox(), bookmark.boundingBox()]);
   test.info().annotations.push({ type: "card targets @1440", description: JSON.stringify({ ctaBox, bookmarkBox }) });
   expect([Math.round(ctaBox!.height), Math.round(bookmarkBox!.width), Math.round(bookmarkBox!.height)], "card target sizes").toEqual([40, 40, 40]);
   await expect(bookmark).toBeEnabled();
   await expect(bookmark).toHaveAttribute("type", "button");
-  await expect(bookmark).toHaveAttribute("aria-pressed", "false");
-  await expect(announcement).toBeEmpty();
+  await expect(bookmark).toHaveAttribute("aria-label", "Guardar vacante");
+  await expect(bookmark).not.toHaveAttribute("aria-pressed");
+  await expect(card.getByRole("status")).toHaveCount(0);
 
-  // Keyboard: the focused bookmark toggles on and announces honestly.
+  // Keyboard and mouse: activation changes neither the label nor a pressed state.
   await bookmark.focus();
   await page.keyboard.press("Space");
-  await expect(bookmark).toHaveAttribute("aria-pressed", "true");
-  await expect(bookmark).toHaveAttribute("aria-label", "Guardar vacante (marcada solo en esta demostración)");
-  await expect(announcement).toHaveText("Guardado de demostración activado: no se guardó nada real.");
-
-  // Mouse: a second activation returns to unpressed and re-announces the inverse.
+  await expect(bookmark).toHaveAttribute("aria-label", "Guardar vacante");
+  await expect(bookmark).not.toHaveAttribute("aria-pressed");
   await bookmark.click();
-  await expect(bookmark).toHaveAttribute("aria-pressed", "false");
-  await expect(bookmark).toHaveAttribute("aria-label", "Guardar vacante (solo demostración)");
-  await expect(announcement).toHaveText("Guardado de demostración desactivado: no se modificó nada real.");
+  await expect(bookmark).toHaveAttribute("aria-label", "Guardar vacante");
+  await expect(card.getByRole("status")).toHaveCount(0);
 
   // The interaction preserves the canonical two-region geometry and card identity.
   expect(await card.evaluate((li) => li.children.length)).toBe(2);
@@ -668,7 +665,7 @@ test("renders the known vacancy as a disclosed prototype card with the reference
   await expect(cta).toBeFocused();
   const focus = await cta.evaluate((el) => ({ visible: el.matches(":focus-visible"), width: Number.parseFloat(getComputedStyle(el).outlineWidth || "0") }));
   expect([focus.visible, focus.width > 0]).toEqual([true, true]);
-  // The in-memory toggle never navigates; the canonical CTA still does.
+  // The placeholder control never navigates; the canonical CTA still does.
   await expect(page).toHaveURL("/vacantes?currency=MXN");
   await cta.click();
   await expect(page).toHaveURL(`/vacantes/${MAIN_VACANCY_ID}`);

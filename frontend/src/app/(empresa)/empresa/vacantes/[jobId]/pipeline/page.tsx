@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { InfoIcon } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/company-dashboard/site-header";
@@ -20,7 +19,7 @@ import { NEXO_VACANCIES } from "@/features/employer-vacancies/prototype-vacancie
  *
  * The shared `(empresa)` layout already owns the single EmployerShell, the
  * sidebar provider and the theme module, so this route contributes only its
- * header, intro, disclosure and the mounted pipeline workspace. The vacancy and
+ * header, intro and the mounted pipeline workspace. The vacancy and
  * its candidate cards are resolved from the frozen local Nexo fixtures by exact
  * id: an unknown, near-miss or malformed id renders the framework not-found
  * document and never a fallback vacancy. It stays a server component and owns no
@@ -101,17 +100,6 @@ export default async function PipelinePage({ params }: PipelineRouteProps) {
                 {vacancy.teamSize} miembros del equipo
               </p>
             </section>
-            <p
-              role="note"
-              data-pf-pipeline-disclosure=""
-              className="flex items-start gap-2.5 rounded-xl border border-border bg-card/50 px-4 py-3 text-[12.5px] leading-relaxed text-muted-foreground"
-            >
-              <InfoIcon aria-hidden="true" className="mt-px size-4 shrink-0" />
-              <span>
-                Datos de demostración locales: las tarjetas de candidatos viven solo
-                en este prototipo y los cambios no se guardan.
-              </span>
-            </p>
             <PipelineWorkspace vacancy={vacancy} candidates={candidates} />
           </div>
         </div>

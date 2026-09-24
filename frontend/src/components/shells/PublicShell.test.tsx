@@ -210,8 +210,9 @@ describe("PublicShell", () => {
     // Reuses the project's Button variant output rather than a new component.
     expect(publish!.className).toContain("bg-primary");
     expect(publish!.className).toContain("text-primary-foreground");
-    // Shared `lg` variant already owns the >=36px target height.
-    expect(publish!.className).toContain("h-9");
+    // The shared `lg` variant owns the base geometry; the explicit `min-h-10`
+    // raises the publish CTA to the global >=40px target.
+    expect(publish!.className).toContain("min-h-10");
   });
 
   it("hides the desktop destinations until md inside the shared capsule", () => {

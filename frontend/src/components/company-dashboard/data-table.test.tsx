@@ -365,6 +365,25 @@ describe("company dashboard recent applicants table", () => {
     expect(screen.getAllByText("Elena Márquez").length).toBeGreaterThan(0);
   });
 
+  it("renders the destructive status badge with the AA-safe pale-red palette", () => {
+    render(<DataTable data={applicants} />);
+
+    const rejected = screen.getAllByText("Descartado");
+    expect(rejected.length).toBeGreaterThan(0);
+
+    for (const node of rejected) {
+      const badge = node.closest("[data-slot='badge']") ?? node;
+      expect(badge).toHaveAttribute("data-slot", "badge");
+      expect(badge.className).toContain("bg-red-50");
+      expect(badge.className).toContain("text-red-700");
+      expect(badge.className).toContain("dark:bg-red-950/40");
+      expect(badge.className).toContain("dark:text-red-300");
+      // The low-contrast translucent destructive fill must be gone.
+      expect(badge.className).not.toContain("bg-destructive/10");
+      expect(badge.className).not.toContain("text-destructive");
+    }
+  });
+
   it("shows coherent pipeline counts on every tab", () => {
     render(<DataTable data={applicants} />);
 

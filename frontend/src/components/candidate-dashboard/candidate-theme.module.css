@@ -1,20 +1,7 @@
-/* CDP-03A — candidate cyan accent scoped to the candidate shell: approved login
-   accent (#0E7490 light, #22D3EE dark), restating only the primary and ring roles. */
-
-.root,
-:global(body):has(.root) {
-  --primary: #0e7490;
-  --primary-foreground: #ffffff;
-  --ring: #0e7490;
-  --sidebar-primary: #0e7490;
-  --sidebar-primary-foreground: #ffffff;
-}
-
-:global(.dark) .root,
-:global(.dark) body:has(.root) {
-  --primary: #22d3ee;
-  --primary-foreground: #0c0912;
-  --ring: #22d3ee;
-  --sidebar-primary: #22d3ee;
-  --sidebar-primary-foreground: #0c0912;
+/* CPR-14 — PeopleFlow's violet primary lives in the global preset (globals.css). The
+   candidate shell opts into that shared palette only through the `.root` class below:
+   this module deliberately declares no token overrides and no candidate-specific accent,
+   so the global violet is never replaced by a candidate-scoped restatement. */
+.root {
+  color-scheme: inherit;
 }

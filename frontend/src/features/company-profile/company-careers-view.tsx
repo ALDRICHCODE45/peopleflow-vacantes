@@ -38,11 +38,11 @@ function whatWeDoHighlights(whatWeDo: string): string[] {
 }
 
 /**
- * Server-rendered careers profile for one fictional prototype company: identity
- * and cover first, then the facts, narrative, and the vacancy list the caller
- * supplies as local prototype fixtures. Every string comes from the profile and
- * the frozen vacancy fixtures, so the view never invents a metric, credential,
- * or action, and no directive, hook, provider, or request lives in this module.
+ * Server-rendered careers profile for one company: identity and cover first,
+ * then the facts, narrative, and the vacancy list the caller supplies as local
+ * fixture data. Every string comes from the profile and the frozen vacancy
+ * fixtures, so the view never invents a metric, credential, or action, and no
+ * directive, hook, provider, or request lives in this module.
  */
 export function CompanyCareersView({
   profile,
@@ -69,12 +69,6 @@ export function CompanyCareersView({
             {profile.name}
           </h1>
           <p className="max-w-prose text-lg leading-relaxed text-muted-foreground">{profile.tagline}</p>
-          <div className="mt-2 flex max-w-prose flex-col gap-1.5 rounded-xl border border-primary/30 bg-primary/5 p-4">
-            <strong className="text-xs font-semibold uppercase tracking-wide text-foreground">
-              {profile.disclosure.label}
-            </strong>
-            <p className="text-sm leading-relaxed text-muted-foreground">{profile.disclosure.statement}</p>
-          </div>
         </div>
         <figure className="lg:col-span-5">
           <div className="overflow-hidden rounded-2xl border border-border bg-muted">
@@ -136,17 +130,17 @@ export function CompanyCareersView({
         </div>
       </div>
 
-      {/* Vacancy seam: with no fixture the prototype says exactly that and
-          points at the real public board; with fixtures it lists the company's
-          own roles through the reusable card, whose company line stays plain
-          text because the reader is already on the company's page. */}
+      {/* Vacancy seam: with no fixture the page says exactly that and points at
+          the real public board; with fixtures it lists the company's own roles
+          through the reusable card, whose company line stays plain text because
+          the reader is already on the company's page. */}
       <section aria-labelledby="vacantes" className="flex flex-col gap-3 border-t border-border pt-10">
         <h2 id="vacantes" className={headingClass}>Vacantes</h2>
         {jobs.length === 0 ? (
           <>
             <p className="max-w-prose leading-relaxed text-muted-foreground">
-              {profile.name} todavía no lista sus vacantes en esta página del prototipo. Mientras
-              tanto, puedes revisar las vacantes publicadas en PeopleFlow.
+              {profile.name} todavía no lista sus vacantes aquí. Mientras tanto, puedes revisar
+              las vacantes publicadas en PeopleFlow.
             </p>
             <Link href="/vacantes" className={`self-start ${linkClass}`}>
               Ver vacantes publicadas

@@ -3,9 +3,14 @@
 import * as React from "react";
 import { Columns3Icon, ListIcon, SearchIcon } from "lucide-react";
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 import { VACANCY_PIPELINE_STAGES, vacancyCandidateTotal } from "./model";
 import type { EmployerVacancy, VacancyPipelineStage } from "./model";
@@ -13,17 +18,28 @@ import { CANDIDATE_SOURCE_LABELS, CANDIDATE_STATUS_LABELS, summarizeCandidateSta
 import type { PipelineCandidate } from "./pipeline-model";
 
 /**
- * Supplemental stage tint: the text label always carries the meaning, so the dot
- * only reinforces it. Only reused project semantic tokens are allowed here.
+ * Supplemental stage accent: the Spanish label always carries the meaning, so
+ * the dot and the count Badge only reinforce it. The tone is badge text and
+ * border over a low-opacity background of the same semantic `--status-*` token,
+ * so no raw color value is authored here.
  */
+const STAGE_TONE: Readonly<Record<VacancyPipelineStage, string>> = {
+  submitted: "border-status-info/40 bg-status-info/10 text-status-info",
+  in_review: "border-status-review/40 bg-status-review/10 text-status-review",
+  hired: "border-status-success/40 bg-status-success/10 text-status-success",
+  rejected: "border-status-danger/40 bg-status-danger/10 text-status-danger",
+};
+/** Supplementary dot color, derived from the same semantic stage vocabulary. */
 const STAGE_DOT: Readonly<Record<VacancyPipelineStage, string>> = {
-  submitted: "bg-primary",
-  in_review: "bg-primary/55",
-  hired: "bg-primary/25",
-  rejected: "bg-destructive",
+  submitted: "bg-status-info",
+  in_review: "bg-status-review",
+  hired: "bg-status-success",
+  rejected: "bg-status-danger",
 };
 const META = "text-[12px] text-muted-foreground";
 const CARD_META = "text-[11.5px] text-muted-foreground";
+/** Shared list-row cell geometry, kept identical across every column. */
+const CELL = "px-3 py-3 align-top";
 
 /** The two local display modes of the pipeline. Nothing outside this component reads them. */
 type PipelineView = "board" | "list";
@@ -42,6 +58,13 @@ const plural = (count: number, singular: string, pluralForm: string) => `${count
 
 /** Diacritic- and case-insensitive needle, so "LUCIA" and "lucía" both match. */
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLowerCase().trim();
+/** Deterministic first+last initials, so an avatar never depends on randomness. */
+const initialsOf = (fullName: string) => {
+  const words = fullName.trim().split(/\s+/u).filter((word) => word !== "");
+  const first = words[0]?.charAt(0) ?? "";
+  const last = words.length > 1 ? words[words.length - 1].charAt(0) : "";
+  return `${first}${last}`.toUpperCase();
+};
 /** Exact name, professional title, or skill match against the normalized needle. */
 const matchesQuery = (candidate: PipelineCandidate, needle: string): boolean =>
   [candidate.fullName, candidate.professionalTitle, ...candidate.skills].some((field) => normalize(field).includes(needle));
@@ -49,18 +72,20 @@ const matchesQuery = (candidate: PipelineCandidate, needle: string): boolean =>
 /** Honest zero-comment copy, shared by both representations. */
 const commentCopy = (count: number) => (count === 0 ? "Sin comentarios" : plural(count, "comentario", "comentarios"));
 
-/** Match-score pill shared by the board card and the list row. */
-function MatchScore({ score }: { score: number }) {
+/** Match-score Badge shared by the board card and the list row; the optional
+    stage tone echoes the reference's small colored priority label. */
+function MatchScore({ score, tone }: { score: number; tone?: string }) {
   return (
-    <span className="rounded-full bg-secondary px-2 py-0.5 text-[11.5px] font-bold text-foreground tabular-nums"><span className="sr-only">Compatibilidad </span>{score}%</span>
+    <Badge variant="outline" className={`font-bold tabular-nums${tone ? ` ${tone}` : ""}`}><span className="sr-only">Compatibilidad </span>{score}%</Badge>
   );
 }
 
-/** Skill chips shared by the board card and the list row. */
+/** Skill chips shared by the board card and the list row: the semantic list
+    stays, and every chip is the installed Badge primitive. */
 function SkillChips({ skills }: { skills: readonly string[] }) {
   return (
     <ul className="flex flex-wrap gap-1.5">
-      {skills.slice(0, 4).map((skill) => (<li key={skill} className="rounded-md bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">{skill}</li>))}
+      {skills.slice(0, 4).map((skill) => (<li key={skill}><Badge variant="outline" className="text-[11px] font-normal text-muted-foreground">{skill}</Badge></li>))}
     </ul>
   );
 }
@@ -71,24 +96,27 @@ function SkillChips({ skills }: { skills: readonly string[] }) {
  */
 function CandidateCard({ candidate }: { candidate: PipelineCandidate }) {
   return (
-    <article data-pf-pipeline-card={candidate.id} className="rounded-xl border border-border bg-card p-3.5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-[14px] font-semibold text-foreground">{candidate.fullName}</p>
-          <p className={cn("mt-0.5 truncate", META)}>{candidate.professionalTitle}</p>
+    <Card data-pf-pipeline-card={candidate.id} size="sm">
+      <CardHeader className="flex flex-row items-center gap-2.5">
+        <Avatar size="sm" className="shrink-0"><AvatarFallback className="text-[11px] font-semibold">{initialsOf(candidate.fullName)}</AvatarFallback></Avatar>
+        <div className="min-w-0 flex-1">
+          <CardTitle><h3 className="text-balance text-[14px] leading-snug font-semibold text-foreground">{candidate.fullName}</h3></CardTitle>
+          <p className={`mt-0.5 text-pretty leading-snug ${META}`}>{candidate.professionalTitle}</p>
         </div>
-        <MatchScore score={candidate.matchScore} />
-      </div>
-      <p className={cn("mt-2", META)}>{plural(candidate.yearsOfExperience, "año", "años")} de experiencia</p>
-      <div className="mt-2">
+        <MatchScore score={candidate.matchScore} tone={STAGE_TONE[candidate.status]} />
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        <p className={META}>{plural(candidate.yearsOfExperience, "año", "años")} de experiencia</p>
         <SkillChips skills={candidate.skills} />
-      </div>
-      <p className={cn("mt-3", CARD_META)}>Origen: {CANDIDATE_SOURCE_LABELS[candidate.source]} · Responsable: {candidate.owner}</p>
-      <p className={cn("mt-1", CARD_META)}>{commentCopy(candidate.commentCount)}</p>
-      {candidate.nextStep ? (
-        <p data-pf-pipeline-next-step={candidate.id} className={cn("mt-2.5 rounded-lg bg-muted px-2.5 py-1.5", CARD_META)}><span className="font-semibold text-foreground">Próximo paso: </span>{candidate.nextStep}</p>
-      ) : null}
-    </article>
+      </CardContent>
+      <CardFooter className="flex flex-col items-start gap-1">
+        <p className={CARD_META}>Origen: {CANDIDATE_SOURCE_LABELS[candidate.source]} · Responsable: {candidate.owner}</p>
+        <p className={CARD_META}>{commentCopy(candidate.commentCount)}</p>
+        {candidate.nextStep ? (
+          <p data-pf-pipeline-next-step={candidate.id} className={`mt-1 rounded-lg bg-muted px-2.5 py-1.5 ${CARD_META}`}><span className="font-semibold text-foreground">Próximo paso: </span>{candidate.nextStep}</p>
+        ) : null}
+      </CardFooter>
+    </Card>
   );
 }
 
@@ -99,13 +127,15 @@ function BoardColumn({ stage, count, candidates }: { stage: VacancyPipelineStage
     <section data-pf-pipeline-column={stage} aria-label={`${label}: ${plural(count, "candidato", "candidatos")}`} className="flex min-w-0 flex-col rounded-2xl border border-border bg-card/40 p-3">
       <header className="flex items-center justify-between gap-2 px-1 pb-3">
         <div className="flex items-center gap-2">
-          <span aria-hidden="true" className={cn("size-2.5 rounded-full", STAGE_DOT[stage])} />
+          <span aria-hidden="true" className={`size-2.5 rounded-full ${STAGE_DOT[stage]}`} />
           <h3 className="text-[13.5px] font-semibold text-foreground">{label}</h3>
         </div>
-        <span data-pf-pipeline-column-count={stage} className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground tabular-nums">{count}</span>
+        <Badge variant="outline" data-pf-pipeline-column-count={stage} className={`text-[11px] font-semibold tabular-nums ${STAGE_TONE[stage]}`}>{count}</Badge>
       </header>
       {candidates.length === 0 ? (
-        <p data-pf-pipeline-column-empty={stage} className="rounded-xl border border-dashed border-border px-3 py-6 text-center text-[12.5px] text-muted-foreground">Sin candidatos en esta etapa.</p>
+        <Empty data-pf-pipeline-column-empty={stage} className="border border-dashed border-border p-4">
+          <EmptyDescription className="text-[12.5px]">Sin candidatos en esta etapa.</EmptyDescription>
+        </Empty>
       ) : (
         <ul className="flex flex-col gap-3">
           {candidates.map((candidate) => (<li key={candidate.id}><CandidateCard candidate={candidate} /></li>))}
@@ -116,24 +146,33 @@ function BoardColumn({ stage, count, candidates }: { stage: VacancyPipelineStage
 }
 
 /**
- * The local Tablero/Lista switch: a labelled group of two native buttons. The
- * pressed styling and `aria-pressed` both come from the same local view, so the
- * visible and the accessible state can never disagree. It owns no routing,
- * transport, or persistence.
+ * The local Tablero/Lista switch: a labelled, controlled ToggleGroup of two
+ * installed items. The pressed styling and `aria-pressed` both come from the
+ * same local view, so the visible and the accessible state can never disagree.
+ * It owns no routing, transport, or persistence.
  */
 function ViewSwitch({ view, onChange }: { view: PipelineView; onChange: (next: PipelineView) => void }) {
   return (
-    <div data-pf-pipeline-view role="group" aria-label="Vista del pipeline" className="inline-flex items-center gap-1 self-start rounded-2xl border border-border bg-muted/60 p-1 sm:self-auto">
-      {PIPELINE_VIEWS.map(({ id, label, Icon }) => {
-        const active = view === id;
-        return (
-          <Button key={id} type="button" variant={active ? "default" : "ghost"} aria-pressed={active} data-pf-pipeline-view-tab={id} onClick={() => onChange(id)} className="h-10 gap-2 px-3.5">
-            <Icon aria-hidden="true" className="size-4" />
-            {label}
-          </Button>
-        );
-      })}
-    </div>
+    <ToggleGroup
+      data-pf-pipeline-view
+      aria-label="Vista del pipeline"
+      variant="outline"
+      spacing={0}
+      value={[view]}
+      onValueChange={(next) => {
+        // Base UI emits an empty array when the active item is toggled off; ignoring it keeps one view always selected.
+        const [nextView] = next;
+        if (nextView === "board" || nextView === "list") onChange(nextView);
+      }}
+      className="self-start sm:self-auto"
+    >
+      {PIPELINE_VIEWS.map(({ id, label, Icon }) => (
+        <ToggleGroupItem key={id} value={id} data-pf-pipeline-view-tab={id} className="h-10 gap-2 px-3.5">
+          <Icon aria-hidden="true" className="size-4" />
+          {label}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
   );
 }
 
@@ -143,29 +182,26 @@ function ViewSwitch({ view, onChange }: { view: PipelineView; onChange: (next: P
  */
 function CandidateRow({ candidate }: { candidate: PipelineCandidate }) {
   return (
-    <tr data-pf-pipeline-row={candidate.id} className="border-b border-border/70 align-top last:border-b-0">
-      <td className="px-3 py-3">
+    <TableRow data-pf-pipeline-row={candidate.id} className="border-b border-border/70 align-top last:border-b-0">
+      <TableCell className={CELL}>
         <p className="text-[13.5px] font-semibold text-foreground">{candidate.fullName}</p>
-        <p className={cn("mt-0.5", META)}>{candidate.professionalTitle}</p>
-      </td>
-      <td className="px-3 py-3">
-        <span className="inline-flex items-center gap-2 text-[12.5px] text-foreground">
-          <span aria-hidden="true" className={cn("size-2.5 rounded-full", STAGE_DOT[candidate.status])} />
-          {CANDIDATE_STATUS_LABELS[candidate.status]}
-        </span>
-      </td>
-      <td className={cn("px-3 py-3", META)}>{plural(candidate.yearsOfExperience, "año", "años")} de experiencia</td>
-      <td className="px-3 py-3">
+        <p className={`mt-0.5 ${META}`}>{candidate.professionalTitle}</p>
+      </TableCell>
+      <TableCell className={CELL}>
+        <Badge variant="outline" className={`text-[12px] font-semibold tabular-nums ${STAGE_TONE[candidate.status]}`}>{CANDIDATE_STATUS_LABELS[candidate.status]}</Badge>
+      </TableCell>
+      <TableCell className={`${CELL} ${META}`}>{plural(candidate.yearsOfExperience, "año", "años")} de experiencia</TableCell>
+      <TableCell className={CELL}>
         <SkillChips skills={candidate.skills} />
-      </td>
-      <td className="px-3 py-3"><MatchScore score={candidate.matchScore} /></td>
-      <td className={cn("px-3 py-3", META)}>{CANDIDATE_SOURCE_LABELS[candidate.source]}</td>
-      <td className={cn("px-3 py-3", META)}>{candidate.owner}</td>
-      <td className={cn("px-3 py-3", META)}>{commentCopy(candidate.commentCount)}</td>
-      <td className="px-3 py-3">
-        {candidate.nextStep ? (<span data-pf-pipeline-next-step={candidate.id} className={cn("inline-block rounded-lg bg-muted px-2.5 py-1.5", CARD_META)}><span className="font-semibold text-foreground">Próximo paso: </span>{candidate.nextStep}</span>) : null}
-      </td>
-    </tr>
+      </TableCell>
+      <TableCell className={CELL}><MatchScore score={candidate.matchScore} /></TableCell>
+      <TableCell className={`${CELL} ${META}`}>{CANDIDATE_SOURCE_LABELS[candidate.source]}</TableCell>
+      <TableCell className={`${CELL} ${META}`}>{candidate.owner}</TableCell>
+      <TableCell className={`${CELL} ${META}`}>{commentCopy(candidate.commentCount)}</TableCell>
+      <TableCell className={CELL}>
+        {candidate.nextStep ? (<span data-pf-pipeline-next-step={candidate.id} className={`inline-block rounded-lg bg-muted px-2.5 py-1.5 ${CARD_META}`}><span className="font-semibold text-foreground">Próximo paso: </span>{candidate.nextStep}</span>) : null}
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -177,21 +213,23 @@ function CandidateRow({ candidate }: { candidate: PipelineCandidate }) {
  */
 function CandidateList({ label, candidates, emptyCopy }: { label: string; candidates: readonly PipelineCandidate[]; emptyCopy: string }) {
   return (
-    <div data-pf-pipeline-list role="region" aria-label={label} tabIndex={0} className="overflow-x-auto rounded-2xl border border-border bg-card/40 p-1 focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none">
+    <div data-pf-pipeline-list role="region" aria-label={label} tabIndex={0} className="overflow-x-auto rounded-2xl border border-border bg-card/40 p-1 focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none [&>[data-slot=table-container]]:contents">
       {candidates.length === 0 ? (
-        <p data-pf-pipeline-list-empty className="rounded-xl border border-dashed border-border px-3 py-6 text-center text-[12.5px] text-muted-foreground">{emptyCopy}</p>
+        <Empty data-pf-pipeline-list-empty className="border border-dashed border-border p-6">
+          <EmptyDescription className="text-[12.5px]">{emptyCopy}</EmptyDescription>
+        </Empty>
       ) : (
-        <table className="w-full min-w-[64rem] border-collapse text-left">
-          <caption className="sr-only">{label}</caption>
-          <thead>
-            <tr className="border-b border-border">
-              {LIST_COLUMN_LABELS.map((column) => (<th key={column} scope="col" className="px-3 py-2.5 text-[12px] font-semibold text-muted-foreground">{column}</th>))}
-            </tr>
-          </thead>
-          <tbody>
+        <Table className="min-w-[64rem]">
+          <TableCaption className="sr-only">{label}</TableCaption>
+          <TableHeader>
+            <TableRow className="border-b border-border hover:bg-transparent">
+              {LIST_COLUMN_LABELS.map((column) => (<TableHead key={column} scope="col" className="px-3 py-2.5 text-[12px] font-semibold text-muted-foreground">{column}</TableHead>))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {candidates.map((candidate) => (<CandidateRow key={candidate.id} candidate={candidate} />))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       )}
     </div>
   );
@@ -203,8 +241,8 @@ function CandidateList({ label, candidates, emptyCopy }: { label: string; candid
  * the four column counts from the model helper, filters by name, title, and
  * skills with a diacritic-insensitive search, and renders that single filtered
  * set as either the Tablero board or the Lista table behind one accessible local
- * switch. It discloses that the demo cards are a representative sample of the
- * vacancy counters. It owns no fetch, router mutation, storage, drag/drop, or
+ * switch. It reports how many candidate cards the current view shows out of the
+ * vacancy total. It owns no fetch, router mutation, storage, drag/drop, or
  * candidate mutation, and it never imports fixtures.
  */
 export function PipelineWorkspace({ vacancy, candidates }: { vacancy: EmployerVacancy; candidates: readonly PipelineCandidate[] }) {
@@ -219,10 +257,12 @@ export function PipelineWorkspace({ vacancy, candidates }: { vacancy: EmployerVa
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-1.5">
           <label htmlFor="pipeline-search" className="text-[12.5px] font-medium text-foreground">Buscar candidato</label>
-          <div className="relative">
-            <SearchIcon aria-hidden="true" className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input id="pipeline-search" data-pf-pipeline-search type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre, puesto o habilidad" className="h-10 pl-9 sm:w-80" />
-          </div>
+          <InputGroup className="h-10 sm:w-80">
+            <InputGroupAddon>
+              <SearchIcon aria-hidden="true" />
+            </InputGroupAddon>
+            <InputGroupInput id="pipeline-search" data-pf-pipeline-search type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre, puesto o habilidad" />
+          </InputGroup>
         </div>
         <ViewSwitch view={view} onChange={setView} />
       </div>
@@ -237,10 +277,15 @@ export function PipelineWorkspace({ vacancy, candidates }: { vacancy: EmployerVa
         <CandidateList label={`Lista de candidatos de ${vacancy.title}`} candidates={filtered} emptyCopy={listEmptyCopy} />
       )}
       {needle !== "" && filtered.length === 0 ? (
-        <div data-pf-pipeline-recovery className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card/40 px-4 py-6 text-center">
-          <p className="text-[13px] text-muted-foreground">No hay candidatos que coincidan con la búsqueda «{query.trim()}».</p>
-          <Button type="button" variant="outline" data-pf-pipeline-clear onClick={() => setQuery("")} className="h-10">Limpiar búsqueda</Button>
-        </div>
+        <Empty data-pf-pipeline-recovery className="border border-dashed border-border bg-card/40 p-6">
+          <EmptyHeader>
+            <EmptyTitle>Sin resultados</EmptyTitle>
+            <EmptyDescription>No hay candidatos que coincidan con la búsqueda «{query.trim()}».</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button type="button" variant="outline" data-pf-pipeline-clear onClick={() => setQuery("")} className="h-10">Limpiar búsqueda</Button>
+          </EmptyContent>
+        </Empty>
       ) : null}
     </div>
   );

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 // The shell never navigates itself, so the suite drives the pathname hook directly.
@@ -13,13 +13,18 @@ import { CandidateShell } from "./candidate-shell";
 import { CandidateHeader } from "./candidate-header";
 import { isActiveCandidateDestination } from "./candidate-sidebar";
 
-// Sources as text for the coupling, palette and layout contracts.
-const source = (file: string) => readFileSync(join(process.cwd(), "src/components/candidate-dashboard", file), "utf8");
+// Sources as text for the coupling, palette and layout contracts. The candidate
+// theme module is optional: the PeopleFlow violet primary lives in globals.css, so
+// the correct state is no candidate-scoped override at all.
+const source = (file: string) => {
+  const path = join(process.cwd(), "src/components/candidate-dashboard", file);
+  return existsSync(path) ? readFileSync(path, "utf8") : "";
+};
 const SHELL = source("candidate-shell.tsx"), SIDEBAR = source("candidate-sidebar.tsx");
 const HEADER = source("candidate-header.tsx"), THEME = source("candidate-theme.module.css");
 const SOURCES = [SHELL, SIDEBAR, HEADER, THEME];
-const NAV = [["Dashboard", "/candidato/dashboard"], ["Postulaciones", "/candidato/postulaciones"], ["Perfil", "/candidato/perfil"], ["CVs", "/candidato/cvs"], ["Cuenta", "/candidato/cuenta"]] as const;
-const GROUPS = [["Mi búsqueda", ["Dashboard", "Postulaciones"]], ["Mi perfil", ["Perfil", "CVs", "Cuenta"]]] as const;
+const NAV = [["Dashboard", "/candidato/dashboard"], ["Postulaciones", "/candidato/postulaciones"], ["Perfil", "/candidato/perfil"], ["CVs", "/candidato/cvs"], ["Configuración", "/candidato/configuracion"]] as const;
+const GROUPS = [["Mi búsqueda", ["Dashboard", "Postulaciones"]], ["Mi perfil", ["Perfil", "CVs", "Configuración"]]] as const;
 
 // jsdom implements neither matchMedia nor ResizeObserver; the sidebar reads the first.
 function stubBrowserApis(innerWidth = 1280) {
@@ -48,16 +53,21 @@ afterEach(() => {
 });
 
 describe("candidate shell frame", () => {
-  it("mounts one provider, clips the inset and keeps 48px expanded rows with a 40px icon-rail floor", async () => {
+  it("mounts one provider, clips the inset and keeps the native icon-rail geometry", async () => {
     const user = userEvent.setup();
     renderShell();
     expect(document.querySelectorAll("[data-slot='sidebar-wrapper']")).toHaveLength(1);
     expect(document.querySelectorAll("[data-slot='sidebar-inset']")).toHaveLength(1);
     expect(sidebar()).toHaveAttribute("data-variant", "inset");
     expect(screen.getByText("contenido de la ruta")).toBeInTheDocument();
+    const wrapper = document.querySelector("[data-slot='sidebar-wrapper']") as HTMLElement;
     const inset = document.querySelector("[data-slot='sidebar-inset']") as HTMLElement;
+    expect(wrapper.className).toContain("bg-primary/5");
     expect(inset.className).toContain("overflow-x-clip");
     expect(inset.className).not.toContain("overflow-x-hidden");
+    for (const token of ["md:mt-3", "md:mr-3", "md:mb-3", "md:rounded-3xl", "md:ring-1", "md:ring-primary/15", "md:shadow-md"]) {
+      expect(inset.className).toContain(token);
+    }
     expect(SHELL).toContain('"--sidebar-width": "calc(var(--spacing) * 72)"');
     expect(SHELL).toContain('"--header-height": "calc(var(--spacing) * 12)"');
     expect(cookie("sidebar_state")).toBeUndefined();
@@ -65,26 +75,27 @@ describe("candidate shell frame", () => {
     await user.click(screen.getByRole("button", { name: /toggle sidebar/i }));
     expect(sidebar()).toHaveAttribute("data-state", "collapsed");
     expect(sidebar()).toHaveAttribute("data-collapsible", "icon");
-    const link = screen.getByRole("link", { name: "Postulaciones" });
-    // jsdom performs no layout: the `size="lg"` 48px row and the 40px collapsed floor are class contracts.
-    expect(link.className).toContain("h-12");
-    expect(link.className).toContain("group-data-[collapsible=icon]:size-10!");
-    expect(link.className).not.toContain("group-data-[collapsible=icon]:size-8!");
-    expect(link).toHaveAccessibleName("Postulaciones");
-    expect(link).toHaveAttribute("data-base-ui-tooltip-trigger");
-    // The brand floors at 40px in both modes; the five destinations and account link share the 40px rail.
+
+    // Candidate destinations reuse the employer's shared 40px default geometry:
+    // no 48px `size="lg"` rows and no candidate-only icon-rail override.
+    const destinations = navLinks();
     const brand = screen.getByRole("link", { name: "PeopleFlow" });
-    const account = within(document.querySelector("[data-slot='sidebar-footer']") as HTMLElement).getByRole("link", { name: /Ximena Barrera/ });
-    expect([...navLinks(), account]).toHaveLength(6);
-    for (const target of [brand, ...navLinks(), account]) {
+    for (const target of [brand, ...destinations]) {
+      expect(target).toHaveAttribute("data-size", "default");
+      expect(target.className).toContain("h-10");
       expect(target.className).toContain("group-data-[collapsible=icon]:size-10!");
       expect(target.className).not.toContain("group-data-[collapsible=icon]:size-8!");
+      expect(target.className).not.toContain("h-12");
     }
-    for (const target of [...navLinks(), account]) expect(target.className).toContain("h-12");
-    expect(brand.className).toContain("h-10");
     expect(brand.className).toContain("data-[slot=sidebar-menu-button]:p-1.5!");
-    expect(SIDEBAR).toContain("group-data-[collapsible=icon]:size-10!");
-    expect(SIDEBAR).not.toContain("group-data-[collapsible=icon]:size-8!");
+    for (const [label] of NAV) expect(screen.getByRole("link", { name: label })).toHaveAccessibleName(label);
+    for (const target of destinations) {
+      expect(target).toHaveAttribute("data-base-ui-tooltip-trigger");
+      expect(target.querySelector("svg")).not.toBeNull();
+    }
+    expect(SIDEBAR).not.toContain("ICON_RAIL_TARGET");
+    expect(SIDEBAR).not.toContain("group-data-[collapsible=icon]:size-10!");
+    expect(SIDEBAR).not.toContain('size="lg"');
     expect(cookie("sidebar_state")).toBe("false");
   });
 
@@ -103,7 +114,9 @@ describe("candidate shell frame", () => {
     expect(drawer).toHaveAccessibleName("Navegación");
     expect(navLinks().map((link) => link.textContent)).toEqual(NAV.map(([label]) => label));
     expect(within(drawer).getByRole("link", { name: "Perfil" })).toHaveAttribute("data-active");
-    expect(within(drawer).getByRole("link", { name: /Ximena Barrera/ })).toHaveAttribute("href", "/candidato/cuenta");
+    // The drawer keeps the shared account trigger, not a direct footer link.
+    expect(within(drawer).getByRole("button", { name: /Ximena Barrera/ })).toBeInTheDocument();
+    expect(within(drawer).queryByRole("link", { name: /Ximena Barrera/ })).toBeNull();
     expect(cookie("sidebar_state")).toBeUndefined();
   });
 });
@@ -135,7 +148,7 @@ describe("candidate navigation", () => {
 
   it.each([
     ["/candidato/dashboard", "Dashboard"], ["/candidato/postulaciones", "Postulaciones"], ["/candidato/postulaciones/abc-123", "Postulaciones"],
-    ["/candidato/perfil", "Perfil"], ["/candidato/cvs", "CVs"], ["/candidato/cuenta/seguridad", "Cuenta"],
+    ["/candidato/perfil", "Perfil"], ["/candidato/cvs", "CVs"], ["/candidato/configuracion/seguridad", "Configuración"],
   ])("activates only %s on the %s destination", (pathname, expected) => {
     renderShell(pathname);
     expect(activeLabels()).toEqual([expected]);
@@ -148,25 +161,31 @@ describe("candidate navigation", () => {
 });
 
 describe("candidate identity", () => {
-  it("links the fictional candidate identity straight to the account route", () => {
+  it("adopts the shared NavUser account composition for the candidate identity", () => {
     renderShell();
     const footer = document.querySelector("[data-slot='sidebar-footer']") as HTMLElement;
-    // One plain link: no dropdown, menu, session or credential affordance.
-    expect(within(footer).queryAllByRole("button")).toHaveLength(0);
-    expect(footer.querySelector("[data-slot='dropdown-menu-trigger']")).toBeNull();
-    const account = within(footer).getByRole("link", { name: /Ximena Barrera/ });
-    expect(account.tagName).toBe("A");
-    expect(account).toHaveAttribute("href", "/candidato/cuenta");
+    // Shared composition: shadcn Avatar + DropdownMenu trigger, not a plain link
+    // and not a hand-rolled initials span.
+    expect(within(footer).queryByRole("link", { name: /Ximena Barrera/ })).toBeNull();
+    expect(within(footer).getByRole("button", { name: /Ximena Barrera/ })).toBeInTheDocument();
+    expect(footer.querySelector("[data-slot='avatar']")).not.toBeNull();
     expect(within(footer).getByText("XB")).toBeInTheDocument();
-    expect(within(footer).getByText("Candidata · ximena.barrera@correo.mx")).toBeInTheDocument();
-    expect(SIDEBAR).toContain("candidateInitials(CANDIDATE_IDENTITY.fullName)");
+    expect(within(footer).getByText("Candidata · Espacio personal")).toBeInTheDocument();
+    expect(SIDEBAR).toContain('from "@/components/company-dashboard/nav-user"');
+    expect(SIDEBAR).toContain("<NavUser");
+    expect(SIDEBAR).not.toContain("candidateInitials");
+    expect(SIDEBAR).not.toContain("bg-sidebar-primary");
     expect(SIDEBAR).not.toContain('"XB"');
+    // Candidate menu entries stay real candidate routes; employer-only actions never leak in.
+    for (const employerOnly of ["Cerrar sesión", "Plan y facturación", "Notificaciones", "IconLogout", "IconCreditCard", "IconNotification"]) {
+      expect(SIDEBAR, employerOnly).not.toContain(employerOnly);
+    }
   });
 
   it("keeps hiring-side identity, demo copy, fake actions and coupling out", () => {
     renderShell();
     const forbidden = [
-      "Nexo Labs", "Tomás Ríos", "Talent Lead", "Acme Inc.", "Camila Núñez", "Nueva vacante", "Cerrar sesión", "Plan y facturación", "Notificaciones", "m@example.com", "EmployerShell", "AppSidebar", "SiteHeader", "NavUser",
+      "Nexo Labs", "Tomás Ríos", "Talent Lead", "Acme Inc.", "Camila Núñez", "Nueva vacante", "Cerrar sesión", "Plan y facturación", "Notificaciones", "m@example.com", "EmployerShell", "AppSidebar", "SiteHeader",
       "employer", "empresa", "reclut", "dashboard-01-theme", "IconLogout", "IconCreditCard", "document.cookie", "next/headers", "cookies(", "useRouter", "useSearchParams", "next/dist", "window.location", "fetch(", "onClick",
       "localStorage", "try {", "catch {",
     ];
@@ -206,19 +225,15 @@ describe("candidate route header", () => {
   });
 });
 
-describe("candidate cyan theme", () => {
-  it("scopes the approved cyan accent to the primary and ring roles only", () => {
-    expect(THEME).toContain("#0e7490");
-    expect(THEME).toContain("#22d3ee");
-    const declared = [...THEME.matchAll(/(--[a-z-]+)\s*:/g)].map(([, token]) => token);
-    expect([...new Set(declared)].sort()).toEqual(["--primary", "--primary-foreground", "--ring", "--sidebar-primary", "--sidebar-primary-foreground"]);
-    for (const untouched of ["--background", "--card", "--sidebar:", "--radius", "--font-sans", "--accent"]) {
-      expect(THEME, `${untouched} must stay global`).not.toContain(untouched);
-    }
-    const dark = THEME.slice(THEME.indexOf(":global(.dark)"));
-    expect(dark).toContain("#22d3ee");
-    expect(dark).toContain("#0c0912");
-    expect(SHELL).toContain('import candidateTheme from "./candidate-theme.module.css"');
-    expect(SHELL).toContain("candidateTheme.root");
+describe("candidate PeopleFlow violet primary", () => {
+  it("inherits the global violet primary instead of a candidate-scoped override", () => {
+    // globals.css owns the violet preset for `--primary`/`--sidebar-primary`; any
+    // candidate-scoped restatement silently repaints the whole profile.
+    expect([...THEME.matchAll(/(--[a-z-]+)\s*:/gu)].map(([, token]) => token)).toEqual([]);
+    for (const cyan of ["#0e7490", "#22d3ee", "#0c0912"]) expect(THEME.toLowerCase(), cyan).not.toContain(cyan);
+    for (const file of SOURCES) expect(file.toLowerCase()).not.toMatch(/#0e7490|#22d3ee|#0c0912/u);
+    expect(SHELL).not.toContain("--primary");
+    // The frame keeps its tint, which now derives from the peopleflow violet primary.
+    expect(SHELL).toContain("bg-primary/5");
   });
 });

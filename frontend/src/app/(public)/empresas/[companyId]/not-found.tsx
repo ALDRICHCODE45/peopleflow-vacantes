@@ -11,7 +11,7 @@ export default function CompanyCareersNotFound() {
         No encontramos esta empresa
       </h1>
       <p className="max-w-prose text-sm leading-relaxed text-muted-foreground">
-        El prototipo de páginas de carreras todavía no incluye este perfil.
+        Todavía no tenemos un perfil para esta empresa.
         Puedes revisar las vacantes publicadas en PeopleFlow.
       </p>
       <Link

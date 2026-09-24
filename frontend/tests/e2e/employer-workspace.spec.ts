@@ -27,7 +27,6 @@ const DESKTOP = { width: 1440, height: 900 } as const;
 const MOBILE = { width: 375, height: 812 } as const;
 const FORBIDDEN_PORTS = [":3001", ":4010"] as const;
 const DISALLOWED_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
-const NO_SEND_COPY = "Prototipo: no se envió la invitación ni se guardó ningún cambio.";
 
 type Captured = { method: string; url: string };
 const trackRequests = (page: Page) => {
@@ -189,6 +188,20 @@ test("backend pipeline keeps the Tablero default, filters `Diego`, switches view
     await expect(page.locator(`[data-pf-pipeline-card="${id}"]`)).toBeVisible();
   }
 
+  // Every board root is the installed Card with its full slot set; the four
+  // stage counters are Badges whose stage tones resolve to four distinct colors.
+  const cards = page.locator("[data-pf-pipeline-card]");
+  await expect(page.locator("[data-pf-pipeline-card][data-slot=card]")).toHaveCount(4);
+  for (const slot of ["card-header", "card-content", "card-footer", "avatar-fallback"]) {
+    await expect(cards.locator(`[data-slot=${slot}]`)).toHaveCount(4);
+  }
+  await expect(cards.locator("[data-slot=card-title] h3")).toHaveCount(4);
+  const stageCounts = page.locator("[data-pf-pipeline-column-count]");
+  await expect(page.locator("[data-pf-pipeline-column-count][data-slot=badge]")).toHaveCount(4);
+  expect(new Set(await stageCounts.evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).color))).size).toBe(4);
+  const identity = cards.locator("[data-slot=card-header] h3, [data-slot=card-header] p");
+  expect(await identity.evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).textOverflow))).not.toContain("ellipsis");
+
   // `Diego` narrows the four-card board to a single semantic card; switching
   // to Lista keeps the typed query and keeps exactly one row.
   await page.locator("[data-pf-pipeline-search]").fill("Diego");
@@ -200,6 +213,20 @@ test("backend pipeline keeps the Tablero default, filters `Diego`, switches view
   await expect(page.locator('[data-pf-pipeline-row="diego-salazar"]')).toHaveCount(1);
   await expect(page.locator('[data-pf-pipeline-row="lucia-fernandez"]')).toHaveCount(0);
   await expect(page.locator('[data-pf-pipeline-view-tab="list"]')).toHaveAttribute("aria-pressed", "true");
+
+  // The focusable list region is the real horizontal scroll owner while the
+  // document stays overflow-clean; ArrowRight proves keyboard reachability.
+  const list = page.locator("[data-pf-pipeline-list]");
+  await expect(list).toHaveAttribute("tabindex", "0");
+  await expect.poll(() => list.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(0);
+  expect(await overflowPx(page)).toBeLessThanOrEqual(1);
+  for (const slot of ["table", "table-header", "table-body", "table-row", "table-head", "table-cell", "table-caption"]) {
+    await expect(page.locator(`[data-pf-pipeline-list] [data-slot=${slot}]`).first()).toBeAttached();
+  }
+  expect(await page.locator('[data-pf-pipeline-row="diego-salazar"]').evaluate((el) => el.tagName)).toBe("TR");
+  await list.focus();
+  for (let index = 0; index < 4; index += 1) await page.keyboard.press("ArrowRight");
+  await expect.poll(() => list.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
 
   // Switch back, yield an unmatched recovery panel, then clear restores four.
   await page.locator('[data-pf-pipeline-view-tab="board"]').focus();
@@ -255,7 +282,14 @@ test("team filters `LUCIA`, gates it through `Activas`, and the invitation form 
   await page.locator("[data-pf-team-invitation-email]").fill("owner@nexolabs.mx");
   await page.locator("[data-pf-team-invitation-submit]").focus();
   await page.keyboard.press("Enter");
-  await expect(page.locator("[data-pf-team-invitation-status]")).toHaveText(NO_SEND_COPY);
+  // A valid submission is intentionally inert: the panel stays open with the
+  // typed email and chosen role preserved, and no status or success UI appears.
+  await expect(page.locator("[data-pf-team-invitation-panel]")).toBeVisible();
+  await expect(page.locator("[data-pf-team-invitation-email]")).toHaveValue("owner@nexolabs.mx");
+  await expect(page.locator("[data-pf-team-invitation-role]")).toHaveValue("owner");
+  await expect(page.locator("[data-pf-team-invitation-error]")).toHaveCount(0);
+  await expect(page.locator("[data-pf-team-invitation-status]")).toHaveCount(0);
+  await expect(page.locator("[data-pf-team-invitation-note]")).toHaveCount(0);
   // Member count and rows are unchanged: no fake success UI exists.
   await expect(page.locator("[data-pf-team-row]")).toHaveCount(6);
   await expect(page.locator('[data-pf-team-row="owner-nexolabs-mx"]')).toHaveCount(0);

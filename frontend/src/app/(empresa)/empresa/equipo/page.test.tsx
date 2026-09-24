@@ -123,26 +123,41 @@ describe("/empresa/equipo employer route", () => {
     ).toBeInTheDocument();
   });
 
-  it("discloses that the team data is local demo state and is not persisted", () => {
+  it("renders no route-level local-demo disclosure or implementation-status copy", () => {
     render(<Page />);
 
-    const disclosure = document.querySelector("[data-pf-equipo-disclosure]");
-    expect(disclosure).not.toBeNull();
-    expect(disclosure).toHaveAttribute("role", "note");
-    expect(disclosure).toHaveTextContent(/demostración/i);
-    expect(disclosure).toHaveTextContent(/no se guardan/i);
+    // The route-level disclosure block is gone and its copy is not re-added
+    // anywhere on the route, including the mounted invitation.
+    expect(document.querySelector("[data-pf-equipo-disclosure]")).toBeNull();
+    expect(screen.queryByText(/datos de demostración locales/i)).toBeNull();
+    expect(screen.queryByText(/no se guardan/i)).toBeNull();
   });
 
-  it("mounts exactly one invitation affordance with a persistent local-only note", () => {
+  it("mounts exactly one invitation affordance with no disclosure note or outcome surface", () => {
     render(<Page />);
 
-    // One invitation root and one closed toggle by default; the disclosure
-    // note must remain visible regardless of the toggle state.
+    // One invitation root and one closed toggle by default; the affordance
+    // states no implementation-status note or outcome surface in any state.
     expect(document.querySelectorAll("[data-pf-team-invitation]")).toHaveLength(1);
     const toggle = screen.getByRole("button", { name: "Invitar miembro" });
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     expect(toggle).toHaveAttribute("aria-controls", "team-invitation-panel");
-    expect(screen.getByText(/no envía correos ni guarda cambios/i)).toBeInTheDocument();
+    const invitation = document.querySelector(
+      "[data-pf-team-invitation]",
+    ) as HTMLElement;
+    // The removed note and outcome hooks must not return, and no
+    // implementation-status copy may render inside the invitation root.
+    expect(
+      invitation.querySelector("[data-pf-team-invitation-note]"),
+    ).toBeNull();
+    expect(
+      invitation.querySelector("[data-pf-team-invitation-status]"),
+    ).toBeNull();
+    expect(invitation.querySelector("[role='note']")).toBeNull();
+    expect(invitation.querySelector("[role='status']")).toBeNull();
+    expect(invitation.textContent).not.toMatch(
+      /no envía correos ni guarda cambios|no se envió la invitación|prototipo|demostración/iu,
+    );
     expect(screen.queryByRole("dialog")).toBeNull();
     // The invitation panel stays collapsed until the toggle opens it.
     expect(document.querySelector("[data-pf-team-invitation-panel]")).toBeNull();
@@ -260,7 +275,6 @@ describe("/empresa/equipo composition boundary", () => {
       'from "@/features/employer-team/team-invitation"',
       'from "@/features/employer-team/team-workspace"',
       'from "@/features/employer-team/prototype-team"',
-      'from "lucide-react"',
     ]) {
       expect(pageSource, `page.tsx must reuse ${reuse}`).toContain(reuse);
     }

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
+import { cn } from "cn";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -62,7 +63,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       aria-label="Cambiar tema"
       data-pf-theme-toggle=""
       onClick={cycleThemeMode}
-      className={className}
+      className={cn("size-10", className)}
     >
       <Sun aria-hidden="true" className="pf-icon-sun" />
       <Moon aria-hidden="true" className="pf-icon-moon" />

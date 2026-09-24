@@ -1,18 +1,12 @@
 /**
- * Prototype company-profile view model for the fictional careers-page company.
- * It imports nothing at all, so no contract, client, transport, or form symbol
- * can reach it, and nothing here is ever persisted.
+ * Company-profile view model for the careers-page company. It imports nothing
+ * at all, so no contract, client, transport, or form symbol can reach it, and
+ * nothing here is ever persisted.
  */
 /** Canonical id the prototype profile is keyed by. */
 export const PROTOTYPE_COMPANY_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
 /** Exact company name the existing wire vacancies already use for it. */
 export const PROTOTYPE_COMPANY_SOURCE_NAME = "Acme";
-/** Explicit disclosure that the profile is fictional prototype content. */
-export type PrototypeDisclosure = {
-  readonly isPrototype: true;
-  readonly label: string;
-  readonly statement: string;
-};
 /** Photographic cover plus the Spanish alternative text that conveys it. */
 export type CompanyCoverPhoto = {
   readonly url: string;
@@ -33,7 +27,6 @@ export type CompanyProfile = {
   readonly website: string;
   readonly workStyle: string;
   readonly coverPhoto: CompanyCoverPhoto;
-  readonly disclosure: PrototypeDisclosure;
 };
 /** Resolves by exact id, then exact source name; any other reference is unknown. */
 export function findCompanyProfile(

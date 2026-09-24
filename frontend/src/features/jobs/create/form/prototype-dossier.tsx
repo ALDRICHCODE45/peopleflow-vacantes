@@ -7,13 +7,13 @@ import { BENEFIT_OPTIONS, PAY_FREQUENCY_OPTIONS } from "./prototype-model";
 import type { VacancyPrototypeValues } from "./prototype-model";
 
 /**
- * Exploratory dossier of the draft preview.
+ * Complementary details dossier of the draft preview.
  *
- * Everything here is prototype-only presentation: the formatters, the catalog
- * lookups, the badge clamp, and the dossier itself. It reads the local-only
- * prototype model and renders ordinary elements, so it owns no request, no save,
- * and no claim that any of these values is stored or published. The module never
- * imports the preview or the rail, so the dependency stays one-way.
+ * Everything here is presentation for the local-only values the enriched
+ * sections collect: the formatters, the catalog lookups, the badge clamp, and
+ * the dossier itself. It reads the local-only model and renders ordinary
+ * elements, so it owns no request, no save, and no persistence claim. The module
+ * never imports the preview or the rail, so the dependency stays one-way.
  */
 
 /** How many technology badges the dossier shows before it counts the rest. */
@@ -75,7 +75,7 @@ function benefitSummary(benefits: VacancyPrototypeValues["benefits"]): string {
     .join(" · ");
 }
 
-/** The exploratory rows, in the order the dossier presents them. */
+/** The complementary rows, in the order the dossier presents them. */
 function exploratoryRows(prototype: VacancyPrototypeValues): ExploratoryRow[] {
   const rows: ExploratoryRow[] = [];
   const department = prototype.department.trim();
@@ -119,7 +119,7 @@ function exploratoryRows(prototype: VacancyPrototypeValues): ExploratoryRow[] {
   return rows;
 }
 
-/** True as soon as any exploratory field carries content worth showing. */
+/** True as soon as any complementary field carries content worth showing. */
 function hasExploratoryContent(prototype: VacancyPrototypeValues): boolean {
   return (
     prototype.department.trim() !== "" ||
@@ -135,15 +135,14 @@ function hasExploratoryContent(prototype: VacancyPrototypeValues): boolean {
 }
 
 export type PrototypeDossierProps = {
-  /** Local-only exploratory state; nothing renders while it is empty. */
+  /** Local-only complementary state; nothing renders while it is empty. */
   prototype?: VacancyPrototypeValues;
 };
 
 /**
- * Restrained exploratory block: a labelled header, the clamped technology
- * badges, one row per exploratory category, and an explicit note that none of it
- * is stored or published. It renders nothing when there is nothing to show, so
- * the rail never carries an empty box.
+ * Restrained complementary block: a labelled header, the clamped technology
+ * badges, and one row per complementary category. It renders nothing when there
+ * is nothing to show, so the rail never carries an empty box.
  */
 export function PrototypeDossier({ prototype }: PrototypeDossierProps) {
   if (prototype === undefined || !hasExploratoryContent(prototype)) return null;
@@ -153,12 +152,7 @@ export function PrototypeDossier({ prototype }: PrototypeDossierProps) {
 
   return (
     <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-border bg-muted/30 p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 className="font-heading text-xs font-medium">Detalles exploratorios</h3>
-        <Badge variant="outline" className="text-muted-foreground">
-          Prototipo
-        </Badge>
-      </div>
+      <h3 className="font-heading text-xs font-medium">Información complementaria</h3>
 
       {visibleSkills.length > 0 && (
         <div className="flex flex-wrap items-center gap-1">
@@ -186,10 +180,6 @@ export function PrototypeDossier({ prototype }: PrototypeDossierProps) {
           </div>
         ))}
       </dl>
-
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        Detalles de prototipo: todavía no se guardan ni se publican.
-      </p>
     </div>
   );
 }

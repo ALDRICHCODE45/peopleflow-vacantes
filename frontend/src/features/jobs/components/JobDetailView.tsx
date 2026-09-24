@@ -23,6 +23,7 @@ import {
 
 import { findCompanyProfile } from "../../company-profile/model";
 import { PROTOTYPE_COMPANY_PROFILES } from "../../company-profile/prototype-companies";
+import { vacancyApplicationHref } from "../application/application-draft";
 import type { PrototypeJobView } from "../enrich";
 import {
   employmentTypeLabel,
@@ -34,7 +35,7 @@ import {
   workModeLabel,
 } from "../formatters";
 import { PrototypeFeedbackButton } from "./prototype-feedback-island";
-import { CompanyMonogram, PrototypeDisclosure, VerifiedByPeopleFlow, prototypeApplicantsLabel, prototypeResponseLabel } from "./prototype-ui";
+import { CompanyMonogram, VerifiedByPeopleFlow, prototypeApplicantsLabel, prototypeResponseLabel } from "./prototype-ui";
 
 /** Contextual icon per wire work mode, mirroring the public board rows. */
 const WORK_MODE_ICONS = {
@@ -53,7 +54,7 @@ const focusRing =
 /* Body links keep `text-foreground` with an always-visible underline, because the accent token fails AA for body text on the dark page background. */
 const bodyLink =
   "font-medium text-foreground underline decoration-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-/** Primary apply affordance: a token tint owned by the momentary apply island. */
+/** Primary apply affordance: a token tint shared by the real application link. */
 const actionPrimary = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/15 px-4 text-sm font-semibold text-foreground";
 /** Secondary save affordance, styled for the toggle save island. */
 const actionGhost = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold text-muted-foreground";
@@ -83,11 +84,11 @@ function benefitIcon(benefit: string): typeof SparklesIcon {
   return BENEFIT_ICON_RULES.find(({ pattern }) => pattern.test(benefit))?.Icon ?? SparklesIcon;
 }
 
-/** Non-persistent share affordances: three momentary demonstration islands. */
+/** Non-persistent share affordances: three placeholder controls. */
 const SHARE_ACTIONS = [
-  { key: "copy", label: "Copiar enlace", feedback: "Copiar enlace es solo una demostración: no se copió nada." },
-  { key: "share", label: "Compartir en redes", feedback: "Compartir en redes es solo una demostración: no se compartió nada." },
-  { key: "mail", label: "Enviar por correo", feedback: "Enviar por correo es solo una demostración: no se envió ningún correo." },
+  { key: "copy", label: "Copiar enlace" },
+  { key: "share", label: "Compartir en redes" },
+  { key: "mail", label: "Enviar por correo" },
 ] as const;
 
 /**
@@ -129,15 +130,15 @@ function prototypeProfile(job: PrototypeJobView) {
 }
 
 /**
- * Disclosed prototype role block, rendered after the wire description. Every
- * value is fictional demo enrichment, so the block never fuses with the wire
- * metadata: it carries no image and no paragraph (the description paragraphs
- * stay the article's only `p` elements), and every requirement, skill, and
- * benefit renders as escaped plain text. The block is an h2 sibling of the
- * page's other sections, with its own groups as h3 and the two requirement
- * lists as h4, so the page keeps one unbroken outline. The skills and the
- * benefits follow the committed reference structure: skills are chips and
- * benefits are one tile per benefit, each on a semantic token surface.
+ * Role block, rendered after the wire description. Every value is display
+ * enrichment, so the block never fuses with the wire metadata: it carries no
+ * image and no paragraph (the description paragraphs stay the article's only
+ * `p` elements), and every requirement, skill, and benefit renders as escaped
+ * plain text. The block is an h2 sibling of the page's other sections, with its
+ * own groups as h3 and the two requirement lists as h4, so the page keeps one
+ * unbroken outline. The skills and the benefits follow the committed reference
+ * structure: skills are chips and benefits are one tile per benefit, each on a
+ * semantic token surface.
  */
 function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
   const prototype = job.prototype;
@@ -149,16 +150,16 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
 
   return (
     <section
-      aria-labelledby="prototipo-vacante"
+      aria-labelledby="vacante-rol"
       data-detail-card="prototype"
       className="flex flex-col gap-6 rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-6 md:p-7"
     >
       <div className="flex flex-col gap-3">
         <h2
-          id="prototipo-vacante"
+          id="vacante-rol"
           className="font-heading text-lg font-semibold text-foreground"
         >
-          Prototipo · {prototype.department}
+          {prototype.department}
         </h2>
         <dl className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
           <div className="flex items-baseline gap-2">
@@ -245,16 +246,16 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
 /**
  * Server-rendered validated detail view in the reference composition: the
  * breadcrumb to the canonical board, the identity header (monogram, title,
- * featured state, company, wire and prototype metadata, prototype disclosure),
- * four stat cards, the structured prototype role content (requirements, skill
+ * featured state, company, and wire and display metadata),
+ * four stat cards, the structured role content (requirements, skill
  * chips, and token-only benefit tiles), and the responsive content/sticky-rail
  * scaffold. Only the wire description renders as `p` elements: every other
  * text node is a span, term, or definition. The company links to its canonical
- * profile only under the same exact opt-in match as the disclosed prototype
- * block; the rail carries the wire salary, the prototype apply/save/share
- * feedback islands, and the profile context, and it is omitted entirely when
- * neither salary nor an exact profile resolves. This view stays a server
- * component: it forwards plain strings to the island and owns no client
+ * profile only under the same exact opt-in match as that block; the rail
+ * carries the wire salary, the real apply link and the save/share placeholder
+ * controls, and the profile context, and it is omitted entirely when neither
+ * salary nor an exact profile resolves. This view stays a server
+ * component: it forwards plain strings to the controls and owns no client
  * directive, hook, request, storage, or business mutation.
  */
 export function JobDetailView({ job }: { job: PrototypeJobView }) {
@@ -339,11 +340,6 @@ export function JobDetailView({ job }: { job: PrototypeJobView }) {
                 ))}
               </dl>
             )}
-            {prototype !== undefined && (
-              <div id="proceso-prototipo">
-                <PrototypeDisclosure />
-              </div>
-            )}
           </div>
         </div>
       </header>
@@ -387,14 +383,15 @@ export function JobDetailView({ job }: { job: PrototypeJobView }) {
                   <ZapIcon aria-hidden="true" className="size-4 shrink-0" />
                   {prototypeResponseLabel(prototype.responseTimeDays)}
                 </span>
+                <Link
+                  href={vacancyApplicationHref(job.id)}
+                  className={actionPrimary}
+                >
+                  Postularme
+                  <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0" />
+                </Link>
                 <PrototypeFeedbackButton
-                  mode="momentary" icon="apply" label="Postularme (solo demostración)" text="Postularme" iconPosition="end" describedBy="proceso-prototipo"
-                  className={actionPrimary} feedback="Postulación de demostración: no se envió ninguna postulación real."
-                />
-                <PrototypeFeedbackButton
-                  mode="toggle" icon="bookmark" label="Guardar vacante (solo demostración)" text="Guardar" describedBy="proceso-prototipo" className={actionGhost}
-                  activeLabel="Guardar vacante (marcada solo en esta demostración)" activeFeedback="Guardado de demostración activado: no se guardó nada real."
-                  inactiveFeedback="Guardado de demostración desactivado: no se modificó nada real."
+                  icon="bookmark" label="Guardar vacante" text="Guardar" className={actionGhost}
                 />
                 {prototype.verifiedByPeopleFlow && <VerifiedByPeopleFlow />}
               </section>
@@ -402,7 +399,6 @@ export function JobDetailView({ job }: { job: PrototypeJobView }) {
 
             {profile !== undefined && (
               <section data-detail-card="company" className={`${cardSurface} flex flex-col gap-3 bg-card/40 p-6`}>
-                <strong className="text-xs font-semibold tracking-wide text-foreground uppercase">{profile.disclosure.label}</strong>
                 <div className="flex items-center gap-3">
                   <CompanyMonogram name={profile.name} size="compact" />
                   <div className="min-w-0">
@@ -414,7 +410,6 @@ export function JobDetailView({ job }: { job: PrototypeJobView }) {
                     </span>
                   </div>
                 </div>
-                <div className="text-sm leading-relaxed text-muted-foreground">{profile.disclosure.statement}</div>
                 <Link href={`/empresas/${profile.companyId}`} className={`${bodyLink} inline-flex items-center gap-1.5 self-start text-sm`}>Conoce a {profile.name}</Link>
               </section>
             )}
@@ -423,8 +418,8 @@ export function JobDetailView({ job }: { job: PrototypeJobView }) {
               <section data-detail-card="share" className={`${cardSurface} bg-card/40 p-5`}>
                 <h3 className="text-sm font-semibold text-foreground">Compartir vacante</h3>
                 <div className="mt-3 flex items-center gap-2">
-                  {SHARE_ACTIONS.map(({ key, label, feedback }) => (
-                    <PrototypeFeedbackButton key={key} mode="momentary" icon={key} label={`${label} (solo demostración)`} feedback={feedback} iconOnly iconClassName="size-[18px]" className={shareButton} />
+                  {SHARE_ACTIONS.map(({ key, label }) => (
+                    <PrototypeFeedbackButton key={key} icon={key} label={label} iconOnly iconClassName="size-[18px]" className={shareButton} />
                   ))}
                 </div>
               </section>

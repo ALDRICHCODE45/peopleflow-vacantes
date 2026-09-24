@@ -107,7 +107,7 @@ describe("CompletionSummary card", () => {
     const card = renderCard();
 
     expect(within(card).getByRole("heading", { name: "Progreso de la vacante" })).toBeVisible();
-    expect(within(card).getByText("Seguimiento de las secciones con contenido. No valida el formulario ni confirma que se guardó.")).toBeVisible();
+    expect(within(card).getByText("Revisá qué secciones tienen contenido antes de guardar el borrador.")).toBeVisible();
     expectBar(count(0), "0", "0%");
 
     cleanup();

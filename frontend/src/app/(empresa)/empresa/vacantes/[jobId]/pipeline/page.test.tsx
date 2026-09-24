@@ -174,13 +174,13 @@ describe("/empresa/vacantes/[jobId]/pipeline content", () => {
     expect(intro).toHaveTextContent(`${vacancy.teamSize} miembros del equipo`);
   });
 
-  it("discloses that the cards are local demo data and are not persisted", async () => {
+  it("renders no route-level local-demo disclosure while the workspace keeps its behavior", async () => {
     const { container } = await renderPipeline(NEXO_VACANCIES[0].id);
 
-    const disclosure = container.querySelector("[data-pf-pipeline-disclosure]")!;
-    expect(disclosure).toHaveAttribute("role", "note");
-    expect(disclosure).toHaveTextContent(/demostración/i);
-    expect(disclosure).toHaveTextContent(/no se guardan/i);
+    expect(container.querySelector("[data-pf-pipeline-disclosure]")).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.queryByText(/datos de demostración locales/i)).toBeNull();
+    expect(screen.queryByText(/no se guardan/i)).toBeNull();
   });
 
   it("mounts the shared workspace in the standard employer content padding", async () => {

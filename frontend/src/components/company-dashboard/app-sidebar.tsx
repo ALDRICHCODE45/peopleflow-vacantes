@@ -34,15 +34,18 @@ type NavItem = {
   icon: React.ReactNode
 }
 
-/** The honest placeholder for destinations that are not routes yet. */
+/**
+ * Internal marker for destinations that are not routes yet. It never reaches the
+ * DOM: unresolved items render as inert buttons instead of anchors.
+ */
 const UNRESOLVED_URL = "#"
 
 /**
  * Recruiting navigation for the employer dashboard prototype.
  *
  * `Dashboard`, `Vacantes` and `Equipo` resolve to real routes and light up from
- * the current pathname; every remaining destination is unresolved and stays on
- * the safe `#` placeholder, which is never marked active.
+ * the current pathname; every remaining destination is a presentation
+ * placeholder: visible, enabled and inert, never marked active.
  */
 const data = {
   user: {
@@ -114,11 +117,18 @@ function NavLink({
   const isResolved = item.url !== UNRESOLVED_URL
   return (
     <SidebarMenuItem>
+      {/*
+        Resolved destinations stay real Next links so the router owns
+        navigation. Unresolved placeholders render as enabled native buttons
+        without a destination, so they stay visible and keyboard-reachable while
+        performing no navigation, request, storage write, state mutation,
+        toast or success claim.
+      */}
       <SidebarMenuButton
         tooltip={item.title}
         isActive={isActiveDestination(item.url, pathname)}
         render={
-          isResolved ? <Link href={item.url} /> : <a href={item.url} />
+          isResolved ? <Link href={item.url} /> : <button type="button" />
         }
       >
         {item.icon}

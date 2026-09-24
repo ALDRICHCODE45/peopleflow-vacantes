@@ -22,17 +22,18 @@ import { VacancyFormSections } from "./form/vacancy-form-sections";
 /**
  * Employer create-vacancy form body.
  *
- * It owns exactly two states: the contract values that the save attempt reads,
- * and the local-only prototype values that exist for visual exploration. The
- * section tree lives behind `form/vacancy-form-sections.tsx`, the form model owns
- * normalization and schema-backed validation, and the draft rail owns the
- * preview and the save affordance.
+ * It owns exactly three states: the contract values that the save attempt
+ * validates, the local-only complementary values that exist for visual
+ * exploration, and the field errors of the last attempt. The section tree lives
+ * behind `form/vacancy-form-sections.tsx`, the form model owns normalization and
+ * schema-backed validation, and the draft rail owns the preview and the save
+ * affordance.
  *
- * The tokenized rich description is prototype state: the contract description is
- * always its derived plain text, so a formatting marker can never reach the wire
- * value. Saving stays deliberately fail-closed: without recruiter authentication
- * there is nothing to authorize a write with, so a valid attempt explains the
- * blocker and sends nothing. Prototype state never reaches that decision.
+ * The tokenized rich description is local-only state: the contract description
+ * is always its derived plain text, so a formatting marker can never reach the
+ * wire value. The save affordance stays visibly inert: the model is the only
+ * validation boundary, a valid attempt produces no visible change and issues no
+ * request, and field errors clear only once the corrected values become valid.
  */
 export function CreateVacancyForm() {
   const [values, setValues] =
@@ -40,7 +41,6 @@ export function CreateVacancyForm() {
   const [prototypeValues, setPrototypeValues] =
     React.useState<VacancyPrototypeValues>(INITIAL_PROTOTYPE_VALUES);
   const [errors, setErrors] = React.useState<VacancyFieldErrors>({});
-  const [notice, setNotice] = React.useState<string | null>(null);
   const formRef = React.useRef<HTMLFormElement | null>(null);
 
   function update<K extends keyof VacancyFormValues>(
@@ -71,13 +71,13 @@ export function CreateVacancyForm() {
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    // The model decides the attempt's outcome from the contract values alone.
-    const attempt = attemptDraftSave(values);
-    setErrors(attempt.errors);
-    setNotice(attempt.notice);
+    // The model validates the contract values alone: a valid draft has nothing
+    // to persist, while an invalid one reports its field errors.
+    const nextErrors = attemptDraftSave(values);
+    setErrors(nextErrors);
 
     // Focus answers an invalid submit only; editing never moves the caret.
-    const invalid = firstInvalidField(attempt.errors);
+    const invalid = firstInvalidField(nextErrors);
     if (invalid !== null) focusField(invalid);
   }
 
@@ -97,11 +97,7 @@ export function CreateVacancyForm() {
           onChangePrototype={updatePrototype}
         />
 
-        <DraftRail
-          values={values}
-          prototypeValues={prototypeValues}
-          notice={notice}
-        />
+        <DraftRail values={values} prototypeValues={prototypeValues} />
       </div>
     </form>
   );

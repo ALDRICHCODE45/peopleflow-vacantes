@@ -101,7 +101,7 @@ describe("/vacantes/[jobId] caller enrichment boundary (CCP-04)", () => {
     expect(routeSource("page-data.ts")).not.toMatch(/enrich|prototype|empresas/iu);
   });
 
-  it("renders the disclosed prototype role block from a wire-only read", async () => {
+  it("renders the role block from a wire-only read", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => wireJob }),
@@ -109,8 +109,9 @@ describe("/vacantes/[jobId] caller enrichment boundary (CCP-04)", () => {
     const VacanteDetailPage = await loadRoute("page");
     render(await VacanteDetailPage({ params: Promise.resolve({ jobId }) }));
     expect(
-      screen.getByRole("heading", { level: 2, name: "Prototipo · Ingeniería" }),
+      screen.getByRole("heading", { level: 2, name: "Ingeniería" }),
     ).toBeVisible();
+    expect(screen.queryByText(/prototipo|ficticia|demostraci/iu)).toBeNull();
     expect(screen.getByRole("link", { name: "Conoce a Acme" })).toHaveAttribute(
       "href",
       "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f",

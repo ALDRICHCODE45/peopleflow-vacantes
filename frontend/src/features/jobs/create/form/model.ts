@@ -139,13 +139,6 @@ const FIELD_MESSAGES: Record<VacancyField, string> = {
 const SALARY_RANGE_MESSAGE =
   "El salario máximo debe ser mayor o igual al salario mínimo.";
 
-/**
- * Stated only after a valid attempt: this build has no recruiter login yet, so
- * a draft cannot be persisted and no request is issued.
- */
-const AUTH_REQUIRED_NOTICE =
-  "Para guardar el borrador necesitás iniciar sesión como reclutador. La autenticación todavía no está disponible en esta versión, así que no se envió ninguna solicitud.";
-
 function isVacancyField(value: unknown): value is VacancyField {
   return (
     typeof value === "string" &&
@@ -224,21 +217,14 @@ export function validateVacancyForm(
   return errors;
 }
 
-/** What one save attempt decides: field errors, or the honest blocked notice. */
-export type DraftSaveAttempt = {
-  errors: VacancyFieldErrors;
-  notice: string | null;
-};
-
 /**
- * Decides the outcome of a save attempt. A valid draft cannot be persisted
- * because no recruiter login exists, so it yields the blocker notice instead of
- * a save claim; an invalid draft yields its field errors first.
+ * Validation boundary of a save attempt: it returns the field errors the
+ * contract schema reports, or an empty record when the draft is valid. It owns
+ * no persistence, request, navigation, or success state, so a valid attempt
+ * cannot produce a visible outcome by itself.
  */
-export function attemptDraftSave(values: VacancyFormValues): DraftSaveAttempt {
-  const errors = validateVacancyForm(values);
-  if (Object.keys(errors).length > 0) {
-    return { errors, notice: null };
-  }
-  return { errors: {}, notice: AUTH_REQUIRED_NOTICE };
+export function attemptDraftSave(
+  values: VacancyFormValues,
+): VacancyFieldErrors {
+  return validateVacancyForm(values);
 }

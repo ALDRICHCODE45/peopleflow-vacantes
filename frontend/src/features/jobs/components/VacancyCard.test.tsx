@@ -8,7 +8,6 @@ import { enrichJob } from "../enrich";
 import type { JobPayFrequency, PrototypeJobEnrichment, PrototypeJobView } from "../enrich";
 import { ACME_WIRE_JOBS } from "../prototype-jobs";
 import type { JobItem } from "../types";
-import { PROTOTYPE_DISCLOSURE } from "./prototype-ui";
 import { VacancyCard } from "./VacancyCard";
 
 /** A wire vacancy the prototype never enriches: the plain board-card fallback. */
@@ -29,6 +28,17 @@ const descriptionNode = (description: string) => {
 };
 /** The card source, so the component boundary checks read the shipped bytes. */
 const source = readFileSync(join(process.cwd(), "src/features/jobs/components/VacancyCard.tsx"), "utf8");
+/** Comments never render, so they are stripped before scanning shipping source. */
+const withoutComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\//gu, " ").replace(/\/\/[^\n]*/gu, " ");
+/**
+ * Implementation-status display copy banned from shipping source. Each entry is
+ * prose, never a technical identifier such as `PrototypeJobView`,
+ * `PrototypeFeedbackButton`, or `data-prototype-featured`, and comments are
+ * stripped before the scan.
+ */
+const STATUS_DISPLAY_COPY = /demostraci[óo]n|fictici[ao]s?|solo demostraci|marcada solo|no se guard[óo]|no se guarda|no se copi[óo]|no se comparti[óo]|no se envi[oó]|no se env[ií]a|no disponible|no implementado|\bPrototipo\b|\bprototipo\b/iu;
+/** Rendered implementation-status vocabulary banned from any visible text. */
+const RENDERED_STATUS_COPY = /\b(?:demo|mock|prototip\w*|fictici\w*|prueba|test|local|no disponible|no implementado|no se guarda|no se env[ií]a|no se copi[oó]|no se comparti[oó])\b/iu;
 /** A salaryless wire vacancy carrying a chosen prototype pay frequency. */
 const payRailJob = (payFrequency: JobPayFrequency): PrototypeJobView => ({
   ...enrichJob({ ...WIRE_ONLY_JOB, salary_min: undefined, salary_max: undefined }),
@@ -37,7 +47,7 @@ const payRailJob = (payFrequency: JobPayFrequency): PrototypeJobView => ({
 /** Every class list rendered inside `root`, to prove the card stays token-only. */
 const classesOf = (root: Element) => Array.from(root.querySelectorAll("[class]")).map((node) => node.getAttribute("class") ?? "").join(" ");
 /** Every prop the card may forward across the server/client boundary. */
-const ISLAND_PROPS = ["mode", "icon", "label", "activeLabel", "text", "className", "iconClassName", "iconPosition", "iconOnly", "describedBy", "title", "feedback", "activeFeedback", "inactiveFeedback"];
+const ISLAND_PROPS = ["icon", "label", "className", "iconClassName", "iconPosition", "iconOnly", "text", "title", "describedBy"];
 
 afterEach(() => cleanup());
 
@@ -64,7 +74,7 @@ describe("VacancyCard layout and affordances", () => {
     expect([titleLink.getAttribute("href"), titleLink.className]).toEqual([`/vacantes/${FRONTEND_JOB.id}`, expect.stringMatching(/focus-visible:outline/u)]);
     expect(container.querySelector("span[aria-hidden='true']")?.textContent).toBe("Ac");
     const bookmark = container.querySelector("button");
-    expect([bookmark?.getAttribute("type"), bookmark?.disabled, bookmark?.getAttribute("aria-label"), bookmark?.getAttribute("title"), bookmark?.getAttribute("aria-pressed")]).toEqual(["button", false, "Guardar vacante (solo demostración)", "Guardar vacante (solo demostración)", "false"]);
+    expect([bookmark?.getAttribute("type"), bookmark?.disabled, bookmark?.getAttribute("aria-label"), bookmark?.getAttribute("title"), bookmark?.getAttribute("aria-pressed")]).toEqual(["button", false, "Guardar vacante", "Guardar vacante", null]);
     expect([bookmark?.className.includes("size-10"), bookmark?.getAttributeNames().some((name) => name.startsWith("on"))]).toEqual([true, false]);
     expect(container.querySelectorAll("button")).toHaveLength(1);
   });
@@ -87,9 +97,10 @@ describe("VacancyCard wire fallback state", () => {
     const text = container.textContent ?? "";
     for (const value of ["Presencial", "Medio tiempo", "Otra Empresa", "Guadalajara, Jalisco", "Publicada: 5 de enero de 2026", WIRE_ONLY_JOB.description, "SALARIO"]) expect(text).toContain(value);
     expect(text).toMatch(/MXN 20,000 . MXN 25,000/u);
-    for (const absent of ["Destacada", "postulante", "Responde en", "Verificada por PeopleFlow", "Prototipo", "Habilidades", "Beneficios", "Ingeniería", "SALARIO MENSUAL", PROTOTYPE_DISCLOSURE]) expect(text).not.toContain(absent);
+    for (const absent of ["Destacada", "postulante", "Responde en", "Verificada por PeopleFlow", "Prototipo", "Habilidades", "Beneficios", "Ingeniería", "SALARIO MENSUAL"]) expect(text).not.toContain(absent);
     expect([container.querySelectorAll("button").length, screen.queryByRole("note"), screen.queryByRole("button", { name: /guardar/iu })]).toEqual([0, null, null]);
     expect(FORBIDDEN_COPY.test(text)).toBe(false);
+    expect(RENDERED_STATUS_COPY.test(text)).toBe(false);
     expect(container.querySelector("li")?.children).toHaveLength(2);
   });
 });
@@ -99,18 +110,18 @@ describe("VacancyCard enriched state", () => {
     const { container } = render(<ul><VacancyCard job={enriched} /><VacancyCard job={goJob} /></ul>);
     const [featured, plain] = Array.from(container.querySelectorAll("li"));
     const text = container.textContent ?? "";
-    for (const value of ["Destacada", "Hace 2 h", "24 postulantes", "Hace 5 h", "41 postulantes", "Ingeniería", "Monterrey, Nuevo León", "Plataforma", "Habilidades", "Beneficios", "SALARIO MENSUAL", "Responde en ~3 días", "Verificada por PeopleFlow", PROTOTYPE_DISCLOSURE, ...(enriched.prototype?.skills ?? []), ...(enriched.prototype?.benefits ?? [])]) expect(text).toContain(value);
+    for (const value of ["Destacada", "Hace 2 h", "24 postulantes", "Hace 5 h", "41 postulantes", "Ingeniería", "Monterrey, Nuevo León", "Plataforma", "Habilidades", "Beneficios", "SALARIO MENSUAL", "Responde en ~3 días", "Verificada por PeopleFlow", ...(enriched.prototype?.skills ?? []), ...(enriched.prototype?.benefits ?? [])]) expect(text).toContain(value);
     expect([featured.textContent?.includes("Destacada"), plain.textContent?.includes("Destacada")]).toEqual([true, false]);
     const skills = featured.querySelector("dl");
     expect([skills?.className.includes("sm:grid-cols-2"), Array.from(skills?.querySelectorAll("dt") ?? []).map((term) => term.textContent)]).toEqual([true, ["Habilidades", "Beneficios"]]);
-    expect(screen.getAllByRole("note")).toHaveLength(2);
+    expect([container.querySelectorAll("[role='note']").length, RENDERED_STATUS_COPY.test(text)]).toEqual([0, false]);
     expect(FORBIDDEN_COPY.test(text)).toBe(false);
   });
 
   it("labels the rail by the prototype pay frequency and falls back to Salario a convenir", () => {
     const { container } = render(<ul>{(["monthly", "yearly", "hourly"] as const).map((frequency) => <VacancyCard key={frequency} job={payRailJob(frequency)} />)}</ul>);
     const text = container.textContent ?? "";
-    for (const label of ["SALARIO MENSUAL", "SALARIO ANUAL", "SALARIO POR HORA", "Salario a convenir", PROTOTYPE_DISCLOSURE]) expect(text).toContain(label);
+    for (const label of ["SALARIO MENSUAL", "SALARIO ANUAL", "SALARIO POR HORA", "Salario a convenir"]) expect(text).toContain(label);
     for (const absent of ["Verificada por PeopleFlow", "Destacada"]) expect(text).not.toContain(absent);
     expect(container.querySelectorAll("li")).toHaveLength(3);
   });
@@ -156,16 +167,15 @@ describe("VacancyCard responsive, motion, and token contract", () => {
 });
 
 describe("VacancyCard prototype feedback island (CCP-R5A)", () => {
-  it("toggles the enriched bookmark island without ever claiming a real save", async () => {
+  it("keeps the enriched bookmark visible, enabled, and inert", async () => {
     const user = userEvent.setup();
     const { container } = render(<VacancyCard job={enriched} />);
-    const bookmark = screen.getByRole("button", { name: "Guardar vacante (solo demostración)" });
-    const status = container.querySelector("[role='status']");
-    expect([status?.getAttribute("aria-live"), status?.className, status?.textContent]).toEqual(["polite", "sr-only", ""]);
+    const bookmark = screen.getByRole("button", { name: "Guardar vacante" });
+    expect([bookmark.getAttribute("type"), bookmark.matches(":enabled"), bookmark.getAttribute("aria-pressed"), bookmark.textContent]).toEqual(["button", true, null, ""]);
     await user.click(bookmark);
-    expect([bookmark.getAttribute("aria-pressed"), status?.textContent]).toEqual(["true", "Guardado de demostración activado: no se guardó nada real."]);
-    await user.click(bookmark);
-    expect([bookmark.getAttribute("aria-pressed"), status?.textContent]).toEqual(["false", "Guardado de demostración desactivado: no se modificó nada real."]);
+    await user.keyboard("{Enter}");
+    expect([bookmark.getAttribute("aria-label"), bookmark.getAttribute("aria-pressed")]).toEqual(["Guardar vacante", null]);
+    expect(container.querySelectorAll("[role='status']")).toHaveLength(0);
   });
 
   it("keeps a wire-only card action-free and forwards only serializable island props", () => {
@@ -230,5 +240,9 @@ describe("VacancyCard server boundary", () => {
     expect(source).not.toMatch(/onClick|onChange|style=\{\{|dangerouslySetInnerHTML/u);
     expect(source).not.toMatch(RAW_COLOR);
     for (const specifier of ["./prototype-ui", "../formatters", "../enrich"]) expect(source).toContain(specifier);
+  });
+
+  it("ships no implementation-status display copy outside comments or identifiers", () => {
+    expect(withoutComments(source)).not.toMatch(STATUS_DISPLAY_COPY);
   });
 });

@@ -179,7 +179,7 @@ describe("VacancyPreview baseline without prototype state", () => {
   it("adds nothing when the exploratory state is absent", () => {
     const { container } = render(<VacancyPreview {...filledDraft} />);
 
-    expect(screen.queryByText("Detalles exploratorios")).toBeNull();
+    expect(screen.queryByText("Información complementaria")).toBeNull();
     expect(screen.queryByText("Prototipo")).toBeNull();
     // The salary line keeps its exact baseline reading.
     expect(
@@ -196,7 +196,7 @@ describe("VacancyPreview baseline without prototype state", () => {
       />,
     );
 
-    expect(screen.queryByText("Detalles exploratorios")).toBeNull();
+    expect(screen.queryByText("Información complementaria")).toBeNull();
     expect(
       screen.getByText("MXN 25,000 – MXN 40,000"),
     ).toBeVisible();
@@ -213,7 +213,7 @@ describe("VacancyPreview baseline without prototype state", () => {
       />,
     );
 
-    expect(screen.queryByText("Detalles exploratorios")).toBeNull();
+    expect(screen.queryByText("Información complementaria")).toBeNull();
     expect(screen.getByText("MXN 25,000 – MXN 40,000")).toBeVisible();
   });
 });
@@ -222,8 +222,8 @@ describe("VacancyPreview exploratory dossier", () => {
   it("labels the dossier and renders every requested category", () => {
     render(<VacancyPreview {...filledDraft} prototype={enrichedPrototype} />);
 
-    expect(screen.getByText("Detalles exploratorios")).toBeVisible();
-    expect(screen.getByText("Prototipo")).toBeVisible();
+    expect(screen.getByText("Información complementaria")).toBeVisible();
+    expect(screen.queryByText("Prototipo")).toBeNull();
 
     // Department, pay frequency as its own dossier row, languages with CEFR,
     // benefits with their count, closing date in Spanish, screening count.
@@ -282,9 +282,9 @@ describe("VacancyPreview exploratory dossier", () => {
       />,
     );
 
-    // A frequency with no other exploratory value still discloses the block.
-    expect(screen.getByText("Detalles exploratorios")).toBeVisible();
-    expect(screen.getByText("Prototipo")).toBeVisible();
+    // A frequency with no other complementary value still renders the block.
+    expect(screen.getByText("Información complementaria")).toBeVisible();
+    expect(screen.queryByText("Prototipo")).toBeNull();
     expect(screen.getByText("Frecuencia de pago")).toBeVisible();
     expect(screen.getByText("Mensual")).toBeVisible();
     // The salary display is preserved exactly.
@@ -328,7 +328,8 @@ describe("VacancyPreview exploratory dossier", () => {
     );
     const text = container.textContent ?? "";
 
-    expect(text).toMatch(/exploratori/i);
+    // Product copy only: no implementation-status label survives in the rail.
+    expect(text).not.toMatch(/prototipo|exploratori/i);
     expect(text).not.toMatch(/ya está publicada|se publicó|publicada con éxito/i);
     expect(text).not.toMatch(/guardado|persistid|se guardó/i);
     // Still a preview: no control, no link, and no raw markup path.
@@ -379,8 +380,7 @@ describe("VacancyPreview structural boundary", () => {
 
   it("owns no prototype-only formatter, catalog lookup, clamp, or dossier markup", () => {
     for (const owned of [
-      "Detalles exploratorios",
-      "Detalles de prototipo",
+      "Información complementaria",
       "Tecnologías",
       "MAX_VISIBLE_SKILLS",
       "Separat",
@@ -416,6 +416,10 @@ describe("VacancyPreview structural boundary", () => {
     expect(dossierSource.split("\n").length).toBeLessThanOrEqual(220);
     expect(dossierSource).toMatch(/export function PrototypeDossier/);
     expect(dossierSource).toMatch(/from "\.\/prototype-model"/);
+    // The dossier carries product copy only: the complementary heading stays,
+    // and no implementation-status label renders.
+    expect(dossierSource).toMatch(/Información complementaria/);
+    expect(dossierSource).not.toMatch(/Prototipo|todavía no se guardan/);
     // One-way dependency: the dossier never imports its consumer or the rail.
     expect(dossierSource).not.toMatch(/from "\.\.\/VacancyPreview"/);
     expect(dossierSource).not.toMatch(/draft-rail|createJob|requestJson|schemas|zod/);

@@ -16,17 +16,17 @@ const NOT_FOUND_COPY = "Esta vacante no está disponible";
 const XSS_TEXT = "<script>alert('xss')</script>";
 // Canonical company profile both enriched demo vacancies resolve to.
 const COMPANY_PROFILE_PATH = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
-const DISCLOSURE_ID = "proceso-prototipo";
+// UISC-03A: no rendered implementation-status vocabulary may survive on the
+// public detail. Every banned token is prose, never a route, id, or fixture.
+const PROHIBITED_DISPLAY_COPY = /demostraci|fictici|\bprototipo\b|no disponible|no implementado|no se guarda|no se env[ií]a|no se copi[oó]|no se comparti[oó]/iu;
+// VAF-04: the apply affordance is a real semantic link, so only the four
+// placeholder controls remain buttons; each is enabled and intentionally inert.
 const DEMO_CONTROLS = [
-  { name: "Postularme (solo demostración)", minTargetPx: 44, mode: "momentary", described: true, feedback: "Postulación de demostración: no se envió ninguna postulación real." },
-  { name: "Guardar vacante (solo demostración)", minTargetPx: 44, mode: "toggle", described: true, feedback: "Guardado de demostración activado: no se guardó nada real." },
-  { name: "Copiar enlace (solo demostración)", minTargetPx: 40, mode: "momentary", described: false, feedback: "Copiar enlace es solo una demostración: no se copió nada." },
-  { name: "Compartir en redes (solo demostración)", minTargetPx: 40, mode: "momentary", described: false, feedback: "Compartir en redes es solo una demostración: no se compartió nada." },
-  { name: "Enviar por correo (solo demostración)", minTargetPx: 40, mode: "momentary", described: false, feedback: "Enviar por correo es solo una demostración: no se envió ningún correo." },
+  { name: "Guardar vacante", minTargetPx: 44 },
+  { name: "Copiar enlace", minTargetPx: 40 },
+  { name: "Compartir en redes", minTargetPx: 40 },
+  { name: "Enviar por correo", minTargetPx: 40 },
 ] as const;
-const SAVE_ACTIVE_LABEL = "Guardar vacante (marcada solo en esta demostración)";
-const SAVE_ACTIVE_FEEDBACK = "Guardado de demostración activado: no se guardó nada real.";
-const SAVE_INACTIVE_FEEDBACK = "Guardado de demostración desactivado: no se modificó nada real.";
 
 const fixtureRequests = (request: APIRequestContext) =>
   request.get(`${fixtureUrl}/__requests`).then((r) => r.json());
@@ -103,9 +103,6 @@ const focusStep = (page: Page) =>
     };
   });
 
-const announcementOf = (control: Locator) =>
-  control.locator("xpath=following-sibling::*[1][@role='status']");
-
 async function tabCycle(page: Page, limit = 80): Promise<FocusStep[]> {
   const steps: FocusStep[] = [];
   let anchor = "";
@@ -174,6 +171,9 @@ test("renders only validated contract data", async ({ page }) => {
     );
   }
   await expect(backLink(article)).toHaveAttribute("href", "/vacantes");
+  await expect(article).not.toContainText(PROHIBITED_DISPLAY_COPY);
+  await expect(article.getByRole("note")).toHaveCount(0);
+  await expect(article.getByRole("status")).toHaveCount(0);
   // Omitted optionals stay omitted: no salary, date, or location copy.
   await expect(article).not.toContainText(/MXN|USD/);
   await expect(article).not.toContainText(/publicada/i);
@@ -190,7 +190,7 @@ test("safe description and full metadata", async ({ page, baseURL }) => {
   await expect(article.getByText(XSS_TEXT)).toBeVisible();
   // Blank lines split paragraphs; a single break stays inside one paragraph.
   // Only the wire description is a content-region paragraph: the article also
-  // carries prototype notes and the rail's PeopleFlow verification row.
+  // carries the rail's PeopleFlow verification row.
   const paragraphs = detailRegion(page, "content").getByRole("paragraph");
   await expect(paragraphs).toHaveCount(4);
   await expect(paragraphs.last()).toHaveText(/Línea uno\nLínea dos\./);
@@ -368,8 +368,7 @@ test("detail preserves preset typography, tokens, radius, and bounded UI", async
       return getComputedStyle(probe).color;
     };
     const heading = element.querySelector("h1")!;
-    // The wire description is the content region's own paragraph; the
-    // article's first paragraph is instead the prototype disclosure note.
+    // The wire description is the content region's own paragraph.
     const description = element.querySelector(
       "[data-detail-region='content'] p",
     )!;
@@ -502,39 +501,44 @@ test("rich detail keeps the complete safe description and a separately scoped ve
   await expect(content.getByText("Verificada por PeopleFlow")).toHaveCount(0);
 });
 
-test("rich detail exposes exactly five named enabled demonstration controls", async ({
+test("rich detail exposes exactly four placeholder controls plus the real apply link", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(`/vacantes/${RICH_ID}`);
   const article = articleOf(page);
+  await expect(DEMO_CONTROLS).toHaveLength(4);
   await expect(article.getByRole("button")).toHaveCount(DEMO_CONTROLS.length);
-  await expect(article.locator(`#${DISCLOSURE_ID}`)).toHaveCount(1);
-  for (const { name, minTargetPx, mode, described } of DEMO_CONTROLS) {
+  await expect(article).not.toContainText(PROHIBITED_DISPLAY_COPY);
+  await expect(article.getByRole("note")).toHaveCount(0);
+  await expect(article.locator("#proceso-prototipo")).toHaveCount(0);
+  for (const { name, minTargetPx } of DEMO_CONTROLS) {
     const button = article.getByRole("button", { name });
     await expect(button).toBeVisible();
     await expect(button).toBeEnabled();
-    // A demonstration affordance is never a submit target.
+    // A placeholder affordance is never a submit target or a toggle.
     await expect(button).toHaveAttribute("type", "button");
     await expect(button).toHaveAttribute("title", name);
     expect(await minTargetSizePx(button)).toBeGreaterThanOrEqual(minTargetPx);
-    expect(await button.getAttribute("aria-describedby")).toBe(described ? DISCLOSURE_ID : null);
-    if (mode === "toggle") {
-      await expect(button).toHaveAttribute("aria-pressed", "false");
-    } else {
-      expect(await button.getAttribute("aria-pressed")).toBeNull();
-    }
+    expect(await button.getAttribute("aria-describedby")).toBeNull();
+    expect(await button.getAttribute("aria-pressed")).toBeNull();
   }
+  // The one real apply affordance: a semantic link to the canonical route,
+  // carrying no disclosure reference and at least 44px tall.
+  const apply = article.getByRole("link", { name: "Postularme", exact: true });
+  await expect(apply).toHaveAttribute("href", `/vacantes/${RICH_ID}/postular`);
+  expect(await apply.getAttribute("aria-describedby")).toBeNull();
+  expect(await minTargetSizePx(apply)).toBeGreaterThanOrEqual(44);
   // The breadcrumb return link keeps its own 40px target.
   expect(await minTargetSizePx(article.getByRole("link", { name: "Volver a vacantes" }))).toBeGreaterThanOrEqual(40);
 });
 
-test("rich detail keeps the three links and five controls keyboard reachable in document order", async ({
+test("rich detail keeps the four links and four controls keyboard reachable in document order", async ({
   page,
 }) => {
   await page.goto(`/vacantes/${RICH_ID}`);
   const article = articleOf(page);
-  await expect(article.getByRole("link")).toHaveCount(3);
+  await expect(article.getByRole("link")).toHaveCount(4);
 
   // One full Tab cycle, discovered from the first stop instead of a fixed count.
   const cycle = await tabCycle(page);
@@ -543,49 +547,36 @@ test("rich detail keeps the three links and five controls keyboard reachable in 
   expect(articleSteps.map((step) => [step.tag, step.name, step.href])).toEqual([
     ["A", "Volver a vacantes", "/vacantes"],
     ["A", "Acme", COMPANY_PROFILE_PATH],
-    ["BUTTON", "Postularme (solo demostración)", null],
-    ["BUTTON", "Guardar vacante (solo demostración)", null],
+    ["A", "Postularme", `/vacantes/${RICH_ID}/postular`],
+    ["BUTTON", "Guardar vacante", null],
     ["A", "Conoce a Acme", COMPANY_PROFILE_PATH],
-    ["BUTTON", "Copiar enlace (solo demostración)", null],
-    ["BUTTON", "Compartir en redes (solo demostración)", null],
-    ["BUTTON", "Enviar por correo (solo demostración)", null],
+    ["BUTTON", "Copiar enlace", null],
+    ["BUTTON", "Compartir en redes", null],
+    ["BUTTON", "Enviar por correo", null],
   ]);
   expect(articleSteps.every((step) => step.focusVisible && (step.outline || step.ring))).toBe(true);
-  // No demonstration control is disabled, so none is dropped from sequential focus.
+  // No placeholder control is disabled, so none is dropped from sequential focus.
   expect(articleSteps.filter((step) => step.disabled)).toEqual([]);
 });
 
-test("rich detail announces truthful demonstration feedback that replaces and clears itself", async ({
+test("rich detail keeps every placeholder control inert by keyboard and mouse", async ({
   page,
 }) => {
   await page.goto(`/vacantes/${RICH_ID}`);
   const article = articleOf(page);
-  const apply = article.getByRole("button", { name: "Postularme (solo demostración)" });
-  const applyFeedback = "Postulación de demostración: no se envió ninguna postulación real.";
-
-  // A momentary action confirms honestly and is never pressed.
-  await apply.click();
-  await expect(announcementOf(apply)).toHaveText(applyFeedback);
-  expect(await apply.getAttribute("aria-pressed")).toBeNull();
-
-  await announcementOf(apply).locator("span").evaluate((node) => node.setAttribute("data-announcement-probe", "fresh"));
-  await apply.click();
-  await expect(announcementOf(apply)).toHaveText(applyFeedback);
-  await expect(announcementOf(apply).locator("[data-announcement-probe]")).toHaveCount(0);
-  // The confirmation clears on its own timer, awaited by polling, not a sleep.
-  await expect(announcementOf(apply)).toBeEmpty({ timeout: 6000 });
-
-  // The save toggle round-trips by keyboard and mouse.
-  const save = article.getByRole("button", { name: "Guardar vacante (solo demostración)", exact: true });
-  const savePressed = article.getByRole("button", { name: SAVE_ACTIVE_LABEL, exact: true });
-  await expect(save).toHaveAttribute("aria-pressed", "false");
-  await save.focus();
-  await page.keyboard.press("Space");
-  await expect(savePressed).toHaveAttribute("aria-pressed", "true");
-  await expect(announcementOf(savePressed)).toHaveText(SAVE_ACTIVE_FEEDBACK);
-  await savePressed.click();
-  await expect(save).toHaveAttribute("aria-pressed", "false");
-  await expect(announcementOf(save)).toHaveText(SAVE_INACTIVE_FEEDBACK);
+  for (const { name } of DEMO_CONTROLS) {
+    const control = article.getByRole("button", { name, exact: true });
+    await control.focus();
+    await page.keyboard.press("Space");
+    await page.keyboard.press("Enter");
+    await control.click();
+    // Activation changes neither the accessible name nor a pressed state.
+    await expect(control).toHaveAttribute("aria-label", name);
+    expect(await control.getAttribute("aria-pressed")).toBeNull();
+  }
+  await expect(article.getByRole("status")).toHaveCount(0);
+  await expect(article.getByRole("note")).toHaveCount(0);
+  await expect(page).toHaveURL(`/vacantes/${RICH_ID}`);
 });
 
 test("rich detail keeps canonical company links, indexable metadata, and an unbroken heading outline", async ({
@@ -649,16 +640,11 @@ test("rich detail registers zero non-GET business requests, storage writes, or s
     JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
   );
 
-  for (const { name, mode, feedback } of DEMO_CONTROLS) {
-    const control = article.getByRole("button", { name });
-    await control.click();
-    // The toggle keeps its pressed identity after its accessible name flips.
-    const announcement = mode === "toggle"
-      ? announcementOf(article.getByRole("button", { pressed: true }))
-      : announcementOf(control);
-    await expect(announcement).toHaveText(feedback);
+  for (const { name } of DEMO_CONTROLS) {
+    await article.getByRole("button", { name }).click();
   }
   await page.waitForTimeout(300);
+  await expect(article.getByRole("status")).toHaveCount(0);
   expect(nonGet).toEqual([]);
   expect(
     await page.evaluate(

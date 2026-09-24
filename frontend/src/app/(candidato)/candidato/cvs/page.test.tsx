@@ -29,7 +29,6 @@ vi.mock("@/features/candidate/cv-workspace", async (importOriginal) => {
 import CvsPage, { metadata } from "./page";
 import { CandidateShell } from "@/components/candidate-dashboard/candidate-shell";
 
-const NOTE_ID = "pf-cv-actions-note";
 const SOURCE = readFileSync(join(process.cwd(), "src/app/(candidato)/candidato/cvs/page.tsx"), "utf8");
 const [PRIMARY, SECONDARY] = CANDIDATE_CVS;
 
@@ -46,7 +45,7 @@ const renderRoute = () => render(<CandidateShell><CvsPage /></CandidateShell>);
 const workspace = () => document.querySelector("[data-pf-cv-workspace]") as HTMLElement;
 const cards = () => Array.from(document.querySelectorAll("[data-pf-cv-card]"));
 const card = (cv: (typeof CANDIDATE_CVS)[number]) => document.querySelector(`[data-pf-cv-card="${cv.id}"]`) as HTMLElement;
-const buttons = () => Array.from(workspace().querySelectorAll("button")) as HTMLButtonElement[];
+const triggers = () => Array.from(workspace().querySelectorAll("[data-pf-cv-actions-trigger]")) as HTMLButtonElement[];
 const facts = (element: HTMLElement) => {
   const terms = Array.from(element.querySelectorAll("dt")).map((dt) => dt.textContent);
   const values = Array.from(element.querySelectorAll("dd")).map((dd) => dd.textContent);
@@ -96,26 +95,24 @@ describe("candidate CV route", () => {
     expect(card(SECONDARY)).toHaveTextContent(SECONDARY.fileName);
   });
 
-  it("renders exactly the disabled inventory actions and the honest local disclosure", () => {
+  it("renders one enabled upload action and two enabled disclosure triggers with no implementation-status copy", () => {
     renderRoute();
-    expect(buttons().map((button) => button.textContent)).toEqual([
-      "Subir CV (no disponible)",
-      "Reemplazar (no disponible)", "Descargar (no disponible)",
-      "Reemplazar (no disponible)", "Descargar (no disponible)", "Usar como principal (no disponible)",
-    ]);
-    for (const button of buttons()) {
-      expect([button.getAttribute("type"), button.disabled, button.getAttribute("onclick")]).toEqual(["button", true, null]);
-      expect(button).toHaveAttribute("aria-describedby", NOTE_ID);
+    const upload = workspace().querySelector("[data-pf-cv-upload]") as HTMLButtonElement;
+    expect(upload).not.toBeNull();
+    expect([upload.tagName, upload.getAttribute("type"), upload.disabled, upload.getAttribute("onclick")]).toEqual(["BUTTON", "button", false, null]);
+    expect(upload).toHaveTextContent("Subir CV");
+    expect(triggers().map((trigger) => trigger.getAttribute("aria-label"))).toEqual([`Acciones de ${PRIMARY.label}`, `Acciones de ${SECONDARY.label}`]);
+    for (const trigger of triggers()) {
+      expect([trigger.tagName, trigger.getAttribute("type"), trigger.disabled, trigger.getAttribute("onclick")]).toEqual(["BUTTON", "button", false, null]);
+      expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
     }
-    const note = screen.getByRole("note");
-    expect(note).toHaveAttribute("data-pf-cv-disclosure");
-    for (const claim of [
-      "metadatos ficticios",
-      "no están disponibles para previsualizar ni descargar",
-      "no se sube, reemplaza, guarda ni genera nada",
-      "el CV principal no puede cambiar",
-    ]) expect(note).toHaveTextContent(claim);
-    expect(workspace().querySelector(`[data-pf-cv-actions-note]#${NOTE_ID}`)).not.toBeNull();
+    // The inert document actions are unmounted menu items, never direct buttons or a footer tray.
+    expect(workspace().querySelectorAll("[data-pf-cv-replace], [data-pf-cv-download], [data-pf-cv-make-primary]")).toHaveLength(0);
+    expect(workspace().querySelectorAll("[data-slot='card-footer']")).toHaveLength(0);
+    expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(workspace().querySelector("[data-pf-cv-disclosure], [data-pf-cv-actions-note]")).toBeNull();
   });
 
   it("keeps the workspace free of links, forms, inputs and handlers", () => {

@@ -1,5 +1,4 @@
 import type { Metadata } from "next"
-import { InfoIcon } from "lucide-react"
 
 import { SiteHeader } from "@/components/company-dashboard/site-header"
 import { TeamInvitation } from "@/features/employer-team/team-invitation"
@@ -11,7 +10,7 @@ import { TeamWorkspace } from "@/features/employer-team/team-workspace"
  *
  * The shared `(empresa)` layout owns the single EmployerShell, the sidebar
  * provider and the theme module, so this route contributes only its header,
- * intro, disclosure and the mounted invitation + workspace surfaces. It stays
+ * intro and the mounted invitation + workspace surfaces. It stays
  * a server component and owns no fetch, credential, storage or mutation
  * concern; both interactive surfaces arrive as client components over the
  * frozen local fixtures.
@@ -40,17 +39,6 @@ export default function Page() {
                 reclutamiento.
               </p>
             </section>
-            <p
-              role="note"
-              data-pf-equipo-disclosure=""
-              className="flex items-start gap-2.5 rounded-xl border border-border bg-card/50 px-4 py-3 text-[12.5px] leading-relaxed text-muted-foreground"
-            >
-              <InfoIcon aria-hidden="true" className="mt-px size-4 shrink-0" />
-              <span>
-                Datos de demostración locales: los miembros, roles y cargas
-                viven solo en este prototipo y los cambios no se guardan.
-              </span>
-            </p>
             <TeamInvitation />
             <TeamWorkspace members={NEXO_TEAM_MEMBERS} />
           </div>

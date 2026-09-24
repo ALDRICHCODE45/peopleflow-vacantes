@@ -5,10 +5,10 @@ const COMPANY_PATH = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
 const FRONTEND_DETAIL = "/vacantes/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 // The local jobs API this fully local prototype route must never reach.
 const fixtureUrl = process.env.JOBS_FIXTURE_ORIGIN ?? "http://127.0.0.1:4010";
-// Mirrors the shared disclosure primitive of every prototype card, kept a
-// literal so this browser contract never imports the app's React modules.
-const PROTOTYPE_DISCLOSURE = "Datos y acciones de demostración: este prototipo no se conecta a ningún backend, no guarda información y no envía postulaciones reales.";
-// Every prototype extra the two frozen Acme fixtures authorize and disclose.
+// UISC-03A: no rendered implementation-status vocabulary may survive on the
+// public careers page. Every banned token is prose, never a route or fixture.
+const PROHIBITED_DISPLAY_COPY = /demostraci|fictici|\bprototipo\b|no se guarda|no se env[ií]a|no se copi[oó]|no se comparti[oó]/iu;
+// Every prototype extra the two frozen Acme fixtures authorize.
 const CARD_LABELS = ["Destacada", "Hace 2 h", "24 postulantes", "Hace 5 h", "41 postulantes", "Ingeniería", "Plataforma", "Habilidades", "Beneficios", "SALARIO MENSUAL", "Responde en ~3 días", "Verificada por PeopleFlow"] as const;
 const cardsOf = (page: Page) => page.getByRole("list", { name: "Vacantes en Acme" }).getByRole("listitem");
 // Document horizontal overflow in pixels; anything above zero fails.
@@ -42,13 +42,13 @@ test("company careers cards keep the reference region contract and disclose ever
   expect([edges.top, edges.left > 0, edges.divider === edges.border]).toEqual([0, true, true]);
   expect([await overflowPx(page), await cardsOf(page).evaluateAll((cards) => cards.map((li) => li.children.length))]).toEqual([0, [2, 2]]);
 
-  // Both cards expose every authorized prototype extra, each scoped by the
-  // shared note, and the company is never linked back to this route.
+  // Both cards expose every authorized prototype extra without any
+  // implementation-status copy, and the company is never linked back here.
   const list = page.getByRole("list", { name: "Vacantes en Acme" });
   await expect(list.getByRole("heading", { level: 3 }).first().getByRole("link")).toHaveAttribute("href", FRONTEND_DETAIL);
   for (const label of CARD_LABELS) await expect(list).toContainText(label);
-  await expect(list.getByRole("note")).toHaveCount(2);
-  await expect(list.getByRole("note").first()).toHaveText(PROTOTYPE_DISCLOSURE);
+  await expect(list.getByRole("note")).toHaveCount(0);
+  await expect(list).not.toContainText(PROHIBITED_DISPLAY_COPY);
   expect([await list.getByRole("link").count(), await list.getByRole("link", { name: "Acme" }).count()]).toEqual([4, 0]);
   // Wire markup-like text stays text: characters, never a rendered element.
   expect([await list.locator("script, img, iframe, b").count(), await list.getByText("<script>alert('xss')</script>").count()]).toEqual([0, 1]);
@@ -60,16 +60,17 @@ test("company careers cards keep the reference region contract and disclose ever
   expect([mobileRail.top >= mobileContent.bottom, Math.abs(mobileRail.left - mobileContent.left) <= 1]).toEqual([true, true]);
   expect(await overflowPx(page)).toBeLessThanOrEqual(0);
 
-  // The same shared card island hydrates on this route: the enriched card's
-  // bookmark toggles in memory and announces truthful demo feedback, scoped to
-  // this card so the board's full interaction contract is not duplicated.
+  // The same shared card control renders on this route: the enriched card's
+  // bookmark stays enabled and inert, scoped to this card so the board's full
+  // interaction contract is not duplicated.
   const frontendCard = list.getByRole("listitem").filter({ has: page.getByRole("heading", { level: 3, name: "Ingeniera Frontend" }) });
   const bookmark = frontendCard.getByRole("button");
-  await expect(bookmark).toHaveAttribute("aria-pressed", "false");
+  await expect(bookmark).toBeEnabled();
+  await expect(bookmark).toHaveAttribute("aria-label", "Guardar vacante");
+  await expect(bookmark).not.toHaveAttribute("aria-pressed");
   await bookmark.click();
-  await expect(bookmark).toHaveAttribute("aria-pressed", "true");
-  await expect(bookmark).toHaveAttribute("aria-label", "Guardar vacante (marcada solo en esta demostración)");
-  await expect(frontendCard.getByRole("status")).toHaveText("Guardado de demostración activado: no se guardó nada real.");
+  await expect(bookmark).toHaveAttribute("aria-label", "Guardar vacante");
+  await expect(frontendCard.getByRole("status")).toHaveCount(0);
 
   // Frozen local fixtures: no card interaction reaches the jobs API, and the
   // canonical CTA navigates without any mutating request.

@@ -38,21 +38,31 @@ export type DatePickerFieldProps = {
   value: string;
   onChange: (next: string) => void;
   "aria-labelledby"?: string;
+  /** Optional profile marker forwarded to the trigger so callers can locate the control. */
+  "data-pf-profile-field"?: string;
   disabled?: boolean;
   error?: string;
+  /** Opens the past window (birth dates) while still blocking future days. */
+  allowPast?: boolean;
+  /** Extra trigger classes, e.g. `w-full` for a full-width profile control. */
+  className?: string;
 };
 
 /**
  * Controlled Spanish date field over the committed popover, button, and calendar
- * primitives. It rejects past days and emits timezone-safe civil date strings.
+ * primitives. It rejects out-of-range days (`allowPast` flips the open window from
+ * future-only to past-only) and emits timezone-safe civil date strings.
  */
 export function DatePickerField({
   id,
   value,
   onChange,
   "aria-labelledby": ariaLabelledBy,
+  "data-pf-profile-field": dataProfileField,
   disabled = false,
   error,
+  allowPast = false,
+  className,
 }: DatePickerFieldProps) {
   const [open, setOpen] = React.useState(false);
   const [today] = React.useState(() => {
@@ -68,10 +78,14 @@ export function DatePickerField({
         year: "numeric",
       })
     : null;
+  // Future-only by default; birth dates flip the open window to the past.
+  const disabledDays = allowPast ? { after: today } : { before: today };
 
   function handleSelect(next: Date | undefined) {
-    // The matcher hides past days; this guard also blocks a bypassed event.
-    if (next === undefined || next.getTime() < today.getTime()) return;
+    if (next === undefined) return;
+    // The matcher hides the out-of-range days; this guard also blocks a bypassed event.
+    const picked = new Date(next.getFullYear(), next.getMonth(), next.getDate()).getTime();
+    if (allowPast ? picked > today.getTime() : picked < today.getTime()) return;
     onChange(toCivilDate(next));
     setOpen(false);
   }
@@ -86,13 +100,14 @@ export function DatePickerField({
               type="button"
               variant="outline"
               disabled={disabled}
+              data-pf-profile-field={dataProfileField}
               aria-labelledby={ariaLabelledBy}
               aria-invalid={error === undefined ? undefined : true}
               aria-describedby={error === undefined ? undefined : errorId}
-              className="w-fit justify-between gap-2 font-normal"
+              className={cn("min-h-10 min-w-0 w-fit justify-between gap-2 overflow-hidden font-normal", className)}
             >
               <CalendarDaysIcon data-icon="inline-start" />
-              <span className={cn(display === null && "text-muted-foreground")}>
+              <span className={cn("min-w-0 flex-1 truncate text-left", display === null && "text-muted-foreground")}>
                 {display ?? PLACEHOLDER}
               </span>
             </Button>
@@ -105,7 +120,7 @@ export function DatePickerField({
               locale={es}
               selected={selected}
               defaultMonth={selected ?? today}
-              disabled={{ before: today }}
+              disabled={disabledDays}
               onSelect={handleSelect}
             />
           ) : null}

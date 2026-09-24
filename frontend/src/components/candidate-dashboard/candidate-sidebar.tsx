@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 import { PeopleFlowLogo } from "@/components/brand/logo"
+import { NavUser } from "@/components/company-dashboard/nav-user"
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -23,24 +24,28 @@ const CANDIDATE_NAV_GROUPS: Array<{ label: string; items: CandidateNavItem[] }> 
   { label: "Mi perfil", items: [
     { title: "Perfil", url: "/candidato/perfil", icon: <IconUserCircle /> },
     { title: "CVs", url: "/candidato/cvs", icon: <IconFileCv /> },
-    { title: "Cuenta", url: "/candidato/cuenta", icon: <IconSettings /> },
+    { title: "Configuración", url: "/candidato/configuracion", icon: <IconSettings /> },
   ] },
 ]
 
 /** Honest account label for the signed-in user type; no other user type exists. */
 const CANDIDATE_USER_TYPE_LABELS: Readonly<Record<CandidateIdentity["userType"], string>> = { candidate: "Candidata" }
 
-/** Local 40px icon-rail floor; `size="lg"` rows stay 48px while the sidebar is expanded. */
-const ICON_RAIL_TARGET = "group-data-[collapsible=icon]:size-10!"
+/**
+ * Candidate account actions for the shared NavUser dropdown: three truthful real
+ * routes with candidate-appropriate icons and no session, billing or notification
+ * action. They feed the same shared account menu.
+ */
+const CANDIDATE_ACCOUNT_MENU = [
+  { title: "Mi perfil", href: "/candidato/perfil", icon: <IconUserCircle /> },
+  { title: "Mis CVs", href: "/candidato/cvs", icon: <IconFileCv /> },
+  { title: "Configuración", href: "/candidato/configuracion", icon: <IconSettings /> },
+] as const
 
 /** Active on the exact route and nested routes; unknown paths and sibling prefixes stay inactive. */
 export function isActiveCandidateDestination(url: string, pathname: string | null): boolean {
   if (!url || !pathname) return false
   return pathname === url || pathname.startsWith(`${url}/`)
-}
-
-function candidateInitials(fullName: string): string {
-  return fullName.trim().split(/\s+/).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join("")
 }
 
 export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -51,7 +56,9 @@ export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sideb
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton className={`${ICON_RAIL_TARGET} h-10 data-[slot=sidebar-menu-button]:p-1.5!`} render={<Link href="/candidato/dashboard" aria-label="PeopleFlow" />}>
+            {/* Native default geometry: the brand keeps the shared button's
+                collapse behavior, its PeopleFlow link and its brand padding. */}
+            <SidebarMenuButton className="data-[slot=sidebar-menu-button]:p-1.5!" render={<Link href="/candidato/dashboard" aria-label="PeopleFlow" />}>
               {/* The wordmark brands the header; candidate identity belongs to the account row. */}
               <PeopleFlowLogo className="h-5 w-auto" />
             </SidebarMenuButton>
@@ -64,10 +71,11 @@ export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sideb
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {/* `size="lg"` is 48px expanded; `ICON_RAIL_TARGET` floors the icon rail at 40px. */}
+                {/* Destinations use the native default geometry: no large rows
+                    and no candidate-only icon-rail floor. */}
                 {group.items.map((item) => (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton className={ICON_RAIL_TARGET} size="lg" tooltip={item.title} isActive={isActiveCandidateDestination(item.url, pathname)} render={<Link href={item.url} />}>
+                    <SidebarMenuButton tooltip={item.title} isActive={isActiveCandidateDestination(item.url, pathname)} render={<Link href={item.url} />}>
                       {item.icon}
                       <span>{item.title}</span>
                     </SidebarMenuButton>
@@ -79,22 +87,16 @@ export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sideb
         ))}
       </SidebarContent>
       <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            {/* A plain account link: no dropdown, session, logout or credential action. */}
-            <SidebarMenuButton className={ICON_RAIL_TARGET} size="lg" tooltip="Cuenta de candidata" render={<Link href="/candidato/cuenta" />}>
-              <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-xs font-medium text-sidebar-primary-foreground">
-                {candidateInitials(CANDIDATE_IDENTITY.fullName)}
-              </span>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{CANDIDATE_IDENTITY.fullName}</span>
-                <span className="truncate text-xs text-foreground/70">
-                  {CANDIDATE_USER_TYPE_LABELS[CANDIDATE_IDENTITY.userType]} · {CANDIDATE_IDENTITY.email}
-                </span>
-              </div>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        {/* The shared account row: a dropdown trigger, never a plain footer link. */}
+        <NavUser
+          user={{
+            name: CANDIDATE_IDENTITY.fullName,
+            email: CANDIDATE_IDENTITY.email,
+            role: CANDIDATE_USER_TYPE_LABELS[CANDIDATE_IDENTITY.userType],
+            company: "Espacio personal",
+          }}
+          menuItems={CANDIDATE_ACCOUNT_MENU}
+        />
       </SidebarFooter>
     </Sidebar>
   )

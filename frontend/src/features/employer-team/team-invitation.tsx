@@ -13,10 +13,9 @@ import type { TeamMemberRole } from "./model";
 /**
  * Local-only employer team invitation affordance for `/empresa/equipo`. It owns
  * no team collection and accepts no props or event handler, and it reaches no
- * transport, router, session, storage, or persistence. A valid submission only
- * clears the form and restores the default role, then states in words that
- * nothing was sent and nothing was saved, so this surface is structurally
- * unable to add a member.
+ * transport, router, session, storage, or persistence. It validates the typed
+ * address locally, and a valid submission is intentionally inert, so this
+ * surface is structurally unable to add a member.
  */
 
 /** Stable ids, so the affordance never generates a random or duplicated id. */
@@ -25,9 +24,7 @@ const EMAIL_ID = "team-invitation-email";
 const ROLE_ID = "team-invitation-role";
 const ERROR_ID = "team-invitation-error";
 
-/** Exact copy this affordance always states, plus the only outcome it may report. */
-const DISCLOSURE = "Este prototipo no envía correos ni guarda cambios.";
-const NO_SEND_STATUS = "Prototipo: no se envió la invitación ni se guardó ningún cambio.";
+/** Exact copy this affordance reports when the typed address cannot be invited. */
 const EMPTY_EMAIL_ERROR = "Ingresá un correo electrónico para continuar.";
 const MALFORMED_EMAIL_ERROR = "Ingresá un correo electrónico válido, por ejemplo nombre@empresa.com.";
 
@@ -41,16 +38,15 @@ const SELECT = `h-10 w-full min-w-0 rounded-2xl border border-transparent bg-inp
 
 /**
  * One compact toggle expands a single inline panel, never a modal. The panel
- * validates the address locally and keeps the typed value on failure; after a
- * valid submission it clears the field, restores the default `recruiter` role,
- * and announces the truthful no-send/no-save prototype outcome.
+ * validates the address locally and keeps the typed value and chosen role on
+ * failure. A valid submission is intentionally inert: the panel stays open
+ * with the typed email and selected role preserved, and nothing else happens.
  */
 export function TeamInvitation() {
   const [open, setOpen] = React.useState(false);
   const [email, setEmail] = React.useState("");
   const [role, setRole] = React.useState<TeamMemberRole>("recruiter");
   const [error, setError] = React.useState<string | null>(null);
-  const [status, setStatus] = React.useState<string | null>(null);
 
   /** Cancelar and the main toggle both close the panel and drop every transient value. */
   const close = () => {
@@ -58,34 +54,31 @@ export function TeamInvitation() {
     setEmail("");
     setRole("recruiter");
     setError(null);
-    setStatus(null);
   };
 
   const onRoleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     setRole(TEAM_MEMBER_ROLES.find((candidate) => candidate === event.target.value) ?? "recruiter");
-    // A role change begins a new attempt and drops the prior no-send status; the email error is preserved because the address itself has not changed.
-    setStatus(null);
   };
 
-  /** A new email keystroke begins a new attempt and drops both the stale error and the prior no-send status. */
+  /** A new email keystroke begins a new attempt and drops the stale error. */
   const onEmailChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(event.target.value);
     setError(null);
-    setStatus(null);
   };
 
+  /**
+   * A valid address passes local validation and then does nothing on purpose:
+   * the panel stays open with the typed email and chosen role preserved, and no
+   * request, storage write, member mutation, or status message happens.
+   */
   const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const typed = email.trim();
     if (typed === "" || !EMAIL_PATTERN.test(typed)) {
-      setStatus(null);
       setError(typed === "" ? EMPTY_EMAIL_ERROR : MALFORMED_EMAIL_ERROR);
       return;
     }
-    setEmail("");
-    setRole("recruiter");
     setError(null);
-    setStatus(NO_SEND_STATUS);
   };
 
   return (
@@ -102,9 +95,6 @@ export function TeamInvitation() {
           <UserPlusIcon aria-hidden="true" className="size-4" />
           Invitar miembro
         </Button>
-        <p role="note" data-pf-team-invitation-note className="text-[12.5px] leading-relaxed text-muted-foreground">
-          {DISCLOSURE}
-        </p>
       </div>
       {open && (
         <div id={PANEL_ID} data-pf-team-invitation-panel className="rounded-3xl border border-border bg-card/50 p-4 sm:p-5">
@@ -139,14 +129,9 @@ export function TeamInvitation() {
               </p>
             )}
             <div className="flex flex-wrap items-center gap-2">
-              <Button type="submit" data-pf-team-invitation-submit className="h-10 px-4">Probar invitación</Button>
+              <Button type="submit" data-pf-team-invitation-submit className="h-10 px-4">Enviar invitación</Button>
               <Button type="button" variant="outline" data-pf-team-invitation-cancel onClick={close} className="h-10 px-4">Cancelar</Button>
             </div>
-            {status !== null && (
-              <p data-pf-team-invitation-status role="status" aria-live="polite" className="rounded-2xl border border-border bg-secondary/40 px-4 py-3 text-[12.5px] leading-relaxed text-foreground">
-                {status}
-              </p>
-            )}
           </form>
         </div>
       )}

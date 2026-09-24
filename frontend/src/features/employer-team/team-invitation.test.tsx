@@ -10,9 +10,7 @@ import { TEAM_MEMBER_ROLE_LABELS, TEAM_MEMBER_ROLES } from "./model";
 import { TeamInvitation } from "./team-invitation";
 
 const source = readFileSync(join(process.cwd(), "src/features/employer-team/team-invitation.tsx"), "utf8");
-/** Exact copy this affordance must state, and the only outcome it may report. */
-const NOTE = "Este prototipo no envía correos ni guarda cambios.";
-const NO_SEND = "Prototipo: no se envió la invitación ni se guardó ningún cambio.";
+/** Exact copy this affordance must state for an empty or malformed address. */
 const EMPTY_ERROR = "Ingresá un correo electrónico para continuar.";
 const MALFORMED_ERROR = "Ingresá un correo electrónico válido, por ejemplo nombre@empresa.com.";
 /** Every literal paint a token-only surface must never carry in a class list. */
@@ -26,8 +24,8 @@ const actionButton = (name: string) => screen.getByRole("button", { name });
 const control = (attribute: string) => document.querySelector(`[${attribute}]`) as HTMLElement;
 const panel = () => document.querySelector("[data-pf-team-invitation-panel]");
 const errorCopy = () => control("data-pf-team-invitation-error")?.textContent;
-const statusCopy = () => control("data-pf-team-invitation-status")?.textContent;
-const transientState = () => [emailInput().value, roleSelect().value, errorCopy(), statusCopy()];
+const statusSurface = () => document.querySelector("[data-pf-team-invitation-status]");
+const transientState = () => [emailInput().value, roleSelect().value, errorCopy()];
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -35,16 +33,17 @@ afterEach(() => {
 });
 
 describe("TeamInvitation inline toggle", () => {
-  it("starts as a closed compact toggle with the persistent disclosure and never a modal", async () => {
+  it("starts as a closed compact toggle with no disclosure surface and never a modal", async () => {
     const user = userEvent.setup();
     const { container } = renderInvitation();
     expect([toggle().tagName, toggle().getAttribute("aria-expanded"), toggle().getAttribute("aria-controls")]).toEqual(["BUTTON", "false", "team-invitation-panel"]);
     expect(panel()).toBeNull();
-    const note = screen.getByRole("note");
-    expect([note.textContent, note.hasAttribute("data-pf-team-invitation-note")]).toEqual([NOTE, true]);
+    // The affordance states no implementation-status disclosure in any role.
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(container.querySelector("[data-pf-team-invitation-note]")).toBeNull();
     await user.click(toggle());
     expect([toggle().getAttribute("aria-expanded"), panel()?.getAttribute("id")]).toEqual(["true", "team-invitation-panel"]);
-    expect([panel()?.getAttribute("role"), panel()?.hasAttribute("aria-modal"), container.querySelector("[role='dialog']"), screen.getByRole("note").textContent]).toEqual([null, false, null, NOTE]);
+    expect([panel()?.getAttribute("role"), panel()?.hasAttribute("aria-modal"), container.querySelector("[role='dialog']")]).toEqual([null, false, null]);
   });
 
   it("exposes the exact labels, role options, and default recruiter role", async () => {
@@ -57,7 +56,7 @@ describe("TeamInvitation inline toggle", () => {
       ["owner", TEAM_MEMBER_ROLE_LABELS.owner],
       ["recruiter", TEAM_MEMBER_ROLE_LABELS.recruiter],
     ]);
-    expect([actionButton("Probar invitación").textContent, actionButton("Cancelar").textContent]).toEqual(["Probar invitación", "Cancelar"]);
+    expect([actionButton("Enviar invitación").getAttribute("type"), actionButton("Enviar invitación").textContent, actionButton("Cancelar").textContent]).toEqual(["submit", "Enviar invitación", "Cancelar"]);
   });
 
   it("reopens one clean inline panel after Cancelar and after the main toggle closes it", async () => {
@@ -67,59 +66,63 @@ describe("TeamInvitation inline toggle", () => {
     await user.click(actionButton("Cancelar"));
     expect([panel(), toggle().getAttribute("aria-expanded")]).toEqual([null, "false"]);
     await user.click(toggle());
-    expect(transientState()).toEqual(["", "recruiter", undefined, undefined]);
+    expect(transientState()).toEqual(["", "recruiter", undefined]);
     await user.click(toggle());
     expect(panel()).toBeNull();
     await user.click(toggle());
-    expect(transientState()).toEqual(["", "recruiter", undefined, undefined]);
+    expect(transientState()).toEqual(["", "recruiter", undefined]);
   });
 });
 
 describe("TeamInvitation local validation", () => {
-  it("rejects an empty address with a visible alert and never reports a non-send result", async () => {
+  it("rejects an empty address with a visible alert and keeps the panel fields untouched", async () => {
     const user = userEvent.setup();
     renderInvitation();
     await user.click(toggle());
-    await user.click(actionButton("Probar invitación"));
+    await user.click(actionButton("Enviar invitación"));
     expect(control("data-pf-team-invitation-error").getAttribute("role")).toBe("alert");
-    expect([errorCopy(), emailInput().value, statusCopy()]).toEqual([EMPTY_ERROR, "", undefined]);
-    expect(screen.queryByText(NO_SEND)).toBeNull();
+    expect([errorCopy(), emailInput().value, statusSurface()]).toEqual([EMPTY_ERROR, "", null]);
+    expect(panel()).not.toBeNull();
     // A whitespace-only entry arrives empty at validation, so it must read as empty and never as malformed.
     await user.type(emailInput(), "   ");
-    await user.click(actionButton("Probar invitación"));
-    expect(transientState()).toEqual(["", "recruiter", EMPTY_ERROR, undefined]);
+    await user.click(actionButton("Enviar invitación"));
+    expect(transientState()).toEqual(["", "recruiter", EMPTY_ERROR]);
   });
 
-  it("rejects a malformed address, keeps the typed value, and never reports a non-send result", async () => {
+  it("rejects a malformed address, keeps the typed value, and never invents a result", async () => {
     const user = userEvent.setup();
     renderInvitation();
     await user.click(toggle());
     await user.type(emailInput(), "camila.duarte@");
     await user.selectOptions(roleSelect(), "owner");
-    await user.click(actionButton("Probar invitación"));
+    await user.click(actionButton("Enviar invitación"));
     // A rejected address resets nothing: neither the typed text nor the chosen role.
-    expect(transientState()).toEqual(["camila.duarte@", "owner", MALFORMED_ERROR, undefined]);
-    expect(screen.queryByText(NO_SEND)).toBeNull();
+    expect(transientState()).toEqual(["camila.duarte@", "owner", MALFORMED_ERROR]);
+    expect(statusSurface()).toBeNull();
     await user.type(emailInput(), "nexolabs.mx");
-    await user.click(actionButton("Probar invitación"));
-    expect([errorCopy(), statusCopy(), emailInput().value]).toEqual([undefined, NO_SEND, ""]);
+    await user.click(actionButton("Enviar invitación"));
+    // A corrected valid submission stays inert and preserves the typed email and chosen role.
+    expect([errorCopy(), emailInput().value, roleSelect().value, statusSurface()]).toEqual([undefined, "camila.duarte@nexolabs.mx", "owner", null]);
+    expect(panel()).not.toBeNull();
   });
 });
 
-describe("TeamInvitation no-send outcome", () => {
-  it("resets fields after a valid recruiter submission and states the explicit no-send/no-save status", async () => {
+describe("TeamInvitation valid submission stays inert", () => {
+  it("keeps the typed email, the default role, and the open panel with no status surface", async () => {
     const user = userEvent.setup();
     renderInvitation();
     await user.click(toggle());
     await user.type(emailInput(), "nuevo.miembro@nexolabs.mx");
-    await user.click(actionButton("Probar invitación"));
-    const status = control("data-pf-team-invitation-status");
-    expect(transientState()).toEqual(["", "recruiter", undefined, NO_SEND]);
-    expect([status.getAttribute("role"), status.getAttribute("aria-live")]).toEqual(["status", "polite"]);
+    await user.click(actionButton("Enviar invitación"));
+    expect(transientState()).toEqual(["nuevo.miembro@nexolabs.mx", "recruiter", undefined]);
+    expect(panel()).not.toBeNull();
+    expect(statusSurface()).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
     expect(source).not.toMatch(/green|emerald|success|CheckIcon/u);
   });
 
-  it("resets a chosen owner role back to recruiter after a valid submission", async () => {
+  it("preserves a chosen owner role after a valid submission", async () => {
     const user = userEvent.setup();
     renderInvitation();
     await user.click(toggle());
@@ -130,64 +133,61 @@ describe("TeamInvitation no-send outcome", () => {
     expect(roleSelect().value).toBe("recruiter");
     await user.selectOptions(roleSelect(), "owner");
     await user.type(emailInput(), "tomas.rios@nexolabs.mx");
-    await user.click(actionButton("Probar invitación"));
-    expect(transientState()).toEqual(["", "recruiter", undefined, NO_SEND]);
+    await user.click(actionButton("Enviar invitación"));
+    expect(transientState()).toEqual(["tomas.rios@nexolabs.mx", "owner", undefined]);
     expect(document.querySelectorAll("[data-pf-team-invitation]")).toHaveLength(1);
   });
 
-  it("clears transient input, error, and status when Cancelar closes the panel", async () => {
+  it("clears transient input and error when Cancelar closes the panel", async () => {
     const user = userEvent.setup();
     renderInvitation();
     await user.click(toggle());
     await user.type(emailInput(), "camila.duarte@");
-    await user.click(actionButton("Probar invitación"));
+    await user.click(actionButton("Enviar invitación"));
     expect(errorCopy()).toBe(MALFORMED_ERROR);
     await user.click(actionButton("Cancelar"));
     expect(panel()).toBeNull();
     await user.click(toggle());
-    expect(transientState()).toEqual(["", "recruiter", undefined, undefined]);
+    expect(transientState()).toEqual(["", "recruiter", undefined]);
   });
 
-  it("clears transient input, error, and status when the main toggle closes the panel", async () => {
+  it("clears transient input and error when the main toggle closes the panel", async () => {
     const user = userEvent.setup();
     renderInvitation();
     await user.click(toggle());
     await user.type(emailInput(), "tomas.rios@nexolabs.mx");
     await user.selectOptions(roleSelect(), "owner");
-    await user.click(actionButton("Probar invitación"));
-    expect(statusCopy()).toBe(NO_SEND);
+    await user.click(actionButton("Enviar invitación"));
+    expect([emailInput().value, roleSelect().value]).toEqual(["tomas.rios@nexolabs.mx", "owner"]);
     await user.click(toggle());
     await user.click(toggle());
-    expect(transientState()).toEqual(["", "recruiter", undefined, undefined]);
+    expect(transientState()).toEqual(["", "recruiter", undefined]);
   });
 });
 
 describe("TeamInvitation transient-message lifecycle", () => {
-  it("resets stale error and no-send status on every new attempt, but preserves an email error when only the role changes", async () => {
+  it("resets a stale error on every new attempt, but preserves an email error when only the role changes", async () => {
     const user = userEvent.setup();
     renderInvitation();
     await user.click(toggle());
     // A new email keystroke clears both the stale error and its aria flags.
     await user.type(emailInput(), "camila.duarte@");
-    await user.click(actionButton("Probar invitación"));
+    await user.click(actionButton("Enviar invitación"));
     expect([errorCopy(), emailInput().getAttribute("aria-invalid"), emailInput().getAttribute("aria-describedby")]).toEqual([MALFORMED_ERROR, "true", "team-invitation-error"]);
     await user.type(emailInput(), "n");
-    expect([errorCopy(), emailInput().getAttribute("aria-invalid"), emailInput().getAttribute("aria-describedby"), statusCopy()]).toEqual([undefined, "false", null, undefined]);
-    // A valid submit produces the no-send status; the next email keystroke clears it.
+    expect([errorCopy(), emailInput().getAttribute("aria-invalid"), emailInput().getAttribute("aria-describedby")]).toEqual([undefined, "false", null]);
+    // A valid submission is inert: it clears any stale error and keeps the typed email.
     await user.clear(emailInput());
     await user.type(emailInput(), "tomas.rios@nexolabs.mx");
-    await user.click(actionButton("Probar invitación"));
-    expect(statusCopy()).toBe(NO_SEND);
-    await user.type(emailInput(), "x");
-    const nextValue = emailInput().value;
-    expect([nextValue.endsWith("x"), statusCopy(), errorCopy()]).toEqual([true, undefined, undefined]);
-    // A role change clears the no-send status, but a still-pending email error is preserved.
+    await user.click(actionButton("Enviar invitación"));
+    expect([emailInput().value, errorCopy(), statusSurface()]).toEqual(["tomas.rios@nexolabs.mx", undefined, null]);
+    // A role change keeps a still-pending email error in place because the address itself has not changed.
     await user.clear(emailInput());
     await user.type(emailInput(), "camila.duarte@");
-    await user.click(actionButton("Probar invitación"));
+    await user.click(actionButton("Enviar invitación"));
     expect(errorCopy()).toBe(MALFORMED_ERROR);
     await user.selectOptions(roleSelect(), "owner");
-    expect([emailInput().value, roleSelect().value, errorCopy(), statusCopy()]).toEqual(["camila.duarte@", "owner", MALFORMED_ERROR, undefined]);
+    expect([emailInput().value, roleSelect().value, errorCopy()]).toEqual(["camila.duarte@", "owner", MALFORMED_ERROR]);
   });
 });
 
@@ -197,7 +197,7 @@ describe("TeamInvitation interaction and source contract", () => {
     const { container } = renderInvitation();
     expect([toggle().className.includes("h-10"), toggle().className.includes("focus-visible:ring-3")]).toEqual([true, true]);
     await user.click(toggle());
-    const interactive = [emailInput(), roleSelect(), actionButton("Probar invitación"), actionButton("Cancelar")];
+    const interactive = [emailInput(), roleSelect(), actionButton("Enviar invitación"), actionButton("Cancelar")];
     expect(interactive.map((node) => node.className.includes("h-10") && node.className.includes("focus-visible:ring-3"))).toEqual([true, true, true, true]);
     const fields = control("data-pf-team-invitation-fields");
     expect([fields.className.includes("grid-cols-1"), fields.className.includes("sm:grid-cols-2")]).toEqual([true, true]);
@@ -208,13 +208,14 @@ describe("TeamInvitation interaction and source contract", () => {
     expect(container.querySelectorAll("[data-pf-team-row], [data-pf-team-list], [data-pf-team-metric]")).toHaveLength(0);
   });
 
-  it("stays a local-only client affordance with no member collection, callback, or transport", () => {
+  it("stays a local-only client affordance with no member collection, callback, transport, or disclosure copy", () => {
     expect(source).toMatch(/^\s*["']use client["']/mu);
     expect(source).toMatch(/export function TeamInvitation\(\)/u);
+    expect(source).toContain("Enviar invitación");
     for (const reuse of ["./model", "@/components/ui/button", "@/components/ui/input", "@/components/ui/label"]) {
       expect(source, `team-invitation.tsx must reuse ${reuse}`).toContain(reuse);
     }
-    for (const forbidden of ["./prototype-team", "NEXO_TEAM_MEMBERS", "TeamWorkspace", "members", "callback", "props:", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.clipboard", "useRouter", "next/navigation", "next/link", ".css", "setTimeout", "setInterval", "Math.random", "randomUUID", "toast", "draggable", "onDrag", "onDrop", '"dialog"', "Enviar invitación"]) {
+    for (const forbidden of ["./prototype-team", "NEXO_TEAM_MEMBERS", "TeamWorkspace", "members", "callback", "props:", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.clipboard", "useRouter", "next/navigation", "next/link", ".css", "setTimeout", "setInterval", "Math.random", "randomUUID", "toast", "draggable", "onDrag", "onDrop", '"dialog"', "Probar invitación", "DISCLOSURE", "NO_SEND_STATUS", "data-pf-team-invitation-note", "data-pf-team-invitation-status", 'role="note"', 'role="status"', "no se envió", "no envía correos", "prototipo"]) {
       expect(source, `team-invitation.tsx must not declare ${forbidden}`).not.toContain(forbidden);
     }
   });
@@ -230,7 +231,7 @@ describe("TeamInvitation interaction and source contract", () => {
     renderInvitation();
     await user.click(toggle());
     await user.type(emailInput(), "nuevo.miembro@nexolabs.mx");
-    await user.click(actionButton("Probar invitación"));
+    await user.click(actionButton("Enviar invitación"));
     await user.click(actionButton("Cancelar"));
     await user.click(toggle());
     await user.click(toggle());

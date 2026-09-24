@@ -101,12 +101,10 @@ describe("candidate dashboard route", () => {
     expect(within(recent).getByRole("link", { name: "Ver todas mis postulaciones" })).toHaveAttribute("href", "/candidato/postulaciones");
   });
 
-  it("keeps the honest local-demo disclosure", () => {
+  it("renders no implementation-status disclosure", () => {
     renderRoute();
-    const note = screen.getByRole("note");
-    expect(note).toHaveAttribute("data-pf-candidate-overview-disclosure");
-    expect(note).toHaveTextContent(/demo local/iu);
-    expect(note).toHaveTextContent(/no guarda cambios/u);
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(document.querySelector("[data-pf-candidate-overview-disclosure]")).toBeNull();
   });
 
   it("activates only Dashboard inside the shared candidate shell", () => {

@@ -10,9 +10,8 @@ import {
 } from "lucide-react";
 import { cn } from "cn";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -21,8 +20,6 @@ import {
 } from "./rich-text-model";
 import type { RichTextEdit, RichTextInline, RichTextRange } from "./rich-text-model";
 
-/** Local-only disclosure: the tokens look formatted, but they are not saved. */
-const DISCLOSURE = "Formato visual de prototipo; todavía no se guarda.";
 const UNSAFE_LINK_MESSAGE = "Ingresá un enlace que empiece con http:// o https://.";
 /** The five toolbar actions, in the order the surface shows them. */
 const FORMAT_ACTIONS = [
@@ -44,7 +41,11 @@ export type RichTextFieldProps = {
   errorId?: string;
   placeholder?: string;
   rows?: number;
-  /** Marks a surface whose value has no persistence contract at all. */
+  /**
+   * Compatibility flag for callers whose value is local-only. It is retained so
+   * the shared contract stays intact, but it renders nothing and never changes
+   * the field's accessible text.
+   */
   prototype?: boolean;
 };
 
@@ -62,7 +63,6 @@ export function RichTextField({
   errorId = `${id}-error`,
   placeholder,
   rows = 4,
-  prototype = false,
 }: RichTextFieldProps) {
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
   const pendingSelection = React.useRef<RichTextRange | null>(null);
@@ -81,7 +81,6 @@ export function RichTextField({
   }, [value]);
 
   const invalid = error !== undefined;
-  const disclosureId = `${id}-disclosure`;
   const linkInputId = `${id}-link`;
   const linkErrorId = `${id}-link-error`;
   /**
@@ -90,18 +89,12 @@ export function RichTextField({
    * while `${id}-error` itself and every other caller-provided id stay
    * verbatim.
    */
-  const reservedIds = [id, disclosureId, linkInputId, linkErrorId];
+  const reservedIds = [id, linkInputId, linkErrorId];
   const resolvedErrorId = reservedIds.includes(errorId)
     ? `${id}-error`
     : errorId;
-  /**
-   * The prototype disclosure always describes the control, and a present error
-   * slot is added rather than replacing it. The union dedupes, so the composed
-   * attribute can never repeat an id.
-   */
-  const describedBy = Array.from(
-    new Set(invalid ? [disclosureId, resolvedErrorId] : [disclosureId]),
-  ).join(" ");
+  /** Only a present error slot describes the control; a valid field has none. */
+  const describedBy = invalid ? resolvedErrorId : undefined;
 
   function currentSelection(): RichTextRange {
     const textarea = textareaRef.current;
@@ -126,10 +119,7 @@ export function RichTextField({
 
   return (
     <Field data-invalid={invalid}>
-      <div className="flex flex-wrap items-center gap-2">
-        <FieldLabel htmlFor={id}>{label}</FieldLabel>
-        {prototype && <Badge variant="secondary">Prototipo</Badge>}
-      </div>
+      <FieldLabel htmlFor={id}>{label}</FieldLabel>
 
       <div
         role="toolbar"
@@ -161,7 +151,6 @@ export function RichTextField({
         aria-describedby={describedBy}
         placeholder={placeholder}
       />
-      <FieldDescription id={disclosureId}>{DISCLOSURE}</FieldDescription>
       <FieldError id={resolvedErrorId}>{error}</FieldError>
 
       <div className="flex flex-wrap items-end gap-2">

@@ -14,12 +14,13 @@ import {
   seniorityLabel,
   workModeLabel,
 } from "../formatters";
+import { vacancyApplicationHref } from "../application/application-draft";
 import { PROTOTYPE_COMPANY_ID } from "../../company-profile/model";
 import { ACME_PROTOTYPE_PROFILE } from "../../company-profile/prototype-companies";
 import { enrichJob } from "../enrich";
 import type { PrototypeJobView } from "../enrich";
 import type { JobItem } from "../types";
-import { PROTOTYPE_DISCLOSURE, companyInitials, prototypeApplicantsLabel, prototypeResponseLabel } from "./prototype-ui";
+import { companyInitials, prototypeApplicantsLabel, prototypeResponseLabel } from "./prototype-ui";
 import { JobDetailView } from "./JobDetailView";
 
 /** Font-size utilities share the `text-` prefix with the color utilities below. */
@@ -34,9 +35,17 @@ const textColorUtilities = (className: string) =>
 const RAW_COLOR_UTILITY =
   /(?:^|\s|[a-z-]+:)(?:text|bg|border)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|white|black)-\d{2,3}(?:\s|$)/;
 /** Every prop a server view may forward across the server/client boundary. */
-const ISLAND_PROPS = ["mode", "icon", "label", "activeLabel", "text", "className", "iconClassName", "iconPosition", "iconOnly", "describedBy", "title", "feedback", "activeFeedback", "inactiveFeedback"];
-/** The five demonstration island names, in rail order. */
-const DEMO_NAMES = ["Postularme (solo demostración)", "Guardar vacante (solo demostración)", "Copiar enlace (solo demostración)", "Compartir en redes (solo demostración)", "Enviar por correo (solo demostración)"] as const;
+const ISLAND_PROPS = ["icon", "label", "className", "iconClassName", "iconPosition", "iconOnly", "text", "title", "describedBy"];
+/** The four placeholder control names, in rail order. */
+const DEMO_NAMES = ["Guardar vacante", "Copiar enlace", "Compartir en redes", "Enviar por correo"] as const;
+/** Comments never render, so they are stripped before scanning shipping source. */
+const withoutComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\//gu, " ").replace(/\/\/[^\n]*/gu, " ");
+/**
+ * Implementation-status display copy banned from shipping source. Each entry is
+ * prose, never a technical identifier such as `PrototypeRoleSection`,
+ * `data-detail-card="prototype"`, or `vacante-rol`, and comments are stripped.
+ */
+const STATUS_DISPLAY_COPY = /demostraci[óo]n|fictici[ao]s?|solo demostraci|marcada solo|no se guard[óo]|no se guarda|no se copi[óo]|no se comparti[óo]|no se envi[oó]|no se env[ií]a|no disponible|no implementado|\bPrototipo\b|\bprototipo\b/iu;
 
 const baseJob: JobItem = {
   id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e",
@@ -172,7 +181,7 @@ describe("JobDetailView prototype role block", () => {
     const job: PrototypeJobView = { ...enrichedJob, salary_min: 30000, salary_max: 45000 };
     render(<JobDetailView job={job} />);
     expect(
-      screen.getByRole("heading", { level: 2, name: `Prototipo · ${prototype.department}` }),
+      screen.getByRole("heading", { level: 2, name: prototype.department }),
     ).toBeVisible();
     expect(screen.getByText("Frecuencia de pago")).toBeVisible();
     expect(screen.getByText(payFrequencyLabel(prototype.payFrequency))).toBeVisible();
@@ -198,13 +207,13 @@ describe("JobDetailView prototype role block", () => {
     expect(salary).not.toContain(payFrequencyLabel(prototype.payFrequency));
   });
 
-  it("links to the canonical company profile and discloses the prototype profile", () => {
+  it("links to the canonical company profile without any disclosure copy", () => {
     render(<JobDetailView job={enrichedJob} />);
     const link = screen.getByRole("link", { name: `Conoce a ${ACME_PROTOTYPE_PROFILE.name}` });
     expect(link).toHaveAttribute("href", `/empresas/${PROTOTYPE_COMPANY_ID}`);
     expectHighContrastBodyLink(link);
-    expect(screen.getByText(ACME_PROTOTYPE_PROFILE.disclosure.label)).toBeVisible();
-    expect(screen.getByText(ACME_PROTOTYPE_PROFILE.disclosure.statement)).toBeVisible();
+    expect(screen.queryByText(/ficticia|prototipo/iu)).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
     // The header company becomes a link only under that same exact opt-in match.
     const company = screen.getByRole("link", { name: baseJob.company.name });
     expect(company).toHaveAttribute("href", `/empresas/${PROTOTYPE_COMPANY_ID}`);
@@ -223,10 +232,10 @@ describe("JobDetailView prototype role block", () => {
 
   it("nests the prototype block headings inside the page hierarchy", () => {
     const { container } = render(<JobDetailView job={enrichedJob} />);
-    const block = container.querySelector("section[aria-labelledby='prototipo-vacante']");
+    const block = container.querySelector("section[aria-labelledby='vacante-rol']");
     const headings = [...(block?.querySelectorAll("h1, h2, h3, h4, h5, h6") ?? [])];
     expect(headings.map((heading) => [heading.tagName, heading.textContent])).toEqual([
-      ["H2", `Prototipo · ${enrichedJob.prototype!.department}`],
+      ["H2", enrichedJob.prototype!.department],
       ["H3", "Requisitos"],
       ["H4", "Indispensables"],
       ["H4", "Deseables"],
@@ -259,9 +268,9 @@ describe("JobDetailView prototype role block", () => {
       company: { id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d99", name: "Otra Empresa" },
     };
     render(<JobDetailView job={job} />);
-    expect(screen.getByRole("heading", { level: 2, name: /prototipo/i })).toBeVisible();
+    expect(screen.getByRole("heading", { level: 2, name: job.prototype!.department })).toBeVisible();
     expect(screen.queryByRole("link", { name: /conoce a/i })).toBeNull();
-    expect(screen.queryByText(ACME_PROTOTYPE_PROFILE.disclosure.statement)).toBeNull();
+    expect(screen.queryByText(/ficticia/iu)).toBeNull();
     expect(screen.getByText("Otra Empresa").closest("a")).toBeNull();
   });
 });
@@ -300,7 +309,7 @@ describe("JobDetailView reference header, stats, and scaffold (CCP-R4A)", () => 
     expect(link.closest("li")!.firstElementChild).toBe(link);
   });
 
-  it("rebuilds the header with monogram, featured state, metrics, and disclosure", () => {
+  it("rebuilds the header with monogram, featured state, and metrics", () => {
     const { container } = render(<JobDetailView job={enrichedJob} />);
     const header = region(container, "header");
     const prototype = enrichedJob.prototype!;
@@ -309,7 +318,7 @@ describe("JobDetailView reference header, stats, and scaffold (CCP-R4A)", () => 
     for (const text of ["Destacada", "Publicación", prototype.publishedAgoLabel, "Postulantes", prototypeApplicantsLabel(prototype.applicantCount)]) {
       expect(within(header).getByText(text)).toBeVisible();
     }
-    expect(within(header).getByRole("note")).toHaveTextContent(PROTOTYPE_DISCLOSURE);
+    expect(within(header).queryByRole("note")).toBeNull();
     expect(container.querySelectorAll("article [style]")).toHaveLength(0);
     const classes = [...container.querySelectorAll("article *")].map((node) => node.getAttribute("class") ?? "").join(" ");
     expect(classes).not.toMatch(RAW_COLOR_UTILITY);
@@ -390,12 +399,16 @@ describe("JobDetailView reference header, stats, and scaffold (CCP-R4A)", () => 
     expect(viewSource).not.toMatch(/<button\b/u);
     expect(viewSource).toContain("./prototype-feedback-island");
     const islands = [...viewSource.matchAll(/<PrototypeFeedbackButton\b[\s\S]*?\/>/gu)].map((match) => match[0]);
-    expect(islands).toHaveLength(3);
+    expect(islands).toHaveLength(2);
     for (const island of islands) {
       expect(island).not.toMatch(/=>|function|\{\s*\(/u);
       // React's `key` is a framework slot, not a prop forwarded to the island.
       for (const name of island.matchAll(/(?:^|\s)([a-z][a-zA-Z]*)=/gu)) expect(["key", ...ISLAND_PROPS]).toContain(name[1]);
     }
+  });
+
+  it("ships no implementation-status display copy outside comments or identifiers", () => {
+    expect(withoutComments(viewSource)).not.toMatch(STATUS_DISPLAY_COPY);
   });
 });
 
@@ -471,29 +484,53 @@ describe("JobDetailView reference content and sticky rail (CCP-R4B)", () => {
     expect(rail.className).not.toMatch(/(?:^|\s)absolute(?:\s|$)/);
   });
 
-  it("enables the five demonstration islands with stable names and one pressed toggle", () => {
+  it("renders the real Postularme application link instead of a momentary apply button", () => {
+    render(<JobDetailView job={enrichedJob} />);
+    const links = screen.getAllByRole("link", { name: "Postularme" });
+    expect(links).toHaveLength(1);
+    const apply = links[0];
+    expect(apply).toHaveAttribute("href", vacancyApplicationHref(enrichedJob.id));
+    expect(apply).not.toHaveAttribute("aria-describedby");
+    // Token action surface shared by the primary affordance: semantic tokens only.
+    expect(apply.className).toMatch(/(?:^|\s)bg-primary\/15(?:\s|$)/);
+    expect(apply.className).toMatch(/(?:^|\s)border-primary\/40(?:\s|$)/);
+    expect(apply.className).not.toMatch(RAW_COLOR_UTILITY);
+    // One decorative arrow trails the label, so the control reads as navigation.
+    const icon = apply.querySelector("svg[aria-hidden='true']");
+    expect(icon).not.toBeNull();
+    expect(apply.lastElementChild).toBe(icon);
+    // The demonstration apply button and its momentary confirmation are gone.
+    expect(screen.queryByRole("button", { name: /postularme/i })).toBeNull();
+    expect(screen.queryByText(/no se envió ninguna postulación real/i)).toBeNull();
+  });
+
+  it("keeps the four placeholder controls with clean names, enabled and inert", async () => {
+    const user = userEvent.setup();
     render(<JobDetailView job={enrichedJob} />);
     const controls = screen.getAllByRole("button");
     expect(controls.map((control) => control.getAttribute("aria-label"))).toEqual([...DEMO_NAMES]);
-    const [apply, save, ...shares] = controls;
-    expect([apply.getAttribute("aria-pressed"), apply.className.includes("active:scale-[0.96]"), apply.getAttribute("title")]).toEqual([null, true, DEMO_NAMES[0]]);
-    expect([save.getAttribute("aria-pressed"), save.textContent]).toEqual(["false", "Guardar"]);
-    for (const control of [apply, save, ...shares]) {
+    const [save, ...shares] = controls;
+    expect([save.getAttribute("aria-pressed"), save.textContent]).toEqual([null, "Guardar"]);
+    for (const control of [save, ...shares]) {
+      const name = control.getAttribute("aria-label");
       expect([control.matches(":enabled"), control.getAttribute("type"), control.getAttribute("aria-disabled")]).toEqual([true, "button", null]);
+      await user.click(control);
+      expect([control.getAttribute("aria-label"), control.getAttribute("aria-pressed")]).toEqual([name, null]);
     }
+    expect(screen.queryAllByRole("status")).toHaveLength(0);
   });
 
-  it("announces truthful momentary feedback for every apply and share island", async () => {
+  it("activates every placeholder control without feedback, navigation, or state", async () => {
     const user = userEvent.setup();
-    render(<JobDetailView job={enrichedJob} />);
-    const [apply, save, ...shares] = DEMO_NAMES.map((name) => screen.getByRole("button", { name }));
-    for (const [control, message] of [[apply, "no se envió ninguna postulación real"], [shares[0], "no se copió nada"], [shares[1], "no se compartió nada"], [shares[2], "no se envió ningún correo"]] as const) {
-      await user.click(control);
-      expect(screen.getAllByRole("status").map((region) => region.textContent).filter((text) => text?.includes(message))).toHaveLength(1);
-    }
-    expect([save.getAttribute("aria-pressed"), screen.getAllByRole("status").every((region) => region.className === "sr-only")]).toEqual(["false", true]);
-    await user.click(save);
-    expect(save.getAttribute("aria-pressed")).toBe("true");
+    const before = window.location.href;
+    const { container } = render(<JobDetailView job={enrichedJob} />);
+    const [save, ...shares] = DEMO_NAMES.map((name) => screen.getByRole("button", { name }));
+    for (const control of [save, ...shares]) await user.click(control);
+    await user.keyboard("{Enter}");
+    expect(container.querySelectorAll("[role='status'], [role='note']")).toHaveLength(0);
+    expect(window.location.href).toBe(before);
+    expect([save.getAttribute("aria-pressed"), save.getAttribute("aria-label")]).toEqual([null, "Guardar vacante"]);
+    expect(shares.map((control) => control.getAttribute("aria-label"))).toEqual(["Copiar enlace", "Compartir en redes", "Enviar por correo"]);
   });
 
   it("renders the company profile context and canonical link in the rail", () => {

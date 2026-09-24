@@ -69,8 +69,8 @@ export function SiteHeader({
         ) : null}
         {/*
           Canonical PeopleFlow theme control, reused as-is: this header owns no
-          theme state, storage key or bootstrap of its own. Its `size="icon"`
-          (32px) is the narrowest standard control that fits the fixed
+          theme state, storage key or bootstrap of its own. Its default 40x40
+          target is the shared global theme-control size, which fits the fixed
           `h-(--header-height)` header and its untouched padding, and it stays
           the group's only member, so it keeps the approved top-right position.
           No visibility gate on purpose: the control must stay reachable at the

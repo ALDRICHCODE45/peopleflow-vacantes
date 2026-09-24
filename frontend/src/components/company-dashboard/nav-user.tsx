@@ -1,5 +1,7 @@
 "use client"
 
+import Link from "next/link"
+
 import {
   Avatar,
   AvatarFallback,
@@ -21,17 +23,66 @@ import {
 } from "./ui/sidebar"
 import { IconCreditCard, IconDotsVertical, IconLogout, IconNotification, IconUserCircle } from "@tabler/icons-react"
 
+/** A caller-supplied account action that navigates to a real route. */
+export type NavUserMenuItem = Readonly<{
+  title: string
+  href: string
+  icon?: React.ReactNode
+}>
+
+type NavUserIdentity = {
+  name: string
+  email: string
+  role: string
+  company: string
+}
+
+/**
+ * Initials come from the account name, never from a fixed label, so the shared
+ * component renders any account without a hardcoded identity.
+ */
+function accountInitials(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("")
+}
+
+/**
+ * Default account actions: plain labels with no destination and no mutation.
+ * They render only when the caller supplies no `menuItems`.
+ */
+const DEFAULT_MENU_ITEMS = (
+  <>
+    <DropdownMenuItem>
+      <IconUserCircle
+      />
+      Mi perfil
+    </DropdownMenuItem>
+    <DropdownMenuItem>
+      <IconCreditCard
+      />
+      Plan y facturación
+    </DropdownMenuItem>
+    <DropdownMenuItem>
+      <IconNotification
+      />
+      Notificaciones
+    </DropdownMenuItem>
+  </>
+)
+
 export function NavUser({
   user,
+  menuItems,
 }: {
-  user: {
-    name: string
-    email: string
-    role: string
-    company: string
-  }
+  user: NavUserIdentity
+  menuItems?: ReadonlyArray<NavUserMenuItem>
 }) {
   const { isMobile } = useSidebar()
+  const initials = accountInitials(user.name)
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -45,7 +96,7 @@ export function NavUser({
               {/* Initials-only identity: the stock photo is gone, so the
                   fallback carries the account mark on semantic tokens. */}
               <AvatarFallback className="rounded-lg bg-primary text-primary-foreground">
-                TR
+                {initials}
               </AvatarFallback>
             </Avatar>
             <div className="grid flex-1 text-left text-sm leading-tight">
@@ -70,7 +121,7 @@ export function NavUser({
                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                   <Avatar className="size-8">
                     <AvatarFallback className="rounded-lg bg-primary text-primary-foreground">
-                      TR
+                      {initials}
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
@@ -84,28 +135,30 @@ export function NavUser({
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <IconUserCircle
-                />
-                Mi perfil
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconCreditCard
-                />
-                Plan y facturación
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconNotification
-                />
-                Notificaciones
-              </DropdownMenuItem>
+              {/* Caller items become real Next links; the default employer set
+                  keeps its plain, non-navigating labels. */}
+              {menuItems
+                ? menuItems.map((item) => (
+                    <DropdownMenuItem
+                      key={item.title}
+                      render={<Link href={item.href} />}
+                    >
+                      {item.icon}
+                      {item.title}
+                    </DropdownMenuItem>
+                  ))
+                : DEFAULT_MENU_ITEMS}
             </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <IconLogout
-              />
-              Cerrar sesión
-            </DropdownMenuItem>
+            {menuItems ? null : (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem>
+                  <IconLogout
+                  />
+                  Cerrar sesión
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

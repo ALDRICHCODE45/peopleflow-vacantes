@@ -71,6 +71,18 @@ function ingresarTrigger() {
   return screen.getByRole("button", { name: /^ingresar$/i });
 }
 
+/**
+ * Every brand mark and plain-text destination must own an explicit >=40px
+ * pointer target, so no text-only link relies on its glyph box as the hit area.
+ */
+function expectNavTarget(element: Element | null, label: string) {
+  expect(element, `${label} must exist`).not.toBeNull();
+  const tokens = new Set(element!.className.split(/\s+/).filter(Boolean));
+  for (const token of ["inline-flex", "min-h-10", "items-center"]) {
+    expect(tokens.has(token), `${label} must carry ${token}`).toBe(true);
+  }
+}
+
 // ─── Candidate mode tests (frozen contract — unchanged) ──────────────────────
 
 describe("PeopleFlowNavbar candidate mode", () => {
@@ -101,6 +113,20 @@ describe("PeopleFlowNavbar candidate mode", () => {
     expect(
       screen.getByRole("button", { name: /cambiar tema/i }),
     ).toHaveAttribute("data-pf-theme-toggle");
+  });
+
+  it("gives the candidate brand and Vacantes link explicit >=40px targets", () => {
+    stubMatchMedia();
+    renderCandidateNavbar();
+    const header = document.querySelector("header")!;
+    expectNavTarget(
+      header.querySelector("a[aria-label='PeopleFlow']"),
+      "candidate brand",
+    );
+    expectNavTarget(
+      screen.getByRole("link", { name: /vacantes/i }),
+      "candidate Vacantes",
+    );
   });
 
   it("does NOT render marketing CTA buttons in candidate mode", () => {
@@ -231,6 +257,30 @@ describe("PeopleFlowNavbar marketing mode", () => {
     expect(actions[2]).toBe(cta);
   });
 
+  it("gives every marketing control an explicit >=40px target", () => {
+    stubMatchMedia();
+    renderMarketingNavbar();
+    const header = document.querySelector("header")!;
+    expectNavTarget(
+      header.querySelector("a[aria-label='PeopleFlow']"),
+      "marketing brand",
+    );
+    for (const label of ["Vacantes", "Producto", "Soluciones"]) {
+      expectNavTarget(findHeaderLink(header, label) ?? null, label);
+    }
+    // The icon-only theme control owns a 40px square, not the previous 36px.
+    const toggle = screen.getByRole("button", { name: /cambiar tema/i });
+    const toggleTokens = new Set(toggle.className.split(/\s+/).filter(Boolean));
+    expect(toggleTokens.has("size-10")).toBe(true);
+    expect(toggleTokens.has("size-9")).toBe(false);
+    // The primary CTA raises the shared `lg` Button geometry to 40px.
+    const cta = findHeaderLink(header, "Empezar gratis");
+    expect(cta).toBeDefined();
+    expect(
+      new Set(cta!.className.split(/\s+/).filter(Boolean)).has("min-h-10"),
+    ).toBe(true);
+  });
+
   it("renders the sticky reference header shell with a floating inner surface", () => {
     stubMatchMedia();
     renderMarketingNavbar();
@@ -352,6 +402,19 @@ describe("PeopleFlowNavbar public mode", () => {
     ).toBe(frame.className);
   });
 
+  it("gives every public plain-text control an explicit >=40px target", () => {
+    stubMatchMedia();
+    renderPublicNavbar();
+    const header = document.querySelector("header")!;
+    expectNavTarget(
+      header.querySelector("a[aria-label='PeopleFlow']"),
+      "public brand",
+    );
+    for (const label of ["Vacantes", "Empresas", "Publicar vacante"]) {
+      expectNavTarget(findHeaderLink(header, label) ?? null, label);
+    }
+  });
+
   it("orders the public actions Ingresar, theme, then Publicar vacante", () => {
     stubMatchMedia();
     renderPublicNavbar();
@@ -371,8 +434,10 @@ describe("PeopleFlowNavbar public mode", () => {
     // The Ingresar trigger keeps its >=40px target and never hides on mobile.
     expect(ingresarTrigger()).toHaveClass("min-h-10");
     expect(ingresarTrigger().className).not.toMatch(/(?:^|\s)\S*hidden(?:\s|$)/);
-    // The CTA compacts padding/typography below sm, never its label.
+    // The CTA compacts padding/typography below sm, never its label or its
+    // 40px minimum target.
     const cta = findHeaderLink(document.querySelector("header")!, "Publicar vacante")!;
+    expect(cta.className).toContain("min-h-10");
     expect(cta.className).toContain("max-sm:px-2.5");
     expect(cta.className).toContain("max-sm:text-[13px]");
     expect(cta.textContent?.trim()).toBe("Publicar vacante");

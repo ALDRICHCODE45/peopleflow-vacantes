@@ -4,11 +4,12 @@ import "@testing-library/jest-dom/vitest";
 
 import type { PrototypeJobView } from "../jobs/enrich";
 import { ACME_PROTOTYPE_JOBS } from "../jobs/prototype-jobs";
-import { PROTOTYPE_DISCLOSURE } from "../jobs/components/prototype-ui";
 import { CompanyCareersView } from "./company-careers-view";
 import { ACME_PROTOTYPE_PROFILE } from "./prototype-companies";
 
 const profile = ACME_PROTOTYPE_PROFILE;
+/** Rendered implementation-status vocabulary banned from any visible text. */
+const RENDERED_STATUS_COPY = /\b(?:demo|mock|prototip\w*|fictici\w*|prueba|test|local|no disponible|no implementado|no se guarda|no se env[ií]a|no se copi[oó]|no se comparti[oó])\b/iu;
 const view = (jobs: readonly PrototypeJobView[] = []) => render(<CompanyCareersView profile={profile} jobs={jobs} />);
 /** The capability list of the page, scoped so vacancy cards never leak into it. */
 const capabilityItems = (container: HTMLElement) => Array.from(container.querySelector("h2#que-hacemos")?.closest("section")?.querySelectorAll("li") ?? []).map((item) => item.textContent ?? "");
@@ -24,7 +25,6 @@ const textColorUtilities = (className: string) =>
     .filter((utility) => !FONT_SIZE_TOKENS.has(utility.slice(utility.lastIndexOf("text-") + 5)));
 
 afterEach(() => cleanup());
-
 describe("CompanyCareersView headings and narrative", () => {
   it("renders one H1 and exactly the three H2 sections in document order", () => {
     view(ACME_PROTOTYPE_JOBS);
@@ -58,10 +58,10 @@ describe("CompanyCareersView headings and narrative", () => {
 });
 
 describe("CompanyCareersView media, disclosure, and honesty", () => {
-  it("shows the disclosure and one safe external link, never a clickable cover", () => {
+  it("shows one safe external link and no implementation-status disclosure", () => {
     const { container } = view();
-    expect(container.textContent).toContain(profile.disclosure.label);
-    expect(container.textContent).toContain(profile.disclosure.statement);
+    expect(container.textContent ?? "").not.toMatch(RENDERED_STATUS_COPY);
+    expect(container.querySelector("[role='note']")).toBeNull();
     const image = container.querySelector("img");
     expect(image?.getAttribute("alt")).toBe(profile.coverPhoto.alt);
     // next/image may serve the byte-identical local file through its optimizer,
@@ -85,7 +85,8 @@ describe("CompanyCareersView media, disclosure, and honesty", () => {
     const { container } = view();
     expect(FORBIDDEN_COPY.test(container.textContent ?? "")).toBe(false);
     const vacancySection = container.querySelector("h2#vacantes")?.closest("section");
-    expect(vacancySection?.textContent).toMatch(/prototipo|todavía no lista/iu);
+    expect(vacancySection?.textContent).toMatch(/todavía no lista/iu);
+    expect(vacancySection?.textContent).not.toMatch(/prototipo|ficticia|demostraci/iu);
     expect(vacancySection?.textContent).toContain(profile.name);
     expect(Array.from(vacancySection?.querySelectorAll("a") ?? []).map((anchor) => anchor.getAttribute("href"))).toEqual(["/vacantes"]);
     expect(container.querySelectorAll("button")).toHaveLength(0);
@@ -138,7 +139,7 @@ describe("CompanyCareersView vacancies", () => {
       FORBIDDEN_COPY.test(pageText.replace(cardsText, "")),
       FORBIDDEN_COPY.test(cardsText.replaceAll("Verificada por PeopleFlow", "")),
     ]).toEqual([false, false]);
-    expect(within(list).getAllByRole("note").map((note) => note.textContent)).toEqual(ACME_PROTOTYPE_JOBS.map(() => PROTOTYPE_DISCLOSURE));
+    expect(within(list).queryAllByRole("note")).toHaveLength(0);
     expect([within(list).getAllByText("Destacada").length, within(list).getAllByText("Verificada por PeopleFlow").length]).toEqual([1, 2]);
     const items = within(list).getAllByRole("listitem");
     expect(items).toHaveLength(ACME_PROTOTYPE_JOBS.length);

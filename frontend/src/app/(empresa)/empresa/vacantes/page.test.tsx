@@ -114,14 +114,13 @@ describe("/empresa/vacantes employer route", () => {
     expect(cta).toHaveAttribute("href", "/empresa/vacantes/nueva");
   });
 
-  it("discloses that the portfolio is local demo data and is not persisted", () => {
+  it("renders no route-level local-demo disclosure or implementation-status copy", () => {
     render(<Page />);
 
-    const disclosure = document.querySelector("[data-pf-vacantes-disclosure]");
-    expect(disclosure).not.toBeNull();
-    expect(disclosure).toHaveAttribute("role", "note");
-    expect(disclosure).toHaveTextContent(/demostración/i);
-    expect(disclosure).toHaveTextContent(/no se guardan/i);
+    expect(document.querySelector("[data-pf-vacantes-disclosure]")).toBeNull();
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.queryByText(/datos de demostración locales/i)).toBeNull();
+    expect(screen.queryByText(/no se guardan/i)).toBeNull();
   });
 
   it("mounts the portfolio with every fixture row and its canonical pipeline link", () => {

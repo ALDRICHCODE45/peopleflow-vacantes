@@ -6,7 +6,7 @@ import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { CANDIDATE_PROFILE } from "@/features/candidate/prototype-candidate";
+import { CANDIDATE_IDENTITY, CANDIDATE_PROFILE } from "@/features/candidate/prototype-candidate";
 import { profileToDraft } from "@/features/candidate/profile-draft";
 
 const { pathnameMock, workspaceSpy } = vi.hoisted(() => ({
@@ -32,6 +32,7 @@ import PerfilPage, { metadata } from "./page";
 import { CandidateShell } from "@/components/candidate-dashboard/candidate-shell";
 
 const SOURCE = readFileSync(join(process.cwd(), "src/app/(candidato)/candidato/perfil/page.tsx"), "utf8");
+const AVATAR_SRC = "/candidate/ximena-barrera.jpg";
 const SEEDED = profileToDraft(CANDIDATE_PROFILE);
 const occurrences = (haystack: string, needle: string) => haystack.split(needle).length - 1;
 
@@ -42,6 +43,21 @@ function stubBrowserApis() {
   }));
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
   vi.stubGlobal("innerWidth", 1280);
+  // Forces Base UI's AvatarImage to mount so the local portrait is observable in jsdom.
+  vi.stubGlobal("Image", StubImage);
+}
+
+class StubImage {
+  complete = true;
+  naturalWidth = 1;
+  naturalHeight = 1;
+  referrerPolicy = "";
+  crossOrigin: string | null = null;
+  sizes = "";
+  srcset = "";
+  src = "";
+  onload: (() => void) | null = null;
+  onerror: (() => void) | null = null;
 }
 
 const renderRoute = () => render(<CandidateShell><PerfilPage /></CandidateShell>);
@@ -52,6 +68,9 @@ const announcement = () => workspace().querySelector("[data-pf-profile-announcem
 const rows = () => workspace().querySelectorAll("[data-pf-profile-language-row]");
 const review = () => screen.getByRole("button", { name: "Revisar datos" });
 const reset = () => screen.getByRole("button", { name: "Restaurar copia original" });
+const show = (label: "Personal" | "Experiencia" | "Educación" | "Compensación" | "Idiomas"): void => {
+  fireEvent.click(screen.getByRole("tab", { name: label }));
+};
 
 afterEach(() => {
   cleanup();
@@ -75,31 +94,59 @@ describe("candidate profile route", () => {
     expect(headings[0].compareDocumentPosition(workspaces[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it("supplies exactly the frozen profile at the page boundary", () => {
+  it("supplies exactly the frozen identity and profile at the page boundary", () => {
     renderRoute();
     const props = workspaceSpy.mock.calls[workspaceSpy.mock.calls.length - 1]?.[0] as Record<string, unknown>;
-    expect(Object.keys(props)).toEqual(["profile"]);
+    expect(Object.keys(props)).toEqual(["identity", "profile", "avatarSrc"]);
+    expect(props.identity).toBe(CANDIDATE_IDENTITY);
     expect(props.profile).toBe(CANDIDATE_PROFILE);
+    expect(props.avatarSrc).toBe(AVATAR_SRC);
+    expect(Object.isFrozen(props.identity)).toBe(true);
     expect(Object.isFrozen(props.profile)).toBe(true);
   });
 
-  it("seeds the committed scalar and language values from the frozen profile", () => {
+  it("renders the frozen identity header and the local completion summary", () => {
     renderRoute();
-    expect(field("professionalTitle")).toHaveValue(SEEDED.professionalTitle);
+    const header = workspace().querySelector("[data-pf-profile-identity]") as HTMLElement;
+    expect(header).toHaveTextContent(CANDIDATE_IDENTITY.fullName);
+    expect(header).toHaveTextContent(CANDIDATE_IDENTITY.email);
+    expect(header).not.toHaveTextContent(CANDIDATE_IDENTITY.userId);
+    const bar = workspace().querySelector("[data-slot='progress']") as HTMLElement;
+    expect(bar).toHaveAttribute("role", "progressbar");
+    expect(bar).toHaveAttribute("aria-valuenow", "10");
+    expect(bar).toHaveAttribute("aria-valuemax", "10");
+    expect(workspace()).toHaveTextContent("10 de 10 datos clave");
+  });
+
+  it("renders the route-provided local portrait inside the profile card", () => {
+    renderRoute();
+    expect(workspace().querySelector("[data-slot='card']")).not.toBeNull();
+    const image = workspace().querySelector("[data-slot='avatar-image']") as HTMLImageElement;
+    expect(image).not.toBeNull();
+    expect(image.getAttribute("src")).toBe(AVATAR_SRC);
+    expect(image.getAttribute("alt")).toContain(CANDIDATE_IDENTITY.fullName);
+  });
+
+  it("seeds the committed values across the five tab panels", () => {
+    renderRoute();
     expect(field("city")).toHaveValue(CANDIDATE_PROFILE.city);
+    show("Experiencia");
+    expect(field("professionalTitle")).toHaveValue(SEEDED.professionalTitle);
+    show("Compensación");
     expect(field("salaryCurrency")).toHaveValue("MXN");
+    show("Idiomas");
     expect(screen.getByLabelText("Nombre del idioma 1")).toHaveValue("español");
-    expect(screen.getByLabelText("Nivel del idioma 2")).toHaveValue("B2");
+    expect(screen.getByLabelText("Nivel del idioma 2")).toHaveTextContent("Intermedio alto");
   });
 
   it("keeps edits and the dirty flag local without mutating the frozen profile", async () => {
     const user = userEvent.setup();
     const before = JSON.stringify(CANDIDATE_PROFILE);
     renderRoute();
-    expect(dirtyLabel()).toBe("Sin cambios locales");
+    expect(dirtyLabel()).toBe("Sin cambios pendientes");
     await user.type(screen.getByLabelText("Ciudad de residencia"), "!");
     expect(field("city")).toHaveValue(`${CANDIDATE_PROFILE.city}!`);
-    expect(dirtyLabel()).toBe("Cambios locales sin guardar");
+    expect(dirtyLabel()).toBe("Cambios pendientes");
     expect(reset()).toBeEnabled();
     expect(JSON.stringify(CANDIDATE_PROFILE)).toBe(before);
   });
@@ -109,14 +156,14 @@ describe("candidate profile route", () => {
     const before = JSON.stringify(CANDIDATE_PROFILE);
     renderRoute();
     fireEvent.change(screen.getByLabelText("Perfil de LinkedIn"), { target: { value: "no-es-una-url" } });
+    show("Experiencia");
     fireEvent.change(screen.getByLabelText("Años de experiencia"), { target: { value: "12.5" } });
+    show("Compensación");
     await user.clear(screen.getByLabelText("Moneda"));
     await user.click(review());
+    expect(screen.getByRole("tab", { name: "Personal" })).toHaveAttribute("aria-selected", "true");
     expect(field("linkedinUrl")).toHaveAttribute("aria-invalid", "true");
-    expect(field("yearsOfExperience")).toHaveAttribute("aria-invalid", "true");
-    expect(field("salaryCurrency")).toHaveAttribute("aria-invalid", "true");
-    expect(announcement()).toHaveTextContent("La revisión local encontró 3 errores.");
-    expect(announcement()).toHaveTextContent("no se guardó ni se envió nada");
+    expect(announcement()).toHaveTextContent("La revisión encontró 3 errores.");
     expect(field("linkedinUrl")).toHaveFocus();
     expect(JSON.stringify(CANDIDATE_PROFILE)).toBe(before);
   });
@@ -126,24 +173,23 @@ describe("candidate profile route", () => {
     const before = JSON.stringify(CANDIDATE_PROFILE);
     renderRoute();
     await user.type(screen.getByLabelText("Ciudad de residencia"), "!");
+    show("Idiomas");
     await user.click(screen.getByRole("button", { name: "Agregar idioma" }));
     expect(rows()).toHaveLength(3);
     await user.click(reset());
-    expect(field("city")).toHaveValue(CANDIDATE_PROFILE.city);
     expect(rows()).toHaveLength(2);
+    show("Personal");
+    expect(field("city")).toHaveValue(CANDIDATE_PROFILE.city);
     expect(announcement()).toHaveTextContent("Restauramos la copia original");
-    expect(announcement()).toHaveTextContent("No se guardó ni se envió nada");
-    expect(dirtyLabel()).toBe("Sin cambios locales");
+    expect(dirtyLabel()).toBe("Sin cambios pendientes");
     expect(reset()).toBeDisabled();
     expect(JSON.stringify(CANDIDATE_PROFILE)).toBe(before);
   });
 
-  it("keeps the honest local demo disclosure and activates only Perfil", () => {
+  it("renders no implementation-status disclosure and activates only Perfil", () => {
     renderRoute();
-    const note = screen.getByRole("note");
-    expect(note).toHaveAttribute("data-pf-profile-disclosure");
-    expect(note).toHaveTextContent(/Demo local/u);
-    expect(note).toHaveTextContent(/no guarda ni envía/u);
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(document.querySelector("[data-pf-profile-disclosure]")).toBeNull();
     const nav = document.querySelector("[data-slot='sidebar-content']") as HTMLElement;
     const active = within(nav).getAllByRole("link").filter((link) => link.hasAttribute("data-active")).map((link) => link.textContent);
     expect(active).toEqual(["Perfil"]);
@@ -159,9 +205,10 @@ describe("candidate profile route", () => {
     }
     expect(SOURCE).toContain('import { CandidateHeader } from "@/components/candidate-dashboard/candidate-header"');
     expect(SOURCE).toContain('import { ProfileWorkspace } from "@/features/candidate/profile-workspace"');
-    expect(SOURCE).toContain('import { CANDIDATE_PROFILE } from "@/features/candidate/prototype-candidate"');
+    expect(SOURCE).toContain('import { CANDIDATE_IDENTITY, CANDIDATE_PROFILE } from "@/features/candidate/prototype-candidate"');
     expect(SOURCE).toContain('title="Perfil"');
+    expect(SOURCE).toContain('avatarSrc="/candidate/ximena-barrera.jpg"');
     expect(occurrences(SOURCE, '<CandidateHeader title="Perfil" />')).toBe(1);
-    expect(occurrences(SOURCE, "<ProfileWorkspace profile={CANDIDATE_PROFILE} />")).toBe(1);
+    expect(occurrences(SOURCE, '<ProfileWorkspace identity={CANDIDATE_IDENTITY} profile={CANDIDATE_PROFILE} avatarSrc="/candidate/ximena-barrera.jpg" />')).toBe(1);
   });
 });

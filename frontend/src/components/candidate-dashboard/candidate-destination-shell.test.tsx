@@ -28,7 +28,7 @@ afterEach(() => {
 });
 
 describe("candidate destination shell", () => {
-  it("renders the shared route header plus a named local preview and honest disclosure", () => {
+  it("renders the shared route header plus the destination summary and content list", () => {
     stubBrowserApis();
     render(
       <CandidateShell>
@@ -37,9 +37,15 @@ describe("candidate destination shell", () => {
     );
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Perfil");
     expect(screen.getByText("Resumen del perfil de la candidata.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Qué vas a encontrar");
     expect(screen.getByText("Datos personales")).toBeInTheDocument();
     expect(screen.getByText("Idiomas y habilidades")).toBeInTheDocument();
-    expect(screen.getByRole("note")).toHaveTextContent(/no guarda cambios/i);
+    // The destination shell ships no implementation-status note or disclosure hook.
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(document.querySelector("[data-pf-destination-disclosure]")).toBeNull();
+    expect(document.body.textContent ?? "").not.toMatch(
+      /vista previa local|todavía no hay datos|no guarda cambios|no envía información|no simula resultados/i,
+    );
     // The frame owns the only main landmark; the destination shell adds no nested one.
     expect(document.querySelectorAll("main")).toHaveLength(1);
   });

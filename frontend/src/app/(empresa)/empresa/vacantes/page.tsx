@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { InfoIcon, PlusIcon } from "lucide-react"
+import { PlusIcon } from "lucide-react"
 
 import { SiteHeader } from "@/components/company-dashboard/site-header"
 import { buttonVariants } from "@/components/ui/button"
@@ -13,7 +13,7 @@ import { cn } from "cn"
  *
  * The shared `(empresa)` layout owns the single EmployerShell, the sidebar
  * provider and the theme module, so this route contributes only its header,
- * intro, disclosure and the mounted portfolio. It stays a server component and
+ * intro and the mounted portfolio. It stays a server component and
  * owns no fetch, credential, storage or mutation concern; the interactive
  * portfolio arrives as a client component over the frozen local fixtures.
  */
@@ -50,17 +50,6 @@ export default function Page() {
                 Nueva vacante
               </Link>
             </section>
-            <p
-              role="note"
-              data-pf-vacantes-disclosure=""
-              className="flex items-start gap-2.5 rounded-xl border border-border bg-card/50 px-4 py-3 text-[12.5px] leading-relaxed text-muted-foreground"
-            >
-              <InfoIcon aria-hidden="true" className="mt-px size-4 shrink-0" />
-              <span>
-                Datos de demostración locales: las vacantes y sus pipelines viven
-                solo en este prototipo y los cambios no se guardan.
-              </span>
-            </p>
             <VacancyPortfolio vacancies={NEXO_VACANCIES} />
           </div>
         </div>

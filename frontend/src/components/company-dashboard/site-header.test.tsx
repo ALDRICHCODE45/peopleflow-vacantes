@@ -214,14 +214,21 @@ describe("company dashboard header theme control", () => {
     expect(group!.children).toHaveLength(1);
   });
 
-  it("stays a >=32px control available at every breakpoint", () => {
+  it("keeps both header icon controls on the shared 40x40 target", () => {
     renderHeader();
 
     const toggle = screen.getByRole("button", { name: "Cambiar tema" });
-
-    expect(toggle.className).toMatch(/(^|\s)size-8(\s|$)/);
+    expect(toggle.className).toMatch(/(^|\s)size-10(\s|$)/);
+    expect(toggle.className).not.toContain("size-8");
     expect(toggle.className).not.toMatch(/(^|\s)hidden(\s|$)/);
     expect(toggle.className).not.toContain("sm:hidden");
+
+    const trigger = screen.getByRole("button", { name: /toggle sidebar/i });
+    expect(trigger.className).toMatch(/(^|\s)size-10(\s|$)/);
+    expect(trigger.className).not.toContain("size-7");
+    // The ghost variant and the caller's offset survive the explicit target.
+    expect(trigger.className).toContain("hover:bg-muted");
+    expect(trigger.className).toContain("-ml-1");
   });
 
   it("drives the existing theme mechanism on click", async () => {

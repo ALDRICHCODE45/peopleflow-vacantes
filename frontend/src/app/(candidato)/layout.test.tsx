@@ -18,7 +18,7 @@ import DashboardPage, { metadata as dashboardMetadata } from "./candidato/dashbo
 import PostulacionesPage, { metadata as postulacionesMetadata } from "./candidato/postulaciones/page";
 import PerfilPage, { metadata as perfilMetadata } from "./candidato/perfil/page";
 import CvsPage, { metadata as cvsMetadata } from "./candidato/cvs/page";
-import CuentaPage, { metadata as cuentaMetadata } from "./candidato/cuenta/page";
+import ConfiguracionPage, { metadata as configuracionMetadata } from "./candidato/configuracion/page";
 
 type Destination = { segment: string; title: string; Page: () => React.JSX.Element; metadata: { title?: unknown } };
 const DESTINATIONS: Destination[] = [
@@ -26,7 +26,7 @@ const DESTINATIONS: Destination[] = [
   { segment: "postulaciones", title: "Postulaciones", Page: PostulacionesPage, metadata: postulacionesMetadata },
   { segment: "perfil", title: "Perfil", Page: PerfilPage, metadata: perfilMetadata },
   { segment: "cvs", title: "CVs", Page: CvsPage, metadata: cvsMetadata },
-  { segment: "cuenta", title: "Cuenta", Page: CuentaPage, metadata: cuentaMetadata },
+  { segment: "configuracion", title: "Configuración", Page: ConfiguracionPage, metadata: configuracionMetadata },
 ];
 const SEGMENTS = DESTINATIONS.map((destination) => destination.segment);
 // Every candidate destination now mounts a verified workspace; no route stays a placeholder.
@@ -115,10 +115,10 @@ describe("candidate destinations resolve as honest content-only routes", () => {
     expect(document.querySelector('[data-pf-destination="CVs"]')).toBeNull();
   });
 
-  it("mounts the verified read-only account workspace instead of a destination preview", () => {
-    render(<CandidateShell><CuentaPage /></CandidateShell>);
-    expect(document.querySelector("[data-pf-account-workspace]")).not.toBeNull();
-    expect(document.querySelector('[data-pf-destination="Cuenta"]')).toBeNull();
+  it("mounts the verified settings workspace instead of a destination preview", () => {
+    render(<CandidateShell><ConfiguracionPage /></CandidateShell>);
+    expect(document.querySelector("[data-pf-settings-workspace]")).not.toBeNull();
+    expect(document.querySelector('[data-pf-destination="Configuración"]')).toBeNull();
   });
 
   it.each(DESTINATIONS)("$title activates only its own sidebar destination", ({ segment, title, Page }) => {

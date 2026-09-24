@@ -7,8 +7,6 @@ import "@testing-library/jest-dom/vitest";
 import { CreateVacancyForm } from "./CreateVacancyForm";
 import { firstInvalidField } from "./form/model";
 
-const AUTH_NOTICE = /iniciar sesión como reclutador/i;
-
 const source = readFileSync(
   join(process.cwd(), "src", "features", "jobs", "create", "CreateVacancyForm.tsx"),
   "utf8",
@@ -183,9 +181,10 @@ describe("CreateVacancyForm contract surface", () => {
     expect(screen.queryByLabelText(/mostrar el salario/i)).toBeNull();
     expect(screen.queryByRole("button", { name: /publicar/i })).toBeNull();
     expect(text).not.toMatch(/ARS|EUR|solo interna|bolsa de trabajo|autoguardado/i);
-    // The exploratory fields say what they are.
-    expect(text).toMatch(/vista exploratoria y todavía no se guardan/i);
-    expect(text).toMatch(/formato visual de prototipo/i);
+    // No implementation-status disclosure renders anywhere on the surface.
+    expect(screen.queryByText(/vista exploratoria/i)).toBeNull();
+    expect(screen.queryByText(/formato visual de prototipo/i)).toBeNull();
+    expect(text).not.toMatch(/prototipo|exploratori/i);
   });
 
   it("treats marker-only rich text as an empty contract description", () => {
@@ -201,7 +200,7 @@ describe("CreateVacancyForm contract surface", () => {
       screen.getByText("Ingresá una descripción para la vacante."),
     ).toBeVisible();
     expect(descriptionInput()).toHaveAttribute("aria-invalid", "true");
-    expect(screen.queryByText(AUTH_NOTICE)).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("keeps the exploratory limits inherited and sends nothing while exploring", () => {
@@ -245,16 +244,22 @@ describe("CreateVacancyForm contract surface", () => {
     expect(screen.getAllByRole("checkbox")).toHaveLength(8);
   });
 
-  it("discloses the exploratory rail copy beside the unchanged save action", () => {
+  it("keeps the real draft copy beside the unchanged save action", () => {
     render(<CreateVacancyForm />);
 
     expect(
       screen.getByText(
-        "Los campos avanzados son una vista exploratoria y todavía no se guardan.",
+        "Toda vacante nueva empieza como borrador. Guardarlo requiere una sesión de reclutador.",
       ),
     ).toBeVisible();
+    expect(
+      screen.queryByText(/vista exploratoria y todavía no se guardan/i),
+    ).toBeNull();
     expect(saveButton()).toHaveAttribute("type", "submit");
     expect(saveButton()).toBeEnabled();
+    // UISC-04: the save action is independently actionable, so it keeps the
+    // full-width layout and meets the 40px minimum control height.
+    expect(saveButton()).toHaveClass("h-10", "w-full");
   });
 
   it("shows accessible required errors for title and description", () => {
@@ -274,10 +279,10 @@ describe("CreateVacancyForm contract surface", () => {
     expect(titleInput()).toHaveAttribute("aria-describedby", titleError.id);
     expect(descriptionInput()).toHaveAttribute(
       "aria-describedby",
-      "vacancy-description-disclosure vacancy-description-error",
+      "vacancy-description-error",
     );
-    // Validation wins: nothing claims a save was possible.
-    expect(screen.queryByText(AUTH_NOTICE)).toBeNull();
+    // Validation wins: the attempt produced only field errors.
+    expect(screen.queryByRole("status")).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -315,7 +320,7 @@ describe("CreateVacancyForm contract surface", () => {
       "aria-describedby",
       salaryError.id,
     );
-    expect(screen.queryByText(AUTH_NOTICE)).toBeNull();
+    expect(screen.queryByRole("status")).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -349,8 +354,10 @@ describe("CreateVacancyForm contract surface", () => {
     expect(locationInput()).toHaveAttribute("aria-invalid", "false");
     expect(salaryMinInput()).toHaveAttribute("aria-invalid", "false");
     expect(salaryMaxInput()).toHaveAttribute("aria-invalid", "false");
-    // The empty optionals are dropped, so the draft attempt is a valid one.
-    expect(screen.getByRole("status")).toBeVisible();
+    // The empty optionals are dropped, so the attempt is valid and inert: no
+    // status, no alert, no success, and no request.
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryAllByRole("alert")).toHaveLength(0);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -389,42 +396,47 @@ describe("CreateVacancyForm contract surface", () => {
   });
 });
 
-describe("CreateVacancyForm truthful save boundary", () => {
-  it("explains the missing recruiter session on a valid attempt and issues no request", () => {
+describe("CreateVacancyForm local save boundary", () => {
+  it("leaves a valid attempt visibly inert and issues no request", () => {
     render(<CreateVacancyForm />);
     fillRequiredFields();
 
+    const before = document.body.textContent;
     fireEvent.click(saveButton());
 
-    const notice = screen.getByRole("status");
-    expect(notice).toHaveTextContent(AUTH_NOTICE);
-    expect(notice).toHaveTextContent(/no se envió ninguna solicitud/i);
+    // No visible state change: no status, note, alert, success, or reset.
+    expect(saveButton()).toBeEnabled();
+    expect(screen.queryByRole("status")).toBeNull();
     expect(screen.queryAllByRole("alert")).toHaveLength(0);
+    expect(document.body.textContent).toBe(before);
+    // The edited values survive the attempt untouched.
+    expect(titleInput()).toHaveValue("Backend Developer (Senior)");
+    expect(descriptionInput()).toHaveValue("Diseñá los servicios core.");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("keeps the save control usable and the notice persistent", () => {
+  it("keeps the save control usable and local editing independent of an attempt", () => {
     render(<CreateVacancyForm />);
     fillRequiredFields();
 
     fireEvent.click(saveButton());
     expect(saveButton()).toBeEnabled();
-    expect(screen.getByRole("status")).toBeVisible();
+    expect(screen.queryByRole("status")).toBeNull();
 
-    // Further editing does not silently drop the honest blocked state.
     typeInto(titleInput(), "Backend Developer (Staff)");
-    expect(screen.getByRole("status")).toBeVisible();
+    expect(titleInput()).toHaveValue("Backend Developer (Staff)");
 
     fireEvent.click(saveButton());
-    expect(screen.getByRole("status")).toHaveTextContent(AUTH_NOTICE);
+    expect(titleInput()).toHaveValue("Backend Developer (Staff)");
+    expect(screen.queryByRole("status")).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("replaces the notice with field errors when a later attempt is invalid", () => {
+  it("reports field errors when a later attempt is invalid", () => {
     render(<CreateVacancyForm />);
     fillRequiredFields();
     fireEvent.click(saveButton());
-    expect(screen.getByRole("status")).toBeVisible();
+    expect(screen.queryByRole("status")).toBeNull();
 
     typeInto(titleInput(), "   ");
     fireEvent.click(saveButton());
@@ -433,6 +445,7 @@ describe("CreateVacancyForm truthful save boundary", () => {
     expect(
       screen.getByText("Ingresá un título para la vacante."),
     ).toBeVisible();
+    expect(titleInput()).toHaveAttribute("aria-invalid", "true");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -513,7 +526,7 @@ describe("CreateVacancyForm invalid-submit focus", () => {
     descriptionInput().focus();
     fireEvent.click(saveButton());
     expect(descriptionInput()).toHaveFocus();
-    expect(screen.getByRole("status")).toBeVisible();
+    expect(screen.queryByRole("status")).toBeNull();
   });
 
   it("derives the contract description from the local-only rich value", () => {
@@ -543,7 +556,7 @@ describe("CreateVacancyForm completion rail", () => {
     ).toBeVisible();
     expect(
       within(card).getByText(
-        "Seguimiento de las secciones con contenido. No valida el formulario ni confirma que se guardó.",
+        "Revisá qué secciones tienen contenido antes de guardar el borrador.",
       ),
     ).toBeVisible();
     expect(within(card).getByText("0 de 6 secciones completas")).toBeVisible();
@@ -572,9 +585,9 @@ describe("CreateVacancyForm completion rail", () => {
     expect(bar).toHaveAttribute("aria-valuetext", "4 de 6 secciones completas");
 
     // Progress stays observational: no request, no save or autosave claim, and
-    // it never absorbs the auth-blocked outcome of the save card.
+    // it never absorbs the outcome of the save card.
     const text = card.textContent ?? "";
-    expect(text).toMatch(/ni confirma que se guardó/i);
+    expect(text).toMatch(/Revisá qué secciones tienen contenido/i);
     expect(text).not.toMatch(
       /autoguardado|guardado automáticamente|borrador guardado|listo para guardar/i,
     );
@@ -582,7 +595,7 @@ describe("CreateVacancyForm completion rail", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
 
     fireEvent.click(saveButton());
-    expect(screen.getByRole("status")).toHaveTextContent(AUTH_NOTICE);
+    expect(screen.queryByRole("status")).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(within(card).getByText("4 de 6 secciones completas")).toBeVisible();
   });
@@ -605,15 +618,15 @@ describe("CreateVacancyForm composition boundaries", () => {
     expect(source).not.toMatch(/from "\.\/form\/compensation-section"/);
   });
 
-  it("owns exactly two pieces of state: contract values and local-only prototype", () => {
+  it("owns the contract values, local-only state, and field errors", () => {
     expect(source).toMatch(
       /React\.useState<VacancyFormValues>\(INITIAL_VALUES\)/,
     );
     expect(source).toMatch(
       /React\.useState<VacancyPrototypeValues>\(INITIAL_PROTOTYPE_VALUES\)/,
     );
-    // values, prototypeValues, errors, notice.
-    expect(source.match(/React\.useState/g)).toHaveLength(4);
+    // values, prototypeValues, errors.
+    expect(source.match(/React\.useState/g)).toHaveLength(3);
   });
 
   it("saves contract values only and never mixes prototype state into the attempt", () => {

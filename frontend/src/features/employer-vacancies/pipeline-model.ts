@@ -128,11 +128,10 @@ export function summarizeCandidateStages(
 }
 
 /**
- * Explicit honest copy for the pipeline surface: committed fixtures are
- * representative local demo cards and may be a subset of the portfolio counts,
- * so this helper never claims the visible cards equal the vacancy summary.
+ * Visible-count copy for the pipeline surface: reports how many candidate
+ * cards the current view shows out of the vacancy total.
  */
 export function visibleCandidatesCopy(visibleCount: number, vacancyTotal: number): string {
   const noun = vacancyTotal === 1 ? "candidato" : "candidatos";
-  return `Mostrando ${visibleCount} de ${vacancyTotal} ${noun} de esta vacante en esta vista de demostración.`;
+  return `Mostrando ${visibleCount} de ${vacancyTotal} ${noun} de esta vacante.`;
 }

@@ -183,3 +183,62 @@ describe("company dashboard account menu labels", () => {
     expect(source.match(/<DropdownMenuSeparator \/>/g)).toHaveLength(2);
   });
 });
+
+describe("shared NavUser candidate configuration", () => {
+  beforeEach(stubBrowserApis);
+
+  // Candidate-shaped configuration: the shared component derives the initials
+  // from the supplied name and renders caller menu entries as real Next Links.
+  const CANDIDATE = {
+    name: "Ximena Barrera",
+    email: "ximena.barrera@correo.mx",
+    role: "Candidata",
+    company: "Espacio personal",
+  } as const;
+
+  const CANDIDATE_MENU = [
+    { title: "Mi perfil", href: "/candidato/perfil" },
+    { title: "Mis CVs", href: "/candidato/cvs" },
+    { title: "Configuración", href: "/candidato/configuracion" },
+  ] as const;
+
+  // The shared component must accept an optional menu list; that prop is not on
+  // the current signature yet, so the test pins the expected contract.
+  const ConfiguredNavUser = NavUser as unknown as React.ComponentType<
+    React.ComponentProps<typeof NavUser> & {
+      menuItems?: ReadonlyArray<{ title: string; href: string }>;
+    }
+  >;
+
+  function renderCandidate() {
+    return render(
+      <SidebarProvider>
+        <ConfiguredNavUser user={{ ...CANDIDATE }} menuItems={[...CANDIDATE_MENU]} />
+      </SidebarProvider>,
+    );
+  }
+
+  it("derives the avatar initials from the supplied account name", () => {
+    renderCandidate();
+
+    // Initials are computed, never hardcoded: no employer fallback leaks in.
+    expect(screen.getAllByText("XB").length).toBeGreaterThan(0);
+    expect(screen.queryByText("TR")).toBeNull();
+  });
+
+  it("renders the candidate account summary through the shared trigger", () => {
+    renderCandidate();
+
+    const trigger = screen.getByRole("button", { name: /Ximena Barrera/ });
+    expect(trigger).toHaveTextContent("Espacio personal");
+    expect(screen.getByText("Candidata · Espacio personal")).toBeInTheDocument();
+  });
+
+  it("renders caller menu entries as Next Links to real candidate routes", () => {
+    // The Base UI menu popup cannot be driven in jsdom without hanging, so the
+    // link-backed items are asserted at the source boundary.
+    expect(source).toContain('from "next/link"');
+    expect(source).toMatch(/<Link[^>]*href=\{item\.(href|url)\}/);
+    expect(source).toMatch(/menuItems/);
+  });
+});

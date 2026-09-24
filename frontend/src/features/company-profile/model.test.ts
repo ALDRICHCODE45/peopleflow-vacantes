@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, expectTypeOf, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   PROTOTYPE_COMPANY_ID,
   PROTOTYPE_COMPANY_SOURCE_NAME,
   findCompanyProfile,
 } from "./model";
-import type { CompanyProfile, PrototypeDisclosure } from "./model";
+import type { CompanyProfile } from "./model";
 import {
   ACME_PROTOTYPE_PROFILE,
   PROTOTYPE_COMPANY_PROFILES,
@@ -15,6 +15,15 @@ const dir = join(process.cwd(), "src", "features", "company-profile");
 const publicDir = join(process.cwd(), "public");
 const modelSource = readFileSync(join(dir, "model.ts"), "utf8");
 const fixtureSource = readFileSync(join(dir, "prototype-companies.ts"), "utf8");
+/** Comments never render, so they are stripped before scanning shipping source. */
+const withoutComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\//gu, " ").replace(/\/\/[^\n]*/gu, " ");
+/**
+ * Implementation-status display copy banned from shipping source. Each entry is
+ * prose, never a technical identifier such as `PROTOTYPE_COMPANY_ID`,
+ * `CompanyProfile`, or a `prototype-companies` module path, and comments are
+ * stripped before the scan.
+ */
+const STATUS_DISPLAY_COPY = /demostraci[óo]n|fictici[ao]s?|solo demostraci|marcada solo|no se guard[óo]|no se guarda|no se copi[óo]|no se comparti[óo]|no se envi[oó]|no se env[ií]a|no disponible|no implementado|\bPrototipo\b|\bprototipo\b/iu;
 const profile = ACME_PROTOTYPE_PROFILE;
 const known: readonly CompanyProfile[] = PROTOTYPE_COMPANY_PROFILES;
 /** Claim-like keys a fictional prototype profile must never own. */
@@ -31,7 +40,7 @@ describe("prototype company fixture", () => {
     expect(PROTOTYPE_COMPANY_SOURCE_NAME).toBe("Acme");
     expect(PROTOTYPE_COMPANY_PROFILES).toEqual([profile]);
     expect([profile.companyId, profile.sourceName, profile.name]).toEqual([PROTOTYPE_COMPANY_ID, "Acme", "Acme"]);
-    for (const value of [profile, profile.coverPhoto, profile.disclosure, PROTOTYPE_COMPANY_PROFILES]) expect(Object.isFrozen(value)).toBe(true);
+    for (const value of [profile, profile.coverPhoto, PROTOTYPE_COMPANY_PROFILES]) expect(Object.isFrozen(value)).toBe(true);
     expect(() => Object.defineProperty(profile, "name", { value: "Otra" })).toThrow();
   });
   it("carries concise Spanish content and no fabricated metric", () => {
@@ -47,7 +56,7 @@ describe("prototype company fixture", () => {
     const narrative = `${profile.about} ${profile.mission} ${profile.whatWeDo}`.toLowerCase();
     expect([narrative.includes("logístic"), narrative.includes("operacion")]).toEqual([true, true]);
   });
-  it("uses a reserved domain, a provenance-pinned local cover, and an explicit disclosure", () => {
+  it("uses a reserved domain, a provenance-pinned local cover, and product-facing about copy", () => {
     const website = new URL(profile.website);
     const alt = profile.coverPhoto.alt;
     expect([website.protocol, website.hostname.endsWith(".example")]).toEqual(["https:", true]);
@@ -73,11 +82,11 @@ describe("prototype company fixture", () => {
       expect(provenance, fact).toContain(fact);
     }
     expect([alt.split(" ").length >= 5, /montacargas|almac|bodega|tarima|carga/iu.test(alt), /^(imagen|foto|cover)$/iu.test(alt)]).toEqual([true, true, false]);
-    expect(profile.disclosure).toMatchObject({ isPrototype: true });
-    expect(profile.disclosure.label).toMatch(/prototipo/iu);
-    expect(profile.disclosure.statement).toMatch(/ficticia|prototipo/iu);
-    expectTypeOf<CompanyProfile["disclosure"]>().toEqualTypeOf<PrototypeDisclosure>();
-    expectTypeOf<PrototypeDisclosure["isPrototype"]>().toEqualTypeOf<true>();
+    // The disclosure property is gone from the render model and the fixture.
+    expect(Object.hasOwn(profile, "disclosure")).toBe(false);
+    // The about copy is product-facing: it never calls the company fictitious.
+    expect(profile.about).not.toMatch(/fictici|prototipo/iu);
+    expect(profile.about).toMatch(/logística|operaciones/iu);
   });
 });
 describe("findCompanyProfile", () => {
@@ -103,5 +112,10 @@ describe("company profile source boundary", () => {
     expect([...fixtureSource.matchAll(/from "([^"]+)"/gu)].map((match) => match[1])).toEqual(["./model"]);
     expect(fixtureSource).not.toMatch(/\bfetch\(|require\(|localStorage|sessionStorage/u);
     expect(fixtureSource).not.toMatch(/Math\.random|Date\.now|new Date\(|randomUUID|crypto\./u);
+  });
+
+  it("ships no implementation-status display copy outside comments or identifiers", () => {
+    expect(withoutComments(modelSource)).not.toMatch(STATUS_DISPLAY_COPY);
+    expect(withoutComments(fixtureSource)).not.toMatch(STATUS_DISPLAY_COPY);
   });
 });

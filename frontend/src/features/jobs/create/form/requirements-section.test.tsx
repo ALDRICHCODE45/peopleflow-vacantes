@@ -15,7 +15,6 @@ import { sectionAnchorId, sectionTitle } from "./section-metadata";
 const FORM_DIR = join(process.cwd(), "src", "features", "jobs", "create", "form");
 const source = readFileSync(join(FORM_DIR, "requirements-section.tsx"), "utf8");
 
-const DISCLOSURE = "Formato visual de prototipo; todavía no se guarda.";
 const ACTIONS = [
   "Negrita",
   "Cursiva",
@@ -87,13 +86,11 @@ describe("RequirementsSection composition", () => {
     }
   });
 
-  it("discloses the prototype formatting on every field and marks only the prototype ones", () => {
+  it("renders no implementation-status copy or prototype badge on any field", () => {
     renderSection();
 
-    // The formatting surface is a prototype on all three fields, but only the
-    // two fields without a contract counterpart carry the prototype badge.
-    expect(screen.getAllByText(DISCLOSURE)).toHaveLength(3);
-    expect(screen.getAllByText("Prototipo")).toHaveLength(2);
+    expect(screen.queryByText(/prototipo|todavía no se guarda/i)).toBeNull();
+    expect(screen.queryByText("Prototipo")).toBeNull();
   });
 
   it("renders the tokenized prototype description on the contract field", () => {
@@ -114,7 +111,7 @@ describe("RequirementsSection composition", () => {
     expect(control).toHaveAttribute("aria-invalid", "true");
     expect(control).toHaveAttribute(
       "aria-describedby",
-      "vacancy-description-disclosure vacancy-description-error",
+      "vacancy-description-error",
     );
     expect(error).toHaveAttribute("id", "vacancy-description-error");
   });

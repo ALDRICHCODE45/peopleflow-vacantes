@@ -71,8 +71,9 @@ describe("pipeline candidate fixtures", () => {
     expect(filterCandidatesByVacancy(NEXO_CANDIDATES, "no-such-vacancy")).toEqual([]);
     expect(summarizeCandidateStages(NEXO_CANDIDATES)).toEqual({ submitted: 3, in_review: 3, hired: 3, rejected: 1 });
     expect(summarizeCandidateStages([])).toEqual({ submitted: 0, in_review: 0, hired: 0, rejected: 0 });
-    expect(visibleCandidatesCopy(4, 7)).toBe("Mostrando 4 de 7 candidatos de esta vacante en esta vista de demostración.");
+    expect(visibleCandidatesCopy(4, 7)).toBe("Mostrando 4 de 7 candidatos de esta vacante.");
     expect(visibleCandidatesCopy(4, 7)).not.toMatch(/portfolio/u);
+    expect(visibleCandidatesCopy(4, 7)).not.toMatch(/demostración|prototipo|vista de/iu);
   });
 
   it("exposes unique ids, exact lookup, and deep immutability", () => {
@@ -144,12 +145,14 @@ describe("pipeline candidate fixtures", () => {
 
 describe("visibleCandidatesCopy count agreement", () => {
   it("uses the singular noun when the vacancy total is one", () => {
-    expect(visibleCandidatesCopy(1, 1)).toBe("Mostrando 1 de 1 candidato de esta vacante en esta vista de demostración.");
+    expect(visibleCandidatesCopy(1, 1)).toBe("Mostrando 1 de 1 candidato de esta vacante.");
     expect(visibleCandidatesCopy(1, 1)).not.toContain("candidatos");
+    expect(visibleCandidatesCopy(1, 1)).not.toMatch(/demostración|prototipo|vista de/iu);
   });
 
   it("keeps the plural noun for plural or zero totals", () => {
-    expect(visibleCandidatesCopy(1, 7)).toBe("Mostrando 1 de 7 candidatos de esta vacante en esta vista de demostración.");
-    expect(visibleCandidatesCopy(0, 7)).toBe("Mostrando 0 de 7 candidatos de esta vacante en esta vista de demostración.");
+    expect(visibleCandidatesCopy(1, 7)).toBe("Mostrando 1 de 7 candidatos de esta vacante.");
+    expect(visibleCandidatesCopy(0, 7)).toBe("Mostrando 0 de 7 candidatos de esta vacante.");
+    expect(visibleCandidatesCopy(0, 7)).not.toMatch(/demostración|prototipo|vista de/iu);
   });
 });

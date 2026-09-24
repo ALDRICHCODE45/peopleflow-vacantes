@@ -8,10 +8,15 @@ import { candidateProfileSchema } from "@/features/candidate/model";
 import type { CandidateProfile } from "@/features/candidate/model";
 import { CANDIDATE_IDENTITY, CANDIDATE_PROFILE } from "@/features/candidate/prototype-candidate";
 import { CANDIDATE_APPLICATIONS, CANDIDATE_CVS } from "@/features/candidate/prototype-portfolio";
+import type { CandidateApplicationView } from "@/features/candidate/portfolio-model";
 import { CandidateDashboardOverview, profileCompleteness } from "./candidate-dashboard-overview";
 
 // Source as text, so layout, token and coupling contracts stay asserted here.
 const SOURCE = readFileSync(join(process.cwd(), "src/components/candidate-dashboard/candidate-dashboard-overview.tsx"), "utf8");
+/** Strips technical comments so the rendered-copy ban inspects only product strings. */
+const stripComments = (source: string) => source.replace(/\/\*[\s\S]*?\*\//gu, " ").replace(/\/\/[^\n]*/gu, " ");
+/** Rendered copy may not expose implementation status; `\b` keeps `localStorage` and data ids intact. */
+const IMPLEMENTATION_STATUS_COPY = /\b(?:demo|mock|prototip\w*|fictici\w*|prueba|test|local|no disponible|no implementado|no se guarda|no se env[ií]a|no se sube)\b/iu;
 const CANONICAL_LINKS = ["/candidato/postulaciones", "/candidato/perfil", "/candidato/cvs"] as const, STATUS_LABELS = ["Enviada", "En revisión", "Contratada", "Rechazada"] as const;
 
 /** An empty-but-valid profile: every scored field unset, still schema-valid. */
@@ -35,6 +40,11 @@ function renderOverview(overrides: Partial<Parameters<typeof CandidateDashboardO
   return render(
     <CandidateDashboardOverview identity={CANDIDATE_IDENTITY} profile={CANDIDATE_PROFILE} applications={CANDIDATE_APPLICATIONS} cvs={CANDIDATE_CVS} {...overrides} />,
   );
+}
+
+/** Unique-id clones so proportional status counts never collide or mutate fixtures. */
+function applicationsWith(statuses: readonly CandidateApplicationView["status"][]): readonly CandidateApplicationView[] {
+  return statuses.map((status, index) => ({ ...CANDIDATE_APPLICATIONS[0], id: `status-${index}`, status, publicJobHref: null }));
 }
 
 const metric = (label: string) => document.querySelector(`[data-pf-overview-metric="${label}"]`) as HTMLElement;
@@ -75,9 +85,11 @@ describe("candidate dashboard overview", () => {
     expect(metric("Perfil completo")).toHaveTextContent("100%");
     expect(metric("Perfil completo")).toHaveTextContent("13 de 13 campos completados");
     expect(metric("CVs")).toHaveTextContent("2 CVs disponibles");
-    expect(screen.getByRole("note")).toHaveAttribute("data-pf-candidate-overview-disclosure");
-    expect(screen.getByRole("note")).toHaveTextContent(/demo local/i);
-    expect(screen.getByRole("note")).toHaveTextContent(/no guarda cambios/i);
+    for (const [label, value] of [["Postulaciones", "4"], ["En proceso", "2"], ["Perfil completo", "100%"], ["CVs", "2"]] as const) {
+      expect(metric(label).querySelector("[data-pf-overview-metric-value]")?.textContent, label).toBe(value);
+    }
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(screen.queryByText(/demo local/iu)).toBeNull();
   });
 
   it("breaks down every application by the exact four Spanish statuses", () => {
@@ -159,7 +171,7 @@ describe("candidate dashboard overview", () => {
     expect(metric("En proceso")).toHaveTextContent("0");
     expect(metric("CVs")).toHaveTextContent("Sin CVs disponibles");
     expect(section("recent-applications")).toHaveTextContent("Todavía no tienes postulaciones");
-    expect(section("cv-snapshot")).toHaveTextContent("no permite subir archivos");
+    expect(section("cv-snapshot")).toHaveTextContent("Cuando agregues un CV");
     for (const item of within(section("status-breakdown")).getAllByRole("listitem")) expect(item.textContent).toMatch(/0$/u);
   });
 
@@ -182,19 +194,164 @@ describe("candidate dashboard overview", () => {
     for (const forbidden of ["useState", "useEffect", "onClick", "<button", "<form", "<input", "fetch(", "localStorage", "sessionStorage", "document.cookie", "next/headers", "useRouter", "usePathname", "window.", "setTimeout", "setInterval", "Math.random", "Date.now", "formatDistance", "toRelative", "XMLHttpRequest", "navigator.clipboard", "cargado", "Gestionar"]) {
       expect(SOURCE, forbidden).not.toContain(forbidden);
     }
-    expect(modules()).toEqual(["@/features/candidate/model", "@/features/candidate/portfolio-model", "next/link"]);
+    expect(modules()).toEqual([
+      "@/components/ui/badge",
+      "@/components/ui/button",
+      "@/components/ui/card",
+      "@/components/ui/empty",
+      "@/components/ui/item",
+      "@/components/ui/progress",
+      "@/features/candidate/model",
+      "@/features/candidate/portfolio-model",
+      "lucide-react",
+      "next/link",
+    ]);
     expect(SOURCE).not.toMatch(/prototype-|company-dashboard|employer/u);
+    // Rendered copy must stay product-facing: no implementation-status disclosure.
+    expect(IMPLEMENTATION_STATUS_COPY.test(stripComments(SOURCE))).toBe(false);
+    expect(SOURCE).not.toContain("data-pf-candidate-overview-disclosure");
   });
-  it("uses candidate cyan primary tokens, responsive grids and no fixed width", () => {
+  it("keeps token-only paint, responsive candidate grids and no translucent handmade surface", () => {
+    // globals.css owns the preset; the overview only consumes semantic tokens.
+    expect(SOURCE).not.toMatch(/--primary\s*:/u);
+    for (const raw of ["#0e7490", "#22d3ee", "#0c0912"]) expect(SOURCE).not.toContain(raw);
     expect(SOURCE).toContain("bg-primary");
     expect(SOURCE).toContain("text-muted-foreground");
-    expect(SOURCE).toContain("bg-card");
-    expect(SOURCE).toContain("border-border");
-    expect(SOURCE).toContain("grid-cols-1");
-    expect(SOURCE).toContain("sm:grid-cols-2");
-    expect(SOURCE).toContain("xl:grid-cols-4");
+    for (const grid of ["grid-cols-1", "sm:grid-cols-2", "xl:grid-cols-4", "lg:grid-cols-3", "lg:col-span-2", "lg:grid-cols-2"]) expect(SOURCE).toContain(grid);
+    for (const legacy of ["bg-card/60", "bg-card/40", "bg-background/40", "bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4"]) expect(SOURCE, legacy).not.toContain(legacy);
     expect(SOURCE).not.toMatch(/#[0-9a-fA-F]{6}/u);
     expect(SOURCE).not.toMatch(/\b(?:bg|text|border)-cyan\b/u);
     expect(SOURCE).not.toMatch(/\bw-\[\d+px\]/u);
+  });
+
+  it("composes the approved hierarchy from exactly eight shadcn Card roots", () => {
+    const { container } = renderOverview();
+    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(8);
+    for (const label of ["Postulaciones", "En proceso", "Perfil completo", "CVs"]) {
+      const card = metric(label);
+      expect(card).toHaveAttribute("data-slot", "card");
+      expect(card.querySelector('[data-slot="card-header"]')).not.toBeNull();
+      expect(card.querySelector('[data-slot="card-content"]')).not.toBeNull();
+    }
+  });
+
+  it("names each dashboard section with a real h3 under the single greeting h2", () => {
+    const { container } = renderOverview();
+    expect(container.querySelectorAll("h2")).toHaveLength(1);
+    const sections: readonly (readonly [string, string])[] = [
+      ["recent-applications", "Postulaciones recientes"],
+      ["status-breakdown", "Estado de tus postulaciones"],
+      ["profile-guidance", "Tu perfil"],
+      ["cv-snapshot", "Tus CVs"],
+    ];
+    for (const [name, title] of sections) {
+      const node = section(name);
+      expect(node.querySelector('[data-slot="card"]')).not.toBeNull();
+      expect(node.querySelector('[data-slot="card-content"]')).not.toBeNull();
+      expect(within(node).getByRole("heading", { level: 3, name: title })).toBeInTheDocument();
+    }
+  });
+
+  it("backs the three recent rows and the primary CV with installed Item rows", () => {
+    const { container } = renderOverview();
+    const rows = within(section("recent-applications")).getAllByRole("listitem");
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      const item = row.querySelector('[data-slot="item"]');
+      expect(item).not.toBeNull();
+      for (const slot of ["item-media", "item-content", "item-title", "item-description", "item-actions"]) {
+        expect(item!.querySelector(`[data-slot="${slot}"]`), slot).not.toBeNull();
+      }
+    }
+    expect(section("cv-snapshot").querySelectorAll('[data-slot="item"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-slot="item"]')).toHaveLength(4);
+  });
+
+  it("renders each recent status with its canonical semantic Badge", () => {
+    renderOverview();
+    const rows = within(section("recent-applications")).getAllByRole("listitem");
+    expect(within(rows[0]).getByText("Enviada")).toHaveClass("text-status-info");
+    expect(within(rows[1]).getByText("En revisión")).toHaveClass("text-status-review");
+    expect(within(rows[2]).getByText("Contratada")).toHaveClass("text-status-success");
+  });
+
+  it("paints the proportional status bar from canonical semantic tokens only", () => {
+    const { container } = renderOverview({ applications: applicationsWith(["submitted", "submitted", "submitted", "in_review", "hired", "rejected"]) });
+    for (const token of ["bg-status-info", "bg-status-review", "bg-status-success", "bg-status-danger"]) expect(SOURCE).toContain(token);
+    expect(SOURCE).not.toMatch(/\b(?:bg|text|border)-chart-/u);
+    expect(SOURCE).not.toMatch(/in_review:\s*"bg-primary"/u);
+    const expected: Record<string, string> = { submitted: "3", in_review: "1", hired: "1", rejected: "1" };
+    const segments = container.querySelectorAll("[data-pf-status-segment]");
+    expect(segments).toHaveLength(4);
+    for (const segment of segments) {
+      expect(segment.className).toContain("basis-0");
+      expect((segment as HTMLElement).style.flexGrow).toBe(expected[segment.getAttribute("data-pf-status-segment") ?? ""]);
+    }
+  });
+
+  it("zeroes every proportional segment when no applications exist", () => {
+    const { container } = renderOverview({ applications: [] });
+    for (const segment of container.querySelectorAll("[data-pf-status-segment]")) {
+      expect((segment as HTMLElement).style.flexGrow).toBe("0");
+    }
+  });
+
+  it("derives a native Progress for the profile completeness", () => {
+    const { container } = renderOverview();
+    const bar = container.querySelector('[data-slot="progress"]') as HTMLElement;
+    expect(bar).not.toBeNull();
+    expect(bar).toHaveAttribute("aria-valuenow", "100");
+    expect(bar).toHaveAttribute("aria-label", "Perfil completo");
+    expect(bar.querySelector('[data-slot="progress-label"]')).not.toBeNull();
+    expect(bar.querySelector('[data-slot="progress-value"]')?.textContent).toMatch(/100\s?%/u);
+    expect(section("profile-guidance")).toHaveTextContent("13 de 13 campos completados");
+  });
+
+  it("spans the overview across the full candidate workspace measure with one padding owner", () => {
+    const { container } = renderOverview();
+    const root = container.querySelector("[data-pf-candidate-overview]") as HTMLElement;
+    const tokens = root.className.split(/\s+/u);
+    expect(["mx-auto", "w-full", "max-w-screen-2xl"].filter((token) => !tokens.includes(token))).toEqual([]);
+    expect(["px-4", "py-4", "lg:px-6"].filter((token) => !tokens.includes(token))).toEqual([]);
+    const inner = container.querySelector("[data-pf-candidate-overview-inner]") as HTMLElement;
+    expect(inner).not.toBeNull();
+    const innerTokens = inner.className.split(/\s+/u);
+    // The inner stack spans the full workspace: no narrower measure, no duplicate
+    // centering and no second padding owner. `max-w-5xl` must never return.
+    expect(innerTokens).toContain("w-full");
+    expect(innerTokens).not.toContain("max-w-5xl");
+    expect(innerTokens.filter((token) => token.startsWith("max-w-"))).toEqual([]);
+    expect(innerTokens).not.toContain("mx-auto");
+    expect(innerTokens.filter((token) => /^p[xy]?-/u.test(token))).toEqual([]);
+    const owners = Array.from(container.querySelectorAll("[class]")).filter((node) => {
+      const value = (node.getAttribute("class") ?? "").split(/\s+/u);
+      return value.includes("px-4") && value.includes("lg:px-6");
+    });
+    expect(owners).toHaveLength(1);
+    expect(owners[0]).toBe(root);
+  });
+
+  it("renders recent rows as a compact grouped list with unclamped titles and a readable CV filename", () => {
+    renderOverview();
+    const list = section("recent-applications").querySelector("ul") as HTMLElement;
+    expect(list.className).toContain("divide-y");
+    for (const row of within(section("recent-applications")).getAllByRole("listitem")) {
+      const item = row.querySelector('[data-slot="item"]') as HTMLElement;
+      const title = row.querySelector('[data-slot="item-title"]') as HTMLElement;
+      expect(title.className).toContain("line-clamp-none");
+      expect(title.className).not.toContain("line-clamp-1");
+      expect(title.className).toContain("w-full");
+      // A grouped list uses quiet rows, never the outlined mini-card surface.
+      expect(item.className).not.toContain("border-border");
+    }
+    const description = section("cv-snapshot").querySelector('[data-slot="item-description"]') as HTMLElement;
+    expect(description.className).toContain("break-words");
+    expect(description.className).not.toContain("break-all");
+    expect(description.className).toContain("line-clamp-none");
+    // The completeness badge uses the native filled foreground, not a low-contrast outline.
+    expect(screen.getByText("Principal").className).toContain("text-primary-foreground");
+    expect(SOURCE).not.toContain("border-primary/40");
+    expect(SOURCE).not.toContain("break-all");
+    expect(SOURCE).toContain("data-pf-overview-metric-value");
   });
 });

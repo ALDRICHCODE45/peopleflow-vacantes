@@ -16,10 +16,8 @@ import type { VacancyPrototypeValues } from "./prototype-model";
 export type DraftRailProps = {
   /** Current draft state, forwarded verbatim to the draft preview. */
   values: VacancyFormValues;
-  /** Local-only exploratory state; only the preview reads it. */
+  /** Local-only complementary state; only the preview reads it. */
   prototypeValues: VacancyPrototypeValues;
-  /** The honest outcome of the last valid attempt, or null before one. */
-  notice: string | null;
 };
 
 /**
@@ -27,11 +25,11 @@ export type DraftRailProps = {
  * progress, and the save affordance.
  *
  * The preview receives both states so the dossier can stay in sync with the
- * exploratory fields, while the save affordance stays a plain form submit that
- * the enclosing form owns. The rail never issues a request itself, and it states
- * plainly that the advanced fields are not saved yet.
+ * complementary fields, while the save affordance stays a plain form submit
+ * that the enclosing form owns. The rail never issues a request itself and
+ * renders no outcome state of its own.
  */
-export function DraftRail({ values, prototypeValues, notice }: DraftRailProps) {
+export function DraftRail({ values, prototypeValues }: DraftRailProps) {
   return (
     <aside
       aria-label="Vista previa y guardado"
@@ -54,22 +52,10 @@ export function DraftRail({ values, prototypeValues, notice }: DraftRailProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <Button type="submit" className="w-full">
+          <Button type="submit" className="h-10 w-full">
             <SaveIcon data-icon="inline-start" />
             Guardar borrador
           </Button>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Los campos avanzados son una vista exploratoria y todavía no se
-            guardan.
-          </p>
-          {notice !== null && (
-            <p
-              role="status"
-              className="rounded-2xl border border-border bg-muted/50 px-3 py-2 text-xs leading-relaxed text-foreground"
-            >
-              {notice}
-            </p>
-          )}
         </CardContent>
       </Card>
     </aside>

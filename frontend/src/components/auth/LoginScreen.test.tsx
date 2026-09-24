@@ -1,6 +1,6 @@
 import * as React from "react";
-import { beforeAll, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -9,7 +9,10 @@ import CandidateLoginPage, { metadata as candidateMetadata } from "../../app/(au
 import EmployerLoginPage, { metadata as employerMetadata } from "../../app/(auth)/empresa/login/page";
 import { LoginScreen } from "./LoginScreen";
 
-const DISCLOSURE = "Vista previa: acceso aún no disponible.";
+// UISC-02: no rendered implementation-status vocabulary may survive. Sales copy
+// such as a date picker or the audit trail is out of scope; these are the exact
+// disclosure words the shell used to print.
+const PROHIBITED_COPY = /vista previa|aún no disponible|no disponible|demo|mock|prototip|prueba|maqueta|local|unavailable/iu;
 
 // Vitest runs from frontend/, so the CSS-module source is read directly: jsdom
 // never loads the stylesheet, and the panel fallback is a visual contract.
@@ -17,6 +20,10 @@ const visualPanelCss = readFileSync(
   join(process.cwd(), "src/components/auth/login-screen.module.css"),
   "utf8",
 );
+
+// The shell must never read the network. A named spy makes the negative
+// assertion inspectable instead of implied by the stubbed rejection.
+const fetchSpy = vi.fn(() => Promise.reject(new Error("login shell must not call any API")));
 
 // CCP-R7D2C: jsdom has no WebGL, so the OGL leaf is stubbed here and the real
 // canvas/palette/blend proof lives in the Chromium slice. The stub renders the
@@ -33,7 +40,11 @@ beforeAll(() => {
   // neither matchMedia nor, therefore, that leaf's media listener.
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
   // Visual-only stage: rendering must never trigger a network read.
-  vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("login shell must not call any API"))));
+  vi.stubGlobal("fetch", fetchSpy);
+});
+
+beforeEach(() => {
+  fetchSpy.mockClear();
 });
 
 describe("LoginScreen variant copy", () => {
@@ -58,6 +69,7 @@ describe("LoginScreen truthfulness and security", () => {
     expect(container.querySelector("form")).toBeNull();
     expect(document.querySelector('[name="email"], [name="password"], [name="remember"]')).toBeNull();
     expect(document.querySelectorAll('button[type="submit"], input[type="submit"]')).toHaveLength(0);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("keeps both credential inputs non-editable, unnamed and fixed empty", () => {
@@ -73,20 +85,71 @@ describe("LoginScreen truthfulness and security", () => {
     }
   });
 
-  it("disables every unavailable auth action and discloses the preview", () => {
-    render(<LoginScreen variant="candidate" />);
-    expect(screen.getByRole("button", { name: "Ingresar" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: /continuar con google/i })).toBeDisabled();
-    expect(screen.getByRole("checkbox")).toBeDisabled();
-    expect(screen.getByText(DISCLOSURE)).toBeInTheDocument();
+  it("enables exactly the intended visible auth actions and drops the preview disclosure", () => {
+    const { container } = render(<LoginScreen variant="candidate" />);
+    // The visible <p role="status"> disclosure is gone, not merely reworded.
+    expect(container.querySelectorAll('[role="status"], [role="alert"]')).toHaveLength(0);
+    // No placeholder is left disabled: every rendered control is enabled.
+    expect(container.querySelectorAll("[disabled], [aria-disabled='true']")).toHaveLength(0);
+    const buttons = screen.getAllByRole("button");
+    expect(buttons).toHaveLength(6); // theme toggle + CTA + 2 providers + forgot + register
+    for (const button of buttons) expect(button).toBeEnabled();
+    for (const name of [
+      "Ingresar",
+      "Continuar con Google",
+      "Continuar con LinkedIn",
+      "¿Olvidaste tu contraseña?",
+      "Crea tu perfil",
+    ]) {
+      expect(screen.getByRole("button", { name})).toBeEnabled();
+    }
+    expect(screen.getByRole("checkbox", { name: "Mantener sesión iniciada" })).toBeEnabled();
+    expect(screen.getByRole("group", { name: "Datos de acceso" })).toBeInTheDocument();
   });
 
-  it("keeps recovery and registration as plain unavailable text, never links", () => {
-    render(<LoginScreen variant="employer" />);
-    expect(screen.getByText(/¿olvidaste tu contraseña\?/i)).toBeInTheDocument();
-    expect(screen.getByText(/registra tu empresa/i)).toBeInTheDocument();
-    for (const anchor of Array.from(document.querySelectorAll("a"))) {
-      expect(anchor.getAttribute("href")).not.toBe("#");
+  it("renders recovery and registration as enabled, keyboard-focusable buttons, never links", () => {
+    const { container } = render(<LoginScreen variant="employer" />);
+    const forgot = screen.getByRole("button", { name: "¿Olvidaste tu contraseña?" });
+    const register = screen.getByRole("button", { name: "Registra tu empresa" });
+    for (const control of [forgot, register]) {
+      expect(control.tagName).toBe("BUTTON");
+      expect(control).toHaveAttribute("type", "button");
+      expect(control).toBeEnabled();
+      expect(control).not.toHaveAttribute("href");
+      expect(control).not.toHaveAttribute("onclick");
+      expect(control.closest("form")).toBeNull();
+      expect(control.closest("a")).toBeNull();
+    }
+    // Only the root and the genuine reciprocal route stay real anchors.
+    const hrefs = Array.from(container.querySelectorAll("a")).map((anchor) => anchor.getAttribute("href"));
+    expect(hrefs.length).toBeGreaterThanOrEqual(2);
+    expect(hrefs.every((href) => href === "/" || href === "/candidato/login")).toBe(true);
+  });
+
+  it("keeps every auth control inert: activation neither navigates nor reaches the network", () => {
+    const { container } = render(<LoginScreen variant="employer" />);
+    const controls = Array.from(container.querySelectorAll("button, input[type='checkbox']"));
+    expect(controls.length).toBeGreaterThanOrEqual(6);
+    for (const control of controls) {
+      expect(control).not.toHaveAttribute("href");
+      expect(control).not.toHaveAttribute("onclick");
+      expect(control.closest("a")).toBeNull();
+      expect(control.closest("form")).toBeNull();
+    }
+    const before = window.location.href;
+    fireEvent.click(screen.getByRole("button", { name: "¿Olvidaste tu contraseña?" }));
+    fireEvent.click(screen.getByRole("button", { name: "Registra tu empresa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ingresar" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mantener sesión iniciada" }));
+    expect(window.location.href).toBe(before);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("bans implementation-status and demo vocabulary from the rendered shell copy", () => {
+    for (const variant of ["employer", "candidate"] as const) {
+      const { container, unmount } = render(<LoginScreen variant={variant} />);
+      expect(container.textContent ?? "").not.toMatch(PROHIBITED_COPY);
+      unmount();
     }
   });
 });

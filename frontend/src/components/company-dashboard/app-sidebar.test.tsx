@@ -1,6 +1,6 @@
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -32,8 +32,8 @@ const PRINCIPAL_ITEMS = [
 ] as const;
 const ORGANIZATION_ITEMS = ["Equipo", "Reportes", "Configuración"] as const;
 
-// Destinations backed by real App Router routes, and the unresolved prototypes
-// that must stay on the honest `#` placeholder.
+// Destinations backed by real App Router routes, and the unresolved
+// presentation placeholders that render inert instead of as anchors.
 const RESOLVED_DESTINATIONS = {
   Dashboard: "/empresa/dashboard",
   Vacantes: "/empresa/vacantes",
@@ -86,10 +86,18 @@ function renderSidebar(pathname: string | null = "/empresa/dashboard") {
   );
 }
 
+/** The nav label's control, whether it is a resolved link or an inert button. */
+function navControl(label: string): HTMLElement {
+  return (
+    screen.queryByRole("link", { name: label }) ??
+    screen.getByRole("button", { name: label })
+  );
+}
+
 /** The nav labels currently carrying the active state. */
 function activeLabels(): string[] {
   return ALL_ITEMS.filter((label) =>
-    screen.getByRole("link", { name: label }).hasAttribute("data-active"),
+    navControl(label).hasAttribute("data-active"),
   );
 }
 
@@ -101,6 +109,19 @@ function groupLabeled(label: string): HTMLElement {
   const match = labels.find((node) => node.textContent?.trim() === label);
   expect(match, `${label} group label`).toBeDefined();
   return match!.closest("[data-slot='sidebar-group']") as HTMLElement;
+}
+
+/**
+ * Recruiting destinations of `group` in render order. Resolved items are links
+ * and unresolved items are inert buttons, so the order check reads both roles
+ * and skips the native create action that lives inside the same group.
+ */
+function groupDestinations(label: string): string[] {
+  return Array.from(
+    groupLabeled(label).querySelectorAll("[data-slot='sidebar-menu-button']"),
+  )
+    .filter((node) => node.closest("form") === null)
+    .map((node) => node.textContent?.trim() ?? "");
 }
 
 afterEach(() => {
@@ -136,15 +157,34 @@ describe("company dashboard sidebar identity", () => {
 
     const brand = screen.getByRole("link", { name: "PeopleFlow" });
 
-    // The stock header slot was a 20px glyph inside an h-8 button with the
-    // approved 6px padding override; the wordmark reuses that same box.
-    expect(brand.className).toContain("h-8");
+    // The stock header slot was a 20px glyph inside the shared 40px
+    // sidebar-menu-button row with the approved 6px padding override; the
+    // wordmark reuses that same box.
+    expect(brand.className).toContain("h-10");
     expect(brand.className).toContain("data-[slot=sidebar-menu-button]:p-1.5!");
 
     for (const mark of Array.from(brand.querySelectorAll("img"))) {
       expect(mark.className).toContain("h-5");
       expect(mark.className).toContain("w-auto");
       expect(mark.className).not.toContain("h-8");
+    }
+  });
+
+  it("keeps every sidebar row on the shared 40px hit target", () => {
+    renderSidebar();
+
+    const rows = Array.from(
+      document.querySelectorAll("[data-slot='sidebar-menu-button']"),
+    );
+    expect(rows.length).toBeGreaterThan(0);
+
+    for (const row of rows) {
+      // The shared primitive owns the 40px expanded row and the 40px collapsed
+      // icon rail, so neither the candidate nor the employer shell drifts.
+      expect(row.className).toContain("h-10");
+      expect(row.className).toContain("group-data-[collapsible=icon]:size-10!");
+      expect(row.className).not.toContain("h-8");
+      expect(row.className).not.toContain("group-data-[collapsible=icon]:size-8!");
     }
   });
 
@@ -169,26 +209,19 @@ describe("company dashboard sidebar navigation", () => {
   it("lists the primary recruiting destinations in order", () => {
     renderSidebar();
 
-    const group = groupLabeled("Principal");
-    const labels = within(group)
-      .getAllByRole("link")
-      .map((link) => link.textContent);
-
-    expect(labels).toEqual([...PRINCIPAL_ITEMS]);
+    // Dashboard and Vacantes are links; Candidatos and Mensajes are inert
+    // buttons. Both roles keep their shared order in the Principal group.
+    expect(groupDestinations("Principal")).toEqual([...PRINCIPAL_ITEMS]);
   });
 
   it("lists the organization destinations in order", () => {
     renderSidebar();
 
-    const group = groupLabeled("Organización");
-    const labels = within(group)
-      .getAllByRole("link")
-      .map((link) => link.textContent);
-
-    expect(labels).toEqual([...ORGANIZATION_ITEMS]);
+    // Equipo is a link; Reportes and Configuración are inert buttons.
+    expect(groupDestinations("Organización")).toEqual([...ORGANIZATION_ITEMS]);
   });
 
-  it("binds the resolved destinations and keeps the rest as safe prototypes", () => {
+  it("binds resolved destinations as links and the rest as inert buttons", () => {
     renderSidebar();
 
     for (const [label, href] of Object.entries(RESOLVED_DESTINATIONS)) {
@@ -199,10 +232,10 @@ describe("company dashboard sidebar navigation", () => {
     }
 
     for (const label of PROTOTYPE_ITEMS) {
-      expect(
-        screen.getByRole("link", { name: label }),
-        `${label} prototype target`,
-      ).toHaveAttribute("href", "#");
+      const control = screen.getByRole("button", { name: label });
+      expect(control, `${label} placeholder`).toHaveAttribute("type", "button");
+      expect(control, `${label} placeholder`).not.toHaveAttribute("href");
+      expect(control, `${label} placeholder`).toBeEnabled();
     }
   });
 
@@ -240,7 +273,7 @@ describe("company dashboard sidebar navigation", () => {
 
       for (const label of PROTOTYPE_ITEMS) {
         expect(
-          screen.getByRole("link", { name: label }),
+          screen.getByRole("button", { name: label }),
           `${label} must not be marked active on ${String(pathname)}`,
         ).not.toHaveAttribute("data-active");
       }
@@ -362,20 +395,49 @@ describe("company dashboard sidebar create action", () => {
     expect(screen.getByRole("link", { name: "Vacantes" }).tagName).toBe("A");
   });
 
-  it("leaves the unresolved recruiting navigation on its anchors", () => {
+  it("renders the unresolved recruiting navigation as enabled inert buttons", () => {
     renderSidebar();
 
     for (const label of PROTOTYPE_ITEMS) {
-      const link = screen.getByRole("link", { name: label });
-      expect(link.tagName, `${label} destination`).toBe("A");
-      expect(link).toHaveAttribute("href", "#");
+      const control = screen.getByRole("button", { name: label });
+      expect(control.tagName, `${label} destination`).toBe("BUTTON");
+      expect(control).toHaveAttribute("type", "button");
+      expect(control).not.toHaveAttribute("href");
+      expect(control).toBeEnabled();
+      // No unresolved item survives as an anchor with a placeholder href.
+      expect(
+        screen.queryByRole("link", { name: label }),
+        `${label} must not render an anchor`,
+      ).toBeNull();
     }
+    expect(document.querySelectorAll("a[href='#']")).toHaveLength(0);
 
     // The create form is the only form in the shell, and it wraps only the
     // create action.
     const forms = document.querySelectorAll("form");
     expect(forms).toHaveLength(1);
     expect(forms[0].textContent).toContain("Nueva vacante");
+  });
+
+  it("keeps every unresolved placeholder click-inert", () => {
+    const { container } = renderSidebar();
+
+    const hrefBefore = window.location.href;
+    const hashBefore = window.location.hash;
+    const contentBefore = container.textContent;
+    for (const label of PROTOTYPE_ITEMS) {
+      fireEvent.click(screen.getByRole("button", { name: label }));
+    }
+
+    // Clicking navigates nowhere, mutates no rendered content, and claims no
+    // status or note on any pathway.
+    expect(window.location.href).toBe(hrefBefore);
+    expect(window.location.hash).toBe(hashBefore);
+    expect(container.textContent).toBe(contentBefore);
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(
+      document.querySelectorAll("[role='note'], [data-pf-note]"),
+    ).toHaveLength(0);
   });
 });
 

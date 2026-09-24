@@ -10,11 +10,13 @@ export function CandidateShell({ children, defaultOpen = true }: Readonly<{ chil
   return (
     <SidebarProvider
       defaultOpen={defaultOpen}
-      className={candidateTheme.root}
+      className={`${candidateTheme.root} bg-primary/5`}
       style={{ "--sidebar-width": "calc(var(--spacing) * 72)", "--header-height": "calc(var(--spacing) * 12)" } as React.CSSProperties}
     >
       <CandidateSidebar variant="inset" collapsible="icon" />
-      <SidebarInset>{children}</SidebarInset>
+      <SidebarInset className="md:mt-3 md:mr-3 md:mb-3 md:rounded-3xl md:ring-1 md:ring-primary/15 md:shadow-md">
+        {children}
+      </SidebarInset>
     </SidebarProvider>
   )
 }

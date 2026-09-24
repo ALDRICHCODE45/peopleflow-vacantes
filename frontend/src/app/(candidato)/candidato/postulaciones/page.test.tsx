@@ -131,12 +131,10 @@ describe("candidate applications route", () => {
     }
   });
 
-  it("keeps the local read-only disclosure and activates only Postulaciones", () => {
+  it("renders no implementation-status disclosure and activates only Postulaciones", () => {
     renderRoute();
-    const note = screen.getByRole("note");
-    expect(note).toHaveAttribute("data-pf-applications-disclosure");
-    expect(note).toHaveTextContent(/solo lectura/u);
-    expect(note).toHaveTextContent(/no se guarda nada/u);
+    expect(screen.queryByRole("note")).toBeNull();
+    expect(document.querySelector("[data-pf-applications-disclosure]")).toBeNull();
     const nav = document.querySelector("[data-slot='sidebar-content']") as HTMLElement;
     const active = Array.from(nav.querySelectorAll("a[data-active]")).map((link) => link.textContent);
     expect(active).toEqual(["Postulaciones"]);

@@ -16,7 +16,6 @@ import { RichTextField } from "./rich-text-field";
 const FORM_DIR = join(process.cwd(), "src", "features", "jobs", "create", "form");
 const source = readFileSync(join(FORM_DIR, "rich-text-field.tsx"), "utf8");
 
-const DISCLOSURE = "Formato visual de prototipo; todavía no se guarda.";
 const ACTIONS = [
   "Negrita",
   "Cursiva",
@@ -77,7 +76,7 @@ describe("RichTextField accessible surface", () => {
     }
   });
 
-  it("discloses that the formatting is a prototype and that nothing is saved", () => {
+  it("renders no implementation-status copy beside the formatting surface", () => {
     render(
       <RichTextField
         id="descripcion"
@@ -87,14 +86,16 @@ describe("RichTextField accessible surface", () => {
       />,
     );
 
-    expect(screen.getByText(DISCLOSURE)).toBeVisible();
+    expect(screen.queryByText(/prototipo/i)).toBeNull();
+    expect(screen.queryByText(/todavía no se guarda/i)).toBeNull();
+    expect(screen.queryByText(/exploratori/i)).toBeNull();
   });
 
-  it("marks a prototype surface and leaves a contract surface unmarked", () => {
+  it("renders no prototype badge on a local-only surface or a contract surface", () => {
     const { rerender } = render(
       <RichTextField id="r" label="Requisitos obligatorios" value="" onChange={vi.fn()} prototype />,
     );
-    expect(screen.getByText("Prototipo")).toBeVisible();
+    expect(screen.queryByText("Prototipo")).toBeNull();
 
     rerender(
       <RichTextField
@@ -126,11 +127,11 @@ describe("RichTextField accessible surface", () => {
     expect(control).toHaveAttribute("aria-invalid", "true");
     expect(control).toHaveAttribute(
       "aria-describedby",
-      "vacancy-description-disclosure vacancy-description-error",
+      "vacancy-description-error",
     );
   });
 
-  it("always references the prototype disclosure from the textarea", () => {
+  it("references no description while the field is valid", () => {
     render(
       <RichTextField
         id="campo"
@@ -142,14 +143,12 @@ describe("RichTextField accessible surface", () => {
 
     const control = textbox("Requisitos obligatorios");
 
-    expect(control).toHaveAttribute("aria-describedby", "campo-disclosure");
-    expect(document.getElementById("campo-disclosure")).toHaveTextContent(
-      DISCLOSURE,
-    );
-    expect(control).toHaveAccessibleDescription(DISCLOSURE);
+    expect(control).not.toHaveAttribute("aria-describedby");
+    expect(document.getElementById("campo-disclosure")).toBeNull();
+    expect(control).toHaveAccessibleDescription("");
   });
 
-  it("adds the error slot to the disclosure instead of replacing it", () => {
+  it("describes the control with the error slot only", () => {
     render(
       <RichTextField
         id="campo"
@@ -162,23 +161,12 @@ describe("RichTextField accessible surface", () => {
 
     const control = textbox("Requisitos obligatorios");
 
-    expect(control).toHaveAttribute(
-      "aria-describedby",
-      "campo-disclosure campo-error",
-    );
-    // The computed accessible description carries both referenced nodes.
-    expect(control).toHaveAccessibleDescription(
-      `${DISCLOSURE} Falta la descripción.`,
-    );
+    expect(control).toHaveAttribute("aria-describedby", "campo-error");
+    expect(control).toHaveAccessibleDescription("Falta la descripción.");
   });
 
   /** Every id `RichTextField` owns for a given `id`; none may be shadowed. */
-  const RESERVED_OWNED_IDS = [
-    "campo",
-    "campo-disclosure",
-    "campo-link",
-    "campo-link-error",
-  ];
+  const RESERVED_OWNED_IDS = ["campo", "campo-link", "campo-link-error"];
 
   it.each(RESERVED_OWNED_IDS)(
     "reserves the component id namespace and repoints a colliding errorId %s",
@@ -200,14 +188,10 @@ describe("RichTextField accessible surface", () => {
       // A collision never wins: the field error resolves deterministically.
       expect(error).toHaveAttribute("id", "campo-error");
       expect(error).toHaveTextContent("Falta la descripción.");
-      expect(control).toHaveAttribute(
-        "aria-describedby",
-        "campo-disclosure campo-error",
-      );
+      expect(control).toHaveAttribute("aria-describedby", "campo-error");
 
       // The rendered component ids stay unique, and each has one owner.
       expect(document.querySelectorAll("#campo")).toHaveLength(1);
-      expect(document.querySelectorAll("#campo-disclosure")).toHaveLength(1);
       expect(document.querySelectorAll("#campo-link")).toHaveLength(1);
       expect(document.querySelectorAll("#campo-error")).toHaveLength(1);
     },
@@ -230,7 +214,7 @@ describe("RichTextField accessible surface", () => {
       expect(screen.getByRole("alert")).toHaveAttribute("id", errorId);
       expect(textbox("Requisitos obligatorios")).toHaveAttribute(
         "aria-describedby",
-        `campo-disclosure ${errorId}`,
+        errorId,
       );
     },
   );
@@ -259,7 +243,6 @@ describe("RichTextField accessible surface", () => {
     expect(screen.getAllByRole("alert")).toHaveLength(2);
     for (const owned of [
       "campo",
-      "campo-disclosure",
       "campo-link",
       "campo-link-error",
       "campo-error",
@@ -278,14 +261,9 @@ describe("RichTextField accessible surface", () => {
     );
 
     // Each control references its own distinct error.
-    expect(control).toHaveAttribute(
-      "aria-describedby",
-      "campo-disclosure campo-error",
-    );
+    expect(control).toHaveAttribute("aria-describedby", "campo-error");
     expect(linkInput).toHaveAttribute("aria-describedby", "campo-link-error");
-    expect(control).toHaveAccessibleDescription(
-      `${DISCLOSURE} Falta la descripción.`,
-    );
+    expect(control).toHaveAccessibleDescription("Falta la descripción.");
   });
 });
 
@@ -465,5 +443,7 @@ describe("RichTextField source boundary", () => {
     expect(source).toMatch(/from "\.\/rich-text-model"/);
     expect(source).not.toMatch(/createJob|requestJson|schemas|zod|lib\/api/);
     expect(source).not.toMatch(/\bfetch\s*\(/u);
+    // The disclosure surface left the component with the copy cleanup.
+    expect(source).not.toMatch(/FieldDescription|todavía no se guarda/);
   });
 });

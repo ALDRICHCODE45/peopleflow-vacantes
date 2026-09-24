@@ -51,6 +51,25 @@ describe("ThemeToggle", () => {
     expect(button).toHaveAttribute("data-pf-theme-toggle");
   });
 
+  it("defaults to the shared 40x40 hit target", () => {
+    stubMatchMedia(true);
+    render(<ThemeToggle />);
+
+    const button = screen.getByRole("button", { name: /cambiar tema/i });
+    expect(button.className).toContain("size-10");
+    // The shared Button icon default (size-8) must not survive the override.
+    expect(button.className).not.toContain("size-8");
+  });
+
+  it("lets an explicit caller size override the 40px default", () => {
+    stubMatchMedia(true);
+    render(<ThemeToggle className="size-11" />);
+
+    const button = screen.getByRole("button", { name: /cambiar tema/i });
+    expect(button.className).toContain("size-11");
+    expect(button.className).not.toContain("size-10");
+  });
+
   it("renders the CSS-driven icon contract for both themes and system", () => {
     stubMatchMedia(true);
     const { container } = render(<ThemeToggle />);

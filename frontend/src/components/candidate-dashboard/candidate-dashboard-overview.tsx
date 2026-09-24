@@ -1,4 +1,13 @@
 import Link from "next/link"
+import { ArrowUpRight, BriefcaseBusiness, CircleCheckBig, Clock3, FileText, Files, Link2Off } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+
+import { Badge } from "@/components/ui/badge"
+import { buttonVariants } from "@/components/ui/button"
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
+import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress"
 
 import type { CandidateIdentity, CandidateProfile } from "@/features/candidate/model"
 import { APPLICATION_STATUSES, APPLICATION_STATUS_LABELS, CV_LANGUAGE_LABELS, applicationInProcessCount, applicationTotalCount, countApplicationsByStatus, summarizeCvs } from "@/features/candidate/portfolio-model"
@@ -55,24 +64,117 @@ const formatFileSize = (bytes: number): string => bytes >= 1024 * 1024 ? `${DECI
 /** Natural Spanish count: singular only for exactly one. */
 const countLabel = (count: number, singular: string, plural: string): string => `${count} ${count === 1 ? singular : plural}`
 
-/** Supplemental status color; the Spanish status text always carries the meaning. */
-const STATUS_DOT: Readonly<Record<ApplicationStatus, string>> = { submitted: "bg-chart-3", in_review: "bg-primary", hired: "bg-chart-2", rejected: "bg-destructive" }
+/**
+ * Canonical semantic status tones: the Spanish label always carries the meaning
+ * and the `--status-*` token only reinforces it as Badge text and border over a
+ * low-opacity background of the same token. No legacy grayscale/violet token
+ * and no raw color value is authored here.
+ */
+const STATUS_TONE: Readonly<Record<ApplicationStatus, string>> = {
+  submitted: "border-status-info/40 bg-status-info/10 text-status-info",
+  in_review: "border-status-review/40 bg-status-review/10 text-status-review",
+  hired: "border-status-success/40 bg-status-success/10 text-status-success",
+  rejected: "border-status-danger/40 bg-status-danger/10 text-status-danger",
+}
+/** The same four tokens paint the proportional bar segments and legend dots. */
+const STATUS_BAR: Readonly<Record<ApplicationStatus, string>> = {
+  submitted: "bg-status-info",
+  in_review: "bg-status-review",
+  hired: "bg-status-success",
+  rejected: "bg-status-danger",
+}
 
-/** Shared link contract: at least a 40px hit target plus a visible focus ring. */
-const LINK_CLASS = "inline-flex min-h-10 items-center rounded-md px-2 text-sm font-medium text-primary underline-offset-4 outline-hidden transition-colors hover:text-primary/80 hover:underline focus-visible:ring-3 focus-visible:ring-ring/50"
+/** Semantic completeness Badge: success when every scored field is present, review otherwise. */
+const COMPLETE_BADGE = "border-status-success/40 bg-status-success/10 text-status-success"
+const INCOMPLETE_BADGE = "border-status-review/40 bg-status-review/10 text-status-review"
+
+/**
+ * Navigation keeps the anchor element and its link role: the shadcn Button
+ * variants, focus ring and 40px target are applied to the Next Link instead of
+ * routing it through the Base UI Button, which would relabel the navigation.
+ */
+const PRIMARY_LINK = buttonVariants({ size: "sm", className: "min-h-10" })
+const OUTLINE_LINK = buttonVariants({ variant: "outline", size: "sm", className: "min-h-10" })
+const QUIET_LINK = buttonVariants({ variant: "ghost", size: "sm", className: "min-h-10" })
+
+/** Quiet field term: it never competes with the value it labels. */
+const META = "text-[12.5px] font-medium text-muted-foreground"
 
 /** Most recent applications first, as a copy so the props array is never reordered. */
 const recentApplications = (applications: readonly CandidateApplicationView[]): readonly CandidateApplicationView[] =>
   [...applications].sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)).slice(0, 3)
 
-/** One compact metric tile. */
-function Metric({ label, value, detail }: Readonly<{ label: string; value: string; detail: string }>) {
+/** Circular contextual medallion: the icon anchors the identity of a metric or row. */
+function Medallion({ icon: Icon }: Readonly<{ icon: LucideIcon }>) {
   return (
-    <div data-pf-overview-metric={label} className="rounded-2xl border border-border bg-card/60 p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-1 font-heading text-3xl font-semibold tabular-nums text-foreground">{value}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
-    </div>
+    <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary">
+      <Icon className="size-4" />
+    </span>
+  )
+}
+
+/** Status as text inside its semantic tone: the Spanish label carries the meaning. */
+function StatusBadge({ status }: Readonly<{ status: ApplicationStatus }>) {
+  return <Badge variant="outline" className={STATUS_TONE[status]}>{APPLICATION_STATUS_LABELS[status]}</Badge>
+}
+
+/** One derived KPI tile: icon medallion, exact label, tabular value and detail. */
+type OverviewMetric = Readonly<{ label: string; icon: LucideIcon; value: string; detail: string }>
+function MetricCard({ label, icon: Icon, value, detail }: OverviewMetric) {
+  return (
+    <Card size="sm" data-pf-overview-metric={label}>
+      <CardHeader>
+        <div className="flex items-center gap-2.5">
+          <Medallion icon={Icon} />
+          <CardTitle className={META}>{label}</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-1">
+        <p data-pf-overview-metric-value className="font-heading text-2xl font-semibold tabular-nums text-foreground">{value}</p>
+        <p className={META}>{detail}</p>
+      </CardContent>
+    </Card>
+  )
+}
+
+/** One recent application as a compact grouped-list row: the semantic `<ul>`
+    owns the dividers, so the Item itself is a quiet `size="sm"` surface with no
+    per-row mini-card. Identity and its status/date metadata share one wrapping
+    `ItemContent` with the native `line-clamp-1` removed, so the title soft-wraps
+    instead of being squeezed by `ItemActions`, which keeps only the truthful live
+    vacancy link or the honest historical note. */
+function RecentApplicationRow({ application }: Readonly<{ application: CandidateApplicationView }>) {
+  return (
+    <li data-pf-recent-row={application.id} className="min-w-0">
+      <Item size="sm" className="min-w-0 items-start rounded-none px-0 py-3">
+        <ItemMedia><Medallion icon={BriefcaseBusiness} /></ItemMedia>
+        <ItemContent className="min-w-0">
+          <ItemTitle className="line-clamp-none block w-full">
+            <h4 className="font-heading text-sm font-semibold text-foreground">{application.jobTitle}</h4>
+          </ItemTitle>
+          <ItemDescription className="break-words">{application.companyName}</ItemDescription>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-0.5">
+            <StatusBadge status={application.status} />
+            <span className="text-sm text-muted-foreground">
+              Actualizada el <time dateTime={application.updatedAt}>{formatDate(application.updatedAt)}</time>
+            </span>
+          </div>
+        </ItemContent>
+        <ItemActions className="w-full sm:w-auto">
+          {application.publicJobHref === null ? (
+            <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Link2Off aria-hidden="true" className="size-4" />
+              Vacante histórica sin enlace
+            </span>
+          ) : (
+            <Link href={application.publicJobHref} aria-label={`Ver vacante de ${application.jobTitle} en ${application.companyName}`} className={OUTLINE_LINK}>
+              Ver vacante
+              <ArrowUpRight aria-hidden="true" data-icon="inline-end" />
+            </Link>
+          )}
+        </ItemActions>
+      </Item>
+    </li>
   )
 }
 
@@ -84,115 +186,167 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
   const recent = recentApplications(applications)
   const firstName = identity.fullName.trim().split(/\s+/u)[0] ?? identity.fullName
   const missingCount = completeness.missing.length
+  const metrics: readonly OverviewMetric[] = [
+    { label: "Postulaciones", icon: BriefcaseBusiness, value: String(total), detail: countLabel(total, "postulación registrada", "postulaciones registradas") },
+    { label: "En proceso", icon: Clock3, value: String(inProcess), detail: "Enviadas o en revisión" },
+    { label: "Perfil completo", icon: CircleCheckBig, value: `${completeness.percentage}%`, detail: `${completeness.completed} de ${completeness.total} campos completados` },
+    { label: "CVs", icon: Files, value: String(cvTotal), detail: cvTotal === 0 ? "Sin CVs disponibles" : countLabel(cvTotal, "CV disponible", "CVs disponibles") },
+  ]
 
   return (
-    <div data-pf-candidate-overview className="@container/main flex flex-1 flex-col gap-4 px-4 py-4 md:gap-6 md:py-6 lg:px-6">
-      <section aria-labelledby="candidate-overview-welcome" className="flex flex-col gap-1">
-        <h2 id="candidate-overview-welcome" className="font-heading text-2xl font-semibold text-foreground">Hola, {firstName}</h2>
-        <p className="max-w-3xl text-sm text-muted-foreground">
-          {`Tienes ${countLabel(total, "postulación registrada", "postulaciones registradas")} y ${inProcess} en proceso. Tu perfil está al ${completeness.percentage}% y tienes ${countLabel(cvTotal, "CV disponible", "CVs disponibles")}.`}
-        </p>
-        <p role="note" data-pf-candidate-overview-disclosure className="max-w-3xl text-sm text-muted-foreground">
-          Demo local: esta vista usa solo datos de ejemplo y no guarda cambios ni envía información.
-        </p>
-      </section>
+    <div data-pf-candidate-overview className="mx-auto w-full max-w-screen-2xl @container/main flex flex-1 flex-col gap-4 px-4 py-4 md:gap-6 md:py-6 lg:px-6">
+      <div data-pf-candidate-overview-inner className="flex w-full flex-col gap-4 md:gap-6">
+        <section aria-labelledby="candidate-overview-welcome" className="flex flex-col gap-1">
+          <h2 id="candidate-overview-welcome" className="font-heading text-2xl font-semibold text-foreground">Hola, {firstName}</h2>
+          <p className="max-w-3xl text-sm text-muted-foreground">
+            {`Tienes ${countLabel(total, "postulación registrada", "postulaciones registradas")} y ${inProcess} en proceso. Tu perfil está al ${completeness.percentage}% y tienes ${countLabel(cvTotal, "CV disponible", "CVs disponibles")}.`}
+          </p>
+        </section>
 
-      <section aria-label="Resumen de tu búsqueda" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Postulaciones" value={String(total)} detail={countLabel(total, "postulación registrada", "postulaciones registradas")} />
-        <Metric label="En proceso" value={String(inProcess)} detail="Enviadas o en revisión" />
-        <Metric label="Perfil completo" value={`${completeness.percentage}%`} detail={`${completeness.completed} de ${completeness.total} campos completados`} />
-        <Metric label="CVs" value={String(cvTotal)} detail={cvTotal === 0 ? "Sin CVs disponibles" : countLabel(cvTotal, "CV disponible", "CVs disponibles")} />
-      </section>
+        <section aria-label="Resumen de tu búsqueda" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {metrics.map((metric) => (<MetricCard key={metric.label} {...metric} />))}
+        </section>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <section aria-labelledby="candidate-overview-recent" data-pf-recent-applications className="rounded-2xl border border-border bg-card/60 p-4 md:p-6 lg:col-span-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 id="candidate-overview-recent" className="font-heading text-base font-semibold text-foreground">Postulaciones recientes</h2>
-            <Link href="/candidato/postulaciones" className={LINK_CLASS}>Ver todas mis postulaciones</Link>
-          </div>
-          {recent.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">Todavía no tienes postulaciones. Aquí verás tus envíos recientes.</p>
-          ) : (
-            <ul className="mt-3 flex flex-col gap-3">
-              {recent.map((application) => (
-                <li key={application.id} className="flex flex-col gap-2 rounded-xl border border-border bg-background/40 p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="font-medium text-foreground">{application.jobTitle}</p>
-                    <p className="text-sm text-muted-foreground">{application.companyName}</p>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <section aria-labelledby="candidate-overview-recent" data-pf-recent-applications className="lg:col-span-2">
+            <Card size="sm" className="h-full">
+              <CardHeader>
+                <h3 id="candidate-overview-recent" className="font-heading text-base font-semibold text-foreground">Postulaciones recientes</h3>
+                <CardDescription className="col-start-1 row-start-2">Tus últimos envíos, ordenados por actualización.</CardDescription>
+                <CardAction className="max-sm:col-span-2 max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-start">
+                  <Link href="/candidato/postulaciones" aria-label="Ver todas mis postulaciones" className={QUIET_LINK}>Ver todas</Link>
+                </CardAction>
+              </CardHeader>
+              <CardContent>
+                {recent.length === 0 ? (
+                  <Empty className="border border-dashed border-border">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon"><BriefcaseBusiness aria-hidden="true" /></EmptyMedia>
+                      <EmptyTitle>Sin postulaciones</EmptyTitle>
+                      <EmptyDescription>Todavía no tienes postulaciones. Aquí verás tus envíos recientes.</EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                ) : (
+                  <ul className="flex flex-col divide-y divide-border">
+                    {recent.map((application) => (<RecentApplicationRow key={application.id} application={application} />))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+
+          <section aria-labelledby="candidate-overview-status" data-pf-status-breakdown>
+            <Card size="sm" className="h-full">
+              <CardHeader>
+                <h3 id="candidate-overview-status" className="font-heading text-base font-semibold text-foreground">Estado de tus postulaciones</h3>
+                <CardDescription>{countLabel(total, "postulación registrada", "postulaciones registradas")} en total.</CardDescription>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <div data-pf-status-bar aria-hidden="true" className="flex h-2 w-full overflow-hidden rounded-full bg-muted">
+                  {APPLICATION_STATUSES.map((status) => (
+                    <span key={status} data-pf-status-segment={status} className={`basis-0 ${STATUS_BAR[status]}`} style={{ flexGrow: counts[status] }} />
+                  ))}
+                </div>
+                <ul className="flex flex-col gap-2">
+                  {APPLICATION_STATUSES.map((status) => (
+                    <li key={status} className="flex items-center justify-between gap-3">
+                      <span className="inline-flex items-center gap-2 text-sm text-foreground">
+                        <span aria-hidden="true" className={`size-2.5 rounded-full ${STATUS_BAR[status]}`} />
+                        {APPLICATION_STATUS_LABELS[status]}
+                      </span>
+                      <span className="text-sm font-medium tabular-nums text-foreground">{counts[status]}</span>
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          </section>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <section aria-labelledby="candidate-overview-profile" data-pf-profile-guidance>
+            <Card size="sm" className="h-full">
+              <CardHeader>
+                <h3 id="candidate-overview-profile" className="font-heading text-base font-semibold text-foreground">Tu perfil</h3>
+                <CardAction>
+                  <Badge variant="outline" className={completeness.percentage === 100 ? COMPLETE_BADGE : INCOMPLETE_BADGE}>
+                    {completeness.percentage === 100 ? "Completo" : "Incompleto"}
+                  </Badge>
+                </CardAction>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <Progress value={completeness.percentage} aria-label="Perfil completo" className="w-full">
+                  <ProgressLabel>Perfil completo</ProgressLabel>
+                  <ProgressValue />
+                </Progress>
+                <p className="text-sm text-muted-foreground">{`${completeness.completed} de ${completeness.total} campos completados`}</p>
+                {completeness.percentage === 100 ? (
+                  <p className="text-sm text-muted-foreground">Tu perfil está listo. Completaste los {completeness.total} campos clave.</p>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    <p>Tu perfil está al {completeness.percentage}%. {missingCount === 1 ? "Te falta 1 campo:" : `Te faltan ${missingCount} campos:`}</p>
+                    <ul className="mt-2 flex flex-col gap-1">
+                      {completeness.missing.map((label) => (
+                        <li key={label} className="flex items-center gap-2 text-foreground">
+                          <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
+                          {label}
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                    <span className="inline-flex items-center gap-2 text-sm text-foreground">
-                      <span aria-hidden="true" className={`size-2 rounded-full ${STATUS_DOT[application.status]}`} />
-                      {APPLICATION_STATUS_LABELS[application.status]}
-                    </span>
-                    <span className="text-sm text-muted-foreground">Actualizada el {formatDate(application.updatedAt)}</span>
-                    {application.publicJobHref ? (
-                      <Link href={application.publicJobHref} aria-label={`Ver vacante de ${application.jobTitle} en ${application.companyName}`} className={LINK_CLASS}>Ver vacante</Link>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">Vacante histórica sin enlace</span>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                )}
+              </CardContent>
+              <CardFooter>
+                <Link href="/candidato/perfil" className={PRIMARY_LINK}>Revisar mi perfil</Link>
+              </CardFooter>
+            </Card>
+          </section>
 
-        <section aria-labelledby="candidate-overview-status" data-pf-status-breakdown className="rounded-2xl border border-border bg-card/60 p-4 md:p-6">
-          <h2 id="candidate-overview-status" className="font-heading text-base font-semibold text-foreground">Estado de tus postulaciones</h2>
-          <ul className="mt-3 flex flex-col gap-2">
-            {APPLICATION_STATUSES.map((status) => (
-              <li key={status} className="flex items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-2 text-sm text-foreground">
-                  <span aria-hidden="true" className={`size-2 rounded-full ${STATUS_DOT[status]}`} />
-                  {APPLICATION_STATUS_LABELS[status]}
-                </span>
-                <span className="text-sm font-medium tabular-nums text-foreground">{counts[status]}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section aria-labelledby="candidate-overview-profile" data-pf-profile-guidance className="rounded-2xl border border-border bg-card/60 p-4 md:p-6">
-          <h2 id="candidate-overview-profile" className="font-heading text-base font-semibold text-foreground">Tu perfil</h2>
-          {completeness.percentage === 100 ? (
-            <p className="mt-3 text-sm text-muted-foreground">Tu perfil está listo. Completaste los {completeness.total} campos clave.</p>
-          ) : (
-            <div className="mt-3 text-sm text-muted-foreground">
-              <p>Tu perfil está al {completeness.percentage}%. {missingCount === 1 ? "Te falta 1 campo:" : `Te faltan ${missingCount} campos:`}</p>
-              <ul className="mt-2 flex flex-col gap-1">
-                {completeness.missing.map((label) => (
-                  <li key={label} className="flex items-center gap-2 text-foreground">
-                    <span aria-hidden="true" className="size-1.5 rounded-full bg-primary" />
-                    {label}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          <Link href="/candidato/perfil" className={`${LINK_CLASS} mt-3`}>Revisar mi perfil</Link>
-        </section>
-
-        <section aria-labelledby="candidate-overview-cvs" data-pf-cv-snapshot className="rounded-2xl border border-border bg-card/60 p-4 md:p-6">
-          <h2 id="candidate-overview-cvs" className="font-heading text-base font-semibold text-foreground">Tus CVs</h2>
-          {cvTotal === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">Todavía no tienes CVs disponibles. Este portafolio local no permite subir archivos.</p>
-          ) : primary ? (
-            <dl className="mt-3 grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-              <div><dt className="text-muted-foreground">Documento principal</dt><dd className="text-foreground">{primary.label}</dd></div>
-              <div><dt className="text-muted-foreground">Archivo</dt><dd className="break-all text-foreground">{primary.fileName}</dd></div>
-              <div><dt className="text-muted-foreground">Idioma</dt><dd className="text-foreground">{CV_LANGUAGE_LABELS[primary.language]}</dd></div>
-              <div><dt className="text-muted-foreground">Tamaño</dt><dd className="text-foreground">{formatFileSize(primary.sizeBytes)}</dd></div>
-              <div><dt className="text-muted-foreground">Actualizado</dt><dd className="text-foreground">{formatDate(primary.updatedAt)}</dd></div>
-              <div><dt className="text-muted-foreground">CVs en tu portafolio</dt><dd className="text-foreground">{countLabel(cvTotal, "CV", "CVs")}</dd></div>
-            </dl>
-          ) : (
-            <p className="mt-3 text-sm text-muted-foreground">Tienes {countLabel(cvTotal, "CV", "CVs")}, pero ninguno está marcado como principal.</p>
-          )}
-          <Link href="/candidato/cvs" className={`${LINK_CLASS} mt-3`}>Ver mis CVs</Link>
-        </section>
+          <section aria-labelledby="candidate-overview-cvs" data-pf-cv-snapshot>
+            <Card size="sm" className="h-full">
+              <CardHeader>
+                <h3 id="candidate-overview-cvs" className="font-heading text-base font-semibold text-foreground">Tus CVs</h3>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                {cvTotal === 0 ? (
+                  <Empty className="border border-dashed border-border">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon"><Files aria-hidden="true" /></EmptyMedia>
+                      <EmptyTitle>Sin CVs</EmptyTitle>
+                      <EmptyDescription>Cuando agregues un CV, vas a ver aquí su información.</EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                ) : primary === undefined ? (
+                  <p className="text-sm text-muted-foreground">Tienes {countLabel(cvTotal, "CV", "CVs")}, pero ninguno está marcado como principal.</p>
+                ) : (
+                  <>
+                    <Item size="sm" variant="muted">
+                      <ItemMedia><Medallion icon={FileText} /></ItemMedia>
+                      <ItemContent className="min-w-0">
+                        <ItemTitle className="line-clamp-none block w-full">
+                          <h4 className="font-heading text-sm font-semibold text-foreground">CV principal</h4>
+                        </ItemTitle>
+                        <ItemDescription className="line-clamp-none break-words">{primary.fileName}</ItemDescription>
+                      </ItemContent>
+                      <ItemActions className="w-full sm:w-auto">
+                        <Badge>Principal</Badge>
+                      </ItemActions>
+                    </Item>
+                    <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+                      <div><dt className="text-muted-foreground">Idioma</dt><dd className="text-foreground">{CV_LANGUAGE_LABELS[primary.language]}</dd></div>
+                      <div><dt className="text-muted-foreground">Tamaño</dt><dd className="text-foreground">{formatFileSize(primary.sizeBytes)}</dd></div>
+                      <div><dt className="text-muted-foreground">Actualizado</dt><dd className="text-foreground"><time dateTime={primary.updatedAt}>{formatDate(primary.updatedAt)}</time></dd></div>
+                      <div><dt className="text-muted-foreground">CVs en tu portafolio</dt><dd className="text-foreground">{countLabel(cvTotal, "CV", "CVs")}</dd></div>
+                    </dl>
+                  </>
+                )}
+              </CardContent>
+              <CardFooter>
+                <Link href="/candidato/cvs" className={PRIMARY_LINK}>Ver mis CVs</Link>
+              </CardFooter>
+            </Card>
+          </section>
+        </div>
       </div>
     </div>
   )

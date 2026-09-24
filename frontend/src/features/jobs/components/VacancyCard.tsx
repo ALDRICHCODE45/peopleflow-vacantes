@@ -5,7 +5,7 @@ import { ArrowRightIcon, BriefcaseIcon, Building2Icon, ClockIcon, GlobeIcon, Map
 import type { PrototypeJobView } from "../enrich";
 import { employmentTypeLabel, formatPublishedDate, formatSalary, payFrequencyLabel, seniorityLabel, workModeLabel } from "../formatters";
 import { PrototypeFeedbackButton } from "./prototype-feedback-island";
-import { CompanyMonogram, PrototypeDisclosure, VerifiedByPeopleFlow, prototypeApplicantsLabel, prototypeResponseLabel } from "./prototype-ui";
+import { CompanyMonogram, VerifiedByPeopleFlow, prototypeApplicantsLabel, prototypeResponseLabel } from "./prototype-ui";
 
 /** Contextual icon per wire work mode, mirroring the public board rows. */
 const WORK_MODE_ICONS = {
@@ -55,12 +55,12 @@ const featuredDotClass = "size-1.5 shrink-0 rounded-full bg-primary";
  * a vacancy the prototype enrichment knows — the featured marker, applicant
  * count, relative publication label, department, the complete normalized
  * description clipped to two lines, skills, benefits, pay cadence, response
- * estimate, verification, and the disclosure that scopes all of it. The salary
- * lives in its own rail. A known prototype vacancy carries the bookmark client
- * island, and a wire-only vacancy carries no save control at all, so no card
- * here performs a business mutation while the card itself stays a server
- * component: it forwards plain strings to the island and owns no fetch, state,
- * hook, request, storage, raw color, or inline style.
+ * estimate, and verification. The salary
+ * lives in its own rail. A known prototype vacancy carries the bookmark
+ * placeholder control, and a wire-only vacancy carries no save control at all,
+ * so no card here performs a business mutation while the card itself stays a
+ * server component: it forwards plain strings to the control and owns no fetch,
+ * state, hook, request, storage, raw color, or inline style.
  */
 export function VacancyCard({ job, companyHref }: { job: PrototypeJobView; companyHref?: string }) {
   const prototype = job.prototype;
@@ -92,11 +92,8 @@ export function VacancyCard({ job, companyHref }: { job: PrototypeJobView; compa
           </div>
           {prototype !== undefined && (
             <PrototypeFeedbackButton
-              mode="toggle"
               icon="bookmark"
-              label="Guardar vacante (solo demostración)" activeLabel="Guardar vacante (marcada solo en esta demostración)"
-              activeFeedback="Guardado de demostración activado: no se guardó nada real."
-              inactiveFeedback="Guardado de demostración desactivado: no se modificó nada real."
+              label="Guardar vacante"
               className={bookmarkClass}
             />
           )}
@@ -160,7 +157,6 @@ export function VacancyCard({ job, companyHref }: { job: PrototypeJobView; compa
           <ArrowRightIcon aria-hidden="true" className="size-4 shrink-0 transition-transform duration-150 motion-reduce:transition-none motion-safe:group-hover:translate-x-0.5" />
         </Link>
         {prototype?.verifiedByPeopleFlow === true && <VerifiedByPeopleFlow />}
-        {prototype !== undefined && <PrototypeDisclosure />}
       </div>
     </li>
   );

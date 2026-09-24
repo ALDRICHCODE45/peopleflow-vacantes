@@ -1,18 +1,12 @@
 import { ShieldCheckIcon } from "lucide-react";
 
 /**
- * Presentation primitives shared by the local-only prototype surfaces (public
- * vacancy cards and the canonical detail). Everything here is server-safe: no
- * client directive, hook, state, request, or storage, and no raw color, because
- * every class comes from the PeopleFlow token layer. The metrics these
- * primitives render are fictional demo values supplied by
- * `PrototypeJobEnrichment`, and the caller owns wherever the disclosure and the
- * verification row appear.
+ * Presentation primitives shared by the public vacancy cards and the canonical
+ * detail. Everything here is server-safe: no client directive, hook, state,
+ * request, or storage, and no raw color, because every class comes from the
+ * PeopleFlow token layer. The metrics these primitives render are display
+ * values supplied by `PrototypeJobEnrichment`.
  */
-
-/** Exact disclosure every prototype metric or action must carry. */
-export const PROTOTYPE_DISCLOSURE =
-  "Datos y acciones de demostración: este prototipo no se conecta a ningún backend, no guarda información y no envía postulaciones reales.";
 
 /** Tile sizes the monogram offers; radii and type scale together. */
 const MONOGRAM_SIZES = {
@@ -80,23 +74,13 @@ export function CompanyMonogram({
 
 /**
  * Non-interactive verification row. It is deliberately not a button or a link:
- * the prototype only states that the process is verified, and the surrounding
- * disclosure, owned by the caller, says what that claim is worth.
+ * it only states that the process is verified, and owns no action.
  */
 export function VerifiedByPeopleFlow() {
   return (
     <p className="flex items-center gap-2 text-xs text-muted-foreground">
       <ShieldCheckIcon aria-hidden="true" className="size-4 shrink-0" />
       <span>Verificada por PeopleFlow</span>
-    </p>
-  );
-}
-
-/** The shared disclosure as an ARIA note in small text. */
-export function PrototypeDisclosure() {
-  return (
-    <p role="note" className="text-xs leading-relaxed text-muted-foreground">
-      {PROTOTYPE_DISCLOSURE}
     </p>
   );
 }
