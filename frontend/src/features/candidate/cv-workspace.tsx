@@ -70,12 +70,13 @@ function summaryText(total: number, primary: CandidateCv | undefined): string {
 }
 
 /**
- * The role fact as an installed Badge: `Principal` uses the filled default tone
- * and `Secundario` the outline one, so the Spanish word carries the meaning and
- * the tone only reinforces it. Roles never rely on color alone.
+ * The role fact as an installed Badge: `Principal` uses the pastel accent tone
+ * and `Secundario` the neutral one, so the Spanish word carries the meaning and
+ * the tone only reinforces it. A role is not a lifecycle status, so neither
+ * badge opts into the decorative dot, and roles never rely on color alone.
  */
 function RoleBadge({ isPrimary }: { readonly isPrimary: boolean }) {
-  return <Badge variant={isPrimary ? "default" : "outline"}>{isPrimary ? "Principal" : "Secundario"}</Badge>;
+  return <Badge variant={isPrimary ? "accent" : "neutral"}>{isPrimary ? "Principal" : "Secundario"}</Badge>;
 }
 
 /** One labelled fact: a functional icon with the quiet term, then the value. */

@@ -181,6 +181,41 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 
 `AvatarFallback` siempre presente; el alto/ancho viaja con `size-*`.
 
+### Badge
+
+```tsx
+import { Badge } from "@/components/ui/badge";
+
+<Badge variant="info" dot>Nuevo</Badge>          {/* estado: texto + punto decorativo */}
+<Badge variant="accent">Principal</Badge>        {/* rol/etiqueta: sin punto */}
+<Badge variant="outline" className="text-muted-foreground">{skill}</Badge>  {/* metadata: sin punto */}
+```
+
+Regla durable del Badge:
+
+- **Las variantes semánticas compartidas son dueñas del color y la geometría.** El
+  código de producto elige `variant` (`info`, `review`, `success`, `danger`, `accent`,
+  `neutral`, …) y **no** agrega recetas de color por llamada ni overrides de geometría
+  (`px-*`, `rounded-*`). El radio del badge es el `rounded-md` del primitive.
+- **El texto siempre carga el significado.** Un badge se lee aunque no se perciba el
+  color: el tono solo refuerza la etiqueta en español.
+- **El punto decorativo frontal es opt-in del estado de ciclo de vida.** Los estados
+  (`submitted`→`info`, `in_review`→`review`, `hired`→`success`, `rejected`→`danger`)
+  pasan `dot`; lo dibuja el `::before` del primitive, nunca un hijo manual.
+- **Roles, metadatos, skills, contadores, etiquetas de solo lectura y etiquetas
+  promocionales (`Destacada`) quedan sin punto:** no son estados de ciclo de vida.
+- **Filtros, tabs y toggles no son badges.** Esos patrones usan `Tabs`/`ToggleGroup`
+  instalados; un `Badge` no reemplaza un control interactivo.
+- **Sin paleta cruda ni recetas de color semántico por llamada** (`bg-red-50`,
+  `text-destructive`, `border-status-*` escritos a mano): el color de estado vive en el
+  primitive y en los tokens `--status-*`.
+
+**Excepción acotada — contador de tabs.** El contador numérico dentro de un
+`TabsTrigger` puede ser un `Badge variant="secondary"` sin punto y de tamaño circular,
+pero esa geometría la aporta el `TabsList` contenedor
+(`**:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full`), no cada badge: es una
+**excepción de contador**, no un badge de estado.
+
 ### Tabs
 
 ```tsx
@@ -264,6 +299,9 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
 - [ ] ¿La superficie se compone con sub-componentes (`CardHeader`, `EmptyContent`, etc.)?
 - [ ] ¿La pintura de producto usa solo tokens semánticos (cero color crudo, cero `dark:`
       de color en código de producto)?
+- [ ] ¿Cada `Badge` usa una variante semántica compartida (sin recetas de color por
+      llamada ni overrides de geometría) y solo los estados de ciclo de vida llevan el
+      punto decorativo `dot` (sección 6, "Badge")?
 - [ ] ¿Las clases propias son solo layout/densidad/accesibilidad?
 - [ ] ¿Los cambios de primitive compartido son transversales y vienen con test?
 - [ ] ¿Los controles/acciones independientes apuntan a ≥ 40px, y los compuestos nativos

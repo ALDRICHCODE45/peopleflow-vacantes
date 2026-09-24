@@ -21,6 +21,7 @@ import {
   ZapIcon,
 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { findCompanyProfile } from "../../company-profile/model";
 import { PROTOTYPE_COMPANY_PROFILES } from "../../company-profile/prototype-companies";
 import { vacancyApplicationHref } from "../application/application-draft";
@@ -45,7 +46,6 @@ const WORK_MODE_ICONS = {
 } as const satisfies Record<PrototypeJobView["work_mode"], typeof MapPinIcon>;
 
 const cardSurface = "rounded-2xl border border-border bg-card/60";
-const featuredBadge = "rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-foreground";
 const statTile = "grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-foreground";
 const statValue = "break-words font-medium text-foreground";
 const metaValue = "mt-0.5 font-medium break-words text-foreground";
@@ -319,7 +319,7 @@ export function JobDetailView({ job }: { job: PrototypeJobView }) {
           <div className="flex min-w-0 flex-1 flex-col gap-3">
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
               <h1 className="min-w-0 break-words font-heading text-2xl font-bold tracking-tight text-foreground md:text-3xl">{job.title}</h1>
-              {prototype?.featured === true && <span data-detail-flag="featured" className={featuredBadge}>Destacada</span>}
+              {prototype?.featured === true && <Badge variant="accent" data-detail-flag="featured">Destacada</Badge>}
             </div>
             <div className="text-sm text-muted-foreground">
               {profile === undefined ? (

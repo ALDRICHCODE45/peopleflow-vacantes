@@ -217,6 +217,9 @@ describe("candidate dashboard overview", () => {
     expect(SOURCE).toMatch(/STATUS_VARIANT: Readonly<Record<ApplicationStatus, BadgeVariant>>/u);
     expect(SOURCE).toContain("<Badge variant={STATUS_VARIANT[status]} dot>");
     expect(SOURCE).toContain('variant={completeness.percentage === 100 ? "success" : "review"}');
+    // The primary CV role is the shared pastel accent recipe, not a filled default span.
+    expect(SOURCE).toContain('<Badge variant="accent">Principal</Badge>');
+    expect(SOURCE).not.toContain("<Badge>Principal</Badge>");
     for (const recipe of ["STATUS_TONE", "COMPLETE_BADGE", "INCOMPLETE_BADGE", "border-status-"]) {
       expect(SOURCE, `candidate-dashboard-overview.tsx must not keep ${recipe}`).not.toContain(recipe);
     }
@@ -384,9 +387,15 @@ describe("candidate dashboard overview", () => {
     expect(description.className).toContain("break-words");
     expect(description.className).not.toContain("break-all");
     expect(description.className).toContain("line-clamp-none");
-    // The completeness badge uses the native filled foreground, not a low-contrast outline.
-    expect(screen.getByText("Principal").className).toContain("text-primary-foreground");
-    expect(SOURCE).not.toContain("border-primary/40");
+    // The primary CV role is the pastel accent Badge, dotless like every role.
+    const primaryBadge = screen.getByText("Principal");
+    expect(primaryBadge).toHaveAttribute("data-slot", "badge");
+    expect(primaryBadge).toHaveAttribute("data-variant", "accent");
+    expect(primaryBadge).not.toHaveAttribute("data-dot");
+    expect(primaryBadge.className).toContain("border-primary/40");
+    expect(primaryBadge.className).toContain("text-foreground");
+    expect(primaryBadge.querySelectorAll("*")).toHaveLength(0);
+    expect(SOURCE).toContain('<Badge variant="accent">Principal</Badge>');
     expect(SOURCE).not.toContain("break-all");
     expect(SOURCE).toContain("data-pf-overview-metric-value");
   });

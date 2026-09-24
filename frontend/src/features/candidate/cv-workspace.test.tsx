@@ -203,8 +203,17 @@ describe("cv workspace composition contract", () => {
     expect(badgesOf(SECONDARY.id)).toHaveLength(1);
     expect(badgesOf(PRIMARY.id)[0]).toHaveTextContent("Principal");
     expect(badgesOf(SECONDARY.id)[0]).toHaveTextContent("Secundario");
-    expect(badgesOf(PRIMARY.id)[0].getAttribute("data-variant")).toBe("default");
-    expect(badgesOf(SECONDARY.id)[0].getAttribute("data-variant")).toBe("outline");
+    expect(badgesOf(PRIMARY.id)[0].getAttribute("data-variant")).toBe("accent");
+    expect(badgesOf(SECONDARY.id)[0].getAttribute("data-variant")).toBe("neutral");
+    // A role is not a lifecycle status, so neither badge opts into the decorative dot.
+    for (const badge of [...badgesOf(PRIMARY.id), ...badgesOf(SECONDARY.id)]) {
+      expect(badge).not.toHaveAttribute("data-dot");
+      expect(badge.querySelectorAll("*")).toHaveLength(0);
+    }
+    // The saturated filled role tone and the outline metadata recipe are gone.
+    expect(SOURCE).toContain('variant={isPrimary ? "accent" : "neutral"}');
+    expect(SOURCE).not.toMatch(/variant=\{isPrimary \? "default"/u);
+    expect(SOURCE).not.toMatch(/<Badge[^>]*\bdot\b/u);
   });
 
   it("gives the document identity, every fact label and every disclosure trigger a contextual lucide icon", () => {

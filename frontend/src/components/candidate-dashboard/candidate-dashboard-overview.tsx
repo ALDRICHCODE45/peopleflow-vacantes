@@ -326,7 +326,7 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
                         <ItemDescription className="line-clamp-none break-words">{primary.fileName}</ItemDescription>
                       </ItemContent>
                       <ItemActions className="w-full sm:w-auto">
-                        <Badge>Principal</Badge>
+                        <Badge variant="accent">Principal</Badge>
                       </ItemActions>
                     </Item>
                     <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">

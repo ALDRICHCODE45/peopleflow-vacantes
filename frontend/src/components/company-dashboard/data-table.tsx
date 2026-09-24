@@ -20,7 +20,7 @@ import {
 import { z } from "zod"
 
 import { useIsMobile } from "@/hooks/use-mobile"
-import { Badge } from "@/components/ui/badge"
+import { Badge, type BadgeVariant } from "@/components/ui/badge"
 import { Button } from "./ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -113,14 +113,17 @@ export const SOURCE_LABELS: Record<ApplicantSource, string> = {
   other: "Otra",
 }
 
-const STATUS_BADGE_VARIANTS: Record<
-  ApplicantStatus,
-  "secondary" | "outline" | "default" | "destructive"
-> = {
-  submitted: "secondary",
-  in_review: "outline",
-  hired: "default",
-  rejected: "destructive",
+/**
+ * Semantic status variant per applicant stage: the Spanish label always carries
+ * the meaning, and the shared Badge variant reinforces it through the
+ * `--status-*` tokens. No raw palette value, no legacy filled-red mapping and
+ * no local compact-padding recipe is authored here.
+ */
+const STATUS_BADGE_VARIANTS: Readonly<Record<ApplicantStatus, BadgeVariant>> = {
+  submitted: "info",
+  in_review: "review",
+  hired: "success",
+  rejected: "danger",
 }
 
 /** One application as the recruiter API returns it. */
@@ -253,10 +256,7 @@ const columns = columnHelper.columns([
   columnHelper.accessor("status", {
     header: "Estado",
     cell: ({ row }) => (
-      <Badge
-        variant={STATUS_BADGE_VARIANTS[row.original.status]}
-        className="px-1.5"
-      >
+      <Badge variant={STATUS_BADGE_VARIANTS[row.original.status]} dot>
         {STATUS_LABELS[row.original.status]}
       </Badge>
     ),
@@ -264,7 +264,7 @@ const columns = columnHelper.columns([
   columnHelper.accessor("source", {
     header: "Fuente",
     cell: ({ row }) => (
-      <Badge variant="outline" className="px-1.5 text-muted-foreground">
+      <Badge variant="outline" className="text-muted-foreground">
         {SOURCE_LABELS[row.original.source]}
       </Badge>
     ),
@@ -319,10 +319,7 @@ function CandidateCell({ applicant }: { applicant: Applicant }) {
               <dd className="font-medium">{applicant.vacancy}</dd>
               <dt className="text-muted-foreground">Estado</dt>
               <dd>
-                <Badge
-                  variant={STATUS_BADGE_VARIANTS[applicant.status]}
-                  className="px-1.5"
-                >
+                <Badge variant={STATUS_BADGE_VARIANTS[applicant.status]} dot>
                   {STATUS_LABELS[applicant.status]}
                 </Badge>
               </dd>

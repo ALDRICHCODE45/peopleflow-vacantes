@@ -318,6 +318,17 @@ describe("JobDetailView reference header, stats, and scaffold (CCP-R4A)", () => 
     for (const text of ["Destacada", "Publicación", prototype.publishedAgoLabel, "Postulantes", prototypeApplicantsLabel(prototype.applicantCount)]) {
       expect(within(header).getByText(text)).toBeVisible();
     }
+    // The promotional label is the shared accent Badge, not a raw span recipe,
+    // and a promotion is not a lifecycle status, so it never opts into the dot.
+    const featured = container.querySelector("[data-detail-flag='featured']") as HTMLElement;
+    expect(featured).not.toBeNull();
+    expect(featured).toHaveTextContent("Destacada");
+    expect(featured).toHaveAttribute("data-slot", "badge");
+    expect(featured).toHaveAttribute("data-variant", "accent");
+    expect(featured).not.toHaveAttribute("data-dot");
+    expect(featured.querySelectorAll("*")).toHaveLength(0);
+    expect(viewSource).not.toContain("featuredBadge");
+    expect(viewSource).toContain('<Badge variant="accent" data-detail-flag="featured">Destacada</Badge>');
     expect(within(header).queryByRole("note")).toBeNull();
     expect(container.querySelectorAll("article [style]")).toHaveLength(0);
     const classes = [...container.querySelectorAll("article *")].map((node) => node.getAttribute("class") ?? "").join(" ");

@@ -21,6 +21,8 @@ import {
   formatReceivedDate,
   formatYearsOfExperience,
   schema,
+  SOURCE_LABELS,
+  STATUS_LABELS,
 } from "./data-table";
 
 // Vitest runs from frontend/, so cwd-relative paths keep the assertions stable.
@@ -60,6 +62,23 @@ const EXPECTED_FIELDS = [
   "vacancy",
   "yearsOfExperience",
 ];
+
+// The canonical semantic status vocabulary the shared Badge exposes.
+const STATUS_VARIANTS = {
+  submitted: "info",
+  in_review: "review",
+  hired: "success",
+  rejected: "danger",
+} as const;
+const STATUS_TOKENS = {
+  submitted: "status-info",
+  in_review: "status-review",
+  hired: "status-success",
+  rejected: "status-danger",
+} as const;
+/** Any Tailwind palette utility is a raw color: only semantic tokens are allowed. */
+const RAW_PALETTE =
+  /(?:^|\s|[a-z-]+:)(?:text|bg|border)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|white|black)-\d{2,3}(?:\s|$)/;
 
 // jsdom implements neither matchMedia nor ResizeObserver. The drawer direction
 // reads the first through `useIsMobile`; the sidebar/chart primitives read both.
@@ -114,7 +133,9 @@ function bodyRows(): HTMLElement[] {
 }
 
 function statusTab(name: string): HTMLElement {
-  return screen.getByRole("tab", { name: new RegExp(name) });
+  return screen.getByRole("tab", {
+    name: (accessibleName) => accessibleName.includes(name),
+  });
 }
 
 afterEach(() => {
@@ -365,23 +386,82 @@ describe("company dashboard recent applicants table", () => {
     expect(screen.getAllByText("Elena Márquez").length).toBeGreaterThan(0);
   });
 
-  it("renders the destructive status badge with the AA-safe pale-red palette", () => {
+  it("maps every applicant status onto the exact semantic Badge variant with a decorative dot", () => {
     render(<DataTable data={applicants} />);
 
-    const rejected = screen.getAllByText("Descartado");
-    expect(rejected.length).toBeGreaterThan(0);
+    const seen = new Set<string>();
+    for (const status of APPLICANT_STATUSES) {
+      const label = STATUS_LABELS[status];
+      // The tab label repeats "En revisión" as its own direct text, so the
+      // badges are read from the table body, not from an unqualified text query.
+      const badges = Array.from(
+        tableBody().querySelectorAll("[data-slot='badge']"),
+      ).filter((badge) => badge.textContent === label) as HTMLElement[];
+      expect(badges.length, `${label} status`).toBeGreaterThan(0);
 
-    for (const node of rejected) {
-      const badge = node.closest("[data-slot='badge']") ?? node;
-      expect(badge).toHaveAttribute("data-slot", "badge");
-      expect(badge.className).toContain("bg-red-50");
-      expect(badge.className).toContain("text-red-700");
-      expect(badge.className).toContain("dark:bg-red-950/40");
-      expect(badge.className).toContain("dark:text-red-300");
-      // The low-contrast translucent destructive fill must be gone.
-      expect(badge.className).not.toContain("bg-destructive/10");
-      expect(badge.className).not.toContain("text-destructive");
+      for (const badge of badges) {
+        expect(badge).toHaveAttribute("data-slot", "badge");
+        expect(badge).toHaveAttribute("data-variant", STATUS_VARIANTS[status]);
+        expect(badge).toHaveAttribute("data-dot");
+        expect(badge.className).toContain(STATUS_TOKENS[status]);
+        expect(RAW_PALETTE.test(badge.className)).toBe(false);
+        // The dot is the shared recipe's `::before`, never a manually rendered child.
+        expect(badge.childNodes).toHaveLength(1);
+        expect(badge.querySelectorAll("*")).toHaveLength(0);
+        // The primitive owns the compact geometry: no local padding override.
+        expect(badge.className).not.toContain("px-1.5");
+      }
+      seen.add(STATUS_VARIANTS[status]);
     }
+
+    expect(seen).toEqual(new Set(["info", "review", "success", "danger"]));
+    // The raw destructive mapping and its red palette are gone.
+    expect(source).toMatch(
+      /STATUS_BADGE_VARIANTS: Readonly<Record<ApplicantStatus, BadgeVariant>>/u,
+    );
+    expect(source).not.toContain("destructive");
+    expect(source).not.toMatch(/\b(?:bg|text|border)-red-\d/u);
+    expect(source).not.toContain("px-1.5");
+  });
+
+  it("keeps the source labels neutral and dotless metadata chips", () => {
+    render(<DataTable data={applicants} />);
+
+    for (const sourceValue of APPLICANT_SOURCES) {
+      const label = SOURCE_LABELS[sourceValue];
+      const nodes = screen.getAllByText(label);
+      expect(nodes.length, `${label} source`).toBeGreaterThan(0);
+
+      for (const node of nodes) {
+        const badge = node.closest("[data-slot='badge']");
+        expect(badge, `${label} badge`).not.toBeNull();
+        expect(badge).toHaveAttribute("data-variant", "outline");
+        expect(badge).not.toHaveAttribute("data-dot");
+        expect((badge as HTMLElement).className).toContain("text-muted-foreground");
+        expect(badge!.querySelectorAll("*")).toHaveLength(0);
+      }
+    }
+  });
+
+  it("keeps the tab-count counters neutral, dotless and circular", () => {
+    render(<DataTable data={applicants} />);
+
+    const tabList = screen.getByRole("tablist");
+    const counters = Array.from(
+      tabList.querySelectorAll("[data-slot='badge']"),
+    ) as HTMLElement[];
+
+    expect(counters).toHaveLength(4);
+    for (const counter of counters) {
+      expect(counter).toHaveAttribute("data-variant", "secondary");
+      expect(counter).not.toHaveAttribute("data-dot");
+      expect(counter.querySelectorAll("*")).toHaveLength(0);
+    }
+
+    // The circular size is a counter exception owned by the shared TabsList,
+    // not a status Badge geometry override.
+    expect(tabList.className).toContain("**:data-[slot=badge]:rounded-full");
+    expect(tabList.className).toContain("**:data-[slot=badge]:px-1");
   });
 
   it("shows coherent pipeline counts on every tab", () => {
@@ -607,6 +687,25 @@ describe("company dashboard candidate detail drawer", () => {
       within(dialog).getByText(formatReceivedDate(candidate.receivedAt)),
     ).toBeInTheDocument();
     expect(within(dialog).getByText(candidate.owner)).toBeInTheDocument();
+  });
+
+  it("renders the detail status as the same dotted semantic variant", async () => {
+    const user = userEvent.setup();
+    render(<DataTable data={applicants} />);
+
+    await user.click(screen.getByRole("button", { name: "Valentina Ríos" }));
+    const dialog = await screen.findByRole("dialog");
+    const candidate = rows[0];
+    const badge = within(dialog)
+      .getByText(STATUS_LABELS[candidate.status])
+      .closest("[data-slot='badge']") as HTMLElement;
+
+    expect(badge).not.toBeNull();
+    expect(badge).toHaveAttribute("data-slot", "badge");
+    expect(badge).toHaveAttribute("data-variant", STATUS_VARIANTS[candidate.status]);
+    expect(badge).toHaveAttribute("data-dot");
+    expect(badge.className).toContain(STATUS_TOKENS[candidate.status]);
+    expect(badge.querySelectorAll("*")).toHaveLength(0);
   });
 
   it("offers a single Cerrar control and no mutating demo action", async () => {
