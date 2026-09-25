@@ -31,7 +31,7 @@ Enhance the existing PeopleFlow theme toggle with the Magic UI circular View Tra
 ## Tasks
 
 - [x] **THEME-01 — Implement the animated toggle contract:** Added focused tests, the scoped circular View Transition behavior, reduced-motion and unsupported-browser fallbacks, and transient CSS without changing existing theme semantics.
-- [ ] **THEME-02 — Verify and close:** Run focused and regression tests, read-only TypeScript, ESLint, production build, LSP diagnostics, and isolated browser acceptance for animation, persistence, keyboard behavior, reduced motion, cleanup, and runtime safety; record exact evidence.
+- [x] **THEME-02 — Verify and close:** Completed focused and full regression tests, read-only TypeScript, ESLint, production build, LSP diagnostics, and real-browser acceptance for animation, persistence, keyboard behavior, reduced motion, cleanup, and runtime safety.
 
 ## Evidence
 
@@ -40,6 +40,13 @@ Enhance the existing PeopleFlow theme toggle with the Magic UI circular View Tra
 - The overlap correction was also test-first: two new tests failed with 22 existing passes, then passed after moving the ownership guard ahead of every theme-applying fallback.
 - Final independent THEME-01 verification passed 7/7 related files and 141/141 tests, read-only TypeScript, focused ESLint, and `git diff --check` under Node 22.23.2 and offline Corepack pnpm 10.34.5.
 - Pi Lens reported zero diagnostics across the changed TypeScript/test/CSS paths; one path remained technically inconclusive because its server is silent on clean re-checks. Project TypeScript compilation is the authoritative clean result.
+- `d31f509 feat(ui): animate theme transitions` contains the implementation, tests, scoped CSS, and THEME-01 evidence.
+- Final non-browser regression passed 103/103 files and 1,405/1,405 tests with no worker timeout, plus read-only TypeScript and full ESLint under Node 22.23.2 and offline Corepack pnpm 10.34.5. Existing non-failing jsdom canvas/WebGL, Recharts zero-size, and root-layout hydration diagnostics remained unchanged.
+- Real-browser regression passed 2/2 existing theme-related Chromium tests. A six-case acceptance matrix covered marketing, candidate, employer, and login surfaces at desktop/mobile with pointer, keyboard, and reduced-motion activation.
+- Five animated cases observed exactly one real View Transition, a 400ms button-centered percentage circle, `::view-transition-new(root)`, correct persistence and dark-class updates, and complete transient-scope cleanup. The reduced-motion case observed zero View Transition calls.
+- Across the six browser cases: 140 requests, zero requests to ports 3001/4010/4011, zero serious/critical Axe findings, zero page/console errors, and zero horizontal overflow. Evidence is stored in `/tmp/peopleflow-theme-transition/manifest.json` with five mid-transition and six final screenshots.
+- The production build passed in 33 seconds, generated 15 static pages, and reported 18 routes (4 static, 14 dynamic). Only existing webpack large-string cache warnings remained.
+- The user-requested dev server was restored on `http://127.0.0.1:3000` after the build; its owned PID/PGID is recorded in `/tmp/peopleflow-dev-3000.pid` and its log is `/tmp/peopleflow-dev-3000-after-theme.log`.
 
 ## Acceptance Criteria
 
