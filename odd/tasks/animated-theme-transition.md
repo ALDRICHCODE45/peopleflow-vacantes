@@ -30,8 +30,16 @@ Enhance the existing PeopleFlow theme toggle with the Magic UI circular View Tra
 
 ## Tasks
 
-- [ ] **THEME-01 — Implement the animated toggle contract:** Add focused tests, the scoped circular View Transition behavior, reduced-motion and unsupported-browser fallbacks, and transient CSS without changing existing theme semantics.
+- [x] **THEME-01 — Implement the animated toggle contract:** Added focused tests, the scoped circular View Transition behavior, reduced-motion and unsupported-browser fallbacks, and transient CSS without changing existing theme semantics.
 - [ ] **THEME-02 — Verify and close:** Run focused and regression tests, read-only TypeScript, ESLint, production build, LSP diagnostics, and isolated browser acceptance for animation, persistence, keyboard behavior, reduced motion, cleanup, and runtime safety; record exact evidence.
+
+## Evidence
+
+- THEME-01 test-first RED: 11 new reveal/CSS tests failed against the pre-change implementation while the 11 existing/fallback contracts passed.
+- THEME-01 initial GREEN: 22/22 focused tests passed; an independent verifier then identified that reduced-motion/API fallback branches could bypass the cross-toggle ownership guard during an active reveal.
+- The overlap correction was also test-first: two new tests failed with 22 existing passes, then passed after moving the ownership guard ahead of every theme-applying fallback.
+- Final independent THEME-01 verification passed 7/7 related files and 141/141 tests, read-only TypeScript, focused ESLint, and `git diff --check` under Node 22.23.2 and offline Corepack pnpm 10.34.5.
+- Pi Lens reported zero diagnostics across the changed TypeScript/test/CSS paths; one path remained technically inconclusive because its server is silent on clean re-checks. Project TypeScript compilation is the authoritative clean result.
 
 ## Acceptance Criteria
 

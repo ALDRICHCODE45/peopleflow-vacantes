@@ -311,6 +311,32 @@
   display: block;
 }
 
+/* Animated theme reveal (View Transitions API, adapted from the official
+   Magic UI Animated Theme Toggler). Every rule is scoped behind the transient
+   html[data-pf-theme-vt="active"] flag that the theme toggle sets only while
+   one of its reveals is in flight, so no unscoped ::view-transition-* rule
+   can affect navigation or any other view transition. Duration and the
+   collapsed initial clip come from PeopleFlow-owned custom properties set by
+   the same control before it starts the transition, which keeps the reveal
+   synchronized with the view-transition group. */
+html[data-pf-theme-vt="active"]::view-transition-group(root) {
+  animation-duration: var(--pf-theme-vt-duration);
+}
+
+/* The reveal supplies its own motion, so the default root cross-fade is off
+   and layers stay opaque while the new root expands over the old one. */
+html[data-pf-theme-vt="active"]::view-transition-old(root),
+html[data-pf-theme-vt="active"]::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Pinned collapsed clip: removes the unscaled first frame some browsers paint
+   between the snapshot and the script-driven animation. */
+html[data-pf-theme-vt="active"]::view-transition-new(root) {
+  clip-path: var(--pf-theme-vt-clip-from);
+}
+
 /* /vacantes ambient depth helpers: static violet top glow and masked dot
    grid, theme-aware through the semantic --primary token (preset Violet
    identity) with per-scheme --pf-* intensity tokens defined alongside the
