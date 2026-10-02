@@ -13,6 +13,7 @@ const { pathnameMock } = vi.hoisted(() => ({
 vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
 
 import { EmployerShell } from "@/components/company-dashboard/employer-shell";
+import { EmployerSessionProvider } from "@/features/company-site-editor/employer-session";
 
 import PageContent, { metadata } from "./page";
 
@@ -20,7 +21,9 @@ import PageContent, { metadata } from "./page";
 function Page() {
   return (
     <EmployerShell>
-      <PageContent />
+      <EmployerSessionProvider>
+        <PageContent />
+      </EmployerSessionProvider>
     </EmployerShell>
   );
 }

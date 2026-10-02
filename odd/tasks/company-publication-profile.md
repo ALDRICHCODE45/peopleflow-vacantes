@@ -10,8 +10,8 @@ Follow docs/frontend-ui-design-rules.md and existing primitives; Mexican Spanish
 Feature branch: feat/company-publication-profile, base 82ff2e7. Strategy: feature-branch-chain, approved by user; three sequential local work-unit slices, no remote PR creation. Forecast 700–950 authored diff lines; approximately 400 per slice is advisory, never a reason to omit tests. Single writer. All tasks delegated due multi-file writes. RDD off; assess writer diff and follow returned verification plan. Parent owns task updates and commits.
 
 ## Tasks
-- [ ] CPP-1 (in progress): Shared employer session state and minimum-profile readiness, layout integration, focused lifecycle/model tests. Route: delegated writer. Commit: pending.
-- [ ] CPP-2 (pending): Company editor consumes shared profile, confirms name, requires About for publication, leaves rich sections optional. Route: delegated writer. Commit: pending.
+- [x] CPP-1 (complete): Shared employer session state and minimum-profile readiness, layout integration, focused lifecycle/model tests. Route: delegated writer. Commit: eb8d709.
+- [ ] CPP-2 (in progress): Company editor consumes shared profile, confirms name, requires About for publication, leaves rich sections optional. Route: delegated writer. Commit: pending.
 - [ ] CPP-3 (pending): Review publication action and profile gate, independent draft action, preserve both vacancy value sets and wizard position; focused tests, local main integration. Route: delegated writer + delivery parent. Commit: pending.
 
 ## Acceptance and checks
@@ -21,4 +21,4 @@ Seeded fallback name alone never establishes confirmed identity; whitespace fail
 Exploration complete; no source edits yet. Current feature worktree initially clean. Main 59a7247 has only unstaged openspec/changes/backend-go-closure/{apply-progress,design,tasks}.md. Preserve SHA256 respectively: 74a526152b3b4e3d1a04cf12605459bf03e75e5d378db6303fbcef94758ed48e; 5e45c2f2ad86ba7dec277aafa30a64f505a67656dacc1124c4fba8736e4986b1; f5d8942dd734c762699b64a2bdb320191f8b5d5a2b9d166b6744d01d8b4e0da7.
 
 ## Next step
-Implement CPP-1 only, report focused test evidence and actual diff; do not commit from worker.
+Implement CPP-2 only; shared provider API is ready. CPP-1 evidence: observed RED then 13 focused tests GREEN; 4 layout tests, TypeScript and scoped ESLint passed under Node22.23.2. Independent verifier reran 13 focused tests and inspected readiness/provider integration: PASS. Native assessment unavailable due untracked paths; independent verification completed, RDD remains off. CPP-1 source diff approximately 410 additions/4 deletions; retained coherent tests rather than splitting artificially. No browser/build/accessibility checks run.

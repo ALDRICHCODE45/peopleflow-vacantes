@@ -3,6 +3,8 @@
 import * as React from "react";
 import { BookOpenIcon, Building2Icon, WrenchIcon } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Field,
@@ -14,22 +16,19 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { CompanyCareersView } from "@/features/company-profile/company-careers-view";
-import {
-  createEmployerSiteDraft,
-  draftToSiteContent,
-  updateDraftField,
-  type EmployerSiteDraft,
-  type EmployerSiteField,
-} from "./employer-site-draft";
+import { draftToSiteContent, type EmployerSiteField } from "./employer-site-draft";
+import { useEmployerSession } from "./employer-session";
 
 /**
- * Local-only section editor for `/empresa/sitio`.
+ * Section editor for `/empresa/sitio`.
  *
- * It owns the whole draft in React state and renders the shared public careers
- * renderer as its preview, so typing updates the preview immediately and nothing
- * is fetched, stored, published, uploaded or navigated. The page never becomes a
- * public company profile: the preview is the employer's own identity-only draft,
- * and the renderer stays the single source of the public layout.
+ * The draft lives in the shared employer session, so the values the recruiter
+ * writes here survive employer navigation and are the same ones the vacancy
+ * publication gate reads. The editor renders the shared public careers renderer
+ * as its preview, so typing updates the preview immediately and nothing is
+ * fetched, stored, uploaded or navigated. It confirms the company name
+ * explicitly, and the minimum profile only reads as complete with a confirmed
+ * nonblank name and an authored About description; the rich fields stay optional.
  */
 
 /** The three editable sections, in content order. */
@@ -111,6 +110,24 @@ const SECTION_FIELDS: Readonly<Record<SiteSection, readonly FieldDefinition[]>> 
 const INTRO_ID = "sitio-editor-titulo";
 const PREVIEW_ID = "sitio-preview-titulo";
 
+/** One concise line for whichever minimum-profile step is still missing. */
+function profileGuidance(
+  nameDeclared: boolean,
+  nameConfirmed: boolean,
+  aboutDeclared: boolean,
+): string {
+  if (!nameDeclared) {
+    return "Escribe el nombre de tu empresa para comenzar.";
+  }
+  if (!nameConfirmed) {
+    return "Confirma el nombre para fijar la identidad de tu empresa.";
+  }
+  if (!aboutDeclared) {
+    return "Describe tu empresa en Sobre la empresa para completar el perfil.";
+  }
+  return "Tu perfil de empresa está listo.";
+}
+
 /** Layout-only adjustments to the installed tab rail: overflow, focus, no repaint. */
 const TAB_LIST =
   "max-w-full justify-start overflow-auto focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -120,13 +137,21 @@ const PREVIEW_HEADING_LEVEL = 2;
 const PREVIEW_ID_PREFIX = "preview-";
 
 export function CompanySiteEditor() {
-  const [draft, setDraft] = React.useState<EmployerSiteDraft>(createEmployerSiteDraft);
+  const { profile, profileReady, updateCompanyField, confirmCompanyName } =
+    useEmployerSession();
   const [section, setSection] = React.useState<SiteSection>("identidad");
 
-  /** One local field update: the draft is replaced, never mutated. */
-  const handleChange = React.useCallback((field: EmployerSiteField, value: string) => {
-    setDraft((current) => updateDraftField(current, field, value));
-  }, []);
+  const { draft, nameConfirmed } = profile;
+  const nameDeclared = draft.name.trim().length > 0;
+  const aboutDeclared = draft.about.trim().length > 0;
+
+  /** One shared-session field update: editing the name revokes the confirmation. */
+  const handleChange = React.useCallback(
+    (field: EmployerSiteField, value: string) => {
+      updateCompanyField(field, value);
+    },
+    [updateCompanyField],
+  );
 
   const content = draftToSiteContent(draft);
 
@@ -144,6 +169,26 @@ export function CompanySiteEditor() {
           previa se actualiza mientras escribes.
         </p>
       </section>
+
+      {/* Profile readiness: the minimum gate, kept beside the editor it reads. */}
+      <Card data-pf-sitio-readiness size="sm" className="min-w-0">
+        <CardContent className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <Badge variant={profileReady ? "success" : "neutral"} dot>
+            {profileReady ? "Perfil listo" : "Perfil incompleto"}
+          </Badge>
+          <p className="min-w-0 flex-1 basis-56 text-[13.5px] text-muted-foreground">
+            {profileGuidance(nameDeclared, nameConfirmed, aboutDeclared)}
+          </p>
+          <Button
+            type="button"
+            className="h-10"
+            disabled={!nameDeclared || nameConfirmed}
+            onClick={confirmCompanyName}
+          >
+            Confirmar nombre
+          </Button>
+        </CardContent>
+      </Card>
 
       <div
         data-pf-sitio-layout
