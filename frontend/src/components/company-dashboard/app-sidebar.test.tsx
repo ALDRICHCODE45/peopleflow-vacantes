@@ -1,8 +1,8 @@
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 // Route awareness comes from the App Router pathname hook; the suite drives it
@@ -28,33 +28,24 @@ const PRINCIPAL_ITEMS = [
   "Dashboard",
   "Vacantes",
   "Base de talento",
-  "Mensajes",
 ] as const;
 const ORGANIZATION_ITEMS = [
   "Equipo",
   "Sitio de empleo",
-  "Reportes",
   "Configuración",
 ] as const;
 
-// Destinations backed by real App Router routes, and the unresolved
-// presentation placeholders that render inert instead of as anchors.
+// Every visible navigation destination is backed by a real App Router page.
 const RESOLVED_DESTINATIONS = {
   Dashboard: "/empresa/dashboard",
   Vacantes: "/empresa/vacantes",
   "Base de talento": "/empresa/talento",
   Equipo: "/empresa/equipo",
   "Sitio de empleo": "/empresa/sitio",
+  "Configuración": "/empresa/configuracion",
 } as const;
-const PROTOTYPE_ITEMS = [
-  "Mensajes",
-  "Reportes",
-  "Configuración",
-] as const;
-const ALL_ITEMS = [
-  ...Object.keys(RESOLVED_DESTINATIONS),
-  ...PROTOTYPE_ITEMS,
-] as const;
+const REMOVED_ITEMS = ["Mensajes", "Reportes"] as const;
+const ALL_ITEMS = Object.keys(RESOLVED_DESTINATIONS);
 
 // jsdom implements neither matchMedia nor ResizeObserver; the sidebar reads the
 // first through `useIsMobile`, so it is stubbed to the desktop branch.
@@ -215,16 +206,14 @@ describe("company dashboard sidebar navigation", () => {
   it("lists the primary recruiting destinations in order", () => {
     renderSidebar();
 
-    // Dashboard, Vacantes and Base de talento are links; Mensajes is an inert
-    // button. Both roles keep their shared order in the Principal group.
+    // Recruiting destinations keep their shared order, with no dead entry.
     expect(groupDestinations("Principal")).toEqual([...PRINCIPAL_ITEMS]);
   });
 
   it("lists the organization destinations in order", () => {
     renderSidebar();
 
-    // Equipo and Sitio de empleo are links; Reportes and Configuración are
-    // inert buttons.
+    // Organization destinations, including settings, are all real links.
     expect(groupDestinations("Organización")).toEqual([...ORGANIZATION_ITEMS]);
   });
 
@@ -239,7 +228,7 @@ describe("company dashboard sidebar navigation", () => {
     expect(link.querySelector("svg.lucide")).toBeNull();
   });
 
-  it("binds resolved destinations as links and the rest as inert buttons", () => {
+  it("binds every destination to an existing page and removes unresolved entries", () => {
     renderSidebar();
 
     for (const [label, href] of Object.entries(RESOLVED_DESTINATIONS)) {
@@ -247,13 +236,11 @@ describe("company dashboard sidebar navigation", () => {
         screen.getByRole("link", { name: label }),
         `${label} destination`,
       ).toHaveAttribute("href", href);
+      expect(existsSync(join(process.cwd(), "src/app/(empresa)", href.slice(1), "page.tsx")), href).toBe(true);
     }
-
-    for (const label of PROTOTYPE_ITEMS) {
-      const control = screen.getByRole("button", { name: label });
-      expect(control, `${label} placeholder`).toHaveAttribute("type", "button");
-      expect(control, `${label} placeholder`).not.toHaveAttribute("href");
-      expect(control, `${label} placeholder`).toBeEnabled();
+    for (const label of REMOVED_ITEMS) {
+      expect(screen.queryByRole("button", { name: label })).toBeNull();
+      expect(screen.queryByRole("link", { name: label })).toBeNull();
     }
   });
 
@@ -269,6 +256,7 @@ describe("company dashboard sidebar navigation", () => {
     ["/empresa/talento", "Base de talento"],
     ["/empresa/sitio", "Sitio de empleo"],
     ["/empresa/sitio/identidad", "Sitio de empleo"],
+    ["/empresa/configuracion", "Configuración"],
   ])("activates only %s on the %s section", (pathname, expected) => {
     renderSidebar(pathname);
 
@@ -295,16 +283,10 @@ describe("company dashboard sidebar navigation", () => {
     expect(activeLabels()).toEqual([]);
   });
 
-  it("never activates the unresolved prototypes", () => {
+  it("never activates a destination for an empty or unrelated pathname", () => {
     for (const pathname of ["#", "", "/", null]) {
       renderSidebar(pathname);
-
-      for (const label of PROTOTYPE_ITEMS) {
-        expect(
-          screen.getByRole("button", { name: label }),
-          `${label} must not be marked active on ${String(pathname)}`,
-        ).not.toHaveAttribute("data-active");
-      }
+      expect(activeLabels()).toEqual([]);
       cleanup();
     }
   });
@@ -423,21 +405,10 @@ describe("company dashboard sidebar create action", () => {
     expect(screen.getByRole("link", { name: "Vacantes" }).tagName).toBe("A");
   });
 
-  it("renders the unresolved recruiting navigation as enabled inert buttons", () => {
+  it("keeps only real links alongside the native creation form", () => {
     renderSidebar();
-
-    for (const label of PROTOTYPE_ITEMS) {
-      const control = screen.getByRole("button", { name: label });
-      expect(control.tagName, `${label} destination`).toBe("BUTTON");
-      expect(control).toHaveAttribute("type", "button");
-      expect(control).not.toHaveAttribute("href");
-      expect(control).toBeEnabled();
-      // No unresolved item survives as an anchor with a placeholder href.
-      expect(
-        screen.queryByRole("link", { name: label }),
-        `${label} must not render an anchor`,
-      ).toBeNull();
-    }
+    expect(document.querySelectorAll("[data-slot='sidebar-content'] a")).toHaveLength(6);
+    expect(document.querySelectorAll("[data-slot='sidebar-content'] button")).toHaveLength(1);
     expect(document.querySelectorAll("a[href='#']")).toHaveLength(0);
 
     // The create form is the only form in the shell, and it wraps only the
@@ -447,25 +418,13 @@ describe("company dashboard sidebar create action", () => {
     expect(forms[0].textContent).toContain("Nueva vacante");
   });
 
-  it("keeps every unresolved placeholder click-inert", () => {
-    const { container } = renderSidebar();
-
-    const hrefBefore = window.location.href;
-    const hashBefore = window.location.hash;
-    const contentBefore = container.textContent;
-    for (const label of PROTOTYPE_ITEMS) {
-      fireEvent.click(screen.getByRole("button", { name: label }));
+  it("supplies useful account destinations instead of the generic placeholder menu", () => {
+    // Base UI menu positioning cannot settle in jsdom (see nav-user.test).
+    // Browser coverage exercises the actual portal and keyboard navigation.
+    expect(source).toContain("<NavUser user={data.user} menuItems={ACCOUNT_MENU} />");
+    for (const [label, href] of [["Configuración", "/empresa/configuracion"], ["Equipo", "/empresa/equipo"], ["Sitio de empleo", "/empresa/sitio"]]) {
+      expect(source).toContain(`title: "${label}", href: "${href}"`);
     }
-
-    // Clicking navigates nowhere, mutates no rendered content, and claims no
-    // status or note on any pathway.
-    expect(window.location.href).toBe(hrefBefore);
-    expect(window.location.hash).toBe(hashBefore);
-    expect(container.textContent).toBe(contentBefore);
-    expect(screen.queryByRole("status")).toBeNull();
-    expect(
-      document.querySelectorAll("[role='note'], [data-pf-note]"),
-    ).toHaveLength(0);
   });
 });
 

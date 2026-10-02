@@ -141,9 +141,8 @@ describe("/empresa/dashboard renders the complete official dashboard-01 block", 
       "Dashboard",
       "Vacantes",
       "Base de talento",
-      "Mensajes",
       "Equipo",
-      "Reportes",
+      "Sitio de empleo",
       "Configuración",
     ]) {
       expect(
@@ -152,39 +151,23 @@ describe("/empresa/dashboard renders the complete official dashboard-01 block", 
       ).toBeGreaterThan(0);
     }
 
-    // Dashboard, Vacantes, Base de talento and Equipo are real routes; the rest
-    // are presentation placeholders that stay invisible to navigation but
-    // visible to the user.
+    // Every sidebar destination is an implemented route.
     for (const [label, href] of [
       ["Dashboard", "/empresa/dashboard"],
       ["Vacantes", "/empresa/vacantes"],
       ["Base de talento", "/empresa/talento"],
       ["Equipo", "/empresa/equipo"],
+      ["Sitio de empleo", "/empresa/sitio"],
+      ["Configuración", "/empresa/configuracion"],
     ] as const) {
       expect(
         screen.getByRole("link", { name: label }),
         `${label} destination`,
       ).toHaveAttribute("href", href);
     }
-    for (const label of ["Mensajes", "Reportes", "Configuración"]) {
-      const placeholder = screen.getByRole("button", { name: label });
-      expect(placeholder, `${label} prototype target`).toHaveAttribute(
-        "type",
-        "button",
-      );
-      expect(
-        placeholder,
-        `${label} must not carry a destination`,
-      ).not.toHaveAttribute("href");
-      expect(placeholder, `${label} must stay enabled`).toBeEnabled();
-      expect(
-        placeholder,
-        `${label} must not be marked active`,
-      ).not.toHaveAttribute("data-active");
-      expect(
-        screen.queryByRole("link", { name: label }),
-        `${label} must not render an anchor`,
-      ).toBeNull();
+    for (const label of ["Mensajes", "Reportes"]) {
+      expect(screen.queryByRole("button", { name: label })).toBeNull();
+      expect(screen.queryByRole("link", { name: label })).toBeNull();
     }
 
     for (const stock of [
