@@ -19,6 +19,7 @@ Monorepo del producto. Plataforma pública de vacantes self-service.
 - `docs/arquitectura-backend-proyecto-04.md` — organización del backend Go
 - `docs/modelo-de-datos-proyecto-04.md` — modelo de datos Postgres: 9 tablas (8 de entidad + el catálogo `industries`)
 - `docs/decision-frontend-hosting.md` — hosting frontend (Amplify) + modelo de costo
+- `docs/frontend-ui-design-rules.md` — reglas de diseño UI frontend (shadcn primero) y mapa de primitives
 
 ## Contexto estratégico / comercial / legal
 

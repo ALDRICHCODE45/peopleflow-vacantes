@@ -1,0 +1,456 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* --------------------------------------------------------------------------
+   Public heading face: Clash Display, self-hosted.
+
+   The app-wide `--font-heading` token asks for the family "Clash Display" with
+   the Inter body stack as its fallback, so the three licensed weight files
+   below are registered here under exactly that name for every public route.
+   The files are served from /public/fonts and were fetched once from the
+   foundry CDN (family, foundry, license, and hashes in
+   public/fonts/clash-display.PROVENANCE.txt), so no stylesheet, preconnect, or
+   CSS @import to a remote origin is needed at runtime. `font-display: swap`
+   keeps text visible in the fallback face while a weight loads.
+   The marketing landing registers the same files under a landing-local family
+   name, which is why that surface can keep its own scoping.
+   -------------------------------------------------------------------------- */
+@font-face {
+  font-family: "Clash Display";
+  src: url("/fonts/clash-display-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Clash Display";
+  src: url("/fonts/clash-display-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Clash Display";
+  src: url("/fonts/clash-display-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@theme inline {
+    --font-heading: "Clash Display", var(--font-sans);
+    --font-sans: var(--font-sans);
+    /* Supplemental application-status tones. Feature code consumes each token
+       as Badge text and border over a low-opacity background of the same
+       token, so every value is foreground-strength, not a surface tint. */
+    --color-status-info: var(--status-info);
+    --color-status-review: var(--status-review);
+    --color-status-success: var(--status-success);
+    --color-status-danger: var(--status-danger);
+    --color-sidebar-ring: var(--sidebar-ring);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar: var(--sidebar);
+    --color-chart-5: var(--chart-5);
+    --color-chart-4: var(--chart-4);
+    --color-chart-3: var(--chart-3);
+    --color-chart-2: var(--chart-2);
+    --color-chart-1: var(--chart-1);
+    --color-ring: var(--ring);
+    --color-input: var(--input);
+    --color-border: var(--border);
+    --color-destructive: var(--destructive);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-accent: var(--accent);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-muted: var(--muted);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-secondary: var(--secondary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-primary: var(--primary);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-popover: var(--popover);
+    --color-card-foreground: var(--card-foreground);
+    --color-card: var(--card);
+    --color-foreground: var(--foreground);
+    --color-background: var(--background);
+    --radius-sm: calc(var(--radius) * 0.6);
+    --radius-md: calc(var(--radius) * 0.8);
+    --radius-lg: var(--radius);
+    --radius-xl: calc(var(--radius) * 1.4);
+    --radius-2xl: calc(var(--radius) * 1.8);
+    --radius-3xl: calc(var(--radius) * 2.2);
+    --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Approved semantic palette: reconciled with design/screens/assets/base.css
+   (the static HTML reference). Reference-to-semantic-token mapping, consumed
+   exactly in both themes — no color-space conversion, values used as authored:
+
+     --base      -> --background           (page foundation)
+     --ink       -> --foreground (+ *-foreground roles)
+     --surface   -> --card
+     --elevated  -> --popover
+     --surface2  -> --secondary / --muted / --accent
+     --line      -> --border / --input
+     --muted     -> --muted-foreground
+     --top-glow-alpha -> --pf-glow-alpha
+     --grid-dot-alpha -> --pf-grid-dot-alpha
+
+   Accent identity is NOT part of the reconciliation: --primary/--primary-
+   foreground keep the configured violet preset values, chart tokens stay
+   neutral, and --radius/--ring/--destructive are untouched. */
+:root {
+    color-scheme: light;
+    --brand-decorative-strong: oklch(0.54 0.15 292.581);
+    /* Foreground-strength status tones: >= 6.3:1 on the tinted badge surface. */
+    --status-info: oklch(0.45 0.16 250);
+    --status-review: oklch(0.47 0.12 70);
+    --status-success: oklch(0.46 0.13 152);
+    --status-danger: oklch(0.45 0.2 25);
+    --background: #F7F5FB;
+    --foreground: #1A1626;
+    --card: #FFFFFF;
+    --card-foreground: #1A1626;
+    --popover: #FFFFFF;
+    --popover-foreground: #1A1626;
+    --primary: oklch(0.491 0.27 292.581);
+    --primary-foreground: oklch(0.969 0.016 293.756);
+    --secondary: #F1EEF7;
+    --secondary-foreground: #1A1626;
+    --muted: #F1EEF7;
+    --muted-foreground: #6B6480;
+    --accent: #F1EEF7;
+    --accent-foreground: #1A1626;
+    --destructive: oklch(0.577 0.245 27.325);
+    --border: #E4DFF0;
+    --input: #E4DFF0;
+    --ring: oklch(0.708 0 0);
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --radius: 0.625rem;
+    --pf-glow-alpha: 0.12;
+    --pf-grid-dot-alpha: 0.07;
+    --sidebar: oklch(0.985 0 0);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-primary: oklch(0.541 0.281 293.009);
+    --sidebar-primary-foreground: oklch(0.969 0.016 293.756);
+    --sidebar-accent: oklch(0.97 0 0);
+    --sidebar-accent-foreground: oklch(0.205 0 0);
+    --sidebar-border: oklch(0.922 0 0);
+    --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+    color-scheme: dark;
+    --brand-decorative-strong: oklch(0.70 0.14 292.759);
+    /* Foreground-strength status tones: >= 6.3:1 on the tinted badge surface. */
+    --status-info: oklch(0.78 0.12 245);
+    --status-review: oklch(0.82 0.12 78);
+    --status-success: oklch(0.78 0.14 155);
+    --status-danger: oklch(0.75 0.15 22);
+    --background: #0C0912;
+    --foreground: #F6F2FF;
+    --card: #15121F;
+    --card-foreground: #F6F2FF;
+    --popover: #1A1626;
+    --popover-foreground: #F6F2FF;
+    --primary: oklch(0.432 0.232 292.759);
+    --primary-foreground: oklch(0.969 0.016 293.756);
+    --secondary: #171226;
+    --secondary-foreground: #F6F2FF;
+    --muted: #171226;
+    --muted-foreground: #A79FBF;
+    --accent: #171226;
+    --accent-foreground: #F6F2FF;
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: #262233;
+    --input: #262233;
+    --ring: oklch(0.556 0 0);
+    --pf-glow-alpha: 0.22;
+    --pf-grid-dot-alpha: 0.11;
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.606 0.25 292.717);
+    --sidebar-primary-foreground: oklch(0.969 0.016 293.756);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    }
+  body {
+    @apply bg-background text-foreground;
+    }
+  html {
+    @apply font-sans;
+    }
+}
+
+/* System-preference dark tokens: same values as the .dark block, applied
+   only while no explicit manual choice exists (the manual theme contract
+   gates this block with :root:not([data-theme])). */
+@media (prefers-color-scheme: dark) {
+  /* Manual theme contract: applies only until an explicit choice exists. The
+     pre-paint bootstrap sets data-theme on <html> for a persisted light/dark
+     choice, so the system preference owns the default without ever fighting
+     the manual control. */
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --brand-decorative-strong: oklch(0.70 0.14 292.759);
+    /* Foreground-strength status tones: >= 6.3:1 on the tinted badge surface. */
+    --status-info: oklch(0.78 0.12 245);
+    --status-review: oklch(0.82 0.12 78);
+    --status-success: oklch(0.78 0.14 155);
+    --status-danger: oklch(0.75 0.15 22);
+    --background: #0C0912;
+    --foreground: #F6F2FF;
+    --card: #15121F;
+    --card-foreground: #F6F2FF;
+    --popover: #1A1626;
+    --popover-foreground: #F6F2FF;
+    --primary: oklch(0.432 0.232 292.759);
+    --primary-foreground: oklch(0.969 0.016 293.756);
+    --secondary: #171226;
+    --secondary-foreground: #F6F2FF;
+    --muted: #171226;
+    --muted-foreground: #A79FBF;
+    --accent: #171226;
+    --accent-foreground: #F6F2FF;
+    --destructive: oklch(0.704 0.191 22.216);
+    --border: #262233;
+    --input: #262233;
+    --ring: oklch(0.556 0 0);
+    --pf-glow-alpha: 0.22;
+    --pf-grid-dot-alpha: 0.11;
+    --chart-1: oklch(0.87 0 0);
+    --chart-2: oklch(0.556 0 0);
+    --chart-3: oklch(0.439 0 0);
+    --chart-4: oklch(0.371 0 0);
+    --chart-5: oklch(0.269 0 0);
+    --sidebar: oklch(0.205 0 0);
+    --sidebar-foreground: oklch(0.985 0 0);
+    --sidebar-primary: oklch(0.606 0.25 292.717);
+    --sidebar-primary-foreground: oklch(0.969 0.016 293.756);
+    --sidebar-accent: oklch(0.269 0 0);
+    --sidebar-accent-foreground: oklch(0.985 0 0);
+    --sidebar-border: oklch(1 0 0 / 10%);
+    --sidebar-ring: oklch(0.556 0 0);
+  }
+}
+
+/* PeopleFlow wordmarks: one mark per color scheme, swapped by the same
+   system preference. Dimensions are reserved by next/image width/height. */
+.brand-mark-dark {
+  display: none;
+}
+
+/* Explicit manual choice: the resolved theme class owns the wordmark swap. */
+.dark .brand-mark-light {
+  display: none;
+}
+
+.dark .brand-mark-dark {
+  display: block;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* System default only: gated the same way as the token block above, so a
+     persisted light choice on a dark-OS device still shows the light mark. */
+  :root:not([data-theme]) .brand-mark-light {
+    display: none;
+  }
+
+  :root:not([data-theme]) .brand-mark-dark {
+    display: block;
+  }
+}
+
+/* Manual theme control icon contract (theme-control markup contract from the
+   approved reference): the button carries data-pf-theme-toggle and three
+   lucide icons with pf-icon-sun / pf-icon-moon / pf-icon-system. CSS — not
+   React state — reveals the icon matching the resolved theme, so server
+   markup, first paint, and post-bootstrap paint all agree (no hydration
+   mismatch, no icon flash). */
+[data-pf-theme-toggle] .pf-icon-sun,
+[data-pf-theme-toggle] .pf-icon-moon,
+[data-pf-theme-toggle] .pf-icon-system {
+  display: none;
+}
+
+:root[data-theme="dark"] [data-pf-theme-toggle] .pf-icon-sun {
+  display: block;
+}
+
+:root[data-theme="light"] [data-pf-theme-toggle] .pf-icon-moon {
+  display: block;
+}
+
+:root:not([data-theme]) [data-pf-theme-toggle] .pf-icon-system {
+  display: block;
+}
+
+/* Animated theme reveal (View Transitions API, adapted from the official
+   Magic UI Animated Theme Toggler). Every rule is scoped behind the transient
+   html[data-pf-theme-vt="active"] flag that the theme toggle sets only while
+   one of its reveals is in flight, so no unscoped ::view-transition-* rule
+   can affect navigation or any other view transition. Duration and the
+   collapsed initial clip come from PeopleFlow-owned custom properties set by
+   the same control before it starts the transition, which keeps the reveal
+   synchronized with the view-transition group. */
+html[data-pf-theme-vt="active"]::view-transition-group(root) {
+  animation-duration: var(--pf-theme-vt-duration);
+}
+
+/* The reveal supplies its own motion, so the default root cross-fade is off
+   and layers stay opaque while the new root expands over the old one. */
+html[data-pf-theme-vt="active"]::view-transition-old(root),
+html[data-pf-theme-vt="active"]::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Pinned collapsed clip: removes the unscaled first frame some browsers paint
+   between the snapshot and the script-driven animation. */
+html[data-pf-theme-vt="active"]::view-transition-new(root) {
+  clip-path: var(--pf-theme-vt-clip-from);
+}
+
+/* /vacantes ambient depth helpers: static violet top glow and masked dot
+   grid, theme-aware through the semantic --primary token (preset Violet
+   identity) with per-scheme --pf-* intensity tokens defined alongside the
+   scheme token blocks above. Fully static by design — no animation or
+   transition, so the global reduced-motion collapse has nothing to suppress. */
+.pf-top-glow {
+  background: radial-gradient(
+    56% 44% at 50% -6%,
+    color-mix(in oklab, var(--primary) calc(var(--pf-glow-alpha) * 100%), transparent),
+    color-mix(in oklab, var(--primary) calc(var(--pf-glow-alpha) * 23%), transparent)
+      46%,
+    transparent 72%
+  );
+}
+
+.pf-dot-grid {
+  background-image: radial-gradient(
+    color-mix(in oklab, var(--primary) calc(var(--pf-grid-dot-alpha) * 100%), transparent)
+      1px,
+    transparent 1.4px
+  );
+  background-size: 34px 34px;
+  -webkit-mask-image: radial-gradient(
+    74% 56% at 50% 0%,
+    var(--foreground) 28%,
+    transparent 78%
+  );
+  mask-image: radial-gradient(
+    74% 56% at 50% 0%,
+    var(--foreground) 28%,
+    transparent 78%
+  );
+}
+
+/* Company careers hero (public /empresas/[companyId] and its editor preview).
+   One immersive moment: with a cover it is a photo overlay, with no cover it
+   falls back to the neutral `bg-secondary` surface so an identity-only draft
+   stays legible. These hero-scoped slots are the only place the overlay paints,
+   which keeps the feature code free of raw color while the light-on-dark copy
+   keeps its WCAG AA contrast in both themes.
+
+   Base (no cover): the page's own semantic tokens. */
+.pf-hero {
+  --pf-hero-fg: var(--foreground);
+  --pf-hero-muted: var(--muted-foreground);
+  --pf-hero-scrim: transparent;
+  --pf-hero-cta-bg: var(--primary);
+  --pf-hero-cta-fg: var(--primary-foreground);
+  --pf-hero-cta-hover-bg: color-mix(in oklab, var(--primary) 85%, var(--foreground));
+  --pf-hero-outline-fg: var(--foreground);
+  --pf-hero-outline-border: var(--border);
+  --pf-hero-outline-hover-bg: var(--muted);
+}
+
+/* Photo overlay: a dark scrim plus light copy, identical in light and dark. The
+   scrim is opaque enough that white body text stays well above the 4.5:1 body
+   minimum over even the brightest photo. */
+.pf-hero[data-pf-hero-cover="true"] {
+  --pf-hero-fg: oklch(0.99 0 0);
+  --pf-hero-muted: oklch(0.99 0 0 / 0.88);
+  --pf-hero-scrim: oklch(0.14 0.02 292 / 0.66);
+  --pf-hero-cta-bg: oklch(0.99 0 0);
+  --pf-hero-cta-fg: oklch(0.2 0.03 292);
+  --pf-hero-cta-hover-bg: oklch(0.93 0.01 292);
+  --pf-hero-outline-fg: oklch(0.99 0 0);
+  --pf-hero-outline-border: oklch(0.99 0 0 / 0.75);
+  --pf-hero-outline-hover-bg: oklch(0.99 0 0 / 0.1);
+}
+
+.pf-hero-title {
+  color: var(--pf-hero-fg);
+}
+
+.pf-hero-subtitle {
+  color: var(--pf-hero-muted);
+}
+
+.pf-hero-overlay {
+  background-color: var(--pf-hero-scrim);
+}
+
+/* The overlay is a fixed-dark surface, so the two hero CTAs take their paint
+   from the same hero-scoped slots as the copy instead of the theme variants. */
+.pf-hero-cta {
+  background-color: var(--pf-hero-cta-bg);
+  color: var(--pf-hero-cta-fg);
+}
+
+.pf-hero-cta:hover {
+  background-color: var(--pf-hero-cta-hover-bg);
+}
+
+.pf-hero-cta-outline {
+  border-color: var(--pf-hero-outline-border);
+  background-color: transparent;
+  color: var(--pf-hero-outline-fg);
+}
+
+.pf-hero-cta-outline:hover {
+  background-color: var(--pf-hero-outline-hover-bg);
+  color: var(--pf-hero-outline-fg);
+}
+
+/* Reduced motion: collapse nonessential transition/animation timing so
+   surfaces appear/disappear immediately instead of sliding, fading, or
+   looping. Visual and semantic states (focus rings, hover colors, disabled
+   opacity, open/closed presence) are untouched; only the movement is
+   removed for users who asked for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

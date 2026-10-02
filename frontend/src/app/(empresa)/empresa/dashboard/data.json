@@ -1,0 +1,134 @@
+[
+  {
+    "id": 1,
+    "fullName": "Valentina Ríos",
+    "professionalTitle": "Analista de Datos",
+    "yearsOfExperience": 6,
+    "vacancy": "Analista de Datos Sr.",
+    "status": "submitted",
+    "source": "linkedin",
+    "receivedAt": "2024-06-30T15:40:00Z",
+    "owner": "Elena Márquez"
+  },
+  {
+    "id": 2,
+    "fullName": "Mateo Herrera",
+    "professionalTitle": "Desarrollador Backend",
+    "yearsOfExperience": 8,
+    "vacancy": "Desarrollador Backend (Node.js)",
+    "status": "in_review",
+    "source": "referral",
+    "receivedAt": "2024-06-29T17:05:00Z",
+    "owner": "Mariana Duarte"
+  },
+  {
+    "id": 3,
+    "fullName": "Camila Ortega",
+    "professionalTitle": "Diseñadora de Producto",
+    "yearsOfExperience": 5,
+    "vacancy": "Diseñadora UX/UI",
+    "status": "submitted",
+    "source": "job_board",
+    "receivedAt": "2024-06-29T11:20:00Z",
+    "owner": "Elena Márquez"
+  },
+  {
+    "id": 4,
+    "fullName": "Santiago Vargas",
+    "professionalTitle": "Ingeniero de QA",
+    "yearsOfExperience": 3,
+    "vacancy": "Ingeniero de QA",
+    "status": "rejected",
+    "source": "direct",
+    "receivedAt": "2024-06-28T19:45:00Z",
+    "owner": "Diego Salinas"
+  },
+  {
+    "id": 5,
+    "fullName": "Lucía Fernández",
+    "professionalTitle": "Ejecutiva Comercial",
+    "yearsOfExperience": 7,
+    "vacancy": "Ejecutivo Comercial",
+    "status": "hired",
+    "source": "referral",
+    "receivedAt": "2024-06-28T09:15:00Z",
+    "owner": "Mariana Duarte"
+  },
+  {
+    "id": 6,
+    "fullName": "Andrés Molina",
+    "professionalTitle": "Especialista en Marketing Digital",
+    "yearsOfExperience": 4,
+    "vacancy": "Especialista en Marketing Digital",
+    "status": "in_review",
+    "source": "linkedin",
+    "receivedAt": "2024-06-27T16:30:00Z",
+    "owner": "Elena Márquez"
+  },
+  {
+    "id": 7,
+    "fullName": "Isabella Navarro",
+    "professionalTitle": "Product Manager",
+    "yearsOfExperience": 9,
+    "vacancy": "Product Manager",
+    "status": "submitted",
+    "source": "other",
+    "receivedAt": "2024-06-26T13:10:00Z",
+    "owner": "Diego Salinas"
+  },
+  {
+    "id": 8,
+    "fullName": "Joaquín Peña",
+    "professionalTitle": "Analista de Datos",
+    "yearsOfExperience": 2,
+    "vacancy": "Analista de Datos Sr.",
+    "status": "submitted",
+    "source": "direct",
+    "receivedAt": "2024-06-25T18:55:00Z",
+    "owner": "Mariana Duarte"
+  },
+  {
+    "id": 9,
+    "fullName": "Renata Salazar",
+    "professionalTitle": "Agente de Soporte",
+    "yearsOfExperience": 3,
+    "vacancy": "Soporte al Cliente N2",
+    "status": "in_review",
+    "source": "job_board",
+    "receivedAt": "2024-06-24T02:25:00Z",
+    "owner": "Elena Márquez"
+  },
+  {
+    "id": 10,
+    "fullName": "Emilio Cabrera",
+    "professionalTitle": "DevOps Engineer",
+    "yearsOfExperience": 6,
+    "vacancy": "DevOps Engineer",
+    "status": "hired",
+    "source": "direct",
+    "receivedAt": "2024-06-21T15:00:00Z",
+    "owner": "Diego Salinas"
+  },
+  {
+    "id": 11,
+    "fullName": "Daniela Suárez",
+    "professionalTitle": "Desarrolladora Backend",
+    "yearsOfExperience": 4,
+    "vacancy": "Desarrollador Backend (Node.js)",
+    "status": "rejected",
+    "source": "linkedin",
+    "receivedAt": "2024-06-20T10:35:00Z",
+    "owner": "Mariana Duarte"
+  },
+  {
+    "id": 12,
+    "fullName": "Bruno Beltrán",
+    "professionalTitle": "Asistente Administrativo",
+    "yearsOfExperience": 1,
+    "vacancy": "Asistente Administrativo",
+    "status": "submitted",
+    "source": "job_board",
+    "receivedAt": "2024-06-19T14:50:00Z",
+    "owner": "Elena Márquez"
+  }
+]

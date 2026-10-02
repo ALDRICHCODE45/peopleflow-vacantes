@@ -1,0 +1,37 @@
+Acme prototype cover — asset provenance
+=======================================
+
+Shipped file : acme-cover.webp (1600x900, WebP, lossy quality 82, 206060 bytes)
+               sha256 1f1231ae8a0bf195deee5a466b2078cbacb217dc01a8a0047a3bd185761dd86f
+
+Source page (Wikimedia Commons file description, license and creator of record):
+  https://commons.wikimedia.org/wiki/File:Workers_drive_Forklifts_laden_with_USAID_goods_inside_a_large_warehouse_-_20110826-FS-LSC-0138_-_Flickr_-_USDAgov.jpg
+
+Original file downloaded once from Commons (3800x2802 JPEG, 3035124 bytes,
+sha256 4da247a58a1af7fc4ca2dfb1319889da6c0e0b5714cd4a9376d30331252742d8):
+  https://upload.wikimedia.org/wikipedia/commons/a/a5/Workers_drive_Forklifts_laden_with_USAID_goods_inside_a_large_warehouse_-_20110826-FS-LSC-0138_-_Flickr_-_USDAgov.jpg
+
+Creator / credit : U.S. Department of Agriculture; photograph by Lance Cheung.
+                   Original Flickr credit: 20110826-FS-LSC-0138.
+                   Commons file description: Crowley Logistics, Miami, Florida,
+                   August 26, 2011, one of the USAID shipping and logistics
+                   facilities the photograph documents.
+License          : Public domain (Commons imageinfo LicenseShortName and
+                   UsageTerms both read "Public domain"; AttributionRequired
+                   is false). Public-domain dedication, so no attribution is
+                   legally required; this file records credit anyway.
+
+Transformation (system tooling only, ImageMagick 7.1.2-31, no added dependency):
+  1. crop 3800x2138 at offset +0+200
+     The 16:9 window was selected by a deterministic search over per-row edge
+     energy (Pillow 12.3.0, downscaled 10x): the chosen band retains 77.6% of
+     the frame's detail energy versus 77.0% for an exact vertical center crop,
+     so it sits 132 px above the geometric center and trims ceiling first.
+  2. resize to 1600 px wide, then center crop to exactly 1600x900 (no stretch)
+  3. strip metadata, encode WebP quality 82, method 6 (lossy VP8)
+
+Visible scene     : workers operating forklifts among pallets of USAID relief
+                    supplies inside a large warehouse.
+
+Date accessed     : 2026-09-19 (UTC) for both the download and the Commons
+                    imageinfo check.

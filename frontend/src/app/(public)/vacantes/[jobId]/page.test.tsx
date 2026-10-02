@@ -1,0 +1,175 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const routeDir = join(process.cwd(), "src/app/(public)/vacantes/[jobId]");
+
+const routeSource = (file: string) =>
+  readFileSync(join(routeDir, file), "utf8");
+
+const loadRoute = async (file: string) =>
+  (await import(/* @vite-ignore */ `${routeDir}/${file}`)).default;
+
+afterEach(() => cleanup());
+
+describe("/vacantes/[jobId] route boundaries", () => {
+  it("keeps the page a dynamic server component with a local not-found mapping", () => {
+    const source = routeSource("page.tsx");
+    expect(source).toMatch(/dynamic\s*=\s*"force-dynamic"/);
+    expect(source).toMatch(/runtime\s*=\s*"nodejs"/);
+    expect(source).toMatch(/notFound\(\)/);
+    expect(source).not.toMatch(
+      /requestJson|use client|QueryClientProvider|HydrationBoundary|zustand/i,
+    );
+  });
+
+it("renders the branded not-found state with one clear h1 and a path back to the list", async () => {
+const NotFound = await loadRoute("not-found");
+render(<NotFound />);
+expect(screen.getByText("Esta vacante no está disponible")).toBeVisible();
+const headings = screen.getAllByRole("heading", { level: 1 });
+expect(headings).toHaveLength(1);
+expect(headings[0]).toHaveAccessibleName("Esta vacante no está disponible");
+const heading = screen.getByRole("heading", {
+level: 1,
+name: "Esta vacante no está disponible",
+});
+expect(heading).toBeVisible();
+expect(heading.tagName).toBe("H1");
+expect(
+screen.queryByRole("heading", {
+level: 2,
+name: "Esta vacante no está disponible",
+}),
+).toBeNull();
+    const back = screen.getByRole("link", { name: /volver a vacantes/i });
+    expect(back).toHaveAttribute("href", "/vacantes");
+  });
+
+it("uses a client error boundary with one clear h1 whose retry stays distinct from not-found", async () => {
+    expect(routeSource("error.tsx")).toMatch(/['"]use client['"]/);
+    const ErrorBoundary = await loadRoute("error");
+    const reset = vi.fn();
+    render(<ErrorBoundary error={new Error("upstream")} reset={reset} />);
+    expect(screen.getByRole("alert")).toBeVisible();
+    const headings = screen.getAllByRole("heading", { level: 1 });
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveAccessibleName("No se pudo cargar la vacante");
+    fireEvent.click(screen.getByRole("button", { name: /intentar de nuevo/i }));
+    expect(reset).toHaveBeenCalledOnce();
+    const heading = screen.getByRole("heading", {
+      level: 1,
+      name: "No se pudo cargar la vacante",
+    });
+    expect(heading).toBeVisible();
+    expect(heading.tagName).toBe("H1");
+    expect(
+      screen.queryByRole("heading", {
+        level: 2,
+        name: "No se pudo cargar la vacante",
+      }),
+    ).toBeNull();
+    // Retryable service/schema failures are never presented as not found.
+    expect(screen.queryByText("Esta vacante no está disponible")).toBeNull();
+    const back = screen.getByRole("link", { name: /vacantes/i });
+    expect(back).toHaveAttribute("href", "/vacantes");
+  });
+});
+
+describe("/vacantes/[jobId] caller enrichment boundary (CCP-04)", () => {
+  // Wire-only fixture: the same demo vacancy the enrichment knows by exact id.
+  const jobId = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
+  const wireJob = {
+    id: jobId,
+    title: "Ingeniera Frontend",
+    description: "Construye la experiencia de vacantes.",
+    work_mode: "remote",
+    employment_type: "full_time",
+    seniority: "senior",
+    salary_currency: "MXN",
+    company: { id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f", name: "Acme" },
+  };
+
+  it("enriches the validated vacancy in the route, never in the request-scoped read", () => {
+    const source = routeSource("page.tsx");
+    expect(source).toMatch(
+      /import \{ enrichJob \} from "\.\.\/\.\.\/\.\.\/\.\.\/features\/jobs\/enrich";/u,
+    );
+    expect(source).toMatch(/<JobDetailView job=\{enrichJob\(result\.job\)\} \/>/u);
+    // Wire metadata stays wire: SEO keeps reading the validated fields.
+    expect(source).toMatch(/result\.job\.title/u);
+    expect(source).toMatch(/metaDescription\(result\.job\.description\)/u);
+    // The data scope keeps returning the untouched wire vacancy.
+    expect(routeSource("page-data.ts")).not.toMatch(/enrich|prototype|empresas/iu);
+  });
+
+  it("renders the role block from a wire-only read", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => wireJob }),
+    );
+    const VacanteDetailPage = await loadRoute("page");
+    render(await VacanteDetailPage({ params: Promise.resolve({ jobId }) }));
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Ingeniería" }),
+    ).toBeVisible();
+    expect(screen.queryByText(/prototipo|ficticia|demostraci/iu)).toBeNull();
+    expect(screen.getByRole("link", { name: "Conoce a Acme" })).toHaveAttribute(
+      "href",
+      "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f",
+    );
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+  });
+});
+
+vi.mock("../../../../lib/api/server", async () => ({
+  requestJson: (await import("../../../../lib/api/requestJson")).requestJson,
+}));
+vi.mock("../../../../lib/env/server", () => ({
+  serverEnv: {
+    apiBaseUrl: "http://127.0.0.1:8080",
+    siteUrl: "http://127.0.0.1:3000",
+    apiTimeoutMs: 8000,
+  },
+}));
+
+describe("/vacantes/[jobId] page-data unit (Task 5.2)", () => {
+  const jobId = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
+  const job = {
+    id: jobId,
+    title: "Ingeniera Frontend",
+    description: "Construye la experiencia de vacantes.",
+    work_mode: "remote",
+    employment_type: "full_time",
+    seniority: "senior",
+    salary_currency: "MXN",
+    company: { id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f", name: "Acme" },
+  };
+  const fetchJson = { ok: true, status: 200, json: async () => job };
+  it("short-circuits malformed UUIDs with zero data/API/query calls", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const pageData = await import(/* @vite-ignore */ `${routeDir}/page-data`);
+    await expect(
+      pageData.createVacanteDetailScope().read("nope"),
+    ).resolves.toEqual({ kind: "notFound" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("dedupes metadata/page reads around one fresh request-scoped client", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(fetchJson);
+    vi.stubGlobal("fetch", fetchMock);
+    const pageData = await import(/* @vite-ignore */ `${routeDir}/page-data`);
+    const scope = pageData.createVacanteDetailScope();
+    const [page, metadata] = await Promise.all([
+      scope.read(jobId),
+      scope.metadata(jobId),
+    ]);
+    expect(page).toEqual({ kind: "found", job });
+    expect(metadata).toEqual(page);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    await pageData.createVacanteDetailScope().read(jobId);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
