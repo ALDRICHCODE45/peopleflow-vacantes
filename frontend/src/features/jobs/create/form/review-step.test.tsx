@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 import { INITIAL_VALUES } from "./model";
@@ -25,16 +25,23 @@ afterEach(() => {
   cleanup();
 });
 
-function renderReview(prototype: Partial<VacancyPrototypeValues> = {}) {
+function renderReview(
+  prototype: Partial<VacancyPrototypeValues> = {},
+  publication: Partial<{ profileReady: boolean; published: boolean }> = {},
+) {
   const onEditStep = vi.fn();
+  const onPublish = vi.fn();
   const view = render(
     <ReviewStep
       values={INITIAL_VALUES}
       prototypeValues={{ ...INITIAL_PROTOTYPE_VALUES, ...prototype }}
       onEditStep={onEditStep}
+      profileReady={publication.profileReady ?? true}
+      published={publication.published ?? false}
+      onPublish={onPublish}
     />,
   );
-  return { ...view, onEditStep };
+  return { ...view, onEditStep, onPublish };
 }
 
 /** The summary card of the process step that owns the screening questions. */
@@ -97,6 +104,59 @@ describe("ReviewStep screening questions", () => {
     expect(items).toHaveLength(1);
     expect(items[0]).toHaveTextContent("Sin especificar");
     expect(within(conditionsGroup()).getByText("1 de 3")).toBeVisible();
+  });
+});
+
+describe("ReviewStep publication action", () => {
+  it("offers one enabled publication action that reports its attempt to the wizard", () => {
+    const { onPublish } = renderReview();
+
+    const publish = screen.getByRole("button", { name: "Publicar vacante" });
+    expect(publish).toBeEnabled();
+    fireEvent.click(publish);
+    expect(onPublish).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks the publication action and guides to the company profile when it is not ready", () => {
+    renderReview({}, { profileReady: false });
+
+    expect(
+      screen.getByRole("button", { name: "Publicar vacante" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/completa el perfil de tu empresa/i),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: /perfil de empresa/i }),
+    ).toHaveAttribute("href", "/empresa/sitio");
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("shows the local publication outcome once the wizard published the draft", () => {
+    renderReview({}, { profileReady: true, published: true });
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "La vacante quedó publicada.",
+    );
+    expect(
+      screen.queryByRole("link", { name: /perfil de empresa/i }),
+    ).toBeNull();
+  });
+
+  it("shows no outcome before any publication attempt", () => {
+    renderReview({}, { profileReady: true });
+
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("link", { name: /perfil de empresa/i })).toBeNull();
+  });
+
+  it("keeps Guardar borrador enabled independently of company readiness", () => {
+    renderReview({}, { profileReady: false });
+
+    expect(screen.getByRole("button", { name: "Guardar borrador" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Publicar vacante" }),
+    ).toBeDisabled();
   });
 });
 

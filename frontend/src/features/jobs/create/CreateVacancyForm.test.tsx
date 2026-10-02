@@ -5,9 +5,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
-import { CreateVacancyForm } from "./CreateVacancyForm";
+import { EmployerSessionProvider } from "@/features/company-site-editor/employer-session";
+import { CreateVacancyForm as CreateVacancyFormBody } from "./CreateVacancyForm";
 import { firstInvalidField } from "./form/model";
 import { firstInvalidStep, stepTitle } from "./form/step-model";
+
+/**
+ * The wizard reads the shared employer session, so every render mounts it under
+ * the same provider the `(empresa)` layout installs above the route.
+ */
+function CreateVacancyForm() {
+  return (
+    <EmployerSessionProvider>
+      <CreateVacancyFormBody />
+    </EmployerSessionProvider>
+  );
+}
 
 /**
  * Base UI's portaled select popup waits on browser positioning that jsdom cannot
@@ -522,14 +535,16 @@ describe("CreateVacancyForm final validation-only save", () => {
 });
 
 describe("CreateVacancyForm transport boundaries", () => {
-  it("never imports the server-only create client, session, or transport", () => {
+  it("never imports the server-only create client or a server session", () => {
     expect(source).not.toMatch(/from\s+["'][^"']*createJob["']/);
     expect(source).not.toMatch(/\bcreateJob\s*\(/);
     expect(source).not.toMatch(
       /lib\/api\/(?:server|requestJson)|lib\/env\/server|next\/headers/,
     );
+    // The only session it may read is the client employer session.
+    expect(source).not.toMatch(/server-session|lib\/session|auth\/session/i);
     expect(source).not.toMatch(
-      /\bcookies?\b|\bsession\b|\baccessToken\b|\bbearer\b|\bgetToken\b|\bfetch\s*\(/i,
+      /\bcookies?\b|\bbearer\b|\baccessToken\b|\bgetToken\b|\bfetch\s*\(/i,
     );
   });
 
@@ -572,14 +587,17 @@ describe("CreateVacancyForm composition boundaries", () => {
     expect(source).not.toMatch(/from "\.\/form\/compensation-section"/);
   });
 
-  it("owns the contract values, local-only state, field errors, and the current step", () => {
-    expect(source).toMatch(/React\.useState<VacancyFormValues>\(INITIAL_VALUES\)/);
-    expect(source).toMatch(
-      /React\.useState<VacancyPrototypeValues>\(INITIAL_PROTOTYPE_VALUES\)/,
+  it("reads the contract values, local-only state, and step from the shared session", () => {
+    expect(source).toContain(
+      'from "@/features/company-site-editor/employer-session"',
     );
-    expect(source).toMatch(/React\.useState<VacancyStepId>\("basic-information"\)/);
-    // values, prototypeValues, errors, step.
-    expect(source.match(/React\.useState/g)).toHaveLength(4);
+    expect(source).toMatch(/useEmployerSession\(\)/);
+    expect(source).toMatch(/vacancyValues:/);
+    expect(source).toMatch(/prototypeValues,/);
+    expect(source).toMatch(/vacancyStep:/);
+    // Only the field errors and the publication outcome stay local.
+    expect(source.match(/React\.useState/g)).toHaveLength(2);
+    expect(source).toMatch(/React\.useState<VacancyFieldErrors>\(\{\}\)/);
   });
 
   it("saves contract values only and never mixes prototype state into the attempt", () => {
@@ -616,7 +634,7 @@ describe("CreateVacancyForm composition boundaries", () => {
   });
 
   it("stays a bounded composition surface that still owns submit", () => {
-    expect(source.split("\n").length).toBeLessThan(170);
+    expect(source.split("\n").length).toBeLessThan(200);
     expect(source).toMatch(/onSubmit=\{handleSubmit\}/);
     expect(source).toMatch(/<VacancyFormSections/);
     expect(source).toMatch(/<WizardControls/);

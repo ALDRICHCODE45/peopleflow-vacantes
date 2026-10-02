@@ -186,6 +186,12 @@ export type ReviewStepProps = {
   prototypeValues: VacancyPrototypeValues;
   /** Returns to the group's step so the recruiter can edit it. */
   onEditStep: (step: ReviewStepId) => void;
+  /** Whether the company profile already allows publishing; the wizard owns it. */
+  profileReady: boolean;
+  /** Whether the wizard already recorded a local publication; the wizard owns it. */
+  published: boolean;
+  /** Publication attempt, forwarded verbatim to the rail. */
+  onPublish: () => void;
 };
 
 /**
@@ -197,6 +203,9 @@ export function ReviewStep({
   values,
   prototypeValues,
   onEditStep,
+  profileReady,
+  published,
+  onPublish,
 }: ReviewStepProps) {
   const groups = reviewGroups(values, prototypeValues);
 
@@ -286,7 +295,13 @@ export function ReviewStep({
         ))}
       </div>
 
-      <DraftRail values={values} prototypeValues={prototypeValues} />
+      <DraftRail
+        values={values}
+        prototypeValues={prototypeValues}
+        profileReady={profileReady}
+        published={published}
+        onPublish={onPublish}
+      />
     </div>
   );
 }

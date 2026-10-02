@@ -7,12 +7,16 @@ import { join } from "node:path";
 
 import PageContent, { metadata } from "./page";
 import { EmployerShell } from "@/components/company-dashboard/employer-shell";
+import { EmployerSessionProvider } from "@/features/company-site-editor/employer-session";
 
-// Mirrors the (empresa) layout: the shell wraps the route content.
+// Mirrors the (empresa) layout: the shell and the shared employer session wrap
+// the route content.
 function Page() {
   return (
     <EmployerShell>
-      <PageContent />
+      <EmployerSessionProvider>
+        <PageContent />
+      </EmployerSessionProvider>
     </EmployerShell>
   );
 }

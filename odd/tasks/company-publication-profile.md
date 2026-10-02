@@ -1,24 +1,21 @@
 # Company profile publication prerequisite
 
-## Objective and scope
-Frontend-only employer UI: require a confirmed company name and existing About field before publishing a vacancy. Permit drafts independently and preserve vacancy input across employer navigation. Rich company fields remain optional. No backend, browser storage, API integration, public fixtures, portfolio changes, dependencies, or visible demo/unavailable disclaimers.
+## Objective and constraints
+Frontend-only: confirmed nonblank company name + existing About required to publish; optional rich fields; drafts independent. Preserve both vacancy value sets and wizard step across employer navigation. No backend/storage/fixtures/portfolio/dependencies or visible demo/unavailable disclaimers. Follow docs/frontend-ui-design-rules.md, existing primitives, Mexican Spanish. User has a meeting soon: no optional polish or broad checks. User owns visual/a11y/smoke checks. Commit and merge local main, NEVER push.
 
-## User constraints
-Follow docs/frontend-ui-design-rules.md and existing primitives; Mexican Spanish UI. Only focused custom-behavior unit checks and scoped type/lint checks. No visual smoke/accessibility/browser suites: user performs visual acceptance. Commit and integrate completed feature into local main; never push. Preserve main's three dirty backend-go-closure documents.
-
-## Delivery and routing
-Feature branch: feat/company-publication-profile, base 82ff2e7. Strategy: feature-branch-chain, approved by user; three sequential local work-unit slices, no remote PR creation. Forecast 700–950 authored diff lines; approximately 400 per slice is advisory, never a reason to omit tests. Single writer. All tasks delegated due multi-file writes. RDD off; assess writer diff and follow returned verification plan. Parent owns task updates and commits.
+## Delivery
+Branch feat/company-publication-profile; base82ff2e7; approved feature-branch-chain, three sequential local commit slices, no PRs. Forecast700–950 authored diff lines (400/slice advisory). Single delegated writer per task because multi-file changes. RDD off; assess each diff and follow verification plan. Parent owns tracking/commits/delivery.
 
 ## Tasks
-- [x] CPP-1 (complete): Shared employer session state and minimum-profile readiness, layout integration, focused lifecycle/model tests. Route: delegated writer. Commit: eb8d709.
-- [ ] CPP-2 (in progress): Company editor consumes shared profile, confirms name, requires About for publication, leaves rich sections optional. Route: delegated writer. Commit: pending.
-- [ ] CPP-3 (pending): Review publication action and profile gate, independent draft action, preserve both vacancy value sets and wizard position; focused tests, local main integration. Route: delegated writer + delivery parent. Commit: pending.
+- [x] CPP-1: Shared session and readiness. Commit eb8d709. Delegated. RED then13 focused tests GREEN;4 layout tests, tsc, scoped lint green Node22.23.2. Independent13-test rerun/static review PASS. Assessment unavailable due untracked files; independent verification completed. Source approximately414 diff lines.
+- [x] CPP-2: Shared company editor and confirmation. Commit a70b148. Delegated plus parent mechanical route-test provider wrapper.14 editor tests, tsc/lint green; independent editor+route25/25 PASS. Assessment medium with small-writer bias required independent verifier. RED was a post-implementation removal experiment, NOT actual test-first. Worker cleanup reported unconfirmed/quarantined; parent process inspection found no matching worker. No relaunch. Commit183 diff lines including prior tracking update.
+- [ ] CPP-3 (in progress): Connect publication gate and independent draft action, preserve values/navigation, scoped verification, commit then local-main integration. Delegated writer; parent delivery. Commit pending.
 
-## Acceptance and checks
-Seeded fallback name alone never establishes confirmed identity; whitespace fails readiness; changing name invalidates confirmation. Missing About blocks publication, not drafting. Navigation to company site and back retains vacancy description, complementary values and step. Publication outcome remains in-memory in creation surface, with no public URL or backend claim. Applicable deterministic tests use observed RED then GREEN; no full suites or visual checks. Rollback each slice with its corresponding work-unit changes; CPP-2/3 depend on CPP-1. Runtime external harness N/A: frontend React unit behavior only, visual checks user-owned.
+## Acceptance
+Trim name/About; seeded fallback name not confirmed; name edits revoke confirmation. Missing profile blocks publishing not drafts. Completing profile must not discard vacancy description, complementary values or wizard step. Local outcome only in creation surface, no public URL/backend claim. Test-first applies to new deterministic behavior; document actual RED/GREEN. No build/browser/a11y/full suites. Rollback by work-unit commit; CPP-2/3 depend on CPP-1. External runtime harness N/A; user owns visual acceptance.
 
-## Evidence and progress
-Exploration complete; no source edits yet. Current feature worktree initially clean. Main 59a7247 has only unstaged openspec/changes/backend-go-closure/{apply-progress,design,tasks}.md. Preserve SHA256 respectively: 74a526152b3b4e3d1a04cf12605459bf03e75e5d378db6303fbcef94758ed48e; 5e45c2f2ad86ba7dec277aafa30a64f505a67656dacc1124c4fba8736e4986b1; f5d8942dd734c762699b64a2bdb320191f8b5d5a2b9d166b6744d01d8b4e0da7.
+## Preservation and evidence
+Main initially59a7247; only unstaged openspec/changes/backend-go-closure/{apply-progress,design,tasks}.md. Preserve respective SHA256:74a526152b3b4e3d1a04cf12605459bf03e75e5d378db6303fbcef94758ed48e;5e45c2f2ad86ba7dec277aafa30a64f505a67656dacc1124c4fba8736e4986b1;f5d8942dd734c762699b64a2bdb320191f8b5d5a2b9d166b6744d01d8b4e0da7.
 
 ## Next step
-Implement CPP-2 only; shared provider API is ready. CPP-1 evidence: observed RED then 13 focused tests GREEN; 4 layout tests, TypeScript and scoped ESLint passed under Node22.23.2. Independent verifier reran 13 focused tests and inspected readiness/provider integration: PASS. Native assessment unavailable due untracked paths; independent verification completed, RDD remains off. CPP-1 source diff approximately 410 additions/4 deletions; retained coherent tests rather than splitting artificially. No browser/build/accessibility checks run.
+Implement CPP-3 only; then focused verification, commit, and authorized local-main merge preserving dirty backend docs. No push.
