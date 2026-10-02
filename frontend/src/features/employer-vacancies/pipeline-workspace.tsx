@@ -269,7 +269,7 @@ function PipelineActivity({ records }: { records: readonly PipelineMoveRecord[] 
   if (items.length === 0) {
     return (
       <p data-pf-pipeline-activity-empty="" className="rounded-xl bg-muted p-3 text-[12.5px] text-muted-foreground">
-        Aún no hay movimientos registrados en esta sesión.
+        Aún no hay movimientos registrados.
       </p>
     );
   }
@@ -281,11 +281,10 @@ function PipelineActivity({ records }: { records: readonly PipelineMoveRecord[] 
           <p className="text-[12.5px] text-muted-foreground">{item.detail}</p>
           {item.message === null ? null : (
             <p data-pf-pipeline-activity-message="" className="mt-1 rounded-lg bg-card px-2.5 py-2 text-sm text-foreground">
-              <span className="font-semibold">Mensaje preparado (sin enviar): </span>
+              <span className="font-semibold">Mensaje: </span>
               {item.message}
             </p>
           )}
-          <p className={META}>{item.note}</p>
         </li>
       ))}
     </ul>

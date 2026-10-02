@@ -231,12 +231,6 @@ export function CompanySiteEditor() {
             >
               Vista previa
             </h2>
-            <p
-              data-pf-sitio-preview-note
-              className="text-[12.5px] text-muted-foreground"
-            >
-              Vista previa local; los cambios no se guardan ni publican.
-            </p>
           </div>
           <Card data-pf-sitio-preview-surface size="sm" className="min-w-0">
             <CardContent className="min-w-0">

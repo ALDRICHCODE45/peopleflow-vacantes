@@ -14,14 +14,18 @@ import type { CandidateIdentity, CandidateProfile } from "@/features/candidate/m
 import { APPLICATION_STATUSES, APPLICATION_STATUS_LABELS, CV_LANGUAGE_LABELS, applicationInProcessCount, applicationTotalCount, countApplicationsByStatus, summarizeCvs } from "@/features/candidate/portfolio-model"
 import type { ApplicationStatus, CandidateApplicationView, CandidateCv } from "@/features/candidate/portfolio-model"
 
+import { ApplicationMessage, type CandidateApplicationMessage } from "@/features/candidate/application-message"
+
 /** Props-only candidate dashboard overview: every number derives from the passed
-    identity/profile/applications/CVs, with no fetch, storage, navigation, timer or
-    randomness. It is a server component; CDP-05 supplies the frozen fixtures. */
+    identity/profile/applications/CVs and the optional messages, with no fetch,
+    storage, navigation, timer or randomness. It is a server component; CDP-05
+    supplies the frozen fixtures, and each message is joined to its row by exact id. */
 export type CandidateDashboardOverviewProps = Readonly<{
   identity: CandidateIdentity
   profile: CandidateProfile
   applications: readonly CandidateApplicationView[]
   cvs: readonly CandidateCv[]
+  messages?: readonly CandidateApplicationMessage[]
 }>
 
 /** One bounded checklist entry: a Spanish label plus its completeness predicate. */
@@ -140,8 +144,11 @@ function MetricCard({ label, icon: Icon, value, detail }: OverviewMetric) {
     per-row mini-card. Identity and its status/date metadata share one wrapping
     `ItemContent` with the native `line-clamp-1` removed, so the title soft-wraps
     instead of being squeezed by `ItemActions`, which keeps only the truthful live
-    vacancy link or the honest historical note. */
-function RecentApplicationRow({ application }: Readonly<{ application: CandidateApplicationView }>) {
+    vacancy link or the honest historical note. The optional message island lives
+    below the status/date line, joined by the exact application id, so no other row
+    changes and `ItemActions` never becomes a button tray. */
+function RecentApplicationRow({ application, messages }: Readonly<{ application: CandidateApplicationView; messages: readonly CandidateApplicationMessage[] }>) {
+  const message = messages.find((candidate) => candidate.applicationId === application.id)
   return (
     <li data-pf-recent-row={application.id} className="min-w-0">
       <Item size="sm" className="min-w-0 items-start rounded-none px-0 py-3">
@@ -157,6 +164,7 @@ function RecentApplicationRow({ application }: Readonly<{ application: Candidate
               Actualizada el <time dateTime={application.updatedAt}>{formatDate(application.updatedAt)}</time>
             </span>
           </div>
+          {message ? <ApplicationMessage message={message} /> : null}
         </ItemContent>
         <ItemActions className="w-full sm:w-auto">
           {application.publicJobHref === null ? (
@@ -176,7 +184,7 @@ function RecentApplicationRow({ application }: Readonly<{ application: Candidate
   )
 }
 
-export function CandidateDashboardOverview({ identity, profile, applications, cvs }: CandidateDashboardOverviewProps) {
+export function CandidateDashboardOverview({ identity, profile, applications, cvs, messages = [] }: CandidateDashboardOverviewProps) {
   const counts = countApplicationsByStatus(applications)
   const total = applicationTotalCount(counts), inProcess = applicationInProcessCount(counts)
   const completeness = profileCompleteness(profile)
@@ -226,7 +234,7 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
                   </Empty>
                 ) : (
                   <ul className="flex flex-col divide-y divide-border">
-                    {recent.map((application) => (<RecentApplicationRow key={application.id} application={application} />))}
+                    {recent.map((application) => (<RecentApplicationRow key={application.id} application={application} messages={messages} />))}
                   </ul>
                 )}
               </CardContent>

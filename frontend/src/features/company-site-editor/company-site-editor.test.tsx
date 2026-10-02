@@ -170,13 +170,11 @@ describe("company site editor preview", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 
-  it("labels the preview as a local draft and offers no save, publish or status affordance", () => {
+  it("keeps the preview free of prototype notices and save or publish claims", () => {
     const { container } = render(<CompanySiteEditor />);
 
     const region = screen.getByRole("region", { name: "Vista previa" });
-    expect(
-      within(region).getByText("Vista previa local; los cambios no se guardan ni publican."),
-    ).toBeVisible();
+    expect(region).not.toHaveTextContent(/vista previa local|no se guardan|prototipo|demostración/iu);
 
     expect(container.querySelectorAll("form")).toHaveLength(0);
     expect(

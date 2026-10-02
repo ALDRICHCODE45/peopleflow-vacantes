@@ -668,19 +668,18 @@ test("the single detail sheet keeps the full history and returns focus on Escape
     '[aria-labelledby="talento-detalle-curriculum"]',
   );
   await expect(cvSection).toContainText("CV-Gabriela-Soto.pdf");
-  await expect(cvSection).toContainText("Archivo de ejemplo · Solo demostración");
+  // The placeholder carries no visible demo/prototype disclaimer and no note.
+  await expect(cvSection).not.toContainText(/demostración|prototipo/iu);
+  await expect(
+    cvSection.locator("#talento-detalle-curriculum-demo"),
+  ).toHaveCount(0);
   const verCv = cvSection.getByRole("button", { name: "Ver CV" });
   const descargar = cvSection.getByRole("button", { name: "Descargar" });
   await expect(verCv).toBeEnabled();
   await expect(descargar).toBeEnabled();
-  // Enabled means reachable: real keyboard focus lands on the placeholder and it
-  // stays described by the visible demo note.
+  // Enabled means reachable: real keyboard focus lands on the placeholder.
   await verCv.focus();
   await expect(verCv).toBeFocused();
-  await expect(verCv).toHaveAttribute(
-    "aria-describedby",
-    "talento-detalle-curriculum-demo",
-  );
   // Clicking is inert: the sheet stays open on the same person, the URL does not
   // move and no fake success feedback appears anywhere.
   const urlBeforeCvClick = page.url();
@@ -755,22 +754,24 @@ test("the demo Currículum card gives the filename usable width and moves its ac
   expect(filenameBox!.width).toBeGreaterThan(120);
   expect(filenameBox!.width).toBeLessThanOrEqual(textRowBox!.width + 0.5);
 
-  // The actions are a second row: below the filename/note metadata, side by
-  // side on one line and inside the card box.
-  const noteBox = await card
-    .locator("#talento-detalle-curriculum-demo")
-    .boundingBox();
+  // The actions are a second row: below the filename metadata, side by side on
+  // one line and inside the card box.
+  const filenameRowBox = await filename.boundingBox();
   const verBox = await card.getByRole("button", { name: "Ver CV" }).boundingBox();
   const descBox = await card
     .getByRole("button", { name: "Descargar" })
     .boundingBox();
   const cardBox = await card.boundingBox();
-  expect(noteBox).not.toBeNull();
+  expect(filenameRowBox).not.toBeNull();
   expect(verBox).not.toBeNull();
   expect(descBox).not.toBeNull();
   expect(cardBox).not.toBeNull();
-  expect(verBox!.y).toBeGreaterThanOrEqual(noteBox!.y + noteBox!.height - 1);
-  expect(descBox!.y).toBeGreaterThanOrEqual(noteBox!.y + noteBox!.height - 1);
+  expect(verBox!.y).toBeGreaterThanOrEqual(
+    filenameRowBox!.y + filenameRowBox!.height - 1,
+  );
+  expect(descBox!.y).toBeGreaterThanOrEqual(
+    filenameRowBox!.y + filenameRowBox!.height - 1,
+  );
   expect(Math.abs(verBox!.y - descBox!.y)).toBeLessThanOrEqual(1);
   for (const box of [verBox!, descBox!]) {
     expect(box.x).toBeGreaterThanOrEqual(cardBox!.x - 1);
@@ -789,20 +790,16 @@ test("the demo Currículum card gives the filename usable width and moves its ac
     .poll(() => card.evaluate((node) => node.scrollWidth - node.clientWidth))
     .toBeLessThanOrEqual(1);
   const mobileFilenameBox = await filename.boundingBox();
-  const mobileNoteBox = await card
-    .locator("#talento-detalle-curriculum-demo")
-    .boundingBox();
   const mobileVerBox = await card
     .getByRole("button", { name: "Ver CV" })
     .boundingBox();
   const mobileCardBox = await card.boundingBox();
   expect(mobileFilenameBox).not.toBeNull();
-  expect(mobileNoteBox).not.toBeNull();
   expect(mobileVerBox).not.toBeNull();
   expect(mobileCardBox).not.toBeNull();
   expect(mobileFilenameBox!.width).toBeGreaterThan(80);
   expect(mobileVerBox!.y).toBeGreaterThanOrEqual(
-    mobileNoteBox!.y + mobileNoteBox!.height - 1,
+    mobileFilenameBox!.y + mobileFilenameBox!.height - 1,
   );
   expect(mobileVerBox!.x).toBeGreaterThanOrEqual(mobileCardBox!.x - 1);
   expect(mobileVerBox!.x + mobileVerBox!.width).toBeLessThanOrEqual(

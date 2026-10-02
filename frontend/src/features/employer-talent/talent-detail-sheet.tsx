@@ -95,12 +95,6 @@ export const TALENT_MODALITY_VARIANT: Readonly<
 };
 
 /**
- * Id of the visible demo disclaimer that explains the inert Currículum
- * placeholders, so both buttons can reference it through `aria-describedby`.
- */
-const CV_DEMO_NOTE_ID = "talento-detalle-curriculum-demo";
-
-/**
  * Demo-only PDF filename derived from the candidate alone. No real file exists:
  * the name is the only file metadata shown, so no size or upload date is
  * invented. Whitespace runs become single dashes to read like a real document
@@ -400,21 +394,21 @@ export function TalentDetailSheet({
               </dl>
             </DetailSection>
 
-            {/* Demo-only Currículum surface. There is no real file, no link,
-                no `href` and no download. The two affordances are standard
-                `Button`s kept **enabled and inert** — visible, focusable and
-                clickable with no handler, navigation, request, storage write,
+            {/* Presentation placeholder Currículum surface. There is no real
+                file, no link, no `href` and no download. The two affordances are
+                standard `Button`s kept **enabled and inert** — visible, focusable
+                and clickable with no handler, navigation, request, storage write,
                 toast or success message — exactly as the durable rules require
-                for presentation placeholders, explained by the visible note.
+                for presentation placeholders, with no disclaimer copy.
 
                 The card composes from its own local width, never from a viewport
                 breakpoint: the floating Sheet panel is capped at 24rem even on a
                 wide desktop viewport, so a `sm:` row would squeeze the filename
                 into a few-letters vertical column next to the intrinsic-width
                 buttons. It is instead one compact column — a text row with the
-                decorative medallion plus the flexible, truncating filename and
-                its note, then a separate equal-column action row that wraps
-                safely on the narrowest panel. */}
+                decorative medallion plus the flexible, truncating filename, then
+                a separate equal-column action row that wraps safely on the
+                narrowest panel. */}
             <DetailSection id="talento-detalle-curriculum" title="Currículum">
               <div
                 data-pf-talento-curriculum=""
@@ -438,12 +432,6 @@ export function TalentDetailSheet({
                     >
                       {talentCvDemoFileName(person.fullName)}
                     </p>
-                    <p
-                      id={CV_DEMO_NOTE_ID}
-                      className="min-w-0 text-xs break-words text-muted-foreground [overflow-wrap:anywhere]"
-                    >
-                      Archivo de ejemplo · Solo demostración
-                    </p>
                   </div>
                 </div>
                 <div
@@ -454,7 +442,6 @@ export function TalentDetailSheet({
                     type="button"
                     variant="outline"
                     className="h-10 w-full min-w-0"
-                    aria-describedby={CV_DEMO_NOTE_ID}
                   >
                     <IconEye aria-hidden="true" />
                     Ver CV
@@ -463,7 +450,6 @@ export function TalentDetailSheet({
                     type="button"
                     variant="outline"
                     className="h-10 w-full min-w-0"
-                    aria-describedby={CV_DEMO_NOTE_ID}
                   >
                     <IconDownload aria-hidden="true" />
                     Descargar

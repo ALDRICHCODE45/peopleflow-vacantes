@@ -312,7 +312,7 @@ describe("TalentDetailSheet interior", () => {
     ]);
   });
 
-  it("renders the demo Currículum file card with a candidate-derived name and enabled inert actions", () => {
+  it("renders the Currículum placeholder card with a candidate-derived name and enabled inert actions", () => {
     renderSheet();
 
     const heading = screen.getByRole("heading", {
@@ -327,14 +327,13 @@ describe("TalentDetailSheet interior", () => {
     expect(
       within(section).getByText("CV-Gabriela-Soto.pdf"),
     ).toBeInTheDocument();
-    expect(
-      within(section).getByText("Archivo de ejemplo · Solo demostración"),
-    ).toHaveAttribute("id", "talento-detalle-curriculum-demo");
+    // The placeholder carries no visible demo/prototype disclaimer and no note id.
+    expect(section.querySelector("#talento-detalle-curriculum-demo")).toBeNull();
+    expect(within(section).queryByText(/demostración|prototipo/iu)).toBeNull();
 
     // The durable rule reserves `disabled` for real data/state restrictions and
     // keeps presentation placeholders enabled, focusable and inert. Both
-    // affordances therefore stay standard enabled buttons that reference the
-    // visible demo note.
+    // affordances therefore stay standard enabled buttons.
     const verCv = within(section).getByRole("button", { name: "Ver CV" });
     const descargar = within(section).getByRole("button", {
       name: "Descargar",
@@ -342,10 +341,7 @@ describe("TalentDetailSheet interior", () => {
     for (const control of [verCv, descargar]) {
       expect(control).toBeEnabled();
       expect(control).toHaveAttribute("type", "button");
-      expect(control).toHaveAttribute(
-        "aria-describedby",
-        "talento-detalle-curriculum-demo",
-      );
+      expect(control).not.toHaveAttribute("aria-describedby");
       control.focus();
       expect(control).toHaveFocus();
     }
@@ -410,10 +406,10 @@ describe("TalentDetailSheet interior", () => {
     const textColumn = filename!.parentElement as HTMLElement;
     expect(textColumn.className).toContain("min-w-0");
     expect(textColumn.className).toContain("flex-1");
-    // The demo note rides beneath the filename in the same flexible column.
-    const note = card!.querySelector("#talento-detalle-curriculum-demo");
-    expect(note, "curriculum note").not.toBeNull();
-    expect(textColumn).toContainElement(note as HTMLElement);
+    // The filename rides alone in the flexible column: no disclaimer copy sits
+    // beneath it.
+    expect(textColumn).toContainElement(filename);
+    expect(card!.querySelector("#talento-detalle-curriculum-demo")).toBeNull();
 
     // The action row is an equal-column wrapping grid: no intrinsic-width row
     // can push the panel wide, and both controls stay full-width targets.
@@ -447,7 +443,7 @@ describe("TalentDetailSheet interior", () => {
     expect(filename).toHaveAttribute("title", expected);
   });
 
-  it("keeps the demo Currículum placeholders inert: clicking neither changes the sheet nor reports success", () => {
+  it("keeps the Currículum placeholders inert: clicking neither changes the sheet nor reports success", () => {
     const { onOpenChange } = renderSheet();
 
     const section = screen
@@ -584,7 +580,7 @@ describe("TalentDetailSheet interior", () => {
     expect(onOpenChange.mock.calls[0]?.[0]).toBe(false);
   });
 
-  it("offers no fabricated action beyond the enabled inert demo Currículum and never invents a person status", () => {
+  it("offers no fabricated action beyond the enabled inert Currículum and never invents a person status", () => {
     renderSheet();
 
     const sheet = dialog();
@@ -599,7 +595,7 @@ describe("TalentDetailSheet interior", () => {
       expect(within(sheet).queryByRole("link", { name: fake })).toBeNull();
     }
 
-    // The demo Currículum may expose `Ver CV`/`Descargar`, but only as enabled
+    // The Currículum may expose `Ver CV`/`Descargar`, but only as enabled
     // inert placeholders: no link, href, download or handler behind them.
     expect(within(sheet).getByRole("button", { name: "Ver CV" })).toBeEnabled();
     expect(within(sheet).getByRole("button", { name: "Descargar" })).toBeEnabled();

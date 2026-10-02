@@ -1242,7 +1242,7 @@ describe("PipelineWorkspace candidate detail sheet", () => {
     expect(activity).not.toBeNull();
     expect(activity).toHaveTextContent("Movimiento confirmado");
     expect(activity).toHaveTextContent("Nuevos → En revisión");
-    expect(activity).toHaveTextContent(/solo en esta sesión local/iu);
+    expect(activity).not.toHaveTextContent(/prototipo|demostración|sesión local/iu);
     expect(activity).not.toHaveTextContent(/enviado|entregado/iu);
   });
 });
@@ -1378,7 +1378,7 @@ describe("PipelineWorkspace move dialog message", () => {
     expect(dialog.querySelector("[data-pf-pipeline-message-error]")).toBeNull();
   });
 
-  it("previews the email and process channels with an explicit no-send demo truth", async () => {
+  it("previews the email and process channels without inventing a recipient or a delivery", async () => {
     const user = userEvent.setup();
     const { container } = renderWorkspace();
 
@@ -1395,13 +1395,17 @@ describe("PipelineWorkspace move dialog message", () => {
     expect(email).toHaveTextContent(/correo/iu);
     expect(email).toHaveTextContent("Actualización de tu postulación: Backend Developer (Senior)");
     expect(email).toHaveTextContent("Hola Diego, queremos conocer más de tu experiencia.");
-    expect(email).toHaveTextContent(/no disponible/iu);
+    // The pipeline model carries no email, so the recipient row is omitted
+    // instead of a placeholder or an invented address.
+    expect(email).not.toHaveTextContent(/para:|no disponible|prototipo/iu);
+    expect(email.textContent ?? "").not.toMatch(/@/u);
     expect(process).toHaveTextContent(/proceso/iu);
     expect(process).toHaveTextContent("Contratados");
     expect(process).toHaveTextContent("Hola Diego, queremos conocer más de tu experiencia.");
-    const note = dialog.querySelector("[data-pf-pipeline-demo-note]") as HTMLElement;
-    expect(note).toHaveTextContent(/no se envía ningún correo/iu);
-    expect(dialog.textContent ?? "").not.toMatch(/enviado|entregado|éxito/iu);
+    // No prototype/local-session disclaimer and no delivery claim survives.
+    expect(dialog.textContent ?? "").not.toMatch(
+      /prototipo|demostración|sesión local|enviado|entregado|éxito/iu,
+    );
   });
 
   it("starts every movement from a fresh draft instead of the previous candidate's text", async () => {
@@ -1443,7 +1447,12 @@ describe("PipelineWorkspace move dialog message", () => {
     );
     const sheet = await screen.findByRole("dialog", { name: "Lucía Fernández" });
     const activity = sheet.querySelector("[data-pf-pipeline-activity]") as HTMLElement;
+    const message = activity.querySelector(
+      "[data-pf-pipeline-activity-message]",
+    ) as HTMLElement;
+    expect(message).toHaveTextContent(/^Mensaje:/u);
     expect(activity).toHaveTextContent("Hola Lucía, nos gustaría conocer más sobre tu experiencia con Node.js.");
+    expect(activity).not.toHaveTextContent(/sin enviar|prototipo|demostración|sesión local/iu);
     expect(activity.textContent ?? "").not.toMatch(/enviado|entregado|éxito/iu);
   });
 });

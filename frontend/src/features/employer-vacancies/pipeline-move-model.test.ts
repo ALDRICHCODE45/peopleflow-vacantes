@@ -5,7 +5,6 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import { VACANCY_PIPELINE_STAGES } from "./model";
 import { CANDIDATE_STATUS_LABELS, type PipelineCandidate } from "./pipeline-model";
 import {
-  PIPELINE_LOCAL_ONLY_NOTE,
   PIPELINE_MESSAGE_MAX_LENGTH,
   appendPipelineMoveRecord,
   applyPipelineStageMoves,
@@ -185,7 +184,7 @@ describe("local move records", () => {
     expect(pipelineMoveRecordsOf(records, "martin-bustos")).toEqual([]);
   });
 
-  it("turns records into read-only activity entries with an honest local-only note", () => {
+  it("turns records into read-only activity entries without a delivery claim or a prototype notice", () => {
     const records: readonly PipelineMoveRecord[] = [
       { candidateId: "lucia-fernandez", from: "submitted", to: "in_review", message: "", sequence: 1 },
       { candidateId: "lucia-fernandez", from: "in_review", to: "hired", message: "Hola Lucía.", sequence: 2 },
@@ -196,19 +195,18 @@ describe("local move records", () => {
         title: "Movimiento confirmado",
         detail: "Nuevos → En revisión",
         message: null,
-        note: PIPELINE_LOCAL_ONLY_NOTE,
       },
       {
         key: "movimiento-2",
         title: "Movimiento confirmado",
         detail: "En revisión → Contratados",
         message: "Hola Lucía.",
-        note: PIPELINE_LOCAL_ONLY_NOTE,
       },
     ]);
     expect(pipelineActivityItems([])).toEqual([]);
-    expect(PIPELINE_LOCAL_ONLY_NOTE).toMatch(/no se envió/iu);
-    expect(PIPELINE_LOCAL_ONLY_NOTE).not.toMatch(/enviado|entregado|éxito/iu);
+    for (const item of pipelineActivityItems(records)) {
+      expect(JSON.stringify(item)).not.toMatch(/prototipo|demostración|sesión local|enviado|entregado|éxito/iu);
+    }
   });
 
   it("labels every stage transition in Spanish without inventing a stage", () => {

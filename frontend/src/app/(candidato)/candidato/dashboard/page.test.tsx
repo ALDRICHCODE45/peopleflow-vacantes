@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { CANDIDATE_IDENTITY, CANDIDATE_PROFILE } from "@/features/candidate/prototype-candidate";
+import { CANDIDATE_APPLICATION_MESSAGES } from "@/features/candidate/prototype-messages";
 import { CANDIDATE_APPLICATIONS, CANDIDATE_CVS } from "@/features/candidate/prototype-portfolio";
 
 const { pathnameMock, overviewSpy } = vi.hoisted(() => ({
@@ -64,16 +65,18 @@ describe("candidate dashboard route", () => {
     expect(headings[0]).toHaveTextContent(/^Dashboard$/u);
   });
 
-  it("supplies exactly the four committed frozen fixtures at the page boundary", () => {
+  it("supplies exactly the five committed frozen fixtures at the page boundary", () => {
     renderRoute();
     const props = overviewSpy.mock.calls[overviewSpy.mock.calls.length - 1]?.[0] as Record<string, unknown>;
-    expect(Object.keys(props)).toEqual(["identity", "profile", "applications", "cvs"]);
+    expect(Object.keys(props)).toEqual(["identity", "profile", "applications", "cvs", "messages"]);
     expect(props.identity).toBe(CANDIDATE_IDENTITY);
     expect(props.profile).toBe(CANDIDATE_PROFILE);
     expect(props.applications).toBe(CANDIDATE_APPLICATIONS);
     expect(props.cvs).toBe(CANDIDATE_CVS);
+    expect(props.messages).toBe(CANDIDATE_APPLICATION_MESSAGES);
     expect(Object.isFrozen(props.applications)).toBe(true);
     expect(Object.isFrozen(props.cvs)).toBe(true);
+    expect(Object.isFrozen(props.messages)).toBe(true);
   });
 
   it("renders the frozen expected metrics", () => {
@@ -125,7 +128,7 @@ describe("candidate dashboard route", () => {
     }
     expect(SOURCE).toContain('import { CandidateHeader } from "@/components/candidate-dashboard/candidate-header"');
     expect(SOURCE).toContain('import { CandidateDashboardOverview } from "@/components/candidate-dashboard/candidate-dashboard-overview"');
-    for (const fixture of ["CANDIDATE_IDENTITY", "CANDIDATE_PROFILE", "CANDIDATE_APPLICATIONS", "CANDIDATE_CVS"]) {
+    for (const fixture of ["CANDIDATE_IDENTITY", "CANDIDATE_PROFILE", "CANDIDATE_APPLICATIONS", "CANDIDATE_CVS", "CANDIDATE_APPLICATION_MESSAGES"]) {
       expect(SOURCE, `page must wire ${fixture}`).toContain(fixture);
     }
     expect(SOURCE).toContain('title="Dashboard"');
