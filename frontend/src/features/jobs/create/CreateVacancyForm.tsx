@@ -2,8 +2,8 @@
 
 import * as React from "react";
 
+import { useEmployerSession } from "@/features/company-site-editor/employer-session";
 import {
-  INITIAL_VALUES,
   attemptDraftSave,
   controlId,
   firstInvalidField,
@@ -13,7 +13,6 @@ import type {
   VacancyFieldErrors,
   VacancyFormValues,
 } from "./form/model";
-import { INITIAL_PROTOTYPE_VALUES } from "./form/prototype-model";
 import type { VacancyPrototypeValues } from "./form/prototype-model";
 import type { ReviewStepId } from "./form/review-step";
 import { toPlainText } from "./form/rich-text-model";
@@ -23,7 +22,6 @@ import {
   previousStep,
   stepFieldErrors,
 } from "./form/step-model";
-import type { VacancyStepId } from "./form/step-model";
 import { StepProgress } from "./form/step-progress";
 import { VacancyFormSections } from "./form/vacancy-form-sections";
 import { WizardControls } from "./form/wizard-controls";
@@ -31,25 +29,29 @@ import { WizardControls } from "./form/wizard-controls";
 /**
  * Employer create-vacancy form body: the four-step wizard owner.
  *
- * It owns four states: the contract values the schema validates, the local-only
- * complementary values, the field errors of the last attempt, and the current
- * step. Every navigation action keeps both value states and the error record, so
- * Back and Continue never lose what the recruiter typed. Only the current step's
- * fields render.
+ * It reads the wizard's durable state from the shared employer session — the
+ * contract values, the local-only complementary values and the current step — so
+ * a route round trip keeps the draft. Only the field errors of the last attempt
+ * and the local publication outcome stay in the mounted surface.
  *
  * Continue validates the current step against the exact schema authority; an
- * invalid step stays in place and focuses its first offending control. The final
- * save is validation-only: a valid draft produces no visible change and issues no
- * request, while an invalid one routes to the first invalid step and focuses its
- * first invalid control after mount.
+ * invalid step stays in place and focuses its first offending control. Saving a
+ * draft is validation-only and independent from the company profile, while
+ * publishing runs the same validation and then the profile gate, so the vacancy
+ * is published only when it is valid and the profile is ready.
  */
 export function CreateVacancyForm() {
-  const [values, setValues] =
-    React.useState<VacancyFormValues>(INITIAL_VALUES);
-  const [prototypeValues, setPrototypeValues] =
-    React.useState<VacancyPrototypeValues>(INITIAL_PROTOTYPE_VALUES);
+  const {
+    vacancyValues: values,
+    setVacancyValues: setValues,
+    prototypeValues,
+    setPrototypeValues,
+    vacancyStep: step,
+    setVacancyStep: setStep,
+    profileReady,
+  } = useEmployerSession();
   const [errors, setErrors] = React.useState<VacancyFieldErrors>({});
-  const [step, setStep] = React.useState<VacancyStepId>("basic-information");
+  const [published, setPublished] = React.useState(false);
 
   const formRef = React.useRef<HTMLFormElement | null>(null);
   const stepRegionRef = React.useRef<HTMLDivElement | null>(null);
@@ -89,6 +91,8 @@ export function CreateVacancyForm() {
     value: VacancyFormValues[K],
   ) {
     setValues((previous) => ({ ...previous, [key]: value }));
+    // An edit makes any shown publication outcome stale.
+    setPublished(false);
   }
 
   /** Prototype edits re-derive the contract description as plain text. */
@@ -125,6 +129,28 @@ export function CreateVacancyForm() {
     setStep(target);
   }
 
+  /**
+   * Publication attempt: the same contract validation runs first, routing an
+   * incomplete vacancy to its first invalid step. A valid vacancy publishes in
+   * this session only when the company profile is already ready; the rail keeps
+   * the action disabled otherwise, so the gate can never be bypassed here.
+   */
+  function handlePublish() {
+    const nextErrors = attemptDraftSave(values);
+    setErrors(nextErrors);
+
+    const target = firstInvalidStep(nextErrors);
+    if (target !== null) {
+      pendingFieldRef.current = firstInvalidField(
+        stepFieldErrors(target, nextErrors),
+      );
+      setStep(target);
+      setPublished(false);
+      return;
+    }
+    setPublished(profileReady);
+  }
+
   /** Final validation-only save: routes to the first invalid step, or is inert. */
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -155,6 +181,9 @@ export function CreateVacancyForm() {
           prototypeValues={prototypeValues}
           onChangePrototype={updatePrototype}
           onEditStep={handleEditStep}
+          profileReady={profileReady}
+          published={published}
+          onPublish={handlePublish}
         />
       </div>
 

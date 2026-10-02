@@ -62,7 +62,20 @@ export type VacancyFormSectionsProps = {
   onChangePrototype: (next: VacancyPrototypeValues) => void;
   /** Review-only: returns to the step that owns the group being edited. */
   onEditStep: (step: ReviewStepId) => void;
+  /**
+   * Whether the company profile already allows publishing. Optional so the step
+   * switch stays renderable without the employer layout provider; absent fails
+   * closed.
+   */
+  profileReady?: boolean;
+  /** Whether the wizard already recorded a local publication. */
+  published?: boolean;
+  /** Publication attempt; defaults to an inert handler. */
+  onPublish?: () => void;
 };
+
+/** Review-only publish handler used when no wizard wired the surface. */
+const ignorePublish = () => undefined;
 
 export function VacancyFormSections({
   step,
@@ -72,6 +85,9 @@ export function VacancyFormSections({
   prototypeValues,
   onChangePrototype,
   onEditStep,
+  profileReady = false,
+  published = false,
+  onPublish = ignorePublish,
 }: VacancyFormSectionsProps) {
   if (step === "review") {
     return (
@@ -79,6 +95,9 @@ export function VacancyFormSections({
         values={values}
         prototypeValues={prototypeValues}
         onEditStep={onEditStep}
+        profileReady={profileReady}
+        published={published}
+        onPublish={onPublish}
       />
     );
   }

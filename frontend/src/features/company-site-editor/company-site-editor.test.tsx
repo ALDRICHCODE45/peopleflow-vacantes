@@ -12,6 +12,15 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { CompanySiteEditor } from "./company-site-editor";
+import { EmployerSessionProvider } from "./employer-session";
+
+/** The editor reads the shared employer session, so every case mounts it. */
+const renderEditor = () =>
+  render(
+    <EmployerSessionProvider>
+      <CompanySiteEditor />
+    </EmployerSessionProvider>,
+  );
 
 /** The three editable sections and the exact field each owns, in content order. */
 const SECTIONS = ["Identidad", "Historia", "Capacidades"] as const;
@@ -32,6 +41,8 @@ const show = (label: (typeof SECTIONS)[number]) =>
   fireEvent.click(screen.getByRole("tab", { name: label }));
 const editor = (container: HTMLElement) =>
   container.querySelector("[data-pf-sitio-editor]") as HTMLElement;
+const readiness = (container: HTMLElement) =>
+  container.querySelector("[data-pf-sitio-readiness]") as HTMLElement;
 const preview = (container: HTMLElement) =>
   container.querySelector("[data-pf-sitio-preview-surface]") as HTMLElement;
 const field = (container: HTMLElement, name: string) =>
@@ -50,7 +61,7 @@ afterEach(() => {
 
 describe("company site editor identity boundary", () => {
   it("starts from the employer identity and never borrows another company's facts or cover", () => {
-    const { container } = render(<CompanySiteEditor />);
+    const { container } = renderEditor();
     const surface = preview(container);
 
     expect(
@@ -65,7 +76,7 @@ describe("company site editor identity boundary", () => {
   });
 
   it("exposes only the identity, story and capability fields and keeps every other fact optional", () => {
-    const { container } = render(<CompanySiteEditor />);
+    const { container } = renderEditor();
     const exposed = new Set<string>();
 
     for (const label of SECTIONS) {
@@ -86,7 +97,7 @@ describe("company site editor identity boundary", () => {
 
 describe("company site editor section navigation", () => {
   it("mounts one editing section at a time", () => {
-    const { container } = render(<CompanySiteEditor />);
+    const { container } = renderEditor();
 
     for (const label of SECTIONS) {
       show(label);
@@ -98,7 +109,7 @@ describe("company site editor section navigation", () => {
   });
 
   it("keeps typed values across section tabs while the preview follows every change", () => {
-    const { container } = render(<CompanySiteEditor />);
+    const { container } = renderEditor();
 
     type(container, "name", "Nexo Labs Talento");
     type(container, "tagline", "Talento para equipos que crecen.");
@@ -132,7 +143,7 @@ describe("company site editor section navigation", () => {
 
 describe("company site editor preview", () => {
   it("embeds the shared renderer as an H2/H3 preview with prefixed, unique anchors", () => {
-    const { container } = render(<CompanySiteEditor />);
+    const { container } = renderEditor();
     const surface = preview(container);
 
     expect(container.querySelectorAll("h1")).toHaveLength(0);
@@ -154,7 +165,7 @@ describe("company site editor preview", () => {
   });
 
   it("keeps the empty vacancy preview honest and leaves only the labelled board link outbound", () => {
-    const { container } = render(<CompanySiteEditor />);
+    const { container } = renderEditor();
     const surface = preview(container);
 
     expect(surface.textContent).toContain("Nexo Labs todavía no lista sus vacantes aquí");
@@ -171,7 +182,7 @@ describe("company site editor preview", () => {
   });
 
   it("keeps the preview free of prototype notices and save or publish claims", () => {
-    const { container } = render(<CompanySiteEditor />);
+    const { container } = renderEditor();
 
     const region = screen.getByRole("region", { name: "Vista previa" });
     expect(region).not.toHaveTextContent(/vista previa local|no se guardan|prototipo|demostración/iu);
@@ -190,7 +201,7 @@ describe("company site editor preview", () => {
   });
 
   it("keeps the honest placeholders when a field only carries whitespace and falls back to the employer name when cleared", () => {
-    const { container } = render(<CompanySiteEditor />);
+    const { container } = renderEditor();
 
     // Whitespace-only story text is not authorized content: the placeholder stays.
     show("Historia");
@@ -210,7 +221,7 @@ describe("company site editor preview", () => {
   });
 
   it("splits the form and the preview on wide viewports and keeps both columns shrinkable", () => {
-    const { container } = render(<CompanySiteEditor />);
+    const { container } = renderEditor();
     const layout = container.querySelector("[data-pf-sitio-layout]") as HTMLElement;
     const form = container.querySelector("[data-pf-sitio-form]") as HTMLElement;
     const region = container.querySelector("[data-pf-sitio-preview]") as HTMLElement;
@@ -225,13 +236,73 @@ describe("company site editor preview", () => {
   });
 });
 
+describe("company site editor profile readiness", () => {
+  it("completes the profile only with a confirmed nonblank name and an About description", () => {
+    const { container } = renderEditor();
+    const panel = readiness(container);
+
+    // The seeded employer name alone never confirms identity, and a blank name
+    // cannot be confirmed at all.
+    expect(within(panel).getByText("Perfil incompleto")).toBeVisible();
+    expect(panel).toHaveTextContent("Confirma el nombre");
+    type(container, "name", "   ");
+    expect(within(panel).getByRole("button", { name: "Confirmar nombre" })).toBeDisabled();
+
+    type(container, "name", "Nexo Labs Talento");
+    fireEvent.click(within(panel).getByRole("button", { name: "Confirmar nombre" }));
+
+    // A confirmed name without an authored About still leaves it incomplete.
+    expect(within(panel).getByText("Perfil incompleto")).toBeVisible();
+    expect(panel).toHaveTextContent("Sobre la empresa");
+
+    show("Historia");
+    type(container, "about", "   ");
+    expect(within(panel).getByText("Perfil incompleto")).toBeVisible();
+
+    type(container, "about", "Somos un equipo de producto.");
+    expect(within(panel).getByText("Perfil listo")).toBeVisible();
+    expect(panel).toHaveTextContent("Tu perfil de empresa está listo.");
+  });
+
+  it("keeps the rich fields optional and still reads as complete", () => {
+    const { container } = renderEditor();
+    const panel = readiness(container);
+
+    type(container, "name", "Nexo Labs Talento");
+    show("Historia");
+    type(container, "about", "Somos un equipo de producto.");
+    show("Identidad");
+    fireEvent.click(within(panel).getByRole("button", { name: "Confirmar nombre" }));
+
+    expect(within(panel).getByText("Perfil listo")).toBeVisible();
+    expect(field(container, "tagline")).toHaveValue("");
+  });
+
+  it("revokes the confirmation when the company name is edited again", () => {
+    const { container } = renderEditor();
+    const panel = readiness(container);
+
+    type(container, "name", "Nexo Labs Talento");
+    show("Historia");
+    type(container, "about", "Somos un equipo de producto.");
+    show("Identidad");
+    fireEvent.click(within(panel).getByRole("button", { name: "Confirmar nombre" }));
+    expect(within(panel).getByText("Perfil listo")).toBeVisible();
+
+    // Editing the name invalidates the confirmation through the shared session.
+    type(container, "name", "Nexo Labs Talento MX");
+    expect(within(panel).getByText("Perfil incompleto")).toBeVisible();
+    expect(within(panel).getByRole("button", { name: "Confirmar nombre" })).toBeEnabled();
+  });
+});
+
 describe("company site editor side-effect boundary", () => {
   it("writes no storage and mutates no navigation while the user edits", () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem");
     const removeItem = vi.spyOn(Storage.prototype, "removeItem");
     const clear = vi.spyOn(Storage.prototype, "clear");
     const hrefBefore = window.location.href;
-    const { container } = render(<CompanySiteEditor />);
+    const { container } = renderEditor();
 
     type(container, "name", "Nexo Labs Talento");
     show("Historia");
