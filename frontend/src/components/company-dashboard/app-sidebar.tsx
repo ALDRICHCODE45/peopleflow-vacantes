@@ -19,10 +19,8 @@ import {
 } from "./ui/sidebar"
 import {
   IconBriefcase,
-  IconChartBar,
   IconCirclePlusFilled,
   IconLayoutDashboard,
-  IconMessage,
   IconSettings,
   IconUsers,
   IconUsersGroup,
@@ -35,20 +33,7 @@ type NavItem = {
   icon: React.ReactNode
 }
 
-/**
- * Internal marker for destinations that are not routes yet. It never reaches the
- * DOM: unresolved items render as inert buttons instead of anchors.
- */
-const UNRESOLVED_URL = "#"
-
-/**
- * Recruiting navigation for the employer dashboard prototype.
- *
- * `Dashboard`, `Vacantes`, `Base de talento`, `Equipo` and `Sitio de empleo`
- * resolve to real routes and light up from the current pathname; every remaining
- * destination is a presentation placeholder: visible, enabled and inert, never
- * marked active.
- */
+/** Recruiting navigation: every visible destination has an implemented page. */
 const data = {
   user: {
     // Employer account, not the product brand: the dashboard belongs to a
@@ -74,11 +59,6 @@ const data = {
       url: "/empresa/talento",
       icon: <IconUsers />,
     },
-    {
-      title: "Mensajes",
-      url: UNRESOLVED_URL,
-      icon: <IconMessage />,
-    },
   ],
   navOrganization: [
     {
@@ -92,13 +72,8 @@ const data = {
       icon: <IconWorld />,
     },
     {
-      title: "Reportes",
-      url: UNRESOLVED_URL,
-      icon: <IconChartBar />,
-    },
-    {
       title: "Configuración",
-      url: UNRESOLVED_URL,
+      url: "/empresa/configuracion",
       icon: <IconSettings />,
     },
   ],
@@ -107,10 +82,10 @@ const data = {
 /**
  * A destination is active on its own route and on any route nested below it, so
  * `/empresa/vacantes/nueva` and `/empresa/vacantes/:id/pipeline` keep `Vacantes`
- * lit. Unresolved prototypes and unknown pathnames stay inactive.
+ * lit. Unknown pathnames stay inactive.
  */
 function isActiveDestination(url: string, pathname: string | null): boolean {
-  if (url === UNRESOLVED_URL || !pathname) return false
+  if (!pathname) return false
   return pathname === url || pathname.startsWith(`${url}/`)
 }
 
@@ -121,22 +96,12 @@ function NavLink({
   item: NavItem
   pathname: string | null
 }) {
-  const isResolved = item.url !== UNRESOLVED_URL
   return (
     <SidebarMenuItem>
-      {/*
-        Resolved destinations stay real Next links so the router owns
-        navigation. Unresolved placeholders render as enabled native buttons
-        without a destination, so they stay visible and keyboard-reachable while
-        performing no navigation, request, storage write, state mutation,
-        toast or success claim.
-      */}
       <SidebarMenuButton
         tooltip={item.title}
         isActive={isActiveDestination(item.url, pathname)}
-        render={
-          isResolved ? <Link href={item.url} /> : <button type="button" />
-        }
+        render={<Link href={item.url} />}
       >
         {item.icon}
         <span>{item.title}</span>
@@ -167,6 +132,12 @@ function NavGroup({
     </SidebarGroup>
   )
 }
+
+const ACCOUNT_MENU = [
+  { title: "Configuración", href: "/empresa/configuracion", icon: <IconSettings /> },
+  { title: "Equipo", href: "/empresa/equipo", icon: <IconUsersGroup /> },
+  { title: "Sitio de empleo", href: "/empresa/sitio", icon: <IconWorld /> },
+] as const
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
@@ -228,7 +199,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={data.user} menuItems={ACCOUNT_MENU} />
       </SidebarFooter>
     </Sidebar>
   )

@@ -30,7 +30,21 @@ Safari tiles are not proven fixed; a real-device check is still required.
 - Independent correction review: 29 focused tests passed; four initial
   robustness findings addressed and no correction blocker identified.
 - Existing login browser test updated for the pixel budget, not executed.
-- No build, server interruption, commit or push as part of this work so far.
+- No build or server interruption. Initial fix was committed as `6a59f1b` and
+  integrated into local main; the user pushed and confirmed the Mac improved.
+
+## Theme-transition follow-up
+
+The circular 400 ms theme reveal itself is unchanged. Decorative WebGL loops now
+yield while ThemeToggle's existing `data-pf-theme-vt="active"` scope is present.
+Each background paints the incoming palette once so the captured view is current,
+then resumes the same renderer when the scope clears. No context recreation,
+new animation library, shorter transition or accessibility override.
+
+- RED: two scheduler tests failed before adding the pause contract.
+- GREEN: 57 focused scheduler/login/hero/theme tests passed, including single
+  palette redraw, resume, disposal, ownership and reduced-motion regressions.
+- TypeScript and scoped ESLint passed. New Mac performance remains unmeasured.
 
 ## Reference comparison
 

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Mesh, Program, Renderer, Triangle } from "ogl";
 
-import { decorativeDpr, motionDamping, startDecorativeAnimation } from "../webgl-animation";
+import { decorativeDpr, isThemeRevealActive, motionDamping, startDecorativeAnimation } from "../webgl-animation";
 import { SYSTEM_DARK_QUERY, type ResolvedTheme } from "../theme/theme-preferences";
 import {
   FLOATING_LINES_CONFIG,
@@ -138,7 +138,7 @@ function buildFloatingLines(
       uniforms.iResolution.value[0] = gl.drawingBufferWidth || canvas.width || 1;
       uniforms.iResolution.value[1] = gl.drawingBufferHeight || canvas.height || 1;
       uniforms.iResolution.value[2] = 1;
-      if (reducedMotion) renderer.render({ scene: mesh });
+      if (reducedMotion || isThemeRevealActive()) renderer.render({ scene: mesh });
     };
     // `draw=false` at init lets resize() render the FIRST static frame already
     // carrying the selected palette, instead of the default white gradient.
@@ -157,10 +157,11 @@ function buildFloatingLines(
         gradient[index].set([r, g, b]);
       });
       // Reduced motion has no RAF loop: redraw its single static frame here.
-      if (draw && reducedMotion && drawable) renderer.render({ scene: mesh });
+      // Refresh the incoming theme once, then leave GPU time to its reveal.
+      if (draw && drawable && (reducedMotion || isThemeRevealActive())) renderer.render({ scene: mesh });
     };
     // Frozen representative mid-animation frame; t=0 is overexposed.
-    if (reducedMotion) uniforms.iTime.value = FLOATING_LINES_REDUCED_MOTION_FRAME_TIME;
+    if (reducedMotion || isThemeRevealActive()) uniforms.iTime.value = FLOATING_LINES_REDUCED_MOTION_FRAME_TIME;
     applyTheme(options.theme, false);
     resize();
     const resizeObserver = new ResizeObserver(resize);
@@ -249,9 +250,14 @@ export function FloatingLines({
 
     const desktopMedia = window.matchMedia(FLOATING_LINES_MEDIA_QUERIES.desktop);
     const reducedMotionMedia = window.matchMedia(FLOATING_LINES_MEDIA_QUERIES.reducedMotion);
+    const fail = () => {
+      active?.dispose();
+      active = null;
+      host.setAttribute("data-floating-lines-state", "failed");
+    };
     // Theme reuse: observe the shared bootstrap/ThemeToggle document state.
     const themeObserver = new MutationObserver(() => {
-      if (active) active.applyTheme(readResolvedTheme());
+      try { active?.applyTheme(readResolvedTheme()); } catch { fail(); }
     });
     themeObserver.observe(document.documentElement, {
       attributes: true,
@@ -270,11 +276,7 @@ export function FloatingLines({
       try {
         active = buildFloatingLines(host, {
           variant, reducedMotion, theme: readResolvedTheme(),
-          onContextLost: () => {
-            active?.dispose();
-            active = null;
-            host.setAttribute("data-floating-lines-state", "failed");
-          },
+          onContextLost: fail,
         });
         host.setAttribute(
           "data-floating-lines-state",

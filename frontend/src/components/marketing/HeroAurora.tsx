@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Mesh, Program, Renderer, Triangle } from "ogl";
 import { FLOATING_LINES_VARIANTS } from "@/components/auth/floating-lines-shaders";
-import { decorativeDpr, motionDamping, startDecorativeAnimation } from "../webgl-animation";
+import { decorativeDpr, isThemeRevealActive, motionDamping, startDecorativeAnimation } from "../webgl-animation";
 
 /**
  * Hero aurora — faithful OGL/WebGL port of the reference landing's inline
@@ -283,9 +283,16 @@ export function HeroAurora({ audience = "employer" }: { audience?: "employer" | 
         program.uniforms.uBandSpread.value = palette.bandSpread;
         program.uniforms.uLightBlend.value = isLight ? 1.0 : 0.0;
         container.style.mixBlendMode = isLight ? "multiply" : "screen";
+        // One incoming-theme frame keeps the snapshot correct while RAF yields.
+        if (drawable && isThemeRevealActive()) renderer.render({ scene: mesh });
       };
       applyAuroraTheme();
-      const themeObserver = new MutationObserver(applyAuroraTheme);
+      const themeObserver = new MutationObserver(() => {
+        try { applyAuroraTheme(); } catch {
+          dispose();
+          setWebglReady(false);
+        }
+      });
       cleanups.push(() => themeObserver.disconnect());
       themeObserver.observe(document.documentElement, {
         attributes: true,
