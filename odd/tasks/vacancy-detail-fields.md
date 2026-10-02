@@ -8,10 +8,10 @@ Frontend only. Follow docs/frontend-ui-design-rules.md and design/shadcn skills,
 
 ## Delivery and tasks
 Branch feat/vacancy-detail-fields from854bd43. Forecast240–390 authored lines; single coherent work-unit commit for enrichment+rendering+tests, so no unused intermediate model. Delegated writer required (4 nontrivial files); parent owns tracking/commits. RDD off; assess returned diff and follow verification plan.
-- [ ] VDF-1 (in progress): Optional typed languages/questions on exact fixtures, conditional detail sections, distinguish seniority/experience, use existing Card/Badge where touched. Focused tests and local-main delivery. Commit pending.
+- [x] VDF-1: Typed languages/questions on exact fixtures, conditional grouped detail sections, separate seniority/experience, shared Badge. Commit c127d92 integrated into local main. Actual commit373 additions+85 deletions including tracking (458 diff lines); worker insertion-only estimate understated review size, no artificial split.
 
 ## Acceptance and verification
 Known fixtures display languages/proficiency and question prompts. Unknown/wire-only jobs receive no fabricated extras, empty sections absent, escaped text remains safe. Existing metadata/actions unaffected. Observe actual test RED before implementation, then GREEN: from frontend Node22 `pnpm test src/features/jobs/enrich.test.ts src/features/jobs/components/JobDetailView.test.tsx`; tsc and scoped eslint. No visual claims. Rollback is this unit's four code/test files. Runtime external harness N/A, user owns visual acceptance.
 
 ## Evidence / next step
-Read-only map complete. Implement bounded unit; report checks and actual changed lines. Preserve main dirty backend documents; no servers or push.
+Complete: observed13 failing tests before implementation, then51/51 GREEN; TypeScript and scoped ESLint pass. Independent bounded review and51-test rerun PASS. Assessment unavailable due untracked task doc; independent verification completed, RDD off. No build/browser/a11y/smoke/full suite. User owns visual acceptance and push. Backend docs preserved; no servers started. Added examples only to two exact fixture IDs; no real-job data fabrication.
