@@ -10,7 +10,7 @@ import {
   enrichmentForJob,
   jobsForPrototypeCompany,
 } from "./enrich";
-import type { JobPayFrequency, PrototypeJobEnrichment, PrototypeJobView } from "./enrich";
+import type { JobLanguage, JobLanguageLevel, JobPayFrequency, PrototypeJobEnrichment, PrototypeJobView } from "./enrich";
 import { jobItemSchema } from "./schemas";
 import type { JobItem } from "./types";
 const enrichSource = readFileSync(join(process.cwd(), "src", "features", "jobs", "enrich.ts"), "utf8");
@@ -35,7 +35,8 @@ describe("prototype enrichment fixtures", () => {
     expect(Object.keys(PROTOTYPE_JOB_ENRICHMENTS)).toEqual([...DEMO_JOB_IDS]);
     expect(goJob.company.id).not.toBe(PROTOTYPE_COMPANY_ID);
     for (const [index, entry] of ENTRIES.entries()) {
-      expect([Object.isFrozen(entry), Object.isFrozen(entry.skills), Object.isFrozen(entry.benefits)], DEMO_JOB_IDS[index]).toEqual([true, true, true]);
+      expect([Object.isFrozen(entry), Object.isFrozen(entry.skills), Object.isFrozen(entry.benefits), Object.isFrozen(entry.languages), Object.isFrozen(entry.applicationQuestions)], DEMO_JOB_IDS[index]).toEqual([true, true, true, true, true]);
+      for (const language of entry.languages ?? []) expect(Object.isFrozen(language)).toBe(true);
       expect([entry.department.trim().length > 0, entry.skills.length >= 2, entry.skills.length <= 4, new Set(entry.skills).size === entry.skills.length]).toEqual([true, true, true, true]);
       expect([entry.benefits.length >= 2, new Set(entry.benefits).size === entry.benefits.length, entry.requiredRequirements.length >= 1, entry.preferredRequirements.length >= 1]).toEqual([true, true, true, true]);
       for (const text of [...entry.benefits, ...entry.requiredRequirements, ...entry.preferredRequirements]) expect(text.trim()).toBe(text);
@@ -46,14 +47,48 @@ describe("prototype enrichment fixtures", () => {
       expect([entry.experienceLabel, entry.publishedAgoLabel].map((label) => label.trim().length > 0 && label.trim() === label)).toEqual([true, true]);
       expect(entry.experienceLabel).toMatch(/^\d+\+ años$/u);
       expect(entry.publishedAgoLabel).toMatch(/^Hace \d+ h$/u);
-      expect(JSON.stringify(entry)).not.toMatch(/rating|reviews|views|popularity|%/u);
+      expect(JSON.stringify(entry)).not.toMatch(/rating|reviews|views|popularity|puntaje|score|%/u);
     }
   });
+  it("freezes each language and both optional lists against mutation", () => {
+    for (const entry of ENTRIES) {
+      expect(Object.isFrozen(entry.languages)).toBe(true);
+      expect(Object.isFrozen(entry.applicationQuestions)).toBe(true);
+      expect(entry.languages!.length).toBeGreaterThan(0);
+      expect(entry.applicationQuestions!.length).toBeGreaterThan(0);
+      for (const language of entry.languages!) {
+        expect(Reflect.set(language, "name", "Otro")).toBe(false);
+        expect(language.name).not.toBe("Otro");
+      }
+      expect(Reflect.set(entry.languages!, 0, { name: "Otro" })).toBe(false);
+      expect(Reflect.set(entry.applicationQuestions!, 0, "Otra pregunta")).toBe(false);
+    }
+  });
+  it("keeps the CEFR level optional and the authored copies blank-free and typed", () => {
+    const levels = ENTRIES.flatMap((entry) => entry.languages!.map((language) => language.level));
+    expect(levels).toContain(undefined);
+    expect(levels.filter((level) => level !== undefined).length).toBeGreaterThan(0);
+    for (const entry of ENTRIES) {
+      for (const language of entry.languages!) {
+        expect(language.name.trim().length > 0 && language.name.trim() === language.name).toBe(true);
+        if (language.level !== undefined) expect(language.level).toMatch(/^[ABC][12]$/u);
+      }
+      for (const question of entry.applicationQuestions!) expect(question.trim().length > 0 && question.trim() === question).toBe(true);
+    }
+    expectTypeOf<JobLanguageLevel>().toEqualTypeOf<"A1" | "A2" | "B1" | "B2" | "C1" | "C2">();
+    expectTypeOf<JobLanguage["level"]>().toEqualTypeOf<JobLanguageLevel | undefined>();
+    expectTypeOf<PrototypeJobEnrichment["languages"]>().toEqualTypeOf<readonly JobLanguage[] | undefined>();
+    expectTypeOf<PrototypeJobEnrichment["applicationQuestions"]>().toEqualTypeOf<readonly string[] | undefined>();
+  });
   it("publishes one frozen metric set per demo vacancy and no extra field", () => {
-    const fields = ["applicantCount", "benefits", "closingDate", "department", "experienceLabel", "featured", "payFrequency", "preferredRequirements", "publishedAgoLabel", "requiredRequirements", "responseTimeDays", "skills", "verifiedByPeopleFlow"];
+    const fields = ["applicantCount", "applicationQuestions", "benefits", "closingDate", "department", "experienceLabel", "featured", "languages", "payFrequency", "preferredRequirements", "publishedAgoLabel", "requiredRequirements", "responseTimeDays", "skills", "verifiedByPeopleFlow"];
     expect(Object.keys(ENTRIES[0]).sort()).toEqual([...fields].sort());
     expect(ENTRIES[0]).toMatchObject({ applicantCount: 24, responseTimeDays: 3, featured: true, verifiedByPeopleFlow: true, experienceLabel: "5+ años", publishedAgoLabel: "Hace 2 h" });
     expect(ENTRIES[1]).toMatchObject({ applicantCount: 41, responseTimeDays: 2, featured: false, verifiedByPeopleFlow: true, experienceLabel: "6+ años", publishedAgoLabel: "Hace 5 h" });
+    expect(ENTRIES[0].languages).toEqual([{ name: "Español" }, { name: "Inglés", level: "B2" }]);
+    expect(ENTRIES[1].languages).toEqual([{ name: "Español" }, { name: "Inglés", level: "B1" }, { name: "Portugués", level: "A2" }]);
+    expect(ENTRIES[0].applicationQuestions).toHaveLength(3);
+    expect(ENTRIES[1].applicationQuestions).toHaveLength(2);
     expect(Reflect.set(ENTRIES[0], "applicantCount", 99)).toBe(false);
     expect(ENTRIES[0].applicantCount).toBe(24);
   });

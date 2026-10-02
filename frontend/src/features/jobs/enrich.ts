@@ -7,12 +7,26 @@ import type { JobItem } from "./types";
  */
 /** How often a prototype vacancy claims to pay. */
 export type JobPayFrequency = "monthly" | "yearly" | "hourly";
+/**
+ * CEFR band a prototype vacancy names for one language. The level is optional
+ * per language, so a native or unspecified language keeps only its name.
+ */
+export type JobLanguageLevel = "A1" | "A2" | "B1" | "B2" | "C1" | "C2";
+/** One display-only language a prototype vacancy asks for. */
+export type JobLanguage = {
+  readonly name: string;
+  readonly level?: JobLanguageLevel;
+};
 /** Display-only extras the prototype attaches to one vacancy. */
 export type PrototypeJobEnrichment = {
   readonly department: string;
   readonly skills: readonly string[];
   readonly benefits: readonly string[];
   readonly payFrequency: JobPayFrequency;
+  /** Fictional languages a candidate would list, with an optional CEFR band. */
+  readonly languages?: readonly JobLanguage[];
+  /** Fictional prompts a candidate reads before applying; never a form. */
+  readonly applicationQuestions?: readonly string[];
   readonly requiredRequirements: readonly string[];
   readonly preferredRequirements: readonly string[];
   readonly closingDate?: string;
@@ -38,6 +52,12 @@ const FRONTEND_JOB_ENRICHMENT: PrototypeJobEnrichment = {
   skills: ["React", "TypeScript", "Accesibilidad web"],
   benefits: ["Seguro de salud", "Horario flexible", "Equipo de cómputo"],
   payFrequency: "monthly",
+  languages: [{ name: "Español" }, { name: "Inglés", level: "B2" }],
+  applicationQuestions: [
+    "¿Cuántos años llevas construyendo interfaces con React y TypeScript en producción?",
+    "Describe un proyecto donde hayas mejorado la accesibilidad de una interfaz.",
+    "¿Qué esperas encontrar en tu próximo equipo de trabajo?",
+  ],
   requiredRequirements: ["Tres años construyendo interfaces con React y TypeScript.", "Experiencia con pruebas automatizadas de componentes."],
   preferredRequirements: ["Conocimiento de accesibilidad web (WCAG).", "Experiencia con Next.js."],
   closingDate: "2026-03-31",
@@ -53,6 +73,11 @@ const GO_JOB_ENRICHMENT: PrototypeJobEnrichment = {
   skills: ["Go", "PostgreSQL", "Kubernetes"],
   benefits: ["Seguro de salud", "Días libres adicionales", "Presupuesto de capacitación"],
   payFrequency: "monthly",
+  languages: [{ name: "Español" }, { name: "Inglés", level: "B1" }, { name: "Portugués", level: "A2" }],
+  applicationQuestions: [
+    "¿Qué servicios en Go has operado con tráfico alto y cómo los monitoreas?",
+    "Cuéntanos cómo diseñas y aplicas migraciones de base de datos sin detener el servicio.",
+  ],
   requiredRequirements: ["Experiencia diseñando servicios en Go para tráfico alto.", "Bases de datos relacionales y migraciones."],
   preferredRequirements: ["Experiencia con Kubernetes en producción."],
   applicantCount: 41,
@@ -62,7 +87,7 @@ const GO_JOB_ENRICHMENT: PrototypeJobEnrichment = {
   experienceLabel: "6+ años",
   publishedAgoLabel: "Hace 5 h",
 };
-/** Freezes one enrichment and every list it owns. */
+/** Freezes one enrichment and every list it owns, languages included. */
 function freezeEnrichment(entry: PrototypeJobEnrichment): PrototypeJobEnrichment {
   return Object.freeze({
     ...entry,
@@ -70,6 +95,14 @@ function freezeEnrichment(entry: PrototypeJobEnrichment): PrototypeJobEnrichment
     benefits: Object.freeze([...entry.benefits]),
     requiredRequirements: Object.freeze([...entry.requiredRequirements]),
     preferredRequirements: Object.freeze([...entry.preferredRequirements]),
+    languages:
+      entry.languages === undefined
+        ? undefined
+        : Object.freeze(entry.languages.map((language) => Object.freeze({ ...language }))),
+    applicationQuestions:
+      entry.applicationQuestions === undefined
+        ? undefined
+        : Object.freeze([...entry.applicationQuestions]),
   });
 }
 // Demo vacancies served by `frontend/tests/fixtures/jobs-server.mjs`.
