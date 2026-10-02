@@ -16,7 +16,7 @@ function fail(key: string, reason: string): never {
   throw new Error(`${key}: ${reason}`);
 }
 
-function parseOrigin(env: ServerEnvSource, key: string): string {
+function parseOrigin(env: ServerEnvSource, key: string, localPreview: boolean): string {
   const raw = env[key];
   if (typeof raw !== "string" || raw.trim().length === 0)
     fail(key, "must be an absolute http(s) origin");
@@ -37,13 +37,16 @@ function parseOrigin(env: ServerEnvSource, key: string): string {
     fail(key, "must be a bare origin without path, query, or fragment");
 
   const hostname = url.hostname.replace(/^\[/, "").replace(/\]$/, "");
+  const loopback = LOOPBACK_HOSTS.has(hostname);
+  if (localPreview && !loopback)
+    fail(key, "must be a loopback origin when PEOPLEFLOW_LOCAL_PREVIEW=true");
   if (
     url.protocol === "http:" &&
-    !(LOOPBACK_HOSTS.has(hostname) && !isProduction(env))
+    !(loopback && (!isProduction(env) || localPreview))
   )
     fail(
       key,
-      "http is allowed only for loopback hosts outside production; use https in production",
+      "use https in production; local HTTP preview requires PEOPLEFLOW_LOCAL_PREVIEW=true and loopback origins",
     );
 
   return url.origin;
@@ -76,9 +79,13 @@ function parseTimeout(env: ServerEnvSource): number {
 }
 
 export function validateServerEnv(env: ServerEnvSource): ServerEnv {
+  const preview = env.PEOPLEFLOW_LOCAL_PREVIEW;
+  if (preview !== undefined && preview !== "true" && preview !== "false")
+    fail("PEOPLEFLOW_LOCAL_PREVIEW", "must be true or false when provided");
+  const localPreview = preview === "true";
   return {
-    apiBaseUrl: parseOrigin(env, "PEOPLEFLOW_API_BASE_URL"),
-    siteUrl: parseOrigin(env, "PEOPLEFLOW_SITE_URL"),
+    apiBaseUrl: parseOrigin(env, "PEOPLEFLOW_API_BASE_URL", localPreview),
+    siteUrl: parseOrigin(env, "PEOPLEFLOW_SITE_URL", localPreview),
     apiTimeoutMs: parseTimeout(env),
   };
 }

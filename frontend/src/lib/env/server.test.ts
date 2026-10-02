@@ -39,6 +39,32 @@ describe("server environment validation", () => {
     }
   });
 
+  it("allows an explicit production preview only when both origins are loopback", () => {
+    for (const host of ["127.0.0.1", "localhost", "[::1]"]) {
+      const env = { NODE_ENV: "production", PEOPLEFLOW_LOCAL_PREVIEW: "true", [API]: `http://${host}:4110`, [SITE]: `http://${host}:3000` };
+      expect(validateServerEnv(env)).toEqual({ apiBaseUrl: env[API], siteUrl: env[SITE], apiTimeoutMs: 8000 });
+    }
+    throws({ NODE_ENV: "production", ...LOOPBACK, PEOPLEFLOW_LOCAL_PREVIEW: "false" });
+    for (const key of KEYS) {
+      for (const origin of ["http://example.com", "https://example.com", "http://localhost.example.com", "http://192.168.1.10"]) {
+        throws({ NODE_ENV: "production", ...LOOPBACK, PEOPLEFLOW_LOCAL_PREVIEW: "true", [key]: origin });
+      }
+      for (const malformed of ["http://user:pass@localhost:4110", "http://localhost:4110/jobs", "http://localhost:4110?x=1", "http://localhost:4110#x"]) {
+        throws({ NODE_ENV: "production", ...LOOPBACK, PEOPLEFLOW_LOCAL_PREVIEW: "true", [key]: malformed });
+      }
+    }
+  });
+
+  it("rejects ambiguous preview flags and keeps production HTTPS valid without opt-in", () => {
+    for (const flag of ["1", "yes", "TRUE", "", true, false, 1]) {
+      expect(() => validateServerEnv({ ...LOOPBACK, PEOPLEFLOW_LOCAL_PREVIEW: flag })).toThrow("PEOPLEFLOW_LOCAL_PREVIEW");
+    }
+    passes({ NODE_ENV: "production", ...HTTPS });
+    passes({ NODE_ENV: "production", ...HTTPS, PEOPLEFLOW_LOCAL_PREVIEW: "false" });
+    throws({ ...HTTPS, PEOPLEFLOW_LOCAL_PREVIEW: "true" });
+    throws({ NODE_ENV: "production", ...LOOPBACK, PEOPLEFLOW_LOCAL_PREVIEW: "true", PEOPLEFLOW_API_TIMEOUT_MS: "0" });
+  });
+
   it("accepts only integer timeouts between 1000 and 30000 ms and defaults to 8000", () => {
     expect(DEFAULT_API_TIMEOUT_MS).toBe(8000);
     for (const ms of ["1000", "15000", "30000", 1000, 30000]) passes({ ...LOOPBACK, PEOPLEFLOW_API_TIMEOUT_MS: ms });
