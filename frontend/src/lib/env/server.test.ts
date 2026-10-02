@@ -16,7 +16,7 @@ const passes = (env: Record<string, unknown>, msg?: string) => expect(() => vali
 describe("server environment validation", () => {
   it("accepts loopback HTTP origins and returns the validated values", () => {
     expect(validateServerEnv({ ...LOOPBACK })).toEqual({
-      apiBaseUrl: "http://127.0.0.1:8080", siteUrl: "http://127.0.0.1:3000", apiTimeoutMs: 8000,
+      apiBaseUrl: "http://127.0.0.1:8080", siteUrl: "http://127.0.0.1:3000", apiTimeoutMs: 8000, sampleJobs: false,
     });
   });
 
@@ -42,7 +42,7 @@ describe("server environment validation", () => {
   it("allows an explicit production preview only when both origins are loopback", () => {
     for (const host of ["127.0.0.1", "localhost", "[::1]"]) {
       const env = { NODE_ENV: "production", PEOPLEFLOW_LOCAL_PREVIEW: "true", [API]: `http://${host}:4110`, [SITE]: `http://${host}:3000` };
-      expect(validateServerEnv(env)).toEqual({ apiBaseUrl: env[API], siteUrl: env[SITE], apiTimeoutMs: 8000 });
+      expect(validateServerEnv(env)).toEqual({ apiBaseUrl: env[API], siteUrl: env[SITE], apiTimeoutMs: 8000, sampleJobs: false });
     }
     throws({ NODE_ENV: "production", ...LOOPBACK, PEOPLEFLOW_LOCAL_PREVIEW: "false" });
     for (const key of KEYS) {
@@ -69,6 +69,16 @@ describe("server environment validation", () => {
     expect(DEFAULT_API_TIMEOUT_MS).toBe(8000);
     for (const ms of ["1000", "15000", "30000", 1000, 30000]) passes({ ...LOOPBACK, PEOPLEFLOW_API_TIMEOUT_MS: ms });
     for (const ms of ["999", "30001", "1500.5", "abc", "", 0]) throws({ ...LOOPBACK, PEOPLEFLOW_API_TIMEOUT_MS: ms });
+  });
+
+  it("defaults the sample-jobs flag to false, accepts only true/false strings, and never changes the required origins", () => {
+    expect(validateServerEnv({ ...LOOPBACK }).sampleJobs).toBe(false);
+    expect(validateServerEnv({ ...LOOPBACK, PEOPLEFLOW_SAMPLE_JOBS: "false" }).sampleJobs).toBe(false);
+    expect(validateServerEnv({ ...LOOPBACK, PEOPLEFLOW_SAMPLE_JOBS: "true" }).sampleJobs).toBe(true);
+    for (const flag of ["1", "yes", "TRUE", "", true, false, 1])
+      expect(() => validateServerEnv({ ...LOOPBACK, PEOPLEFLOW_SAMPLE_JOBS: flag })).toThrow("PEOPLEFLOW_SAMPLE_JOBS");
+    // The flag is independent of the site/API origins, which stay required.
+    throws({ PEOPLEFLOW_SAMPLE_JOBS: "true" });
   });
 
   it("keeps the server-only guard on the process entry module", () => {

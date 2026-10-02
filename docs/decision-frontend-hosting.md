@@ -113,3 +113,29 @@ salida ya está disponible por ser todo AWS. (Con Vercel no existiría esta sali
 
 Amplify históricamente va un poco atrás de las versiones de Next y tiene algún edge case
 ocasional de ISR. Para on-demand revalidation estándar funciona, pero no es magia perfecta.
+
+## 6. Variable de runtime del servidor: modo de muestra (frontend)
+
+El frontend expone una bandera **server-only** para que el listado y el detalle se sirvan desde
+un conjunto fijo de diez vacantes de prueba, sin tocar el backend ni el contrato de la API.
+
+| Variable                | Valores                   | Default   |
+| ----------------------- | ------------------------- | --------- |
+| `PEOPLEFLOW_SAMPLE_JOBS` | `"true"` / `"false"` (estricto) | `"false"` |
+
+- La validación es la misma que el resto del entorno del servidor: cualquier valor distinto de
+  `"true"`/`"false"` (por ejemplo `"1"`, vacío, o un booleano) rompe el arranque con
+  `PEOPLEFLOW_SAMPLE_JOBS: must be true or false when provided`.
+- `"false"` (default) deja el camino real intacto: el listado y el detalle consultan la API con
+  el mismo contrato de siempre.
+- `"true"` responde el listado y el detalle desde el dataset de muestra local, **sin ninguna
+  petición HTTP**. Los UUID inválidos siguen rechazándose y un UUID válido desconocido devuelve el
+  mismo 404 canónico.
+- Las variables existentes siguen siendo **obligatorias** y se validan igual:
+  `PEOPLEFLOW_API_BASE_URL`, `PEOPLEFLOW_SITE_URL` y el opcional `PEOPLEFLOW_API_TIMEOUT_MS`.
+
+**Activación y redeploy**: es una variable del **runtime del servidor** (no del navegador, no
+necesita prefijo `NEXT_PUBLIC_`). Se define en el entorno de la app en Amplify Hosting; como la
+validación se evalúa al cargar `lib/env/server`, el cambio solo surte efecto con un **nuevo
+build/redeploy** del frontend. La bandera no se toca desde archivos de secretos ni `.env` del
+repositorio.

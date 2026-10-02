@@ -15,10 +15,13 @@ vi.mock("../../../lib/env/server", () => ({
     apiBaseUrl: "http://127.0.0.1:8080",
     siteUrl: "http://127.0.0.1:3000",
     apiTimeoutMs: 8000,
+    sampleJobs: false,
   },
 }));
 
 import type { RequestJsonResult } from "../../../lib/api/server";
+import { serverEnv } from "../../../lib/env/server";
+import { listSampleJobs } from "../sample-jobs";
 import { jobsListSchema } from "../schemas";
 import type { JobsList } from "../types";
 import type { JobsQuery } from "../url";
@@ -69,7 +72,12 @@ function ok(status: number, body?: unknown) {
   };
 }
 
-afterEach(() => vi.unstubAllGlobals());
+const env = serverEnv as { sampleJobs: boolean };
+
+afterEach(() => {
+  env.sampleJobs = false;
+  vi.unstubAllGlobals();
+});
 
 describe("list jobs query key", () => {
   it("is hierarchical, JSON-serializable, insertion-order-independent, and canonicalized", () => {
@@ -213,6 +221,14 @@ describe("list jobs query function", () => {
     );
     expect(source).toMatch(/lib\/api\/server"/);
     expect(source).not.toMatch(/lib\/api\/requestJson/);
+  });
+
+  it("serves the sample listing without any transport request when the flag is enabled", async () => {
+    env.sampleJobs = true;
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(listJobs({})).resolves.toEqual({ ok: true, data: listSampleJobs({}) });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("wires the query options queryFn to the same listJobs behavior", async () => {
