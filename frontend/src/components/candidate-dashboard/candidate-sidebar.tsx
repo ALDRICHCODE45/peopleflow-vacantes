@@ -11,7 +11,7 @@ import {
 } from "@/components/company-dashboard/ui/sidebar"
 import type { CandidateIdentity } from "@/features/candidate/model"
 import { CANDIDATE_IDENTITY } from "@/features/candidate/prototype-candidate"
-import { IconBriefcase, IconFileCv, IconLayoutDashboard, IconSettings, IconUserCircle } from "@tabler/icons-react"
+import { IconBookmark, IconBriefcase, IconFileCv, IconLayoutDashboard, IconSearch, IconSettings, IconUserCircle } from "@tabler/icons-react"
 
 type CandidateNavItem = { title: string; url: string; icon: React.ReactNode }
 
@@ -20,6 +20,7 @@ const CANDIDATE_NAV_GROUPS: Array<{ label: string; items: CandidateNavItem[] }> 
   { label: "Mi búsqueda", items: [
     { title: "Dashboard", url: "/candidato/dashboard", icon: <IconLayoutDashboard /> },
     { title: "Postulaciones", url: "/candidato/postulaciones", icon: <IconBriefcase /> },
+    { title: "Vacantes guardadas", url: "/candidato/guardadas", icon: <IconBookmark /> },
   ] },
   { label: "Mi perfil", items: [
     { title: "Perfil", url: "/candidato/perfil", icon: <IconUserCircle /> },
@@ -66,10 +67,28 @@ export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sideb
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {CANDIDATE_NAV_GROUPS.map((group) => (
+        {CANDIDATE_NAV_GROUPS.map((group, index) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-            <SidebarGroupContent>
+            <SidebarGroupContent className={index === 0 ? "flex flex-col gap-2" : undefined}>
+              {index === 0 && (
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                    {/* Native GET navigation keeps the primary action a button,
+                        with no client handler or application side effects. */}
+                    <form action="/vacantes" method="get">
+                      <SidebarMenuButton
+                        type="submit"
+                        tooltip="Explorar vacantes"
+                        className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
+                      >
+                        <IconSearch />
+                        <span>Explorar vacantes</span>
+                      </SidebarMenuButton>
+                    </form>
+                  </SidebarMenuItem>
+                </SidebarMenu>
+              )}
               <SidebarMenu>
                 {/* Destinations use the native default geometry: no large rows
                     and no candidate-only icon-rail floor. */}

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { existsSync, readFileSync } from "node:fs";
@@ -23,8 +23,8 @@ const source = (file: string) => {
 const SHELL = source("candidate-shell.tsx"), SIDEBAR = source("candidate-sidebar.tsx");
 const HEADER = source("candidate-header.tsx"), THEME = source("candidate-theme.module.css");
 const SOURCES = [SHELL, SIDEBAR, HEADER, THEME];
-const NAV = [["Dashboard", "/candidato/dashboard"], ["Postulaciones", "/candidato/postulaciones"], ["Perfil", "/candidato/perfil"], ["CVs", "/candidato/cvs"], ["Configuración", "/candidato/configuracion"]] as const;
-const GROUPS = [["Mi búsqueda", ["Dashboard", "Postulaciones"]], ["Mi perfil", ["Perfil", "CVs", "Configuración"]]] as const;
+const NAV = [["Dashboard", "/candidato/dashboard"], ["Postulaciones", "/candidato/postulaciones"], ["Vacantes guardadas", "/candidato/guardadas"], ["Perfil", "/candidato/perfil"], ["CVs", "/candidato/cvs"], ["Configuración", "/candidato/configuracion"]] as const;
+const GROUPS = [["Mi búsqueda", ["Dashboard", "Postulaciones", "Vacantes guardadas"]], ["Mi perfil", ["Perfil", "CVs", "Configuración"]]] as const;
 
 // jsdom implements neither matchMedia nor ResizeObserver; the sidebar reads the first.
 function stubBrowserApis(innerWidth = 1280) {
@@ -102,7 +102,7 @@ describe("candidate shell frame", () => {
   it("honors a server-derived collapsed preference without touching the cookie", () => {
     renderShell("/candidato/perfil", false);
     expect(sidebar()).toHaveAttribute("data-state", "collapsed");
-    expect(navLinks()).toHaveLength(5);
+    expect(navLinks()).toHaveLength(6);
     expect(cookie("sidebar_state")).toBeUndefined();
   });
 
@@ -112,6 +112,7 @@ describe("candidate shell frame", () => {
     await user.click(screen.getByRole("button", { name: /toggle sidebar/i }));
     const drawer = await screen.findByRole("dialog");
     expect(drawer).toHaveAccessibleName("Navegación");
+    expect(within(drawer).getByRole("button", { name: "Explorar vacantes" }).closest("form")).toHaveAttribute("action", "/vacantes");
     expect(navLinks().map((link) => link.textContent)).toEqual(NAV.map(([label]) => label));
     expect(within(drawer).getByRole("link", { name: "Perfil" })).toHaveAttribute("data-active");
     // The drawer keeps the shared account trigger, not a direct footer link.
@@ -122,7 +123,27 @@ describe("candidate shell frame", () => {
 });
 
 describe("candidate navigation", () => {
-  it("lists the five destinations in order, grouped, as resolved Next links", () => {
+  it.each([true, false])("offers Explorar vacantes as the first violet action (open=%s)", (defaultOpen) => {
+    renderShell("/candidato/dashboard", defaultOpen);
+    const action = screen.getByRole("button", { name: "Explorar vacantes" });
+    expect(action).toBeEnabled();
+    expect(action).toHaveAttribute("type", "submit");
+    expect(action).toHaveAttribute("data-size", "default");
+    expect(action).toHaveClass("min-w-8", "bg-primary", "text-primary-foreground", "hover:bg-primary/90", "h-10");
+    expect(action).toHaveAttribute("data-base-ui-tooltip-trigger");
+    expect(document.querySelector("[data-slot='sidebar-content'] [data-slot='sidebar-menu-button']")).toBe(action);
+    const form = action.closest("form")!;
+    expect(form).toHaveAttribute("action", "/vacantes");
+    expect(form).toHaveAttribute("method", "get");
+    const submitted = vi.fn();
+    form.addEventListener("submit", (event) => { event.preventDefault(); submitted(); });
+    expect(action.tabIndex).toBe(0);
+    fireEvent.click(action);
+    expect(submitted).toHaveBeenCalledOnce();
+    expect(navLinks()).toHaveLength(6);
+  });
+
+  it("lists the six destinations in order, grouped, as resolved Next links", () => {
     renderShell();
     const groupNodes = Array.from(document.querySelectorAll("[data-slot='sidebar-group']"));
     const groupLabels = Array.from(document.querySelectorAll("[data-slot='sidebar-group-label']")).map((node) => node.textContent?.trim());
@@ -148,13 +169,14 @@ describe("candidate navigation", () => {
 
   it.each([
     ["/candidato/dashboard", "Dashboard"], ["/candidato/postulaciones", "Postulaciones"], ["/candidato/postulaciones/abc-123", "Postulaciones"],
+    ["/candidato/guardadas", "Vacantes guardadas"], ["/candidato/guardadas/abc-123", "Vacantes guardadas"],
     ["/candidato/perfil", "Perfil"], ["/candidato/cvs", "CVs"], ["/candidato/configuracion/seguridad", "Configuración"],
   ])("activates only %s on the %s destination", (pathname, expected) => {
     renderShell(pathname);
     expect(activeLabels()).toEqual([expected]);
   });
 
-  it.each(["/candidato/mensajes", "/candidato/perfiles", "/candidato/postulaciones-archivadas", "/empresa/dashboard", "/", "", null])("leaves every destination inactive on %s", (pathname) => {
+  it.each(["/candidato/mensajes", "/candidato/perfiles", "/candidato/postulaciones-archivadas", "/candidato/vacantes-guardadas", "/empresa/dashboard", "/", "", null])("leaves every destination inactive on %s", (pathname) => {
     renderShell(pathname);
     expect(activeLabels()).toEqual([]);
   });
