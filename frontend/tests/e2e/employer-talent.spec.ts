@@ -325,13 +325,14 @@ test("search, facets, chips and reset compose with the same-application rule", a
   await selectFacet(page, "industry", "Tecnología");
   await closeFilters(page);
   await expect(page.locator('[data-pf-talento-chip="industry:Tecnología"]')).toBeVisible();
-  const tecnologiaCount = await rows(page).count();
+  const resultCount = page.locator("[data-pf-talento-result-count]");
+  await expect(resultCount).toHaveText("Mostrando 10 de 11 personas");
   await openFilters(page);
   await selectFacet(page, "industry", "Salud");
   await closeFilters(page);
-  expect(await rows(page).count()).toBeGreaterThan(tecnologiaCount);
+  await expect(resultCount).toHaveText("Mostrando 10 de 14 personas");
   await page.locator('[data-pf-talento-chip="industry:Salud"]').click();
-  expect(await rows(page).count()).toBe(tecnologiaCount);
+  await expect(resultCount).toHaveText("Mostrando 10 de 11 personas");
 
   // Position + stage must share one application: Gabriela applied to Frontend
   // (in review) and Fullstack (submitted), so Frontend + Contratado excludes her
@@ -982,6 +983,8 @@ test("the table keeps ~70px rows and the detail sheet scrolls its body under a f
   const sheet = page.locator("[data-pf-talento-sheet]");
   await expect(sheet).toBeVisible();
   await expectFloatingInset(page, SHEET_INSET_DESKTOP);
+
+  await expect(sheet.locator("[data-pf-talento-sheet-name]")).toBeFocused();
 
   // The body is the only scroll container and it carries the cover and the
   // identity too: scrolling moves them away while the footer keeps its

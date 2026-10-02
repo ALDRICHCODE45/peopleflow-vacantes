@@ -3,19 +3,49 @@
 import * as React from "react";
 import { Columns3Icon, ListIcon, SearchIcon } from "lucide-react";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { TalentDetailSheet } from "@/features/employer-talent/talent-detail-sheet";
 
-import { VACANCY_PIPELINE_STAGES, vacancyCandidateTotal } from "./model";
-import type { EmployerVacancy, VacancyPipelineStage } from "./model";
-import { CANDIDATE_SOURCE_LABELS, CANDIDATE_STATUS_LABELS, summarizeCandidateStages, visibleCandidatesCopy } from "./pipeline-model";
-import type { PipelineCandidate } from "./pipeline-model";
+import { vacancyCandidateTotal } from "./model";
+import type { EmployerVacancy } from "./model";
+import {
+  CANDIDATE_SOURCE_LABELS,
+  CANDIDATE_STATUS_LABELS,
+  findCandidateById,
+  summarizeCandidateStages,
+  visibleCandidatesCopy,
+} from "./pipeline-model";
+import type { CandidateStatus, PipelineCandidate } from "./pipeline-model";
+import {
+  CARD_META,
+  META,
+  MatchScore,
+  PipelineBoard,
+  PipelineCandidateActions,
+  STAGE_VARIANT,
+  SkillChips,
+  commentCopy,
+  plural,
+} from "./pipeline-board";
 import {
   createEmptyPipelineFilters,
   filterPipelineCandidates,
@@ -24,29 +54,49 @@ import {
   pipelineNoResultsCopy,
 } from "./pipeline-filter-model";
 import { PipelineFilterBar } from "./pipeline-filters";
+import {
+  appendPipelineMoveRecord,
+  applyPipelineStageMoves,
+  confirmedPipelineMessage,
+  isCandidateStatus,
+  pipelineActivityItems,
+  pipelineCandidateDetailView,
+  pipelineMoveIntent,
+  pipelineMoveRecordsOf,
+  recordPipelineStageMove,
+} from "./pipeline-move-model";
+import type {
+  PipelineMoveIntent,
+  PipelineMoveRecord,
+  PipelineNotificationDraft,
+  PipelineStageMoves,
+} from "./pipeline-move-model";
+import { PipelineMoveDialog } from "./pipeline-move-dialog";
 
 /**
- * Semantic stage variant: the Spanish label always carries the meaning, so the
- * shared Badge variant only reinforces it through the `--status-*` tokens. No
- * raw color value or local tone recipe is authored here.
+ * Per-vacancy pipeline surface: a fully local, in-memory client view over one
+ * validated vacancy and the candidate cards already filtered to it.
+ *
+ * It owns the filter state, the single filtered projection both representations
+ * render, the visit-local confirmed movements, the pending change awaiting
+ * confirmation, the selected detail and the message drafts composed with each
+ * move. Confirmation alone applies a movement; cancel, Escape, dismissal,
+ * outside drops and same-stage choices mutate nothing. It never imports
+ * fixtures, never fetches, stores or routes, and it claims no delivery.
+ *
+ * A client navigation to another vacancy starts a new visit-local session: the
+ * inner session is keyed by the vacancy id, so no movement, pending change,
+ * detail selection or draft can leak into the vacancy the visitor just opened.
  */
-const STAGE_VARIANT: Readonly<Record<VacancyPipelineStage, BadgeVariant>> = {
-  submitted: "info",
-  in_review: "review",
-  hired: "success",
-  rejected: "danger",
-};
-/** Supplementary dot color for the non-Badge column-heading stage marker. */
-const STAGE_DOT: Readonly<Record<VacancyPipelineStage, string>> = {
-  submitted: "bg-status-info",
-  in_review: "bg-status-review",
-  hired: "bg-status-success",
-  rejected: "bg-status-danger",
-};
-const META = "text-[12px] text-muted-foreground";
-const CARD_META = "text-[11.5px] text-muted-foreground";
-/** Shared list-row cell geometry, kept identical across every column. */
-const CELL = "px-3 py-3 align-top";
+export function PipelineWorkspace({
+  vacancy,
+  candidates,
+}: {
+  vacancy: EmployerVacancy;
+  candidates: readonly PipelineCandidate[];
+}) {
+  return <PipelineVacancySession key={vacancy.id} vacancy={vacancy} candidates={candidates} />;
+}
 
 /** The two local display modes of the pipeline. Nothing outside this component reads them. */
 type PipelineView = "board" | "list";
@@ -58,94 +108,26 @@ const PIPELINE_VIEWS = [
 ] as const;
 
 /** Column headers of the list representation, in render order. */
-const LIST_COLUMN_LABELS = ["Candidato", "Estado", "Experiencia", "Habilidades", "Compatibilidad", "Origen", "Responsable", "Comentarios", "Próximo paso"] as const;
+const LIST_COLUMN_LABELS = [
+  "Candidato",
+  "Estado",
+  "Experiencia",
+  "Habilidades",
+  "Compatibilidad",
+  "Origen",
+  "Responsable",
+  "Comentarios",
+  "Próximo paso",
+  "Acciones",
+] as const;
 
-/** Spanish count agreement: singular for exactly one, plural otherwise. */
-const plural = (count: number, singular: string, pluralForm: string) => `${count} ${count === 1 ? singular : pluralForm}`;
+/** Shared list-row cell geometry, kept identical across every column. */
+const CELL = "px-3 py-3 align-top";
 
-/** Deterministic first+last initials, so an avatar never depends on randomness. */
-const initialsOf = (fullName: string) => {
-  const words = fullName.trim().split(/\s+/u).filter((word) => word !== "");
-  const first = words[0]?.charAt(0) ?? "";
-  const last = words.length > 1 ? words[words.length - 1].charAt(0) : "";
-  return `${first}${last}`.toUpperCase();
-};
-/** Honest zero-comment copy, shared by both representations. */
-const commentCopy = (count: number) => (count === 0 ? "Sin comentarios" : plural(count, "comentario", "comentarios"));
-
-/** Match-score Badge shared by the board card and the list row. A counter is
-    not a status, so it never opts into the decorative dot even when it reuses a
-    semantic stage variant for color. */
-function MatchScore({ score, variant }: { score: number; variant?: BadgeVariant }) {
-  return (
-    <Badge variant={variant ?? "outline"} className="font-bold tabular-nums"><span className="sr-only">Compatibilidad </span>{score}%</Badge>
-  );
-}
-
-/** Skill chips shared by the board card and the list row: the semantic list
-    stays, and every chip is the installed Badge primitive. */
-function SkillChips({ skills }: { skills: readonly string[] }) {
-  return (
-    <ul className="flex flex-wrap gap-1.5">
-      {skills.slice(0, 4).map((skill) => (<li key={skill}><Badge variant="outline" className="text-[11px] font-normal text-muted-foreground">{skill}</Badge></li>))}
-    </ul>
-  );
-}
-
-/**
- * One candidate as a non-clickable card: the truthful recruiter-facing facts and
- * nothing interactive. It is never a link, button, drag handle, or mutation shell.
- */
-function CandidateCard({ candidate }: { candidate: PipelineCandidate }) {
-  return (
-    <Card data-pf-pipeline-card={candidate.id} size="sm">
-      <CardHeader className="flex flex-row items-center gap-2.5">
-        <Avatar size="sm" className="shrink-0"><AvatarFallback className="text-[11px] font-semibold">{initialsOf(candidate.fullName)}</AvatarFallback></Avatar>
-        <div className="min-w-0 flex-1">
-          <CardTitle><h3 className="text-balance text-[14px] leading-snug font-semibold text-foreground">{candidate.fullName}</h3></CardTitle>
-          <p className={`mt-0.5 text-pretty leading-snug ${META}`}>{candidate.professionalTitle}</p>
-        </div>
-        <MatchScore score={candidate.matchScore} variant={STAGE_VARIANT[candidate.status]} />
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        <p className={META}>{plural(candidate.yearsOfExperience, "año", "años")} de experiencia</p>
-        <SkillChips skills={candidate.skills} />
-      </CardContent>
-      <CardFooter className="flex flex-col items-start gap-1">
-        <p className={CARD_META}>Origen: {CANDIDATE_SOURCE_LABELS[candidate.source]} · Responsable: {candidate.owner}</p>
-        <p className={CARD_META}>{commentCopy(candidate.commentCount)}</p>
-        {candidate.nextStep ? (
-          <p data-pf-pipeline-next-step={candidate.id} className={`mt-1 rounded-lg bg-muted px-2.5 py-1.5 ${CARD_META}`}><span className="font-semibold text-foreground">Próximo paso: </span>{candidate.nextStep}</p>
-        ) : null}
-      </CardFooter>
-    </Card>
-  );
-}
-
-/** One always-present stage column: text label, supplemental dot, filtered count, honest empty state. */
-function BoardColumn({ stage, count, candidates }: { stage: VacancyPipelineStage; count: number; candidates: readonly PipelineCandidate[] }) {
-  const label = CANDIDATE_STATUS_LABELS[stage];
-  return (
-    <section data-pf-pipeline-column={stage} aria-label={`${label}: ${plural(count, "candidato", "candidatos")}`} className="flex min-w-0 flex-col rounded-2xl border border-border bg-card/40 p-3">
-      <header className="flex items-center justify-between gap-2 px-1 pb-3">
-        <div className="flex items-center gap-2">
-          <span aria-hidden="true" className={`size-2.5 rounded-full ${STAGE_DOT[stage]}`} />
-          <h3 className="text-[13.5px] font-semibold text-foreground">{label}</h3>
-        </div>
-        <Badge variant={STAGE_VARIANT[stage]} data-pf-pipeline-column-count={stage} className="text-[11px] font-semibold tabular-nums">{count}</Badge>
-      </header>
-      {candidates.length === 0 ? (
-        <Empty data-pf-pipeline-column-empty={stage} className="border border-dashed border-border p-4">
-          <EmptyDescription className="text-[12.5px]">Sin candidatos en esta etapa.</EmptyDescription>
-        </Empty>
-      ) : (
-        <ul className="flex flex-col gap-3">
-          {candidates.map((candidate) => (<li key={candidate.id}><CandidateCard candidate={candidate} /></li>))}
-        </ul>
-      )}
-    </section>
-  );
-}
+/** Detail control shared by the board card and the list row: a real button with
+    a candidate-specific accessible name and a visible focus ring. */
+const DETAIL_CONTROL =
+  "h-auto min-h-10 max-w-full justify-start whitespace-normal px-0 text-left";
 
 /**
  * The local Tablero/Lista switch: a labelled, controlled ToggleGroup of two
@@ -178,15 +160,30 @@ function ViewSwitch({ view, onChange }: { view: PipelineView; onChange: (next: P
   );
 }
 
-/**
- * One candidate as a list row: the same truthful, non-interactive facts as the
- * board card, never a row-wide link, button, or drag handle.
- */
-function CandidateRow({ candidate }: { candidate: PipelineCandidate }) {
+/** One candidate as a list row: the same truthful facts as the board card, with
+    the detail control in the identity cell and one actions menu at the end. */
+function CandidateRow({
+  candidate,
+  onOpenDetail,
+  onRequestMove,
+}: {
+  candidate: PipelineCandidate;
+  onOpenDetail: (candidateId: string) => void;
+  onRequestMove: (candidateId: string, to: CandidateStatus) => void;
+}) {
   return (
     <TableRow data-pf-pipeline-row={candidate.id} className="border-b border-border/70 align-top last:border-b-0">
       <TableCell className={CELL}>
-        <p className="text-[13.5px] font-semibold text-foreground">{candidate.fullName}</p>
+        <Button
+          type="button"
+          variant="ghost"
+          data-pf-pipeline-detail={candidate.id}
+          aria-label={`Ver detalle de ${candidate.fullName}`}
+          onClick={() => onOpenDetail(candidate.id)}
+          className={DETAIL_CONTROL}
+        >
+          {candidate.fullName}
+        </Button>
         <p className={`mt-0.5 ${META}`}>{candidate.professionalTitle}</p>
       </TableCell>
       <TableCell className={CELL}>
@@ -203,6 +200,11 @@ function CandidateRow({ candidate }: { candidate: PipelineCandidate }) {
       <TableCell className={CELL}>
         {candidate.nextStep ? (<span data-pf-pipeline-next-step={candidate.id} className={`inline-block rounded-lg bg-muted px-2.5 py-1.5 ${CARD_META}`}><span className="font-semibold text-foreground">Próximo paso: </span>{candidate.nextStep}</span>) : null}
       </TableCell>
+      <TableCell className={CELL}>
+        <div className="flex justify-end">
+          <PipelineCandidateActions candidate={candidate} onOpenDetail={onOpenDetail} onRequestMove={onRequestMove} />
+        </div>
+      </TableCell>
     </TableRow>
   );
 }
@@ -213,7 +215,19 @@ function CandidateRow({ candidate }: { candidate: PipelineCandidate }) {
  * region instead of widening the document, and an empty set keeps an honest
  * message so the shared recovery below it still reads truthfully.
  */
-function CandidateList({ label, candidates, emptyCopy }: { label: string; candidates: readonly PipelineCandidate[]; emptyCopy: string }) {
+function CandidateList({
+  label,
+  candidates,
+  emptyCopy,
+  onOpenDetail,
+  onRequestMove,
+}: {
+  label: string;
+  candidates: readonly PipelineCandidate[];
+  emptyCopy: string;
+  onOpenDetail: (candidateId: string) => void;
+  onRequestMove: (candidateId: string, to: CandidateStatus) => void;
+}) {
   return (
     <div data-pf-pipeline-list role="region" aria-label={label} tabIndex={0} className="overflow-x-auto rounded-2xl border border-border bg-card/40 p-1 focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none [&>[data-slot=table-container]]:contents">
       {candidates.length === 0 ? (
@@ -229,7 +243,14 @@ function CandidateList({ label, candidates, emptyCopy }: { label: string; candid
             </TableRow>
           </TableHeader>
           <TableBody>
-            {candidates.map((candidate) => (<CandidateRow key={candidate.id} candidate={candidate} />))}
+            {candidates.map((candidate) => (
+              <CandidateRow
+                key={candidate.id}
+                candidate={candidate}
+                onOpenDetail={onOpenDetail}
+                onRequestMove={onRequestMove}
+              />
+            ))}
           </TableBody>
         </Table>
       )}
@@ -238,22 +259,144 @@ function CandidateList({ label, candidates, emptyCopy }: { label: string; candid
 }
 
 /**
- * Per-vacancy pipeline surface: a fully local, in-memory client view over one
- * validated vacancy and the candidate cards already filtered to it. It derives
- * the four column counts from the model helper, filters by name, title, and
- * skills with a diacritic-insensitive search, and renders that single filtered
- * set as either the Tablero board or the Lista table behind one accessible local
- * switch. It reports how many candidate cards the current view shows out of the
- * vacancy total. It owns no fetch, router mutation, storage, drag/drop, or
- * candidate mutation, and it never imports fixtures.
+ * Local activity of one candidate inside the shared detail Sheet: the requested
+ * stage changes that were confirmed in this visit, with the message prepared for
+ * the candidate when there was one. It is a record of local drafts and never a
+ * delivery report.
  */
-export function PipelineWorkspace({ vacancy, candidates }: { vacancy: EmployerVacancy; candidates: readonly PipelineCandidate[] }) {
+function PipelineActivity({ records }: { records: readonly PipelineMoveRecord[] }) {
+  const items = pipelineActivityItems(records);
+  if (items.length === 0) {
+    return (
+      <p data-pf-pipeline-activity-empty="" className="rounded-xl bg-muted p-3 text-[12.5px] text-muted-foreground">
+        Aún no hay movimientos registrados en esta sesión.
+      </p>
+    );
+  }
+  return (
+    <ul data-pf-pipeline-activity="" className="flex flex-col gap-3">
+      {items.map((item) => (
+        <li key={item.key} data-pf-pipeline-activity-item={item.key} className="flex flex-col gap-1 rounded-xl bg-muted p-3">
+          <p className="text-sm font-semibold text-foreground">{item.title}</p>
+          <p className="text-[12.5px] text-muted-foreground">{item.detail}</p>
+          {item.message === null ? null : (
+            <p data-pf-pipeline-activity-message="" className="mt-1 rounded-lg bg-card px-2.5 py-2 text-sm text-foreground">
+              <span className="font-semibold">Mensaje preparado (sin enviar): </span>
+              {item.message}
+            </p>
+          )}
+          <p className={META}>{item.note}</p>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** The visit-local state of one vacancy: filters, view, confirmed movements,
+    pending change, selected detail and the message drafts of each movement. */
+function PipelineVacancySession({
+  vacancy,
+  candidates,
+}: {
+  vacancy: EmployerVacancy;
+  candidates: readonly PipelineCandidate[];
+}) {
   const [filters, setFilters] = React.useState(createEmptyPipelineFilters);
   const [view, setView] = React.useState<PipelineView>("board");
-  const filtered = filterPipelineCandidates(candidates, filters);
+  /** Confirmed stage overrides; the frozen roster itself is never rewritten. */
+  const [stageMoves, setStageMoves] = React.useState<PipelineStageMoves>({});
+  const [moveRecords, setMoveRecords] = React.useState<readonly PipelineMoveRecord[]>([]);
+  /** The change that is pending confirmation; `null` means none. */
+  const [moveIntent, setMoveIntent] = React.useState<PipelineMoveIntent | null>(null);
+  /**
+   * The intent that is still awaiting a decision. It is cleared by the first
+   * decision, because Base UI reports a close when the confirmation unmounts
+   * after a confirmation too: that report must not be read as a cancellation.
+   */
+  const pendingIntentRef = React.useRef<PipelineMoveIntent | null>(null);
+  const [detailCandidateId, setDetailCandidateId] = React.useState<string | null>(null);
+  const [announcement, setAnnouncement] = React.useState("");
+  /** Where focus goes once the move it belongs to has been rendered. */
+  const [pendingFocus, setPendingFocus] = React.useState<{
+    candidateId: string;
+    stage: CandidateStatus;
+  } | null>(null);
+
+  const roster = React.useMemo(
+    () => applyPipelineStageMoves(candidates, stageMoves),
+    [candidates, stageMoves],
+  );
+  const filtered = filterPipelineCandidates(roster, filters);
   const stageCounts = summarizeCandidateStages(filtered);
   const hasActive = hasActivePipelineFilters(filters);
   const listEmptyCopy = pipelineListEmptyCopy(filters);
+
+  const pendingCandidate =
+    moveIntent === null ? null : (findCandidateById(roster, moveIntent.candidateId) ?? null);
+  const detailCandidate =
+    detailCandidateId === null ? null : (findCandidateById(roster, detailCandidateId) ?? null);
+
+  // A confirmed move can relocate a card into another column or hide it behind
+  // the active filter. The moved card's own detail control is the destination
+  // when it is still rendered; otherwise the destination column (or the list
+  // region) receives focus, so focus is never dropped on the document body.
+  React.useEffect(() => {
+    if (pendingFocus === null) return;
+    const control = document.querySelector<HTMLElement>(
+      `[data-pf-pipeline-detail="${pendingFocus.candidateId}"]`,
+    );
+    const column = document.querySelector<HTMLElement>(
+      `[data-pf-pipeline-column="${pendingFocus.stage}"]`,
+    );
+    const listRegion = document.querySelector<HTMLElement>("[data-pf-pipeline-list]");
+    (control ?? column ?? listRegion)?.focus();
+    setPendingFocus(null);
+  }, [pendingFocus]);
+
+  function requestMove(candidateId: string, to: string) {
+    if (!isCandidateStatus(to)) return;
+    const candidate = findCandidateById(roster, candidateId);
+    if (candidate === undefined) return;
+    const intent = pipelineMoveIntent(candidate, to);
+    // A same-stage drop, or a target outside the four stages, is a no-op: it
+    // opens no confirmation and leaves the roster untouched.
+    if (intent === null) return;
+    pendingIntentRef.current = intent;
+    setMoveIntent(intent);
+  }
+
+  function cancelMove() {
+    const intent = pendingIntentRef.current;
+    if (intent === null) return;
+    pendingIntentRef.current = null;
+    setMoveIntent(null);
+    setPendingFocus({ candidateId: intent.candidateId, stage: intent.from });
+  }
+
+  function confirmMove(confirmed: {
+    to: CandidateStatus;
+    notification: PipelineNotificationDraft;
+  }) {
+    const intent = pendingIntentRef.current;
+    if (intent === null) return;
+    pendingIntentRef.current = null;
+    const name = findCandidateById(roster, intent.candidateId)?.fullName ?? "";
+    setStageMoves((current) => recordPipelineStageMove(current, intent.candidateId, confirmed.to));
+    setMoveRecords((current) =>
+      appendPipelineMoveRecord(current, {
+        candidateId: intent.candidateId,
+        from: intent.from,
+        to: confirmed.to,
+        message: confirmedPipelineMessage(confirmed.notification),
+      }),
+    );
+    setAnnouncement(
+      `Movimiento confirmado: ${name} ahora está en ${CANDIDATE_STATUS_LABELS[confirmed.to]}.`,
+    );
+    setMoveIntent(null);
+    setPendingFocus({ candidateId: intent.candidateId, stage: confirmed.to });
+  }
+
   return (
     <div data-pf-pipeline className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -270,14 +413,23 @@ export function PipelineWorkspace({ vacancy, candidates }: { vacancy: EmployerVa
       </div>
       <PipelineFilterBar candidates={candidates} filters={filters} onChange={setFilters} />
       <p data-pf-pipeline-sample className={META}>{visibleCandidatesCopy(filtered.length, vacancyCandidateTotal(vacancy.candidateCounts))}</p>
+      <p role="status" aria-live="polite" data-pf-pipeline-announcement="" className="sr-only">{announcement}</p>
       {view === "board" ? (
-        <div data-pf-pipeline-board role="region" aria-label={`Tablero de candidatos de ${vacancy.title}`} tabIndex={0} className="overflow-x-auto pb-1 focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none">
-          <div data-pf-pipeline-grid className="grid min-w-[60rem] grid-cols-4 gap-3 lg:min-w-0">
-            {VACANCY_PIPELINE_STAGES.map((stage) => (<BoardColumn key={stage} stage={stage} count={stageCounts[stage]} candidates={filtered.filter((candidate) => candidate.status === stage)} />))}
-          </div>
-        </div>
+        <PipelineBoard
+          candidates={filtered}
+          stageCounts={stageCounts}
+          boardLabel={`Tablero de candidatos de ${vacancy.title}`}
+          onOpenDetail={setDetailCandidateId}
+          onRequestMove={requestMove}
+        />
       ) : (
-        <CandidateList label={`Lista de candidatos de ${vacancy.title}`} candidates={filtered} emptyCopy={listEmptyCopy} />
+        <CandidateList
+          label={`Lista de candidatos de ${vacancy.title}`}
+          candidates={filtered}
+          emptyCopy={listEmptyCopy}
+          onOpenDetail={setDetailCandidateId}
+          onRequestMove={requestMove}
+        />
       )}
       {hasActive && filtered.length === 0 ? (
         <Empty data-pf-pipeline-recovery className="border border-dashed border-border bg-card/40 p-6">
@@ -290,6 +442,29 @@ export function PipelineWorkspace({ vacancy, candidates }: { vacancy: EmployerVa
           </EmptyContent>
         </Empty>
       ) : null}
+      {moveIntent !== null && pendingCandidate !== null ? (
+        <PipelineMoveDialog
+          candidateName={pendingCandidate.fullName}
+          vacancyTitle={vacancy.title}
+          from={moveIntent.from}
+          to={moveIntent.to}
+          onCancel={cancelMove}
+          onConfirm={confirmMove}
+        />
+      ) : null}
+      <TalentDetailSheet
+        person={detailCandidate === null ? null : pipelineCandidateDetailView(detailCandidate)}
+        vacancyTitleById={{}}
+        open={detailCandidate !== null}
+        onOpenChange={(next: boolean) => {
+          if (!next) setDetailCandidateId(null);
+        }}
+        activity={
+          detailCandidateId === null ? null : (
+            <PipelineActivity records={pipelineMoveRecordsOf(moveRecords, detailCandidateId)} />
+          )
+        }
+      />
     </div>
   );
 }

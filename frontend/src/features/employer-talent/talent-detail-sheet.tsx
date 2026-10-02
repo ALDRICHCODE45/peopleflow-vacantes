@@ -34,23 +34,29 @@ import {
   TALENT_MODALITY_LABELS,
   TALENT_SOURCE_LABELS,
   TALENT_STAGE_LABELS,
-  applicationsByMostRecent,
   formatTalentDate,
   formatTalentYears,
   talentFullNameInitials,
+  type TalentApplication,
   type TalentAvailability,
+  type TalentLanguage,
   type TalentModality,
-  type TalentPerson,
   type TalentStage,
 } from "./model";
 
 /**
- * Read-only detail sheet of one person in the talent base.
+ * Read-only detail sheet of one person.
  *
  * It is mounted once, outside the table row loop, and driven by the selected
  * person. The whole surface is a snapshot: it never contacts, downloads,
  * exports, mutates or persists anything. Status only appears on each
  * application record, never as a universal person status.
+ *
+ * The person it renders is a read-only view, not necessarily a complete talent
+ * record: the vacancy pipeline projects only the facts its own candidate model
+ * proves, so every field the caller does not supply reads as explicitly
+ * unavailable instead of being invented or borrowed from a similarly named
+ * person.
  *
  * The cover, identity and details share one scrolling body beneath a fixed
  * close control and above a fixed footer. The floating geometry, inset, radius and the
@@ -105,12 +111,61 @@ function talentCvDemoFileName(fullName: string): string {
 }
 
 export type TalentDetailSheetProps = {
-  /** Selected person, or `null` when the sheet is closed/empty. */
-  person: TalentPerson | null;
+  /**
+   * Selected person, or `null` when the sheet is closed/empty. A complete
+   * `TalentPerson` from the talent base satisfies this view as-is; a reduced
+   * caller, such as the vacancy pipeline, supplies only the fields it can prove.
+   */
+  person: TalentDetailView | null;
   vacancyTitleById: Readonly<Record<string, string>>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Optional read-only extra section of locally recorded activity. The pipeline
+   * passes its confirmed stage changes and prepared messages here; the talent
+   * base passes nothing and the section is not rendered.
+   */
+  activity?: React.ReactNode;
 };
+
+/**
+ * One read-only person view. Every field beyond the identity and the skills is
+ * optional, because a caller may know the person without knowing their contact
+ * data, formation, preferences or history. A missing field renders as
+ * unavailable; it is never filled in from another record.
+ */
+export type TalentDetailView = {
+  readonly fullName: string;
+  readonly professionalTitle: string;
+  readonly industry?: string;
+  readonly currentCompany?: string;
+  readonly skills: readonly string[];
+  readonly preferredModality?: TalentModality;
+  readonly availability?: TalentAvailability;
+  readonly email?: string;
+  readonly phone?: string;
+  readonly location?: string;
+  readonly education?: string;
+  readonly languages?: readonly TalentLanguage[];
+  readonly yearsOfExperience: number;
+  readonly applications?: readonly TalentApplication[];
+};
+
+/** Honest copy of every field the current view does not carry. */
+const UNAVAILABLE = "No disponible";
+
+/**
+ * Applications of one read-only view, most recent first. The shared helper is
+ * typed to the complete talent person, so the reduced view sorts its own
+ * records with the same order instead of fabricating a person around them.
+ */
+function applicationsByMostRecentView(
+  applications: readonly TalentApplication[],
+): readonly TalentApplication[] {
+  return [...applications].sort((left, right) =>
+    right.appliedAt.localeCompare(left.appliedAt),
+  );
+}
 
 /**
  * One section of the detail: a real `h3` names the group and a small metadata
@@ -181,12 +236,16 @@ export function TalentDetailSheet({
   vacancyTitleById,
   open,
   onOpenChange,
+  activity,
 }: TalentDetailSheetProps) {
+  const applications = person?.applications ?? [];
+  const headingRef = React.useRef<HTMLHeadingElement>(null);
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {person ? (
         <SheetContent
           side="right"
+          initialFocus={headingRef}
           data-pf-talento-sheet=""
           className="w-full sm:max-w-2xl"
         >
@@ -223,15 +282,18 @@ export function TalentDetailSheet({
                 </Avatar>
                 <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                   <SheetTitle
+                    ref={headingRef}
+                    tabIndex={-1}
                     data-pf-talento-sheet-name=""
                     className="min-w-0 break-words text-xl font-semibold [overflow-wrap:anywhere]"
                   >
                     {person.fullName}
                   </SheetTitle>
-                  <Badge variant="accent">{person.industry}</Badge>
+                  {person.industry ? <Badge variant="accent">{person.industry}</Badge> : null}
                 </div>
                 <SheetDescription className="break-words [overflow-wrap:anywhere]">
-                  {person.professionalTitle} · {person.currentCompany}
+                  {person.professionalTitle}
+                  {person.currentCompany ? ` · ${person.currentCompany}` : ""}
                 </SheetDescription>
               </div>
             </SheetHeader>
@@ -250,22 +312,30 @@ export function TalentDetailSheet({
               </div>
             </DetailSection>
 
-            <DetailSection
-              id="talento-detalle-preferencias"
-              title="Preferencias laborales"
-            >
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge
-                  variant={TALENT_MODALITY_VARIANT[person.preferredModality]}
-                >
-                  {TALENT_MODALITY_LABELS[person.preferredModality]}
-                </Badge>
-                <Badge variant={TALENT_AVAILABILITY_VARIANT[person.availability]}>
-                  <IconClock aria-hidden="true" />
-                  {TALENT_AVAILABILITY_LABELS[person.availability]}
-                </Badge>
-              </div>
-            </DetailSection>
+            {person.preferredModality === undefined && person.availability === undefined ? null : (
+              <DetailSection
+                id="talento-detalle-preferencias"
+                title="Preferencias laborales"
+              >
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {person.preferredModality === undefined ? (
+                    <Badge variant="neutral">Modalidad no disponible</Badge>
+                  ) : (
+                    <Badge variant={TALENT_MODALITY_VARIANT[person.preferredModality]}>
+                      {TALENT_MODALITY_LABELS[person.preferredModality]}
+                    </Badge>
+                  )}
+                  {person.availability === undefined ? (
+                    <Badge variant="neutral">Disponibilidad no disponible</Badge>
+                  ) : (
+                    <Badge variant={TALENT_AVAILABILITY_VARIANT[person.availability]}>
+                      <IconClock aria-hidden="true" />
+                      {TALENT_AVAILABILITY_LABELS[person.availability]}
+                    </Badge>
+                  )}
+                </div>
+              </DetailSection>
+            )}
 
             <DetailSection
               id="talento-detalle-contacto"
@@ -276,17 +346,17 @@ export function TalentDetailSheet({
                   className="sm:col-span-2"
                   icon={<IconMail className="size-3.5" />}
                   label="Correo"
-                  value={person.email}
+                  value={person.email ?? UNAVAILABLE}
                 />
                 <InfoTile
                   icon={<IconPhone className="size-3.5" />}
                   label="Teléfono"
-                  value={person.phone}
+                  value={person.phone ?? UNAVAILABLE}
                 />
                 <InfoTile
                   icon={<IconMapPin className="size-3.5" />}
                   label="Ubicación"
-                  value={person.location}
+                  value={person.location ?? UNAVAILABLE}
                 />
               </dl>
             </DetailSection>
@@ -299,7 +369,7 @@ export function TalentDetailSheet({
                 <InfoTile
                   icon={<IconBuildingSkyscraper className="size-3.5" />}
                   label="Industria"
-                  value={person.industry}
+                  value={person.industry ?? UNAVAILABLE}
                 />
                 <InfoTile
                   icon={<IconBriefcase className="size-3.5" />}
@@ -310,18 +380,22 @@ export function TalentDetailSheet({
                   className="sm:col-span-2"
                   icon={<IconSchool className="size-3.5" />}
                   label="Formación"
-                  value={person.education}
+                  value={person.education ?? UNAVAILABLE}
                 />
                 <InfoTile
                   className="sm:col-span-2"
                   icon={<IconLanguage className="size-3.5" />}
                   label="Idiomas"
-                  value={person.languages
-                    .map(
-                      (language) =>
-                        `${language.name} (${TALENT_LANGUAGE_LEVEL_LABELS[language.level]})`,
-                    )
-                    .join(" · ")}
+                  value={
+                    person.languages === undefined
+                      ? UNAVAILABLE
+                      : person.languages
+                          .map(
+                            (language) =>
+                              `${language.name} (${TALENT_LANGUAGE_LEVEL_LABELS[language.level]})`,
+                          )
+                          .join(" · ")
+                  }
                 />
               </dl>
             </DetailSection>
@@ -398,52 +472,58 @@ export function TalentDetailSheet({
               </div>
             </DetailSection>
 
-            <DetailSection
-              id="talento-detalle-postulaciones"
-              title="Historial de postulaciones"
-              action={
-                <Badge variant="secondary">{person.applications.length}</Badge>
-              }
-            >
-              <ul data-pf-talento-history="" className="flex flex-col gap-3">
-                {applicationsByMostRecent(person).map((application) => {
-                  const vacancyTitle =
-                    vacancyTitleById[application.vacancyId] ??
-                    application.vacancyId;
-                  return (
-                    <li
-                      key={application.id}
-                      data-pf-talento-history-item={application.id}
-                      data-pf-talento-history-vacancy={application.vacancyId}
-                      className="flex items-start gap-3"
-                    >
-                      <Avatar
-                        aria-hidden="true"
-                        className="size-9 shrink-0 rounded-lg after:rounded-lg"
+            {applications.length === 0 ? null : (
+              <DetailSection
+                id="talento-detalle-postulaciones"
+                title="Historial de postulaciones"
+                action={person === null ? null : <Badge variant="secondary">{applications.length}</Badge>}
+              >
+                <ul data-pf-talento-history="" className="flex flex-col gap-3">
+                  {applicationsByMostRecentView(applications).map((application) => {
+                    const vacancyTitle =
+                      vacancyTitleById[application.vacancyId] ??
+                      application.vacancyId;
+                    return (
+                      <li
+                        key={application.id}
+                        data-pf-talento-history-item={application.id}
+                        data-pf-talento-history-vacancy={application.vacancyId}
+                        className="flex items-start gap-3"
                       >
-                        <AvatarFallback className="rounded-lg bg-muted text-xs font-medium text-muted-foreground">
-                          {talentFullNameInitials(vacancyTitle)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex min-w-0 flex-1 flex-col gap-1">
-                        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
-                          <span className="min-w-0 text-sm font-medium break-words text-foreground [overflow-wrap:anywhere]">
-                            {vacancyTitle}
-                          </span>
-                          <Badge variant={STAGE_VARIANT[application.stage]} dot>
-                            {TALENT_STAGE_LABELS[application.stage]}
-                          </Badge>
+                        <Avatar
+                          aria-hidden="true"
+                          className="size-9 shrink-0 rounded-lg after:rounded-lg"
+                        >
+                          <AvatarFallback className="rounded-lg bg-muted text-xs font-medium text-muted-foreground">
+                            {talentFullNameInitials(vacancyTitle)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex min-w-0 flex-1 flex-col gap-1">
+                          <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                            <span className="min-w-0 text-sm font-medium break-words text-foreground [overflow-wrap:anywhere]">
+                              {vacancyTitle}
+                            </span>
+                            <Badge variant={STAGE_VARIANT[application.stage]} dot>
+                              {TALENT_STAGE_LABELS[application.stage]}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {TALENT_SOURCE_LABELS[application.source]} ·{" "}
+                            {formatTalentDate(application.appliedAt)}
+                          </p>
                         </div>
-                        <p className="text-xs text-muted-foreground">
-                          {TALENT_SOURCE_LABELS[application.source]} ·{" "}
-                          {formatTalentDate(application.appliedAt)}
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </DetailSection>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </DetailSection>
+            )}
+
+            {activity ? (
+              <DetailSection id="talento-detalle-actividad" title="Actividad reciente">
+                {activity}
+              </DetailSection>
+            ) : null}
           </div>
 
           <SheetFooter className="border-t border-border">
