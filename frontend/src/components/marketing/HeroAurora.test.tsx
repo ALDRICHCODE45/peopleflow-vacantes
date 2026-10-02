@@ -218,6 +218,46 @@ describe("HeroAurora", () => {
     );
   });
 
+  it.each([
+    ["employer", false, "#7B22C9", "#5B1899"],
+    ["employer", true, "#C89BFF", "#9336EA"],
+    ["candidate", false, "#0E8FA5", "#7B22C9"],
+    ["candidate", true, "#22d3ee", "#9336ea"],
+  ] as const)("uses %s colors (dark=%s) without changing animation parameters", (audience, dark, color1, color2) => {
+    stubMatchMedia(false);
+    document.documentElement.classList.toggle("dark", dark);
+    render(<HeroAurora audience={audience} />);
+    const vector = (hex: string) => [1, 3, 5].map((start) => parseInt(hex.slice(start, start + 2), 16) / 255);
+    const uniforms = oglDouble.programs[0];
+    expect(uniforms.uColor1.value).toEqual(vector(color1));
+    expect(uniforms.uColor2.value).toEqual(vector(color2));
+    expect(uniforms.uSpeed.value).toBe(0.5);
+    expect(uniforms.uScale.value).toBe(1.4);
+    expect(uniforms.uNoiseFreq.value).toBe(2.5);
+    expect(uniforms.uBrightness.value).toBe(dark ? 0.95 : 0.7);
+    expect(uniforms.uBandHeight.value).toBe(dark ? 0.5 : 0.55);
+    expect(uniforms.uBandSpread.value).toBe(dark ? 1 : 0.85);
+  });
+
+  it("updates candidate colors with the theme and preserves screen/multiply blending", async () => {
+    stubMatchMedia(false);
+    render(<HeroAurora audience="candidate" />);
+    const host = document.getElementById("heroAurora")!;
+    expect(host).toHaveAttribute("data-audience", "candidate");
+    expect(host.style.mixBlendMode).toBe("multiply");
+    await act(async () => document.documentElement.classList.add("dark"));
+    expect(host.style.mixBlendMode).toBe("screen");
+    expect(oglDouble.programs[0].uColor1.value).toEqual([34 / 255, 211 / 255, 238 / 255]);
+  });
+
+  it("retains the candidate accent in the reduced-motion host without WebGL", () => {
+    stubMatchMedia(true);
+    render(<HeroAurora audience="candidate" />);
+    expect(document.getElementById("heroAurora")).toHaveAttribute("data-audience", "candidate");
+    expect(document.getElementById("heroAurora")).toHaveAttribute("data-static", "true");
+    expect(oglDouble.renderers).toHaveLength(0);
+  });
+
   it("ports the reference shader verbatim with an opaque OGL context", () => {
     expect(auroraSource).toContain("new Renderer({ alpha: false })");
     expect(auroraSource).toContain("#define TAU 6.28318");

@@ -10,7 +10,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { buttonVariants } from "@/components/ui/button";
 import { PROTOTYPE_COMPANY_ID } from "@/features/company-profile/model";
 
-export type NavbarMode = "candidate" | "marketing" | "public";
+export type NavbarMode = "candidate" | "marketing" | "candidate-marketing" | "public";
 
 // Shared layout constants matching PublicShell's reference geometry
 const containerClass = "mx-auto w-full max-w-6xl px-6";
@@ -81,15 +81,23 @@ const MARKETING_NAV_LINKS = [
   { label: "Vacantes", href: "/vacantes" },
   { label: "Producto", href: "#producto" },
   { label: "Soluciones", href: "#soluciones" },
+  { label: "Para candidatos", href: "/candidatos" },
+] as const;
+
+const CANDIDATE_MARKETING_NAV_LINKS = [
+  { label: "Vacantes", href: "/vacantes" },
+  { label: "Cómo funciona", href: "#soluciones" },
+  { label: "Oportunidades", href: "#producto" },
+  { label: "Para empresas", href: "/" },
 ] as const;
 
 // In-page targets stay plain anchors: the browser owns the hash jump and the
 // section `scroll-margin`, so the router never has to emulate anchor scrolling.
 const marketingLinkClass = `transition hover:text-ink ${navTarget}`;
 
-const MarketingNavbar = React.memo(function MarketingNavbar() {
+const MarketingNavbar = React.memo(function MarketingNavbar({ candidate = false }: { candidate?: boolean }) {
   return (
-    <header id="nav" data-pf-marketing-navbar="" className={floatingShellClass}>
+    <header id="nav" data-pf-marketing-navbar={candidate ? undefined : ""} data-pf-candidate-marketing-navbar={candidate ? "" : undefined} className={floatingShellClass}>
       {/* Detached floating capsule: the sticky shell above owns positioning and
           the `scrolled` state class while this inner surface owns the visual
           treatment, so the header can breathe on every side. */}
@@ -99,14 +107,14 @@ const MarketingNavbar = React.memo(function MarketingNavbar() {
       >
         <div className="flex items-center gap-10">
           <Link
-            href="/"
+            href={candidate ? "/candidatos" : "/"}
             aria-label="PeopleFlow"
             className={`${navTarget} shrink-0 select-none`}
           >
             <PeopleFlowLogo className="h-7 w-auto" />
           </Link>
-          <ul className="hidden items-center gap-8 text-[15px] text-muted md:flex">
-            {MARKETING_NAV_LINKS.map((link) => (
+          <ul className="hidden items-center gap-6 text-[15px] text-muted xl:flex">
+            {(candidate ? CANDIDATE_MARKETING_NAV_LINKS : MARKETING_NAV_LINKS).map((link) => (
               <li key={link.label}>
                 {link.href.startsWith("#") ? (
                   <a href={link.href} className={marketingLinkClass}>
@@ -125,15 +133,22 @@ const MarketingNavbar = React.memo(function MarketingNavbar() {
           <IngresarMenu className="text-[15px] font-normal text-muted hover:text-ink" />
           <ThemeToggle className="size-10 rounded-lg border-line bg-surface/40 text-muted hover:border-brand/60 hover:bg-surface/60 hover:text-ink" />
           <a
-            href="#empezar"
+            href={candidate ? "/vacantes" : "#empezar"}
             className="btn btn-primary min-h-10 whitespace-nowrap rounded-xl bg-brand px-3 py-2.5 text-[13px] font-semibold text-white sm:px-5 sm:text-[14px]"
           >
-            Empezar gratis
+            {candidate ? "Explorar vacantes" : "Empezar gratis"}
           </a>
         </div>
       </nav>
+      <div className="pointer-events-auto mx-auto mt-2 flex w-fit justify-center rounded-full border border-border bg-background px-4 shadow-sm xl:hidden">
+        <Link href={candidate ? "/" : "/candidatos"} className={`${navTarget} ${focusRing} text-sm font-medium text-foreground`}>{candidate ? "Para empresas" : "Para candidatos"}</Link>
+      </div>
     </header>
   );
+});
+
+const CandidateMarketingNavbar = React.memo(function CandidateMarketingNavbar() {
+  return <MarketingNavbar candidate />;
 });
 
 // Public mode reuses the marketing capsule for every browsing route rendered
@@ -234,6 +249,9 @@ export function PeopleFlowNavbar({ mode = "candidate" }: { mode?: NavbarMode }) 
   }
   if (mode === "public") {
     return <PublicNavbar />;
+  }
+  if (mode === "candidate-marketing") {
+    return <CandidateMarketingNavbar />;
   }
   return <CandidateNavbar />;
 }

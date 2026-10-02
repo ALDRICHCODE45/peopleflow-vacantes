@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Mesh, Program, Renderer, Triangle } from "ogl";
+import { FLOATING_LINES_VARIANTS } from "@/components/auth/floating-lines-shaders";
 
 /**
  * Hero aurora — faithful OGL/WebGL port of the reference landing's inline
@@ -145,7 +146,20 @@ const LIGHT_PALETTE = {
   bandSpread: 0.85,
 };
 
-export function HeroAurora() {
+// Only the two color uniforms differ: the shader, timing and band geometry
+// stay identical to the employer hero. Reuse the candidate login's accent pair.
+const CANDIDATE_DARK_PALETTE = {
+  ...DARK_PALETTE,
+  color1: FLOATING_LINES_VARIANTS.candidate.darkGradient[0],
+  color2: FLOATING_LINES_VARIANTS.candidate.darkGradient[1],
+};
+const CANDIDATE_LIGHT_PALETTE = {
+  ...LIGHT_PALETTE,
+  color1: FLOATING_LINES_VARIANTS.candidate.lightPalette[0],
+  color2: FLOATING_LINES_VARIANTS.candidate.lightPalette[1],
+};
+
+export function HeroAurora({ audience = "employer" }: { audience?: "employer" | "candidate" } = {}) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const [reducedMotion, setReducedMotion] = React.useState(false);
 
@@ -233,7 +247,9 @@ export function HeroAurora() {
        applyAuroraTheme(), derived from the resolved root theme. */
     const applyAuroraTheme = () => {
       const isLight = !document.documentElement.classList.contains("dark");
-      const palette = isLight ? LIGHT_PALETTE : DARK_PALETTE;
+      const palette = audience === "candidate"
+        ? (isLight ? CANDIDATE_LIGHT_PALETTE : CANDIDATE_DARK_PALETTE)
+        : (isLight ? LIGHT_PALETTE : DARK_PALETTE);
       program.uniforms.uColor1.value = hexToVec3(palette.color1);
       program.uniforms.uColor2.value = hexToVec3(palette.color2);
       program.uniforms.uBrightness.value = palette.brightness;
@@ -271,13 +287,14 @@ export function HeroAurora() {
     };
     // Re-runs when the motion preference flips so the renderer is torn down for
     // reduced motion and restored when motion is allowed again.
-  }, [reducedMotion]);
+  }, [reducedMotion, audience]);
 
   return (
     <div
       ref={containerRef}
       id="heroAurora"
       data-pf-hero-aurora=""
+      data-audience={audience}
       data-static={reducedMotion ? "true" : "false"}
       aria-hidden="true"
       className="aurora pointer-events-none absolute inset-0 overflow-hidden"

@@ -423,6 +423,25 @@
   );
 }
 
+/* Candidate login accents belong only to this decorative hero layer;
+   the page's brand, buttons and section surfaces remain violet. */
+.pf-reference-landing #heroAurora[data-audience="candidate"][data-static="true"] {
+  background: radial-gradient(
+    60% 55% at 50% 42%,
+    rgba(14, 143, 165, 0.34),
+    rgba(123, 34, 201, 0.08) 55%,
+    transparent 78%
+  );
+}
+.dark .pf-reference-landing #heroAurora[data-audience="candidate"][data-static="true"] {
+  background: radial-gradient(
+    60% 55% at 50% 42%,
+    rgba(34, 211, 238, 0.24),
+    rgba(147, 54, 234, 0.12) 55%,
+    transparent 78%
+  );
+}
+
 /* Ambient radial glow behind the hero pipeline. */
 .pf-reference-landing .glow-purple {
   background: radial-gradient(

@@ -206,6 +206,7 @@ const NAV_LINK_DESTINATIONS = [
   ["Vacantes", "/vacantes"],
   ["Producto", "#producto"],
   ["Soluciones", "#soluciones"],
+  ["Para candidatos", "/candidatos"],
 ];
 
 const NAV_HASH_DESTINATIONS = [

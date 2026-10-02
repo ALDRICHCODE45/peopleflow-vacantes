@@ -206,7 +206,7 @@ describe("PeopleFlowNavbar marketing mode", () => {
       Array.from(header.querySelectorAll("ul a")).map((a) =>
         a.getAttribute("href"),
       ),
-    ).toEqual(["/vacantes", "#producto", "#soluciones"]);
+    ).toEqual(["/vacantes", "#producto", "#soluciones", "/candidatos"]);
     // Every marketing nav anchor must lead somewhere real.
     for (const anchor of Array.from(header.querySelectorAll("a"))) {
       expect(anchor.getAttribute("href"), anchor.textContent!).not.toBe("#");
@@ -233,7 +233,8 @@ describe("PeopleFlowNavbar marketing mode", () => {
     expect(tokens.has("min-h-10")).toBe(true);
     expect(tokens.has("max-sm:px-0")).toBe(true);
     // Closed menu: no auth destination is duplicated outside the popup.
-    expect(header).not.toHaveTextContent(/candidato|empresa/i);
+    expect(header.querySelector('a[href="/candidato/login"]')).toBeNull();
+    expect(header.querySelector('a[href="/empresa/login"]')).toBeNull();
   });
 
   it("points the Empezar gratis primary CTA at the closing section", () => {
@@ -322,8 +323,8 @@ describe("PeopleFlowNavbar marketing mode", () => {
   });
 
   it("composes the shared IngresarMenu without re-owning menu logic", () => {
-    // Shared component is used exactly once per mode; destinations must not be
-    // duplicated in the navbar.
+    // Both marketing audiences share one shell; public browsing owns the
+    // second usage. Login destinations still live only in IngresarMenu.
     expect(source).toContain('from "@/components/navigation/IngresarMenu"');
     expect(source.match(/<IngresarMenu\b/g)).toHaveLength(2);
     expect(source).not.toContain("/candidato/login");
@@ -339,6 +340,33 @@ describe("PeopleFlowNavbar marketing mode", () => {
     const marks = header.querySelectorAll("img[alt='PeopleFlow']");
     expect(marks.length).toBeGreaterThanOrEqual(1);
     expect(marks[0].className).toContain("h-7");
+  });
+});
+
+describe("PeopleFlowNavbar candidate marketing mode", () => {
+  it("shares the employer capsule geometry and violet CTA with working candidate anchors", () => {
+    stubMatchMedia();
+    const { container, rerender } = render(<PeopleFlowNavbar mode="marketing" />);
+    const shellClass = container.querySelector("header")?.className;
+    const surfaceClass = container.querySelector("[data-pf-nav-floating]")?.className;
+    rerender(<PeopleFlowNavbar mode="candidate-marketing" />);
+    expect(container.querySelector("header")?.className).toBe(shellClass);
+    expect(container.querySelector("[data-pf-nav-floating]")?.className).toBe(surfaceClass);
+    expect(container.querySelector("header")).toHaveAttribute("id", "nav");
+    expect(screen.getByRole("link", { name: "Cómo funciona" })).toHaveAttribute("href", "#soluciones");
+    expect(screen.getByRole("link", { name: "Oportunidades" })).toHaveAttribute("href", "#producto");
+    expect(screen.getByRole("link", { name: "Explorar vacantes" })).toHaveClass("bg-brand", "btn-primary");
+  });
+
+  it("offers real discovery and employer links without changing the candidate shell mode", () => {
+    stubMatchMedia();
+    render(<PeopleFlowNavbar mode="candidate-marketing" />);
+    expect(document.querySelector("[data-pf-candidate-marketing-navbar]")).not.toBeNull();
+    for (const link of screen.getAllByRole("link", { name: "Para empresas" })) expect(link).toHaveAttribute("href", "/");
+    for (const link of screen.getAllByRole("link", { name: "Explorar vacantes" })) expect(link).toHaveAttribute("href", "/vacantes");
+    expect(screen.getByRole("link", { name: "PeopleFlow" })).toHaveAttribute("href", "/candidatos");
+    expect(screen.getAllByRole("button", { name: /^ingresar$/i })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /cambiar tema/i })).toHaveLength(1);
   });
 });
 
