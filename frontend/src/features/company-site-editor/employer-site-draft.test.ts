@@ -3,9 +3,13 @@ import { describe, expect, it } from "vitest";
 import { emptyCompanySiteContent } from "@/features/company-profile/company-site-content";
 import {
   EMPLOYER_SITE_IDENTITY_NAME,
+  confirmEmployerSiteName,
   createEmployerSiteDraft,
+  createEmployerSiteProfileState,
   draftToSiteContent,
+  isEmployerSiteProfileReady,
   updateDraftField,
+  updateEmployerSiteProfileField,
 } from "./employer-site-draft";
 
 describe("createEmployerSiteDraft", () => {
@@ -93,5 +97,77 @@ describe("updateDraftField", () => {
     expect(after).toEqual({ ...before, tagline: "Hola" });
     expect(before.tagline).toBe("");
     expect(after).not.toBe(before);
+  });
+});
+
+describe("createEmployerSiteProfileState", () => {
+  it("starts from the identity draft with the name still unconfirmed", () => {
+    const state = createEmployerSiteProfileState();
+
+    expect(state.draft).toEqual(createEmployerSiteDraft());
+    expect(state.nameConfirmed).toBe(false);
+  });
+});
+
+describe("isEmployerSiteProfileReady", () => {
+  it("never lets the seeded fallback name establish a confirmed identity", () => {
+    const state = createEmployerSiteProfileState();
+
+    expect(isEmployerSiteProfileReady(state)).toBe(false);
+    // The About field alone is not enough either: the name is unconfirmed.
+    const authored = updateEmployerSiteProfileField(state, "about", "Somos un equipo de producto.");
+    expect(isEmployerSiteProfileReady(authored)).toBe(false);
+    expect(isEmployerSiteProfileReady(confirmEmployerSiteName(authored))).toBe(true);
+  });
+
+  it("requires an authored About even after the name is confirmed", () => {
+    const state = confirmEmployerSiteName(createEmployerSiteProfileState());
+
+    expect(isEmployerSiteProfileReady(state)).toBe(false);
+    expect(
+      isEmployerSiteProfileReady(
+        updateEmployerSiteProfileField(state, "about", "Somos un equipo de producto."),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects a whitespace-only About and a whitespace-only name", () => {
+    const blankAbout = confirmEmployerSiteName(
+      updateEmployerSiteProfileField(createEmployerSiteProfileState(), "about", "\n  "),
+    );
+    expect(isEmployerSiteProfileReady(blankAbout)).toBe(false);
+
+    const blankName = updateEmployerSiteProfileField(blankAbout, "name", "   ");
+    const renamed = confirmEmployerSiteName(
+      updateEmployerSiteProfileField(
+        updateEmployerSiteProfileField(blankName, "about", "Somos un equipo de producto."),
+        "name",
+        "   ",
+      ),
+    );
+    expect(renamed.nameConfirmed).toBe(true);
+    expect(isEmployerSiteProfileReady(renamed)).toBe(false);
+  });
+});
+
+describe("updateEmployerSiteProfileField", () => {
+  it("revokes the name confirmation as soon as the company name changes", () => {
+    const ready = confirmEmployerSiteName(
+      updateEmployerSiteProfileField(createEmployerSiteProfileState(), "about", "Historia"),
+    );
+    expect(isEmployerSiteProfileReady(ready)).toBe(true);
+
+    const renamed = updateEmployerSiteProfileField(ready, "name", "Nexo Labs MX");
+    expect(renamed.nameConfirmed).toBe(false);
+    expect(isEmployerSiteProfileReady(renamed)).toBe(false);
+  });
+
+  it("keeps the confirmation when any other field changes", () => {
+    const confirmed = confirmEmployerSiteName(createEmployerSiteProfileState());
+
+    const edited = updateEmployerSiteProfileField(confirmed, "about", "Historia");
+    expect(edited.nameConfirmed).toBe(true);
+    expect(edited.draft.about).toBe("Historia");
+    expect(confirmed.draft.about).toBe("");
   });
 });
