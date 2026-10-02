@@ -51,6 +51,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  delete document.documentElement.dataset.pfThemeVt;
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   Object.assign(s, { rends: [], progs: [], renders: 0, raf: [], cancelled: 0, lost: 0, disconnected: 0, added: [], snapshots: [], failSize: false });
@@ -106,6 +107,21 @@ it("removes a lost WebGL canvas and stops its loop instead of leaving a black la
   expect(host.querySelector("canvas")).toBeNull();
   expect(host.style.mixBlendMode).toBe("");
   expect(s.cancelled).toBeGreaterThan(0);
+});
+
+it("paints the new palette once while a theme reveal suspends continuous frames", async () => {
+  document.documentElement.dataset.pfThemeVt = "active";
+  const { container } = render(<FloatingLines variant="candidate" />);
+  expect(s.raf).toHaveLength(0);
+  expect(s.renders).toBe(1);
+  expectStops(s.snapshots[0], FLOATING_LINES_VARIANTS.candidate.darkGradient);
+  await act(async () => document.documentElement.setAttribute("data-theme", "light"));
+  expect(s.renders).toBe(2);
+  expectStops(s.snapshots[1], FLOATING_LINES_VARIANTS.candidate.lightPalette);
+  expect(hostOf(container).style.mixBlendMode).toBe("multiply");
+  expect(s.raf).toHaveLength(0);
+  await act(async () => { delete document.documentElement.dataset.pfThemeVt; });
+  expect(s.raf).toHaveLength(1);
 });
 
 it("does not draw a collapsed zero-size panel", () => {

@@ -140,6 +140,7 @@ function stubMatchMedia(initialReducedMotion: boolean): MediaController {
 afterEach(() => {
   document.documentElement.classList.remove("dark");
   document.documentElement.removeAttribute("data-theme");
+  delete document.documentElement.dataset.pfThemeVt;
   oglDouble.failRenderer = false;
   oglDouble.failProgram = false;
   oglDouble.resize = null;
@@ -291,6 +292,25 @@ describe("HeroAurora", () => {
     expect(renderer.options).toMatchObject({ alpha: false, antialias: false, depth: false });
     expect(renderer.dpr).toBe(0.5);
     expect(renderer.gl.canvas.width * renderer.gl.canvas.height).toBeLessThanOrEqual(400_000);
+  });
+
+  it("updates its palette once during the reveal, then resumes the same renderer", async () => {
+    stubMatchMedia(false);
+    const raf = vi.fn(() => 1);
+    vi.stubGlobal("requestAnimationFrame", raf);
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    document.documentElement.dataset.pfThemeVt = "active";
+    render(<HeroAurora audience="candidate" />);
+    const renderer = oglDouble.renderers[0];
+    expect(renderer.render).toHaveBeenCalledTimes(1);
+    expect(raf).not.toHaveBeenCalled();
+    await act(async () => document.documentElement.classList.add("dark"));
+    expect(renderer.render).toHaveBeenCalledTimes(2);
+    expect(oglDouble.programs[0].uColor1.value).toEqual([34 / 255, 211 / 255, 238 / 255]);
+    expect(raf).not.toHaveBeenCalled();
+    await act(async () => { delete document.documentElement.dataset.pfThemeVt; });
+    expect(raf).toHaveBeenCalledTimes(1);
+    expect(oglDouble.renderers).toHaveLength(1);
   });
 
   it("uses a static gradient when WebGL creation fails", () => {

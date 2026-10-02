@@ -12,7 +12,12 @@ export function motionDamping(deltaMs: number, at60Fps = 0.05): number {
   return 1 - Math.pow(1 - at60Fps, Math.min(Math.max(deltaMs, 0), 250) / (1000 / 60));
 }
 
-/** Own one cancellable loop; stop GPU work while hidden or outside the viewport. */
+/** ThemeToggle owns this transient root flag, including rejection/unmount cleanup. */
+export function isThemeRevealActive(): boolean {
+  return document.documentElement.dataset.pfThemeVt === "active";
+}
+
+/** Yield decorative GPU work while hidden, offscreen, or during the theme reveal. */
 export function startDecorativeAnimation(
   host: HTMLElement,
   draw: (timeMs: number, deltaMs: number) => void,
@@ -29,7 +34,7 @@ export function startDecorativeAnimation(
   };
   const tick = (time: number) => {
     frame = null;
-    if (disposed || document.hidden || !visible) return;
+    if (disposed || document.hidden || !visible || isThemeRevealActive()) return;
     const delta = previous === null ? FRAME_MS : time - previous;
     if (delta >= FRAME_MS - 0.5) {
       previous = time;
@@ -39,7 +44,7 @@ export function startDecorativeAnimation(
   };
   const updateVisibility = () => {
     if (disposed) return;
-    if (document.hidden || !visible) cancel();
+    if (document.hidden || !visible || isThemeRevealActive()) cancel();
     else if (frame === null) frame = requestAnimationFrame(tick);
   };
   const observer = typeof IntersectionObserver === "undefined" ? null : new IntersectionObserver(([entry]) => {
@@ -48,6 +53,11 @@ export function startDecorativeAnimation(
     updateVisibility();
   });
   observer?.observe(host);
+  const revealObserver = new MutationObserver(updateVisibility);
+  revealObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-pf-theme-vt"],
+  });
   document.addEventListener("visibilitychange", updateVisibility);
   updateVisibility();
 
@@ -56,6 +66,7 @@ export function startDecorativeAnimation(
     disposed = true;
     cancel();
     observer?.disconnect();
+    revealObserver.disconnect();
     document.removeEventListener("visibilitychange", updateVisibility);
   };
 }
