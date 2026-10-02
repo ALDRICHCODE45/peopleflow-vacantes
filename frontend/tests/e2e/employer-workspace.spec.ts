@@ -1,11 +1,13 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-// EW-08 — employer workspace browser acceptance for the four read-mostly routes
+// EW-08 — employer workspace browser acceptance for the read-mostly routes
 // already provided by the live `/empresa/*` preview. The contract proves:
-//   * Dashboard, portfolio, pipeline and team surfaces stay truthful, accessible
-//     and free of business mutations under real keyboard interaction;
-//   * The "no storage write" claim survives every portfolio/pipeline/team flow;
+//   * Dashboard, portfolio, pipeline, team and site-editor surfaces stay
+//     truthful, accessible and free of business mutations under real keyboard
+//     interaction;
+//   * The "no storage write" claim survives every portfolio/pipeline/team flow
+//     and the local site editor, whose draft lives only in React state;
 //   * The route matrix exposes no serious/critical axe violations at desktop
 //     and mobile widths without forcing any external service or restart.
 //
@@ -22,6 +24,7 @@ const ROUTES = {
   portfolio: "/empresa/vacantes",
   pipeline: "/empresa/vacantes/backend-developer-senior/pipeline",
   team: "/empresa/equipo",
+  site: "/empresa/sitio",
 } as const;
 const DESKTOP = { width: 1440, height: 900 } as const;
 const MOBILE = { width: 375, height: 812 } as const;
@@ -299,11 +302,57 @@ test("team filters `LUCIA`, gates it through `Activas`, and the invitation form 
   expect(await readStorageWrites(page)).toEqual([]);
 });
 
+test("site editor switches sections, previews the typed identity and never saves, publishes or navigates away", async ({ page }) => {
+  const seen = trackRequests(page);
+  await page.setViewportSize(DESKTOP);
+  await page.goto(ROUTES.site);
+  await expect(page.getByRole("heading", { level: 1, name: "Sitio de empleo", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Vista previa", exact: true })).toBeVisible();
+  const editor = page.locator("[data-pf-sitio-editor]");
+  await expect(editor).toBeVisible();
+
+  // The draft starts from the employer identity with only one section mounted.
+  await expect(page.locator('[data-pf-sitio-input="name"]')).toHaveValue("Nexo Labs");
+  await expect(page.locator('[data-pf-sitio-input="about"]')).toHaveCount(0);
+  await expect(page.locator("[data-pf-sitio-preview-note]")).toHaveText("Vista previa local; los cambios no se guardan ni publican.");
+
+  // Typing updates the local preview only.
+  await page.locator('[data-pf-sitio-input="tagline"]').fill("Talento para equipos que crecen.");
+  const preview = page.locator("[data-pf-sitio-preview-surface]");
+  await expect(preview.getByRole("heading", { level: 2, name: "Nexo Labs", exact: true })).toBeVisible();
+  await expect(preview).toContainText("Talento para equipos que crecen.");
+
+  // Section navigation stays keyboard-operable and keeps the typed value.
+  await page.locator('[data-pf-sitio-tab="historia"]').focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator('[data-pf-sitio-input="about"]')).toBeVisible();
+  await expect(page.locator('[data-pf-sitio-input="tagline"]')).toHaveCount(0);
+  await page.locator('[data-pf-sitio-input="about"]').fill("Somos un equipo de producto.");
+  await page.locator('[data-pf-sitio-tab="identidad"]').focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator('[data-pf-sitio-input="tagline"]')).toHaveValue("Talento para equipos que crecen.");
+  await expect(preview).toContainText("Somos un equipo de producto.");
+
+  // The honest empty vacancy state claims no published Nexo jobs, and the route
+  // carries no save, publish, upload, external-URL or status surface.
+  await expect(preview).toContainText("todavía no lista");
+  await expect(preview.locator("ul[aria-label^='Vacantes en']")).toHaveCount(0);
+  await expect(editor.getByRole("button", { name: /guardar|publicar/iu })).toHaveCount(0);
+  await expect(editor.locator("[role='status']")).toHaveCount(0);
+  await expect(page.locator("input[type='file'], input[type='url']")).toHaveCount(0);
+  expect(await overflowPx(page)).toBeLessThanOrEqual(1);
+
+  expect(offendingMutations(seen)).toEqual([]);
+  expect(offendingTraffic(seen)).toEqual([]);
+  expect(await readStorageWrites(page)).toEqual([]);
+});
+
 const MATRIX = [
   { route: "dashboard", path: ROUTES.dashboard, h1: "Dashboard", scope: "[data-pf-active-vacancies]" },
   { route: "portfolio", path: ROUTES.portfolio, h1: "Vacantes", scope: "[data-pf-vacantes-content]" },
   { route: "pipeline", path: ROUTES.pipeline, h1: "Backend Developer (Senior)", scope: "[data-pf-pipeline-content]" },
   { route: "team", path: ROUTES.team, h1: "Equipo", scope: "[data-pf-equipo-content]" },
+  { route: "site", path: ROUTES.site, h1: "Sitio de empleo", scope: "[data-pf-sitio-editor]" },
 ] as const;
 const VIEWPORTS: ReadonlyArray<readonly [string, { width: number; height: number }]> = [
   ["desktop", DESKTOP],

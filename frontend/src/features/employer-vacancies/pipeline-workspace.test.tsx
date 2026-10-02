@@ -1,8 +1,8 @@
 import * as React from "react";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 
@@ -31,7 +31,150 @@ const cardIds = (root: Element) => Array.from(root.querySelectorAll("[data-pf-pi
 const cardIdsIn = (root: HTMLElement, stage: VacancyPipelineStage) => cardIds(column(root, stage));
 const list = (root: HTMLElement) => root.querySelector("[data-pf-pipeline-list]") as HTMLElement;
 const rowIds = (root: Element) => Array.from(root.querySelectorAll("[data-pf-pipeline-row]")).map((node) => node.getAttribute("data-pf-pipeline-row"));
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+// jsdom implements neither matchMedia nor ResizeObserver; the combobox and the
+// Base UI dialog both read them.
+function stubBrowserApis() {
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({
+      matches: false,
+      media: "",
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(() => false),
+    })),
+  );
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  vi.stubGlobal("innerWidth", 1280);
+}
+
+/**
+ * DatePickerField jsdom boundary, mirroring the committed talent suite: the real
+ * Base UI popover close path refocus-loops under jsdom. The controlled harness
+ * keeps the field's props and emitted civil dates observable; real calendar
+ * behaviour is asserted in Playwright, never here.
+ */
+vi.mock("@/components/ui/popover", () => {
+  const PopoverTestContext = React.createContext<{
+    open: boolean;
+    setOpen?: (next: boolean) => void;
+  }>({ open: false });
+
+  return {
+    Popover: ({
+      open,
+      onOpenChange,
+      children,
+    }: {
+      open?: boolean;
+      onOpenChange?: (next: boolean) => void;
+      children?: React.ReactNode;
+    }) => (
+      <PopoverTestContext.Provider value={{ open: Boolean(open), setOpen: onOpenChange }}>
+        <div data-slot="pipeline-test-popover">{children}</div>
+      </PopoverTestContext.Provider>
+    ),
+    PopoverTrigger: ({
+      render,
+    }: {
+      render: React.ReactElement<{ onClick?: () => void }>;
+    }) => {
+      const { setOpen } = React.useContext(PopoverTestContext);
+      return React.cloneElement(render, { onClick: () => setOpen?.(true) });
+    },
+    PopoverContent: ({ children }: { children?: React.ReactNode }) => {
+      const { open } = React.useContext(PopoverTestContext);
+      return open ? <div role="dialog">{children}</div> : null;
+    },
+  };
+});
+
+const calendar = vi.hoisted(() => ({ props: undefined as unknown }));
+vi.mock("@/components/ui/calendar", () => ({
+  Calendar: (props: {
+    disabled?: { before?: Date; after?: Date };
+    onSelect?: (date: Date | undefined) => void;
+  }) => {
+    calendar.props = props;
+    return (
+      <div data-slot="pipeline-test-calendar">
+        {[3, 10, 12, 15].map((day) => (
+          <button
+            key={day}
+            type="button"
+            aria-label={`Día ${day}`}
+            onClick={() => props.onSelect?.(new Date(2026, 2, day))}
+          />
+        ))}
+      </div>
+    );
+  },
+}));
+
+/**
+ * Combobox jsdom boundary: only the anchored portal wrapper is replaced, so the
+ * real options, filtering, chips and selection stay exercised while the
+ * expensive positioning loop is skipped. Real portal composition is proven in
+ * Playwright.
+ */
+vi.mock("@/components/ui/combobox", async () => {
+  const actual = await vi.importActual<typeof import("@/components/ui/combobox")>(
+    "@/components/ui/combobox",
+  );
+  return {
+    ...actual,
+    ComboboxContent: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
+  };
+});
+
+const filterTrigger = () => screen.getByRole("button", { name: /^Filtros/u });
+
+function filterSheet(): HTMLElement {
+  const sheet = document.querySelector<HTMLElement>("[data-pf-pipeline-filters]");
+  expect(sheet, "filter sheet").not.toBeNull();
+  return sheet as HTMLElement;
+}
+
+async function openFilters(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(filterTrigger());
+  await waitFor(() => {
+    expect(document.querySelector("[data-pf-pipeline-filters]")).not.toBeNull();
+  });
+  return filterSheet();
+}
+
+/** Selects one real option of a facet's searchable multi-select. */
+function selectFacetOption(facet: string, optionLabel: string) {
+  expect(
+    document.getElementById(`pipeline-filtro-${facet}`),
+    `facet input ${facet}`,
+  ).not.toBeNull();
+  const el = screen.getByRole("option", { name: optionLabel });
+  fireEvent.click(el);
+}
+
+const chip = (key: string) =>
+  document.querySelector<HTMLElement>(`[data-pf-pipeline-chip="${key}"]`);
+
+const receivedFromTrigger = () =>
+  document.getElementById("pipeline-recibidos-desde") as HTMLButtonElement;
+const receivedToTrigger = () =>
+  document.getElementById("pipeline-recibidos-hasta") as HTMLButtonElement;
 
 describe("PipelineWorkspace board structure", () => {
   it("always renders the four contract columns in order with filtered counts", () => {
@@ -492,7 +635,7 @@ describe("PipelineWorkspace surface contract", () => {
     expect(source).toMatch(/^\s*["']use client["']/mu);
     const modules = [...new Set([...source.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]))].sort();
     expect(modules).toEqual([
-      "./model", "./pipeline-model",
+      "./model", "./pipeline-model", "./pipeline-filter-model", "./pipeline-filters",
       "@/components/ui/avatar", "@/components/ui/badge", "@/components/ui/button", "@/components/ui/card",
       "@/components/ui/empty", "@/components/ui/input-group", "@/components/ui/table", "@/components/ui/toggle-group",
       "lucide-react", "react",
@@ -525,5 +668,390 @@ describe("PipelineWorkspace EPR-05 visual correction", () => {
       return [name, title].filter((node) => /(?:^|\s)(?:truncate|line-clamp-|h-(?:\[[^\]]+\]|\d)|max-h-)/u.test(node.className)).map((node) => node.textContent);
     });
     expect.soft(clipped, "identity text may wrap or balance but must never truncate, line-clamp or fix a height").toEqual([]);
+  });
+});
+
+describe("PipelineWorkspace filter sheet", () => {
+  beforeEach(stubBrowserApis);
+
+  it("opens a floating filter Sheet with the core facets and the received-date range", async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+
+    const trigger = filterTrigger();
+    expect(trigger).toHaveTextContent("Filtros");
+    await user.click(trigger);
+    const sheet = filterSheet();
+
+    expect(within(sheet).getByText("Filtros")).toBeInTheDocument();
+    for (const legend of ["Etapa", "Origen", "Habilidades"]) {
+      expect(
+        within(sheet).getByRole("combobox", { name: legend }),
+        `facet combobox ${legend}`,
+      ).toBeInTheDocument();
+    }
+    const experience = sheet.querySelector(
+      '[data-pf-pipeline-facet="experience"]',
+    ) as HTMLElement;
+    expect(experience).not.toBeNull();
+    const experienceToggle = experience.querySelector("[data-slot='toggle-group']") as HTMLElement;
+    expect(experienceToggle).not.toBeNull();
+    expect(experienceToggle).toHaveAccessibleName("Experiencia");
+    for (const bucket of ["0-2", "3-5", "6-9", "10+"]) {
+      expect(
+        experienceToggle.querySelector(`[data-pf-pipeline-option="experience:${bucket}"]`),
+        bucket,
+      ).not.toBeNull();
+    }
+    expect(sheet.querySelector("[data-pf-pipeline-received-from]")).not.toBeNull();
+    expect(sheet.querySelector("[data-pf-pipeline-received-to]")).not.toBeNull();
+    expect(sheet.querySelector("[data-pf-pipeline-filters-reset]")).not.toBeNull();
+    expect(sheet.querySelector("[data-pf-pipeline-filters-close]")).not.toBeNull();
+    // Truthful scope: the pipeline candidate model owns no industry or location.
+    expect(sheet.querySelector('[data-pf-pipeline-facet="industry"]')).toBeNull();
+    expect(sheet.querySelector('[data-pf-pipeline-facet="location"]')).toBeNull();
+  });
+
+  it("shows no filter count until a criterion is active, then counts each active value", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+    expect(container.querySelector("[data-pf-pipeline-filter-count]")).toBeNull();
+
+    await openFilters(user);
+    selectFacetOption("status", "Nuevos");
+    selectFacetOption("status", "Contratados");
+    const count = container.querySelector("[data-pf-pipeline-filter-count]") as HTMLElement;
+    expect(count).toHaveTextContent("2");
+  });
+
+  it("ORs values inside a facet and ANDs across facets without leaving either view", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openFilters(user);
+    selectFacetOption("status", "Nuevos");
+    selectFacetOption("status", "Contratados");
+    expect(cardIds(container).sort()).toEqual(["lucia-fernandez", "renata-vargas"]);
+
+    // AND: source Directo keeps only Renata, so the OR set narrows to one.
+    selectFacetOption("source", "Directo");
+    expect(cardIds(container)).toEqual(["renata-vargas"]);
+
+    // AND with a non-matching skill empties the set without inventing a card.
+    selectFacetOption("skill", "Node.js");
+    expect(cardIds(container)).toEqual([]);
+
+    // OR inside skills brings Lucia back only through her own skill.
+    selectFacetOption("skill", "AWS");
+    expect(cardIds(container)).toEqual(["renata-vargas"]);
+  });
+
+  it("keeps one filtered array shared by both view modes", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openFilters(user);
+    selectFacetOption("status", "Nuevos");
+    await user.click(document.querySelector("[data-pf-pipeline-filters-close]") as HTMLElement);
+
+    expect(cardIds(container)).toEqual(["lucia-fernandez"]);
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+    expect(rowIds(container)).toEqual(["lucia-fernandez"]);
+    expect(container.querySelectorAll("[data-pf-pipeline-search]")).toHaveLength(1);
+  });
+
+  it("preserves the historical denominator while filters narrow the visible set", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openFilters(user);
+    selectFacetOption("status", "Contratados");
+    await user.click(document.querySelector("[data-pf-pipeline-filters-close]") as HTMLElement);
+
+    expect(container.querySelector("[data-pf-pipeline-sample]")).toHaveTextContent(
+      visibleCandidatesCopy(1, vacancyCandidateTotal(backend.candidateCounts)),
+    );
+    expect(container.querySelector("[data-pf-pipeline-sample]")).toHaveTextContent(
+      visibleCandidatesCopy(1, 7),
+    );
+  });
+
+  it("renders one removable chip per active value and preserves the rest when one is removed", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openFilters(user);
+    selectFacetOption("status", "Nuevos");
+    selectFacetOption("source", "LinkedIn");
+    await user.click(document.querySelector("[data-pf-pipeline-filters-close]") as HTMLElement);
+
+    expect(chip("status:submitted")).toHaveTextContent("Etapa: Nuevos");
+    expect(chip("source:linkedin")).toHaveTextContent("Origen: LinkedIn");
+
+    await user.click(chip("status:submitted") as HTMLElement);
+    expect(chip("status:submitted")).toBeNull();
+    expect(chip("source:linkedin")).toHaveTextContent("Origen: LinkedIn");
+    expect(cardIds(container)).toEqual(["lucia-fernandez"]);
+  });
+
+  it("resets the search and every facet together from the sheet footer", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await user.type(screen.getByLabelText("Buscar candidato"), "lucia");
+    await openFilters(user);
+    selectFacetOption("status", "Nuevos");
+    await user.click(document.querySelector("[data-pf-pipeline-filters-reset]") as HTMLElement);
+    await user.click(document.querySelector("[data-pf-pipeline-filters-close]") as HTMLElement);
+
+    expect(screen.getByLabelText("Buscar candidato")).toHaveValue("");
+    expect(chip("query")).toBeNull();
+    expect(chip("status:submitted")).toBeNull();
+    expect(cardIds(container)).toHaveLength(4);
+  });
+
+  it("keeps every option stable from the unfiltered vacancy input", async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+
+    await openFilters(user);
+    const before = Array.from(document.querySelectorAll("[data-pf-pipeline-option]")).map(
+      (node) => node.getAttribute("data-pf-pipeline-option"),
+    );
+    expect(before).toContain("status:rejected");
+    expect(before).toContain("source:job_board");
+    expect(before).toContain("skill:PHP");
+
+    selectFacetOption("status", "Nuevos");
+    const after = Array.from(document.querySelectorAll("[data-pf-pipeline-option]")).map(
+      (node) => node.getAttribute("data-pf-pipeline-option"),
+    );
+    expect(after).toEqual(before);
+  });
+
+  it("exposes the empty result as a filtered-zero recovery, not an empty vacancy", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openFilters(user);
+    selectFacetOption("status", "Descartados");
+    selectFacetOption("source", "LinkedIn");
+    await user.click(document.querySelector("[data-pf-pipeline-filters-close]") as HTMLElement);
+
+    expect(cardIds(container)).toEqual([]);
+    const recovery = container.querySelector("[data-pf-pipeline-recovery]") as HTMLElement;
+    expect(recovery).not.toBeNull();
+    expect(recovery).toHaveTextContent("No hay candidatos que coincidan con los filtros aplicados.");
+    expect(recovery).not.toHaveTextContent("Sin candidatos en esta vacante");
+  });
+
+  it("closes with Escape and returns focus to the trigger", async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+
+    const trigger = filterTrigger();
+    await user.click(trigger);
+    await waitFor(() => {
+      expect(document.activeElement?.closest("[data-pf-pipeline-filters]")).not.toBeNull();
+    });
+
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    await waitFor(() => {
+      expect(document.querySelector("[data-pf-pipeline-filters]")).toBeNull();
+    });
+    await waitFor(() => {
+      expect(trigger).toHaveFocus();
+    });
+  });
+});
+
+describe("PipelineWorkspace facet combobox selection identity", () => {
+  beforeEach(stubBrowserApis);
+
+  const facet = (name: string) =>
+    document.querySelector<HTMLElement>(`[data-pf-pipeline-facet="${name}"]`) as HTMLElement;
+  const facetOption = (name: string, value: string) =>
+    document.querySelector<HTMLElement>(`[data-pf-pipeline-option="${name}:${value}"]`);
+  const highlightedOptions = () =>
+    Array.from(document.querySelectorAll("[data-highlighted][data-pf-pipeline-option]")).map(
+      (node) => node.getAttribute("data-pf-pipeline-option"),
+    );
+  const openFacet = (user: ReturnType<typeof userEvent.setup>, name: string) =>
+    user.click(document.getElementById(`pipeline-filtro-${name}`) as HTMLElement);
+
+  it("anchors the reopened popup and keyboard navigation on the selected domain id", async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+
+    await openFilters(user);
+    selectFacetOption("status", "Contratados");
+    expect(facetOption("status", "hired")).toHaveAttribute("aria-selected", "true");
+    expect(facetOption("status", "submitted")).toHaveAttribute("aria-selected", "false");
+    await user.click(document.querySelector("[data-pf-pipeline-filters-close]") as HTMLElement);
+
+    // Reopen the Sheet and the facet popup: the selected option must be the one
+    // the popup anchors on, so the first ArrowDown lands on its neighbour and not
+    // on the first option. This only holds while `items`, `value` and every
+    // `ComboboxItem` value share the same primitive domain id.
+    await openFilters(user);
+    await openFacet(user, "status");
+    await waitFor(() => {
+      expect(facetOption("status", "hired")).not.toBeNull();
+    });
+    expect(facetOption("status", "hired")).toHaveAttribute("data-highlighted");
+    await user.keyboard("{ArrowDown}");
+    expect(highlightedOptions()).toEqual(["status:rejected"]);
+    await user.keyboard("{Enter}");
+    expect(facet("status").querySelector("[data-slot='combobox-chip']"))?.toHaveTextContent(
+      "Contratados",
+    );
+    expect(facet("status").querySelectorAll("[data-slot='combobox-chip']")).toHaveLength(2);
+  });
+
+  it("searches options by their Spanish label while storing the domain id", async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+
+    await openFilters(user);
+    await openFacet(user, "status");
+    await user.keyboard("contrat");
+    await waitFor(() => {
+      expect(facetOption("status", "hired")).not.toBeNull();
+      expect(facetOption("status", "submitted")).toBeNull();
+    });
+    expect(facetOption("status", "hired")).toHaveTextContent("Contratados");
+
+    fireEvent.click(facetOption("status", "hired") as HTMLElement);
+    await user.click(document.querySelector("[data-pf-pipeline-filters-close]") as HTMLElement);
+    // The chip is keyed and labelled from the domain id, never from a raw object.
+    expect(chip("status:hired")).toHaveTextContent("Etapa: Contratados");
+    expect(chip("status:hired")?.textContent).not.toContain("[object Object]");
+  });
+
+  it("selects the highlighted option with the keyboard and filters by its domain id", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openFilters(user);
+    await openFacet(user, "status");
+    await user.keyboard("contrat");
+    await user.keyboard("{ArrowDown}{Enter}");
+    await user.click(document.querySelector("[data-pf-pipeline-filters-close]") as HTMLElement);
+
+    expect(chip("status:hired")).toHaveTextContent("Etapa: Contratados");
+    expect(cardIds(container)).toEqual(["renata-vargas"]);
+  });
+
+  it("toggles a selected option off by the same domain id and keeps its label", async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+
+    await openFilters(user);
+    expect(facet("status").querySelector("[data-slot='combobox-chip']")).toBeNull();
+    selectFacetOption("status", "Contratados");
+    expect(facet("status").querySelector("[data-slot='combobox-chip']")).toHaveTextContent(
+      "Contratados",
+    );
+    fireEvent.click(facetOption("status", "hired") as HTMLElement);
+    expect(facet("status").querySelector("[data-slot='combobox-chip']")).toBeNull();
+  });
+});
+
+describe("PipelineWorkspace experience filter", () => {
+  beforeEach(stubBrowserApis);
+
+  it("keeps a structurally typed candidate above the validator ceiling inside 10+", async () => {
+    const user = userEvent.setup();
+    // The shared pipeline schema caps `yearsOfExperience` at 60; the filter model
+    // receives the frozen `PipelineCandidate` type, so a higher value is a valid
+    // input the 10+ bucket must not drop.
+    const roster: readonly PipelineCandidate[] = [
+      { ...backendCandidates[2], id: "renata-vargas", yearsOfExperience: 11 },
+      { ...backendCandidates[0], id: "veteran-beyond-ceiling", yearsOfExperience: 72 },
+    ];
+    const { container } = renderWorkspace(backend, roster);
+
+    await openFilters(user);
+    const experience = filterSheet().querySelector(
+      '[data-pf-pipeline-facet="experience"]',
+    ) as HTMLElement;
+    fireEvent.click(
+      experience.querySelector('[data-pf-pipeline-option="experience:10+"]') as HTMLElement,
+    );
+    await user.click(document.querySelector("[data-pf-pipeline-filters-close]") as HTMLElement);
+
+    expect(chip("experience:10+")).toHaveTextContent("Experiencia: 10 años o más");
+    expect(cardIds(container).sort()).toEqual(["renata-vargas", "veteran-beyond-ceiling"]);
+  });
+});
+
+describe("PipelineWorkspace received-date filter", () => {
+  beforeEach(() => {
+    stubBrowserApis();
+    vi.setSystemTime(new Date(2026, 2, 15, 12));
+  });
+
+  it("filters inclusively on the received civil day and opens the past window", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openFilters(user);
+    await user.click(receivedFromTrigger());
+    const props = calendar.props as { disabled?: { before?: Date; after?: Date } };
+    expect(props.disabled?.before).toBeUndefined();
+    expect(props.disabled?.after).toEqual(new Date(2026, 2, 15));
+    fireEvent.click(screen.getByRole("button", { name: "Día 3" }));
+
+    expect(chip("receivedFrom")).toHaveTextContent("Recibidos desde: 2026-03-03");
+    await user.click(document.querySelector("[data-pf-pipeline-filters-close]") as HTMLElement);
+    expect(cardIds(container).sort()).toEqual(["diego-salazar", "lucia-fernandez"]);
+  });
+
+  it("reports reversed bounds without silently swapping them", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openFilters(user);
+    await user.click(receivedFromTrigger());
+    fireEvent.click(screen.getByRole("button", { name: "Día 10" }));
+    await user.click(receivedToTrigger());
+    fireEvent.click(screen.getByRole("button", { name: "Día 3" }));
+
+    const error = document.querySelector("[data-pf-pipeline-range-error]") as HTMLElement;
+    expect(error).not.toBeNull();
+    expect(error).toHaveTextContent(/posterior a la final/iu);
+    expect(chip("receivedFrom")).toHaveTextContent("Recibidos desde: 2026-03-10");
+    expect(chip("receivedTo")).toHaveTextContent("Recibidos hasta: 2026-03-03");
+
+    await user.click(document.querySelector("[data-pf-pipeline-filters-close]") as HTMLElement);
+    expect(cardIds(container)).toEqual([]);
+  });
+});
+
+describe("PipelineWorkspace filter boundary", () => {
+  it("declares no transport, storage or routing concern in the filter surface", () => {
+    const filterSource = readFileSync(
+      join(process.cwd(), "src/features/employer-vacancies/pipeline-filters.tsx"),
+      "utf8",
+    );
+    for (const forbidden of [
+      "fetch(",
+      "XMLHttpRequest",
+      "localStorage",
+      "sessionStorage",
+      "indexedDB",
+      "useRouter",
+      "next/navigation",
+      "features/jobs",
+      "prototype-candidates",
+      "NEXO_CANDIDATES",
+    ]) {
+      expect(filterSource, `pipeline-filters.tsx must not declare ${forbidden}`).not.toContain(
+        forbidden,
+      );
+    }
+    for (const raw of ['bg-blue-', 'bg-red-', "#", "dark:"]) {
+      expect(filterSource, `pipeline-filters.tsx must not paint raw ${raw}`).not.toContain(raw);
+    }
   });
 });

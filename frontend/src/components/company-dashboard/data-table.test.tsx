@@ -313,8 +313,10 @@ describe("company dashboard recent applicants table", () => {
     // The title shares the toolbar row that already held the view controls, so
     // no new vertical section is introduced above the table.
     expect(within(toolbar).getByRole("tablist")).toBeInTheDocument();
-    expect(toolbar.className).toContain("px-4");
-    expect(toolbar.className).toContain("lg:px-6");
+    // The route's page-content owner carries the inset; the toolbar only lays
+    // out its controls and must not re-add horizontal page padding.
+    expect(toolbar.className).not.toContain("px-4");
+    expect(toolbar.className).not.toContain("lg:px-6");
   });
 
   it("renames the columns for recruiting semantics", () => {
@@ -928,8 +930,10 @@ describe("company dashboard column control responsive labels", () => {
     // Outer table gaps, padding and the marker stay as approved.
     expect(toolbar.className).toContain("flex-wrap");
     expect(toolbar.className).toContain("gap-y-3");
-    expect(toolbar.className).toContain("px-4");
-    expect(toolbar.className).toContain("lg:px-6");
+    // Padding moved to the shared page-content owner, so the toolbar keeps only
+    // its control layout and never a second page inset.
+    expect(toolbar.className).not.toContain("px-4");
+    expect(toolbar.className).not.toContain("lg:px-6");
     expect(document.querySelectorAll("[data-pf-data-table]")).toHaveLength(1);
 
     // The mobile status select stays available next to the column control.

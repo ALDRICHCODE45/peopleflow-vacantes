@@ -16,6 +16,14 @@ import { VACANCY_PIPELINE_STAGES, vacancyCandidateTotal } from "./model";
 import type { EmployerVacancy, VacancyPipelineStage } from "./model";
 import { CANDIDATE_SOURCE_LABELS, CANDIDATE_STATUS_LABELS, summarizeCandidateStages, visibleCandidatesCopy } from "./pipeline-model";
 import type { PipelineCandidate } from "./pipeline-model";
+import {
+  createEmptyPipelineFilters,
+  filterPipelineCandidates,
+  hasActivePipelineFilters,
+  pipelineListEmptyCopy,
+  pipelineNoResultsCopy,
+} from "./pipeline-filter-model";
+import { PipelineFilterBar } from "./pipeline-filters";
 
 /**
  * Semantic stage variant: the Spanish label always carries the meaning, so the
@@ -55,8 +63,6 @@ const LIST_COLUMN_LABELS = ["Candidato", "Estado", "Experiencia", "Habilidades",
 /** Spanish count agreement: singular for exactly one, plural otherwise. */
 const plural = (count: number, singular: string, pluralForm: string) => `${count} ${count === 1 ? singular : pluralForm}`;
 
-/** Diacritic- and case-insensitive needle, so "LUCIA" and "lucía" both match. */
-const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLowerCase().trim();
 /** Deterministic first+last initials, so an avatar never depends on randomness. */
 const initialsOf = (fullName: string) => {
   const words = fullName.trim().split(/\s+/u).filter((word) => word !== "");
@@ -64,10 +70,6 @@ const initialsOf = (fullName: string) => {
   const last = words.length > 1 ? words[words.length - 1].charAt(0) : "";
   return `${first}${last}`.toUpperCase();
 };
-/** Exact name, professional title, or skill match against the normalized needle. */
-const matchesQuery = (candidate: PipelineCandidate, needle: string): boolean =>
-  [candidate.fullName, candidate.professionalTitle, ...candidate.skills].some((field) => normalize(field).includes(needle));
-
 /** Honest zero-comment copy, shared by both representations. */
 const commentCopy = (count: number) => (count === 0 ? "Sin comentarios" : plural(count, "comentario", "comentarios"));
 
@@ -246,12 +248,12 @@ function CandidateList({ label, candidates, emptyCopy }: { label: string; candid
  * candidate mutation, and it never imports fixtures.
  */
 export function PipelineWorkspace({ vacancy, candidates }: { vacancy: EmployerVacancy; candidates: readonly PipelineCandidate[] }) {
-  const [query, setQuery] = React.useState("");
+  const [filters, setFilters] = React.useState(createEmptyPipelineFilters);
   const [view, setView] = React.useState<PipelineView>("board");
-  const needle = normalize(query);
-  const filtered = needle === "" ? candidates : candidates.filter((candidate) => matchesQuery(candidate, needle));
+  const filtered = filterPipelineCandidates(candidates, filters);
   const stageCounts = summarizeCandidateStages(filtered);
-  const listEmptyCopy = needle === "" ? "Sin candidatos en esta vacante." : "Sin candidatos que coincidan con la búsqueda.";
+  const hasActive = hasActivePipelineFilters(filters);
+  const listEmptyCopy = pipelineListEmptyCopy(filters);
   return (
     <div data-pf-pipeline className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -261,11 +263,12 @@ export function PipelineWorkspace({ vacancy, candidates }: { vacancy: EmployerVa
             <InputGroupAddon>
               <SearchIcon aria-hidden="true" />
             </InputGroupAddon>
-            <InputGroupInput id="pipeline-search" data-pf-pipeline-search type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nombre, puesto o habilidad" />
+            <InputGroupInput id="pipeline-search" data-pf-pipeline-search type="search" value={filters.query} onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Nombre, puesto o habilidad" />
           </InputGroup>
         </div>
         <ViewSwitch view={view} onChange={setView} />
       </div>
+      <PipelineFilterBar candidates={candidates} filters={filters} onChange={setFilters} />
       <p data-pf-pipeline-sample className={META}>{visibleCandidatesCopy(filtered.length, vacancyCandidateTotal(vacancy.candidateCounts))}</p>
       {view === "board" ? (
         <div data-pf-pipeline-board role="region" aria-label={`Tablero de candidatos de ${vacancy.title}`} tabIndex={0} className="overflow-x-auto pb-1 focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none">
@@ -276,14 +279,14 @@ export function PipelineWorkspace({ vacancy, candidates }: { vacancy: EmployerVa
       ) : (
         <CandidateList label={`Lista de candidatos de ${vacancy.title}`} candidates={filtered} emptyCopy={listEmptyCopy} />
       )}
-      {needle !== "" && filtered.length === 0 ? (
+      {hasActive && filtered.length === 0 ? (
         <Empty data-pf-pipeline-recovery className="border border-dashed border-border bg-card/40 p-6">
           <EmptyHeader>
             <EmptyTitle>Sin resultados</EmptyTitle>
-            <EmptyDescription>No hay candidatos que coincidan con la búsqueda «{query.trim()}».</EmptyDescription>
+            <EmptyDescription>{pipelineNoResultsCopy(filters)}</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>
-            <Button type="button" variant="outline" data-pf-pipeline-clear onClick={() => setQuery("")} className="h-10">Limpiar búsqueda</Button>
+            <Button type="button" variant="outline" data-pf-pipeline-clear onClick={() => setFilters(createEmptyPipelineFilters())} className="h-10">Limpiar filtros</Button>
           </EmptyContent>
         </Empty>
       ) : null}

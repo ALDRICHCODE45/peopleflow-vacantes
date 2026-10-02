@@ -124,15 +124,15 @@ export const controlId = (field: VacancyField) => FIELD_IDS[field];
 
 /** One deterministic Spanish message per contract rule the schema can fail. */
 const FIELD_MESSAGES: Record<VacancyField, string> = {
-  title: "Ingresá un título para la vacante.",
-  description: "Ingresá una descripción para la vacante.",
-  work_mode: "Elegí una modalidad de trabajo.",
-  employment_type: "Elegí una jornada de trabajo.",
-  seniority: "Elegí un seniority para la vacante.",
+  title: "Ingresa un título para la vacante.",
+  description: "Ingresa una descripción para la vacante.",
+  work_mode: "Elige una modalidad de trabajo.",
+  employment_type: "Elige una jornada de trabajo.",
+  seniority: "Elige un seniority para la vacante.",
   location: "La ubicación no es válida.",
   salary_min: "El salario mínimo debe ser un número entero de 0 o más.",
   salary_max: "El salario máximo debe ser un número entero de 0 o más.",
-  salary_currency: "Elegí una moneda válida.",
+  salary_currency: "Elige una moneda válida.",
 };
 
 /** The cross-field salary rule reports itself on the maximum bound. */

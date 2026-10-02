@@ -9,7 +9,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { VacancyPreview } from "../VacancyPreview";
-import { CompletionSummary } from "./completion-summary";
 import type { VacancyFormValues } from "./model";
 import type { VacancyPrototypeValues } from "./prototype-model";
 
@@ -21,13 +20,14 @@ export type DraftRailProps = {
 };
 
 /**
- * Sticky publication rail: the live draft preview, the observable content
- * progress, and the save affordance.
+ * Publication rail of the review step: the live draft preview and the save
+ * affordance. It renders only inside the review step, never beside the editable
+ * steps, so the preview cannot compete with the field the recruiter is editing.
  *
- * The preview receives both states so the dossier can stay in sync with the
- * complementary fields, while the save affordance stays a plain form submit
- * that the enclosing form owns. The rail never issues a request itself and
- * renders no outcome state of its own.
+ * The preview receives both states so the dossier stays in sync with the
+ * complementary fields, while the save affordance stays a plain form submit the
+ * enclosing form owns. The rail never issues a request itself and renders no
+ * outcome state of its own.
  */
 export function DraftRail({ values, prototypeValues }: DraftRailProps) {
   return (
@@ -36,8 +36,6 @@ export function DraftRail({ values, prototypeValues }: DraftRailProps) {
       className="flex flex-col gap-4 xl:sticky xl:top-6"
     >
       <VacancyPreview {...values} prototype={prototypeValues} />
-
-      <CompletionSummary values={values} prototypeValues={prototypeValues} />
 
       <Card>
         <CardHeader>

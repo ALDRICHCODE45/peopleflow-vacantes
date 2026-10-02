@@ -1,25 +1,18 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const COMPANY_PATH = "/empresas/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
 const FRONTEND_DETAIL = "/vacantes/0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 // The local jobs API this fully local prototype route must never reach.
 const fixtureUrl = process.env.JOBS_FIXTURE_ORIGIN ?? "http://127.0.0.1:4010";
-// UISC-03A: no rendered implementation-status vocabulary may survive on the
-// public careers page. Every banned token is prose, never a route or fixture.
+// Every enriched prototype extra the redesigned page must stop rendering.
+const ENRICHMENT_COPY = /Destacada|Verificada por PeopleFlow|postulantes|Responde en|SALARIO MENSUAL/iu;
+// UISC-03A: no rendered implementation-status vocabulary may survive either.
 const PROHIBITED_DISPLAY_COPY = /demostraci|fictici|\bprototipo\b|no se guarda|no se env[ií]a|no se copi[oó]|no se comparti[oó]/iu;
-// Every prototype extra the two frozen Acme fixtures authorize.
-const CARD_LABELS = ["Destacada", "Hace 2 h", "24 postulantes", "Hace 5 h", "41 postulantes", "Ingeniería", "Plataforma", "Habilidades", "Beneficios", "SALARIO MENSUAL", "Responde en ~3 días", "Verificada por PeopleFlow"] as const;
-const cardsOf = (page: Page) => page.getByRole("list", { name: "Vacantes en Acme" }).getByRole("listitem");
 // Document horizontal overflow in pixels; anything above zero fails.
 const overflowPx = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
-// The two direct card regions, in viewport coordinates.
-const regionsOf = (card: Locator) => card.evaluate((li) => Array.from(li.children).map((child) => {
-  const box = child.getBoundingClientRect();
-  return { top: Math.round(box.top), bottom: Math.round(box.bottom), left: Math.round(box.left), right: Math.round(box.right) };
-}));
 
-test("company careers cards keep the reference region contract and disclose every prototype extra", async ({ page }) => {
+test("company careers keeps the editorial hero, working anchors, and a wire-only vacancy list", async ({ page }) => {
   // A mutation would be any non-GET request; an API call would be any request
   // to the jobs fixture, which this route never needs.
   const nonGet: string[] = [], apiTraffic: string[] = [];
@@ -28,55 +21,62 @@ test("company careers cards keep the reference region contract and disclose ever
     if (["POST", "PUT", "PATCH", "DELETE"].includes(entry.method())) nonGet.push(`${entry.method()} ${entry.url()}`);
   });
 
-  // Desktop: content region left, salary rail right, one integrated divider.
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(COMPANY_PATH);
-  await expect(cardsOf(page)).toHaveCount(2);
-  const [content, rail] = await regionsOf(cardsOf(page).first());
-  const edges = await cardsOf(page).first().evaluate((li) => {
-    const style = getComputedStyle(li.children[1]);
-    return { top: Number.parseFloat(style.borderTopWidth), left: Number.parseFloat(style.borderLeftWidth), divider: style.borderLeftColor, border: getComputedStyle(li).borderTopColor };
-  });
-  test.info().annotations.push({ type: "company card regions @1440", description: JSON.stringify({ content, rail, edges }) });
-  expect([rail.left >= content.right, Math.abs(rail.top - content.top) <= 1]).toEqual([true, true]);
-  expect([edges.top, edges.left > 0, edges.divider === edges.border]).toEqual([0, true, true]);
-  expect([await overflowPx(page), await cardsOf(page).evaluateAll((cards) => cards.map((li) => li.children.length))]).toEqual([0, [2, 2]]);
 
-  // Both cards expose every authorized prototype extra without any
-  // implementation-status copy, and the company is never linked back here.
+  // Exactly one H1, and both hero anchors jump to real in-page sections.
+  await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+  await expect(page.getByRole("heading", { level: 1 })).toContainText("Acme");
+
+  // The hero is an immersive photo overlay: the copy rides the image through a
+  // dark scrim, and no opaque card wraps the headline.
+  const hero = page.locator("[data-pf-hero]");
+  await expect(hero).toBeVisible();
+  await expect(hero).toHaveAttribute("data-pf-hero-cover", "true");
+  await expect(hero.locator("[data-pf-hero-overlay]")).toHaveCount(1);
+  // No opaque card sits between the headline and the photo-backed overlay.
+  const opaqueAncestor = await page
+    .getByRole("heading", { level: 1 })
+    .evaluate((node) => {
+      for (let el = node.parentElement; el instanceof HTMLElement; el = el.parentElement) {
+        if (el.hasAttribute("data-pf-hero")) break;
+        if (el.className.includes("bg-background") || el.className.includes("bg-card")) {
+          return el.className;
+        }
+      }
+      return null;
+    });
+  expect(opaqueAncestor).toBeNull();
+  expect((await hero.boundingBox())?.height ?? 0).toBeGreaterThan(480);
+
+  await page.getByRole("link", { name: "Conoce la empresa" }).click();
+  await expect(page).toHaveURL(/#sobre-empresa$/u);
+  await expect(page.locator("#sobre-empresa")).toBeVisible();
+  await page.getByRole("link", { name: "Ver vacantes" }).click();
+  await expect(page).toHaveURL(/#vacantes$/u);
+  await expect(page.locator("#vacantes")).toBeVisible();
+
+  // The vacancy list is wire-backed only: canonical links, no enrichment,
+  // no save control, and the company never links back to the employer route.
   const list = page.getByRole("list", { name: "Vacantes en Acme" });
-  await expect(list.getByRole("heading", { level: 3 }).first().getByRole("link")).toHaveAttribute("href", FRONTEND_DETAIL);
-  for (const label of CARD_LABELS) await expect(list).toContainText(label);
-  await expect(list.getByRole("note")).toHaveCount(0);
+  await expect(list).toBeVisible();
+  const rows = list.getByRole("listitem");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first().getByRole("heading", { level: 3 }).getByRole("link")).toHaveAttribute("href", FRONTEND_DETAIL);
+  await expect(list).not.toContainText(ENRICHMENT_COPY);
   await expect(list).not.toContainText(PROHIBITED_DISPLAY_COPY);
+  await expect(list.getByRole("button")).toHaveCount(0);
+  await expect(list.getByRole("note")).toHaveCount(0);
+  await expect(list.locator("[data-prototype-featured]")).toHaveCount(0);
   expect([await list.getByRole("link").count(), await list.getByRole("link", { name: "Acme" }).count()]).toEqual([4, 0]);
-  // Wire markup-like text stays text: characters, never a rendered element.
-  expect([await list.locator("script, img, iframe, b").count(), await list.getByText("<script>alert('xss')</script>").count()]).toEqual([0, 1]);
 
-  // Mobile: the same two regions stack below the content without overflow.
+  // Mobile: the same list keeps zero horizontal overflow.
   await page.setViewportSize({ width: 375, height: 812 });
-  const [mobileContent, mobileRail] = await regionsOf(cardsOf(page).first());
-  test.info().annotations.push({ type: "company card regions @375", description: JSON.stringify({ mobileContent, mobileRail }) });
-  expect([mobileRail.top >= mobileContent.bottom, Math.abs(mobileRail.left - mobileContent.left) <= 1]).toEqual([true, true]);
+  await expect(rows.first()).toBeVisible();
   expect(await overflowPx(page)).toBeLessThanOrEqual(0);
 
-  // The same shared card control renders on this route: the enriched card's
-  // bookmark stays enabled and inert, scoped to this card so the board's full
-  // interaction contract is not duplicated.
-  const frontendCard = list.getByRole("listitem").filter({ has: page.getByRole("heading", { level: 3, name: "Ingeniera Frontend" }) });
-  const bookmark = frontendCard.getByRole("button");
-  await expect(bookmark).toBeEnabled();
-  await expect(bookmark).toHaveAttribute("aria-label", "Guardar vacante");
-  await expect(bookmark).not.toHaveAttribute("aria-pressed");
-  await bookmark.click();
-  await expect(bookmark).toHaveAttribute("aria-label", "Guardar vacante");
-  await expect(frontendCard.getByRole("status")).toHaveCount(0);
-
-  // Frozen local fixtures: no card interaction reaches the jobs API, and the
-  // canonical CTA navigates without any mutating request.
+  // Frozen local fixtures: the page reaches neither the jobs API nor a mutation.
   expect(apiTraffic).toEqual([]);
-  await cardsOf(page).first().getByRole("link", { name: "Ver vacante" }).click();
-  await expect(page).toHaveURL(FRONTEND_DETAIL);
   const diagnostics = nonGet.filter((entry) => entry.includes("__nextjs") || entry.includes("/_next/"));
   test.info().annotations.push({ type: "non-GET requests", description: JSON.stringify({ diagnostics, mutations: nonGet.filter((e) => !diagnostics.includes(e)) }) });
   expect(nonGet.filter((entry) => !diagnostics.includes(entry))).toEqual([]);

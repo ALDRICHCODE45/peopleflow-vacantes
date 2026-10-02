@@ -25,8 +25,8 @@ const ROLE_ID = "team-invitation-role";
 const ERROR_ID = "team-invitation-error";
 
 /** Exact copy this affordance reports when the typed address cannot be invited. */
-const EMPTY_EMAIL_ERROR = "Ingresá un correo electrónico para continuar.";
-const MALFORMED_EMAIL_ERROR = "Ingresá un correo electrónico válido, por ejemplo nombre@empresa.com.";
+const EMPTY_EMAIL_ERROR = "Ingresa un correo electrónico para continuar.";
+const MALFORMED_EMAIL_ERROR = "Ingresa un correo electrónico válido, por ejemplo nombre@empresa.com.";
 
 /** The address is only checked locally; nothing is sent to any service. */
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/u;

@@ -1,12 +1,8 @@
-import { WalletIcon } from "lucide-react";
-
 import { FieldGroup } from "@/components/ui/field";
 import type { SalaryCurrency } from "../../formatters";
 import { OptionField, TextField } from "./controls";
-import { FormSectionCard } from "./form-section-card";
 import { SALARY_CURRENCY_OPTIONS } from "./model";
 import type { VacancyFieldErrors } from "./model";
-import { sectionAnchorId, sectionTitle } from "./section-metadata";
 
 export type CompensationSectionProps = {
   salaryCurrency: SalaryCurrency;
@@ -22,7 +18,7 @@ export type CompensationSectionProps = {
 /**
  * Currency plus the two optional salary bounds. Only MXN and USD exist in the
  * contract, and there is no "show salary publicly" switch to render because the
- * API has no such field.
+ * API has no such field. It owns no card: the step shell renders the surface.
  */
 export function CompensationSection({
   salaryCurrency,
@@ -34,47 +30,40 @@ export function CompensationSection({
   onChangeSalaryMax,
 }: CompensationSectionProps) {
   return (
-    <FormSectionCard
-      id={sectionAnchorId("compensation")}
-      icon={WalletIcon}
-      title={sectionTitle("compensation")}
-    >
-      <FieldGroup className="gap-4">
-        <OptionField
-          field="salary_currency"
-          title="Moneda"
-          options={SALARY_CURRENCY_OPTIONS}
-          columns={2}
-          value={salaryCurrency}
-          error={errors.salary_currency}
-          onChange={(value) =>
-            // An unchosen currency falls back to the backend default, never to "".
-            onChangeSalaryCurrency(value === "" ? "MXN" : value)
-          }
+    <FieldGroup className="gap-4">
+      <OptionField
+        field="salary_currency"
+        title="Moneda"
+        options={SALARY_CURRENCY_OPTIONS}
+        value={salaryCurrency}
+        error={errors.salary_currency}
+        onChange={(value) =>
+          // An unchosen currency falls back to the backend default, never to "".
+          onChangeSalaryCurrency(value === "" ? "MXN" : value)
+        }
+      />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <TextField
+          field="salary_min"
+          label="Salario mínimo"
+          optional
+          inputMode="numeric"
+          value={salaryMin}
+          error={errors.salary_min}
+          onChange={onChangeSalaryMin}
+          placeholder="Ej.: 25000"
         />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <TextField
-            field="salary_min"
-            label="Salario mínimo"
-            optional
-            inputMode="numeric"
-            value={salaryMin}
-            error={errors.salary_min}
-            onChange={onChangeSalaryMin}
-            placeholder="Ej.: 25000"
-          />
-          <TextField
-            field="salary_max"
-            label="Salario máximo"
-            optional
-            inputMode="numeric"
-            value={salaryMax}
-            error={errors.salary_max}
-            onChange={onChangeSalaryMax}
-            placeholder="Ej.: 40000"
-          />
-        </div>
-      </FieldGroup>
-    </FormSectionCard>
+        <TextField
+          field="salary_max"
+          label="Salario máximo"
+          optional
+          inputMode="numeric"
+          value={salaryMax}
+          error={errors.salary_max}
+          onChange={onChangeSalaryMax}
+          placeholder="Ej.: 40000"
+        />
+      </div>
+    </FieldGroup>
   );
 }

@@ -10,7 +10,13 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
 import { JobsNavigationIsland } from "./JobsNavigationIsland";
 
-/** The island source, so the widened-margin contract reads the shipped bytes. */
+/**
+ * The island source, so the widened-margin and scroll-body contracts read the
+ * shipped bytes. The mobile filters Sheet is measured in Playwright: opening it
+ * under jsdom mounts the Base UI `Select` positioner, whose autoUpdate loop
+ * never settles there - the same boundary the committed combobox and menu
+ * suites document - so a rendering assertion would time out, not verify.
+ */
 const source = readFileSync(
   join(process.cwd(), "src/features/jobs/components/JobsNavigationIsland.tsx"),
   "utf8",
@@ -51,5 +57,15 @@ describe("JobsNavigationIsland /vacantes width island (CCP-R9A)", () => {
     expect(container.querySelectorAll("[data-jobs-navigation-island]")).toHaveLength(0);
     expect(container.querySelector("div")?.className ?? "").not.toContain("-mx-");
     expect(source.match(/md:-mx-\[7px\]/gu)).toHaveLength(1);
+  });
+
+  it("gives the mobile filters sheet a shrinking body that owns the scroll", () => {
+    // The form that wraps the mobile facet fields is the panel's flex body: it
+    // must shrink (`min-h-0`) and scroll itself so the floating sheet keeps its
+    // header and footer fixed.
+    expect(source).toContain('data-nav-intent="mobile-filters"');
+    expect(source).toMatch(
+      /data-nav-intent="mobile-filters"[\s\S]{0,240}?className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto/u,
+    );
   });
 });

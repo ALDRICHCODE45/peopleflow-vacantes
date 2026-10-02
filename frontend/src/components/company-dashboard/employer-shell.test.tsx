@@ -93,6 +93,23 @@ describe("EmployerShell shared employer frame", () => {
     expect(cookie("sidebar_state")).toBeUndefined();
   });
 
+  it("keeps the mobile drawer on the edge presentation with its 18rem width", async () => {
+    const user = userEvent.setup();
+    renderShell(undefined, 375);
+    await user.click(screen.getByRole("button", { name: /toggle sidebar/i }));
+    const drawer = await screen.findByRole("dialog");
+
+    // The navigation drawer owns its own frame: the shared floating sheet
+    // default would inset it and shrink the committed 18rem rail.
+    expect(drawer).toHaveAttribute("data-presentation", "edge");
+    expect(drawer.style.getPropertyValue("--sidebar-width")).toBe("18rem");
+    expect(drawer.className).toContain("data-[side=left]:h-full");
+    expect(drawer.className).not.toContain("[--sheet-inset:0.5rem]");
+    expect(drawer.className).not.toContain(
+      "max-w-[calc(100dvw-2*var(--sheet-inset))]",
+    );
+  });
+
   it("clips horizontal overflow on the shared inset without a nested scroll boundary", () => {
     renderShell();
     const inset = document.querySelector("[data-slot='sidebar-inset']") as HTMLElement;

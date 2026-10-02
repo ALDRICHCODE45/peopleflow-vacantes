@@ -4,6 +4,7 @@ import * as React from "react";
 import type { LucideIcon } from "lucide-react";
 import { BellRing, CalendarClock, KeyRound, MessagesSquare, Palette, ShieldCheck, Sparkles } from "lucide-react";
 
+import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
@@ -22,8 +23,8 @@ import type { ThemeMode } from "@/components/theme/theme-preferences";
  */
 
 /** Real in-page section ids; the nav anchors and the H2 headings share them. */
-const NOTIFICATIONS_SECTION = { id: "notificaciones", heading: "Notificaciones", description: "Elegí qué avisos querés tener presentes." } as const;
-const APPEARANCE_SECTION = { id: "apariencia", heading: "Apariencia", description: "Elegí el tema de la interfaz para este dispositivo." } as const;
+const NOTIFICATIONS_SECTION = { id: "notificaciones", heading: "Notificaciones", description: "Elige qué avisos quieres tener presentes." } as const;
+const APPEARANCE_SECTION = { id: "apariencia", heading: "Apariencia", description: "Elige el tema de la interfaz para este dispositivo." } as const;
 const SECURITY_SECTION = { id: "seguridad", heading: "Seguridad", description: "Controles de acceso de tu cuenta." } as const;
 
 type SectionId = (typeof NOTIFICATIONS_SECTION | typeof APPEARANCE_SECTION | typeof SECURITY_SECTION)["id"];
@@ -198,9 +199,10 @@ export function SettingsWorkspace() {
   };
 
   return (
-    <div
+    <DashboardPageContent
       data-pf-settings-workspace
-      className="mx-auto grid w-full max-w-screen-2xl grid-cols-1 gap-5 px-4 py-4 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] lg:px-6"
+      width="screen-2xl"
+      className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]"
     >
       <nav data-pf-settings-nav aria-label="Secciones de configuración" className="min-w-0 lg:sticky lg:top-4 lg:self-start">
         <ul className="grid grid-cols-1 gap-1 sm:grid-cols-3 lg:grid-cols-1">
@@ -223,6 +225,6 @@ export function SettingsWorkspace() {
         <AppearanceSection mode={themeMode} onModeChange={changeThemeMode} />
         <SecuritySection />
       </div>
-    </div>
+    </DashboardPageContent>
   );
 }

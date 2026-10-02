@@ -1,4 +1,4 @@
-import { ListChecksIcon, PlusIcon, XIcon } from "lucide-react";
+import { PlusIcon, XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -9,7 +9,6 @@ import {
 } from "@/components/ui/empty";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { FormSectionCard } from "./form-section-card";
 import {
   MAX_SCREENING_QUESTIONS,
   addScreeningQuestion,
@@ -17,14 +16,14 @@ import {
   updateScreeningQuestion,
 } from "./prototype-model";
 import type { VacancyPrototypeValues } from "./prototype-model";
-import { sectionAnchorId, sectionTitle } from "./section-metadata";
 
 /**
  * Local-only screening questions.
  *
  * Zero questions is a valid configuration and the surface says so instead of
  * rendering an empty box. Every add, update, and removal goes through the
- * immutable model helpers, so row identity stays stable for the caller.
+ * immutable model helpers, so row identity stays stable for the caller. The
+ * module owns no card: the step shell renders the step surface once.
  */
 
 /**
@@ -58,14 +57,9 @@ export function ScreeningSection({ values, onChange }: ScreeningSectionProps) {
   }
 
   return (
-    <FormSectionCard
-      id={sectionAnchorId("screening")}
-      icon={ListChecksIcon}
-      title={sectionTitle("screening")}
-    >
-      <FieldGroup className="gap-4">
+    <FieldGroup className="gap-4">
         <p className="text-sm text-muted-foreground">
-          Son opcionales: podés publicar la vacante sin ninguna y agregar hasta{" "}
+          Son opcionales: puedes publicar la vacante sin ninguna y agregar hasta{" "}
           {MAX_SCREENING_QUESTIONS}.
         </p>
 
@@ -74,7 +68,7 @@ export function ScreeningSection({ values, onChange }: ScreeningSectionProps) {
             <EmptyHeader>
               <EmptyTitle>Sin preguntas de filtro</EmptyTitle>
               <EmptyDescription>
-                Agregá una pregunta para filtrar las postulaciones que recibe la
+                Agrega una pregunta para filtrar las postulaciones que recibe la
                 vacante.
               </EmptyDescription>
             </EmptyHeader>
@@ -100,7 +94,7 @@ export function ScreeningSection({ values, onChange }: ScreeningSectionProps) {
                         ),
                       })
                     }
-                    placeholder="Ej.: ¿Cuántos años de experiencia tenés con React?"
+                    placeholder="Ej.: ¿Cuántos años de experiencia tienes con React?"
                   />
                 </Field>
                 <Button
@@ -138,6 +132,5 @@ export function ScreeningSection({ values, onChange }: ScreeningSectionProps) {
           </Button>
         </div>
       </FieldGroup>
-    </FormSectionCard>
   );
 }

@@ -2,6 +2,7 @@ import Link from "next/link"
 import { ArrowUpRight, BriefcaseBusiness, CircleCheckBig, Clock3, FileText, Files, Link2Off } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
+import { DashboardPageContent } from "@/components/dashboard-page-content"
 import { Badge, type BadgeVariant } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -191,7 +192,7 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
   ]
 
   return (
-    <div data-pf-candidate-overview className="mx-auto w-full max-w-screen-2xl @container/main flex flex-1 flex-col gap-4 px-4 py-4 md:gap-6 md:py-6 lg:px-6">
+    <DashboardPageContent data-pf-candidate-overview width="screen-2xl" container className="flex-1 gap-4 md:gap-6">
       <div data-pf-candidate-overview-inner className="flex w-full flex-col gap-4 md:gap-6">
         <section aria-labelledby="candidate-overview-welcome" className="flex flex-col gap-1">
           <h2 id="candidate-overview-welcome" className="font-heading text-2xl font-semibold text-foreground">Hola, {firstName}</h2>
@@ -345,6 +346,6 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
           </section>
         </div>
       </div>
-    </div>
+    </DashboardPageContent>
   )
 }

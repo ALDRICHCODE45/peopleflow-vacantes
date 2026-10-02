@@ -299,14 +299,17 @@ describe("cv workspace composition contract", () => {
     const root = container.querySelector("[data-pf-cv-workspace]") as HTMLElement;
     const tokens = root.className.split(/\s+/u);
     expect(["mx-auto", "w-full", "max-w-screen-2xl"].filter((token) => !tokens.includes(token))).toEqual([]);
-    expect(["px-4", "py-4", "lg:px-6"].filter((token) => !tokens.includes(token))).toEqual([]);
+    expect(["px-4", "py-4", "md:py-6", "lg:px-6"].filter((token) => !tokens.includes(token))).toEqual([]);
     const owners = Array.from(container.querySelectorAll("[class]")).filter((node) => {
       const value = (node.getAttribute("class") ?? "").split(/\s+/u);
       return value.includes("px-4") && value.includes("lg:px-6");
     });
     expect(owners).toHaveLength(1);
     expect(owners[0]).toBe(root);
-    expect([...SOURCE.matchAll(/max-w-[a-z0-9-]+/gu)].map((match) => match[0])).toEqual(["max-w-screen-2xl"]);
+    // The canonical `max-w-screen-2xl` measure now travels through the shared
+    // page-content wrapper prop, so the workspace source declares none of its
+    // own and still cannot introduce a narrower inner cap.
+    expect([...SOURCE.matchAll(/max-w-[a-z0-9-]+/gu)].map((match) => match[0])).toEqual([]);
   });
 
   it("paints only with semantic tokens inside the workspace", () => {
@@ -327,6 +330,7 @@ describe("cv workspace source contract", () => {
     const modules = [...new Set([...SOURCE.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]))].sort();
     expect(modules).toEqual([
       "./portfolio-model",
+      "@/components/dashboard-page-content",
       "@/components/ui/badge",
       "@/components/ui/button",
       "@/components/ui/card",

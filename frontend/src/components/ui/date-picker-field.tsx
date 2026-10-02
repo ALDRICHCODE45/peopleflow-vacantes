@@ -9,7 +9,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-const PLACEHOLDER = "Elegí una fecha";
+const PLACEHOLDER = "Elige una fecha";
 const CIVIL_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/u;
 
 /** Strict `YYYY-MM-DD` to local date; impossible days such as `2026-02-30` fail. */

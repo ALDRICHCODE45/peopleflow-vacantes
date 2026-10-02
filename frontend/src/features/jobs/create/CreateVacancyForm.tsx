@@ -2,7 +2,6 @@
 
 import * as React from "react";
 
-import { DraftRail } from "./form/draft-rail";
 import {
   INITIAL_VALUES,
   attemptDraftSave,
@@ -16,24 +15,33 @@ import type {
 } from "./form/model";
 import { INITIAL_PROTOTYPE_VALUES } from "./form/prototype-model";
 import type { VacancyPrototypeValues } from "./form/prototype-model";
+import type { ReviewStepId } from "./form/review-step";
 import { toPlainText } from "./form/rich-text-model";
+import {
+  firstInvalidStep,
+  nextStep,
+  previousStep,
+  stepFieldErrors,
+} from "./form/step-model";
+import type { VacancyStepId } from "./form/step-model";
+import { StepProgress } from "./form/step-progress";
 import { VacancyFormSections } from "./form/vacancy-form-sections";
+import { WizardControls } from "./form/wizard-controls";
 
 /**
- * Employer create-vacancy form body.
+ * Employer create-vacancy form body: the four-step wizard owner.
  *
- * It owns exactly three states: the contract values that the save attempt
- * validates, the local-only complementary values that exist for visual
- * exploration, and the field errors of the last attempt. The section tree lives
- * behind `form/vacancy-form-sections.tsx`, the form model owns normalization and
- * schema-backed validation, and the draft rail owns the preview and the save
- * affordance.
+ * It owns four states: the contract values the schema validates, the local-only
+ * complementary values, the field errors of the last attempt, and the current
+ * step. Every navigation action keeps both value states and the error record, so
+ * Back and Continue never lose what the recruiter typed. Only the current step's
+ * fields render.
  *
- * The tokenized rich description is local-only state: the contract description
- * is always its derived plain text, so a formatting marker can never reach the
- * wire value. The save affordance stays visibly inert: the model is the only
- * validation boundary, a valid attempt produces no visible change and issues no
- * request, and field errors clear only once the corrected values become valid.
+ * Continue validates the current step against the exact schema authority; an
+ * invalid step stays in place and focuses its first offending control. The final
+ * save is validation-only: a valid draft produces no visible change and issues no
+ * request, while an invalid one routes to the first invalid step and focuses its
+ * first invalid control after mount.
  */
 export function CreateVacancyForm() {
   const [values, setValues] =
@@ -41,7 +49,40 @@ export function CreateVacancyForm() {
   const [prototypeValues, setPrototypeValues] =
     React.useState<VacancyPrototypeValues>(INITIAL_PROTOTYPE_VALUES);
   const [errors, setErrors] = React.useState<VacancyFieldErrors>({});
+  const [step, setStep] = React.useState<VacancyStepId>("basic-information");
+
   const formRef = React.useRef<HTMLFormElement | null>(null);
+  const stepRegionRef = React.useRef<HTMLDivElement | null>(null);
+  /** Field to focus after the next commit, or null when a heading takes focus. */
+  const pendingFieldRef = React.useRef<VacancyField | null>(null);
+  /** Whether the next commit should move focus to the step heading. */
+  const pendingHeadingRef = React.useRef(false);
+
+  /**
+   * Post-commit focus: a blocked step focuses its first invalid control, a plain
+   * step change focuses the new step heading instead. Navigation is the only
+   * source of either, so editing never moves the caret.
+   */
+  React.useEffect(() => {
+    const field = pendingFieldRef.current;
+    if (field !== null) {
+      pendingFieldRef.current = null;
+      pendingHeadingRef.current = false;
+      const control = formRef.current?.querySelector<HTMLElement>(
+        `#${controlId(field)}`,
+      );
+      if (control !== null && control !== undefined) {
+        const target = control.matches("input, textarea, button")
+          ? control
+          : control.querySelector<HTMLElement>("input, textarea, button");
+        (target ?? control).focus();
+      }
+      return;
+    }
+    if (!pendingHeadingRef.current) return;
+    pendingHeadingRef.current = false;
+    stepRegionRef.current?.querySelector<HTMLElement>("h2")?.focus();
+  }, [step, errors]);
 
   function update<K extends keyof VacancyFormValues>(
     key: K,
@@ -56,29 +97,44 @@ export function CreateVacancyForm() {
     update("description", toPlainText(next.descriptionRich));
   }
 
-  /** Focuses the real control behind one field, composite controls included. */
-  function focusField(field: VacancyField) {
-    const control = formRef.current?.querySelector<HTMLElement>(
-      `#${controlId(field)}`,
-    );
-    if (control === null || control === undefined) return;
-    const target = control.matches("input, textarea, button")
-      ? control
-      : control.querySelector<HTMLElement>("input, textarea, button");
-    (target ?? control).focus();
+  /** Advances only when the current step owns no schema error. */
+  function handleContinue() {
+    const nextErrors = attemptDraftSave(values);
+    setErrors(nextErrors);
+    const invalid = firstInvalidField(stepFieldErrors(step, nextErrors));
+    if (invalid !== null) {
+      pendingFieldRef.current = invalid;
+      return;
+    }
+    const following = nextStep(step);
+    if (following === null) return;
+    pendingHeadingRef.current = true;
+    setStep(following);
   }
 
+  function handleBack() {
+    const previous = previousStep(step);
+    if (previous === null) return;
+    pendingHeadingRef.current = true;
+    setStep(previous);
+  }
+
+  /** Review-only: returns to the step that owns the group being edited. */
+  function handleEditStep(target: ReviewStepId) {
+    pendingHeadingRef.current = true;
+    setStep(target);
+  }
+
+  /** Final validation-only save: routes to the first invalid step, or is inert. */
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    // The model validates the contract values alone: a valid draft has nothing
-    // to persist, while an invalid one reports its field errors.
     const nextErrors = attemptDraftSave(values);
     setErrors(nextErrors);
 
-    // Focus answers an invalid submit only; editing never moves the caret.
-    const invalid = firstInvalidField(nextErrors);
-    if (invalid !== null) focusField(invalid);
+    const target = firstInvalidStep(nextErrors);
+    if (target === null) return;
+    pendingFieldRef.current = firstInvalidField(stepFieldErrors(target, nextErrors));
+    setStep(target);
   }
 
   return (
@@ -88,17 +144,25 @@ export function CreateVacancyForm() {
       onSubmit={handleSubmit}
       className="flex flex-col gap-6"
     >
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <StepProgress step={step} />
+
+      <div ref={stepRegionRef} data-pf-step-region={step}>
         <VacancyFormSections
+          step={step}
           values={values}
           errors={errors}
           onChange={update}
           prototypeValues={prototypeValues}
           onChangePrototype={updatePrototype}
+          onEditStep={handleEditStep}
         />
-
-        <DraftRail values={values} prototypeValues={prototypeValues} />
       </div>
+
+      <WizardControls
+        step={step}
+        onBack={handleBack}
+        onContinue={handleContinue}
+      />
     </form>
   );
 }

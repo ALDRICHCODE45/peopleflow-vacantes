@@ -291,7 +291,7 @@ export function JobsNavigationIsland({
           <form
             data-nav-intent="mobile-filters"
             onSubmit={handleOwnedSubmit}
-            className="flex flex-1 flex-col gap-4 overflow-y-auto px-6 pb-6"
+            className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 pb-6"
           >
             <FieldGroup className="gap-4">
               <FilterFields idPrefix="mobile-" query={query} />

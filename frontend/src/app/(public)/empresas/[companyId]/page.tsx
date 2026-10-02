@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CompanyCareersView } from "../../../../features/company-profile/company-careers-view";
+import { siteContentFromProfile } from "../../../../features/company-profile/company-site-content";
 import { findCompanyProfile } from "../../../../features/company-profile/model";
 import { PROTOTYPE_COMPANY_PROFILES } from "../../../../features/company-profile/prototype-companies";
 import { ACME_PROTOTYPE_JOBS } from "../../../../features/jobs/prototype-jobs";
@@ -58,6 +59,8 @@ export default async function EmpresaPage({ params }: EmpresaPageProps) {
 
   // The vacancy list is a frozen local fixture read, not a request: only the
   // feature-local prototype-jobs module reaches the enrichment and the company
-  // filter, so the route stays free of transport and client state.
-  return <CompanyCareersView profile={profile} jobs={ACME_PROTOTYPE_JOBS} />;
+  // filter, so the route stays free of transport and client state. The approved
+  // profile is mapped into the shared presentation contract, which the renderer
+  // consumes without knowing which employer resolved it.
+  return <CompanyCareersView content={siteContentFromProfile(profile)} jobs={ACME_PROTOTYPE_JOBS} />;
 }

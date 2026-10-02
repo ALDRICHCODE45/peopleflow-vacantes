@@ -1,35 +1,79 @@
-import { GiftIcon } from "lucide-react";
+import { useState } from "react";
 
-import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-  FieldTitle,
-} from "@/components/ui/field";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { FormSectionCard } from "./form-section-card";
+  Combobox,
+  ComboboxChip,
+  ComboboxChips,
+  ComboboxChipsInput,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxValue,
+} from "@/components/ui/combobox";
+import { Field, FieldDescription, FieldGroup, FieldTitle } from "@/components/ui/field";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { BENEFIT_OPTIONS, PAY_FREQUENCY_OPTIONS } from "./prototype-model";
-import type { BenefitKey, PayFrequency, VacancyPrototypeValues } from "./prototype-model";
-import { sectionAnchorId, sectionTitle } from "./section-metadata";
+import type {
+  BenefitKey,
+  PayFrequency,
+  VacancyPrototypeValues,
+} from "./prototype-model";
 
 /**
  * Local-only benefits and pay frequency.
  *
- * The benefit set is a structured checkbox group built from the shared catalog,
- * and the pay frequency is a documented option-set control; both keep the value
- * with the caller and write nothing anywhere.
+ * The benefit set is one searchable multiple combobox built from the shared
+ * catalog, and the pay frequency is a documented single choice control; both
+ * keep the value with the caller and write nothing anywhere. The module owns no
+ * card: the wizard step shell renders the step surface once.
  */
 
+const BENEFITS_TITLE_ID = "vacancy-benefits-title";
+const BENEFITS_INPUT_ID = "vacancy-benefits";
 const PAY_FREQUENCY_TITLE_ID = "vacancy-pay-frequency-title";
 
-/** Narrows an option-set value back to the prototype pay frequency. */
-function pickPayFrequency(candidate: string | undefined): PayFrequency | "" {
+/** One catalog entry: the stored key paired with the Spanish label shown. */
+type BenefitOption = (typeof BENEFIT_OPTIONS)[number];
+
+/** Spanish label of one catalog benefit; the key itself is never shown raw. */
+function benefitLabel(key: BenefitKey): string {
+  return BENEFIT_OPTIONS.find((option) => option.value === key)?.label ?? key;
+}
+
+/**
+ * Resolves the stored key behind either shape the combobox compares: the
+ * catalog entry the list is built from, or the plain key the caller owns.
+ */
+function benefitKeyOf(item: BenefitKey | BenefitOption): BenefitKey {
+  return typeof item === "string" ? item : item.value;
+}
+
+/** Narrows a select value back to the prototype pay frequency. */
+function pickPayFrequency(
+  candidate: string | null | undefined,
+): PayFrequency | "" {
   return (
     PAY_FREQUENCY_OPTIONS.find((option) => option.value === candidate)?.value ??
     ""
+  );
+}
+
+/**
+ * Catalog order keeps the value stable no matter the click order, and unknown
+ * keys never reach the caller's state.
+ */
+function normalizeBenefits(selected: readonly BenefitKey[]): BenefitKey[] {
+  const chosen = new Set<BenefitKey>(selected);
+  return BENEFIT_OPTIONS.filter((option) => chosen.has(option.value)).map(
+    (option) => option.value,
   );
 }
 
@@ -40,68 +84,96 @@ export type BenefitsSectionProps = {
 };
 
 export function BenefitsSection({ values, onChange }: BenefitsSectionProps) {
-  function toggleBenefit(key: BenefitKey) {
-    const selected = new Set<BenefitKey>(values.benefits);
-    if (selected.has(key)) selected.delete(key);
-    else selected.add(key);
-
-    // Catalog order keeps the value stable no matter the click order.
-    onChange({
-      ...values,
-      benefits: BENEFIT_OPTIONS.filter((option) => selected.has(option.value)).map(
-        (option) => option.value,
-      ),
-    });
-  }
+  // The display follows the model's catalog-order invariant, and a derived copy
+  // keeps the caller's own array untouched.
+  const selectedBenefits = normalizeBenefits(values.benefits);
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLocaleLowerCase("es");
+  // Control the displayed collection so a closing popup's retained query cannot
+  // override the text currently entered by the user.
+  const filteredBenefits = BENEFIT_OPTIONS.filter((option) =>
+    option.label.toLocaleLowerCase("es").includes(normalizedQuery),
+  );
 
   return (
-    <FormSectionCard
-      id={sectionAnchorId("benefits-pay-frequency")}
-      icon={GiftIcon}
-      title={sectionTitle("benefits-pay-frequency")}
-    >
-      <FieldGroup className="gap-6">
-        <FieldSet>
-          <FieldLegend>Beneficios</FieldLegend>
-          <FieldGroup className="gap-3">
-            {BENEFIT_OPTIONS.map((option) => (
-              <Field key={option.value} orientation="horizontal">
-                <Checkbox
-                  id={`vacancy-benefit-${option.value}`}
-                  checked={values.benefits.includes(option.value)}
-                  onCheckedChange={() => toggleBenefit(option.value)}
-                />
-                <FieldLabel htmlFor={`vacancy-benefit-${option.value}`}>
-                  {option.label}
-                </FieldLabel>
-              </Field>
-            ))}
-          </FieldGroup>
-        </FieldSet>
+    <FieldGroup className="gap-6">
+        <Field className="gap-3" aria-labelledby={BENEFITS_TITLE_ID}>
+          <FieldTitle id={BENEFITS_TITLE_ID}>Beneficios</FieldTitle>
+          <Combobox
+            multiple
+            items={BENEFIT_OPTIONS}
+            filteredItems={filteredBenefits}
+            inputValue={query}
+            onInputValueChange={setQuery}
+            value={selectedBenefits}
+            // The list compares catalog entries, the caller keeps plain keys: the
+            // shared key keeps selection and highlight stable in both directions.
+            isItemEqualToValue={(itemValue, value) =>
+              benefitKeyOf(itemValue) === value
+            }
+            onValueChange={(next: BenefitKey[]) =>
+              onChange({ ...values, benefits: normalizeBenefits(next) })
+            }
+          >
+            <ComboboxChips className="min-h-10">
+              <ComboboxValue>
+                {(selected: BenefitKey[]) => (
+                  <>
+                    {selected.map((key) => (
+                      <ComboboxChip key={key}>{benefitLabel(key)}</ComboboxChip>
+                    ))}
+                    <ComboboxChipsInput
+                      id={BENEFITS_INPUT_ID}
+                      aria-labelledby={BENEFITS_TITLE_ID}
+                      placeholder="Busca un beneficio"
+                    />
+                  </>
+                )}
+              </ComboboxValue>
+            </ComboboxChips>
+            <ComboboxContent>
+              <ComboboxEmpty>Sin resultados</ComboboxEmpty>
+              <ComboboxList>
+                {(option: BenefitOption) => (
+                  <ComboboxItem key={option.value} value={option.value}>
+                    {option.label}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+          <FieldDescription>
+            {values.benefits.length} de {BENEFIT_OPTIONS.length} beneficios
+            seleccionados.
+          </FieldDescription>
+        </Field>
 
         <Field>
           <FieldTitle id={PAY_FREQUENCY_TITLE_ID}>Frecuencia de pago</FieldTitle>
-          <ToggleGroup
-            aria-labelledby={PAY_FREQUENCY_TITLE_ID}
-            className="flex-wrap"
-            value={values.payFrequency === "" ? [] : [values.payFrequency]}
+          <Select
+            value={values.payFrequency === "" ? null : values.payFrequency}
+            items={PAY_FREQUENCY_OPTIONS}
             onValueChange={(next) =>
-              onChange({ ...values, payFrequency: pickPayFrequency(next[0]) })
+              onChange({ ...values, payFrequency: pickPayFrequency(next) })
             }
           >
-            {PAY_FREQUENCY_OPTIONS.map((option) => (
-              <ToggleGroupItem
-                key={option.value}
-                value={option.value}
-                variant="outline"
-                size="sm"
-              >
-                {option.label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+            <SelectTrigger
+              aria-labelledby={PAY_FREQUENCY_TITLE_ID}
+              className="h-10 w-full"
+            >
+              <SelectValue placeholder="Elige una frecuencia" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                {PAY_FREQUENCY_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         </Field>
       </FieldGroup>
-    </FormSectionCard>
   );
 }

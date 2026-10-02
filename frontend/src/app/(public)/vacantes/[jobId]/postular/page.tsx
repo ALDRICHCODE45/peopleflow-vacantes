@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { CANDIDATE_IDENTITY, CANDIDATE_PROFILE } from "@/features/candidate/prototype-candidate";
 import { VacancyApplicationWizard } from "@/features/jobs/application/vacancy-application-wizard";
+import { VacancyApplicationSummary } from "@/features/jobs/application/vacancy-application-summary";
 
 import { VacancyApplicationShell } from "../../../../../features/jobs/application/vacancy-application-shell";
 import { enrichJob } from "../../../../../features/jobs/enrich";
@@ -75,14 +76,17 @@ export default async function VacanteApplicationPage({
   // request-scoped read above stays pure wire data.
   return (
     <VacancyApplicationShell job={enrichJob(result.job)}>
-      {/* VAF-03: the real three-step wizard replaces the pending placeholder.
-          It owns only local state and offers no send, so the prototype still
-          never implies a submission that does not exist. */}
+      {/* VAF-03/VAF-06/VAF-07: the four-step wizard owns the local candidate
+          draft, the optional local CV and the desktop rail. The vacancy summary
+          stays server-composed and is handed down as a slot, so the route ships
+          no second data read and the prototype still never implies a submission
+          that does not exist. */}
       <VacancyApplicationWizard
         job={enrichJob(result.job)}
         identity={CANDIDATE_IDENTITY}
         profile={CANDIDATE_PROFILE}
         avatarSrc="/candidate/ximena-barrera.jpg"
+        vacancySummary={<VacancyApplicationSummary job={enrichJob(result.job)} />}
       />
     </VacancyApplicationShell>
   );

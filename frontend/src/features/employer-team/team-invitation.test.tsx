@@ -11,8 +11,8 @@ import { TeamInvitation } from "./team-invitation";
 
 const source = readFileSync(join(process.cwd(), "src/features/employer-team/team-invitation.tsx"), "utf8");
 /** Exact copy this affordance must state for an empty or malformed address. */
-const EMPTY_ERROR = "Ingresá un correo electrónico para continuar.";
-const MALFORMED_ERROR = "Ingresá un correo electrónico válido, por ejemplo nombre@empresa.com.";
+const EMPTY_ERROR = "Ingresa un correo electrónico para continuar.";
+const MALFORMED_ERROR = "Ingresa un correo electrónico válido, por ejemplo nombre@empresa.com.";
 /** Every literal paint a token-only surface must never carry in a class list. */
 const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|color-mix)\(/u;
 const classesOf = (root: Element) => Array.from(root.querySelectorAll("[class]")).map((node) => node.getAttribute("class") ?? "").join(" ");

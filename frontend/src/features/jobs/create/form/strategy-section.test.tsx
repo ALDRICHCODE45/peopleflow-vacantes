@@ -10,8 +10,14 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
-import { StrategySection, capSelectedSkills, pickCefr } from "./strategy-section";
-import { sectionAnchorId, sectionTitle } from "./section-metadata";
+import {
+  ClosingDateField,
+  DepartmentField,
+  LanguagesField,
+  SkillsField,
+  capSelectedSkills,
+  pickCefr,
+} from "./strategy-section";
 import {
   CEFR_LEVEL_OPTIONS,
   DEPARTMENTS,
@@ -110,31 +116,13 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function renderSection(overrides: Partial<VacancyPrototypeValues> = {}) {
-  const values: VacancyPrototypeValues = {
-    ...INITIAL_PROTOTYPE_VALUES,
-    ...overrides,
-  };
-  const onChange = vi.fn();
-
-  render(<StrategySection values={values} onChange={onChange} />);
-
-  return { values, onChange };
+function valuesWith(overrides: Partial<VacancyPrototypeValues> = {}) {
+  return { ...INITIAL_PROTOTYPE_VALUES, ...overrides };
 }
 
 /** The first value object handed to onChange. */
 function firstPayload(onChange: ReturnType<typeof vi.fn>): VacancyPrototypeValues {
   return onChange.mock.calls[0][0] as VacancyPrototypeValues;
-}
-
-/** Renders one department selection and returns the RTL handle for unmount. */
-function renderSectionWithDepartment(department: string) {
-  return render(
-    <StrategySection
-      values={{ ...INITIAL_PROTOTYPE_VALUES, department }}
-      onChange={vi.fn()}
-    />,
-  );
 }
 
 function chipsContainer(): HTMLElement {
@@ -145,64 +133,71 @@ function chipsContainer(): HTMLElement {
   return container as HTMLElement;
 }
 
-describe("StrategySection fields", () => {
-  it("renders the strategy card with its documented selection controls", () => {
-    renderSection();
+describe("DepartmentField", () => {
+  it("renders the department combobox from the shared catalog", () => {
+    render(
+      <DepartmentField department="Ingeniería" onChangeDepartment={vi.fn()} />,
+    );
 
-    expect(
-      screen.getByRole("heading", { name: "Estrategia de contratación" }),
-    ).toBeVisible();
     expect(
       screen.getByRole("combobox", { name: "Área o departamento" }),
     ).toBeVisible();
     expect(
-      screen.getByRole("combobox", { name: "Habilidades y tecnologías" }),
-    ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Agregar idioma" })).toBeVisible();
-    // No native date control remains: the field is the reusable DatePickerField.
-    const closingDate = screen.getByLabelText(/fecha de cierre/iu);
-    expect(closingDate).not.toHaveAttribute("type", "date");
-    expect(closingDate.tagName).toBe("BUTTON");
+      screen.getByRole("combobox", { name: "Área o departamento" }),
+    ).toHaveTextContent("Ingeniería");
+    expect(DEPARTMENTS).toContain("Ingeniería");
   });
 
-  it("reports a closing date change without mutating the caller values", () => {
-    const { values, onChange } = renderSection();
-
-    fireEvent.click(screen.getByLabelText(/fecha de cierre/iu));
-
-    expect(onChange).toHaveBeenCalledTimes(1);
-    expect(firstPayload(onChange).closingDate).toBe("2026-12-31");
-    expect(firstPayload(onChange)).not.toBe(values);
-    expect(values.closingDate).toBe("");
+  it("wires the department selection to its own callback", () => {
+    // The real Select owns its popup; the controlled value change is pinned
+    // structurally here and exercised end-to-end in vacancy-form-sections.test.
+    expect(source).toMatch(
+      /onValueChange=\{\(next\) => \{ if \(next !== null\) onChangeDepartment\(next\); \}\}/,
+    );
   });
 });
 
-describe("StrategySection technologies", () => {
+describe("StrategySection neutral Mexican placeholders", () => {
+  it("states each placeholder and empty select in neutral Mexican Spanish", () => {
+    render(<DepartmentField department="" onChangeDepartment={vi.fn()} />);
+    expect(document.querySelector('[data-slot="select-value"]')).toHaveTextContent("Elige un área");
+
+    cleanup();
+    render(<SkillsField values={valuesWith()} onChange={vi.fn()} />);
+    expect(screen.getByPlaceholderText("Busca una tecnología")).toBeVisible();
+
+    cleanup();
+    render(
+      <LanguagesField
+        values={valuesWith({
+          languages: [{ id: "language-1", language: "", level: "" }],
+        })}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(document.querySelector('[data-slot="select-value"]')).toHaveTextContent("Elige el nivel");
+  });
+});
+
+describe("SkillsField technologies", () => {
   it("renders one removable chip per selected technology with exact names", () => {
-    const { onChange } = renderSection({ skills: ["React", "TypeScript"] });
+    const onChange = vi.fn();
+    render(<SkillsField values={valuesWith({ skills: ["React", "TypeScript"] })} onChange={onChange} />);
     const container = chipsContainer();
 
     expect(within(container).getByText("React")).toBeVisible();
-    expect(
-      within(container).getByRole("button", { name: "Quitar React" }),
-    ).toBeVisible();
-    expect(
-      within(container).getByRole("button", { name: "Quitar TypeScript" }),
-    ).toBeVisible();
-    expect(container.querySelectorAll('[data-slot="combobox-chip"]')).toHaveLength(
-      2,
-    );
+    expect(within(container).getByRole("button", { name: "Quitar React" })).toBeVisible();
+    expect(within(container).getByRole("button", { name: "Quitar TypeScript" })).toBeVisible();
+    expect(container.querySelectorAll('[data-slot="combobox-chip"]')).toHaveLength(2);
 
-    fireEvent.click(
-      within(container).getByRole("button", { name: "Quitar React" }),
-    );
+    fireEvent.click(within(container).getByRole("button", { name: "Quitar React" }));
 
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(firstPayload(onChange).skills).toEqual(["TypeScript"]);
   });
 
   it("shows how many technologies are selected out of the limit", () => {
-    renderSection({ skills: ["React", "TypeScript"] });
+    render(<SkillsField values={valuesWith({ skills: ["React", "TypeScript"] })} onChange={vi.fn()} />);
 
     expect(
       screen.getByText(`2 de ${MAX_SKILLS} tecnologías seleccionadas.`),
@@ -219,11 +214,27 @@ describe("StrategySection technologies", () => {
     // A selection inside the limit is returned untouched.
     expect(capSelectedSkills(["React"])).toEqual(["React"]);
   });
+
+  it("renders a removable chip and a counter for every selected technology", () => {
+    const selected = SKILLS.slice(0, MAX_SKILLS);
+    render(<SkillsField values={valuesWith({ skills: selected })} onChange={vi.fn()} />);
+
+    const container = chipsContainer();
+    expect(container.querySelectorAll('[data-slot="combobox-chip"]')).toHaveLength(MAX_SKILLS);
+    for (const skill of selected) {
+      expect(within(container).getByRole("button", { name: `Quitar ${skill}` })).toBeVisible();
+    }
+    expect(
+      screen.getByText(`${MAX_SKILLS} de ${MAX_SKILLS} tecnologías seleccionadas.`),
+    ).toBeVisible();
+  });
 });
 
-describe("StrategySection languages", () => {
+describe("LanguagesField languages", () => {
   it("labels every language row in Spanish and removes the right one", () => {
-    const { values, onChange } = renderSection({ languages: [english, portuguese] });
+    const values = valuesWith({ languages: [english, portuguese] });
+    const onChange = vi.fn();
+    render(<LanguagesField values={values} onChange={onChange} />);
 
     expect(screen.getByLabelText("Idioma 1")).toHaveValue("Inglés");
     expect(screen.getByRole("combobox", { name: "Nivel 1" })).toBeVisible();
@@ -238,10 +249,12 @@ describe("StrategySection languages", () => {
   });
 
   it("updates one language through the immutable helper and keeps other fields", () => {
-    const { values, onChange } = renderSection({
+    const values = valuesWith({
       department: "Ingeniería",
       languages: [english, portuguese],
     });
+    const onChange = vi.fn();
+    render(<LanguagesField values={values} onChange={onChange} />);
 
     fireEvent.change(screen.getByLabelText("Idioma 1"), {
       target: { value: "Alemán" },
@@ -258,7 +271,7 @@ describe("StrategySection languages", () => {
   });
 
   it("offers the language catalog as an input suggestion list", () => {
-    renderSection({ languages: [english] });
+    render(<LanguagesField values={valuesWith({ languages: [english] })} onChange={vi.fn()} />);
 
     const input = screen.getByLabelText("Idioma 1");
     expect(input).toHaveAttribute("list");
@@ -266,7 +279,8 @@ describe("StrategySection languages", () => {
   });
 
   it("adds a uniquely identified row so the model keeps stable keys", () => {
-    const { onChange } = renderSection({ languages: [english] });
+    const onChange = vi.fn();
+    render(<LanguagesField values={valuesWith({ languages: [english] })} onChange={onChange} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" }));
 
@@ -280,7 +294,12 @@ describe("StrategySection languages", () => {
   });
 
   it("disables the add control at the language limit", () => {
-    renderSection({ languages: [english, portuguese, french] });
+    render(
+      <LanguagesField
+        values={valuesWith({ languages: [english, portuguese, french] })}
+        onChange={vi.fn()}
+      />,
+    );
 
     expect(screen.getByRole("button", { name: "Agregar idioma" })).toBeDisabled();
     expect(screen.getAllByLabelText(/^Idioma /u)).toHaveLength(MAX_LANGUAGES);
@@ -288,96 +307,60 @@ describe("StrategySection languages", () => {
       screen.getByRole("button", { name: `Quitar idioma ${MAX_LANGUAGES}` }),
     ).toBeVisible();
   });
-});
-
-describe("StrategySection layout foundation", () => {
-  it("renders one migrated foundation card anchored on the canonical metadata", () => {
-    renderSection();
-
-    const card = screen
-      .getByRole("heading", { level: 2, name: sectionTitle("strategy") })
-      .closest('[data-slot="card"]');
-
-    expect(card).toHaveAttribute("data-pf-section-card");
-    expect(card).toHaveAttribute("id", sectionAnchorId("strategy"));
-    expect(card).toHaveAttribute("data-size", "sm");
-    expect(card?.className).toContain("h-fit");
-    // One card only: it owns its section chrome and no legacy shell survives.
-    expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(1);
-    expect(card?.querySelector(".size-8.rounded-xl")).toBeNull();
-  });
-
-  it("composes the shared card through the canonical section metadata", () => {
-    expect(source).toMatch(/from "\.\/form-section-card"/);
-    expect(source).toMatch(/<FormSectionCard/);
-    expect(source).toMatch(/sectionAnchorId\("strategy"\)/);
-    expect(source).toMatch(/sectionTitle\("strategy"\)/);
-    expect(source).not.toMatch(/from "\.\/controls"/);
-    expect(source).not.toMatch(/<FormSection[\s>]/);
-  });
-});
-
-describe("StrategySection boundaries", () => {
-  it("reuses the isolated prototype model and documented shadcn primitives", () => {
-    expect(source).toMatch(/from "\.\/prototype-model"/);
-    expect(source).toMatch(/from "@\/components\/ui\/combobox"/);
-    expect(source).toMatch(/from "@\/components\/ui\/select"/);
-    expect(source).toMatch(/from "@\/components\/ui\/input"/);
-    expect(source).toMatch(
-      /addLanguageRequirement|removeLanguageRequirement|updateLanguageRequirement/,
-    );
-  });
-
-  it("stays off the request contract and generates ids without runtime globals", () => {
-    expect(source).not.toMatch(
-      /createJob|requestJson|schemas|zod|lib\/api|VacancyFormValues|createJobRequestSchema/,
-    );
-    expect(source).not.toMatch(/Math\.random|Date\.now|randomUUID|nanoid|crypto/);
-  });
-});
-
-/**
- * Catalog coverage without portal churn: the caller-selected values are rendered
- * from the same catalogs the popup would offer.
- */
-describe("StrategySection catalog rendering", () => {
-  it("renders the caller-selected department from the shared catalog", () => {
-    for (const department of ["Ingeniería", "Soporte al cliente"]) {
-      expect(DEPARTMENTS).toContain(department);
-      const { unmount } = renderSectionWithDepartment(department);
-      expect(
-        screen.getByRole("combobox", { name: "Área o departamento" }),
-      ).toHaveTextContent(department);
-      unmount();
-    }
-  });
-
-  it("renders a removable chip and a counter for every selected technology", () => {
-    const selected = SKILLS.slice(0, MAX_SKILLS);
-    renderSection({ skills: selected });
-
-    const container = chipsContainer();
-    expect(container.querySelectorAll('[data-slot="combobox-chip"]')).toHaveLength(
-      MAX_SKILLS,
-    );
-    for (const skill of selected) {
-      expect(
-        within(container).getByRole("button", { name: `Quitar ${skill}` }),
-      ).toBeVisible();
-    }
-    expect(
-      screen.getByText(`${MAX_SKILLS} de ${MAX_SKILLS} tecnologías seleccionadas.`),
-    ).toBeVisible();
-  });
 
   it("shows the selected CEFR level through the documented catalog label", () => {
-    renderSection({ languages: [english] });
+    render(<LanguagesField values={valuesWith({ languages: [english] })} onChange={vi.fn()} />);
     const band = CEFR_LEVEL_OPTIONS.find((option) => option.value === "B2");
     expect(band).toBeDefined();
 
     expect(screen.getByRole("combobox", { name: "Nivel 1" })).toHaveTextContent(
       `B2 · ${band?.label}`,
     );
+  });
+});
+
+describe("ClosingDateField", () => {
+  it("renders the reusable DatePickerField rather than a native date input", () => {
+    render(<ClosingDateField values={valuesWith()} onChange={vi.fn()} />);
+
+    const closingDate = screen.getByLabelText(/fecha de cierre/iu);
+    expect(closingDate).not.toHaveAttribute("type", "date");
+    expect(closingDate.tagName).toBe("BUTTON");
+  });
+
+  it("reports a closing date change without mutating the caller values", () => {
+    const values = valuesWith();
+    const onChange = vi.fn();
+    render(<ClosingDateField values={values} onChange={onChange} />);
+
+    fireEvent.click(screen.getByLabelText(/fecha de cierre/iu));
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(firstPayload(onChange).closingDate).toBe("2026-12-31");
+    expect(firstPayload(onChange)).not.toBe(values);
+    expect(values.closingDate).toBe("");
+  });
+});
+
+describe("StrategySection field-group boundary", () => {
+  it("renders each partitioned field with no card chrome of its own", () => {
+    const { container } = render(
+      <div>
+        <DepartmentField department="" onChangeDepartment={vi.fn()} />
+        <SkillsField values={valuesWith()} onChange={vi.fn()} />
+        <LanguagesField values={valuesWith()} onChange={vi.fn()} />
+        <ClosingDateField values={valuesWith()} onChange={vi.fn()} />
+      </div>,
+    );
+
+    // Every strategy field migrated; the wizard step shell owns the only card.
+    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(0);
+    for (const token of ["department", "skills", "languages", "closing"]) {
+      expect(source).toMatch(new RegExp(`export function .*${token}`, "i"));
+    }
+    expect(source).not.toMatch(/from "\.\/form-section-card"/);
+    expect(source).not.toMatch(/<FormSectionCard/);
+    expect(source).not.toMatch(/sectionAnchorId|sectionTitle/);
   });
 });
 
@@ -402,5 +385,24 @@ describe("StrategySection CEFR selection", () => {
     );
     expect(source).toMatch(/const LEVEL_ITEMS = CEFR_LEVEL_OPTIONS\.map/);
     expect(source).toMatch(/<SelectItem key=\{item\.value\} value=\{item\.value\}>/);
+  });
+});
+
+describe("StrategySection boundaries", () => {
+  it("reuses the isolated prototype model and documented shadcn primitives", () => {
+    expect(source).toMatch(/from "\.\/prototype-model"/);
+    expect(source).toMatch(/from "@\/components\/ui\/combobox"/);
+    expect(source).toMatch(/from "@\/components\/ui\/select"/);
+    expect(source).toMatch(/from "@\/components\/ui\/input"/);
+    expect(source).toMatch(
+      /addLanguageRequirement|removeLanguageRequirement|updateLanguageRequirement/,
+    );
+  });
+
+  it("stays off the request contract and generates ids without runtime globals", () => {
+    expect(source).not.toMatch(
+      /createJob|requestJson|schemas|zod|lib\/api|VacancyFormValues|createJobRequestSchema/,
+    );
+    expect(source).not.toMatch(/Math\.random|Date\.now|randomUUID|nanoid|crypto/);
   });
 });

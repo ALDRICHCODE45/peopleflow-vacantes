@@ -16,6 +16,7 @@ import EmployerLayout from "./layout";
 const routeSources = [
   "src/app/(empresa)/empresa/dashboard/page.tsx",
   "src/app/(empresa)/empresa/vacantes/nueva/page.tsx",
+  "src/app/(empresa)/empresa/sitio/page.tsx",
 ].map((path) => readFileSync(join(process.cwd(), path), "utf8"));
 function stubBrowserApis() {
   vi.stubGlobal("matchMedia", () => ({

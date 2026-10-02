@@ -107,13 +107,20 @@ describe("/empresa/vacantes/nueva employer route", () => {
       within(header!).getByRole("button", { name: "Cambiar tema" }),
     ).toBeInTheDocument();
 
-    // The verified NVS-02 form body owns every editable surface of the route.
+    // The wizard form body owns every editable surface of the route.
     expect(
       screen.getByRole("textbox", { name: /título del puesto/i }),
     ).toBeInTheDocument();
+    // Step one is the visible step; the save affordance lives on review.
     expect(
-      screen.getByRole("button", { name: /guardar borrador/i }),
+      screen.getByRole("button", { name: "Continuar" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("progressbar"),
+    ).toHaveAttribute("aria-valuetext", "Paso 1 de 4");
+    expect(
+      screen.queryByRole("button", { name: /guardar borrador/i }),
+    ).toBeNull();
   });
 
   it("bounds the form body in a responsive content container", () => {
@@ -126,6 +133,11 @@ describe("/empresa/vacantes/nueva employer route", () => {
     expect(content!.className).toContain("max-w-7xl");
     expect(content!.className).not.toContain("max-w-5xl");
     expect(content!.className).toContain("px-4");
+    expect(content!.className).toContain("py-4");
+    expect(content!.className).toContain("md:py-6");
+    expect(content!.className).toContain("lg:px-6");
+    // The route mounts the shared page-content wrapper as its single padding owner.
+    expect(content!.hasAttribute("data-pf-page-content")).toBe(true);
     expect(
       content!.contains(screen.getByRole("textbox", { name: /título del puesto/i })),
     ).toBe(true);

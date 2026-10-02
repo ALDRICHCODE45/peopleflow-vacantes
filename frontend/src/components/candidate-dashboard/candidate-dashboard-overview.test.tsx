@@ -197,6 +197,7 @@ describe("candidate dashboard overview", () => {
       expect(SOURCE, forbidden).not.toContain(forbidden);
     }
     expect(modules()).toEqual([
+      "@/components/dashboard-page-content",
       "@/components/ui/badge",
       "@/components/ui/button",
       "@/components/ui/card",
@@ -351,7 +352,7 @@ describe("candidate dashboard overview", () => {
     const root = container.querySelector("[data-pf-candidate-overview]") as HTMLElement;
     const tokens = root.className.split(/\s+/u);
     expect(["mx-auto", "w-full", "max-w-screen-2xl"].filter((token) => !tokens.includes(token))).toEqual([]);
-    expect(["px-4", "py-4", "lg:px-6"].filter((token) => !tokens.includes(token))).toEqual([]);
+    expect(["px-4", "py-4", "md:py-6", "lg:px-6"].filter((token) => !tokens.includes(token))).toEqual([]);
     const inner = container.querySelector("[data-pf-candidate-overview-inner]") as HTMLElement;
     expect(inner).not.toBeNull();
     const innerTokens = inner.className.split(/\s+/u);

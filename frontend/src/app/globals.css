@@ -371,6 +371,75 @@ html[data-pf-theme-vt="active"]::view-transition-new(root) {
   );
 }
 
+/* Company careers hero (public /empresas/[companyId] and its editor preview).
+   One immersive moment: with a cover it is a photo overlay, with no cover it
+   falls back to the neutral `bg-secondary` surface so an identity-only draft
+   stays legible. These hero-scoped slots are the only place the overlay paints,
+   which keeps the feature code free of raw color while the light-on-dark copy
+   keeps its WCAG AA contrast in both themes.
+
+   Base (no cover): the page's own semantic tokens. */
+.pf-hero {
+  --pf-hero-fg: var(--foreground);
+  --pf-hero-muted: var(--muted-foreground);
+  --pf-hero-scrim: transparent;
+  --pf-hero-cta-bg: var(--primary);
+  --pf-hero-cta-fg: var(--primary-foreground);
+  --pf-hero-cta-hover-bg: color-mix(in oklab, var(--primary) 85%, var(--foreground));
+  --pf-hero-outline-fg: var(--foreground);
+  --pf-hero-outline-border: var(--border);
+  --pf-hero-outline-hover-bg: var(--muted);
+}
+
+/* Photo overlay: a dark scrim plus light copy, identical in light and dark. The
+   scrim is opaque enough that white body text stays well above the 4.5:1 body
+   minimum over even the brightest photo. */
+.pf-hero[data-pf-hero-cover="true"] {
+  --pf-hero-fg: oklch(0.99 0 0);
+  --pf-hero-muted: oklch(0.99 0 0 / 0.88);
+  --pf-hero-scrim: oklch(0.14 0.02 292 / 0.66);
+  --pf-hero-cta-bg: oklch(0.99 0 0);
+  --pf-hero-cta-fg: oklch(0.2 0.03 292);
+  --pf-hero-cta-hover-bg: oklch(0.93 0.01 292);
+  --pf-hero-outline-fg: oklch(0.99 0 0);
+  --pf-hero-outline-border: oklch(0.99 0 0 / 0.75);
+  --pf-hero-outline-hover-bg: oklch(0.99 0 0 / 0.1);
+}
+
+.pf-hero-title {
+  color: var(--pf-hero-fg);
+}
+
+.pf-hero-subtitle {
+  color: var(--pf-hero-muted);
+}
+
+.pf-hero-overlay {
+  background-color: var(--pf-hero-scrim);
+}
+
+/* The overlay is a fixed-dark surface, so the two hero CTAs take their paint
+   from the same hero-scoped slots as the copy instead of the theme variants. */
+.pf-hero-cta {
+  background-color: var(--pf-hero-cta-bg);
+  color: var(--pf-hero-cta-fg);
+}
+
+.pf-hero-cta:hover {
+  background-color: var(--pf-hero-cta-hover-bg);
+}
+
+.pf-hero-cta-outline {
+  border-color: var(--pf-hero-outline-border);
+  background-color: transparent;
+  color: var(--pf-hero-outline-fg);
+}
+
+.pf-hero-cta-outline:hover {
+  background-color: var(--pf-hero-outline-hover-bg);
+  color: var(--pf-hero-outline-fg);
+}
+
 /* Reduced motion: collapse nonessential transition/animation timing so
    surfaces appear/disappear immediately instead of sliding, fading, or
    looping. Visual and semantic states (focus rings, hover colors, disabled

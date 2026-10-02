@@ -581,7 +581,7 @@ describe("applications workspace contract", () => {
     expect(SOURCE).toMatch(/^\s*["']use client["']/mu);
     const modules = [...new Set([...SOURCE.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]))].sort();
     // Only the approved shadcn primitives, the search icon and the local model are allowed.
-    expect(modules).toEqual(["./portfolio-model", "@/components/ui/badge", "@/components/ui/button", "@/components/ui/card", "@/components/ui/dropdown-menu", "@/components/ui/empty", "@/components/ui/input-group", "@/components/ui/item", "@/components/ui/toggle-group", "lucide-react", "next/link", "react"]);
+    expect(modules).toEqual(["./portfolio-model", "@/components/dashboard-page-content", "@/components/ui/badge", "@/components/ui/button", "@/components/ui/card", "@/components/ui/dropdown-menu", "@/components/ui/empty", "@/components/ui/input-group", "@/components/ui/item", "@/components/ui/toggle-group", "lucide-react", "next/link", "react"]);
     expect(SOURCE).toMatch(/<ToggleGroup\b/u);
     expect(SOURCE).toMatch(/<ToggleGroupItem\b/u);
     for (const view of ['value="cards"', 'value="list"']) expect(SOURCE, `applications-workspace.tsx must declare ${view}`).toContain(view);
@@ -604,7 +604,7 @@ describe("applications workspace contract", () => {
     const root = container.querySelector("[data-pf-applications-workspace]") as HTMLElement;
     const tokens = root.className.split(/\s+/u);
     expect(["mx-auto", "w-full", "max-w-screen-2xl"].filter((token) => !tokens.includes(token))).toEqual([]);
-    expect(["px-4", "py-4", "lg:px-6"].filter((token) => !tokens.includes(token))).toEqual([]);
+    expect(["px-4", "py-4", "md:py-6", "lg:px-6"].filter((token) => !tokens.includes(token))).toEqual([]);
     const owners = Array.from(container.querySelectorAll("[class]")).filter((node) => {
       const value = (node.getAttribute("class") ?? "").split(/\s+/u);
       return value.includes("px-4") && value.includes("lg:px-6");

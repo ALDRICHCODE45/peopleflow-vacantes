@@ -57,7 +57,7 @@ function formatClosingDate(value: string): string | null {
 }
 
 /** Languages with their CEFR band, in the order the recruiter wrote them. */
-function languageSummary(languages: VacancyPrototypeValues["languages"]): string {
+export function languageSummary(languages: VacancyPrototypeValues["languages"]): string {
   return languages
     .filter((language) => language.language.trim() !== "")
     .map((language) =>
@@ -69,7 +69,7 @@ function languageSummary(languages: VacancyPrototypeValues["languages"]): string
 }
 
 /** Selected benefit labels in catalog order. */
-function benefitSummary(benefits: VacancyPrototypeValues["benefits"]): string {
+export function benefitSummary(benefits: VacancyPrototypeValues["benefits"]): string {
   return BENEFIT_OPTIONS.filter((option) => benefits.includes(option.value))
     .map((option) => option.label)
     .join(" · ");

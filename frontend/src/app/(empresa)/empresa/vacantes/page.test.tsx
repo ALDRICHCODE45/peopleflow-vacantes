@@ -150,7 +150,15 @@ describe("/empresa/vacantes employer route", () => {
     const content = container.querySelector("[data-pf-vacantes-content]");
     expect(content).not.toBeNull();
     expect(content!.className).toContain("px-4");
+    expect(content!.className).toContain("py-4");
+    expect(content!.className).toContain("md:py-6");
     expect(content!.className).toContain("lg:px-6");
+    // The route mounts the shared page-content wrapper as its single padding owner
+    // and binds it to the candidate canonical measure.
+    expect(content!.hasAttribute("data-pf-page-content")).toBe(true);
+    for (const token of ["mx-auto", "w-full", "max-w-screen-2xl"]) {
+      expect(content!.className).toContain(token);
+    }
     expect(content!.contains(document.querySelector("[data-pf-vacancy-portfolio]"))).toBe(
       true,
     );

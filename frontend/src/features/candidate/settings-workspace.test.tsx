@@ -144,6 +144,11 @@ describe("settings workspace boundaries", () => {
     }
     expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(3);
     expect(container.querySelectorAll("h1")).toHaveLength(0);
+    // Section descriptions stay in neutral Mexican Spanish, with no voseo.
+    expect(screen.getByText("Elige qué avisos quieres tener presentes.")).toBeVisible();
+    expect(
+      screen.getByText("Elige el tema de la interfaz para este dispositivo."),
+    ).toBeVisible();
   });
 });
 
@@ -268,7 +273,7 @@ describe("settings composition and presentation", () => {
     const { container } = renderWorkspace();
     const root = container.querySelector("[data-pf-settings-workspace]") as HTMLElement;
     const tokens = root.className.split(/\s+/u);
-    expect(["mx-auto", "w-full", "max-w-screen-2xl", "px-4", "py-4", "lg:px-6"].filter((token) => !tokens.includes(token))).toEqual([]);
+    expect(["mx-auto", "w-full", "max-w-screen-2xl", "px-4", "py-4", "md:py-6", "lg:px-6"].filter((token) => !tokens.includes(token))).toEqual([]);
     expect(root.className).toContain("lg:grid-cols-");
     const owners = Array.from(container.querySelectorAll("[class]")).filter((node) => {
       const value = (node.getAttribute("class") ?? "").split(/\s+/u);

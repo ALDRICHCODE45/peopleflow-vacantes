@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
-// CDP-10 — candidate workspace browser acceptance for the five real `/candidato/*`
+// CDP-10 — candidate workspace browser acceptance for the six real `/candidato/*`
 // routes already served by the live preview. Reuses `PLAYWRIGHT_APP_ORIGIN`
 // (default 3100) and never touches 3001/4010 or any `/api` path. Requests must be
 // read-only (GET/HEAD), and axe measures the whole candidate document instead of
@@ -126,13 +126,14 @@ const expectClean = async (page: Page, seen: readonly Captured[]) => {
 const ROUTES = {
   dashboard: { path: "/candidato/dashboard", h1: "Dashboard", scope: "[data-pf-candidate-overview]" },
   postulaciones: { path: "/candidato/postulaciones", h1: "Postulaciones", scope: "[data-pf-applications-workspace]" },
+  guardadas: { path: "/candidato/guardadas", h1: "Vacantes guardadas", scope: "[data-pf-saved-vacancies-workspace]" },
   perfil: { path: "/candidato/perfil", h1: "Perfil", scope: "[data-pf-profile-workspace]" },
   cvs: { path: "/candidato/cvs", h1: "CVs", scope: "[data-pf-cv-workspace]" },
   configuracion: { path: "/candidato/configuracion", h1: "Configuración", scope: "[data-pf-settings-workspace]" },
 } as const;
 type Destination = keyof typeof ROUTES;
-const ORDER: readonly Destination[] = ["dashboard", "postulaciones", "perfil", "cvs", "configuracion", "dashboard"];
-const MATRIX: readonly Destination[] = ["dashboard", "postulaciones", "perfil", "cvs", "configuracion"];
+const ORDER: readonly Destination[] = ["dashboard", "postulaciones", "guardadas", "perfil", "cvs", "configuracion", "dashboard"];
+const MATRIX: readonly Destination[] = ["dashboard", "postulaciones", "guardadas", "perfil", "cvs", "configuracion"];
 const VIEWPORTS: ReadonlyArray<readonly [string, { width: number; height: number }]> = [
   ["desktop", DESKTOP],
   ["mobile", MOBILE],
@@ -152,7 +153,7 @@ async function sidebarNavigate(page: Page, destination: Destination) {
   await expect(active).toHaveText(h1);
 }
 
-test("dashboard overview and keyboard sidebar navigation cover all five workspaces at 1440x900", async ({ page }) => {
+test("dashboard overview and keyboard sidebar navigation cover all six workspaces at 1440x900", async ({ page }) => {
   const seen = trackRequests(page);
   await page.setViewportSize(DESKTOP);
   await page.goto(ROUTES.dashboard.path);
@@ -681,9 +682,9 @@ test("the removed candidate account route returns a real 404 and no sidebar dest
   // A redirect chain would hide the missing route, so the navigation itself must be direct.
   expect(response?.request().redirectedFrom()).toBeNull();
 
-  // The live shell keeps exactly five destinations and never links the old route.
+  // The live shell keeps exactly six destinations and never links the old route.
   await page.goto(ROUTES.configuracion.path);
-  await expect(page.locator(SIDEBAR_LINKS)).toHaveCount(5);
+  await expect(page.locator(SIDEBAR_LINKS)).toHaveCount(6);
   await expect(page.locator(`${SIDEBAR_LINKS}[href="/candidato/cuenta"]`)).toHaveCount(0);
   const settingsLink = page.locator(`${SIDEBAR_LINKS}[href="${ROUTES.configuracion.path}"]`);
   await expect(settingsLink).toHaveCount(1);
@@ -744,7 +745,7 @@ test("every candidate route stays visible, overflow-clean, axe-clean and mutatio
   }
 
   // Non-vacuity: exactly one finite overflow sample and one executed-rule count per
-  // case (5 routes × 2 viewports), and real captured traffic for the whole matrix.
+  // case (6 routes × 2 viewports), and real captured traffic for the whole matrix.
   expect.soft(overflowSamples).toHaveLength(MATRIX.length * VIEWPORTS.length);
   expect.soft(overflowSamples.filter((value) => !Number.isFinite(value))).toEqual([]);
   expect.soft(axeRuleCounts).toHaveLength(MATRIX.length * VIEWPORTS.length);

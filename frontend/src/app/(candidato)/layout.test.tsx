@@ -16,6 +16,7 @@ import CandidateLayout from "./layout";
 import { CandidateShell } from "@/components/candidate-dashboard/candidate-shell";
 import DashboardPage, { metadata as dashboardMetadata } from "./candidato/dashboard/page";
 import PostulacionesPage, { metadata as postulacionesMetadata } from "./candidato/postulaciones/page";
+import GuardadasPage, { metadata as guardadasMetadata } from "./candidato/guardadas/page";
 import PerfilPage, { metadata as perfilMetadata } from "./candidato/perfil/page";
 import CvsPage, { metadata as cvsMetadata } from "./candidato/cvs/page";
 import ConfiguracionPage, { metadata as configuracionMetadata } from "./candidato/configuracion/page";
@@ -24,6 +25,7 @@ type Destination = { segment: string; title: string; Page: () => React.JSX.Eleme
 const DESTINATIONS: Destination[] = [
   { segment: "dashboard", title: "Dashboard", Page: DashboardPage, metadata: dashboardMetadata },
   { segment: "postulaciones", title: "Postulaciones", Page: PostulacionesPage, metadata: postulacionesMetadata },
+  { segment: "guardadas", title: "Vacantes guardadas", Page: GuardadasPage, metadata: guardadasMetadata },
   { segment: "perfil", title: "Perfil", Page: PerfilPage, metadata: perfilMetadata },
   { segment: "cvs", title: "CVs", Page: CvsPage, metadata: cvsMetadata },
   { segment: "configuracion", title: "Configuración", Page: ConfiguracionPage, metadata: configuracionMetadata },
@@ -101,6 +103,12 @@ describe("candidate destinations resolve as honest content-only routes", () => {
     render(<CandidateShell><PostulacionesPage /></CandidateShell>);
     expect(document.querySelector("[data-pf-applications-workspace]")).not.toBeNull();
     expect(document.querySelector('[data-pf-destination="Postulaciones"]')).toBeNull();
+  });
+
+  it("mounts the verified saved vacancies workspace instead of a destination preview", () => {
+    render(<CandidateShell><GuardadasPage /></CandidateShell>);
+    expect(document.querySelector("[data-pf-saved-vacancies-workspace]")).not.toBeNull();
+    expect(document.querySelector('[data-pf-destination="Vacantes guardadas"]')).toBeNull();
   });
 
   it("mounts the verified local profile workspace instead of a destination preview", () => {

@@ -10,7 +10,6 @@ import {
 import "@testing-library/jest-dom/vitest";
 
 import { ScreeningSection } from "./screening-section";
-import { sectionAnchorId, sectionTitle } from "./section-metadata";
 import {
   INITIAL_PROTOTYPE_VALUES,
   MAX_SCREENING_QUESTIONS,
@@ -44,9 +43,9 @@ function renderSection(overrides: Partial<VacancyPrototypeValues> = {}) {
   };
   const onChange = vi.fn();
 
-  render(<ScreeningSection values={values} onChange={onChange} />);
+  const view = render(<ScreeningSection values={values} onChange={onChange} />);
 
-  return { values, onChange };
+  return { ...view, values, onChange };
 }
 
 function firstPayload(onChange: ReturnType<typeof vi.fn>): VacancyPrototypeValues {
@@ -57,12 +56,16 @@ describe("ScreeningSection empty state", () => {
   it("renders the section with an explicit empty state and an add action", () => {
     renderSection();
 
-    expect(
-      screen.getByRole("heading", { name: "Preguntas de filtro" }),
-    ).toBeVisible();
+    // The step shell owns the heading; this module is a card-less field group.
+    expect(screen.queryByRole("heading")).toBeNull();
     expect(screen.queryAllByRole("textbox")).toHaveLength(0);
     expect(screen.getByText("Sin preguntas de filtro")).toBeVisible();
     expect(screen.getByRole("button", { name: "Agregar pregunta" })).toBeEnabled();
+    // Neutral Mexican Spanish, never voseo, on every visible state of this section.
+    expect(screen.getByText(/Son opcionales: puedes publicar la vacante/u)).toBeVisible();
+    expect(
+      screen.getByText(/Agrega una pregunta para filtrar las postulaciones/u),
+    ).toBeVisible();
   });
 
   it("adds the first question with a locally generated stable id", () => {
@@ -98,6 +101,11 @@ describe("ScreeningSection question rows", () => {
     renderSection({ screeningQuestions: [firstQuestion, secondQuestion] });
 
     expect(screen.queryByText("Sin preguntas de filtro")).toBeNull();
+    const questionInputs = screen.getAllByPlaceholderText(
+      "Ej.: ¿Cuántos años de experiencia tienes con React?",
+    );
+    expect(questionInputs).toHaveLength(2);
+    for (const input of questionInputs) expect(input).toBeVisible();
     expect(screen.getByRole("textbox", { name: "Pregunta 1" })).toHaveValue(
       firstQuestion.prompt,
     );
@@ -158,28 +166,19 @@ describe("ScreeningSection question rows", () => {
   });
 });
 
-describe("ScreeningSection layout foundation", () => {
-  it("renders one migrated foundation card anchored on the canonical metadata", () => {
-    renderSection();
+describe("ScreeningSection field-group boundary", () => {
+  it("renders one field group with no card chrome of its own", () => {
+    const { container } = renderSection();
 
-    const card = screen
-      .getByRole("heading", { level: 2, name: sectionTitle("screening") })
-      .closest('[data-slot="card"]');
-
-    expect(card).toHaveAttribute("data-pf-section-card");
-    expect(card).toHaveAttribute("id", sectionAnchorId("screening"));
-    expect(card).toHaveAttribute("data-size", "sm");
-    expect(card?.className).toContain("h-fit");
-    // One card only: it owns its section chrome and no legacy shell survives.
-    expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(1);
-    expect(card?.querySelector(".size-8.rounded-xl")).toBeNull();
+    // The wizard step shell owns the single card of the step.
+    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(0);
+    expect(container.querySelector('[data-slot="field-group"]')).not.toBeNull();
   });
 
-  it("composes the shared card through the canonical section metadata", () => {
-    expect(source).toMatch(/from "\.\/form-section-card"/);
-    expect(source).toMatch(/<FormSectionCard/);
-    expect(source).toMatch(/sectionAnchorId\("screening"\)/);
-    expect(source).toMatch(/sectionTitle\("screening"\)/);
+  it("keeps the card out of the field group and delegates chrome to the step", () => {
+    expect(source).not.toMatch(/from "\.\/form-section-card"/);
+    expect(source).not.toMatch(/<FormSectionCard/);
+    expect(source).not.toMatch(/sectionAnchorId|sectionTitle/);
     expect(source).not.toMatch(/from "\.\/controls"/);
     expect(source).not.toMatch(/<FormSection[\s>]/);
   });

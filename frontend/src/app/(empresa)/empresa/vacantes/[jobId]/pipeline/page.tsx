@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { SiteHeader } from "@/components/company-dashboard/site-header";
+import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import {
   EMPLOYER_VACANCY_STATE_LABELS,
@@ -81,31 +82,30 @@ export default async function PipelinePage({ params }: PipelineRouteProps) {
           </Badge>
         }
       />
-      <div className="flex flex-1 flex-col">
-        <div className="@container/main flex flex-1 flex-col gap-2">
-          <div
-            data-pf-pipeline-content=""
-            className="flex flex-col gap-5 px-4 py-5 md:gap-6 md:py-6 lg:px-6"
+      <div className="@container/main flex flex-1 flex-col">
+        <DashboardPageContent
+          data-pf-pipeline-content=""
+          width="screen-2xl"
+          className="gap-5 md:gap-6"
+        >
+          <section
+            data-pf-pipeline-intro=""
+            aria-labelledby="pipeline-heading"
+            className="flex flex-col gap-1.5"
           >
-            <section
-              data-pf-pipeline-intro=""
-              aria-labelledby="pipeline-heading"
-              className="flex flex-col gap-1.5"
+            <h2
+              id="pipeline-heading"
+              className="font-heading text-[19px] font-semibold text-foreground"
             >
-              <h2
-                id="pipeline-heading"
-                className="font-heading text-[19px] font-semibold text-foreground"
-              >
-                Pipeline
-              </h2>
-              <p className="max-w-prose text-[13.5px] text-muted-foreground">
-                {countCopy(candidateTotal, "candidato", "candidatos")} en el historial ·{" "}
-                {vacancy.teamSize} miembros del equipo
-              </p>
-            </section>
-            <PipelineWorkspace vacancy={vacancy} candidates={candidates} />
-          </div>
-        </div>
+              Pipeline
+            </h2>
+            <p className="max-w-prose text-[13.5px] text-muted-foreground">
+              {countCopy(candidateTotal, "candidato", "candidatos")} en el historial ·{" "}
+              {vacancy.teamSize} miembros del equipo
+            </p>
+          </section>
+          <PipelineWorkspace vacancy={vacancy} candidates={candidates} />
+        </DashboardPageContent>
       </div>
     </>
   );

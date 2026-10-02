@@ -67,7 +67,7 @@ const source = readFileSync(
   join(process.cwd(), "src/components/ui/date-picker-field.tsx"),
   "utf8",
 );
-const PLACEHOLDER = "Elegí una fecha";
+const PLACEHOLDER = "Elige una fecha";
 /** The props received by the most recent calendar render. */
 const calendarProps = () => calendar.props as CalendarProbe;
 const trigger = () => screen.getByRole("button", { name: "Fecha de cierre" });
@@ -132,11 +132,11 @@ describe("DatePickerField", () => {
     expect(source).toContain("truncate");
   });
   it("reports an error through the trigger and its message", () => {
-    renderField({ error: "Elegí una fecha de cierre válida." });
+    renderField({ error: "Elige una fecha de cierre válida." });
     expect(trigger()).toHaveAttribute("aria-invalid", "true");
     expect(trigger()).toHaveAttribute("aria-describedby", "vacancy-closing-date-error");
     expect(document.getElementById("vacancy-closing-date-error")).toHaveTextContent(
-      "Elegí una fecha de cierre válida.",
+      "Elige una fecha de cierre válida.",
     );
   });
   it("can be disabled and reports no error state by default", () => {

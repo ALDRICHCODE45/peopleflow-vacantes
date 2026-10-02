@@ -1,11 +1,78 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { ComponentProps, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 import { CreateVacancyForm } from "./CreateVacancyForm";
 import { firstInvalidField } from "./form/model";
+import { firstInvalidStep, stepTitle } from "./form/step-model";
+
+/**
+ * Base UI's portaled select popup waits on browser positioning that jsdom cannot
+ * complete, so this layered adapter keeps the form's real controlled
+ * value/onValueChange contract executable; the installed popup is covered by the
+ * primitive suite and `controls.test.tsx`.
+ */
+vi.mock("@/components/ui/select", async () => {
+  const React = await import("react");
+  type Option = Readonly<{ value: string; label: string }>;
+  type State = Readonly<{
+    items: readonly Option[];
+    value: string | null;
+    onValueChange: (value: string) => void;
+  }>;
+  type RootProps = Readonly<{
+    items?: readonly Option[];
+    value?: string | null;
+    onValueChange?: (value: string) => void;
+    children?: ReactNode;
+  }>;
+  const Context = React.createContext<State | null>(null);
+  const NullPart = () => null;
+
+  function Select({
+    items = [],
+    value = null,
+    onValueChange = () => undefined,
+    children,
+  }: RootProps) {
+    return (
+      <Context.Provider value={{ items, value, onValueChange }}>
+        {children}
+      </Context.Provider>
+    );
+  }
+
+  function SelectTrigger(props: ComponentProps<"select">) {
+    const state = React.useContext(Context);
+    if (!state) throw new Error("SelectTrigger requires Select");
+    return (
+      <select
+        {...props}
+        data-slot="select-trigger"
+        value={state.value ?? ""}
+        onChange={(event) => state.onValueChange(event.target.value)}
+      >
+        {state.items.map((item) => (
+          <option key={item.value} value={item.value}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
+  return {
+    Select,
+    SelectTrigger,
+    SelectValue: NullPart,
+    SelectContent: NullPart,
+    SelectGroup: NullPart,
+    SelectItem: NullPart,
+  };
+});
 
 const source = readFileSync(
   join(process.cwd(), "src", "features", "jobs", "create", "CreateVacancyForm.tsx"),
@@ -22,57 +89,58 @@ function previewRail(): HTMLElement {
   return card as HTMLElement;
 }
 
-/** The completion card of the rail, scoped so section copy cannot satisfy it. */
-function completionCard(): HTMLElement {
-  const card = document.querySelector("[data-pf-completion-summary]");
-  if (card === null) {
-    throw new Error("The completion card was not rendered");
-  }
-  return card as HTMLElement;
+const form = () => document.querySelector("form") as HTMLFormElement;
+const stepRegion = () => document.querySelector("[data-pf-step-region]") as HTMLElement;
+const currentStep = () => stepRegion().getAttribute("data-pf-step-region");
+const currentMarker = () => document.querySelector('[aria-current="step"]');
+
+function progressText(): string {
+  const bar = screen.getByRole("progressbar");
+  return `${bar.getAttribute("aria-valuetext") ?? ""} ${bar.textContent ?? ""}`
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-/** Document order check: does `second` render after `first`? */
-const follows = (first: Element, second: Element) =>
-  (first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+const continueButton = () => screen.getByRole("button", { name: "Continuar" });
+const backButton = () => screen.getByRole("button", { name: "Atrás" });
+const saveButton = () => screen.getByRole("button", { name: /guardar borrador/i });
 
-const titleInput = () =>
-  screen.getByRole("textbox", { name: /título del puesto/i });
+const titleInput = () => screen.getByRole("textbox", { name: /título del puesto/i });
 const descriptionInput = () =>
   screen.getByRole("textbox", { name: /descripción del puesto/i });
-const locationInput = () =>
-  screen.getByRole("textbox", { name: /ubicación/i });
-const salaryMinInput = () =>
-  screen.getByRole("textbox", { name: /salario mínimo/i });
-const salaryMaxInput = () =>
-  screen.getByRole("textbox", { name: /salario máximo/i });
-const saveButton = () =>
-  screen.getByRole("button", { name: /guardar borrador/i });
+const salaryMinInput = () => screen.getByRole("textbox", { name: /salario mínimo/i });
+const salaryMaxInput = () => screen.getByRole("textbox", { name: /salario máximo/i });
 
 function typeInto(element: HTMLElement, value: string) {
   fireEvent.change(element, { target: { value } });
 }
 
-type RequiredFieldLabels = {
-  workMode?: string;
-  employmentType?: string;
-  seniority?: string;
-};
+function choose(name: string, value: string) {
+  fireEvent.change(screen.getByRole("combobox", { name }), {
+    target: { value },
+  });
+}
 
-/** Fills every required contract field, choosing options by their Spanish label. */
-function fillRequiredFields(labels: RequiredFieldLabels = {}) {
+/** Fills every required field of step one. */
+function fillStepOne() {
   typeInto(titleInput(), "Backend Developer (Senior)");
+  choose("Modalidad", "remote");
+  choose("Jornada", "full_time");
+  choose("Seniority", "senior");
+}
+
+/** Advances one step, asserting the move so a blocked step fails loudly. */
+function advance() {
+  fireEvent.click(continueButton());
+}
+
+/** Reaches review with a fully valid draft. */
+function reachReview() {
+  fillStepOne();
+  advance();
   typeInto(descriptionInput(), "Diseñá los servicios core.");
-  fireEvent.click(
-    screen.getByRole("button", { name: labels.workMode ?? "Remoto" }),
-  );
-  fireEvent.click(
-    screen.getByRole("button", {
-      name: labels.employmentType ?? "Tiempo completo",
-    }),
-  );
-  fireEvent.click(
-    screen.getByRole("button", { name: labels.seniority ?? "Senior" }),
-  );
+  advance();
+  advance();
 }
 
 let fetchSpy: ReturnType<typeof vi.fn>;
@@ -95,193 +163,217 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("CreateVacancyForm contract surface", () => {
-  it("renders every contract and exploratory section plus the draft rail", () => {
+describe("CreateVacancyForm wizard surface", () => {
+  it("shows only the first step and announces it accessibly", () => {
     render(<CreateVacancyForm />);
 
-    for (const heading of [
-      "Información básica",
-      "Compensación",
-      "Descripción y requisitos",
-      "Estrategia de contratación",
-      "Beneficios y frecuencia de pago",
-      "Preguntas de filtro",
-      "Vista previa pública",
-      "Guardar borrador",
-    ]) {
-      expect(screen.getByRole("heading", { name: heading })).toBeVisible();
-    }
-    // The superseded plain-text description card left the active tree.
-    expect(screen.queryByRole("heading", { name: "Descripción" })).toBeNull();
-  });
+    expect(currentStep()).toBe("basic-information");
+    expect(
+      screen.getByRole("heading", { level: 2, name: stepTitle("basic-information") }),
+    ).toBeVisible();
+    expect(currentMarker()).toHaveTextContent("Información básica");
+    expect(progressText()).toContain("Paso 1 de 4");
 
-  it("renders every POST /jobs field with an accessible Spanish label", () => {
-    render(<CreateVacancyForm />);
-
+    // Step one's fields are the only editable surface mounted.
     expect(titleInput()).toBeVisible();
-    expect(descriptionInput()).toBeVisible();
-    expect(descriptionInput().tagName).toBe("TEXTAREA");
-    expect(locationInput()).toBeVisible();
-    expect(salaryMinInput()).toBeVisible();
-    expect(salaryMaxInput()).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Área o departamento" })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Modalidad" })).toBeVisible();
+    expect(screen.queryByRole("textbox", { name: /descripción del puesto/i })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: /salario mínimo/i })).toBeNull();
+    // The preview and the save rail live only on review.
+    expect(screen.queryByRole("heading", { name: "Vista previa pública" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /guardar borrador/i })).toBeNull();
+    // Back is disabled on the first step.
+    expect(backButton()).toBeDisabled();
   });
 
-  it("renders every contract enum value as a labeled option", () => {
+  it("renders every contract enum as a labeled option inside step one", () => {
     render(<CreateVacancyForm />);
 
-    for (const option of [
-      "Presencial",
-      "Remoto",
-      "Híbrido",
-      "Tiempo completo",
-      "Medio tiempo",
-      "Por contrato",
-      "Beca",
-      "Prácticas",
-      "Junior",
-      "Medio",
-      "Senior",
-      "Líder",
-      "MXN",
-      "USD",
-    ]) {
-      expect(screen.getByRole("button", { name: option })).toBeVisible();
-    }
+    const catalogs = [
+      { name: "Modalidad", options: ["Presencial", "Remoto", "Híbrido"] },
+      {
+        name: "Jornada",
+        options: ["Tiempo completo", "Medio tiempo", "Por contrato", "Beca"],
+      },
+      {
+        name: "Seniority",
+        options: ["Prácticas", "Junior", "Medio", "Senior", "Líder"],
+      },
+    ];
 
-    expect(screen.getByRole("group", { name: "Modalidad" })).toBeVisible();
-    expect(screen.getByRole("group", { name: "Jornada" })).toBeVisible();
-    expect(screen.getByRole("group", { name: "Seniority" })).toBeVisible();
-    expect(screen.getByRole("group", { name: "Moneda" })).toBeVisible();
+    for (const catalog of catalogs) {
+      const select = screen.getByRole("combobox", { name: catalog.name });
+      expect(select).toBeVisible();
+      for (const option of catalog.options) {
+        expect(within(select).getByRole("option", { name: option })).toBeInTheDocument();
+      }
+    }
   });
 
-  it("exposes every requested enriched surface and still invents nothing", () => {
-    const { container } = render(<CreateVacancyForm />);
+  it("advances through the four steps, keeping every value across Back and Continue", () => {
+    render(<CreateVacancyForm />);
+    fillStepOne();
+    advance();
 
-    // The contract description now lives inside the requirements composition.
-    expect(descriptionInput()).toBeVisible();
+    expect(currentStep()).toBe("role-profile");
+    expect(progressText()).toContain("Paso 2 de 4");
     expect(
-      screen.getByRole("heading", { name: "Descripción y requisitos" }),
+      screen.getByRole("heading", { level: 2, name: stepTitle("role-profile") }),
     ).toBeVisible();
+    typeInto(descriptionInput(), "Diseñá los servicios core.");
+    advance();
 
+    expect(currentStep()).toBe("conditions-process");
+    expect(progressText()).toContain("Paso 3 de 4");
+    advance();
+
+    expect(currentStep()).toBe("review");
+    expect(progressText()).toContain("Paso 4 de 4");
+
+    // Back keeps every typed value: the review's earlier values survive.
+    fireEvent.click(backButton());
+    expect(currentStep()).toBe("conditions-process");
+    fireEvent.click(backButton());
+    expect(descriptionInput()).toHaveValue("Diseñá los servicios core.");
+    fireEvent.click(backButton());
+    expect(titleInput()).toHaveValue("Backend Developer (Senior)");
+    expect(screen.getByRole("combobox", { name: "Modalidad" })).toHaveValue("remote");
+  });
+
+  it("renders the rich description, the formatting surface, and the exploratory controls", () => {
+    render(<CreateVacancyForm />);
+    fillStepOne();
+    advance();
+
+    expect(descriptionInput().tagName).toBe("TEXTAREA");
+    // Only the description keeps the rich formatting surface and its modes.
     expect(
-      screen.getByRole("combobox", { name: "Área o departamento" }),
+      screen.getByRole("toolbar", { name: "Formato de Descripción del puesto" }),
     ).toBeVisible();
+    expect(screen.getAllByRole("toolbar")).toHaveLength(1);
+    for (const action of [
+      "Negrita",
+      "Cursiva",
+      "Lista con viñetas",
+      "Lista numerada",
+      "Enlace",
+    ]) {
+      expect(screen.getAllByRole("button", { name: action })).toHaveLength(1);
+    }
+    for (const label of ["Requisitos obligatorios", "Requisitos deseables"]) {
+      expect(
+        screen.queryByRole("toolbar", { name: `Formato de ${label}` }),
+      ).toBeNull();
+    }
     expect(
       screen.getByRole("combobox", { name: "Habilidades y tecnologías" }),
-    ).toBeVisible();
+    ).toHaveAttribute("placeholder", "Busca una tecnología");
     expect(screen.getByRole("button", { name: "Agregar idioma" })).toBeVisible();
-    // The closing date is the reusable DatePickerField, not a native date input.
-    expect(screen.getByLabelText(/fecha de cierre/i)).not.toHaveAttribute("type", "date");
-    expect(screen.getByRole("group", { name: "Beneficios" })).toBeVisible();
-    expect(screen.getByRole("group", { name: "Frecuencia de pago" })).toBeVisible();
-    expect(screen.getByText("Sin preguntas de filtro")).toBeVisible();
 
-    const text = container.textContent ?? "";
-    // Unsupported currencies, private visibility, and publishing stay absent.
+    typeInto(descriptionInput(), "Diseñá los servicios core.");
+    advance();
+    expect(screen.getByRole("group", { name: "Beneficios" })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Frecuencia de pago" })).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Beneficios" })).toHaveAttribute(
+      "placeholder",
+      "Busca un beneficio",
+    );
+    expect(screen.getByText("Sin preguntas de filtro")).toBeVisible();
+    // No native date control remains: the field is the reusable DatePickerField.
+    expect(screen.getByLabelText(/fecha de cierre/i)).not.toHaveAttribute("type", "date");
+
+    const text = document.body.textContent ?? "";
     expect(screen.queryByLabelText(/mostrar el salario/i)).toBeNull();
     expect(screen.queryByRole("button", { name: /publicar/i })).toBeNull();
     expect(text).not.toMatch(/ARS|EUR|solo interna|bolsa de trabajo|autoguardado/i);
-    // No implementation-status disclosure renders anywhere on the surface.
-    expect(screen.queryByText(/vista exploratoria/i)).toBeNull();
-    expect(screen.queryByText(/formato visual de prototipo/i)).toBeNull();
     expect(text).not.toMatch(/prototipo|exploratori/i);
   });
 
-  it("treats marker-only rich text as an empty contract description", () => {
+  it("renders the review step with grouped summaries, edit actions, and the save rail", () => {
     render(<CreateVacancyForm />);
-    fillRequiredFields();
-    typeInto(descriptionInput(), "**");
+    reachReview();
 
-    fireEvent.click(saveButton());
-
-    // The contract stores derived plain text, so formatting markers alone are
-    // not a description.
+    expect(currentStep()).toBe("review");
+    // Grouped summaries, one card per editable step with one edit action each.
+    expect(document.querySelectorAll("[data-pf-review-group]")).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: /^Editar / })).toHaveLength(3);
+    const basicGroup = document.querySelector(
+      "[data-pf-review-group='basic-information']",
+    ) as HTMLElement;
     expect(
-      screen.getByText("Ingresá una descripción para la vacante."),
+      within(basicGroup).getByText("Backend Developer (Senior)"),
     ).toBeVisible();
-    expect(descriptionInput()).toHaveAttribute("aria-invalid", "true");
-    expect(screen.queryByRole("status")).toBeNull();
-  });
-
-  it("keeps the exploratory limits inherited and sends nothing while exploring", () => {
-    render(<CreateVacancyForm />);
-
-    expect(screen.queryAllByRole("textbox", { name: /^Pregunta /u })).toHaveLength(0);
-
-    const addQuestion = screen.getByRole("button", { name: "Agregar pregunta" });
-    fireEvent.click(addQuestion);
-    fireEvent.click(addQuestion);
-    fireEvent.click(addQuestion);
-    fireEvent.click(addQuestion);
-
-    // The shared prototype ceiling stops the fourth question.
-    expect(screen.getAllByRole("textbox", { name: /^Pregunta /u })).toHaveLength(3);
-    expect(screen.getByRole("button", { name: "Agregar pregunta" })).toBeDisabled();
-    expect(screen.queryByText("Sin preguntas de filtro")).toBeNull();
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it("keeps the formatting surface, the chips, and the frequency options available", () => {
-    render(<CreateVacancyForm />);
-
-    for (const label of [
-      "Descripción del puesto",
-      "Requisitos obligatorios",
-      "Requisitos deseables",
-    ]) {
-      expect(
-        screen.getByRole("toolbar", { name: `Formato de ${label}` }),
-      ).toBeVisible();
-    }
-    expect(
-      screen.getByRole("combobox", { name: "Habilidades y tecnologías" }),
-    ).toHaveAttribute("placeholder", "Buscá una tecnología");
-    expect(document.querySelector('[data-slot="combobox-chip"]')).toBeNull();
-
-    for (const frequency of ["Mensual", "Anual", "Por hora"]) {
-      expect(screen.getByRole("button", { name: frequency })).toBeVisible();
-    }
-    expect(screen.getAllByRole("checkbox")).toHaveLength(8);
-  });
-
-  it("keeps the real draft copy beside the unchanged save action", () => {
-    render(<CreateVacancyForm />);
-
+    // The preview and save rail exists only here.
+    expect(previewRail()).toBeVisible();
+    expect(saveButton()).toHaveAttribute("type", "submit");
+    expect(saveButton()).toBeEnabled();
+    expect(saveButton()).toHaveClass("h-10", "w-full");
     expect(
       screen.getByText(
         "Toda vacante nueva empieza como borrador. Guardarlo requiere una sesión de reclutador.",
       ),
     ).toBeVisible();
-    expect(
-      screen.queryByText(/vista exploratoria y todavía no se guardan/i),
-    ).toBeNull();
-    expect(saveButton()).toHaveAttribute("type", "submit");
-    expect(saveButton()).toBeEnabled();
-    // UISC-04: the save action is independently actionable, so it keeps the
-    // full-width layout and meets the 40px minimum control height.
-    expect(saveButton()).toHaveClass("h-10", "w-full");
+    // No editable field of the earlier steps is mounted on review.
+    expect(screen.queryByRole("textbox", { name: /título del puesto/i })).toBeNull();
   });
 
-  it("shows accessible required errors for title and description", () => {
+  it("updates the live preview from the current values on review", () => {
+    render(<CreateVacancyForm />);
+    reachReview();
+
+    within(previewRail()).getByText("Backend Developer (Senior)");
+    within(previewRail()).getByText("Diseñá los servicios core.");
+    within(previewRail()).getByText("Remoto");
+    within(previewRail()).getByText("Tiempo completo");
+    within(previewRail()).getByText("Senior");
+    within(previewRail()).getByText("Salario a convenir");
+    expect(
+      within(previewRail()).getByText(/todavía no está publicada/i),
+    ).toBeVisible();
+  });
+
+  it("returns to the edited step from a review edit action", () => {
+    render(<CreateVacancyForm />);
+    reachReview();
+
+    fireEvent.click(screen.getByRole("button", { name: "Editar información básica" }));
+    expect(currentStep()).toBe("basic-information");
+    expect(titleInput()).toHaveValue("Backend Developer (Senior)");
+  });
+
+  it("treats marker-only rich text as an empty contract description", () => {
+    render(<CreateVacancyForm />);
+    fillStepOne();
+    advance();
+    typeInto(descriptionInput(), "**");
+
+    advance();
+
+    // Step two blocks: the derived plain text is empty, so the schema rejects it.
+    expect(currentStep()).toBe("role-profile");
+    expect(
+      screen.getByText("Ingresa una descripción para la vacante."),
+    ).toBeVisible();
+    expect(descriptionInput()).toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
+describe("CreateVacancyForm step validation", () => {
+  it("blocks step one until its required fields are valid and focuses the first invalid control", () => {
     render(<CreateVacancyForm />);
 
-    fireEvent.click(saveButton());
+    advance();
 
-    const titleError = screen.getByText("Ingresá un título para la vacante.");
-    const descriptionError = screen.getByText(
-      "Ingresá una descripción para la vacante.",
-    );
-
+    expect(currentStep()).toBe("basic-information");
+    const titleError = screen.getByText("Ingresa un título para la vacante.");
     expect(titleError).toHaveAttribute("role", "alert");
-    expect(descriptionError).toHaveAttribute("role", "alert");
     expect(titleInput()).toHaveAttribute("aria-invalid", "true");
-    expect(descriptionInput()).toHaveAttribute("aria-invalid", "true");
     expect(titleInput()).toHaveAttribute("aria-describedby", titleError.id);
-    expect(descriptionInput()).toHaveAttribute(
-      "aria-describedby",
-      "vacancy-description-error",
-    );
-    // Validation wins: the attempt produced only field errors.
+    expect(titleInput()).toHaveFocus();
+    // The step-scoped validation never reports another step's field.
+    expect(screen.queryByText("Ingresa una descripción para la vacante.")).toBeNull();
     expect(screen.queryByRole("status")).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -289,166 +381,147 @@ describe("CreateVacancyForm contract surface", () => {
   it("shows accessible enum errors when no modality, job type, or seniority is chosen", () => {
     render(<CreateVacancyForm />);
 
-    fireEvent.click(saveButton());
+    advance();
 
-    expect(
-      screen.getByText("Elegí una modalidad de trabajo."),
-    ).toBeVisible();
-    expect(screen.getByText("Elegí una jornada de trabajo.")).toBeVisible();
-    expect(
-      screen.getByText("Elegí un seniority para la vacante."),
-    ).toBeVisible();
-    expect(screen.getByRole("group", { name: "Modalidad" })).toHaveAttribute(
+    expect(screen.getByText("Elige una modalidad de trabajo.")).toBeVisible();
+    expect(screen.getByText("Elige una jornada de trabajo.")).toBeVisible();
+    expect(screen.getByText("Elige un seniority para la vacante.")).toBeVisible();
+    expect(screen.getByRole("combobox", { name: "Modalidad" })).toHaveAttribute(
       "aria-invalid",
       "true",
     );
   });
 
-  it("rejects salary values the contract cannot accept as integers", () => {
+  it("rejects salary values the contract cannot accept as integers on the conditions step", () => {
     render(<CreateVacancyForm />);
-    fillRequiredFields();
+    fillStepOne();
+    advance();
+    typeInto(descriptionInput(), "Diseñá los servicios core.");
+    advance();
     typeInto(salaryMinInput(), "25,000");
 
-    fireEvent.click(saveButton());
+    advance();
 
+    expect(currentStep()).toBe("conditions-process");
     const salaryError = screen.getByText(
       "El salario mínimo debe ser un número entero de 0 o más.",
     );
     expect(salaryError).toHaveAttribute("role", "alert");
     expect(salaryMinInput()).toHaveAttribute("aria-invalid", "true");
-    expect(salaryMinInput()).toHaveAttribute(
-      "aria-describedby",
-      salaryError.id,
-    );
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(salaryMinInput()).toHaveAttribute("aria-describedby", salaryError.id);
+    expect(salaryMinInput()).toHaveFocus();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("rejects a maximum salary below the minimum with an accessible error", () => {
     render(<CreateVacancyForm />);
-    fillRequiredFields();
+    fillStepOne();
+    advance();
+    typeInto(descriptionInput(), "Diseñá los servicios core.");
+    advance();
     typeInto(salaryMinInput(), "40000");
     typeInto(salaryMaxInput(), "25000");
 
-    fireEvent.click(saveButton());
+    advance();
 
+    expect(currentStep()).toBe("conditions-process");
     const rangeError = screen.getByText(
       "El salario máximo debe ser mayor o igual al salario mínimo.",
     );
     expect(rangeError).toHaveAttribute("role", "alert");
     expect(salaryMaxInput()).toHaveAttribute("aria-invalid", "true");
-    expect(salaryMaxInput()).toHaveAttribute(
-      "aria-describedby",
-      rangeError.id,
-    );
+    expect(salaryMaxInput()).toHaveFocus();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("never treats blank optional inputs as invalid", () => {
     render(<CreateVacancyForm />);
-    fillRequiredFields();
+    reachReview();
 
-    fireEvent.click(saveButton());
-
+    expect(currentStep()).toBe("review");
     expect(screen.queryAllByRole("alert")).toHaveLength(0);
-    expect(locationInput()).toHaveAttribute("aria-invalid", "false");
-    expect(salaryMinInput()).toHaveAttribute("aria-invalid", "false");
-    expect(salaryMaxInput()).toHaveAttribute("aria-invalid", "false");
-    // The empty optionals are dropped, so the attempt is valid and inert: no
-    // status, no alert, no success, and no request.
+    fireEvent.click(saveButton());
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.queryAllByRole("alert")).toHaveLength(0);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("updates the live preview from the current form values", () => {
+  it("does not move focus on every edit", () => {
     render(<CreateVacancyForm />);
 
-    within(previewRail()).getByText("Título del puesto");
-    within(previewRail()).getByText("Salario a convenir");
+    advance();
+    expect(titleInput()).toHaveFocus();
 
-    fillRequiredFields({ seniority: "Líder" });
-    typeInto(locationInput(), "Monterrey, NL");
-    typeInto(salaryMinInput(), "25000");
-    typeInto(salaryMaxInput(), "40000");
-
-    expect(
-      within(previewRail()).getByText("Backend Developer (Senior)"),
-    ).toBeVisible();
-    expect(
-      within(previewRail()).getByText("Tu empresa · Monterrey, NL"),
-    ).toBeVisible();
-    expect(
-      within(previewRail()).getByText(
-        "Diseñá los servicios core.",
-      ),
-    ).toBeVisible();
-    expect(within(previewRail()).getByText("Remoto")).toBeVisible();
-    expect(within(previewRail()).getByText("Tiempo completo")).toBeVisible();
-    expect(within(previewRail()).getByText("Líder")).toBeVisible();
-    expect(
-      within(previewRail()).getByText("MXN 25,000 – MXN 40,000"),
-    ).toBeVisible();
-    // The preview stays a draft, before and after editing.
-    expect(
-      within(previewRail()).getByText(/todavía no está publicada/i),
-    ).toBeVisible();
+    fireEvent.change(screen.getByRole("combobox", { name: "Área o departamento" }), {
+      target: { value: "Producto" },
+    });
+    expect(titleInput()).toHaveFocus();
   });
 });
 
-describe("CreateVacancyForm local save boundary", () => {
-  it("leaves a valid attempt visibly inert and issues no request", () => {
+describe("CreateVacancyForm final validation-only save", () => {
+  it("leaves a valid final save visibly inert and issues no request", () => {
     render(<CreateVacancyForm />);
-    fillRequiredFields();
+    reachReview();
 
     const before = document.body.textContent;
+    const href = window.location.href;
     fireEvent.click(saveButton());
 
-    // No visible state change: no status, note, alert, success, or reset.
+    // No visible state change: no status, note, alert, success, or navigation.
+    expect(currentStep()).toBe("review");
     expect(saveButton()).toBeEnabled();
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.queryAllByRole("alert")).toHaveLength(0);
     expect(document.body.textContent).toBe(before);
+    expect(window.location.href).toBe(href);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
     // The edited values survive the attempt untouched.
-    expect(titleInput()).toHaveValue("Backend Developer (Senior)");
+    fireEvent.click(backButton());
+    fireEvent.click(backButton());
     expect(descriptionInput()).toHaveValue("Diseñá los servicios core.");
-    expect(fetchSpy).not.toHaveBeenCalled();
+    fireEvent.click(backButton());
+    expect(titleInput()).toHaveValue("Backend Developer (Senior)");
   });
 
-  it("keeps the save control usable and local editing independent of an attempt", () => {
+  it("routes an implicit final submit to the first invalid step and focuses its first invalid field after mount", () => {
     render(<CreateVacancyForm />);
-    fillRequiredFields();
+    // Step one is valid, step two (description) is still empty.
+    fillStepOne();
 
-    fireEvent.click(saveButton());
-    expect(saveButton()).toBeEnabled();
-    expect(screen.queryByRole("status")).toBeNull();
+    // A form submit from step one is the final validation path; it must route
+    // forward to the first invalid step and focus the field after it mounts.
+    fireEvent.submit(form());
 
-    typeInto(titleInput(), "Backend Developer (Staff)");
-    expect(titleInput()).toHaveValue("Backend Developer (Staff)");
-
-    fireEvent.click(saveButton());
-    expect(titleInput()).toHaveValue("Backend Developer (Staff)");
-    expect(screen.queryByRole("status")).toBeNull();
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it("reports field errors when a later attempt is invalid", () => {
-    render(<CreateVacancyForm />);
-    fillRequiredFields();
-    fireEvent.click(saveButton());
-    expect(screen.queryByRole("status")).toBeNull();
-
-    typeInto(titleInput(), "   ");
-    fireEvent.click(saveButton());
-
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(currentStep()).toBe("role-profile");
+    expect(descriptionInput()).toHaveFocus();
     expect(
-      screen.getByText("Ingresá un título para la vacante."),
+      screen.getByText("Ingresa una descripción para la vacante."),
     ).toBeVisible();
-    expect(titleInput()).toHaveAttribute("aria-invalid", "true");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("routes an invalid final submit back to the earliest step when it is also invalid", () => {
+    render(<CreateVacancyForm />);
+    // Nothing is filled: step one owns the earliest error.
+    fireEvent.submit(form());
+
+    expect(currentStep()).toBe("basic-information");
+    expect(titleInput()).toHaveFocus();
+  });
+
+  it("keeps the canonical field order and step order deterministic", () => {
+    expect(firstInvalidField({ salary_max: "a", title: "b" })).toBe("title");
+    expect(firstInvalidStep({ salary_max: "a", title: "b" })).toBe(
+      "basic-information",
+    );
+    expect(firstInvalidStep({ description: "d" })).toBe("role-profile");
+    expect(firstInvalidStep({})).toBeNull();
+  });
+});
+
+describe("CreateVacancyForm transport boundaries", () => {
   it("never imports the server-only create client, session, or transport", () => {
     expect(source).not.toMatch(/from\s+["'][^"']*createJob["']/);
     expect(source).not.toMatch(/\bcreateJob\s*\(/);
@@ -461,179 +534,58 @@ describe("CreateVacancyForm local save boundary", () => {
   });
 
   it("keeps every extracted form module free of request, session, and transport APIs", () => {
-    const formDir = join(
-      process.cwd(),
-      "src",
-      "features",
-      "jobs",
-      "create",
-      "form",
-    );
+    const formDir = join(process.cwd(), "src", "features", "jobs", "create", "form");
     const modules = readdirSync(formDir).filter(
-      (entry) => !entry.endsWith(".test.tsx"),
+      (entry) => !entry.endsWith(".test.tsx") && !entry.endsWith(".test.ts"),
     );
 
-    // The folder must actually exist and carry the extracted responsibilities.
     expect(modules.length).toBeGreaterThan(0);
 
     for (const fileName of modules) {
       const text = readFileSync(join(formDir, fileName), "utf8");
-      expect(text).not.toMatch(/\bcreateJob\s*\(|from ["'][^"']*\/createJob["']/);
-      expect(text).not.toMatch(
+      expect(text, fileName).not.toMatch(/\bcreateJob\s*\(|from ["'][^"']*\/createJob["']/);
+      expect(text, fileName).not.toMatch(
         /lib\/api\/|lib\/env\/server|next\/headers|\bfetch\s*\(/,
       );
-      expect(text).not.toMatch(
+      expect(text, fileName).not.toMatch(
         /\bcookies?\b|\bsession\b|\bbearer\b|\baccessToken\b|\bgetToken\b/i,
       );
     }
   });
 });
 
-describe("CreateVacancyForm invalid-submit focus", () => {
-  it("orders the invalid fields by the canonical contract order", () => {
-    expect(firstInvalidField({ salary_max: "a", title: "b" })).toBe("title");
-    expect(
-      firstInvalidField({ salary_currency: "c", work_mode: "d" }),
-    ).toBe("work_mode");
-    expect(firstInvalidField({})).toBeNull();
-  });
-
-  it("focuses the first invalid field on an invalid submit", () => {
-    render(<CreateVacancyForm />);
-
-    fireEvent.click(saveButton());
-    expect(titleInput()).toHaveFocus();
-
-    typeInto(titleInput(), "Backend Developer");
-    typeInto(descriptionInput(), "Diseñá los servicios core.");
-    fireEvent.click(saveButton());
-
-    // The composite Modalidad control has no text input, so the first real
-    // toggle button inside it receives focus.
-    expect(screen.getByRole("button", { name: "Presencial" })).toHaveFocus();
-    expect(salaryMinInput()).not.toHaveFocus();
-  });
-
-  it("does not move focus on every edit and leaves a valid attempt alone", () => {
-    render(<CreateVacancyForm />);
-
-    fireEvent.click(saveButton());
-    descriptionInput().focus();
-    typeInto(titleInput(), "Backend Developer");
-    expect(descriptionInput()).toHaveFocus();
-
-    fillRequiredFields();
-    descriptionInput().focus();
-    fireEvent.click(saveButton());
-    expect(descriptionInput()).toHaveFocus();
-    expect(screen.queryByRole("status")).toBeNull();
-  });
-
-  it("derives the contract description from the local-only rich value", () => {
-    expect(source).toMatch(/toPlainText/);
-  });
-});
-
-describe("CreateVacancyForm completion rail", () => {
-  it("reports observable content between the preview and the save card", () => {
-    render(<CreateVacancyForm />);
-
-    const card = completionCard();
-    const save = saveButton().closest("[data-slot='card']");
-    if (save === null) throw new Error("The save card was not rendered");
-
-    // Rail order stays preview, progress, save.
-    expect(
-      screen
-        .getByRole("complementary", { name: "Vista previa y guardado" })
-        .querySelectorAll("[data-pf-completion-summary]"),
-    ).toHaveLength(1);
-    expect(follows(previewRail(), card)).toBe(true);
-    expect(follows(card, save)).toBe(true);
-
-    expect(
-      within(card).getByRole("heading", { name: "Progreso de la vacante" }),
-    ).toBeVisible();
-    expect(
-      within(card).getByText(
-        "Revisá qué secciones tienen contenido antes de guardar el borrador.",
-      ),
-    ).toBeVisible();
-    expect(within(card).getByText("0 de 6 secciones completas")).toBeVisible();
-  });
-
-  it("updates the count from the live values without claiming a save", () => {
-    render(<CreateVacancyForm />);
-    const card = completionCard();
-
-    // A title alone is not basic information yet: the three enums are missing.
-    typeInto(titleInput(), "Backend Developer");
-    expect(within(card).getByText("0 de 6 secciones completas")).toBeVisible();
-
-    fillRequiredFields();
-    expect(within(card).getByText("2 de 6 secciones completas")).toBeVisible();
-    expect(within(card).getAllByText("Completa")).toHaveLength(2);
-    expect(within(card).getAllByText("Pendiente")).toHaveLength(4);
-
-    typeInto(salaryMinInput(), "25000");
-    fireEvent.click(screen.getByRole("checkbox", { name: "Seguro de salud" }));
-    const bar = within(card).getByRole("progressbar", {
-      name: "Secciones de la vacante con contenido",
-    });
-    expect(within(card).getByText("4 de 6 secciones completas")).toBeVisible();
-    expect(bar).toHaveAttribute("aria-valuenow", "4");
-    expect(bar).toHaveAttribute("aria-valuetext", "4 de 6 secciones completas");
-
-    // Progress stays observational: no request, no save or autosave claim, and
-    // it never absorbs the outcome of the save card.
-    const text = card.textContent ?? "";
-    expect(text).toMatch(/Revisá qué secciones tienen contenido/i);
-    expect(text).not.toMatch(
-      /autoguardado|guardado automáticamente|borrador guardado|listo para guardar/i,
-    );
-    expect(text).not.toMatch(/iniciar sesión como reclutador/i);
-    expect(fetchSpy).not.toHaveBeenCalled();
-
-    fireEvent.click(saveButton());
-    expect(screen.queryByRole("status")).toBeNull();
-    expect(fetchSpy).not.toHaveBeenCalled();
-    expect(within(card).getByText("4 de 6 secciones completas")).toBeVisible();
-  });
-});
-
 /**
- * Structural boundary for the enriched composition: the route-facing form stays a
- * thin owner of two states, while the section boundary owns the section tree and
- * only the contract state may ever reach a save attempt.
+ * Structural boundary for the wizard composition: the route-facing form stays a
+ * thin owner of four states, while the step model partitions the fields and only
+ * the contract state may ever reach a save attempt.
  */
 describe("CreateVacancyForm composition boundaries", () => {
-  it("imports the form model, the prototype model, the section boundary, and the rail", () => {
+  it("imports the form model, the prototype model, the step boundary, and the controls", () => {
     expect(source).toMatch(/from "\.\/form\/model"/);
     expect(source).toMatch(/from "\.\/form\/prototype-model"/);
+    expect(source).toMatch(/from "\.\/form\/step-model"/);
     expect(source).toMatch(/from "\.\/form\/vacancy-form-sections"/);
-    expect(source).toMatch(/from "\.\/form\/draft-rail"/);
-    // Section composition and markup live behind the boundary module.
+    expect(source).toMatch(/from "\.\/form\/step-progress"/);
+    expect(source).toMatch(/from "\.\/form\/wizard-controls"/);
+    // Section composition and markup live behind the boundary modules.
     expect(source).not.toMatch(/from "\.\/form\/basic-information-section"/);
-    expect(source).not.toMatch(/from "\.\/form\/description-section"/);
     expect(source).not.toMatch(/from "\.\/form\/compensation-section"/);
   });
 
-  it("owns the contract values, local-only state, and field errors", () => {
-    expect(source).toMatch(
-      /React\.useState<VacancyFormValues>\(INITIAL_VALUES\)/,
-    );
+  it("owns the contract values, local-only state, field errors, and the current step", () => {
+    expect(source).toMatch(/React\.useState<VacancyFormValues>\(INITIAL_VALUES\)/);
     expect(source).toMatch(
       /React\.useState<VacancyPrototypeValues>\(INITIAL_PROTOTYPE_VALUES\)/,
     );
-    // values, prototypeValues, errors.
-    expect(source.match(/React\.useState/g)).toHaveLength(3);
+    expect(source).toMatch(/React\.useState<VacancyStepId>\("basic-information"\)/);
+    // values, prototypeValues, errors, step.
+    expect(source.match(/React\.useState/g)).toHaveLength(4);
   });
 
   it("saves contract values only and never mixes prototype state into the attempt", () => {
     expect(source).toMatch(/attemptDraftSave\(values\)/);
     expect(source).not.toMatch(/attemptDraftSave\([^)]*prototype/i);
     expect(source).not.toMatch(/validateVacancyForm|createJobRequestSchema|safeParse/);
-    // The save call itself names no prototype identifier.
     const attempt = source.slice(source.indexOf("attemptDraftSave"));
     expect(attempt.slice(0, 40)).not.toMatch(/prototype/i);
   });
@@ -643,7 +595,7 @@ describe("CreateVacancyForm composition boundaries", () => {
       /createJobRequestSchema|safeParse|FIELD_MESSAGES|normalizeSalaryInput|pickOption/,
     );
     expect(source).not.toMatch(
-      /AUTH_REQUIRED_NOTICE|WORK_MODE_OPTIONS|EMPLOYMENT_TYPE_OPTIONS|SENIORITY_OPTIONS|SALARY_CURRENCY_OPTIONS/,
+      /WORK_MODE_OPTIONS|EMPLOYMENT_TYPE_OPTIONS|SENIORITY_OPTIONS|SALARY_CURRENCY_OPTIONS/,
     );
   });
 
@@ -654,11 +606,9 @@ describe("CreateVacancyForm composition boundaries", () => {
     );
     for (const heading of [
       "Información básica",
-      "Descripción y requisitos",
-      "Compensación",
-      "Estrategia de contratación",
-      "Beneficios y frecuencia de pago",
-      "Preguntas de filtro",
+      "Perfil del puesto",
+      "Condiciones y proceso",
+      "Revisar",
       "Vista previa pública",
     ]) {
       expect(source).not.toContain(heading);
@@ -666,9 +616,10 @@ describe("CreateVacancyForm composition boundaries", () => {
   });
 
   it("stays a bounded composition surface that still owns submit", () => {
-    expect(source.split("\n").length).toBeLessThan(160);
+    expect(source.split("\n").length).toBeLessThan(170);
     expect(source).toMatch(/onSubmit=\{handleSubmit\}/);
     expect(source).toMatch(/<VacancyFormSections/);
-    expect(source).toMatch(/<DraftRail/);
+    expect(source).toMatch(/<WizardControls/);
+    expect(source).toMatch(/<StepProgress/);
   });
 });

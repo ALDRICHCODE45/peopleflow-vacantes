@@ -1,6 +1,7 @@
 import { CalendarClock, Download, Ellipsis, FileText, FileType2, HardDrive, Languages, RefreshCw, Star, Upload } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -185,7 +186,7 @@ export function CvWorkspace({ cvs }: CvWorkspaceProps) {
   const { total, primary } = summarizeCvs(cvs);
   const ordered = orderCvs(cvs);
   return (
-    <div data-pf-cv-workspace className="mx-auto w-full max-w-screen-2xl flex flex-col gap-5 px-4 py-4 lg:px-6">
+    <DashboardPageContent data-pf-cv-workspace width="screen-2xl" className="gap-5">
       <header className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5">
           <h2 className="font-heading text-2xl font-semibold tracking-tight text-foreground">Tus CVs</h2>
@@ -211,6 +212,6 @@ export function CvWorkspace({ cvs }: CvWorkspaceProps) {
           {ordered.map((cv) => (<CvCard key={cv.id} cv={cv} />))}
         </ul>
       )}
-    </div>
+    </DashboardPageContent>
   );
 }

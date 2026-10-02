@@ -7,8 +7,14 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { ChoiceGrid, ChoiceGridItem } from "./choice-grid";
-import type { ChoiceGridColumns } from "./choice-grid";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { controlId, errorId, groupTitleId, pickOption } from "./model";
 import type { VacancyField } from "./model";
 
@@ -60,30 +66,35 @@ export function TextField({
         placeholder={placeholder}
         autoComplete="off"
         inputMode={inputMode}
+        className="text-foreground"
       />
       <FieldError id={errorId(field)}>{error}</FieldError>
     </Field>
   );
 }
 
+/** Placeholder shown until the recruiter chooses one option. */
+const EMPTY_OPTION_LABEL = "Elige una opción";
+
 export type OptionFieldProps<T extends string> = {
   field: VacancyField;
   title: string;
   options: ReadonlyArray<{ value: T; label: string }>;
-  /** Choice columns from `sm` up; the grid is one column on phones. */
-  columns?: ChoiceGridColumns;
   value: T | "";
   /** Present only while this field is invalid, so `aria-invalid` stays truthful. */
   error?: string;
   onChange: (value: T | "") => void;
 };
 
-/** Segmented single-choice control for one contract enum. */
+/**
+ * Controlled single-choice control for one contract enum: the installed Select
+ * keeps every option behind one trigger, so the form shows the chosen value
+ * instead of an always-visible option grid.
+ */
 export function OptionField<T extends string>({
   field,
   title,
   options,
-  columns,
   value,
   error,
   onChange,
@@ -93,26 +104,30 @@ export function OptionField<T extends string>({
   return (
     <Field data-invalid={invalid}>
       <FieldTitle id={groupTitleId(field)}>{title}</FieldTitle>
-      <ChoiceGrid
-        id={controlId(field)}
-        columns={columns}
-        aria-labelledby={groupTitleId(field)}
-        aria-invalid={invalid}
-        aria-describedby={invalid ? errorId(field) : undefined}
-        value={value === "" ? [] : [value]}
-        onValueChange={(next) => onChange(pickOption(options, next[0]))}
+      <Select
+        value={value === "" ? null : value}
+        items={options}
+        onValueChange={(next) => onChange(pickOption(options, next ?? undefined))}
       >
-        {options.map((option) => (
-          <ChoiceGridItem
-            key={option.value}
-            value={option.value}
-            variant="outline"
-            size="sm"
-          >
-            {option.label}
-          </ChoiceGridItem>
-        ))}
-      </ChoiceGrid>
+        <SelectTrigger
+          id={controlId(field)}
+          aria-labelledby={groupTitleId(field)}
+          aria-invalid={invalid}
+          aria-describedby={invalid ? errorId(field) : undefined}
+          className="h-10 w-full text-foreground"
+        >
+          <SelectValue placeholder={EMPTY_OPTION_LABEL} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectGroup>
+            {options.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectGroup>
+        </SelectContent>
+      </Select>
       <FieldError id={errorId(field)}>{error}</FieldError>
     </Field>
   );

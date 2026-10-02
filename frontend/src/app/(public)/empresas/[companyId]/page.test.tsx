@@ -104,13 +104,21 @@ describe("/empresas/[companyId] source boundaries", () => {
     // feature-local module may reach the CCP-01 enrichment and company filter.
     expect(pageSource).toMatch(/from "\.\.\/\.\.\/\.\.\/\.\.\/features\/jobs\/prototype-jobs"/);
     expect(pageSource).toMatch(/jobs=\{ACME_PROTOTYPE_JOBS\}/);
-    expect(viewSource).toMatch(/from "\.\.\/jobs\/components\/VacancyCard"/);
-    // The cover is served through next/image from the profile fixture: the
+    // The public page maps the approved profile into the shared presentation
+    // contract; the renderer itself stays content-driven and employer-agnostic.
+    expect(pageSource).toMatch(/content=\{siteContentFromProfile\(profile\)\}/);
+    expect(pageSource).toMatch(/from "\.\.\/\.\.\/\.\.\/\.\.\/features\/company-profile\/company-site-content"/);
+    expect(viewSource).toMatch(/from "\.\/company-site-content"/);
+    expect(viewSource).toMatch(/jobs: readonly JobItem\[\]/);
+    // The shared renderer never reaches the enriched prototype card.
+    expect(viewSource).not.toMatch(/VacancyCard|prototype|enrich/iu);
+    // The cover is served through next/image from the presentation content: the
     // local asset path belongs to the model contract (asserted in
     // features/company-profile/model.test.ts) and is not restated here.
     expect(viewSource).toMatch(/from\s+["']next\/image["']/);
     expect(viewSource).toMatch(/<Image\b/);
-    expect(viewSource).toMatch(/src=\{profile\.coverPhoto\.url\}/);
+    expect(viewSource).toMatch(/src=\{cover\.url\}/);
+    expect(viewSource).toMatch(/\bfill\b/);
     // No native <img element and no remote image origin may come back.
     expect(viewSource).not.toMatch(/<img\b/);
     expect(viewSource).not.toMatch(/picsum|https?:\/\/[^"'\s]*\.(?:png|jpe?g|webp|avif)/u);

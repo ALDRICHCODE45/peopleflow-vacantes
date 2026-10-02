@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
-import { useState } from "react";
 import { join } from "node:path";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   cleanup,
@@ -12,7 +12,6 @@ import {
 import "@testing-library/jest-dom/vitest";
 
 import { BenefitsSection } from "./benefits-section";
-import { sectionAnchorId, sectionTitle } from "./section-metadata";
 import {
   BENEFIT_OPTIONS,
   INITIAL_PROTOTYPE_VALUES,
@@ -23,18 +22,40 @@ import type { VacancyPrototypeValues } from "./prototype-model";
 const FORM_DIR = join(process.cwd(), "src", "features", "jobs", "create", "form");
 const source = readFileSync(join(FORM_DIR, "benefits-section.tsx"), "utf8");
 
-/**
- * jsdom implements neither PointerEvent nor the modifier-aware click the Base UI
- * checkbox dispatches, so the checkbox reports its change through this stand-in.
- */
+// jsdom implements neither matchMedia, ResizeObserver, nor PointerEvent, and the
+// installed select and combobox primitives read all three while they interact.
 class TestPointerEvent extends MouseEvent {
   readonly pointerType = "mouse";
   readonly pointerId = 1;
 }
 
-beforeEach(() => {
+function stubBrowserApis() {
   vi.stubGlobal("PointerEvent", TestPointerEvent);
-});
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => ({
+      matches: false,
+      media: "",
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(() => false),
+    })),
+  );
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+  vi.stubGlobal("innerWidth", 1280);
+}
+
+beforeEach(stubBrowserApis);
 
 afterEach(() => {
   cleanup();
@@ -48,9 +69,42 @@ function renderSection(overrides: Partial<VacancyPrototypeValues> = {}) {
   };
   const onChange = vi.fn();
 
-  render(<BenefitsSection values={values} onChange={onChange} />);
+  const view = render(<BenefitsSection values={values} onChange={onChange} />);
 
-  return { values, onChange };
+  return { ...view, values, onChange };
+}
+
+/** Renders the field group alone, exposing the container for chrome assertions. */
+function renderRoot(overrides: Partial<VacancyPrototypeValues> = {}) {
+  const values: VacancyPrototypeValues = {
+    ...INITIAL_PROTOTYPE_VALUES,
+    ...overrides,
+  };
+  return render(<BenefitsSection values={values} onChange={vi.fn()} />);
+}
+
+/**
+ * A real controlled parent: it owns the value the way the wizard does and
+ * re-renders the section after every change, so filtering, selection, and
+ * removal all travel through React state instead of a static fixture.
+ */
+function ControlledBenefitsSection({
+  initial = INITIAL_PROTOTYPE_VALUES,
+  onChange,
+}: {
+  initial?: VacancyPrototypeValues;
+  onChange?: (next: VacancyPrototypeValues) => void;
+}) {
+  const [values, setValues] = useState(initial);
+  return (
+    <BenefitsSection
+      values={values}
+      onChange={(next) => {
+        onChange?.(next);
+        setValues(next);
+      }}
+    />
+  );
 }
 
 function firstPayload(onChange: ReturnType<typeof vi.fn>): VacancyPrototypeValues {
@@ -62,86 +116,106 @@ function lastPayload(onChange: ReturnType<typeof vi.fn>): VacancyPrototypeValues
   return onChange.mock.calls.at(-1)?.[0] as VacancyPrototypeValues;
 }
 
+function benefitChips(): HTMLElement[] {
+  return Array.from(
+    document.querySelectorAll('[data-slot="combobox-chip"]'),
+  ) as HTMLElement[];
+}
+
+/** The rendered option whose text matches, without walking the a11y tree. */
+function optionByText(scope: Element, label: string): HTMLElement {
+  const match = Array.from(
+    scope.querySelectorAll('[data-slot="combobox-item"]'),
+  ).find((item) => item.textContent === label);
+  if (!match) {
+    throw new Error(`Missing option: ${label}`);
+  }
+  return match as HTMLElement;
+}
+
+/** Visible option labels in the open popup. */
+function optionLabels(scope: Element): string[] {
+  return Array.from(
+    scope.querySelectorAll('[data-slot="combobox-item"]'),
+  ).map((item) => item.textContent ?? "");
+}
+
 describe("BenefitsSection benefit selection", () => {
-  it("renders every catalog benefit as a labelled checkbox in a fieldset", () => {
+  it("renders one searchable combobox over the benefit catalog instead of a checkbox grid", () => {
     renderSection();
 
-    expect(
-      screen.getByRole("heading", { name: "Beneficios y frecuencia de pago" }),
-    ).toBeVisible();
+    // The step shell owns the heading; this module is a card-less field group.
+    expect(screen.queryByRole("heading")).toBeNull();
     expect(screen.getByRole("group", { name: "Beneficios" })).toBeVisible();
 
-    const checkboxes = screen.getAllByRole("checkbox");
-    expect(checkboxes).toHaveLength(BENEFIT_OPTIONS.length);
-    for (const option of BENEFIT_OPTIONS) {
-      expect(screen.getByRole("checkbox", { name: option.label })).toBeVisible();
-    }
+    const benefits = screen.getByRole("combobox", { name: "Beneficios" });
+    expect(benefits).toBeVisible();
+    expect(benefits).toHaveAttribute("placeholder", "Busca un beneficio");
+    // The eight always-visible checkboxes are gone.
+    expect(screen.queryAllByRole("checkbox")).toHaveLength(0);
+    expect(
+      screen.getByText(
+        `0 de ${BENEFIT_OPTIONS.length} beneficios seleccionados.`,
+      ),
+    ).toBeVisible();
   });
 
-  it("reflects the controlled benefit selection", () => {
+  it("reflects the controlled benefit selection as compact removable chips", () => {
     renderSection({ benefits: ["health_insurance", "annual_bonus"] });
 
+    const chips = benefitChips();
+    expect(chips).toHaveLength(2);
+    expect(within(chips[0]).getByRole("button", { name: "Quitar Seguro de salud" })).toBeVisible();
+    expect(within(chips[1]).getByRole("button", { name: "Quitar Bono anual" })).toBeVisible();
     expect(
-      screen.getByRole("checkbox", { name: "Seguro de salud" }),
-    ).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "Bono anual" })).toBeChecked();
-    expect(
-      screen.getByRole("checkbox", { name: "Equipo de cómputo" }),
-    ).not.toBeChecked();
+      screen.getByText(
+        `2 de ${BENEFIT_OPTIONS.length} beneficios seleccionados.`,
+      ),
+    ).toBeVisible();
   });
 
-  it("adds one benefit through onChange without mutating the caller values", () => {
-    const { values, onChange } = renderSection();
+  it("removes one selected benefit through onChange without mutating the caller values", () => {
+    const { values, onChange } = renderSection({
+      benefits: ["health_insurance", "annual_bonus"],
+    });
 
-    fireEvent.click(screen.getByRole("checkbox", { name: "Seguro de salud" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Quitar Seguro de salud" }),
+    );
 
     expect(onChange).toHaveBeenCalledTimes(1);
-    expect(firstPayload(onChange).benefits).toEqual(["health_insurance"]);
+    expect(firstPayload(onChange).benefits).toEqual(["annual_bonus"]);
     expect(firstPayload(onChange)).not.toBe(values);
-    expect(values.benefits).toEqual([]);
+    expect(values.benefits).toEqual(["health_insurance", "annual_bonus"]);
   });
 
-  it("adds and removes benefits in catalog order through a real state round-trip", () => {
-    const onChange = vi.fn();
-    function Controlled() {
-      const [values, setValues] = useState<VacancyPrototypeValues>({
-        ...INITIAL_PROTOTYPE_VALUES,
-        benefits: ["annual_bonus", "health_insurance"],
-      });
-      return (
-        <BenefitsSection
-          values={values}
-          onChange={(next) => {
-            onChange(next);
-            setValues(next);
-          }}
-        />
-      );
-    }
+  it("keeps the remaining benefits in catalog order after a removal", () => {
+    const { onChange } = renderSection({
+      benefits: ["annual_bonus", "health_insurance", "computer_equipment"],
+    });
 
-    render(<Controlled />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Quitar Seguro de salud" }),
+    );
 
-    // Adding a third benefit reorders the whole set into catalog order.
-    fireEvent.click(screen.getByRole("checkbox", { name: "Equipo de cómputo" }));
-    expect(lastPayload(onChange).benefits).toEqual([
-      "health_insurance",
-      "computer_equipment",
-      "annual_bonus",
-    ]);
-
-    // Removing a checked benefit drops only that entry.
-    fireEvent.click(screen.getByRole("checkbox", { name: "Seguro de salud" }));
+    // Catalog order, not click order: equipo de cómputo precedes bono anual.
     expect(lastPayload(onChange).benefits).toEqual([
       "computer_equipment",
       "annual_bonus",
     ]);
+  });
 
-    // The controlled surface really reflects the committed state.
-    expect(screen.getByRole("checkbox", { name: "Equipo de cómputo" })).toBeChecked();
-    expect(screen.getByRole("checkbox", { name: "Bono anual" })).toBeChecked();
-    expect(
-      screen.getByRole("checkbox", { name: "Seguro de salud" }),
-    ).not.toBeChecked();
+  it("shows the controlled selection in catalog order without mutating the caller values", () => {
+    const { values } = renderSection({
+      benefits: ["annual_bonus", "computer_equipment"],
+    });
+
+    // The model already promises catalog order; the display honours it too.
+    expect(benefitChips().map((chip) => chip.textContent)).toEqual([
+      "Equipo de cómputo",
+      "Bono anual",
+    ]);
+    expect(values.benefits).toEqual(["annual_bonus", "computer_equipment"]);
   });
 
   it("keeps the same set when the caller value never changes", () => {
@@ -149,8 +223,10 @@ describe("BenefitsSection benefit selection", () => {
       benefits: ["annual_bonus", "health_insurance"],
     });
 
-    // Controlled and unchanged: each click starts from the caller's own value.
-    fireEvent.click(screen.getByRole("checkbox", { name: "Seguro de salud" }));
+    // Controlled and unchanged: each removal starts from the caller's own value.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Quitar Seguro de salud" }),
+    );
 
     expect(lastPayload(onChange).benefits).toEqual(["annual_bonus"]);
     expect(values.benefits).toEqual(["annual_bonus", "health_insurance"]);
@@ -158,72 +234,36 @@ describe("BenefitsSection benefit selection", () => {
 });
 
 describe("BenefitsSection pay frequency", () => {
-  it("offers exactly the three documented Spanish frequencies", () => {
+  it("offers the three documented Spanish frequencies through one select", () => {
     renderSection();
 
-    const group = screen.getByRole("group", { name: "Frecuencia de pago" });
-    expect(
-      within(group)
-        .getAllByRole("button")
-        .map((button) => button.textContent),
-    ).toEqual(PAY_FREQUENCY_OPTIONS.map((option) => option.label));
-    expect(within(group).getAllByRole("button")).toHaveLength(3);
+    const frequency = screen.getByRole("combobox", { name: "Frecuencia de pago" });
+    expect(frequency).toBeVisible();
+    const value = frequency.querySelector('[data-slot="select-value"]');
+    expect(value).toHaveAttribute("data-placeholder");
+    expect(value).toHaveTextContent("Elige una frecuencia");
+
+    // The always-visible toggle buttons are gone; the catalog still owns them.
+    for (const option of PAY_FREQUENCY_OPTIONS) {
+      expect(screen.queryByRole("button", { name: option.label })).toBeNull();
+    }
     expect(screen.queryByRole("button", { name: "Quincenal" })).toBeNull();
-  });
-
-  it("reports the chosen frequency through onChange", () => {
-    const { onChange } = renderSection();
-
-    fireEvent.click(
-      within(screen.getByRole("group", { name: "Frecuencia de pago" })).getByRole(
-        "button",
-        { name: "Anual" },
-      ),
-    );
-
-    expect(onChange).toHaveBeenCalledTimes(1);
-    expect(firstPayload(onChange).payFrequency).toBe("yearly");
-    expect(lastPayload(onChange).payFrequency).toBe("yearly");
-
-    fireEvent.click(
-      within(screen.getByRole("group", { name: "Frecuencia de pago" })).getByRole(
-        "button",
-        { name: "Por hora" },
-      ),
-    );
-
-    expect(lastPayload(onChange).payFrequency).toBe("hourly");
   });
 });
 
-describe("BenefitsSection layout foundation", () => {
-  it("renders one migrated foundation card anchored on the canonical metadata", () => {
-    renderSection();
+describe("BenefitsSection field-group boundary", () => {
+  it("renders one field group with no card chrome of its own", () => {
+    const { container } = renderRoot();
 
-    const card = screen
-      .getByRole("heading", {
-        level: 2,
-        name: sectionTitle("benefits-pay-frequency"),
-      })
-      .closest('[data-slot="card"]');
-
-    expect(card).toHaveAttribute("data-pf-section-card");
-    expect(card).toHaveAttribute(
-      "id",
-      sectionAnchorId("benefits-pay-frequency"),
-    );
-    expect(card).toHaveAttribute("data-size", "sm");
-    expect(card?.className).toContain("h-fit");
-    // One card only: it owns its section chrome and no legacy shell survives.
-    expect(document.querySelectorAll('[data-slot="card"]')).toHaveLength(1);
-    expect(card?.querySelector(".size-8.rounded-xl")).toBeNull();
+    // The wizard step shell owns the single card of the step.
+    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(0);
+    expect(container.querySelector('[data-slot="field-group"]')).not.toBeNull();
   });
 
-  it("composes the shared card through the canonical section metadata", () => {
-    expect(source).toMatch(/from "\.\/form-section-card"/);
-    expect(source).toMatch(/<FormSectionCard/);
-    expect(source).toMatch(/sectionAnchorId\("benefits-pay-frequency"\)/);
-    expect(source).toMatch(/sectionTitle\("benefits-pay-frequency"\)/);
+  it("keeps the card out of the field group and delegates chrome to the step", () => {
+    expect(source).not.toMatch(/from "\.\/form-section-card"/);
+    expect(source).not.toMatch(/<FormSectionCard/);
+    expect(source).not.toMatch(/sectionAnchorId|sectionTitle/);
     expect(source).not.toMatch(/from "\.\/controls"/);
     expect(source).not.toMatch(/<FormSection[\s>]/);
   });
@@ -232,12 +272,18 @@ describe("BenefitsSection layout foundation", () => {
 describe("BenefitsSection boundaries", () => {
   it("builds the option sets from the catalogs and documented primitives", () => {
     expect(source).toMatch(/from "\.\/prototype-model"/);
-    expect(source).toMatch(/from "@\/components\/ui\/checkbox"/);
-    expect(source).toMatch(/from "@\/components\/ui\/toggle-group"/);
+    expect(source).toMatch(/from "@\/components\/ui\/combobox"/);
+    expect(source).toMatch(/from "@\/components\/ui\/select"/);
     expect(source).toMatch(/BENEFIT_OPTIONS/);
     expect(source).toMatch(/PAY_FREQUENCY_OPTIONS/);
-    expect(source).toMatch(/<FieldSet/);
-    expect(source).toMatch(/<FieldLegend/);
+    expect(source).toMatch(/<Combobox\b/);
+    expect(source).toMatch(/<SelectItem/);
+    // The root owns the catalog (so Base UI filters it) and the list renders the
+    // filtered collection through a function child instead of fixed children.
+    expect(source).toMatch(/items=\{BENEFIT_OPTIONS\}/);
+    expect(source).toMatch(/<ComboboxList>[\s\S]*?\{\(option/u);
+    // Neither retired option-set primitive survives in this section.
+    expect(source).not.toMatch(/checkbox|ToggleGroup/i);
     // No hand-rolled button loop for the benefit option set.
     expect(source).not.toMatch(/BENEFIT_OPTIONS\.map\([\s\S]*?<Button/u);
   });
@@ -247,5 +293,108 @@ describe("BenefitsSection boundaries", () => {
       /createJob|requestJson|schemas|zod|lib\/api|createJobRequestSchema/,
     );
     expect(source).not.toMatch(/\bfetch\s*\(/u);
+  });
+});
+
+/**
+ * The anchored popup composition, kept last on purpose.
+ *
+ * Opening the portal popup under jsdom repositions for seconds and leaks that
+ * cost into whatever runs next; a long enough popup pass also makes Vitest's
+ * worker RPC time out. The popup assertions are therefore kept to two small
+ * passes that each prove one behaviour: the first keeps the list open through a
+ * selection so a second search and a removal can be driven in one session, the
+ * second covers the empty state. The popup has no jsdom layout, so options are
+ * proven by document presence and the selection callback, not by visibility.
+ */
+describe("BenefitsSection benefit search", () => {
+  /** Opens the input-owned popup and types a query into the chips input. */
+  function openSearch(query: string) {
+    const input = screen.getByRole("combobox", { name: "Beneficios" });
+    // Base UI opens the popup on mousedown and filters on input.
+    fireEvent.mouseDown(input);
+    fireEvent.change(input, { target: { value: query } });
+    return input;
+  }
+
+  it("filters by label, then immediately searches and removes from a controlled parent", () => {
+    const onChange = vi.fn();
+    render(<ControlledBenefitsSection onChange={onChange} />);
+    const input = screen.getByRole("combobox", { name: "Beneficios" });
+
+    // Base UI opens the popup on mousedown and filters on input.
+    fireEvent.mouseDown(input);
+    fireEvent.change(input, { target: { value: "Seguro" } });
+
+    // The live query owns the filtered collection, independently of the
+    // popup's retained close query. Exact close/reopen timing is browser-tested.
+    const popup = document.querySelector(
+      '[data-slot="combobox-content"]',
+    ) as HTMLElement;
+    expect(popup).not.toBeNull();
+    expect(source).toContain("filteredItems={filteredBenefits}");
+    expect(source).toContain("inputValue={query}");
+    expect(source).toContain("onInputValueChange={setQuery}");
+
+    // A matching query keeps only the matching catalog benefit in the list.
+    expect(optionLabels(popup)).toEqual(["Seguro de salud"]);
+
+    // Select that benefit without a filter in the way: an unfiltered multiple
+    // selection keeps this list open, so the next search happens in the same
+    // popup session instead of a remount.
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.click(optionByText(popup, "Seguro de salud"));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(firstPayload(onChange).benefits).toEqual(["health_insurance"]);
+    expect(benefitChips().map((chip) => chip.textContent)).toEqual([
+      "Seguro de salud",
+    ]);
+
+    // Immediately search again, without blurring or refocusing the input. A real
+    // keystroke fires an `input` event carrying `inputType`, and the live query
+    // must own the list from here on.
+    fireEvent.input(input, {
+      target: { value: "equipo" },
+      inputType: "insertText",
+    });
+    expect(optionLabels(popup)).toEqual(["Equipo de cómputo"]);
+
+    fireEvent.click(optionByText(popup, "Equipo de cómputo"));
+    // Catalog order holds after a filtered selection.
+    expect(benefitChips().map((chip) => chip.textContent)).toEqual([
+      "Seguro de salud",
+      "Equipo de cómputo",
+    ]);
+
+    // Removal still works from the same controlled parent.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Quitar Seguro de salud" }),
+    );
+    expect(benefitChips().map((chip) => chip.textContent)).toEqual([
+      "Equipo de cómputo",
+    ]);
+    expect(
+      screen.getByText(
+        `1 de ${BENEFIT_OPTIONS.length} beneficios seleccionados.`,
+      ),
+    ).toBeVisible();
+  });
+
+  it("surfaces the empty state and recovers when the query stops matching", () => {
+    renderSection();
+
+    const input = openSearch("zzz");
+
+    expect(screen.queryAllByRole("option")).toHaveLength(0);
+    expect(
+      document.querySelector('[data-slot="combobox-content"]'),
+    ).toHaveAttribute("data-empty");
+    expect(screen.getByText(/Sin resultados/u)).toBeInTheDocument();
+
+    // Clearing the query recovers the full catalog.
+    fireEvent.change(input, { target: { value: "" } });
+    expect(
+      screen.getByRole("option", { name: "Bono anual" }),
+    ).toBeInTheDocument();
   });
 });

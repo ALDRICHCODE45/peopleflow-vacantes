@@ -26,6 +26,7 @@ import {
   IconSettings,
   IconUsers,
   IconUsersGroup,
+  IconWorld,
 } from "@tabler/icons-react"
 
 type NavItem = {
@@ -43,9 +44,10 @@ const UNRESOLVED_URL = "#"
 /**
  * Recruiting navigation for the employer dashboard prototype.
  *
- * `Dashboard`, `Vacantes` and `Equipo` resolve to real routes and light up from
- * the current pathname; every remaining destination is a presentation
- * placeholder: visible, enabled and inert, never marked active.
+ * `Dashboard`, `Vacantes`, `Base de talento`, `Equipo` and `Sitio de empleo`
+ * resolve to real routes and light up from the current pathname; every remaining
+ * destination is a presentation placeholder: visible, enabled and inert, never
+ * marked active.
  */
 const data = {
   user: {
@@ -68,8 +70,8 @@ const data = {
       icon: <IconBriefcase />,
     },
     {
-      title: "Candidatos",
-      url: UNRESOLVED_URL,
+      title: "Base de talento",
+      url: "/empresa/talento",
       icon: <IconUsers />,
     },
     {
@@ -83,6 +85,11 @@ const data = {
       title: "Equipo",
       url: "/empresa/equipo",
       icon: <IconUsersGroup />,
+    },
+    {
+      title: "Sitio de empleo",
+      url: "/empresa/sitio",
+      icon: <IconWorld />,
     },
     {
       title: "Reportes",

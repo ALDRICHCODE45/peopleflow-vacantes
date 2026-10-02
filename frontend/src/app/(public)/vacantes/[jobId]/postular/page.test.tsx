@@ -41,14 +41,20 @@ const resolveLocal = (specifier: string): string => {
   return found;
 };
 
-/** Read the feature shell the route imports, wherever the application flow places it. */
-const shellSource = (): string => {
+/** Read one named feature module the route imports, wherever the application flow places it. */
+const importedSource = (name: string): string => {
   const match = readRoute().match(
-    /import\s*\{[^}]*\bVacancyApplicationShell\b[^}]*\}\s*from\s*["']([^"']+)["']/,
+    new RegExp(`import\\s*\\{[^}]*\\b${name}\\b[^}]*\\}\\s*from\\s*["']([^"']+)["']`),
   );
-  if (match === null) throw new Error("route must import { VacancyApplicationShell }");
+  if (match === null) throw new Error(`route must import { ${name} }`);
   return readFileSync(resolveLocal(match[1]), "utf8");
 };
+
+/** Read the feature shell the route imports, wherever the application flow places it. */
+const shellSource = (): string => importedSource("VacancyApplicationShell");
+
+/** Read the static vacancy summary the route slots into the client wizard rail. */
+const summarySource = (): string => importedSource("VacancyApplicationSummary");
 
 const okFetch = () =>
   vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => wireJob });
@@ -94,6 +100,10 @@ describe("/vacantes/[jobId]/postular route boundaries", () => {
     expect(source).toMatch(/throw\s+new\s+Error\(/);
     // Enrichment is attached only at the render boundary, never in page-data.
     expect(source).toMatch(/<VacancyApplicationShell[^>]*job=\{enrichJob\(result\.job\)\}/);
+    // The static vacancy summary is a server-composed slot handed to the client wizard.
+    expect(source).toMatch(/vacancySummary=\{<VacancyApplicationSummary\b/);
+    expect(source).toMatch(/vacancySummary=\{<VacancyApplicationSummary[^>]*job=\{enrichJob\(result\.job\)\}[^>]*\/>\}/);
+    expect(source).toMatch(/from\s*["'][^"']*vacancy-application-summary["']/);
     expect(source).not.toMatch(
       /["']use client["']|requestJson|QueryClientProvider|HydrationBoundary/,
     );
@@ -162,13 +172,28 @@ describe("/vacantes/[jobId]/postular route boundaries", () => {
 });
 
 describe("VacancyApplicationShell feature contract", () => {
-  it("composes local shadcn primitives with semantic tokens and no client behavior", () => {
+  it("stays a server header wrapper with no client behavior", () => {
     const source = shellSource();
+    expect(source).toMatch(/data-pf-application-header/);
+    expect(source).toMatch(/\{\s*children\s*\}/);
+    expect(source).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|oklch\(/);
+    expect(source).not.toMatch(/(?:bg|text|border|ring|from|to|via)-primary-\d/);
+    expect(source).not.toMatch(RAW_COLOR_UTILITY);
+    expect(source).not.toMatch(/["']use client["']/);
+    expect(source).not.toMatch(
+      /\bfetch\(|requestJson|next\/navigation|useRouter|useSearchParams|useParams|localStorage|sessionStorage|indexedDB|document\.cookie|<form\b|onSubmit|setTimeout|setInterval|Math\.random|Date\.now/,
+    );
+  });
+
+  it("keeps the static vacancy summary server-composed from local primitives", () => {
+    const source = summarySource();
     for (const primitive of ["card", "avatar", "badge", "separator"]) {
       expect(source).toMatch(new RegExp(`components/ui/${primitive}["']`));
     }
+    expect(source).toMatch(/Resumen de la vacante/);
     expect(source).not.toMatch(/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|oklch\(/);
     expect(source).not.toMatch(/(?:bg|text|border|ring|from|to|via)-primary-\d/);
+    expect(source).not.toMatch(RAW_COLOR_UTILITY);
     expect(source).not.toMatch(/["']use client["']/);
     expect(source).not.toMatch(
       /\bfetch\(|requestJson|next\/navigation|useRouter|useSearchParams|useParams|localStorage|sessionStorage|indexedDB|document\.cookie|<form\b|onSubmit|setTimeout|setInterval|Math\.random|Date\.now/,

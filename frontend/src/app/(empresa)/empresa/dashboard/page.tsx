@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 
 import { ActiveVacancies } from "@/components/company-dashboard/active-vacancies"
 import { ChartAreaInteractive } from "@/components/company-dashboard/chart-area-interactive"
+import { DashboardPageContent } from "@/components/dashboard-page-content"
 import { DataTable } from "@/components/company-dashboard/data-table"
 import { SectionCards } from "@/components/company-dashboard/section-cards"
 import { SiteHeader } from "@/components/company-dashboard/site-header"
@@ -24,17 +25,16 @@ export default function Page() {
   return (
     <>
       <SiteHeader />
-      <div className="flex flex-1 flex-col">
-        <div className="@container/main flex flex-1 flex-col gap-2">
-          <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-            <SectionCards />
-            <div className="px-4 lg:px-6">
-              <ChartAreaInteractive />
-            </div>
-            <ActiveVacancies vacancies={NEXO_VACANCIES} />
-            <DataTable data={data} />
-          </div>
-        </div>
+      <div className="@container/main flex flex-1 flex-col">
+        {/* One outer padding owner: the shared page-content wrapper, so the KPI
+            cards, chart, active vacancies and data table no longer each carry
+            their own horizontal inset. */}
+        <DashboardPageContent width="screen-2xl" className="gap-4 md:gap-6">
+          <SectionCards />
+          <ChartAreaInteractive />
+          <ActiveVacancies vacancies={NEXO_VACANCIES} />
+          <DataTable data={data} />
+        </DashboardPageContent>
       </div>
     </>
   )

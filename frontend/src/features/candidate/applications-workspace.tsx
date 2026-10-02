@@ -5,6 +5,7 @@ import { ArrowUpRight, Briefcase, CalendarClock, CalendarDays, Ellipsis, Externa
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 
+import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -356,7 +357,7 @@ export function ApplicationsWorkspace({ applications }: ApplicationsWorkspacePro
   const clearFilters = () => { setQuery(""); setStatus("all"); };
 
   return (
-    <div data-pf-applications-workspace className="mx-auto w-full max-w-screen-2xl flex flex-col gap-5 px-4 py-4 lg:px-6">
+    <DashboardPageContent data-pf-applications-workspace width="screen-2xl" className="gap-5">
       <header data-pf-applications-intro className="flex flex-col gap-2">
         <h2 className="font-heading text-2xl font-semibold tracking-tight text-foreground">Postulaciones</h2>
       </header>
@@ -453,6 +454,6 @@ export function ApplicationsWorkspace({ applications }: ApplicationsWorkspacePro
           </ItemGroup>
         )}
       </div>
-    </div>
+    </DashboardPageContent>
   );
 }

@@ -11,8 +11,17 @@ import {
 import { cn } from "cn";
 
 import { Button } from "@/components/ui/button";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverDescription,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   applyBold, applyBulletList, applyItalic, applyLink, applyNumberedList,
@@ -20,14 +29,17 @@ import {
 } from "./rich-text-model";
 import type { RichTextEdit, RichTextInline, RichTextRange } from "./rich-text-model";
 
-const UNSAFE_LINK_MESSAGE = "Ingresá un enlace que empiece con http:// o https://.";
-/** The five toolbar actions, in the order the surface shows them. */
+const UNSAFE_LINK_MESSAGE = "Ingresa un enlace que empiece con http:// o https://.";
+/** The formatting actions the safe token model supports, in surface order. */
 const FORMAT_ACTIONS = [
   { label: "Negrita", icon: BoldIcon, apply: applyBold },
   { label: "Cursiva", icon: ItalicIcon, apply: applyItalic },
   { label: "Lista con viñetas", icon: ListIcon, apply: applyBulletList },
   { label: "Lista numerada", icon: ListOrderedIcon, apply: applyNumberedList },
 ] as const;
+
+/** The two explicit editor modes: exactly one surface is mounted at a time. */
+type EditorMode = "edit" | "preview";
 
 export type RichTextFieldProps = {
   /** Control id, so an enclosing form keeps its label and error wiring. */
@@ -50,9 +62,12 @@ export type RichTextFieldProps = {
 };
 
 /**
- * Controlled plain-text field with a formatting toolbar and a live preview: the
- * value stays one plain string, the toolbar only inserts lightweight tokens, and
- * the preview renders those tokens as ordinary elements.
+ * Controlled plain-text field with a formatting toolbar and an explicit preview
+ * mode: the value stays one plain string, the toolbar only inserts lightweight
+ * tokens, and the preview renders those tokens as ordinary elements. The two
+ * modes are exclusive, so the editing surface and the preview never compete, and
+ * the optional link editor lives in an installed Popover instead of an
+ * always-visible side form.
  */
 export function RichTextField({
   id,
@@ -66,6 +81,10 @@ export function RichTextField({
 }: RichTextFieldProps) {
   const textareaRef = React.useRef<HTMLTextAreaElement | null>(null);
   const pendingSelection = React.useRef<RichTextRange | null>(null);
+  /** Selection captured when the link editor opened, so insertion keeps it. */
+  const linkSelection = React.useRef<RichTextRange | null>(null);
+  const [mode, setMode] = React.useState<EditorMode>("edit");
+  const [linkOpen, setLinkOpen] = React.useState(false);
   const [linkUrl, setLinkUrl] = React.useState("");
   const [linkError, setLinkError] = React.useState<string | null>(null);
 
@@ -95,6 +114,11 @@ export function RichTextField({
     : errorId;
   /** Only a present error slot describes the control; a valid field has none. */
   const describedBy = invalid ? resolvedErrorId : undefined;
+  /**
+   * An invalid field always shows its editing surface, so the control and the
+   * error that describes it are mounted together.
+   */
+  const activeMode: EditorMode = invalid ? "edit" : mode;
 
   function currentSelection(): RichTextRange {
     const textarea = textareaRef.current;
@@ -107,82 +131,142 @@ export function RichTextField({
     onChange(edit.value);
   }
 
+  /**
+   * Opening the editor freezes the textarea selection before focus moves to the
+   * popup; closing it drops any stale validation message.
+   */
+  function handleLinkOpenChange(open: boolean) {
+    if (open) linkSelection.current = currentSelection();
+    else setLinkError(null);
+    setLinkOpen(open);
+  }
+
   function addLink() {
     if (sanitizeLinkUrl(linkUrl) === null) {
       setLinkError(UNSAFE_LINK_MESSAGE);
       return;
     }
+    const selection = linkSelection.current ?? currentSelection();
+    linkSelection.current = null;
     setLinkError(null);
-    runEdit(applyLink(value, currentSelection(), linkUrl));
+    runEdit(applyLink(value, selection, linkUrl));
     setLinkUrl("");
+    setLinkOpen(false);
   }
 
   return (
     <Field data-invalid={invalid}>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      {/*
+        Only the editing surface owns a real control to point at. In preview the
+        textarea is unmounted, so the field name is a plain title and the named
+        preview region carries the accessible context instead of a dangling label.
+      */}
+      {activeMode === "edit" ? (
+        <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      ) : (
+        <FieldTitle>{label}</FieldTitle>
+      )}
 
-      <div
-        role="toolbar"
-        aria-label={`Formato de ${label}`}
-        className="flex flex-wrap items-center gap-1"
+      <Tabs
+        value={activeMode}
+        onValueChange={(next) => setMode(next === "preview" ? "preview" : "edit")}
       >
-        {FORMAT_ACTIONS.map(({ label: action, icon: Icon, apply }) => (
-          <Button
-            key={action}
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => runEdit(apply(value, currentSelection()))}
+        <TabsList aria-label={`Modo de ${label}`}>
+          <TabsTrigger value="edit">Escribir</TabsTrigger>
+          <TabsTrigger value="preview">Vista previa</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="edit" className="flex flex-col gap-3">
+          <div
+            role="toolbar"
+            aria-label={`Formato de ${label}`}
+            className="flex flex-wrap items-center gap-1"
           >
-            <Icon data-icon="inline-start" />
-            {action}
-          </Button>
-        ))}
-      </div>
+            {FORMAT_ACTIONS.map(({ label: action, icon: Icon, apply }) => (
+              <Button
+                key={action}
+                type="button"
+                variant="ghost"
+                className="h-10"
+                onClick={() => runEdit(apply(value, currentSelection()))}
+              >
+                <Icon data-icon="inline-start" />
+                {action}
+              </Button>
+            ))}
 
-      <Textarea
-        ref={textareaRef}
-        id={id}
-        name={id}
-        rows={rows}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        aria-invalid={invalid}
-        aria-describedby={describedBy}
-        placeholder={placeholder}
-      />
-      <FieldError id={resolvedErrorId}>{error}</FieldError>
+            <Popover open={linkOpen} onOpenChange={handleLinkOpenChange}>
+              <PopoverTrigger
+                render={
+                  <Button type="button" variant="ghost" className="h-10">
+                    <LinkIcon data-icon="inline-start" />
+                    Enlace
+                  </Button>
+                }
+              />
+              <PopoverContent finalFocus={textareaRef} align="start">
+                <PopoverHeader>
+                  <PopoverTitle>Agregar enlace</PopoverTitle>
+                  <PopoverDescription>
+                    Pega una dirección que empiece con http:// o https://.
+                  </PopoverDescription>
+                </PopoverHeader>
 
-      <div className="flex flex-wrap items-end gap-2">
-        <Field className="max-w-xs">
-          <FieldLabel htmlFor={linkInputId}>Dirección del enlace</FieldLabel>
-          <Input
-            id={linkInputId}
-            value={linkUrl}
-            onChange={(event) => setLinkUrl(event.target.value)}
-            aria-invalid={linkError !== null}
-            aria-describedby={linkError !== null ? linkErrorId : undefined}
-            placeholder="https://ejemplo.com"
-            inputMode="url"
-            autoComplete="off"
+                <Field data-invalid={linkError !== null}>
+                  <FieldLabel htmlFor={linkInputId}>
+                    Dirección del enlace
+                  </FieldLabel>
+                  <Input
+                    id={linkInputId}
+                    value={linkUrl}
+                    onChange={(event) => {
+                      setLinkUrl(event.target.value);
+                      if (linkError !== null) setLinkError(null);
+                    }}
+                    aria-invalid={linkError !== null}
+                    aria-describedby={linkError !== null ? linkErrorId : undefined}
+                    placeholder="https://ejemplo.com"
+                    inputMode="url"
+                    autoComplete="off"
+                  />
+                  <FieldError id={linkErrorId}>{linkError}</FieldError>
+                </Field>
+
+                <Button type="button" variant="outline" className="h-10" onClick={addLink}>
+                  <LinkIcon data-icon="inline-start" />
+                  Agregar enlace
+                </Button>
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          <Textarea
+            className="text-foreground"
+            ref={textareaRef}
+            id={id}
+            name={id}
+            rows={rows}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            aria-invalid={invalid}
+            aria-describedby={describedBy}
+            placeholder={placeholder}
           />
-        </Field>
-        <Button type="button" variant="outline" size="sm" onClick={addLink}>
-          <LinkIcon data-icon="inline-start" />
-          Agregar enlace
-        </Button>
-      </div>
-      <FieldError id={linkErrorId}>{linkError}</FieldError>
+          <FieldError id={resolvedErrorId}>{error}</FieldError>
+        </TabsContent>
 
-      <div
-        role="region"
-        aria-label={`Vista previa de ${label}`}
-        aria-live="polite"
-        className="flex flex-col gap-2 rounded-2xl border border-border bg-muted/40 p-3"
-      >
-        <p className="text-xs font-medium text-muted-foreground">Vista previa</p>
-        <FormattedPreview value={value} />
-      </div>
+        <TabsContent value="preview">
+          <div
+            role="region"
+            aria-label={`Vista previa de ${label}`}
+            aria-live="polite"
+            className="flex flex-col gap-2 rounded-2xl border border-border bg-muted/40 p-3"
+          >
+            <p className="text-xs font-medium text-muted-foreground">Vista previa</p>
+            <FormattedPreview value={value} />
+          </div>
+        </TabsContent>
+      </Tabs>
     </Field>
   );
 }

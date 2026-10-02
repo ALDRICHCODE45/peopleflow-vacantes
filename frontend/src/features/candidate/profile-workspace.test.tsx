@@ -481,7 +481,7 @@ describe("profile workspace contract", () => {
     const { container } = renderWorkspace();
     const root = container.querySelector("[data-pf-profile-workspace]") as HTMLElement;
     const tokens = root.className.split(/\s+/u);
-    for (const token of ["px-4", "py-4", "lg:px-6"]) expect(tokens, token).toContain(token);
+    for (const token of ["px-4", "py-4", "md:py-6", "lg:px-6"]) expect(tokens, token).toContain(token);
     const owners = Array.from(container.querySelectorAll("[class]")).filter((node) => {
       const value = (node.getAttribute("class") ?? "").split(/\s+/u);
       return value.includes("px-4") && value.includes("lg:px-6");
@@ -530,7 +530,7 @@ describe("profile workspace contract", () => {
 
   it("stays a local client orchestrator over the profile with no fixture, transport or persistence", () => {
     expect(SOURCE).toMatch(/^"use client";/u);
-    expect(modulesOf(SOURCE)).toEqual(["./model", "./profile-draft", "./profile-form-fields", "@/components/ui/avatar", "@/components/ui/badge", "@/components/ui/button", "@/components/ui/card", "@/components/ui/progress", "@/components/ui/tabs", "lucide-react", "react"]);
+    expect(modulesOf(SOURCE)).toEqual(["./model", "./profile-draft", "./profile-form-fields", "@/components/dashboard-page-content", "@/components/ui/avatar", "@/components/ui/badge", "@/components/ui/button", "@/components/ui/card", "@/components/ui/progress", "@/components/ui/tabs", "lucide-react", "react"]);
     expect(SOURCE).toContain("<Progress");
     expect(SOURCE).not.toContain("<progress");
     for (const forbidden of ["prototype-candidate", "CANDIDATE_PROFILE", "candidateProfileSchema", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.", "document.cookie", "useRouter", "next/navigation", "setTimeout", "setInterval", "Math.random", "Date.now", "window.", "Notification", "alert(", "console.", "onNavigate", "onSave", "crypto."]) {

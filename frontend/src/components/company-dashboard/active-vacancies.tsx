@@ -41,7 +41,7 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVac
     <section
       aria-labelledby={HEADING_ID}
       data-pf-active-vacancies=""
-      className="flex flex-col gap-4 px-4 lg:px-6"
+      className="flex flex-col gap-4"
     >
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h2

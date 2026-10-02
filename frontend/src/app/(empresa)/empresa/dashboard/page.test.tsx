@@ -140,7 +140,7 @@ describe("/empresa/dashboard renders the complete official dashboard-01 block", 
     for (const label of [
       "Dashboard",
       "Vacantes",
-      "Candidatos",
+      "Base de talento",
       "Mensajes",
       "Equipo",
       "Reportes",
@@ -152,11 +152,13 @@ describe("/empresa/dashboard renders the complete official dashboard-01 block", 
       ).toBeGreaterThan(0);
     }
 
-    // Dashboard, Vacantes and Equipo are real routes; the rest are presentation
-    // placeholders that stay invisible to navigation but visible to the user.
+    // Dashboard, Vacantes, Base de talento and Equipo are real routes; the rest
+    // are presentation placeholders that stay invisible to navigation but
+    // visible to the user.
     for (const [label, href] of [
       ["Dashboard", "/empresa/dashboard"],
       ["Vacantes", "/empresa/vacantes"],
+      ["Base de talento", "/empresa/talento"],
       ["Equipo", "/empresa/equipo"],
     ] as const) {
       expect(
@@ -164,7 +166,7 @@ describe("/empresa/dashboard renders the complete official dashboard-01 block", 
         `${label} destination`,
       ).toHaveAttribute("href", href);
     }
-    for (const label of ["Candidatos", "Mensajes", "Reportes", "Configuración"]) {
+    for (const label of ["Mensajes", "Reportes", "Configuración"]) {
       const placeholder = screen.getByRole("button", { name: label });
       expect(placeholder, `${label} prototype target`).toHaveAttribute(
         "type",
@@ -1469,5 +1471,75 @@ describe("dashboard-01 mobile chart and range geometry contracts", () => {
     for (const item of items) {
       expect(item.className).toContain("h-8");
     }
+  });
+});
+
+// --- single outer padding owner ----------------------------------------------
+
+// The spacing normalization agreement: one outer padding owner per dashboard
+// route, 16px mobile / 24px desktop vertically and the existing `lg`+ 24px
+// horizontal inset. The employer dashboard used to fragment that inset across
+// SectionCards, the chart, ActiveVacancies and DataTable.
+describe("dashboard-01 single outer padding owner", () => {
+  beforeEach(stubBrowserApis);
+
+  it("owns the route inset on exactly one page-content element", () => {
+    const { container } = render(<EmployerDashboardPage />);
+
+    const content = container.querySelector(
+      "[data-pf-page-content]",
+    ) as HTMLElement;
+    expect(content).not.toBeNull();
+    const tokens = content.className.split(/\s+/u);
+    for (const token of ["px-4", "py-4", "md:py-6", "lg:px-6"]) {
+      expect(tokens, token).toContain(token);
+    }
+
+    // The employer canvas binds to the candidate canonical measure explicitly.
+    for (const token of ["mx-auto", "w-full", "max-w-screen-2xl"]) {
+      expect(tokens, token).toContain(token);
+    }
+    expect(tokens.filter((token) => token.startsWith("max-w-"))).toEqual([
+      "max-w-screen-2xl",
+    ]);
+
+    // No descendant re-adds both page insets, so the route cannot double pad.
+    const owners = Array.from(content.querySelectorAll("[class]")).filter(
+      (node) => {
+        const value = (node.getAttribute("class") ?? "").split(/\s+/u);
+        return value.includes("px-4") && value.includes("lg:px-6");
+      },
+    );
+    expect(owners).toEqual([]);
+  });
+
+  it("stops the KPI cards, active vacancies and data table from re-adding page padding", () => {
+    const { container } = render(<EmployerDashboardPage />);
+
+    const kpi = container.querySelector("[data-pf-kpi-cards]") as HTMLElement;
+    const active = container.querySelector(
+      "[data-pf-active-vacancies]",
+    ) as HTMLElement;
+    const toolbar = screen.getByRole("heading", { name: "Candidatos recientes" })
+      .parentElement as HTMLElement;
+
+    for (const node of [kpi, active, toolbar]) {
+      expect(node.className).not.toContain("px-4");
+      expect(node.className).not.toContain("lg:px-6");
+    }
+  });
+
+  it("keeps the padded content inside the unpadded @container/main query root", () => {
+    const { container } = render(<EmployerDashboardPage />);
+
+    const content = container.querySelector(
+      "[data-pf-page-content]",
+    ) as HTMLElement;
+    const containerRoot = content.parentElement as HTMLElement;
+
+    // The container query root stays unpadded, so its measured inline size — and
+    // therefore every `@.../main` breakpoint — is unchanged.
+    expect(containerRoot.className).toContain("@container/main");
+    expect(containerRoot.className).not.toContain("px-4");
   });
 });

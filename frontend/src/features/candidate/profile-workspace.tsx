@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ClipboardCheckIcon, Undo2Icon } from "lucide-react";
 
+import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -179,7 +180,7 @@ export function ProfileWorkspace({ identity, profile, avatarSrc }: ProfileWorksp
   };
 
   return (
-    <div data-pf-profile-workspace className="mx-auto w-full max-w-screen-2xl px-4 py-4 lg:px-6">
+    <DashboardPageContent data-pf-profile-workspace width="screen-2xl">
       <form ref={formRef} noValidate data-pf-profile-form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <div data-pf-profile-toolbar className={TOOLBAR}>
           <div className={TOOLBAR_COPY}>
@@ -243,6 +244,6 @@ export function ProfileWorkspace({ identity, profile, avatarSrc }: ProfileWorksp
           </Tabs>
         </Card>
       </form>
-    </div>
+    </DashboardPageContent>
   );
 }

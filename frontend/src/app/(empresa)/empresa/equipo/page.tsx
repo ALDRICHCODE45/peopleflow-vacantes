@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 
 import { SiteHeader } from "@/components/company-dashboard/site-header"
+import { DashboardPageContent } from "@/components/dashboard-page-content"
 import { TeamInvitation } from "@/features/employer-team/team-invitation"
 import { NEXO_TEAM_MEMBERS } from "@/features/employer-team/prototype-team"
 import { TeamWorkspace } from "@/features/employer-team/team-workspace"
@@ -23,26 +24,25 @@ export default function Page() {
   return (
     <>
       <SiteHeader title="Equipo" />
-      <div className="flex flex-1 flex-col">
-        <div className="@container/main flex flex-1 flex-col gap-2">
-          <div
-            data-pf-equipo-content=""
-            className="flex flex-col gap-5 px-4 py-5 md:gap-6 md:py-6 lg:px-6"
+      <div className="@container/main flex flex-1 flex-col">
+        <DashboardPageContent
+          data-pf-equipo-content=""
+          width="screen-2xl"
+          className="gap-5 md:gap-6"
+        >
+          <section
+            data-pf-equipo-intro=""
+            aria-label="Presentación del equipo"
+            className="flex flex-col gap-1.5"
           >
-            <section
-              data-pf-equipo-intro=""
-              aria-label="Presentación del equipo"
-              className="flex flex-col gap-1.5"
-            >
-              <p className="max-w-prose text-[13.5px] text-muted-foreground">
-                Consulta las personas, roles y carga de trabajo de tu equipo de
-                reclutamiento.
-              </p>
-            </section>
-            <TeamInvitation />
-            <TeamWorkspace members={NEXO_TEAM_MEMBERS} />
-          </div>
-        </div>
+            <p className="max-w-prose text-[13.5px] text-muted-foreground">
+              Consulta las personas, roles y carga de trabajo de tu equipo de
+              reclutamiento.
+            </p>
+          </section>
+          <TeamInvitation />
+          <TeamWorkspace members={NEXO_TEAM_MEMBERS} />
+        </DashboardPageContent>
       </div>
     </>
   )

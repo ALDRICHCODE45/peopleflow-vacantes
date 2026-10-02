@@ -1,6 +1,7 @@
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -208,10 +209,32 @@ describe("/empresa/vacantes/[jobId]/pipeline content", () => {
 
     const content = container.querySelector("[data-pf-pipeline-content]")!;
     expect(content.className).toContain("px-4");
+    expect(content.className).toContain("py-4");
+    expect(content.className).toContain("md:py-6");
     expect(content.className).toContain("lg:px-6");
+    // The route mounts the shared page-content wrapper as its single padding owner.
+    expect(content.hasAttribute("data-pf-page-content")).toBe(true);
     expect(content.contains(container.querySelector("[data-pf-pipeline]"))).toBe(true);
     expect(container.querySelector("[data-pf-pipeline-search]")).not.toBeNull();
     expect(container.querySelector("[data-pf-pipeline-view]")).not.toBeNull();
+  });
+
+  it("keeps one screen-2xl measure on the whole body across both views", async () => {
+    const user = userEvent.setup();
+    const { container } = await renderPipeline(NEXO_VACANCIES[0].id);
+
+    const content = container.querySelector("[data-pf-pipeline-content]") as HTMLElement;
+    for (const token of ["mx-auto", "w-full", "max-w-screen-2xl"]) {
+      expect(content.className, token).toContain(token);
+    }
+    // The board is the first body; the measure is owned by the route, not the view.
+    expect(content.contains(container.querySelector("[data-pf-pipeline-board]"))).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+    expect(content.contains(container.querySelector("[data-pf-pipeline-list]"))).toBe(true);
+    for (const token of ["mx-auto", "w-full", "max-w-screen-2xl"]) {
+      expect(content.className, token).toContain(token);
+    }
   });
 });
 
@@ -258,6 +281,7 @@ describe("/empresa/vacantes/[jobId]/pipeline source boundaries", () => {
     expect(pageSource).toMatch(/export async function generateMetadata/u);
     expect(pageSource).toMatch(/filterCandidatesByVacancy\(/u);
     expect(pageSource).toMatch(/<PipelineWorkspace\b/u);
+    expect(pageSource).toMatch(/width="screen-2xl"/u);
     expect(pageSource).not.toMatch(/Nueva candidatura|Agregar candidato|PlusIcon/u);
   });
 

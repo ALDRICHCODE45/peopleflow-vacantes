@@ -27,20 +27,26 @@ const source = readFileSync(
 const PRINCIPAL_ITEMS = [
   "Dashboard",
   "Vacantes",
-  "Candidatos",
+  "Base de talento",
   "Mensajes",
 ] as const;
-const ORGANIZATION_ITEMS = ["Equipo", "Reportes", "Configuración"] as const;
+const ORGANIZATION_ITEMS = [
+  "Equipo",
+  "Sitio de empleo",
+  "Reportes",
+  "Configuración",
+] as const;
 
 // Destinations backed by real App Router routes, and the unresolved
 // presentation placeholders that render inert instead of as anchors.
 const RESOLVED_DESTINATIONS = {
   Dashboard: "/empresa/dashboard",
   Vacantes: "/empresa/vacantes",
+  "Base de talento": "/empresa/talento",
   Equipo: "/empresa/equipo",
+  "Sitio de empleo": "/empresa/sitio",
 } as const;
 const PROTOTYPE_ITEMS = [
-  "Candidatos",
   "Mensajes",
   "Reportes",
   "Configuración",
@@ -209,16 +215,28 @@ describe("company dashboard sidebar navigation", () => {
   it("lists the primary recruiting destinations in order", () => {
     renderSidebar();
 
-    // Dashboard and Vacantes are links; Candidatos and Mensajes are inert
-    // buttons. Both roles keep their shared order in the Principal group.
+    // Dashboard, Vacantes and Base de talento are links; Mensajes is an inert
+    // button. Both roles keep their shared order in the Principal group.
     expect(groupDestinations("Principal")).toEqual([...PRINCIPAL_ITEMS]);
   });
 
   it("lists the organization destinations in order", () => {
     renderSidebar();
 
-    // Equipo is a link; Reportes and Configuración are inert buttons.
+    // Equipo and Sitio de empleo are links; Reportes and Configuración are
+    // inert buttons.
     expect(groupDestinations("Organización")).toEqual([...ORGANIZATION_ITEMS]);
+  });
+
+  it("renders the careers-site destination as a link with its contextual Tabler icon", () => {
+    renderSidebar();
+
+    const link = screen.getByRole("link", { name: "Sitio de empleo" });
+    expect(link).toHaveAttribute("href", "/empresa/sitio");
+    // One icon library per surface: the destinations keep Tabler marks.
+    expect(link.querySelector("svg.tabler-icon")).not.toBeNull();
+    expect(link.querySelector("svg.tabler-icon-world")).not.toBeNull();
+    expect(link.querySelector("svg.lucide")).toBeNull();
   });
 
   it("binds resolved destinations as links and the rest as inert buttons", () => {
@@ -248,6 +266,9 @@ describe("company dashboard sidebar navigation", () => {
     ["/empresa/vacantes/", "Vacantes"],
     ["/empresa/equipo", "Equipo"],
     ["/empresa/equipo/maria-lopez", "Equipo"],
+    ["/empresa/talento", "Base de talento"],
+    ["/empresa/sitio", "Sitio de empleo"],
+    ["/empresa/sitio/identidad", "Sitio de empleo"],
   ])("activates only %s on the %s section", (pathname, expected) => {
     renderSidebar(pathname);
 
@@ -255,10 +276,17 @@ describe("company dashboard sidebar navigation", () => {
   });
 
   it("does not activate a section for a sibling route that shares its prefix", () => {
-    // `/empresa/vacantes-archivadas` is not a child of `/empresa/vacantes`.
-    renderSidebar("/empresa/vacantes-archivadas");
+    // None of these is a child of its similarly named section route.
+    for (const pathname of [
+      "/empresa/vacantes-archivadas",
+      "/empresa/sitio-archivado",
+      "/empresa/equipo-externo",
+    ]) {
+      renderSidebar(pathname);
 
-    expect(activeLabels()).toEqual([]);
+      expect(activeLabels(), `${pathname} sibling`).toEqual([]);
+      cleanup();
+    }
   });
 
   it("activates nothing on an unmatched employer route", () => {

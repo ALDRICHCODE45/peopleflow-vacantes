@@ -413,7 +413,7 @@ export function DataTable({ data: initialData }: { data: ApplicantRow[] }) {
       data-pf-data-table=""
       className="w-full flex-col justify-start gap-6"
     >
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-4 lg:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
         <h3 className="text-base font-medium">Candidatos recientes</h3>
         <TabsList className="hidden **:data-[slot=badge]:size-5 **:data-[slot=badge]:rounded-full **:data-[slot=badge]:bg-muted-foreground/30 **:data-[slot=badge]:px-1 @4xl/main:flex">
           {PIPELINE_TABS.map((tab) => (
@@ -503,7 +503,7 @@ export function DataTable({ data: initialData }: { data: ApplicantRow[] }) {
       */}
       <TabsContent
         value={statusTab}
-        className="relative flex flex-col gap-4 overflow-auto px-4 lg:px-6"
+        className="relative flex flex-col gap-4 overflow-auto"
       >
         <div className="overflow-hidden rounded-lg border">
           <Table>

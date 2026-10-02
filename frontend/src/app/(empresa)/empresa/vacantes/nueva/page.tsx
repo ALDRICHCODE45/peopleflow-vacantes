@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 
+import { DashboardPageContent } from "@/components/dashboard-page-content"
 import { CreateVacancyForm } from "@/features/jobs/create/CreateVacancyForm"
 import { CreateVacancyHeader } from "@/features/jobs/create/CreateVacancyHeader"
 
@@ -19,15 +20,14 @@ export default function Page() {
   return (
     <>
       <CreateVacancyHeader />
-      <div className="flex flex-1 flex-col">
-        <div className="@container/main flex flex-1 flex-col gap-2">
-          <div
-            data-pf-create-vacancy-content=""
-            className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-4 md:gap-6 md:py-6 lg:px-6"
-          >
-            <CreateVacancyForm />
-          </div>
-        </div>
+      <div className="@container/main flex flex-1 flex-col">
+        <DashboardPageContent
+          data-pf-create-vacancy-content=""
+          width="7xl"
+          className="gap-5 md:gap-6"
+        >
+          <CreateVacancyForm />
+        </DashboardPageContent>
       </div>
     </>
   )

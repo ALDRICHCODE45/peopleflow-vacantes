@@ -17,7 +17,20 @@ const MOBILE = { width: 375, height: 812 } as const;
 const STEP = (name: string) => `[data-pf-application-step="${name}"]`;
 const HEADER = "[data-pf-application-header]";
 const FORM_HOST = "[data-pf-application-form-host]";
+const CANDIDATE_CARD = "[data-pf-application-candidate]";
+const FULL_NAME = "#application-full-name";
+const EMAIL = "#application-email";
+const PHONE = "#application-phone";
+const TITLE = "#application-professional-title";
+const CITY = "#application-city";
+const COUNTRY = "#application-country";
 const LETTER = "#application-cover-letter";
+const CV_INPUT = "#application-cv-file";
+const CV_DROP = "[data-pf-application-cv-drop]";
+const CV_SELECTED = "[data-pf-application-cv-selected]";
+const CV_SELECTED_NAME = "[data-pf-application-cv-selected-name]";
+const STEP_TITLE = "[data-pf-application-step-title]";
+const CV_TERM = "CV";
 const SOURCE = "#application-source";
 const LOGIN_HREF = "/candidato/login";
 const PORTRAIT = "/candidate/ximena-barrera.jpg";
@@ -127,6 +140,9 @@ async function openApplicationStep(page: Page) {
   await page.getByRole("button", { name: "Continuar", exact: true }).click();
   const application = page.locator(STEP("application"));
   await expect(application).toBeVisible();
+  // A real step change moves focus into the incoming step title.
+  await expect(page.locator(STEP_TITLE)).toHaveText("Tu postulación");
+  await expect(page.locator(STEP_TITLE)).toBeFocused();
   return application;
 }
 
@@ -153,19 +169,41 @@ test("desktop end-to-end: the detail apply link opens the review of a trimmed de
   await expect(header).toContainText("Acme");
   await expect(header).not.toContainText(PROHIBITED_STATUS_COPY);
 
-  // Step 1: the frozen Ximena profile is read-only, uses a local portrait and
-  // offers no unsupported CV-upload/availability/experience controls.
+  // Step 1 edits the local candidate data seeded from the frozen profile: the
+  // rail card mirrors it live, and no unsupported CV-upload, availability or
+  // experience control exists.
   const profile = page.locator(STEP("profile"));
-  await expect(profile).toContainText("Ximena Barrera");
-  await expect(profile).toContainText("Desarrolladora Frontend Senior");
-  await expect(profile).toContainText("ximena.barrera@correo.mx");
-  await expect(profile.locator(`img[src="${PORTRAIT}"]`)).toBeVisible();
+  const candidate = page.locator(CANDIDATE_CARD);
+  await expect(candidate).toContainText("Ximena Barrera");
+  await expect(candidate).toContainText("Desarrolladora Frontend Senior");
+  await expect(candidate).toContainText("ximena.barrera@correo.mx");
+  await expect(candidate).toContainText("+52 55 4821 7790");
+  await expect(candidate).toContainText("Ciudad de México, México");
+  await expect(candidate).toContainText("react");
+  await expect(candidate.locator(`img[src="${PORTRAIT}"]`)).toBeVisible();
   await expect(profile).not.toContainText(/años de experiencia|disponibilidad|sube tu cv|curr[íi]culum/i);
   await expect(profile).not.toContainText(PROHIBITED_STATUS_COPY);
   await expect(page.locator('input[type="file"]')).toHaveCount(0);
 
+  const fullName = page.locator(FULL_NAME);
+  await expect(fullName).toHaveValue("Ximena Barrera");
+  await expect(page.locator(EMAIL)).toHaveValue("ximena.barrera@correo.mx");
+  await expect(page.locator(PHONE)).toHaveValue("+52 55 4821 7790");
+  await expect(page.locator(TITLE)).toHaveValue("Desarrolladora Frontend Senior");
+  await expect(page.locator(CITY)).toHaveValue("Ciudad de México");
+  await expect(page.locator(COUNTRY)).toHaveValue("México");
+
+  // Live edit: the rail card repaints from local state, with no submit at all.
+  await fullName.fill("  Ana López  ");
+  await expect(candidate).toContainText("Ana López");
+  // The edited name never relabels the frozen fixture portrait: it stays decorative.
+  await expect(candidate.locator(`img[src="${PORTRAIT}"]`)).toHaveAttribute("alt", "");
+
   await page.getByRole("button", { name: "Continuar", exact: true }).click();
   await expect(page.locator(STEP("application"))).toBeVisible();
+  // The transition moved focus into the incoming step title.
+  await expect(page.locator(STEP_TITLE)).toHaveText("Tu postulación");
+  await expect(page.locator(STEP_TITLE)).toBeFocused();
 
   // The installed Base UI Select really opens in Chromium and switches source.
   await page.locator(SOURCE).click();
@@ -174,20 +212,52 @@ test("desktop end-to-end: the detail apply link opens the review of a trimmed de
   await page.locator(LETTER).fill("  Hola equipo  ");
   await page.getByRole("button", { name: "Continuar", exact: true }).click();
 
-  // Review: the normalized source/letter, no fake send, and the real login gate.
+  // Optional penultimate CV step: the local file lives in page state only.
+  const cv = page.locator(STEP("cv"));
+  await expect(cv).toBeVisible();
+  await expect(page.locator(STEP_TITLE)).toHaveText("Tu CV");
+  await expect(page.locator(STEP_TITLE)).toBeFocused();
+  await expect(cv).toContainText(/opcional/i);
+  await expect(cv).not.toContainText(PROHIBITED_STATUS_COPY);
+  await page.locator(CV_INPUT).setInputFiles({
+    name: "Mi Cv.PDF",
+    mimeType: "application/pdf",
+    buffer: Buffer.from("cv"),
+  });
+  await expect(page.locator(CV_SELECTED)).toContainText("Mi Cv.PDF");
+  await expect(page.locator(CV_SELECTED)).toContainText("PDF");
+  await page.getByRole("button", { name: "Continuar", exact: true }).click();
+
+  // Review: the normalized source/letter and CV metadata, no fake send, and the real login gate.
   const review = page.locator(STEP("review"));
   await expect(review).toBeVisible();
+  await expect(page.locator(STEP_TITLE)).toHaveText("Revisar");
+  await expect(page.locator(STEP_TITLE)).toBeFocused();
   await expect(reviewValue(review, "¿Cómo te enteraste?")).toHaveText("LinkedIn");
   await expect(reviewValue(review, "Carta de presentación")).toHaveText("Hola equipo");
+  await expect(reviewValue(review, CV_TERM)).toHaveText("Mi Cv.PDF · PDF · 0 KB");
+  await expect(reviewValue(review, "Nombre completo")).toHaveText("Ana López");
+  await expect(reviewValue(review, "Correo electrónico")).toHaveText("ximena.barrera@correo.mx");
+  await expect(reviewValue(review, "Ubicación")).toHaveText("Ciudad de México, México");
   await expect(review.getByRole("button", { name: /enviar/i })).toHaveCount(0);
   await expect(review).not.toContainText(/postulación (?:enviada|recibida)/i);
   await expect(review).not.toContainText(PROHIBITED_STATUS_COPY);
   await expect(review.getByRole("link", { name: /iniciar sesión para enviar/i })).toHaveAttribute("href", LOGIN_HREF);
 
-  // Back preserves the raw, untrimmed input and the chosen source.
+  // Back preserves the raw, untrimmed inputs, the chosen source and the local CV.
+  await page.getByRole("button", { name: "Atrás", exact: true }).click();
+  await expect(page.locator(CV_SELECTED)).toContainText("Mi Cv.PDF");
+  await expect(page.locator(STEP_TITLE)).toHaveText("Tu CV");
+  await expect(page.locator(STEP_TITLE)).toBeFocused();
   await page.getByRole("button", { name: "Atrás", exact: true }).click();
   await expect(page.locator(LETTER)).toHaveValue("  Hola equipo  ");
   await expect(page.locator(SOURCE)).toContainText("LinkedIn");
+  await expect(page.locator(STEP_TITLE)).toHaveText("Tu postulación");
+  await expect(page.locator(STEP_TITLE)).toBeFocused();
+  await page.getByRole("button", { name: "Atrás", exact: true }).click();
+  await expect(page.locator(FULL_NAME)).toHaveValue("  Ana López  ");
+  await expect(page.locator(STEP_TITLE)).toHaveText("Tus datos");
+  await expect(page.locator(STEP_TITLE)).toBeFocused();
 
   await expectClean(page, seen);
 });
@@ -201,10 +271,13 @@ test("mobile Unicode boundary: 2001 code points block with an alert, exactly 200
   const stepOneContinue = page.getByRole("button", { name: "Continuar", exact: true });
   await expect(stepOneContinue).toBeVisible();
   heights.push(await heightPx(stepOneContinue));
+  heights.push(await heightPx(page.locator(FULL_NAME)));
   await stepOneContinue.click();
 
   const application = page.locator(STEP("application"));
   await expect(application).toBeVisible();
+  await expect(page.locator(STEP_TITLE)).toHaveText("Tu postulación");
+  await expect(page.locator(STEP_TITLE)).toBeFocused();
   const letter = page.locator(LETTER);
   heights.push(await heightPx(letter));
   const stepTwoContinue = page.getByRole("button", { name: "Continuar", exact: true });
@@ -215,20 +288,75 @@ test("mobile Unicode boundary: 2001 code points block with an alert, exactly 200
   await stepTwoContinue.click();
   // 2001 code points block: an alert, still step 2, and no horizontal overflow.
   await expect(application.getByRole("alert")).toContainText(LIMIT_ERROR);
+  await expect(letter).toBeFocused();
+  await expect(letter).toHaveAttribute("aria-invalid", "true");
+  expect(await letter.getAttribute("aria-describedby")).toContain("application-cover-letter-error");
   await expect(application).toBeVisible();
   await expect(page.locator(STEP("review"))).toHaveCount(0);
   expect(await overflowPx(page)).toBeLessThanOrEqual(0);
 
-  // Exactly 2000 code points advance to the review step, still overflow-clean.
+  // Exactly 2000 code points advance to the optional CV step, then to review.
   await letter.fill("😀".repeat(LIMIT));
   await expect(application).toContainText(`${LIMIT} de ${LIMIT}`);
   await stepTwoContinue.click();
+  const cv = page.locator(STEP("cv"));
+  await expect(cv).toBeVisible();
+  await expect(page.locator(STEP_TITLE)).toHaveText("Tu CV");
+  await expect(page.locator(STEP_TITLE)).toBeFocused();
+  heights.push(await heightPx(page.getByRole("button", { name: "Continuar", exact: true })));
+  heights.push(await heightPx(page.getByRole("button", { name: "Elegir archivo", exact: true })));
+  await expect(page.locator(CV_INPUT)).toBeHidden();
+  await expect(page.getByRole("button", { name: "Elegir archivo", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Continuar", exact: true }).click();
   await expect(page.locator(STEP("review"))).toBeVisible();
+  await expect(page.locator(STEP_TITLE)).toHaveText("Revisar");
+  await expect(page.locator(STEP_TITLE)).toBeFocused();
   expect(await overflowPx(page)).toBeLessThanOrEqual(0);
 
   // Every interactive target exercised by this flow meets the 40px minimum.
-  expect(heights).toHaveLength(3);
+  expect(heights).toHaveLength(6);
   expect(heights.filter((height) => !Number.isFinite(height) || height < 40)).toEqual([]);
+
+  await expectClean(page, seen);
+});
+
+test("CV step: a long local filename wraps without overflow and a rejected drop keeps the valid file", async ({ page }) => {
+  const seen = trackRequests(page);
+  await installStorageAudit(page);
+  await page.setViewportSize(MOBILE);
+  await page.goto(APPLICATION_PATH);
+  await page.getByRole("button", { name: "Continuar", exact: true }).click();
+  await page.getByRole("button", { name: "Continuar", exact: true }).click();
+  const cv = page.locator(STEP("cv"));
+  await expect(cv).toBeVisible();
+  await expect(page.locator(STEP_TITLE)).toHaveText("Tu CV");
+  await expect(page.locator(STEP_TITLE)).toBeFocused();
+
+  const longName = `curriculum-vitae-${"muy-largo-".repeat(8)}final.pdf`;
+  await page.locator(CV_INPUT).setInputFiles({
+    name: longName,
+    mimeType: "application/pdf",
+    buffer: Buffer.from("cv"),
+  });
+  const selectedName = page.locator(CV_SELECTED_NAME);
+  await expect(selectedName).toHaveText(longName);
+  // The full name is readable: it wraps instead of clipping to one line, so the
+  // title never hides overflow (a coupled `min-w-0` parent lets it shrink).
+  expect(await selectedName.evaluate((element) => element.scrollWidth - element.clientWidth)).toBeLessThanOrEqual(0);
+  expect(await overflowPx(page)).toBeLessThanOrEqual(0);
+  expect(await seriousAxe(page)).toEqual([]);
+  expect(await heightPx(page.getByRole("button", { name: "Elegir archivo", exact: true }))).toBeGreaterThanOrEqual(40);
+
+  // A dropped `.txt` is rejected, the valid file stays, and the error is announced.
+  const dataTransfer = await page.evaluateHandle((name) => {
+    const transfer = new DataTransfer();
+    transfer.items.add(new File(["x"], name, { type: "text/plain" }));
+    return transfer;
+  }, "notas.txt");
+  await page.locator(CV_DROP).dispatchEvent("drop", { dataTransfer });
+  await expect(cv.getByRole("alert")).toContainText("El CV debe estar en formato PDF, DOC o DOCX.");
+  await expect(page.locator(CV_SELECTED)).toContainText(longName);
+  await expect(page.locator(CV_INPUT)).toHaveAttribute("aria-invalid", "true");
 
   await expectClean(page, seen);
 });
