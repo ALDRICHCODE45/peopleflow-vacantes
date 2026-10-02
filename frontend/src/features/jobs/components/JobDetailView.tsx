@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { findCompanyProfile } from "../../company-profile/model";
 import { PROTOTYPE_COMPANY_PROFILES } from "../../company-profile/prototype-companies";
 import { vacancyApplicationHref } from "../application/application-draft";
-import type { PrototypeJobView } from "../enrich";
+import type { JobLanguage, PrototypeJobView } from "../enrich";
 import {
   employmentTypeLabel,
   formatClosingDate,
@@ -84,6 +84,13 @@ function benefitIcon(benefit: string): typeof SparklesIcon {
   return BENEFIT_ICON_RULES.find(({ pattern }) => pattern.test(benefit))?.Icon ?? SparklesIcon;
 }
 
+/** Drops blank entries so an empty authored list never renders an empty section. */
+const nonBlank = (values: readonly string[]) => values.filter((value) => value.trim().length > 0);
+
+/** Keeps only languages a candidate can read; the level stays optional. */
+const spelledLanguages = (languages: readonly JobLanguage[]) =>
+  languages.filter((language) => language.name.trim().length > 0);
+
 /** Non-persistent share affordances: three placeholder controls. */
 const SHARE_ACTIONS = [
   { key: "copy", label: "Copiar enlace" },
@@ -133,12 +140,13 @@ function prototypeProfile(job: PrototypeJobView) {
  * Role block, rendered after the wire description. Every value is display
  * enrichment, so the block never fuses with the wire metadata: it carries no
  * image and no paragraph (the description paragraphs stay the article's only
- * `p` elements), and every requirement, skill, and benefit renders as escaped
- * plain text. The block is an h2 sibling of the page's other sections, with its
- * own groups as h3 and the two requirement lists as h4, so the page keeps one
- * unbroken outline. The skills and the benefits follow the committed reference
- * structure: skills are chips and benefits are one tile per benefit, each on a
- * semantic token surface.
+ * `p` elements), and every requirement, skill, language, question, and benefit
+ * renders as escaped plain text. The block is an h2 sibling of the page's other
+ * sections, with its own groups as h3; the profile group holds requirements,
+ * skills, and languages, the benefits group holds one tile per benefit, and the
+ * before-applying group holds the deadline and the read-only prompts, so the
+ * page keeps one unbroken outline. Skills and languages are chips, and each
+ * benefit is a tile on a semantic token surface.
  */
 function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
   const prototype = job.prototype;
@@ -147,6 +155,14 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
     prototype.closingDate === undefined
       ? null
       : formatClosingDate(prototype.closingDate);
+  const requiredRequirements = nonBlank(prototype.requiredRequirements);
+  const preferredRequirements = nonBlank(prototype.preferredRequirements);
+  const skills = nonBlank(prototype.skills);
+  const benefits = nonBlank(prototype.benefits);
+  const languages = spelledLanguages(prototype.languages ?? []);
+  const questions = nonBlank(prototype.applicationQuestions ?? []);
+  const hasRequirements = requiredRequirements.length > 0 || preferredRequirements.length > 0;
+  const hasBeforeApplying = closingDate !== null || questions.length > 0;
 
   return (
     <section
@@ -154,7 +170,7 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
       data-detail-card="prototype"
       className="flex flex-col gap-6 rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-6 md:p-7"
     >
-      <div className="flex flex-col gap-3">
+      <div data-detail-group="profile" className="flex flex-col gap-3">
         <h2
           id="vacante-rol"
           className="font-heading text-lg font-semibold text-foreground"
@@ -168,77 +184,152 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
               {payFrequencyLabel(prototype.payFrequency)}
             </dd>
           </div>
-          {closingDate !== null && (
-            <div className="flex items-baseline gap-2">
-              <dt className="text-muted-foreground">Cierre de postulaciones</dt>
-              <dd className="font-medium text-foreground">{closingDate}</dd>
-            </div>
-          )}
+          <div className="flex items-baseline gap-2">
+            <dt className="text-muted-foreground">Experiencia</dt>
+            <dd className="font-medium text-foreground">
+              {prototype.experienceLabel}
+            </dd>
+          </div>
         </dl>
+
+        {hasRequirements && (
+          <div className="flex flex-col gap-3">
+            <h3 className="font-heading text-base font-semibold text-foreground">
+              Requisitos
+            </h3>
+            {requiredRequirements.length > 0 && (
+              <>
+                <h4 className="text-sm font-semibold text-foreground">
+                  Indispensables
+                </h4>
+                <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
+                  {requiredRequirements.map((requirement) => (
+                    <li
+                      key={requirement}
+                      className="border-l-2 border-primary/40 pl-3 leading-relaxed"
+                    >
+                      {requirement}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            {preferredRequirements.length > 0 && (
+              <>
+                <h4 className="mt-1 text-sm font-semibold text-foreground">
+                  Deseables
+                </h4>
+                <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
+                  {preferredRequirements.map((requirement) => (
+                    <li
+                      key={requirement}
+                      className="border-l-2 border-primary/40 pl-3 leading-relaxed"
+                    >
+                      {requirement}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
+
+        {skills.length > 0 && (
+          <div className="flex flex-col gap-3">
+            <h3 className="font-heading text-base font-semibold text-foreground">
+              Habilidades
+            </h3>
+            <ul className="flex flex-wrap gap-2">
+              {skills.map((skill) => (
+                <li
+                  key={skill}
+                  className="rounded-md bg-muted px-2.5 py-1 text-xs text-muted-foreground"
+                >
+                  {skill}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {languages.length > 0 && (
+          <div data-detail-languages className="flex flex-col gap-3">
+            <h3 className="font-heading text-base font-semibold text-foreground">
+              Idiomas
+            </h3>
+            <ul className="flex flex-wrap gap-2">
+              {languages.map((language) => (
+                <li key={language.name}>
+                  <Badge variant="outline" className="text-muted-foreground">
+                    {language.level === undefined
+                      ? language.name
+                      : `${language.name} · ${language.level}`}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
-      <div className="flex flex-col gap-3">
-        <h3 className="font-heading text-base font-semibold text-foreground">
-          Requisitos
-        </h3>
-        <h4 className="text-sm font-semibold text-foreground">Indispensables</h4>
-        <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
-          {prototype.requiredRequirements.map((requirement) => (
-            <li
-              key={requirement}
-              className="border-l-2 border-primary/40 pl-3 leading-relaxed"
-            >
-              {requirement}
-            </li>
-          ))}
-        </ul>
-        <h4 className="mt-1 text-sm font-semibold text-foreground">Deseables</h4>
-        <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
-          {prototype.preferredRequirements.map((requirement) => (
-            <li
-              key={requirement}
-              className="border-l-2 border-primary/40 pl-3 leading-relaxed"
-            >
-              {requirement}
-            </li>
-          ))}
-        </ul>
-      </div>
+      {benefits.length > 0 && (
+        <div data-detail-group="benefits" className="flex flex-col gap-3">
+          <h3 className="font-heading text-base font-semibold text-foreground">
+            Beneficios
+          </h3>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {benefits.map((benefit) => {
+              const Icon = benefitIcon(benefit);
+              return (
+                <li key={benefit} data-benefit-tile className={benefitTile}>
+                  <span aria-hidden="true" className={benefitIconTile}>
+                    <Icon className="size-[18px]" />
+                  </span>
+                  <span className="min-w-0 break-words">{benefit}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
 
-      <div className="flex flex-col gap-3">
-        <h3 className="font-heading text-base font-semibold text-foreground">
-          Habilidades
-        </h3>
-        <ul className="flex flex-wrap gap-2">
-          {prototype.skills.map((skill) => (
-            <li
-              key={skill}
-              className="rounded-md bg-muted px-2.5 py-1 text-xs text-muted-foreground"
-            >
-              {skill}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      <div className="flex flex-col gap-3">
-        <h3 className="font-heading text-base font-semibold text-foreground">
-          Beneficios
-        </h3>
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {prototype.benefits.map((benefit) => {
-            const Icon = benefitIcon(benefit);
-            return (
-              <li key={benefit} data-benefit-tile className={benefitTile}>
-                <span aria-hidden="true" className={benefitIconTile}>
-                  <Icon className="size-[18px]" />
-                </span>
-                <span className="min-w-0 break-words">{benefit}</span>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
+      {hasBeforeApplying && (
+        <div data-detail-group="before-applying" className="flex flex-col gap-3">
+          <h3 className="font-heading text-base font-semibold text-foreground">
+            Antes de postularte
+          </h3>
+          {closingDate !== null && (
+            <dl className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+              <div className="flex items-baseline gap-2">
+                <dt className="text-muted-foreground">
+                  Cierre de postulaciones
+                </dt>
+                <dd className="font-medium text-foreground">{closingDate}</dd>
+              </div>
+            </dl>
+          )}
+          {questions.length > 0 && (
+            <>
+              <h4 className="text-sm font-semibold text-foreground">
+                Preguntas al postularte
+              </h4>
+              <ul
+                data-detail-questions
+                className="flex flex-col gap-2 text-sm text-muted-foreground"
+              >
+                {questions.map((question) => (
+                  <li
+                    key={question}
+                    className="border-l-2 border-primary/40 pl-3 leading-relaxed"
+                  >
+                    {question}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -290,10 +381,10 @@ export function JobDetailView({ job }: { job: PrototypeJobView }) {
     { key: "modality", label: "Modalidad", Icon: WORK_MODE_ICONS[job.work_mode], value: workModeLabel(job.work_mode) },
     { key: "schedule", label: "Jornada", Icon: BriefcaseIcon, value: employmentTypeLabel(job.employment_type) },
     {
-      key: "experience",
-      label: "Experiencia",
+      key: "level",
+      label: "Nivel",
       Icon: TrendingUpIcon,
-      value: prototype?.experienceLabel ?? seniorityLabel(job.seniority),
+      value: seniorityLabel(job.seniority),
     },
     { key: "area", label: "Área", Icon: LayoutGridIcon, value: prototype?.department ?? "Sin especificar" },
   ];

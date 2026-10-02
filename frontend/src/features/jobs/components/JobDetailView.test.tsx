@@ -240,7 +240,10 @@ describe("JobDetailView prototype role block", () => {
       ["H4", "Indispensables"],
       ["H4", "Deseables"],
       ["H3", "Habilidades"],
+      ["H3", "Idiomas"],
       ["H3", "Beneficios"],
+      ["H3", "Antes de postularte"],
+      ["H4", "Preguntas al postularte"],
     ]);
   });
 
@@ -249,7 +252,7 @@ describe("JobDetailView prototype role block", () => {
     const levels = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")].map((heading) =>
       Number(heading.tagName.slice(1)),
     );
-    expect(levels).toEqual([1, 2, 2, 3, 4, 4, 3, 3, 3, 3, 3]);
+    expect(levels).toEqual([1, 2, 2, 3, 4, 4, 3, 3, 3, 3, 4, 3, 3, 3]);
     levels.forEach((level, index) => {
       if (index > 0) expect(level - levels[index - 1]).toBeLessThanOrEqual(1);
     });
@@ -344,7 +347,7 @@ describe("JobDetailView reference header, stats, and scaffold (CCP-R4A)", () => 
     const expected = [
       ["modality", "Modalidad", workModeLabel(baseJob.work_mode)],
       ["schedule", "Jornada", employmentTypeLabel(baseJob.employment_type)],
-      ["experience", "Experiencia", prototype.experienceLabel],
+      ["level", "Nivel", seniorityLabel(baseJob.seniority)],
       ["area", "Área", prototype.department],
     ] as const;
     for (const [key, label, value] of expected) {
@@ -354,6 +357,8 @@ describe("JobDetailView reference header, stats, and scaffold (CCP-R4A)", () => 
       // Each label carries one decorative icon tile, never a text substitute.
       expect(card.querySelector("dt [aria-hidden='true'] svg")).not.toBeNull();
     }
+    // The fixture experience label is a role term, never a wire stat.
+    expect(stats).not.toHaveTextContent(prototype.experienceLabel);
   });
 
   it("keeps the neutral wire-only stats without prototype metrics or disclosure", () => {
@@ -362,7 +367,8 @@ describe("JobDetailView reference header, stats, and scaffold (CCP-R4A)", () => 
     for (const absent of ["Destacada", "Postulantes"]) expect(within(header).queryByText(absent)).toBeNull();
     expect(within(header).queryByRole("note")).toBeNull();
     expect(stat(container, "area").querySelector("dd")?.textContent).toBe("Sin especificar");
-    expect(stat(container, "experience").querySelector("dd")?.textContent).toBe(seniorityLabel(fullJob.seniority));
+    expect(stat(container, "level").querySelector("dd")?.textContent).toBe(seniorityLabel(fullJob.seniority));
+    expect(container.querySelector("article [data-detail-stat='experience']")).toBeNull();
   });
 
   it("keeps the content column and the rail in one responsive scaffold", () => {
@@ -610,5 +616,111 @@ describe("JobDetailView reference content and sticky rail (CCP-R4B)", () => {
     expect(screen.queryByText("Verificada por PeopleFlow")).toBeNull();
     rerender(<JobDetailView job={wireOnlyBareJob} />);
     expect(screen.queryByText("Verificada por PeopleFlow")).toBeNull();
+  });
+});
+
+describe("JobDetailView candidate profile, languages, and application prompts (VDF-1)", () => {
+  const enrichedJob = enrichJob(baseJob);
+  const prototype = enrichedJob.prototype!;
+  const viewSource = readFileSync(join(process.cwd(), "src/features/jobs/components/JobDetailView.tsx"), "utf8");
+  const group = (container: HTMLElement, name: string) => {
+    const element = container.querySelector<HTMLElement>(`article [data-detail-group='${name}']`);
+    if (element === null) throw new Error(`missing detail group: ${name}`);
+    return element;
+  };
+
+  it("lists each language with its optional CEFR label through the shared Badge", () => {
+    const { container } = render(<JobDetailView job={enrichedJob} />);
+    const profile = group(container, "profile");
+    const languages = profile.querySelector<HTMLElement>("[data-detail-languages]");
+    expect(languages).not.toBeNull();
+    expect(within(profile).getByRole("heading", { level: 3, name: "Idiomas" })).toBeVisible();
+    const badges = [...languages!.querySelectorAll<HTMLElement>("[data-slot='badge']")];
+    expect(badges).toHaveLength(prototype.languages!.length);
+    for (const badge of badges) {
+      expect(badge).toHaveAttribute("data-variant", "outline");
+      expect(badge).toHaveTextContent(/^(Español|Inglés)( · [ABC][12])?$/u);
+    }
+    expect(languages!.textContent).toContain("Inglés · B2");
+    expect(languages!.textContent).toContain("Español");
+    // A language without a level keeps its name only: no invented proficiency.
+    expect(languages!.textContent).not.toContain("Español ·");
+  });
+
+  it("renders the application prompts as read-only text with no form control", () => {
+    const { container } = render(<JobDetailView job={enrichedJob} />);
+    const before = group(container, "before-applying");
+    expect(within(before).getByRole("heading", { level: 3, name: "Antes de postularte" })).toBeVisible();
+    expect(within(before).getByRole("heading", { level: 4, name: "Preguntas al postularte" })).toBeVisible();
+    const questions = before.querySelector<HTMLElement>("[data-detail-questions]");
+    expect(questions).not.toBeNull();
+    expect(questions!.querySelectorAll("li")).toHaveLength(prototype.applicationQuestions!.length);
+    for (const question of prototype.applicationQuestions!) expect(within(before).getByText(question)).toBeVisible();
+    expect(container.querySelectorAll("article form, article input, article textarea, article select")).toHaveLength(0);
+    expect(container.querySelectorAll("article [role='textbox'], article [role='spinbutton']")).toHaveLength(0);
+    expect(withoutComments(viewSource)).not.toMatch(/<input|<textarea|<select|contentEditable/u);
+  });
+
+  it("hides the language and prompt blocks when the enrichment has none or blanks", () => {
+    const sparse: PrototypeJobView = {
+      ...enrichedJob,
+      prototype: { ...prototype, languages: [], applicationQuestions: ["   "] },
+    };
+    const { container } = render(<JobDetailView job={sparse} />);
+    expect(screen.queryByRole("heading", { level: 3, name: "Idiomas" })).toBeNull();
+    expect(screen.queryByRole("heading", { level: 4, name: "Preguntas al postularte" })).toBeNull();
+    expect(container.querySelector("article [data-detail-languages]")).toBeNull();
+    expect(container.querySelector("article [data-detail-questions]")).toBeNull();
+    // The deadline keeps the before-applying group alive on its own.
+    expect(screen.getByRole("heading", { level: 3, name: "Antes de postularte" })).toBeVisible();
+  });
+
+  it("drops the before-applying group when neither deadline nor prompts remain", () => {
+    const bare: PrototypeJobView = {
+      ...enrichedJob,
+      prototype: { ...prototype, closingDate: undefined, applicationQuestions: [] },
+    };
+    const { container } = render(<JobDetailView job={bare} />);
+    expect(container.querySelector("article [data-detail-group='before-applying']")).toBeNull();
+    expect(screen.queryByRole("heading", { level: 3, name: "Antes de postularte" })).toBeNull();
+    expect(screen.getByRole("heading", { level: 3, name: "Beneficios" })).toBeVisible();
+  });
+
+  it("separates the wire level from the fictional experience label", () => {
+    const { container } = render(<JobDetailView job={enrichedJob} />);
+    const level = container.querySelector<HTMLElement>("article [data-detail-stat='level']");
+    expect(level).not.toBeNull();
+    expect(level!.querySelector("dt")?.textContent).toContain("Nivel");
+    expect(level!.querySelector("dd")?.textContent).toBe(seniorityLabel(baseJob.seniority));
+    expect(container.querySelector("article [data-detail-stat='experience']")).toBeNull();
+    const profile = group(container, "profile");
+    expect(profile).toHaveTextContent("Experiencia");
+    expect(profile).toHaveTextContent(prototype.experienceLabel);
+    expect(profile).not.toHaveTextContent(seniorityLabel(baseJob.seniority));
+  });
+
+  it("keeps no wire level or experience claim on a vacancy without enrichment", () => {
+    render(<JobDetailView job={baseJob} />);
+    const level = screen.getByText("Nivel").closest("[data-detail-stat='level']") as HTMLElement;
+    expect(level).not.toBeNull();
+    expect(level.querySelector("dd")?.textContent).toBe(seniorityLabel(baseJob.seniority));
+    expect(screen.queryByText("Experiencia")).toBeNull();
+    expect(screen.queryByRole("heading", { level: 3, name: "Idiomas" })).toBeNull();
+    expect(screen.queryByRole("heading", { level: 4, name: "Preguntas al postularte" })).toBeNull();
+  });
+
+  it("groups the profile, benefits, and before-applying blocks in document order", () => {
+    const { container } = render(<JobDetailView job={enrichedJob} />);
+    expect(
+      [...container.querySelectorAll("article [data-detail-group]")].map((element) => element.getAttribute("data-detail-group")),
+    ).toEqual(["profile", "benefits", "before-applying"]);
+    const profile = group(container, "profile");
+    for (const label of ["Requisitos", "Habilidades", "Idiomas"]) {
+      expect(within(profile).getByRole("heading", { level: 3, name: label })).toBeVisible();
+    }
+    expect(profile.querySelector("[data-detail-languages]")).not.toBeNull();
+    const before = group(container, "before-applying");
+    expect(before).toHaveTextContent("Cierre de postulaciones");
+    expect(before.querySelector("[data-detail-questions]")).not.toBeNull();
   });
 });
