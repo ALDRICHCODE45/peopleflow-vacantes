@@ -3,6 +3,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { requestJson } from "../../../lib/api/server";
 import type { RequestJsonResult } from "../../../lib/api/server";
 import { jobsListSchema } from "../schemas";
+import { listSampleJobs } from "../sample-jobs";
 import type { JobsList } from "../types";
 import { buildJobsUrl, parseJobsQuery } from "../url";
 import type { JobsQuery } from "../url";
@@ -48,6 +49,13 @@ export async function listJobs(
  // Loaded lazily so canonicalization and key building never trigger the
  // eager environment validation or the server-only import resolution.
  const { serverEnv } = await import("../../../lib/env/server");
+
+ // Sample mode answers before any URL or transport work: when enabled, the
+ // read never reaches the network, and when disabled the API path is byte-for-
+ // byte the one below.
+ if (serverEnv.sampleJobs) {
+  return { ok: true, data: listSampleJobs(query) };
+ }
 
  const url = new URL("/jobs", serverEnv.apiBaseUrl);
  url.search = canonicalSearch(query);

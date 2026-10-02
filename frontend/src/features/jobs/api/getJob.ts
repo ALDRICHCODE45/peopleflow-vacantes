@@ -3,6 +3,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { requestJson } from "../../../lib/api/server";
 import type { RequestJsonResult } from "../../../lib/api/server";
 import { isValidJobId } from "../jobId";
+import { findSampleJob } from "../sample-jobs";
 import { jobItemSchema } from "../schemas";
 import type { JobItem } from "../types";
 
@@ -42,6 +43,21 @@ export async function getJob(
  // Loaded lazily so the malformed short-circuit above never triggers the
  // eager environment validation or the server-only import resolution.
  const { serverEnv } = await import("../../../lib/env/server");
+
+ // Sample mode answers before any URL or transport work: a known sample id
+ // returns its vacancy and an unknown one keeps the canonical not-found shape,
+ // both without touching the network. When disabled the API path below is
+ // unchanged.
+ if (serverEnv.sampleJobs) {
+  const sample = findSampleJob(jobId);
+  if (sample === undefined) {
+   return {
+    ok: false,
+    error: { kind: "not_found", retryable: false, status: NOT_FOUND_STATUS },
+   };
+  }
+  return { ok: true, data: sample };
+ }
 
  const url = new URL(`/jobs/${jobId}`, serverEnv.apiBaseUrl);
 

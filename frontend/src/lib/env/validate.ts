@@ -8,6 +8,7 @@ export type ServerEnv = {
   apiBaseUrl: string;
   siteUrl: string;
   apiTimeoutMs: number;
+  sampleJobs: boolean;
 };
 
 export type ServerEnvSource = Record<string, unknown>;
@@ -83,9 +84,17 @@ export function validateServerEnv(env: ServerEnvSource): ServerEnv {
   if (preview !== undefined && preview !== "true" && preview !== "false")
     fail("PEOPLEFLOW_LOCAL_PREVIEW", "must be true or false when provided");
   const localPreview = preview === "true";
+  const sampleJobsRaw = env.PEOPLEFLOW_SAMPLE_JOBS;
+  if (
+    sampleJobsRaw !== undefined &&
+    sampleJobsRaw !== "true" &&
+    sampleJobsRaw !== "false"
+  )
+    fail("PEOPLEFLOW_SAMPLE_JOBS", "must be true or false when provided");
   return {
     apiBaseUrl: parseOrigin(env, "PEOPLEFLOW_API_BASE_URL", localPreview),
     siteUrl: parseOrigin(env, "PEOPLEFLOW_SITE_URL", localPreview),
     apiTimeoutMs: parseTimeout(env),
+    sampleJobs: sampleJobsRaw === "true",
   };
 }
