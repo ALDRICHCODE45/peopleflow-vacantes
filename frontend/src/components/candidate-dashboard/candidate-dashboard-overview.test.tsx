@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { candidateProfileSchema } from "@/features/candidate/model";
 import type { CandidateProfile } from "@/features/candidate/model";
 import { CANDIDATE_IDENTITY, CANDIDATE_PROFILE } from "@/features/candidate/prototype-candidate";
+import { CANDIDATE_APPLICATION_MESSAGES } from "@/features/candidate/prototype-messages";
 import { CANDIDATE_APPLICATIONS, CANDIDATE_CVS } from "@/features/candidate/prototype-portfolio";
 import type { CandidateApplicationView } from "@/features/candidate/portfolio-model";
 import { CandidateDashboardOverview, profileCompleteness } from "./candidate-dashboard-overview";
@@ -204,6 +205,7 @@ describe("candidate dashboard overview", () => {
       "@/components/ui/empty",
       "@/components/ui/item",
       "@/components/ui/progress",
+      "@/features/candidate/application-message",
       "@/features/candidate/model",
       "@/features/candidate/portfolio-model",
       "lucide-react",
@@ -371,8 +373,7 @@ describe("candidate dashboard overview", () => {
     expect(owners[0]).toBe(root);
   });
 
-  it("renders recent rows as a compact grouped list with unclamped titles and a readable CV filename", () => {
-    renderOverview();
+  it("renders recent rows as a compact grouped list with unclamped titles and a readable CV filename", () => {    renderOverview();
     const list = section("recent-applications").querySelector("ul") as HTMLElement;
     expect(list.className).toContain("divide-y");
     for (const row of within(section("recent-applications")).getAllByRole("listitem")) {
@@ -399,5 +400,29 @@ describe("candidate dashboard overview", () => {
     expect(SOURCE).toContain('<Badge variant="accent">Principal</Badge>');
     expect(SOURCE).not.toContain("break-all");
     expect(SOURCE).toContain("data-pf-overview-metric-value");
+  });
+});
+
+describe("recent application messages", () => {
+  it("joins the message island only to the row with the exact application id", () => {
+    renderOverview({ messages: [{ ...CANDIDATE_APPLICATION_MESSAGES[0], applicationId: "7b1c2d3e-4f50-4a1b-8c2d-3e4f5a6b7c99" }] });
+    expect(document.querySelector("[data-pf-application-message]")).toBeNull();
+    cleanup();
+    renderOverview({ messages: CANDIDATE_APPLICATION_MESSAGES });
+    const islands = document.querySelectorAll("[data-pf-application-message]");
+    expect(islands).toHaveLength(1);
+    expect(islands[0]).toHaveAttribute("data-pf-application-message", CANDIDATE_APPLICATION_MESSAGES[0].applicationId);
+    const rows = within(section("recent-applications")).getAllByRole("listitem");
+    expect(within(rows[0]).queryByText("Nuevo mensaje")).toBeNull();
+    expect(within(rows[1]).getByText("Nuevo mensaje")).toBeInTheDocument();
+    expect(within(rows[1]).getByRole("button", { name: "Ver mensaje" })).toBeInTheDocument();
+    expect(within(rows[2]).queryByRole("button", { name: "Ver mensaje" })).toBeNull();
+  });
+
+  it("renders no message notice when the route passes no messages", () => {
+    renderOverview();
+    expect(document.querySelector("[data-pf-application-message]")).toBeNull();
+    expect(screen.queryByText("Nuevo mensaje")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ver mensaje" })).toBeNull();
   });
 });
