@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Mesh, Program, Renderer, Triangle } from "ogl";
 
+import { decorativeDpr, motionDamping, startDecorativeAnimation } from "../webgl-animation";
 import { SYSTEM_DARK_QUERY, type ResolvedTheme } from "../theme/theme-preferences";
 import {
   FLOATING_LINES_CONFIG,
@@ -17,13 +18,12 @@ import {
 // CCP-R7D2B — standalone, unintegrated OGL client leaf for the login
 // FloatingLines panel (integration is CCP-R7D2C). The frozen shader/config
 // module owns the reference bytes; this leaf feeds them into one ogl Triangle +
-// Program + Mesh on an opaque antialiased Renderer (DPR capped at 2). No WebGL
+// Program + Mesh on an opaque, pixel-budgeted Renderer. No WebGL
 // below the frozen 1024px gate; reduced motion renders one frozen static frame;
 // the resolved root theme selects the variant's dark/light palette BEFORE it.
 // Any failure degrades to `failed`; the static shell fallback stays external.
 
 type VisualHandle = { applyTheme: (theme: ResolvedTheme) => void; dispose: () => void };
-const DPR_CAP = 2;
 
 function readResolvedTheme(): ResolvedTheme {
   const root = document.documentElement;
@@ -45,7 +45,7 @@ function hexToRgb(value: string): [number, number, number] {
 
 function buildFloatingLines(
   host: HTMLDivElement,
-  options: { variant: FloatingLinesVariant; reducedMotion: boolean; theme: ResolvedTheme },
+  options: { variant: FloatingLinesVariant; reducedMotion: boolean; theme: ResolvedTheme; onContextLost: () => void },
 ): VisualHandle {
   const cfg = FLOATING_LINES_CONFIG;
   const reducedMotion = options.reducedMotion;
@@ -56,13 +56,14 @@ function buildFloatingLines(
     for (let index = cleanups.length - 1; index >= 0; index -= 1) cleanups[index]();
     cleanups.length = 0;
   };
-  let frameId = 0;
+  let stopAnimation = () => {};
 
   try {
     const renderer = new Renderer({
       alpha: false,
-      antialias: true,
-      dpr: Math.min(window.devicePixelRatio || 1, DPR_CAP),
+      antialias: false,
+      depth: false,
+      dpr: 1,
     });
     const gl = renderer.gl;
     if (!gl) throw new Error("FloatingLines: no WebGL context available");
@@ -73,6 +74,13 @@ function buildFloatingLines(
       if (canvas.parentNode === host) host.removeChild(canvas);
       gl.getExtension("WEBGL_lose_context")?.loseContext();
     });
+
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      options.onContextLost();
+    };
+    canvas.addEventListener("webglcontextlost", onContextLost);
+    cleanups.push(() => canvas.removeEventListener("webglcontextlost", onContextLost));
 
     const geometry = new Triangle(gl);
     cleanups.push(() => geometry.remove());
@@ -116,8 +124,16 @@ function buildFloatingLines(
     let targetInfluence = 0;
     let currentInfluence = 0;
 
+    let drawable = false;
     const resize = () => {
-      renderer.setSize(host.clientWidth || 1, host.clientHeight || 1);
+      const width = host.clientWidth;
+      const height = host.clientHeight;
+      drawable = false;
+      if (width <= 0 || height <= 0) return;
+      renderer.dpr = decorativeDpr(width, height, window.devicePixelRatio);
+      renderer.setSize(width, height);
+      drawable = (gl.drawingBufferWidth || canvas.width) > 0 && (gl.drawingBufferHeight || canvas.height) > 0;
+      if (!drawable) return;
       // Device-pixel resolution: iResolution is the drawing buffer size.
       uniforms.iResolution.value[0] = gl.drawingBufferWidth || canvas.width || 1;
       uniforms.iResolution.value[1] = gl.drawingBufferHeight || canvas.height || 1;
@@ -141,7 +157,7 @@ function buildFloatingLines(
         gradient[index].set([r, g, b]);
       });
       // Reduced motion has no RAF loop: redraw its single static frame here.
-      if (draw && reducedMotion) renderer.render({ scene: mesh });
+      if (draw && reducedMotion && drawable) renderer.render({ scene: mesh });
     };
     // Frozen representative mid-animation frame; t=0 is overexposed.
     if (reducedMotion) uniforms.iTime.value = FLOATING_LINES_REDUCED_MOTION_FRAME_TIME;
@@ -151,16 +167,17 @@ function buildFloatingLines(
     resizeObserver.observe(host);
     cleanups.push(() => resizeObserver.disconnect());
 
-    const loop = (time: number) => {
-      frameId = window.requestAnimationFrame(loop);
+    const loop = (time: number, deltaMs: number) => {
+      if (!drawable) return;
+      const damping = motionDamping(deltaMs, cfg.mouseDamping);
       uniforms.iTime.value = time * 0.001;
       for (let axis = 0; axis < 2; axis += 1) {
-        currentMouse[axis] += (targetMouse[axis] - currentMouse[axis]) * cfg.mouseDamping;
+        currentMouse[axis] += (targetMouse[axis] - currentMouse[axis]) * damping;
         uniforms.iMouse.value[axis] = currentMouse[axis];
-        currentParallax[axis] += (targetParallax[axis] - currentParallax[axis]) * cfg.mouseDamping;
+        currentParallax[axis] += (targetParallax[axis] - currentParallax[axis]) * damping;
         uniforms.parallaxOffset.value[axis] = currentParallax[axis];
       }
-      currentInfluence += (targetInfluence - currentInfluence) * cfg.mouseDamping;
+      currentInfluence += (targetInfluence - currentInfluence) * damping;
       uniforms.bendInfluence.value = currentInfluence;
       renderer.render({ scene: mesh });
     };
@@ -168,10 +185,13 @@ function buildFloatingLines(
     if (!reducedMotion) {
       const onMouseMove = (event: MouseEvent) => {
         const rect = canvas.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
         const x = event.clientX - rect.left;
         const y = event.clientY - rect.top;
         targetMouse[0] = x * renderer.dpr;
         targetMouse[1] = (rect.height - y) * renderer.dpr;
+        // Start at the first real pointer position, not the off-canvas sentinel.
+        if (currentInfluence === 0) currentMouse.set(targetMouse);
         targetInfluence = 1;
         targetParallax[0] = ((x - rect.width / 2) / rect.width) * cfg.parallaxStrength;
         targetParallax[1] = -((y - rect.height / 2) / rect.height) * cfg.parallaxStrength;
@@ -183,7 +203,7 @@ function buildFloatingLines(
       cleanups.push(() => window.removeEventListener("mousemove", onMouseMove));
       host.addEventListener("pointerleave", onPointerLeave);
       cleanups.push(() => host.removeEventListener("pointerleave", onPointerLeave));
-      frameId = window.requestAnimationFrame(loop);
+      stopAnimation = startDecorativeAnimation(host, loop);
     }
 
     // Idempotent: unmount racing a media restart must not double-free.
@@ -193,13 +213,13 @@ function buildFloatingLines(
       dispose: () => {
         if (disposed) return;
         disposed = true;
-        if (frameId) window.cancelAnimationFrame(frameId);
+        stopAnimation();
         runCleanups();
         host.style.mixBlendMode = "";
       },
     };
   } catch (error) {
-    if (frameId) window.cancelAnimationFrame(frameId);
+    stopAnimation();
     try {
       runCleanups();
     } catch {
@@ -248,7 +268,14 @@ export function FloatingLines({
       host.setAttribute("data-floating-lines-state", "initializing");
       const reducedMotion = reducedMotionMedia.matches;
       try {
-        active = buildFloatingLines(host, { variant, reducedMotion, theme: readResolvedTheme() });
+        active = buildFloatingLines(host, {
+          variant, reducedMotion, theme: readResolvedTheme(),
+          onContextLost: () => {
+            active?.dispose();
+            active = null;
+            host.setAttribute("data-floating-lines-state", "failed");
+          },
+        });
         host.setAttribute(
           "data-floating-lines-state",
           reducedMotion ? "ready-static" : "ready-animated",
