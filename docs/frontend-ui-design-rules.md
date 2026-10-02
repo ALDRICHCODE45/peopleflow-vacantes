@@ -163,6 +163,10 @@ por entidad (`Acciones de <etiqueta>`). El contenido usa `DropdownMenuGroup` y c
   presentación no se deshabilitan: quedan **habilitados e inertes** —visibles, alcanzables
   por foco y clicables, sin ningún efecto de producto (sin navegación, request, storage,
   mutación, toast ni mensaje de éxito)—. Un placeholder nunca se presenta como `disabled`.
+- Un placeholder **no lleva copy visible de demo, prototipo o sesión local**. La inercia y el
+  dato honesto bastan: un campo que no se puede probar se muestra como `No disponible` o se
+  omite la fila, en vez de inventarlo o rotular la superficie como demostración. Tampoco se
+  conserva un `aria-describedby` hacia una nota de demo eliminada.
 - El trigger de disclosure **no cuenta como acción** ni como capacidad: abre opciones, no
   ejecuta documentos. Es un control de divulgación con su propio nombre accesible.
 - Un footer legítimo de metadatos más un único CTA **sigue permitido**; esta regla no lo

@@ -25,6 +25,7 @@ No real email, candidate-dashboard delivery, API mutation or persistence is part
 
 1. **Approved interaction foundation** (`b22fb8e`): official Base UI Dialog, localized close controls with 40px hit areas, pinned `@dnd-kit/core@6.3.1`, and updated primitive inventory. Existing Button was not overwritten. RED: two localization/target tests failed; GREEN: 12 Dialog/Sheet tests and scoped ESLint passed.
 2. **Pipeline interaction**: completed local movement model, pointer/keyboard board, confirmation dialog, optional message preview/history and truthful partial candidate detail. Existing rich talent profiles remain compatible.
+3. **Visible prototype copy cleanup**: removed every visible demo/local-session notice. The dialog omits the recipient row instead of showing "No disponible en este prototipo local" and no longer renders its demo note; the activity list no longer emits `PIPELINE_LOCAL_ONLY_NOTE`; the activity label is now "Mensaje:"; the activity empty state no longer says "en esta sesión"; and the talent Sheet dropped "Archivo de ejemplo · Solo demostración" plus its `aria-describedby`. No fake send/save success and no invented recipient were introduced, and unavailable data still reads as unavailable. `docs/frontend-ui-design-rules.md` records the override so presentation placeholders carry no demo/prototype copy.
 
 ## Verification plan
 

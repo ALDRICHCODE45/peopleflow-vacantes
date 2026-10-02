@@ -139,7 +139,7 @@ export function pipelineMoveRecordsOf(
 
 /** Local preview of the two channels one prepared message targets. */
 export type PipelineNotificationPreview = {
-  /** The pipeline roster carries no email, so the recipient stays unavailable. */
+  /** The pipeline roster carries no email, so the dialog omits the recipient. */
   readonly emailRecipient: string | null;
   readonly emailSubject: string;
   readonly emailBody: string;
@@ -149,8 +149,8 @@ export type PipelineNotificationPreview = {
 
 /**
  * The reviewed preview of the intended notification. It is a description of what
- * the message would look like, never a delivery report: the recipient is
- * unavailable because the pipeline model owns no email, and nothing is sent.
+ * the message would look like, never a delivery report: the pipeline model owns
+ * no email, so no recipient is invented, and nothing is sent.
  */
 export function pipelineNotificationPreview(input: {
   readonly vacancyTitle: string;
@@ -172,12 +172,7 @@ export type PipelineActivityItem = {
   readonly title: string;
   readonly detail: string;
   readonly message: string | null;
-  readonly note: string;
 };
-
-/** Honest scope of the demo: a prepared message is never delivered. */
-export const PIPELINE_LOCAL_ONLY_NOTE =
-  "Solo en esta sesión local: no se envió ningún correo ni notificación.";
 
 /** The locally recorded movements of one candidate, ready for the detail Sheet. */
 export function pipelineActivityItems(
@@ -188,7 +183,6 @@ export function pipelineActivityItems(
     title: "Movimiento confirmado",
     detail: pipelineStageTransition(record.from, record.to),
     message: record.message === "" ? null : record.message,
-    note: PIPELINE_LOCAL_ONLY_NOTE,
   }));
 }
 

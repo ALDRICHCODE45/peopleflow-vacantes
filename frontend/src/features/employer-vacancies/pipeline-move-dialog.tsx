@@ -45,8 +45,8 @@ import {
  *
  * The dialog is mounted per pending move, so a fresh movement always starts from
  * a fresh draft. Nothing here sends, stores or claims a delivery: the preview
- * describes the intended email and application-process channels, and the visible
- * note states that this local prototype delivers neither.
+ * describes the intended email and application-process channels, and it omits
+ * the parts it cannot prove (such as the recipient) instead of inventing them.
  */
 
 const MESSAGE_HINT_ID = "pipeline-move-message-hint";
@@ -234,10 +234,9 @@ export function PipelineMoveDialog({
                   <MailIcon aria-hidden="true" className="size-3.5" />
                   Correo
                 </p>
-                <p className="text-sm text-foreground">
-                  Para:{" "}
-                  {preview.emailRecipient ?? "No disponible en este prototipo local"}
-                </p>
+                {preview.emailRecipient === null ? null : (
+                  <p className="text-sm text-foreground">Para: {preview.emailRecipient}</p>
+                )}
                 <p className="text-sm text-foreground">Asunto: {preview.emailSubject}</p>
                 <p className="text-sm whitespace-pre-wrap break-words text-foreground">
                   {preview.emailBody === "" ? "Sin mensaje" : preview.emailBody}
@@ -251,10 +250,6 @@ export function PipelineMoveDialog({
                 <p className="text-sm text-foreground">{preview.processEntry}</p>
                 <p className="text-sm whitespace-pre-wrap break-words text-foreground">{preview.processMessage || "Sin mensaje"}</p>
               </div>
-              <p data-pf-pipeline-demo-note="" className={`text-balance ${QA}`}>
-                Demostración local: no se envía ningún correo ni se actualiza el panel de la
-                persona candidata.
-              </p>
             </div>
           </FieldGroup>
         ) : null}

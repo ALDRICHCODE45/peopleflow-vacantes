@@ -314,7 +314,7 @@ test("site editor switches sections, previews the typed identity and never saves
   // The draft starts from the employer identity with only one section mounted.
   await expect(page.locator('[data-pf-sitio-input="name"]')).toHaveValue("Nexo Labs");
   await expect(page.locator('[data-pf-sitio-input="about"]')).toHaveCount(0);
-  await expect(page.locator("[data-pf-sitio-preview-note]")).toHaveText("Vista previa local; los cambios no se guardan ni publican.");
+  await expect(editor).not.toContainText(/vista previa local|no se guardan|prototipo|demostración/iu);
 
   // Typing updates the local preview only.
   await page.locator('[data-pf-sitio-input="tagline"]').fill("Talento para equipos que crecen.");
