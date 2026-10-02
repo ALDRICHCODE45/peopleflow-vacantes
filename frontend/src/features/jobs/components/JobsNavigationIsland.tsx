@@ -35,6 +35,10 @@ import {
 } from "../formatters";
 import { buildFilterCommitUrl } from "../url";
 import type { JobsQuery, JobsQueryKey } from "../url";
+import {
+  EMPTY_JOBS_VISUAL_PREFERENCES,
+  JobsVisualPreferences,
+} from "./JobsVisualPreferences";
 
 /**
  * The single pending-navigation island for /vacantes: it owns every
@@ -61,6 +65,11 @@ export function JobsNavigationIsland({
     link: HTMLAnchorElement | null;
   } | null>(null);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
+  // Visual-only preferences shared by the desktop sidebar and the mobile
+  // Sheet: local view state that never touches the URL or the filter forms.
+  const [visualPreferences, setVisualPreferences] = React.useState(
+    EMPTY_JOBS_VISUAL_PREFERENCES,
+  );
 
   // Pending clears only when the canonical route changes, which also restores
   // the initiating control and the clicked next link.
@@ -244,29 +253,38 @@ export function JobsNavigationIsland({
 
         <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-6">
           {/* Desktop sticky filter surface: supported scalar fields only,
-              grouped with a separator, beside the flexible results column. */}
-          <form
-            data-nav-intent="filters"
-            onSubmit={handleOwnedSubmit}
-            aria-label="Filtros"
-            className="hidden w-full shrink-0 flex-col gap-5 rounded-2xl border border-border bg-card/60 p-5 md:sticky md:top-24 md:flex md:w-60"
-          >
-            <FieldGroup className="w-full items-start gap-4">
-              <FilterFields idPrefix="desktop-" query={query} />
-            </FieldGroup>
-            <div className="flex flex-col gap-2">
-              <Button type="submit">Aplicar filtros</Button>
-              {/* Button-styled navigation stays a real anchor: routing it
-                  through the shared Button would make Base UI treat the link as
-                  a non-native button. */}
-              <Link
-                href="/vacantes"
-                className={buttonVariants({ variant: "ghost" })}
-              >
-                Limpiar filtros
-              </Link>
-            </div>
-          </form>
+              grouped with a separator, beside the flexible results column.
+              The visual-only preferences sit after the functional form so
+              they never join its `FormData`. */}
+          <div className="hidden w-full shrink-0 flex-col gap-5 md:sticky md:top-24 md:flex md:w-60">
+            <form
+              data-nav-intent="filters"
+              onSubmit={handleOwnedSubmit}
+              aria-label="Filtros"
+              className="flex flex-col gap-5 rounded-2xl border border-border bg-card/60 p-5"
+            >
+              <FieldGroup className="w-full items-start gap-4">
+                <FilterFields idPrefix="desktop-" query={query} />
+              </FieldGroup>
+              <div className="flex flex-col gap-2">
+                <Button type="submit">Aplicar filtros</Button>
+                {/* Button-styled navigation stays a real anchor: routing it
+                    through the shared Button would make Base UI treat the link as
+                    a non-native button. */}
+                <Link
+                  href="/vacantes"
+                  className={buttonVariants({ variant: "ghost" })}
+                >
+                  Limpiar filtros
+                </Link>
+              </div>
+            </form>
+            <JobsVisualPreferences
+              idPrefix="desktop-"
+              value={visualPreferences}
+              onChange={setVisualPreferences}
+            />
+          </div>
           <div className="flex min-w-0 flex-1 flex-col gap-4">
             <div className="flex items-center justify-between gap-3">
               <h2 className="font-heading text-xl font-semibold tracking-tight text-foreground">
@@ -288,22 +306,29 @@ export function JobsNavigationIsland({
           <SheetHeader>
             <SheetTitle>Filtros</SheetTitle>
           </SheetHeader>
-          <form
-            data-nav-intent="mobile-filters"
-            onSubmit={handleOwnedSubmit}
-            className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 pb-6"
-          >
-            <FieldGroup className="gap-4">
-              <FilterFields idPrefix="mobile-" query={query} />
-            </FieldGroup>
-            <Button type="submit">Aplicar filtros</Button>
-            <Link
-              href="/vacantes"
-              className={buttonVariants({ variant: "ghost" })}
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 pb-6">
+            <form
+              data-nav-intent="mobile-filters"
+              onSubmit={handleOwnedSubmit}
+              className="flex flex-col gap-4"
             >
-              Limpiar filtros
-            </Link>
-          </form>
+              <FieldGroup className="gap-4">
+                <FilterFields idPrefix="mobile-" query={query} />
+              </FieldGroup>
+              <Button type="submit">Aplicar filtros</Button>
+              <Link
+                href="/vacantes"
+                className={buttonVariants({ variant: "ghost" })}
+              >
+                Limpiar filtros
+              </Link>
+            </form>
+            <JobsVisualPreferences
+              idPrefix="mobile-"
+              value={visualPreferences}
+              onChange={setVisualPreferences}
+            />
+          </div>
           <div className="px-6 pb-6">
             <SheetClose
               render={
@@ -368,28 +393,42 @@ function ComposedSearchField({
 }
 
 
-const SENIORITY_OPTIONS: ReadonlyArray<{ value: Seniority }> = [
-  { value: "intern" },
-  { value: "junior" },
-  { value: "mid" },
-  { value: "senior" },
-  { value: "lead" },
-];
+/**
+ * Feature-local trigger labels. Base UI's `items` map lets the raw English
+ * enum value stay in the hidden input (form and URL) while the trigger and
+ * the popup render the Mexico Spanish label; the `null` entry keeps the reset
+ * option and its honest "Todas"/"Todos" label.
+ */
+const WORK_MODE_ITEMS = [
+  { value: null, label: "Todas" },
+  { value: "onsite", label: workModeLabel("onsite") },
+  { value: "remote", label: workModeLabel("remote") },
+  { value: "hybrid", label: workModeLabel("hybrid") },
+] satisfies ReadonlyArray<{ value: WorkMode | null; label: string }>;
 
-const WORK_MODE_OPTIONS: ReadonlyArray<{ value: WorkMode }> = [
-  { value: "onsite" },
-  { value: "remote" },
-  { value: "hybrid" },
-];
+const SENIORITY_ITEMS = [
+  { value: null, label: "Todas" },
+  { value: "intern", label: seniorityLabel("intern") },
+  { value: "junior", label: seniorityLabel("junior") },
+  { value: "mid", label: seniorityLabel("mid") },
+  { value: "senior", label: seniorityLabel("senior") },
+  { value: "lead", label: seniorityLabel("lead") },
+] satisfies ReadonlyArray<{ value: Seniority | null; label: string }>;
 
-const EMPLOYMENT_TYPE_OPTIONS: ReadonlyArray<{ value: EmploymentType }> = [
-  { value: "full_time" },
-  { value: "part_time" },
-  { value: "contract" },
-  { value: "internship" },
-];
+const EMPLOYMENT_TYPE_ITEMS = [
+  { value: null, label: "Todos" },
+  { value: "full_time", label: employmentTypeLabel("full_time") },
+  { value: "part_time", label: employmentTypeLabel("part_time") },
+  { value: "contract", label: employmentTypeLabel("contract") },
+  { value: "internship", label: employmentTypeLabel("internship") },
+] satisfies ReadonlyArray<{ value: EmploymentType | null; label: string }>;
 
-const CURRENCY_OPTIONS = ["MXN", "USD"] as const;
+/** ISO codes are already the Spanish-facing label; only the null reset differs. */
+const CURRENCY_ITEMS = [
+  { value: null, label: "Todas" },
+  { value: "MXN", label: "MXN" },
+  { value: "USD", label: "USD" },
+] satisfies ReadonlyArray<{ value: "MXN" | "USD" | null; label: string }>;
 
 type QuickFilterChip = {
   label: string;
@@ -453,16 +492,19 @@ function FilterFields({
     <>
       <Field>
         <FieldLabel htmlFor={`${idPrefix}work-mode`}>Modalidad</FieldLabel>
-        <Select name="work_mode" defaultValue={query.work_mode}>
+        <Select
+          name="work_mode"
+          defaultValue={query.work_mode}
+          items={WORK_MODE_ITEMS}
+        >
           <SelectTrigger id={`${idPrefix}work-mode`}>
             <SelectValue placeholder="Todas" />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectItem value={null}>Todas</SelectItem>
-              {WORK_MODE_OPTIONS.map(({ value }) => (
-                <SelectItem key={value} value={value}>
-                  {workModeLabel(value)}
+              {WORK_MODE_ITEMS.map((item) => (
+                <SelectItem key={item.label} value={item.value}>
+                  {item.label}
                 </SelectItem>
               ))}
             </SelectGroup>
@@ -471,16 +513,19 @@ function FilterFields({
       </Field>
       <Field>
         <FieldLabel htmlFor={`${idPrefix}seniority`}>Senioridad</FieldLabel>
-        <Select name="seniority" defaultValue={query.seniority}>
+        <Select
+          name="seniority"
+          defaultValue={query.seniority}
+          items={SENIORITY_ITEMS}
+        >
           <SelectTrigger id={`${idPrefix}seniority`}>
             <SelectValue placeholder="Todas" />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectItem value={null}>Todas</SelectItem>
-              {SENIORITY_OPTIONS.map(({ value }) => (
-                <SelectItem key={value} value={value}>
-                  {seniorityLabel(value)}
+              {SENIORITY_ITEMS.map((item) => (
+                <SelectItem key={item.label} value={item.value}>
+                  {item.label}
                 </SelectItem>
               ))}
             </SelectGroup>
@@ -491,16 +536,19 @@ function FilterFields({
         <FieldLabel htmlFor={`${idPrefix}employment-type`}>
           Tipo de empleo
         </FieldLabel>
-        <Select name="employment_type" defaultValue={query.employment_type}>
+        <Select
+          name="employment_type"
+          defaultValue={query.employment_type}
+          items={EMPLOYMENT_TYPE_ITEMS}
+        >
           <SelectTrigger id={`${idPrefix}employment-type`}>
             <SelectValue placeholder="Todos" />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectItem value={null}>Todos</SelectItem>
-              {EMPLOYMENT_TYPE_OPTIONS.map(({ value }) => (
-                <SelectItem key={value} value={value}>
-                  {employmentTypeLabel(value)}
+              {EMPLOYMENT_TYPE_ITEMS.map((item) => (
+                <SelectItem key={item.label} value={item.value}>
+                  {item.label}
                 </SelectItem>
               ))}
             </SelectGroup>
@@ -518,16 +566,19 @@ function FilterFields({
       </Field>
       <Field>
         <FieldLabel htmlFor={`${idPrefix}currency`}>Moneda</FieldLabel>
-        <Select name="currency" defaultValue={query.currency}>
+        <Select
+          name="currency"
+          defaultValue={query.currency}
+          items={CURRENCY_ITEMS}
+        >
           <SelectTrigger id={`${idPrefix}currency`}>
             <SelectValue placeholder="Todas" />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectItem value={null}>Todas</SelectItem>
-              {CURRENCY_OPTIONS.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {value}
+              {CURRENCY_ITEMS.map((item) => (
+                <SelectItem key={item.label} value={item.value}>
+                  {item.label}
                 </SelectItem>
               ))}
             </SelectGroup>

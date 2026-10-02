@@ -9,11 +9,11 @@ Selected enums remain raw English in query/submission but Spanish in triggers. N
 
 ## Tasks and delivery
 Branch feat/sample-vacancies-filters from145bc5e. Two sequential delegated work units (multi-file trigger), coherent tests with behavior. Approx600–850 authored lines forecast, retain previously approved feature-branch-chain delivery preference; no remote PR or push. Parent owns commits and main integration.
-- [ ] SVF-1 (in progress): Config flag, typed ten-job sample reads, list/detail switch, focused tests and deployment documentation. Commit pending.
-- [ ] SVF-2 (pending): Spanish filter triggers plus compact visual preference controls and focused tests; final local-main integration. Commit pending.
+- [x] SVF-1: Config flag, ten-job reads, list/detail switch and docs. Commit034f262; observed RED then30/30 focused tests GREEN, tsc/scoped lint pass. Independent30/30 and static boundary review PASS. Native assessment unavailable (untracked paths); required independent check complete.640 diff lines incl tests/docs, coherent scope retained.
+- [ ] SVF-2 (in progress): Spanish filter triggers plus compact visual preference controls and focused tests; final local-main integration. Commit pending.
 
 ## Checks and acceptance
 Node22. Actual RED before new behavior then GREEN; focused Vitest, tsc and scoped eslint. No browser/smoke/a11y/build/full suites. Default mode makes no sample substitutions; sample mode no API requests. Ten unique jobs, valid schemas, matching detail IDs and filtering consistency. New visual controls do not modify query/results. RDD off; assess each writer diff, follow verifier plan. Rollback by work-unit commits; no external runtime harness (unit-only, user visual acceptance).
 
 ## Progress / next step
-Read-only source map complete. Implement SVF-1. Preserve main's dirty backend-go-closure documents and user servers. Flag activation in deployment remains user-owned; do not modify secrets/env files or hosting remotely.
+SVF-1 complete; implement SVF-2. Preserve main's dirty backend-go-closure documents and user servers. Flag activation in deployment remains user-owned; do not modify secrets/env files or hosting remotely. No production activation/build/browser check performed.

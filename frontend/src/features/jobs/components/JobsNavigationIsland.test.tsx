@@ -1,6 +1,12 @@
 import * as React from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -22,9 +28,20 @@ const source = readFileSync(
   "utf8",
 );
 
+/** jsdom has no PointerEvent, so the Base UI checkbox dispatches through this. */
+class TestPointerEvent extends MouseEvent {
+  readonly pointerType = "mouse";
+  readonly pointerId = 1;
+}
+
+beforeEach(() => {
+  vi.stubGlobal("PointerEvent", TestPointerEvent);
+});
+
 afterEach(() => {
   cleanup();
   push.mockReset();
+  vi.unstubAllGlobals();
 });
 
 describe("JobsNavigationIsland /vacantes width island (CCP-R9A)", () => {
@@ -60,12 +77,123 @@ describe("JobsNavigationIsland /vacantes width island (CCP-R9A)", () => {
   });
 
   it("gives the mobile filters sheet a shrinking body that owns the scroll", () => {
-    // The form that wraps the mobile facet fields is the panel's flex body: it
-    // must shrink (`min-h-0`) and scroll itself so the floating sheet keeps its
-    // header and footer fixed.
+    // The visual-only preferences live after the functional form, so the
+    // panel's flex body wraps both: the wrapper owns `min-h-0` and the scroll
+    // so the floating sheet keeps its header and footer fixed.
     expect(source).toContain('data-nav-intent="mobile-filters"');
     expect(source).toMatch(
-      /data-nav-intent="mobile-filters"[\s\S]{0,240}?className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto/u,
+      /className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto[^"]*"[\s\S]{0,240}?data-nav-intent="mobile-filters"/u,
     );
+  });
+});
+
+describe("JobsNavigationIsland Spanish filter triggers (SVF-2)", () => {
+  const filtersRoute =
+    "/vacantes?work_mode=remote&seniority=mid&employment_type=full_time&currency=USD";
+  const filtersQuery = {
+    work_mode: "remote",
+    seniority: "mid",
+    employment_type: "full_time",
+    currency: "USD",
+  };
+
+  it("labels the selected enum filters in Spanish while keeping the raw values", () => {
+    render(
+      <JobsNavigationIsland routeKey={filtersRoute} query={filtersQuery}>
+        <p>resultados</p>
+      </JobsNavigationIsland>,
+    );
+
+    const workMode = screen.getByRole("combobox", { name: "Modalidad" });
+    expect(workMode).toHaveTextContent("Remoto");
+    expect(workMode).not.toHaveTextContent("remote");
+
+    const seniority = screen.getByRole("combobox", { name: "Senioridad" });
+    expect(seniority).toHaveTextContent("Medio");
+    expect(seniority).not.toHaveTextContent("mid");
+
+    const employment = screen.getByRole("combobox", { name: "Tipo de empleo" });
+    expect(employment).toHaveTextContent("Tiempo completo");
+    expect(employment).not.toHaveTextContent("full_time");
+
+    const currency = screen.getByRole("combobox", { name: "Moneda" });
+    expect(currency).toHaveTextContent("USD");
+  });
+
+  it("submits the raw enum values through the functional filters form", () => {
+    const view = render(
+      <JobsNavigationIsland routeKey={filtersRoute} query={filtersQuery}>
+        <p>resultados</p>
+      </JobsNavigationIsland>,
+    );
+
+    const form = view.container.querySelector<HTMLFormElement>(
+      'form[data-nav-intent="filters"]',
+    );
+    expect(form).not.toBeNull();
+    // The same commit shows the Spanish label and submits the raw enum value.
+    expect(screen.getByRole("combobox", { name: "Modalidad" })).toHaveTextContent(
+      "Remoto",
+    );
+    const data = new FormData(form!);
+    expect(data.get("work_mode")).toBe("remote");
+    expect(data.get("seniority")).toBe("mid");
+    expect(data.get("employment_type")).toBe("full_time");
+    expect(data.get("currency")).toBe("USD");
+    expect(data.get("location")).toBe("");
+
+    fireEvent.submit(form!);
+    expect(push).toHaveBeenCalledWith(
+      "/vacantes?seniority=mid&work_mode=remote&employment_type=full_time&currency=USD",
+    );
+  });
+});
+
+describe("JobsNavigationIsland visual-only preferences (SVF-2)", () => {
+  it("keeps compact preferences outside the functional form and never navigates", () => {
+    const view = render(
+      <JobsNavigationIsland
+        routeKey="/vacantes?location=CDMX&currency=MXN"
+        query={{ location: "CDMX", currency: "MXN" }}
+      >
+        <p>resultados</p>
+      </JobsNavigationIsland>,
+    );
+
+    const preferences = view.container.querySelector(
+      "[data-jobs-visual-preferences]",
+    );
+    expect(preferences).not.toBeNull();
+    const filtersForm = view.container.querySelector<HTMLFormElement>(
+      'form[data-nav-intent="filters"]',
+    );
+    expect(filtersForm).not.toBeNull();
+    expect(filtersForm!.contains(preferences)).toBe(false);
+    expect(
+      preferences!.querySelectorAll("input[name], select[name], textarea[name]"),
+    ).toHaveLength(0);
+    expect(
+      within(preferences as HTMLElement).queryByRole("button", {
+        name: /aplicar/i,
+      }),
+    ).toBeNull();
+
+    fireEvent.change(within(filtersForm!).getByLabelText("Ubicación"), {
+      target: { value: "" },
+    });
+    fireEvent.change(screen.getByLabelText("Sueldo mínimo mensual"), {
+      target: { value: "25000" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Seguro médico" }));
+    expect(push).not.toHaveBeenCalled();
+
+    fireEvent.submit(filtersForm!);
+    expect(push).toHaveBeenCalledWith("/vacantes?currency=MXN");
+  });
+
+  it("renders the same visual preferences inside the mobile sheet surface", () => {
+    expect(source).toContain("<JobsVisualPreferences");
+    expect(source).toContain('idPrefix="desktop-"');
+    expect(source).toContain('idPrefix="mobile-"');
   });
 });
