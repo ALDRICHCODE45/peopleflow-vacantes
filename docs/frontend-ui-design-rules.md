@@ -102,7 +102,7 @@ en la sección 7.
 - Cards y superficies → `Card` + `CardHeader`/`CardTitle`/`CardDescription`/`CardContent`/`CardFooter`.
 - Avatares → `Avatar` + `AvatarImage` + `AvatarFallback` (el fallback es obligatorio).
 - Tabs → `Tabs` + `TabsList` + `TabsTrigger` + `TabsContent`.
-- Diálogos/paneles → `Dialog` (modal, **hoy no instalado**), `Sheet` (lateral, instalado),
+- Diálogos/paneles → `Dialog` (modal, instalado), `Sheet` (lateral, instalado),
   `Drawer` (inferior, instalado).
 - Estados vacíos → `Empty` + `EmptyHeader`/`EmptyTitle`/`EmptyDescription`/`EmptyContent`.
 - Menús → `DropdownMenu` (con sus grupos).
@@ -253,7 +253,7 @@ esta regla.
 | Área scrolleable interna (columnas Kanban) | `ScrollArea` | **No instalado → consultar registry** |
 | Menú de acciones por tarjeta | `DropdownMenu` | Instalado |
 | Estado vacío (sin vacantes / sin postulantes) | `Empty`, `EmptyHeader`, `EmptyTitle`, `EmptyDescription`, `EmptyContent` | Instalado |
-| Modal de detalle | `Dialog` | **No instalado → consultar registry** |
+| Modal de detalle o confirmación con formulario | `Dialog` | Instalado |
 | Panel lateral de detalle | `Sheet` | Instalado |
 | Panel inferior móvil | `Drawer` | Instalado |
 | Selector de etapa/estado | `Select` | Instalado |
@@ -268,7 +268,7 @@ Regla operativa: si el primitivo no está instalado, **primero** se consulta en 
 registry (herramientas MCP en solo lectura) y **no se implementa a mano**. Agregarlo
 requiere autorización humana normal y revisión del paquete/registro (sección 1): no hay
 instalación automática. La columna "Estado" es un inventario y no convierte en instalado
-lo ausente (`Dialog`, `HoverCard`, `Spinner`, `ScrollArea`, `Command`).
+lo ausente (`HoverCard`, `Spinner`, `ScrollArea`, `Command`).
 
 ## 8. Evidencia del inventario del registry
 
