@@ -20,6 +20,12 @@ const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|color-mix)\(/u;
 /** Every class list rendered inside `root`, to prove the surface stays token-only. */
 const classesOf = (root: Element) => Array.from(root.querySelectorAll("[class]")).map((node) => node.getAttribute("class") ?? "").join(" ");
 const slot = (root: Element, name: string) => root.querySelector(`[data-slot="${name}"]`) as HTMLElement;
+const inlineStyleOwners = (root: Element) => Array.from(root.querySelectorAll("[style]")).map(node => {
+  if (node.getAttribute("data-slot") === "toggle-group") return "toggle-group";
+  if (node.id === "pipeline-board" && node.getAttribute("style") === "display: none;") return "drag-instructions";
+  if (node.id.startsWith("DndLiveRegion-")) return "drag-announcement";
+  return `unexpected: ${node.outerHTML}`;
+});
 const STATUS_TONES = { submitted: "status-info", in_review: "status-review", hired: "status-success", rejected: "status-danger" } as const;
 const STAGE_VARIANTS = { submitted: "info", in_review: "review", hired: "success", rejected: "danger" } as const;
 const backend = NEXO_VACANCIES.find((vacancy) => vacancy.id === "backend-developer-senior") as EmployerVacancy;
@@ -60,6 +66,9 @@ function stubBrowserApis() {
       disconnect() {}
     },
   );
+  // jsdom implements no PointerEvent, and the Base UI switch dispatches one.
+  class TestPointerEvent extends MouseEvent {}
+  vi.stubGlobal("PointerEvent", TestPointerEvent);
   vi.stubGlobal("innerWidth", 1280);
 }
 
@@ -141,6 +150,140 @@ vi.mock("@/components/ui/combobox", async () => {
     ComboboxContent: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   };
 });
+
+/**
+ * DropdownMenu jsdom boundary, mirroring the committed talent suite: Base UI's
+ * floating positioner runs an `autoUpdate` loop that never settles under jsdom,
+ * so the real menu is replaced by a small implementation that keeps the
+ * observable contract this surface relies on (`aria-haspopup`/`aria-expanded`,
+ * `role="menu"`, `role="menuitem"`, `aria-disabled`, close on activation). Real
+ * menu geometry is proven in Playwright, never here.
+ */
+vi.mock("@/components/ui/dropdown-menu", () => {
+  const MenuContext = React.createContext<{
+    open: boolean;
+    setOpen: (next: boolean) => void;
+  } | null>(null);
+
+  function useMenuContext() {
+    const context = React.useContext(MenuContext);
+    if (context === null) throw new Error("DropdownMenu context is missing");
+    return context;
+  }
+
+  return {
+    DropdownMenu: ({ children }: { children?: React.ReactNode }) => {
+      const [open, setOpen] = React.useState(false);
+      return (
+        <MenuContext.Provider value={{ open, setOpen }}>
+          <div>{children}</div>
+        </MenuContext.Provider>
+      );
+    },
+    DropdownMenuTrigger: ({
+      render,
+      children,
+    }: {
+      render?: React.ReactElement<Record<string, unknown>>;
+      children?: React.ReactNode;
+    }) => {
+      const { open, setOpen } = useMenuContext();
+      const props = {
+        onClick: () => setOpen(!open),
+        "aria-haspopup": "menu" as const,
+        "aria-expanded": open,
+      };
+      return render ? (
+        React.cloneElement(render, props, children)
+      ) : (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      );
+    },
+    DropdownMenuContent: ({
+      children,
+      ...props
+    }: React.ComponentProps<"div"> & {
+      align?: string;
+      alignOffset?: number;
+      side?: string;
+      sideOffset?: number;
+    }) => {
+      const { align, alignOffset, side, sideOffset, ...domProps } = props;
+      void align;
+      void alignOffset;
+      void side;
+      void sideOffset;
+      const { open } = useMenuContext();
+      return open ? (
+        <div role="menu" {...domProps}>
+          {children}
+        </div>
+      ) : null;
+    },
+    DropdownMenuGroup: ({ children, ...props }: React.ComponentProps<"div">) => (
+      <div role="group" {...props}>
+        {children}
+      </div>
+    ),
+    DropdownMenuLabel: ({ children, ...props }: React.ComponentProps<"div">) => (
+      <div {...props}>{children}</div>
+    ),
+    DropdownMenuItem: ({
+      children,
+      onClick,
+      disabled,
+      ...props
+    }: React.ComponentProps<"div"> & { disabled?: boolean; onClick?: () => void }) => {
+      const { setOpen } = useMenuContext();
+      return (
+        <div
+          role="menuitem"
+          aria-disabled={disabled ? true : undefined}
+          onClick={() => {
+            if (disabled) return;
+            onClick?.();
+            setOpen(false);
+          }}
+          {...props}
+        >
+          {children}
+        </div>
+      );
+    },
+    DropdownMenuSeparator: ({ className, ...props }: React.ComponentProps<"div">) => (
+      <div role="separator" aria-hidden="true" className={className} {...props} />
+    ),
+  };
+});
+
+const pipelineCard = (root: HTMLElement, id: string) =>
+  root.querySelector(`[data-pf-pipeline-card="${id}"]`) as HTMLElement;
+const menuTrigger = (root: HTMLElement, id: string) =>
+  root.querySelector(`[data-pf-pipeline-move="${id}"]`) as HTMLElement;
+const moveDialog = () => screen.getByRole("dialog", { name: "Confirmar cambio de etapa" });
+const stageOf = (root: HTMLElement, id: string) =>
+  VACANCY_PIPELINE_STAGES.find((stage) => column(root, stage).contains(pipelineCard(root, id))) ??
+  VACANCY_PIPELINE_STAGES[0];
+
+/** Chooses one destination stage from the non-drag actions menu of a card. */
+async function openCardMove(
+  user: ReturnType<typeof userEvent.setup>,
+  root: HTMLElement,
+  id: string,
+  targetStage?: VacancyPipelineStage,
+) {
+  const current = stageOf(root, id);
+  const stage = targetStage ?? VACANCY_PIPELINE_STAGES.find((value) => value !== current) ?? current;
+  await user.click(menuTrigger(root, id));
+  await user.click(screen.getByRole("menuitem", { name: CANDIDATE_STATUS_LABELS[stage] }));
+}
+
+/** Confirms the pending movement through the dialog footer. */
+async function confirmMove(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(within(moveDialog()).getByRole("button", { name: /^Confirmar/u }));
+}
 
 const filterTrigger = () => screen.getByRole("button", { name: /^Filtros/u });
 
@@ -263,12 +406,17 @@ describe("PipelineWorkspace candidate cards", () => {
     }
   });
 
-  it("replaces the duplicated stage tone recipe with the typed semantic variant map", () => {
-    expect(source).toContain("type BadgeVariant");
-    expect(source).toMatch(/STAGE_VARIANT: Readonly<Record<VacancyPipelineStage, BadgeVariant>>/u);
+  it("keeps the typed semantic variant map in the shared candidate module and the row on it", () => {
+    // The stage tone map moved with the board card, so the migration contract is
+    // read from the module that now owns it while the list row keeps consuming it.
+    const boardSource = readFileSync(join(process.cwd(), "src/features/employer-vacancies/pipeline-board.tsx"), "utf8");
+    expect(boardSource).toContain("type BadgeVariant");
+    expect(boardSource).toMatch(/STAGE_VARIANT: Readonly<Record<VacancyPipelineStage, BadgeVariant>>/u);
     expect(source).toContain("<Badge variant={STAGE_VARIANT[candidate.status]} dot");
-    expect(source).not.toContain("STAGE_TONE");
-    for (const token of Object.values(STATUS_TONES)) expect(source, token).not.toContain(`border-${token}/40`);
+    for (const file of [source, boardSource]) {
+      expect(file).not.toContain("STAGE_TONE");
+      for (const token of Object.values(STATUS_TONES)) expect(file, token).not.toContain(`border-${token}/40`);
+    }
   });
 
   it("only renders a next step when the candidate has one", () => {
@@ -277,7 +425,7 @@ describe("PipelineWorkspace candidate cards", () => {
     expect(container.querySelector('[data-pf-pipeline-next-step="renata-vargas"]')).toBeNull();
   });
 
-  it("keeps every candidate root a non-interactive, non-draggable shadcn Card with the full hierarchy, an initials Avatar and Badge chips", () => {
+  it("keeps every candidate root a shadcn Card with the full hierarchy, an initials Avatar, Badge chips and exactly three sibling controls", () => {
     const { container } = renderWorkspace();
     const initials: Readonly<Record<string, string>> = { "lucia-fernandez": "LF", "diego-salazar": "DS", "renata-vargas": "RV", "martin-bustos": "MB" };
     for (const candidate of backendCandidates) {
@@ -289,7 +437,15 @@ describe("PipelineWorkspace candidate cards", () => {
       const badges = Array.from(card.querySelectorAll("[data-slot='badge']"));
       expect(badges.some((node) => node.textContent?.includes(`${candidate.matchScore}%`))).toBe(true);
       for (const skill of candidate.skills.slice(0, 4)) expect(badges.some((node) => node.textContent === skill)).toBe(true);
-      expect(card.querySelectorAll("button, a, input, [role='button']")).toHaveLength(0);
+      // The card is still not a control itself: it is a clickable surface whose
+      // detail button, drag handle and actions menu are siblings, never nested.
+      const controls = Array.from(card.querySelectorAll("button"));
+      expect(controls).toHaveLength(3);
+      expect(card.querySelector(`[data-pf-pipeline-detail="${candidate.id}"]`)).not.toBeNull();
+      expect(card.querySelector(`[data-pf-pipeline-drag="${candidate.id}"]`)).not.toBeNull();
+      expect(card.querySelector(`[data-pf-pipeline-move="${candidate.id}"]`)).not.toBeNull();
+      for (const control of controls) expect(control.querySelectorAll("button, a, input")).toHaveLength(0);
+      expect(card.querySelectorAll("a, input, textarea")).toHaveLength(0);
     }
   });
 });
@@ -531,7 +687,7 @@ describe("PipelineWorkspace list mode over the filtered set", () => {
     expect(rowIds(container)).toHaveLength(4);
   });
 
-  it("contains narrow-screen overflow in the list region and keeps every row non-interactive", async () => {
+  it("contains narrow-screen overflow in the list region and keeps each row to one detail control and one actions menu", async () => {
     const user = userEvent.setup();
     const { container } = renderWorkspace();
     await user.click(screen.getByRole("button", { name: "Lista" }));
@@ -544,7 +700,12 @@ describe("PipelineWorkspace list mode over the filtered set", () => {
     for (const row of region.querySelectorAll("[data-pf-pipeline-row]")) {
       expect(row.tagName).toBe("TR");
       expect(row).toHaveAttribute("data-slot", "table-row");
-      expect(row.querySelectorAll("a, button, input, [role='button']")).toHaveLength(0);
+      // The list never drags: the row owns a detail control and exactly one
+      // actions menu, and no control nests another.
+      expect(row.querySelectorAll("button")).toHaveLength(2);
+      expect(row.querySelector(`[data-pf-pipeline-detail="${row.getAttribute("data-pf-pipeline-row")}"]`)).not.toBeNull();
+      expect(row.querySelector(`[data-pf-pipeline-move="${row.getAttribute("data-pf-pipeline-row")}"]`)).not.toBeNull();
+      expect(row.querySelectorAll("a, input, [role='button']")).toHaveLength(0);
       expect(row.hasAttribute("draggable")).toBe(false);
       expect(row.hasAttribute("style")).toBe(false);
     }
@@ -556,10 +717,7 @@ describe("PipelineWorkspace list mode over the filtered set", () => {
     await user.click(screen.getByRole("button", { name: "Lista" }));
     expect(container.querySelector("[data-pf-pipeline-sample]")).toHaveTextContent(visibleCandidatesCopy(4, vacancyCandidateTotal(backend.candidateCounts)));
     expect(container.querySelector("[data-pf-pipeline-sample]")?.textContent).not.toMatch(/demostración|prototipo|vista de/iu);
-    const styled = Array.from(container.querySelectorAll("[style]"));
-    expect(styled).toHaveLength(1);
-    expect(styled[0]).toHaveAttribute("data-slot", "toggle-group");
-    expect(styled[0].getAttribute("style")).toMatch(/^--gap:\s*0;?$/u);
+    expect(inlineStyleOwners(container)).toEqual(["toggle-group"]);
     expect(container.querySelectorAll("[data-pf-pipeline-card]")).toHaveLength(0);
   });
   it("shows an honest empty-vacancy list without inventing a clear action", async () => {
@@ -621,29 +779,30 @@ describe("PipelineWorkspace view switch boundary", () => {
 });
 
 describe("PipelineWorkspace surface contract", () => {
-  it("paints with semantic tokens only and allows just the ToggleGroup --gap style", () => {
+  it("paints with semantic tokens and permits only primitive-owned layout/accessibility styles", () => {
     const { container } = renderWorkspace();
     expect(RAW_COLOR.test(classesOf(container))).toBe(false);
-    const styled = Array.from(container.querySelectorAll("[style]"));
-    expect(styled).toHaveLength(1);
-    expect(styled[0]).toHaveAttribute("data-slot", "toggle-group");
-    expect(styled[0].getAttribute("style")).toMatch(/^--gap:\s*0;?$/u);
+    expect(inlineStyleOwners(container)).toEqual(["toggle-group", "drag-instructions", "drag-announcement"]);
     expect(container.querySelector("[data-pf-pipeline-board]")?.getAttribute("class") ?? "").toMatch(/focus-visible:ring/u);
   });
 
-  it("stays a local read-only client surface over only the approved shadcn modules and no side effect", () => {
+  it("stays a local client surface over only the approved modules and no transport, storage or routing", () => {
     expect(source).toMatch(/^\s*["']use client["']/mu);
     const modules = [...new Set([...source.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]))].sort();
     expect(modules).toEqual([
       "./model", "./pipeline-model", "./pipeline-filter-model", "./pipeline-filters",
-      "@/components/ui/avatar", "@/components/ui/badge", "@/components/ui/button", "@/components/ui/card",
-      "@/components/ui/empty", "@/components/ui/input-group", "@/components/ui/table", "@/components/ui/toggle-group",
+      "./pipeline-board", "./pipeline-move-dialog", "./pipeline-move-model",
+      "@/components/ui/badge", "@/components/ui/button", "@/components/ui/empty",
+      "@/components/ui/input-group", "@/components/ui/table", "@/components/ui/toggle-group",
+      "@/features/employer-talent/talent-detail-sheet",
       "lucide-react", "react",
     ].sort());
     for (const raw of ['@/components/ui/input"', "@/lib/utils", "cn("]) {
       expect(source, `pipeline-workspace.tsx must not import ${raw}`).not.toContain(raw);
     }
-    for (const forbidden of ["@/features/jobs", "features/jobs", "./prototype-candidates", "NEXO_CANDIDATES", "prototype-vacancies", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.clipboard", "useRouter", "next/navigation", "onDrag", "onDrop", "draggable", ".css"]) {
+    // Drag and drop lives in the board module; this orchestrator only asks for
+    // pending changes and applies the confirmed ones.
+    for (const forbidden of ["@/features/jobs", "features/jobs", "./prototype-candidates", "NEXO_CANDIDATES", "prototype-vacancies", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.clipboard", "useRouter", "next/navigation", "onDrag", "onDrop", "draggable", "@dnd-kit", "Date.now", ".css"]) {
       expect(source, `pipeline-workspace.tsx must not declare ${forbidden}`).not.toContain(forbidden);
     }
   });
@@ -1025,6 +1184,387 @@ describe("PipelineWorkspace received-date filter", () => {
 
     await user.click(document.querySelector("[data-pf-pipeline-filters-close]") as HTMLElement);
     expect(cardIds(container)).toEqual([]);
+  });
+});
+
+describe("PipelineWorkspace candidate detail sheet", () => {
+  beforeEach(stubBrowserApis);
+
+  it("opens the existing talent detail composition from any card click without inventing contact data", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await user.click(within(pipelineCard(container, "lucia-fernandez")).getByText("Node.js", { exact: true }));
+
+    const sheet = await screen.findByRole("dialog", { name: "Lucía Fernández" });
+    expect(sheet).toHaveTextContent("Backend Developer Senior");
+    expect(within(sheet).getByText("Node.js", { exact: true })).toBeInTheDocument();
+    expect(sheet).not.toHaveTextContent("Diego Molina");
+    // The pipeline projection owns no email, phone, location, formation or
+    // languages: those fields read unavailable instead of borrowing a fixture.
+    expect(sheet.textContent ?? "").not.toMatch(/[\w.+-]+@[\w-]+\.[a-z]{2,}/u);
+    expect(sheet).not.toHaveTextContent(/\+52/u);
+    expect(within(sheet).getAllByText("No disponible").length).toBeGreaterThanOrEqual(3);
+    // No move happened just by opening the detail.
+    expect(cardIdsIn(container, "submitted")).toEqual(["lucia-fernandez"]);
+  });
+
+  it("keeps the detail reachable from the keyboard through a real button and closes with Escape", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    const detail = within(pipelineCard(container, "diego-salazar")).getByRole("button", {
+      name: "Ver detalle de Diego Salazar",
+    });
+    detail.focus();
+    expect(detail).toHaveFocus();
+    expect(detail.className).toContain("focus-visible:ring");
+    await user.keyboard("{Enter}");
+
+    expect(await screen.findByRole("dialog", { name: "Diego Salazar" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: "Diego Salazar" })).toBeNull();
+    });
+    expect(cardIdsIn(container, "in_review")).toEqual(["diego-salazar"]);
+  });
+
+  it("lists the locally confirmed movements of the selected candidate inside the sheet", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openCardMove(user, container, "lucia-fernandez");
+    await confirmMove(user);
+    await user.click(within(pipelineCard(container, "lucia-fernandez")).getByText("Node.js", { exact: true }));
+
+    const sheet = await screen.findByRole("dialog", { name: "Lucía Fernández" });
+    const activity = sheet.querySelector("[data-pf-pipeline-activity]") as HTMLElement;
+    expect(activity).not.toBeNull();
+    expect(activity).toHaveTextContent("Movimiento confirmado");
+    expect(activity).toHaveTextContent("Nuevos → En revisión");
+    expect(activity).toHaveTextContent(/solo en esta sesión local/iu);
+    expect(activity).not.toHaveTextContent(/enviado|entregado/iu);
+  });
+});
+
+describe("PipelineWorkspace confirmed movement", () => {
+  beforeEach(stubBrowserApis);
+
+  it("offers a non-drag stage action whose drop stays pending until the confirmation", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await user.click(menuTrigger(container, "diego-salazar"));
+    expect(screen.getByRole("menuitem", { name: "Contratados" })).toBeInTheDocument();
+    // The stage the candidate already holds is offered but inert.
+    expect(screen.getByRole("menuitem", { name: /En revisión/u })).toHaveAttribute("aria-disabled", "true");
+    await user.click(screen.getByRole("menuitem", { name: "Contratados" }));
+
+    const dialog = moveDialog();
+    for (const value of ["Diego Salazar", "Backend Developer (Senior)", "En revisión → Contratados"]) {
+      expect(dialog).toHaveTextContent(value);
+    }
+    // Nothing is applied before the explicit confirmation.
+    expect(cardIdsIn(container, "hired")).toEqual(["renata-vargas"]);
+
+    await confirmMove(user);
+
+    expect(cardIdsIn(container, "in_review")).toEqual([]);
+    expect(cardIdsIn(container, "hired")).toEqual(["diego-salazar", "renata-vargas"]);
+    // The fixture next step described the stage the card just left.
+    expect(container.querySelector('[data-pf-pipeline-next-step="diego-salazar"]')).toBeNull();
+    expect(container.querySelector('[data-pf-pipeline-column-count="hired"]')).toHaveTextContent("2");
+  });
+
+  it("cancels without mutating, including the Escape and backdrop lifecycles", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openCardMove(user, container, "diego-salazar");
+    await user.click(within(moveDialog()).getByRole("button", { name: "Cancelar" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(cardIdsIn(container, "in_review")).toEqual(["diego-salazar"]);
+
+    await openCardMove(user, container, "diego-salazar");
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+    expect(cardIdsIn(container, "in_review")).toEqual(["diego-salazar"]);
+  });
+
+  it("never confirms the stage a candidate already holds", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openCardMove(user, container, "diego-salazar");
+    const dialog = moveDialog();
+    await user.click(within(dialog).getByRole("button", { name: "En revisión" }));
+
+    expect(dialog).toHaveTextContent(/ya está en esta etapa/iu);
+    await user.click(within(dialog).getByRole("button", { name: /^Confirmar/u }));
+    expect(moveDialog()).toBeInTheDocument();
+    expect(cardIdsIn(container, "in_review")).toEqual(["diego-salazar"]);
+  });
+
+  it("keeps every stage reachable, both views consistent and the active filters untouched", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    for (const stage of ["hired", "rejected", "submitted", "in_review"] as const) {
+      await openCardMove(user, container, "diego-salazar", stage);
+      await confirmMove(user);
+      expect(cardIdsIn(container, stage)).toContain("diego-salazar");
+    }
+
+    await user.click(screen.getByRole("button", { name: "Lista" }));
+    expect(container.querySelector('[data-pf-pipeline-row="diego-salazar"]')).toHaveTextContent("En revisión");
+    await user.click(screen.getByRole("button", { name: "Tablero" }));
+
+    // A status filter stays applied across the move and re-derives the counts.
+    await openFilters(user);
+    selectFacetOption("status", "Contratados");
+    selectFacetOption("status", "En revisión");
+    await user.click(document.querySelector("[data-pf-pipeline-filters-close]") as HTMLElement);
+    await openCardMove(user, container, "diego-salazar", "hired");
+    await confirmMove(user);
+
+    expect(chip("status:hired")).toHaveTextContent("Etapa: Contratados");
+    expect(container.querySelector('[data-pf-pipeline-column-count="hired"]')).toHaveTextContent("2");
+    expect(container.querySelector('[data-pf-pipeline-column-count="submitted"]')).toHaveTextContent("0");
+    expect(container.querySelector("[data-pf-pipeline-sample]")).toHaveTextContent(
+      visibleCandidatesCopy(2, vacancyCandidateTotal(backend.candidateCounts)),
+    );
+  });
+});
+
+describe("PipelineWorkspace move dialog message", () => {
+  beforeEach(stubBrowserApis);
+
+  it("keeps the notification off by default with no preview, message field or error", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openCardMove(user, container, "diego-salazar");
+    const dialog = moveDialog();
+    expect(within(dialog).getByRole("switch", { name: /Notificar/u })).not.toBeChecked();
+    expect(dialog.querySelector("[data-pf-pipeline-preview]")).toBeNull();
+    expect(within(dialog).queryByRole("textbox", { name: /Mensaje/u })).toBeNull();
+    expect(dialog.querySelector("[data-pf-pipeline-message-error]")).toBeNull();
+  });
+
+  it("validates the opted-in message accessibly and keeps the change pending until it is valid", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openCardMove(user, container, "diego-salazar", "hired");
+    const dialog = moveDialog();
+    await user.click(within(dialog).getByRole("switch", { name: /Notificar/u }));
+
+    const message = within(dialog).getByRole("textbox", { name: /Mensaje/u });
+    expect(message).toHaveAttribute("maxlength", "600");
+    await user.type(message, "   ");
+    await user.click(within(dialog).getByRole("button", { name: /^Confirmar/u }));
+
+    expect(moveDialog()).toBeInTheDocument();
+    expect(message).toHaveAttribute("aria-invalid", "true");
+    const error = dialog.querySelector("[data-pf-pipeline-message-error]") as HTMLElement;
+    expect(error).toHaveAttribute("role", "alert");
+    expect(error).toHaveTextContent(/escribe un mensaje/iu);
+    expect(message.getAttribute("aria-describedby")).toContain(error.id);
+    expect(cardIdsIn(container, "hired")).toEqual(["renata-vargas"]);
+
+    await user.clear(message);
+    expect(dialog.querySelector("[data-pf-pipeline-message-error]")).toBeNull();
+  });
+
+  it("previews the email and process channels with an explicit no-send demo truth", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openCardMove(user, container, "diego-salazar", "hired");
+    const dialog = moveDialog();
+    await user.click(within(dialog).getByRole("switch", { name: /Notificar/u }));
+    await user.type(
+      within(dialog).getByRole("textbox", { name: /Mensaje/u }),
+      "Hola Diego, queremos conocer más de tu experiencia.",
+    );
+
+    const email = dialog.querySelector("[data-pf-pipeline-preview-email]") as HTMLElement;
+    const process = dialog.querySelector("[data-pf-pipeline-preview-process]") as HTMLElement;
+    expect(email).toHaveTextContent(/correo/iu);
+    expect(email).toHaveTextContent("Actualización de tu postulación: Backend Developer (Senior)");
+    expect(email).toHaveTextContent("Hola Diego, queremos conocer más de tu experiencia.");
+    expect(email).toHaveTextContent(/no disponible/iu);
+    expect(process).toHaveTextContent(/proceso/iu);
+    expect(process).toHaveTextContent("Contratados");
+    expect(process).toHaveTextContent("Hola Diego, queremos conocer más de tu experiencia.");
+    const note = dialog.querySelector("[data-pf-pipeline-demo-note]") as HTMLElement;
+    expect(note).toHaveTextContent(/no se envía ningún correo/iu);
+    expect(dialog.textContent ?? "").not.toMatch(/enviado|entregado|éxito/iu);
+  });
+
+  it("starts every movement from a fresh draft instead of the previous candidate's text", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openCardMove(user, container, "diego-salazar", "hired");
+    const first = moveDialog();
+    await user.click(within(first).getByRole("switch", { name: /Notificar/u }));
+    await user.type(within(first).getByRole("textbox", { name: /Mensaje/u }), "Mensaje de Diego");
+    await user.click(within(first).getByRole("button", { name: "Cancelar" }));
+
+    await openCardMove(user, container, "lucia-fernandez", "hired");
+    const second = moveDialog();
+    expect(second).not.toHaveTextContent("Mensaje de Diego");
+    expect(within(second).getByRole("switch", { name: /Notificar/u })).not.toBeChecked();
+    expect(within(second).queryByRole("textbox", { name: /Mensaje/u })).toBeNull();
+
+    await user.click(within(second).getByRole("switch", { name: /Notificar/u }));
+    expect(within(second).getByRole("textbox", { name: /Mensaje/u })).toHaveValue("");
+  });
+
+  it("records the composed message as a local draft that never claims a delivery", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openCardMove(user, container, "lucia-fernandez");
+    const dialog = moveDialog();
+    await user.click(within(dialog).getByRole("switch", { name: /Notificar/u }));
+    await user.type(
+      within(dialog).getByRole("textbox", { name: /Mensaje/u }),
+      "  Hola Lucía, nos gustaría conocer más sobre tu experiencia con Node.js.  ",
+    );
+    await confirmMove(user);
+
+    expect(cardIdsIn(container, "in_review")).toEqual(["lucia-fernandez", "diego-salazar"]);
+    await user.click(
+      within(pipelineCard(container, "lucia-fernandez")).getByText("Node.js", { exact: true }),
+    );
+    const sheet = await screen.findByRole("dialog", { name: "Lucía Fernández" });
+    const activity = sheet.querySelector("[data-pf-pipeline-activity]") as HTMLElement;
+    expect(activity).toHaveTextContent("Hola Lucía, nos gustaría conocer más sobre tu experiencia con Node.js.");
+    expect(activity.textContent ?? "").not.toMatch(/enviado|entregado|éxito/iu);
+  });
+});
+
+describe("PipelineWorkspace focus restoration", () => {
+  beforeEach(stubBrowserApis);
+
+  it("restores focus to the moved card after a confirmation", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openCardMove(user, container, "diego-salazar", "hired");
+    await confirmMove(user);
+
+    const moved = container.querySelector('[data-pf-pipeline-card="diego-salazar"]') as HTMLElement;
+    const detail = moved.querySelector('[data-pf-pipeline-detail="diego-salazar"]') as HTMLElement;
+    expect(detail).toHaveFocus();
+  });
+
+  it("gives the target column the focus when the active filter hides the moved card", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openFilters(user);
+    selectFacetOption("status", "Nuevos");
+    await user.click(document.querySelector("[data-pf-pipeline-filters-close]") as HTMLElement);
+    await openCardMove(user, container, "lucia-fernandez");
+    await confirmMove(user);
+
+    expect(cardIds(container)).toEqual([]);
+    const target = column(container, "in_review");
+    expect(target).toHaveFocus();
+    expect(target).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("returns focus to the card detail control when the confirmation is cancelled", async () => {
+    const user = userEvent.setup();
+    const { container } = renderWorkspace();
+
+    await openCardMove(user, container, "diego-salazar", "hired");
+    await user.click(within(moveDialog()).getByRole("button", { name: "Cancelar" }));
+
+    const detail = container.querySelector('[data-pf-pipeline-detail="diego-salazar"]') as HTMLElement;
+    expect(detail).toHaveFocus();
+  });
+});
+
+describe("PipelineWorkspace vacant session boundary", () => {
+  beforeEach(stubBrowserApis);
+
+  it("keeps local movements for the same vacancy and resets them for another one", async () => {
+    const user = userEvent.setup();
+    const frontend = NEXO_VACANCIES.find(
+      (vacancy) => vacancy.id === "frontend-engineer-react",
+    ) as EmployerVacancy;
+    const frontendCandidates = NEXO_CANDIDATES.filter(
+      (candidate) => candidate.vacancyId === frontend.id,
+    );
+    const { container, rerender } = renderWorkspace();
+
+    await openCardMove(user, container, "lucia-fernandez");
+    await confirmMove(user);
+    expect(cardIdsIn(container, "in_review")).toEqual(["lucia-fernandez", "diego-salazar"]);
+
+    // Same vacancy: the visit-local state survives a prop refresh.
+    rerender(<PipelineWorkspace vacancy={backend} candidates={backendCandidates} />);
+    expect(cardIdsIn(container, "in_review")).toEqual(["lucia-fernandez", "diego-salazar"]);
+
+    // Another vacancy: nothing may leak into the new route content.
+    rerender(<PipelineWorkspace vacancy={frontend} candidates={frontendCandidates} />);
+    expect(cardIds(container).sort()).toEqual(["sofia-medina", "tomas-aguiar"]);
+
+    rerender(<PipelineWorkspace vacancy={backend} candidates={backendCandidates} />);
+    expect(cardIdsIn(container, "submitted")).toEqual(["lucia-fernandez"]);
+    expect(cardIdsIn(container, "in_review")).toEqual(["diego-salazar"]);
+  });
+});
+
+describe("PipelineWorkspace movement surface boundary", () => {
+  it("keeps the drag surface free of transport, storage, routing and clock access", () => {
+    const board = readFileSync(
+      join(process.cwd(), "src/features/employer-vacancies/pipeline-board.tsx"),
+      "utf8",
+    );
+    const dialog = readFileSync(
+      join(process.cwd(), "src/features/employer-vacancies/pipeline-move-dialog.tsx"),
+      "utf8",
+    );
+    for (const [name, file] of [
+      ["pipeline-board.tsx", board],
+      ["pipeline-move-dialog.tsx", dialog],
+    ] as const) {
+      for (const forbidden of [
+        "fetch(",
+        "XMLHttpRequest",
+        "localStorage",
+        "sessionStorage",
+        "indexedDB",
+        "navigator.clipboard",
+        "useRouter",
+        "next/navigation",
+        "features/jobs",
+        "prototype-candidates",
+        "NEXO_CANDIDATES",
+        "Date.now",
+        "Math.random",
+      ]) {
+        expect(file, `${name} must not declare ${forbidden}`).not.toContain(forbidden);
+      }
+      expect(file, `${name} stays a client surface`).toMatch(/^\s*["']use client["']/mu);
+    }
+    // One stable, SSR-safe context id and handle-only activation constraints.
+    expect(board).toMatch(/id="pipeline-board"/u);
+    expect(board).toContain("PointerSensor");
+    expect(board).toContain("KeyboardSensor");
+    expect(board).toMatch(/activationConstraint:\s*\{\s*distance:/u);
+    expect(board).toContain("touch-none");
+    expect(board).toContain("useDraggable(");
+    expect(board).toContain("useDroppable(");
+    expect(board).toMatch(/prefers-reduced-motion/u);
+    expect(board).toContain("motion-reduce:transition-none");
   });
 });
 
