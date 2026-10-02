@@ -7,9 +7,14 @@ import { join } from "node:path";
 
 // Hoisted so the vi.mock factory can reach the shared doubles without
 // depending on module initialisation order. jsdom has no WebGL context, so the
-// ogl renderer is doubled here; real WebGL behaviour is verified in the browser.
+// ogl renderer is doubled here; these tests do not prove real GPU behaviour.
 const oglDouble = vi.hoisted(() => ({
+  failRenderer: false,
+  failProgram: false,
+  resize: null as (() => void) | null,
   renderers: [] as Array<{
+    options: Record<string, unknown>;
+    dpr: number;
     gl: {
       canvas: HTMLCanvasElement;
       getExtension: ReturnType<typeof vi.fn>;
@@ -32,9 +37,16 @@ vi.mock("ogl", () => {
       drawingBufferWidth: number;
       drawingBufferHeight: number;
     };
-    setSize = vi.fn();
+    options: Record<string, unknown>;
+    dpr = 1;
+    setSize = vi.fn((width: number, height: number) => {
+      this.gl.canvas.width = Math.floor(width * this.dpr);
+      this.gl.canvas.height = Math.floor(height * this.dpr);
+    });
     render = vi.fn();
-    constructor() {
+    constructor(options: Record<string, unknown> = {}) {
+      if (oglDouble.failRenderer) throw new Error("WebGL unavailable");
+      this.options = options;
       const canvas = document.createElement("canvas");
       const gl = {
         canvas,
@@ -48,17 +60,19 @@ vi.mock("ogl", () => {
     }
   }
   class MockProgram {
+    remove = vi.fn();
     uniforms: Record<string, { value: unknown }>;
     constructor(
       _gl: unknown,
       options: { uniforms: Record<string, { value: unknown }> },
     ) {
+      if (oglDouble.failProgram) throw new Error("Program unavailable");
       this.uniforms = options.uniforms;
       oglDouble.programs.push(this.uniforms);
     }
   }
   class MockMesh {}
-  class MockTriangle {}
+  class MockTriangle { remove = vi.fn(); }
   return {
     Renderer: MockRenderer,
     Program: MockProgram,
@@ -79,6 +93,12 @@ type MediaController = {
 };
 
 function stubMatchMedia(initialReducedMotion: boolean): MediaController {
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(300);
+  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(300);
+  vi.stubGlobal("ResizeObserver", class {
+    constructor(callback: () => void) { oglDouble.resize = callback; }
+    observe() {} disconnect() {}
+  });
   const listeners = new Set<(event: MediaQueryListEvent) => void>();
   let reducedMotion = initialReducedMotion;
   const controller: MediaController = {
@@ -120,6 +140,10 @@ function stubMatchMedia(initialReducedMotion: boolean): MediaController {
 afterEach(() => {
   document.documentElement.classList.remove("dark");
   document.documentElement.removeAttribute("data-theme");
+  oglDouble.failRenderer = false;
+  oglDouble.failProgram = false;
+  oglDouble.resize = null;
+  vi.restoreAllMocks();
   oglDouble.renderers.length = 0;
   oglDouble.programs.length = 0;
   vi.unstubAllGlobals();
@@ -258,8 +282,61 @@ describe("HeroAurora", () => {
     expect(oglDouble.renderers).toHaveLength(0);
   });
 
-  it("ports the reference shader verbatim with an opaque OGL context", () => {
-    expect(auroraSource).toContain("new Renderer({ alpha: false })");
+  it("caps the hero framebuffer without changing its CSS geometry", () => {
+    stubMatchMedia(false);
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(1600);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(1000);
+    render(<HeroAurora />);
+    const renderer = oglDouble.renderers[0];
+    expect(renderer.options).toMatchObject({ alpha: false, antialias: false, depth: false });
+    expect(renderer.dpr).toBe(0.5);
+    expect(renderer.gl.canvas.width * renderer.gl.canvas.height).toBeLessThanOrEqual(400_000);
+  });
+
+  it("uses a static gradient when WebGL creation fails", () => {
+    stubMatchMedia(false);
+    oglDouble.failRenderer = true;
+    render(<HeroAurora />);
+    expect(document.getElementById("heroAurora")).toHaveAttribute("data-static", "true");
+  });
+
+  it("removes a lost context and restores the static fallback", () => {
+    stubMatchMedia(false);
+    render(<HeroAurora audience="candidate" />);
+    const host = document.getElementById("heroAurora")!;
+    act(() => host.querySelector("canvas")!.dispatchEvent(new Event("webglcontextlost", { cancelable: true })));
+    expect(host.querySelector("canvas")).toBeNull();
+    expect(host).toHaveAttribute("data-static", "true");
+  });
+
+  it("cleans up and keeps the static fallback after a program creation failure", () => {
+    stubMatchMedia(false);
+    oglDouble.failProgram = true;
+    render(<HeroAurora />);
+    expect(document.getElementById("heroAurora")).toHaveAttribute("data-static", "true");
+    expect(document.querySelector("canvas")).toBeNull();
+    expect(oglDouble.renderers[0].gl.getExtension).toHaveBeenCalledWith("WEBGL_lose_context");
+  });
+
+  it("resizes with its element and keeps zero-sized hosts out of resolution uniforms", () => {
+    stubMatchMedia(false);
+    let width = 800;
+    let height = 500;
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(() => width);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(() => height);
+    render(<HeroAurora />);
+    expect(oglDouble.programs[0].uResolution.value).toEqual([800, 500, 1.6]);
+    width = 400;
+    act(() => oglDouble.resize?.());
+    expect(oglDouble.programs[0].uResolution.value).toEqual([400, 500, 0.8]);
+    height = 0;
+    act(() => oglDouble.resize?.());
+    expect((oglDouble.programs[0].uResolution.value as number[]).every(Number.isFinite)).toBe(true);
+    expect(oglDouble.renderers[0].gl.canvas.height).toBeGreaterThan(0);
+  });
+
+  it("keeps the reference shader interface and opaque OGL context", () => {
+    expect(auroraSource).toContain("new Renderer({ alpha: false,");
     expect(auroraSource).toContain("#define TAU 6.28318");
     expect(auroraSource).toContain(
       "float auroraGlow(float t, vec2 shift)",

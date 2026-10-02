@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Mesh, Program, Renderer, Triangle } from "ogl";
 import { FLOATING_LINES_VARIANTS } from "@/components/auth/floating-lines-shaders";
+import { decorativeDpr, motionDamping, startDecorativeAnimation } from "../webgl-animation";
 
 /**
  * Hero aurora — faithful OGL/WebGL port of the reference landing's inline
@@ -162,6 +163,7 @@ const CANDIDATE_LIGHT_PALETTE = {
 export function HeroAurora({ audience = "employer" }: { audience?: "employer" | "candidate" } = {}) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const [reducedMotion, setReducedMotion] = React.useState(false);
+  const [webglReady, setWebglReady] = React.useState(false);
 
   React.useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -174,117 +176,153 @@ export function HeroAurora({ audience = "employer" }: { audience?: "employer" | 
   React.useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    setWebglReady(false);
     // Authoritative reduced-motion guard: never mount WebGL for a user who
     // asked for less motion, regardless of the state-render timing above.
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    let renderer: InstanceType<typeof Renderer>;
+    const cleanups: Array<() => void> = [];
+    let disposed = false;
+    const dispose = () => {
+      if (disposed) return;
+      disposed = true;
+      for (const cleanup of cleanups.reverse()) {
+        try { cleanup(); } catch { /* Still release the remaining resources. */ }
+      }
+      container.style.mixBlendMode = "";
+    };
+
     try {
-      renderer = new Renderer({ alpha: false });
+      const renderer = new Renderer({ alpha: false, antialias: false, depth: false, dpr: 1 });
+      const gl = renderer.gl;
+      // jsdom / a browser without a WebGL context: ogl logs and leaves `gl`
+      // unset. Keep the static fallback instead of touching a null context.
+      if (!gl) return;
+      cleanups.push(() => gl.getExtension("WEBGL_lose_context")?.loseContext());
+      gl.clearColor(0, 0, 0, 1);
+
+      const geometry = new Triangle(gl);
+      cleanups.push(() => geometry.remove());
+      const program = new Program(gl, {
+        vertex: VERTEX,
+        fragment: FRAGMENT,
+        uniforms: {
+          uTime: { value: 0 },
+          uResolution: { value: [1, 1, 1] },
+          uSpeed: { value: 0.5 },
+          uScale: { value: 1.4 },
+          uBrightness: { value: DARK_PALETTE.brightness },
+          uColor1: { value: hexToVec3(DARK_PALETTE.color1) },
+          uColor2: { value: hexToVec3(DARK_PALETTE.color2) },
+          uNoiseFreq: { value: 2.5 },
+          uNoiseAmp: { value: 1.0 },
+          uBandHeight: { value: DARK_PALETTE.bandHeight },
+          uBandSpread: { value: DARK_PALETTE.bandSpread },
+          uOctaveDecay: { value: 0.1 },
+          uLayerOffset: { value: 0.0 },
+          uColorSpeed: { value: 1.0 },
+          uMouse: { value: new Float32Array([0.5, 0.5]) },
+          uMouseInfluence: { value: 0.22 },
+          uEnableMouse: { value: true },
+          uLightBlend: { value: 0.0 },
+        },
+      });
+
+      cleanups.push(() => program.remove());
+      const mesh = new Mesh(gl, { geometry, program });
+      container.appendChild(gl.canvas);
+      cleanups.push(() => { if (gl.canvas.parentNode === container) container.removeChild(gl.canvas); });
+
+      let drawable = false;
+      const resize = () => {
+        const width = container.offsetWidth;
+        const height = container.offsetHeight;
+        drawable = false;
+        if (width <= 0 || height <= 0) return;
+        renderer.dpr = decorativeDpr(width, height, window.devicePixelRatio);
+        renderer.setSize(width, height);
+        drawable = gl.canvas.width > 0 && gl.canvas.height > 0;
+        if (!drawable) return;
+        program.uniforms.uResolution.value = [
+          gl.canvas.width,
+          gl.canvas.height,
+          gl.canvas.width / gl.canvas.height,
+        ];
+      };
+      window.addEventListener("resize", resize);
+      cleanups.push(() => window.removeEventListener("resize", resize));
+      const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(resize);
+      resizeObserver?.observe(container);
+      cleanups.push(() => resizeObserver?.disconnect());
+      resize();
+
+      const currentMouse = [0.5, 0.5];
+      let targetMouse = [0.5, 0.5];
+      const onMouseMove = (event: MouseEvent) => {
+        const rect = container.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        targetMouse = [
+          (event.clientX - rect.left) / rect.width,
+          1.0 - (event.clientY - rect.top) / rect.height,
+        ];
+      };
+      window.addEventListener("mousemove", onMouseMove, { passive: true });
+      cleanups.push(() => window.removeEventListener("mousemove", onMouseMove));
+
+      /* Theme binding: same uniforms + blend mode the reference applies in
+         applyAuroraTheme(), derived from the resolved root theme. */
+      const applyAuroraTheme = () => {
+        const isLight = !document.documentElement.classList.contains("dark");
+        const palette = audience === "candidate"
+          ? (isLight ? CANDIDATE_LIGHT_PALETTE : CANDIDATE_DARK_PALETTE)
+          : (isLight ? LIGHT_PALETTE : DARK_PALETTE);
+        program.uniforms.uColor1.value = hexToVec3(palette.color1);
+        program.uniforms.uColor2.value = hexToVec3(palette.color2);
+        program.uniforms.uBrightness.value = palette.brightness;
+        program.uniforms.uBandHeight.value = palette.bandHeight;
+        program.uniforms.uBandSpread.value = palette.bandSpread;
+        program.uniforms.uLightBlend.value = isLight ? 1.0 : 0.0;
+        container.style.mixBlendMode = isLight ? "multiply" : "screen";
+      };
+      applyAuroraTheme();
+      const themeObserver = new MutationObserver(applyAuroraTheme);
+      cleanups.push(() => themeObserver.disconnect());
+      themeObserver.observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ["class", "data-theme"],
+      });
+
+      const update = (time: number, deltaMs: number) => {
+        if (!drawable || disposed) return;
+        const damping = motionDamping(deltaMs);
+        program.uniforms.uTime.value = time * 0.001;
+        currentMouse[0] += damping * (targetMouse[0] - currentMouse[0]);
+        currentMouse[1] += damping * (targetMouse[1] - currentMouse[1]);
+        program.uniforms.uMouse.value[0] = currentMouse[0];
+        program.uniforms.uMouse.value[1] = currentMouse[1];
+        try {
+          renderer.render({ scene: mesh });
+        } catch {
+          dispose();
+          setWebglReady(false);
+        }
+      };
+      const stopAnimation = startDecorativeAnimation(container, update);
+      cleanups.push(stopAnimation);
+      const onContextLost = (event: Event) => {
+        event.preventDefault();
+        dispose();
+        setWebglReady(false);
+      };
+      gl.canvas.addEventListener("webglcontextlost", onContextLost);
+      cleanups.push(() => gl.canvas.removeEventListener("webglcontextlost", onContextLost));
+      setWebglReady(true);
+      return dispose;
     } catch {
-      // WebGL is progressive enhancement; the static fallback stays visible.
+      dispose();
+      // Shader/geometry/resize initialization is also progressive enhancement.
       return;
     }
-
-    const gl = renderer.gl;
-    // jsdom / a browser without a WebGL context: ogl logs and leaves `gl`
-    // unset. Keep the static fallback instead of touching a null context.
-    if (!gl) return;
-    gl.clearColor(0, 0, 0, 1);
-
-    const geometry = new Triangle(gl);
-    const program = new Program(gl, {
-      vertex: VERTEX,
-      fragment: FRAGMENT,
-      uniforms: {
-        uTime: { value: 0 },
-        uResolution: { value: [1, 1, 1] },
-        uSpeed: { value: 0.5 },
-        uScale: { value: 1.4 },
-        uBrightness: { value: DARK_PALETTE.brightness },
-        uColor1: { value: hexToVec3(DARK_PALETTE.color1) },
-        uColor2: { value: hexToVec3(DARK_PALETTE.color2) },
-        uNoiseFreq: { value: 2.5 },
-        uNoiseAmp: { value: 1.0 },
-        uBandHeight: { value: DARK_PALETTE.bandHeight },
-        uBandSpread: { value: DARK_PALETTE.bandSpread },
-        uOctaveDecay: { value: 0.1 },
-        uLayerOffset: { value: 0.0 },
-        uColorSpeed: { value: 1.0 },
-        uMouse: { value: new Float32Array([0.5, 0.5]) },
-        uMouseInfluence: { value: 0.22 },
-        uEnableMouse: { value: true },
-        uLightBlend: { value: 0.0 },
-      },
-    });
-
-    const mesh = new Mesh(gl, { geometry, program });
-    container.appendChild(gl.canvas);
-
-    const resize = () => {
-      renderer.setSize(container.offsetWidth, container.offsetHeight);
-      program.uniforms.uResolution.value = [
-        gl.canvas.width,
-        gl.canvas.height,
-        gl.canvas.width / gl.canvas.height,
-      ];
-    };
-    window.addEventListener("resize", resize);
-    resize();
-
-    const currentMouse = [0.5, 0.5];
-    let targetMouse = [0.5, 0.5];
-    const onMouseMove = (event: MouseEvent) => {
-      const rect = container.getBoundingClientRect();
-      targetMouse = [
-        (event.clientX - rect.left) / rect.width,
-        1.0 - (event.clientY - rect.top) / rect.height,
-      ];
-    };
-    window.addEventListener("mousemove", onMouseMove, { passive: true });
-
-    /* Theme binding: same uniforms + blend mode the reference applies in
-       applyAuroraTheme(), derived from the resolved root theme. */
-    const applyAuroraTheme = () => {
-      const isLight = !document.documentElement.classList.contains("dark");
-      const palette = audience === "candidate"
-        ? (isLight ? CANDIDATE_LIGHT_PALETTE : CANDIDATE_DARK_PALETTE)
-        : (isLight ? LIGHT_PALETTE : DARK_PALETTE);
-      program.uniforms.uColor1.value = hexToVec3(palette.color1);
-      program.uniforms.uColor2.value = hexToVec3(palette.color2);
-      program.uniforms.uBrightness.value = palette.brightness;
-      program.uniforms.uBandHeight.value = palette.bandHeight;
-      program.uniforms.uBandSpread.value = palette.bandSpread;
-      program.uniforms.uLightBlend.value = isLight ? 1.0 : 0.0;
-      container.style.mixBlendMode = isLight ? "multiply" : "screen";
-    };
-    applyAuroraTheme();
-    const themeObserver = new MutationObserver(applyAuroraTheme);
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class", "data-theme"],
-    });
-
-    let frame = 0;
-    const update = (time: number) => {
-      frame = requestAnimationFrame(update);
-      program.uniforms.uTime.value = time * 0.001;
-      currentMouse[0] += 0.05 * (targetMouse[0] - currentMouse[0]);
-      currentMouse[1] += 0.05 * (targetMouse[1] - currentMouse[1]);
-      program.uniforms.uMouse.value[0] = currentMouse[0];
-      program.uniforms.uMouse.value[1] = currentMouse[1];
-      renderer.render({ scene: mesh });
-    };
-    frame = requestAnimationFrame(update);
-
-    return () => {
-      cancelAnimationFrame(frame);
-      themeObserver.disconnect();
-      window.removeEventListener("resize", resize);
-      window.removeEventListener("mousemove", onMouseMove);
-      if (gl.canvas.parentNode === container) container.removeChild(gl.canvas);
-      gl.getExtension("WEBGL_lose_context")?.loseContext();
-    };
     // Re-runs when the motion preference flips so the renderer is torn down for
     // reduced motion and restored when motion is allowed again.
   }, [reducedMotion, audience]);
@@ -295,7 +333,7 @@ export function HeroAurora({ audience = "employer" }: { audience?: "employer" | 
       id="heroAurora"
       data-pf-hero-aurora=""
       data-audience={audience}
-      data-static={reducedMotion ? "true" : "false"}
+      data-static={reducedMotion || !webglReady ? "true" : "false"}
       aria-hidden="true"
       className="aurora pointer-events-none absolute inset-0 overflow-hidden"
     />

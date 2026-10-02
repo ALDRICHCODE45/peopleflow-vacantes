@@ -36,6 +36,8 @@ vi.mock("ogl", () => {
 beforeEach(() => {
   media.desktop = true;
   media.reduced = false;
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(300);
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(300);
   // jsdom shares one documentElement across tests: never inherit a theme.
   document.documentElement.classList.remove("dark");
   document.documentElement.removeAttribute("data-theme");
@@ -66,7 +68,7 @@ it("mounts one animated desktop canvas with frozen shaders/config/gradient, then
   expect(host).toHaveAttribute("aria-hidden", "true"); expect(host).toHaveAttribute("data-floating-lines-state", "ready-animated");
   expect(container.querySelectorAll("canvas")).toHaveLength(1);
   expect(s.rends).toHaveLength(1);
-  expect(s.rends[0].options).toMatchObject({ alpha: false, antialias: true, dpr: 2 });
+  expect(s.rends[0].options).toMatchObject({ alpha: false, antialias: false, dpr: 1 });
   expect(s.raf).toHaveLength(1);
   expect(s.progs[0].vertex).toBe(FLOATING_LINES_OGL_VERTEX_SHADER); expect(s.progs[0].fragment).toBe(FLOATING_LINES_OGL_FRAGMENT_SHADER);
   const u = s.progs[0].uniforms;
@@ -83,6 +85,35 @@ it("mounts one animated desktop canvas with frozen shaders/config/gradient, then
   expect(document.body.contains(canvas)).toBe(false);
   expect(s.cancelled).toBeGreaterThan(0); expect(s.disconnected).toBeGreaterThan(0);
   expect(s.lost).toBe(1);
+});
+
+it("bounds Retina drawing-buffer cost without changing CSS panel dimensions", () => {
+  vi.stubGlobal("devicePixelRatio", 2);
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1400);
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(1000);
+  render(<FloatingLines variant="candidate" />);
+  expect(s.rends[0].dpr).toBeCloseTo(Math.sqrt(400_000 / 1_400_000));
+  const gl = s.rends[0].gl!;
+  expect(gl.drawingBufferWidth * gl.drawingBufferHeight).toBeLessThan(402_000);
+  expect(s.progs[0].uniforms.iResolution.value).toEqual(new Float32Array([gl.drawingBufferWidth, gl.drawingBufferHeight, 1]));
+});
+
+it("removes a lost WebGL canvas and stops its loop instead of leaving a black layer", () => {
+  const { container } = render(<FloatingLines variant="candidate" />);
+  const host = hostOf(container);
+  act(() => host.querySelector("canvas")!.dispatchEvent(new Event("webglcontextlost", { cancelable: true })));
+  expect(host).toHaveAttribute("data-floating-lines-state", "failed");
+  expect(host.querySelector("canvas")).toBeNull();
+  expect(host.style.mixBlendMode).toBe("");
+  expect(s.cancelled).toBeGreaterThan(0);
+});
+
+it("does not draw a collapsed zero-size panel", () => {
+  media.reduced = true;
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(0);
+  render(<FloatingLines variant="candidate" />);
+  expect(s.renders).toBe(0);
+  expect(Array.from(s.progs[0].uniforms.iResolution.value as Float32Array).every(Number.isFinite)).toBe(true);
 });
 
 it("stays hidden with no renderer, canvas or RAF below the desktop gate", () => {

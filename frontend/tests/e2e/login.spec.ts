@@ -142,13 +142,14 @@ test.describe("login FloatingLines WebGL animation", () => {
           bufferWidth: context.drawingBufferWidth,
           bufferHeight: context.drawingBufferHeight,
           hostWidth: (host as HTMLElement).clientWidth,
-          cappedDpr: Math.min(window.devicePixelRatio || 1, 2),
+          cappedDpr: Math.min(window.devicePixelRatio || 1, 1, Math.sqrt(400_000 / Math.max(1, (host as HTMLElement).clientWidth * (host as HTMLElement).clientHeight))),
         };
       });
       expect(gl, `${variant}: a real WebGL context must exist`).not.toBeNull();
       expect(gl!.error, `${variant}: gl.getError() must report NO_ERROR`).toBe(0);
       expect(gl!.bufferWidth).toBeGreaterThan(0);
       expect(gl!.bufferHeight).toBeGreaterThan(0);
+      expect(gl!.bufferWidth * gl!.bufferHeight).toBeLessThanOrEqual(400_000);
       expect(
         Math.abs(gl!.bufferWidth - Math.round(gl!.hostWidth * gl!.cappedDpr)),
         `${variant}: buffer ${gl!.bufferWidth}px for host ${gl!.hostWidth}px`,
