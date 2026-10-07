@@ -93,8 +93,17 @@ func checkGateAnchors(rows []TraceabilityRow, idx AnchorIndex) []Violation {
 //   - error-catalog usage over non-test .go sources under internal/features;
 //   - locked non-goals over backend file paths;
 //   - traceability manifest structure and coverage against the effective MUST
-//     set composed from canonical openspec specs plus this change's deltas —
-//     zero unexplained manifest rows.
+//     set composed from canonical openspec specs plus this change's deltas,
+//     scoped to the backend-owned capabilities (BackendCapabilities) — zero
+//     unexplained manifest rows.
+//
+// Coverage is evaluated against ScopeToBackendCapabilities of the composed
+// effective set: the global openspec/specs tree also composes capabilities
+// owned by other products (for example the frontend public-job-discovery
+// capability), and those are not backend manifest rows. Requirements inside an
+// owned backend capability are still compared exactly, so an added, missing, or
+// repeated backend requirement remains a violation; a manifest row outside the
+// backend capability scope is an extra row.
 func CheckRepository(layout RepositoryLayout) ([]Violation, error) {
 	var violations []Violation
 	importV, err := CheckRepositoryImports(layout.Backend)
@@ -127,7 +136,7 @@ func CheckRepository(layout RepositoryLayout) ([]Violation, error) {
 	if err != nil {
 		return nil, err
 	}
-	violations = append(violations, CheckManifestCoverage(manifest.Rows, effective)...)
+	violations = append(violations, CheckManifestCoverage(manifest.Rows, ScopeToBackendCapabilities(effective))...)
 
 	index, err := BuildAnchorIndex(layout.Repo)
 	if err != nil {

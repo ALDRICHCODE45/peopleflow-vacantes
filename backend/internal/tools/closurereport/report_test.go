@@ -1180,16 +1180,30 @@ func TestGenerate_PackageOwnedCanonicalSetMatchesRealSpecsAndManifest(t *testing
 		}
 	}
 
+	// The real global spec tree also composes capabilities the backend closure
+	// does not own (for example the frontend public-job-discovery capability), so
+	// the completeness check is scoped to the explicit backend capabilities before
+	// the exact 122-title comparison. The scope never grows to 133 and never
+	// ignores an individual unknown requirement: any added, missing, or repeated
+	// requirement inside a backend capability still fails below.
 	composedSet := map[archguard.EffectiveRequirement]bool{}
-	for _, req := range composed {
+	for _, req := range archguard.ScopeToBackendCapabilities(composed) {
+		if composedSet[req] {
+			t.Fatalf("real canonical+delta composition repeats production expected requirement (%s, %q)", req.Capability, req.Title)
+		}
 		composedSet[req] = true
 	}
 	if len(composedSet) != len(want) {
-		t.Fatalf("real canonical+delta composition has %d unique requirements, want %d", len(composedSet), len(want))
+		t.Fatalf("real canonical+delta composition has %d unique backend requirements, want %d", len(composedSet), len(want))
 	}
 	for req := range want {
 		if !composedSet[req] {
 			t.Fatalf("real canonical+delta specs are missing production expected requirement (%s, %q)", req.Capability, req.Title)
+		}
+	}
+	for req := range composedSet {
+		if !want[req] {
+			t.Fatalf("real canonical+delta specs carry an unexpected backend requirement (%s, %q)", req.Capability, req.Title)
 		}
 	}
 
@@ -1204,6 +1218,111 @@ func TestGenerate_PackageOwnedCanonicalSetMatchesRealSpecsAndManifest(t *testing
 		if !manifestSet[req] {
 			t.Fatalf("real traceability manifest is missing production expected requirement (%s, %q)", req.Capability, req.Title)
 		}
+	}
+}
+
+// TestBackendCapabilityScope_PinnedToCanonicalMUSTSet pins the single
+// source-owned backend capability scope (archguard.BackendCapabilities) against
+// the package-owned canonical MUST set: the two capability sets must be
+// identical, so a canonical capability cannot be added without widening the
+// scope and the scope cannot carry a capability the canonical set does not own.
+// This is what keeps the shared scope and the expected backend requirements
+// from drifting silently. Ownership is capability-based, so only capability
+// names are compared — never requirement titles.
+func TestBackendCapabilityScope_PinnedToCanonicalMUSTSet(t *testing.T) {
+	canonical := map[string]bool{}
+	for _, req := range canonicalMUSTRequirements {
+		canonical[req.Capability] = true
+	}
+	scope := map[string]bool{}
+	for _, capability := range archguard.BackendCapabilities {
+		if scope[capability] {
+			t.Fatalf("archguard.BackendCapabilities repeats capability %q", capability)
+		}
+		scope[capability] = true
+	}
+	if len(scope) != len(canonical) {
+		t.Fatalf("backend capability scope has %d capabilities, the canonical MUST set owns %d", len(scope), len(canonical))
+	}
+	for capability := range canonical {
+		if !scope[capability] {
+			t.Fatalf("canonical capability %q is missing from archguard.BackendCapabilities; the shared scope must cover every backend capability", capability)
+		}
+	}
+	for capability := range scope {
+		if !canonical[capability] {
+			t.Fatalf("archguard.BackendCapabilities carries %q outside the package-owned canonical MUST set", capability)
+		}
+	}
+}
+
+// TestEffectiveDrift_ScopedToBackendCapabilities pins the explicit backend
+// capability scope of the effective-set drift check: a requirement in a
+// capability the backend closure does not own (for example the frontend
+// public-job-discovery capability composed into the global openspec/specs tree)
+// can never widen or narrow the backend scope, while an added or missing
+// requirement inside a backend capability stays detectable even when the raw
+// counts cancel out.
+func TestEffectiveDrift_ScopedToBackendCapabilities(t *testing.T) {
+	unrelated := archguard.EffectiveRequirement{Capability: "public-job-discovery", Title: "Anonymous Job Search"}
+	extraJobs := archguard.EffectiveRequirement{Capability: "jobs", Title: "Unplanned Jobs Requirement"}
+	missingIdentity := archguard.EffectiveRequirement{Capability: "identity", Title: "JWT Middleware"}
+	dropRequirement := func(drop archguard.EffectiveRequirement) []archguard.EffectiveRequirement {
+		kept := make([]archguard.EffectiveRequirement, 0, len(canonicalMUSTRequirements))
+		for _, req := range canonicalMUSTRequirements {
+			if req != drop {
+				kept = append(kept, req)
+			}
+		}
+		return kept
+	}
+
+	tests := []struct {
+		name      string
+		observed  []archguard.EffectiveRequirement
+		wantFiles []string
+	}{
+		{
+			name:     "canonical backend set alone has no drift",
+			observed: slices.Clone(canonicalMUSTRequirements),
+		},
+		{
+			name:     "unrelated capability does not affect backend scope",
+			observed: append(slices.Clone(canonicalMUSTRequirements), unrelated),
+		},
+		{
+			name:      "extra backend requirement stays detectable alongside an unrelated capability",
+			observed:  append(append(slices.Clone(canonicalMUSTRequirements), unrelated), extraJobs),
+			wantFiles: []string{manifestRowKey(extraJobs.Capability, extraJobs.Title)},
+		},
+		{
+			name:      "added and missing backend requirements stay detectable when raw counts cancel",
+			observed:  append(append(dropRequirement(missingIdentity), unrelated), extraJobs),
+			wantFiles: []string{manifestRowKey(extraJobs.Capability, extraJobs.Title), manifestRowKey(missingIdentity.Capability, missingIdentity.Title)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			violations := effectiveDrift(tt.observed)
+			files := map[string]bool{}
+			for _, violation := range violations {
+				if violation.Rule != ruleEffectiveDrift {
+					t.Fatalf("violation rule = %q, want %q (%+v)", violation.Rule, ruleEffectiveDrift, violation)
+				}
+				if strings.Contains(violation.File, unrelated.Capability) || strings.Contains(violation.Detail, unrelated.Capability) {
+					t.Fatalf("out-of-scope capability leaked into backend drift: %+v", violation)
+				}
+				files[violation.File] = true
+			}
+			if len(tt.wantFiles) == 0 && len(violations) != 0 {
+				t.Fatalf("effectiveDrift = %+v, want no backend drift", violations)
+			}
+			for _, file := range tt.wantFiles {
+				if !files[file] {
+					t.Fatalf("effectiveDrift is missing a violation for %q: %+v", file, violations)
+				}
+			}
+		})
 	}
 }
 

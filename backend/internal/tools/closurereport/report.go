@@ -440,9 +440,16 @@ func criterionRowRequirements() map[string][]archguard.EffectiveRequirement {
 
 // effectiveDrift reports an observed effective MUST set that is absent, smaller,
 // larger, repeated, or otherwise different from the package-owned canonical set,
-// including duplicate (capability, title) entries. The production seam therefore
-// fails closed on spec drift instead of silently narrowing the expected coverage.
+// including duplicate (capability, title) entries. The observation is first
+// scoped to the backend-owned capabilities through the single source-owned
+// scope contract (archguard.ScopeToBackendCapabilities), so capabilities the
+// backend closure does not own (for example the frontend public-job-discovery
+// capability composed into the global openspec/specs tree) never widen or
+// narrow the backend scope, while an added, missing, or repeated backend
+// requirement still fails closed instead of silently narrowing the expected
+// coverage.
 func effectiveDrift(observed []archguard.EffectiveRequirement) []archguard.Violation {
+	observed = archguard.ScopeToBackendCapabilities(observed)
 	counts := make(map[archguard.EffectiveRequirement]int, len(observed))
 	for _, req := range observed {
 		counts[req]++
