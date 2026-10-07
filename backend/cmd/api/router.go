@@ -30,6 +30,7 @@ type routerDeps struct {
 	memberHandler      *companieshttp.MemberHandler
 	candidateHandler   *candidateshttp.CandidateHandler
 	jobHandler         *jobshttp.JobHandler
+	draftHandler       *jobshttp.DraftHandler
 	applicationHandler *applicationshttp.ApplicationHandler
 	queries            *db.Queries
 	pool               health.Pinger
@@ -112,6 +113,20 @@ func newRouter(d routerDeps) chi.Router {
 		// Companies-write (WU6): owner-only, no shadowing mount.
 		r.With(d.requireOwner).Patch("/company", companyHandlers.UpdateCompany)
 		r.With(d.requireOwner).Delete("/company", companyHandlers.DeleteCompany)
+	})
+
+	// Private vacancy drafts. Registered on the ROOT router (outside the /me
+	// subtree) so the no-store middleware runs BEFORE the auth gates: a 401/403
+	// produced by requireAuth/requireRecruiter must be as uncacheable as a
+	// handler 404/412/428. The same requireAuth + requireRecruiter gates apply;
+	// the finer owner-or-principal rule lives in the store, which collapses a
+	// non-principal or foreign draft to 404 after the general gates.
+	draftHandlers := d.draftHandler.DraftHandlers()
+	r.Group(func(r chi.Router) {
+		r.Use(jobshttp.NoStore, d.requireAuth, d.requireRecruiter)
+		r.Post("/me/company/job-drafts", draftHandlers.CreateDraft)
+		r.Get("/me/company/job-drafts/{id}", draftHandlers.GetDraft)
+		r.Patch("/me/company/job-drafts/{id}", draftHandlers.SaveDraft)
 	})
 	return r
 }

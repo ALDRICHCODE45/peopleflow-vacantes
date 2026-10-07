@@ -55,14 +55,15 @@ func TestResolve_UnknownCode(t *testing.T) {
 
 func TestListCodes_CanonicalOrder(t *testing.T) {
 	// Canonical V1 order per backend-runtime spec / design §4: internal_error is last.
-	// The catalog has exactly 14 codes; already_exists precedes payload limits,
-	// method_not_allowed and service_unavailable follow it, and internal_error closes the list.
+	// Existing codes keep their order; private draft codes precede internal_error.
 	want := []Code{
 		CodeInvalidRequest, CodeInvalidStatusTransition, CodeUnauthenticated,
 		CodeForbidden, CodeCompanyInactive, CodeNotFound, CodeConflict,
 		CodeCompanyNotActive, CodeIndustryUnavailable, CodeAlreadyExists,
 		CodePayloadTooLarge, CodeMethodNotAllowed, CodeServiceUnavailable,
-		CodeInternalError,
+		CodeValidationError, CodeEmptyPatch, CodeIdempotencyKeyRequired,
+		CodeInvalidIdempotencyKey, CodeIdempotencyConflict, CodeVersionConflict,
+		CodePreconditionRequired, CodeInternalError,
 	}
 	got := ListCodes()
 	if len(got) != len(want) {

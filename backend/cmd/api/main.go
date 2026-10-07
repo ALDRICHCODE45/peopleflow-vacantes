@@ -30,6 +30,7 @@ import (
 	jobsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
 	jobspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres"
+	draftstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
 	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/server"
@@ -157,6 +158,14 @@ func run() error {
 	jobService := jobsusecases.NewJobService(jobRepo)
 	jobHandler := jobshttp.NewJobHandler(jobService)
 
+	// Private vacancy drafts wiring: the pool-owning draft store opens one
+	// transaction per operation so authorization, the draft write, its audit
+	// event and (for create) the idempotency record commit atomically. The
+	// store owns the owner-or-principal rule and every precondition; the HTTP
+	// adapter is a thin transport over drafts.Store.
+	draftStore := draftstore.NewStore(pool, auditRepo)
+	draftHandler := jobshttp.NewDraftHandler(draftStore)
+
 	// Applications wiring: the pool-owning applications repo (D5/D9) +
 	// the stateless audit adapter (already constructed above, before
 	// the companies wiring block so the `companyRepo` constructor
@@ -214,7 +223,8 @@ func run() error {
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
 		companyHandler: companyHandler, memberHandler: memberHandler,
 		candidateHandler: candidateHandler, jobHandler: jobHandler, applicationHandler: applicationHandler,
-		queries: queries, pool: poolPinger, readinessTimeout: cfg.ReadinessTimeout,
+		draftHandler: draftHandler,
+		queries:      queries, pool: poolPinger, readinessTimeout: cfg.ReadinessTimeout,
 		// Task 6.3 (design §8.3): compose the no-op HTTP metrics default —
 		// zero-dependency, no exporter, no metrics endpoint in this change.
 		httpMetrics: runtimemetrics.Default,

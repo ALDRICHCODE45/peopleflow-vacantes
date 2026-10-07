@@ -21,6 +21,13 @@ const (
 	CodeMethodNotAllowed        Code = "method_not_allowed"
 	CodeServiceUnavailable      Code = "service_unavailable"
 	CodeInternalError           Code = "internal_error"
+	CodeValidationError         Code = "validation_error"
+	CodeEmptyPatch              Code = "empty_patch"
+	CodeIdempotencyKeyRequired  Code = "idempotency_key_required"
+	CodeInvalidIdempotencyKey   Code = "invalid_idempotency_key"
+	CodeIdempotencyConflict     Code = "idempotency_conflict"
+	CodeVersionConflict         Code = "version_conflict"
+	CodePreconditionRequired    Code = "precondition_required"
 )
 
 // ErrorCatalogVersion is the stable catalog version identifier.
@@ -45,6 +52,20 @@ func Resolve(code Code) Definition {
 	switch code {
 	case CodeInvalidRequest:
 		return Definition{code, http.StatusBadRequest, "invalid request"}
+	case CodeValidationError:
+		return Definition{code, http.StatusBadRequest, "validation failed"}
+	case CodeEmptyPatch:
+		return Definition{code, http.StatusBadRequest, "patch fields must not be empty"}
+	case CodeIdempotencyKeyRequired:
+		return Definition{code, http.StatusBadRequest, "idempotency key required"}
+	case CodeInvalidIdempotencyKey:
+		return Definition{code, http.StatusBadRequest, "invalid idempotency key"}
+	case CodeIdempotencyConflict:
+		return Definition{code, http.StatusConflict, "idempotency conflict"}
+	case CodeVersionConflict:
+		return Definition{code, http.StatusPreconditionFailed, "draft version conflict"}
+	case CodePreconditionRequired:
+		return Definition{code, http.StatusPreconditionRequired, "precondition required"}
 	case CodeInvalidStatusTransition:
 		return Definition{code, http.StatusBadRequest, "invalid status transition"}
 	case CodeUnauthenticated:
@@ -83,7 +104,9 @@ func ListCodes() []Code {
 		CodeForbidden, CodeCompanyInactive, CodeNotFound, CodeConflict,
 		CodeCompanyNotActive, CodeIndustryUnavailable, CodeAlreadyExists,
 		CodePayloadTooLarge, CodeMethodNotAllowed, CodeServiceUnavailable,
-		CodeInternalError,
+		CodeValidationError, CodeEmptyPatch, CodeIdempotencyKeyRequired,
+		CodeInvalidIdempotencyKey, CodeIdempotencyConflict, CodeVersionConflict,
+		CodePreconditionRequired, CodeInternalError,
 	}
 }
 
