@@ -94,6 +94,15 @@ The key is scoped to (organization, actor, operation, key):
 - Same key + different normalized payload → `409 idempotency_conflict`.
 - The first creation returns `Idempotency-Replayed: false`.
 
+The replay/conflict comparison is versioned internally. A new idempotency
+record stores the SHA-256 digest of the normalized write DTO together with an
+explicit algorithm tag, and the comparison is dispatched by that persisted tag.
+A record written before the tag existed is tagged with the legacy
+canonical-bytes representation and replays/conflicts on its original bytes, so
+existing keys, stored response bodies, ETags, audit events and counters are
+unchanged. An unknown tag or a malformed digest fails closed as `500
+internal_error` with no write. The HTTP contract above does not change.
+
 ### `PATCH` — `If-Match`
 
 Required. Exactly one strong draft tag:
@@ -153,6 +162,19 @@ store's parser rejects the list; the first line is never silently trusted.
 | `413` | `payload_too_large` | Raw body over the budget |
 | `428` | `precondition_required` | `PATCH` without `If-Match` |
 | `500` | `internal_error` | Unexpected/server invariant failure |
+
+## Rollout
+
+- Migration `00013_version_draft_idempotency_fingerprint.sql` adds the
+  algorithm tag with the legacy representation as its default, so it is safe to
+  apply while old rows exist; they are tagged legacy and never rewritten.
+- Do **not** run a pre-00013 binary against a table that already holds digest
+  rows: it reads the 32-byte digest as canonical bytes and turns every replay
+  into a conflict. Deploy the new binary before new digest rows are written, and
+  do not treat a mixed rollback as safe.
+- The migration down half refuses transactionally while any non-legacy row
+  exists, so digest rows are never left unreadable. A legacy-only table (no new
+  writes yet) reverts cleanly.
 
 ## Out of scope
 

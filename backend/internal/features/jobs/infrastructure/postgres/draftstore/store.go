@@ -91,6 +91,12 @@ type authContext struct {
 // authorization, validates any referenced requester transactionally, stores the
 // canonical writable bytes, persists the idempotency record and appends the
 // create audit event, all in one transaction.
+//
+// The draft row stores the canonical writable bytes unchanged. The idempotency
+// record stores the SHA-256 digest of those bytes and the explicit
+// FingerprintAlgorithmSHA256 tag, so a replay is compared under the persisted
+// representation and a pre-00013 row (raw canonical bytes under the legacy
+// tag) still replays from its original bytes.
 func (s *Store) Create(ctx context.Context, companyID, actorID uuid.UUID, key string, body []byte) (drafts.Result, error) {
 	if key == "" {
 		return drafts.Result{}, drafts.ErrIdempotencyKeyRequired
@@ -136,7 +142,15 @@ func (s *Store) Create(ctx context.Context, companyID, actorID uuid.UUID, key st
 		if err := authorizeAddressedDraft(ctx, tx, auth, actorID, companyID, existing.etag); err != nil {
 			return drafts.Result{}, err
 		}
-		if !bytes.Equal(existing.fingerprint, fingerprint) {
+		// Dispatch the comparison by the persisted algorithm. An unknown tag or
+		// a malformed digest is an internal invariant failure that fails closed
+		// before any write, never a silent replay or conflict. Authorization has
+		// already run above, so this branch cannot leak an addressed draft.
+		match, err := fingerprintsMatch(existing.algorithm, existing.fingerprint, fingerprint)
+		if err != nil {
+			return drafts.Result{}, err
+		}
+		if !match {
 			return drafts.Result{}, drafts.ErrIdempotencyConflict
 		}
 		return drafts.Result{Body: existing.body, ETag: existing.etag, Replayed: true}, nil
@@ -177,9 +191,10 @@ func (s *Store) Create(ctx context.Context, companyID, actorID uuid.UUID, key st
 
 	if _, err := tx.Exec(ctx,
 		`INSERT INTO job_draft_idempotency
-		     (id, company_id, actor_id, operation, idem_key, fingerprint, response_body, response_etag)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		uuid.Must(uuid.NewV7()), companyID, actorID, createOperation, canonicalKey, fingerprint, responseBody, etag,
+		     (id, company_id, actor_id, operation, idem_key, fingerprint, fingerprint_algorithm, response_body, response_etag)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		uuid.Must(uuid.NewV7()), companyID, actorID, createOperation, canonicalKey,
+		fingerprintDigest(fingerprint), FingerprintAlgorithmSHA256, responseBody, etag,
 	); err != nil {
 		return drafts.Result{}, fmt.Errorf("insert idempotency record: %w", err)
 	}
@@ -437,9 +452,12 @@ func readDraft(ctx context.Context, tx pgx.Tx, companyID, id uuid.UUID, lock boo
 	return record, true, nil
 }
 
-// idempotencyRecord is one stored idempotency row.
+// idempotencyRecord is one stored idempotency row. fingerprint is interpreted
+// through algorithm: the raw canonical writable bytes under the legacy tag and
+// a 32-byte SHA-256 digest under the sha256 tag.
 type idempotencyRecord struct {
 	fingerprint []byte
+	algorithm   string
 	body        []byte
 	etag        string
 }
@@ -456,15 +474,17 @@ func lockIdempotencyKey(ctx context.Context, tx pgx.Tx, companyID, actorID uuid.
 	return nil
 }
 
-// findIdempotency reads the existing idempotency record for the key, if any.
+// findIdempotency reads the existing idempotency record for the key, if any,
+// including the persisted fingerprint algorithm so the caller can dispatch the
+// comparison by representation instead of guessing it.
 func findIdempotency(ctx context.Context, tx pgx.Tx, companyID, actorID uuid.UUID, operation, key string) (idempotencyRecord, bool, error) {
 	var record idempotencyRecord
 	err := tx.QueryRow(ctx,
-		`SELECT fingerprint, response_body, response_etag
+		`SELECT fingerprint, fingerprint_algorithm, response_body, response_etag
 		   FROM job_draft_idempotency
 		  WHERE company_id = $1 AND actor_id = $2 AND operation = $3 AND idem_key = $4`,
 		companyID, actorID, operation, key,
-	).Scan(&record.fingerprint, &record.body, &record.etag)
+	).Scan(&record.fingerprint, &record.algorithm, &record.body, &record.etag)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return idempotencyRecord{}, false, nil
 	}

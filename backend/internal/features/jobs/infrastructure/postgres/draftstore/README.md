@@ -18,7 +18,7 @@ transaction.
 var _ drafts.Store = (*Store)(nil)
 ```
 
-## Schema (migration `00012_create_private_job_drafts.sql`)
+## Schema (migrations `00012_create_private_job_drafts.sql`, `00013_version_draft_idempotency_fingerprint.sql`)
 
 - `job_drafts` — one row per draft. `company_id`, `created_by` and
   `principal_recruiter_id` are immutable: the adapter's only `UPDATE` touches
@@ -27,7 +27,15 @@ var _ drafts.Store = (*Store)(nil)
   mark order survive; `version BIGINT` is positive and CAS/ETag authoritative.
 - `job_draft_idempotency` — one row per `(company, actor, operation, key)` with
   the normalized fingerprint and the frozen original `response_body` /
-  `response_etag`. No TTL.
+  `response_etag`. No TTL. `fingerprint_algorithm` is the persisted
+  representation of the `fingerprint` column:
+  - `go-json-v1+canonical-bytes` — the pre-00013 representation: `fingerprint`
+    holds the raw canonical go-json-v1 writable bytes. It is the column
+    `DEFAULT`, so a row inserted before 00013, or by a pre-00013 binary that
+    does not name the column, is tagged legacy without reinterpreting bytes.
+  - `go-json-v1+sha256` — `fingerprint` holds the 32-byte SHA-256 digest of the
+    canonical writable bytes. A DB CHECK enforces the 32-byte width for this
+    tag only.
 - `job_draft_requesters` — minimal immutable catalog, unique on
   `(company_id, kind, name_key)`. Referenced `(id, kind, company)` is validated
   transactionally; the client's name is never accepted.
@@ -46,6 +54,10 @@ var _ drafts.Store = (*Store)(nil)
    they cannot create duplicate drafts. A replay re-checks owner/principal on
    the addressed draft — its id derived from the stored ETag, never from client
    input — after the general gates and before any conflict or replay return.
+   The replay/conflict decision is dispatched by the persisted
+   `fingerprint_algorithm`: the legacy tag compares the stored canonical bytes,
+   the sha256 tag compares the 32-byte digest in constant time, and an unknown
+   tag or malformed digest fails closed as an internal error with no write.
 3. `Save` takes the draft row `FOR UPDATE`, checks authorization, then parses
    and compares `If-Match` with `draftversion`, then decodes the patch and
    merges it over the canonical bytes. A byte-identical merge is a no-op (same
@@ -54,6 +66,24 @@ var _ drafts.Store = (*Store)(nil)
 4. Response envelopes are always re-derived from the stored canonical bytes, the
    approved rich validator (`description_plain`) and the immutable requester
    catalog name.
+
+## Fingerprint algorithm rollout
+
+- A new insert stores the SHA-256 digest and the explicit `go-json-v1+sha256`
+  tag. The draft row still stores the canonical writable bytes, so the read
+  path and the stored `fields` shape are unchanged.
+- A pre-00013 row (or a row inserted by a pre-00013 binary that omits the
+  column) is tagged `go-json-v1+canonical-bytes` and replays/conflicts on its
+  original bytes. Existing keys, response bodies, ETags, audit events and
+  counters are untouched.
+- Do **not** run an old binary (one that selects only the pre-00013 column set)
+  against a table that already holds digest rows: it would read the 32-byte
+  digest as canonical bytes and turn every replay into a conflict. Deploy the
+  new binary before any new digest row is written, and do not treat a mixed
+  rollback as safe.
+- Migration 00013 down **refuses transactionally** while any non-legacy row
+  exists, so digest rows are never silently left unreadable. A legacy-only
+  table (no new writes yet) reverts cleanly.
 
 ## Isolated integration tests
 

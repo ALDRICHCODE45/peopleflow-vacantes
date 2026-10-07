@@ -6,12 +6,14 @@
 // DRAFT_TEST_DATABASE_URL and refuse any DSN whose database is not
 // `draft_test` or whose host is not loopback, so an ambient DATABASE_URL can
 // never point them at another database or container. The suite applies the
-// embedded goose migrations itself (00001..00012), so it is self-contained
+// embedded goose migrations itself (00001..00013), so it is self-contained
 // against a fresh, empty isolated instance.
 package draftstore
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"math"
@@ -1344,4 +1346,260 @@ type failingAudit struct{}
 
 func (failingAudit) Append(context.Context, pgx.Tx, entities.AuditEvent) error {
 	return errors.New("forced audit failure")
+}
+
+// --- fingerprint-versioning coverage ---------------------------------------
+
+// canonicalCreateFingerprint returns the exact canonical writable bytes a create
+// persists, derived through the public request composer so the test never
+// re-implements the normalization.
+func canonicalCreateFingerprint(t *testing.T, body []byte) []byte {
+	t.Helper()
+	create, err := draftinput.DecodeCreate(body)
+	if err != nil {
+		t.Fatalf("DecodeCreate: %v", err)
+	}
+	return create.Fingerprint()
+}
+
+// seedDraftRow inserts a minimal job_drafts row so a directly seeded idempotency
+// record resolves to an existing, company-scoped draft.
+func seedDraftRow(t *testing.T, pool *pgxpool.Pool, companyID, actorID, draftID uuid.UUID, fields []byte) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(),
+		`INSERT INTO job_drafts (id, company_id, created_by, principal_recruiter_id, status, version, fields)
+		 VALUES ($1, $2, $3, $3, 'draft', 1, $4)`,
+		draftID, companyID, actorID, fields,
+	); err != nil {
+		t.Fatalf("seed draft row: %v", err)
+	}
+}
+
+// seedIdempotencyRow inserts a job_draft_idempotency row with the given
+// persisted algorithm, bypassing the store, so replay dispatch can be exercised
+// against representations this binary did not write (a pre-00013 legacy row or
+// an unknown/future algorithm).
+func seedIdempotencyRow(t *testing.T, pool *pgxpool.Pool, companyID, actorID uuid.UUID, key, algorithm string, fingerprint, body []byte, etag string) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(),
+		`INSERT INTO job_draft_idempotency
+		     (id, company_id, actor_id, operation, idem_key, fingerprint, fingerprint_algorithm, response_body, response_etag)
+		 VALUES ($1, $2, $3, 'create', $4, $5, $6, $7, $8)`,
+		uuid.Must(uuid.NewV7()), companyID, actorID, key, fingerprint, algorithm, body, etag,
+	); err != nil {
+		t.Fatalf("seed idempotency row: %v", err)
+	}
+}
+
+// TestCreate_PersistsSHA256FingerprintAndAlgorithm pins the storage contract of
+// a new insert: the idempotency row stores the 32-byte SHA-256 digest of the
+// canonical normalized write DTO under the explicit sha256 algorithm tag, while
+// job_drafts.fields keeps the canonical bytes unchanged.
+func TestCreate_PersistsSHA256FingerprintAndAlgorithm(t *testing.T) {
+	pool := requireDraftPool(t)
+	store := newStore(t, pool)
+	p := newPrincipal(t, pool)
+	key := uuid.NewString()
+
+	result := create(t, store, p, key, minimalCreateBody())
+	id := draftIDOf(t, result)
+	canonical := canonicalCreateFingerprint(t, minimalCreateBody())
+
+	var algorithm string
+	var stored []byte
+	if err := pool.QueryRow(context.Background(),
+		`SELECT fingerprint_algorithm, fingerprint FROM job_draft_idempotency
+		  WHERE company_id = $1 AND actor_id = $2 AND operation = 'create' AND idem_key = $3`,
+		p.companyID, p.ownerID, key,
+	).Scan(&algorithm, &stored); err != nil {
+		t.Fatalf("read idempotency fingerprint: %v", err)
+	}
+	if algorithm != FingerprintAlgorithmSHA256 {
+		t.Errorf("algorithm: want %q, got %q", FingerprintAlgorithmSHA256, algorithm)
+	}
+	if len(stored) != sha256.Size {
+		t.Errorf("stored digest length: want %d, got %d", sha256.Size, len(stored))
+	}
+	want := sha256.Sum256(canonical)
+	if !bytes.Equal(stored, want[:]) {
+		t.Errorf("stored digest: want %x, got %x", want, stored)
+	}
+
+	_, draftFields, found := draftRow(t, pool, id)
+	if !found {
+		t.Fatal("draft row missing")
+	}
+	if !bytes.Equal(draftFields, canonical) {
+		t.Errorf("job_drafts.fields must stay canonical bytes\n got: %s\nwant: %s", draftFields, canonical)
+	}
+}
+
+// TestCreate_NormalizedReplayReturnsExactBodyAndETag proves an equivalent
+// normalized payload (key order and decimal spelling differ) replays under the
+// new digest representation with the original body and ETag byte-for-byte.
+func TestCreate_NormalizedReplayReturnsExactBodyAndETag(t *testing.T) {
+	pool := requireDraftPool(t)
+	store := newStore(t, pool)
+	p := newPrincipal(t, pool)
+	key := uuid.NewString()
+
+	first := create(t, store, p, key, []byte(`{"fields":{"title":"Backend Go","skills":["go","sql"],"compensation":{"mode":"range","amount":null,"min":"30000.00","max":"45000","currency":"MXN","pay_period":"monthly","basis":"gross","public_visible":false}}}`))
+	equivalent := []byte(`{"fields":{"compensation":{"public_visible":false,"basis":"gross","pay_period":"monthly","currency":"MXN","max":"45000.00","min":"30000","amount":null,"mode":"range"},"skills":["go","sql"],"title":"Backend Go"}}`)
+
+	replay, err := store.Create(context.Background(), p.companyID, p.ownerID, key, equivalent)
+	if err != nil {
+		t.Fatalf("equivalent replay: %v", err)
+	}
+	if !replay.Replayed {
+		t.Error("equivalent normalized payload must replay")
+	}
+	if !bytes.Equal(replay.Body, first.Body) {
+		t.Errorf("replay body must be byte-identical\n got: %s\nwant: %s", replay.Body, first.Body)
+	}
+	if replay.ETag != first.ETag {
+		t.Errorf("replay etag: want %s, got %s", first.ETag, replay.ETag)
+	}
+}
+
+// TestCreate_ChangedPayloadConflictLeavesCountsUnchanged proves a same-key,
+// different-payload create is a conflict that changes no draft, audit or
+// idempotency counter.
+func TestCreate_ChangedPayloadConflictLeavesCountsUnchanged(t *testing.T) {
+	pool := requireDraftPool(t)
+	store := newStore(t, pool)
+	p := newPrincipal(t, pool)
+	key := uuid.NewString()
+
+	first := create(t, store, p, key, minimalCreateBody())
+	id := draftIDOf(t, first)
+
+	draftsBefore := countRows(t, pool, `SELECT count(*) FROM job_drafts WHERE company_id = $1`, p.companyID)
+	auditsBefore := auditCount(t, pool, id, entities.EventJobDraftCreated)
+	idemBefore := countRows(t, pool, `SELECT count(*) FROM job_draft_idempotency WHERE company_id = $1`, p.companyID)
+
+	result, err := store.Create(context.Background(), p.companyID, p.ownerID, key, titlePatchBody("Something Else"))
+	if !errors.Is(err, drafts.ErrIdempotencyConflict) {
+		t.Fatalf("changed payload: want ErrIdempotencyConflict, got %v", err)
+	}
+	if len(result.Body) != 0 || result.ETag != "" || result.Replayed {
+		t.Errorf("conflict must return no body/etag, got %#v", result)
+	}
+
+	if got := countRows(t, pool, `SELECT count(*) FROM job_drafts WHERE company_id = $1`, p.companyID); got != draftsBefore {
+		t.Errorf("conflict changed draft count: before %d, after %d", draftsBefore, got)
+	}
+	if got := auditCount(t, pool, id, entities.EventJobDraftCreated); got != auditsBefore {
+		t.Errorf("conflict changed audit count: before %d, after %d", auditsBefore, got)
+	}
+	if got := countRows(t, pool, `SELECT count(*) FROM job_draft_idempotency WHERE company_id = $1`, p.companyID); got != idemBefore {
+		t.Errorf("conflict changed idempotency count: before %d, after %d", idemBefore, got)
+	}
+}
+
+// TestCreate_ReplaysSeededLegacyCanonicalRow proves a row written before 00013
+// (raw canonical bytes under the legacy tag) still replays from its original
+// body/ETag and still conflicts on a changed payload, without writing anything.
+func TestCreate_ReplaysSeededLegacyCanonicalRow(t *testing.T) {
+	pool := requireDraftPool(t)
+	store := newStore(t, pool)
+	p := newPrincipal(t, pool)
+	key := uuid.NewString()
+	body := minimalCreateBody()
+	canonical := canonicalCreateFingerprint(t, body)
+
+	draftID := uuid.Must(uuid.NewV7())
+	etag := ifMatchFor(t, draftID, 1)
+	seededBody := []byte(`{"schema_version":1,"id":"` + draftID.String() + `","status":"draft","version":"1","fields":{}}`)
+	seedDraftRow(t, pool, p.companyID, p.ownerID, draftID, canonical)
+	seedIdempotencyRow(t, pool, p.companyID, p.ownerID, key, FingerprintAlgorithmLegacyCanonical, canonical, seededBody, etag)
+
+	replay, err := store.Create(context.Background(), p.companyID, p.ownerID, key, body)
+	if err != nil {
+		t.Fatalf("legacy replay: %v", err)
+	}
+	if !replay.Replayed {
+		t.Error("legacy row with identical canonical bytes must replay")
+	}
+	if !bytes.Equal(replay.Body, seededBody) || replay.ETag != etag {
+		t.Errorf("legacy replay must return the stored body/etag\n got body=%s etag=%s", replay.Body, replay.ETag)
+	}
+
+	if _, err := store.Create(context.Background(), p.companyID, p.ownerID, key, titlePatchBody("Different")); !errors.Is(err, drafts.ErrIdempotencyConflict) {
+		t.Fatalf("legacy conflict: want ErrIdempotencyConflict, got %v", err)
+	}
+
+	if got := countRows(t, pool, `SELECT count(*) FROM job_drafts WHERE company_id = $1`, p.companyID); got != 1 {
+		t.Errorf("legacy replay/conflict must not create a second draft, got %d", got)
+	}
+	if got := countRows(t, pool, `SELECT count(*) FROM job_draft_idempotency WHERE company_id = $1`, p.companyID); got != 1 {
+		t.Errorf("legacy replay/conflict must not create a second idempotency row, got %d", got)
+	}
+}
+
+// TestCreate_UnknownFingerprintAlgorithmFailsClosed proves a persisted
+// algorithm this binary cannot evaluate is an internal failure with no write,
+// never a replay and never a conflict.
+func TestCreate_UnknownFingerprintAlgorithmFailsClosed(t *testing.T) {
+	pool := requireDraftPool(t)
+	store := newStore(t, pool)
+	p := newPrincipal(t, pool)
+	key := uuid.NewString()
+	body := minimalCreateBody()
+	canonical := canonicalCreateFingerprint(t, body)
+
+	draftID := uuid.Must(uuid.NewV7())
+	etag := ifMatchFor(t, draftID, 1)
+	seedDraftRow(t, pool, p.companyID, p.ownerID, draftID, canonical)
+	seedIdempotencyRow(t, pool, p.companyID, p.ownerID, key, "go-json-v9+sha512", canonical, []byte(`{}`), etag)
+
+	result, err := store.Create(context.Background(), p.companyID, p.ownerID, key, body)
+	if err == nil {
+		t.Fatal("unknown persisted algorithm must fail closed")
+	}
+	if errors.Is(err, drafts.ErrIdempotencyConflict) {
+		t.Error("unknown algorithm must not be classified as a conflict")
+	}
+	if errors.Is(err, drafts.ErrNotFound) {
+		t.Error("unknown algorithm must not be masked as not found")
+	}
+	if result.Replayed || len(result.Body) != 0 || result.ETag != "" {
+		t.Errorf("unknown algorithm must not return a replay, got %#v", result)
+	}
+	if got := countRows(t, pool, `SELECT count(*) FROM job_drafts WHERE company_id = $1`, p.companyID); got != 1 {
+		t.Errorf("unknown algorithm must not create a draft, got %d", got)
+	}
+	if got := countRows(t, pool, `SELECT count(*) FROM job_draft_idempotency WHERE company_id = $1`, p.companyID); got != 1 {
+		t.Errorf("unknown algorithm must not create an idempotency row, got %d", got)
+	}
+	if got := auditCount(t, pool, draftID, entities.EventJobDraftCreated); got != 0 {
+		t.Errorf("unknown algorithm must not audit, got %d", got)
+	}
+}
+
+// TestIdempotencyFingerprintLengthConstraintRejectsMalformedDigest proves the
+// DB refuses a sha256-tagged fingerprint that is not exactly 32 bytes, so a
+// malformed digest cannot be persisted through the normal path.
+func TestIdempotencyFingerprintLengthConstraintRejectsMalformedDigest(t *testing.T) {
+	pool := requireDraftPool(t)
+	p := newPrincipal(t, pool)
+
+	_, err := pool.Exec(context.Background(),
+		`INSERT INTO job_draft_idempotency
+		     (id, company_id, actor_id, operation, idem_key, fingerprint, fingerprint_algorithm, response_body, response_etag)
+		 VALUES ($1, $2, $3, 'create', $4, $5, $6, $7, $8)`,
+		uuid.Must(uuid.NewV7()), p.companyID, p.ownerID, uuid.NewString(),
+		[]byte("short"),
+		FingerprintAlgorithmSHA256,
+		[]byte(`{}`), `"jd-r1-00000000-0000-7000-8000-000000000000-v1"`,
+	)
+	if err == nil {
+		t.Fatal("DB must reject a sha256-tagged fingerprint that is not 32 bytes")
+	}
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		t.Fatalf("expected *pgconn.PgError, got %T: %v", err, err)
+	}
+	if pgErr.Code != "23514" {
+		t.Errorf("expected SQLSTATE 23514 (check_violation), got %q (%v)", pgErr.Code, err)
+	}
 }
