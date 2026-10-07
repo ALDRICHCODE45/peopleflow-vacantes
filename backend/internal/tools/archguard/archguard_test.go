@@ -620,6 +620,48 @@ func TestTraceability_AnchorIndexTreatsRootGitFileAsPlainEntry(t *testing.T) {
 	}
 }
 
+func TestTraceability_AnchorIndexExcludesRootScratchDirectory(t *testing.T) {
+	root := t.TempDir()
+	const ghost = ".scratch/worktree/ghost.go"
+	writeGoFixture(t, root, ghost, anchorServiceSource)
+	writeGoFixture(t, root, ".scratch/worktree/ghost_test.go", anchorTestSource)
+	writeGoFixture(t, root, "ordinary.go", "package ordinary\nfunc LegitimateAnchor() {}\n")
+	writeGoFixture(t, root, "nested/.scratch/source.go", "package nested\nfunc NestedAnchor() {}\n")
+
+	idx, err := BuildAnchorIndex(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if idx.Paths[".scratch"] || idx.Paths[ghost] || idx.Symbols["AnchorService"] ||
+		idx.Routes["GET /anchor-route"] || containsPhrase(idx.Contents, "anchor prose phrase fixture") {
+		t.Fatal("root scratch artifacts must not supply anchor evidence")
+	}
+	for name := range idx.Tests {
+		t.Fatalf("scratch test declaration leaked into index: %s", name)
+	}
+	rows := []TraceabilityRow{{Capability: "x", Requirement: "y", Evidence: RowEvidence{Path: ghost, Symbols: []string{"AnchorService"}}}}
+	wantViolations(t, "root scratch anchors", CheckManifestAnchors(rows, idx), 2)
+	if !idx.Paths["ordinary.go"] || !idx.Symbols["LegitimateAnchor"] ||
+		!idx.Paths["nested/.scratch/source.go"] || !idx.Symbols["NestedAnchor"] {
+		t.Fatal("exclusion must preserve ordinary siblings and non-root scratch paths")
+	}
+}
+
+func TestTraceability_AnchorIndexPreservesRootScratchFile(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".scratch"), []byte("ordinary file"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeGoFixture(t, root, "ordinary.go", anchorServiceSource)
+	idx, err := BuildAnchorIndex(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !idx.Paths[".scratch"] || !idx.Paths["ordinary.go"] || !idx.Symbols["AnchorService"] {
+		t.Fatal("a root scratch file must not suppress itself or ordinary siblings")
+	}
+}
+
 // --- BC-06A: production-callable split real-tree scan (C10 / C11 seam) ---
 
 // scanEvidenceFixture writes a minimal, self-contained Go module into a

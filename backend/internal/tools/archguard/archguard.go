@@ -551,7 +551,8 @@ var (
 )
 
 // BuildAnchorIndex walks root (a fixture copy shaped like the repository root)
-// and indexes every resolvable anchor:
+// and indexes every resolvable anchor, excluding root Git metadata and the
+// root .scratch directory (local caches and isolated worktrees are not evidence):
 //
 //   - every repository-relative file or directory path under root;
 //   - every declared Go identifier in any .go file (functions, methods,
@@ -587,6 +588,9 @@ func BuildAnchorIndex(root string) (AnchorIndex, error) {
 				return fs.SkipDir
 			}
 			return nil
+		}
+		if rel == ".scratch" && d.IsDir() {
+			return fs.SkipDir
 		}
 		idx.Paths[rel] = true
 		if d.IsDir() {
