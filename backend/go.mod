@@ -17,6 +17,11 @@ require (
 )
 
 require (
+	github.com/bits-and-blooms/bitset v1.20.0 // indirect
+	github.com/nlnwa/whatwg-url v0.6.2
+)
+
+require (
 	cel.dev/expr v0.25.1 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/ClickHouse/ch-go v0.71.0 // indirect
