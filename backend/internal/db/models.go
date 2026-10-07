@@ -140,15 +140,16 @@ type JobDraft struct {
 }
 
 type JobDraftIdempotency struct {
-	ID           uuid.UUID          `json:"id"`
-	CompanyID    uuid.UUID          `json:"company_id"`
-	ActorID      uuid.UUID          `json:"actor_id"`
-	Operation    string             `json:"operation"`
-	IdemKey      string             `json:"idem_key"`
-	Fingerprint  []byte             `json:"fingerprint"`
-	ResponseBody []byte             `json:"response_body"`
-	ResponseEtag string             `json:"response_etag"`
-	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	ID                   uuid.UUID          `json:"id"`
+	CompanyID            uuid.UUID          `json:"company_id"`
+	ActorID              uuid.UUID          `json:"actor_id"`
+	Operation            string             `json:"operation"`
+	IdemKey              string             `json:"idem_key"`
+	Fingerprint          []byte             `json:"fingerprint"`
+	ResponseBody         []byte             `json:"response_body"`
+	ResponseEtag         string             `json:"response_etag"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	FingerprintAlgorithm string             `json:"fingerprint_algorithm"`
 }
 
 type JobDraftRequester struct {
