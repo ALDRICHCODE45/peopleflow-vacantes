@@ -44,6 +44,12 @@ const (
 	EventApplicationTransitioned = "ApplicationTransitioned"
 	EventCompanyUpdated          = "CompanyUpdated"
 	EventCompanyDeleted          = "CompanyDeleted"
+	// EventJobDraftCreated / EventJobDraftSaved are the private vacancy draft
+	// persistence events (T3). They are emitted only by the draftstore adapter
+	// inside the draft write transaction; event_type carries no DB CHECK, so
+	// adding them is a code change, never a migration.
+	EventJobDraftCreated = "JobDraftCreated"
+	EventJobDraftSaved   = "JobDraftSaved"
 )
 
 // Entity-type constants — companion to the closed event set.
@@ -57,6 +63,8 @@ const (
 const (
 	EntityApplication = "application"
 	EntityCompany     = "company"
+	// EntityJobDraft is the private draft authoring resource entity type.
+	EntityJobDraft = "job_draft"
 )
 
 // CompanyDeletedMetadata assembles the PII-free CompanyDeleted metadata

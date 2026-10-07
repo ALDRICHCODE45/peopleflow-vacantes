@@ -78,8 +78,11 @@ func TestEventVocabularyIsClosed(t *testing.T) {
 		EventApplicationTransitioned: true,
 		EventCompanyUpdated:          true,
 		EventCompanyDeleted:          true,
+		EventJobDraftCreated:         true,
+		EventJobDraftSaved:           true,
 		EntityApplication:            true,
 		EntityCompany:                true,
+		EntityJobDraft:               true,
 	}
 	got := stringConstantValues(t)
 	if len(got) != len(want) {
