@@ -1,0 +1,469 @@
+{
+  "fixtureId": "go-json-v1-rich",
+  "schemaVersion": 1,
+  "producer": "backend/internal/features/jobs/application/draftjson",
+  "notes": [
+    "Whole private vacancy draft envelopes {schema_version,document} for the rich fixture; all 16 cases are positive.",
+    "Literal expectedUtf8 authored before comparison against EncodeValidatedValue; expectedHex, expectedByteLength and expectedSha256 are derived from that authored expectedUtf8 and are never regenerated from encoder output.",
+    "The document shape is intended to be rich-draft grammar-valid only. This package never executes a rich grammar, decodes no raw JSON, validates no request budget and computes no DTO fingerprint, so the Go tests prove byte encoding only.",
+    "Integer fixture inputs are decoded with json.Decoder.UseNumber and converted through a bounded strconv.ParseInt (base 10, bitSize 64); the loader never produces a float64.",
+    "Presence and order pairs are intentional: paragraph content omitted versus [], text marks omitted versus [], bold-then-italic versus italic-then-bold, NFC U+00E9 versus decomposed e+U+0301, real U+2028/U+2029 versus literal backslash escape text.",
+    "This file is intentionally pure ASCII (non-ASCII content is written as JSON backslash-uXXXX escapes) so the expected bytes are pinned by expectedHex."
+  ],
+  "cases": [
+    {
+      "name": "paragraph_content_omitted",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "paragraph"
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"type\":\"paragraph\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b2274797065223a22706172616772617068227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 79,
+      "expectedSha256": "7a289c9d6606b2eb7de3f13329a2a8f2ac6cb00d7747f795aacee8081db75c83"
+    },
+    {
+      "name": "paragraph_content_empty_array",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "paragraph",
+              "content": []
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"content\":[],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b5d2c2274797065223a22706172616772617068227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 92,
+      "expectedSha256": "526a50888e795a839461355e0075877adc2b275ccf8307cc1df2e46bede10ba0"
+    },
+    {
+      "name": "text_marks_omitted",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Hola"
+                }
+              ]
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"content\":[{\"text\":\"Hola\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b2274657874223a22486f6c61222c2274797065223a2274657874227d5d2c2274797065223a22706172616772617068227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 121,
+      "expectedSha256": "a580df568e114444b6bd56b42960b411c224b7fc35d965bf0aae2cf6ec89aa16"
+    },
+    {
+      "name": "text_marks_empty_array",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Hola",
+                  "marks": []
+                }
+              ]
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"content\":[{\"marks\":[],\"text\":\"Hola\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b226d61726b73223a5b5d2c2274657874223a22486f6c61222c2274797065223a2274657874227d5d2c2274797065223a22706172616772617068227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 132,
+      "expectedSha256": "bb70421a3be7f92d1cd8f794261a34ec8e098f846882878be5e6b3ef4af982e1"
+    },
+    {
+      "name": "marks_bold_then_italic",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Fuerte",
+                  "marks": [
+                    {
+                      "type": "bold"
+                    },
+                    {
+                      "type": "italic"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"content\":[{\"marks\":[{\"type\":\"bold\"},{\"type\":\"italic\"}],\"text\":\"Fuerte\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b226d61726b73223a5b7b2274797065223a22626f6c64227d2c7b2274797065223a226974616c6963227d5d2c2274657874223a22467565727465222c2274797065223a2274657874227d5d2c2274797065223a22706172616772617068227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 167,
+      "expectedSha256": "0b71c8aa8dce255eec5bedd01ec63ef4e5a7c396043bb9c30aaab5fe965e5e10"
+    },
+    {
+      "name": "marks_italic_then_bold",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Fuerte",
+                  "marks": [
+                    {
+                      "type": "italic"
+                    },
+                    {
+                      "type": "bold"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"content\":[{\"marks\":[{\"type\":\"italic\"},{\"type\":\"bold\"}],\"text\":\"Fuerte\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b226d61726b73223a5b7b2274797065223a226974616c6963227d2c7b2274797065223a22626f6c64227d5d2c2274657874223a22467565727465222c2274797065223a2274657874227d5d2c2274797065223a22706172616772617068227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 167,
+      "expectedSha256": "6f2cfc3c76b938e412624cbcd0def839bce4dc762a92ca6afa78a1d724537090"
+    },
+    {
+      "name": "text_emoji",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Listo \ud83d\ude00"
+                }
+              ]
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"content\":[{\"text\":\"Listo \ud83d\ude00\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b2274657874223a224c6973746f20f09f9880222c2274797065223a2274657874227d5d2c2274797065223a22706172616772617068227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 127,
+      "expectedSha256": "d9725495e12c63357aaf1a95c7ae9bb941e020391566230f09c0ccb0b0bccf43"
+    },
+    {
+      "name": "text_nfc_e_acute",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "caf\u00e9"
+                }
+              ]
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"content\":[{\"text\":\"caf\u00e9\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b2274657874223a22636166c3a9222c2274797065223a2274657874227d5d2c2274797065223a22706172616772617068227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 122,
+      "expectedSha256": "5b2378462c0e965d6865d836035713e1c4aaff796804a913d5f40e0a0348abb5"
+    },
+    {
+      "name": "text_decomposed_e_acute",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "cafe\u0301"
+                }
+              ]
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"content\":[{\"text\":\"cafe\u0301\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b2274657874223a2263616665cc81222c2274797065223a2274657874227d5d2c2274797065223a22706172616772617068227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 123,
+      "expectedSha256": "6216e95666266a7cf72d123415af42e93ae5940c2ead3488dafffdf9ed936936"
+    },
+    {
+      "name": "text_html_characters",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "a<b>&c"
+                }
+              ]
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"content\":[{\"text\":\"a\\u003cb\\u003e\\u0026c\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b2274657874223a22615c7530303363625c75303033655c753030323663222c2274797065223a2274657874227d5d2c2274797065223a22706172616772617068227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 138,
+      "expectedSha256": "612f6ad74a9200519aa20291348cf4609f6d3f884e4210e0b34cd2052ce156a5"
+    },
+    {
+      "name": "text_real_line_separators",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "\u2028\u2029"
+                }
+              ]
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"content\":[{\"text\":\"\\u2028\\u2029\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b2274657874223a225c75323032385c7532303239222c2274797065223a2274657874227d5d2c2274797065223a22706172616772617068227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 129,
+      "expectedSha256": "3f2ec27bf9d8472538c295f498e9a289012700d7912e441ff8557a959164f8e1"
+    },
+    {
+      "name": "text_literal_line_separator_escapes",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "\\u2028\\u2029"
+                }
+              ]
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"content\":[{\"text\":\"\\\\u2028\\\\u2029\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b2274657874223a225c5c75323032385c5c7532303239222c2274797065223a2274657874227d5d2c2274797065223a22706172616772617068227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 131,
+      "expectedSha256": "6dc2f867d4cd5d13d358e49e9fdd9a95999e8cff9f60874ddb397ac7314a943e"
+    },
+    {
+      "name": "ordered_list_start_three",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "orderedList",
+              "attrs": {
+                "start": 3,
+                "type": null
+              },
+              "content": [
+                {
+                  "type": "listItem",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "uno"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"attrs\":{\"start\":3,\"type\":null},\"content\":[{\"content\":[{\"content\":[{\"text\":\"uno\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"listItem\"}],\"type\":\"orderedList\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b226174747273223a7b227374617274223a332c2274797065223a6e756c6c7d2c22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b2274657874223a22756e6f222c2274797065223a2274657874227d5d2c2274797065223a22706172616772617068227d5d2c2274797065223a226c6973744974656d227d5d2c2274797065223a226f7264657265644c697374227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 219,
+      "expectedSha256": "0811406d31245ac1a47d9ffcf26d864b30b466a49018c2a087195a2c84ea9b93"
+    },
+    {
+      "name": "ordered_list_start_max_int32",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "orderedList",
+              "attrs": {
+                "start": 2147483647,
+                "type": null
+              },
+              "content": [
+                {
+                  "type": "listItem",
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "uno"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"attrs\":{\"start\":2147483647,\"type\":null},\"content\":[{\"content\":[{\"content\":[{\"text\":\"uno\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"listItem\"}],\"type\":\"orderedList\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b226174747273223a7b227374617274223a323134373438333634372c2274797065223a6e756c6c7d2c22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b2274657874223a22756e6f222c2274797065223a2274657874227d5d2c2274797065223a22706172616772617068227d5d2c2274797065223a226c6973744974656d227d5d2c2274797065223a226f7264657265644c697374227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 228,
+      "expectedSha256": "6c9e98d4f3e6086218a766b2564561f718ed083f4600331ac0193a8de53c5d45"
+    },
+    {
+      "name": "hard_break_bold_between_text",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "a"
+                },
+                {
+                  "type": "hardBreak",
+                  "marks": [
+                    {
+                      "type": "bold"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "text": "b"
+                }
+              ]
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"content\":[{\"text\":\"a\",\"type\":\"text\"},{\"marks\":[{\"type\":\"bold\"}],\"type\":\"hardBreak\"},{\"text\":\"b\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b2274657874223a2261222c2274797065223a2274657874227d2c7b226d61726b73223a5b7b2274797065223a22626f6c64227d5d2c2274797065223a2268617264427265616b227d2c7b2274657874223a2262222c2274797065223a2274657874227d5d2c2274797065223a22706172616772617068227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 192,
+      "expectedSha256": "8d8c154334ecf2122027ecf8edcfd2b904e3588a50979b3a576d66e0d63e7b15"
+    },
+    {
+      "name": "text_font_size_preset_normal",
+      "unit": "rich-document",
+      "input": {
+        "schema_version": 1,
+        "document": {
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Normal",
+                  "marks": [
+                    {
+                      "type": "fontSizePreset",
+                      "attrs": {
+                        "preset": "normal"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "type": "doc"
+        }
+      },
+      "expectedUtf8": "{\"document\":{\"content\":[{\"content\":[{\"marks\":[{\"attrs\":{\"preset\":\"normal\"},\"type\":\"fontSizePreset\"}],\"text\":\"Normal\",\"type\":\"text\"}],\"type\":\"paragraph\"}],\"type\":\"doc\"},\"schema_version\":1}",
+      "expectedHex": "7b22646f63756d656e74223a7b22636f6e74656e74223a5b7b22636f6e74656e74223a5b7b226d61726b73223a5b7b226174747273223a7b22707265736574223a226e6f726d616c227d2c2274797065223a22666f6e7453697a65507265736574227d5d2c2274657874223a224e6f726d616c222c2274797065223a2274657874227d5d2c2274797065223a22706172616772617068227d5d2c2274797065223a22646f63227d2c22736368656d615f76657273696f6e223a317d",
+      "expectedByteLength": 187,
+      "expectedSha256": "c0c29c7895940e0a4fe93b1e400a272f1a2bf1166400f5638a5b957841e443d3"
+    }
+  ]
+}
