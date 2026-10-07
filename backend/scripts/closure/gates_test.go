@@ -115,6 +115,38 @@ func receiptLine(t *testing.T, stdout string) string {
 // (sqlc.yaml included so the sqlc row shares one input list).
 var fixtureInputs = []string{"Makefile", ".gitignore", "go.mod", "go.sum", "sqlc.yaml", "cmd", "internal", "db", "scripts"}
 
+// unitFixtureInputs is the minimal gate-unit fixture input set: the real
+// Makefile and production gate script plus the module files needed to compile
+// the test-only scripts/closure package. Copying the full tree would make the
+// gate's child `go test ./...` re-execute the entire closure battery, so this
+// fixture is deliberately narrow.
+var unitFixtureInputs = []string{"Makefile", "go.mod", "go.sum", filepath.Join("scripts", "closure", "gate")}
+
+// unitDiscoveryMarker is written by the seeded passing test when the gate's
+// child `go test ./...` run actually executes the scripts/closure package.
+const unitDiscoveryMarker = "zz_unit_discovery_marker"
+
+// unitDiscoveryFixture seeds a test-only scripts/closure package whose passing
+// test writes unitDiscoveryMarker (discovery proof) and whose failing test
+// forces gate-unit to fail. Both tests live in scripts/closure, so the failure
+// is attributable to that package and not to the closure report or another
+// package.
+const unitDiscoveryFixture = `package closure_test
+
+import (
+	"os"
+	"testing"
+)
+
+func TestUnitClosureDiscoveryMarker(t *testing.T) {
+	if err := os.WriteFile("` + unitDiscoveryMarker + `", []byte("ran"), 0o644); err != nil {
+		t.Fatalf("write discovery marker: %v", err)
+	}
+}
+
+func TestUnitClosureDiscoveryFails(t *testing.T) { t.Fatal("seeded closure unit failure") }
+`
+
 // copyTree copies the named paths from root into dst preserving relative
 // structure (cp -a over each path; destination parents are created first).
 func copyTree(t *testing.T, root, dst string, rels ...string) {
@@ -161,8 +193,18 @@ func seedFile(t *testing.T, dir, rel, content string) {
 type mutationFixture struct {
 	name    string // "<target>: <violation class>" — the class name pinned by RED
 	target  string
+	inputs  []string // fixture inputs for this row; nil means the shared fixtureInputs superset
 	prepare func(t *testing.T, dir string)
 	seed    func(t *testing.T, dir string)
+}
+
+// fixtureInputsFor is the input list this row copies: rows needing a narrower
+// fixture declare their own inputs; every other row uses the shared superset.
+func (f mutationFixture) fixtureInputsFor() []string {
+	if len(f.inputs) > 0 {
+		return f.inputs
+	}
+	return fixtureInputs
 }
 
 const (
@@ -238,8 +280,9 @@ func mutationFixtures() []mutationFixture {
 		{name: "gate-fmt: unformatted file", target: "gate-fmt", seed: func(t *testing.T, d string) {
 			seedFile(t, d, filepath.Join("scripts", "closure", "gofmt_target.go"), "package closure\n\nfunc Unformatted( ) int {\nreturn\t1\n}\n")
 		}},
-		{name: "gate-unit: failing unit test", target: "gate-unit", seed: func(t *testing.T, d string) {
-			seedFile(t, d, filepath.Join("internal", "shared", "httpjson", "zz_fixture_test.go"), fixtureFailTest)
+		{name: "gate-unit: failing unit test", target: "gate-unit", inputs: unitFixtureInputs, seed: func(t *testing.T, d string) {
+			seedFile(t, d, filepath.Join("scripts", "closure", "zz_unit_discovery_fixture_test.go"),
+				strings.Replace(fixtureFailTest, "package httpjson", "package closure_test", 1))
 		}},
 		{name: "gate-race: unsynchronized counter", target: "gate-race", seed: func(t *testing.T, d string) {
 			// Seed into a covered package: the race gate races the WS6C-proven packages, so the violation must live inside one of them.
@@ -320,7 +363,7 @@ func TestGate_MutationFixturesForceGateFailure(t *testing.T) {
 		}
 		t.Run(f.name, func(t *testing.T) {
 			dir := t.TempDir()
-			copyTree(t, root, dir, fixtureInputs...)
+			copyTree(t, root, dir, f.fixtureInputsFor()...)
 			if f.prepare != nil {
 				f.prepare(t, dir)
 			}
@@ -335,14 +378,20 @@ func TestGate_UnitRunsClosurePackage(t *testing.T) {
 		return
 	}
 	root, dir := repoRoot(t), t.TempDir()
-	copyTree(t, root, dir, fixtureInputs...)
-	pattern := filepath.Join(dir, "scripts", "closure", "*")
-	if out, err := exec.Command("find", dir, "-name", "*_test.go", "!", "-path", pattern, "-delete").CombinedOutput(); err != nil {
-		t.Fatalf("remove non-closure tests: %v: %s", err, out)
+	copyTree(t, root, dir, unitFixtureInputs...)
+	// Deterministic structural guard: the fixture must stay narrow enough that
+	// the gate's child `go test ./...` cannot re-execute the closure battery.
+	if _, err := os.Stat(filepath.Join(dir, "scripts", "closure", "gates_test.go")); err == nil {
+		t.Fatalf("gate-unit fixture copied scripts/closure/gates_test.go; the gate's nested `go test ./...` would re-run the whole closure battery")
 	}
-	seedFile(t, dir, filepath.Join("scripts", "closure", "zz_fixture_test.go"),
-		strings.Replace(fixtureFailTest, "package httpjson", "package closure_test", 1))
+	seedFile(t, dir, filepath.Join("scripts", "closure", "zz_unit_discovery_fixture_test.go"), unitDiscoveryFixture)
 	requireGateFails(t, dir, "gate-unit")
+	// The gate failed and the marker proves the failure came from a test in
+	// scripts/closure that the gate's child actually discovered and executed —
+	// not from the closure report or an unrelated package.
+	if _, err := os.Stat(filepath.Join(dir, "scripts", "closure", unitDiscoveryMarker)); err != nil {
+		t.Fatalf("gate-unit did not execute the seeded scripts/closure discovery test: %v", err)
+	}
 }
 
 // TestGateReceipts_RealContractAndDelegation is the GREEN receipt control: every target delegates
@@ -720,7 +769,7 @@ func TestGate_AllMutationsUseTempCopies(t *testing.T) {
 		t.Run(f.name+"/no_real_root_residue", func(t *testing.T) {
 			before := repoSnapshot(t, root)
 			dir := t.TempDir()
-			copyTree(t, root, dir, fixtureInputs...)
+			copyTree(t, root, dir, f.fixtureInputsFor()...)
 			if f.prepare != nil {
 				f.prepare(t, dir)
 			}
