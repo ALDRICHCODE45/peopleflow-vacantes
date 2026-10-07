@@ -127,6 +127,40 @@ type Job struct {
 	SearchVector   interface{}        `json:"search_vector"`
 }
 
+type JobDraft struct {
+	ID                   uuid.UUID          `json:"id"`
+	CompanyID            uuid.UUID          `json:"company_id"`
+	CreatedBy            uuid.UUID          `json:"created_by"`
+	PrincipalRecruiterID uuid.UUID          `json:"principal_recruiter_id"`
+	Status               string             `json:"status"`
+	Version              int64              `json:"version"`
+	Fields               []byte             `json:"fields"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+}
+
+type JobDraftIdempotency struct {
+	ID           uuid.UUID          `json:"id"`
+	CompanyID    uuid.UUID          `json:"company_id"`
+	ActorID      uuid.UUID          `json:"actor_id"`
+	Operation    string             `json:"operation"`
+	IdemKey      string             `json:"idem_key"`
+	Fingerprint  []byte             `json:"fingerprint"`
+	ResponseBody []byte             `json:"response_body"`
+	ResponseEtag string             `json:"response_etag"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type JobDraftRequester struct {
+	ID                   uuid.UUID          `json:"id"`
+	CompanyID            uuid.UUID          `json:"company_id"`
+	Kind                 string             `json:"kind"`
+	Name                 string             `json:"name"`
+	NameKey              string             `json:"name_key"`
+	NormalizationVersion int32              `json:"normalization_version"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+}
+
 type User struct {
 	ID         uuid.UUID          `json:"id"`
 	CognitoSub string             `json:"cognito_sub"`
