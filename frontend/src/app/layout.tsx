@@ -2,6 +2,7 @@ import * as React from "react";
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { THEME_BOOTSTRAP_SCRIPT } from "@/components/theme/theme-preferences";
+import { AppToaster } from "@/components/feedback/app-toaster";
 import "./globals.css";
 
 // Preset b27M1Ev2 typography: Inter serves the body role through the
@@ -50,6 +51,7 @@ export default function RootLayout({
                     {THEME_BOOTSTRAP_SCRIPT}
                 </script>
                 {children}
+                <AppToaster />
             </body>
         </html>
     );

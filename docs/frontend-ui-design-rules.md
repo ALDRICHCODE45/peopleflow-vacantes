@@ -110,7 +110,8 @@ en la sección 7.
 - Controles de formulario → `Field` + `FieldGroup`, `Input`, `Textarea`, `Select`,
   `Checkbox`, `ToggleGroup`, `InputGroup`.
 - Separadores → `Separator` (no `<hr>`).
-- Carga → `Skeleton`/`Progress` (instalados); `Spinner` (**hoy no instalado**).
+- Carga → `Skeleton`, `Progress` y `Spinner` oficiales de shadcn (instalados; criterios en sección 11).
+- Notificaciones transitorias → **Sileo**, excepción aprobada a shadcn-first; un único `AppToaster` global.
 - Estados/etiquetas → `Badge` (no `span` con color propio).
 - Tooltips/info → `Tooltip`/`Popover` (instalados); `HoverCard` (**hoy no instalado**).
 
@@ -267,12 +268,14 @@ esta regla.
 | Datos tabulares | `Table` | Instalado |
 | Separación de bloques | `Separator` | Instalado |
 | Placeholders de carga | `Skeleton`, `Progress` | Instalado |
+| Acción puntual en curso | `Spinner` oficial de shadcn | Instalado |
+| Notificaciones transitorias | `Sileo` mediante `AppToaster` global | Instalado; excepción aprobada |
 
 Regla operativa: si el primitivo no está instalado, **primero** se consulta en el
 registry (herramientas MCP en solo lectura) y **no se implementa a mano**. Agregarlo
 requiere autorización humana normal y revisión del paquete/registro (sección 1): no hay
 instalación automática. La columna "Estado" es un inventario y no convierte en instalado
-lo ausente (`HoverCard`, `Spinner`, `ScrollArea`, `Command`).
+lo ausente (`HoverCard`, `ScrollArea`, `Command`).
 
 ## 8. Evidencia del inventario del registry
 
@@ -297,6 +300,11 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
 (sección 1). Nunca `pnpm dlx ...@latest`.
 
 ## 9. Checklist de revisión de UI
+
+- [ ] ¿La carga usa un skeleton de la estructura real, un Spinner para la acción puntual
+      o Progress para progreso medible, sin demoras artificiales (sección 11)?
+- [ ] ¿Los toasts salen de resultados reales, usan el host global y no sustituyen errores
+      persistentes ni validaciones de formulario (sección 11)?
 
 - [ ] ¿Existe un primitive instalado que cubre el patrón? Si sí, se usó.
 - [ ] ¿Se usaron variantes nativas antes que clases propias?
@@ -453,3 +461,97 @@ Prohibiciones observables, no consejos:
 - [ ] Si hay dos modos de vista, sus arquitecturas difieren y no comparten la grilla de
       datos.
 - [ ] Ninguna de las prohibiciones de 10.8 está presente.
+
+## 11. Carga y notificaciones con calidad de producto
+
+**La calidad viene de conservar contexto y dar feedback honesto, no de agregar animaciones.**
+Esta base se aplica a nuevas superficies y a las que se modifiquen; no implica una
+migración masiva ni conectar prototipos a persistencia inexistente.
+
+| Situación real | Patrón |
+| --- | --- |
+| Primera carga de contenido | Composición propia de la pantalla con el `Skeleton` instalado |
+| Acción puntual pendiente | `Spinner` oficial junto al texto de la acción |
+| Progreso conocido | `Progress` con valor real, nunca porcentaje inventado |
+| Resultado transitorio de una acción | Sileo: éxito, error o información según el resultado confirmado |
+| Error de campo o bloqueo que requiere intervención | Mensaje persistente junto al problema; un toast no lo reemplaza |
+
+### Skeletons por contexto
+
+- Representar la estructura que llegará: filas de tabla, cards, encabezados o formulario.
+  Reservar tamaños y mantener la misma grilla responsive para evitar saltos de layout.
+- Componer el primitive `@/components/ui/skeleton`; no crear divs con `animate-pulse`
+  como sustituto, ni usar una pantalla genérica de carga para todo el sistema.
+- Marcar los bloques decorativos con `aria-hidden="true"`; el contenedor lleva
+  `aria-busy="true"` y un solo texto de estado accesible. No anunciar cada bloque.
+- En refetch, conservar el contenido útil y el foco cuando sea posible. No volver a
+  vaciar toda la pantalla ni desmontar un formulario que la persona está editando.
+- No agregar timers, latencias ni skeletons a datos locales ya disponibles. Un
+  `loading.tsx` representa una espera real del segmento; no reemplaza automáticamente
+  la carga de consultas del cliente.
+
+```tsx
+<section aria-busy="true" aria-label="Listado de vacantes" className="flex flex-col gap-3">
+  <span role="status" className="sr-only">Cargando vacantes</span>
+  <Skeleton aria-hidden="true" className="h-6 w-48" />
+  <Skeleton aria-hidden="true" className="h-24 w-full" />
+</section>
+```
+
+### Spinner puntual
+
+Importar `Spinner` de `@/components/ui/spinner`, nunca dibujarlo a mano o importar
+otro loader por vista. Mantener texto contextual en español. Si el texto ya anuncia
+la espera, el icono es decorativo; si se usa solo, darle `aria-label` contextual.
+Deshabilitar únicamente la acción realmente pendiente y mantener su ancho estable.
+
+```tsx
+<Button disabled={pending} aria-busy={pending}>
+  {pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
+  {pending ? "Guardando…" : "Guardar"}
+</Button>
+```
+
+### Sileo como excepción explícita
+
+- Paquete aprobado: `sileo@0.1.5` (MIT; incluye `motion` como dependencia).
+  Documentación: <https://sileo.aaryan.design/docs>.
+- `frontend/src/components/feedback/app-toaster.tsx` monta un único host en el layout
+  raíz, sin convertir el layout en cliente ni mover el bootstrap del tema. No montar
+  otro Toaster en páginas, shells o diálogos.
+- Importar `sileo` desde `sileo` en eventos del cliente. No emitir durante render,
+  montaje, navegación normal ni desde placeholders. No duplicar una misma acción con
+  varios toasts.
+- Mostrar éxito solo después de la confirmación real de la operación. El formulario
+  actual de vacantes y los borradores locales no habilitan mensajes de guardado o
+  publicación en servidor. No simular esas confirmaciones para mostrar el componente.
+- Mensajes breves en español, con título autosuficiente. No exponer datos personales,
+  errores crudos ni detalles internos. Una descripción es información complementaria.
+- Los errores de validación, permisos y fallos recuperables conservan su explicación y
+  su acción persistente en la pantalla; no depender del tiempo de vida del toast.
+- Usar las opciones globales: posición inferior derecha, duración de 6 segundos y
+  superficie `--popover`. No pasar colores, `fill`, posición o estilos por llamada.
+  Los tokens y ajustes responsive viven en `globals.css`, bajo `[data-pf-toaster]`.
+- El tema lo resuelven los tokens existentes, incluso con elección manual opuesta al
+  sistema. No crear otro almacén de tema. Sileo inyecta su propio CSS: no duplicar su
+  stylesheet. Las reglas globales tienen especificidad para sobrevivir esa inyección.
+- Respetar movimiento reducido. En ese modo y en pantallas de hasta 400px se usa una
+  superficie estática: el SVG de ancho fijo no debe desbordar ni continuar su morph
+  JavaScript visible. Skeleton y Spinner conservan el significado sin animación continua.
+- Esta base no habilita acciones críticas dentro de toasts. Antes de usar `button` o
+  `promise`, verificar específicamente teclado, anuncios y estados terminales del flujo.
+
+### Verificación aislada
+
+La fixture no es una ruta de producto y no llama al backend. Prueba los componentes
+reales, claro/oscuro con tema manual, viewport de 320px, movimiento reducido y axe.
+Desde `frontend/`, en dos terminales:
+
+```bash
+corepack pnpm exec vite --config tests/fixtures/ui-feedback/vite.config.ts
+PLAYWRIGHT_FEEDBACK_ORIGIN=http://127.0.0.1:3187 corepack pnpm exec playwright test tests/e2e/ui-feedback.spec.ts --retries=0
+```
+
+Sin `PLAYWRIGHT_FEEDBACK_ORIGIN`, estos tests se omiten explícitamente en la suite E2E
+normal: no se confunden con cobertura ejecutada. No confundir aprobar la fixture con
+haber migrado o verificado todas las pantallas de producto.
