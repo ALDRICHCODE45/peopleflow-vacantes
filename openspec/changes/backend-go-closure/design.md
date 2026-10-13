@@ -16,7 +16,7 @@ Review in this order:
 ## 2. Architectural decisions
 
 | ID | Decision | Consequence |
-|---|---|---|
+| --- | --- | --- |
 | D1 | Shared HTTP errors live in `internal/shared/httpjson`, as a typed, versioned catalog plus one encoder. | Domain adapters classify domain errors to catalog entries; they do not define envelope mechanics or ad-hoc code strings. |
 | D2 | Company create becomes `INSERT … SELECT` from a locking active-industry CTE inside the existing bootstrap transaction. | There is no application read-before-write gap; inactive/unknown industries return the dedicated `industry_unavailable` outcome and no owner membership can be written. |
 | D3 | Migration SQL is embedded by a small package colocated with `db/migrations`; `cmd/migrate` consumes that `fs.FS`. | `go:embed` remains legal and the deployed executable has no working-directory dependency. |
@@ -48,7 +48,7 @@ WS7A + WS7B ──────────────────────�
 WS2–WS6 may proceed independently after their own prerequisite unit, but integration is merged in the order shown. WS7 is last and consumes immutable evidence from all prior units.
 
 | Unit | Deliverable and principal owners | Focused finish condition | Rollback boundary |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | WS2A | Active-industry CTE in `db/queries/companies.sql`, regenerated `internal/db/companies.sql.go`, bootstrap mapping. | Active succeeds; inactive/unknown return catalog `industry_unavailable`; deterministic two-order live race passes. | Revert query, generated output, mapper, and focused tests together. |
 | WS2B | Direct live `CompanyRepository.Create`/`GetByID` and named CHECK evidence. | Persistence/read-back pass; both CHECK tests assert `23514` and exact constraint names with cleanup. | Test-only/adaptor evidence unit; no unrelated company behavior removed. |
 | WS2C | Injectable transaction/query seam for inline job-close failure. | Placeholder is deleted; forced close error proves company/job/audit rollback and seam cleanup. | Remove only seam and its test; production happy path remains semantically identical. |
@@ -199,7 +199,7 @@ The adapter is tested without a deployed Lambda. A fake application handler prov
 `IDENTITY_JWT_MODE` is required and accepts only `jwks` or `pem`.
 
 | Mode | Required configuration | Environment rule |
-|---|---|---|
+| --- | --- | --- |
 | `jwks` | HTTPS issuer, audience/client ID, expected `token_use`, bounded TTL, fetch timeout; JWKS URL is derived from the normalized issuer or explicitly validated as same-origin for tests. | Required in production. |
 | `pem` | Public PEM, issuer, audience. | Local/test only; production rejects it. |
 
@@ -341,12 +341,31 @@ The report generator starts at NO-GO and flips to GO only when:
 
 Stale/missing receipts are blockers. The generator lists all blockers in one run and never accepts a manual waiver or `size:exception` as technical evidence.
 
+### 10.3 Task 7.3 GREEN replan: three-unit correction (user-approved replan reconciliation)
+
+The prior single GREEN unit was rejected after independent verification: its PASS was only mechanical, and the verifier found an unsafe GO path. The user approved an explicit replan into three behavioral units (GREEN-A/B/C in `tasks.md`), each a full RED→GREEN→TRIANGULATE→REFACTOR cycle against fixture evidence in temporary roots, each ≤400 authored A+D lines including tests/evidence; no `size:exception`. Contract corrections binding all three units:
+
+| Topic | Reconciled contract |
+| ----- | ------------------- |
+| Evidence model | `closurereport` consumes the native manifest schema (`archguard.TraceabilityRow`: `owners` is the implementation-path list, `capability` is the single owning capability). Pure engine validation — `CheckManifestStructure`, `CheckManifestCoverage`, `CheckManifestAnchors` — is applied to the evidence; simplified owner/anchor string claims are never used. `LoadTraceManifest`, `ComposeEffectiveSet`, and `BuildAnchorIndex` are the loader seam for temporary-fixture setup and the later real-tree TRIANGULATE run only — not permission for live generation inside GREEN. |
+| Fixed evidence sets | The 9 required gate receipts and 3 required executables are constants of the algorithm; callers cannot supply or narrow them (the `orDefault` override path is removed). |
+| Fail-closed evidence | Duplicate, malformed, or absent identity, integrity, and count evidence (tree identity, receipt fields, skip counts, executable counts, manifest rows) is a blocker, never a pass-through. |
+| Criterion attribution | The 12 proposal §9 criteria are a fixed set, not caller-supplied. Every failure maps to at least one criterion; a criterion with no observed passing evidence stays FAIL — no default PASS for missing criteria. |
+| Criterion 12 gap | Explanatory docs (proposal §9.12) do not yet have an observed machine-readable validator. Criterion 12 stays deterministically NO-GO until Task 8.1 supplies agreed verifiable evidence; no trusted boolean and no manual waiver may stand in. Report regeneration is planned AFTER documentation evidence; the initial real-tree TRIANGULATE run is not required to be GO and is never forced GO circularly. |
+| Budget caveat | The source-core budget is NOT guaranteed yet. These are behavioral shapes, not forecasts; each writer records an honest numeric per-unit forecast and exact edit surfaces before touching source, and does not claim all three fit merely from heuristic. |
+| Renderer boundary | The unaccepted candidate's `render.go` was written against the simplified evidence model. Because GREEN-A/B change that model, the compile-safe migration boundary (minimal explicit `render.go` adaptation inside A/B with forecasted lines, versus full renderer replacement owned by GREEN-C) is not derivable from artifacts alone and is marked PENDING; each writer derives it against the real tree and records it with the per-unit forecast. Deferred renderers are never silently edited. |
+| Accounting | Per-attempt incremental accounting is distinct from the whole review diff. The HISTORICAL rejected attempt204 recorded 422 lines (source 409 + progress 13) remains UNACCEPTED; that figure is a per-attempt historical record, distinct from the current full diff and from future units, and the accounting-only reset (#8083) does not legitimize it. Final GREEN acceptance counts the full authored delta vs HEAD, not per-attempt increments. No source moves/deletions are authorized by this replan. |
+
+Unit shapes: A = native evidence-validation core + regression tests; B = fixed twelve-criterion decision/attribution + regression tests; C = deterministic rendering/writing from the validated decision + regression tests. RED, TRIANGULATE, REFACTOR, and Phase 8 are unchanged.
+
+Acceptance is explicitly cumulative across GREEN-A+B+C: the §10.2 obligations accrue unit by unit, and the full pipeline is never required of a single unit. Deterministic rendering/writing ownership is exclusively GREEN-C.
+
 ## 11. Strict TDD evidence protocol
 
 Every work unit records four stages in its implementation notes/receipt:
 
 | Stage | Required evidence |
-|---|---|
+| --- | --- |
 | RED | Focused test/guard added first; exact command and expected failure reason showing the missing behavior, not a compile accident. |
 | GREEN | Smallest implementation makes the focused command pass. Integration units use live Postgres with `-tags=integration -p 1 -count=1`. |
 | TRIANGULATE | Add at least one independent edge/counterexample: opposite race order, unknown key/id, null/omitted value, failure/cancellation, or boundary-size input. |
@@ -355,7 +374,7 @@ Every work unit records four stages in its implementation notes/receipt:
 Stage mapping by unit:
 
 | Unit | RED | TRIANGULATE |
-|---|---|---|
+| --- | --- | --- |
 | WS2A | Inactive/unknown industry currently reaches FK/create behavior. | Both lock acquisition orders, owner-row absence, and exact 409 `industry_unavailable` mapping. |
 | WS2B | Direct adapter/named-constraint assertions absent. | Valid read-back and both exact constraint names. |
 | WS2C | Existing placeholder skip is the RED evidence and must be replaced by a failing assertion. | Error before commit proves company, jobs, and audit all unchanged. |
@@ -379,11 +398,11 @@ The rows below seed `traceability.json`; every listed owner path, symbol, and ev
 ### 12.1 Backend runtime, industries, and changed capabilities
 
 | Capability — MUST requirement | Go/SQL/migration owner | Focused evidence |
-|---|---|---|
+| --- | --- | --- |
 | backend-runtime — Migration Executable (`cmd/migrate`) | `db/migrations/embed.go`; `cmd/migrate/**`; all `db/migrations/*.sql` | `go test -tags=integration -p 1 ./cmd/migrate ./db/migrations -run 'TestMigrate' -count=1` plus binary harness |
 | backend-runtime — Health Liveness and DB Readiness Split | `internal/runtime/health`; router owner | unit `TestHealthz_*`, `TestReadyz_*` with fake ping; live readiness case |
 | backend-runtime — HTTP Server Hardening | `internal/runtime/server`; shared `httpjson.DecodeJSON`; optional Content-Length precheck middleware | target `TestServerConfig`, fixed-length/chunked `TestDecodeJSON_BodyLimit_NAndNPlusOne`, trailing-JSON test, use-case non-invocation test, `TestGracefulShutdown` |
-| backend-runtime — Stable Error Envelope | `internal/shared/httpjson` | `go test ./internal/shared/httpjson -run 'Test(ErrorEnvelope|InternalError)'` and handler contract scan |
+| backend-runtime — Stable Error Envelope | `internal/shared/httpjson` | named S-Envelope selector (exact command fenced immediately after this table) and handler contract scan |
 | backend-runtime — Stable Error-Code Catalog | `internal/shared/httpjson/errors.go` | target V1 exact-enumeration/immutable-meaning test, `industry_unavailable` mapping tests, and WS7 AST literal guard |
 | backend-runtime — Minimum Structured Observability | runtime request middleware and `internal/runtime/metrics` | captured-slog and spy/no-op metric tests |
 | backend-runtime — Repository-Enforced Quality Gates | `Makefile`; `scripts/closure/**` | mutation tests for each target; `make closure-gate` receipt |
@@ -427,12 +446,19 @@ The rows below seed `traceability.json`; every listed owner path, symbol, and ev
 | identity — Identity Use Cases | identity application use cases | existing create/get use-case tests |
 | jobs — Status Domain (modified) | jobs status VO, read SQL, gated patch route | existing default/visibility/transition/route tests; stale-text static guard |
 
+Named focused command for the Stable Error Envelope row (S-Envelope); execute from `backend/`:
+
+```sh
+# S-Envelope — Stable Error Envelope focused evidence
+go test ./internal/shared/httpjson -run 'Test(ErrorEnvelope|InternalError)'
+```
+
 ### 12.2 Unchanged `company-membership`
 
 No empty spec delta is created. Every canonical MUST remains represented:
 
 | MUST requirement | Go/SQL/migration owner | Focused evidence |
-|---|---|---|
+| --- | --- | --- |
 | company_members Schema Migration | migration `00009`; company member SQL | `db/migrations` 00009 up/down/check/unique live tests |
 | Membership Resolution from Authenticated Subject | membership service + identity user port | existing subject resolution/no-member tests |
 | GetMyMembership | member handler/service/repositories | existing unit/live no-IDOR and tombstone tests |
@@ -448,7 +474,7 @@ No empty spec delta is created. Every canonical MUST remains represented:
 No empty spec delta is created. Each row remains owned by applications even where it co-writes through the narrow audit port.
 
 | MUST requirement | Go/SQL/migration owner | Focused evidence |
-|---|---|---|
+| --- | --- | --- |
 | Applications Schema Migration | migration `00010`; applications SQL | existing 00010 up/down/constraint/index integration |
 | Status Domain | application status VO/schema | existing status VO and migration tests |
 | Status Transition Matrix | status VO/use case | existing transition table tests |
@@ -485,7 +511,7 @@ No empty spec delta is created. Each row remains owned by applications even wher
 No empty spec delta is created.
 
 | MUST requirement | Go/SQL/migration owner | Focused evidence |
-|---|---|---|
+| --- | --- | --- |
 | Audit Events Schema Migration | migration `00011`; audit SQL | existing 00011 schema/constraint/index live tests |
 | Actor Type Vocabulary | audit entity | existing vocabulary tests |
 | Event Type Vocabulary (Closed Set for This Cycle) | audit entity constants | existing event vocabulary tests |
@@ -498,7 +524,7 @@ No empty spec delta is created.
 The Status Domain row is in §12.1 because its text changes; all other canonical MUST rows remain owned by jobs.
 
 | MUST requirement | Go/SQL/migration owner | Focused evidence |
-|---|---|---|
+| --- | --- | --- |
 | Public Read Endpoints | job handler/service/read SQL | existing public list/detail tests |
 | Read-Side Visibility Rule | jobs read SQL | existing published/live-company visibility integration |
 | Jobs Schema Migration | migrations `00007`/`00008` | existing migration/index/seed tests |
@@ -536,7 +562,7 @@ The Status Domain row is in §12.1 because its text changes; all other canonical
 The tasks phase must count authored additions plus deletions and must not treat this design as permission for an over-budget review. Generated sqlc output is excluded only from authored-line count; it remains in snapshots and review identity.
 
 | Hotspot | Likely authored size | Required task slicing response |
-|---|---:|---|
+| --- | ---: | --- |
 | WS2 companies live-DB closure | 500–900 | Split WS2A SQL/race, WS2B adapters/constraints, WS2C rollback seam, WS2D HTTP/CAS races. |
 | WS3 candidate replacement tests | 250–450 | Keep DTO/use-case/live replacement together; if forecast exceeds 400, ask before chaining candidate subunits. |
 | WS4A migration command/harness | 300–500 | Separate command core/unit tests from live round-trip only if each remains independently meaningful. |
@@ -563,7 +589,7 @@ No schema migration is needed for the candidate wire correction, error envelope,
 ## 15. Risks and controls
 
 | Risk | Control |
-|---|---|
+| --- | --- |
 | Active-industry race test gives timing-dependent evidence | Barrier-controlled transactions and opposite lock-order scenarios; no sleeps as correctness conditions. |
 | Advisory lock is bypassed by retained developer goose commands | Retained Make/goose targets are labelled local/manual; closure and future deployment targets invoke `cmd/migrate`, and only their locked receipts count as evidence. |
 | JWKS outage causes permissive authentication | Expired/unknown keys fail closed; no mode fallback; known keys are usable only until original bounded expiry. |

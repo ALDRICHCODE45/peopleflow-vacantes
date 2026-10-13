@@ -1,0 +1,28 @@
+# Screening v2 — U1a GET isolation
+Authorized scope: protect existing v1 GET only, before any v2 codec or endpoint exposure.
+No commits/push authorized; pre-existing staged requesterName and OpenSpec work remain untouched.
+
+## Specs
+S1. "Schema1 proceeds; known2=>404 after authorization before requester/render; missing/unknown/corrupt=>500 after auth; unauthorized stays404."
+S2. "Honor RED/GREEN through public HTTP seam, real auth/no-store/noETag and mutation snapshots, existing v1 regression, own checks then independent high-risk verifier/native review if required. No fake completion from pure tests."
+S3. "Identify exact new disposable loopback DB name containing draft_test and instance before applying harness migrations; you may start local test services/create that NEW DB and run harness without another human roundtrip. Never reuse ambient DSN or delete unrelated work."
+S4. "Preserve UUID FE policy verbatim (no codec in U1a). PATCH/replay U1b remains separate, no v2 enablement. No commits/push or blanket cleanup authorized."
+S5. "Allowed source surfaces: backend/internal/features/jobs/infrastructure/postgres/draftstore/{schema.go,schema_test.go,store.go,README.md}; backend/cmd/api/draft_flow_integration_test.go."
+
+## Tasks
+- T1 [done] S1-S5 — inline: provision new isolated DB and add public HTTP regression; observe RED; commit prohibited.
+- T2 [done] S1,S2,S4,S5 — inline: implement schema discriminator in GET only, document boundary, focused GREEN and existing suite; commit prohibited.
+- T3 [done] S1-S5 — independent verification PASS; isolated native review review-1754f008fbb81fad approved and acknowledged (authority burned); commit prohibited.
+
+## Log
+L1. Original user request: "Retomemos el contrato v2 de screening por favor hermano."
+L2. User authorization relayed by frontend: "Si, adelante, ojo, actualmente no hya produccion, no hace falta tomar muchas precauciones para este tipo de cosas, podemos deshacer todo lo que queramos."
+L3. Authorized direction: "Recomiendo cerrar primero el contrato completo FE/BE y después implementar backend v2 en unidades pequeñas, preservando v1."
+L4. Full v2/v1 ordinary Git blobs read at 7f7c5ff43fae2ccf02f98fa6a01a4ab4b2c1ef9c; v2 SHA256 7d673336bca6127fe071bbd913f0d03a47f01c085a970a8152fbddbdaa340be4 (16680 bytes), v1 SHA256 17c83c206cf11b6fd95b197aeef03b238ca0de220389e5f0ae67de1c54d48fa3 (24898 bytes). Section8 isolation before codec honored. Existing FE preserves UUID spelling, deduplicates case-insensitively, exact-string answer reference; IDs stable at authoring only.
+L5. Baseline HEAD0848588 on feat/private-drafts-requester-name. New target: Docker container peopleflow-screening-u1a-01a11bd8, local postgres:16-alpine image, published 127.0.0.1:55438, NEW database draft_test (exact name required by existing harness). No ambient DSN. Container scoped to this unit, no existing container/database reused. Prepared successfully (container e315e9c34993); harness applied migrations to new database.
+L6. RED observed through real HTTP: TestDraftFlow_GetSchemaIsolation exit1 (0.343s). Six authorized cases fail: schema2 returns200; schema2 with invalid requester returns500; missing/unknown/null/string schema return200 rather than500. Auth rejection and corrupt JSON cases already pass. No production source changed before RED.
+L7. GREEN: real HTTP `go test -tags=integration ./cmd/api -run '^TestDraftFlow_' -count=1` and untagged `go test ./...` both exit0 (combined58s, some unit packages cached). GET-only guard added after authorization before requester/render; README boundary documented. LSP3 files inconclusive (two timeouts, one push-only); no LSP-clean claim. Native assess unassessable due intended-untracked declaration, independent verifier required; no native approval or authority mutation.
+L8. Independent verifier muzttu8c-3-dqej: S1-S5 PASS within inspected scope, no material blocker. Executed public HTTP schema probe exit0 in0.269s. Final git diff --check PASS; store diff only four lines inside Get. Staged requesterName remains115+333 additions; no tools wrote its files or OpenSpec.
+L9. Native inspect confirms current workspace projection includes unrelated requesterName/OpenSpec and needs intended-untracked selection; no START/selection/recovery performed. Needs decision on isolated U1a review candidate; do not review unrelated work or claim native approval. T3 blocked on that decision, implementation/functional verification complete. Disposable container remains available; no cleanup/commit/push performed.
+L10. User "avanzamos" authorized "preparar un worktree aislado con solo los cuatro archivos de este cambio, sin tocar el índice original ni hacer commits." Created/registered .scratch/screening-v2-get-isolation-review at exact HEAD08485882c2bade60edc5a2ad98ae76a07a638090, copied only the four U1a files; before/after original cached and worktree diffs identical, original staged requesterName unchanged. No new source edits or functional reruns.
+L11. Isolated native review review-1754f008fbb81fad, target sha256:6131963dd0689a0c592955d303bb692d3d16c202f7110f4316fb812b7bcd9087, candidate tree0a44a6a1e7cf9c7643f39d4dc532a73b8811b601: provider tier medium/consolidated review-reliability, approved without correction. Exact acknowledgement completed, authority burned at consumed revision sha256:6a17cbf8d8ee7d4fac307ca78718580aa83dea97313a01d8ca4eb129d0809d2c. Four files remain byte-identical between original and review worktree. No Git commit/push, cleanup, PATCH/replay or v2 exposure. T1-T3 complete; native assess initially unavailable but native ordinary review subsequently completed on isolated candidate.
