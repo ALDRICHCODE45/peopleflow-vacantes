@@ -9,6 +9,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
+	identityvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/valueobjects"
 	"github.com/google/uuid"
 )
 
@@ -44,7 +45,7 @@ func TestCreateCompanyWithOwner_Success(t *testing.T) {
 	userID := uuid.MustParse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
 	bootstrap := &stubBootstrapRepository{}
 	users := &stubUserRepository{
-		resolved: &identityentities.User{ID: userID, CognitoSub: "sub-1"},
+		resolved: &identityentities.User{ID: userID, CognitoSub: "sub-1", UserType: identityvalueobjects.UserRecruiter},
 	}
 
 	svc := NewCompanyServiceWithBootstrap(&stubCompanyRepository{}, users, bootstrap)
@@ -86,9 +87,39 @@ func TestCreateCompanyWithOwner_UnknownSubject(t *testing.T) {
 	}
 }
 
+// Only employer accounts (users.user_type = recruiter) may found a company;
+// candidates and unclassified accounts are refused before any write.
+func TestCreateCompanyWithOwner_RejectsNonEmployerAccount(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		userType identityvalueobjects.UserType
+	}{
+		{"candidate", identityvalueobjects.UserCandidate},
+		{"unknown", identityvalueobjects.UnknownUserType},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			userID := uuid.MustParse("dddddddd-dddd-dddd-dddd-dddddddddddd")
+			users := &stubUserRepository{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-1", UserType: tc.userType}}
+			bootstrap := &stubBootstrapRepository{}
+			svc := NewCompanyServiceWithBootstrap(&stubCompanyRepository{}, users, bootstrap)
+
+			got, err := svc.CreateCompanyWithOwner(context.Background(), "sub-1", validCreateDto())
+			if !errors.Is(err, entities.ErrCreatorNotEmployer) {
+				t.Fatalf("expected ErrCreatorNotEmployer, got: %v", err)
+			}
+			if got != nil {
+				t.Errorf("expected no company, got %+v", got)
+			}
+			if bootstrap.createCall != 0 {
+				t.Errorf("CreateWithOwner MUST NOT run for a non-employer account, got %d calls", bootstrap.createCall)
+			}
+		})
+	}
+}
+
 func TestCreateCompanyWithOwner_InvalidCompany(t *testing.T) {
 	userID := uuid.MustParse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")
-	users := &stubUserRepository{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-1"}}
+	users := &stubUserRepository{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-1", UserType: identityvalueobjects.UserRecruiter}}
 	svc := NewCompanyServiceWithBootstrap(&stubCompanyRepository{}, users, &stubBootstrapRepository{})
 
 	dto := validCreateDto()
@@ -101,7 +132,7 @@ func TestCreateCompanyWithOwner_InvalidCompany(t *testing.T) {
 
 func TestCreateCompanyWithOwner_PropagatesBootstrapError(t *testing.T) {
 	userID := uuid.MustParse("cccccccc-cccc-cccc-cccc-cccccccccccc")
-	users := &stubUserRepository{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-1"}}
+	users := &stubUserRepository{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-1", UserType: identityvalueobjects.UserRecruiter}}
 	bootstrap := &stubBootstrapRepository{createErr: entities.ErrDuplicateCompany}
 	svc := NewCompanyServiceWithBootstrap(&stubCompanyRepository{}, users, bootstrap)
 

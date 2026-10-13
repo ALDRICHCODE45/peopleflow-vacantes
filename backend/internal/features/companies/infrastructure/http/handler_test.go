@@ -20,6 +20,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
+	identityvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/valueobjects"
 	rtmiddleware "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/middleware"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
@@ -163,7 +164,7 @@ func newTestHandler(repo *stubRepo) *CompanyHandler {
 }
 
 func newTestHandlerWithBootstrap(repo *stubRepo, bootstrap *stubBootstrapRepo) *CompanyHandler {
-	users := &stubUserRepo{resolved: &identityentities.User{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), CognitoSub: "test-sub"}}
+	users := &stubUserRepo{resolved: &identityentities.User{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), CognitoSub: "test-sub", UserType: identityvalueobjects.UserRecruiter}}
 	svc := usecases.NewCompanyServiceWithBootstrap(repo, users, bootstrap)
 	return NewCompanyHandler(svc)
 }
@@ -378,6 +379,35 @@ func TestCreateCompany_Duplicate(t *testing.T) {
 
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("want 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+// A candidate (or unclassified) account cannot found a company: 403 forbidden
+// with the safe catalog message, and no company/owner write happens.
+func TestCreateCompany_NonEmployerAccountForbidden(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		userType identityvalueobjects.UserType
+	}{
+		{"candidate", identityvalueobjects.UserCandidate},
+		{"unknown", identityvalueobjects.UnknownUserType},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bootstrap := &stubBootstrapRepo{}
+			users := &stubUserRepo{resolved: &identityentities.User{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), CognitoSub: "test-sub", UserType: tc.userType}}
+			svc := usecases.NewCompanyServiceWithBootstrap(&stubRepo{}, users, bootstrap)
+			router := newTestRouter(NewCompanyHandler(svc))
+
+			rec := doPost(t, router, `{"name":"Acme SA de CV","rfc":"AAA010101AAA","industry_id":"tech"}`)
+
+			assertCatalogEnvelope(t, rec, http.StatusForbidden, httpjson.CodeForbidden)
+			if !strings.Contains(rec.Body.String(), "only employer accounts can create a company") {
+				t.Errorf("expected safe employer-only message, got %s", rec.Body.String())
+			}
+			if bootstrap.company != nil || bootstrap.owner != nil {
+				t.Errorf("CreateWithOwner MUST NOT run (company=%v owner=%v)", bootstrap.company, bootstrap.owner)
+			}
+		})
 	}
 }
 
@@ -599,7 +629,7 @@ func TestCreateCompany_DecodeBoundary(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			bootstrap := &stubBootstrapRepo{}
-			users := &stubUserRepo{resolved: &identityentities.User{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), CognitoSub: "test-sub"}}
+			users := &stubUserRepo{resolved: &identityentities.User{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), CognitoSub: "test-sub", UserType: identityvalueobjects.UserRecruiter}}
 			svc := usecases.NewCompanyServiceWithBootstrap(&stubRepo{}, users, bootstrap)
 			router := newTestRouter(NewCompanyHandler(svc))
 			rec := doPost(t, router, tc.body)

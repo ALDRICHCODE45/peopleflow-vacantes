@@ -46,6 +46,11 @@ var (
 	// exists but its user_type is not 'recruiter' (e.g. a candidate). Only
 	// recruiters can be company members; the HTTP layer maps this to 400.
 	ErrTargetNotRecruiter = errors.New("target user is not a recruiter")
+	// ErrCreatorNotEmployer is returned by CreateCompanyWithOwner when the
+	// authenticated user is not an employer account (users.user_type is not
+	// 'recruiter'). Only employer accounts may found a company and become its
+	// owner; the HTTP layer maps this to 403.
+	ErrCreatorNotEmployer = errors.New("only employer accounts can create a company")
 )
 
 // CompanyMember is one user's membership in one company. The aggregate root

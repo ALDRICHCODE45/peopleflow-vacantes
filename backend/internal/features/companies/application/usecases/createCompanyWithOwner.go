@@ -8,6 +8,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
+	identityvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/valueobjects"
 )
 
 // CreateCompanyWithOwner creates a company AND promotes its creator to owner
@@ -19,6 +20,7 @@ import (
 //
 // Error contract:
 //   - unknown subject (sub not in users)          → entities.ErrUnknownSubject (401)
+//   - non-employer account (user_type not recruiter) → entities.ErrCreatorNotEmployer (403)
 //   - invalid company fields (name/rfc/industry)  → the VO sentinel unchanged (400)
 //   - duplicate RFC / missing industry / missing user → the adapter's sentinel (409/400/404)
 //
@@ -32,6 +34,10 @@ func (s *CompanyService) CreateCompanyWithOwner(ctx context.Context, cognitoSub 
 			return nil, entities.ErrUnknownSubject
 		}
 		return nil, err
+	}
+	// Only employer accounts found companies; candidates never become owners.
+	if user.UserType != identityvalueobjects.UserRecruiter {
+		return nil, entities.ErrCreatorNotEmployer
 	}
 
 	company, err := buildCompany(params)

@@ -325,6 +325,8 @@ func classifyCreateCompanyError(err error) httpjson.Definition {
 	switch {
 	case errors.Is(err, entities.ErrUnknownSubject):
 		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeUnauthenticated), err.Error())
+	case errors.Is(err, entities.ErrCreatorNotEmployer):
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeForbidden), err.Error())
 	case errors.Is(err, entities.ErrIndustryUnavailable):
 		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeIndustryUnavailable), err.Error())
 	case errors.Is(err, entities.ErrEmptyIndustry),
