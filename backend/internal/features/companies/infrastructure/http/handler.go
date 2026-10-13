@@ -337,6 +337,10 @@ func classifyCreateCompanyError(err error) httpjson.Definition {
 		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeInvalidRequest), err.Error())
 	case errors.Is(err, entities.ErrDuplicateCompany):
 		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeAlreadyExists), err.Error())
+	case errors.Is(err, entities.ErrMemberExists):
+		// The founding-owner insert hit UNIQUE(company_members.user_id): the
+		// creator already belongs to a company and the transaction rolled back.
+		return httpjson.SafeMessage(httpjson.Resolve(httpjson.CodeAlreadyExists), "user already has a company membership")
 	default:
 		return httpjson.Resolve(httpjson.CodeInternalError)
 	}
