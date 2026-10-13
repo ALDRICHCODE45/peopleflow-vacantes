@@ -16,6 +16,7 @@ const (
 	envMode             = "IDENTITY_JWT_MODE"
 	envIssuer           = "IDENTITY_JWT_ISSUER"
 	envAudience         = "IDENTITY_JWT_AUDIENCE"
+	envClientID         = "IDENTITY_JWT_CLIENT_ID"
 	envTokenUse         = "IDENTITY_JWT_TOKEN_USE"
 	envPublicKeyPEM     = "IDENTITY_JWT_PUBLIC_KEY_PEM"
 	envCacheTTL         = "IDENTITY_JWT_CACHE_TTL"
@@ -33,6 +34,7 @@ type JWKSVerifierConfig struct {
 	Issuer       string
 	JWKSURL      string
 	Audience     string
+	ClientID     string
 	TokenUse     string
 	CacheTTL     time.Duration
 	FetchTimeout time.Duration
@@ -70,12 +72,20 @@ func newJWKSVerifierFromEnv(getenv func(string) string, constructor JWKSVerifier
 		return nil, errors.New("IDENTITY_JWT_ISSUER must be a valid HTTPS URL in jwks mode")
 	}
 	audience := strings.TrimSpace(getenv(envAudience))
-	if audience == "" {
-		return nil, errors.New("IDENTITY_JWT_AUDIENCE is required in jwks mode")
+	rawClientID := getenv(envClientID)
+	clientID := strings.TrimSpace(rawClientID)
+	if rawClientID != "" && clientID == "" {
+		return nil, errors.New("IDENTITY_JWT_CLIENT_ID must not be whitespace")
+	}
+	if audience == "" && clientID == "" {
+		return nil, errors.New("IDENTITY_JWT_AUDIENCE is required in jwks mode without IDENTITY_JWT_CLIENT_ID")
 	}
 	tokenUse := strings.TrimSpace(getenv(envTokenUse))
 	if tokenUse == "" {
 		return nil, errors.New("IDENTITY_JWT_TOKEN_USE is required in jwks mode")
+	}
+	if clientID != "" && tokenUse != "access" {
+		return nil, errors.New("IDENTITY_JWT_CLIENT_ID requires IDENTITY_JWT_TOKEN_USE=access")
 	}
 	cacheTTL, err := boundedDuration(getenv(envCacheTTL), minJWKSCacheTTL, maxJWKSCacheTTL, envCacheTTL)
 	if err != nil {
@@ -88,7 +98,7 @@ func newJWKSVerifierFromEnv(getenv func(string) string, constructor JWKSVerifier
 	discovery := *u
 	discovery.Path = strings.TrimRight(u.Path, "/") + jwksDiscoveryPath
 	v, err := constructor(JWKSVerifierConfig{
-		Issuer: issuer, JWKSURL: discovery.String(), Audience: audience, TokenUse: tokenUse,
+		Issuer: issuer, JWKSURL: discovery.String(), Audience: audience, ClientID: clientID, TokenUse: tokenUse,
 		CacheTTL: cacheTTL, FetchTimeout: fetchTimeout,
 	})
 	if err != nil || v == nil {
@@ -98,6 +108,9 @@ func newJWKSVerifierFromEnv(getenv func(string) string, constructor JWKSVerifier
 }
 
 func newPEMVerifierFromEnv(getenv func(string) string, env string) (security.Verifier, error) {
+	if getenv(envClientID) != "" {
+		return nil, errors.New("IDENTITY_JWT_CLIENT_ID is only supported in jwks mode")
+	}
 	if env == "production" {
 		return nil, errors.New("IDENTITY_JWT_MODE=pem is not allowed in production")
 	}

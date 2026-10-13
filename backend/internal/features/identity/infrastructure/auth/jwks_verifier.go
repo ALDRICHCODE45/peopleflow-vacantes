@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -60,6 +61,9 @@ func NewJWKSVerifier(cfg JWKSVerifierConfig) (security.Verifier, error) {
 	}
 	if cfg.FetchTimeout <= 0 {
 		return nil, errors.New("jwks verifier: fetch timeout must be positive")
+	}
+	if cfg.ClientID != "" && (strings.TrimSpace(cfg.ClientID) == "" || cfg.TokenUse != "access") {
+		return nil, errors.New("jwks verifier: client_id profile requires a nonblank client and access token purpose")
 	}
 	cfg.CacheTTL = min(max(cfg.CacheTTL, minJWKSCacheTTL), maxJWKSCacheTTL)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -117,17 +121,20 @@ func (v *JWKSVerifier) verifyClaims(set jwk.Set, kid, token string) (security.Cl
 	if !found {
 		return security.Claims{}, fmt.Errorf("jwks verify: unknown kid %q", kid)
 	}
-	if v.cfg.Issuer == "" || v.cfg.Audience == "" || v.cfg.TokenUse == "" {
-		return security.Claims{}, errors.New("jwks verify: issuer, audience, and token_use must be configured")
+	if v.cfg.Issuer == "" || v.cfg.TokenUse == "" || (v.cfg.Audience == "" && v.cfg.ClientID == "") {
+		return security.Claims{}, errors.New("jwks verify: issuer, token_use, and audience or client_id must be configured")
 	}
-	parsed, err := jwt.Parse([]byte(token),
+	options := []jwt.ParseOption{
 		jwt.WithKey(jwa.RS256, key),
 		jwt.WithIssuer(v.cfg.Issuer),
-		jwt.WithAudience(v.cfg.Audience),
 		jwt.WithValidate(true),
 		jwt.WithClock(clockFn(v.now)),
 		jwt.WithAcceptableSkew(jwksClockSkew),
-	)
+	}
+	if v.cfg.Audience != "" {
+		options = append(options, jwt.WithAudience(v.cfg.Audience))
+	}
+	parsed, err := jwt.Parse([]byte(token), options...)
 	if err != nil {
 		return security.Claims{}, fmt.Errorf("jwks verify: %w", err)
 	}
@@ -140,6 +147,12 @@ func (v *JWKSVerifier) verifyClaims(set jwk.Set, kid, token string) (security.Cl
 	}
 	if use, _ := raw.(string); use != v.cfg.TokenUse {
 		return security.Claims{}, fmt.Errorf("jwks verify: token_use %q is not accepted", use)
+	}
+	if v.cfg.ClientID != "" {
+		rawClient, _ := parsed.Get("client_id")
+		if client, ok := rawClient.(string); !ok || client != v.cfg.ClientID {
+			return security.Claims{}, errors.New("jwks verify: client_id is not accepted")
+		}
 	}
 	if parsed.Subject() == "" {
 		return security.Claims{}, errors.New("jwks verify: subject is required")
