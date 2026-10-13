@@ -40,3 +40,12 @@ node_modules/
 .atl/
 .codegraph/
 .pi/
+.review-worktrees/
+
+# Local scratch artifacts (private probes, locally built binaries)
+/.scratch/
+/backend/.scratch/
+
+# Python bytecode (local tooling)
+__pycache__/
+*.pyc
