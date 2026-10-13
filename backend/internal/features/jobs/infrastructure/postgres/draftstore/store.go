@@ -232,6 +232,10 @@ func (s *Store) Get(ctx context.Context, companyID, actorID, id uuid.UUID) (draf
 		return drafts.Result{}, drafts.ErrNotFound
 	}
 
+	if err := requireV1ReadSchema(record.fields); err != nil {
+		return drafts.Result{}, err
+	}
+
 	name, err := requesterNameForRead(ctx, tx, companyID, record.fields)
 	if err != nil {
 		return drafts.Result{}, err
@@ -270,6 +274,14 @@ func (s *Store) Save(ctx context.Context, companyID, actorID, id uuid.UUID, ifMa
 	}
 	if !found || !authorized(auth, actorID, record) {
 		return drafts.Result{}, drafts.ErrNotFound
+	}
+
+	// The stored schema version is checked after resource authorization and
+	// before the precondition and body, so a known foreign schema is hidden from
+	// an authorized caller regardless of If-Match or body, while a corrupt or
+	// unknown marker fails closed. The row's CAS version stays independent.
+	if err := requireV1ReadSchema(record.fields); err != nil {
+		return drafts.Result{}, err
 	}
 
 	tag, err := draftversion.ParseIfMatch(ifMatch, present)
@@ -407,9 +419,15 @@ func authorized(auth authContext, actorID uuid.UUID, record draftRecord) bool {
 }
 
 // authorizeAddressedDraft re-checks owner/principal on the draft addressed by an
-// idempotency record's stored ETag. The draft id comes from the server-issued
-// ETag, never from client input, and the lookup is scoped to the session company
-// so a cross-company draft is indistinguishable from a missing one.
+// idempotency record's stored ETag, then gates that same current row on its
+// stored schema version before the caller evaluates the persisted fingerprint.
+// The draft id comes from the server-issued ETag, never from client input, and
+// the lookup is scoped to the session company so a cross-company draft is
+// indistinguishable from a missing one. A known foreign schema hides the draft
+// exactly as a missing one, and a corrupt or unknown marker fails closed; both
+// happen after resource authorization and before any conflict or replay return,
+// so a v1 row keeps its byte-exact frozen replay. The row is read without FOR
+// UPDATE because replay never writes the draft.
 func authorizeAddressedDraft(ctx context.Context, tx pgx.Tx, auth authContext, actorID, companyID uuid.UUID, etag string) error {
 	tag, err := draftversion.ParseIfMatch(etag, true)
 	if err != nil {
@@ -426,7 +444,14 @@ func authorizeAddressedDraft(ctx context.Context, tx pgx.Tx, auth authContext, a
 	if !found || !authorized(auth, actorID, record) {
 		return drafts.ErrNotFound
 	}
-	return nil
+	// The current row's schema is gated after resource authorization and before
+	// the persisted fingerprint is evaluated, so a known foreign schema is
+	// hidden and a corrupt or unknown marker fails closed before any conflict or
+	// replay. Only the schema marker is decoded from the row's stored canonical
+	// bytes; this path never rewrites or migrates them, and the idempotency
+	// record's frozen cached response bytes are returned verbatim, never parsed
+	// or re-rendered.
+	return requireV1ReadSchema(record.fields)
 }
 
 // readDraft loads one draft scoped to the session company. When lock is true the

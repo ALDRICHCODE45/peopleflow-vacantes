@@ -67,6 +67,89 @@ var _ drafts.Store = (*Store)(nil)
    approved rich validator (`description_plain`) and the immutable requester
    catalog name.
 
+## GET schema isolation (U1a)
+
+The existing v1 `GET` checks the stored `schema_version` after general and
+owner/principal authorization, before requester lookup or read rendering:
+
+- Schema `1` retains its exact response and ETag behavior.
+- Known schema `2` returns `404 not_found`, with no ETag or editor data.
+- Missing, malformed or unknown schema markers return `500 internal_error`.
+- Unauthorized resources still return `404` without inspecting their schema.
+
+These reads never change draft bytes, CAS/timestamps, audit or idempotency rows.
+The schema marker is independent of the row's CAS `version`. This is only GET
+isolation: PATCH and replay isolation remain a separate unit. No v2 route or
+codec is enabled, and v2 storage must not be enabled before those gates exist.
+
+Public HTTP regression (real JWT, production router and isolated PostgreSQL):
+
+```sh
+DRAFT_TEST_DATABASE_URL='postgres://draft_test:…@localhost:32768/draft_test?sslmode=disable' \
+  go test -tags=integration ./cmd/api -run '^TestDraftFlow_GetSchemaIsolation$' -count=1
+```
+
+## PATCH schema isolation (U1b1)
+
+The existing v1 `Save` checks the stored `schema_version` after general and
+owner/principal authorization, and before `If-Match` is parsed or the patch body
+is decoded:
+
+- Schema `1` retains its exact save/no-op/CAS/body behavior.
+- Known schema `2` returns `404 not_found` — even when `If-Match` is missing,
+  malformed or stale, or the patch body is malformed — with no ETag or editor
+  data.
+- Missing, malformed or unknown schema markers return `500 internal_error`.
+- Unauthorized resources still return `404` without inspecting their schema.
+
+A rejected save never changes draft bytes, CAS/timestamps, audit or idempotency
+rows. The schema marker is independent of the row's CAS `version`. This is only
+PATCH isolation: idempotency replay isolation remains a separate unit. No v2
+route or codec is enabled, and v2 storage must not be enabled before those gates
+exist.
+
+Public HTTP regression (real JWT, production router and isolated PostgreSQL):
+
+```sh
+DRAFT_TEST_DATABASE_URL='postgres://draft_test:…@localhost:32768/draft_test?sslmode=disable' \
+  go test -tags=integration ./cmd/api -run '^TestDraftFlow_PatchSchemaIsolation$' -count=1
+```
+
+## Replay schema isolation (U1b2)
+
+`Create` gates the addressed draft's stored `schema_version` on every
+idempotency replay. The gate runs after the general locks, after the
+owner/principal re-authorization of the addressed draft (its id derived from
+the stored ETag, never from client input), and before the persisted fingerprint
+is evaluated, so it cannot leak or replay a row whose current representation the
+server cannot read:
+
+- Schema `1` keeps its exact frozen replay: the stored `response_body` and
+  `response_etag` are returned byte-for-byte, even when the row's independent
+  CAS version has advanced past the replayed ETag.
+- Known schema `2` returns `404 not_found`, with no ETag or editor data.
+- Missing, malformed or unknown markers return `500 internal_error`.
+- Unauthorized resources still return `404` without inspecting their schema, so
+  the current-row gate cannot turn an authorization decision into a `500`.
+
+A known foreign schema is therefore hidden and a corrupt/unknown marker fails
+closed **before** the fingerprint comparison could return `409`; the
+`idempotency_conflict` behavior for a genuinely changed v1 payload is unchanged.
+A rejected replay never changes draft bytes, CAS/timestamps, audit or
+idempotency rows. The replay path decodes the addressed row's stored bytes only
+to read its schema marker and never rewrites or migrates them, while the
+idempotency record's frozen cached `response_body` bytes are returned verbatim
+and never parsed or re-rendered. This adds no new corruption policy of its own:
+it reuses the same schema-marker predicate the GET and PATCH paths already
+apply. No v2 route or codec is enabled.
+
+Public HTTP regression (real JWT, production router and isolated PostgreSQL):
+
+```sh
+DRAFT_TEST_DATABASE_URL='postgres://draft_test:…@localhost:32768/draft_test?sslmode=disable' \
+  go test -tags=integration ./cmd/api -run '^TestDraftFlow_Replay' -count=1
+```
+
 ## Fingerprint algorithm rollout
 
 - A new insert stores the SHA-256 digest and the explicit `go-json-v1+sha256`
