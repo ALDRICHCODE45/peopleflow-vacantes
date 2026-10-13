@@ -251,7 +251,9 @@ func newDraftFlowHarness(t *testing.T) *draftFlowHarness {
 	memberRepo := companiespostgres.NewCompanyMemberRepository(queries)
 	companyRepo := companiespostgres.NewCompanyRepository(pool, auditRepo)
 
-	draftHandler := jobshttp.NewDraftHandler(draftstore.NewStore(pool, auditRepo))
+	store := draftstore.NewStore(pool, auditRepo)
+	draftHandler := jobshttp.NewDraftHandler(store)
+	draftV2Handler := jobshttp.NewDraftV2Handler(store, store, store)
 	jobHandler := jobshttp.NewJobHandler(jobsusecases.NewJobService(jobspostgres.NewJobRepository(queries)))
 
 	requireAuth := identityhttp.RequireAuth(signer.verifier)
@@ -264,6 +266,7 @@ func newDraftFlowHarness(t *testing.T) *draftFlowHarness {
 		requireOwner:     requireOwner,
 		jobHandler:       jobHandler,
 		draftHandler:     draftHandler,
+		draftV2Handler:   draftV2Handler,
 		queries:          queries,
 		pool:             pool,
 		readinessTimeout: 2 * time.Second,
@@ -663,6 +666,95 @@ func TestDraftFlow_CreateGetSaveStaleConflictExactLevels(t *testing.T) {
 	}
 	if got := draftFlowAuditCount(t, h.pool, draftUUID, entities.EventJobDraftSaved); got != savedBefore {
 		t.Fatalf("stale 412 changed audit count: %d -> %d", savedBefore, got)
+	}
+}
+
+// GET schema isolation is exercised through real HTTP/auth. SQL is used only
+// to seed stored versions unavailable through v1 POST and snapshot side effects.
+func TestDraftFlow_GetSchemaIsolation(t *testing.T) {
+	h := newDraftFlowHarness(t)
+	cases := []struct {
+		name   string
+		stored string // Empty means keep the canonical v1 bytes from POST.
+		status int
+		code   string
+	}{
+		{"schema1", "", http.StatusOK, ""},
+		{"schema2", `{"schema_version":2,"fields":{}}`, http.StatusNotFound, "not_found"},
+		{"schema2_before_requester_and_render", `{"schema_version":2,"fields":{"requester":{"kind":"client","id":"invalid"},"description":"invalid"}}`, http.StatusNotFound, "not_found"},
+		{"missing_schema", `{"fields":{}}`, http.StatusInternalServerError, "internal_error"},
+		{"unknown_schema", `{"schema_version":3,"fields":{}}`, http.StatusInternalServerError, "internal_error"},
+		{"null_schema", `{"schema_version":null,"fields":{}}`, http.StatusInternalServerError, "internal_error"},
+		{"string_schema", `{"schema_version":"1","fields":{}}`, http.StatusInternalServerError, "internal_error"},
+		{"corrupt_json", `{"schema_version":`, http.StatusInternalServerError, "internal_error"},
+		{"duplicate_schema", `{"schema_version":1,"schema_version":2,"fields":{}}`, http.StatusInternalServerError, "internal_error"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			company, ownerID, sub := draftFlowNewPrincipal(t, h.pool, "active")
+			owner := h.actor(t, ownerID, sub)
+			peerID, peerSub := company.addUser(t, "recruiter")
+			_, foreignID, foreignSub := draftFlowNewPrincipal(t, h.pool, "active")
+			id, etag, original := h.create(t, owner, uuid.NewString(), draftFlowMinimalCreate)
+			if tc.stored != "" {
+				if _, err := h.pool.Exec(context.Background(), `UPDATE job_drafts SET fields=$1 WHERE id=$2`, []byte(tc.stored), id); err != nil {
+					t.Fatalf("seed stored schema: %v", err)
+				}
+			}
+			// Include complete rows (bytes, CAS, timestamps and frozen replay), not
+			// just counts, to catch accidental replacement as well as insertion.
+			snapshot := func() string {
+				t.Helper()
+				var state string
+				err := h.pool.QueryRow(context.Background(), `SELECT jsonb_build_object(
+					'drafts', (SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM job_drafts d WHERE company_id=$1),
+					'idempotency', (SELECT jsonb_agg(to_jsonb(i) ORDER BY i.id) FROM job_draft_idempotency i WHERE company_id=$1),
+					'audit', (SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM audit_events a WHERE entity_id=$2)
+				)::text`, company.companyID, id).Scan(&state)
+				if err != nil {
+					t.Fatalf("snapshot draft state: %v", err)
+				}
+				return state
+			}
+			for _, caller := range []struct {
+				name   string
+				token  string
+				status int
+				code   string
+			}{
+				{"authorized", owner.token, tc.status, tc.code},
+				{"non_principal", h.actor(t, peerID, peerSub).token, http.StatusNotFound, "not_found"},
+				{"cross_company", h.actor(t, foreignID, foreignSub).token, http.StatusNotFound, "not_found"},
+				{"unauthenticated", "", http.StatusUnauthorized, "unauthenticated"},
+			} {
+				t.Run(caller.name, func(t *testing.T) {
+					before := snapshot()
+					resp := h.do(t, http.MethodGet, draftFlowPath+"/"+id, "", caller.token, nil)
+					if after := snapshot(); after != before {
+						t.Errorf("GET mutated draft, audit or idempotency rows")
+					}
+					draftFlowAssertNoStore(t, resp)
+					if resp.status != caller.status {
+						t.Fatalf("status=%d want=%d body=%s", resp.status, caller.status, resp.body)
+					}
+					if caller.status == http.StatusOK {
+						if !bytes.Equal(resp.body, original) || resp.header.Get("ETag") != etag {
+							t.Fatalf("v1 GET body/ETag changed: %s", resp.body)
+						}
+						return
+					}
+					draftFlowAssertError(t, resp, caller.status, caller.code)
+					if resp.header.Get("ETag") != "" {
+						t.Errorf("rejected GET leaked ETag")
+					}
+					body := draftFlowObject(t, resp.body)
+					message, ok := body["error"].(string)
+					if len(body) != 2 || !ok || message == "" {
+						t.Errorf("error must contain only error/code, no editor data: %s", resp.body)
+					}
+				})
+			}
+		})
 	}
 }
 
@@ -1142,4 +1234,470 @@ func TestDraftFlow_PrivateErrorsCarryNoStore(t *testing.T) {
 		resp := h.do(t, http.MethodGet, draftFlowPath+"/"+id, "", h.actor(t, recruiterID, recruiterSub).token, nil)
 		draftFlowAssertError(t, resp, http.StatusNotFound, "not_found")
 	})
+}
+
+// --- PATCH schema isolation ------------------------------------------------
+
+// PATCH schema isolation is exercised through real HTTP/auth. SQL is used only
+// to seed stored schema versions unavailable through v1 POST. The matrix pins
+// the store order auth -> schema -> If-Match -> body: a known foreign schema is
+// hidden before the precondition or the body is ever parsed, a corrupt or
+// unknown marker fails closed, and every rejected request leaves the complete
+// draft, audit and idempotency state untouched. The schema1 rows keep the
+// existing v1 change/no-op behavior as a regression guard.
+func TestDraftFlow_PatchSchemaIsolation(t *testing.T) {
+	h := newDraftFlowHarness(t)
+
+	type patchCase struct {
+		name           string
+		stored         string // Empty keeps the canonical v1 bytes from POST.
+		ifMatch        string // valid | missing | malformed | stale | list
+		body           string
+		wantStatus     int
+		wantCode       string
+		wantVersion    string
+		wantSavedAudit int
+		wantMutation   bool
+	}
+
+	validBody := `{"fields":{"title":"Backend Rust"}}`
+	schema2 := `{"schema_version":2,"fields":{}}`
+	cases := []patchCase{
+		{name: "schema1_valid_change", ifMatch: "valid", body: validBody, wantStatus: http.StatusOK, wantVersion: "2", wantSavedAudit: 1, wantMutation: true},
+		{name: "schema1_no_op", ifMatch: "valid", body: `{"fields":{"title":"Backend Go"}}`, wantStatus: http.StatusOK, wantVersion: "1", wantSavedAudit: 0},
+		{name: "schema2_missing_if_match", stored: schema2, ifMatch: "missing", body: validBody, wantStatus: http.StatusNotFound, wantCode: "not_found"},
+		{name: "schema2_malformed_if_match", stored: schema2, ifMatch: "malformed", body: validBody, wantStatus: http.StatusNotFound, wantCode: "not_found"},
+		{name: "schema2_stale_if_match", stored: schema2, ifMatch: "stale", body: validBody, wantStatus: http.StatusNotFound, wantCode: "not_found"},
+		{name: "schema2_list_if_match", stored: schema2, ifMatch: "list", body: validBody, wantStatus: http.StatusNotFound, wantCode: "not_found"},
+		{name: "schema2_malformed_body", stored: schema2, ifMatch: "valid", body: `{"fields":{"title":}`, wantStatus: http.StatusNotFound, wantCode: "not_found"},
+		{name: "missing_schema_missing_if_match", stored: `{"fields":{}}`, ifMatch: "missing", body: validBody, wantStatus: http.StatusInternalServerError, wantCode: "internal_error"},
+		{name: "missing_schema_valid_if_match", stored: `{"fields":{}}`, ifMatch: "valid", body: validBody, wantStatus: http.StatusInternalServerError, wantCode: "internal_error"},
+		{name: "unknown_schema_missing_if_match", stored: `{"schema_version":3,"fields":{}}`, ifMatch: "missing", body: validBody, wantStatus: http.StatusInternalServerError, wantCode: "internal_error"},
+		{name: "null_schema_missing_if_match", stored: `{"schema_version":null,"fields":{}}`, ifMatch: "missing", body: validBody, wantStatus: http.StatusInternalServerError, wantCode: "internal_error"},
+		{name: "string_schema_missing_if_match", stored: `{"schema_version":"1","fields":{}}`, ifMatch: "missing", body: validBody, wantStatus: http.StatusInternalServerError, wantCode: "internal_error"},
+		{name: "duplicate_schema_missing_if_match", stored: `{"schema_version":1,"schema_version":2,"fields":{}}`, ifMatch: "missing", body: validBody, wantStatus: http.StatusInternalServerError, wantCode: "internal_error"},
+		{name: "corrupt_schema_missing_if_match", stored: `{"schema_version":`, ifMatch: "missing", body: validBody, wantStatus: http.StatusInternalServerError, wantCode: "internal_error"},
+		{name: "corrupt_schema_valid_if_match", stored: `{"schema_version":`, ifMatch: "valid", body: validBody, wantStatus: http.StatusInternalServerError, wantCode: "internal_error"},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			company, ownerID, sub := draftFlowNewPrincipal(t, h.pool, "active")
+			owner := h.actor(t, ownerID, sub)
+			peerID, peerSub := company.addUser(t, "recruiter")
+			_, foreignID, foreignSub := draftFlowNewPrincipal(t, h.pool, "active")
+			id, etag, createBody := h.create(t, owner, uuid.NewString(), draftFlowMinimalCreate)
+			draftUUID := draftFlowUUID(t, id)
+			if tc.stored != "" {
+				if _, err := h.pool.Exec(context.Background(), `UPDATE job_drafts SET fields=$1 WHERE id=$2`, []byte(tc.stored), id); err != nil {
+					t.Fatalf("seed stored schema: %v", err)
+				}
+			}
+
+			// Include complete rows (bytes, CAS, timestamps and frozen replay), not
+			// just counts, to catch accidental replacement as well as insertion.
+			snapshot := func() string {
+				t.Helper()
+				var state string
+				err := h.pool.QueryRow(context.Background(), `SELECT jsonb_build_object(
+					'drafts', (SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM job_drafts d WHERE company_id=$1),
+					'idempotency', (SELECT jsonb_agg(to_jsonb(i) ORDER BY i.id) FROM job_draft_idempotency i WHERE company_id=$1),
+					'audit', (SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM audit_events a WHERE entity_id=$2)
+				)::text`, company.companyID, draftUUID).Scan(&state)
+				if err != nil {
+					t.Fatalf("snapshot draft state: %v", err)
+				}
+				return state
+			}
+
+			headers := map[string]string{"Content-Type": "application/json"}
+			switch tc.ifMatch {
+			case "valid":
+				headers["If-Match"] = etag
+			case "missing":
+				// no header
+			case "malformed":
+				headers["If-Match"] = `W/"weak"`
+			case "stale":
+				headers["If-Match"] = `"jd-r1-` + id + `-v999"`
+			case "list":
+				headers["If-Match"] = etag + `,"jd-r1-` + id + `-v999"`
+			default:
+				t.Fatalf("unknown ifMatch kind %q", tc.ifMatch)
+			}
+
+			callers := []struct {
+				name   string
+				token  string
+				status int
+				code   string
+			}{
+				{"authorized", owner.token, tc.wantStatus, tc.wantCode},
+				{"non_principal", h.actor(t, peerID, peerSub).token, http.StatusNotFound, "not_found"},
+				{"cross_company", h.actor(t, foreignID, foreignSub).token, http.StatusNotFound, "not_found"},
+				{"unauthenticated", "", http.StatusUnauthorized, "unauthenticated"},
+			}
+			for _, caller := range callers {
+				caller := caller
+				t.Run(caller.name, func(t *testing.T) {
+					before := snapshot()
+					resp := h.do(t, http.MethodPatch, draftFlowPath+"/"+id, tc.body, caller.token, headers)
+					after := snapshot()
+					draftFlowAssertNoStore(t, resp)
+
+					if resp.status == http.StatusOK {
+						if tc.wantStatus != http.StatusOK {
+							t.Fatalf("status = %d, want %d; body=%s", resp.status, tc.wantStatus, resp.body)
+						}
+						if caller.name != "authorized" {
+							t.Fatalf("non-owner caller unexpectedly saved: %s", resp.body)
+						}
+						if !tc.wantMutation {
+							if after != before {
+								t.Errorf("no-op PATCH mutated draft, audit or idempotency rows")
+							}
+							if !bytes.Equal(resp.body, createBody) {
+								t.Fatalf("no-op changed the envelope:\ncreate=%s\nnoop=%s", createBody, resp.body)
+							}
+						}
+						wantETag := `"jd-r1-` + id + `-v` + tc.wantVersion + `"`
+						if got := resp.header.Get("ETag"); got != wantETag {
+							t.Fatalf("ETag = %q, want %q", got, wantETag)
+						}
+						draftFlowAssertVersion(t, resp.body, tc.wantVersion)
+						if got := draftFlowAuditCount(t, h.pool, draftUUID, entities.EventJobDraftSaved); got != tc.wantSavedAudit {
+							t.Fatalf("JobDraftSaved rows = %d, want %d", got, tc.wantSavedAudit)
+						}
+						return
+					}
+
+					if after != before {
+						t.Errorf("rejected PATCH mutated draft, audit or idempotency rows")
+					}
+					draftFlowAssertError(t, resp, caller.status, caller.code)
+					if resp.header.Get("ETag") != "" {
+						t.Errorf("rejected PATCH leaked ETag")
+					}
+					body := draftFlowObject(t, resp.body)
+					message, ok := body["error"].(string)
+					if len(body) != 2 || !ok || message == "" {
+						t.Errorf("error must contain only error/code, no editor data: %s", resp.body)
+					}
+				})
+			}
+		})
+	}
+}
+
+// --- replay schema isolation (U1b2) ----------------------------------------
+//
+// POST replay current-row isolation is exercised through real HTTP/auth. SQL is
+// used only to seed stored schema versions unavailable through v1 POST and to
+// snapshot side effects. The addressed draft row must be gated on its
+// schema_version AFTER authorization but BEFORE the persisted fingerprint and
+// replay decision, so a known foreign schema hides the draft (404) while a
+// missing/unknown/corrupt marker fails closed (500) even when the request would
+// otherwise replay or conflict. Every rejected request leaves the complete
+// draft, audit and idempotency state untouched, the frozen replay bytes and ETag
+// stay byte-exact, and the row's independent CAS version keeps advancing.
+
+// draftFlowSeedDraftFields overwrites a draft row's canonical bytes directly.
+// It never bumps the row CAS version, so a seeded marker stands in for a row
+// written by a future v2 writer at the same version.
+func draftFlowSeedDraftFields(t *testing.T, h *draftFlowHarness, id, stored string) {
+	t.Helper()
+	if _, err := h.pool.Exec(context.Background(), `UPDATE job_drafts SET fields=$1 WHERE id=$2`, []byte(stored), id); err != nil {
+		t.Fatalf("seed stored fields: %v", err)
+	}
+}
+
+// draftFlowReplaySnapshot captures the complete draft, idempotency and audit
+// rows (bytes, CAS, timestamps and frozen replay), not just counts, so a
+// rejected replay that replaces or inserts rows is caught as well as one that
+// merely counts wrong.
+func draftFlowReplaySnapshot(t *testing.T, h *draftFlowHarness, companyID uuid.UUID, id string) string {
+	t.Helper()
+	var state string
+	err := h.pool.QueryRow(context.Background(), `SELECT jsonb_build_object(
+		'drafts', (SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM job_drafts d WHERE company_id=$1),
+		'idempotency', (SELECT jsonb_agg(to_jsonb(i) ORDER BY i.id) FROM job_draft_idempotency i WHERE company_id=$1),
+		'audit', (SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM audit_events a WHERE entity_id=$2)
+	)::text`, companyID, id).Scan(&state)
+	if err != nil {
+		t.Fatalf("snapshot replay state: %v", err)
+	}
+	return state
+}
+
+// draftFlowReplayPOST issues one POST replay and asserts its exact outcome.
+func draftFlowReplayPOST(t *testing.T, h *draftFlowHarness, token, key, body string, wantStatus int, wantCode string) draftFlowResponse {
+	t.Helper()
+	resp := h.do(t, http.MethodPost, draftFlowPath, body, token, map[string]string{
+		"Idempotency-Key": key,
+		"Content-Type":    "application/json",
+	})
+	if resp.status != wantStatus {
+		t.Fatalf("replay status = %d, want %d; body=%s", resp.status, wantStatus, resp.body)
+	}
+	if wantStatus != http.StatusCreated {
+		draftFlowAssertError(t, resp, wantStatus, wantCode)
+		if resp.header.Get("ETag") != "" {
+			t.Errorf("rejected replay leaked ETag")
+		}
+		respBody := draftFlowObject(t, resp.body)
+		message, ok := respBody["error"].(string)
+		if len(respBody) != 2 || !ok || message == "" {
+			t.Errorf("error must contain only error/code, no editor data: %s", resp.body)
+		}
+		return resp
+	}
+	draftFlowAssertNoStore(t, resp)
+	return resp
+}
+
+// draftFlowAssertFrozenReplay asserts a 201 replay returns the stored frozen
+// bytes and ETag exactly, tagged as a replay.
+func draftFlowAssertFrozenReplay(t *testing.T, resp draftFlowResponse, originalBody []byte, originalETag string) {
+	t.Helper()
+	if got := resp.header.Get("Idempotency-Replayed"); got != "true" {
+		t.Fatalf("replay Idempotency-Replayed = %q, want true", got)
+	}
+	if got := resp.header.Get("ETag"); got != originalETag {
+		t.Fatalf("replay ETag = %q, want the frozen %q", got, originalETag)
+	}
+	if !bytes.Equal(resp.body, originalBody) {
+		t.Fatalf("replay body is not the frozen original:\noriginal=%s\nreplay=%s", originalBody, resp.body)
+	}
+}
+
+// TestDraftFlow_ReplayUnknownSchemaFailsClosedBeforeConflict pins the current-row
+// gate ordering: an unknown stored schema on the addressed draft returns 500
+// internal_error before the changed fingerprint could return 409, and a replay
+// of the original payload returns the frozen bytes/ETag unchanged once the row
+// is back to schema 1.
+func TestDraftFlow_ReplayUnknownSchemaFailsClosedBeforeConflict(t *testing.T) {
+	h := newDraftFlowHarness(t)
+	company, ownerID, sub := draftFlowNewPrincipal(t, h.pool, "active")
+	owner := h.actor(t, ownerID, sub)
+
+	key := uuid.NewString()
+	id, originalETag, originalBody := h.create(t, owner, key, draftFlowMinimalCreate)
+	draftUUID := draftFlowUUID(t, id)
+
+	// A concurrent save advances the row CAS to v2 while its schema stays v1.
+	patch := h.do(t, http.MethodPatch, draftFlowPath+"/"+id, `{"fields":{"title":"Backend Rust"}}`, owner.token, map[string]string{
+		"If-Match": originalETag,
+	})
+	if patch.status != http.StatusOK {
+		t.Fatalf("PATCH status = %d, want 200; body=%s", patch.status, patch.body)
+	}
+	draftFlowAssertVersion(t, patch.body, "2")
+	// The stored column is the canonical writable envelope, never the read
+	// envelope the API returns, so capture the real canonical bytes to restore.
+	_, canonicalV2, _, _ := draftFlowDraftRow(t, h.pool, draftUUID)
+
+	draftFlowSeedDraftFields(t, h, id, `{"schema_version":3,"fields":{}}`)
+	before := draftFlowReplaySnapshot(t, h, company.companyID, id)
+	// A changed payload with the same key would be a 409 conflict; the unknown
+	// current-row marker must win with 500 and mutate nothing.
+	draftFlowReplayPOST(t, h, owner.token, key, `{"fields":{"title":"Backend Rust Changed"}}`, http.StatusInternalServerError, "internal_error")
+	if after := draftFlowReplaySnapshot(t, h, company.companyID, id); after != before {
+		t.Errorf("rejected replay mutated draft, audit or idempotency rows")
+	}
+
+	// Restore the captured canonical bytes: the v1 frozen replay must return the
+	// original stored response/ETag byte-exact with no mutation of its own, even
+	// though the current row CAS is ahead of the replayed ETag.
+	draftFlowSeedDraftFields(t, h, id, string(canonicalV2))
+	restored := draftFlowReplaySnapshot(t, h, company.companyID, id)
+	replay := draftFlowReplayPOST(t, h, owner.token, key, draftFlowMinimalCreate, http.StatusCreated, "")
+	draftFlowAssertFrozenReplay(t, replay, originalBody, originalETag)
+	draftFlowAssertVersion(t, replay.body, "1")
+	if after := draftFlowReplaySnapshot(t, h, company.companyID, id); after != restored {
+		t.Errorf("successful replay mutated draft, audit or idempotency rows")
+	}
+	if got := draftFlowCount(t, h.pool,
+		`SELECT count(*) FROM job_draft_idempotency WHERE company_id = $1 AND actor_id = $2 AND idem_key = $3`,
+		company.companyID, owner.userID, key); got != 1 {
+		t.Fatalf("replay isolation left %d idempotency rows, want 1", got)
+	}
+	if version, _, _, _ := draftFlowDraftRow(t, h.pool, draftUUID); version != 2 {
+		t.Fatalf("current row version = %d, want the independent CAS 2", version)
+	}
+}
+
+// TestDraftFlow_ReplayCorruptSchemaMarkersFailClosed pins the corrupt/unknown
+// marker matrix on the addressed draft: each must return 500 internal_error with
+// no mutation, for BOTH a would-be replay (same payload) and a would-be conflict
+// (changed fingerprint), because the current-row gate runs before the persisted
+// fingerprint is ever compared.
+func TestDraftFlow_ReplayCorruptSchemaMarkersFailClosed(t *testing.T) {
+	h := newDraftFlowHarness(t)
+
+	cases := []struct {
+		name   string
+		stored string
+	}{
+		{"missing_schema", `{"fields":{}}`},
+		{"unknown_schema", `{"schema_version":3,"fields":{}}`},
+		{"null_schema", `{"schema_version":null,"fields":{}}`},
+		{"string_schema", `{"schema_version":"1","fields":{}}`},
+		{"duplicate_schema", `{"schema_version":1,"schema_version":2,"fields":{}}`},
+		{"corrupt_json", `{"schema_version":`},
+	}
+	payloads := []struct {
+		name string
+		body string
+	}{
+		{"same_payload", draftFlowMinimalCreate},
+		{"changed_fingerprint", `{"fields":{"title":"Backend Rust Changed"}}`},
+	}
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			for _, pl := range payloads {
+				pl := pl
+				t.Run(pl.name, func(t *testing.T) {
+					company, ownerID, sub := draftFlowNewPrincipal(t, h.pool, "active")
+					owner := h.actor(t, ownerID, sub)
+					key := uuid.NewString()
+					id, _, _ := h.create(t, owner, key, draftFlowMinimalCreate)
+					draftFlowSeedDraftFields(t, h, id, tc.stored)
+					before := draftFlowReplaySnapshot(t, h, company.companyID, id)
+					draftFlowReplayPOST(t, h, owner.token, key, pl.body, http.StatusInternalServerError, "internal_error")
+					if after := draftFlowReplaySnapshot(t, h, company.companyID, id); after != before {
+						t.Errorf("rejected replay mutated draft, audit or idempotency rows")
+					}
+					if got := draftFlowCount(t, h.pool,
+						`SELECT count(*) FROM job_draft_idempotency WHERE company_id = $1 AND actor_id = $2 AND idem_key = $3`,
+						company.companyID, owner.userID, key); got != 1 {
+						t.Fatalf("rejected replay changed idempotency rows: %d, want 1", got)
+					}
+				})
+			}
+		})
+	}
+}
+
+// TestDraftFlow_ReplayKnownForeignSchemaHidesDraft pins known-schema-2 on the
+// addressed draft through real HTTP: the draft is hidden (404 not_found) for
+// both a would-be replay (same payload) and a would-be conflict (changed
+// fingerprint), with the complete draft/audit/idempotency state untouched and
+// no ETag or editor data on the response.
+func TestDraftFlow_ReplayKnownForeignSchemaHidesDraft(t *testing.T) {
+	h := newDraftFlowHarness(t)
+
+	payloads := []struct {
+		name string
+		body string
+	}{
+		{"same_payload", draftFlowMinimalCreate},
+		{"changed_fingerprint", `{"fields":{"title":"Backend Rust Changed"}}`},
+	}
+	for _, pl := range payloads {
+		pl := pl
+		t.Run(pl.name, func(t *testing.T) {
+			company, ownerID, sub := draftFlowNewPrincipal(t, h.pool, "active")
+			owner := h.actor(t, ownerID, sub)
+			key := uuid.NewString()
+			id, _, _ := h.create(t, owner, key, draftFlowMinimalCreate)
+			draftFlowSeedDraftFields(t, h, id, `{"schema_version":2,"fields":{}}`)
+			before := draftFlowReplaySnapshot(t, h, company.companyID, id)
+			draftFlowReplayPOST(t, h, owner.token, key, pl.body, http.StatusNotFound, "not_found")
+			if after := draftFlowReplaySnapshot(t, h, company.companyID, id); after != before {
+				t.Errorf("hidden replay mutated draft, audit or idempotency rows")
+			}
+			if got := draftFlowCount(t, h.pool,
+				`SELECT count(*) FROM job_draft_idempotency WHERE company_id = $1 AND actor_id = $2 AND idem_key = $3`,
+				company.companyID, owner.userID, key); got != 1 {
+				t.Fatalf("hidden replay changed idempotency rows: %d, want 1", got)
+			}
+		})
+	}
+}
+
+// TestDraftFlow_ReplayBaselinePrecedence preserves the existing create order: a
+// schema1 changed payload is still a 409 conflict with no writes, and a body
+// that fails draftinput.DecodeCreate is still a 400 invalid_request BEFORE the
+// existing idempotency row (and therefore the current-row replay gate) is ever
+// consulted — proven by pinning the malformed body against a corrupt row that
+// would otherwise be a 500.
+func TestDraftFlow_ReplayBaselinePrecedence(t *testing.T) {
+	h := newDraftFlowHarness(t)
+
+	t.Run("schema1_changed_payload_conflicts_without_writes", func(t *testing.T) {
+		company, ownerID, sub := draftFlowNewPrincipal(t, h.pool, "active")
+		owner := h.actor(t, ownerID, sub)
+		key := uuid.NewString()
+		id, _, _ := h.create(t, owner, key, draftFlowMinimalCreate)
+		before := draftFlowReplaySnapshot(t, h, company.companyID, id)
+		draftFlowReplayPOST(t, h, owner.token, key, `{"fields":{"title":"Backend Rust Changed"}}`, http.StatusConflict, "idempotency_conflict")
+		if after := draftFlowReplaySnapshot(t, h, company.companyID, id); after != before {
+			t.Errorf("conflicting replay mutated draft, audit or idempotency rows")
+		}
+	})
+
+	t.Run("malformed_body_precedes_corrupt_row_gate", func(t *testing.T) {
+		company, ownerID, sub := draftFlowNewPrincipal(t, h.pool, "active")
+		owner := h.actor(t, ownerID, sub)
+		key := uuid.NewString()
+		id, _, _ := h.create(t, owner, key, draftFlowMinimalCreate)
+		// The corrupt marker would be a 500 if the replay row gate ran first; the
+		// body decode failing first must keep the answer 400 invalid_request.
+		draftFlowSeedDraftFields(t, h, id, `{"schema_version":3,"fields":{}}`)
+		before := draftFlowReplaySnapshot(t, h, company.companyID, id)
+		draftFlowReplayPOST(t, h, owner.token, key, `{"fields":{"title":}`, http.StatusBadRequest, "invalid_request")
+		if after := draftFlowReplaySnapshot(t, h, company.companyID, id); after != before {
+			t.Errorf("rejected malformed replay mutated draft, audit or idempotency rows")
+		}
+	})
+}
+
+// TestDraftFlow_ReplayAuthorizationPrecedesCurrentRowGate reproduces the
+// authorized-then-lost-ownership sequence that actually reaches the idempotency
+// row: the key is scoped to the original actor, so a different actor would
+// attempt a fresh create instead. The original actor keeps the key and the
+// membership but is demoted to a non-owner role while the addressed draft's
+// principal is transferred to a same-company peer. The addressed draft is also
+// seeded with a corrupt schema marker, so a 404 (not 500) proves the
+// resource-authorization gate runs BEFORE the current-row schema gate. The
+// adapter never demotes a member or reassigns principal_recruiter_id itself; the
+// seed stands in for those future ownership transfers, which are exactly the
+// concern the addressed-draft check exists for.
+func TestDraftFlow_ReplayAuthorizationPrecedesCurrentRowGate(t *testing.T) {
+	h := newDraftFlowHarness(t)
+	company, ownerID, sub := draftFlowNewPrincipal(t, h.pool, "active")
+	owner := h.actor(t, ownerID, sub)
+
+	key := uuid.NewString()
+	id, _, _ := h.create(t, owner, key, draftFlowMinimalCreate)
+	// The actor keeps the key and its membership but is no longer the owner and
+	// no longer the addressed draft's principal, while remaining in the company.
+	peerID, _ := company.addUser(t, "recruiter")
+	if _, err := h.pool.Exec(context.Background(), `UPDATE company_members SET role = 'recruiter' WHERE user_id = $1 AND company_id = $2`, ownerID, company.companyID); err != nil {
+		t.Fatalf("demote owner to non-owner role: %v", err)
+	}
+	if _, err := h.pool.Exec(context.Background(), `UPDATE job_drafts SET principal_recruiter_id=$1 WHERE id=$2`, peerID, id); err != nil {
+		t.Fatalf("transfer draft principal: %v", err)
+	}
+	// A corrupt current-row marker would be a 500 once the schema gate runs; the
+	// expected 404 therefore pins authorization ahead of that gate.
+	draftFlowSeedDraftFields(t, h, id, `{"schema_version":3,"fields":{}}`)
+
+	before := draftFlowReplaySnapshot(t, h, company.companyID, id)
+	// Same actor and key, so this hits the existing idempotency row and the
+	// resource-authorization gate, not a fresh create: 404, never 409 or 500.
+	draftFlowReplayPOST(t, h, owner.token, key, `{"fields":{"title":"Backend Rust Changed"}}`, http.StatusNotFound, "not_found")
+	if after := draftFlowReplaySnapshot(t, h, company.companyID, id); after != before {
+		t.Errorf("unauthorized replay mutated draft, audit or idempotency rows")
+	}
+	if got := draftFlowCount(t, h.pool,
+		`SELECT count(*) FROM job_draft_idempotency WHERE company_id = $1 AND actor_id = $2 AND idem_key = $3`,
+		company.companyID, owner.userID, key); got != 1 {
+		t.Fatalf("unauthorized replay created %d idempotency rows, want 1", got)
+	}
+	if version, _, _, _ := draftFlowDraftRow(t, h.pool, draftFlowUUID(t, id)); version != 1 {
+		t.Fatalf("unauthorized replay changed the row version: %d, want 1", version)
+	}
 }

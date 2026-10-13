@@ -165,6 +165,7 @@ func run() error {
 	// adapter is a thin transport over drafts.Store.
 	draftStore := draftstore.NewStore(pool, auditRepo)
 	draftHandler := jobshttp.NewDraftHandler(draftStore)
+	draftV2Handler := jobshttp.NewDraftV2Handler(draftStore, draftStore, draftStore)
 
 	// Applications wiring: the pool-owning applications repo (D5/D9) +
 	// the stateless audit adapter (already constructed above, before
@@ -223,8 +224,8 @@ func run() error {
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
 		companyHandler: companyHandler, memberHandler: memberHandler,
 		candidateHandler: candidateHandler, jobHandler: jobHandler, applicationHandler: applicationHandler,
-		draftHandler: draftHandler,
-		queries:      queries, pool: poolPinger, readinessTimeout: cfg.ReadinessTimeout,
+		draftHandler: draftHandler, draftV2Handler: draftV2Handler,
+		queries: queries, pool: poolPinger, readinessTimeout: cfg.ReadinessTimeout,
 		// Task 6.3 (design §8.3): compose the no-op HTTP metrics default —
 		// zero-dependency, no exporter, no metrics endpoint in this change.
 		httpMetrics: runtimemetrics.Default,

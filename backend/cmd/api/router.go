@@ -31,6 +31,7 @@ type routerDeps struct {
 	candidateHandler   *candidateshttp.CandidateHandler
 	jobHandler         *jobshttp.JobHandler
 	draftHandler       *jobshttp.DraftHandler
+	draftV2Handler     *jobshttp.DraftV2Handler
 	applicationHandler *applicationshttp.ApplicationHandler
 	queries            *db.Queries
 	pool               health.Pinger
@@ -127,6 +128,15 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/me/company/job-drafts", draftHandlers.CreateDraft)
 		r.Get("/me/company/job-drafts/{id}", draftHandlers.GetDraft)
 		r.Patch("/me/company/job-drafts/{id}", draftHandlers.SaveDraft)
+	})
+	// Schema-2 employer drafts use explicit v2 capabilities on the same store.
+	// Keep NoStore before both gates, including their rejected responses.
+	draftV2Handlers := d.draftV2Handler.DraftHandlers()
+	r.Group(func(r chi.Router) {
+		r.Use(jobshttp.NoStore, d.requireAuth, d.requireRecruiter)
+		r.Post("/v2/me/company/job-drafts", draftV2Handlers.CreateDraft)
+		r.Get("/v2/me/company/job-drafts/{id}", draftV2Handlers.GetDraft)
+		r.Patch("/v2/me/company/job-drafts/{id}", draftV2Handlers.SaveDraft)
 	})
 	return r
 }
