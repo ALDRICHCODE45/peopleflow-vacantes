@@ -1,7 +1,15 @@
+// @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 import type { NextAuthOptions } from "next-auth";
 vi.mock("server-only", () => ({}));
-import { parseSetCookieHeader, resolveActionAccessToken, type ActionSessionDeps } from "./action-session";
+import NextAuth from "next-auth";
+import { encode } from "next-auth/jwt";
+import {
+  parseSetCookieHeader,
+  resolveActionAccessToken,
+  runSessionApiHandler,
+  type ActionSessionDeps,
+} from "./action-session";
 
 type SessionCallbackArgs = Parameters<NonNullable<NonNullable<NextAuthOptions["callbacks"]>["session"]>>[0];
 
@@ -44,6 +52,65 @@ describe("Set-Cookie parsing for the action cookie store", () => {
 
   it.each(["", "=value", "no-separator"])("rejects a malformed header %j", (header) => {
     expect(parseSetCookieHeader(header)).toBeNull();
+  });
+});
+
+describe("real NextAuth session handler through the explicit API adapter", () => {
+  const secret = "synthetic-secret-for-action-session-tests";
+  const realOptions: NextAuthOptions = { providers: [], secret, session: { strategy: "jwt" } };
+
+  async function sessionCookie(token: Record<string, unknown>) {
+    return `next-auth.session-token=${await encode({ token, secret })}`;
+  }
+
+  it("resolves the access token from a real encrypted session cookie and rotates it", async () => {
+    const d = deps({
+      requestHeaders: new Headers({
+        cookie: await sessionCookie({ sub: "user", ...usable }),
+        authorization: "Bearer never-forwarded",
+        "x-forwarded-host": "attacker.example",
+      }),
+      options: realOptions,
+      runSession: (options, request) => runSessionApiHandler(NextAuth(options), request),
+    });
+    await expect(resolveActionAccessToken(d)).resolves.toBe("synthetic-access");
+    // NextAuth also initializes its CSRF/callback cookies when a request lacks them.
+    expect(d.applied).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "next-auth.session-token", httpOnly: true, path: "/" }),
+    ]));
+  });
+
+  it("hands NextAuth only the cookie header and its parsed cookies", async () => {
+    let seen: unknown;
+    const handler = async (
+      req: unknown,
+      res: { status: (code: number) => unknown; send: (body: unknown) => unknown },
+    ) => {
+      seen = req;
+      res.status(200);
+      res.send({});
+    };
+    const request = new Request("http://localhost:3000/api/auth/session", {
+      headers: { cookie: "a=1; next-auth.session-token=x%3Dy" },
+    });
+    const response = await runSessionApiHandler(handler as never, request);
+    expect(response.status).toBe(200);
+    expect(seen).toEqual({
+      method: "GET",
+      query: { nextauth: ["session"] },
+      headers: { cookie: "a=1; next-auth.session-token=x%3Dy" },
+      cookies: { a: "1", "next-auth.session-token": "x=y" },
+      body: undefined,
+    });
+  });
+
+  it("fails closed with no usable session cookie", async () => {
+    const d = deps({
+      requestHeaders: new Headers({ cookie: "unrelated=1" }),
+      options: realOptions,
+      runSession: (options, request) => runSessionApiHandler(NextAuth(options), request),
+    });
+    await expect(resolveActionAccessToken(d)).resolves.toBeNull();
   });
 });
 

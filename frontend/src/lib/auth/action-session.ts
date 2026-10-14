@@ -81,13 +81,90 @@ export async function resolveActionAccessToken(deps: ActionSessionDeps): Promise
   }
 }
 
+type NextAuthApiHandler = (req: unknown, res: unknown) => Promise<unknown>;
+
+/** Parses a Cookie request header the way NextAuth's API mode expects (first value wins). */
+function parseCookieHeader(header: string): Record<string, string> {
+  const cookies: Record<string, string> = {};
+  for (const part of header.split(";")) {
+    const index = part.indexOf("=");
+    if (index <= 0) continue;
+    const name = part.slice(0, index).trim();
+    if (!name || name in cookies) continue;
+    const raw = part.slice(index + 1).trim();
+    try {
+      cookies[name] = decodeURIComponent(raw);
+    } catch {
+      cookies[name] = raw;
+    }
+  }
+  return cookies;
+}
+
+/**
+ * Runs NextAuth's session action in its API (req, res) mode with an explicit
+ * request. The App Router mode would ignore this request and read the ambient
+ * `next/headers`, forwarding every incoming header; here NextAuth receives only
+ * the cookie header and its parsed cookies, and its response is collected into
+ * a standard Response (status, Set-Cookie, JSON body).
+ */
+export async function runSessionApiHandler(handler: NextAuthApiHandler, request: Request): Promise<Response> {
+  const cookieHeader = request.headers.get("cookie") ?? "";
+  let status = 200;
+  let body: unknown = null;
+  const setCookies: string[] = [];
+  const headers = new Headers();
+  const res = {
+    status(code: number) {
+      status = code;
+      return res;
+    },
+    setHeader(name: string, value: unknown) {
+      if (name.toLowerCase() === "set-cookie") {
+        // NextAuth re-sets the accumulated list on every cookie it adds.
+        setCookies.splice(0, setCookies.length, ...(Array.isArray(value) ? value : [value]).map(String));
+      } else {
+        headers.set(name, String(value));
+      }
+      return res;
+    },
+    getHeader(name: string) {
+      return name.toLowerCase() === "set-cookie" ? [...setCookies] : (headers.get(name) ?? undefined);
+    },
+    send(value: unknown) {
+      body = value;
+      return res;
+    },
+    json(value: unknown) {
+      body = value;
+      return res;
+    },
+    end() {
+      return res;
+    },
+  };
+  await handler(
+    {
+      method: "GET",
+      query: { nextauth: ["session"] },
+      headers: { cookie: cookieHeader },
+      cookies: parseCookieHeader(cookieHeader),
+      body: undefined,
+    },
+    res,
+  );
+  for (const value of setCookies) headers.append("set-cookie", value);
+  if (body === null || body === undefined) return new Response(null, { status, headers });
+  headers.set("content-type", "application/json");
+  return new Response(typeof body === "string" ? body : JSON.stringify(body), { status, headers });
+}
+
 /** Runtime wiring for Server Actions: request headers, cookie store and NextAuth. */
 export async function getActionAccessToken(): Promise<string | null> {
   try {
-    const [{ headers, cookies }, { NextRequest }, { default: NextAuth }, { authOptions }, { validateAuthEnv }] =
+    const [{ headers, cookies }, { default: NextAuth }, { authOptions }, { validateAuthEnv }] =
       await Promise.all([
         import("next/headers"),
-        import("next/server"),
         import("next-auth"),
         import("./options"),
         import("./env"),
@@ -97,10 +174,9 @@ export async function getActionAccessToken(): Promise<string | null> {
       requestHeaders: await headers(),
       authUrl: validateAuthEnv(process.env).siteUrl,
       options: authOptions,
+      // API mode: NextAuth sees only the explicit request built above.
       runSession: (options, request) =>
-        NextAuth(options)(new NextRequest(request), {
-          params: Promise.resolve({ nextauth: ["session"] }),
-        }),
+        runSessionApiHandler(NextAuth(options) as NextAuthApiHandler, request),
       applyCookie: (item) => store.set(item),
     });
   } catch {
