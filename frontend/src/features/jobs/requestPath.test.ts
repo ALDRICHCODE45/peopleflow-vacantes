@@ -21,7 +21,22 @@ const files = productionFiles(SRC);
 describe("single application-facing request path", () => {
   it("calls fetch only inside the server-only transport", () => {
     const fetchCallers = files.filter((file) => /\bfetch\(/.test(source(file)));
-    expect(fetchCallers.map(rel)).toEqual(["lib/api/requestJson.ts"]);
+    expect(fetchCallers.map(rel).sort()).toEqual([
+      "app/(auth)/empresa/bootstrap-local/bootstrap-local-panel.tsx",
+      "lib/api/requestJson.ts",
+    ]);
+  });
+
+  it("lets the temporary bootstrap panel fetch only its same-origin identity routes", () => {
+    const panel = source(join(SRC, "app/(auth)/empresa/bootstrap-local/bootstrap-local-panel.tsx"));
+    expect(panel).not.toMatch(/https?:\/\//);
+    expect(panel).not.toMatch(/lib\/api\//);
+    const endpoints = panel.match(/"\/api\/[^"]*"/g) ?? [];
+    expect(endpoints.sort()).toEqual([
+      '"/api/auth/local-bootstrap/apply"',
+      '"/api/auth/local-bootstrap/nonce"',
+      '"/api/auth/local-bootstrap/stage"',
+    ]);
   });
 
   it("reaches the transport only through the guarded API functions", () => {
@@ -55,6 +70,9 @@ describe("single application-facing request path", () => {
       "app/api/auth/[...nextauth]/route.ts",
       "app/api/auth/backend-check/route.ts",
       "app/api/auth/cognito/logout/route.ts",
+      "app/api/auth/local-bootstrap/apply/route.ts",
+      "app/api/auth/local-bootstrap/nonce/route.ts",
+      "app/api/auth/local-bootstrap/stage/route.ts",
     ]);
     for (const handler of handlers) {
       expect(source(handler)).not.toMatch(/lib\/api\/(?:server|requestJson)/);
