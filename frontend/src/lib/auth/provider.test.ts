@@ -26,10 +26,10 @@ describe("buildCognitoProvider", () => {
     expect(effectiveProvider().checks).toEqual(["pkce", "state"]);
   });
 
-  it("requests only the openid and email OIDC scopes", () => {
-    expect(COGNITO_SCOPES).toBe("openid email");
+  it("requests the openid, email and profile OIDC scopes", () => {
+    expect(COGNITO_SCOPES).toBe("openid email profile");
     expect(effectiveProvider().authorization).toMatchObject({
-      params: { scope: "openid email" },
+      params: { scope: "openid email profile" },
     });
   });
 });

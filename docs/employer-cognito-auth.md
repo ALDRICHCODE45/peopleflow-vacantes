@@ -63,8 +63,15 @@ provider `checks: ["pkce", "state"]` option. NextAuth issues signed, short-lived
 authorization request and validates both in the callback; a missing or mismatched
 value aborts the callback. The default Cognito provider derives the authorization
 endpoint from the configured issuer discovery document and the requested scopes
-are `openid email`. The UI starts the flow with
+are `openid email profile`. The UI starts the flow with
 `signIn("cognito", { callbackUrl: "/empresa/login" })`.
+
+The Cognito App Client must allow the `profile` OpenID Connect scope to make
+readable profile attributes such as `name` available through UserInfo. Requesting
+`profile` in the frontend does not enable it in the App Client configuration.
+After changing the allowed scopes, sign out and sign in again: refreshed access
+tokens retain the original grant's scopes, so a reload or token refresh does not
+add the new scope.
 
 ## Session contract
 
