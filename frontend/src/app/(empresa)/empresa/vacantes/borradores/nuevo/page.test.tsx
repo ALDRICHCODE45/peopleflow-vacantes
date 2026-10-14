@@ -128,7 +128,7 @@ describe("/empresa/vacantes/borradores/nuevo employer route", () => {
     ).toHaveAttribute("href", "/empresa/vacantes");
   });
 
-  it("mounts the five-step local draft editor inside the shared content container", () => {
+  it("mounts the five-step draft editor with explicit account saving inside the shared content container", () => {
     render(<Page />);
 
     expect(
@@ -141,7 +141,7 @@ describe("/empresa/vacantes/borradores/nuevo employer route", () => {
       screen.getByRole("combobox", { name: "Modalidad" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("note")).toHaveTextContent(
-      "Este borrador es solo local.",
+      "Al pulsar Guardar borrador, se guardará en tu cuenta. No hay guardado automático",
     );
 
     // Every approved group is a semantic section of one wide, non-modal surface,
@@ -179,7 +179,7 @@ describe("/empresa/vacantes/borradores/nuevo employer route", () => {
     }
 
     expect(
-      screen.getByRole("button", { name: "Validar borrador" }),
+      screen.getByRole("button", { name: "Guardar borrador" }),
     ).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(document.querySelector("[data-pf-local-draft-form]")).not.toBeNull();
@@ -194,7 +194,7 @@ describe("/empresa/vacantes/borradores/nuevo employer route", () => {
     expect(content!.className).toContain("lg:px-6");
     expect(content!.hasAttribute("data-pf-page-content")).toBe(true);
     expect(
-      content!.contains(screen.getByRole("button", { name: "Validar borrador" })),
+      content!.contains(screen.getByRole("button", { name: "Guardar borrador" })),
     ).toBe(true);
     // The narrow legacy measure must not come back anywhere in the route.
     expect(content!.querySelector(".max-w-3xl")).toBeNull();

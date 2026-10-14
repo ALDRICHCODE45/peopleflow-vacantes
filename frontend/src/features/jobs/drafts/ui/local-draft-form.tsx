@@ -8,6 +8,9 @@ import {
 import { cn } from "cn";
 
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { useDraftSave } from "./draft-save-state";
+import { DRAFT_SAVE_NOTICE, DraftSaveFeedback } from "./draft-save-feedback";
 import { Card,
   CardContent,
   CardFooter,
@@ -86,13 +89,10 @@ import type { ScreeningQuestionV2 } from "../screening-v2/model";
  * one state object and exposes only the active step. Each step renders one
  * primary card whose internal groups are semantic sections and dividers, never
  * nested cards, matching the approved application-wizard composition without
- * reusing any application business logic. Nothing is normalized until the
- * explicit "Validar borrador" boundary on the last step, where the complete
- * model is composed once and handed to the accepted full serializer
- * `draftModelToPostBody`. Incomplete drafts are valid by schema, so every
- * Atrás/Continuar navigation is unconditional. The unit stays local: no
- * transport, storage, router, session or saving claim, and a single local-only
- * warning.
+ * reusing any application business logic. The final boundary validates the
+ * complete snapshot. V2 then explicitly saves through a credential-free Server
+ * Action; legacy v1 stays local. Incomplete drafts are valid by schema, so
+ * Atrás/Continuar navigation remains unconditional. No autosave is performed.
  */
 export type LocalDraftFormProps = {
   /**
@@ -447,6 +447,7 @@ export function LocalDraftForm({
   const [v2Questions, setV2Questions] = React.useState<DraftScreeningV2State>(() =>
     toDraftScreeningV2State(initialScreeningQuestionsV2 ?? []),
   );
+  const draftSave = useDraftSave();
   const [errors, setErrors] = React.useState<DraftFormErrors>({});
   const [validated, setValidated] = React.useState<
     DraftModel | LocalDraftV2Snapshot | null
@@ -491,6 +492,7 @@ export function LocalDraftForm({
     errorPrefixes: string[],
   ) {
     setState(update);
+    if (isV2) draftSave.edited();
     setValidated(null);
     setErrors((previous) => clearErrors(previous, errorPrefixes));
   }
@@ -500,6 +502,7 @@ export function LocalDraftForm({
     update: (previous: DraftScreeningV2State) => DraftScreeningV2State,
   ) {
     setV2Questions(update);
+    draftSave.edited();
     setValidated(null);
     setErrors((previous) => clearErrors(previous, ["screening_questions"]));
   }
@@ -518,6 +521,7 @@ export function LocalDraftForm({
       return;
     }
     if (isV2) {
+      if (draftSave.pending) return;
       const result = validateLocalDraftV2FormState(state, baseModel, v2Questions);
       if (!result.ok) {
         setValidated(null);
@@ -528,7 +532,7 @@ export function LocalDraftForm({
         return;
       }
       setErrors({});
-      setValidated(result.model);
+      void draftSave.save(result.model);
       return;
     }
     const result = validateDraftFormState(state, baseModel);
@@ -552,7 +556,7 @@ export function LocalDraftForm({
         className="flex gap-2 rounded-2xl bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
       >
         <InfoIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-        <p>{LOCAL_ONLY_NOTICE}</p>
+        <p>{isV2 ? DRAFT_SAVE_NOTICE : LOCAL_ONLY_NOTICE}</p>
       </div>
 
       <form noValidate onSubmit={handleValidate} className="flex flex-col gap-6">
@@ -966,8 +970,9 @@ export function LocalDraftForm({
             <CardContent className="flex flex-col gap-6">
               <div className="flex flex-col gap-4">
                 <p className="text-sm text-muted-foreground">
-                  Revisa lo que llevas capturado. Puedes validar el borrador aunque
-                  falten campos: los campos vacíos se validan como vacíos.
+                  {isV2
+                    ? "Revisa lo que llevas capturado. Puedes guardar el borrador aunque falten campos. Solo se guarda cuando pulsas el botón."
+                    : "Revisa lo que llevas capturado. Puedes validar el borrador aunque falten campos: los campos vacíos se validan como vacíos."}
                 </p>
                 <DraftPreview
                   state={state}
@@ -1018,7 +1023,21 @@ export function LocalDraftForm({
                   {VALIDATION_SUCCESS}
                 </p>
               )}
-              <Button type="submit">Validar borrador</Button>
+              {isV2 ? (
+                <div className="flex max-w-xl flex-col items-start gap-3">
+                  <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} />
+                  <Button
+                    type="submit"
+                    className="min-h-10 min-w-40"
+                    disabled={draftSave.pending}
+                    aria-busy={draftSave.pending}
+                    aria-describedby={draftSave.result?.ok === false ? "draft-save-error" : undefined}
+                  >
+                    {draftSave.pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
+                    {draftSave.pending ? "Guardando…" : draftSave.saved ? "Guardar cambios" : "Guardar borrador"}
+                  </Button>
+                </div>
+              ) : <Button type="submit">Validar borrador</Button>}
             </DraftStepFooter>
           </Card>
         </section>

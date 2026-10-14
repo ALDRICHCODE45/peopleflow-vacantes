@@ -1,6 +1,6 @@
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -8,6 +8,9 @@ import { join } from "node:path";
 // Captures the complete model handed to the accepted serializer without adding
 // any production-only prop or visible test payload.
 const hoisted = vi.hoisted(() => ({ serialized: [] as unknown[] }));
+
+vi.mock("../actions", () => ({ saveDraftV2Action: vi.fn(async () => ({ok:true,draftId:"saved",etag:'"v1"',version:"1",savedAt:"2026-10-06T03:00:00Z"})) }));
+vi.mock("sileo", () => ({sileo:{success:vi.fn()}}));
 
 vi.mock("@/features/jobs/drafts/model", async (importOriginal) => {
   const actual =
@@ -197,7 +200,7 @@ const titleInput = () => screen.getByRole("textbox", { name: "Título" });
 const locationInput = () => screen.getByRole("textbox", { name: "Ubicación" });
 const modeSelect = () => screen.getByRole("combobox", { name: "Modalidad" });
 const validateButton = () =>
-  screen.getByRole("button", { name: "Validar borrador" });
+  screen.getByRole("button", { name: /^(Validar borrador|Guardar borrador|Guardar cambios)$/ });
 const continueButton = () => screen.getByRole("button", { name: "Continuar" });
 const backButton = () => screen.getByRole("button", { name: "Atrás" });
 const successStatus = () => screen.queryByRole("status");
@@ -243,8 +246,8 @@ afterEach(() => {
 });
 
 describe("LocalDraftForm presentation", () => {
-  it("renders one local-only warning, grouped sections and the explicit validate control", () => {
-    render(<LocalDraftForm />);
+  it("renders one local-only warning, grouped sections and the explicit validate control for v1", () => {
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
 
     expect(screen.getAllByRole("note")).toHaveLength(1);
     expect(screen.getByRole("note")).toHaveTextContent(NOTICE);
@@ -329,13 +332,13 @@ describe("LocalDraftForm presentation", () => {
     }
   });
 
-  it("performs no network or storage access when validating", () => {
+  it("performs no network or storage access when validating v1", () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
     const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
     const getItemSpy = vi.spyOn(Storage.prototype, "getItem");
 
-    render(<LocalDraftForm />);
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
     fireEvent.change(titleInput(), { target: { value: "Backend" } });
     validateDraft();
 
@@ -469,7 +472,7 @@ describe("LocalDraftForm five-step wizard", () => {
   });
 
   it("validates an incomplete draft without demanding fields the schema does not require", () => {
-    render(<LocalDraftForm />);
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
     goToStep(5);
     fireEvent.click(validateButton());
 
@@ -511,7 +514,7 @@ describe("LocalDraftForm basic group (previous 3-field rules)", () => {
   });
 
   it("validates an untouched empty draft as a valid null-valued snapshot", () => {
-    render(<LocalDraftForm />);
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
 
     validateDraft();
 
@@ -524,7 +527,7 @@ describe("LocalDraftForm basic group (previous 3-field rules)", () => {
   });
 
   it("accepts a 200-codepoint title and rejects 201 without touching the raw input", () => {
-    render(<LocalDraftForm />);
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
 
     fireEvent.change(titleInput(), { target: { value: "a".repeat(200) } });
     validateDraft();
@@ -584,7 +587,7 @@ describe("LocalDraftForm basic group (previous 3-field rules)", () => {
   });
 
   it("invalidates previous success and keeps the raw input editable after an edit", () => {
-    render(<LocalDraftForm />);
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
 
     fireEvent.change(titleInput(), { target: { value: "Backend" } });
     validateDraft();
@@ -597,7 +600,7 @@ describe("LocalDraftForm basic group (previous 3-field rules)", () => {
   });
 
   it("normalizes only at the explicit boundary and leaves the raw inputs untouched", () => {
-    render(<LocalDraftForm />);
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
 
     fireEvent.change(titleInput(), { target: { value: "  Backend Go  " } });
     fireEvent.change(locationInput(), { target: { value: "  CDMX  " } });
@@ -611,7 +614,7 @@ describe("LocalDraftForm basic group (previous 3-field rules)", () => {
   });
 
   it("submits through the form so the button and Enter share one boundary", () => {
-    render(<LocalDraftForm />);
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
 
     goToStep(5);
     const form = validateButton().closest("form");
@@ -732,7 +735,7 @@ describe("LocalDraftForm screening question errors", () => {
 
 describe("LocalDraftForm compensation", () => {
   it("keeps exact money strings and composes only the active mode", () => {
-    render(<LocalDraftForm />);
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
     goToStep(3);
 
     fireEvent.change(screen.getByRole("combobox", { name: "Modo de compensación" }), {
@@ -780,7 +783,7 @@ describe("LocalDraftForm compensation", () => {
   });
 
   it("keeps an inactive amount buffer across mode changes", () => {
-    render(<LocalDraftForm />);
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
     goToStep(3);
 
     fireEvent.change(screen.getByRole("combobox", { name: "Modo de compensación" }), {
@@ -823,7 +826,7 @@ describe("LocalDraftForm compensation", () => {
   });
 
   it("toggles the honest public visibility checkbox", () => {
-    render(<LocalDraftForm />);
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
     goToStep(3);
 
     toggleCheckbox("Mostrar la compensación cuando se publique la vacante");
@@ -835,7 +838,7 @@ describe("LocalDraftForm compensation", () => {
 
 describe("LocalDraftForm languages without CEFR mapping", () => {
   it("sends custom_name only for other and keeps the levels exact", () => {
-    render(<LocalDraftForm />);
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
     goToStep(2);
 
     fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" }));
@@ -933,7 +936,7 @@ describe("LocalDraftForm requester", () => {
   });
 
   it("keeps a null requester for an empty draft and records an explicit selection", () => {
-    render(<LocalDraftForm />);
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
 
     validateDraft();
     expect(captured(0).fields.requester).toBeNull();
@@ -1040,7 +1043,7 @@ describe("LocalDraftForm fresh local v2 screening", () => {
     ).toBeNull();
   });
 
-  it("validates a complete v2 question without leaking it into the v1 body", () => {
+  it("saves a complete v2 question without leaking it into the v1 body", async () => {
     render(<LocalDraftForm />);
     goToStep(4);
     fireEvent.click(screen.getByRole("button", { name: "Agregar pregunta" }));
@@ -1065,7 +1068,7 @@ describe("LocalDraftForm fresh local v2 screening", () => {
 
     validateDraft();
 
-    expect(successStatus()).toHaveTextContent(SUCCESS);
+    await waitFor(() => expect(successStatus()).toHaveTextContent("Borrador guardado"));
     expect(hoisted.serialized).toHaveLength(1);
     // The internal placeholder honored by the v1 serializer is empty: the v2
     // questions never cross into the v1 write body.
@@ -1282,7 +1285,7 @@ describe("LocalDraftForm ambiguous screening seeds", () => {
     ).toThrow(AMBIGUOUS);
   });
 
-  it("reuses the 16 fields when the v1 screening list is empty plus a v2 seed", () => {
+  it("reuses the 16 fields when the v1 screening list is empty plus a v2 seed", async () => {
     const initial = populatedInitialModel();
     initial.fields.screening_questions = [];
 
@@ -1297,7 +1300,7 @@ describe("LocalDraftForm ambiguous screening seeds", () => {
 
     validateDraft();
 
-    expect(successStatus()).toHaveTextContent(SUCCESS);
+    await waitFor(() => expect(successStatus()).toHaveTextContent("Borrador guardado"));
     expect(hoisted.serialized).toHaveLength(1);
     // The empty v1 screening list is the only accepted combination; the other
     // 16 normalized fields survive untouched and the v2 questions stay out of

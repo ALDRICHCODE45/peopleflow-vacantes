@@ -5,13 +5,13 @@ import { DashboardPageContent } from "@/components/dashboard-page-content"
 import { LocalDraftForm } from "@/features/jobs/drafts/ui/local-draft-form"
 
 /**
- * Local private-draft route content.
+ * Private-draft route content.
  *
  * The shared `(empresa)` layout owns the single EmployerShell, so this route
- * contributes only its header and the mounted local editor. It stays a server
+ * contributes only its header and the mounted editor. It stays a server
  * component and owns no fetch, credential, storage or mutation concern; the
- * editor arrives as a client component over the accepted T3f draft model and
- * writes nowhere.
+ * editor is a client component over the accepted T3f draft model that saves
+ * only on an explicit user action, through the drafts Server Action.
  */
 export const metadata: Metadata = {
   title: "Nuevo borrador",
