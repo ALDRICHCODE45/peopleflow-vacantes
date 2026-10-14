@@ -44,6 +44,7 @@ describe("single application-facing request path", () => {
       /lib\/api\/server"/.test(source(file)),
     );
     expect(importers.map(rel).sort()).toEqual([
+      "features/employer-company/api/company-client.ts",
       "features/jobs/api/getJob.ts",
       "features/jobs/api/listJobs.ts",
       "features/jobs/create/createJob.ts",
@@ -58,6 +59,7 @@ describe("single application-facing request path", () => {
         /from "\.\/requestJson"/.test(source(file)),
     );
     expect(transportImporters.map(rel).sort()).toEqual([
+      "features/employer-company/api/company-client.ts",
       "features/jobs/api/getJob.ts",
       "features/jobs/api/listJobs.ts",
       "features/jobs/create/createJob.ts",
