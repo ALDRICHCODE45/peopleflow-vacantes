@@ -1,0 +1,362 @@
+{
+  "supplementVersion": "tiptap-draft-contract/supplement-v1",
+  "note": "Additive supplement to the approved 8-case corpus. It never mutates frontend/src/features/jobs/tiptap-contract-proof/fixtures/tiptap-draft-contract.fixtures.json.",
+  "designScope": "The rawLinkContract and editorOutputContract descriptors below describe the rich JSON value of description.document only. They are pure, unexecuted design expectations per contract §5.1-§5.2. They are not HTML parsing rules and not full HTTP request/response rules; no HTTP status or success code is claimed.",
+  "dataContract": {
+    "transferableToGo": true,
+    "shape": {
+      "cases.hardBreakRoundtrips[].id": "stable fixture identifier",
+      "cases.hardBreakRoundtrips[].input": "restricted ProseMirror JSON fed to the real editor",
+      "cases.hardBreakRoundtrips[].expected": "authored literal editor output, serialized then restored into a second editor",
+      "cases.hardBreakRoundtrips[].plainText": "authored literal plain-text expectation",
+      "cases.htmlIngestion[].html": "HTML string ingested through editor commands",
+      "cases.htmlIngestion[].expected": "authored literal sanitized editor output for that ingestion",
+      "cases.htmlIngestion[].rawLinkContract.document": "explicit complete raw description.document with the full 5-attr link mark",
+      "cases.htmlIngestion[].rawLinkContract.valid": "whether that raw description.document link is valid per contract §5.2",
+      "cases.htmlIngestion[].rawLinkContract.errorCode": "validation_error when the raw document is invalid; null for the safe control",
+      "cases.htmlIngestion[].editorOutputContract": "asserts the sanitized editor output is a valid description.document per contract; pending backend proof",
+      "cases.negatives[].input": "restricted ProseMirror JSON that is invalid per the contract",
+      "cases.negatives[].strictProseMirror": "expected strict schema.nodeFromJSON rejection",
+      "cases.negatives[].editorObservation": "observed editor recovery, recorded separately from the strict rejection",
+      "cases.negatives[].apiExpectation": "design statement taken from the accepted contract; not executed by this fixture"
+    }
+  },
+  "provenance": {
+    "editorOnly": true,
+    "scope": "Observed Tiptap 3.31.4 editor behavior only.",
+    "notClaimed": [
+      "Go validation",
+      "cross-language serializer parity",
+      "API runtime evidence",
+      "HTTP status or success codes",
+      "JSON canonicalization"
+    ],
+    "generatedBy": "authored by vitest/editor-supplement.test.ts; TIPTAP_EMIT_FIXTURES is never enabled for this file",
+    "tiptap": {
+      "@tiptap/core": "3.31.4",
+      "@tiptap/pm": "3.31.4",
+      "@tiptap/extensions": "3.31.4",
+      "@tiptap/extension-document": "3.31.4",
+      "@tiptap/extension-paragraph": "3.31.4",
+      "@tiptap/extension-text": "3.31.4",
+      "@tiptap/extension-bold": "3.31.4",
+      "@tiptap/extension-italic": "3.31.4",
+      "@tiptap/extension-link": "3.31.4",
+      "@tiptap/extension-hard-break": "3.31.4",
+      "@tiptap/extension-list": "3.31.4"
+    },
+    "apiVersion": {
+      "descriptionSchemaVersion": 1,
+      "note": "The numeric API version is separate from the editor-only metadata above. The tiptap-draft-contract/v1 string is corpus metadata, not an API version."
+    },
+    "goConsumption": "pending; no Go validator or parity check exists in this unit"
+  },
+  "originalProof": {
+    "path": "frontend/src/features/jobs/tiptap-contract-proof/fixtures/tiptap-draft-contract.fixtures.json",
+    "sha256": "8477901e59fd99657ef9f320547560bce940aebbcd3c2c96c514eff4363fd4e5",
+    "cases": 8,
+    "relationship": "unchanged; this supplement is additive and separate"
+  },
+  "cases": {
+    "hardBreakRoundtrips": [
+      {
+        "id": "hardbreak-marked-roundtrip",
+        "note": "hardBreak carries an italic mark between bold and plain runs",
+        "input": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                { "type": "text", "marks": [{ "type": "bold" }], "text": "linea uno" },
+                { "type": "hardBreak", "marks": [{ "type": "italic" }] },
+                { "type": "text", "text": "linea dos" }
+              ]
+            }
+          ]
+        },
+        "expected": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                { "type": "text", "marks": [{ "type": "bold" }], "text": "linea uno" },
+                { "type": "hardBreak", "marks": [{ "type": "italic" }] },
+                { "type": "text", "text": "linea dos" }
+              ]
+            }
+          ]
+        },
+        "plainText": "linea uno\nlinea dos"
+      },
+      {
+        "id": "hardbreak-plain-between-marked-runs",
+        "note": "control: unmarked hardBreak between a bold and an italic run",
+        "input": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                { "type": "text", "marks": [{ "type": "bold" }], "text": "uno" },
+                { "type": "hardBreak" },
+                { "type": "text", "marks": [{ "type": "italic" }], "text": "dos" }
+              ]
+            }
+          ]
+        },
+        "expected": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                { "type": "text", "marks": [{ "type": "bold" }], "text": "uno" },
+                { "type": "hardBreak" },
+                { "type": "text", "marks": [{ "type": "italic" }], "text": "dos" }
+              ]
+            }
+          ]
+        },
+        "plainText": "uno\ndos"
+      }
+    ],
+    "htmlIngestion": [
+      {
+        "id": "html-safe-link-control",
+        "note": "allowed https href keeps its link mark and receives the default link attributes",
+        "html": "<p><a href=\"https://example.com/ok\">seguro</a></p>",
+        "expected": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [
+                {
+                  "type": "text",
+                  "marks": [
+                    {
+                      "type": "link",
+                      "attrs": {
+                        "href": "https://example.com/ok",
+                        "target": "_blank",
+                        "rel": "noopener noreferrer nofollow",
+                        "class": null,
+                        "title": null
+                      }
+                    }
+                  ],
+                  "text": "seguro"
+                }
+              ]
+            }
+          ]
+        },
+        "plainText": "seguro",
+        "rawLinkContract": {
+          "document": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "link",
+                        "attrs": {
+                          "href": "https://example.com/ok",
+                          "target": "_blank",
+                          "rel": "noopener noreferrer nofollow",
+                          "class": null,
+                          "title": null
+                        }
+                      }
+                    ],
+                    "text": "seguro"
+                  }
+                ]
+              }
+            ]
+          },
+          "valid": true,
+          "errorCode": null
+        },
+        "editorOutputContract": { "subject": "expected", "valid": true }
+      },
+      {
+        "id": "html-unsafe-link-javascript",
+        "note": "javascript href is dropped during HTML ingestion while its visible text is preserved; the raw description.document keeps the unsafe link and is invalid",
+        "html": "<p><a href=\"javascript:alert(1)\">visible</a></p>",
+        "expected": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{ "type": "text", "text": "visible" }]
+            }
+          ]
+        },
+        "plainText": "visible",
+        "rawLinkContract": {
+          "document": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "link",
+                        "attrs": {
+                          "href": "javascript:alert(1)",
+                          "target": "_blank",
+                          "rel": "noopener noreferrer nofollow",
+                          "class": null,
+                          "title": null
+                        }
+                      }
+                    ],
+                    "text": "visible"
+                  }
+                ]
+              }
+            ]
+          },
+          "valid": false,
+          "errorCode": "validation_error"
+        },
+        "editorOutputContract": { "subject": "expected", "valid": true }
+      },
+      {
+        "id": "html-unsafe-link-data-uri",
+        "note": "data: href is dropped during HTML ingestion while its visible text is preserved; the raw description.document keeps the unsafe link and is invalid",
+        "html": "<p><a href=\"data:text/html,alert(1)\">datos</a></p>",
+        "expected": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{ "type": "text", "text": "datos" }]
+            }
+          ]
+        },
+        "plainText": "datos",
+        "rawLinkContract": {
+          "document": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "link",
+                        "attrs": {
+                          "href": "data:text/html,alert(1)",
+                          "target": "_blank",
+                          "rel": "noopener noreferrer nofollow",
+                          "class": null,
+                          "title": null
+                        }
+                      }
+                    ],
+                    "text": "datos"
+                  }
+                ]
+              }
+            ]
+          },
+          "valid": false,
+          "errorCode": "validation_error"
+        },
+        "editorOutputContract": { "subject": "expected", "valid": true }
+      },
+      {
+        "id": "html-unsafe-link-credentials",
+        "note": "userinfo credentials are dropped during HTML ingestion while visible text is preserved; the raw description.document keeps the unsafe link and is invalid",
+        "html": "<p><a href=\"https://user:pass@example.com/x\">creds</a></p>",
+        "expected": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{ "type": "text", "text": "creds" }]
+            }
+          ]
+        },
+        "plainText": "creds",
+        "rawLinkContract": {
+          "document": {
+            "type": "doc",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [
+                  {
+                    "type": "text",
+                    "marks": [
+                      {
+                        "type": "link",
+                        "attrs": {
+                          "href": "https://user:pass@example.com/x",
+                          "target": "_blank",
+                          "rel": "noopener noreferrer nofollow",
+                          "class": null,
+                          "title": null
+                        }
+                      }
+                    ],
+                    "text": "creds"
+                  }
+                ]
+              }
+            ]
+          },
+          "valid": false,
+          "errorCode": "validation_error"
+        },
+        "editorOutputContract": { "subject": "expected", "valid": true }
+      }
+    ],
+    "negatives": [
+      {
+        "id": "empty-text-node-strict-construction",
+        "note": "raw empty text node is invalid per contract §5.2; the editor silently recovers instead",
+        "input": {
+          "type": "doc",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{ "type": "text", "text": "" }]
+            }
+          ]
+        },
+        "strictProseMirror": {
+          "construction": "throws",
+          "errorName": "RangeError",
+          "message": "Empty text nodes are not allowed"
+        },
+        "editorObservation": {
+          "construction": "recovers",
+          "output": {
+            "type": "doc",
+            "content": [{ "type": "paragraph" }]
+          }
+        },
+        "plainText": "",
+        "apiExpectation": {
+          "status": 400,
+          "code": "validation_error",
+          "reason": "contract §5.2: text is non-empty with no attrs and no content; the API rejects the raw tree instead of relying on editor recovery"
+        }
+      }
+    ]
+  }
+}
