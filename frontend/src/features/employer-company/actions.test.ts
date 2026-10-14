@@ -38,13 +38,14 @@ it("normalizes strings then posts once and returns only the confirmed company", 
   expect(createCompany).toHaveBeenCalledExactlyOnceWith({ token: "secret", body: { name: "Empresa", rfc: "ABC123456789", industry_id: "i" } });
 });
 it.each([
-  [{ ...valid, name: "abc" }, "name"], [{ ...valid, rfc: "á".repeat(12) }, "rfc"], [{ ...valid, industryId: " " }, "industryId"],
+  [{ ...valid, name: "abc" }, "name"], [{ ...valid, rfc: "á".repeat(11) }, "rfc"], [{ ...valid, industryId: " " }, "industryId"],
 ])("validates locally %j", async (input, field) => {
   expect(await createCompanyAction(input)).toMatchObject({ kind: "invalid", fields: { [field]: expect.any(String) } }); expect(createCompany).not.toHaveBeenCalled();
 });
-it("matches byte semantics, not regex or character count", async () => {
+it("counts characters like the Go contract, not bytes or a regex", async () => {
   vi.mocked(createCompany).mockResolvedValue({ ok: true, data: company });
-  expect(await createCompanyAction({ name: "éé", rfc: "é".repeat(6), industryId: "i" })).toMatchObject({ kind: "created" });
+  expect(await createCompanyAction({ name: "éééé", rfc: "Ñ".repeat(12), industryId: "i" })).toMatchObject({ kind: "created" });
+  expect(await createCompanyAction({ name: "éé", rfc: "é".repeat(6), industryId: "i" })).toMatchObject({ kind: "invalid", fields: { name: expect.any(String), rfc: expect.any(String) } });
 });
 it.each([
   [400, "invalid_request", "invalid", "El RFC no es válido."],

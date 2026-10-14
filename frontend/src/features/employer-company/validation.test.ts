@@ -23,10 +23,22 @@ describe("company validation messages", () => {
     });
   });
 
-  it("explains that the RFC cannot contain Ñ or accents yet", () => {
-    expect(validateCompany({ ...valid, rfc: "ÑAA010101AAA" }).fields).toEqual({
-      rfc: "Por ahora el RFC no puede incluir Ñ ni letras con acento.",
+  it("counts RFC characters, so Ñ and & count as one", () => {
+    expect(validateCompany({ ...valid, rfc: " añb010101ab1 " })).toEqual({
+      value: { ...valid, rfc: "AÑB010101AB1" },
+      fields: {},
     });
+    expect(validateCompany({ ...valid, rfc: "A&B010101AB1" }).fields).toEqual({});
+    expect(validateCompany({ ...valid, rfc: "ÑAA010101AAAA" }).fields).toEqual({
+      rfc: "El RFC debe tener exactamente 12 caracteres.",
+    });
+  });
+
+  it("counts name characters, not bytes", () => {
+    expect(validateCompany({ ...valid, name: "Añó" }).fields).toEqual({
+      name: "El nombre debe tener al menos 4 caracteres.",
+    });
+    expect(validateCompany({ ...valid, name: "Añós" }).fields).toEqual({});
   });
 
   it("asks for an industry", () => {
