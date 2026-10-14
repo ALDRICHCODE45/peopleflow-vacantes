@@ -32,6 +32,7 @@ describe("single application-facing request path", () => {
       "features/jobs/api/getJob.ts",
       "features/jobs/api/listJobs.ts",
       "features/jobs/create/createJob.ts",
+      "lib/auth/backend-check.ts",
     ]);
     // The transport module is imported only by guarded API functions and the guarded façade.
     const transportImporters = files.filter(
@@ -44,6 +45,7 @@ describe("single application-facing request path", () => {
       "features/jobs/api/listJobs.ts",
       "features/jobs/create/createJob.ts",
       "lib/api/server.ts",
+      "lib/auth/backend-check.ts",
     ]);
   });
 
@@ -51,6 +53,7 @@ describe("single application-facing request path", () => {
     const handlers = files.filter((file) => file.endsWith("route.ts"));
     expect(handlers.map(rel).sort()).toEqual([
       "app/api/auth/[...nextauth]/route.ts",
+      "app/api/auth/backend-check/route.ts",
       "app/api/auth/cognito/logout/route.ts",
     ]);
     for (const handler of handlers) {
