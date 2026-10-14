@@ -12,8 +12,10 @@ export type RequestJsonError =
  * callers that supply `errorDecoder`; every other caller keeps the exact
  * pre-envelope result shape (`E` defaults to `never`).
  */
+type CapturedResponseHeaders = Partial<Record<"etag" | "idempotency-replayed", string>>;
+
 export type RequestJsonResult<T, E = never> =
-  | { ok: true; data: T }
+  | { ok: true; data: T; headers?: CapturedResponseHeaders }
   | { ok: false; error: RequestJsonError; envelope?: E };
 
 export type RequestJsonOptions<T, E = never> = {
@@ -46,12 +48,23 @@ export type RequestJsonOptions<T, E = never> = {
    * `authorization`: authentication is the caller's explicit decision.
    */
   headers?: HeadersInit;
+  /** Opt-in redirect rejection for credential-bearing calls; legacy defaults stay unchanged. */
+  redirect?: "error";
+  /**
+   * Capture only requested, allowlisted headers from a successfully decoded
+   * final fetch response (after any redirects). Values stay opaque strings.
+   * Missing headers, an empty selection, and default callers add no result key.
+   * Failures never carry captured headers; cookies/credentials are not exposed.
+   */
+  captureResponseHeaders?: readonly ("etag" | "idempotency-replayed")[];
   /**
    * Optional decoder for a non-2xx JSON body. When supplied, the decoded value
    * is attached to the failure result as `envelope`; an absent, unparsable, or
    * rejected body leaves it undefined without changing the classification.
    */
   errorDecoder?: (value: unknown) => E;
+  /** Opt-in byte cap (1–65536) for streamed error JSON; legacy decoders are unchanged. */
+  maxErrorBodyBytes?: number;
 };
 
 export async function requestJson<T, E = never>(
@@ -83,7 +96,7 @@ export async function requestJson<T, E = never>(
           error: { kind: "invalid_response", retryable: false },
         };
       }
-      const envelope = await decodeErrorEnvelope(response, options.errorDecoder);
+      const envelope = await decodeErrorEnvelope(response, options.errorDecoder, options.maxErrorBodyBytes, controller.signal);
       if (
         options.notFoundStatus !== undefined &&
         status === options.notFoundStatus
@@ -118,7 +131,9 @@ export async function requestJson<T, E = never>(
       };
     }
     try {
-      return { ok: true, data: options.decoder(payload) };
+      const data = options.decoder(payload);
+      const headers = captureHeaders(response, options.captureResponseHeaders);
+      return headers === undefined ? { ok: true, data } : { ok: true, data, headers };
     } catch {
       return {
         ok: false,
@@ -135,6 +150,21 @@ export async function requestJson<T, E = never>(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Allowlist at runtime too: never expose arbitrary response headers. */
+function captureHeaders(
+  response: Response,
+  requested: RequestJsonOptions<unknown>["captureResponseHeaders"],
+): CapturedResponseHeaders | undefined {
+  if (requested === undefined) return undefined;
+  const captured: CapturedResponseHeaders = {};
+  for (const name of requested) {
+    if (name !== "etag" && name !== "idempotency-replayed") continue;
+    const value = response.headers.get(name);
+    if (value !== null) captured[name] = value;
+  }
+  return Object.keys(captured).length === 0 ? undefined : captured;
 }
 
 /**
@@ -168,6 +198,7 @@ function buildRequestInit<T, E>(
   }
 
   const init: RequestInit = { cache: "no-store", headers, signal };
+  if (options.redirect !== undefined) init.redirect = options.redirect;
   if (options.method !== undefined) init.method = options.method;
   if (options.body !== undefined) {
     init.body = JSON.stringify(options.body);
@@ -188,11 +219,49 @@ function buildRequestInit<T, E>(
 async function decodeErrorEnvelope<E>(
   response: Response,
   decoder?: (value: unknown) => E,
+  maxBytes?: number,
+  signal?: AbortSignal,
 ): Promise<E | undefined> {
   if (decoder === undefined) return undefined;
   try {
-    return decoder(await response.json());
+    const body = maxBytes === undefined
+      ? await response.json()
+      : await readBoundedErrorJson(response, maxBytes, signal);
+    return decoder(body);
   } catch {
     return undefined;
+  }
+}
+
+/** Limit actual bytes, not Content-Length, and stop stalled bodies at the deadline. */
+async function readBoundedErrorJson(response: Response, maxBytes: number, signal?: AbortSignal): Promise<unknown> {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 65536 || !response.body)
+    throw new Error("Invalid error body budget");
+  const reader = response.body.getReader();
+  let onAbort: (() => void) | undefined;
+  const aborted = new Promise<never>((_, reject) => {
+    onAbort = () => reject(new Error("Error body deadline exceeded"));
+    if (signal?.aborted) onAbort();
+    else signal?.addEventListener("abort", onAbort, { once: true });
+  });
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let bytes = 0;
+  let text = "";
+  try {
+    while (true) {
+      const { done, value } = await Promise.race([reader.read(), aborted]);
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > maxBytes) throw new Error("Error body budget exceeded");
+      text += decoder.decode(value, { stream: true });
+    }
+    return JSON.parse(text + decoder.decode());
+  } catch {
+    // Do not await cancellation: an uncooperative stream must not hold the request open.
+    void reader.cancel().catch(() => {});
+    throw new Error("Unreadable error body");
+  } finally {
+    if (onAbort) signal?.removeEventListener("abort", onAbort);
+    reader.releaseLock();
   }
 }

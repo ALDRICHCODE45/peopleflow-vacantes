@@ -32,6 +32,103 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("opt-in response headers", () => {
+  const selected = ["etag", "idempotency-replayed"] as const;
+  const headerValues = { ETag: '"opaque-draft-tag"', "Idempotency-Replayed": "false", "Set-Cookie": "secret-cookie", Authorization: "secret-token" };
+  const withHeaders = (status = 200, body: unknown = { hello: "mundo" }) => ({
+    ...response(status, body), headers: new Headers(headerValues),
+  });
+
+  it("captures only requested allowed headers on a successfully decoded response", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(withHeaders(201));
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await requestJson(url, { decoder, expectedStatus: 201, captureResponseHeaders: selected });
+    expect(result).toEqual({ ok: true, data: { hello: "mundo" }, headers: { etag: '"opaque-draft-tag"', "idempotency-replayed": "false" } });
+    expect(Object.hasOwn(result, "headers")).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect([...new Headers(init.headers).keys()]).toEqual(["accept"]);
+    expect(init.cache).toBe("no-store");
+    expect(init.method).toBeUndefined();
+    expect(init.body).toBeUndefined();
+    expect(init.redirect).toBeUndefined();
+    expect(init.credentials).toBeUndefined();
+  });
+
+  it("preserves final response values without constructing tags or parsing replay booleans", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ...withHeaders(), redirected: true, headers: new Headers({ etag: 'W/"tag"', "idempotency-replayed": "true" }) }));
+    expect(await requestJson(url, { decoder, captureResponseHeaders: selected })).toEqual({
+      ok: true, data: { hello: "mundo" }, headers: { etag: 'W/"tag"', "idempotency-replayed": "true" },
+    });
+  });
+
+  it("captures a subset, ignores duplicate requests and filters unsafe runtime names", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(withHeaders()));
+    const unsafe = ["etag", "etag", "set-cookie", "authorization", "__proto__"] as unknown as typeof selected;
+    expect(await requestJson(url, { decoder, captureResponseHeaders: unsafe })).toEqual({
+      ok: true, data: { hello: "mundo" }, headers: { etag: '"opaque-draft-tag"' },
+    });
+  });
+
+  it("omits the result key for missing, empty, disallowed and unrequested headers", async () => {
+    for (const captureResponseHeaders of [undefined, [], ["set-cookie"] as unknown as typeof selected]) {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(withHeaders()));
+      const result = await requestJson(url, { decoder, captureResponseHeaders });
+      expect(result).toEqual({ ok: true, data: { hello: "mundo" } });
+      expect(Object.hasOwn(result, "headers")).toBe(false);
+    }
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ...withHeaders(), headers: new Headers() }));
+    const absent = await requestJson(url, { decoder, captureResponseHeaders: selected });
+    expect(absent).toEqual({ ok: true, data: { hello: "mundo" } });
+    expect(Object.hasOwn(absent, "headers")).toBe(false);
+  });
+
+  it("does not read response headers for callers without the option", async () => {
+    const getHeaders = vi.fn(() => { throw new Error("must not access headers"); });
+    const res = response(200, { hello: "mundo" });
+    Object.defineProperty(res, "headers", { get: getHeaders });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(res));
+    expect(await requestJson(url, { decoder })).toEqual({ ok: true, data: { hello: "mundo" } });
+    expect(getHeaders).not.toHaveBeenCalled();
+  });
+
+  it.each([400, 409, 429, 503])("keeps status %s errors and decoded envelopes without headers", async (status) => {
+    const envelope = { code: "failure" };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(withHeaders(status, envelope)));
+    expect(await requestJson(url, { decoder, captureResponseHeaders: selected, errorDecoder: (value) => value })).toEqual({
+      ok: false, error: { kind: "status", status, retryable: status === 429 || status >= 500 }, envelope,
+    });
+  });
+
+  it("preserves not-found, mismatched status, invalid JSON and decoder failure classifications", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(withHeaders(404)));
+    expect(await requestJson(url, { decoder, notFoundStatus: 404, captureResponseHeaders: selected })).toEqual({ ok: false, error: { kind: "not_found", retryable: false, status: 404 } });
+    for (const scenario of ["status", "json", "decoder"]) {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(scenario === "json" ? { ...withHeaders(), json: async () => { throw new Error("secret detail"); } } : withHeaders()));
+      const result = await requestJson(url, {
+        decoder: scenario === "decoder" ? () => { throw new Error("secret detail"); } : decoder,
+        expectedStatus: scenario === "status" ? 201 : 200, captureResponseHeaders: selected,
+      });
+      expect(result).toEqual({ ok: false, error: { kind: "invalid_response", retryable: false } });
+      expect(JSON.stringify(result)).not.toContain("secret");
+    }
+  });
+
+  it("does not attach headers to network errors or timeout while consuming the body", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("secret network detail")));
+    expect(await requestJson(url, { decoder, captureResponseHeaders: selected })).toEqual({ ok: false, error: { kind: "network", retryable: true } });
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", vi.fn((_url: string, init: RequestInit) => Promise.resolve({
+      ...withHeaders(), json: () => new Promise((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () => reject(new Error("secret timeout detail")));
+      }),
+    })));
+    const pending = requestJson(url, { decoder, timeoutMs: 10, captureResponseHeaders: selected });
+    await vi.advanceTimersByTimeAsync(11);
+    expect(await pending).toEqual({ ok: false, error: { kind: "timeout", retryable: true } });
+  });
+});
+
 describe("generic JSON transport", () => {
   it("fetches with no-store and minimal headers, then returns decoded data", async () => {
     const fetchMock = vi
