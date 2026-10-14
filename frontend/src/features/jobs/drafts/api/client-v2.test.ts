@@ -166,7 +166,8 @@ describe("createDraftV2", () => {
     expect(headers.get("content-type")).toBe("application/json");
     expect(headers.get("accept")).toBe("application/json");
     expect(init.cache).toBe("no-store");
-    expect(init.redirect).toBeUndefined();
+    // Credentialed calls never follow redirects (S4: any 3xx is an error).
+    expect(init.redirect).toBe("error");
     expect(init.credentials).toBeUndefined();
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(input.body).toStrictEqual(before);
@@ -356,6 +357,7 @@ describe("getDraftV2", () => {
     expect(headers.get("authorization")).toBe(`Bearer ${TOKEN}`);
     expect([...headers.keys()].sort()).toEqual(["accept", "authorization"]);
     expect(init.cache).toBe("no-store");
+    expect(init.redirect).toBe("error");
   });
 
   it("preserves private correct_option_id, UUID hex case and question/option order verbatim", async () => {
@@ -477,6 +479,7 @@ describe("saveDraftV2", () => {
     expect(headers.get("if-match")).toBe(ETAG);
     expect(headers.get("content-type")).toBe("application/json");
     expect(init.cache).toBe("no-store");
+    expect(init.redirect).toBe("error");
     expect(input.body).toStrictEqual(before);
   });
 

@@ -172,6 +172,7 @@ export async function createDraftV2(input: CreateDraftV2Input): Promise<CreateDr
       decoder: (value: unknown) => draftReadEnvelopeV2Schema.parse(value),
       errorDecoder: decodeErrorEnvelope,
       method: "POST",
+      redirect: "error",
       expectedStatus: CREATE_STATUS,
       body,
       headers: {
@@ -205,6 +206,7 @@ export async function getDraftV2(input: GetDraftV2Input): Promise<GetDraftV2Resu
     {
       decoder: decodeReadEnvelopeV2(input.id),
       errorDecoder: decodeErrorEnvelope,
+      redirect: "error",
       expectedStatus: READ_STATUS,
       headers: { authorization: `Bearer ${input.token.trim()}` },
       captureResponseHeaders: CAPTURE_HEADERS,
@@ -241,6 +243,7 @@ export async function saveDraftV2(input: SaveDraftV2Input): Promise<SaveDraftV2R
       decoder: decodeReadEnvelopeV2(input.id),
       errorDecoder: decodeErrorEnvelope,
       method: "PATCH",
+      redirect: "error",
       expectedStatus: READ_STATUS,
       body,
       headers: {

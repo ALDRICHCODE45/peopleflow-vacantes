@@ -68,9 +68,12 @@ objects are never mutated.
 - Decoded-value validation only: not raw-byte validation, duplicate-key rejection,
   authentication, authorization or proof the v2 endpoint exists. The backend remains
   authoritative and must revalidate.
-- No editor, session, UI saving, publication, migration or database behavior is added.
-- The underlying server `fetch` has no ambient cookie jar; redirect behavior is the
-  transport default and is left unchanged.
+- The adapter itself adds no editor, session or UI behavior; the editor saves through
+  `features/jobs/drafts/actions.ts`. No publication, migration or database behavior.
+- The underlying server `fetch` has no ambient cookie jar. Every call sets
+  `redirect: "error"`: the API never redirects, so a 3xx is a network failure
+  (mutations: uncertain, never followed or retried) and the credential is never
+  forwarded to another location.
 
 ## Tests
 
