@@ -22,10 +22,9 @@ func (t DatabaseTarget) Display() string {
 	return t.Host + ":" + t.Port + "/" + t.Name
 }
 
-// indirectionParams are the libpq/pgx URL query parameters that could resolve a
-// different server or credential file than the explicit loopback host. They
-// are rejected so DATABASE_URL cannot fall back to PGHOST/PGHOSTADDR/PGSERVICE
-// or a pgpass/pg_service file the process never reads.
+// indirectionParams are the libpq/pgx URL query parameters that could override
+// the displayed host or resolve a credential/service file.
+// Reject their presence, even when blank, before opening any connection.
 var indirectionParams = []string{
 	"host", "hostaddr", "service", "servicefile", "passfile", "target_session_attrs",
 }
@@ -33,7 +32,7 @@ var indirectionParams = []string{
 // ParseDatabaseTarget validates that DATABASE_URL points at an explicit local
 // database before any connection is opened. It rejects non-Postgres schemes,
 // remote or multi-host targets, missing hosts (which would let libpq fall back
-// to PGHOST), and every environmental indirection parameter.
+// to PGHOST), and every target override or environmental indirection parameter.
 func ParseDatabaseTarget(dsn string) (DatabaseTarget, error) {
 	if strings.TrimSpace(dsn) == "" {
 		return DatabaseTarget{}, errors.New("local bootstrap: DATABASE_URL is required")
@@ -56,6 +55,11 @@ func ParseDatabaseTarget(dsn string) (DatabaseTarget, error) {
 	for _, name := range indirectionParams {
 		if _, ok := query[name]; ok {
 			return DatabaseTarget{}, errors.New("local bootstrap: DATABASE_URL must not use environmental indirection parameters")
+		}
+	}
+	for _, name := range []string{"dbname", "database", "port"} {
+		if _, ok := query[name]; ok {
+			return DatabaseTarget{}, errors.New("local bootstrap: DATABASE_URL must not use target override parameters")
 		}
 	}
 	host := u.Hostname()

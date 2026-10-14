@@ -85,6 +85,32 @@ func TestParseDatabaseTarget(t *testing.T) {
 	}
 }
 
+func TestParseDatabaseTarget_RejectsTargetOverrides(t *testing.T) {
+	for _, key := range []string{"dbname", "database", "port", "host", "hostaddr", "service", "servicefile", "passfile", "target_session_attrs"} {
+		for _, suffix := range []string{"=override", "=", ""} {
+			t.Run(key+suffix, func(t *testing.T) {
+				dsn := "postgres://fake:fixture@127.0.0.1:5432/local_db?" + key + suffix
+				target, err := ParseDatabaseTarget(dsn)
+				if err == nil {
+					t.Fatalf("target override accepted before connection: %+v", target)
+				}
+				switch key {
+				case "host", "hostaddr", "service", "servicefile", "passfile", "target_session_attrs":
+					if err.Error() != "local bootstrap: DATABASE_URL must not use environmental indirection parameters" {
+						t.Errorf("legacy diagnostic changed: %q", err.Error())
+					}
+				}
+				if target != (DatabaseTarget{}) {
+					t.Errorf("rejected DSN returned an approval target: %+v", target)
+				}
+				if leaks(err.Error(), dsn) || leaks(err.Error(), "fixture") {
+					t.Errorf("rejection exposed DSN credentials: %q", err.Error())
+				}
+			})
+		}
+	}
+}
+
 func TestDatabaseTarget_Display_NoCredentials(t *testing.T) {
 	target, err := ParseDatabaseTarget("postgres://admin:super-secret@127.0.0.1:5432/peopleflow_vacancies")
 	if err != nil {

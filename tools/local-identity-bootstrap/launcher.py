@@ -130,7 +130,8 @@ def prepare(back, front):
         if (db.scheme not in ('postgres', 'postgresql') or not is_loopback_host(db.hostname)
                 or not db.path.strip('/') or any(k in parse_qs(db.query, keep_blank_values=True)
                                                  for k in ('host', 'hostaddr', 'service', 'servicefile',
-                                                           'passfile', 'target_session_attrs'))):
+                                                           'passfile', 'target_session_attrs',
+                                                           'dbname', 'database', 'port'))):
             raise ValueError('database')
         key = secrets.token_hex(32)
         backend = {**safe_env(), **back, 'APP_ENV': 'local',

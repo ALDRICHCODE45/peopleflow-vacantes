@@ -207,6 +207,8 @@ func TestHandler_Stage_BodyGuards(t *testing.T) {
 		{name: "garbage", body: "not-json"},
 		{name: "oversized body", body: "{" + strings.Repeat("a", 5000) + "}"},
 		{name: "array body", body: "[]"},
+		{name: "null body", body: "null"},
+		{name: "whitespace null body", body: " \n null \t"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -220,7 +222,7 @@ func TestHandler_Stage_BodyGuards(t *testing.T) {
 			if h.coord.Pending() {
 				t.Errorf("malformed stage installed a candidate")
 			}
-			if h.verify.callCount() != 0 || h.info.callCount() != 0 {
+			if h.verify.callCount() != 0 || h.info.callCount() != 0 || h.creator.callCount() != 0 || h.applied.Load() != 0 {
 				t.Errorf("malformed stage reached dependencies: verify=%d info=%d", h.verify.callCount(), h.info.callCount())
 			}
 		})

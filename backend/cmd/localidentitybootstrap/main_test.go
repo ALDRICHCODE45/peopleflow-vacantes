@@ -393,6 +393,88 @@ func TestRun_OneShotCreateThenExit(t *testing.T) {
 	}
 }
 
+// failingTerminal exposes read completion independently from resource closure.
+type failingTerminal struct {
+	failure    chan error
+	readDone   chan struct{}
+	prompted   chan struct{}
+	closeCalls atomic.Int32
+	promptOnce sync.Once
+}
+
+func (f *failingTerminal) IsInteractive() bool { return true }
+func (f *failingTerminal) ShowPrompt(string) error {
+	f.promptOnce.Do(func() { close(f.prompted) })
+	return nil
+}
+func (f *failingTerminal) ReadLine() (string, error) {
+	defer close(f.readDone)
+	return "", <-f.failure
+}
+func (f *failingTerminal) Close() error {
+	f.closeCalls.Add(1)
+	return nil // ReadLine has already returned on every tested path.
+}
+
+func TestRun_TerminalReadFailure(t *testing.T) {
+	for _, staged := range []bool{false, true} {
+		for _, readErr := range []error{io.EOF, errors.New("private raw read failure")} {
+			name := "before_stage/" + readErr.Error()
+			if staged {
+				name = "after_stage/" + readErr.Error()
+			}
+			t.Run(name, func(t *testing.T) {
+				s := newSpy(t)
+				term := &failingTerminal{failure: make(chan error, 1), readDone: make(chan struct{}), prompted: make(chan struct{})}
+				rt := s.runtime(testEnv(nil))
+				rt.NewTerminal = func() (localbootstrap.Terminal, error) { return term, nil }
+				var stderr bytes.Buffer
+				rt.Stderr = &stderr
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				done := make(chan error, 1)
+				go func() { done <- Run(ctx, rt) }()
+				addr := waitForAddr(t, s.listenCh)
+				if staged {
+					stageOnce(t, addr, nil)
+					select {
+					case <-term.prompted:
+					case <-time.After(time.Second):
+						t.Fatal("no approval prompt")
+					}
+				}
+				term.failure <- readErr
+				select {
+				case err := <-done:
+					if err == nil || err.Error() != "local bootstrap: the private terminal closed before approval" {
+						t.Errorf("Run error = %v, want sanitized terminal closure", err)
+					}
+				case <-time.After(time.Second):
+					cancel()
+					select {
+					case <-done:
+					case <-time.After(time.Second):
+						t.Fatal("cancellation did not join Run")
+					}
+					t.Fatal("terminal read failure did not terminate approval wait")
+				}
+				select {
+				case <-term.readDone:
+				default:
+					t.Error("reader did not exit")
+				}
+				if term.closeCalls.Load() != 1 || atomic.LoadInt32(&s.pool.closeCalls) != 1 || s.creatorCallCount() != 0 {
+					t.Errorf("terminal closes=%d pool closes=%d creates=%d", term.closeCalls.Load(), s.pool.closeCalls, s.creatorCallCount())
+				}
+				want := "localidentitybootstrap: listening on " + addr + " (scope: users-only, user_type: recruiter)\n"
+				if s.stdout.String() != want || stderr.String() != "" {
+					t.Error("unexpected public output")
+				}
+			})
+		}
+	}
+}
+
 func waitForAddr(t *testing.T, ch chan string) string {
 	t.Helper()
 	select {

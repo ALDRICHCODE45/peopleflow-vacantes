@@ -22,6 +22,9 @@ existing identity use case, after an explicit private-terminal approval.
   or logged.
 - Exactly one creation attempt per process. No retry after an ambiguous database
   error. The process exits after the apply attempt, a reject, or expiry.
+- Terminal EOF or read failure cancels the wait even before a candidate is
+  staged, clears pending approval, and exits with a fixed sanitized error; no
+  approval is inferred from terminal closure.
 - Shutdown joins the single terminal reader deterministically: the terminal is
   closed exactly once to unblock a pending read, and no reader goroutine is left
   blocked on a channel send.

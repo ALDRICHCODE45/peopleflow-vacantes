@@ -208,6 +208,13 @@ func Run(ctx context.Context, rt Runtime) error {
 // and drives exactly one approval decision. Rejection, expiry, a closed
 // terminal and context cancellation all clear the state and exit safely.
 func awaitOperator(ctx context.Context, term localbootstrap.Terminal, closeTerminal func(), closable bool, coordinator *localbootstrap.Coordinator, cfg localbootstrap.Config, applied <-chan struct{}) error {
+	// Read failure cancels the candidate wait as well as the later approval wait.
+	readerCtx, cancelReader := context.WithCancel(ctx)
+	defer cancelReader()
+	terminalClosed := func() error {
+		coordinator.Reject()
+		return errors.New("local bootstrap: the private terminal closed before approval")
+	}
 	lines := make(chan string)
 	stop := make(chan struct{})
 	readerDone := make(chan struct{})
@@ -215,9 +222,11 @@ func awaitOperator(ctx context.Context, term localbootstrap.Terminal, closeTermi
 	// shutdown never leaves it blocked on the channel.
 	go func() {
 		defer close(readerDone)
+		defer close(lines)
 		for {
 			line, err := term.ReadLine()
 			if err != nil {
+				cancelReader()
 				return
 			}
 			select {
@@ -242,13 +251,23 @@ func awaitOperator(ctx context.Context, term localbootstrap.Terminal, closeTermi
 	}
 	defer stopReader()
 
-	candidate, err := coordinator.WaitForCandidate(ctx)
+	candidate, err := coordinator.WaitForCandidate(readerCtx)
 	if err != nil {
 		coordinator.Reject()
+		if ctx.Err() == nil {
+			return terminalClosed()
+		}
 		return nil
 	}
 
 	for {
+		if ctx.Err() != nil {
+			coordinator.Reject()
+			return nil
+		}
+		if readerCtx.Err() != nil {
+			return terminalClosed()
+		}
 		if err := term.ShowPrompt(localbootstrap.ApprovalPrompt(candidate, cfg.Issuer)); err != nil {
 			coordinator.Reject()
 			return errors.New("local bootstrap: the private terminal is unavailable")
@@ -257,9 +276,8 @@ func awaitOperator(ctx context.Context, term localbootstrap.Terminal, closeTermi
 		select {
 		case line, ok := <-lines:
 			timer.Stop()
-			if !ok {
-				coordinator.Reject()
-				return errors.New("local bootstrap: the private terminal closed before approval")
+			if !ok || readerCtx.Err() != nil {
+				return terminalClosed()
 			}
 			decision, code := localbootstrap.ParseOperatorLine(line)
 			switch decision {
@@ -269,7 +287,11 @@ func awaitOperator(ctx context.Context, term localbootstrap.Terminal, closeTermi
 			case localbootstrap.DecisionApprove:
 				switch err := coordinator.Approve(code); {
 				case err == nil:
-					return waitForApply(ctx, coordinator, applied, candidate.ExpiresAt)
+					err := waitForApply(readerCtx, coordinator, applied, candidate.ExpiresAt)
+					if readerCtx.Err() != nil && ctx.Err() == nil {
+						return terminalClosed()
+					}
+					return err
 				case errors.Is(err, localbootstrap.ErrOperationExpired):
 					coordinator.Reject()
 					return nil

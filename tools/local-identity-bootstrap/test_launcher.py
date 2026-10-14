@@ -187,6 +187,15 @@ class LauncherTests(unittest.TestCase):
                     self.assertEqual((code, output), (2, 'PRIVATE_CONFIGURATION_REJECTED\n'))
                     self.assert_database_rejected_without_children()
 
+    def test_database_target_overrides_are_rejected_before_children(self):
+        for key in ('dbname', 'database', 'port'):
+            for suffix in ('=override', '=', ''):
+                with self.subTest(key=key, suffix=suffix):
+                    self.set_database(f'postgres://fake:fixture@127.0.0.1:5432/disposable?{key}{suffix}')
+                    code, output = self.run_tty(self.command())
+                    self.assertEqual((code, output), (2, 'PRIVATE_CONFIGURATION_REJECTED\n'))
+                    self.assert_database_rejected_without_children()
+
     def test_sigterm_stops_both_fake_children_without_retry(self):
         self.addCleanup(self.emergency_fixture_cleanup)
         self.binary.write_text(self.binary.read_text() + "Path('fixture-pid').write_text(str(os.getpid()))\ntime.sleep(60)\n")

@@ -103,8 +103,8 @@ func (h *Handler) stage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, codeUnauthenticated)
 		return
 	}
-	var body struct{}
-	if err := decodeStrict(r, &body); err != nil {
+	var body *struct{}
+	if err := decodeStrict(r, &body); err != nil || body == nil {
 		writeError(w, http.StatusBadRequest, codeInvalidRequest)
 		return
 	}
