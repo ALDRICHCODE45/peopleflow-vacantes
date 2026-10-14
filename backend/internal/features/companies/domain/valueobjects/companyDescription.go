@@ -1,6 +1,9 @@
 package valueobjects
 
-import "errors"
+import (
+	"errors"
+	"unicode/utf8"
+)
 
 // ErrCompanyDescriptionTooLong is returned when the description exceeds 3000 characters.
 var ErrCompanyDescriptionTooLong = errors.New("la descripción de la compañía no puede exceder 3000 caracteres")
@@ -20,7 +23,7 @@ type CompanyDescription struct {
 // NewCompanyDescription builds a CompanyDescription, returning
 // ErrCompanyDescriptionTooLong when the input exceeds the maximum allowed length.
 func NewCompanyDescription(description string) (CompanyDescription, error) {
-	if len(description) > companyDescriptionMaxLen {
+	if utf8.RuneCountInString(description) > companyDescriptionMaxLen {
 		return CompanyDescription{}, ErrCompanyDescriptionTooLong
 	}
 	return CompanyDescription{value: description}, nil

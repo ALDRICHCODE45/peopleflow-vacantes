@@ -4,6 +4,7 @@ package valueobjects
 import (
 	"errors"
 	"strings"
+	"unicode/utf8"
 )
 
 // ErrCompanyRfcInvalidLength is returned when the RFC is not exactly 12 characters.
@@ -16,7 +17,8 @@ type CompanyRfc struct {
 func NewCompanyRfc(rfc string) (CompanyRfc, error) {
 	cleanRfc := strings.ToUpper(strings.TrimSpace(rfc))
 
-	if len(cleanRfc) != 12 {
+	// Count characters, not bytes: a valid RFC may contain Ñ.
+	if utf8.RuneCountInString(cleanRfc) != 12 {
 		return CompanyRfc{}, ErrCompanyRfcInvalidLength
 	}
 

@@ -4,6 +4,7 @@ package valueobjects
 import (
 	"errors"
 	"strings"
+	"unicode/utf8"
 )
 
 // ErrCompanyNameTooShort is returned when the name has fewer than 4 characters.
@@ -16,7 +17,7 @@ type CompanyName struct {
 func NewCompanyName(name string) (CompanyName, error) {
 	cleanName := strings.TrimSpace(name)
 
-	if len(cleanName) <= 3 {
+	if utf8.RuneCountInString(cleanName) <= 3 {
 		return CompanyName{}, ErrCompanyNameTooShort
 	}
 
