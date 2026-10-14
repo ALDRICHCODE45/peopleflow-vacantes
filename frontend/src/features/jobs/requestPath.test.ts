@@ -47,8 +47,15 @@ describe("single application-facing request path", () => {
     ]);
   });
 
-  it("defines no Next route-handler proxy and no client store", () => {
-    expect(files.some((file) => file.endsWith("route.ts"))).toBe(false);
+  it("allows only identity route handlers, not application API proxies or client stores", () => {
+    const handlers = files.filter((file) => file.endsWith("route.ts"));
+    expect(handlers.map(rel).sort()).toEqual([
+      "app/api/auth/[...nextauth]/route.ts",
+      "app/api/auth/cognito/logout/route.ts",
+    ]);
+    for (const handler of handlers) {
+      expect(source(handler)).not.toMatch(/lib\/api\/(?:server|requestJson)/);
+    }
     for (const file of files)
       expect(source(file).toLowerCase()).not.toContain("zustand");
   });

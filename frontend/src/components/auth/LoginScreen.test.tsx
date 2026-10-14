@@ -29,6 +29,12 @@ const fetchSpy = vi.fn(() => Promise.reject(new Error("login shell must not call
 // canvas/palette/blend proof lives in the Chromium slice. The stub renders the
 // leaf's own host element and echoes the `variant` prop, which is exactly what
 // the shell must wire.
+// The real managed-login leaf is covered by EmployerAuthControls.test.tsx.
+// Keep shell regression tests independent of live session fetching.
+vi.mock("./EmployerAuthControls", () => ({
+  EmployerAuthControls: () => <button type="button">Ingresar con Cognito</button>,
+}));
+
 vi.mock("./FloatingLines", () => ({
   FloatingLines: ({ variant, className }: { variant: string; className?: string }) => (
     <div data-floating-lines-host="" data-floating-lines-variant={variant} className={className} />
@@ -248,6 +254,9 @@ describe("login routes", () => {
   it("renders the exact variant from each route", () => {
     const employer = render(<EmployerLoginPage />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ingresa a tu cuenta");
+    expect(screen.getByRole("button", { name: "Ingresar con Cognito" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Contraseña")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /continuar con microsoft/i })).not.toBeInTheDocument();
     employer.unmount();
     render(<CandidateLoginPage />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Ingresa a tu perfil");
