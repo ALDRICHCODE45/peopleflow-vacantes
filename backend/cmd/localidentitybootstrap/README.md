@@ -43,7 +43,8 @@ existing identity use case, after an explicit private-terminal approval.
 | `DATABASE_URL` | Explicit loopback Postgres target. |
 
 Run `localidentitybootstrap -h` for the same names, defaults and limitations. The
-help output never prints values.
+help output never prints values. Any other argument, including an extra argument
+after `-h`, exits with status 2.
 
 ## Manual execution (later, explicitly approved)
 

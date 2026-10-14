@@ -348,16 +348,28 @@ func Usage(w io.Writer) {
 	fmt.Fprintln(w, "Real execution against a human database requires separate explicit approval.")
 }
 
+// parseArgs validates the complete argument list: none runs the bootstrap,
+// exactly one help flag requests help, and anything else is rejected.
+func parseArgs(args []string) (help bool, ok bool) {
+	switch {
+	case len(args) == 0:
+		return false, true
+	case len(args) == 1 && (args[0] == "-h" || args[0] == "--help" || args[0] == "help"):
+		return true, true
+	default:
+		return false, false
+	}
+}
+
 func main() {
-	if len(os.Args) > 1 {
-		switch os.Args[1] {
-		case "-h", "--help", "help":
-			Usage(os.Stdout)
-			return
-		default:
-			fmt.Fprintln(os.Stderr, "localidentitybootstrap: unknown argument; only -h/--help is supported")
-			os.Exit(2)
-		}
+	help, ok := parseArgs(os.Args[1:])
+	if !ok {
+		fmt.Fprintln(os.Stderr, "localidentitybootstrap: unknown argument; only -h/--help is supported")
+		os.Exit(2)
+	}
+	if help {
+		Usage(os.Stdout)
+		return
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
