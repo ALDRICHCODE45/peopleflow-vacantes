@@ -43,7 +43,8 @@ def safe_env():
 
 
 def private_file(path):
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    # O_NONBLOCK: a FIFO must reach the regular-file check instead of blocking open.
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, 'rb') as handle:
         if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
             raise PrivateFailure('PRIVATE_CONFIGURATION_LOAD_FAILED')
@@ -203,11 +204,17 @@ def supervise(node, cli, binary, frontend, back_env, front_env, site):
     except Exception:
         raise PrivateFailure('PRIVATE_CHILD_START_FAILED_NO_RETRY') from None
     finally:
-        # Nested finally ensures both are stopped even if one teardown fails.
+        # A repeated interrupt must not abort teardown: the frontend runs in its
+        # own session and would be orphaned. Pending signals arrive afterwards.
+        blocked = signal.pthread_sigmask(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
         try:
-            stop_child(go_child)
+            # Nested finally ensures both are stopped even if one teardown fails.
+            try:
+                stop_child(go_child)
+            finally:
+                stop_child(next_child, group=True)
         finally:
-            stop_child(next_child, group=True)
+            signal.pthread_sigmask(signal.SIG_SETMASK, blocked)
 
 
 def interrupt(_signum, _frame):

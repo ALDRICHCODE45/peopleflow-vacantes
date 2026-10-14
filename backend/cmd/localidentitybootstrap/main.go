@@ -196,12 +196,19 @@ func Run(ctx context.Context, rt Runtime) error {
 
 	loopErr := awaitOperator(ctx, term, closeTerminal, closable, coordinator, cfg, applied)
 
-	// Graceful shutdown lets the single apply response flush before exit.
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-	_ = server.Shutdown(shutdownCtx)
+	shutdownServer(server, shutdownTimeout)
 	<-serveDone
 	return loopErr
+}
+
+// shutdownServer lets the single apply response flush before exit, then
+// force-closes any connection still open when the graceful window ends.
+func shutdownServer(server *http.Server, timeout time.Duration) {
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		_ = server.Close()
+	}
 }
 
 // awaitOperator waits for one staged candidate, prompts the private terminal,
@@ -288,7 +295,8 @@ func awaitOperator(ctx context.Context, term localbootstrap.Terminal, closeTermi
 				switch err := coordinator.Approve(code); {
 				case err == nil:
 					err := waitForApply(readerCtx, coordinator, applied, candidate.ExpiresAt)
-					if readerCtx.Err() != nil && ctx.Err() == nil {
+					// A completed apply is the outcome even if the terminal closed with it.
+					if readerCtx.Err() != nil && ctx.Err() == nil && !applyCompleted(applied) {
 						return terminalClosed()
 					}
 					return err
@@ -320,13 +328,23 @@ func waitForApply(ctx context.Context, coordinator *localbootstrap.Coordinator, 
 	defer timer.Stop()
 	select {
 	case <-applied:
-		return nil
 	case <-timer.C:
-		coordinator.Reject()
-		return nil
 	case <-ctx.Done():
+	}
+	// select picks randomly among ready cases; a completed apply always wins.
+	if !applyCompleted(applied) {
 		coordinator.Reject()
-		return nil
+	}
+	return nil
+}
+
+// applyCompleted reports, without blocking, whether the single apply finished.
+func applyCompleted(applied <-chan struct{}) bool {
+	select {
+	case <-applied:
+		return true
+	default:
+		return false
 	}
 }
 

@@ -67,19 +67,26 @@ class LauncherTests(unittest.TestCase):
         for path, digest in self.original.items():
             self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), digest)
 
-    def run_tty(self, command, interrupt=False):
+    def run_tty(self, command, interrupt=False, repeat_after=None):
         pid, fd = pty.fork()
         if pid == 0:
             # Fixture-only absolute Python executable and argv; never a shell.
             os.execv(command[0], command)  # noqa: S606
         output = bytearray()
         status = None
+        repeat_at = None
         try:
             end = time.monotonic() + 8
             while time.monotonic() < end:
                 if interrupt and (self.backend / 'backend-result.json').exists():
                     os.kill(pid, signal.SIGTERM)
                     interrupt = False
+                    if repeat_after is not None:
+                        repeat_at = time.monotonic() + repeat_after
+                if repeat_at is not None and time.monotonic() >= repeat_at:
+                    # A second interrupt while the launcher is tearing down.
+                    os.kill(pid, signal.SIGTERM)
+                    repeat_at = None
                 if select.select([fd], [], [], .05)[0]:
                     try:
                         chunk = os.read(fd, 65536)
@@ -208,6 +215,33 @@ class LauncherTests(unittest.TestCase):
             status = Path(f'/proc/{pid}/stat')
             self.assertTrue(not status.exists() or status.read_text().split()[2] == 'Z')
         self.assert_unchanged()
+
+    def test_repeated_sigterm_during_teardown_still_stops_frontend(self):
+        self.addCleanup(self.emergency_fixture_cleanup)
+        self.binary.write_text(self.binary.read_text() + "time.sleep(60)\n")
+        cli = self.frontend / 'node_modules' / 'next' / 'dist' / 'bin' / 'next.js'
+        # The fake frontend ignores SIGTERM, so teardown must wait and escalate.
+        cli.write_text("process.on('SIGTERM',()=>{});require('fs').writeFileSync('fixture-pid',String(process.pid));" + cli.read_text())
+        code, output = self.run_tty(self.command(), interrupt=True, repeat_after=.5)
+        self.assertEqual((code, output), (130, 'FAKE_PRIVATE_PROMPT\nPRIVATE_LAUNCH_INTERRUPTED_NO_RETRY\n'))
+        pid = int((self.frontend / 'fixture-pid').read_text())
+        status = Path(f'/proc/{pid}/stat')
+        self.assertTrue(not status.exists() or status.read_text().split()[2] == 'Z', 'frontend orphaned after repeated SIGTERM')
+        self.assert_unchanged()
+
+    def test_private_file_rejects_fifo_without_blocking(self):
+        fifo = self.backend / 'fifo.env'
+        os.mkfifo(fifo)
+        probe = ('import sys; sys.path.insert(0, sys.argv[1]); import launcher\n'
+                 'try:\n launcher.private_file(sys.argv[2])\n'
+                 'except launcher.PrivateFailure as failure:\n print(failure)\n')
+        try:
+            result = subprocess.run([sys.executable, '-c', probe, str(self.tool), str(fifo)],
+                                    capture_output=True, text=True, timeout=3)
+        except subprocess.TimeoutExpired:
+            self.fail('private_file blocked on a FIFO')
+        self.assertEqual((result.returncode, result.stdout, result.stderr),
+                         (0, 'PRIVATE_CONFIGURATION_LOAD_FAILED\n', ''))
 
     def test_loader_failure_is_sanitized_without_children(self):
         module = self.frontend / 'node_modules' / 'next' / 'node_modules' / '@next' / 'env' / 'index.js'

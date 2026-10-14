@@ -49,7 +49,8 @@ Child stdout/stderr are discarded; Go's private `/dev/tty` prompt remains visibl
 ## Lifecycle and limits
 
 - One Next child and one prebuilt Go child; no retries or auto-approval.
-- Stop both on Go exit, Next exit, Ctrl-C/SIGTERM or the ten-minute limit, with bounded TERM/KILL escalation. Next uses its own process group; Go stays in the human foreground group.
+- Stop both on Go exit, Next exit, Ctrl-C/SIGTERM or the ten-minute limit, with bounded TERM/KILL escalation. Next uses its own process group; Go stays in the human foreground group. A repeated Ctrl-C/SIGTERM during teardown is deferred until both children are stopped, so it cannot orphan Next.
+- Dotenv paths that are not regular files (including FIFOs) are rejected without blocking.
 - SIGKILL, workstation/process crashes and untrusted executables are outside graceful cleanup guarantees. The operator must inspect/stop leftover processes privately in those cases.
 - Exit `0`/`PRIVATE_LAUNCH_ENDED` means the supervisor ended, **not** that a user was created. Go rejection/expiry can also exit cleanly.
 - Fixed `PRIVATE_*` failures suppress parser/child errors. Stop and obtain a human decision; do not automatically retry an unavailable or ambiguous real attempt.

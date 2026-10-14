@@ -24,10 +24,13 @@ existing identity use case, after an explicit private-terminal approval.
   error. The process exits after the apply attempt, a reject, or expiry.
 - Terminal EOF or read failure cancels the wait even before a candidate is
   staged, clears pending approval, and exits with a fixed sanitized error; no
-  approval is inferred from terminal closure.
+  approval is inferred from terminal closure. Once an approved apply has
+  completed, a terminal closing at the same moment does not turn that success
+  into an error exit.
 - Shutdown joins the single terminal reader deterministically: the terminal is
   closed exactly once to unblock a pending read, and no reader goroutine is left
-  blocked on a channel send.
+  blocked on a channel send. The HTTP server gets a bounded graceful window to
+  flush the apply response; connections still open afterwards are force-closed.
 
 ## Environment (names only)
 
