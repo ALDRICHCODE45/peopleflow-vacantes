@@ -47,6 +47,7 @@ describe("single application-facing request path", () => {
       "features/jobs/api/getJob.ts",
       "features/jobs/api/listJobs.ts",
       "features/jobs/create/createJob.ts",
+      "features/jobs/drafts/api/client-v2.ts",
       "features/jobs/drafts/api/client.ts",
       "lib/auth/backend-check.ts",
     ]);
@@ -60,6 +61,7 @@ describe("single application-facing request path", () => {
       "features/jobs/api/getJob.ts",
       "features/jobs/api/listJobs.ts",
       "features/jobs/create/createJob.ts",
+      "features/jobs/drafts/api/client-v2.ts",
       "features/jobs/drafts/api/client.ts",
       "lib/api/server.ts",
       "lib/auth/backend-check.ts",
