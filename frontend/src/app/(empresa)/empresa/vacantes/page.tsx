@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { PlusIcon } from "lucide-react"
+import { FilePlus2Icon, PlusIcon } from "lucide-react"
 
 import { SiteHeader } from "@/components/company-dashboard/site-header"
 import { DashboardPageContent } from "@/components/dashboard-page-content"
@@ -40,16 +40,28 @@ export default function Page() {
             <p className="max-w-prose text-[13.5px] text-muted-foreground">
               Gestiona tus vacantes y su publicación en la bolsa de trabajo.
             </p>
-            <Link
-              href="/empresa/vacantes/nueva"
-              className={cn(
-                buttonVariants({ variant: "default", size: "lg" }),
-                "h-10 gap-2 px-4",
-              )}
-            >
-              <PlusIcon aria-hidden="true" className="size-4" />
-              Nueva vacante
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                href="/empresa/vacantes/borradores/nuevo"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "lg" }),
+                  "h-10 gap-2 px-4",
+                )}
+              >
+                <FilePlus2Icon aria-hidden="true" className="size-4" />
+                Nuevo borrador
+              </Link>
+              <Link
+                href="/empresa/vacantes/nueva"
+                className={cn(
+                  buttonVariants({ variant: "default", size: "lg" }),
+                  "h-10 gap-2 px-4",
+                )}
+              >
+                <PlusIcon aria-hidden="true" className="size-4" />
+                Nueva vacante
+              </Link>
+            </div>
           </section>
           <VacancyPortfolio vacancies={NEXO_VACANCIES} />
         </DashboardPageContent>

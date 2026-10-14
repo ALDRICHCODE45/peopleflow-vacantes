@@ -114,6 +114,24 @@ describe("/empresa/vacantes employer route", () => {
     expect(cta).toHaveAttribute("href", "/empresa/vacantes/nueva");
   });
 
+  it("adds the local-draft entry alongside the preserved create-vacancy link", () => {
+    render(<Page />);
+
+    const draftLink = screen.getByRole("link", { name: /Nuevo borrador/i });
+    expect(draftLink).toHaveAttribute(
+      "href",
+      "/empresa/vacantes/borradores/nuevo",
+    );
+
+    const createLink = screen.getByRole("link", { name: /Nueva vacante/i });
+    expect(createLink).toHaveAttribute("href", "/empresa/vacantes/nueva");
+
+    // Both entry points share the intro row, so the draft link is additive.
+    const intro = document.querySelector("[data-pf-vacantes-intro]");
+    expect(intro!.contains(draftLink)).toBe(true);
+    expect(intro!.contains(createLink)).toBe(true);
+  });
+
   it("renders no route-level local-demo disclosure or implementation-status copy", () => {
     render(<Page />);
 
@@ -169,6 +187,11 @@ describe("/empresa/vacantes composition boundary", () => {
   it("mounts the shared header, the portfolio and the Nexo fixtures", () => {
     expect(pageSource).toContain('<SiteHeader title="Vacantes" />');
     expect(pageSource).toContain("<VacancyPortfolio vacancies={NEXO_VACANCIES} />");
+  });
+
+  it("keeps the create-vacancy link while adding the local-draft link", () => {
+    expect(pageSource).toContain('href="/empresa/vacantes/nueva"');
+    expect(pageSource).toContain('href="/empresa/vacantes/borradores/nuevo"');
   });
 
   it("stays a server component", () => {
