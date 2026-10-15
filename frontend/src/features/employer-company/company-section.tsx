@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Building2, Factory, Fingerprint, ShieldCheck, UsersRound } from "lucide-react";
 import { sileo } from "sileo";
+import { ActionErrorAlert } from "@/components/feedback/action-error-alert";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,12 +27,26 @@ const MESSAGES = {
   forbidden: "Necesitas una cuenta de reclutador para crear una empresa.",
   already_exists: "Ya tienes una empresa o el RFC ya está registrado.",
   industry_unavailable: "Esta industria ya no está disponible. Selecciona otra.",
-  unavailable: "No pudimos confirmar la creación. Consulta el estado de tu empresa antes de volver a enviarla.",
+  server_error: "La empresa podría haberse creado. Consulta su estado antes de intentar crearla de nuevo.",
+  no_response: "La empresa podría haberse creado. Consulta su estado antes de intentar crearla de nuevo.",
+  unrecognized_response: "La empresa podría haberse creado. Consulta su estado antes de intentar crearla de nuevo.",
+  unauthenticated: "Inicia sesión en otra pestaña. Tus datos siguen en este formulario.",
+};
+const TITLES = {
+  forbidden: "No tienes permiso para esta acción",
+  already_exists: "Esto cambió en otro lugar",
+  industry_unavailable: "Revisa los datos de la empresa",
+  invalid: "Revisa los datos de la empresa",
+  unauthenticated: "Tu sesión expiró",
+  server_error: "El servidor tuvo un problema",
+  no_response: "No hubo respuesta del servidor",
+  unrecognized_response: "No pudimos confirmar el resultado",
 };
 
-function LoginNotice() {
-  return <div className="flex flex-col items-start gap-3"><p>Inicia sesión para consultar o crear tu empresa.</p><Link href="/empresa/login" className={buttonVariants({ variant: "outline", className: "min-h-10" })}>Iniciar sesión</Link></div>;
+function needsReload(kind: string | undefined) {
+  return kind === "server_error" || kind === "no_response" || kind === "unrecognized_response" || kind === "already_exists";
 }
+const login = <Link href="/empresa/login" target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "outline", className: "min-h-10" })}>Iniciar sesión</Link>;
 
 export function CompanySection() {
   const [state, setState] = useState<CompanyState | { kind: "loading" }>({ kind: "loading" });
@@ -40,58 +55,63 @@ export function CompanySection() {
   const [result, setResult] = useState<CreateCompanyState | null>(null);
   const [pending, setPending] = useState(false);
   const [reloading, setReloading] = useState(false);
+  const [at, setAt] = useState<string>();
   const submitting = useRef(false);
   const industries = state.kind === "none" ? state.industries : undefined;
   const industryItems = useMemo(() => industries?.map(item => ({ value: item.id, label: item.label_es })) ?? [], [industries]);
 
   useEffect(() => {
     let active = true;
-    loadCompanyStateAction().then(next => { if (active) setState(next); }).catch(() => { if (active) setState({ kind: "unavailable" }); });
+    setAt(new Date().toISOString());
+    loadCompanyStateAction().then(next => { if (active) setState(next); }).catch(() => { if (active) setState({ kind: "no_response", reference: {} }); });
     return () => { active = false; };
   }, []);
 
   async function reload() {
     if (reloading) return;
     setReloading(true);
+    setAt(new Date().toISOString());
     try {
       const next = await loadCompanyStateAction();
-      // A failed reconciliation must not unlock another uncertain mutation.
-      if (next.kind !== "unavailable" || state.kind !== "none") {
-        setState(next);
-        setResult(null);
-      }
+      // Keep entered fields and require reconciliation before another uncertain create.
+      if (state.kind === "none" && "reference" in next) setResult(next);
+      else { setState(next); setResult(null); }
     } catch {
-      if (state.kind !== "none") setState({ kind: "unavailable" });
+      const failure = { kind: "no_response", reference: {} } as const;
+      if (state.kind === "none") setResult(failure);
+      else setState(failure);
     } finally { setReloading(false); }
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (submitting.current || reloading || result?.kind === "unavailable") return;
+    if (submitting.current || reloading || needsReload(result?.kind)) return;
     const validation = validateCompany(input);
     setFields(validation.fields);
     setResult(null);
     if (Object.keys(validation.fields).length) return;
     submitting.current = true;
     setPending(true);
+    setAt(new Date().toISOString());
     let next: CreateCompanyState;
     try { next = await createCompanyAction(validation.value); }
-    catch { next = { kind: "unavailable" }; }
+    catch { next = { kind: "no_response", reference: {} }; }
     submitting.current = false;
     setPending(false);
     if (next.kind === "created") {
       const industryLabel = state.kind === "none" ? state.industries.find(item => item.id === next.company.industry_id)?.label_es ?? "No disponible" : "No disponible";
       setState({ kind: "exists", company: next.company, role: "owner", industryLabel });
       sileo.success({ title: "Empresa creada" });
-    } else if (next.kind === "unauthenticated") setState({ kind: "unauthenticated" });
-    else {
+      setResult(null);
+    } else {
       setResult(next);
       if (next.kind === "invalid") setFields(next.fields ?? {});
     }
   }
 
-  const retry = <Button type="button" variant="outline" className="min-h-10" disabled={reloading} aria-busy={reloading} onClick={reload}>{reloading && <Spinner data-icon="inline-start" aria-hidden="true" />}{reloading ? "Consultando…" : "Reintentar"}</Button>;
-  const errorMessage = result?.kind === "invalid" ? result.message : result && result.kind in MESSAGES ? MESSAGES[result.kind as keyof typeof MESSAGES] : undefined;
+  const retry = <Button type="button" variant="outline" className="min-h-10" disabled={reloading} aria-busy={reloading} aria-describedby="company-action-error" onClick={reload}>{reloading && <Spinner data-icon="inline-start" aria-hidden="true" />}{reloading ? "Consultando…" : "Reintentar"}</Button>;
+  const errorMessage = result?.kind === "invalid" ? result.message ?? "Corrige los campos marcados antes de volver a crear la empresa." : result && result.kind in MESSAGES ? MESSAGES[result.kind as keyof typeof MESSAGES] : undefined;
+  const failedResult = result && result.kind !== "created" ? result : null;
 
   return (
     <section aria-labelledby="company-heading" id="empresa-identidad">
@@ -105,8 +125,8 @@ export function CompanySection() {
         </CardHeader>
         <CardContent>
           {state.kind === "loading" && <div aria-busy="true" className="flex flex-col gap-5"><span role="status" className="sr-only">Cargando empresa</span>{[0, 1, 2].map(key => <div key={key} aria-hidden="true" className="flex flex-col gap-2"><Skeleton className="h-4 w-36" /><Skeleton className="h-10 w-full" /></div>)}</div>}
-          {state.kind === "unauthenticated" && <LoginNotice />}
-          {state.kind === "unavailable" && <div className="flex flex-col items-start gap-3"><p role="alert">No pudimos consultar tu empresa. Inténtalo de nuevo.</p>{retry}</div>}
+          {state.kind === "unauthenticated" && <ActionErrorAlert id="company-action-error" title="Tu sesión expiró" description="Inicia sesión para consultar o crear tu empresa." action={login} reference={{...state.reference, at}} />}
+          {(state.kind === "server_error" || state.kind === "no_response" || state.kind === "unrecognized_response") && <ActionErrorAlert id="company-action-error" title="No pudimos cargar tu empresa" description={state.kind === "server_error" ? "El servidor tuvo un problema. Puedes volver a consultar sin crear otra empresa." : state.kind === "no_response" ? "No hubo respuesta del servidor. Puedes volver a consultar sin crear otra empresa." : "No pudimos confirmar el resultado. Puedes volver a consultar sin crear otra empresa."} action={retry} reference={{...state.reference, at}} />}
           {state.kind === "exists" && <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-center gap-3"><p className="font-heading text-lg font-semibold">{state.company.name}</p><Badge variant={STATUS[state.company.status].variant} dot>{STATUS[state.company.status].label}</Badge></div>
             <dl className="grid gap-5 sm:grid-cols-3">
@@ -136,8 +156,8 @@ export function CompanySection() {
                 <FieldError id="company-industry-error">{fields.industryId}</FieldError>
               </Field>
             </FieldGroup>
-            {errorMessage && <FieldError>{errorMessage}</FieldError>}
-            {result?.kind === "unavailable" ? <div className="flex justify-start">{retry}</div> : <Button type="submit" className="min-h-10 self-start" disabled={pending || reloading} aria-busy={pending}>{pending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <ShieldCheck data-icon="inline-start" aria-hidden="true" />}{pending ? "Creando empresa…" : "Crear empresa"}</Button>}
+            {errorMessage && failedResult && <ActionErrorAlert key={at} id="company-action-error" title={TITLES[failedResult.kind]} description={errorMessage} action={failedResult.kind === "unauthenticated" ? login : needsReload(failedResult.kind) ? retry : undefined} reference={{...failedResult.reference, at}} />}
+            {!needsReload(result?.kind) && <Button type="submit" className="min-h-10 self-start" disabled={pending || reloading} aria-busy={pending} aria-describedby={errorMessage ? "company-action-error" : undefined}>{pending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <ShieldCheck data-icon="inline-start" aria-hidden="true" />}{pending ? "Creando empresa…" : "Crear empresa"}</Button>}
           </form>}
         </CardContent>
       </Card>

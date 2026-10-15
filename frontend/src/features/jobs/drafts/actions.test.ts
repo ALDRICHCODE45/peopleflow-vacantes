@@ -14,9 +14,19 @@ beforeEach(() => {
 describe("saveDraftV2Action", () => {
   it("fails closed with no session and never calls either client", async () => {
     vi.mocked(getActionAccessToken).mockResolvedValue(null);
-    expect(await saveDraftV2Action(input)).toEqual({ ok: false, reason: "unauthenticated" });
+    expect(await saveDraftV2Action(input)).toEqual({ ok: false, reason: "unauthenticated", reference: {} });
     expect(createDraftV2).not.toHaveBeenCalled();
     expect(saveDraftV2).not.toHaveBeenCalled();
+  });
+  it("returns a serializable failure when session resolution throws", async () => {
+    vi.mocked(getActionAccessToken).mockRejectedValue(new Error("secret-access-token"));
+    expect(await saveDraftV2Action(input)).toEqual({ok:false,reason:"no_response",reference:{}});
+    expect(createDraftV2).not.toHaveBeenCalled();
+  });
+  it("fails closed on a blank session without network", async () => {
+    vi.mocked(getActionAccessToken).mockResolvedValue("  ");
+    expect(await saveDraftV2Action(input)).toEqual({ok:false,reason:"unauthenticated",reference:{}});
+    expect(createDraftV2).not.toHaveBeenCalled();
   });
   it("creates with exact credential/key/body and returns only serializable save metadata", async () => {
     vi.mocked(createDraftV2).mockResolvedValue({ ok: true, data, etag: '"opaque"', idempotencyReplayed: "true" } as never);
@@ -35,28 +45,30 @@ describe("saveDraftV2Action", () => {
   const failures: [DraftV2Failure["error"], string | undefined, string][] = [
     [{ kind: "missing_token", retryable: false }, undefined, "unauthenticated"],
     [{ kind: "invalid_request", retryable: false }, undefined, "invalid_request"],
-    ...([401, 403, 404, 409, 412, 428, 400, 413, 500, 503, 302] as const).map((status) => [
+    ...([401, 403, 404, 409, 412, 428, 400, 413, 500, 502, 302] as const).map((status) => [
       { kind: "status", status, retryable: false }, undefined,
-      ({401:"unauthenticated",403:"forbidden",404:"not_found",409:"uncertain",412:"version_conflict",428:"precondition_required",400:"invalid_request",413:"payload_too_large"} as Record<number,string>)[status] ?? "uncertain",
+      ({401:"unauthenticated",403:"forbidden",404:"not_found",409:"unrecognized_response",412:"version_conflict",428:"precondition_required",400:"invalid_request",413:"payload_too_large"} as Record<number,string>)[status] ?? (status >= 500 ? "server_error" : "unrecognized_response"),
     ] as [DraftV2Failure["error"], undefined, string]),
+    [{kind:"status",status:500,retryable:false}, "internal_error", "server_error"],
     [{kind:"not_found",status:404,retryable:false}, "not_found", "not_found"],
     [{kind:"status",status:403,retryable:false}, "company_inactive", "company_inactive"],
     [{kind:"status",status:409,retryable:false}, "company_not_active", "company_not_active"],
     [{kind:"status",status:409,retryable:false}, "idempotency_conflict", "idempotency_conflict"],
-    ...(["network", "timeout", "invalid_response"] as const).map((kind) => [{kind,retryable:false}, undefined, "uncertain"] as [DraftV2Failure["error"],undefined,string]),
+    ...(["network", "timeout", "invalid_response"] as const).map((kind) => [{kind,retryable:false}, undefined, kind === "invalid_response" ? "unrecognized_response" : "no_response"] as [DraftV2Failure["error"],undefined,string]),
   ];
   it.each(failures)("maps failure %j / %s to %s without leaking envelope or retrying", async (error, code, reason) => {
     const failure: DraftV2Failure = { ok: false, error, ...(code ? {envelope:{code,error:"secret-access-token"}} : {}) };
     vi.mocked(createDraftV2).mockResolvedValue(failure);
     vi.mocked(saveDraftV2).mockResolvedValue(failure);
-    expect(await saveDraftV2Action(input)).toEqual({ok:false,reason});
-    expect(await saveDraftV2Action({...input,draftId:"draft",etag:"tag"})).toEqual({ok:false,reason});
+    const expected = {ok:false,reason,reference:{...("status" in error ? {status:error.status} : {}), ...(code ? {code} : {})}};
+    expect(await saveDraftV2Action(input)).toEqual(expected);
+    expect(await saveDraftV2Action({...input,draftId:"draft",etag:"tag"})).toEqual(expected);
     expect(createDraftV2).toHaveBeenCalledTimes(1);
     expect(saveDraftV2).toHaveBeenCalledTimes(1);
   });
   it("treats a thrown write as uncertain without retry or raw details", async () => {
     vi.mocked(createDraftV2).mockRejectedValue(new Error("secret-access-token"));
-    expect(await saveDraftV2Action(input)).toEqual({ok:false,reason:"uncertain"});
+    expect(await saveDraftV2Action(input)).toEqual({ok:false,reason:"no_response",reference:{}});
     expect(createDraftV2).toHaveBeenCalledTimes(1);
   });
 });

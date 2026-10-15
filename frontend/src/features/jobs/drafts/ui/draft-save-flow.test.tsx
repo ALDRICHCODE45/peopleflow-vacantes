@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import "@testing-library/jest-dom/vitest";
 import { sileo } from "sileo";
 import { saveDraftV2Action, type DraftSaveResult } from "../actions";
+import { DraftSaveFeedback } from "./draft-save-feedback";
 import { LocalDraftForm } from "./local-draft-form";
 import { createDraftModel } from "../model";
 
@@ -22,6 +23,30 @@ beforeEach(() => {
   vi.mocked(saveDraftV2Action).mockResolvedValue(success);
 });
 afterEach(() => {cleanup(); vi.restoreAllMocks();});
+it.each([
+  ["server_error", "El servidor tuvo un problema"],
+  ["no_response", "No hubo respuesta del servidor"],
+  ["unrecognized_response", "No pudimos confirmar el resultado"],
+] as const)("replaces %s alert on retry and clears it on confirmed success", async (reason, title) => {
+  vi.mocked(saveDraftV2Action).mockResolvedValueOnce({ok:false,reason,reference:{status:500,code:"internal_error"}})
+    .mockResolvedValueOnce({ok:false,reason:"version_conflict",reference:{status:412,code:"version_conflict"}});
+  render(<LocalDraftForm />); review(); fireEvent.click(save());
+  expect(await screen.findByRole("alert")).toHaveTextContent(title);
+  expect(screen.getByRole("alert")).toHaveTextContent("no se creará un duplicado");
+  expect(save()).toHaveAttribute("aria-describedby", "draft-save-error");
+  expect(screen.getAllByRole("alert")).toHaveLength(1);
+  fireEvent.click(screen.getByRole("button", {name:"Detalles técnicos"}));
+  expect(screen.getByRole("alert")).toHaveTextContent("HTTP 500 · internal_error");
+  fireEvent.click(save());
+  expect(await screen.findByRole("alert")).toHaveTextContent("Esto cambió en otro lugar");
+  expect(screen.getAllByRole("alert")).toHaveLength(1);
+  expect(screen.getByRole("alert")).not.toHaveTextContent("HTTP 500");
+  expect(screen.getByRole("button", {name:"Detalles técnicos"})).toHaveAttribute("aria-expanded", "false");
+  fireEvent.click(save());
+  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  expect(await screen.findByRole("status")).toHaveTextContent("Borrador guardado");
+  expect(save()).not.toHaveAttribute("aria-describedby");
+});
 it("creates the validated v2 body, guards pending, then PATCHes the same draft with returned ETag", async () => {
   let resolve!: (result: DraftSaveResult) => void;
   vi.mocked(saveDraftV2Action).mockReturnValueOnce(new Promise(r => {resolve=r;}));
@@ -51,7 +76,7 @@ it("creates the validated v2 body, guards pending, then PATCHes the same draft w
 });
 function saveDraftForm() {return document.querySelector("[data-pf-local-draft-form] form")!;}
 it("keeps the create key after uncertainty, even after an edit and explicit retry", async () => {
-  vi.mocked(saveDraftV2Action).mockResolvedValue({ok:false,reason:"uncertain"});
+  vi.mocked(saveDraftV2Action).mockResolvedValue({ok:false,reason:"unrecognized_response",reference:{}});
   render(<LocalDraftForm />); review(); fireEvent.click(save());
   expect(await screen.findByRole("alert")).toHaveTextContent(/No pudimos confirmar/);
   expect(save()).toBeEnabled();
@@ -70,7 +95,7 @@ it.each([
   ["version_conflict",/cambió en otro lugar/,null],
   ["idempotency_conflict",/contenido.*cambió|cambiaste.*contenido/,null],
 ] as const)("shows persistent %s feedback without discarding typed data",async(reason,copy,href)=>{
-  vi.mocked(saveDraftV2Action).mockResolvedValue({ok:false,reason});
+  vi.mocked(saveDraftV2Action).mockResolvedValue({ok:false,reason,reference:{}});
   render(<LocalDraftForm />);
   fireEvent.change(screen.getByRole("textbox",{name:"Título"}),{target:{value:"Mi borrador"}});
   review(); fireEvent.click(save());
@@ -105,11 +130,36 @@ it("keeps edits made during an in-flight save dirty and sends them only on the n
 it("treats a disconnected action as uncertain and retries with the original create key", async () => {
   vi.mocked(saveDraftV2Action).mockRejectedValueOnce(new Error("disconnected"));
   render(<LocalDraftForm />); review(); fireEvent.click(save());
-  expect(await screen.findByRole("alert")).toHaveTextContent("No pudimos confirmar");
+  expect(await screen.findByRole("alert")).toHaveTextContent("No hubo respuesta del servidor");
   expect(sileo.success).not.toHaveBeenCalled();
   fireEvent.click(save());
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Borrador guardado"));
   expect(vi.mocked(saveDraftV2Action).mock.calls[1][0].idempotencyKey).toBe(key);
+});
+it.each([
+  ["unauthenticated", "Tu sesión expiró", "Iniciar sesión"],
+  ["forbidden", "No tienes permiso para esta acción", null],
+  ["company_inactive", "Falta configurar tu empresa", "Crear empresa"],
+  ["company_not_active", "Falta configurar tu empresa", "Crear empresa"],
+  ["not_found", "Falta configurar tu empresa", "Crear empresa"],
+  ["invalid_request", "Revisa los datos del borrador", null],
+  ["idempotency_conflict", "Esto cambió en otro lugar", null],
+  ["version_conflict", "Esto cambió en otro lugar", null],
+  ["precondition_required", "No se pudo comprobar la versión", null],
+  ["payload_too_large", "El borrador supera el tamaño permitido", null],
+] as const)("uses product copy and only a useful action for %s", (reason, title, action) => {
+  render(<DraftSaveFeedback result={{ok:false,reason,reference:{}}} dirty at="2026-10-06T17:58:46" />);
+  expect(screen.getByRole("alert")).toHaveTextContent(title);
+  expect(screen.getByRole("alert")).not.toHaveTextContent(/clave|idempotencia|respuesta inválida/);
+  if (action) {
+    expect(screen.getByRole("link", {name:action})).toHaveAttribute("target", "_blank");
+    expect(screen.getByRole("link", {name:action})).toHaveClass("min-h-10");
+  } else expect(screen.queryByRole("link")).not.toBeInTheDocument();
+});
+it("explains safe PATCH retry without claiming the update failed", () => {
+  render(<DraftSaveFeedback result={{ok:false,reason:"server_error",reference:{status:502}}} dirty saved />);
+  expect(screen.getByRole("alert")).toHaveTextContent("podría haberse actualizado");
+  expect(screen.getByRole("alert")).toHaveTextContent("no sobrescribiremos una versión más reciente");
 });
 it("keeps v1 validation local with no save action",()=>{
   render(<LocalDraftForm initialModel={createDraftModel()} />);review();

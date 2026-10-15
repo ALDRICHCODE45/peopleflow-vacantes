@@ -10,10 +10,18 @@ const industries = [{ id: "i", label_es: "Tecnología", label_en: "Technology", 
 const valid = { name: " Empresa ", rfc: " abc123456789 ", industryId: " i " };
 const fail = (status: number, code: string, error = "upstream") => ({ ok: false as const, error: { kind: "status" as const, status, retryable: false as const }, envelope: { error, code } });
 beforeEach(() => { vi.resetAllMocks(); vi.mocked(getActionAccessToken).mockResolvedValue("secret"); vi.mocked(listIndustries).mockResolvedValue({ ok: true, data: industries }); });
+it.each([500, 502, 302, 409])("classifies HTTP %s and preserves safe reference on create and load", async status => {
+  const failure = fail(status, "internal_error");
+  vi.mocked(createCompany).mockResolvedValue(failure);
+  vi.mocked(getMyCompany).mockResolvedValue(failure);
+  const expected = { kind: status >= 500 ? "server_error" : "unrecognized_response", reference: { status, code: "internal_error" } };
+  expect(await createCompanyAction(valid)).toEqual(expected);
+  expect(await loadCompanyStateAction()).toEqual(expected);
+});
 it("fails closed without session for read and create", async () => {
   vi.mocked(getActionAccessToken).mockResolvedValue(null);
-  expect(await loadCompanyStateAction()).toEqual({ kind: "unauthenticated" });
-  expect(await createCompanyAction(valid)).toEqual({ kind: "unauthenticated" });
+  expect(await loadCompanyStateAction()).toEqual({ kind: "unauthenticated", reference: {} });
+  expect(await createCompanyAction(valid)).toEqual({ kind: "unauthenticated", reference: {} });
   expect(getMyCompany).not.toHaveBeenCalled(); expect(createCompany).not.toHaveBeenCalled(); expect(listIndustries).not.toHaveBeenCalled();
 });
 it("loads existing company with its Spanish industry and role", async () => {
@@ -25,7 +33,7 @@ it("only 404 not_found opens creation with backend industry order", async () => 
   vi.mocked(getMyCompany).mockResolvedValue(fail(404, "not_found"));
   expect(await loadCompanyStateAction()).toEqual({ kind: "none", industries });
   vi.mocked(getMyCompany).mockResolvedValue(fail(404, "other"));
-  expect(await loadCompanyStateAction()).toEqual({ kind: "unavailable" });
+  expect(await loadCompanyStateAction()).toEqual({ kind: "unrecognized_response", reference: {status:404,code:"other"} });
 });
 it("keeps existing summary when industry lookup fails", async () => {
   vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "owner", company } });
@@ -53,20 +61,26 @@ it.each([
   [403, "forbidden", "forbidden", "secret"],
   [409, "already_exists", "already_exists", "secret"],
   [409, "industry_unavailable", "industry_unavailable", "secret"],
-  [500, "internal_error", "unavailable", "secret"],
-  [413, "too_large", "unavailable", "secret"],
+  [500, "internal_error", "server_error", "secret"],
+  [413, "too_large", "unrecognized_response", "secret"],
 ])("maps %s %s to %s", async (status, code, kind, message) => {
   vi.mocked(createCompany).mockResolvedValue(fail(status, code, message));
-  const result = await createCompanyAction(valid); expect(result).toMatchObject({ kind });
+  const result = await createCompanyAction(valid); expect(result).toMatchObject({ kind, reference: {status,code} });
   if (kind === "invalid") expect(result).toMatchObject({ message }); else expect(JSON.stringify(result)).not.toContain("secret");
   expect(createCompany).toHaveBeenCalledTimes(1);
 });
 it.each(["network", "timeout", "invalid_response"] as const)("sanitizes %s failures without retry", async kind => {
-  vi.mocked(createCompany).mockResolvedValue({ ok: false, error: { kind, retryable: false } }); expect(await createCompanyAction(valid)).toEqual({ kind: "unavailable" }); expect(createCompany).toHaveBeenCalledTimes(1);
+  const failure = { ok: false as const, error: { kind, retryable: false as const } };
+  vi.mocked(createCompany).mockResolvedValue(failure);
+  vi.mocked(getMyCompany).mockResolvedValue(failure);
+  const expected = {kind: kind === "invalid_response" ? "unrecognized_response" : "no_response", reference:{}};
+  expect(await createCompanyAction(valid)).toEqual(expected);
+  expect(await loadCompanyStateAction()).toEqual(expected);
+  expect(createCompany).toHaveBeenCalledTimes(1);
 });
 it("sanitizes exceptions and load failures", async () => {
-  vi.mocked(createCompany).mockRejectedValue(new Error("secret")); expect(await createCompanyAction(valid)).toEqual({ kind: "unavailable" });
-  vi.mocked(getMyCompany).mockResolvedValue(fail(401, "unauthenticated")); expect(await loadCompanyStateAction()).toEqual({ kind: "unauthenticated" });
-  vi.mocked(getMyCompany).mockResolvedValue(fail(503, "internal_error")); expect(await loadCompanyStateAction()).toEqual({ kind: "unavailable" });
-  vi.mocked(getMyCompany).mockResolvedValue(fail(404, "not_found")); vi.mocked(listIndustries).mockResolvedValue(fail(503, "internal_error")); expect(await loadCompanyStateAction()).toEqual({ kind: "unavailable" });
+  vi.mocked(createCompany).mockRejectedValue(new Error("secret")); expect(await createCompanyAction(valid)).toEqual({ kind: "no_response", reference: {} });
+  vi.mocked(getMyCompany).mockResolvedValue(fail(401, "unauthenticated")); expect(await loadCompanyStateAction()).toEqual({ kind: "unauthenticated", reference: {status:401,code:"unauthenticated"} });
+  vi.mocked(getMyCompany).mockResolvedValue(fail(503, "internal_error")); expect(await loadCompanyStateAction()).toEqual({ kind: "server_error", reference: {status:503,code:"internal_error"} });
+  vi.mocked(getMyCompany).mockResolvedValue(fail(404, "not_found")); vi.mocked(listIndustries).mockResolvedValue(fail(503, "internal_error")); expect(await loadCompanyStateAction()).toEqual({ kind: "server_error", reference: {status:503,code:"internal_error"} });
 });

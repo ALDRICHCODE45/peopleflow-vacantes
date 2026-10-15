@@ -18,6 +18,7 @@ export function useDraftSave() {
   const [pending, setPending] = React.useState(false);
   const [result, setResult] = React.useState<DraftSaveResult | null>(null);
   const [dirty, setDirty] = React.useState(false);
+  const [at, setAt] = React.useState<string>();
 
   function edited() {
     revision.current += 1;
@@ -28,6 +29,8 @@ export function useDraftSave() {
     if (inFlight.current) return;
     inFlight.current = true;
     setPending(true);
+    setResult(null);
+    setAt(new Date().toISOString());
     const savingRevision = revision.current;
     try {
       const body = identity.current
@@ -53,12 +56,12 @@ export function useDraftSave() {
       }
     } catch {
       // A rejected Server Action may have completed its write before disconnecting.
-      setResult({ ok: false, reason: "uncertain" });
+      setResult({ ok: false, reason: "no_response", reference: {} });
     } finally {
       inFlight.current = false;
       setPending(false);
     }
   }
 
-  return { save, edited, pending, result, dirty, saved: identity.current !== null };
+  return { save, edited, pending, result, dirty, at, saved: identity.current !== null };
 }

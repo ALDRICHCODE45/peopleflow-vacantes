@@ -38,6 +38,19 @@ async function fill() {
   await user.selectOptions(screen.getByRole("combobox", { name: "Industria" }), "i");
   return user;
 }
+it.each(["server_error", "no_response", "unrecognized_response"] as const)("shows structured %s create error and only allows reload", async kind => {
+  vi.mocked(createCompanyAction).mockResolvedValue({kind, reference:{status:500,code:"internal_error"}} as CreateCompanyState);
+  render(<CompanySection />); const user = await fill(); await user.click(screen.getByRole("button", {name:"Crear empresa"}));
+  const alert = await screen.findByRole("alert");
+  expect(alert).toHaveTextContent(kind === "server_error" ? "El servidor tuvo un problema" : kind === "no_response" ? "No hubo respuesta del servidor" : "No pudimos confirmar el resultado");
+  expect(alert).toHaveTextContent("podría haberse creado");
+  expect(screen.queryByRole("button", {name:"Crear empresa"})).not.toBeInTheDocument();
+  await user.click(screen.getByRole("button", {name:"Detalles técnicos"}));
+  expect(alert).toHaveTextContent("HTTP 500 · internal_error");
+  await user.click(screen.getByRole("button", {name:"Reintentar"}));
+  expect(await screen.findByRole("button", {name:"Crear empresa"})).toBeVisible();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
 it("keeps context and accessible skeleton while initial load waits", async () => {
   const pending = deferred<CompanyState>(); vi.mocked(loadCompanyStateAction).mockReturnValue(pending.promise);
   const { container } = render(<CompanySection />);
@@ -66,29 +79,56 @@ it("disables pending submit, prevents duplicates, toasts only confirmation and s
   expect(screen.getByText("Propietario")).toBeInTheDocument(); expect(screen.queryByLabelText("RFC")).not.toBeInTheDocument(); expect(sileo.success).toHaveBeenCalledTimes(1);
 });
 it.each([
-  [{ kind: "forbidden" }, "Necesitas una cuenta de reclutador para crear una empresa."],
-  [{ kind: "already_exists" }, "Ya tienes una empresa o el RFC ya está registrado."],
-  [{ kind: "industry_unavailable" }, "Esta industria ya no está disponible. Selecciona otra."],
-  [{ kind: "invalid", message: "El RFC no es válido." }, "El RFC no es válido."],
+  [{ kind: "forbidden", reference: {} }, "Necesitas una cuenta de reclutador para crear una empresa."],
+  [{ kind: "already_exists", reference: {} }, "Ya tienes una empresa o el RFC ya está registrado."],
+  [{ kind: "industry_unavailable", reference: {} }, "Esta industria ya no está disponible. Selecciona otra."],
+  [{ kind: "invalid", message: "El RFC no es válido.", reference: {} }, "El RFC no es válido."],
 ] as const)("keeps %j error next to form without toast", async (result, message) => {
   vi.mocked(createCompanyAction).mockResolvedValue(result); render(<CompanySection />); const user = await fill(); await user.click(screen.getByRole("button", { name: "Crear empresa" }));
   expect(await screen.findByText(message)).toBeInTheDocument(); expect(screen.getByLabelText("RFC")).toHaveValue("abc123456789"); expect(sileo.success).not.toHaveBeenCalled();
 });
 it("renders unauthenticated login link on load", async () => {
-  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "unauthenticated" }); render(<CompanySection />);
+  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "unauthenticated", reference: {} }); render(<CompanySection />);
   expect(await screen.findByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/empresa/login");
 });
 it("renders unauthenticated login link after create", async () => {
-  vi.mocked(createCompanyAction).mockResolvedValue({ kind: "unauthenticated" }); render(<CompanySection />); const user = await fill(); await user.click(screen.getByRole("button", { name: "Crear empresa" }));
+  vi.mocked(createCompanyAction).mockResolvedValue({ kind: "unauthenticated", reference: {} }); render(<CompanySection />); const user = await fill(); await user.click(screen.getByRole("button", { name: "Crear empresa" }));
   expect(await screen.findByRole("link", { name: "Iniciar sesión" })).toHaveAttribute("href", "/empresa/login");
+  expect(screen.getByRole("link", {name:"Iniciar sesión"})).toHaveAttribute("target", "_blank");
+  expect(screen.getByLabelText("RFC")).toHaveValue("abc123456789");
+  expect(screen.getByRole("alert")).toHaveTextContent("Tu sesión expiró");
 });
 it("explicit retry only reloads after uncertain create, retaining useful form input", async () => {
-  vi.mocked(createCompanyAction).mockResolvedValue({ kind: "unavailable" }); render(<CompanySection />); const user = await fill(); await user.click(screen.getByRole("button", { name: "Crear empresa" }));
-  expect(await screen.findByText(/No pudimos confirmar la creación/)).toBeInTheDocument();
+  vi.mocked(createCompanyAction).mockResolvedValue({ kind: "no_response", reference: {} }); render(<CompanySection />); const user = await fill(); await user.click(screen.getByRole("button", { name: "Crear empresa" }));
+  expect(await screen.findByText(/La empresa podría haberse creado/)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Crear empresa" })).not.toBeInTheDocument();
   expect(screen.getByLabelText("RFC")).toHaveValue("abc123456789");
   await user.click(screen.getByRole("button", { name: "Reintentar" })); await waitFor(() => expect(loadCompanyStateAction).toHaveBeenCalledTimes(2));
   expect(createCompanyAction).toHaveBeenCalledTimes(1); expect(sileo.success).not.toHaveBeenCalled();
+});
+it.each(["server_error", "no_response", "unrecognized_response"] as const)("shows %s load reference with one safe retry", async kind => {
+  vi.mocked(loadCompanyStateAction).mockResolvedValueOnce({kind,reference:{status:502,code:"internal_error"}});
+  render(<CompanySection />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("No pudimos cargar tu empresa");
+  expect(screen.getByRole("button", {name:"Reintentar"})).toHaveAttribute("aria-describedby", "company-action-error");
+  await userEvent.click(screen.getByRole("button", {name:"Detalles técnicos"}));
+  expect(screen.getByRole("alert")).toHaveTextContent("HTTP 502 · internal_error");
+  await userEvent.click(screen.getByRole("button", {name:"Reintentar"}));
+  expect(await screen.findByLabelText("RFC")).toBeVisible();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(createCompanyAction).not.toHaveBeenCalled();
+});
+it("keeps the form and blocks a second create when reconciliation fails", async () => {
+  vi.mocked(createCompanyAction).mockResolvedValue({kind:"server_error",reference:{status:500}});
+  render(<CompanySection />); const user = await fill(); await user.click(screen.getByRole("button", {name:"Crear empresa"}));
+  await screen.findByRole("alert");
+  vi.mocked(loadCompanyStateAction).mockResolvedValueOnce({kind:"no_response",reference:{}});
+  await user.click(screen.getByRole("button", {name:"Reintentar"}));
+  expect(await screen.findByRole("alert")).toHaveTextContent("No hubo respuesta del servidor");
+  expect(screen.getAllByRole("alert")).toHaveLength(1);
+  expect(screen.getByLabelText("RFC")).toHaveValue("abc123456789");
+  expect(screen.queryByRole("button", {name:"Crear empresa"})).not.toBeInTheDocument();
+  expect(createCompanyAction).toHaveBeenCalledTimes(1);
 });
 it("retries unavailable load explicitly and handles rejected actions", async () => {
   vi.mocked(loadCompanyStateAction).mockRejectedValueOnce(new Error("secret")); render(<CompanySection />);

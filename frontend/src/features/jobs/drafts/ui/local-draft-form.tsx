@@ -1025,7 +1025,7 @@ export function LocalDraftForm({
               )}
               {isV2 ? (
                 <div className="flex max-w-xl flex-col items-start gap-3">
-                  <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} />
+                  <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} at={draftSave.at} saved={draftSave.saved} />
                   <Button
                     type="submit"
                     className="min-h-10 min-w-40"
