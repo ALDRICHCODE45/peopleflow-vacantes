@@ -80,9 +80,12 @@ func TestEventVocabularyIsClosed(t *testing.T) {
 		EventCompanyDeleted:          true,
 		EventJobDraftCreated:         true,
 		EventJobDraftSaved:           true,
-		EntityApplication:            true,
-		EntityCompany:                true,
-		EntityJobDraft:               true,
+		// requester-catalog: one immutable catalog insert event and its entity.
+		EventJobDraftRequesterCreated: true,
+		EntityApplication:             true,
+		EntityCompany:                 true,
+		EntityJobDraft:                true,
+		EntityJobDraftRequester:       true,
 	}
 	got := stringConstantValues(t)
 	if len(got) != len(want) {

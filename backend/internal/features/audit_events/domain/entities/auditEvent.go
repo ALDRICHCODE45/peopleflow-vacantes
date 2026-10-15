@@ -50,6 +50,9 @@ const (
 	// adding them is a code change, never a migration.
 	EventJobDraftCreated = "JobDraftCreated"
 	EventJobDraftSaved   = "JobDraftSaved"
+	// EventJobDraftRequesterCreated records one immutable requester catalog
+	// entry, emitted inside the catalog insert transaction.
+	EventJobDraftRequesterCreated = "JobDraftRequesterCreated"
 )
 
 // Entity-type constants — companion to the closed event set.
@@ -65,6 +68,8 @@ const (
 	EntityCompany     = "company"
 	// EntityJobDraft is the private draft authoring resource entity type.
 	EntityJobDraft = "job_draft"
+	// EntityJobDraftRequester is the requester catalog entry entity type.
+	EntityJobDraftRequester = "job_draft_requester"
 )
 
 // CompanyDeletedMetadata assembles the PII-free CompanyDeleted metadata
