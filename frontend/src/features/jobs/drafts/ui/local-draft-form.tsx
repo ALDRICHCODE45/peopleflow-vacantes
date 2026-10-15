@@ -49,6 +49,7 @@ import { DraftCompensationField } from "./draft-compensation-field";
 import { DraftDescriptionEditor } from "./draft-description-editor";
 import {
   changeRequesterKind,
+  selectRequester,
   initialDraftFormState,
   updateCompensation,
   validateDraftFormState,
@@ -732,6 +733,7 @@ export function LocalDraftForm({
                 <DraftRequesterField
                   requester={state.requester}
                   error={errors.requester}
+                  onSelect={(entry) => applyState((previous) => selectRequester(previous, entry), ["requester"])}
                   onChangeKind={(kind) =>
                     applyState((previous) => changeRequesterKind(previous, kind), ["requester"])
                   }
