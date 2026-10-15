@@ -1,13 +1,14 @@
 # Prueba manual: empresa y borrador privado (empleador)
 
 Guía para probar en el navegador, de punta a punta, el flujo
-**login recruiter → crear empresa → guardar borrador privado** contra la API Go
-real. Esta prueba es el requisito para integrar `feat/employer-auth-and-drafts`
-en `main`.
+**login recruiter → crear empresa → guardar borrador privado → encontrarlo en la
+lista → reabrirlo, editarlo y guardarlo** contra la API Go real. Esta prueba es el
+requisito para integrar `feat/draft-list-and-reopen` en `main`.
 
-- Rama frontend: `feat/employer-auth-and-drafts`.
-- Rama backend: `feat/requester-catalog` en `9c492d5` o posterior (incluye todo lo de `main` más el catálogo de
-  solicitantes). No requiere migración nueva, pero corré `make db-status` igual.
+- Rama frontend: `feat/draft-list-and-reopen`.
+- Rama backend: `feat/draft-list` (incluye todo lo de `main`, con el catálogo de
+  solicitantes, más la lista de borradores). No requiere migración nueva, pero
+  corré `make db-status` igual.
 - Los servicios los levantás vos en tu terminal. Ningún agente lee ni modifica
   tus archivos `.env`; acá solo aparecen **nombres** de variables, nunca valores.
 - No pegues tokens, cookies, contraseñas ni el contenido de tus `.env` en el chat.
@@ -117,8 +118,30 @@ corepack pnpm dev
    cambios». **Esperado:** aviso de error fijo «No hubo respuesta del servidor»
    con la referencia técnica, y junto al botón «Resultado sin confirmar · ver
    aviso». Volvé a levantar `make run` antes de seguir.
-7. **Recarga.** Recargar la página empieza un borrador nuevo: reabrir un
-   borrador existente todavía no existe (fuera de alcance).
+7. **Dirección del borrador.** Después del primer guardado, la barra de
+   direcciones pasa a `/empresa/vacantes/borradores/<id>` sin recargar el editor.
+   **Esperado:** recargar la página abre el mismo borrador con lo guardado.
+8. **Lista.** Entrá a `/empresa/vacantes` y presioná «Borradores» (o andá a
+   `/empresa/vacantes/borradores`). **Esperado:** el borrador aparece primero,
+   con su título (o «Sin título»), el solicitante, tu nombre como reclutador y la
+   fecha de la última actualización. Con más de 20 borradores aparece «Cargar
+   más». «Actualizar» vuelve a cargar la lista desde el principio.
+9. **Reabrir sin cambios.** Presioná «Abrir» en el borrador. **Esperado:** el
+   editor muestra todos los datos guardados, incluidas las preguntas de filtro y
+   la descripción, y el botón dice «Guardar cambios». Andá al último paso y
+   guardá sin editar nada: la versión sube y, en la base (sección 5), `fields_json`
+   queda igual que antes.
+10. **Reabrir y editar.** Cambiá un campo y presioná «Guardar cambios».
+    **Esperado:** aviso «Cambios guardados», versión siguiente, y en la lista el
+    borrador sube al principio con la fecha nueva al presionar «Actualizar».
+11. **Conflicto (opcional).** Abrí el mismo borrador en dos pestañas, guardá en
+    una y después en la otra. **Esperado:** la segunda muestra «Esto cambió en
+    otro lugar» y no pisa los cambios de la primera.
+12. **Borrador inexistente.** Entrá a
+    `/empresa/vacantes/borradores/00000000-0000-4000-8000-000000000000`.
+    **Esperado:** un estado vacío que dice que el borrador no existe o no tenés
+    acceso, con un enlace a la lista. Una dirección que no es un id muestra la
+    página 404.
 
 ## 5. Verificación en la base (solo lectura)
 
@@ -167,5 +190,5 @@ pero **no** copies cabeceras, cookies ni cuerpos.
 docker start nest-practice   # si lo habías frenado
 ```
 
-Si todo pasa, el siguiente paso es integrar `feat/employer-auth-and-drafts` en
-`main`. El push lo hacés vos.
+Si todo pasa, el siguiente paso es integrar `feat/draft-list-and-reopen` en
+`main`. La rama del backend la integra su propio agente. El push lo hacés vos.
