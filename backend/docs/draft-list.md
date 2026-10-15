@@ -112,8 +112,10 @@ Search, filters and sorting options; listing schema-1 drafts.
 
 Migration `00014_index_job_drafts_company_updated` adds
 `job_drafts_company_updated_id_idx` on `(company_id, updated_at DESC, id DESC)`,
-so a page reads only its rows in list order instead of sorting every draft of
-the company. Run `make db-migrate` after pulling.
+so a page is read in list order from the keyset position without sorting every
+draft of the company. The schema-2 and owner-or-principal conditions are still
+checked row by row, so drafts that do not qualify (schema 1, or another
+recruiter's drafts for a recruiter) are read and skipped. Run `make db-migrate` after pulling.
 
 ## Source map
 

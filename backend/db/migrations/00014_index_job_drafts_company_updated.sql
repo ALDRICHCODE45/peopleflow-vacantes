@@ -2,8 +2,9 @@
 -- +goose StatementBegin
 -- Keyset index of the employer draft list (GET /v2/me/company/job-drafts),
 -- which reads one company's drafts ordered by updated_at DESC, id DESC and
--- resumes after the last (updated_at, id). With this index the list reads only
--- the rows of the page instead of sorting every draft of the company.
+-- resumes after the last (updated_at, id). With this index the list reads in
+-- order from the keyset position instead of sorting every draft of the
+-- company; the schema and owner-or-principal conditions stay row filters.
 --
 -- The existing job_drafts_company_id_idx stays: removing it is a separate
 -- decision. CREATE INDEX (not CONCURRENTLY) runs inside the goose transaction;
