@@ -208,3 +208,11 @@ it("keeps the save button in place: the status slot exists below it before and a
   expect(save().compareDocumentPosition(screen.getByRole("status")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(screen.getByRole("status").closest("[data-pf-action-status-slot]")).toBe(slot);
 });
+it("keeps the save button in the same row as the other footer actions and the result line below", () => {
+  render(<LocalDraftForm />); review();
+  const actions = save().parentElement!;
+  expect(actions).toContainElement(screen.getByRole("button", {name:"Probar cuestionario"}));
+  const slot = document.querySelector("[data-pf-action-status-slot]")!;
+  expect(actions).not.toContainElement(slot as HTMLElement);
+  expect(actions.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
