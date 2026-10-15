@@ -6,7 +6,8 @@ real. Esta prueba es el requisito para integrar `feat/employer-auth-and-drafts`
 en `main`.
 
 - Rama frontend: `feat/employer-auth-and-drafts`.
-- Rama backend: `feat/private-drafts-requester-name` en `44d8468` o posterior.
+- Rama backend: `feat/requester-catalog` (incluye todo lo de `main` más el catálogo de
+  solicitantes). No requiere migración nueva, pero corré `make db-status` igual.
 - Los servicios los levantás vos en tu terminal. Ningún agente lee ni modifica
   tus archivos `.env`; acá solo aparecen **nombres** de variables, nunca valores.
 - No pegues tokens, cookies, contraseñas ni el contenido de tus `.env` en el chat.
@@ -92,15 +93,31 @@ corepack pnpm dev
    pasa a mostrar la empresa con el estado «Activa», el RFC, la industria y
    «Tu rol: Propietario». Si aparece «En verificación», los borradores van a
    responder que la empresa no está activa: avisá antes de seguir.
-3. **Guardar borrador.** Entrá a `/empresa/vacantes/borradores/nuevo`, completá
-   los pasos (podés dejar campos vacíos) y en el último presioná
-   «Guardar borrador». **Esperado:** aviso «Borrador guardado», la etiqueta
-   «Borrador guardado» junto al botón y «Último guardado confirmado: … ·
-   Versión 1». El botón pasa a decir «Guardar cambios».
-4. **Guardar cambios.** Volvé a un paso, modificá un campo (aparece «Hay cambios
-   sin guardar…») y presioná «Guardar cambios». **Esperado:** «Versión 2»
-   sobre el mismo borrador.
-5. **Recarga.** Recargar la página empieza un borrador nuevo: reabrir un
+   Los avisos aparecen **arriba a la derecha**. Los de error quedan fijos hasta que
+   los cerrás o reintentás, y al final muestran la referencia técnica (código HTTP,
+   código del backend y hora). Junto al botón siempre queda una línea de estado.
+3. **Solicitante.** Entrá a `/empresa/vacantes/borradores/nuevo`. En «Revisión
+   interna», elegí el tipo («Área interna» o «Cliente») y escribí en «Área o
+   cliente»:
+   - Con un nombre nuevo aparece «Crear "…"». Elegilo: se muestra el aviso de que
+     queda en el catálogo aunque canceles el borrador. Presioná «Crear y
+     seleccionar». **Esperado:** aviso «Solicitante creado» y «Seleccionado: …».
+   - Escribí el mismo nombre otra vez: **esperado**, aparece en la lista para
+     elegirlo (no ofrece crearlo de nuevo). Si lo intentás con otra variante de
+     mayúsculas, debe ofrecer «Seleccionar existente» sin elegirlo solo.
+   - Cambiar el tipo limpia la selección y lo avisa.
+4. **Guardar borrador.** Completá los pasos (podés dejar campos vacíos) y en el
+   último presioná «Guardar borrador». **Esperado:** aviso «Borrador guardado» y,
+   junto al botón, «Guardado · versión 1 · <hora>». El botón pasa a decir
+   «Guardar cambios».
+5. **Guardar cambios.** Volvé a un paso, modificá un campo (la línea de estado
+   avisa que hay cambios sin guardar) y presioná «Guardar cambios».
+   **Esperado:** aviso «Cambios guardados» y «versión 2» sobre el mismo borrador.
+6. **Error a propósito (opcional).** Frená `make run` y presioná «Guardar
+   cambios». **Esperado:** aviso de error fijo «No hubo respuesta del servidor»
+   con la referencia técnica, y junto al botón «Resultado sin confirmar · ver
+   aviso». Volvé a levantar `make run` antes de seguir.
+7. **Recarga.** Recargar la página empieza un borrador nuevo: reabrir un
    borrador existente todavía no existe (fuera de alcance).
 
 ## 5. Verificación en la base (solo lectura)
@@ -124,13 +141,18 @@ SELECT id, company_id, status, version, created_at, updated_at,
        length(fields) AS bytes, convert_from(fields, 'UTF8') AS fields_json
 FROM job_drafts ORDER BY created_at DESC LIMIT 5;
 
+-- Catálogo de solicitantes
+SELECT id, kind, name, created_at FROM job_draft_requesters
+ORDER BY created_at DESC LIMIT 5;
+
 -- Idempotencia del primer guardado
 SELECT operation, idem_key, response_etag, created_at
 FROM job_draft_idempotency ORDER BY created_at DESC LIMIT 5;
 ```
 
 **Esperado:** empresa con `status = 'active'` y `role = 'owner'`; borrador con
-`version = 1` después de crear y `2` después de guardar cambios.
+`version = 1` después de crear y `2` después de guardar cambios; el solicitante
+creado aparece en `job_draft_requesters` y en `fields_json` del borrador.
 
 ## 6. Qué reportar
 
