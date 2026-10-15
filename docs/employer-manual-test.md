@@ -6,7 +6,7 @@ real. Esta prueba es el requisito para integrar `feat/employer-auth-and-drafts`
 en `main`.
 
 - Rama frontend: `feat/employer-auth-and-drafts`.
-- Rama backend: `feat/requester-catalog` (incluye todo lo de `main` más el catálogo de
+- Rama backend: `feat/requester-catalog` en `9c492d5` o posterior (incluye todo lo de `main` más el catálogo de
   solicitantes). No requiere migración nueva, pero corré `make db-status` igual.
 - Los servicios los levantás vos en tu terminal. Ningún agente lee ni modifica
   tus archivos `.env`; acá solo aparecen **nombres** de variables, nunca valores.
