@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BriefcaseBusiness, CirclePause, Ellipsis, FilePenLine, SearchIcon, Users, CircleCheck, ArrowRight } from "lucide-react";
+import { BriefcaseBusiness, ChevronDown, CirclePause, FilePenLine, SearchIcon, SquareKanban, Users, CircleCheck, ArrowRight } from "lucide-react";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
@@ -66,15 +66,20 @@ function VacancyRow({ vacancy }: { vacancy: PortfolioVacancy }) {
         {vacancy.state === "draft" ? <div className="flex flex-col gap-1"><span>Sin publicar</span><time dateTime={vacancy.draft.updated_at}>Editado {formatDate(vacancy.draft.updated_at)}</time></div> : <time dateTime={vacancy.publishedAt}><span className="sr-only">Publicada el </span>{formatDate(vacancy.publishedAt)}</time>}
       </div>
       <div className="flex items-center gap-1">
-        <Link href={vacancyPipelineHref(vacancy.id)} data-pf-vacancy-pipeline={vacancy.id} aria-label={`Ver pipeline de ${vacancy.title}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-10 gap-1.5 px-3.5 transition-colors duration-200")}>Ver pipeline</Link>
-        {draft && <DropdownMenu>
-          <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10" aria-label={`Acciones de ${vacancy.title}`} />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-52">
-            <DropdownMenuGroup>
-              <DropdownMenuItem className="min-h-10" render={<Link href={`/empresa/vacantes/borradores/${vacancy.id}`} />}><FilePenLine aria-hidden="true" />Continuar editando</DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>}
+        {draft ? (
+          // A draft has two peer actions, so both live in one menu (rules §6).
+          <DropdownMenu>
+            <DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className="h-10 gap-1.5 px-3.5" aria-label={`Acciones de ${vacancy.title}`} />}>Acciones<ChevronDown aria-hidden="true" data-icon="inline-end" /></DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-52">
+              <DropdownMenuGroup>
+                <DropdownMenuItem className="min-h-10" render={<Link href={vacancyPipelineHref(vacancy.id)} />}><SquareKanban aria-hidden="true" />Ver pipeline</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-10" render={<Link href={`/empresa/vacantes/borradores/${vacancy.id}`} />}><FilePenLine aria-hidden="true" />Continuar editando</DropdownMenuItem>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <Link href={vacancyPipelineHref(vacancy.id)} data-pf-vacancy-pipeline={vacancy.id} aria-label={`Ver pipeline de ${vacancy.title}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-10 gap-1.5 px-3.5 transition-colors duration-200")}>Ver pipeline</Link>
+        )}
       </div>
     </li>
   );

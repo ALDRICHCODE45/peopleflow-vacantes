@@ -110,7 +110,8 @@ corepack pnpm dev
 4. **Guardar borrador.** Completá los pasos (podés dejar campos vacíos) y en el
    último presioná «Guardar borrador». **Esperado:** aviso «Borrador guardado» y,
    junto al botón, «Guardado · versión 1 · <hora>». El botón pasa a decir
-   «Guardar cambios».
+   «Guardar cambios». Los botones del último paso quedan alineados en una sola
+   fila y la línea de estado aparece debajo, sin moverlos.
 5. **Guardar cambios.** Volvé a un paso, modificá un campo (la línea de estado
    avisa que hay cambios sin guardar) y presioná «Guardar cambios».
    **Esperado:** aviso «Cambios guardados» y «versión 2» sobre el mismo borrador.
@@ -131,12 +132,13 @@ corepack pnpm dev
    Publicada «Sin publicar» y «Editado <fecha>». La pestaña «Borradores» y la
    tarjeta «Borradores» muestran cuántos hay, «Todas» los incluye y la búsqueda
    también encuentra borradores por título.
-9. **Pipeline de un borrador.** Presioná «Ver pipeline» en un borrador.
+9. **Pipeline de un borrador.** En la fila de un borrador presioná «Acciones»: el
+   menú tiene «Ver pipeline» y «Continuar editando». Elegí «Ver pipeline».
    **Esperado:** `/empresa/vacantes/<id>/pipeline` con el título del borrador y el
    badge «Borrador» arriba, y un estado vacío que dice que la vacante todavía no
    tiene pipeline porque está en borrador, con «Continuar editando» y un enlace
    a Vacantes.
-10. **Reabrir sin cambios.** En la fila del borrador abrí el menú «…» y elegí
+10. **Reabrir sin cambios.** En la fila del borrador abrí «Acciones» y elegí
     «Continuar editando» (o usalo desde el pipeline). **Esperado:** el editor
     muestra todos los datos guardados, incluidas las preguntas de filtro y la
     descripción, y el botón dice «Guardar cambios»; arriba, «Vacantes» vuelve a la

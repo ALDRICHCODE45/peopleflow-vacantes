@@ -26,15 +26,16 @@ it("composes honest draft rows before prototypes, newest first, with both real a
  for (const text of ["Remoto · Tiempo completo", "Sin candidatos todavía", "Ana", "Acme", "Borrador", "Sin pipeline · en borrador", "Sin publicar", "Editado 15 de octubre de 2026"]) expect(draft).toHaveTextContent(text);
  expect(draft.querySelector('[data-slot="badge"]')).toHaveAttribute("data-variant", "info");
  expect(draft.querySelector('[data-slot="badge"]')).toHaveAttribute("data-dot");
- expect(within(draft).getByRole("link", { name: /Ver pipeline/ })).toHaveAttribute("href", `/empresa/vacantes/${id}/pipeline`);
+ expect(within(draft).queryByRole("link", { name: /Ver pipeline/ })).not.toBeInTheDocument();
  expect(rows[0]).toHaveTextContent("Sin título"); expect(rows[0]).toHaveTextContent("Modalidad sin definir"); expect(rows[0]).toHaveTextContent("Usuario dado de baja");
  const trigger = within(draft).getByRole("button", { name: `Acciones de ${row.title}` });
  expect(trigger).toHaveAttribute("aria-haspopup", "menu");
- expect(trigger).toHaveClass("size-10");
+ expect(trigger).toHaveTextContent("Acciones");
+ expect(trigger).toHaveClass("h-10");
  // Same boundary as IngresarMenu: jsdom cannot drive the floating-ui portal.
  const source = readFileSync("src/features/employer-vacancies/vacancy-portfolio.tsx", "utf8");
  expect(source).toContain('href={`/empresa/vacantes/borradores/${vacancy.id}`}');
- expect(source).toMatch(/<DropdownMenuGroup>[\s\S]*<DropdownMenuItem[^>]*min-h-10[\s\S]*Continuar editando[\s\S]*<\/DropdownMenuGroup>/);
+ expect(source).toMatch(/<DropdownMenuGroup>[\s\S]*<DropdownMenuItem[^>]*min-h-10[^>]*vacancyPipelineHref\(vacancy\.id\)[\s\S]*Ver pipeline[\s\S]*<DropdownMenuItem[^>]*min-h-10[\s\S]*Continuar editando[\s\S]*<\/DropdownMenuGroup>/);
 });
 it("counts drafts in Todas, metric and filter; searches draft titles", async () => {
  const { container } = renderPortfolio(); await screen.findByText(row.title);
