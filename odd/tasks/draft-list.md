@@ -14,10 +14,10 @@ Backend slice so a recruiter can find saved private drafts and reopen them. Bran
 
 ## Tasks
 
-- T1 | S4,S6 | inline | pure package `application/draftlist`: limit parsing + cursor codec (company, actor, last updated_at µs UTC, last id) with strict decoding; Lister port and Item/Page types | done: RED 5/5 tests (37 cases) failed on stub; GREEN 37 PASS after raw version-token check (draftjson reads 1.0/1e0 as 1); vet/gofmt clean | commit: (this)
-- T2 | S3,S4,S5,S7 | inline | draftstore `ListV2`: gates, visibility, schema-2 filter, keyset, title/requester projection; isolated-PostgreSQL integration tests | pending | commit: —
-- T3 | S2,S3,S6 | inline | HTTP handler + router wiring + topology/real-router tests | pending | commit: —
-- T4 | S1-S7 | inline | docs (`backend/docs/private-job-drafts.md`), frontend handoff, final checks | pending | commit: —
+- T1 | S4,S6 | inline | pure package `application/draftlist`: limit parsing + cursor codec (company, actor, last updated_at µs UTC, last id) with strict decoding; Lister port and Item/Page types | done: RED 5/5 tests (37 cases) failed on stub; GREEN 37 PASS after raw version-token check (draftjson reads 1.0/1e0 as 1); vet/gofmt clean | commit: b88c3e4
+- T2 | S3,S4,S5,S7 | gentle-ai-worker mva1kp49-1-eyg6 (context backstop) | draftstore `ListV2` (list_v2.go): gates, owner-or-principal in SQL, schema-2 jsonb filter, keyset, title/requester/principal projection | done: RED 5 behavior tests on stub; GREEN 7 focused (17 subtests) incl. 53-row traversal across the 50 boundary; draftstore integration 80 top-level PASS; unit/vet/vet-integration/gofmt clean (worker). Parent: owner flag now computed with roleOwner in Go instead of SQL literal | commit: be7b577
+- T3 | S2,S3,S6 | inline | HTTP handler + router + main.go wiring + real-router integration test | done: handler RED 6/6 on stub → GREEN 20 cases; topology RED → GREEN; real-router flow RED (500, handler missing in harness) → GREEN (owner paging + GET parity, recruiter only own, other company isolation, cursor bound to company and user → 400, anonymous 401 no-store) | commit: 30fd98a
+- T4 | S1-S7 | inline | docs (`backend/docs/draft-list.md`, new; the v1 doc is not the v2 reference), frontend handoff, final checks | in progress: doc written | commit: —
 - T5 | S5,S6 | gentle-ai-verify | independent verification (Risk item 2: visibility/authorization) and fixes | pending | commit: —
 
 ## Log
@@ -26,3 +26,4 @@ L1 — User request verbatim: «Si hermano, estoy de acuerdo, por favor. coordin
 L2 — Contract proposal sent to the frontend peer 01a14144-5c1b (S2-S7). It said unknown parameter → 400; corrected to "ignored" (S6) for parity with the requester list; to be restated in the final handoff.
 L4 — Frontend reply (d4ebd9d9): contract OK; optional request «"principal_recruiter": {"id": uuid, "name": string|null}» so the owner can see whose draft it is. Accepted (cheap LEFT JOIN users); it replaces `principal_recruiter_id` in the row. Confirmed title null and requester id null are valid; unknown params ignored.
 L3 — Design: new pure package `application/draftlist`; store method on `draftstore.Store` reusing `lockGates`, `authorized` rule in SQL (`owner OR principal_recruiter_id = actor`), schema filter `convert_from(fields,'UTF8')::jsonb->>'schema_version' = '2'`, each returned row validated with `requireV2ReadDocument` (corrupt row → 500 as in GET). No new migration/index in this slice (existing `job_drafts_company_id_idx`); a `(company_id, updated_at DESC, id DESC)` index is a follow-up.
+L5 — Full checks (job-1): gofmt clean, vet + vet integration OK, draftstore + cmd/api integration PASS on disposable PG 127.0.0.1:55434. Unit suite: one failure in cmd/localidentitybootstrap TestRun_OneShotCreateThenExit (409 approval_required); 6/6 reruns PASS, package untouched by this branch → pre-existing flake, not fixed here (follow-up).
