@@ -117,6 +117,8 @@ describe("/empresa/vacantes employer route", () => {
   it("adds the local-draft entry alongside the preserved create-vacancy link", () => {
     render(<Page />);
 
+    const listLink = screen.getByRole("link", { name: /^Borradores$/i });
+    expect(listLink).toHaveAttribute("href", "/empresa/vacantes/borradores");
     const draftLink = screen.getByRole("link", { name: /Nuevo borrador/i });
     expect(draftLink).toHaveAttribute(
       "href",
