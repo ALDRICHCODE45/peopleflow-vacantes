@@ -106,9 +106,14 @@ Errors use the shared envelope `{"error": string, "code": string}`.
 
 ## Out of scope
 
-Search, filters and sorting options; listing schema-1 drafts; an index on
-`(company_id, updated_at DESC, id DESC)` (the existing `company_id` index is
-enough for the expected volume; follow-up if it is not).
+Search, filters and sorting options; listing schema-1 drafts.
+
+## Index
+
+Migration `00014_index_job_drafts_company_updated` adds
+`job_drafts_company_updated_id_idx` on `(company_id, updated_at DESC, id DESC)`,
+so a page reads only its rows in list order instead of sorting every draft of
+the company. Run `make db-migrate` after pulling.
 
 ## Source map
 
@@ -116,3 +121,4 @@ enough for the expected volume; follow-up if it is not).
 - `internal/features/jobs/infrastructure/postgres/draftstore/list_v2.go` — `Store.ListV2`.
 - `internal/features/jobs/infrastructure/http/draftListHandler.go` — HTTP adapter.
 - `cmd/api/router.go` — route in the v2 draft group.
+- `db/migrations/00014_index_job_drafts_company_updated.sql` — list index.
