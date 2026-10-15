@@ -28,6 +28,7 @@ const (
 	CodeIdempotencyConflict     Code = "idempotency_conflict"
 	CodeVersionConflict         Code = "version_conflict"
 	CodePreconditionRequired    Code = "precondition_required"
+	CodeRequesterAlreadyExists  Code = "requester_already_exists"
 )
 
 // ErrorCatalogVersion is the stable catalog version identifier.
@@ -90,6 +91,8 @@ func Resolve(code Code) Definition {
 		return Definition{code, http.StatusMethodNotAllowed, "method not allowed"}
 	case CodeServiceUnavailable:
 		return Definition{code, http.StatusServiceUnavailable, "service unavailable"}
+	case CodeRequesterAlreadyExists:
+		return Definition{code, http.StatusConflict, "requester already exists"}
 	case CodeInternalError:
 		return Definition{code, http.StatusInternalServerError, "an internal error occurred"}
 	default:
@@ -106,7 +109,7 @@ func ListCodes() []Code {
 		CodePayloadTooLarge, CodeMethodNotAllowed, CodeServiceUnavailable,
 		CodeValidationError, CodeEmptyPatch, CodeIdempotencyKeyRequired,
 		CodeInvalidIdempotencyKey, CodeIdempotencyConflict, CodeVersionConflict,
-		CodePreconditionRequired, CodeInternalError,
+		CodePreconditionRequired, CodeRequesterAlreadyExists, CodeInternalError,
 	}
 }
 

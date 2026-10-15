@@ -34,6 +34,7 @@ func TestResolve_KnownCodes(t *testing.T) {
 		{CodeAlreadyExists, http.StatusConflict, "resource already exists"},
 		{CodeMethodNotAllowed, http.StatusMethodNotAllowed, "method not allowed"},
 		{CodeServiceUnavailable, http.StatusServiceUnavailable, "service unavailable"},
+		{CodeRequesterAlreadyExists, http.StatusConflict, "requester already exists"},
 	}
 	for _, tt := range cases {
 		t.Run(string(tt.code), func(t *testing.T) {
@@ -63,7 +64,7 @@ func TestListCodes_CanonicalOrder(t *testing.T) {
 		CodePayloadTooLarge, CodeMethodNotAllowed, CodeServiceUnavailable,
 		CodeValidationError, CodeEmptyPatch, CodeIdempotencyKeyRequired,
 		CodeInvalidIdempotencyKey, CodeIdempotencyConflict, CodeVersionConflict,
-		CodePreconditionRequired, CodeInternalError,
+		CodePreconditionRequired, CodeRequesterAlreadyExists, CodeInternalError,
 	}
 	got := ListCodes()
 	if len(got) != len(want) {

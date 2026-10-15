@@ -32,6 +32,7 @@ type routerDeps struct {
 	jobHandler         *jobshttp.JobHandler
 	draftHandler       *jobshttp.DraftHandler
 	draftV2Handler     *jobshttp.DraftV2Handler
+	requesterHandler   *jobshttp.RequesterHandler
 	applicationHandler *applicationshttp.ApplicationHandler
 	queries            *db.Queries
 	pool               health.Pinger
@@ -137,6 +138,14 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/job-drafts", draftV2Handlers.CreateDraft)
 		r.Get("/v2/me/company/job-drafts/{id}", draftV2Handlers.GetDraft)
 		r.Patch("/v2/me/company/job-drafts/{id}", draftV2Handlers.SaveDraft)
+	})
+	// Requester catalog (contract §7): private like the drafts, so NoStore runs
+	// before both gates. The store re-checks user, company and membership.
+	requesterHandlers := d.requesterHandler.RequesterHandlers()
+	r.Group(func(r chi.Router) {
+		r.Use(jobshttp.NoStore, d.requireAuth, d.requireRecruiter)
+		r.Get("/me/company/requesters", requesterHandlers.ListRequesters)
+		r.Post("/me/company/requesters", requesterHandlers.CreateRequester)
 	})
 	return r
 }
