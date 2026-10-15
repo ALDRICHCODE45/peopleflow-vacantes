@@ -12,7 +12,9 @@ import styles from "./login-screen.module.css";
 
 // LOGIN-01: shared shell for both login routes; a server component whose own
 // client leaves are the existing persisted ThemeToggle and the OGL
-// FloatingLines panel (LOGIN-02 / CCP-R7D2C). Authentication is NOT wired:
+// FloatingLines panel (LOGIN-02 / CCP-R7D2C). Its default controls stay inert;
+// the employer route injects its managed-login client controls instead.
+// In the default shell authentication is NOT wired:
 // there is no <form>, fetch, router, storage, action, credential name or
 // submit surface. The credential area is a labelled non-form grouping, both
 // credential inputs are readOnly with a fixed empty value so nothing can be
@@ -59,7 +61,7 @@ const PLACEHOLDER_LINK = "min-h-10 px-0";
 const accentClass = { employer: styles.accentEmployer, candidate: styles.accentCandidate } as const;
 const providerMark: Record<string, string> = { "Continuar con Google": "G", "Continuar con Microsoft": "M", "Continuar con LinkedIn": "in" };
 
-export function LoginScreen({ variant }: { variant: LoginVariant }) {
+export function LoginScreen({ variant, authControls }: { variant: LoginVariant; authControls?: React.ReactNode }) {
   const copy = COPY[variant];
   const emailId = `${variant}-login-email`;
   const passwordId = `${variant}-login-password`;
@@ -99,6 +101,7 @@ export function LoginScreen({ variant }: { variant: LoginVariant }) {
           <h1 className="font-heading text-[32px] font-bold tracking-tight text-foreground">{copy.heading}</h1>
           <p className="mt-2 text-[15px] text-muted-foreground">{copy.subheading}</p>
 
+          {authControls ?? <>
           {/* Visual-only grouping: deliberately NOT a <form>, so no implicit
               submission, GET/POST action or Enter-to-submit surface exists. */}
           <div role="group" aria-label="Datos de acceso" className="mt-8 flex flex-col gap-5">
@@ -145,6 +148,7 @@ export function LoginScreen({ variant }: { variant: LoginVariant }) {
                 handler, so registration stays visible and inert. */}
             <Button type="button" variant="link" className={`${styles.accentText} ${styles.accentText} ${PLACEHOLDER_LINK} text-[14px] font-semibold`}>{copy.registerAction}</Button>
           </p>
+          </>}
           <p className="mt-3 flex flex-wrap items-center justify-center gap-x-1.5 text-center text-[13px] text-muted-foreground">
             {copy.reciprocalLead}
             <Link href={copy.reciprocalHref} className={`${styles.accentText} ${styles.accentText} inline-flex min-h-11 items-center px-1 font-semibold ${FOCUS_RING}`}>Ingresa aquí</Link>

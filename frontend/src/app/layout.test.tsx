@@ -60,6 +60,13 @@ describe("root layout", () => {
     expect(body).toHaveTextContent("contenido");
   });
 
+  it("mounts exactly one global notification host after the theme bootstrap", () => {
+    render(<RootLayout><p>contenido</p></RootLayout>);
+    expect(document.querySelectorAll("[data-pf-toaster]")).toHaveLength(1);
+    const script = document.querySelector("script[data-pf-theme-bootstrap]");
+    expect(script!.parentElement!.firstElementChild).toBe(script);
+  });
+
   it("exposes the PeopleFlow title template metadata", () => {
     expect(metadata).toBeDefined();
     const title = metadata?.title;

@@ -1,0 +1,352 @@
+{
+  "schemaVersion": "tiptap-draft-contract/v1",
+  "tiptap": {
+    "@tiptap/core": "3.31.4",
+    "@tiptap/pm": "3.31.4",
+    "@tiptap/extensions": "3.31.4",
+    "@tiptap/extension-document": "3.31.4",
+    "@tiptap/extension-paragraph": "3.31.4",
+    "@tiptap/extension-text": "3.31.4",
+    "@tiptap/extension-bold": "3.31.4",
+    "@tiptap/extension-italic": "3.31.4",
+    "@tiptap/extension-link": "3.31.4",
+    "@tiptap/extension-hard-break": "3.31.4",
+    "@tiptap/extension-list": "3.31.4"
+  },
+  "generatedBy": "vitest/schema.test.ts",
+  "cases": [
+    {
+      "id": "empty-document",
+      "note": "new editor with no content",
+      "json": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph"
+          }
+        ]
+      },
+      "plainText": ""
+    },
+    {
+      "id": "empty-paragraphs",
+      "note": "text, empty paragraph, text",
+      "json": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "uno"
+              }
+            ]
+          },
+          {
+            "type": "paragraph"
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "dos"
+              }
+            ]
+          }
+        ]
+      },
+      "plainText": "uno\n\ndos"
+    },
+    {
+      "id": "unicode-combined-marks",
+      "note": "bold+italic+small over unicode",
+      "json": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "marks": [
+                  {
+                    "type": "bold"
+                  },
+                  {
+                    "type": "italic"
+                  },
+                  {
+                    "type": "fontSizePreset",
+                    "attrs": {
+                      "preset": "small"
+                    }
+                  }
+                ],
+                "text": "Café ☕ 日本語 👩🏽‍💻"
+              }
+            ]
+          },
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "fin"
+              }
+            ]
+          }
+        ]
+      },
+      "plainText": "Café ☕ 日本語 👩🏽‍💻\nfin"
+    },
+    {
+      "id": "ordered-list-start-3",
+      "note": "ordered list with start != 1",
+      "json": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "orderedList",
+            "attrs": {
+              "start": 3,
+              "type": null
+            },
+            "content": [
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "tres"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "text": "cuatro"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "plainText": "tres\ncuatro"
+    },
+    {
+      "id": "nested-lists-mixed-marks",
+      "note": "bullet list with nested ordered list and mixed marks",
+      "json": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "bulletList",
+            "content": [
+              {
+                "type": "listItem",
+                "content": [
+                  {
+                    "type": "paragraph",
+                    "content": [
+                      {
+                        "type": "text",
+                        "marks": [
+                          {
+                            "type": "bold"
+                          }
+                        ],
+                        "text": "padre"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "orderedList",
+                    "attrs": {
+                      "start": 1,
+                      "type": null
+                    },
+                    "content": [
+                      {
+                        "type": "listItem",
+                        "content": [
+                          {
+                            "type": "paragraph",
+                            "content": [
+                              {
+                                "type": "text",
+                                "marks": [
+                                  {
+                                    "type": "fontSizePreset",
+                                    "attrs": {
+                                      "preset": "large"
+                                    }
+                                  }
+                                ],
+                                "text": "hijo"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "plainText": "padre\nhijo"
+    },
+    {
+      "id": "hard-breaks",
+      "note": "hard break between marked and unmarked runs",
+      "json": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "marks": [
+                  {
+                    "type": "italic"
+                  }
+                ],
+                "text": "linea uno"
+              },
+              {
+                "type": "hardBreak"
+              },
+              {
+                "type": "text",
+                "text": "linea dos"
+              }
+            ]
+          }
+        ]
+      },
+      "plainText": "linea uno\nlinea dos"
+    },
+    {
+      "id": "mixed-marks-and-link",
+      "note": "bold, italic, size and link marks on one paragraph",
+      "json": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "marks": [
+                  {
+                    "type": "bold"
+                  }
+                ],
+                "text": "negrita "
+              },
+              {
+                "type": "text",
+                "marks": [
+                  {
+                    "type": "italic"
+                  }
+                ],
+                "text": "cursiva "
+              },
+              {
+                "type": "text",
+                "marks": [
+                  {
+                    "type": "fontSizePreset",
+                    "attrs": {
+                      "preset": "large"
+                    }
+                  }
+                ],
+                "text": "grande"
+              },
+              {
+                "type": "text",
+                "text": " y "
+              },
+              {
+                "type": "text",
+                "marks": [
+                  {
+                    "type": "link",
+                    "attrs": {
+                      "href": "https://example.com/a,b;c(d)",
+                      "target": "_blank",
+                      "rel": "noopener noreferrer nofollow",
+                      "class": "enlace-externo",
+                      "title": "Ejemplo"
+                    }
+                  }
+                ],
+                "text": "enlace"
+              }
+            ]
+          }
+        ]
+      },
+      "plainText": "negrita cursiva grande y enlace"
+    },
+    {
+      "id": "command-size-presets",
+      "note": "small + normal applied via commands",
+      "json": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "marks": [
+                  {
+                    "type": "fontSizePreset",
+                    "attrs": {
+                      "preset": "small"
+                    }
+                  }
+                ],
+                "text": "uno"
+              },
+              {
+                "type": "text",
+                "marks": [
+                  {
+                    "type": "fontSizePreset",
+                    "attrs": {
+                      "preset": "normal"
+                    }
+                  }
+                ],
+                "text": " dos"
+              }
+            ]
+          }
+        ]
+      },
+      "plainText": "uno dos"
+    }
+  ]
+}

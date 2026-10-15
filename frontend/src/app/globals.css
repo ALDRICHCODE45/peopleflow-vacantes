@@ -440,6 +440,49 @@ html[data-pf-theme-vt="active"]::view-transition-new(root) {
   color: var(--pf-hero-outline-fg);
 }
 
+/* Sileo is the approved toast exception to shadcn-first. Scope overrides to
+   our sole host: the package injects its defaults after page styles load. */
+[data-pf-toaster] [data-sileo-viewport] {
+  --sileo-state-success: var(--status-success);
+  --sileo-state-error: var(--status-danger);
+  --sileo-state-warning: var(--status-review);
+  --sileo-state-info: var(--status-info);
+  --sileo-state-loading: var(--muted-foreground);
+  --sileo-state-action: var(--foreground);
+  --sileo-width: min(350px, calc(100vw - 3rem));
+  bottom: env(safe-area-inset-bottom, 0px);
+  right: env(safe-area-inset-right, 0px);
+  font-family: var(--font-sans), sans-serif;
+}
+
+[data-pf-toaster] [data-sileo-viewport][data-theme] [data-sileo-description] {
+  color: var(--popover-foreground);
+  overflow-wrap: anywhere;
+}
+
+[data-pf-toaster] [data-sileo-title] {
+  text-transform: none;
+}
+
+[data-pf-toaster] [data-sileo-toast]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 4px;
+}
+
+/* The native SVG has a fixed 350px drawing width. On narrow screens or when
+   motion is reduced, use a static token-backed surface instead of clipping
+   the drawing or leaving a JS-driven morph active behind CSS timing rules. */
+@media (max-width: 400px), (prefers-reduced-motion: reduce) {
+  [data-pf-toaster] [data-sileo-canvas] {
+    display: none;
+  }
+  [data-pf-toaster] [data-sileo-toast] {
+    background: var(--popover);
+    border-radius: var(--radius-xl);
+    box-shadow: 0 0 0 1px var(--border);
+  }
+}
+
 /* Reduced motion: collapse nonessential transition/animation timing so
    surfaces appear/disappear immediately instead of sliding, fading, or
    looping. Visual and semantic states (focus rings, hover colors, disabled

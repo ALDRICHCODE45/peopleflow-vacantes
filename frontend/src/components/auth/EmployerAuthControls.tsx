@@ -1,0 +1,80 @@
+"use client";
+
+import * as React from "react";
+import { useSearchParams } from "next/navigation";
+import { SessionProvider, signIn, signOut, useSession } from "next-auth/react";
+
+import { Button } from "../ui/button";
+
+// Identity here is not proof of company membership or API authorization.
+function ManagedLoginControls() {
+  const { data: session, status } = useSession();
+  const params = useSearchParams();
+  const [pending, setPending] = React.useState(false);
+  const [actionError, setActionError] = React.useState<string | null>(null);
+  const sessionError = (session as { error?: string } | null)?.error;
+  const expired = Boolean(sessionError);
+  const authenticated = status === "authenticated" && !expired;
+  const error = actionError ?? (expired
+    ? "Tu sesión venció. Volvé a ingresar."
+    : params.has("error") ? "No pudimos completar el acceso. Intentá nuevamente." : null);
+
+  async function login() {
+    if (pending || status === "loading") return;
+    setActionError(null);
+    setPending(true);
+    try {
+      await signIn("cognito", { callbackUrl: "/empresa/login" });
+    } catch {
+      setActionError("No pudimos iniciar el acceso. Intentá nuevamente.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function logout() {
+    if (pending) return;
+    setActionError(null);
+    setPending(true);
+    try {
+      // NextAuth posts its CSRF-protected sign-out before navigating to our
+      // same-origin endpoint, which then exits Cognito's managed-login cookie.
+      await signOut({ callbackUrl: "/api/auth/cognito/logout" });
+    } catch {
+      setActionError("No pudimos cerrar la sesión. Intentá nuevamente.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className="mt-8 flex flex-col gap-5" aria-busy={pending || status === "loading"}>
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+      {authenticated ? (
+        <p role="status" className="text-sm text-muted-foreground">Sesión iniciada.</p>
+      ) : (
+        <>
+          <p className="text-sm text-muted-foreground">Ingresá de forma segura con tu cuenta de empresa.</p>
+          <Button type="button" onClick={login} disabled={pending || status === "loading"}
+            className="h-12 w-full rounded-lg text-[15px] font-semibold">
+            Ingresar con Cognito
+          </Button>
+        </>
+      )}
+      {(authenticated || expired) && (
+        <Button type="button" variant="outline" onClick={logout} disabled={pending}
+          className="h-12 w-full rounded-lg text-[15px]">
+          Cerrar sesión
+        </Button>
+      )}
+    </div>
+  );
+}
+
+export function EmployerAuthControls() {
+  return (
+    <SessionProvider refetchInterval={60} refetchOnWindowFocus>
+      <ManagedLoginControls />
+    </SessionProvider>
+  );
+}

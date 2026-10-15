@@ -2,6 +2,15 @@
 
 > Archivo de continuidad. Si retomás el proyecto (esta u otra sesión/máquina), empezá leyendo esto.
 
+> ⚠️ **Continuidad — decisiones provisionales (2026-10-10):** hay alcances
+> marcados como *temporales/provisionales* que **no** están entregados. Antes de
+> trabajar en identidad, auth, *provisioning* o producción, consultá el registro
+> vigente: [`docs/temporary-decisions.md`](temporary-decisions.md). Ese registro
+> manda para el alcance temporal de identidad; **no** es la fuente total del
+> estado del proyecto (este ROADMAP puede estar desactualizado en otras áreas).
+> Guía de uso del bootstrap local temporal (TMP-IDENTITY-001, solo local, solo
+> usuarios): [`docs/local-identity-bootstrap.md`](local-identity-bootstrap.md).
+
 ## Dónde estamos
 
 **Backend: walking skeleton vivo + 7 features DELIVERED (`companies` incl. membership, `identity`, `candidates`, `jobs` incl. write-side, `applications`, `audit_events`, `industries`). Auth Cognito real montada en rutas autenticadas (**JWKS** en producción; PEM estático solo local/test). Búsqueda full-text de vacantes viva. Lado escritura de empresas (owner-only) entregado.**
