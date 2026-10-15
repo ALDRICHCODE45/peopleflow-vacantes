@@ -82,6 +82,9 @@ type fakeTerminal struct {
 	mu          sync.Mutex
 	prompts     []string
 	closeOnce   sync.Once
+	// readDelay holds each line back, as a slow operator or a loaded
+	// scheduler would, so tests cannot depend on approval being instant.
+	readDelay time.Duration
 }
 
 func newFakeTerminal() *fakeTerminal {
@@ -102,6 +105,7 @@ func (t *fakeTerminal) ReadLine() (string, error) {
 	if !ok {
 		return "", io.EOF
 	}
+	time.Sleep(t.readDelay)
 	return line, nil
 }
 
@@ -363,11 +367,12 @@ func TestRun_OneShotCreateThenExit(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- Run(t.Context(), rt) }()
 
+	s.terminal.readDelay = 200 * time.Millisecond
 	addr := waitForAddr(t, s.listenCh)
 	code := stageOnce(t, addr, nil)
 	s.terminal.lines <- "approve " + code
 
-	if status, body := applyOnce(t, addr, code); status != http.StatusOK {
+	if status, body := applyWhenApproved(t, addr, code); status != http.StatusOK {
 		t.Fatalf("apply status = %d, want 200 (body %q)", status, body)
 	} else if body != `{"ok":true,"code":"created"}` {
 		t.Fatalf("apply body = %q", body)
@@ -518,6 +523,22 @@ func stageOnce(t *testing.T, addr string, mutate func(*http.Request)) string {
 		t.Fatalf("stage operation_code = %q, want 26 chars", parsed.OperationCode)
 	}
 	return parsed.OperationCode
+}
+
+// applyWhenApproved applies once the operator approval is armed. The
+// terminal line is handled by another goroutine, so an apply sent right after
+// it may still see 409 approval_required; that answer consumes nothing
+// (CheckApproval only reads state), so retrying until it changes is safe.
+func applyWhenApproved(t *testing.T, addr, code string) (int, string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		status, body := applyOnce(t, addr, code)
+		if status != http.StatusConflict || body != `{"ok":false,"code":"approval_required"}` || time.Now().After(deadline) {
+			return status, body
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func applyOnce(t *testing.T, addr, code string) (int, string) {
