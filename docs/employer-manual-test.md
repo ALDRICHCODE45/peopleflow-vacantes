@@ -121,27 +121,40 @@ corepack pnpm dev
 7. **Dirección del borrador.** Después del primer guardado, la barra de
    direcciones pasa a `/empresa/vacantes/borradores/<id>` sin recargar el editor.
    **Esperado:** recargar la página abre el mismo borrador con lo guardado.
-8. **Lista.** Entrá a `/empresa/vacantes` y presioná «Borradores» (o andá a
-   `/empresa/vacantes/borradores`). **Esperado:** el borrador aparece primero,
-   con su título (o «Sin título»), el solicitante, tu nombre como reclutador y la
-   fecha de la última actualización. Con más de 20 borradores aparece «Cargar
-   más». «Actualizar» vuelve a cargar la lista desde el principio.
-9. **Reabrir sin cambios.** Presioná «Abrir» en el borrador. **Esperado:** el
-   editor muestra todos los datos guardados, incluidas las preguntas de filtro y
-   la descripción, y el botón dice «Guardar cambios». Andá al último paso y
-   guardá sin editar nada: la versión sube y, en la base (sección 5), `fields_json`
-   queda igual que antes.
-10. **Reabrir y editar.** Cambiá un campo y presioná «Guardar cambios».
-    **Esperado:** aviso «Cambios guardados», versión siguiente, y en la lista el
-    borrador sube al principio con la fecha nueva al presionar «Actualizar».
-11. **Conflicto (opcional).** Abrí el mismo borrador en dos pestañas, guardá en
+8. **Borradores en Vacantes.** Entrá a `/empresa/vacantes`. No hay un botón ni
+   una pantalla aparte de borradores. **Esperado:** mientras cargan aparecen filas
+   de carga en la tabla; después tus borradores aparecen primero (el editado más
+   reciente arriba), con la misma fila que el resto: iniciales, título (o «Sin
+   título»), «modalidad · jornada» (o «Modalidad sin definir»), «Sin candidatos
+   todavía», tu nombre y el solicitante; estado «Borrador» (con un color distinto
+   de «Cerrada»); en Pipeline la barra vacía y «Sin pipeline · en borrador»; en
+   Publicada «Sin publicar» y «Editado <fecha>». La pestaña «Borradores» y la
+   tarjeta «Borradores» muestran cuántos hay, «Todas» los incluye y la búsqueda
+   también encuentra borradores por título.
+9. **Pipeline de un borrador.** Presioná «Ver pipeline» en un borrador.
+   **Esperado:** `/empresa/vacantes/<id>/pipeline` con el título del borrador y el
+   badge «Borrador» arriba, y un estado vacío que dice que la vacante todavía no
+   tiene pipeline porque está en borrador, con «Continuar editando» y un enlace
+   a Vacantes.
+10. **Reabrir sin cambios.** En la fila del borrador abrí el menú «…» y elegí
+    «Continuar editando» (o usalo desde el pipeline). **Esperado:** el editor
+    muestra todos los datos guardados, incluidas las preguntas de filtro y la
+    descripción, y el botón dice «Guardar cambios»; arriba, «Vacantes» vuelve a la
+    tabla. Andá al último paso y guardá sin editar nada: la versión sube y, en la
+    base (sección 5), `fields_json` queda igual que antes.
+11. **Reabrir y editar.** Cambiá un campo (por ejemplo la modalidad) y presioná
+    «Guardar cambios». **Esperado:** aviso «Cambios guardados» y versión
+    siguiente; al volver a Vacantes el borrador queda primero con la modalidad y la
+    fecha nuevas.
+12. **Conflicto (opcional).** Abrí el mismo borrador en dos pestañas, guardá en
     una y después en la otra. **Esperado:** la segunda muestra «Esto cambió en
     otro lugar» y no pisa los cambios de la primera.
-12. **Borrador inexistente.** Entrá a
-    `/empresa/vacantes/borradores/00000000-0000-4000-8000-000000000000`.
-    **Esperado:** un estado vacío que dice que el borrador no existe o no tenés
-    acceso, con un enlace a la lista. Una dirección que no es un id muestra la
-    página 404.
+13. **Borrador inexistente.** Entrá a
+    `/empresa/vacantes/borradores/00000000-0000-4000-8000-000000000000` y a
+    `/empresa/vacantes/00000000-0000-4000-8000-000000000000/pipeline`.
+    **Esperado:** en ambas, un estado vacío que dice que el borrador no existe o no
+    tenés acceso, con «Reintentar» y un enlace a Vacantes. Una dirección que no es
+    un id muestra la página 404, y `/empresa/vacantes/borradores` ya no existe.
 
 ## 5. Verificación en la base (solo lectura)
 
