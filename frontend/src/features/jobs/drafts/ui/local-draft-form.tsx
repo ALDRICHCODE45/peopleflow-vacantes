@@ -9,7 +9,7 @@ import { cn } from "cn";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { useDraftSave } from "./draft-save-state";
+import { useDraftSave, type DraftIdentity } from "./draft-save-state";
 import { DRAFT_SAVE_NOTICE, DraftSaveFeedback } from "./draft-save-feedback";
 import { ActionStatusSlot } from "@/components/feedback/action-status";
 import { Card,
@@ -110,6 +110,8 @@ export type LocalDraftFormProps = {
    * `initialModel`, no ID is regenerated and no auto conversion happens.
    */
   initialScreeningQuestionsV2?: ScreeningQuestionV2[];
+  /** Identity from the detail GET, never the list's version. */
+  initialIdentity?: DraftIdentity;
 };
 
 /** Approved step order and visible titles. */
@@ -256,17 +258,23 @@ function DraftStepFooter({
   onBack,
   backDisabled,
   children,
+  status,
 }: {
   onBack: () => void;
   backDisabled?: boolean;
   children: React.ReactNode;
+  /** Result line in its own row below the actions, so it never shifts or misaligns them. */
+  status?: React.ReactNode;
 }) {
   return (
-    <CardFooter className="flex-wrap justify-between gap-3">
-      <Button type="button" variant="outline" disabled={backDisabled} onClick={onBack}>
-        Atrás
-      </Button>
-      <div className="flex flex-wrap items-center gap-3">{children}</div>
+    <CardFooter className="flex-col items-stretch gap-1">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button type="button" variant="outline" disabled={backDisabled} onClick={onBack}>
+          Atrás
+        </Button>
+        <div className="flex flex-wrap items-center gap-3">{children}</div>
+      </div>
+      {status === undefined ? null : <div className="flex justify-end">{status}</div>}
     </CardFooter>
   );
 }
@@ -412,6 +420,7 @@ function DraftQuestionnaireDialog({
 export function LocalDraftForm({
   initialModel,
   initialScreeningQuestionsV2,
+  initialIdentity,
 }: LocalDraftFormProps) {
   /**
    * Explicit ambiguity guard, evaluated before any state exists. A v1 model
@@ -449,7 +458,7 @@ export function LocalDraftForm({
   const [v2Questions, setV2Questions] = React.useState<DraftScreeningV2State>(() =>
     toDraftScreeningV2State(initialScreeningQuestionsV2 ?? []),
   );
-  const draftSave = useDraftSave();
+  const draftSave = useDraftSave(initialIdentity);
   const [errors, setErrors] = React.useState<DraftFormErrors>({});
   const [validated, setValidated] = React.useState<
     DraftModel | LocalDraftV2Snapshot | null
@@ -990,7 +999,16 @@ export function LocalDraftForm({
                 />
               </div>
             </CardContent>
-            <DraftStepFooter onBack={() => goToStep(step - 1)}>
+            <DraftStepFooter
+              onBack={() => goToStep(step - 1)}
+              status={
+                isV2 ? (
+                  <ActionStatusSlot>
+                    <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} />
+                  </ActionStatusSlot>
+                ) : undefined
+              }
+            >
               <FieldError id="draft-model-error">{errors.model}</FieldError>
               {isV2 && candidateProjection !== null && !candidateProjection.ok ? (
                 <p
@@ -1027,21 +1045,16 @@ export function LocalDraftForm({
                 </p>
               )}
               {isV2 ? (
-                <div className="flex max-w-xl flex-col items-start gap-2">
-                  <Button
-                    type="submit"
-                    className="min-h-10 min-w-40"
-                    disabled={draftSave.pending}
-                    aria-busy={draftSave.pending}
-                    aria-describedby={draftSave.result ? "draft-save-status" : undefined}
-                  >
-                    {draftSave.pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
-                    {draftSave.pending ? "Guardando…" : draftSave.saved ? "Guardar cambios" : "Guardar borrador"}
-                  </Button>
-                  <ActionStatusSlot>
-                    <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} />
-                  </ActionStatusSlot>
-                </div>
+                <Button
+                  type="submit"
+                  className="min-h-10 min-w-40"
+                  disabled={draftSave.pending}
+                  aria-busy={draftSave.pending}
+                  aria-describedby={draftSave.result ? "draft-save-status" : undefined}
+                >
+                  {draftSave.pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
+                  {draftSave.pending ? "Guardando…" : draftSave.saved ? "Guardar cambios" : "Guardar borrador"}
+                </Button>
               ) : <Button type="submit">Validar borrador</Button>}
             </DraftStepFooter>
           </Card>

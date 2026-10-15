@@ -1,0 +1,123 @@
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import "@testing-library/jest-dom/vitest";
+import { listDraftsAction, type DraftListActionResult } from "@/features/jobs/drafts/list/actions";
+import { VacancyPortfolio } from "./vacancy-portfolio";
+import { NEXO_VACANCIES } from "./prototype-vacancies";
+import { notifyActionResult } from "@/components/feedback/notify";
+vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn() }));
+vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn(), dismissActionResult: vi.fn() }));
+const id = "123e4567-e89b-42d3-a456-426614174000";
+const row = { id, title: "Diseñador de producto", work_mode: "remote" as const, work_schedule: "full_time" as const, requester: { kind: "client" as const, id, name: "Acme" }, principal_recruiter: { id, name: "Ana" }, version: "1", created_at: "2026-10-14T12:00:00Z", updated_at: "2026-10-15T12:00:00Z" };
+const unnamed = { ...row, id: "223e4567-e89b-42d3-a456-426614174000", title: null, work_mode: null, work_schedule: null, requester: null, principal_recruiter: { id, name: null }, updated_at: "2026-10-16T12:00:00Z" };
+beforeEach(() => {
+ vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+ vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
+ vi.resetAllMocks(); vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [row, unnamed], nextCursor: null }); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+const renderPortfolio = () => render(<VacancyPortfolio vacancies={NEXO_VACANCIES} />);
+it("composes honest draft rows before prototypes, newest first, with both real actions", async () => {
+ const { container } = renderPortfolio();
+ await screen.findByText(row.title);
+ const rows = container.querySelectorAll("[data-pf-vacancy-row]");
+ expect(Array.from(rows).slice(0, 2).map(node => node.getAttribute("data-pf-vacancy-row"))).toEqual([unnamed.id, id]);
+ const draft = rows[1] as HTMLElement;
+ for (const text of ["Remoto · Tiempo completo", "Sin candidatos todavía", "Ana", "Acme", "Borrador", "Sin pipeline · en borrador", "Sin publicar", "Editado 15 de octubre de 2026"]) expect(draft).toHaveTextContent(text);
+ expect(draft.querySelector('[data-slot="badge"]')).toHaveAttribute("data-variant", "info");
+ expect(draft.querySelector('[data-slot="badge"]')).toHaveAttribute("data-dot");
+ expect(within(draft).queryByRole("link", { name: /Ver pipeline/ })).not.toBeInTheDocument();
+ expect(rows[0]).toHaveTextContent("Sin título"); expect(rows[0]).toHaveTextContent("Modalidad sin definir"); expect(rows[0]).toHaveTextContent("Usuario dado de baja");
+ const trigger = within(draft).getByRole("button", { name: `Acciones de ${row.title}` });
+ expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+ expect(trigger).toHaveTextContent("Acciones");
+ expect(trigger).toHaveClass("h-10");
+ // Same boundary as IngresarMenu: jsdom cannot drive the floating-ui portal.
+ const source = readFileSync("src/features/employer-vacancies/vacancy-portfolio.tsx", "utf8");
+ expect(source).toContain('href={`/empresa/vacantes/borradores/${vacancy.id}`}');
+ expect(source).toMatch(/<DropdownMenuGroup>[\s\S]*<DropdownMenuItem[^>]*min-h-10[^>]*vacancyPipelineHref\(vacancy\.id\)[\s\S]*Ver pipeline[\s\S]*<DropdownMenuItem[^>]*min-h-10[\s\S]*Continuar editando[\s\S]*<\/DropdownMenuGroup>/);
+});
+it("counts drafts in Todas, metric and filter; searches draft titles", async () => {
+ const { container } = renderPortfolio(); await screen.findByText(row.title);
+ expect(screen.getByRole("tab", { name: "Todas 8" })).toBeVisible();
+ expect(screen.getByRole("tab", { name: "Borradores 2" })).toBeVisible();
+ expect(container.querySelector('[data-pf-vacancy-metric="draft"]')).toHaveTextContent("2Borradores");
+ fireEvent.click(screen.getByRole("tab", { name: "Borradores 2" }));
+ expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(2);
+ fireEvent.change(screen.getByLabelText("Buscar vacante"), { target: { value: "disenador" } });
+ expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(1);
+});
+it("loads sequential opaque cursors and deduplicates rows", async () => {
+ vi.mocked(listDraftsAction).mockResolvedValueOnce({ ok: true, items: [row], nextCursor: "opaque+/=" }).mockResolvedValueOnce({ ok: true, items: [row, unnamed], nextCursor: null });
+ const { container } = renderPortfolio(); await screen.findByText("Sin título");
+ expect(listDraftsAction).toHaveBeenNthCalledWith(1, { limit: 50 });
+ expect(listDraftsAction).toHaveBeenNthCalledWith(2, { limit: 50, cursor: "opaque+/=" });
+ expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(8);
+});
+it("caps at ten pages and discloses the bounded result without retries", async () => {
+ vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [row], nextCursor: "more" });
+ renderPortfolio(); await waitFor(() => expect(listDraftsAction).toHaveBeenCalledTimes(10));
+ expect(await screen.findByText(/Se muestran hasta 500 borradores/)).toBeVisible();
+});
+it("keeps prototype rows visible while draft-shaped skeleton rows load with one announcement", async () => {
+ let resolve!: (result: DraftListActionResult) => void;
+ vi.mocked(listDraftsAction).mockReturnValue(new Promise(yes => { resolve = yes; }));
+ const { container } = renderPortfolio();
+ expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(6);
+ expect(screen.getAllByRole("status")).toHaveLength(1);
+ expect(screen.getByRole("status")).toHaveTextContent("Cargando borradores");
+ expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+ expect(container.querySelectorAll('[data-pf-draft-skeleton] [data-slot="skeleton"]').length).toBeGreaterThan(5);
+ await act(async () => resolve({ ok: true, items: [], nextCursor: null }));
+});
+it.each(["server_error", "unauthenticated", "forbidden", "company_inactive", "company_not_active", "invalid_request", "no_response", "unrecognized_response"] as const)("shows persistent %s cause and explicit retry without losing prototypes", async reason => {
+ vi.mocked(listDraftsAction).mockResolvedValueOnce({ ok: false, reason, reference: {} });
+ const { container } = renderPortfolio(); const retry = await screen.findByRole("button", { name: "Reintentar" });
+ expect(container.querySelector("[data-pf-vacancy-results]")).toContainElement(retry);
+ expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(6);
+ expect(screen.getByRole("status")).toHaveTextContent("No se cargaron los borradores");
+ expect(notifyActionResult).not.toHaveBeenCalled();
+ fireEvent.click(retry); await screen.findByText(row.title);
+ expect(listDraftsAction).toHaveBeenCalledTimes(2);
+});
+it("offers a new draft in an empty Borradores filter", async () => {
+ vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [], nextCursor: null });
+ renderPortfolio(); await waitFor(() => expect(screen.queryByText("Cargando borradores")).not.toBeInTheDocument());
+ fireEvent.click(screen.getByRole("tab", { name: "Borradores 0" }));
+ expect(await screen.findByRole("link", { name: "Nuevo borrador" })).toHaveAttribute("href", "/empresa/vacantes/borradores/nuevo");
+});
+it("keeps the retry target mounted and reserves status space while an explicit retry waits", async () => {
+ let resolve!: (result: DraftListActionResult) => void;
+ vi.mocked(listDraftsAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} }).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
+ const { container } = renderPortfolio();
+ const retry = await screen.findByRole("button", { name: "Reintentar" });
+ fireEvent.click(retry);
+ expect(screen.getByRole("button", { name: "Reintentando…" })).toBe(retry);
+ expect(retry).toBeDisabled();
+ expect(screen.getAllByRole("status")).toHaveLength(1);
+ expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(6);
+ expect(container.querySelector("[data-pf-action-status-slot]")).not.toBeNull();
+ await act(async () => resolve({ ok: true, items: [row], nextCursor: null }));
+ expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Borradores cargados" }));
+});
+it("stops at a later-page failure and publishes no misleading partial draft counts", async () => {
+ vi.mocked(listDraftsAction).mockResolvedValueOnce({ ok: true, items: [row], nextCursor: "next" }).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: { status: 500, code: "internal_error" } });
+ renderPortfolio(); await screen.findByRole("button", { name: "Reintentar" });
+ expect(screen.queryByText(row.title)).not.toBeInTheDocument();
+ expect(listDraftsAction).toHaveBeenCalledTimes(2);
+ expect(screen.getByText(/El servidor tuvo un problema/)).toBeVisible();
+});
+it("turns a rejected read into safe copy, with no exception leak or implicit retry", async () => {
+ vi.mocked(listDraftsAction).mockRejectedValueOnce(new Error("private exception"));
+ const { container } = renderPortfolio(); await screen.findByRole("button", { name: "Reintentar" });
+ expect(container).toHaveTextContent("No hubo respuesta del servidor");
+ expect(container).not.toHaveTextContent("private exception");
+ expect(listDraftsAction).toHaveBeenCalledTimes(1);
+});
+it("does not follow another cursor after unmount", async () => {
+ let resolve!: (result: DraftListActionResult) => void;
+ vi.mocked(listDraftsAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
+ const { unmount } = renderPortfolio(); unmount();
+ await act(async () => resolve({ ok: true, items: [row], nextCursor: "next" }));
+ expect(listDraftsAction).toHaveBeenCalledTimes(1);
+});

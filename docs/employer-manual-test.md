@@ -1,13 +1,14 @@
 # Prueba manual: empresa y borrador privado (empleador)
 
 Guía para probar en el navegador, de punta a punta, el flujo
-**login recruiter → crear empresa → guardar borrador privado** contra la API Go
-real. Esta prueba es el requisito para integrar `feat/employer-auth-and-drafts`
-en `main`.
+**login recruiter → crear empresa → guardar borrador privado → encontrarlo en la
+lista → reabrirlo, editarlo y guardarlo** contra la API Go real. Esta prueba es el
+requisito para integrar `feat/draft-list-and-reopen` en `main`.
 
-- Rama frontend: `feat/employer-auth-and-drafts`.
-- Rama backend: `feat/requester-catalog` en `9c492d5` o posterior (incluye todo lo de `main` más el catálogo de
-  solicitantes). No requiere migración nueva, pero corré `make db-status` igual.
+- Rama frontend: `feat/draft-list-and-reopen`.
+- Rama backend: `feat/draft-list` (incluye todo lo de `main`, con el catálogo de
+  solicitantes, más la lista de borradores). No requiere migración nueva, pero
+  corré `make db-status` igual.
 - Los servicios los levantás vos en tu terminal. Ningún agente lee ni modifica
   tus archivos `.env`; acá solo aparecen **nombres** de variables, nunca valores.
 - No pegues tokens, cookies, contraseñas ni el contenido de tus `.env` en el chat.
@@ -109,7 +110,8 @@ corepack pnpm dev
 4. **Guardar borrador.** Completá los pasos (podés dejar campos vacíos) y en el
    último presioná «Guardar borrador». **Esperado:** aviso «Borrador guardado» y,
    junto al botón, «Guardado · versión 1 · <hora>». El botón pasa a decir
-   «Guardar cambios».
+   «Guardar cambios». Los botones del último paso quedan alineados en una sola
+   fila y la línea de estado aparece debajo, sin moverlos.
 5. **Guardar cambios.** Volvé a un paso, modificá un campo (la línea de estado
    avisa que hay cambios sin guardar) y presioná «Guardar cambios».
    **Esperado:** aviso «Cambios guardados» y «versión 2» sobre el mismo borrador.
@@ -117,8 +119,44 @@ corepack pnpm dev
    cambios». **Esperado:** aviso de error fijo «No hubo respuesta del servidor»
    con la referencia técnica, y junto al botón «Resultado sin confirmar · ver
    aviso». Volvé a levantar `make run` antes de seguir.
-7. **Recarga.** Recargar la página empieza un borrador nuevo: reabrir un
-   borrador existente todavía no existe (fuera de alcance).
+7. **Dirección del borrador.** Después del primer guardado, la barra de
+   direcciones pasa a `/empresa/vacantes/borradores/<id>` sin recargar el editor.
+   **Esperado:** recargar la página abre el mismo borrador con lo guardado.
+8. **Borradores en Vacantes.** Entrá a `/empresa/vacantes`. No hay un botón ni
+   una pantalla aparte de borradores. **Esperado:** mientras cargan aparecen filas
+   de carga en la tabla; después tus borradores aparecen primero (el editado más
+   reciente arriba), con la misma fila que el resto: iniciales, título (o «Sin
+   título»), «modalidad · jornada» (o «Modalidad sin definir»), «Sin candidatos
+   todavía», tu nombre y el solicitante; estado «Borrador» (con un color distinto
+   de «Cerrada»); en Pipeline la barra vacía y «Sin pipeline · en borrador»; en
+   Publicada «Sin publicar» y «Editado <fecha>». La pestaña «Borradores» y la
+   tarjeta «Borradores» muestran cuántos hay, «Todas» los incluye y la búsqueda
+   también encuentra borradores por título.
+9. **Pipeline de un borrador.** En la fila de un borrador presioná «Acciones»: el
+   menú tiene «Ver pipeline» y «Continuar editando». Elegí «Ver pipeline».
+   **Esperado:** `/empresa/vacantes/<id>/pipeline` con el título del borrador y el
+   badge «Borrador» arriba, y un estado vacío que dice que la vacante todavía no
+   tiene pipeline porque está en borrador, con «Continuar editando» y un enlace
+   a Vacantes.
+10. **Reabrir sin cambios.** En la fila del borrador abrí «Acciones» y elegí
+    «Continuar editando» (o usalo desde el pipeline). **Esperado:** el editor
+    muestra todos los datos guardados, incluidas las preguntas de filtro y la
+    descripción, y el botón dice «Guardar cambios»; arriba, «Vacantes» vuelve a la
+    tabla. Andá al último paso y guardá sin editar nada: la versión sube y, en la
+    base (sección 5), `fields_json` queda igual que antes.
+11. **Reabrir y editar.** Cambiá un campo (por ejemplo la modalidad) y presioná
+    «Guardar cambios». **Esperado:** aviso «Cambios guardados» y versión
+    siguiente; al volver a Vacantes el borrador queda primero con la modalidad y la
+    fecha nuevas.
+12. **Conflicto (opcional).** Abrí el mismo borrador en dos pestañas, guardá en
+    una y después en la otra. **Esperado:** la segunda muestra «Esto cambió en
+    otro lugar» y no pisa los cambios de la primera.
+13. **Borrador inexistente.** Entrá a
+    `/empresa/vacantes/borradores/00000000-0000-4000-8000-000000000000` y a
+    `/empresa/vacantes/00000000-0000-4000-8000-000000000000/pipeline`.
+    **Esperado:** en ambas, un estado vacío que dice que el borrador no existe o no
+    tenés acceso, con «Reintentar» y un enlace a Vacantes. Una dirección que no es
+    un id muestra la página 404, y `/empresa/vacantes/borradores` ya no existe.
 
 ## 5. Verificación en la base (solo lectura)
 
@@ -167,5 +205,5 @@ pero **no** copies cabeceras, cookies ni cuerpos.
 docker start nest-practice   # si lo habías frenado
 ```
 
-Si todo pasa, el siguiente paso es integrar `feat/employer-auth-and-drafts` en
-`main`. El push lo hacés vos.
+Si todo pasa, el siguiente paso es integrar `feat/draft-list-and-reopen` en
+`main`. La rama del backend la integra su propio agente. El push lo hacés vos.

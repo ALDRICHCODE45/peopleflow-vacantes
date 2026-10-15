@@ -31,15 +31,23 @@ const MOBILE = { width: 375, height: 812 } as const;
 const FORBIDDEN_PORTS = [":3001", ":4010"] as const;
 const DISALLOWED_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-type Captured = { method: string; url: string };
+type Captured = { method: string; url: string; serverAction: boolean };
 const trackRequests = (page: Page) => {
   const seen: Captured[] = [];
-  page.on("request", (entry) => seen.push({ method: entry.method(), url: entry.url() }));
+  page.on("request", (entry) =>
+    seen.push({ method: entry.method(), url: entry.url(), serverAction: entry.headers()["next-action"] !== undefined }),
+  );
   return seen;
 };
 const isNextInternal = (url: string) => /^\/(?:_next\/|__nextjs)/u.test(new URL(url, APP_ORIGIN).pathname);
+// The portfolio reads saved drafts through one read-only Server Action posted to
+// its own route; every other mutation method still fails.
+const isPortfolioDraftRead = ({ method, url, serverAction }: Captured) =>
+  method === "POST" && serverAction && new URL(url, APP_ORIGIN).pathname === ROUTES.portfolio;
 const offendingMutations = (seen: readonly Captured[]) =>
-  seen.filter(({ method, url }) => DISALLOWED_METHODS.has(method) && !isNextInternal(url)).map(({ method, url }) => `${method} ${url}`);
+  seen
+    .filter((entry) => DISALLOWED_METHODS.has(entry.method) && !isNextInternal(entry.url) && !isPortfolioDraftRead(entry))
+    .map(({ method, url }) => `${method} ${url}`);
 // Foreign origins, /api/* reads and the two banned ports all fail. data:/blob:/about: stay harmless dev internals.
 const offendingTraffic = (seen: readonly Captured[]) =>
   seen.flatMap(({ url }) => {
@@ -162,13 +170,13 @@ test("portfolio filters by search and status, switching through empty recovery a
   await page.keyboard.press("Enter");
   await expect(page.locator('[data-pf-vacancy-empty]')).toBeVisible();
   await expect(page.locator('[data-pf-vacancy-empty]')).toContainText(/Sin resultados/u);
-  await expect(page.locator('[data-pf-vacancy-filter="paused"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-pf-vacancy-filter="paused"]')).toHaveAttribute("aria-selected", "true");
 
-  // `Limpiar filtros` restores the six rows and the `Todas` pressed state.
+  // `Limpiar filtros` restores the six rows and the `Todas` selected tab.
   await page.locator("[data-pf-vacancy-clear]").focus();
   await page.keyboard.press("Enter");
   await expect(page.locator("[data-pf-vacancy-row]")).toHaveCount(6);
-  await expect(page.locator('[data-pf-vacancy-filter="all"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('[data-pf-vacancy-filter="all"]')).toHaveAttribute("aria-selected", "true");
 
   expect(offendingMutations(seen)).toEqual([]);
   expect(offendingTraffic(seen)).toEqual([]);

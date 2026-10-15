@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { isValidJobId } from "@/features/jobs/jobId";
+import { DraftPipelineState } from "@/features/employer-vacancies/draft-pipeline-state";
 import { SiteHeader } from "@/components/company-dashboard/site-header";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
@@ -58,6 +60,7 @@ export async function generateMetadata({ params }: PipelineRouteProps): Promise<
 
 export default async function PipelinePage({ params }: PipelineRouteProps) {
   const { jobId } = await params;
+  if (isValidJobId(jobId)) return <DraftPipelineState draftId={jobId} />;
   const vacancy = findEmployerVacancy(NEXO_VACANCIES, jobId);
 
   if (vacancy === undefined) {

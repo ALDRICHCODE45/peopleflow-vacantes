@@ -37,9 +37,12 @@ export default function Page() {
             aria-label="Presentación de vacantes"
             className="flex flex-wrap items-center justify-between gap-3"
           >
-            <p className="max-w-prose text-[13.5px] text-muted-foreground">
-              Gestiona tus vacantes y su publicación en la bolsa de trabajo.
-            </p>
+            <div className="flex flex-col gap-1.5">
+              <h2 className="font-heading text-[22px] font-semibold text-foreground">Tus vacantes</h2>
+              <p className="max-w-prose text-[13.5px] text-muted-foreground">
+                Gestiona tus vacantes y su publicación en la bolsa de trabajo.
+              </p>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href="/empresa/vacantes/borradores/nuevo"

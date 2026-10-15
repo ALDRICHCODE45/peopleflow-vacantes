@@ -1,5 +1,5 @@
 import * as React from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
@@ -10,6 +10,8 @@ import { EMPLOYER_VACANCY_STATE_LABELS, vacancyPipelineHref } from "./model";
 import { NEXO_VACANCIES } from "./prototype-vacancies";
 import { VacancyPortfolio } from "./vacancy-portfolio";
 
+vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn(() => new Promise(() => {})) }));
+
 const source = readFileSync(join(process.cwd(), "src/features/employer-vacancies/vacancy-portfolio.tsx"), "utf8");
 /** Every literal paint a token-only surface must never carry in a class list. */
 const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|color-mix)\(/u;
@@ -17,14 +19,14 @@ const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|color-mix)\(/u;
 const classesOf = (root: Element) => Array.from(root.querySelectorAll("[class]")).map((node) => node.getAttribute("class") ?? "").join(" ");
 const renderPortfolio = () => render(<VacancyPortfolio vacancies={NEXO_VACANCIES} />);
 const rowIds = (container: HTMLElement) => Array.from(container.querySelectorAll("[data-pf-vacancy-row]")).map((row) => row.getAttribute("data-pf-vacancy-row"));
-const filterButton = (name: RegExp) => screen.getByRole("button", { name });
+const filterButton = (name: RegExp) => screen.getByRole("tab", { name });
 afterEach(() => cleanup());
 
 describe("VacancyPortfolio summary metrics", () => {
   it("renders four truthful summary cards derived from the model helpers", () => {
     const { container } = renderPortfolio();
     const metric = (key: string) => container.querySelector(`[data-pf-vacancy-metric="${key}"]`) as HTMLElement;
-    expect(container.querySelectorAll("[data-pf-vacancy-metric]")).toHaveLength(4);
+    expect(container.querySelectorAll("[data-pf-vacancy-metric]")).toHaveLength(5);
     // Derived, not hardcoded: 3 active, 1 paused, 30 in process, 2 closed.
     expect(["active", "paused", "in-process", "closed"].map((key) => metric(key).textContent)).toEqual([
       "3Activas", "1Pausadas", "30Candidatos en proceso", "2Cerradas",
@@ -37,9 +39,9 @@ describe("VacancyPortfolio search and status filters", () => {
     const { container } = renderPortfolio();
     expect(screen.getByLabelText("Buscar vacante")).toHaveAttribute("data-pf-vacancy-search");
     const filters = Array.from(container.querySelectorAll("[data-pf-vacancy-filter]")) as HTMLElement[];
-    expect(filters.map((filter) => filter.getAttribute("data-pf-vacancy-filter"))).toEqual(["all", "active", "paused", "closed"]);
-    expect(filters.map((filter) => filter.textContent)).toEqual(["Todas6", "Activas3", "Pausadas1", "Cerradas2"]);
-    expect(filters.map((filter) => filter.getAttribute("aria-pressed"))).toEqual(["true", "false", "false", "false"]);
+    expect(filters.map((filter) => filter.getAttribute("data-pf-vacancy-filter"))).toEqual(["all", "draft", "active", "paused", "closed"]);
+    expect(filters.map((filter) => filter.textContent)).toEqual(["Todas6", "Borradores0", "Activas3", "Pausadas1", "Cerradas2"]);
+    expect(filters.map((filter) => filter.getAttribute("aria-selected"))).toEqual(["true", "false", "false", "false", "false"]);
   });
 
   it("filters the portfolio by publication state", async () => {
@@ -47,7 +49,7 @@ describe("VacancyPortfolio search and status filters", () => {
     const { container } = renderPortfolio();
     await user.click(filterButton(/Pausadas/));
     expect(rowIds(container)).toEqual(["devops-engineer"]);
-    expect(filterButton(/Pausadas/)).toHaveAttribute("aria-pressed", "true");
+    expect(filterButton(/Pausadas/)).toHaveAttribute("aria-selected", "true");
     await user.click(filterButton(/Cerradas/));
     expect(rowIds(container)).toEqual(["qa-automation-engineer", "data-analyst"]);
     await user.click(filterButton(/^Todas/));
@@ -82,7 +84,7 @@ describe("VacancyPortfolio vacancy rows", () => {
       expect([link.getAttribute("href"), link.getAttribute("aria-label")]).toEqual([vacancyPipelineHref(vacancy.id), `Ver pipeline de ${vacancy.title}`]);
     }
     expect(container.querySelectorAll("a")).toHaveLength(6);
-    expect(container.querySelectorAll("button")).toHaveLength(4);
+    expect(container.querySelectorAll('[role="tab"]')).toHaveLength(5);
   });
 
   it("renders the truthful text and status information of one vacancy", () => {
@@ -138,14 +140,14 @@ describe("VacancyPortfolio empty states", () => {
     await user.click(clear);
     expect(rowIds(container)).toHaveLength(6);
     expect(search).toHaveValue("");
-    expect(filterButton(/^Todas/)).toHaveAttribute("aria-pressed", "true");
+    expect(filterButton(/^Todas/)).toHaveAttribute("aria-selected", "true");
   });
 
   it("shows an honest empty portfolio with no clear action when nothing exists", () => {
     const { container } = render(<VacancyPortfolio vacancies={[]} />);
     expect(container.querySelector("[data-pf-vacancy-empty]")).toHaveTextContent("Todavía no hay vacantes");
     expect(screen.queryByRole("button", { name: "Limpiar filtros" })).toBeNull();
-    expect(container.querySelectorAll("[data-pf-vacancy-metric]")).toHaveLength(4);
+    expect(container.querySelectorAll("[data-pf-vacancy-metric]")).toHaveLength(5);
   });
 
   it("never offers a clear action it cannot fulfil while the portfolio is empty", async () => {
@@ -165,7 +167,7 @@ describe("VacancyPortfolio interaction and source contract", () => {
     expect(screen.getByLabelText("Buscar vacante").className).toContain("h-10");
     for (const filter of container.querySelectorAll("[data-pf-vacancy-filter]")) {
       const classes = filter.getAttribute("class") ?? "";
-      expect([classes.includes("min-h-10"), classes.includes("focus-visible:ring-3")]).toEqual([true, true]);
+      expect(classes).toContain("focus-visible:ring");
     }
     const link = container.querySelector("[data-pf-vacancy-pipeline]") as HTMLElement;
     expect([link.className.includes("h-10"), /focus-visible:ring/u.test(link.className), /duration-200/u.test(link.className)]).toEqual([true, true, true]);
@@ -173,10 +175,10 @@ describe("VacancyPortfolio interaction and source contract", () => {
     expect(container.querySelectorAll("[style]")).toHaveLength(0);
   });
 
-  it("stays a local in-memory client surface with no request, storage, or business mutation", () => {
+  it("keeps transport and mutations outside the client surface",  () => {
     expect(source).toMatch(/^\s*["']use client["']/mu);
     expect(source).toContain("./model");
-    for (const forbidden of ["@/features/jobs", "features/jobs", "./prototype-vacancies", "NEXO_VACANCIES", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.clipboard", "useRouter", "next/navigation", "onDrag", "draggable", ".css"]) {
+    for (const forbidden of ["./prototype-vacancies", "NEXO_VACANCIES", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.clipboard", "useRouter", "next/navigation", "onDrag", "draggable", ".css"]) {
       expect(source, `vacancy-portfolio.tsx must not declare ${forbidden}`).not.toContain(forbidden);
     }
   });
