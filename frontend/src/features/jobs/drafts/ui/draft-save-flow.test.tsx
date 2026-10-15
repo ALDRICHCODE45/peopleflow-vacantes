@@ -7,10 +7,11 @@ import { saveDraftV2Action, type DraftSaveResult } from "../actions";
 import { DraftSaveFeedback, notifyDraftSaveResult } from "./draft-save-feedback";
 import { LocalDraftForm } from "./local-draft-form";
 import { createDraftModel } from "../model";
+import { draftEditSeedFromRead } from "../reopen/seed";
+import { filledDraftRead, storedWriteFields } from "../reopen/test-fixture";
 
 vi.mock("../actions", () => ({ saveDraftV2Action: vi.fn() }));
 vi.mock("sileo", () => ({ sileo: { success: vi.fn(() => "draft-success"), error: vi.fn(() => "draft-error"), dismiss: vi.fn() } }));
-vi.mock("./draft-description-editor", () => ({ DraftDescriptionEditor: () => null }));
 const key = "123e4567-e89b-42d3-a456-426614174000";
 const success = {ok:true, draftId:"saved-id", etag:'"v1"', version:"1", savedAt:"2026-10-06T03:00:00Z"} as const;
 const save = () => screen.getByRole("button", {name:/^Guardar borrador$|^Guardar cambios$/});
@@ -45,7 +46,21 @@ it.each([
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Guardado · versión 1"));
   expect(save()).toHaveAttribute("aria-describedby", "draft-save-status");
 });
+it("reopens all stored fields and PATCHes unchanged with the GET identity, not the list version", async () => {
+  const read = filledDraftRead();
+  const seed = draftEditSeedFromRead(read);
+  const replace = vi.spyOn(window.history, "replaceState");
+  render(<LocalDraftForm initialModel={seed.model} initialScreeningQuestionsV2={seed.screeningQuestionsV2} initialIdentity={{draftId:read.id,etag:'"opaque-get-tag"'}} />);
+  review();
+  expect(save()).toHaveTextContent("Guardar cambios");
+  fireEvent.click(save());
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Guardado"));
+  expect(saveDraftV2Action).toHaveBeenCalledExactlyOnceWith({draftId:read.id,etag:'"opaque-get-tag"',body:{fields:storedWriteFields(read)}});
+  expect(crypto.randomUUID).not.toHaveBeenCalled();
+  expect(replace).not.toHaveBeenCalled();
+});
 it("creates the validated v2 body, guards pending, then PATCHes the same draft with returned ETag", async () => {
+  const replace = vi.spyOn(window.history, "replaceState");
   let resolve!: (result: DraftSaveResult) => void;
   vi.mocked(saveDraftV2Action).mockReturnValueOnce(new Promise(r => {resolve=r;}));
   render(<LocalDraftForm />);
@@ -67,11 +82,13 @@ it("creates the validated v2 body, guards pending, then PATCHes the same draft w
   expect(screen.getByRole("status")).toHaveTextContent("Guardado · versión 1");
   expect(sileo.success).toHaveBeenLastCalledWith(expect.objectContaining({title:"Borrador guardado",description:expect.stringContaining("versión 1")}));
   expect(save()).toHaveTextContent("Guardar cambios");
+  expect(replace).toHaveBeenCalledExactlyOnceWith(window.history.state, "", "/empresa/vacantes/borradores/saved-id");
   expect(sileo.success).toHaveBeenCalledTimes(1);
   fireEvent.click(save());
   await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledTimes(2));
   expect(vi.mocked(saveDraftV2Action).mock.calls[1][0]).toEqual({draftId:"saved-id",etag:'"v1"',body:input.body});
   await waitFor(() => expect(sileo.success).toHaveBeenLastCalledWith(expect.objectContaining({title:"Cambios guardados"})));
+  expect(replace).toHaveBeenCalledTimes(1);
 });
 function saveDraftForm() {return document.querySelector("[data-pf-local-draft-form] form")!;}
 it("keeps the create key after uncertainty, even after an edit and explicit retry", async () => {
@@ -117,10 +134,14 @@ it("does not send invalid v2 state",()=>{
 it("keeps edits made during an in-flight save dirty and sends them only on the next explicit save", async () => {
   let resolve!: (result: DraftSaveResult) => void;
   vi.mocked(saveDraftV2Action).mockReturnValueOnce(new Promise(r => {resolve=r;}));
+  const replace = vi.spyOn(window.history, "replaceState");
   render(<LocalDraftForm />); review(); fireEvent.click(save());
+  expect(replace).not.toHaveBeenCalled();
   for (let i=0;i<4;i++) fireEvent.click(screen.getByRole("button",{name:"Atrás"}));
   fireEvent.change(screen.getByRole("textbox",{name:"Título"}),{target:{value:"Edición posterior"}});
   await act(async () => resolve(success));
+  expect(replace).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("textbox", {name:"Título"})).toHaveValue("Edición posterior");
   review();
   expect(screen.getByRole("status")).toHaveTextContent("Cambios sin guardar · última versión guardada: 1");
   expect(screen.getAllByRole("status")).toHaveLength(1);

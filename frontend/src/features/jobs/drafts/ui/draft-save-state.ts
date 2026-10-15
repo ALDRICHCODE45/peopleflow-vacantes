@@ -10,9 +10,11 @@ import {
 } from "../screening-v2/wire";
 import type { LocalDraftV2Snapshot } from "./draft-screening-v2-state";
 
+export type DraftIdentity = { draftId: string; etag: string };
+
 /** In-memory identity/key only: no autosave, automatic retries or browser credentials. */
-export function useDraftSave() {
-  const identity = React.useRef<{ draftId: string; etag: string } | null>(null);
+export function useDraftSave(initialIdentity?: DraftIdentity) {
+  const identity = React.useRef<DraftIdentity | null>(initialIdentity ?? null);
   const createKey = React.useRef<string | null>(null);
   const inFlight = React.useRef(false);
   const revision = React.useRef(0);
@@ -50,7 +52,13 @@ export function useDraftSave() {
       setResult(response);
       notifyDraftSaveResult(response, identity.current !== null, attemptedAt);
       if (response.ok) {
+        const created = identity.current === null;
         identity.current = { draftId: response.draftId, etag: response.etag };
+        if (created) {
+          // Preserve Next's history state and this mounted editor, including edits
+          // made while awaiting the create. Never navigate/remount through router.replace.
+          window.history.replaceState(window.history.state, "", `/empresa/vacantes/borradores/${response.draftId}`);
+        }
         createKey.current = null;
         // The user may have navigated back and edited while this write waited.
         setDirty(revision.current !== savingRevision);

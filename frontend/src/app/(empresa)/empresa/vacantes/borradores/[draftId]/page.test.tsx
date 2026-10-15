@@ -1,0 +1,28 @@
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { cleanup, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+import { notFound } from "next/navigation";
+import { loadDraftForEditAction } from "@/features/jobs/drafts/reopen/load";
+import { DraftEditLoader } from "@/features/jobs/drafts/reopen/draft-edit-loader";
+import Page, { dynamic } from "./page";
+vi.mock("@/features/jobs/drafts/reopen/load", () => ({loadDraftForEditAction:vi.fn()}));
+vi.mock("@/features/jobs/drafts/reopen/draft-edit-loader", () => ({DraftEditLoader:vi.fn(() => <div data-testid="draft-loader" />)}));
+vi.mock("next/navigation", () => ({notFound:vi.fn(() => {throw new Error("NEXT_NOT_FOUND");})}));
+vi.mock("@/components/company-dashboard/site-header", () => ({SiteHeader:({title,parent}:{title:string;parent:{label:string;href:string}}) => <header><h1>{title}</h1><a href={parent.href}>{parent.label}</a></header>}));
+const id = "123e4567-e89b-42d3-a456-426614174000";
+beforeEach(() => {vi.clearAllMocks();});
+afterEach(cleanup);
+it("awaits params, renders a generic header and delegates loading without fetching private data in RSC", async () => {
+  expect(dynamic).toBe("force-dynamic");
+  render(await Page({params:Promise.resolve({draftId:id})}));
+  expect(screen.getByRole("heading",{level:1})).toHaveTextContent("Editar borrador");
+  expect(screen.getByRole("link",{name:"Borradores"})).toHaveAttribute("href","/empresa/vacantes/borradores");
+  expect(DraftEditLoader).toHaveBeenCalledWith({draftId:id},undefined);
+  expect(loadDraftForEditAction).not.toHaveBeenCalled();
+});
+it.each(["bad","../nuevo",""])("notFound for invalid UUID %j before mounting the client loader", async draftId => {
+  await expect(Page({params:Promise.resolve({draftId})})).rejects.toThrow("NEXT_NOT_FOUND");
+  expect(notFound).toHaveBeenCalledOnce();
+  expect(DraftEditLoader).not.toHaveBeenCalled();
+  expect(loadDraftForEditAction).not.toHaveBeenCalled();
+});

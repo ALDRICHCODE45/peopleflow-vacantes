@@ -9,7 +9,7 @@ import { cn } from "cn";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { useDraftSave } from "./draft-save-state";
+import { useDraftSave, type DraftIdentity } from "./draft-save-state";
 import { DRAFT_SAVE_NOTICE, DraftSaveFeedback } from "./draft-save-feedback";
 import { ActionStatusSlot } from "@/components/feedback/action-status";
 import { Card,
@@ -110,6 +110,8 @@ export type LocalDraftFormProps = {
    * `initialModel`, no ID is regenerated and no auto conversion happens.
    */
   initialScreeningQuestionsV2?: ScreeningQuestionV2[];
+  /** Identity from the detail GET, never the list's version. */
+  initialIdentity?: DraftIdentity;
 };
 
 /** Approved step order and visible titles. */
@@ -412,6 +414,7 @@ function DraftQuestionnaireDialog({
 export function LocalDraftForm({
   initialModel,
   initialScreeningQuestionsV2,
+  initialIdentity,
 }: LocalDraftFormProps) {
   /**
    * Explicit ambiguity guard, evaluated before any state exists. A v1 model
@@ -449,7 +452,7 @@ export function LocalDraftForm({
   const [v2Questions, setV2Questions] = React.useState<DraftScreeningV2State>(() =>
     toDraftScreeningV2State(initialScreeningQuestionsV2 ?? []),
   );
-  const draftSave = useDraftSave();
+  const draftSave = useDraftSave(initialIdentity);
   const [errors, setErrors] = React.useState<DraftFormErrors>({});
   const [validated, setValidated] = React.useState<
     DraftModel | LocalDraftV2Snapshot | null
