@@ -26,7 +26,7 @@ Branch feat/employer-auth-and-drafts. Continues odd/tasks/private-vacancy-drafts
 - T7 [done] S1,S4 | backend + user | Go returned 500 internal_error on every POST /v2/me/company/job-drafts (request ids archdrich/UEz3TwVU5y-000006..12); backend reproduced decode/render OK. Root cause confirmed by the user: a backend migration had not been run; user ran it. Draft save retest pending. | commit: n/a
 
 - T8 [done] S3,S5,S7 | inline parent (position + design rules) then writer mv8trtei-1-c297 (relaunch) | Toasts top-right (b125675); rules sections 11/12 rewritten (33c2ff2); notifyActionResult + ActionStatus replace ActionErrorAlert/Alert in draft save and company section. Worker RED 53 failed/1240 passed → GREEN 1293; parent deleted ActionErrorAlert + its test + ui/alert.tsx (no importers), focused 1291 tests/38 files, tsc/eslint 0. | commit: see L18
-- T9 [pending] S3,S4,S7,S8 | writer after T8 | Requester selector (search by kind, paginated) with inline creation and 409 requester_already_exists → offer the existing entry; draft save sends {kind,id}. | commit: pending
+- T9 [in_progress] S3,S4,S7,S8 | writer mv8u40m9-2-imz5 | Requester selector (search by kind, paginated) with inline creation and 409 requester_already_exists → offer the existing entry; draft save sends {kind,id}. | commit: pending
 
 ## Log
 - L1. User original request verbatim: «si hermano, vamos por tu opcion recomendada, coordinate con el agente del backend para dejar todo listo y que yo pueda hacer la prueba manual». Followed by S2 question and S3 answer.
