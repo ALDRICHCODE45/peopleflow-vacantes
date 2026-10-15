@@ -157,6 +157,11 @@ func TestListRequesters_RejectsMalformedQuery(t *testing.T) {
 		"cursor other org":   "?kind=client&cursor=" + otherCompany,
 		"cursor other query": "?kind=client&q=zz&cursor=" + otherKind,
 		"repeated cursor":    "?kind=client&cursor=a&cursor=b",
+		"cursor bad escape":  "?kind=client&cursor=%zz",
+		"limit bad escape":   "?kind=client&limit=%zz",
+		"query bad escape":   "?kind=client&q=%zz",
+		"kind bad escape":    "?kind=client&kind=%zz",
+		"unknown bad escape": "?kind=client&x=%zz",
 	} {
 		t.Run(name, func(t *testing.T) {
 			store := &fakeRequesterStore{}

@@ -37,7 +37,8 @@ creating it.
 | `cursor` | Optional opaque token from a previous `next_cursor`. |
 
 Each parameter may appear at most once. Any violation is
-`400 invalid_request`.
+`400 invalid_request`. A query string that does not parse (for example a bad
+escape such as `%zz`) is also `400 invalid_request`.
 
 Response:
 

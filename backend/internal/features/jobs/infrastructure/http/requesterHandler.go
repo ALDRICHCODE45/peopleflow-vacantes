@@ -63,7 +63,14 @@ func (h *RequesterHandler) list(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req, err := parseListRequest(r.URL.Query(), cc.CompanyID)
+	// url.ParseQuery, unlike r.URL.Query, reports malformed escapes instead of
+	// silently dropping the pair (which would turn ?cursor=%zz into page one).
+	values, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
+		return
+	}
+	req, err := parseListRequest(values, cc.CompanyID)
 	if err != nil {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
 		return
