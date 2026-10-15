@@ -122,7 +122,8 @@ it("keeps edits made during an in-flight save dirty and sends them only on the n
   fireEvent.change(screen.getByRole("textbox",{name:"Título"}),{target:{value:"Edición posterior"}});
   await act(async () => resolve(success));
   review();
-  expect(screen.getByText("Hay cambios sin guardar desde el último guardado confirmado.")).toBeVisible();
+  expect(screen.getByRole("status")).toHaveTextContent("Cambios sin guardar · última versión guardada: 1");
+  expect(screen.getAllByRole("status")).toHaveLength(1);
   expect(saveDraftV2Action).toHaveBeenCalledTimes(1);
   fireEvent.click(save());
   await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledTimes(2));
@@ -173,4 +174,16 @@ it("keeps v1 validation local with no save action",()=>{
   fireEvent.click(screen.getByRole("button",{name:"Validar borrador"}));
   expect(saveDraftV2Action).not.toHaveBeenCalled();
   expect(screen.getByRole("status")).toHaveTextContent("Borrador local válido");
+});
+it("keeps the save button in place: the status slot exists below it before and after saving", async () => {
+  render(<LocalDraftForm />); review();
+  const button = save();
+  const slot = document.querySelector("[data-pf-action-status-slot]");
+  expect(slot).toBeInTheDocument();
+  expect(slot).toBeEmptyDOMElement();
+  expect(button.compareDocumentPosition(slot!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  fireEvent.click(button);
+  await waitFor(() => expect(slot).toHaveTextContent("Guardado · versión 1"));
+  expect(save().compareDocumentPosition(screen.getByRole("status")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.getByRole("status").closest("[data-pf-action-status-slot]")).toBe(slot);
 });

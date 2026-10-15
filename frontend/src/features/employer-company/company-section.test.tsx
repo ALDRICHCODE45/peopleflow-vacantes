@@ -148,3 +148,14 @@ it.each([["active", "Activa", "success"], ["pending_verification", "En verificac
   render(<CompanySection />); const badge = await screen.findByText(label); expect(badge).toHaveAttribute("data-variant", variant);
   expect(screen.getByText("Reclutador")).toBeInTheDocument(); expect(screen.queryByRole("button", { name: "Crear empresa" })).not.toBeInTheDocument();
 });
+it("reserves the result line below the create button instead of pushing it", async () => {
+  vi.mocked(createCompanyAction).mockResolvedValue({ kind: "already_exists", reference: { status: 409, code: "already_exists" } });
+  render(<CompanySection />); const user = await fill();
+  const button = screen.getByRole("button", { name: "Crear empresa" });
+  const slot = document.querySelector("[data-pf-action-status-slot]");
+  expect(slot).toBeEmptyDOMElement();
+  expect(button.compareDocumentPosition(slot!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  await user.click(button);
+  expect(await screen.findByText("No se creó · ver aviso")).toBeInTheDocument();
+  expect(screen.getByText("No se creó · ver aviso").closest("[data-pf-action-status-slot]")).toBe(slot);
+});

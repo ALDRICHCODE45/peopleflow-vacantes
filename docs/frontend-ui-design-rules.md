@@ -584,6 +584,10 @@ puede hacer la persona ahora.** Un párrafo rojo suelto, largo o con jerga técn
 - `notifyActionResult` es la única forma de emitir toasts de resultado. Recibe una clave
   por acción (por ejemplo `"draft-save"`), cierra el toast anterior de esa clave y deja
   uno solo visible por acción.
+- La línea de estado (`ActionStatus`) va **debajo** de la acción, dentro de un
+  `ActionStatusSlot` que se renderiza siempre, aunque esté vacío, con alto reservado.
+  Así un resultado que aparece o cambia nunca mueve el botón. Nunca va arriba de la
+  acción ni ocupa más de una línea por resultado.
 - La línea de estado (`ActionStatus`) es el respaldo accesible y persistente del toast.
   Resume el resultado en pocas palabras («Guardado · versión 2», «No se guardó · ver
   aviso») y, si hay una acción útil (iniciar sesión, crear la empresa), la ofrece ahí

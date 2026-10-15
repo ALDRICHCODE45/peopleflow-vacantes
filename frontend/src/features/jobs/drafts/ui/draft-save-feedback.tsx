@@ -49,12 +49,10 @@ export function DraftSaveFeedback({ result, dirty }: {
   result: DraftSaveResult | null; dirty: boolean;
 }) {
   if (!result) return null;
-  if (result.ok) return (
-    <div className="flex flex-col gap-2">
-      <ActionStatus id="draft-save-status" tone="success" text={`Guardado · versión ${result.version} · ${formatSavedAt(result.savedAt)}`} />
-      {dirty && <ActionStatus id="draft-save-dirty" tone="info" text="Hay cambios sin guardar desde el último guardado confirmado." />}
-    </div>
-  );
+  // One line only: the slot below the save button keeps a fixed height.
+  if (result.ok) return dirty
+    ? <ActionStatus id="draft-save-status" tone="info" text={`Cambios sin guardar · última versión guardada: ${result.version}`} />
+    : <ActionStatus id="draft-save-status" tone="success" text={`Guardado · versión ${result.version} · ${formatSavedAt(result.savedAt)}`} />;
   const company = ["not_found", "company_inactive", "company_not_active"].includes(result.reason);
   const action = result.reason === "unauthenticated"
     ? <Link className={buttonVariants({ variant: "outline", className: "min-h-10" })} href="/empresa/login" target="_blank" rel="noopener noreferrer">Iniciar sesión</Link>

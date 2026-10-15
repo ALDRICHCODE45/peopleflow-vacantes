@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Building2, Factory, Fingerprint, ShieldCheck, UsersRound } from "lucide-react";
 import { dismissActionResult, notifyActionResult } from "@/components/feedback/notify";
-import { ActionStatus } from "@/components/feedback/action-status";
+import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -179,8 +179,12 @@ export function CompanySection() {
                 <FieldError id="company-industry-error">{fields.industryId}</FieldError>
               </Field>
             </FieldGroup>
-            {failedResult && <ActionStatus id="company-action-status" tone="error" text={["server_error", "no_response", "unrecognized_response"].includes(failedResult.kind) ? "Resultado sin confirmar · ver aviso" : "No se creó · ver aviso"} action={failedResult.kind === "unauthenticated" ? login : needsReload(failedResult.kind) ? retry : undefined} />}
-            {!needsReload(result?.kind) && <Button type="submit" className="min-h-10 self-start" disabled={pending || reloading} aria-busy={pending} aria-describedby={failedResult ? "company-action-status" : undefined}>{pending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <ShieldCheck data-icon="inline-start" aria-hidden="true" />}{pending ? "Creando empresa…" : "Crear empresa"}</Button>}
+            <div className="flex flex-col items-start gap-2">
+              {!needsReload(result?.kind) && <Button type="submit" className="min-h-10" disabled={pending || reloading} aria-busy={pending} aria-describedby={failedResult ? "company-action-status" : undefined}>{pending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <ShieldCheck data-icon="inline-start" aria-hidden="true" />}{pending ? "Creando empresa…" : "Crear empresa"}</Button>}
+              <ActionStatusSlot>
+                {failedResult && <ActionStatus id="company-action-status" tone="error" text={["server_error", "no_response", "unrecognized_response"].includes(failedResult.kind) ? "Resultado sin confirmar · ver aviso" : "No se creó · ver aviso"} action={failedResult.kind === "unauthenticated" ? login : needsReload(failedResult.kind) ? retry : undefined} />}
+              </ActionStatusSlot>
+            </div>
           </form>}
         </CardContent>
       </Card>
