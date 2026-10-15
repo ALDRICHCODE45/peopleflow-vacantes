@@ -51,13 +51,21 @@ type draftListPage struct {
 }
 
 // ListDrafts serves GET /v2/me/company/job-drafts?limit=&cursor=. Each
-// parameter appears at most once; unknown parameters are ignored.
+// parameter appears at most once; unknown parameters are ignored, but a query
+// string that does not parse is rejected.
 func (h *DraftListHandler) ListDrafts(w http.ResponseWriter, r *http.Request) {
 	cc, ok := requireCompanyContext(w, r)
 	if !ok {
 		return
 	}
-	req, err := parseDraftListRequest(r.URL.Query(), draftlist.Scope{CompanyID: cc.CompanyID, ActorID: cc.UserID})
+	// url.ParseQuery, unlike r.URL.Query, reports malformed escapes instead of
+	// silently dropping the pair (which would turn ?cursor=%zz into page one).
+	values, err := url.ParseQuery(r.URL.RawQuery)
+	if err != nil {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
+		return
+	}
+	req, err := parseDraftListRequest(values, draftlist.Scope{CompanyID: cc.CompanyID, ActorID: cc.UserID})
 	if err != nil {
 		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeInvalidRequest))
 		return

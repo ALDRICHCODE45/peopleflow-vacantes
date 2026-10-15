@@ -159,15 +159,19 @@ func TestListDrafts_RejectsMalformedQuery(t *testing.T) {
 	otherActorToken, _ := draftlist.EncodeCursor(otherActor)
 
 	for name, query := range map[string]string{
-		"limit zero":      "?limit=0",
-		"limit too big":   "?limit=51",
-		"limit text":      "?limit=abc",
-		"limit repeated":  "?limit=1&limit=2",
-		"cursor empty":    "?cursor=",
-		"cursor garbage":  "?cursor=%25%25",
-		"cursor repeated": "?cursor=" + good + "&cursor=" + good,
-		"other company":   "?cursor=" + otherCompanyToken,
-		"other actor":     "?cursor=" + otherActorToken,
+		"limit zero":                "?limit=0",
+		"limit too big":             "?limit=51",
+		"limit text":                "?limit=abc",
+		"limit repeated":            "?limit=1&limit=2",
+		"cursor empty":              "?cursor=",
+		"cursor garbage":            "?cursor=%25%25",
+		"cursor repeated":           "?cursor=" + good + "&cursor=" + good,
+		"cursor bad escape":         "?cursor=%zz",
+		"limit bad escape":          "?limit=%zz",
+		"limit repeated bad escape": "?limit=1&limit=%zz",
+		"unknown bad escape":        "?x=%zz",
+		"other company":             "?cursor=" + otherCompanyToken,
+		"other actor":               "?cursor=" + otherActorToken,
 	} {
 		t.Run(name, func(t *testing.T) {
 			store := &fakeDraftLister{}

@@ -36,10 +36,18 @@ other companies never appear, whatever the cursor says.
 | `cursor` | Optional. The `next_cursor` of the previous page, sent back unchanged (URL-encoded). |
 
 Each parameter may appear at most once; a repeated parameter is
-`400 invalid_request`. Unknown parameters are ignored. A cursor is bound to
-the session company and user: a cursor from another company or user, or any
-altered cursor, is `400 invalid_request`. The cursor is opaque base64url
-(at most 4096 bytes); clients must not build or parse it.
+`400 invalid_request`. Unknown parameters are ignored, but a query string that
+does not parse (for example a bad escape such as `%zz`) is
+`400 invalid_request`.
+
+The cursor is opaque base64url (at most 4096 bytes); clients must not build
+or parse it. It names the session company and user, and a cursor naming
+another company or user, or one that is not a well-formed version-1 cursor,
+is `400 invalid_request`. The cursor is **not signed** and is not a
+credential: a client that edits the position fields of its own cursor only
+moves where its own list resumes. Visibility never depends on the cursor,
+because the store always applies the session company and the
+owner-or-principal rule in SQL.
 
 ## Order and paging
 
