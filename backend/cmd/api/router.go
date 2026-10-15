@@ -32,6 +32,7 @@ type routerDeps struct {
 	jobHandler         *jobshttp.JobHandler
 	draftHandler       *jobshttp.DraftHandler
 	draftV2Handler     *jobshttp.DraftV2Handler
+	draftListHandler   *jobshttp.DraftListHandler
 	requesterHandler   *jobshttp.RequesterHandler
 	applicationHandler *applicationshttp.ApplicationHandler
 	queries            *db.Queries
@@ -136,6 +137,8 @@ func newRouter(d routerDeps) chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jobshttp.NoStore, d.requireAuth, d.requireRecruiter)
 		r.Post("/v2/me/company/job-drafts", draftV2Handlers.CreateDraft)
+		// The list applies the same owner-or-principal rule in the store.
+		r.Get("/v2/me/company/job-drafts", d.draftListHandler.ListDrafts)
 		r.Get("/v2/me/company/job-drafts/{id}", draftV2Handlers.GetDraft)
 		r.Patch("/v2/me/company/job-drafts/{id}", draftV2Handlers.SaveDraft)
 	})
