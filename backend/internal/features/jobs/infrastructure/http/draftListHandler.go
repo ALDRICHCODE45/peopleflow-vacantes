@@ -38,6 +38,8 @@ type draftListPrincipal struct {
 type draftListItem struct {
 	ID                 string              `json:"id"`
 	Title              *string             `json:"title"`
+	WorkMode           *string             `json:"work_mode"`
+	WorkSchedule       *string             `json:"work_schedule"`
 	Requester          *draftListRequester `json:"requester"`
 	PrincipalRecruiter draftListPrincipal  `json:"principal_recruiter"`
 	Version            string              `json:"version"`
@@ -90,6 +92,8 @@ func toDraftListItem(item draftlist.Item) draftListItem {
 	out := draftListItem{
 		ID:                 item.ID.String(),
 		Title:              item.Title,
+		WorkMode:           item.WorkMode,
+		WorkSchedule:       item.Schedule,
 		PrincipalRecruiter: draftListPrincipal{ID: item.Principal.ID.String(), Name: item.Principal.Name},
 		Version:            strconv.FormatInt(item.Version, 10),
 		CreatedAt:          item.CreatedAt.UTC().Format(draftListTimestampLayout),

@@ -28,10 +28,13 @@ type Principal struct {
 	Name *string
 }
 
-// Item is one draft row of the list. Title is nil when the draft has none.
+// Item is one draft row of the list. Title, WorkMode and Schedule are nil
+// when the draft has none; their values are the draft field codes.
 type Item struct {
 	ID        uuid.UUID
 	Title     *string
+	WorkMode  *string
+	Schedule  *string
 	Requester *Requester
 	Principal Principal
 	Version   int64

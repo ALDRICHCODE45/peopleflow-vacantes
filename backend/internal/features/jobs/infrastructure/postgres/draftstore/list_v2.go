@@ -85,6 +85,13 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 		if title, ok := fields["title"].(string); ok {
 			page.Items[i].Title = &title
 		}
+		// Codes were validated by requireV2ReadDocument; copy them as stored.
+		if mode, ok := fields["work_mode"].(string); ok {
+			page.Items[i].WorkMode = &mode
+		}
+		if schedule, ok := fields["work_schedule"].(string); ok {
+			page.Items[i].Schedule = &schedule
+		}
 		kind, id, present, err := requesterRef(document)
 		if err != nil {
 			return draftlist.Page{}, err

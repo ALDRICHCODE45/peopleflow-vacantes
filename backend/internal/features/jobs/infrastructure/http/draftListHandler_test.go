@@ -67,6 +67,8 @@ func TestListDrafts_Success(t *testing.T) {
 			{
 				ID:        listDraftID,
 				Title:     strPtr("Backend Go"),
+				WorkMode:  strPtr("remote"),
+				Schedule:  strPtr("full_time"),
 				Requester: &draftlist.Requester{Kind: "client", ID: &reqID, Name: strPtr("Acme")},
 				Principal: draftlist.Principal{ID: listPrincipalID, Name: strPtr("Ana Pérez")},
 				Version:   7,
@@ -100,9 +102,9 @@ func TestListDrafts_Success(t *testing.T) {
 		t.Fatalf("Content-Type = %q", got)
 	}
 	want := `{"items":[` +
-		`{"id":"55555555-5555-5555-5555-555555555555","title":"Backend Go","requester":{"kind":"client","id":"44444444-4444-4444-4444-444444444444","name":"Acme"},"principal_recruiter":{"id":"66666666-6666-6666-6666-666666666666","name":"Ana Pérez"},"version":"7","created_at":"2026-10-01T09:00:00.000001Z","updated_at":"2026-10-15T12:30:45.123456Z"},` +
-		`{"id":"44444444-4444-4444-4444-444444444444","title":null,"requester":{"kind":"internal_area","id":null,"name":null},"principal_recruiter":{"id":"66666666-6666-6666-6666-666666666666","name":null},"version":"1","created_at":"2026-10-01T09:00:00.000001Z","updated_at":"2026-10-01T09:00:00.000001Z"},` +
-		`{"id":"33333333-3333-3333-3333-333333333333","title":null,"requester":null,"principal_recruiter":{"id":"66666666-6666-6666-6666-666666666666","name":null},"version":"2","created_at":"2026-10-01T09:00:00.000001Z","updated_at":"2026-10-01T09:00:00.000001Z"}` +
+		`{"id":"55555555-5555-5555-5555-555555555555","title":"Backend Go","work_mode":"remote","work_schedule":"full_time","requester":{"kind":"client","id":"44444444-4444-4444-4444-444444444444","name":"Acme"},"principal_recruiter":{"id":"66666666-6666-6666-6666-666666666666","name":"Ana Pérez"},"version":"7","created_at":"2026-10-01T09:00:00.000001Z","updated_at":"2026-10-15T12:30:45.123456Z"},` +
+		`{"id":"44444444-4444-4444-4444-444444444444","title":null,"work_mode":null,"work_schedule":null,"requester":{"kind":"internal_area","id":null,"name":null},"principal_recruiter":{"id":"66666666-6666-6666-6666-666666666666","name":null},"version":"1","created_at":"2026-10-01T09:00:00.000001Z","updated_at":"2026-10-01T09:00:00.000001Z"},` +
+		`{"id":"33333333-3333-3333-3333-333333333333","title":null,"work_mode":null,"work_schedule":null,"requester":null,"principal_recruiter":{"id":"66666666-6666-6666-6666-666666666666","name":null},"version":"2","created_at":"2026-10-01T09:00:00.000001Z","updated_at":"2026-10-01T09:00:00.000001Z"}` +
 		`],"next_cursor":"next-token"}` + "\n"
 	if rec.Body.String() != want {
 		t.Fatalf("body =\n%s\nwant\n%s", rec.Body.String(), want)

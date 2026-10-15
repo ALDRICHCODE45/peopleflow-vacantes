@@ -66,6 +66,8 @@ without a cursor shows it again.
     {
       "id": "0192a000-0000-7000-8000-000000000003",
       "title": "Backend Go",
+      "work_mode": "remote",
+      "work_schedule": "full_time",
       "requester": { "kind": "client", "id": "0192a000-0000-7000-8000-000000000004", "name": "Acme" },
       "principal_recruiter": { "id": "0192a000-0000-7000-8000-000000000002", "name": "Ana Pérez" },
       "version": "7",
@@ -81,6 +83,8 @@ without a cursor shows it again.
 | --- | --- |
 | `id` | Draft id (lowercase UUID). |
 | `title` | Draft title, or `null` when the draft has none. |
+| `work_mode` | `onsite`, `remote`, `hybrid`, or `null`; same code as the draft `fields.work_mode`. |
+| `work_schedule` | `full_time`, `part_time`, or `null`; same code as the draft `fields.work_schedule`. |
 | `requester` | `null` when the draft has no requester. Otherwise `kind`, `id` (`null` when only the kind was chosen) and `name` (catalog name; `null` exactly when `id` is `null`). |
 | `principal_recruiter` | `id` of the principal recruiter and `name` (`users.full_name`), `null` only when that user was deleted. |
 | `version` | Decimal string, the same value as the draft read envelope. It is for display only: save with the `ETag` of `GET /v2/me/company/job-drafts/{id}`. |

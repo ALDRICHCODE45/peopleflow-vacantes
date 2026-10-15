@@ -119,6 +119,8 @@ func TestListV2_ProjectionMatchesGetV2(t *testing.T) {
 			fields := doc["fields"].(map[string]any)
 			if shape == "null" {
 				fields["title"] = nil
+				fields["work_mode"] = nil
+				fields["work_schedule"] = nil
 			}
 			var wantRequester *draftlist.Requester
 			if shape == "kind_only" {
@@ -156,6 +158,19 @@ func TestListV2_ProjectionMatchesGetV2(t *testing.T) {
 			var title any
 			if item.Title != nil {
 				title = *item.Title
+			}
+			var mode, schedule any
+			if item.WorkMode != nil {
+				mode = *item.WorkMode
+			}
+			if item.Schedule != nil {
+				schedule = *item.Schedule
+			}
+			if shape != "null" && (mode != "remote" || schedule != "full_time") {
+				t.Fatalf("work_mode=%v work_schedule=%v, want remote/full_time", mode, schedule)
+			}
+			if mode != getFields["work_mode"] || schedule != getFields["work_schedule"] {
+				t.Fatalf("work_mode/work_schedule=%v/%v GET=%v/%v", mode, schedule, getFields["work_mode"], getFields["work_schedule"])
 			}
 			if title != getFields["title"] || strconv.FormatInt(item.Version, 10) != get["version"] || item.CreatedAt.UTC().Format(timestampLayout) != get["created_at"] || item.UpdatedAt.UTC().Format(timestampLayout) != get["updated_at"] {
 				t.Fatalf("list=%+v GET=%s", item, got.Body)
