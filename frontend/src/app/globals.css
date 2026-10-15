@@ -450,7 +450,7 @@ html[data-pf-theme-vt="active"]::view-transition-new(root) {
   --sileo-state-loading: var(--muted-foreground);
   --sileo-state-action: var(--foreground);
   --sileo-width: min(350px, calc(100vw - 3rem));
-  bottom: env(safe-area-inset-bottom, 0px);
+  top: env(safe-area-inset-top, 0px);
   right: env(safe-area-inset-right, 0px);
   font-family: var(--font-sans), sans-serif;
 }
