@@ -16,7 +16,7 @@ it("awaits params, renders a generic header and delegates loading without fetchi
   expect(dynamic).toBe("force-dynamic");
   render(await Page({params:Promise.resolve({draftId:id})}));
   expect(screen.getByRole("heading",{level:1})).toHaveTextContent("Editar borrador");
-  expect(screen.getByRole("link",{name:"Borradores"})).toHaveAttribute("href","/empresa/vacantes/borradores");
+  expect(screen.getByRole("link",{name:"Vacantes"})).toHaveAttribute("href","/empresa/vacantes");
   expect(DraftEditLoader).toHaveBeenCalledWith({draftId:id},undefined);
   expect(loadDraftForEditAction).not.toHaveBeenCalled();
 });

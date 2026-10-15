@@ -5,15 +5,15 @@ import { DraftEditErrorState } from "./error-state";
 
 afterEach(cleanup);
 it.each([
-  ["invalid_id","No encontramos este borrador","/empresa/vacantes/borradores"],
-  ["not_found","No encontramos este borrador","/empresa/vacantes/borradores"],
+  ["invalid_id","No encontramos este borrador","/empresa/vacantes"],
+  ["not_found","No encontramos este borrador","/empresa/vacantes"],
   ["unauthenticated","Tu sesión expiró","/empresa/login"],
-  ["forbidden","No tienes permiso para abrirlo","/empresa/vacantes/borradores"],
+  ["forbidden","No tienes permiso para abrirlo","/empresa/vacantes"],
   ["company_inactive","Falta configurar tu empresa","/empresa/configuracion"],
   ["company_not_active","Falta configurar tu empresa","/empresa/configuracion"],
-  ["server_error","El servidor tuvo un problema","/empresa/vacantes/borradores"],
-  ["no_response","No hubo respuesta del servidor","/empresa/vacantes/borradores"],
-  ["unrecognized_response","No pudimos confirmar el resultado","/empresa/vacantes/borradores"],
+  ["server_error","El servidor tuvo un problema","/empresa/vacantes"],
+  ["no_response","No hubo respuesta del servidor","/empresa/vacantes"],
+  ["unrecognized_response","No pudimos confirmar el resultado","/empresa/vacantes"],
 ] as const)("shows a safe page-level Empty for %s", (reason,title,href) => {
   const {container} = render(<DraftEditErrorState reason={reason} />);
   expect(screen.getByRole("heading",{name:title,level:2})).toBeVisible();

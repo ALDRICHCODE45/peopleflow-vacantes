@@ -1,0 +1,54 @@
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/drafts/reopen/load";
+import { draftEditSeedFromRead } from "@/features/jobs/drafts/reopen/seed";
+import { filledDraftRead } from "@/features/jobs/drafts/reopen/test-fixture";
+import { DraftPipelineState } from "./draft-pipeline-state";
+vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
+vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: ({ title, parent, status }: { title: React.ReactNode; parent: { label: string; href: string }; status: React.ReactNode }) => <header><h1>{title}</h1><a href={parent.href}>{parent.label}</a>{status}</header> }));
+const read = filledDraftRead();
+const success = { ok: true, seed: draftEditSeedFromRead(read), identity: { draftId: read.id, etag: '"etag"' } } as const;
+beforeEach(() => { vi.resetAllMocks(); vi.mocked(loadDraftForEditAction).mockResolvedValue(success); });
+afterEach(cleanup);
+it("reserves the header and Empty layout with skeletons and one loading announcement", async () => {
+ let resolve!: (value: DraftEditResult) => void;
+ vi.mocked(loadDraftForEditAction).mockReturnValue(new Promise(yes => { resolve = yes; }));
+ const { container } = render(<DraftPipelineState draftId={read.id} />);
+ expect(screen.getAllByRole("status")).toHaveLength(1);
+ expect(screen.getByRole("status")).toHaveTextContent("Cargando borrador");
+ expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+ expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(4);
+ expect(container.querySelectorAll("header")).toHaveLength(1);
+ await act(async () => resolve(success));
+});
+it.each([read.fields.title, null])("renders title %s, lifecycle badge and truthful empty pipeline with navigation", async title => {
+ const seed = { ...success.seed, model: { ...success.seed.model, fields: { ...success.seed.model.fields, title } } };
+ vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed });
+ const { container } = render(<DraftPipelineState draftId={read.id} />);
+ expect(await screen.findByRole("heading", { level: 1, name: title || "Sin título" })).toBeVisible();
+ expect(screen.getByRole("heading", { name: "Pipeline", level: 2 })).toBeVisible();
+ expect(screen.getByRole("heading", { name: "Esta vacante todavía no tiene pipeline" })).toBeVisible();
+ expect(container).toHaveTextContent(/borrador.*candidatos.*publique/i);
+ expect(screen.getByRole("link", { name: "Continuar editando" })).toHaveAttribute("href", `/empresa/vacantes/borradores/${read.id}`);
+ expect(screen.getByRole("link", { name: "Volver a Vacantes" })).toHaveAttribute("href", "/empresa/vacantes");
+ expect(container.querySelector('[data-slot="badge"]')).toHaveAttribute("data-dot");
+ expect(container.querySelector('[data-slot="badge"]')).toHaveAttribute("data-variant", "info");
+ expect(container.querySelectorAll("header")).toHaveLength(1);
+});
+it.each(["not_found", "forbidden", "server_error", "no_response"] as const)("reuses the edit error state for %s and retries explicitly", async reason => {
+ vi.mocked(loadDraftForEditAction).mockResolvedValueOnce({ ok: false, reason });
+ render(<DraftPipelineState draftId={read.id} />);
+ fireEvent.click(await screen.findByRole("button", { name: "Reintentar" }));
+ await screen.findByRole("link", { name: "Continuar editando" });
+ expect(loadDraftForEditAction).toHaveBeenCalledTimes(2);
+});
+it("ignores stale results when the id changes", async () => {
+ let resolve!: (value: DraftEditResult) => void;
+ vi.mocked(loadDraftForEditAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; })).mockResolvedValueOnce({ ok: false, reason: "not_found" });
+ const { rerender } = render(<DraftPipelineState draftId={read.id} />);
+ rerender(<DraftPipelineState draftId="223e4567-e89b-42d3-a456-426614174000" />);
+ await screen.findByRole("heading", { name: "No encontramos este borrador" });
+ await act(async () => resolve(success));
+ expect(screen.queryByRole("link", { name: "Continuar editando" })).not.toBeInTheDocument();
+});

@@ -14,7 +14,7 @@ export default async function Page({params}:{params:Promise<{draftId:string}>}) 
   if (!isValidJobId(draftId)) notFound();
   return (
     <>
-      <SiteHeader title="Editar borrador" parent={{label:"Borradores",href:"/empresa/vacantes/borradores"}} />
+      <SiteHeader title="Editar borrador" parent={{label:"Vacantes",href:"/empresa/vacantes"}} />
       <div className="@container/main flex flex-1 flex-col">
         <DashboardPageContent data-pf-draft-vacante-content="" width="7xl" className="gap-5 md:gap-6">
           <DraftEditLoader draftId={draftId} />

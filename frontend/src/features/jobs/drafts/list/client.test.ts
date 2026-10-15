@@ -4,11 +4,12 @@ vi.mock("@/lib/api/server", async () => await import("@/lib/api/requestJson"));
 const env = vi.hoisted(() => ({ reads: 0 }));
 vi.mock("@/lib/env/server", () => ({ get serverEnv() { env.reads++; return { apiBaseUrl: "http://localhost:8080/api/v1/", apiTimeoutMs: 8000 }; } }));
 const id = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
-const row = { id, title: "Analista", requester: { kind: "client", id, name: "Acme" }, principal_recruiter: { id, name: "Ana" }, version: "9007199254740993", created_at: "2026-10-15T12:00:00Z", updated_at: "2026-10-15T06:30:00-06:00" };
+const row = { id, title: "Analista", work_mode: null, work_schedule: null, requester: { kind: "client", id, name: "Acme" }, principal_recruiter: { id, name: "Ana" }, version: "9007199254740993", created_at: "2026-10-15T12:00:00Z", updated_at: "2026-10-15T06:30:00-06:00" };
 function response(body: unknown, status = 200) { const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status })); vi.stubGlobal("fetch", fetch); return fetch; }
 afterEach(() => { vi.unstubAllGlobals(); env.reads = 0; });
 it.each([
- row, { ...row, title: null }, { ...row, requester: null },
+ row, ...["onsite", "remote", "hybrid"].map(work_mode => ({ ...row, work_mode })),
+ ...["full_time", "part_time"].map(work_schedule => ({ ...row, work_schedule })), { ...row, title: null }, { ...row, requester: null },
  { ...row, requester: { kind: "internal_area", id: null, name: null } },
  { ...row, principal_recruiter: { id, name: null } },
 ])("accepts S2 row %# without rewriting", async item => {
@@ -18,6 +19,8 @@ it.each([
 });
 it.each([
  { ...row, requester: { kind: "client", id, name: null } },
+ { ...row, work_mode: undefined }, { ...row, work_schedule: undefined },
+ { ...row, work_mode: "elsewhere" }, { ...row, work_schedule: "contract" },
  { ...row, extra: true }, { ...row, id: "bad" },
  { ...row, principal_recruiter: { id: "bad", name: null } },
  { ...row, requester: { kind: "client", id, name: "Acme", extra: true } },

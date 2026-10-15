@@ -37,6 +37,14 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/empresa/vacantes/backend-developer-senior/pipeline",
 }));
 
+vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn(() => new Promise(() => {})) }));
+
+it("routes a UUID to the draft client loader rather than notFound", async () => {
+ const content = await Page({ params: Promise.resolve({ jobId: "123e4567-e89b-42d3-a456-426614174000" }) });
+ expect(content.type.name).toBe("DraftPipelineState");
+ expect(content.props.draftId).toBe("123e4567-e89b-42d3-a456-426614174000");
+});
+
 const paramsFor = (jobId: string) => Promise.resolve({ jobId });
 
 // jsdom implements neither matchMedia nor ResizeObserver; the sidebar reads the
@@ -298,7 +306,6 @@ describe("/empresa/vacantes/[jobId]/pipeline source boundaries", () => {
       "localStorage",
       "sessionStorage",
       "cookies",
-      "features/jobs",
     ]) {
       expect(pageSource, `page.tsx must not declare ${forbidden}`).not.toContain(
         forbidden,

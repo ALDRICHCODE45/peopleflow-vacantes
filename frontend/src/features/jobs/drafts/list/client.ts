@@ -13,6 +13,8 @@ const requesterSchema = z.object({
 const rowSchema = z.object({
   id: uuid,
   title: z.string().nullable(),
+  work_mode: z.enum(["onsite", "remote", "hybrid"]).nullable(),
+  work_schedule: z.enum(["full_time", "part_time"]).nullable(),
   requester: requesterSchema.nullable(),
   principal_recruiter: z.object({ id: uuid, name: z.string().nullable() }).strict(),
   version: z.string().regex(/^[1-9][0-9]*$/),

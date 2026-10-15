@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import type { DraftEditFailureReason } from "./load";
 
-const back = {href:"/empresa/vacantes/borradores",label:"Volver a borradores"};
+const back = {href:"/empresa/vacantes",label:"Volver a Vacantes"};
 const missing = {
   title:"No encontramos este borrador",
   description:"Puede que ya no exista o que no esté disponible para tu cuenta. Revisa los borradores a los que tienes acceso.",

@@ -54,7 +54,7 @@ it.each(["not_found","unauthenticated","forbidden","company_inactive","company_n
   const {container} = render(<DraftEditLoader draftId={read.id} />);
   const retry = await screen.findByRole("button",{name:"Reintentar"});
   expect(container.querySelector('[data-slot="empty"]')).not.toBeNull();
-  expect(screen.getByRole("link")).toHaveAttribute("href", reason === "unauthenticated" ? "/empresa/login" : reason.startsWith("company_") ? "/empresa/configuracion" : "/empresa/vacantes/borradores");
+  expect(screen.getByRole("link")).toHaveAttribute("href", reason === "unauthenticated" ? "/empresa/login" : reason.startsWith("company_") ? "/empresa/configuracion" : "/empresa/vacantes");
   expect(saveDraftV2Action).not.toHaveBeenCalled();
   expect(screen.queryByRole("textbox",{name:"Título"})).not.toBeInTheDocument();
   fireEvent.click(retry);

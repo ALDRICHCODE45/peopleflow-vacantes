@@ -2,7 +2,7 @@ import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { EmployerShell } from "@/components/company-dashboard/employer-shell";
@@ -10,6 +10,8 @@ import { vacancyPipelineHref } from "@/features/employer-vacancies/model";
 import { NEXO_VACANCIES } from "@/features/employer-vacancies/prototype-vacancies";
 
 import PageContent, { metadata } from "./page";
+
+vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn(() => new Promise(() => {})) }));
 
 // Mirrors the (empresa) layout: the shell wraps the route content.
 function Page() {
@@ -117,8 +119,7 @@ describe("/empresa/vacantes employer route", () => {
   it("adds the local-draft entry alongside the preserved create-vacancy link", () => {
     render(<Page />);
 
-    const listLink = screen.getByRole("link", { name: /^Borradores$/i });
-    expect(listLink).toHaveAttribute("href", "/empresa/vacantes/borradores");
+    expect(screen.queryByRole("link", { name: /^Borradores$/i })).not.toBeInTheDocument();
     const draftLink = screen.getByRole("link", { name: /Nuevo borrador/i });
     expect(draftLink).toHaveAttribute(
       "href",
@@ -186,6 +187,10 @@ describe("/empresa/vacantes employer route", () => {
 });
 
 describe("/empresa/vacantes composition boundary", () => {
+  it("has no separate drafts-list page while retaining the edit route", () => {
+    expect(existsSync("src/app/(empresa)/empresa/vacantes/borradores/page.tsx")).toBe(false);
+    expect(existsSync("src/app/(empresa)/empresa/vacantes/borradores/[draftId]/page.tsx")).toBe(true);
+  });
   it("mounts the shared header, the portfolio and the Nexo fixtures", () => {
     expect(pageSource).toContain('<SiteHeader title="Vacantes" />');
     expect(pageSource).toContain("<VacancyPortfolio vacancies={NEXO_VACANCIES} />");
