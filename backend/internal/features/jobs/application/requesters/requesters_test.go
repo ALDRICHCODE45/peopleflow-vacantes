@@ -124,6 +124,40 @@ func TestCursorAcceptsExpandedKey(t *testing.T) {
 	}
 }
 
+// Every field must be a JSON string of the canonical shape: null is not an
+// empty string, invalid UTF-8 and lone surrogates are never repaired, and the
+// key must be one a normalized name can produce (verification finding S9).
+func TestDecodeCursorRejectsWrongTypesAndUnreachableKeys(t *testing.T) {
+	scope := Scope{CompanyID: testCompany, Kind: KindClient}
+	cursor := func(q, key string) string {
+		return encodeRaw(`{"version":1,"company_id":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b","kind":"client",` +
+			`"q_normalized":` + q + `,"last_name_key":` + key + `,"last_id":"0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c"}`)
+	}
+	if _, err := DecodeCursor(cursor(`""`, `"acme"`), scope); err != nil {
+		t.Fatalf("baseline cursor rejected: %v", err)
+	}
+	cases := map[string]string{
+		"null query":            cursor(`null`, `"acme"`),
+		"null key":              cursor(`""`, `null`),
+		"numeric query":         cursor(`0`, `"acme"`),
+		"lone surrogate key":    cursor(`""`, `"\ud800"`),
+		"invalid utf-8 key":     cursor(`""`, "\"a\xffb\""),
+		"lone surrogate query":  cursor(`"\udc00"`, `"acme"`),
+		"control in key":        cursor(`""`, `"a\u0001b"`),
+		"nbsp in key":           cursor(`""`, `"a\u00a0b"`),
+		"leading space in key":  cursor(`""`, `" acme"`),
+		"trailing space in key": cursor(`""`, `"acme "`),
+		"double space in key":   cursor(`""`, `"a  b"`),
+	}
+	for name, token := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, err := DecodeCursor(token, scope); !errors.Is(err, ErrInvalidRequest) {
+				t.Errorf("DecodeCursor error = %v, want ErrInvalidRequest", err)
+			}
+		})
+	}
+}
+
 func TestDecodeCursorRejects(t *testing.T) {
 	replace := func(old, repl string) string {
 		return encodeRaw(strings.Replace(validCursorJSON, old, repl, 1))

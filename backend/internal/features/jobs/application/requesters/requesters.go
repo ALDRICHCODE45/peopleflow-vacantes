@@ -11,8 +11,10 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/domain/valueobjects"
 	"github.com/google/uuid"
 	"golang.org/x/text/cases"
@@ -150,6 +152,11 @@ func DecodeCursor(token string, scope Scope) (Cursor, error) {
 	if err != nil {
 		return Cursor{}, ErrInvalidRequest
 	}
+	// encoding/json silently repairs invalid UTF-8 and lone surrogate escapes;
+	// the strict draft decoder rejects them before any field is read.
+	if _, err := draftjson.Decode(raw); err != nil {
+		return Cursor{}, ErrInvalidRequest
+	}
 	if !hasExactKeys(raw) {
 		return Cursor{}, ErrInvalidRequest
 	}
@@ -192,8 +199,9 @@ func DecodeCursor(token string, scope Scope) (Cursor, error) {
 }
 
 // hasExactKeys reports whether raw is a single JSON object declaring every
-// cursor key exactly once and nothing else. encoding/json alone would accept a
-// duplicated key (last wins) or a missing one (zero value).
+// cursor key exactly once and nothing else, with every key but version holding
+// a JSON string. encoding/json alone would accept a duplicated key (last wins),
+// a missing one (zero value) or null for a string field (empty string).
 func hasExactKeys(raw []byte) bool {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	if open, err := dec.Token(); err != nil || open != json.Delim('{') {
@@ -212,6 +220,9 @@ func hasExactKeys(raw []byte) bool {
 		seen[key] = true
 		var value json.RawMessage
 		if err := dec.Decode(&value); err != nil {
+			return false
+		}
+		if key != "version" && (len(value) == 0 || value[0] != '"') {
 			return false
 		}
 	}
@@ -241,12 +252,21 @@ func canonicalUUID(s string) (uuid.UUID, bool) {
 	return id, true
 }
 
-// canonicalKey reports whether s is a non-empty fixed point of the key
-// algorithm (full casefold, then NFC). The expanded key is deliberately not
-// length-limited.
+// canonicalKey reports whether s is a key a normalized requester name can
+// produce: non-empty, a fixed point of the key algorithm (full casefold, then
+// NFC), with no control characters and whitespace only as single inner ASCII
+// spaces. The expanded key is deliberately not length-limited.
 func canonicalKey(s string) bool {
 	if s == "" || !utf8.ValidString(s) {
 		return false
+	}
+	if s[0] == ' ' || s[len(s)-1] == ' ' || strings.Contains(s, "  ") {
+		return false
+	}
+	for _, r := range s {
+		if unicode.IsControl(r) || (r != ' ' && unicode.Is(unicode.White_Space, r)) {
+			return false
+		}
 	}
 	return norm.NFC.String(cases.Fold().String(s)) == s
 }

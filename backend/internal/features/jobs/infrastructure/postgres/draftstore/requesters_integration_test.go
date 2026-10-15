@@ -192,6 +192,12 @@ func TestCreateRequester_ConcurrentSameNameCreatesOne(t *testing.T) {
 	if got := requesterCount(t, pool, p.companyID); got != 1 {
 		t.Errorf("rows = %d, want 1", got)
 	}
+	// The losing duplicates write no audit event: exactly one for the race.
+	if got := countRows(t, pool,
+		`SELECT count(*) FROM audit_events WHERE event_type = $1 AND entity_id IN (SELECT id FROM job_draft_requesters WHERE company_id = $2)`,
+		entities.EventJobDraftRequesterCreated, p.companyID); got != 1 {
+		t.Errorf("audit rows = %d, want 1", got)
+	}
 }
 
 func TestRequesters_AuthorizationGates(t *testing.T) {
