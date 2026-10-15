@@ -10,7 +10,7 @@ import { join } from "node:path";
 const hoisted = vi.hoisted(() => ({ serialized: [] as unknown[] }));
 
 vi.mock("../actions", () => ({ saveDraftV2Action: vi.fn(async () => ({ok:true,draftId:"saved",etag:'"v1"',version:"1",savedAt:"2026-10-06T03:00:00Z"})) }));
-vi.mock("sileo", () => ({sileo:{success:vi.fn()}}));
+vi.mock("sileo", () => ({sileo:{success:vi.fn(() => "local-draft-success"),error:vi.fn(() => "local-draft-error"),dismiss:vi.fn()}}));
 
 vi.mock("@/features/jobs/drafts/model", async (importOriginal) => {
   const actual =
@@ -1068,7 +1068,7 @@ describe("LocalDraftForm fresh local v2 screening", () => {
 
     validateDraft();
 
-    await waitFor(() => expect(successStatus()).toHaveTextContent("Borrador guardado"));
+    await waitFor(() => expect(successStatus()).toHaveTextContent("Guardado · versión 1"));
     expect(hoisted.serialized).toHaveLength(1);
     // The internal placeholder honored by the v1 serializer is empty: the v2
     // questions never cross into the v1 write body.
@@ -1300,7 +1300,7 @@ describe("LocalDraftForm ambiguous screening seeds", () => {
 
     validateDraft();
 
-    await waitFor(() => expect(successStatus()).toHaveTextContent("Borrador guardado"));
+    await waitFor(() => expect(successStatus()).toHaveTextContent("Guardado · versión 1"));
     expect(hoisted.serialized).toHaveLength(1);
     // The empty v1 screening list is the only accepted combination; the other
     // 16 normalized fields survive untouched and the v2 questions stay out of

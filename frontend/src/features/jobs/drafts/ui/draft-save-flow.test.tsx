@@ -4,12 +4,12 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import "@testing-library/jest-dom/vitest";
 import { sileo } from "sileo";
 import { saveDraftV2Action, type DraftSaveResult } from "../actions";
-import { DraftSaveFeedback } from "./draft-save-feedback";
+import { DraftSaveFeedback, notifyDraftSaveResult } from "./draft-save-feedback";
 import { LocalDraftForm } from "./local-draft-form";
 import { createDraftModel } from "../model";
 
 vi.mock("../actions", () => ({ saveDraftV2Action: vi.fn() }));
-vi.mock("sileo", () => ({ sileo: { success: vi.fn() } }));
+vi.mock("sileo", () => ({ sileo: { success: vi.fn(() => "draft-success"), error: vi.fn(() => "draft-error"), dismiss: vi.fn() } }));
 vi.mock("./draft-description-editor", () => ({ DraftDescriptionEditor: () => null }));
 const key = "123e4567-e89b-42d3-a456-426614174000";
 const success = {ok:true, draftId:"saved-id", etag:'"v1"', version:"1", savedAt:"2026-10-06T03:00:00Z"} as const;
@@ -27,25 +27,23 @@ it.each([
   ["server_error", "El servidor tuvo un problema"],
   ["no_response", "No hubo respuesta del servidor"],
   ["unrecognized_response", "No pudimos confirmar el resultado"],
-] as const)("replaces %s alert on retry and clears it on confirmed success", async (reason, title) => {
+] as const)("replaces %s toast on retry and retains accessible status", async (reason, title) => {
   vi.mocked(saveDraftV2Action).mockResolvedValueOnce({ok:false,reason,reference:{status:500,code:"internal_error"}})
     .mockResolvedValueOnce({ok:false,reason:"version_conflict",reference:{status:412,code:"version_conflict"}});
   render(<LocalDraftForm />); review(); fireEvent.click(save());
-  expect(await screen.findByRole("alert")).toHaveTextContent(title);
-  expect(screen.getByRole("alert")).toHaveTextContent("no se creará un duplicado");
-  expect(save()).toHaveAttribute("aria-describedby", "draft-save-error");
-  expect(screen.getAllByRole("alert")).toHaveLength(1);
-  fireEvent.click(screen.getByRole("button", {name:"Detalles técnicos"}));
-  expect(screen.getByRole("alert")).toHaveTextContent("HTTP 500 · internal_error");
+  expect(await screen.findByRole("status")).toHaveTextContent("Resultado sin confirmar · ver aviso");
+  expect(sileo.error).toHaveBeenLastCalledWith(expect.objectContaining({title, duration:null}));
+  const {container} = render(<>{vi.mocked(sileo.error).mock.calls[0][0].description}</>);
+  expect(container).toHaveTextContent("no se creará un duplicado");
+  expect(container).toHaveTextContent("HTTP 500 · internal_error");
+  expect(save()).toHaveAttribute("aria-describedby", "draft-save-status");
   fireEvent.click(save());
-  expect(await screen.findByRole("alert")).toHaveTextContent("Esto cambió en otro lugar");
-  expect(screen.getAllByRole("alert")).toHaveLength(1);
-  expect(screen.getByRole("alert")).not.toHaveTextContent("HTTP 500");
-  expect(screen.getByRole("button", {name:"Detalles técnicos"})).toHaveAttribute("aria-expanded", "false");
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("No se guardó · ver aviso"));
+  expect(sileo.error).toHaveBeenLastCalledWith(expect.objectContaining({title:"Esto cambió en otro lugar"}));
+  expect(sileo.dismiss).toHaveBeenCalledWith("draft-error");
   fireEvent.click(save());
-  await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
-  expect(await screen.findByRole("status")).toHaveTextContent("Borrador guardado");
-  expect(save()).not.toHaveAttribute("aria-describedby");
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Guardado · versión 1"));
+  expect(save()).toHaveAttribute("aria-describedby", "draft-save-status");
 });
 it("creates the validated v2 body, guards pending, then PATCHes the same draft with returned ETag", async () => {
   let resolve!: (result: DraftSaveResult) => void;
@@ -66,19 +64,20 @@ it("creates the validated v2 body, guards pending, then PATCHes the same draft w
   fireEvent.submit(saveDraftForm());
   expect(saveDraftV2Action).toHaveBeenCalledTimes(1);
   await act(async () => resolve(success));
-  expect(screen.getByText(/Borrador guardado/)).toBeVisible();
-  expect(screen.getByText(/Borrador guardado/)).toHaveAttribute("data-variant", "success");
+  expect(screen.getByRole("status")).toHaveTextContent("Guardado · versión 1");
+  expect(sileo.success).toHaveBeenLastCalledWith(expect.objectContaining({title:"Borrador guardado",description:expect.stringContaining("versión 1")}));
   expect(save()).toHaveTextContent("Guardar cambios");
   expect(sileo.success).toHaveBeenCalledTimes(1);
   fireEvent.click(save());
   await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledTimes(2));
   expect(vi.mocked(saveDraftV2Action).mock.calls[1][0]).toEqual({draftId:"saved-id",etag:'"v1"',body:input.body});
+  await waitFor(() => expect(sileo.success).toHaveBeenLastCalledWith(expect.objectContaining({title:"Cambios guardados"})));
 });
 function saveDraftForm() {return document.querySelector("[data-pf-local-draft-form] form")!;}
 it("keeps the create key after uncertainty, even after an edit and explicit retry", async () => {
   vi.mocked(saveDraftV2Action).mockResolvedValue({ok:false,reason:"unrecognized_response",reference:{}});
   render(<LocalDraftForm />); review(); fireEvent.click(save());
-  expect(await screen.findByRole("alert")).toHaveTextContent(/No pudimos confirmar/);
+  expect(await screen.findByRole("status")).toHaveTextContent("Resultado sin confirmar · ver aviso");
   expect(save()).toBeEnabled();
   fireEvent.click(screen.getByRole("button",{name:"Atrás"}));
   for(let i=0;i<3;i++) fireEvent.click(screen.getByRole("button",{name:"Atrás"}));
@@ -99,9 +98,11 @@ it.each([
   render(<LocalDraftForm />);
   fireEvent.change(screen.getByRole("textbox",{name:"Título"}),{target:{value:"Mi borrador"}});
   review(); fireEvent.click(save());
-  expect(await screen.findByRole("alert")).toHaveTextContent(copy);
+  expect(await screen.findByRole("status")).toHaveTextContent("No se guardó · ver aviso");
+  const {container} = render(<>{vi.mocked(sileo.error).mock.calls[0][0].description}{vi.mocked(sileo.error).mock.calls[0][0].title}</>);
+  expect(container).toHaveTextContent(copy);
   if(href) expect(screen.getByRole("link")).toHaveAttribute("href",href);
-  expect(screen.getByRole("alert")).toBeVisible();
+  expect(screen.getByRole("status")).toBeVisible();
   expect(sileo.success).not.toHaveBeenCalled();
   for(let i=0;i<4;i++) fireEvent.click(screen.getByRole("button",{name:"Atrás"}));
   expect(screen.getByRole("textbox",{name:"Título"})).toHaveValue("Mi borrador");
@@ -121,7 +122,7 @@ it("keeps edits made during an in-flight save dirty and sends them only on the n
   fireEvent.change(screen.getByRole("textbox",{name:"Título"}),{target:{value:"Edición posterior"}});
   await act(async () => resolve(success));
   review();
-  expect(screen.getByRole("status")).toHaveTextContent("Hay cambios sin guardar");
+  expect(screen.getByText("Hay cambios sin guardar desde el último guardado confirmado.")).toBeVisible();
   expect(saveDraftV2Action).toHaveBeenCalledTimes(1);
   fireEvent.click(save());
   await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledTimes(2));
@@ -130,10 +131,11 @@ it("keeps edits made during an in-flight save dirty and sends them only on the n
 it("treats a disconnected action as uncertain and retries with the original create key", async () => {
   vi.mocked(saveDraftV2Action).mockRejectedValueOnce(new Error("disconnected"));
   render(<LocalDraftForm />); review(); fireEvent.click(save());
-  expect(await screen.findByRole("alert")).toHaveTextContent("No hubo respuesta del servidor");
+  expect(await screen.findByRole("status")).toHaveTextContent("Resultado sin confirmar · ver aviso");
+  expect(sileo.error).toHaveBeenLastCalledWith(expect.objectContaining({title:"No hubo respuesta del servidor"}));
   expect(sileo.success).not.toHaveBeenCalled();
   fireEvent.click(save());
-  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Borrador guardado"));
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Guardado · versión 1"));
   expect(vi.mocked(saveDraftV2Action).mock.calls[1][0].idempotencyKey).toBe(key);
 });
 it.each([
@@ -148,18 +150,23 @@ it.each([
   ["precondition_required", "No se pudo comprobar la versión", null],
   ["payload_too_large", "El borrador supera el tamaño permitido", null],
 ] as const)("uses product copy and only a useful action for %s", (reason, title, action) => {
-  render(<DraftSaveFeedback result={{ok:false,reason,reference:{}}} dirty at="2026-10-06T17:58:46" />);
-  expect(screen.getByRole("alert")).toHaveTextContent(title);
-  expect(screen.getByRole("alert")).not.toHaveTextContent(/clave|idempotencia|respuesta inválida/);
+  render(<DraftSaveFeedback result={{ok:false,reason,reference:{}}} dirty />);
+  expect(screen.getByRole("status")).toHaveTextContent("No se guardó · ver aviso");
+  expect(screen.getByRole("status")).not.toHaveTextContent(/clave|idempotencia|respuesta inválida/);
+  notifyDraftSaveResult({ok:false,reason,reference:{}}, false, "2026-10-06T17:58:46");
+  expect(sileo.error).toHaveBeenLastCalledWith(expect.objectContaining({title}));
   if (action) {
     expect(screen.getByRole("link", {name:action})).toHaveAttribute("target", "_blank");
     expect(screen.getByRole("link", {name:action})).toHaveClass("min-h-10");
   } else expect(screen.queryByRole("link")).not.toBeInTheDocument();
 });
 it("explains safe PATCH retry without claiming the update failed", () => {
-  render(<DraftSaveFeedback result={{ok:false,reason:"server_error",reference:{status:502}}} dirty saved />);
-  expect(screen.getByRole("alert")).toHaveTextContent("podría haberse actualizado");
-  expect(screen.getByRole("alert")).toHaveTextContent("no sobrescribiremos una versión más reciente");
+  render(<DraftSaveFeedback result={{ok:false,reason:"server_error",reference:{status:502}}} dirty />);
+  expect(screen.getByRole("status")).toHaveTextContent("Resultado sin confirmar · ver aviso");
+  notifyDraftSaveResult({ok:false,reason:"server_error",reference:{status:502}}, true, "2026-10-06T17:58:46");
+  const {container} = render(<>{vi.mocked(sileo.error).mock.calls[0][0].description}</>);
+  expect(container).toHaveTextContent("podría haberse actualizado");
+  expect(container).toHaveTextContent("no sobrescribiremos una versión más reciente");
 });
 it("keeps v1 validation local with no save action",()=>{
   render(<LocalDraftForm initialModel={createDraftModel()} />);review();

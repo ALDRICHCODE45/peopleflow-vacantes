@@ -1025,13 +1025,13 @@ export function LocalDraftForm({
               )}
               {isV2 ? (
                 <div className="flex max-w-xl flex-col items-start gap-3">
-                  <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} at={draftSave.at} saved={draftSave.saved} />
+                  <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} />
                   <Button
                     type="submit"
                     className="min-h-10 min-w-40"
                     disabled={draftSave.pending}
                     aria-busy={draftSave.pending}
-                    aria-describedby={draftSave.result?.ok === false ? "draft-save-error" : undefined}
+                    aria-describedby={draftSave.result ? (draftSave.dirty && draftSave.result.ok ? "draft-save-status draft-save-dirty" : "draft-save-status") : undefined}
                   >
                     {draftSave.pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
                     {draftSave.pending ? "Guardando…" : draftSave.saved ? "Guardar cambios" : "Guardar borrador"}
