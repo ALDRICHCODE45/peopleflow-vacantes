@@ -114,6 +114,7 @@ en la sección 7.
 - Notificaciones transitorias → **Sileo**, excepción aprobada a shadcn-first; un único `AppToaster` global.
 - Estados/etiquetas → `Badge` (no `span` con color propio).
 - Tooltips/info → `Tooltip`/`Popover` (instalados); `HoverCard` (**hoy no instalado**).
+- Errores y avisos persistentes → `Alert` (instalado) mediante `ActionErrorAlert` (sección 12).
 
 ## 6. Ejemplos canónicos
 
@@ -270,6 +271,7 @@ esta regla.
 | Placeholders de carga | `Skeleton`, `Progress` | Instalado |
 | Acción puntual en curso | `Spinner` oficial de shadcn | Instalado |
 | Notificaciones transitorias | `Sileo` mediante `AppToaster` global | Instalado; excepción aprobada |
+| Errores de acción y avisos persistentes | `Alert` mediante `ActionErrorAlert` | Instalado |
 
 Regla operativa: si el primitivo no está instalado, **primero** se consulta en el
 registry (herramientas MCP en solo lectura) y **no se implementa a mano**. Agregarlo
@@ -305,6 +307,9 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
       o Progress para progreso medible, sin demoras artificiales (sección 11)?
 - [ ] ¿Los toasts salen de resultados reales, usan el host global y no sustituyen errores
       persistentes ni validaciones de formulario (sección 11)?
+- [ ] ¿Cada error de acción usa `ActionErrorAlert` con título, consecuencia, una sola
+      acción y referencia técnica plegable, y cada error de campo usa `FieldError`
+      (sección 12)?
 
 - [ ] ¿Existe un primitive instalado que cubre el patrón? Si sí, se usó.
 - [ ] ¿Se usaron variantes nativas antes que clases propias?
@@ -555,3 +560,77 @@ PLAYWRIGHT_FEEDBACK_ORIGIN=http://127.0.0.1:3187 corepack pnpm exec playwright t
 Sin `PLAYWRIGHT_FEEDBACK_ORIGIN`, estos tests se omiten explícitamente en la suite E2E
 normal: no se confunden con cobertura ejecutada. No confundir aprobar la fixture con
 haber migrado o verificado todas las pantallas de producto.
+
+## 12. Errores con calidad de producto
+
+**Un error bien mostrado responde tres preguntas: qué pasó, qué quedó a salvo y qué
+puede hacer la persona ahora.** Un párrafo rojo suelto, largo o con jerga técnica
+(«clave de idempotencia», «respuesta inválida») es un fallo de revisión.
+
+### Nivel según el alcance
+
+| Alcance del problema | Patrón | Primitive |
+| --- | --- | --- |
+| Un campo inválido | Mensaje corto junto al campo, `aria-invalid` en el control | `Field` + `FieldError` |
+| Falló una acción o una sección (guardar, crear, cargar) | Aviso persistente junto a la acción | `ActionErrorAlert` (compone `Alert`) |
+| Advertencia que no bloquea | Aviso persistente neutro | `Alert` `variant="default"` con ícono informativo |
+| Resultado transitorio ya confirmado | Toast | Sileo (sección 11) |
+| Una página o sección completa no tiene datos que mostrar | Estado vacío con acción | `Empty` |
+
+- `ActionErrorAlert` (`@/components/feedback/action-error-alert`) es la única
+  composición de producto para errores de acción. Usa `Alert` `variant="destructive"`,
+  el ícono `CircleAlert` (`aria-hidden`), `AlertTitle`, `AlertDescription`, como
+  máximo **una** acción (`Button` ≥ 40px o enlace con estilo de botón) y una referencia
+  técnica plegable opcional.
+- Un solo aviso por acción, ubicado junto a su botón. Un nuevo intento lo reemplaza y un
+  éxito confirmado lo quita. Nunca se apilan avisos del mismo origen.
+- El aviso de error no sustituye a los errores de campo: si el backend rechaza datos,
+  los campos señalan qué corregir y el aviso solo resume.
+- Un toast nunca es el único portador de un error (sección 11).
+
+### Redacción
+
+- **Título:** qué pasó, en seis palabras o menos y sin culpar a la persona («No se pudo
+  guardar el borrador», «El servidor tuvo un problema»).
+- **Descripción:** una o dos oraciones con la consecuencia (qué se guardó o no) y el
+  siguiente paso. Nada de códigos, términos internos ni texto del backend sin revisar.
+- **Acción:** un verbo concreto que resuelve la causa («Reintentar», «Iniciar sesión»,
+  «Crear empresa»). Si no hay acción útil, no se inventa una.
+
+### Mensaje por causa
+
+| Causa técnica | Título | Siguiente paso |
+| --- | --- | --- |
+| Datos inválidos (400) | Revisa los datos marcados | Corregir los campos señalados |
+| Sesión vencida (401) | Tu sesión expiró | Iniciar sesión (sin perder lo capturado) |
+| Sin permiso (403) | No tienes permiso para esta acción | Explicar qué cuenta puede hacerlo |
+| Falta un requisito (404 de empresa, empresa inactiva) | Falta configurar tu empresa | Enlace a la configuración |
+| Conflicto (409/412) | Esto cambió en otro lugar | Explicar qué se conserva |
+| Error del servidor (5xx) | El servidor tuvo un problema | Reintentar; decir si es seguro |
+| Sin conexión o sin respuesta a tiempo | No hubo respuesta del servidor | Reintentar; decir si es seguro |
+| Respuesta que la UI no reconoce | No pudimos confirmar el resultado | Reintentar sin duplicar o revisar antes |
+
+Cuando una escritura pudo haber ocurrido (5xx, sin respuesta, respuesta no reconocida),
+la descripción dice explícitamente si reintentar es seguro. Por ejemplo, la creación de
+borradores conserva su clave de guardado y un reintento no duplica.
+
+### Referencia técnica
+
+- Se ofrece plegada bajo «Detalles técnicos» (`Accordion` instalado, un solo ítem
+  colapsable). Muestra solo el código HTTP, el código de error del backend y la hora
+  local del intento, por ejemplo `HTTP 500 · internal_error · 17:58:46`. Sirve para
+  reportar el problema y ubicarlo en los logs del backend.
+- Nunca incluye tokens, cookies, cuerpos de petición o respuesta, identificadores
+  personales ni mensajes crudos de excepciones.
+- Las Server Actions devuelven esa referencia como datos serializables
+  (`{ status?, code? }`). El navegador solo ve el POST 200 de la action, así que sin
+  esta referencia la causa real queda oculta.
+
+### Accesibilidad
+
+- `Alert` ya expone `role="alert"`, que anuncia el aviso al aparecer. No se duplica con
+  otro `role="alert"` ni con `aria-live` en el contenedor.
+- El botón que originó la acción referencia el aviso con `aria-describedby` mientras
+  el aviso existe.
+- El color nunca es el único portador del significado: ícono, título y texto cargan el
+  mensaje completo.
