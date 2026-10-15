@@ -240,6 +240,7 @@ export function validateDraftFormState(
   const candidate: DraftModel = {
     ...baseModel,
     fields: composeDraftFields(state) as DraftModel["fields"],
+    requesterName: state.requester.changed ? state.requester.name : baseModel.requesterName,
   };
   try {
     const body = draftModelToPostBody(candidate);
@@ -247,7 +248,7 @@ export function validateDraftFormState(
       ok: true,
       model: {
         fields: body.fields,
-        requesterName: baseModel.requesterName,
+        requesterName: candidate.requesterName,
         descriptionPlain: baseModel.descriptionPlain,
       },
     };
@@ -383,24 +384,38 @@ export function updateCompensation(
   return { ...state, compensation: { ...state.compensation, ...patch } };
 }
 
-/**
- * Explicit requester type change. Selecting the visual default while nothing
- * was supplied is not a change; any real change clears a now-mismatched id and
- * name and explains it, so no stale or fake selection can be sent.
- */
+/** Explicit catalog selection; names are presentation-only, never wire data. */
+export function selectRequester(
+  state: DraftFormState,
+  entry: { kind: DraftRequesterKind; id: string; name: string } | null,
+): DraftFormState {
+  if (entry !== null && entry.kind !== state.requester.kind) return state;
+  return {
+    ...state,
+    requester: {
+      ...state.requester,
+      id: entry?.id ?? null,
+      name: entry?.name ?? null,
+      changed: true,
+      notice: null,
+    },
+  };
+}
+
+/** A real type change clears the now-mismatched catalog selection. */
 export function changeRequesterKind(
   state: DraftFormState,
   kind: DraftRequesterKind,
 ): DraftFormState {
   const requester = state.requester;
-  if (requester.kind === kind && !requester.changed) return state;
+  if (requester.kind === kind) return state;
   const clearedName = requester.name;
   const hadSelection = requester.id !== null || clearedName !== null;
   const notice = hadSelection
     ? `Cambiaste el tipo de solicitante. Se quitó la selección anterior${
         clearedName === null ? "" : ` («${clearedName}»)`
-      } porque pertenecía a otro tipo. Elige uno nuevo cuando el catálogo esté disponible.`
-    : "Cambiaste el tipo de solicitante. Elige uno nuevo cuando el catálogo esté disponible.";
+      } porque pertenecía a otro tipo. Elige uno nuevo del catálogo.`
+    : "Cambiaste el tipo de solicitante. Elige uno nuevo del catálogo.";
   return {
     ...state,
     requester: { ...requester, kind, id: null, name: null, changed: true, notice },

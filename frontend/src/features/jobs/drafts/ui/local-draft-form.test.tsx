@@ -9,8 +9,19 @@ import { join } from "node:path";
 // any production-only prop or visible test payload.
 const hoisted = vi.hoisted(() => ({ serialized: [] as unknown[] }));
 
+vi.mock("../requesters/actions", () => ({
+  searchRequestersAction: vi.fn(async () => ({ ok: true, items: [{ id: "123e4567-e89b-42d3-a456-426614174001", kind: "client", name: "Cliente del catálogo" }], nextCursor: null })),
+  createRequesterAction: vi.fn(),
+}));
+vi.mock("@/components/ui/combobox", async (original) => ({
+  ...await original<typeof import("@/components/ui/combobox")>(),
+  ComboboxContent: ({children}: {children: React.ReactNode}) => <>{children}</>,
+  // Popup-only live region would be unmounted in the closed real portal.
+  ComboboxEmpty: () => null,
+}));
+
 vi.mock("../actions", () => ({ saveDraftV2Action: vi.fn(async () => ({ok:true,draftId:"saved",etag:'"v1"',version:"1",savedAt:"2026-10-06T03:00:00Z"})) }));
-vi.mock("sileo", () => ({sileo:{success:vi.fn()}}));
+vi.mock("sileo", () => ({sileo:{success:vi.fn(() => "local-draft-success"),error:vi.fn(() => "local-draft-error"),dismiss:vi.fn()}}));
 
 vi.mock("@/features/jobs/drafts/model", async (importOriginal) => {
   const actual =
@@ -94,7 +105,7 @@ import { createDraftModel, hydrateDraftModel, type DraftModel } from "@/features
 import { draftPostBodySchema } from "@/features/jobs/drafts/fields";
 
 import { LocalDraftForm } from "./local-draft-form";
-import { REQUESTER_CATALOG_UNAVAILABLE } from "./draft-messages";
+
 
 const ID = "123e4567-e89b-42d3-a456-426614174000";
 const TS = "2026-10-06T03:00:00.123456Z";
@@ -904,6 +915,14 @@ describe("LocalDraftForm languages without CEFR mapping", () => {
 });
 
 describe("LocalDraftForm requester", () => {
+  it("composes a selected catalog entry as kind/id and keeps the name for preview", async () => {
+    render(<LocalDraftForm initialModel={populatedInitialModel()} />);
+    fireEvent.change(screen.getByRole("combobox", {name:"Área o cliente"}), {target:{value:"Cliente"}});
+    fireEvent.click(await screen.findByRole("option", {name:"Cliente del catálogo"}));
+    validateDraft();
+    expect(captured(0).fields.requester).toEqual({kind:"client",id:"123e4567-e89b-42d3-a456-426614174001"});
+    expect(captured(0).requesterName).toBe("Cliente del catálogo");
+  });
   it("preserves the supplied requester and name on a no-op", () => {
     const initial = populatedInitialModel();
     render(<LocalDraftForm initialModel={initial} />);
@@ -912,8 +931,8 @@ describe("LocalDraftForm requester", () => {
       "client",
     );
     const nameSelector = screen.getByRole("combobox", { name: "Área o cliente" });
-    expect(nameSelector).toBeDisabled();
-    expect(screen.getByText(REQUESTER_CATALOG_UNAVAILABLE)).toBeVisible();
+    expect(nameSelector).not.toBeDisabled();
+    expect(nameSelector).toHaveAttribute("placeholder", "Cliente Ejemplo");
 
     validateDraft();
 
@@ -928,7 +947,7 @@ describe("LocalDraftForm requester", () => {
     });
 
     expect(screen.getByRole("status")).toHaveTextContent("Cliente Ejemplo");
-    expect(screen.getByRole("combobox", { name: "Área o cliente" })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: "Área o cliente" })).not.toBeDisabled();
 
     validateDraft();
 
@@ -1068,7 +1087,7 @@ describe("LocalDraftForm fresh local v2 screening", () => {
 
     validateDraft();
 
-    await waitFor(() => expect(successStatus()).toHaveTextContent("Borrador guardado"));
+    await waitFor(() => expect(successStatus()).toHaveTextContent("Guardado · versión 1"));
     expect(hoisted.serialized).toHaveLength(1);
     // The internal placeholder honored by the v1 serializer is empty: the v2
     // questions never cross into the v1 write body.
@@ -1300,7 +1319,7 @@ describe("LocalDraftForm ambiguous screening seeds", () => {
 
     validateDraft();
 
-    await waitFor(() => expect(successStatus()).toHaveTextContent("Borrador guardado"));
+    await waitFor(() => expect(successStatus()).toHaveTextContent("Guardado · versión 1"));
     expect(hoisted.serialized).toHaveLength(1);
     // The empty v1 screening list is the only accepted combination; the other
     // 16 normalized fields survive untouched and the v2 questions stay out of

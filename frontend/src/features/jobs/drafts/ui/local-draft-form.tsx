@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useDraftSave } from "./draft-save-state";
 import { DRAFT_SAVE_NOTICE, DraftSaveFeedback } from "./draft-save-feedback";
+import { ActionStatusSlot } from "@/components/feedback/action-status";
 import { Card,
   CardContent,
   CardFooter,
@@ -49,6 +50,7 @@ import { DraftCompensationField } from "./draft-compensation-field";
 import { DraftDescriptionEditor } from "./draft-description-editor";
 import {
   changeRequesterKind,
+  selectRequester,
   initialDraftFormState,
   updateCompensation,
   validateDraftFormState,
@@ -732,6 +734,7 @@ export function LocalDraftForm({
                 <DraftRequesterField
                   requester={state.requester}
                   error={errors.requester}
+                  onSelect={(entry) => applyState((previous) => selectRequester(previous, entry), ["requester"])}
                   onChangeKind={(kind) =>
                     applyState((previous) => changeRequesterKind(previous, kind), ["requester"])
                   }
@@ -1024,18 +1027,20 @@ export function LocalDraftForm({
                 </p>
               )}
               {isV2 ? (
-                <div className="flex max-w-xl flex-col items-start gap-3">
-                  <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} at={draftSave.at} saved={draftSave.saved} />
+                <div className="flex max-w-xl flex-col items-start gap-2">
                   <Button
                     type="submit"
                     className="min-h-10 min-w-40"
                     disabled={draftSave.pending}
                     aria-busy={draftSave.pending}
-                    aria-describedby={draftSave.result?.ok === false ? "draft-save-error" : undefined}
+                    aria-describedby={draftSave.result ? "draft-save-status" : undefined}
                   >
                     {draftSave.pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
                     {draftSave.pending ? "Guardando…" : draftSave.saved ? "Guardar cambios" : "Guardar borrador"}
                   </Button>
+                  <ActionStatusSlot>
+                    <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} />
+                  </ActionStatusSlot>
                 </div>
               ) : <Button type="submit">Validar borrador</Button>}
             </DraftStepFooter>

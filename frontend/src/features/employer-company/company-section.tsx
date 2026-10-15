@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Building2, Factory, Fingerprint, ShieldCheck, UsersRound } from "lucide-react";
-import { sileo } from "sileo";
-import { ActionErrorAlert } from "@/components/feedback/action-error-alert";
+import { dismissActionResult, notifyActionResult } from "@/components/feedback/notify";
+import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,6 +48,16 @@ function needsReload(kind: string | undefined) {
 }
 const login = <Link href="/empresa/login" target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "outline", className: "min-h-10" })}>Iniciar sesión</Link>;
 
+type CompanyFailure = Extract<CompanyState | CreateCompanyState, { reference: object }>;
+function notifyCompanyFailure(failure: CompanyFailure, loading: boolean, at: string) {
+  const description = loading
+    ? failure.kind === "unauthenticated" ? "Inicia sesión para consultar o crear tu empresa."
+      : "Puedes volver a consultar sin crear otra empresa."
+    : failure.kind === "invalid" ? failure.message ?? "Corrige los campos marcados antes de volver a crear la empresa."
+      : MESSAGES[failure.kind];
+  notifyActionResult({ key: "company", type: "error", title: TITLES[failure.kind], description, reference: { ...failure.reference, at } });
+}
+
 export function CompanySection() {
   const [state, setState] = useState<CompanyState | { kind: "loading" }>({ kind: "loading" });
   const [input, setInput] = useState({ name: "", rfc: "", industryId: "" });
@@ -55,29 +65,40 @@ export function CompanySection() {
   const [result, setResult] = useState<CreateCompanyState | null>(null);
   const [pending, setPending] = useState(false);
   const [reloading, setReloading] = useState(false);
-  const [at, setAt] = useState<string>();
   const submitting = useRef(false);
   const industries = state.kind === "none" ? state.industries : undefined;
   const industryItems = useMemo(() => industries?.map(item => ({ value: item.id, label: item.label_es })) ?? [], [industries]);
 
   useEffect(() => {
     let active = true;
-    setAt(new Date().toISOString());
-    loadCompanyStateAction().then(next => { if (active) setState(next); }).catch(() => { if (active) setState({ kind: "no_response", reference: {} }); });
+    const at = new Date().toISOString();
+    loadCompanyStateAction().then(next => {
+      if (!active) return;
+      setState(next);
+      if ("reference" in next) notifyCompanyFailure(next, true, at);
+    }).catch(() => {
+      if (!active) return;
+      const failure = { kind: "no_response", reference: {} } as const;
+      setState(failure);
+      notifyCompanyFailure(failure, true, at);
+    });
     return () => { active = false; };
   }, []);
 
   async function reload() {
     if (reloading) return;
     setReloading(true);
-    setAt(new Date().toISOString());
+    const at = new Date().toISOString();
+    dismissActionResult("company");
     try {
       const next = await loadCompanyStateAction();
+      if ("reference" in next) notifyCompanyFailure(next, true, at);
       // Keep entered fields and require reconciliation before another uncertain create.
       if (state.kind === "none" && "reference" in next) setResult(next);
       else { setState(next); setResult(null); }
     } catch {
       const failure = { kind: "no_response", reference: {} } as const;
+      notifyCompanyFailure(failure, true, at);
       if (state.kind === "none") setResult(failure);
       else setState(failure);
     } finally { setReloading(false); }
@@ -92,7 +113,8 @@ export function CompanySection() {
     if (Object.keys(validation.fields).length) return;
     submitting.current = true;
     setPending(true);
-    setAt(new Date().toISOString());
+    const at = new Date().toISOString();
+    dismissActionResult("company");
     let next: CreateCompanyState;
     try { next = await createCompanyAction(validation.value); }
     catch { next = { kind: "no_response", reference: {} }; }
@@ -101,16 +123,16 @@ export function CompanySection() {
     if (next.kind === "created") {
       const industryLabel = state.kind === "none" ? state.industries.find(item => item.id === next.company.industry_id)?.label_es ?? "No disponible" : "No disponible";
       setState({ kind: "exists", company: next.company, role: "owner", industryLabel });
-      sileo.success({ title: "Empresa creada" });
-      setResult(null);
+      notifyActionResult({ key: "company", type: "success", title: "Empresa creada", description: "Tu empresa quedó registrada. Ya puedes consultar sus datos aquí." });
+      setResult(next);
     } else {
+      notifyCompanyFailure(next, false, at);
       setResult(next);
       if (next.kind === "invalid") setFields(next.fields ?? {});
     }
   }
 
-  const retry = <Button type="button" variant="outline" className="min-h-10" disabled={reloading} aria-busy={reloading} aria-describedby="company-action-error" onClick={reload}>{reloading && <Spinner data-icon="inline-start" aria-hidden="true" />}{reloading ? "Consultando…" : "Reintentar"}</Button>;
-  const errorMessage = result?.kind === "invalid" ? result.message ?? "Corrige los campos marcados antes de volver a crear la empresa." : result && result.kind in MESSAGES ? MESSAGES[result.kind as keyof typeof MESSAGES] : undefined;
+  const retry = <Button type="button" variant="outline" className="min-h-10" disabled={reloading} aria-busy={reloading} aria-describedby="company-action-status" onClick={reload}>{reloading && <Spinner data-icon="inline-start" aria-hidden="true" />}{reloading ? "Consultando…" : "Reintentar"}</Button>;
   const failedResult = result && result.kind !== "created" ? result : null;
 
   return (
@@ -125,9 +147,10 @@ export function CompanySection() {
         </CardHeader>
         <CardContent>
           {state.kind === "loading" && <div aria-busy="true" className="flex flex-col gap-5"><span role="status" className="sr-only">Cargando empresa</span>{[0, 1, 2].map(key => <div key={key} aria-hidden="true" className="flex flex-col gap-2"><Skeleton className="h-4 w-36" /><Skeleton className="h-10 w-full" /></div>)}</div>}
-          {state.kind === "unauthenticated" && <ActionErrorAlert id="company-action-error" title="Tu sesión expiró" description="Inicia sesión para consultar o crear tu empresa." action={login} reference={{...state.reference, at}} />}
-          {(state.kind === "server_error" || state.kind === "no_response" || state.kind === "unrecognized_response") && <ActionErrorAlert id="company-action-error" title="No pudimos cargar tu empresa" description={state.kind === "server_error" ? "El servidor tuvo un problema. Puedes volver a consultar sin crear otra empresa." : state.kind === "no_response" ? "No hubo respuesta del servidor. Puedes volver a consultar sin crear otra empresa." : "No pudimos confirmar el resultado. Puedes volver a consultar sin crear otra empresa."} action={retry} reference={{...state.reference, at}} />}
+          {state.kind === "unauthenticated" && <ActionStatus id="company-action-status" tone="error" text="No se cargó · ver aviso" action={login} />}
+          {(state.kind === "server_error" || state.kind === "no_response" || state.kind === "unrecognized_response") && <ActionStatus id="company-action-status" tone="error" text="No se cargó · ver aviso" action={retry} />}
           {state.kind === "exists" && <div className="flex flex-col gap-5">
+            {result?.kind === "created" && <ActionStatus id="company-action-status" tone="success" text="Empresa creada" />}
             <div className="flex flex-wrap items-center gap-3"><p className="font-heading text-lg font-semibold">{state.company.name}</p><Badge variant={STATUS[state.company.status].variant} dot>{STATUS[state.company.status].label}</Badge></div>
             <dl className="grid gap-5 sm:grid-cols-3">
               <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><Fingerprint aria-hidden="true" className="size-3.5" />RFC</dt><dd>{state.company.rfc}</dd></div>
@@ -156,8 +179,12 @@ export function CompanySection() {
                 <FieldError id="company-industry-error">{fields.industryId}</FieldError>
               </Field>
             </FieldGroup>
-            {errorMessage && failedResult && <ActionErrorAlert key={at} id="company-action-error" title={TITLES[failedResult.kind]} description={errorMessage} action={failedResult.kind === "unauthenticated" ? login : needsReload(failedResult.kind) ? retry : undefined} reference={{...failedResult.reference, at}} />}
-            {!needsReload(result?.kind) && <Button type="submit" className="min-h-10 self-start" disabled={pending || reloading} aria-busy={pending} aria-describedby={errorMessage ? "company-action-error" : undefined}>{pending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <ShieldCheck data-icon="inline-start" aria-hidden="true" />}{pending ? "Creando empresa…" : "Crear empresa"}</Button>}
+            <div className="flex flex-col items-start gap-2">
+              {!needsReload(result?.kind) && <Button type="submit" className="min-h-10" disabled={pending || reloading} aria-busy={pending} aria-describedby={failedResult ? "company-action-status" : undefined}>{pending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <ShieldCheck data-icon="inline-start" aria-hidden="true" />}{pending ? "Creando empresa…" : "Crear empresa"}</Button>}
+              <ActionStatusSlot>
+                {failedResult && <ActionStatus id="company-action-status" tone="error" text={["server_error", "no_response", "unrecognized_response"].includes(failedResult.kind) ? "Resultado sin confirmar · ver aviso" : "No se creó · ver aviso"} action={failedResult.kind === "unauthenticated" ? login : needsReload(failedResult.kind) ? retry : undefined} />}
+              </ActionStatusSlot>
+            </div>
           </form>}
         </CardContent>
       </Card>

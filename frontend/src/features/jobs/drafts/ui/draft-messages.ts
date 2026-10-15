@@ -63,6 +63,6 @@ export const LOCAL_ONLY_NOTICE =
 /** Truthful success text: validation happened, nothing was saved. */
 export const VALIDATION_SUCCESS =
   "Borrador local válido. Recuerda que no se guarda en el servidor.";
-/** Truthful copy for the not-yet-connected requester catalog. */
-export const REQUESTER_CATALOG_UNAVAILABLE =
-  "El catálogo de solicitantes todavía no está conectado. Conservamos el solicitante actual mientras no lo cambies.";
+/** Catalog creation is independent from saving the draft. */
+export const REQUESTER_CREATE_WARNING =
+  "Se agregará al catálogo de tu empresa y quedará disponible aunque canceles este borrador.";

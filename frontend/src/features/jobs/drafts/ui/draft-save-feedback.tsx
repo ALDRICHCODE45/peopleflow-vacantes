@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
+import { ActionStatus } from "@/components/feedback/action-status";
+import { notifyActionResult } from "@/components/feedback/notify";
 import { buttonVariants } from "@/components/ui/button";
-import { ActionErrorAlert } from "@/components/feedback/action-error-alert";
 import type { DraftSaveReason, DraftSaveResult } from "../actions";
 
 export const DRAFT_SAVE_NOTICE =
@@ -27,26 +27,35 @@ function formatSavedAt(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : savedAtFormat.format(date);
 }
-export function DraftSaveFeedback({ result, dirty, at, saved = false }: {
-  result: DraftSaveResult | null; dirty: boolean; at?: string; saved?: boolean;
-}) {
-  if (!result) return null;
-  if (result.ok) return (
-    <div role="status" className="flex flex-col gap-2 text-sm text-muted-foreground">
-      {dirty ? <p>Hay cambios sin guardar desde el último guardado confirmado.</p> : <Badge variant="success">Borrador guardado</Badge>}
-      <p>Último guardado confirmado: <time dateTime={result.savedAt}>{formatSavedAt(result.savedAt)}</time> · Versión {result.version}</p>
-    </div>
-  );
+function isUncertain(reason: DraftSaveReason) {
+  return ["server_error", "no_response", "unrecognized_response"].includes(reason);
+}
+
+export function notifyDraftSaveResult(result: DraftSaveResult, saved: boolean, at: string) {
+  if (result.ok) {
+    notifyActionResult({ key: "draft-save", type: "success", title: saved ? "Cambios guardados" : "Borrador guardado", description: `Se guardó la versión ${result.version} en tu cuenta.` });
+    return;
+  }
   const message = messages[result.reason];
-  const uncertain = ["server_error", "no_response", "unrecognized_response"].includes(result.reason);
-  const description = uncertain
+  const description = isUncertain(result.reason)
     ? saved
       ? "El borrador podría haberse actualizado. Puedes reintentar: no sobrescribiremos una versión más reciente; tus cambios siguen aquí."
       : "El borrador podría haberse guardado. Puedes reintentar con el mismo contenido: no se creará un duplicado."
     : message.description;
+  notifyActionResult({ key: "draft-save", type: "error", title: message.title, description, reference: { ...result.reference, at } });
+}
+
+export function DraftSaveFeedback({ result, dirty }: {
+  result: DraftSaveResult | null; dirty: boolean;
+}) {
+  if (!result) return null;
+  // One line only: the slot below the save button keeps a fixed height.
+  if (result.ok) return dirty
+    ? <ActionStatus id="draft-save-status" tone="info" text={`Cambios sin guardar · última versión guardada: ${result.version}`} />
+    : <ActionStatus id="draft-save-status" tone="success" text={`Guardado · versión ${result.version} · ${formatSavedAt(result.savedAt)}`} />;
   const company = ["not_found", "company_inactive", "company_not_active"].includes(result.reason);
   const action = result.reason === "unauthenticated"
     ? <Link className={buttonVariants({ variant: "outline", className: "min-h-10" })} href="/empresa/login" target="_blank" rel="noopener noreferrer">Iniciar sesión</Link>
     : company ? <Link className={buttonVariants({ variant: "outline", className: "min-h-10" })} href="/empresa/configuracion" target="_blank" rel="noopener noreferrer">Crear empresa</Link> : undefined;
-  return <ActionErrorAlert id="draft-save-error" title={message.title} description={description} action={action} reference={{ ...result.reference, at }} />;
+  return <ActionStatus id="draft-save-status" tone="error" text={isUncertain(result.reason) ? "Resultado sin confirmar · ver aviso" : "No se guardó · ver aviso"} action={action} />;
 }

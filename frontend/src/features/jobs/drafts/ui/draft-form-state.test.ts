@@ -8,6 +8,7 @@ import {
   addLanguageRow,
   addListRow,
   changeRequesterKind,
+  selectRequester,
   composeDraftFields,
   initialDraftFormState,
   removeLanguageRow,
@@ -31,6 +32,17 @@ import {
 } from "./draft-messages";
 
 const ID = "123e4567-e89b-42d3-a456-426614174000";
+
+it("selects and clears a catalog entry, composing only kind/id and updating preview name", () => {
+ const model = populatedModel(); const state = initialDraftFormState(model);
+ const selected = selectRequester(state, {kind:"client",id:ID,name:"Nuevo cliente"});
+ expect(composeDraftFields(selected).requester).toEqual({kind:"client",id:ID});
+ expect(selected.requester.original).toEqual(state.requester.original);
+ expect(validateDraftFormState(selected,model)).toMatchObject({ok:true,model:{requesterName:"Nuevo cliente"}});
+ const cleared = selectRequester(selected,null);
+ expect(composeDraftFields(cleared).requester).toEqual({kind:"client",id:null});
+ expect(cleared.requester.name).toBeNull();
+});
 
 /** A complete, already-normalized 17-field model with every field populated. */
 function populatedModel(): DraftModel {

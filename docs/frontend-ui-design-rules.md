@@ -114,7 +114,7 @@ en la sección 7.
 - Notificaciones transitorias → **Sileo**, excepción aprobada a shadcn-first; un único `AppToaster` global.
 - Estados/etiquetas → `Badge` (no `span` con color propio).
 - Tooltips/info → `Tooltip`/`Popover` (instalados); `HoverCard` (**hoy no instalado**).
-- Errores y avisos persistentes → `Alert` (instalado) mediante `ActionErrorAlert` (sección 12).
+- Resultados de acciones → toast de Sileo con `notifyActionResult` más `ActionStatus` (sección 12); sin `Alert`.
 
 ## 6. Ejemplos canónicos
 
@@ -271,7 +271,7 @@ esta regla.
 | Placeholders de carga | `Skeleton`, `Progress` | Instalado |
 | Acción puntual en curso | `Spinner` oficial de shadcn | Instalado |
 | Notificaciones transitorias | `Sileo` mediante `AppToaster` global | Instalado; excepción aprobada |
-| Errores de acción y avisos persistentes | `Alert` mediante `ActionErrorAlert` | Instalado |
+| Resultados de acciones (éxito, error, advertencia, información) | Sileo mediante `notifyActionResult` + `ActionStatus` | Instalado |
 
 Regla operativa: si el primitivo no está instalado, **primero** se consulta en el
 registry (herramientas MCP en solo lectura) y **no se implementa a mano**. Agregarlo
@@ -307,9 +307,9 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
       o Progress para progreso medible, sin demoras artificiales (sección 11)?
 - [ ] ¿Los toasts salen de resultados reales, usan el host global y no sustituyen errores
       persistentes ni validaciones de formulario (sección 11)?
-- [ ] ¿Cada error de acción usa `ActionErrorAlert` con título, consecuencia, una sola
-      acción y referencia técnica plegable, y cada error de campo usa `FieldError`
-      (sección 12)?
+- [ ] ¿Cada resultado de acción usa `notifyActionResult` con el tipo correcto, título,
+      consecuencia, como máximo una acción y la referencia técnica en errores, más su
+      `ActionStatus` junto a la acción, y cada error de campo usa `FieldError` (sección 12)?
 
 - [ ] ¿Existe un primitive instalado que cubre el patrón? Si sí, se usó.
 - [ ] ¿Se usaron variantes nativas antes que clases propias?
@@ -478,8 +478,8 @@ migración masiva ni conectar prototipos a persistencia inexistente.
 | Primera carga de contenido | Composición propia de la pantalla con el `Skeleton` instalado |
 | Acción puntual pendiente | `Spinner` oficial junto al texto de la acción |
 | Progreso conocido | `Progress` con valor real, nunca porcentaje inventado |
-| Resultado transitorio de una acción | Sileo: éxito, error o información según el resultado confirmado |
-| Error de campo o bloqueo que requiere intervención | Mensaje persistente junto al problema; un toast no lo reemplaza |
+| Resultado de una acción (éxito, error, advertencia, información) | Toast de Sileo mediante `notifyActionResult` (sección 12) más una línea de estado junto a la acción |
+| Error de un campo | `FieldError` junto al campo; un toast no lo reemplaza |
 
 ### Skeletons por contexto
 
@@ -532,10 +532,12 @@ Deshabilitar únicamente la acción realmente pendiente y mantener su ancho esta
   publicación en servidor. No simular esas confirmaciones para mostrar el componente.
 - Mensajes breves en español, con título autosuficiente. No exponer datos personales,
   errores crudos ni detalles internos. Una descripción es información complementaria.
-- Los errores de validación, permisos y fallos recuperables conservan su explicación y
-  su acción persistente en la pantalla; no depender del tiempo de vida del toast.
-- Usar las opciones globales: posición inferior derecha, duración de 6 segundos y
-  superficie `--popover`. No pasar colores, `fill`, posición o estilos por llamada.
+- Los errores de campo conservan su explicación junto al campo. Los resultados de una
+  acción usan el toast más una línea de estado junto a la acción (sección 12); nunca
+  dependen solo del tiempo de vida del toast.
+- Usar las opciones globales: posición superior derecha, duración de 6 segundos y
+  superficie `--popover`. No pasar colores, `fill`, posición o estilos por llamada; la
+  duración solo cambia en los errores, que quedan fijos (sección 12).
   Los tokens y ajustes responsive viven en `globals.css`, bajo `[data-pf-toaster]`.
 - El tema lo resuelven los tokens existentes, incluso con elección manual opuesta al
   sistema. No crear otro almacén de tema. Sileo inyecta su propio CSS: no duplicar su
@@ -543,8 +545,10 @@ Deshabilitar únicamente la acción realmente pendiente y mantener su ancho esta
 - Respetar movimiento reducido. En ese modo y en pantallas de hasta 400px se usa una
   superficie estática: el SVG de ancho fijo no debe desbordar ni continuar su morph
   JavaScript visible. Skeleton y Spinner conservan el significado sin animación continua.
-- Esta base no habilita acciones críticas dentro de toasts. Antes de usar `button` o
-  `promise`, verificar específicamente teclado, anuncios y estados terminales del flujo.
+- Las acciones dentro de un toast (`button`) son un atajo, nunca el único camino: Sileo
+  las dibuja como un enlace dentro del botón del toast, y con teclado no son confiables.
+  La misma acción tiene que existir en la pantalla. No usar `promise` sin verificar antes
+  teclado, anuncios y estados terminales del flujo.
 
 ### Verificación aislada
 
@@ -561,41 +565,60 @@ Sin `PLAYWRIGHT_FEEDBACK_ORIGIN`, estos tests se omiten explícitamente en la su
 normal: no se confunden con cobertura ejecutada. No confundir aprobar la fixture con
 haber migrado o verificado todas las pantallas de producto.
 
-## 12. Errores con calidad de producto
+## 12. Resultados de acciones: éxito, error, advertencia e información
 
-**Un error bien mostrado responde tres preguntas: qué pasó, qué quedó a salvo y qué
+**Un resultado bien comunicado responde tres preguntas: qué pasó, qué quedó a salvo y qué
 puede hacer la persona ahora.** Un párrafo rojo suelto, largo o con jerga técnica
 («clave de idempotencia», «respuesta inválida») es un fallo de revisión.
 
-### Nivel según el alcance
+### Dónde se muestra cada cosa
 
-| Alcance del problema | Patrón | Primitive |
+| Qué | Patrón | Pieza |
 | --- | --- | --- |
+| Resultado de una acción (guardar, crear, cargar) | Toast de Sileo arriba a la derecha | `notifyActionResult` (`@/components/feedback/notify`) |
+| Estado persistente de esa acción | Una línea breve junto al botón, con ícono | `ActionStatus` (`@/components/feedback/action-status`) |
 | Un campo inválido | Mensaje corto junto al campo, `aria-invalid` en el control | `Field` + `FieldError` |
-| Falló una acción o una sección (guardar, crear, cargar) | Aviso persistente junto a la acción | `ActionErrorAlert` (compone `Alert`) |
-| Advertencia que no bloquea | Aviso persistente neutro | `Alert` `variant="default"` con ícono informativo |
-| Resultado transitorio ya confirmado | Toast | Sileo (sección 11) |
-| Una página o sección completa no tiene datos que mostrar | Estado vacío con acción | `Empty` |
+| Una página o sección sin datos que mostrar | Estado vacío con acción | `Empty` |
 
-- `ActionErrorAlert` (`@/components/feedback/action-error-alert`) es la única
-  composición de producto para errores de acción. Usa `Alert` `variant="destructive"`,
-  el ícono `CircleAlert` (`aria-hidden`), `AlertTitle`, `AlertDescription`, como
-  máximo **una** acción (`Button` ≥ 40px o enlace con estilo de botón) y una referencia
-  técnica plegable opcional.
-- Un solo aviso por acción, ubicado junto a su botón. Un nuevo intento lo reemplaza y un
-  éxito confirmado lo quita. Nunca se apilan avisos del mismo origen.
-- El aviso de error no sustituye a los errores de campo: si el backend rechaza datos,
-  los campos señalan qué corregir y el aviso solo resume.
-- Un toast nunca es el único portador de un error (sección 11).
+- No se usa `Alert` para resultados de acciones.
+- `notifyActionResult` es la única forma de emitir toasts de resultado. Recibe una clave
+  por acción (por ejemplo `"draft-save"`), cierra el toast anterior de esa clave y deja
+  uno solo visible por acción.
+- La línea de estado (`ActionStatus`) va **debajo** de la acción, dentro de un
+  `ActionStatusSlot` que se renderiza siempre, aunque esté vacío, con alto reservado.
+  Así un resultado que aparece o cambia nunca mueve el botón. Nunca va arriba de la
+  acción ni ocupa más de una línea por resultado.
+- La línea de estado (`ActionStatus`) es el respaldo accesible y persistente del toast.
+  Resume el resultado en pocas palabras («Guardado · versión 2», «No se guardó · ver
+  aviso») y, si hay una acción útil (iniciar sesión, crear la empresa), la ofrece ahí
+  como enlace o botón real ≥ 40px. Un nuevo intento la reemplaza.
+- Si el backend rechaza datos, los campos señalan qué corregir; el toast solo resume.
+
+### Tipos de toast
+
+| Tipo | Cuándo | Duración |
+| --- | --- | --- |
+| `success` | Solo después de la confirmación real del backend | 6 s |
+| `error` | La acción falló o su resultado es incierto | Fijo (`duration: null`) hasta cerrarlo o hasta un nuevo intento |
+| `warning` | La acción se completó con una salvedad que la persona debe conocer | 6 s |
+| `info` | Información neutra sobre una acción (por ejemplo, nada que guardar) | 6 s |
+
+- Íconos propios de lucide con `aria-hidden` (`CircleCheck`, `CircleAlert`,
+  `TriangleAlert`, `Info`), nunca los íconos por defecto de Sileo: su texto alternativo
+  está en inglés.
+- No se pasan colores ni estilos por llamada: los tonos salen de `--status-*` en
+  `globals.css`.
 
 ### Redacción
 
-- **Título:** qué pasó, en seis palabras o menos y sin culpar a la persona («No se pudo
-  guardar el borrador», «El servidor tuvo un problema»).
+- **Título:** qué pasó, en seis palabras o menos y sin culpar a la persona («Borrador
+  guardado», «No se pudo guardar el borrador», «El servidor tuvo un problema»).
 - **Descripción:** una o dos oraciones con la consecuencia (qué se guardó o no) y el
-  siguiente paso. Nada de códigos, términos internos ni texto del backend sin revisar.
-- **Acción:** un verbo concreto que resuelve la causa («Reintentar», «Iniciar sesión»,
-  «Crear empresa»). Si no hay acción útil, no se inventa una.
+  siguiente paso. Nada de códigos, términos internos ni texto del backend sin revisar,
+  salvo el mensaje de validación del backend ya pensado para mostrarse.
+- **Acción:** como máximo una, con un verbo concreto («Reintentar», «Iniciar sesión»,
+  «Crear empresa»). Es un atajo: la misma acción existe en la línea de estado o en la
+  pantalla.
 
 ### Mensaje por causa
 
@@ -611,26 +634,27 @@ puede hacer la persona ahora.** Un párrafo rojo suelto, largo o con jerga técn
 | Respuesta que la UI no reconoce | No pudimos confirmar el resultado | Reintentar sin duplicar o revisar antes |
 
 Cuando una escritura pudo haber ocurrido (5xx, sin respuesta, respuesta no reconocida),
-la descripción dice explícitamente si reintentar es seguro. Por ejemplo, la creación de
-borradores conserva su clave de guardado y un reintento no duplica.
+la descripción dice explícitamente si reintentar es seguro.
 
 ### Referencia técnica
 
-- Se ofrece plegada bajo «Detalles técnicos» (`Accordion` instalado, un solo ítem
-  colapsable). Muestra solo el código HTTP, el código de error del backend y la hora
-  local del intento, por ejemplo `HTTP 500 · internal_error · 17:58:46`. Sirve para
-  reportar el problema y ubicarlo en los logs del backend.
-- Nunca incluye tokens, cookies, cuerpos de petición o respuesta, identificadores
-  personales ni mensajes crudos de excepciones.
+- Los toasts de error incluyen al final de la descripción una línea discreta con la
+  referencia, por ejemplo `HTTP 500 · internal_error · 17:58:46`. Sirve para reportar el
+  problema y ubicarlo en los logs del backend.
+- Solo lleva el código HTTP, el código de error del backend y la hora local del intento.
+  Nunca tokens, cookies, cuerpos de petición o respuesta, identificadores personales ni
+  mensajes crudos de excepciones.
 - Las Server Actions devuelven esa referencia como datos serializables
   (`{ status?, code? }`). El navegador solo ve el POST 200 de la action, así que sin
   esta referencia la causa real queda oculta.
 
 ### Accesibilidad
 
-- `Alert` ya expone `role="alert"`, que anuncia el aviso al aparecer. No se duplica con
-  otro `role="alert"` ni con `aria-live` en el contenedor.
-- El botón que originó la acción referencia el aviso con `aria-describedby` mientras
-  el aviso existe.
+- Sileo anuncia todos los toasts con `aria-live="polite"`, incluso los errores, y
+  muestra la descripción solo al expandirse. Por eso cada resultado también queda en
+  `ActionStatus`, con `role="status"` y texto completo, y el botón que originó la acción
+  la referencia con `aria-describedby`.
+- El toast es un `<button>` sin cierre con Escape: los errores fijos se cierran con clic,
+  deslizando o con un nuevo intento. Ninguna acción queda disponible solo en el toast.
 - El color nunca es el único portador del significado: ícono, título y texto cargan el
   mensaje completo.
