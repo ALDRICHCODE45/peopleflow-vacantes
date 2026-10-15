@@ -206,3 +206,72 @@ describe("draftEditSeedFromRead", () => {
     expect(read).toEqual(before);
   });
 });
+
+describe("draftEditSeedFromRead with unusual stored values", () => {
+  const unusualDescription = {
+    schema_version: 1,
+    document: {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [
+            { type: "text", text: "Ver ", marks: [{ type: "italic" }] },
+            {
+              type: "text",
+              text: "nuestro sitio",
+              marks: [
+                { type: "link", attrs: { href: "https://example.com/Ruta?q=1", target: "_blank", rel: "noopener noreferrer", class: null, title: "Sitio" } },
+                { type: "fontSizePreset", attrs: { preset: "large" } },
+              ],
+            },
+            { type: "hardBreak" },
+            { type: "text", text: "Segunda línea" },
+          ],
+        },
+        {
+          type: "orderedList",
+          attrs: { start: 3, type: null },
+          content: [
+            {
+              type: "listItem",
+              content: [
+                { type: "paragraph", content: [{ type: "text", text: "Tercero" }] },
+                { type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Anidado" }] }] }] },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  };
+  const options = Array.from({ length: 8 }, (_, index) => ({
+    id: `10000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+    label: `Opción ${index + 1}`,
+  }));
+  const unusual = {
+    ...fullFields,
+    title: "Líder   de  equipo",
+    location: "Monterrey,  N.L.",
+    skills: ["Ñandú", "C++", "Go"],
+    custom_benefits: ["Día libre 🎂", "Comedor"],
+    benefits: ["annual_bonus", "health_insurance", "wellness"],
+    languages: [
+      { language: "other", custom_name: "Náhuatl", level: null },
+      { language: "en", custom_name: null, level: "intermediate" },
+    ],
+    compensation: { ...fullFields.compensation, min: "999999999999.99", max: "999999999999.99", currency: "USD", pay_period: "yearly", basis: "net", public_visible: false },
+    requester: { kind: "internal_area", id: null, name: null },
+    screening_questions: [
+      { id: "e1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c", type: "single_choice_evaluated", prompt: "Elige", options, correct_option_id: options[7].id },
+      { id: "f1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c", type: "single_choice_informative", prompt: "Informa", options },
+    ],
+    description: unusualDescription,
+    description_plain: "Ver nuestro sitio\nSegunda línea\nTercero\nAnidado",
+  };
+
+  it("saving without edits sends back the stored fields", () => {
+    const read = envelope(unusual);
+    expect(saveWithoutEdits(read).body.fields).toEqual(storedWriteFields(read));
+  });
+});

@@ -134,7 +134,10 @@ export function DraftList() {
           <CardContent className="grid gap-3 sm:grid-cols-2"><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full" /><Skeleton className="h-10 w-full sm:col-span-2" /></CardContent>
           <CardFooter><Skeleton className="h-10 w-20" /></CardFooter>
         </Card>)}
-      </div> : loaded && items.length === 0 ? <Empty>
+      </div> : !loaded && failure ? <Empty>
+        <EmptyHeader><EmptyTitle>No pudimos cargar tus borradores</EmptyTitle><EmptyDescription>{messages[failure.reason].description}</EmptyDescription></EmptyHeader>
+        {statusAction && <EmptyContent>{statusAction}</EmptyContent>}
+      </Empty> : loaded && items.length === 0 ? <Empty>
         <EmptyHeader><EmptyTitle>Aún no tienes borradores</EmptyTitle><EmptyDescription>Crea un borrador para preparar tu próxima vacante sin publicarla.</EmptyDescription></EmptyHeader>
         <EmptyContent><Link href="/empresa/vacantes/borradores/nuevo" className={buttonVariants({ variant: "outline", className: "min-h-10" })}>Crear un borrador</Link></EmptyContent>
       </Empty> : <ul aria-label="Borradores guardados" className="flex flex-col gap-3">{items.map(row => <DraftRow key={row.id} row={row} />)}</ul>}

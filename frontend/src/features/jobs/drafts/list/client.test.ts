@@ -24,6 +24,7 @@ it.each([
  { ...row, principal_recruiter: { id, name: "Ana", extra: true } },
  { ...row, version: "0" }, { ...row, version: "01" }, { ...row, version: 1 },
  { ...row, created_at: "2026-10-15" }, { ...row, updated_at: "not a date" },
+ { ...row, id: `${id}\n` }, { ...row, version: "7\n" },
 ])("rejects malformed row %#", async item => {
  const { listDrafts } = await import("./client"); response({ items: [item], next_cursor: null });
  expect(await listDrafts({ token: "secret" })).toMatchObject({ ok: false, error: { kind: "invalid_response" } });

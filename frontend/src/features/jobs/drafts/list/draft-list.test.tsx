@@ -61,3 +61,10 @@ it("toasts a confirmed refresh but not each extra page", async () => {
  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ key: "draft-list", type: "success", title: "Lista actualizada" })));
  expect(screen.getByText("Lista actualizada")).toBeInTheDocument();
 });
+it("shows a page-level Empty with Actualizar when the first load fails", async () => {
+ vi.mocked(listDraftsAction).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: { status: 500 } });
+ render(<DraftList />);
+ expect(await screen.findByText("No pudimos cargar tus borradores")).toBeInTheDocument();
+ expect(screen.queryByRole("list", { name: "Borradores guardados" })).not.toBeInTheDocument();
+ expect(screen.queryByText("Aún no tienes borradores")).not.toBeInTheDocument();
+});
