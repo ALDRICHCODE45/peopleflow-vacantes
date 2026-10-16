@@ -167,10 +167,10 @@ corepack pnpm dev
     Arriba a la derecha, «0 de 3 columnas propias». Debajo de la tarjeta, la
     «Vista previa» del tablero. «Guardar cambios» y «Descartar cambios» están
     deshabilitados mientras no cambies nada.
-15. **Editar y guardar.** Renombrá Screening a «Filtro», subí/bajá columnas con las
-    flechas o arrastralas desde su manija (⋮⋮, a la izquierda del número); con teclado, tabulá hasta la manija,
+15. **Editar y guardar.** Renombrá Screening a «Filtro», arrastrá columnas desde su manija (⋮⋮, a la izquierda del número); con teclado, tabulá hasta la manija,
     espacio para tomarla, flechas para moverla y espacio para soltarla (nada puede
-    quedar antes de Nuevos ni después de Placement), presioná
+    quedar antes de Nuevos ni después de Placement). Sin arrastrar: el botón «⋯» de
+    cada fila tiene «Subir» y «Bajar» (deshabilitados cuando no se puede), presioná
     «Agregar columna» y escribí «Prueba técnica» (el cursor queda en la columna
     nueva, que aparece antes de Placement). La vista previa refleja todo sin
     guardar. Presioná «Guardar cambios». **Esperado:** aviso «Pipeline guardado»
@@ -178,8 +178,8 @@ corepack pnpm dev
     en el mismo orden y con los mismos nombres.
 16. **Límite y quitar.** Agregá columnas hasta llegar a 3 propias. **Esperado:**
     «Agregar columna» se deshabilita y dice «Llegaste al máximo de 3 columnas
-    propias.»; el contador dice «3 de 3». Quitá una con su botón de basura (solo
-    las columnas propias lo tienen) y guardá.
+    propias.»; el contador dice «3 de 3». Quitá una con «⋯» → «Quitar columna» (solo
+    las columnas propias tienen esa opción) y guardá.
 17. **Validaciones.** Dejá un nombre vacío, poné el mismo nombre en dos columnas
     (por ejemplo «Entrevista» y «ENTREVISTA», o renombrá Descartados igual que otra)
     y uno de más de 40 caracteres; salí de cada campo. **Esperado:** junto a cada

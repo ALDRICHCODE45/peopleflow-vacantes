@@ -7,6 +7,7 @@ import type { DraftPipelineActionFailure, DraftPipelineActionResult } from "@/fe
 import { notifyActionResult } from "@/components/feedback/notify";
 import { addCustomStage, editorFromPipeline, renameStage, toPutBody } from "@/features/jobs/drafts/pipeline/editor-model";
 import { PipelineStageEditor } from "./editor";
+import { stageRowActions } from "./stage-row";
 import { pipelineFixture } from "./test-fixture";
 
 vi.mock("@/features/jobs/drafts/pipeline/actions", () => ({ loadDraftPipelineAction: vi.fn(), saveDraftPipelineAction: vi.fn() }));
@@ -170,7 +171,14 @@ it("composes ordered Item rows, fixed endpoints, a preview and an initially empt
   expect(within(progression).getAllByRole("textbox").map(input => (input as HTMLInputElement).value)).toEqual(["Nuevos", "Screening", "Screening OK", "En proceso", "Placement"]);
   expect(container.querySelectorAll('li[data-slot="item"]')).toHaveLength(5);
   expect(screen.getAllByText("Posición fija")).toHaveLength(2);
-  expect(screen.queryByRole("button", { name: /Subir Nuevos|Bajar Placement|Quitar/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Subir|Bajar|Quitar/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Acciones de (Nuevos|Placement|Descartados)/ })).not.toBeInTheDocument();
+  for (const name of ["Screening", "Screening OK", "En proceso"]) {
+    const trigger = screen.getByRole("button", { name: `Acciones de ${name}` });
+    expect(trigger).toHaveClass("size-10");
+    expect(trigger.closest('[data-slot="item-actions"]')).not.toBeNull();
+    expect(trigger.closest('[data-slot="item-actions"]')!.querySelectorAll("button")).toHaveLength(1);
+  }
   expect(screen.getByRole("heading", { name: "Vista previa" })).toBeVisible();
   const slot = container.querySelector("[data-pf-action-status-slot]")!;
   expect(slot).toBeEmptyDOMElement();
@@ -201,14 +209,25 @@ it("renames, previews unsaved changes, and discards back to baseline", () => {
   fireEvent.click(screen.getByRole("button", { name: "Descartar cambios" }));
   expect(field(2)).toHaveValue("Screening"); expect(save()).toBeDisabled();
 });
-it("moves both ways without crossing fixed columns", () => {
+// jsdom cannot drive the floating-ui menu portal (same boundary as IngresarMenu and the
+// vacancy row menu), so the menu items are pinned through stageRowActions.
+it("offers move actions in a row menu that never cross fixed columns, and remove only for custom", () => {
+  const state = addCustomStage(editorFromPipeline(pipelineFixture()));
+  const [, screening, , inProcess, custom] = state.stages;
+  expect(stageRowActions(state, screening.key)).toEqual([
+    { id: "up", label: "Subir", disabled: true }, { id: "down", label: "Bajar", disabled: false },
+  ]);
+  expect(stageRowActions(state, inProcess.key)).toEqual([
+    { id: "up", label: "Subir", disabled: false }, { id: "down", label: "Bajar", disabled: false },
+  ]);
+  expect(stageRowActions(state, custom.key)).toEqual([
+    { id: "up", label: "Subir", disabled: false }, { id: "down", label: "Bajar", disabled: true },
+    { id: "remove", label: "Quitar columna", disabled: false },
+  ]);
   mount();
-  expect(screen.getByRole("button", { name: "Subir Screening" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Bajar En proceso" })).toBeDisabled();
-  fireEvent.click(screen.getByRole("button", { name: "Bajar Screening" }));
-  expect(field(3)).toHaveValue("Screening");
-  fireEvent.click(screen.getByRole("button", { name: "Subir Screening" }));
-  expect(field(2)).toHaveValue("Screening");
+  const trigger = screen.getByRole("button", { name: "Acciones de Screening" });
+  expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+  expect(trigger.querySelector(".lucide-ellipsis")).not.toBeNull();
 });
 it("uses limits 2/10, focuses new columns, keeps custom neutral, and only removes customs", () => {
   const pipeline = pipelineFixture(); pipeline.limits = { maxCustomStages: 2, nameMaxLength: 10 };
@@ -224,10 +243,7 @@ it("uses limits 2/10, focuses new columns, keeps custom neutral, and only remove
   for (const badge of screen.getAllByText("Columna propia")) {
     expect(badge).toHaveAttribute("data-variant", "neutral"); expect(badge).not.toHaveAttribute("data-dot");
   }
-  expect(screen.getAllByRole("button", { name: /^Quitar / })).toHaveLength(2);
-  fireEvent.click(screen.getByRole("button", { name: "Quitar Técnica" }));
-  expect(screen.getByRole("button", { name: "Agregar columna" })).toBeEnabled();
-  expect(field(6)).toHaveValue("Placement");
+  expect(screen.getByRole("button", { name: "Acciones de Técnica" })).toBeEnabled();
   edit(5, "x".repeat(11)); fireEvent.blur(field(5));
   expect(screen.getByText("Usa como máximo 10 caracteres.")).toBeVisible();
 });
