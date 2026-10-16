@@ -2,13 +2,15 @@
 
 Guía para probar en el navegador, de punta a punta, el flujo
 **login recruiter → crear empresa → guardar borrador privado → encontrarlo en la
-lista → reabrirlo, editarlo y guardarlo** contra la API Go real. Esta prueba es el
-requisito para integrar `feat/draft-list-and-reopen` en `main`.
+lista → reabrirlo, editarlo y guardarlo → configurar las columnas de su pipeline**
+contra la API Go real. Esta prueba es el requisito para integrar
+`feat/pipeline-stage-config` en `main`.
 
-- Rama frontend: `feat/draft-list-and-reopen`.
-- Rama backend: `feat/draft-list` (incluye todo lo de `main`, con el catálogo de
-  solicitantes, más la lista de borradores). No requiere migración nueva, pero
-  corré `make db-status` igual.
+- Rama frontend: `feat/pipeline-stage-config`.
+- Rama backend: `feat/pipeline-config` (incluye todo lo de `main` más la
+  configuración de columnas del pipeline). Trae la migración
+  `00015`: corré `make db-migrate` y confirmá con `make db-status` que no queda
+  nada en «Pending».
 - Los servicios los levantás vos en tu terminal. Ningún agente lee ni modifica
   tus archivos `.env`; acá solo aparecen **nombres** de variables, nunca valores.
 - No pegues tokens, cookies, contraseñas ni el contenido de tus `.env` en el chat.
@@ -135,9 +137,14 @@ corepack pnpm dev
 9. **Pipeline de un borrador.** En la fila de un borrador presioná «Acciones»: el
    menú tiene «Ver pipeline» y «Continuar editando». Elegí «Ver pipeline».
    **Esperado:** `/empresa/vacantes/<id>/pipeline` con el título del borrador y el
-   badge «Borrador» arriba, y un estado vacío que dice que la vacante todavía no
-   tiene pipeline porque está en borrador, con «Continuar editando» y un enlace
-   a Vacantes.
+   badge «Borrador» arriba, el mensaje «Esta vacante todavía no tiene pipeline» con
+   «Configurar columnas», «Continuar editando» y «Volver a Vacantes», y a la derecha
+   del título «Pipeline» un botón con engranaje («Configuración de la vacante»).
+   El engranaje y «Configurar columnas» llevan a
+   `/empresa/vacantes/<id>/configuracion/columnas`: arriba el título del borrador
+   con «Pipeline» para volver, a la izquierda los apartados (por ahora solo
+   «Columnas del pipeline», marcado como activo) y a la derecha el editor (pasos
+   14 a 19). `/empresa/vacantes/<id>/configuracion` lleva al mismo apartado.
 10. **Reabrir sin cambios.** En la fila del borrador abrí «Acciones» y elegí
     «Continuar editando» (o usalo desde el pipeline). **Esperado:** el editor
     muestra todos los datos guardados, incluidas las preguntas de filtro y la
@@ -157,6 +164,47 @@ corepack pnpm dev
     **Esperado:** en ambas, un estado vacío que dice que el borrador no existe o no
     tenés acceso, con «Reintentar» y un enlace a Vacantes. Una dirección que no es
     un id muestra la página 404, y `/empresa/vacantes/borradores` ya no existe.
+
+14. **Columnas por defecto (probalo en tema claro y oscuro).** En «Columnas del pipeline» de un borrador que nunca configuraste.
+    **Esperado:** mientras carga, una tarjeta de carga; después «Columnas del
+    pipeline» con, en orden, Nuevos, Screening, Screening OK, En proceso y Placement,
+    cada una con su número. Nuevos y Placement dicen «Posición fija» y no tienen
+    botones para moverse. Abajo, separada, «Salida del proceso» con Descartados.
+    Arriba a la derecha, «0 de 3 columnas propias». Debajo de la tarjeta, la
+    «Vista previa» del tablero. «Guardar cambios» y «Descartar cambios» están
+    deshabilitados mientras no cambies nada.
+15. **Editar y guardar.** Renombrá Screening a «Filtro», arrastrá columnas desde su manija (⋮⋮, a la izquierda del número); con teclado, tabulá hasta la manija,
+    espacio para tomarla, flechas para moverla y espacio para soltarla (nada puede
+    quedar antes de Nuevos ni después de Placement). Sin arrastrar: el botón «⋯» de
+    cada fila tiene «Subir» y «Bajar» (deshabilitados cuando no se puede), presioná
+    «Agregar columna» y escribí «Prueba técnica» (el cursor queda en la columna
+    nueva, que aparece antes de Placement). La vista previa refleja todo sin
+    guardar. Presioná «Guardar cambios». **Esperado:** aviso «Pipeline guardado»
+    y, debajo de los botones, «Guardado». Recargá la página: las columnas vuelven
+    en el mismo orden y con los mismos nombres.
+16. **Límite y quitar.** Agregá columnas hasta llegar a 3 propias. **Esperado:**
+    «Agregar columna» se deshabilita y dice «Llegaste al máximo de 3 columnas
+    propias.»; el contador dice «3 de 3». Quitá una con «⋯» → «Quitar columna» (solo
+    las columnas propias tienen esa opción) y guardá.
+17. **Validaciones.** Dejá un nombre vacío, poné el mismo nombre en dos columnas
+    (por ejemplo «Entrevista» y «ENTREVISTA», o renombrá Descartados igual que otra)
+    y uno de más de 40 caracteres; salí de cada campo. **Esperado:** junto a cada
+    campo, «Escribe un nombre para la columna.», «Ya hay otra columna con este
+    nombre.» o «Usa como máximo 40 caracteres.»; al guardar, aviso «Revisa los
+    datos marcados» y no se envía nada. «Descartar cambios» vuelve a lo guardado.
+18. **Renombre crítico.** Renombrá En proceso, Placement o Descartados y guardá.
+    **Esperado:** antes de guardar se abre «Confirmar cambio de nombre» con
+    «nombre anterior → nombre nuevo» y qué función sigue cumpliendo esa columna.
+    «Revisar» cierra sin guardar; «Guardar cambios» guarda.
+19. **Conflicto (opcional).** Abrí el mismo pipeline en dos pestañas, guardá un
+    cambio en una y otro en la otra. **Esperado:** la segunda muestra «Esto cambió
+    en otro lugar», tus cambios siguen en pantalla y «Cargar versión actual»
+    trae lo guardado en la primera pestaña. Guardar el pipeline no afecta al
+    borrador: después de guardar columnas, «Continuar editando» y guardar el
+    borrador funciona sin conflicto.
+20. **Desde el editor.** Abrí un borrador con «Continuar editando». **Esperado:**
+    arriba del editor hay un botón «Configurar columnas» que lleva a la
+    configuración de columnas de ese borrador.
 
 ## 5. Verificación en la base (solo lectura)
 
@@ -205,5 +253,5 @@ pero **no** copies cabeceras, cookies ni cuerpos.
 docker start nest-practice   # si lo habías frenado
 ```
 
-Si todo pasa, el siguiente paso es integrar `feat/draft-list-and-reopen` en
+Si todo pasa, el siguiente paso es integrar `feat/pipeline-stage-config` en
 `main`. La rama del backend la integra su propio agente. El push lo hacés vos.

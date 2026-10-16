@@ -38,6 +38,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn(() => new Promise(() => {})) }));
+vi.mock("@/features/jobs/drafts/pipeline/actions", () => ({ loadDraftPipelineAction: vi.fn(() => new Promise(() => {})), saveDraftPipelineAction: vi.fn() }));
 
 it("routes a UUID to the draft client loader rather than notFound", async () => {
  const content = await Page({ params: Promise.resolve({ jobId: "123e4567-e89b-42d3-a456-426614174000" }) });
@@ -201,6 +202,8 @@ describe("/empresa/vacantes/[jobId]/pipeline content", () => {
     const intro = container.querySelector("[data-pf-pipeline-intro]")!;
     expect(intro).toHaveTextContent(`${total} ${candidateNoun(total)} en el historial`);
     expect(intro).toHaveTextContent(`${vacancy.teamSize} miembros del equipo`);
+    expect(screen.queryByRole("link", { name: "Configuración de la vacante" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Configurar columnas" })).toBeNull();
   });
 
   it("renders no route-level local-demo disclosure while the workspace keeps its behavior", async () => {

@@ -1,0 +1,89 @@
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+import { usePathname } from "next/navigation";
+import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/drafts/reopen/load";
+import { draftEditSeedFromRead } from "@/features/jobs/drafts/reopen/seed";
+import { filledDraftRead } from "@/features/jobs/drafts/reopen/test-fixture";
+import { VACANCY_CONFIG_MODULES, VacancyConfigShell } from "./shell";
+vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
+vi.mock("next/navigation", () => ({ usePathname: vi.fn(() => `/empresa/vacantes/${read.id}/configuracion/columnas`) }));
+vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: ({ title, parent, status }: { title: React.ReactNode; parent: { label: string; href: string }; status: React.ReactNode }) => <header><h1>{title}</h1><a href={parent.href}>{parent.label}</a>{status}</header> }));
+const read = filledDraftRead();
+const success = { ok: true, seed: draftEditSeedFromRead(read), identity: { draftId: read.id, etag: '"etag"' } } as const;
+const shell = () => <VacancyConfigShell draftId={read.id}><p>Contenido del apartado</p></VacancyConfigShell>;
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.mocked(usePathname).mockReturnValue(`/empresa/vacantes/${read.id}/configuracion/columnas`);
+  vi.mocked(loadDraftForEditAction).mockResolvedValue(success);
+});
+afterEach(cleanup);
+it.each([read.fields.title, null])("owns one header with the draft title %s, badge and Pipeline parent", async title => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, model: { ...success.seed.model, fields: { ...success.seed.model.fields, title } } } });
+  const { container } = render(shell());
+  expect(await screen.findByRole("heading", { level: 1, name: title || "Sin título" })).toBeVisible();
+  expect(screen.getByRole("link", { name: "Pipeline" })).toHaveAttribute("href", `/empresa/vacantes/${read.id}/pipeline`);
+  expect(container.querySelectorAll("header")).toHaveLength(1);
+  expect(screen.getByText("Borrador")).toHaveAttribute("data-variant", "info");
+  expect(screen.getByText("Borrador")).toHaveAttribute("data-dot");
+  expect(screen.getByRole("heading", { level: 2, name: "Configuración de la vacante" })).toBeVisible();
+  expect(screen.getByText("Ajusta cómo funciona esta vacante. Los cambios de cada apartado se guardan por separado.")).toBeVisible();
+  expect(screen.getByText("Contenido del apartado")).toBeVisible();
+});
+it("lists only implemented modules with active navigation and descriptions", async () => {
+  render(shell());
+  const nav = await screen.findByRole("navigation", { name: "Apartados de configuración de la vacante" });
+  const links = within(nav).getAllByRole("link");
+  expect(VACANCY_CONFIG_MODULES.map(module => module.slug)).toEqual(["columnas"]);
+  expect(links).toHaveLength(VACANCY_CONFIG_MODULES.length);
+  for (const [index, module] of VACANCY_CONFIG_MODULES.entries()) {
+    expect(links[index]).toHaveTextContent(module.title);
+    expect(links[index]).toHaveTextContent(module.description);
+    expect(links[index]).toHaveAttribute("href", `/empresa/vacantes/${read.id}/configuracion/${module.slug}`);
+    expect(links[index]).toHaveAttribute("aria-current", "page");
+    expect(links[index]).toHaveClass("min-h-10", "bg-card", "text-foreground", "ring-1", "ring-primary/40");
+  }
+});
+it("reserves loading content and withholds the module until the draft is authorized", async () => {
+  let resolve!: (value: DraftEditResult) => void;
+  vi.mocked(loadDraftForEditAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
+  const { container } = render(shell());
+  expect(screen.getByRole("heading", { level: 1, name: "Configuración" })).toBeVisible();
+  expect(screen.getByRole("status")).toHaveTextContent("Cargando configuración");
+  expect(container.querySelector('[data-slot="skeleton"]')).not.toBeNull();
+  expect(screen.queryByText("Contenido del apartado")).not.toBeInTheDocument();
+  await act(async () => resolve(success));
+  expect(screen.getByText("Contenido del apartado")).toBeVisible();
+});
+it("replaces the whole area with the draft error, then retries", async () => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValueOnce({ ok: false, reason: "not_found" });
+  render(shell());
+  expect(await screen.findByRole("heading", { name: "No encontramos este borrador" })).toBeVisible();
+  expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+  expect(screen.queryByText("Contenido del apartado")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+  expect(await screen.findByText("Contenido del apartado")).toBeVisible();
+  expect(loadDraftForEditAction).toHaveBeenCalledTimes(2);
+});
+it("does not mark an unrelated pathname as the current module", async () => {
+  vi.mocked(usePathname).mockReturnValue(`/empresa/vacantes/${read.id}/configuracion/otro`);
+  render(shell());
+  const nav = await screen.findByRole("navigation", { name: "Apartados de configuración de la vacante" });
+  expect(within(nav).getByRole("link")).not.toHaveAttribute("aria-current");
+  expect(within(nav).getByRole("link")).not.toHaveClass("bg-card");
+});
+it("ignores the previous vacancy's late draft result", async () => {
+  let resolve!: (value: DraftEditResult) => void;
+  vi.mocked(loadDraftForEditAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; })).mockResolvedValueOnce({ ok: false, reason: "not_found" });
+  const { rerender } = render(shell());
+  rerender(<VacancyConfigShell draftId="223e4567-e89b-42d3-a456-426614174000"><p>Contenido del apartado</p></VacancyConfigShell>);
+  await screen.findByRole("heading", { name: "No encontramos este borrador" });
+  await act(async () => resolve(success));
+  expect(screen.queryByText("Contenido del apartado")).not.toBeInTheDocument();
+  expect(screen.queryByText("Borrador")).not.toBeInTheDocument();
+});
+it("handles rejected draft reads safely", async () => {
+  vi.mocked(loadDraftForEditAction).mockRejectedValueOnce(new Error("network"));
+  render(shell());
+  expect(await screen.findByRole("heading", { name: "No hubo respuesta del servidor" })).toBeVisible();
+});

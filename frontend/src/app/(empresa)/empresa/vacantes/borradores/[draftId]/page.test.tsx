@@ -17,6 +17,9 @@ it("awaits params, renders a generic header and delegates loading without fetchi
   render(await Page({params:Promise.resolve({draftId:id})}));
   expect(screen.getByRole("heading",{level:1})).toHaveTextContent("Editar borrador");
   expect(screen.getByRole("link",{name:"Vacantes"})).toHaveAttribute("href","/empresa/vacantes");
+  const pipelineLink = screen.getByRole("link", {name:"Configurar columnas"});
+  expect(pipelineLink).toHaveAttribute("href", `/empresa/vacantes/${id}/configuracion/columnas`);
+  expect(pipelineLink.compareDocumentPosition(screen.getByTestId("draft-loader")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(DraftEditLoader).toHaveBeenCalledWith({draftId:id},undefined);
   expect(loadDraftForEditAction).not.toHaveBeenCalled();
 });

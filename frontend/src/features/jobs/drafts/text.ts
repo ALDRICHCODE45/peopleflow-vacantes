@@ -39,3 +39,19 @@ export function trimUnicodeWhiteSpace(value: string): string {
   while (end > start && isWhiteSpaceCharacter(characters[end - 1])) end -= 1;
   return characters.slice(start, end).join("");
 }
+
+/** Collapses Unicode White_Space runs to ASCII space, preserving format characters. */
+export function collapseUnicodeWhiteSpace(value: string): string {
+  let result = "";
+  let inWhitespace = false;
+  for (const character of value) {
+    if (isWhiteSpaceCharacter(character)) {
+      if (!inWhitespace) result += " ";
+      inWhitespace = true;
+    } else {
+      result += character;
+      inWhitespace = false;
+    }
+  }
+  return result;
+}

@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "next/link";
+import { GitBranch } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { SiteHeader } from "@/components/company-dashboard/site-header";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { isValidJobId } from "@/features/jobs/jobId";
@@ -17,6 +20,9 @@ export default async function Page({params}:{params:Promise<{draftId:string}>}) 
       <SiteHeader title="Editar borrador" parent={{label:"Vacantes",href:"/empresa/vacantes"}} />
       <div className="@container/main flex flex-1 flex-col">
         <DashboardPageContent data-pf-draft-vacante-content="" width="7xl" className="gap-5 md:gap-6">
+          <Button nativeButton={false} role="link" variant="outline" className="min-h-10 self-start" render={<Link href={`/empresa/vacantes/${draftId}/configuracion/columnas`} />}>
+            <GitBranch aria-hidden="true" data-icon="inline-start" />Configurar columnas
+          </Button>
           <DraftEditLoader draftId={draftId} />
         </DashboardPageContent>
       </div>
