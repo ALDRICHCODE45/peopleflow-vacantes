@@ -25,6 +25,21 @@ for (const operation of ["load", "save"] as const) describe(operation, () => {
     vi.mocked(client).mockResolvedValue({ ok: false, error: { kind: "status", status, retryable: false }, envelope: { error: "unsafe secret", code } }); expect(await call()).toEqual({ ok: false, reason, reference: { status, code } }); expect(client).toHaveBeenCalledTimes(1);
   });
   it.each([["missing_token","unauthenticated"],["invalid_request","invalid_request"],["network","no_response"],["timeout","no_response"],["invalid_response","unrecognized_response"]] as const)("maps %s", async (kind, reason) => { vi.mocked(client).mockResolvedValue({ ok: false, error: { kind, retryable: false } }); expect(await call()).toEqual({ ok: false, reason, reference: {} }); });
+  it("carries publication missing codes without the backend message", async () => {
+    const missing = ["delivery_target_missing", "future"];
+    vi.mocked(client).mockResolvedValue({ ok: false, error: { kind: "status", status: 422, retryable: false }, envelope: { error: "unsafe", code: "publication_incomplete", missing } });
+    expect(await call()).toEqual({ ok: false, reason: "publication_incomplete", missing, reference: { status: 422, code: "publication_incomplete" } });
+    expect(client).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    [422, { error: "unsafe", code: "other", missing: ["title_missing"] }],
+    [422, { error: "unsafe", code: "publication_incomplete" }],
+    [422, { error: "unsafe", code: "publication_incomplete", missing: [" "] }],
+    [400, { error: "unsafe", code: "publication_incomplete", missing: ["title_missing"] }],
+  ] as const)("does not classify a non-publication or malformed 422 %#", async (status, envelope) => {
+    vi.mocked(client).mockResolvedValue({ ok: false, error: { kind: "status", status, retryable: false }, envelope } as never);
+    expect(await call()).toMatchObject({ ok: false, reason: "unrecognized_response" });
+  });
   it("does not forward unknown codes or messages", async () => { vi.mocked(client).mockResolvedValue({ ok: false, error: { kind: "status", status: 418, retryable: false }, envelope: { error: "unsafe", code: "unsafe" } }); expect(await call()).toEqual({ ok: false, reason: "unrecognized_response", reference: { status: 418 } }); });
   it("never retries thrown client errors", async () => { vi.mocked(client).mockRejectedValue(new Error("unsafe")); expect(await call()).toEqual({ ok: false, reason: "no_response", reference: {} }); expect(client).toHaveBeenCalledTimes(1); });
   it("handles session failure without client", async () => { vi.mocked(getActionAccessToken).mockRejectedValue(new Error("unsafe")); expect(await call()).toEqual({ ok: false, reason: "no_response", reference: {} }); expect(client).not.toHaveBeenCalled(); });

@@ -103,6 +103,30 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("published draft PATCH rejection", () => {
+  const call = () => saveDraftV2({ token: TOKEN, id: ID, ifMatch: ETAG, body: { fields: { title: null } } });
+  it("decodes publication_incomplete missing codes without retry", async () => {
+    const envelope = { error: "unsafe", code: "publication_incomplete", missing: ["title_missing", "future"] };
+    const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(envelope), { status: 422 }));
+    vi.stubGlobal("fetch", fetch);
+    expect(await call()).toEqual({ ok: false, error: { kind: "status", status: 422, retryable: false }, envelope });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    { error: "unsafe", code: "publication_incomplete" },
+    { error: "unsafe", code: "publication_incomplete", missing: [""] },
+    { error: "unsafe", code: "publication_incomplete", missing: [" "] },
+    { error: "unsafe", code: "publication_incomplete", missing: [1] },
+    { error: "unsafe", code: "publication_incomplete", missing: null },
+    { error: "unsafe", code: "publication_incomplete", missing: ["title_missing"], extra: true },
+    { code: "publication_incomplete", missing: ["title_missing"] },
+    { error: "unsafe", code: "other", missing: ["title_missing"] },
+  ])("rejects malformed publication envelope %#", async envelope => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(envelope), { status: 422 })));
+    expect(await call()).toEqual({ ok: false, error: { kind: "status", status: 422, retryable: false } });
+  });
+});
+
 describe("runtime missing inputs", () => {
   it("returns missing_token for absent or undefined credentials in every entry point", async () => {
     const fetchMock = vi.fn();

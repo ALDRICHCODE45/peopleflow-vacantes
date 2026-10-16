@@ -66,6 +66,22 @@ describe("saveDraftV2Action", () => {
     expect(createDraftV2).toHaveBeenCalledTimes(1);
     expect(saveDraftV2).toHaveBeenCalledTimes(1);
   });
+  it("carries publication missing codes for PATCH without retry or raw message", async () => {
+    const missing = ["title_missing", "future"];
+    vi.mocked(saveDraftV2).mockResolvedValue({ ok: false, error: { kind: "status", status: 422, retryable: false }, envelope: { error: "unsafe", code: "publication_incomplete", missing } });
+    expect(await saveDraftV2Action({ ...input, draftId: "draft", etag: "tag" })).toEqual({ ok: false, reason: "publication_incomplete", missing, reference: { status: 422, code: "publication_incomplete" } });
+    expect(saveDraftV2).toHaveBeenCalledTimes(1);
+    expect(createDraftV2).not.toHaveBeenCalled();
+  });
+  it.each([
+    [422, { error: "unsafe", code: "other", missing: ["title_missing"] }],
+    [422, { error: "unsafe", code: "publication_incomplete" }],
+    [422, { error: "unsafe", code: "publication_incomplete", missing: [" "] }],
+    [409, { error: "unsafe", code: "publication_incomplete", missing: ["title_missing"] }],
+  ] as const)("does not classify a non-publication or malformed 422 %#", async (status, envelope) => {
+    vi.mocked(saveDraftV2).mockResolvedValue({ ok: false, error: { kind: "status", status, retryable: false }, envelope } as never);
+    expect(await saveDraftV2Action({ ...input, draftId: "draft", etag: "tag" })).toMatchObject({ ok: false, reason: "unrecognized_response" });
+  });
   it("treats a thrown write as uncertain without retry or raw details", async () => {
     vi.mocked(createDraftV2).mockRejectedValue(new Error("secret-access-token"));
     expect(await saveDraftV2Action(input)).toEqual({ok:false,reason:"no_response",reference:{}});

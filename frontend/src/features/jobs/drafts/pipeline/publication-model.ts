@@ -8,15 +8,22 @@ export const MISSING_ITEMS = {
   work_mode_missing: editor("Modalidad"), work_schedule_missing: editor("Jornada"), contract_type_missing: editor("Tipo de contrato"),
   professional_area_missing: editor("Área profesional"), requester_missing: editor("Solicitante"),
   request_date_missing: solicitud("Fecha de solicitud"), hiring_headcount_missing: solicitud("Plazas a cubrir"),
-  delivery_cutoff_missing: entrega("Columna de entrega"), delivery_target_missing: entrega("Meta de entrega"),
+  delivery_cutoff_missing: entrega("Columna de corte"), delivery_target_missing: entrega("Objetivo de entrega"),
   commitment_date_missing: entrega("Fecha compromiso"), commitment_date_past: entrega("La fecha compromiso ya pasó"),
 } satisfies Record<string, MissingItem>;
 export const MISSING_GROUP_LABELS: Record<MissingGroup, string> = { editor: "Editor de la vacante", solicitud: "Solicitud", entrega: "Entrega" };
+function missingItem(code: string): MissingItem {
+  return Object.hasOwn(MISSING_ITEMS, code) ? MISSING_ITEMS[code as keyof typeof MISSING_ITEMS] : editor("Otro requisito pendiente");
+}
+/** Identical consequence copy for all three published-vacancy save screens. */
+export function formatPublishedSaveMissing(codes: readonly string[]): string {
+  return `No puedes dejarla sin: ${codes.map(code => missingItem(code).label).join(", ")}. Tus cambios siguen aquí.`;
+}
 /** Groups follow first server occurrence; items within each group keep server order. */
 export function groupMissing(codes: readonly string[]) {
   const groups: { group: MissingGroup; items: (MissingItem & { code: string })[] }[] = [];
   for (const code of codes) {
-    const item = Object.hasOwn(MISSING_ITEMS, code) ? MISSING_ITEMS[code as keyof typeof MISSING_ITEMS] : editor("Otro requisito pendiente");
+    const item = missingItem(code);
     let group = groups.find(group => group.group === item.group);
     if (!group) { group = { group: item.group, items: [] }; groups.push(group); }
     group.items.push({ ...item, code });

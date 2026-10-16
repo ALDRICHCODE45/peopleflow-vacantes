@@ -123,6 +123,19 @@ it.each(["saved", "not_saved", "conflict"] as const)("reconciles uncertain %s wi
 it("retains edits and recovery if the reconciliation GET fails", async () => {
   vi.mocked(saveDraftDeliveryAction).mockResolvedValue({ ok: false, reason: "server_error", reference: { status: 500 } }); vi.mocked(loadDraftDeliveryAction).mockRejectedValue(new Error("unsafe")); mount(); edit(); fireEvent.click(save()); fireEvent.click(await screen.findByRole("button", { name: "Comprobar" })); await waitFor(() => expect(loadDraftDeliveryAction).toHaveBeenCalledTimes(1)); expect(target()).toHaveValue("5"); expect(screen.getByRole("button", { name: "Comprobar" })).toBeEnabled();
 });
+it("keeps published vacancy edits and reports missing labels without retry", async () => {
+  vi.mocked(saveDraftDeliveryAction).mockResolvedValue({ ok: false, reason: "publication_incomplete", missing: ["delivery_target_missing", "delivery_cutoff_missing", "future"], reference: { status: 422, code: "publication_incomplete" } });
+  mount({ ...deliveryFixture(), targetQuantity: 5 }); edit(""); fireEvent.click(save());
+  const status = await screen.findByRole("status");
+  expect(status).toHaveTextContent("No se guardó · faltan datos para una vacante publicada");
+  expect(status.closest("[data-pf-action-bar]")).toContainElement(save());
+  expect(save()).toHaveAttribute("aria-describedby", "delivery-save-status");
+  expect(target()).toHaveValue(""); expect(save()).toBeEnabled();
+  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ key: "delivery-save", type: "error", title: "La vacante está publicada", description: "No puedes dejarla sin: Objetivo de entrega, Columna de corte, Otro requisito pendiente. Tus cambios siguen aquí.", reference: { status: 422, code: "publication_incomplete", at: expect.any(String) } }));
+  expect(vi.mocked(notifyActionResult).mock.calls.at(-1)![0].action).toBeUndefined();
+  expect(screen.queryByRole("button", { name: /Reintentar|Comprobar|Cargar versión/ })).not.toBeInTheDocument();
+  expect(loadDraftDeliveryAction).not.toHaveBeenCalled(); expect(saveDraftDeliveryAction).toHaveBeenCalledTimes(1);
+});
 it("maps non_business_date to an associated date FieldError without losing edits", async () => {
   vi.mocked(saveDraftDeliveryAction).mockResolvedValue({ ok: false, reason: "non_business_date", reference: { status: 400, code: "non_business_date" } }); mount(); edit(); fireEvent.click(save());
   expect(await screen.findByText("Ese día no es hábil. Elige otro.")).toHaveAttribute("data-slot", "field-error"); const date = screen.getByRole("button", { name: "Fecha compromiso" }); expect(date).toHaveAttribute("aria-invalid", "true"); expect(date).toHaveAccessibleDescription(expect.stringContaining("Ese día no es hábil.")); expect(target()).toHaveValue("5");

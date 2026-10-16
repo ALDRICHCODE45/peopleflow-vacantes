@@ -1,4 +1,5 @@
-import type { DraftPipelineActionFailure } from "@/features/jobs/drafts/pipeline/failure";
+import type { DraftPublishedSaveActionFailure } from "@/features/jobs/drafts/pipeline/failure";
+import { formatPublishedSaveMissing } from "@/features/jobs/drafts/pipeline/publication-model";
 import { conflictNotice as columnsConflict, invalidNotice as columnsInvalid, pipelineFailureNotice, type PipelineNotice } from "../stage-config/feedback";
 
 export { recoveryLabels } from "../stage-config/feedback";
@@ -7,7 +8,12 @@ export const savedNotice: PipelineNotice = { tone: "success", title: "Solicitud 
 export const conflictNotice: PipelineNotice = { ...columnsConflict, description: "Alguien guardó otra versión de la solicitud. Tus cambios siguen aquí. Si cargas la versión actual, reemplazará tus cambios." };
 export const invalidNotice: PipelineNotice = { ...columnsInvalid, description: "Revisa los datos de solicitud antes de guardar. Tus cambios siguen aquí." };
 /** Reuse the cut-1 cause mapping, replacing only resource-specific copy. */
-export function managementFailureNotice(reason: DraftPipelineActionFailure["reason"]): PipelineNotice {
+export function managementFailureNotice(failure: DraftPublishedSaveActionFailure): PipelineNotice {
+  if (failure.reason === "publication_incomplete") return {
+    tone: "error", title: "La vacante está publicada", description: formatPublishedSaveMissing(failure.missing),
+    text: "No se guardó · faltan datos para una vacante publicada",
+  };
+  const { reason } = failure;
   const notice = pipelineFailureNotice(reason);
   if (reason === "version_conflict") return conflictNotice;
   if (reason === "validation_error" || reason === "invalid_request") return invalidNotice;

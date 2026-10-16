@@ -37,6 +37,25 @@ for (const method of ["GET", "PUT"] as const) describe(method, () => {
   it.each([[400,"validation_error"],[400,"invalid_request"],[412,"version_conflict"],[500,"internal_error"]])("preserves %s %s without retry", async (status, code) => {
     const envelope = { error: "unsafe", code }; const fetch = response(envelope, Number(status)); expect(await call()).toMatchObject({ ok: false, error: { status, retryable: false }, envelope }); expect(fetch).toHaveBeenCalledTimes(1);
   });
+  it("decodes publication_incomplete missing codes without retry", async () => {
+    const envelope = { error: "unsafe", code: "publication_incomplete", missing: ["hiring_headcount_missing", "future"] };
+    const fetch = response(envelope, 422);
+    expect(await call()).toEqual({ ok: false, error: { kind: "status", status: 422, retryable: false }, envelope });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    { error: "unsafe", code: "publication_incomplete" },
+    { error: "unsafe", code: "publication_incomplete", missing: [""] },
+    { error: "unsafe", code: "publication_incomplete", missing: [" "] },
+    { error: "unsafe", code: "publication_incomplete", missing: [1] },
+    { error: "unsafe", code: "publication_incomplete", missing: null },
+    { error: "unsafe", code: "publication_incomplete", missing: ["title_missing"], extra: true },
+    { code: "publication_incomplete", missing: ["title_missing"] },
+    { error: "unsafe", code: "other", missing: ["title_missing"] },
+  ])("rejects malformed publication envelope %#", async envelope => {
+    response(envelope, 422);
+    expect(await call()).toEqual({ ok: false, error: { kind: "status", status: 422, retryable: false } });
+  });
   it("rejects malformed envelope", async () => { response({ error: "unsafe", code: "invalid_request", details: true }, 400); expect(await call()).toEqual({ ok: false, error: { kind: "status", status: 400, retryable: false } }); });
   it("never retries network failure", async () => { const fetch = vi.fn().mockRejectedValue(new Error("unsafe")); vi.stubGlobal("fetch", fetch); expect(await call()).toEqual({ ok: false, error: { kind: "network", retryable: false } }); expect(fetch).toHaveBeenCalledTimes(1); });
   it("never retries timeout", async () => {

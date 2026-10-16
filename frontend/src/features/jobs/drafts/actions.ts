@@ -2,14 +2,17 @@
 
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { createDraftV2, saveDraftV2, type DraftV2Failure } from "./api/client-v2";
+import { publicationIncompleteFailure, type PublicationIncompleteFailure } from "./pipeline/failure";
 
-export type DraftSaveReason = "unauthenticated" | "forbidden" | "company_inactive" | "not_found" | "company_not_active" | "idempotency_conflict" | "version_conflict" | "precondition_required" | "invalid_request" | "payload_too_large" | "server_error" | "no_response" | "unrecognized_response";
+type ExistingDraftSaveReason = "unauthenticated" | "forbidden" | "company_inactive" | "not_found" | "company_not_active" | "idempotency_conflict" | "version_conflict" | "precondition_required" | "invalid_request" | "payload_too_large" | "server_error" | "no_response" | "unrecognized_response";
+export type DraftSaveReason = ExistingDraftSaveReason | "publication_incomplete";
 export type DraftSaveResult =
   | { ok: true; draftId: string; etag: string; version: string; savedAt: string; replayed?: boolean }
-  | { ok: false; reason: DraftSaveReason; reference: { status?: number; code?: string } };
+  | { ok: false; reason: ExistingDraftSaveReason; reference: { status?: number; code?: string } }
+  | PublicationIncompleteFailure;
 export type SaveDraftV2ActionInput = { draftId?: string; etag?: string; idempotencyKey?: string; body: unknown };
 
-function failureReason({ error, envelope }: DraftV2Failure): DraftSaveReason {
+function failureReason({ error, envelope }: DraftV2Failure): ExistingDraftSaveReason {
   if (error.kind === "missing_token") return "unauthenticated";
   if (error.kind === "invalid_request") return "invalid_request";
   if (error.kind === "not_found") return "not_found";
@@ -39,10 +42,14 @@ export async function saveDraftV2Action(input: SaveDraftV2ActionInput): Promise<
     const result = input.draftId === undefined
       ? await createDraftV2({ token, idempotencyKey: input.idempotencyKey ?? "", body: input.body })
       : await saveDraftV2({ token, id: input.draftId, ifMatch: input.etag ?? "", body: input.body });
-    if (!result.ok) return { ok: false, reason: failureReason(result), reference: {
-      ...("status" in result.error ? { status: result.error.status } : {}),
-      ...(result.envelope ? { code: result.envelope.code } : {}),
-    } };
+    if (!result.ok) {
+      const incomplete = publicationIncompleteFailure(result);
+      if (incomplete) return incomplete;
+      return { ok: false, reason: failureReason(result), reference: {
+        ...("status" in result.error ? { status: result.error.status } : {}),
+        ...(result.envelope ? { code: result.envelope.code } : {}),
+      } };
+    }
     return {
       ok: true,
       draftId: result.data.id,

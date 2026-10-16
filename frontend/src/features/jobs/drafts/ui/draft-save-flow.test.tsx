@@ -145,6 +145,28 @@ it.each([
   for(let i=0;i<4;i++) fireEvent.click(screen.getByRole("button",{name:"Atrás"}));
   expect(screen.getByRole("textbox",{name:"Título"})).toHaveValue("Mi borrador");
 });
+it("keeps published draft edits and reports missing labels without retry or field errors", async () => {
+  vi.mocked(saveDraftV2Action).mockResolvedValue({ ok: false, reason: "publication_incomplete", missing: ["title_missing", "location_missing", "future"], reference: { status: 422, code: "publication_incomplete" } });
+  render(<LocalDraftForm initialIdentity={{ draftId: key, etag: '"draft"' }} />);
+  fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Mi edición" } });
+  review(); fireEvent.click(save());
+  const status = await screen.findByRole("status");
+  expect(status).toHaveTextContent("No se guardó · faltan datos para una vacante publicada");
+  expect(status.closest("[data-pf-action-bar]")).toContainElement(save());
+  expect(save()).toHaveAttribute("aria-describedby", "draft-save-status");
+  expect(sileo.error).toHaveBeenLastCalledWith(expect.objectContaining({ title: "La vacante está publicada", duration: null }));
+  const toast = vi.mocked(sileo.error).mock.calls.at(-1)![0];
+  const { container } = render(<>{toast.description}</>);
+  expect(container).toHaveTextContent("No puedes dejarla sin: Título, Ubicación, Otro requisito pendiente. Tus cambios siguen aquí.");
+  expect(container).toHaveTextContent("HTTP 422 · publication_incomplete");
+  expect(toast.button).toBeUndefined();
+  expect(screen.queryByRole("button", { name: /Reintentar|Comprobar/ })).not.toBeInTheDocument();
+  expect(sileo.success).not.toHaveBeenCalled();
+  for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole("button", { name: "Atrás" }));
+  expect(screen.getByRole("textbox", { name: "Título" })).toHaveValue("Mi edición");
+  expect(document.querySelector('[data-slot="field-error"]')).toBeNull();
+  expect(saveDraftV2Action).toHaveBeenCalledTimes(1);
+});
 it("does not send invalid v2 state",()=>{
   render(<LocalDraftForm />);
   fireEvent.change(screen.getByRole("textbox",{name:"Título"}),{target:{value:"a".repeat(201)}});

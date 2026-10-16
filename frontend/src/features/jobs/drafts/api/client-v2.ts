@@ -7,6 +7,7 @@ import { draftReadEnvelopeV2Schema } from "../read-v2";
 import type { DraftReadEnvelopeV2 } from "../read-v2";
 import { draftV2PatchBodySchema, draftV2PostBodySchema } from "../screening-v2/wire";
 import type { DraftV2PatchBody, DraftV2PostBody } from "../screening-v2/wire";
+import { publicationErrorEnvelopeSchema } from "../pipeline/failure";
 
 /**
  * Additive server-only v2 draft transport client for the private vacancy draft
@@ -42,8 +43,9 @@ import type { DraftV2PatchBody, DraftV2PostBody } from "../screening-v2/wire";
  * mutation failure is `retryable: false`, even when the generic transport flags
  * a network error or 5xx as retryable, because an uncertain write must be
  * reconciled with an explicit `GET`. Failures preserve the backend
- * `{ error, code }` envelope only; `data` and unknown error fields are dropped
- * here (v2 has no error `data`).
+ * `{ error, code }` envelope; PATCH additionally preserves the strictly decoded
+ * publication_incomplete missing list. Other errors keep the existing behavior
+ * of dropping `data` and unknown fields (v2 has no error `data`).
  *
  * Limitations: this does not verify tokens or tenant ownership, does not prove
  * the v2 endpoints exist, and does not touch the response cache or the editor.
@@ -64,7 +66,7 @@ const draftV2ErrorEnvelopeSchema = z.object({
   error: z.string().min(1),
   code: z.string().min(1),
 });
-export type DraftV2ErrorEnvelope = z.infer<typeof draftV2ErrorEnvelopeSchema>;
+export type DraftV2ErrorEnvelope = z.infer<typeof draftV2ErrorEnvelopeSchema> & { missing?: string[] };
 
 /**
  * Every v2 draft-client failure. Shaped like `RequestJsonError` so read callers
@@ -150,6 +152,15 @@ function decodeReadEnvelopeV2(expectedId: string) {
 }
 
 const decodeErrorEnvelope = (value: unknown): DraftV2ErrorEnvelope => draftV2ErrorEnvelopeSchema.parse(value);
+function decodeSaveErrorEnvelope(value: unknown): DraftV2ErrorEnvelope {
+  // A missing list is legal only for this code. All other draft error handling
+  // keeps its existing stripping behavior, including create and read failures.
+  if (value !== null && typeof value === "object" &&
+    (("code" in value && value.code === "publication_incomplete") || "missing" in value)) {
+    return publicationErrorEnvelopeSchema.parse(value);
+  }
+  return decodeErrorEnvelope(value);
+}
 
 /** Creates one private v2 draft. `POST /v2/me/company/job-drafts`. */
 export async function createDraftV2(input: CreateDraftV2Input): Promise<CreateDraftV2Result> {
@@ -241,7 +252,7 @@ export async function saveDraftV2(input: SaveDraftV2Input): Promise<SaveDraftV2R
     new URL(`${DRAFTS_V2_PATH}/${input.id}`, serverEnv.apiBaseUrl).toString(),
     {
       decoder: decodeReadEnvelopeV2(input.id),
-      errorDecoder: decodeErrorEnvelope,
+      errorDecoder: decodeSaveErrorEnvelope,
       method: "PATCH",
       redirect: "error",
       expectedStatus: READ_STATUS,

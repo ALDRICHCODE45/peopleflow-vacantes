@@ -76,7 +76,7 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
       report(result.delivery.version === snapshot.editor.baseline.version ? { tone: "info", title: "No había cambios que guardar", text: "Guardado" } : savedNotice);
     } else {
       if (result.reason === "non_business_date") setDateRejected(true);
-      report(deliveryFailureNotice(result.reason), result.reference);
+      report(deliveryFailureNotice(result), result.reference);
     }
     busy.current = false; setPending(null);
   }
@@ -87,7 +87,7 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
     const result = await loadDraftDeliveryAction(draftId).catch(noResponse);
     if (!mounted.current) return;
     if (!result.ok) {
-      report({ ...deliveryFailureNotice(result.reason), description: "No pudimos cargar la versión guardada. Tus cambios siguen aquí. Puedes volver a comprobarla; no se enviará otro guardado.", text: "No se pudo cargar · tus cambios siguen aquí", recovery: mode }, result.reference);
+      report({ ...deliveryFailureNotice(result), description: "No pudimos cargar la versión guardada. Tus cambios siguen aquí. Puedes volver a comprobarla; no se enviará otro guardado.", text: "No se pudo cargar · tus cambios siguen aquí", recovery: mode }, result.reference);
     } else if (mode === "reload") {
       replace(fromDelivery(result.delivery), result.etag); resetErrors();
       report({ tone: "info", title: "Versión actual cargada", text: "Versión actual cargada", description: "El editor muestra los datos de entrega guardados actualmente." });

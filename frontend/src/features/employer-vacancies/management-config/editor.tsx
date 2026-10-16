@@ -67,7 +67,7 @@ export function ManagementEditor({ draftId, management, etag }: { draftId: strin
     if (result.ok) {
       adopt(result, snapshot.editor);
       report(result.management.version === snapshot.editor.baseline.version ? { tone: "info", title: "No había cambios que guardar", text: "Guardado" } : savedNotice);
-    } else report(managementFailureNotice(result.reason), result.reference);
+    } else report(managementFailureNotice(result), result.reference);
     busy.current = false; setPending(null);
   }
   async function recover(mode: "reload" | "check") {
@@ -77,7 +77,7 @@ export function ManagementEditor({ draftId, management, etag }: { draftId: strin
     const result = await loadDraftManagementAction(draftId).catch(noResponse);
     if (!mounted.current) return;
     if (!result.ok) {
-      report({ ...managementFailureNotice(result.reason), description: "No pudimos cargar la versión guardada. Tus cambios siguen aquí. Puedes volver a comprobarla; no se enviará otro guardado.", text: "No se pudo cargar · tus cambios siguen aquí", recovery: mode }, result.reference);
+      report({ ...managementFailureNotice(result), description: "No pudimos cargar la versión guardada. Tus cambios siguen aquí. Puedes volver a comprobarla; no se enviará otro guardado.", text: "No se pudo cargar · tus cambios siguen aquí", recovery: mode }, result.reference);
     } else if (mode === "reload") {
       replace(fromManagement(result.management), result.etag); resetErrors();
       report({ tone: "info", title: "Versión actual cargada", text: "Versión actual cargada", description: "El editor muestra los datos de solicitud guardados actualmente." });

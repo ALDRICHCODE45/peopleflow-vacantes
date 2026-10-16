@@ -3,11 +3,12 @@ import { ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { buttonVariants } from "@/components/ui/button";
 import type { DraftSaveReason, DraftSaveResult } from "../actions";
+import { formatPublishedSaveMissing } from "../pipeline/publication-model";
 
 export const DRAFT_SAVE_NOTICE =
   "Al pulsar Guardar borrador, se guardará en tu cuenta. No hay guardado automático: los cambios sin guardar se pierden al salir o recargar.";
 
-const messages: Record<DraftSaveReason, { title: string; description: string }> = {
+const messages: Record<Exclude<DraftSaveReason, "publication_incomplete">, { title: string; description: string }> = {
   unauthenticated: { title: "Tu sesión expiró", description: "Inicia sesión en otra pestaña para guardar. Tus cambios siguen en este formulario." },
   forbidden: { title: "No tienes permiso para esta acción", description: "Solo una cuenta de reclutador con permisos puede guardar borradores. Tus cambios siguen aquí." },
   company_inactive: { title: "Falta configurar tu empresa", description: "Tu empresa está inactiva y no puede guardar borradores. Revisa su configuración; tus cambios siguen aquí." },
@@ -36,6 +37,10 @@ export function notifyDraftSaveResult(result: DraftSaveResult, saved: boolean, a
     notifyActionResult({ key: "draft-save", type: "success", title: saved ? "Cambios guardados" : "Borrador guardado", description: `Se guardó la versión ${result.version} en tu cuenta.` });
     return;
   }
+  if (result.reason === "publication_incomplete") {
+    notifyActionResult({ key: "draft-save", type: "error", title: "La vacante está publicada", description: formatPublishedSaveMissing(result.missing), reference: { ...result.reference, at } });
+    return;
+  }
   const message = messages[result.reason];
   const description = isUncertain(result.reason)
     ? saved
@@ -53,6 +58,7 @@ export function DraftSaveFeedback({ result, dirty }: {
   if (result.ok) return dirty
     ? <ActionStatus id="draft-save-status" tone="info" text={`Cambios sin guardar · última versión guardada: ${result.version}`} />
     : <ActionStatus id="draft-save-status" tone="success" text={`Guardado · versión ${result.version} · ${formatSavedAt(result.savedAt)}`} />;
+  if (result.reason === "publication_incomplete") return <ActionStatus id="draft-save-status" tone="error" text="No se guardó · faltan datos para una vacante publicada" />;
   const company = ["not_found", "company_inactive", "company_not_active"].includes(result.reason);
   const action = result.reason === "unauthenticated"
     ? <Link className={buttonVariants({ variant: "outline", className: "min-h-10" })} href="/empresa/login" target="_blank" rel="noopener noreferrer">Iniciar sesión</Link>

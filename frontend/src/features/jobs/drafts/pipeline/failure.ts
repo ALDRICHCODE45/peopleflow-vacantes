@@ -1,6 +1,13 @@
 import "server-only";
 
+import { z } from "zod";
 import type { DraftPipelineFailure } from "./client";
+
+/** A missing list is legal only for publication_incomplete, on publish or save. */
+export const publicationErrorEnvelopeSchema = z.union([
+  z.object({ error: z.string().min(1), code: z.literal("publication_incomplete"), missing: z.array(z.string().refine(value => value.trim().length > 0)) }).strict(),
+  z.object({ error: z.string().min(1), code: z.string().min(1).refine(code => code !== "publication_incomplete") }).strict(),
+]);
 
 export type DraftPipelineActionFailure = {
   ok: false;
@@ -10,15 +17,17 @@ export type DraftPipelineActionFailure = {
   reference: { status?: number; code?: string };
 };
 
-/** Publication extends the shared vocabulary without widening unrelated configuration forms. */
-export type DraftPublicationActionFailure = DraftPipelineActionFailure | {
-  ok: false;
-  reason: "already_published" | "idempotency_conflict";
-  reference: { status?: number; code?: string };
-} | {
+/** Only content, delivery and management saves must preserve published readiness. */
+export type PublicationIncompleteFailure = {
   ok: false;
   reason: "publication_incomplete";
   missing: string[];
+  reference: { status?: number; code?: string };
+};
+export type DraftPublishedSaveActionFailure = DraftPipelineActionFailure | PublicationIncompleteFailure;
+export type DraftPublicationActionFailure = DraftPublishedSaveActionFailure | {
+  ok: false;
+  reason: "already_published" | "idempotency_conflict";
   reference: { status?: number; code?: string };
 };
 
@@ -49,13 +58,20 @@ export function mapDraftPipelineFailure({ error, envelope }: Omit<DraftPipelineF
   return { ok: false, reason, reference: { ...(status !== undefined ? { status } : {}), ...(code ? { code } : {}) } };
 }
 
-export function mapDraftPublicationFailure(input: Omit<DraftPipelineFailure, "envelope"> & { envelope?: { error: string; code: string; missing?: string[] } }): DraftPublicationActionFailure {
-  const { error, envelope } = input;
-  const status = error.status;
-  const code = envelope?.code;
-  if (status === 422 && code === "publication_incomplete" && Array.isArray(envelope?.missing) && envelope.missing.every(item => typeof item === "string" && item.trim())) {
-    return { ok: false, reason: "publication_incomplete", missing: envelope.missing, reference: { status, code } };
+/** Recheck the strict envelope at the action boundary; never forward backend messages. */
+export function publicationIncompleteFailure(input: { error: { kind: string; status?: number }; envelope?: unknown }): PublicationIncompleteFailure | undefined {
+  if (input.error.status !== 422) return;
+  const parsed = publicationErrorEnvelopeSchema.safeParse(input.envelope);
+  if (parsed.success && parsed.data.code === "publication_incomplete" && "missing" in parsed.data) {
+    return { ok: false, reason: "publication_incomplete", missing: parsed.data.missing, reference: { status: 422, code: "publication_incomplete" } };
   }
+}
+export function mapDraftPublishedSaveFailure(input: Omit<DraftPipelineFailure, "envelope"> & { envelope?: { error: string; code: string; missing?: string[] } }): DraftPublishedSaveActionFailure {
+  return publicationIncompleteFailure(input) ?? mapDraftPipelineFailure(input);
+}
+export function mapDraftPublicationFailure(input: Omit<DraftPipelineFailure, "envelope"> & { envelope?: { error: string; code: string; missing?: string[] } }): DraftPublicationActionFailure {
+  const status = input.error.status;
+  const code = input.envelope?.code;
   if (status === 409 && (code === "already_published" || code === "idempotency_conflict")) return { ok: false, reason: code, reference: { status, code } };
-  return mapDraftPipelineFailure(input);
+  return mapDraftPublishedSaveFailure(input);
 }

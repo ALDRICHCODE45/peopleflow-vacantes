@@ -88,6 +88,19 @@ it.each(["saved", "not_saved", "conflict"] as const)("reconciles uncertain %s wi
 it("retains edits and recovery if reconciliation GET fails", async () => {
   vi.mocked(saveDraftManagementAction).mockResolvedValue({ ok: false, reason: "server_error", reference: { status: 500 } }); vi.mocked(loadDraftManagementAction).mockRejectedValue(new Error("unsafe")); mount(); edit(); fireEvent.click(save()); fireEvent.click(await screen.findByRole("button", { name: "Comprobar" })); await waitFor(() => expect(loadDraftManagementAction).toHaveBeenCalledTimes(1)); expect(headcount()).toHaveValue("5"); expect(screen.getByRole("button", { name: "Comprobar" })).toBeEnabled();
 });
+it("keeps published vacancy edits and reports missing labels without retry", async () => {
+  vi.mocked(saveDraftManagementAction).mockResolvedValue({ ok: false, reason: "publication_incomplete", missing: ["hiring_headcount_missing", "request_date_missing", "future"], reference: { status: 422, code: "publication_incomplete" } });
+  mount({ ...managementFixture(), hiringHeadcount: 5 }); edit(""); fireEvent.click(save());
+  const status = await screen.findByRole("status");
+  expect(status).toHaveTextContent("No se guardó · faltan datos para una vacante publicada");
+  expect(status.closest("[data-pf-action-bar]")).toContainElement(save());
+  expect(save()).toHaveAttribute("aria-describedby", "management-save-status");
+  expect(headcount()).toHaveValue(""); expect(save()).toBeEnabled();
+  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ key: "management-save", type: "error", title: "La vacante está publicada", description: "No puedes dejarla sin: Plazas a cubrir, Fecha de solicitud, Otro requisito pendiente. Tus cambios siguen aquí.", reference: { status: 422, code: "publication_incomplete", at: expect.any(String) } }));
+  expect(vi.mocked(notifyActionResult).mock.calls.at(-1)![0].action).toBeUndefined();
+  expect(screen.queryByRole("button", { name: /Reintentar|Comprobar|Cargar versión/ })).not.toBeInTheDocument();
+  expect(loadDraftManagementAction).not.toHaveBeenCalled(); expect(saveDraftManagementAction).toHaveBeenCalledTimes(1);
+});
 it("keeps valid edits when server validation rejects them and includes a safe reference", async () => {
   vi.mocked(saveDraftManagementAction).mockResolvedValue({ ok: false, reason: "validation_error", reference: { status: 400, code: "validation_error" } }); mount(); edit(); fireEvent.click(save()); await screen.findByText("No se guardó · revisa los datos"); expect(headcount()).toHaveValue("5");
   expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", reference: { status: 400, code: "validation_error", at: expect.any(String) } }));

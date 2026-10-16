@@ -3,7 +3,8 @@ import "server-only";
 import { z } from "zod";
 import { isValidJobId } from "@/features/jobs/jobId";
 import { requestJson } from "@/lib/api/server";
-import type { DraftPipelineFailure } from "./client";
+import type { PublicationFailure } from "./publication-client";
+import { publicationErrorEnvelopeSchema } from "./failure";
 import { isCivilDate } from "./delivery-model";
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$(?![\s\S])/).refine(isCivilDate);
@@ -13,15 +14,15 @@ const managementSchema = z.object({
   limits: z.object({ maxHiringHeadcount: z.number().int().positive() }).strict(), today: date,
 }).strict();
 const putBodySchema = z.object(fields).strict();
-const envelopeSchema = z.object({ error: z.string().min(1), code: z.string().min(1) }).strict();
+
 export type DraftManagement = z.infer<typeof managementSchema>;
-export type DraftManagementResult = { ok: true; data: DraftManagement; etag: string } | DraftPipelineFailure;
+export type DraftManagementResult = { ok: true; data: DraftManagement; etag: string } | PublicationFailure;
 type ReadInput = { token: string; draftId: string };
 export type SaveDraftManagementInput = ReadInput & { ifMatch: string; body: unknown };
-function invalid(kind: "missing_token" | "invalid_request" | "invalid_response"): DraftPipelineFailure {
+function invalid(kind: "missing_token" | "invalid_request" | "invalid_response"): PublicationFailure {
   return { ok: false, error: { kind, retryable: false } };
 }
-function guard(input: ReadInput): DraftPipelineFailure | undefined {
+function guard(input: ReadInput): PublicationFailure | undefined {
   if (typeof input?.token !== "string" || !input.token.trim()) return invalid("missing_token");
   if (typeof input.draftId !== "string" || input.draftId.length !== 36 || !isValidJobId(input.draftId)) return invalid("invalid_request");
 }
@@ -32,7 +33,7 @@ async function requestManagement(input: ReadInput, write?: { ifMatch: string; bo
     headers: { authorization: `Bearer ${input.token.trim()}`, ...(write ? { "if-match": write.ifMatch } : {}) },
     ...(write ? { body: write.body } : {}),
     redirect: "error", expectedStatus: 200, captureResponseHeaders: ["etag"], timeoutMs: serverEnv.apiTimeoutMs, maxErrorBodyBytes: 8192,
-    decoder: value => managementSchema.parse(value), errorDecoder: value => envelopeSchema.parse(value),
+    decoder: value => managementSchema.parse(value), errorDecoder: value => publicationErrorEnvelopeSchema.parse(value),
   });
   // An uncertain write is reconciled with GET, never replayed automatically.
   if (!result.ok) return { ...result, error: { ...result.error, retryable: false } };
