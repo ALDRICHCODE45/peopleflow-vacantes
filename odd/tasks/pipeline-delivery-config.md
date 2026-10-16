@@ -1,0 +1,22 @@
+# Pipeline delivery configuration (cut 3)
+Let the recruiter configure the delivery cutoff column, target quantity and commitment date of a draft vacancy in a new «Entrega» sub-module, and protect the cutoff column in the columns editor.
+Branch feat/pipeline-delivery-config from main 0209ee9. Frontend only, built in parallel with the backend session (01a1420b-ba06-7632) on feat/pipeline-delivery. Contract: `git show edb5bc7:docs/pipeline-customization-design.md` §8, plus the frontend notes in L2.
+
+## Specs
+- S1. User: «Si hermano, notificale al backend que ya vamos a pasar al siguiente paso y yo continuo con el, pero entre ustedes dos deben coordinarse para que mientras el implementa el backend, tu implementas la ui. me explico?» Standing rules: docs/frontend-ui-design-rules.md and shadcn first.
+- S2. Product decisions relayed by the backend (user answers): «calendario calculado por regla del art. 74 LFT, verificado contra el texto vigente»; «la columna de corte arranca vacía»; «techo del objetivo: 999»; «fechas elegibles: desde hoy hasta 1 año».
+- S3. GET `/v2/me/company/job-drafts/{draftId}/pipeline/delivery` → 200 `{"version": decimal string ("0" = never saved), "cutoffStageId": uuid|null, "targetQuantity": int|null, "commitmentDate": "YYYY-MM-DD"|null, "limits":{"maxTargetQuantity":int>0}, "calendar":{"timeZone":string, "today":date, "minDate":date, "maxDate":date, "nonBusinessDates":[date ascending, unique]}}` + its own opaque ETag. Strict keys; the three fields always present and nullable.
+- S4. PUT same path, `If-Match`, body exactly `{"cutoffStageId", "targetQuantity", "commitmentDate"}` (all keys required, each nullable) → 200 same shape + new ETag. Partial configurations are valid. No-op keeps the version. Uncertain PUT not retried: reconcile with GET.
+- S5. Rules: cutoff = a progression stage of the current columns (never Descartados); target integer 1..limits.maxTargetQuantity; a new or changed date must be in [calendar.minDate, calendar.maxDate] and not in calendar.nonBusinessDates (the client never computes holidays). A stored date sent back unchanged is accepted even if past or outside the window: show it with «La fecha compromiso ya pasó; elige otra antes de publicar.» and do not touch it when saving the other fields.
+- S6. Errors: cut-1 vocabulary plus 400 non_business_date (field error on the date) and, on the columns PUT, 409 cutoff_stage_in_use (error on the cutoff column; if the editor did not know which column is the cutoff, GET /delivery to find it).
+- S7. UI: sub-module «Entrega» at /empresa/vacantes/{id}/configuracion/entrega after «Columnas del pipeline»; in the columns editor the cutoff column shows a badge «Corte de entrega» and its «Quitar columna» is disabled.
+
+## Tasks
+- T1 [done] S1-S7 | writer mvb965uf-8-d9ij + parent review | Client + actions + reason mapping, pure model, «Entrega» sub-module and route, cutoff badge/remove guard and 409 handling in the columns editor; tests. | commit: -
+- T2 [blocked: backend server + user test] S1-S7 | parent + user | Review, checks, guide, browser test against backend feat/pipeline-delivery (migration 00017). | commit: -
+
+## Log
+- L1. Backend proposal edb5bc7 (§8) with the user's answers in S2; it took the frontend inputs (own resource, conventions, nullable fields, server calendar, field-specific codes, cutoff read from this resource, CFG-11 out of scope).
+- L2. Frontend accepted and closed the contract with notes: on a 409 for an unknown cutoff, GET /delivery to find it (the 409 stays {error, code}); strict decoding of calendar and limits; past stored date shown with a warning and untouched; the server is authoritative if the day changes while the page is open. Both sides start in parallel.
+- L3. Backend closed the contract in dccce61 with the three frontend notes in §8.3 and started the server in parallel (migration 00017, new 409 on PUT /pipeline).
+- L4. T1 writer mvb965uf-8-d9ij: RED (missing modules, 8 failure-mapping, 7 cutoff/integration, calendar target size) → GREEN 1068 tests/37 files, tsc 0, eslint 0 (parent rerun identical). Parent review: calendar uses the server today/min/max/nonBusinessDates, never the browser date; delivery-actions exports only its two actions; no raw color/dark:/bg-muted. Guide steps 25-28 added; branches updated (backend feat/pipeline-delivery, migration 00017).

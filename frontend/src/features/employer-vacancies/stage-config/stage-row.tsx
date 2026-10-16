@@ -33,7 +33,7 @@ function nameError(error: EditorError | undefined, max: number) {
 export type StageRowAction = { id: "up" | "down" | "remove" | "substates"; label: string; disabled: boolean };
 
 /** Items of a movable row's actions menu; "remove" only exists for custom stages. */
-export function stageRowActions(state: PipelineEditorState, key: string): StageRowAction[] {
+export function stageRowActions(state: PipelineEditorState, key: string, cutoffStageId: string | null = null): StageRowAction[] {
   const actions: StageRowAction[] = [
     { id: "up", label: "Subir", disabled: !canMove(state, key, "up") },
     { id: "down", label: "Bajar", disabled: !canMove(state, key, "down") },
@@ -41,7 +41,7 @@ export function stageRowActions(state: PipelineEditorState, key: string): StageR
   if (state.stages.some(stage => stage.key === key && stage.kind === "in_process")) {
     actions.push({ id: "substates", label: "Subestados", disabled: false });
   }
-  if (canRemoveStage(state, key)) actions.push({ id: "remove", label: "Quitar columna", disabled: false });
+  if (canRemoveStage(state, key)) actions.push({ id: "remove", label: "Quitar columna", disabled: cutoffStageId !== null && state.stages.some(stage => stage.key === key && stage.id === cutoffStageId) });
   return actions;
 }
 const ACTION_ICONS = { up: ArrowUp, down: ArrowDown, remove: Trash2, substates: ListChecks } as const;
@@ -49,7 +49,7 @@ const ACTION_ICONS = { up: ArrowUp, down: ArrowDown, remove: Trash2, substates: 
 export function StageKindBadge({ kind }: { kind: StageKind }) {
   return <Badge variant={STAGE_VARIANTS[kind]}>{STAGE_KIND_LABELS[kind]}</Badge>;
 }
-export function StageRow({ stage, position, state, error, disabled, inputRef, onRename, onBlur, onMove, onRemove, substateCount, onSubstates }: {
+export function StageRow({ stage, position, state, error, disabled, inputRef, onRename, onBlur, onMove, onRemove, substateCount, onSubstates, cutoffStageId, cutoffError }:  {
   stage: EditorStage | EditorExit;
   position: number;
   state: PipelineEditorState;
@@ -60,11 +60,13 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
   onBlur: () => void;
   onMove: (direction: MoveDirection) => void;
   onRemove: () => void;
+  cutoffStageId?: string | null;
+  cutoffError?: boolean;
   substateCount?: number;
   onSubstates?: () => void;
 }) {
   const id = `pipeline-stage-${stage.key}`;
-  const message = nameError(error, state.limits.nameMaxLength);
+  const message = cutoffError ? "Esta columna es el corte de entrega. Cámbiala en Entrega antes de quitarla." : nameError(error, state.limits.nameMaxLength);
   const fixed = stage.kind === "new" || stage.kind === "placement";
   const isExit = stage.kind === "discarded";
   const showKind = stage.kind === "custom" || normalizeStageName(stage.name) !== STAGE_KIND_LABELS[stage.kind];
@@ -72,7 +74,7 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
     id: stage.key, disabled: disabled || fixed || isExit, attributes: { roleDescription: "Columna del pipeline" },
   });
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: stage.key, disabled: disabled || isExit });
-  const actions = stageRowActions(state, stage.key);
+  const actions = stageRowActions(state, stage.key, cutoffStageId);
   const item = (action: StageRowAction) => {
     const Icon = ACTION_ICONS[action.id];
     const remove = action.id === "remove";
@@ -107,7 +109,8 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
             {message && <FieldError id={`${id}-error`}>{message}</FieldError>}
           </Field>
         </FieldGroup>
-        {(showKind || stage.kind === "in_process") && <div className="flex flex-wrap gap-2">
+        {(showKind || stage.kind === "in_process" || (cutoffStageId != null && stage.id === cutoffStageId)) && <div className="flex flex-wrap gap-2">
+          {cutoffStageId != null && stage.id === cutoffStageId && <Badge variant="info">Corte de entrega</Badge>}
           {showKind && <StageKindBadge kind={stage.kind} />}
           {stage.kind === "in_process" && <Badge variant="neutral">{!substateCount ? "Sin subestados" : substateCount === 1 ? "1 subestado" : `${substateCount} subestados`}</Badge>}
         </div>}

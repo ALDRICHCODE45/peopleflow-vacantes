@@ -6,6 +6,9 @@ vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
 // Every runtime export of a "use server" module is a publicly callable Server Action,
 // so these modules must export exactly their actions and nothing else.
 describe("pipeline server action surface", () => {
+  it("exposes only the delivery load and save actions", async () => {
+    expect(Object.keys(await import("./delivery-actions")).sort()).toEqual(["loadDraftDeliveryAction", "saveDraftDeliveryAction"]);
+  });
   it("exposes only the pipeline load and save actions", async () => {
     expect(Object.keys(await import("./actions")).sort()).toEqual(["loadDraftPipelineAction", "saveDraftPipelineAction"]);
   });

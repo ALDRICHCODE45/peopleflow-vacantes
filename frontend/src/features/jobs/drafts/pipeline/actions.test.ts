@@ -43,6 +43,10 @@ for (const operation of ["load", "save"] as const) {
     it.each([
       [400, "invalid_request", "invalid_request"],
       [400, "validation_error", "validation_error"],
+      [400, "non_business_date", "non_business_date"],
+      [409, "cutoff_stage_in_use", "cutoff_stage_in_use"],
+      [409, "non_business_date", "unrecognized_response"],
+      [400, "cutoff_stage_in_use", "unrecognized_response"],
       [401, "unauthenticated", "unauthenticated"],
       [403, "forbidden", "forbidden"],
       [403, "company_inactive", "company_inactive"],

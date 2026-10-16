@@ -39,6 +39,12 @@ const failures: Record<DraftPipelineActionFailure["reason"], PipelineNotice> = {
   server_error: uncertain("El servidor tuvo un problema"),
   unrecognized_response: uncertain("No pudimos confirmar el resultado"),
   precondition_required: uncertain("No pudimos confirmar el resultado"),
+  non_business_date: validation,
+  cutoff_stage_in_use: {
+    tone: "error", title: "No puedes quitar la columna de corte",
+    description: "Esa columna es el corte de entrega. Cambia la columna de corte en Entrega antes de quitarla.",
+    text: "No se guardó · cambia el corte en Entrega",
+  },
   validation_error: validation,
   invalid_request: validation,
   unauthenticated: {
