@@ -631,7 +631,8 @@ the editor — frontend decides.
 
 ## 10. Publication P2 — public vacancies and applications (proposal)
 
-Status: **P2a proposal under frontend review; P2b outline.** Product answers in §10.6.
+Status: **P2a contract agreed** with the frontend agent (msg 53e0858c); **P2b outline.**
+Product answers in §10.6.
 P2 is split (§10.6 S1): **P2a** makes published vacancies publicly visible next to
 legacy catalog jobs; **P2b** adds the candidate CV library and applying with CV and
 screening answers, landing in the `new` stage. Branch `feat/vacancy-public` is stacked
@@ -718,7 +719,7 @@ List item and detail share one shape (`snake_case`, like the v1 public API):
   "professional_area": "technology_systems",
   "seniority": "mid",
   "legacy_employment_type": null,
-  "compensation": { "mode": "range", "amount": null, "min": "30000.00", "max": "40000.00", "currency": "MXN", "period": "monthly", "basis": "gross" },
+  "compensation": { "mode": "range", "amount": null, "min": "30000.00", "max": "40000.00", "currency": "MXN", "pay_period": "monthly", "basis": "gross" },
   "legacy_salary": null,
   "published_at": "2026-10-16T18:00:00.000000Z"
 }
@@ -729,6 +730,25 @@ List item and detail share one shape (`snake_case`, like the v1 public API):
   legacy; `legacy_employment_type` and `legacy_salary {min,max,currency}` for vacancies).
   `compensation` is `null` unless the vacancy enabled public salary.
 - List envelope `{ "items": [...], "next_cursor": string | null }`.
+- `seniority`: `intern | junior | mid | senior | lead`; never `null` for legacy rows
+  (NOT NULL there), `null` for a vacancy that left it empty (not a publication
+  requirement).
+- `published_at`: RFC 3339 UTC, never `null`. Legacy: the job's first publication time
+  (`jobs.published_at`, required for every listed legacy row; not its creation time).
+  Vacancy: the process `published_at` (P1 clock start).
+- `compensation`: exactly the draft v2 compensation shape without `public_visible` —
+  `{mode, amount, min, max, currency, pay_period, basis}` with `mode` `fixed | range`,
+  amounts as decimal strings, `currency` `MXN | USD`, `pay_period`
+  `hourly | weekly | semimonthly | monthly | yearly`, `basis` `gross | net`. It is
+  non-`null` only when `public_visible` is true **and** the compensation is complete
+  (mode, currency, pay period and basis set; `amount` for `fixed`, both `min` and `max`
+  for `range`); the unused amount keys are `null`. Incomplete or hidden → `null`.
+- `legacy_salary`: `{min, max, currency}` with `min`/`max` as nullable decimal strings
+  and `currency` `MXN | USD`; `null` when both bounds are `null` (and always for
+  vacancies). Legacy rows carry no pay period or basis and none is invented.
+- Errors: `400 invalid_request` for query parameters, `404 not_found` on detail, the
+  usual `{error, code}` envelope. Public routes send no `ETag` and no
+  `Cache-Control: no-store`, like the legacy public routes.
 
 `GET /v2/jobs/{id}` → `200` with the list shape plus `description` (rich document for
 vacancies, `null` for legacy), `description_plain` (both), `requirements

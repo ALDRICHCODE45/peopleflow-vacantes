@@ -59,7 +59,10 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - [x] T31 — parent integration run on isolated DB (L26) + independent verification passed (L27)
 - [ ] T32 — S3: user browser test with frontend, then local merge to main — pending
 - [x] T33 — S14–S17: publication P2 design proposal, design §10 (P2a detailed, P2b outline) (inline) — proposal commit
-- [ ] T34 — S14: P2 contract review with frontend agent — pending
+- [x] T34 — S14: P2a contract review with frontend agent; 4 clarifications accepted — contract commit
+- [ ] T35 — S17 + §10.2–§10.4: P2a backend — projection migration 00020 (own commit), projection write in publish and published saves, published-write guard (422 on draft PATCH / delivery PUT / management PUT), GET /v2/jobs and /v2/jobs/{id} over legacy + projection, docs (worker) — commit pending
+- [ ] T36 — parent integration run on isolated DB + independent verification — pending
+- [ ] T37 — P2b design and contract (CV library + apply) — pending
 
 ## Log
 
@@ -94,3 +97,4 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **L29.** User decided P2 CV handling (S15). Exploration for P2 launched (public listing/search, public projection, screening v2 privacy, apply flow, upload handling).
 - **L30.** Frontend inputs for the CV upload (msg b6993910): two steps (multipart upload → `{cvId, name, size, type}`, then apply with `cvId` + answers + Idempotency-Key); Next Server Action body limit raised to ~6 MB on the frontend (queued for user review); field-specific rejections (`cv_too_large` 413, `cv_unsupported_type` 415, `cv_content_mismatch` 400). User answered session and reuse (S16).
 - **L31.** Exploration (gentle-ai-explore mvbfnfzn-d-9n9l): legacy public API lenient and legacy-only; published content in BYTEA (needs a projection); compensation key is `public_visible`; safe screening projector exists; no upload handling; wizard is a prototype. User answered four P2 questions (S17).
+- **L32.** Frontend agent (msg 53e0858c) accepted P2a with four clarifications recorded in §10.3 (seniority enum and nullability, legacy `published_at` meaning, compensation = draft shape with `pay_period` and completeness rule, legacy_salary as nullable decimal strings, public error/headers). The draft key is `pay_period`; the proposal's `period` was corrected.
