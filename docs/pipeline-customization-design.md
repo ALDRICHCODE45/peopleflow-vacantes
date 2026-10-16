@@ -305,7 +305,8 @@ The contract did not change.
 
 ## 8. Cut 3 — delivery cutoff, target and commitment date (proposal)
 
-Status: **proposal under frontend review.** Product answers (user, 2026-10-16) in §8.6.
+Status: **cut-3 contract agreed** with the frontend agent (msg e88fd491). Product
+answers (user, 2026-10-16) in §8.6.
 Rules: PIPE-7 (any progression stage may be the cutoff, never `Descartados`),
 PIPE-15 (replace an active cutoff before deleting its column), CFG-1, CFG-2, CFG-4,
 CFG-6, CFG-8, CFG-9, CFG-10, CFG-12, VAC-3 (all three are required to publish, not to
@@ -405,6 +406,18 @@ Status codes, in addition to §4:
 `non_business_date` and `cutoff_stage_in_use` are the first field-specific codes; they
 are added to the shared catalog and to `backend/docs/pipeline-config.md`. All other
 §4 behavior of the pipeline route is unchanged.
+
+Frontend notes recorded with the agreement (no backend change):
+
+- The `409 cutoff_stage_in_use` body stays `{ error, code }` without the stage id; if
+  the client did not expect that column to be the cutoff, it re-reads `GET …/delivery`.
+- Strict decoding: `calendar` is exactly `{ timeZone, today, minDate, maxDate,
+  nonBusinessDates }`, every date is `YYYY-MM-DD`, `nonBusinessDates` is ascending and
+  without duplicates, and `limits` is exactly `{ maxTargetQuantity }`. Adding a key is
+  a contract change.
+- A stored past or out-of-window date is shown with a warning and sent back unchanged
+  when other fields are saved; if the day changes while the page is open, the server's
+  `400` is the authority.
 
 ### 8.4 Storage (backend)
 
