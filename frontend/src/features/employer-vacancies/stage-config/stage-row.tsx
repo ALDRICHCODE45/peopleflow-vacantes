@@ -1,4 +1,7 @@
-import { ChevronDown, ChevronUp, Lock, LogOut, Trash2 } from "lucide-react";
+import { useCallback } from "react";
+import { useDraggable, useDroppable } from "@dnd-kit/core";
+import { cn } from "cn";
+import { ChevronDown, ChevronUp, GripVertical, Lock, LogOut, Trash2 } from "lucide-react";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -8,6 +11,8 @@ import {
   STAGE_KIND_LABELS, canMove, canRemoveStage, normalizeStageName,
   type EditorError, type EditorExit, type EditorStage, type MoveDirection, type PipelineEditorState, type StageKind,
 } from "@/features/jobs/drafts/pipeline/editor-model";
+
+import { POSITION_MEDALLION } from "./reorder";
 
 export const STAGE_VARIANTS: Record<StageKind, BadgeVariant> = {
   new: "info", screening: "review", screening_ok: "accent", in_process: "review",
@@ -42,9 +47,17 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
   const fixed = stage.kind === "new" || stage.kind === "placement";
   const isExit = stage.kind === "discarded";
   const showKind = stage.kind === "custom" || normalizeStageName(stage.name) !== STAGE_KIND_LABELS[stage.kind];
+  const { attributes, listeners, setNodeRef: setDragRef, setActivatorNodeRef, isDragging } = useDraggable({
+    id: stage.key, disabled: disabled || fixed || isExit, attributes: { roleDescription: "Columna del pipeline" },
+  });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: stage.key, disabled: disabled || isExit });
+  const setRowRef = useCallback((node: HTMLElement | null) => {
+    setDragRef(node); setDropRef(node);
+  }, [setDragRef, setDropRef]);
   return (
-    <Item render={isExit ? <div /> : <li />} variant="muted">
-      <ItemMedia variant="icon" className="size-10 rounded-full bg-primary/10 text-primary" aria-hidden="true">
+    <Item ref={setRowRef} render={isExit ? <div /> : <li />} variant="outline"
+      className={cn(isDragging && "opacity-60", isOver && "ring-2 ring-ring")}>
+      <ItemMedia variant="icon" className={POSITION_MEDALLION} aria-hidden="true">
         {isExit ? <LogOut /> : position}
       </ItemMedia>
       <ItemContent className="min-w-40">
@@ -61,6 +74,9 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
       </ItemContent>
       {!isExit && <ItemActions className="flex-wrap">
         {fixed ? <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Lock className="size-3.5" aria-hidden="true" />Posición fija</span> : <>
+          <Button type="button" variant="ghost" size="icon" ref={setActivatorNodeRef}
+            className="size-10 cursor-grab touch-none active:cursor-grabbing" disabled={disabled}
+            {...attributes} {...listeners} aria-label={`Arrastrar ${stage.name}`}><GripVertical aria-hidden="true" /></Button>
           <Button type="button" variant="ghost" size="icon" className="size-10" aria-label={`Subir ${stage.name}`}
             disabled={disabled || !canMove(state, stage.key, "up")} onClick={() => onMove("up")}><ChevronUp aria-hidden="true" /></Button>
           <Button type="button" variant="ghost" size="icon" className="size-10" aria-label={`Bajar ${stage.name}`}

@@ -5,12 +5,14 @@ import {
   adoptSavedPipeline,
   canAddCustomStage,
   canMove,
+  canMoveTo,
   canRemoveStage,
   criticalRenames,
   reconcileUncertainSave,
   editorFromPipeline,
   isEditorDirty,
   moveStage,
+  moveStageTo,
   normalizeStageName,
   removeCustomStage,
   renameStage,
@@ -153,6 +155,40 @@ describe("pipeline editor operations (S3, S6)", () => {
       new: "Nuevos", screening: "Screening", screening_ok: "Screening OK",
       in_process: "En proceso", placement: "Placement", custom: "Columna propia", discarded: "Descartados",
     });
+  });
+});
+
+describe("direct stage movement (S8, S10)", () => {
+  it.each([0, 4, -1, 5, 1.5, NaN, Infinity])("refuses target index %s without changing state", target => {
+    const state = fresh();
+    expect(canMoveTo(state, "s", target)).toBe(false);
+    expect(moveStageTo(state, "s", target)).toBe(state);
+  });
+
+  it.each(["n", "p", "e", "missing"])("refuses moving fixed, exit or unknown key %s", key => {
+    const state = fresh();
+    expect(canMoveTo(state, key, 2)).toBe(false);
+    expect(moveStageTo(state, key, 2)).toBe(state);
+  });
+
+  it("keeps the same state object for the same index", () => {
+    const state = fresh();
+    expect(canMoveTo(state, "s", 1)).toBe(false);
+    expect(moveStageTo(state, "s", 1)).toBe(state);
+  });
+
+  it("moves multiple positions in either direction preserving all other relative order and identities", () => {
+    const state = addCustomStage(fresh(), "Técnica");
+    expect(canMoveTo(state, "s", 4)).toBe(true);
+    const moved = moveStageTo(state, "s", 4);
+    expect(moved.stages.map(stage => stage.key)).toEqual(["n", "o", "i", "local:custom:1", "s", "p"]);
+    expect(moved.stages.filter(stage => stage.key !== "s")).toEqual(state.stages.filter(stage => stage.key !== "s"));
+    expect(moved.stages.every(stage => state.stages.includes(stage))).toBe(true);
+    expect(moveStageTo(moved, "s", 1)).toEqual(state);
+    expect(isEditorDirty(moved)).toBe(true);
+    expect(moved.exit).toBe(state.exit);
+    expect(moved.baseline).toBe(state.baseline);
+    expect(state.stages.map(stage => stage.key)).toEqual(["n", "s", "o", "i", "local:custom:1", "p"]);
   });
 });
 

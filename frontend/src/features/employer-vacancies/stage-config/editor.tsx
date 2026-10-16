@@ -14,13 +14,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { loadDraftPipelineAction, saveDraftPipelineAction, type DraftPipelineActionResult } from "@/features/jobs/drafts/pipeline/actions";
 import {
   addCustomStage, adoptSavedPipeline, canAddCustomStage, criticalRenames, editorFromPipeline, isEditorDirty,
-  moveStage, reconcileUncertainSave, removeCustomStage, renameStage, toPutBody, validateEditor,
+  moveStage, moveStageTo, reconcileUncertainSave, removeCustomStage, renameStage, toPutBody, validateEditor,
   type EditorPipeline, type PipelineEditorState,
 } from "@/features/jobs/drafts/pipeline/editor-model";
 import { CriticalRenameDialog } from "./critical-rename-dialog";
 import { conflictNotice, invalidNotice, pipelineFailureNotice, recoveryLabels, savedNotice, type PipelineNotice } from "./feedback";
 import { PipelinePreview } from "./preview";
 import { StageRow } from "./stage-row";
+import { StageReorder } from "./reorder";
 
 type Session = { editor: PipelineEditorState; etag: string };
 const noResponse = (): DraftPipelineActionResult => ({ ok: false, reason: "no_response", reference: {} });
@@ -157,7 +158,10 @@ export function PipelineStageEditor({ draftId, pipeline, etag }: { draftId: stri
           <CardAction className="col-start-1 row-span-1 row-start-auto justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end"><Badge variant="neutral">{state.stages.filter(entry => entry.kind === "custom").length} de {state.limits.maxCustomStages} columnas propias</Badge></CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
-          <ol aria-label="Columnas del pipeline" className="flex flex-col gap-3">{state.stages.map((stage, index) => row(stage, index + 1))}</ol>
+          <StageReorder state={state} disabled={pending !== null}
+            onMove={(key, targetIndex) => edit(moveStageTo(current.current.editor, key, targetIndex))}>
+            <ol aria-label="Columnas del pipeline" className="flex flex-col gap-3">{state.stages.map((stage, index) => row(stage, index + 1))}</ol>
+          </StageReorder>
           <div className="flex flex-col items-start gap-2">
             <Button type="button" variant="outline" className="min-h-10" disabled={pending !== null || !canAddCustomStage(state)} onClick={add}>
               <Plus aria-hidden="true" data-icon="inline-start" />Agregar columna

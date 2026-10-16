@@ -16,6 +16,7 @@ const field = (position: number | "exit") => screen.getByRole("textbox", {
   name: position === "exit" ? "Nombre de la columna de salida" : `Nombre de la columna ${position}`,
 });
 const save = () => screen.getByRole("button", { name: "Guardar cambios" });
+const actionStatus = () => within(document.querySelector("[data-pf-action-status-slot]") as HTMLElement).getByRole("status");
 const edit = (position: number | "exit" = 2, name = "Filtro") => fireEvent.change(field(position), { target: { value: name } });
 function mount(pipeline = pipelineFixture()) {
   return render(<PipelineStageEditor draftId={draftId} pipeline={pipeline} etag={'"pipeline-0"'} />);
@@ -31,7 +32,122 @@ beforeEach(() => {
   vi.mocked(saveDraftPipelineAction).mockResolvedValue(response());
   vi.mocked(loadDraftPipelineAction).mockResolvedValue(response());
 });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+
+// jsdom has no layout. Supply only real row geometry; dnd-kit's sensors,
+// collision detection and keyboard events stay unmocked.
+function measureRows() {
+  const original = HTMLElement.prototype.getBoundingClientRect;
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+    const row = this.matches('li[data-slot="item"]');
+    const overlay = this.matches('div[data-slot="item"]') && this.parentElement?.style.position === "fixed";
+    if (!row && !overlay) return original.call(this);
+    const index = row ? Array.from(this.parentElement!.children).indexOf(this) : 0;
+    const style = overlay ? this.parentElement!.style : this.style;
+    const translation = style.transform.match(/translate3d\([^,]+,\s*([-\d.]+)px/);
+    const top = row ? index * 100 : parseFloat(style.top) + Number(translation?.[1] ?? 0);
+    return { x: 0, y: top, top, left: 0, bottom: top + 80, right: 600, width: 600, height: 80, toJSON: () => ({}) };
+  });
+}
+
+it("gives only movable rows a named, focus-visible, handle-only drag button", () => {
+  mount();
+  expect(screen.getAllByRole("button", { name: /^Arrastrar / })).toHaveLength(3);
+  for (const name of ["Screening", "Screening OK", "En proceso"]) {
+    const handle = screen.getByRole("button", { name: `Arrastrar ${name}` });
+    expect(handle).toHaveClass("size-10", "touch-none", "focus-visible:ring-3");
+    expect(handle).toHaveAttribute("aria-roledescription", "Columna del pipeline");
+  }
+  expect(screen.queryByRole("button", { name: /Arrastrar Nuevos|Arrastrar Placement|Arrastrar Descartados/ })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Agregar columna" }));
+  edit(5, "Técnica");
+  expect(screen.getByRole("button", { name: "Arrastrar Técnica" })).toBeEnabled();
+});
+
+it("uses outlined rows and legible medallions, including the exit, without primary-colored text", () => {
+  const { container } = mount();
+  for (const row of container.querySelectorAll('[data-slot="item"]')) {
+    expect(row).toHaveAttribute("data-variant", "outline");
+    expect(row).not.toHaveClass("bg-muted/50");
+  }
+  for (const media of container.querySelectorAll('[data-slot="item-media"]')) {
+    expect(media).toHaveClass("size-10", "rounded-full", "bg-primary/12", "text-foreground", "ring-1", "ring-primary/40");
+    expect(media).not.toHaveClass("text-primary");
+  }
+  const preview = screen.getByRole("region", { name: "Vista previa" });
+  expect(preview.querySelectorAll('[data-slot="card"]')).toHaveLength(6);
+  for (const card of preview.querySelectorAll('[data-slot="card"]')) {
+    expect(card).toHaveClass("bg-card");
+    expect(card).not.toHaveClass("bg-muted", "text-primary");
+  }
+});
+
+it("reorders with space, arrow down, space; announces in Spanish and updates preview and dirty state", async () => {
+  measureRows();
+  const user = userEvent.setup(); mount();
+  const handle = screen.getByRole("button", { name: "Arrastrar Screening" });
+  handle.focus();
+  expect(handle).toHaveAccessibleDescription(expect.stringMatching(/espacio.*flechas.*Escape/));
+  await user.keyboard("[Space]");
+  await waitFor(() => expect(screen.getByText("Tomaste Screening")).toBeInTheDocument());
+  await user.keyboard("[ArrowDown]");
+  await waitFor(() => expect(screen.getByText("Screening sobre la posición 3")).toBeInTheDocument());
+  await user.keyboard("[Space]");
+  await waitFor(() => expect(field(3)).toHaveValue("Screening"));
+  expect(save()).toBeEnabled();
+  expect(handle).toHaveFocus();
+  expect(screen.getByText("Soltaste Screening en la posición 3")).toBeInTheDocument();
+  const preview = screen.getByRole("list", { name: "Orden de las columnas" });
+  expect(within(preview).getAllByRole("heading").map(node => node.textContent)).toEqual(["Nuevos", "Screening OK", "Screening", "En proceso", "Placement"]);
+  expect(saveDraftPipelineAction).not.toHaveBeenCalled();
+});
+
+it.each([
+  ["En proceso", "[ArrowDown]", 4],
+  ["Screening", "[ArrowUp]", 2],
+])("refuses a keyboard drop of %s on a fixed endpoint", async (name, arrow, position) => {
+  measureRows(); const user = userEvent.setup(); mount();
+  screen.getByRole("button", { name: `Arrastrar ${name}` }).focus();
+  await user.keyboard("[Space]"); await user.keyboard(arrow); await user.keyboard("[Space]");
+  expect(field(position)).toHaveValue(name);
+  expect(save()).toBeDisabled();
+  expect(screen.getByText(new RegExp(`${name} no se movió`))).toBeInTheDocument();
+});
+
+it.each([false, true])("pointer drag is handle-only and dropping outside=%s respects the order", async outside => {
+  measureRows(); const user = userEvent.setup(); mount();
+  // A movement beginning in the field never activates the row's drag.
+  await user.pointer([{ keys: "[MouseLeft>]", target: field(2), coords: { x: 250, y: 140 } },
+    { coords: { x: 250, y: 340 } }, { keys: "[/MouseLeft]" }]);
+  expect(field(2)).toHaveValue("Screening"); expect(save()).toBeDisabled();
+  const handle = screen.getByRole("button", { name: "Arrastrar Screening" });
+  await user.pointer([{ keys: "[MouseLeft>]", target: handle, coords: { x: 570, y: 140 } },
+    { coords: { x: 570, y: 160 } },
+    { coords: outside ? { x: 900, y: 900 } : { x: 570, y: 340 } }]);
+  expect(handle).toHaveAttribute("aria-pressed", "true");
+  await user.pointer({ keys: "[/MouseLeft]" });
+  expect(field(outside ? 2 : 4)).toHaveValue("Screening");
+  if (outside) expect(save()).toBeDisabled();
+  else expect(save()).toBeEnabled();
+  expect(saveDraftPipelineAction).not.toHaveBeenCalled();
+});
+
+it("moves several rows in either direction with the keyboard", async () => {
+  measureRows(); const user = userEvent.setup(); mount();
+  screen.getByRole("button", { name: "Arrastrar Screening" }).focus();
+  await user.keyboard("[Space]"); await user.keyboard("[ArrowDown]"); await user.keyboard("[ArrowDown]"); await user.keyboard("[Space]");
+  expect(field(4)).toHaveValue("Screening");
+  await user.keyboard("[Space]"); await user.keyboard("[ArrowUp]"); await user.keyboard("[ArrowUp]"); await user.keyboard("[Space]");
+  expect(field(2)).toHaveValue("Screening"); expect(save()).toBeDisabled();
+});
+
+it("cancels a keyboard drag without editing", async () => {
+  measureRows(); const user = userEvent.setup(); mount();
+  screen.getByRole("button", { name: "Arrastrar Screening" }).focus();
+  await user.keyboard("[Space]"); await user.keyboard("[ArrowDown]"); await user.keyboard("[Escape]");
+  expect(field(2)).toHaveValue("Screening"); expect(save()).toBeDisabled();
+  expect(screen.getByText("Cancelaste el movimiento de Screening")).toBeInTheDocument();
+});
 
 it("composes ordered Item rows, fixed endpoints, a preview and an initially empty status slot", () => {
   const { container } = mount();
@@ -134,7 +250,7 @@ it("sends exactly the normalized PUT body/current etag, adopts server ids and th
   fireEvent.click(save());
   await waitFor(() => expect(save()).toBeDisabled());
   expect(saveDraftPipelineAction).toHaveBeenCalledExactlyOnceWith({ draftId, ifMatch: '"pipeline-0"', body: toPutBody(state) });
-  expect(field(5)).toHaveValue("Técnica"); expect(screen.getByRole("status")).toHaveTextContent("Guardado");
+  expect(field(5)).toHaveValue("Técnica"); expect(actionStatus()).toHaveTextContent("Guardado");
   expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ key: "pipeline-save", type: "success", title: "Pipeline guardado", description: "Las columnas de esta vacante quedaron guardadas." }));
   edit(5, "Entrevista"); fireEvent.click(save());
   await waitFor(() => expect(saveDraftPipelineAction).toHaveBeenCalledTimes(2));
@@ -146,6 +262,7 @@ it("shows Spinner while pending, prevents repeated clicks and never retries auto
   const { container } = mount(); edit(); fireEvent.click(save());
   const pending = screen.getByRole("button", { name: "Guardando…" }); expect(pending).toBeDisabled();
   expect(container.querySelector('[data-slot="spinner"]')).not.toBeNull();
+  expect(screen.getByRole("button", { name: "Arrastrar Filtro" })).toBeDisabled();
   fireEvent.click(pending); expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1);
   await act(async () => resolve({ ok: false, reason: "no_response", reference: {} }));
   expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1);
@@ -153,8 +270,8 @@ it("shows Spinner while pending, prevents repeated clicks and never retries auto
 it("never labels later edits as saved and keeps the status associated below the actions", async () => {
   mount(); edit(); fireEvent.click(save()); await screen.findByText("Guardado");
   edit(2, "Otro filtro");
-  expect(screen.getByRole("status")).toHaveTextContent("Cambios sin guardar");
-  expect(save()).toHaveAttribute("aria-describedby", screen.getByRole("status").id);
+  expect(actionStatus()).toHaveTextContent("Cambios sin guardar");
+  expect(save()).toHaveAttribute("aria-describedby", actionStatus().id);
 });
 it("emits info, not success, when the server returns the baseline version", async () => {
   vi.mocked(saveDraftPipelineAction).mockResolvedValue(response("0")); mount(); edit(); fireEvent.click(save());
@@ -187,7 +304,13 @@ it("keeps conflicting edits until an explicit reload replaces them", async () =>
   const reload = await screen.findByRole("button", { name: "Cargar versión actual" });
   expect(field(2)).toHaveValue("Filtro"); expect(loadDraftPipelineAction).not.toHaveBeenCalled();
   expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ title: "Esto cambió en otro lugar", action: expect.objectContaining({ title: "Cargar versión actual" }), reference: expect.objectContaining({ status: 412, at: expect.any(String) }) }));
-  fireEvent.click(reload); await waitFor(() => expect(field(2)).toHaveValue("Actual")); expect(save()).toBeDisabled();
+  let resolve!: (value: DraftPipelineActionResult) => void;
+  vi.mocked(loadDraftPipelineAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
+  fireEvent.click(reload);
+  expect(screen.getByRole("button", { name: "Arrastrar Filtro" })).toBeDisabled();
+  expect(field(2)).toHaveValue("Filtro");
+  await act(async () => resolve(response("2", "Actual")));
+  await waitFor(() => expect(field(2)).toHaveValue("Actual")); expect(save()).toBeDisabled();
 });
 it.each(["no_response", "server_error", "unrecognized_response", "precondition_required"] as const)("%s is uncertain: keeps edits, explains safety and offers Comprobar", async reason => {
   vi.mocked(saveDraftPipelineAction).mockResolvedValue({ ok: false, reason, reference: { status: 500 } });
@@ -201,7 +324,7 @@ it.each(["saved", "not_saved", "conflict"] as const)("Comprobar reconciles %s wi
   vi.mocked(loadDraftPipelineAction).mockResolvedValue(outcome === "saved" ? response() : outcome === "conflict" ? response("2", "Ajeno") : { ok: true, pipeline: pipelineFixture(), etag: '"unexpected-tag"' });
   mount(); edit(); fireEvent.click(save()); fireEvent.click(await screen.findByRole("button", { name: "Comprobar" }));
   if (outcome === "saved") {
-    await waitFor(() => expect(save()).toBeDisabled()); expect(screen.getByRole("status")).toHaveTextContent("Guardado");
+    await waitFor(() => expect(save()).toBeDisabled()); expect(actionStatus()).toHaveTextContent("Guardado");
   } else if (outcome === "not_saved") {
     await screen.findByText("No se guardó. Puedes guardar de nuevo; es seguro.");
     expect(field(2)).toHaveValue("Filtro"); expect(save()).toBeEnabled();
@@ -233,5 +356,5 @@ it.each([
   mount(); edit(); fireEvent.click(save());
   await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ key: "pipeline-save", type: "error", title, reference: expect.objectContaining({ status: 400, code: reason, at: expect.any(String) }) })));
   expect(field(2)).toHaveValue("Filtro"); expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1);
-  if (href) expect(within(screen.getByRole("status")).getByRole("link")).toHaveAttribute("href", href);
+  if (href) expect(within(actionStatus()).getByRole("link")).toHaveAttribute("href", href);
 });

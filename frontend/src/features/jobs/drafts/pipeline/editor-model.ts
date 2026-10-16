@@ -110,6 +110,24 @@ export function moveStage(state: PipelineEditorState, key: string, direction: Mo
   return { ...state, stages };
 }
 
+export function canMoveTo(state: PipelineEditorState, key: string, targetIndex: number): boolean {
+  const index = state.stages.findIndex(entry => entry.key === key);
+  const stage = state.stages[index];
+  return !!stage && stage.kind !== "new" && stage.kind !== "placement"
+    && Number.isInteger(targetIndex) && targetIndex > 0 && targetIndex < state.stages.length - 1
+    && index !== targetIndex;
+}
+
+/** Insert at the target's original index; all other stages keep their relative order. */
+export function moveStageTo(state: PipelineEditorState, key: string, targetIndex: number): PipelineEditorState {
+  if (!canMoveTo(state, key, targetIndex)) return state;
+  const stages = [...state.stages];
+  const index = stages.findIndex(entry => entry.key === key);
+  const [stage] = stages.splice(index, 1);
+  stages.splice(targetIndex, 0, stage);
+  return { ...state, stages };
+}
+
 export function canAddCustomStage(state: PipelineEditorState): boolean {
   return state.stages.filter((entry) => entry.kind === "custom").length < state.limits.maxCustomStages;
 }

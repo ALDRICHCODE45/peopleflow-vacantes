@@ -159,7 +159,7 @@ corepack pnpm dev
     tenés acceso, con «Reintentar» y un enlace a Vacantes. Una dirección que no es
     un id muestra la página 404, y `/empresa/vacantes/borradores` ya no existe.
 
-14. **Columnas por defecto.** En el pipeline de un borrador que nunca configuraste.
+14. **Columnas por defecto (probalo en tema claro y oscuro).** En el pipeline de un borrador que nunca configuraste.
     **Esperado:** mientras carga, una tarjeta de carga; después «Columnas del
     pipeline» con, en orden, Nuevos, Screening, Screening OK, En proceso y Placement,
     cada una con su número. Nuevos y Placement dicen «Posición fija» y no tienen
@@ -168,7 +168,9 @@ corepack pnpm dev
     «Vista previa» del tablero. «Guardar cambios» y «Descartar cambios» están
     deshabilitados mientras no cambies nada.
 15. **Editar y guardar.** Renombrá Screening a «Filtro», subí/bajá columnas con las
-    flechas (nada puede quedar antes de Nuevos ni después de Placement), presioná
+    flechas o arrastralas desde su manija (⋮⋮); con teclado, tabulá hasta la manija,
+    espacio para tomarla, flechas para moverla y espacio para soltarla (nada puede
+    quedar antes de Nuevos ni después de Placement), presioná
     «Agregar columna» y escribí «Prueba técnica» (el cursor queda en la columna
     nueva, que aparece antes de Placement). La vista previa refleja todo sin
     guardar. Presioná «Guardar cambios». **Esperado:** aviso «Pipeline guardado»
