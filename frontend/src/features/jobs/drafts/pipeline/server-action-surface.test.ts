@@ -8,6 +8,7 @@ vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
 describe("pipeline server action surface", () => {
   it("exposes only the delivery load and save actions", async () => {
     expect(Object.keys(await import("./delivery-actions")).sort()).toEqual(["loadDraftDeliveryAction", "saveDraftDeliveryAction"]);
+    expect(Object.keys(await import("./management-actions")).sort()).toEqual(["loadDraftManagementAction", "saveDraftManagementAction"]);
   });
   it("exposes only the pipeline load and save actions", async () => {
     expect(Object.keys(await import("./actions")).sort()).toEqual(["loadDraftPipelineAction", "saveDraftPipelineAction"]);
