@@ -207,3 +207,24 @@ type VacancyProcess struct {
 	PublishedAt pgtype.Timestamptz `json:"published_at"`
 	PublishedBy uuid.UUID          `json:"published_by"`
 }
+
+type VacancyPublicProjection struct {
+	ID                    uuid.UUID          `json:"id"`
+	CompanyID             uuid.UUID          `json:"company_id"`
+	Title                 string             `json:"title"`
+	Description           []byte             `json:"description"`
+	DescriptionPlain      string             `json:"description_plain"`
+	Location              string             `json:"location"`
+	WorkMode              string             `json:"work_mode"`
+	WorkSchedule          string             `json:"work_schedule"`
+	ContractType          string             `json:"contract_type"`
+	ProfessionalArea      string             `json:"professional_area"`
+	Seniority             pgtype.Text        `json:"seniority"`
+	RequiredRequirements  pgtype.Text        `json:"required_requirements"`
+	PreferredRequirements pgtype.Text        `json:"preferred_requirements"`
+	Benefits              []byte             `json:"benefits"`
+	Compensation          []byte             `json:"compensation"`
+	PublishedAt           pgtype.Timestamptz `json:"published_at"`
+	SourceDraftVersion    int64              `json:"source_draft_version"`
+	SearchVector          interface{}        `json:"search_vector"`
+}
