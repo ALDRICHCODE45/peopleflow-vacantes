@@ -168,7 +168,7 @@ corepack pnpm dev
     «Vista previa» del tablero. «Guardar cambios» y «Descartar cambios» están
     deshabilitados mientras no cambies nada.
 15. **Editar y guardar.** Renombrá Screening a «Filtro», subí/bajá columnas con las
-    flechas o arrastralas desde su manija (⋮⋮); con teclado, tabulá hasta la manija,
+    flechas o arrastralas desde su manija (⋮⋮, a la izquierda del número); con teclado, tabulá hasta la manija,
     espacio para tomarla, flechas para moverla y espacio para soltarla (nada puede
     quedar antes de Nuevos ni después de Placement), presioná
     «Agregar columna» y escribí «Prueba técnica» (el cursor queda en la columna

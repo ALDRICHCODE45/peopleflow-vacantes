@@ -57,6 +57,11 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
   return (
     <Item ref={setRowRef} render={isExit ? <div /> : <li />} variant="outline"
       className={cn(isDragging && "opacity-60", isOver && "ring-2 ring-ring")}>
+      {fixed || isExit
+        ? <span data-pf-stage-handle-slot="" aria-hidden="true" className="size-10 shrink-0" />
+        : <Button type="button" variant="ghost" size="icon" ref={setActivatorNodeRef}
+          className="size-10 shrink-0 cursor-grab touch-none active:cursor-grabbing" disabled={disabled}
+          {...attributes} {...listeners} aria-label={`Arrastrar ${stage.name}`}><GripVertical aria-hidden="true" /></Button>}
       <ItemMedia variant="icon" className={POSITION_MEDALLION} aria-hidden="true">
         {isExit ? <LogOut /> : position}
       </ItemMedia>
@@ -74,9 +79,6 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
       </ItemContent>
       {!isExit && <ItemActions className="flex-wrap">
         {fixed ? <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Lock className="size-3.5" aria-hidden="true" />Posición fija</span> : <>
-          <Button type="button" variant="ghost" size="icon" ref={setActivatorNodeRef}
-            className="size-10 cursor-grab touch-none active:cursor-grabbing" disabled={disabled}
-            {...attributes} {...listeners} aria-label={`Arrastrar ${stage.name}`}><GripVertical aria-hidden="true" /></Button>
           <Button type="button" variant="ghost" size="icon" className="size-10" aria-label={`Subir ${stage.name}`}
             disabled={disabled || !canMove(state, stage.key, "up")} onClick={() => onMove("up")}><ChevronUp aria-hidden="true" /></Button>
           <Button type="button" variant="ghost" size="icon" className="size-10" aria-label={`Bajar ${stage.name}`}

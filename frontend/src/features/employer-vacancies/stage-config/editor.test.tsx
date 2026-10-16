@@ -63,6 +63,19 @@ it("gives only movable rows a named, focus-visible, handle-only drag button", ()
   edit(5, "Técnica");
   expect(screen.getByRole("button", { name: "Arrastrar Técnica" })).toBeEnabled();
 });
+it("places the drag handle before the position number and keeps fixed rows aligned with an empty slot", () => {
+  const { container } = mount();
+  const handle = screen.getByRole("button", { name: "Arrastrar Screening" });
+  const row = handle.closest('[data-slot="item"]')!;
+  const media = row.querySelector('[data-slot="item-media"]')!;
+  expect(handle.compareDocumentPosition(media) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(handle.closest('[data-slot="item-actions"]')).toBeNull();
+  for (const slot of container.querySelectorAll('[data-pf-stage-handle-slot]')) {
+    expect(slot).toHaveAttribute("aria-hidden", "true");
+    expect(slot).toHaveClass("size-10");
+  }
+  expect(container.querySelectorAll('[data-pf-stage-handle-slot]')).toHaveLength(3);
+});
 
 it("uses outlined rows and legible medallions, including the exit, without primary-colored text", () => {
   const { container } = mount();
