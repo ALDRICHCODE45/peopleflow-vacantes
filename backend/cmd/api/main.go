@@ -167,6 +167,7 @@ func run() error {
 	draftHandler := jobshttp.NewDraftHandler(draftStore)
 	draftV2Handler := jobshttp.NewDraftV2Handler(draftStore, draftStore, draftStore)
 	draftListHandler := jobshttp.NewDraftListHandler(draftStore)
+	pipelineHandler := jobshttp.NewPipelineHandler(draftStore)
 	// The requester catalog shares the draft store's transactional gates.
 	requesterHandler := jobshttp.NewRequesterHandler(draftStore)
 
@@ -228,6 +229,7 @@ func run() error {
 		companyHandler: companyHandler, memberHandler: memberHandler,
 		candidateHandler: candidateHandler, jobHandler: jobHandler, applicationHandler: applicationHandler,
 		draftHandler: draftHandler, draftV2Handler: draftV2Handler, draftListHandler: draftListHandler,
+		pipelineHandler:  pipelineHandler,
 		requesterHandler: requesterHandler, queries: queries, pool: poolPinger, readinessTimeout: cfg.ReadinessTimeout,
 		// Task 6.3 (design §8.3): compose the no-op HTTP metrics default —
 		// zero-dependency, no exporter, no metrics endpoint in this change.
