@@ -288,9 +288,10 @@ data is rewritten.
 
 ### 7.4 Frontend placement (frontend owns this)
 
-Second subsection of the vacancy configuration section:
-`/empresa/vacantes/{id}/configuracion/subestados`, saved separately from «Columnas del
-pipeline». It shows the current name of the `in_process` stage.
+After the cut-2 browser test, substates are not a separate subsection: they are edited
+in a Sheet opened from the ⋯ menu of the `in_process` column in «Columnas del
+pipeline», with their own save. It shows the current name of the `in_process` stage.
+The contract did not change.
 
 ### 7.5 Decisions recorded for cut 2
 
