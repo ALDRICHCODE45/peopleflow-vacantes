@@ -869,7 +869,8 @@ queued for user review).
 
 ## 11. P2b0 — candidate identity (proposal)
 
-Status: **proposal under frontend review.** Product answers in §11.6. Branch
+Status: **P2b0 contract agreed** with the frontend agent (msg 4831e0ec). Product answers in
+§11.6. Branch
 `feat/candidate-identity`, stacked on `feat/vacancy-public` (L28). Prerequisite of P2b:
 today no candidate can create an account (L38).
 
@@ -948,6 +949,20 @@ Role errors on candidate routes (legacy and new):
 These replace today's `401` for a missing user row and today's acceptance of recruiters
 on those routes; this is the requested change to existing contracts (Risk item 2 and
 item 3). Company routes are unchanged.
+
+Agreement notes (frontend msg 4831e0ec):
+
+- The `201`/`200` body of `POST /v2/me/candidate-account` is exactly the `GET /v2/me`
+  body, so the client updates its session without another read.
+- Company routes are unchanged: a token without an account still gets `401
+  unauthenticated` there, and a candidate account gets `403 forbidden` (no
+  membership). Area guards rely on `GET /v2/me`, not on those codes.
+- **No undo in this cut.** A mistaken candidate onboarding cannot be reverted by the
+  product; an admin/support reversal is an open decision queued for the user. The
+  frontend offers onboarding only inside the `/candidato` flow, behind an explicit
+  button and the text «Vas a crear una cuenta de candidato con {email}. Esta cuenta no
+  podrá usarse para publicar vacantes.»; before onboarding it shows the NextAuth session
+  email for display only.
 
 ### 11.4 Configuration and AWS console (user)
 
