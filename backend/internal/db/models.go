@@ -152,6 +152,12 @@ type JobDraftIdempotency struct {
 	FingerprintAlgorithm string             `json:"fingerprint_algorithm"`
 }
 
+type JobDraftPipelineConfig struct {
+	DraftID       uuid.UUID `json:"draft_id"`
+	Version       int64     `json:"version"`
+	Configuration []byte    `json:"configuration"`
+}
+
 type JobDraftRequester struct {
 	ID                   uuid.UUID          `json:"id"`
 	CompanyID            uuid.UUID          `json:"company_id"`
