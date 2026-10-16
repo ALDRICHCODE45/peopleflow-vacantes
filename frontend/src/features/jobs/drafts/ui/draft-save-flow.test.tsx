@@ -208,11 +208,18 @@ it("keeps the save button in place: the status slot exists below it before and a
   expect(save().compareDocumentPosition(screen.getByRole("status")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(screen.getByRole("status").closest("[data-pf-action-status-slot]")).toBe(slot);
 });
-it("keeps the save button in the same row as the other footer actions and the result line below", () => {
+it("keeps Atrás, the result line and the actions in one compact ActionBar row (rules §12)", () => {
   render(<LocalDraftForm />); review();
   const actions = save().parentElement!;
   expect(actions).toContainElement(screen.getByRole("button", {name:"Probar cuestionario"}));
   const slot = document.querySelector("[data-pf-action-status-slot]")!;
   expect(actions).not.toContainElement(slot as HTMLElement);
   expect(actions.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  // Same row: the status sits beside the actions (ActionBar), not stacked below them.
+  const bar = slot.closest("[data-pf-action-bar]")!;
+  expect(bar).not.toBeNull();
+  expect(bar).toContainElement(save());
+  const footer = save().closest('[data-slot="card-footer"]')!;
+  expect(footer).not.toHaveClass("flex-col");
+  expect(footer).toContainElement(screen.getByRole("button", {name:"Atrás"}));
 });

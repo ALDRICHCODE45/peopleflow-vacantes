@@ -111,8 +111,8 @@ corepack pnpm dev
 4. **Guardar borrador.** Completá los pasos (podés dejar campos vacíos) y en el
    último presioná «Guardar borrador». **Esperado:** aviso «Borrador guardado» y,
    junto al botón, «Guardado · versión 1 · <hora>». El botón pasa a decir
-   «Guardar cambios». Los botones del último paso quedan alineados en una sola
-   fila y la línea de estado aparece debajo, sin moverlos.
+   «Guardar cambios». «Atrás», la línea de estado y los botones del último paso
+   quedan en una sola fila (el estado entre «Atrás» y los botones), sin moverlos.
 5. **Guardar cambios.** Volvé a un paso, modificá un campo (la línea de estado
    avisa que hay cambios sin guardar) y presioná «Guardar cambios».
    **Esperado:** aviso «Cambios guardados» y «versión 2» sobre el mismo borrador.

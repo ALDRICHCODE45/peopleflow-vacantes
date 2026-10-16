@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useDraftSave, type DraftIdentity } from "./draft-save-state";
 import { DRAFT_SAVE_NOTICE, DraftSaveFeedback } from "./draft-save-feedback";
-import { ActionStatusSlot } from "@/components/feedback/action-status";
+import { ActionBar } from "@/components/feedback/action-status";
 import { Card,
   CardContent,
   CardFooter,
@@ -253,7 +253,11 @@ function DraftStepSection({
   );
 }
 
-/** One consistent step footer: Atrás left, primary navigation right. */
+/**
+ * One consistent step footer: Atrás left, primary navigation right. With a result
+ * line, the actions use the compact ActionBar row (rules §12): Atrás, then the reserved
+ * status, then the actions, top-aligned so a result never moves the buttons.
+ */
 function DraftStepFooter({
   onBack,
   backDisabled,
@@ -263,18 +267,26 @@ function DraftStepFooter({
   onBack: () => void;
   backDisabled?: boolean;
   children: React.ReactNode;
-  /** Result line in its own row below the actions, so it never shifts or misaligns them. */
+  /** Result line content; `null` still reserves the slot, `undefined` omits it. */
   status?: React.ReactNode;
 }) {
-  return (
-    <CardFooter className="flex-col items-stretch gap-1">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button type="button" variant="outline" disabled={backDisabled} onClick={onBack}>
-          Atrás
-        </Button>
+  const back = (
+    <Button type="button" variant="outline" disabled={backDisabled} onClick={onBack}>
+      Atrás
+    </Button>
+  );
+  if (status === undefined) {
+    return (
+      <CardFooter className="flex-wrap items-center justify-between gap-3">
+        {back}
         <div className="flex flex-wrap items-center gap-3">{children}</div>
-      </div>
-      {status === undefined ? null : <div className="flex justify-end">{status}</div>}
+      </CardFooter>
+    );
+  }
+  return (
+    <CardFooter className="items-start gap-3">
+      <div className="shrink-0">{back}</div>
+      <div className="min-w-0 flex-1"><ActionBar status={status}>{children}</ActionBar></div>
     </CardFooter>
   );
 }
@@ -1002,11 +1014,7 @@ export function LocalDraftForm({
             <DraftStepFooter
               onBack={() => goToStep(step - 1)}
               status={
-                isV2 ? (
-                  <ActionStatusSlot>
-                    <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} />
-                  </ActionStatusSlot>
-                ) : undefined
+                isV2 ? <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} /> : undefined
               }
             >
               <FieldError id="draft-model-error">{errors.model}</FieldError>

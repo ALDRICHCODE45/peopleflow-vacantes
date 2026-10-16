@@ -599,6 +599,11 @@ puede hacer la persona ahora.** Un párrafo rojo suelto, largo o con jerga técn
   acciones siguen antes que el estado. Apilar el estado debajo de los botones duplica el
   alto del footer (~128px contra ~80px en una `Card`) y queda prohibido. Aprobado por
   el usuario tras las pruebas de los cortes 2 y 3 (2026-10-16).
+- **Footer de pasos (wizard).** Cuando el pie tiene una acción de retroceso («Atrás»)
+  además de las acciones principales, la fila es «Atrás» a la izquierda, luego el
+  `ActionBar` ocupando el resto (estado reservado y acciones a la derecha), todo
+  alineado arriba. Los pasos sin resultado que mostrar no reservan el slot. Aplicado en
+  el editor de borradores (2026-10-16).
 - La línea de estado (`ActionStatus`) es el respaldo accesible y persistente del toast.
   Resume el resultado en pocas palabras («Guardado · versión 2», «No se guardó · ver
   aviso») y, si hay una acción útil (iniciar sesión, crear la empresa), la ofrece ahí
