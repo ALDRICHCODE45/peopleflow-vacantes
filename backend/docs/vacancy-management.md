@@ -48,12 +48,18 @@ resource's version. Draft, pipeline, substate and delivery versions/timestamps
 remain unchanged, and their writes do not change management.
 
 Writes lock the parent draft, including concurrent first saves. Publication
-uses this same lock. The resource remains editable after publication.
+uses this same lock. The resource remains editable after publication, but
+published PUTs cannot clear required values: `422 publication_incomplete` with
+ordered missing codes rejects the candidate state and commits no configuration,
+version, projection or audit changes. `commitment_date_past` alone is exempt.
+See [public-jobs-v2.md](public-jobs-v2.md) (§10.2 guard and tests).
 No Idempotency-Key: reconcile an uncertain PUT with GET, not an automatic retry.
 
 ## Errors
 
-All errors have exactly `{ "error", "code" }`, no data/list or success ETag.
+Except `publication_incomplete`, errors have exactly `{ "error", "code" }`,
+no data/list or success ETag. That existing 422 alone has the third key `missing`
+with readiness codes; no error returns a success ETag.
 
 | Status | Code | Case |
 | --- | --- | --- |
@@ -62,6 +68,7 @@ All errors have exactly `{ "error", "code" }`, no data/list or success ETag.
 | 401 / 403 / 404 / 409 | same as private drafts | Live gates and authorization |
 | 412 | version_conflict | Stale/foreign tag, including another resource's tag |
 | 413 | payload_too_large | Raw body over 1,048,576 bytes |
+| 422 | publication_incomplete | Published replacement would leave requirements missing; `{error,code,missing:[codes]}` |
 | 428 | precondition_required | Missing If-Match |
 | 500 | internal_error | Unexpected failure, corrupt storage, version overflow |
 

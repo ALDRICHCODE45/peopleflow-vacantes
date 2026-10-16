@@ -98,6 +98,9 @@ func (s *Store) PutDelivery(ctx context.Context, companyID, actorID, id uuid.UUI
  VALUES ($1,$2,$3,$4,$5) ON CONFLICT (draft_id) DO UPDATE SET version=EXCLUDED.version,cutoff_stage_id=EXCLUDED.cutoff_stage_id,target_quantity=EXCLUDED.target_quantity,commitment_date=EXCLUDED.commitment_date`, id, version+1, cutoff, target, date); err != nil {
 		return drafts.Result{}, fmt.Errorf("write delivery: %w", err)
 	}
+	if err := s.guardPublishedConfiguration(ctx, tx, companyID, id); err != nil {
+		return drafts.Result{}, err
+	}
 	previousJSON, err := json.Marshal(previous)
 	if err != nil {
 		return drafts.Result{}, fmt.Errorf("encode previous delivery: %w", err)

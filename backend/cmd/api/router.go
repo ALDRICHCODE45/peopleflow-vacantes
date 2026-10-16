@@ -29,6 +29,7 @@ type routerDeps struct {
 	companyHandler     *companieshttp.CompanyHandler
 	memberHandler      *companieshttp.MemberHandler
 	candidateHandler   *candidateshttp.CandidateHandler
+	publicJobsHandler  *jobshttp.PublicJobsHandler
 	jobHandler         *jobshttp.JobHandler
 	draftHandler       *jobshttp.DraftHandler
 	draftV2Handler     *jobshttp.DraftV2Handler
@@ -82,6 +83,9 @@ func newRouter(d routerDeps) chi.Router {
 
 	// /jobs is the public-read job board (spec: "GET /jobs is public").
 	r.Mount("/jobs", d.jobHandler.Routes())
+	// Additive anonymous catalog. Deliberately outside private NoStore/auth groups.
+	r.Get("/v2/jobs", d.publicJobsHandler.List)
+	r.Get("/v2/jobs/{id}", d.publicJobsHandler.Get)
 
 	// Gated writes on the ROOT router (outside the public mount), each with
 	// requireAuth + requireRecruiter (routing-split defense).

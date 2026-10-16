@@ -108,11 +108,15 @@ func TestPublicationFlowReadyPublishReplayVersionsAuditAndList(t *testing.T) {
 		t.Fatalf("list changed beyond two keys: %s", listAfter.body)
 	}
 	// Edit after publication, then replay without If-Match: frozen original 201.
-	changed := h.do(t, "PATCH", base, `{"fields":{"title":null}}`, owner.token, map[string]string{"If-Match": published.header.Get("ETag")})
+	changed := h.do(t, "PATCH", base, `{"fields":{"title":"Updated offer"}}`, owner.token, map[string]string{"If-Match": published.header.Get("ETag")})
 	if changed.status != 200 {
 		t.Fatalf("edit after publication: %s", changed.body)
 	}
-	cleared := h.do(t, "PUT", base+"/pipeline/delivery", deliveryFlowNull, owner.token, map[string]string{"If-Match": originals["/pipeline/delivery"].header.Get("ETag")})
+	updatedDelivery, err := json.Marshal(map[string]any{"cutoffStageId": delivery["cutoffStageId"], "targetQuantity": 6, "commitmentDate": delivery["commitmentDate"]})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cleared := h.do(t, "PUT", base+"/pipeline/delivery", string(updatedDelivery), owner.token, map[string]string{"If-Match": originals["/pipeline/delivery"].header.Get("ETag")})
 	if cleared.status != 200 {
 		t.Fatal(string(cleared.body))
 	}

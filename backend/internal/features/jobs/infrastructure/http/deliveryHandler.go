@@ -53,7 +53,7 @@ func (h *DeliveryHandler) putDelivery(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.store.PutDelivery(r.Context(), cc.CompanyID, cc.UserID, id, tag, present, body)
 	if err != nil {
-		writeDraftError(w, err)
+		writePublicationError(w, err)
 		return
 	}
 	writeDraftResult(w, http.StatusOK, result, nil)

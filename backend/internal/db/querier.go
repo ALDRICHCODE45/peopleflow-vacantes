@@ -267,6 +267,10 @@ type Querier interface {
 	// can assert visibility at the row level; they are not exposed in the
 	// API response per spec.
 	SearchJobs(ctx context.Context, arg SearchJobsParams) ([]SearchJobsRow, error)
+	// Explicit public allowlists. Legacy dimensions are deliberately NULL: an
+	// employment_type is not a schedule or contract type. Rank is float8 on both
+	// sides of the keyset comparison so cursor round-trips lose no precision.
+	SearchPublicJobs(ctx context.Context, arg SearchPublicJobsParams) ([]SearchPublicJobsRow, error)
 	// Atomic soft-delete + CAS for DELETE /me/company (companies-write
 	// slice, design D4). Minimal SET list: ONLY deleted_at = now() and
 	// updated_at = clock_timestamp(). rfc / industry_id / status /
@@ -452,6 +456,7 @@ type Querier interface {
 	// MUST NOT be written here: it stays out of both the INSERT and the DO
 	// UPDATE SET list, so a preexisting reserved value survives every upsert.
 	UpsertCandidateProfile(ctx context.Context, arg UpsertCandidateProfileParams) (CandidateProfile, error)
+	UpsertVacancyPublicProjection(ctx context.Context, arg UpsertVacancyPublicProjectionParams) error
 }
 
 var _ Querier = (*Queries)(nil)

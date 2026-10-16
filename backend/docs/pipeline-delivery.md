@@ -65,7 +65,8 @@ It cannot be used as a draft, pipeline or substate tag, nor vice versa.
 ```
 
 All three keys are required, each individually nullable; any combination may be
-saved. Unknown, missing or duplicate keys (including escaped equivalents), wrong
+saved **while draft**. Once published, missing required values return
+`422 publication_incomplete` with ordered `missing` codes (§10.2). Unknown, missing or duplicate keys (including escaped equivalents), wrong
 JSON types, fractional numbers, invalid UTF-8/surrogates, malformed/trailing JSON
 and malformed date strings return `400 invalid_request`. The shared strict numeric
 decoder accepts mathematically integral JSON spellings, never rounds fractions.
@@ -77,8 +78,10 @@ decoder accepts mathematically integral JSON spellings, never rounds fractions.
 | `commitmentDate` | Null or a business date in `[today, today + 1 year]` when new or changed. Same calendar date next year, clamping 29 February to 28 February. |
 
 A stored date returned **unchanged** is accepted even if it is now past or outside
-the window. Clearing it is valid. The publication cut will enforce CFG-11 and
-required fields. A changed out-of-window date is `400 validation_error`; a changed
+the window. Clearing it is valid only while draft. Initial publication enforces
+CFG-11; published writes exempt `commitment_date_past` but cannot clear any
+required value. A rejected replacement commits no config/version/audit/projection
+change. See [public-jobs-v2.md](public-jobs-v2.md). A changed out-of-window date is `400 validation_error`; a changed
 in-window weekend/holiday is `400 non_business_date`.
 
 ### Calendar (§8.2)
@@ -140,7 +143,7 @@ also in [pipeline-config.md](pipeline-config.md).
 
 ## Status codes
 
-Errors contain exactly `{ "error": string, "code": string }`, without details,
+Except `publication_incomplete`, errors contain exactly `{ "error": string, "code": string }`, without details,
 stage IDs, data or ETag. Shared error mapping is reused. The additive pipeline
 codes are registered in `httpjson.Resolve`; `PipelineErrorCodes` enumerates them
 separately so the pinned baseline V1 `ListCodes` and its tests remain unchanged.
@@ -158,6 +161,7 @@ separately so the pinned baseline V1 `ListCodes` and its tests remain unchanged.
 | 409 | `cutoff_stage_in_use` | On pipeline PUT: omitted custom cutoff column |
 | 412 | `version_conflict` | Stale/foreign strong tag |
 | 413 | `payload_too_large` | Raw body exceeds budget |
+| 422 | `publication_incomplete` | Published write would leave requirements missing; exactly `{error,code,missing:[codes]}` |
 | 428 | `precondition_required` | Missing If-Match |
 | 500 | `internal_error` | Unexpected failure, corrupt storage or version overflow |
 

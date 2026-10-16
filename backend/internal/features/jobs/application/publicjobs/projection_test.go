@@ -1,0 +1,107 @@
+package publicjobs
+
+import (
+	"encoding/json"
+	"reflect"
+	"strings"
+	"testing"
+
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftinput"
+)
+
+func TestBuildProjectionPrivacyAndCompensation(t *testing.T) {
+	for _, tc := range []struct {
+		name, compensation string
+		visible            bool
+	}{
+		{"hidden", `{"mode":"fixed","amount":"12345","min":null,"max":null,"currency":"MXN","pay_period":"monthly","basis":"gross","public_visible":false}`, false},
+		{"incomplete", `{"mode":"fixed","amount":null,"min":null,"max":null,"currency":"MXN","pay_period":"monthly","basis":"gross","public_visible":true}`, false},
+		{"fixed", `{"mode":"fixed","amount":"12345","min":null,"max":null,"currency":"MXN","pay_period":"monthly","basis":"gross","public_visible":true}`, true},
+		{"range", `{"mode":"range","amount":null,"min":"100","max":"200","currency":"USD","pay_period":"yearly","basis":"net","public_visible":true}`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			draft, err := draftinput.DecodeCreateV2([]byte(`{"fields":{"title":"Oferta","description":{"schema_version":1,"document":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Texto público"}]}]}},"required_requirements":"Go","preferred_requirements":"SQL","benefits":["health_insurance"],"custom_benefits":["Café"],"compensation":` + tc.compensation + `}}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := draft.Fingerprint()
+			got, err := BuildProjection(before)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Title != "Oferta" || got.DescriptionPlain != "Texto público" || got.Requirements.Required == nil || *got.Requirements.Required != "Go" || !reflect.DeepEqual(got.Benefits.Custom, []string{"Café"}) {
+				t.Fatalf("projection=%+v", got)
+			}
+			if (got.Compensation != nil) != tc.visible {
+				t.Fatalf("compensation=%+v", got.Compensation)
+			}
+			raw, err := json.Marshal(got)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, key := range []string{"requester", "headcount", "request_date", "delivery", "screening", "public_visible"} {
+				if strings.Contains(string(raw), key) {
+					t.Fatalf("private key %s: %s", key, raw)
+				}
+			}
+			if !tc.visible && strings.Contains(string(raw), "12345") {
+				t.Fatal("hidden amount leaked")
+			}
+			if !reflect.DeepEqual(before, draft.Fingerprint()) {
+				t.Fatal("input mutated")
+			}
+			if tc.name == "fixed" && (*got.Compensation.Amount != "12345.00" || got.Compensation.Min != nil || got.Compensation.Max != nil) {
+				t.Fatal("fixed shape")
+			}
+			if tc.name == "range" && (got.Compensation.Amount != nil || *got.Compensation.Min != "100.00" || *got.Compensation.Max != "200.00") {
+				t.Fatal("range shape")
+			}
+		})
+	}
+}
+
+func TestBuildProjectionEveryIncompleteCompensationIsNull(t *testing.T) {
+	for _, mode := range []string{"fixed", "range"} {
+		keys := []string{"mode", "currency", "pay_period", "basis"}
+		if mode == "fixed" {
+			keys = append(keys, "amount")
+		} else {
+			keys = append(keys, "min", "max")
+		}
+		for _, key := range keys {
+			t.Run(mode+"/"+key, func(t *testing.T) {
+				c := map[string]any{"mode": mode, "amount": nil, "min": nil, "max": nil, "currency": "MXN", "pay_period": "monthly", "basis": "gross", "public_visible": true}
+				if mode == "fixed" {
+					c["amount"] = "100.00"
+				} else {
+					c["min"] = "100.00"
+					c["max"] = "200.00"
+				}
+				c[key] = nil
+				if key == "mode" {
+					c["amount"] = nil
+					c["min"] = nil
+					c["max"] = nil
+				}
+				body, err := json.Marshal(map[string]any{"fields": map[string]any{"compensation": c}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				draft, err := draftinput.DecodeCreateV2(body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				p, err := BuildProjection(draft.Fingerprint())
+				if err != nil || p.Compensation != nil {
+					t.Fatalf("projection=%+v error=%v", p, err)
+				}
+			})
+		}
+	}
+}
+
+func TestBuildProjectionRejectsInvalidPersistedDocument(t *testing.T) {
+	if _, err := BuildProjection([]byte(`{"schema_version":2,"fields":{}}`)); err == nil {
+		t.Fatal("invalid persisted document accepted")
+	}
+}

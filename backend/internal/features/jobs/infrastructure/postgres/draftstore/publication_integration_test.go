@@ -104,10 +104,11 @@ func TestPublicationPureReadPublishReplayFrozenAuditAndVersions(t *testing.T) {
 	}
 	// Content/configuration remain editable. An already-published readiness read
 	// suppresses missing requirements; replay retains original body and draft tag.
-	if _, err := s.SaveV2(ctx, p.companyID, p.ownerID, id, draft.ETag, true, []byte(`{"fields":{"title":null}}`)); err != nil {
+	if _, err := s.SaveV2(ctx, p.companyID, p.ownerID, id, draft.ETag, true, []byte(`{"fields":{"title":"Updated offer"}}`)); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.PutDelivery(ctx, p.companyID, p.ownerID, id, originals[3].ETag, true, []byte(nullDelivery)); err != nil {
+	cutoffID, target, date := pipelineconfig.Defaults(id).Stages[3].ID, int64(6), "2026-10-16"
+	if _, err := s.PutDelivery(ctx, p.companyID, p.ownerID, id, originals[3].ETag, true, deliveryBody(t, deliveryconfig.Configuration{CutoffStageID: &cutoffID, TargetQuantity: &target, CommitmentDate: &date})); err != nil {
 		t.Fatal(err)
 	}
 	before = publicationSnapshot(t, pool, id)
@@ -302,7 +303,8 @@ func TestPublicationDeliveryRaceRevalidatesFrozenSnapshot(t *testing.T) {
 				}()
 				close(start)
 				wg.Wait()
-				if deliveryErr != nil {
+				var guarded *publication.Incomplete
+				if deliveryErr != nil && !(mode == "missing" && publishErr == nil && errors.As(deliveryErr, &guarded)) {
 					t.Fatal(deliveryErr)
 				}
 				var count int

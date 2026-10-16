@@ -143,6 +143,9 @@ func (s *Store) Publish(ctx context.Context, companyID, actorID, id uuid.UUID, k
 	if _, err := tx.Exec(ctx, `INSERT INTO vacancy_processes (id,company_id,status,published_at,published_by) VALUES ($1,$2,'published',$3,$4)`, id, companyID, now, actorID); err != nil {
 		return drafts.Result{}, fmt.Errorf("insert vacancy process: %w", err)
 	}
+	if err := writePublicProjection(ctx, tx, record, now); err != nil {
+		return drafts.Result{}, err
+	}
 	publishedAt := now.Format(timestampLayout)
 	responseBody, err := json.Marshal(struct {
 		ID          string `json:"id"`

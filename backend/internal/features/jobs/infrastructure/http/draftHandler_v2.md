@@ -23,6 +23,13 @@ The adapter reuses the existing v1 transport helpers unchanged:
   and no replay header. Employer private answer keys are not projected away.
 - Store errors use the existing closed catalog; responses have no editor data
   or raw error details. Unexpected errors and version overflow map to 500.
+- Published PATCH cannot leave any §9.3 requirement missing (§10.2). It reuses
+  `422 publication_incomplete` with exactly `{error,code,missing:[codes]}` in
+  readiness order; only `commitment_date_past` is exempt. No success ETag is
+  sent on rejection. No draft/config/projection/audit changes commit.
+- Successful published saves refresh the VAC-4 projection in the same draft/
+  audit transaction. A no-op save also materializes a missing P1 projection,
+  without a draft version bump or audit. See `backend/docs/public-jobs-v2.md`.
 
 Authorization/schema/precondition precedence is owned by the v2 capabilities
 once called. Transport errors (including failed/oversized body reads) can reject
@@ -37,8 +44,9 @@ authentication and recruiter middleware. Resource authorization remains in
 the store. The exact route-topology guard includes all three registrations.
 `draft_flow_v2_integration_test.go` uses the real production router with JWT,
 membership gates and an isolated PostgreSQL store, including v1 regression.
-The separately tested candidate privacy allowlist remains unwired; this
-employer adapter is not a candidate API and does not publish vacancies.
+This employer adapter is not a candidate API. Publication lives on its own
+resource; P2a public discovery uses a separate VAC-4 projection and anonymous
+`/v2/jobs` routes, never the private draft response or screening answer keys.
 
 ## Verification
 

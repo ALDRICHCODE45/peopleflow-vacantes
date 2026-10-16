@@ -23,8 +23,8 @@ const (
 
 func TestTask63A1h_RuntimeHandlerSlogCallCensus(t *testing.T) {
 	calls := t63A1hProductCensus(t)
-	if len(calls) != 15 {
-		t.Fatalf("slog terminal calls = %d, want 15", len(calls))
+	if len(calls) != 16 {
+		t.Fatalf("slog terminal calls = %d, want 16", len(calls))
 	}
 	manifest := map[string]int{}
 	direct, uninspected := 0, 0
@@ -39,10 +39,11 @@ func TestTask63A1h_RuntimeHandlerSlogCallCensus(t *testing.T) {
 			uninspected++
 		}
 	}
-	if direct != 7 || uninspected != 8 {
-		t.Fatalf("direct/uninspected = %d/%d, want 7/8", direct, uninspected)
+	if direct != 8 || uninspected != 8 {
+		t.Fatalf("direct/uninspected = %d/%d, want 8/8", direct, uninspected)
 	}
 	want := map[string]int{
+		"backend/internal/features/jobs/infrastructure/http/publicJobsHandler.go|Error|" + t63A1hDirect:                 1,
 		"backend/internal/runtime/health/health.go|ErrorContext|" + t63A1hDirect:                                        1,
 		"backend/internal/runtime/middleware/request.go|Info|" + t63A1hDirect:                                           1,
 		"backend/internal/runtime/server/server.go|Info|" + t63A1hDirect:                                                1,

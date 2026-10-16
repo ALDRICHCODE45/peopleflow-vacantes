@@ -1,7 +1,7 @@
 # Vacancy publication P1
 
-Employer-only publication of a v2 draft; public discovery and applications are
-P2. Authoritative contract: `docs/pipeline-customization-design.md` §9 (including
+Publication of a v2 draft. Public discovery is now implemented in P2a;
+applications remain P2b. See [public-jobs-v2.md](public-jobs-v2.md). Authoritative contract: `docs/pipeline-customization-design.md` §9 (including
 L25's no-materialization resolution). Legacy `jobs` / `applications` are untouched.
 
 ## Identity and storage
@@ -82,7 +82,7 @@ Evaluation order inside the transaction:
 4. Draft If-Match: missing `428`, malformed `400`, stale/foreign `412`.
 5. Existing process → `409 already_published`.
 6. Atomic readiness → `422 publication_incomplete` if anything is missing.
-7. Insert process, frozen response/idempotency record and publication audit;
+7. Insert process and VAC-4 public projection, frozen response/idempotency record and publication audit;
    commit all or nothing.
 
 Transport still bounds the body before invoking the store (1,048,576 bytes).
@@ -109,6 +109,17 @@ Publication starts the delivery clock. `VacancyPublished` records the actor,
 `requestDate` in string-valued audit metadata (the snapshot is encoded JSON).
 Later edits never rewrite it. All draft/configuration writers use the same
 draft-row lock, so readiness cannot race a delivery/content/management change.
+
+## P2a published-write protection
+
+Draft PATCH, delivery PUT and management PUT now reject any candidate state
+missing a §9.3 requirement with the existing `422 publication_incomplete` and
+ordered `missing` codes. Only `commitment_date_past` is exempt. Rejections commit
+no draft, configuration, projection or audit changes. Complete edits remain
+allowed. Published draft saves refresh the public projection in the same
+transaction, including no-op materialization for P1 processes; publication time
+and no-op draft versions/audits are unchanged. Migration 00020 adds no backfill.
+See [public-jobs-v2.md](public-jobs-v2.md) for storage, privacy and the test map.
 
 ## Errors and client behavior
 

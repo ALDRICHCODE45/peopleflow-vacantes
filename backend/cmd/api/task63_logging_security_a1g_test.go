@@ -31,7 +31,7 @@ func TestTask63A1g_CompositionDirectLiteralKeys(t *testing.T) {
 			t.Fatal("expected to seed the terminal slog.Error key")
 		}
 		got := t63A1gForbiddenDirectLiteralKeys(fset, file)
-		want := `main.go:45:31: T63-A1G forbidden direct slog key "token"`
+		want := `main.go:47:31: T63-A1G forbidden direct slog key "token"`
 		if len(got) != 1 || got[0] != want {
 			t.Fatalf("findings = %q, want [%q]", got, want)
 		}

@@ -27,10 +27,12 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publicjobs"
 	jobsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
 	jobspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres"
 	draftstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
+	publicjobsstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/publicjobs"
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
 	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/server"
@@ -157,6 +159,7 @@ func run() error {
 	jobRepo := jobspostgres.NewJobRepository(queries)
 	jobService := jobsusecases.NewJobService(jobRepo)
 	jobHandler := jobshttp.NewJobHandler(jobService)
+	publicJobsHandler := jobshttp.NewPublicJobsHandler(publicjobs.NewCatalog(publicjobsstore.NewStore(queries)))
 
 	// Private vacancy drafts wiring: the pool-owning draft store opens one
 	// transaction per operation so authorization, the draft write, its audit
@@ -238,6 +241,7 @@ func run() error {
 		deliveryHandler:    deliveryHandler,
 		managementHandler:  managementHandler,
 		publicationHandler: publicationHandler,
+		publicJobsHandler:  publicJobsHandler,
 		requesterHandler:   requesterHandler, queries: queries, pool: poolPinger, readinessTimeout: cfg.ReadinessTimeout,
 		// Task 6.3 (design §8.3): compose the no-op HTTP metrics default —
 		// zero-dependency, no exporter, no metrics endpoint in this change.

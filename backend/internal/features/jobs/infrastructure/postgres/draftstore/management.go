@@ -86,6 +86,9 @@ func (s *Store) PutManagement(ctx context.Context, companyID, actorID, id uuid.U
  ON CONFLICT (draft_id) DO UPDATE SET version=EXCLUDED.version,request_date=EXCLUDED.request_date,hiring_headcount=EXCLUDED.hiring_headcount`, id, version+1, date, headcount); err != nil {
 		return drafts.Result{}, fmt.Errorf("write management: %w", err)
 	}
+	if err := s.guardPublishedConfiguration(ctx, tx, companyID, id); err != nil {
+		return drafts.Result{}, err
+	}
 	previousJSON, err := json.Marshal(previous)
 	if err != nil {
 		return drafts.Result{}, fmt.Errorf("encode previous management: %w", err)
