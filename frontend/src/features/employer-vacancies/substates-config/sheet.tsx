@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Plus, X } from "lucide-react";
-import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
+import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -176,18 +176,14 @@ function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenCh
         </div>
         {errors.$catalog && <FieldError>No puedes guardar más de {state.limits.maxSubstates} subestados.</FieldError>}
       </div>
-      {/* Compact Sheet footer (rules §12 Sheet exception): status left, actions right, top-aligned
-          so a status that appears or wraps never moves the actions. */}
-      <SheetFooter className="flex-row items-start gap-3 border-t">
-        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+      {/* Compact action footer (rules §12): ActionBar keeps the status left of the actions. */}
+      <SheetFooter className="border-t">
+        <ActionBar status={notice && <ActionStatus id="substates-save-status" tone={dirty && notice.text === "Guardado" ? "info" : notice.tone} text={dirty && notice.text === "Guardado" ? "Cambios sin guardar" : notice.text} action={statusAction} />}>
           <Button type="button" variant="ghost" className="min-h-10" disabled={pending !== null} onClick={requestClose}>Cancelar</Button>
           <Button type="button" className="min-h-10" disabled={!dirty || pending !== null} aria-busy={pending === "save"} aria-describedby={notice ? "substates-save-status" : undefined} onClick={requestSave}>
             {pending === "save" && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending === "save" ? "Guardando…" : "Guardar subestados"}
           </Button>
-        </div>
-        <div className="order-first min-w-0 flex-1">
-          <ActionStatusSlot>{notice && <ActionStatus id="substates-save-status" tone={dirty && notice.text === "Guardado" ? "info" : notice.tone} text={dirty && notice.text === "Guardado" ? "Cambios sin guardar" : notice.text} action={statusAction} />}</ActionStatusSlot>
-        </div>
+        </ActionBar>
       </SheetFooter>
       <Dialog open={confirmingDiscard} onOpenChange={setConfirmingDiscard}>
         <DialogContent showCloseButton={false}>

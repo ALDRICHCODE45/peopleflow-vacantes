@@ -34,7 +34,7 @@ it("lists only implemented modules with active navigation and descriptions", asy
   render(shell());
   const nav = await screen.findByRole("navigation", { name: "Apartados de configuración de la vacante" });
   const links = within(nav).getAllByRole("link");
-  expect(VACANCY_CONFIG_MODULES.map(module => module.slug)).toEqual(["columnas"]);
+  expect(VACANCY_CONFIG_MODULES.map(module => module.slug)).toEqual(["columnas", "entrega"]);
   expect(links).toHaveLength(VACANCY_CONFIG_MODULES.length);
   for (const [index, module] of VACANCY_CONFIG_MODULES.entries()) {
     expect(links[index]).toHaveTextContent(module.title);
@@ -53,8 +53,16 @@ it("does not expose a Subestados link on its obsolete route", async () => {
   const nav = await screen.findByRole("navigation", { name: "Apartados de configuración de la vacante" });
   const links = within(nav).getAllByRole("link");
   expect(links[0]).not.toHaveAttribute("aria-current");
-  expect(links).toHaveLength(1);
+  expect(links).toHaveLength(2);
   expect(within(nav).queryByRole("link", { name: /Subestados/ })).not.toBeInTheDocument();
+});
+it("marks Entrega current after the columns link", async () => {
+  vi.mocked(usePathname).mockReturnValue(`/empresa/vacantes/${read.id}/configuracion/entrega`);
+  render(shell());
+  const nav = await screen.findByRole("navigation", { name: "Apartados de configuración de la vacante" });
+  const links = within(nav).getAllByRole("link");
+  expect(links[1]).toHaveTextContent("Entrega"); expect(links[1]).toHaveTextContent("Columna de corte, objetivo y fecha compromiso.");
+  expect(links[1]).toHaveAttribute("aria-current", "page"); expect(links[0]).not.toHaveAttribute("aria-current");
 });
 it("reserves loading content and withholds the module until the draft is authorized", async () => {
   let resolve!: (value: DraftEditResult) => void;

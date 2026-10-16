@@ -576,7 +576,7 @@ puede hacer la persona ahora.** Un párrafo rojo suelto, largo o con jerga técn
 | Qué | Patrón | Pieza |
 | --- | --- | --- |
 | Resultado de una acción (guardar, crear, cargar) | Toast de Sileo arriba a la derecha | `notifyActionResult` (`@/components/feedback/notify`) |
-| Estado persistente de esa acción | Una línea breve junto al botón, con ícono | `ActionStatus` (`@/components/feedback/action-status`) |
+| Estado persistente de esa acción | Una línea breve junto al botón, con ícono | `ActionStatus` en un `ActionBar` (`@/components/feedback/action-status`) |
 | Un campo inválido | Mensaje corto junto al campo, `aria-invalid` en el control | `Field` + `FieldError` |
 | Una página o sección sin datos que mostrar | Estado vacío con acción | `Empty` |
 
@@ -584,17 +584,26 @@ puede hacer la persona ahora.** Un párrafo rojo suelto, largo o con jerga técn
 - `notifyActionResult` es la única forma de emitir toasts de resultado. Recibe una clave
   por acción (por ejemplo `"draft-save"`), cierra el toast anterior de esa clave y deja
   uno solo visible por acción.
-- La línea de estado (`ActionStatus`) va **debajo** de la acción, dentro de un
+- La línea de estado (`ActionStatus`) va **junto a** la acción, dentro de un
   `ActionStatusSlot` que se renderiza siempre, aunque esté vacío, con alto reservado.
-  Así un resultado que aparece o cambia nunca mueve el botón. Nunca va arriba de la
-  acción ni ocupa más de una línea por resultado.
-- **Excepción: footer de `Sheet`.** Para que el pie del panel lateral no duplique su
-  alto, el `ActionStatusSlot` va **a la izquierda** de las acciones, en la misma fila
-  (`SheetFooter` con `flex-row items-start`, el slot en un contenedor
-  `order-first min-w-0 flex-1` y las acciones a la derecha). El slot se sigue
-  renderizando siempre y la fila se alinea arriba, así un estado que aparece o se
-  parte en dos líneas no mueve los botones. En el DOM las acciones siguen antes que el
-  estado. Aprobado por el usuario para el Sheet de subestados (2026-10-16).
+  Así un resultado que aparece o cambia nunca mueve el botón. En filas de acciones va a
+  la izquierda de los botones con `ActionBar` (punto siguiente); solo un botón aislado,
+  fuera de una fila de acciones, la lleva debajo. Nunca va arriba de la acción ni ocupa
+  más de una línea por resultado.
+- **Footer de acciones compacto (`ActionBar`).** En el pie de una `Card` o de un
+  `Sheet` (o en cualquier fila de acciones de un formulario), el `ActionStatusSlot` va
+  **a la izquierda** de las acciones, en la misma fila: se usa `ActionBar`
+  (`@/components/feedback/action-status`) dentro del `CardFooter`/`SheetFooter`, sin
+  `flex-col`. El slot se sigue renderizando siempre y la fila se alinea arriba, así un
+  estado que aparece o se parte en dos líneas no mueve los botones; en el DOM las
+  acciones siguen antes que el estado. Apilar el estado debajo de los botones duplica el
+  alto del footer (~128px contra ~80px en una `Card`) y queda prohibido. Aprobado por
+  el usuario tras las pruebas de los cortes 2 y 3 (2026-10-16).
+- **Footer de pasos (wizard).** Cuando el pie tiene una acción de retroceso («Atrás»)
+  además de las acciones principales, la fila es «Atrás» a la izquierda, luego el
+  `ActionBar` ocupando el resto (estado reservado y acciones a la derecha), todo
+  alineado arriba. Los pasos sin resultado que mostrar no reservan el slot. Aplicado en
+  el editor de borradores (2026-10-16).
 - La línea de estado (`ActionStatus`) es el respaldo accesible y persistente del toast.
   Resume el resultado en pocas palabras («Guardado · versión 2», «No se guardó · ver
   aviso») y, si hay una acción útil (iniciar sesión, crear la empresa), la ofrece ahí
@@ -665,3 +674,76 @@ la descripción dice explícitamente si reintentar es seguro.
   deslizando o con un nuevo intento. Ninguna acción queda disponible solo en el toast.
 - El color nunca es el único portador del significado: ícono, título y texto cargan el
   mensaje completo.
+
+## 13. Patrones aprobados en la configuración de vacantes
+
+Patrones que salieron de pruebas reales en el navegador (cortes 1–3 de la
+configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo caso.
+
+### 13.1 Modo oscuro: superficies y medallones
+
+- **No** usar `bg-muted` como fondo de filas o ítems dentro de una `Card` ni sobre
+  `bg-background`: en oscuro `--muted` es casi igual a `--card` y la fila desaparece.
+  Usar el `Item` instalado con `variant="outline"`, o `bg-card` + `ring-1` para marcar un
+  ítem activo de navegación (`bg-card shadow-sm ring-1 ring-primary/40`).
+- **No** usar `text-primary` sobre un fondo teñido de `primary` (`bg-primary/10`): el
+  violeta oscuro del tema no se lee. El medallón de posición o identidad usa
+  `bg-primary/12 text-foreground ring-1 ring-primary/40` (misma idea que el `Badge`
+  `accent`).
+- Toda pantalla nueva se revisa en tema claro y oscuro antes de pedir la prueba.
+
+### 13.2 Listas ordenables
+
+- La manija de arrastre (`GripVertical`, `Button` ghost `size-10`, nombre
+  «Arrastrar {nombre}») va **a la izquierda** del número de posición. A la derecha del
+  contenido queda un único menú «⋯» (`DropdownMenu`, «Acciones de {nombre}»).
+- Arrastrar nunca es el único camino (WCAG 2.5.7): el menú «⋯» ofrece «Subir» y
+  «Bajar», deshabilitados cuando el movimiento no es posible, y la acción destructiva
+  («Quitar …») va separada con `DropdownMenuSeparator` y `variant="destructive"`.
+- Los elementos de posición fija no tienen manija ni menú: muestran «Posición fija» con
+  un ícono `Lock`, y un espacio vacío del ancho de la manija mantiene alineados los
+  números.
+- El arrastre usa `@dnd-kit/core` (ya instalado), solo desde la manija, con anuncios en
+  español para teclado y lector de pantalla.
+
+### 13.3 Sheets
+
+- El `Sheet` compartido es **flotante por defecto** (separado de los bordes y con
+  `rounded-2xl`). `presentation="edge"` queda solo para el cajón de navegación móvil del
+  sidebar.
+- Un `Sheet` sirve para editar una parte secundaria de una entidad sin salir de su
+  pantalla (por ejemplo, los subestados de una columna desde su menú «⋯»). Si edita
+  datos propios, tiene su propio botón de guardar, independiente del formulario de
+  fondo, y cerrarlo con cambios sin guardar pide confirmación con un `Dialog`
+  («Seguir editando» / «Descartar»).
+- Su footer es una sola fila con `ActionBar` (sección 12).
+
+### 13.4 Secciones de configuración con apartados
+
+- La configuración de una entidad vive en su propia ruta con un menú de apartados a la
+  izquierda en desktop (como la configuración de empresa), un apartado por ruta y un
+  guardado por apartado. Se entra desde la pantalla de la entidad con un botón de
+  ícono (engranaje, `Settings`) con nombre accesible y `Tooltip`, no desde el sidebar.
+- Solo se listan apartados que existen: nada de entradas «Próximamente».
+
+### 13.5 Fechas de negocio
+
+- Para fechas que dependen de días hábiles o de la zona de la organización, el «hoy»,
+  el rango elegible y los días deshabilitados vienen del servidor. Se compone `Popover`
+  + `Calendar` con esos datos; **no** se usa `DatePickerField`, que toma la fecha del
+  navegador (sirve para fechas personales como la de nacimiento).
+- Las celdas del calendario usan `[--cell-size:--spacing(10)]` para llegar a 40px.
+- Un aviso en línea (no un error) usa `TriangleAlert` y `text-status-review`, nunca
+  `text-muted-foreground`.
+
+### 13.6 Formularios
+
+- Al rechazar un guardado por validación, el foco va al **primer campo con error** en
+  orden visual, no a un campo fijo.
+
+### 13.7 Tests de menús y popovers
+
+- jsdom no puede abrir los portales de `DropdownMenu`. Las opciones de un menú salen de
+  una función pura (por ejemplo `stageRowActions`) que se prueba aparte, y el test de UI
+  verifica el trigger (nombre, `aria-haspopup`). Lo que solo se ve con el menú abierto
+  se confirma en la prueba manual.

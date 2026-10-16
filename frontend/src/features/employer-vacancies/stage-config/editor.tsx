@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
+import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { FieldDescription } from "@/components/ui/field";
+import { FieldDescription, FieldError } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { loadDraftPipelineAction, saveDraftPipelineAction, type DraftPipelineActionResult } from "@/features/jobs/drafts/pipeline/actions";
@@ -24,14 +24,17 @@ import { StageRow } from "./stage-row";
 import { StageReorder } from "./reorder";
 import { SubstatesSheet } from "@/features/employer-vacancies/substates-config/sheet";
 import type { SubstatesCatalog } from "@/features/jobs/drafts/pipeline/substates-model";
+import { loadDraftDeliveryAction, type DraftDeliveryActionResult } from "@/features/jobs/drafts/pipeline/delivery-actions";
 
 type Session = { editor: PipelineEditorState; etag: string };
 const noResponse = (): DraftPipelineActionResult => ({ ok: false, reason: "no_response", reference: {} });
 
 /** An isolated, in-memory editing session. No autosave and no automatic mutation retry. */
-export function PipelineStageEditor({ draftId, pipeline, etag, substates, substatesEtag }: {
-  draftId: string; pipeline: EditorPipeline; etag: string; substates?: SubstatesCatalog; substatesEtag?: string;
+export function PipelineStageEditor({ draftId, pipeline, etag, substates, substatesEtag, cutoffStageId: initialCutoffStageId = null }: {
+  draftId: string; pipeline: EditorPipeline; etag: string; substates?: SubstatesCatalog; substatesEtag?: string; cutoffStageId?: string | null;
 }) {
+  const [cutoffStageId, setCutoffStageId] = useState(initialCutoffStageId);
+  const [cutoffRejected, setCutoffRejected] = useState(false);
   const [savedSubstates, setSavedSubstates] = useState(() => substates && substatesEtag ? { catalog: substates, etag: substatesEtag } : null);
   const [substatesOpen, setSubstatesOpen] = useState(false);
   const [session, setSession] = useState<Session>(() => ({ editor: editorFromPipeline(pipeline), etag }));
@@ -44,6 +47,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
   const [attempted, setAttempted] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const inputs = useRef(new Map<string, HTMLInputElement>());
+  const statusLink = useRef<HTMLAnchorElement>(null);
   const focusOnMount = useRef<string | null>(null);
   useEffect(() => {
     mounted.current = true;
@@ -65,10 +69,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
     setNotice(next);
     const action = next.recovery
       ? { title: recoveryLabels[next.recovery], onClick: () => { void recover(next.recovery!); } }
-      : next.link ? { title: next.link.title, onClick: () => {
-        if (next.link?.href === "/empresa/login") window.open("/empresa/login", "_blank", "noopener,noreferrer");
-        else if (next.link?.href === "/empresa/configuracion") window.open("/empresa/configuracion", "_blank", "noopener,noreferrer");
-      } } : undefined;
+      : next.link ? { title: next.link.title, onClick: () => { statusLink.current?.click(); } } : undefined;
     notifyActionResult({
       key: "pipeline-save", type: next.tone, title: next.title, description: next.description,
       ...(next.tone === "error" ? { reference: { ...reference, at: new Date().toISOString() } } : {}), action,
@@ -76,7 +77,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
   }
   function adopt(response: Extract<DraftPipelineActionResult, { ok: true }>, attemptedState: PipelineEditorState) {
     replace(adoptSavedPipeline(attemptedState, response.pipeline), response.etag);
-    setTouched(new Set()); setAttempted(false);
+    setTouched(new Set()); setAttempted(false); setCutoffRejected(false);
   }
   async function persist() {
     if (busy.current) return;
@@ -89,6 +90,16 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
       report(result.pipeline.version === snapshot.editor.baseline.version
         ? { tone: "info", title: "No había cambios que guardar", text: "Guardado" }
         : savedNotice);
+    } else if (result.reason === "cutoff_stage_in_use") {
+      setCutoffRejected(true);
+      report({ ...pipelineFailureNotice(result.reason), link: { title: "Ir a Entrega", href: `/empresa/vacantes/${draftId}/configuracion/entrega` } }, result.reference);
+      const removedIds = snapshot.editor.baseline.stages.filter(stage => !snapshot.editor.stages.some(edited => edited.id === stage.id)).map(stage => stage.id);
+      if (cutoffStageId === null || !removedIds.includes(cutoffStageId)) {
+        // The error envelope intentionally carries no stage id. Read once, never retry PUT.
+        const delivery = await loadDraftDeliveryAction(draftId).catch((): DraftDeliveryActionResult => ({ ok: false, reason: "no_response", reference: {} }));
+        if (!mounted.current) return;
+        if (delivery.ok) setCutoffStageId(delivery.delivery.cutoffStageId);
+      }
     } else report(pipelineFailureNotice(result.reason), result.reference);
     busy.current = false; setPending(null);
   }
@@ -117,7 +128,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
     } else if (mode === "reload") {
       // A deliberate replacement may have a different order; do not reuse positional keys.
       replace(editorFromPipeline(result.pipeline), result.etag);
-      setTouched(new Set()); setAttempted(false);
+      setTouched(new Set()); setAttempted(false); setCutoffRejected(false);
       report({ tone: "info", title: "Versión actual cargada", text: "Versión actual cargada", description: "El editor muestra las columnas guardadas actualmente." });
     } else {
       const outcome = reconcileUncertainSave(snapshot.editor, result.pipeline);
@@ -149,14 +160,17 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
       onRename={name => edit(renameStage(current.current.editor, stage.key, name))}
       onBlur={() => setTouched(previous => new Set(previous).add(stage.key))}
       onMove={direction => edit(moveStage(current.current.editor, stage.key, direction))}
-      onRemove={() => edit(removeCustomStage(current.current.editor, stage.key))}
+      cutoffStageId={cutoffStageId} cutoffError={cutoffRejected && stage.id !== null && stage.id === cutoffStageId}
+      onRemove={() => { if (cutoffStageId === null || stage.id !== cutoffStageId) edit(removeCustomStage(current.current.editor, stage.key)); }}
       substateCount={savedSubstates?.catalog.substates.length}
       onSubstates={() => { if (!busy.current && savedSubstates) setSubstatesOpen(true); }} />;
   }
+  const removedCutoff = cutoffRejected && cutoffStageId !== null && !state.stages.some(stage => stage.id === cutoffStageId)
+    ? state.baseline.stages.find(stage => stage.id === cutoffStageId) : undefined;
   const recovery = notice?.recovery;
   const statusAction = recovery ? <Button type="button" variant="outline" className="min-h-10" disabled={pending !== null} onClick={() => void recover(recovery)}>
     {pending === recovery && <Spinner aria-hidden="true" data-icon="inline-start" />}{recoveryLabels[recovery]}
-  </Button> : notice?.link ? <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link href={notice.link.href} target="_blank" rel="noopener noreferrer" />}>{notice.link.title}</Button> : undefined;
+  </Button> : notice?.link ? <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link ref={statusLink} href={notice.link.href} target="_blank" rel="noopener noreferrer" />}>{notice.link.title}</Button> : undefined;
   return (
     <>
       <Card aria-labelledby="pipeline-columns-heading">
@@ -166,6 +180,10 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
           <CardAction className="col-start-1 row-span-1 row-start-auto justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end"><Badge variant="neutral">{state.stages.filter(entry => entry.kind === "custom").length} de {state.limits.maxCustomStages} columnas propias</Badge></CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
+          {removedCutoff && <div className="flex flex-col items-start gap-2">
+            <Badge variant="info">Corte de entrega</Badge>
+            <FieldError>{removedCutoff.name} es el corte de entrega. Cámbiala en Entrega antes de quitarla.</FieldError>
+          </div>}
           <StageReorder state={state} disabled={pending !== null}
             onMove={(key, targetIndex) => edit(moveStageTo(current.current.editor, key, targetIndex))}>
             <ol aria-label="Columnas del pipeline" className="flex flex-col gap-3">{state.stages.map((stage, index) => row(stage, index + 1))}</ol>
@@ -183,17 +201,16 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
             {row(state.exit, state.stages.length + 1)}
           </section>
         </CardContent>
-        <CardFooter className="flex-col items-stretch gap-2 border-t">
-          <div className="flex flex-wrap justify-end gap-2">
+        <CardFooter className="border-t">
+          <ActionBar status={notice && <ActionStatus id="pipeline-save-status" tone={dirty && notice.text === "Guardado" ? "info" : notice.tone} text={dirty && notice.text === "Guardado" ? "Cambios sin guardar" : notice.text} action={statusAction} />}>
             <Button type="button" variant="ghost" className="min-h-10" disabled={!dirty || pending !== null} onClick={() => {
-              edit(editorFromPipeline(current.current.editor.baseline)); setTouched(new Set()); setAttempted(false); setNotice(null);
+              edit(editorFromPipeline(current.current.editor.baseline)); setTouched(new Set()); setAttempted(false); setCutoffRejected(false); setNotice(null);
             }}>Descartar cambios</Button>
             <Button type="button" className="min-h-10" disabled={!dirty || pending !== null} aria-busy={pending === "save"}
               aria-describedby={notice ? "pipeline-save-status" : undefined} onClick={requestSave}>
               {pending === "save" && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending === "save" ? "Guardando…" : "Guardar cambios"}
             </Button>
-          </div>
-          <ActionStatusSlot>{notice && <ActionStatus id="pipeline-save-status" tone={dirty && notice.text === "Guardado" ? "info" : notice.tone} text={dirty && notice.text === "Guardado" ? "Cambios sin guardar" : notice.text} action={statusAction} />}</ActionStatusSlot>
+          </ActionBar>
         </CardFooter>
       </Card>
       <PipelinePreview state={state} />

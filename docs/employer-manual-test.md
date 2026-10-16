@@ -4,11 +4,11 @@ Guía para probar en el navegador, de punta a punta, el flujo
 **login recruiter → crear empresa → guardar borrador privado → encontrarlo en la
 lista → reabrirlo, editarlo y guardarlo → configurar las columnas de su pipeline**
 contra la API Go real. Esta prueba es el requisito para integrar
-`feat/pipeline-substates-config` en `main`.
+`feat/pipeline-delivery-config` en `main`.
 
-- Rama frontend: `feat/pipeline-substates-config`.
-- Rama backend: `feat/pipeline-substates` (incluye todo lo de `main` más los
-  subestados de En proceso). Trae la migración `00016`: corré `make db-migrate` y
+- Rama frontend: `feat/pipeline-delivery-config`.
+- Rama backend: `feat/pipeline-delivery` (incluye todo lo de `main` más la
+  configuración de entrega). Trae la migración `00017`: corré `make db-migrate` y
   confirmá con `make db-status` que no queda nada en «Pending».
 - Los servicios los levantás vos en tu terminal. Ningún agente lee ni modifica
   tus archivos `.env`; acá solo aparecen **nombres** de variables, nunca valores.
@@ -111,8 +111,8 @@ corepack pnpm dev
 4. **Guardar borrador.** Completá los pasos (podés dejar campos vacíos) y en el
    último presioná «Guardar borrador». **Esperado:** aviso «Borrador guardado» y,
    junto al botón, «Guardado · versión 1 · <hora>». El botón pasa a decir
-   «Guardar cambios». Los botones del último paso quedan alineados en una sola
-   fila y la línea de estado aparece debajo, sin moverlos.
+   «Guardar cambios». «Atrás», la línea de estado y los botones del último paso
+   quedan en una sola fila (el estado entre «Atrás» y los botones), sin moverlos.
 5. **Guardar cambios.** Volvé a un paso, modificá un campo (la línea de estado
    avisa que hay cambios sin guardar) y presioná «Guardar cambios».
    **Esperado:** aviso «Cambios guardados» y «versión 2» sobre el mismo borrador.
@@ -231,6 +231,27 @@ corepack pnpm dev
     guardar («Guardar cambios» habilitado); guardalo y ninguno de los dos da «Esto
     cambió en otro lugar».
 
+25. **Entrega vacía (tema claro y oscuro).** En la configuración de un borrador, el
+    menú de apartados muestra «Columnas del pipeline» y «Entrega». Entrá a «Entrega».
+    **Esperado:** la tarjeta «Entrega» con «Columna de corte» en «Sin definir», el
+    objetivo vacío y la fecha sin elegir. Las opciones de la columna de corte son
+    tus columnas con sus nombres actuales (no aparece Descartados).
+26. **Guardar por partes.** Elegí solo la columna de corte y guardá. **Esperado:**
+    aviso «Entrega guardada». Después escribí el objetivo (probá «0», «1000» y «abc»:
+    **esperado** «Usa un número entre 1 y 999.» o «Escribe un número entero.»),
+    dejá «5» y guardá.
+27. **Fecha compromiso.** Abrí el calendario. **Esperado:** solo se pueden elegir
+    días desde hoy hasta dentro de un año; sábados, domingos y días de descanso
+    obligatorio (por ejemplo el tercer lunes de noviembre o el 25 de diciembre)
+    aparecen deshabilitados. Elegí un día hábil y guardá; recargá y sigue igual.
+    «Quitar fecha» la deja vacía.
+28. **Columna de corte protegida.** Con una columna propia como corte, volvé a
+    «Columnas del pipeline». **Esperado:** esa fila tiene el badge «Corte de entrega»
+    y en su «⋯» «Quitar columna» está deshabilitado. Desde otra pestaña cambiá el
+    corte a esa columna después de abrir el editor y quitala en la primera.
+    **Esperado:** aviso «No puedes quitar la columna de corte» con «Ir a Entrega», y
+    la fila queda marcada.
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:
@@ -278,5 +299,5 @@ pero **no** copies cabeceras, cookies ni cuerpos.
 docker start nest-practice   # si lo habías frenado
 ```
 
-Si todo pasa, el siguiente paso es integrar `feat/pipeline-substates-config` en
+Si todo pasa, el siguiente paso es integrar `feat/pipeline-delivery-config` en
 `main`. La rama del backend la integra su propio agente. El push lo hacés vos.

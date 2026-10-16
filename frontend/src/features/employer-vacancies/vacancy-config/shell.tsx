@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Columns3 } from "lucide-react";
+import { CalendarCheck, Columns3 } from "lucide-react";
 import { cn } from "cn";
 import { SiteHeader } from "@/components/company-dashboard/site-header";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
@@ -15,6 +15,7 @@ import { PipelineEditorSkeleton } from "../stage-config/loading";
 
 export const VACANCY_CONFIG_MODULES = [
   { slug: "columnas", title: "Columnas del pipeline", description: "Nombres, orden y columnas propias.", icon: Columns3 },
+  { slug: "entrega", title: "Entrega", description: "Columna de corte, objetivo y fecha compromiso.", icon: CalendarCheck },
 ] as const;
 
 /** Owns the vacancy header and gates sub-modules on an authorized draft read. */
