@@ -1505,7 +1505,7 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 			return true
 		}
 		switch sel.Sel.Name {
-		case "Get", "Post", "Patch", "Delete", "Mount", "Route":
+		case "Get", "Post", "Put", "Patch", "Delete", "Mount", "Route":
 			path, ok := chiPathLiteral(call)
 			if !ok {
 				return true
@@ -1539,6 +1539,7 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Get /readyz",
 		"Get /v2/me/company/job-drafts",
 		"Get /v2/me/company/job-drafts/{id}",
+		"Get /v2/me/company/job-drafts/{id}/pipeline",
 		"Mount /jobs",
 		"Mount /profile",
 		"Patch /{id}/transition",
@@ -1554,6 +1555,7 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Post /me/company/job-drafts",
 		"Post /me/company/requesters",
 		"Post /v2/me/company/job-drafts",
+		"Put /v2/me/company/job-drafts/{id}/pipeline",
 		"Route /jobs/{jobId}/applications",
 		"Route /me",
 	}

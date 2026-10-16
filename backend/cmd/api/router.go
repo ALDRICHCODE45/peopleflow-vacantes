@@ -33,6 +33,7 @@ type routerDeps struct {
 	draftHandler       *jobshttp.DraftHandler
 	draftV2Handler     *jobshttp.DraftV2Handler
 	draftListHandler   *jobshttp.DraftListHandler
+	pipelineHandler    *jobshttp.PipelineHandler
 	requesterHandler   *jobshttp.RequesterHandler
 	applicationHandler *applicationshttp.ApplicationHandler
 	queries            *db.Queries
@@ -134,6 +135,7 @@ func newRouter(d routerDeps) chi.Router {
 	// Schema-2 employer drafts use explicit v2 capabilities on the same store.
 	// Keep NoStore before both gates, including their rejected responses.
 	draftV2Handlers := d.draftV2Handler.DraftHandlers()
+	pipelineHandlers := d.pipelineHandler.PipelineHandlers()
 	r.Group(func(r chi.Router) {
 		r.Use(jobshttp.NoStore, d.requireAuth, d.requireRecruiter)
 		r.Post("/v2/me/company/job-drafts", draftV2Handlers.CreateDraft)
@@ -141,6 +143,8 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/job-drafts", d.draftListHandler.ListDrafts)
 		r.Get("/v2/me/company/job-drafts/{id}", draftV2Handlers.GetDraft)
 		r.Patch("/v2/me/company/job-drafts/{id}", draftV2Handlers.SaveDraft)
+		r.Get("/v2/me/company/job-drafts/{id}/pipeline", pipelineHandlers.GetPipeline)
+		r.Put("/v2/me/company/job-drafts/{id}/pipeline", pipelineHandlers.PutPipeline)
 	})
 	// Requester catalog (contract §7): private like the drafts, so NoStore runs
 	// before both gates. The store re-checks user, company and membership.
