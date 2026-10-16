@@ -137,8 +137,14 @@ corepack pnpm dev
 9. **Pipeline de un borrador.** En la fila de un borrador presioná «Acciones»: el
    menú tiene «Ver pipeline» y «Continuar editando». Elegí «Ver pipeline».
    **Esperado:** `/empresa/vacantes/<id>/pipeline` con el título del borrador y el
-   badge «Borrador» arriba, y la tarjeta «Columnas del pipeline» con las columnas
-   por defecto (los pasos 14 a 19 la prueban a fondo).
+   badge «Borrador» arriba, el mensaje «Esta vacante todavía no tiene pipeline» con
+   «Configurar columnas», «Continuar editando» y «Volver a Vacantes», y a la derecha
+   del título «Pipeline» un botón con engranaje («Configuración de la vacante»).
+   El engranaje y «Configurar columnas» llevan a
+   `/empresa/vacantes/<id>/configuracion/columnas`: arriba el título del borrador
+   con «Pipeline» para volver, a la izquierda los apartados (por ahora solo
+   «Columnas del pipeline», marcado como activo) y a la derecha el editor (pasos
+   14 a 19). `/empresa/vacantes/<id>/configuracion` lleva al mismo apartado.
 10. **Reabrir sin cambios.** En la fila del borrador abrí «Acciones» y elegí
     «Continuar editando» (o usalo desde el pipeline). **Esperado:** el editor
     muestra todos los datos guardados, incluidas las preguntas de filtro y la
@@ -159,7 +165,7 @@ corepack pnpm dev
     tenés acceso, con «Reintentar» y un enlace a Vacantes. Una dirección que no es
     un id muestra la página 404, y `/empresa/vacantes/borradores` ya no existe.
 
-14. **Columnas por defecto (probalo en tema claro y oscuro).** En el pipeline de un borrador que nunca configuraste.
+14. **Columnas por defecto (probalo en tema claro y oscuro).** En «Columnas del pipeline» de un borrador que nunca configuraste.
     **Esperado:** mientras carga, una tarjeta de carga; después «Columnas del
     pipeline» con, en orden, Nuevos, Screening, Screening OK, En proceso y Placement,
     cada una con su número. Nuevos y Placement dicen «Posición fija» y no tienen
@@ -197,8 +203,8 @@ corepack pnpm dev
     borrador: después de guardar columnas, «Continuar editando» y guardar el
     borrador funciona sin conflicto.
 20. **Desde el editor.** Abrí un borrador con «Continuar editando». **Esperado:**
-    arriba del editor hay un botón «Configurar pipeline» que lleva al pipeline de
-    ese borrador.
+    arriba del editor hay un botón «Configurar columnas» que lleva a la
+    configuración de columnas de ese borrador.
 
 ## 5. Verificación en la base (solo lectura)
 

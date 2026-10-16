@@ -1,11 +1,12 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/drafts/reopen/load";
-import { loadDraftPipelineAction, type DraftPipelineActionFailure } from "@/features/jobs/drafts/pipeline/actions";
+import { loadDraftPipelineAction } from "@/features/jobs/drafts/pipeline/actions";
 import { draftEditSeedFromRead } from "@/features/jobs/drafts/reopen/seed";
 import { filledDraftRead } from "@/features/jobs/drafts/reopen/test-fixture";
-import { pipelineFixture } from "./stage-config/test-fixture";
 import { DraftPipelineState } from "./draft-pipeline-state";
 vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/pipeline/actions", () => ({ loadDraftPipelineAction: vi.fn(), saveDraftPipelineAction: vi.fn() }));
@@ -15,57 +16,62 @@ const success = { ok: true, seed: draftEditSeedFromRead(read), identity: { draft
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(loadDraftForEditAction).mockResolvedValue(success);
-  vi.mocked(loadDraftPipelineAction).mockResolvedValue({ ok: true, pipeline: pipelineFixture(), etag: '"pipeline-0"' });
+  vi.mocked(loadDraftPipelineAction).mockResolvedValue({ ok: false, reason: "not_found", reference: {} });
 });
 afterEach(cleanup);
-it("starts both loads in parallel and reserves the editor composition with one announcement", async () => {
+it("loads only the draft and reserves the empty-state composition", async () => {
   let resolve!: (value: DraftEditResult) => void;
   vi.mocked(loadDraftForEditAction).mockReturnValue(new Promise(yes => { resolve = yes; }));
   const { container } = render(<DraftPipelineState draftId={read.id} />);
-  expect(loadDraftPipelineAction).toHaveBeenCalledExactlyOnceWith(read.id);
+  expect(loadDraftForEditAction).toHaveBeenCalledExactlyOnceWith(read.id);
+  expect(loadDraftPipelineAction).not.toHaveBeenCalled();
   expect(screen.getAllByRole("status")).toHaveLength(1);
-  expect(screen.getByRole("status")).toHaveTextContent("Cargando pipeline");
+  expect(screen.getByRole("status")).toHaveTextContent("Cargando borrador");
   expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
-  expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(10);
-  expect(container.querySelectorAll("header")).toHaveLength(1);
+  expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(4);
   await act(async () => resolve(success));
 });
-it.each([read.fields.title, null])("renders title %s, lifecycle badge, context and the editor", async title => {
+it.each([read.fields.title, null])("renders title %s, badge, empty state and configuration entry points", async title => {
   const seed = { ...success.seed, model: { ...success.seed.model, fields: { ...success.seed.model.fields, title } } };
   vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed });
   const { container } = render(<DraftPipelineState draftId={read.id} />);
   expect(await screen.findByRole("heading", { level: 1, name: title || "Sin título" })).toBeVisible();
-  expect(screen.getByRole("heading", { name: "Pipeline", level: 2 })).toBeVisible();
-  expect(await screen.findByRole("heading", { name: "Columnas del pipeline", level: 3 })).toBeVisible();
-  expect(container).toHaveTextContent("Configura las columnas por las que pasarán los candidatos de esta vacante. Los candidatos aparecerán aquí cuando se publique.");
-  expect(screen.queryByText("Esta vacante todavía no tiene pipeline")).not.toBeInTheDocument();
+  expect(screen.getByRole("heading", { level: 2, name: "Pipeline" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Esta vacante todavía no tiene pipeline" })).toBeVisible();
+  expect(screen.getByText("Da seguimiento a los candidatos de esta vacante.")).toBeVisible();
+  expect(screen.getByText("Esta vacante está en borrador. Los candidatos aparecerán aquí una vez que se publique. Puedes continuar editándola y preparar todo antes de publicar.")).toBeVisible();
+  for (const name of ["Configuración de la vacante", "Configurar columnas"]) {
+    expect(screen.getByRole("link", { name })).toHaveAttribute("href", `/empresa/vacantes/${read.id}/configuracion/columnas`);
+  }
+  const gear = screen.getByRole("link", { name: "Configuración de la vacante" });
+  expect(gear).toHaveClass("size-10");
+  expect(gear).toHaveAttribute("data-slot", "tooltip-trigger");
+  expect(screen.getByRole("link", { name: "Continuar editando" })).toHaveAttribute("href", `/empresa/vacantes/borradores/${read.id}`);
+  expect(screen.getByRole("link", { name: "Volver a Vacantes" })).toHaveAttribute("href", "/empresa/vacantes");
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(loadDraftPipelineAction).not.toHaveBeenCalled();
   expect(container.querySelector('[data-slot="badge"]')).toHaveAttribute("data-dot");
   expect(container.querySelector('[data-slot="badge"]')).toHaveAttribute("data-variant", "info");
   expect(container.querySelectorAll("header")).toHaveLength(1);
 });
-it.each(["not_found", "forbidden", "server_error", "no_response"] as const)("reuses the draft edit error for %s and retries explicitly", async reason => {
+it("composes the installed tooltip with the configuration copy", () => {
+  // Portal positioning is a browser boundary; opening it in jsdom stalls subsequent tests.
+  const source = readFileSync(join(process.cwd(), "src/features/employer-vacancies/draft-pipeline-state.tsx"), "utf8");
+  expect(source).toContain('from "@/components/ui/tooltip"');
+  expect(source).toContain("<TooltipContent>Configuración</TooltipContent>");
+  expect(source).toContain("<TooltipProvider>");
+});
+it.each(["not_found", "forbidden", "server_error", "no_response"] as const)("shows draft failure %s and retries only the draft", async reason => {
   vi.mocked(loadDraftForEditAction).mockResolvedValueOnce({ ok: false, reason });
   render(<DraftPipelineState draftId={read.id} />);
+  expect(screen.queryByText("Esta vacante todavía no tiene pipeline")).not.toBeInTheDocument();
   fireEvent.click(await screen.findByRole("button", { name: "Reintentar" }));
-  await screen.findByRole("heading", { name: "Columnas del pipeline" });
-  expect(loadDraftForEditAction).toHaveBeenCalledTimes(2); expect(loadDraftPipelineAction).toHaveBeenCalledTimes(2);
+  await screen.findByRole("heading", { name: "Esta vacante todavía no tiene pipeline" });
+  expect(loadDraftForEditAction).toHaveBeenCalledTimes(2);
+  expect(loadDraftPipelineAction).not.toHaveBeenCalled();
 });
-it.each([
-  ["unauthenticated", "Tu sesión expiró"], ["not_found", "No encontramos este borrador"],
-  ["forbidden", "No tienes permiso para abrirlo"], ["company_inactive", "Falta configurar tu empresa"],
-  ["company_not_active", "Falta configurar tu empresa"], ["server_error", "El servidor tuvo un problema"],
-  ["no_response", "No hubo respuesta del servidor"], ["validation_error", "No pudimos confirmar el resultado"],
-  ["unrecognized_response", "No pudimos confirmar el resultado"], ["future_reason", "No pudimos confirmar el resultado"],
-])("maps pipeline load %s onto the page Empty and explicit retry", async (reason, title) => {
-  vi.mocked(loadDraftPipelineAction).mockResolvedValueOnce({ ok: false, reason: reason as DraftPipelineActionFailure["reason"], reference: {} });
-  render(<DraftPipelineState draftId={read.id} />);
-  expect(await screen.findByRole("heading", { name: title })).toBeVisible();
-  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
-  await screen.findByRole("heading", { name: "Columnas del pipeline" }); expect(loadDraftPipelineAction).toHaveBeenCalledTimes(2);
-});
-it("turns rejected load promises into safe page errors", async () => {
-  vi.mocked(loadDraftPipelineAction).mockRejectedValueOnce(new Error("network"));
+it("turns a rejected draft read into a safe error", async () => {
+  vi.mocked(loadDraftForEditAction).mockRejectedValueOnce(new Error("network"));
   render(<DraftPipelineState draftId={read.id} />);
   expect(await screen.findByRole("heading", { name: "No hubo respuesta del servidor" })).toBeVisible();
 });
@@ -75,5 +81,6 @@ it("ignores stale results when the id changes", async () => {
   const { rerender } = render(<DraftPipelineState draftId={read.id} />);
   rerender(<DraftPipelineState draftId="223e4567-e89b-42d3-a456-426614174000" />);
   await screen.findByRole("heading", { name: "No encontramos este borrador" });
-  await act(async () => resolve(success)); expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  await act(async () => resolve(success));
+  expect(screen.queryByText("Esta vacante todavía no tiene pipeline")).not.toBeInTheDocument();
 });

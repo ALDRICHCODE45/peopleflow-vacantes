@@ -1,0 +1,57 @@
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+import { loadDraftPipelineAction, type DraftPipelineActionFailure, type DraftPipelineActionResult } from "@/features/jobs/drafts/pipeline/actions";
+import { pipelineFixture } from "../stage-config/test-fixture";
+import { VacancyColumnsModule } from "./columns-module";
+vi.mock("@/features/jobs/drafts/pipeline/actions", () => ({ loadDraftPipelineAction: vi.fn(), saveDraftPipelineAction: vi.fn() }));
+const id = "123e4567-e89b-42d3-a456-426614174000";
+const success = () => ({ ok: true, pipeline: pipelineFixture(), etag: '"pipeline-0"' } as const);
+beforeEach(() => { vi.resetAllMocks(); vi.mocked(loadDraftPipelineAction).mockResolvedValue(success()); });
+afterEach(cleanup);
+it("reserves the editor composition during its first load", async () => {
+  let resolve!: (value: DraftPipelineActionResult) => void;
+  vi.mocked(loadDraftPipelineAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
+  const { container } = render(<VacancyColumnsModule draftId={id} />);
+  expect(loadDraftPipelineAction).toHaveBeenCalledExactlyOnceWith(id);
+  expect(screen.getAllByRole("status")).toHaveLength(1);
+  expect(screen.getByRole("status")).toHaveTextContent("Cargando pipeline");
+  expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
+  expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(10);
+  await act(async () => resolve(success()));
+});
+it("renders the real column editor without a second header", async () => {
+  const { container } = render(<VacancyColumnsModule draftId={id} />);
+  expect(await screen.findByRole("heading", { level: 3, name: "Columnas del pipeline" })).toBeVisible();
+  expect(screen.getAllByRole("textbox")).toHaveLength(6);
+  expect(container.querySelector("header")).toBeNull();
+});
+it.each([
+  ["unauthenticated", "Tu sesión expiró"], ["not_found", "No encontramos este borrador"],
+  ["forbidden", "No tienes permiso para abrirlo"], ["company_inactive", "Falta configurar tu empresa"],
+  ["company_not_active", "Falta configurar tu empresa"], ["server_error", "El servidor tuvo un problema"],
+  ["no_response", "No hubo respuesta del servidor"], ["validation_error", "No pudimos confirmar el resultado"],
+  ["unrecognized_response", "No pudimos confirmar el resultado"], ["future_reason", "No pudimos confirmar el resultado"],
+])("maps pipeline load %s to the Empty error with explicit retry", async (reason, title) => {
+  vi.mocked(loadDraftPipelineAction).mockResolvedValueOnce({ ok: false, reason: reason as DraftPipelineActionFailure["reason"], reference: {} });
+  render(<VacancyColumnsModule draftId={id} />);
+  expect(await screen.findByRole("heading", { name: title })).toBeVisible();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+  await screen.findByRole("heading", { name: "Columnas del pipeline" });
+  expect(loadDraftPipelineAction).toHaveBeenCalledTimes(2);
+});
+it("handles rejected reads safely", async () => {
+  vi.mocked(loadDraftPipelineAction).mockRejectedValueOnce(new Error("network"));
+  render(<VacancyColumnsModule draftId={id} />);
+  expect(await screen.findByRole("heading", { name: "No hubo respuesta del servidor" })).toBeVisible();
+});
+it("does not expose a stale configuration after changing vacancy", async () => {
+  let resolve!: (value: DraftPipelineActionResult) => void;
+  vi.mocked(loadDraftPipelineAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; })).mockResolvedValueOnce({ ok: false, reason: "not_found", reference: {} });
+  const { rerender } = render(<VacancyColumnsModule draftId={id} />);
+  rerender(<VacancyColumnsModule draftId="223e4567-e89b-42d3-a456-426614174000" />);
+  await screen.findByRole("heading", { name: "No encontramos este borrador" });
+  await act(async () => resolve(success()));
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+});

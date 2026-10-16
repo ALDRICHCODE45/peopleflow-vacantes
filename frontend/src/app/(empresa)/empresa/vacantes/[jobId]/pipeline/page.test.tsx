@@ -202,6 +202,8 @@ describe("/empresa/vacantes/[jobId]/pipeline content", () => {
     const intro = container.querySelector("[data-pf-pipeline-intro]")!;
     expect(intro).toHaveTextContent(`${total} ${candidateNoun(total)} en el historial`);
     expect(intro).toHaveTextContent(`${vacancy.teamSize} miembros del equipo`);
+    expect(screen.queryByRole("link", { name: "Configuración de la vacante" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Configurar columnas" })).toBeNull();
   });
 
   it("renders no route-level local-demo disclosure while the workspace keeps its behavior", async () => {
