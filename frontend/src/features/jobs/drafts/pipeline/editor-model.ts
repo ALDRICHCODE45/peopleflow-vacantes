@@ -201,6 +201,23 @@ export function adoptSavedPipeline(state: PipelineEditorState, response: EditorP
   };
 }
 
+/** Compare the attempted write before the version: a successful no-op keeps its version.
+ * Only newly added custom stages may acquire an id; their position and name must match.
+ */
+export function reconcileUncertainSave(state: PipelineEditorState, fetched: EditorPipeline): "saved" | "not_saved" | "conflict" {
+  const body = toPutBody(state);
+  const matches = body.stages.length === fetched.stages.length
+    && body.stages.every((stage, index) => {
+      const received = fetched.stages[index];
+      return stage.name === normalizeStageName(received.name)
+        && (stage.id === undefined ? received.kind === "custom" : stage.id === received.id);
+    })
+    && body.exit.id === fetched.exit.id
+    && body.exit.name === normalizeStageName(fetched.exit.name);
+  if (matches) return "saved";
+  return fetched.version === state.baseline.version ? "not_saved" : "conflict";
+}
+
 export type CriticalRename = {
   key: string;
   kind: "in_process" | "placement" | "discarded";

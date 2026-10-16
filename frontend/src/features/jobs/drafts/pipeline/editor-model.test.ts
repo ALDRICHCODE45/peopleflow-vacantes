@@ -7,6 +7,7 @@ import {
   canMove,
   canRemoveStage,
   criticalRenames,
+  reconcileUncertainSave,
   editorFromPipeline,
   isEditorDirty,
   moveStage,
@@ -203,6 +204,27 @@ describe("editor validation (S3, S6)", () => {
     }
     const overLimit = { ...addCustomStage(state, "Extra"), limits: { maxCustomStages: 0, nameMaxLength: 40 } };
     expect(validateEditor(overLimit)).toEqual({ ok: false, errors: { $structure: "too_many_custom_stages" } });
+  });
+});
+
+describe("uncertain save reconciliation (S5, S9)", () => {
+  it("matches normalized names, ids and order, assigning new custom ids by position", () => {
+    const state = addCustomStage(renameStage(fresh(), "s", " Filtro  inicial "), " Técnica ");
+    const fetched: EditorPipeline = {
+      ...pipeline(), version: "1",
+      stages: state.stages.map(({ id, kind, name }) => ({ id: id ?? "server-custom", kind, name: normalizeStageName(name) })),
+    };
+    expect(reconcileUncertainSave(state, fetched)).toBe("saved");
+    expect(reconcileUncertainSave(state, pipeline())).toBe("not_saved");
+    expect(reconcileUncertainSave(state, { ...pipeline(), version: "2" })).toBe("conflict");
+    expect(reconcileUncertainSave(state, { ...fetched, stages: [...fetched.stages].reverse() })).toBe("conflict");
+    expect(reconcileUncertainSave(state, { ...fetched, stages: fetched.stages.map(stage => stage.id === "s" ? { ...stage, id: "other" } : stage) })).toBe("conflict");
+    expect(reconcileUncertainSave(state, { ...fetched, stages: fetched.stages.map(stage => stage.kind === "custom" ? { ...stage, kind: "screening" } : stage) })).toBe("conflict");
+    expect(reconcileUncertainSave(state, { ...fetched, exit: { ...fetched.exit, name: "Otro" } })).toBe("conflict");
+    expect(reconcileUncertainSave(state, { ...fetched, exit: { ...fetched.exit, id: "other" } })).toBe("conflict");
+  });
+  it("recognizes saved before checking the version, including a no-op", () => {
+    expect(reconcileUncertainSave(fresh(), pipeline())).toBe("saved");
   });
 });
 
