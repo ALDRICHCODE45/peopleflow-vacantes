@@ -665,3 +665,76 @@ la descripción dice explícitamente si reintentar es seguro.
   deslizando o con un nuevo intento. Ninguna acción queda disponible solo en el toast.
 - El color nunca es el único portador del significado: ícono, título y texto cargan el
   mensaje completo.
+
+## 13. Patrones aprobados en la configuración de vacantes
+
+Patrones que salieron de pruebas reales en el navegador (cortes 1–3 de la
+configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo caso.
+
+### 13.1 Modo oscuro: superficies y medallones
+
+- **No** usar `bg-muted` como fondo de filas o ítems dentro de una `Card` ni sobre
+  `bg-background`: en oscuro `--muted` es casi igual a `--card` y la fila desaparece.
+  Usar el `Item` instalado con `variant="outline"`, o `bg-card` + `ring-1` para marcar un
+  ítem activo de navegación (`bg-card shadow-sm ring-1 ring-primary/40`).
+- **No** usar `text-primary` sobre un fondo teñido de `primary` (`bg-primary/10`): el
+  violeta oscuro del tema no se lee. El medallón de posición o identidad usa
+  `bg-primary/12 text-foreground ring-1 ring-primary/40` (misma idea que el `Badge`
+  `accent`).
+- Toda pantalla nueva se revisa en tema claro y oscuro antes de pedir la prueba.
+
+### 13.2 Listas ordenables
+
+- La manija de arrastre (`GripVertical`, `Button` ghost `size-10`, nombre
+  «Arrastrar {nombre}») va **a la izquierda** del número de posición. A la derecha del
+  contenido queda un único menú «⋯» (`DropdownMenu`, «Acciones de {nombre}»).
+- Arrastrar nunca es el único camino (WCAG 2.5.7): el menú «⋯» ofrece «Subir» y
+  «Bajar», deshabilitados cuando el movimiento no es posible, y la acción destructiva
+  («Quitar …») va separada con `DropdownMenuSeparator` y `variant="destructive"`.
+- Los elementos de posición fija no tienen manija ni menú: muestran «Posición fija» con
+  un ícono `Lock`, y un espacio vacío del ancho de la manija mantiene alineados los
+  números.
+- El arrastre usa `@dnd-kit/core` (ya instalado), solo desde la manija, con anuncios en
+  español para teclado y lector de pantalla.
+
+### 13.3 Sheets
+
+- El `Sheet` compartido es **flotante por defecto** (separado de los bordes y con
+  `rounded-2xl`). `presentation="edge"` queda solo para el cajón de navegación móvil del
+  sidebar.
+- Un `Sheet` sirve para editar una parte secundaria de una entidad sin salir de su
+  pantalla (por ejemplo, los subestados de una columna desde su menú «⋯»). Si edita
+  datos propios, tiene su propio botón de guardar, independiente del formulario de
+  fondo, y cerrarlo con cambios sin guardar pide confirmación con un `Dialog`
+  («Seguir editando» / «Descartar»).
+- Su footer es una sola fila (excepción de la sección 12).
+
+### 13.4 Secciones de configuración con apartados
+
+- La configuración de una entidad vive en su propia ruta con un menú de apartados a la
+  izquierda en desktop (como la configuración de empresa), un apartado por ruta y un
+  guardado por apartado. Se entra desde la pantalla de la entidad con un botón de
+  ícono (engranaje, `Settings`) con nombre accesible y `Tooltip`, no desde el sidebar.
+- Solo se listan apartados que existen: nada de entradas «Próximamente».
+
+### 13.5 Fechas de negocio
+
+- Para fechas que dependen de días hábiles o de la zona de la organización, el «hoy»,
+  el rango elegible y los días deshabilitados vienen del servidor. Se compone `Popover`
+  + `Calendar` con esos datos; **no** se usa `DatePickerField`, que toma la fecha del
+  navegador (sirve para fechas personales como la de nacimiento).
+- Las celdas del calendario usan `[--cell-size:--spacing(10)]` para llegar a 40px.
+- Un aviso en línea (no un error) usa `TriangleAlert` y `text-status-review`, nunca
+  `text-muted-foreground`.
+
+### 13.6 Formularios
+
+- Al rechazar un guardado por validación, el foco va al **primer campo con error** en
+  orden visual, no a un campo fijo.
+
+### 13.7 Tests de menús y popovers
+
+- jsdom no puede abrir los portales de `DropdownMenu`. Las opciones de un menú salen de
+  una función pura (por ejemplo `stageRowActions`) que se prueba aparte, y el test de UI
+  verifica el trigger (nombre, `aria-haspopup`). Lo que solo se ve con el menú abierto
+  se confirma en la prueba manual.

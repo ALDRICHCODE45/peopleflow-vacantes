@@ -43,6 +43,6 @@ export function DeliveryDateField({ state, error, disabled, onChange }: {
     </div>
     <FieldDescription id="delivery-date-description">Días hábiles en México entre hoy y dentro de un año. Fines de semana y días de descanso obligatorio no se pueden elegir.</FieldDescription>
     {message && <FieldError id="delivery-date-error">{message}</FieldError>}
-    {isDateStale(state) && <p id="delivery-date-warning" className="flex items-start gap-2 text-sm text-muted-foreground"><TriangleAlert aria-hidden="true" className="size-4 shrink-0" />La fecha compromiso ya pasó; elige otra antes de publicar.</p>}
+    {isDateStale(state) && <p id="delivery-date-warning" className="flex items-start gap-2 text-sm text-status-review"><TriangleAlert aria-hidden="true" className="size-4 shrink-0" />La fecha compromiso ya pasó; elige otra antes de publicar.</p>}
   </Field>;
 }

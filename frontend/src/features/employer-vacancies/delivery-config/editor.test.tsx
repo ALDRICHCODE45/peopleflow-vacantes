@@ -85,6 +85,17 @@ it("can clear a stored date and discard raw edits", () => {
 it.each([["abc", "Escribe un número entero."], ["1.5", "Escribe un número entero."], ["0", "Usa un número entre 1 y 999."], ["1000", "Usa un número entre 1 y 999."]])("validates raw %s inline", (value, message) => {
   mount(); edit(value); fireEvent.blur(target()); expect(screen.getByText(message)).toHaveAttribute("data-slot", "field-error"); expect(target()).toHaveAttribute("aria-invalid", "true"); expect(target()).toHaveAccessibleDescription(expect.stringContaining(message)); fireEvent.click(save()); expect(saveDraftDeliveryAction).not.toHaveBeenCalled();
 });
+it("paints the stale-date warning with the semantic warning tone, not muted text (rules §10.5)", () => {
+  mount({ ...deliveryFixture(), commitmentDate: "2025-01-01" });
+  const warning = screen.getByText("La fecha compromiso ya pasó; elige otra antes de publicar.");
+  expect(warning).toHaveClass("text-status-review");
+  expect(warning).not.toHaveClass("text-muted-foreground");
+});
+it("focuses the first invalid field on a rejected save, not always the target", () => {
+  mount({ ...deliveryFixture(), cutoffStageId: "00000000-0000-4000-8000-0000000000aa" }); edit(); fireEvent.click(save());
+  expect(saveDraftDeliveryAction).not.toHaveBeenCalled();
+  expect(screen.getByRole("combobox", { name: "Columna de corte" })).toHaveFocus();
+});
 it("warns on an unchanged stale date but sends it unchanged while saving other fields", async () => {
   mount({ ...deliveryFixture(), commitmentDate: "2025-01-01" }); expect(screen.getByText("La fecha compromiso ya pasó; elige otra antes de publicar.")).toBeVisible(); edit(); fireEvent.click(save());
   await waitFor(() => expect(saveDraftDeliveryAction).toHaveBeenCalledExactlyOnceWith({ draftId, ifMatch: '"delivery-0"', body: { cutoffStageId: null, targetQuantity: 5, commitmentDate: "2025-01-01" } }));

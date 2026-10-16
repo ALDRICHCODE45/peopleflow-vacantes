@@ -60,7 +60,15 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
     if (busy.current || !isDirty(current.current.editor)) return;
     setAttempted(true);
     const snapshot = current.current;
-    if (!validate(snapshot.editor, stages.map(stage => stage.id)).ok) { report(invalidNotice); targetInput.current?.focus(); return; }
+    const validation = validate(snapshot.editor, stages.map(stage => stage.id));
+    if (!validation.ok) {
+      report(invalidNotice);
+      // Focus the first invalid field in visual order.
+      if (validation.errors.cutoffStageId) document.getElementById("delivery-cutoff")?.focus();
+      else if (validation.errors.targetText) targetInput.current?.focus();
+      else document.getElementById("delivery-date")?.focus();
+      return;
+    }
     busy.current = true; setPending("save"); setNotice(null);
     const result = await saveDraftDeliveryAction({ draftId, ifMatch: snapshot.etag, body: toPutBody(snapshot.editor) }).catch(noResponse);
     if (!mounted.current) return;
