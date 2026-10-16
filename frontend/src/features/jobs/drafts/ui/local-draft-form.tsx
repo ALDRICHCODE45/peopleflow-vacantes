@@ -80,6 +80,8 @@ import {
   type DraftScreeningV2State,
   type LocalDraftV2Snapshot,
 } from "./draft-screening-v2-state";
+import { PublishButton } from "@/features/employer-vacancies/publication/publish-dialog";
+import { loadDraftPublicationAction } from "../pipeline/publication-actions";
 import type { ScreeningQuestionV2 } from "../screening-v2/model";
 
 /**
@@ -271,7 +273,7 @@ function DraftStepFooter({
   status?: React.ReactNode;
 }) {
   const back = (
-    <Button type="button" variant="outline" disabled={backDisabled} onClick={onBack}>
+    <Button type="button" variant="outline" className="min-h-10" disabled={backDisabled} onClick={onBack}>
       Atrás
     </Button>
   );
@@ -471,6 +473,18 @@ export function LocalDraftForm({
     toDraftScreeningV2State(initialScreeningQuestionsV2 ?? []),
   );
   const draftSave = useDraftSave(initialIdentity);
+  const [savedDraftId, setSavedDraftId] = React.useState(initialIdentity?.draftId);
+  const [published, setPublished] = React.useState(false);
+  const savedResultId = draftSave.result?.ok ? draftSave.result.draftId : undefined;
+  React.useEffect(() => { if (savedResultId) setSavedDraftId(savedResultId); }, [savedResultId]);
+  React.useEffect(() => {
+    if (!savedDraftId) return;
+    let current = true;
+    void loadDraftPublicationAction(savedDraftId).then(result => {
+      if (current && result.ok) setPublished(result.publication.status === "published");
+    }).catch(() => { /* The dialog will expose an explicit retry if the read remains unavailable. */ });
+    return () => { current = false; };
+  }, [savedDraftId]);
   const [errors, setErrors] = React.useState<DraftFormErrors>({});
   const [validated, setValidated] = React.useState<
     DraftModel | LocalDraftV2Snapshot | null
@@ -1018,6 +1032,7 @@ export function LocalDraftForm({
               }
             >
               <FieldError id="draft-model-error">{errors.model}</FieldError>
+              {isV2 && savedDraftId && !published && <PublishButton draftId={savedDraftId} unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={() => setPublished(true)} />}
               {isV2 && candidateProjection !== null && !candidateProjection.ok ? (
                 <p
                   role="status"

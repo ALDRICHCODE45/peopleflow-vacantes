@@ -59,5 +59,6 @@ export function usePortfolioDrafts() {
     void load();
     return () => { current = false; };
   }, [attempt]);
-  return { ...state, retry, retried: attempt > 0 };
+  const published = (id: string, publishedAt: string) => setState(previous => ({ ...previous, items: previous.items.map(item => item.id === id ? { ...item, status: "published", published_at: publishedAt } : item) }));
+  return { ...state, retry, published, retried: attempt > 0 };
 }

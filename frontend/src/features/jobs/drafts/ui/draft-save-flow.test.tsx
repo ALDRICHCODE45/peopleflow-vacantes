@@ -10,6 +10,8 @@ import { createDraftModel } from "../model";
 import { draftEditSeedFromRead } from "../reopen/seed";
 import { filledDraftRead, storedWriteFields } from "../reopen/test-fixture";
 
+import { loadDraftPublicationAction } from "../pipeline/publication-actions";
+vi.mock("../pipeline/publication-actions", () => ({ loadDraftPublicationAction: vi.fn(), publishDraftAction: vi.fn() }));
 vi.mock("../actions", () => ({ saveDraftV2Action: vi.fn() }));
 vi.mock("sileo", () => ({ sileo: { success: vi.fn(() => "draft-success"), error: vi.fn(() => "draft-error"), dismiss: vi.fn() } }));
 const key = "123e4567-e89b-42d3-a456-426614174000";
@@ -22,6 +24,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.spyOn(crypto, "randomUUID").mockReturnValue(key);
   vi.mocked(saveDraftV2Action).mockResolvedValue(success);
+  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: [] } });
 });
 afterEach(() => {cleanup(); vi.restoreAllMocks();});
 it.each([
@@ -89,6 +92,24 @@ it("creates the validated v2 body, guards pending, then PATCHes the same draft w
   expect(vi.mocked(saveDraftV2Action).mock.calls[1][0]).toEqual({draftId:"saved-id",etag:'"v1"',body:input.body});
   await waitFor(() => expect(sileo.success).toHaveBeenLastCalledWith(expect.objectContaining({title:"Cambios guardados"})));
   expect(replace).toHaveBeenCalledTimes(1);
+});
+it("only saved draft review offers Publicar; unsaved edits block before loading dialog data", async () => {
+  render(<LocalDraftForm />); review();
+  expect(screen.queryByRole("button", { name: "Publicar" })).not.toBeInTheDocument();
+  fireEvent.click(save()); await waitFor(() => expect(save()).toHaveTextContent("Guardar cambios"));
+  expect(await screen.findByRole("button", { name: "Publicar" })).toHaveAttribute("aria-haspopup", "dialog");
+  for (let i=0;i<4;i++) fireEvent.click(screen.getByRole("button", { name: "Atrás" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Cambio" } }); review();
+  fireEvent.click(screen.getByRole("button", { name: "Publicar" }));
+  expect(await screen.findByRole("heading", { name: "Guarda los cambios antes de publicar" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Publicar vacante" })).not.toBeInTheDocument();
+});
+it("already published editor keeps saving content but hides Publicar", async () => {
+  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "published", publishedAt: "2026-10-16T12:00:00Z", missing: [] } });
+  render(<LocalDraftForm initialIdentity={{ draftId: key, etag: '"draft"' }} />); review();
+  await waitFor(() => expect(loadDraftPublicationAction).toHaveBeenCalled());
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Publicar" })).not.toBeInTheDocument());
+  expect(save()).toBeEnabled();
 });
 function saveDraftForm() {return document.querySelector("[data-pf-local-draft-form] form")!;}
 it("keeps the create key after uncertainty, even after an edit and explicit retry", async () => {

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BriefcaseBusiness, ChevronDown, CirclePause, FilePenLine, SearchIcon, SquareKanban, Users, CircleCheck, ArrowRight } from "lucide-react";
+import { BriefcaseBusiness, ChevronDown, CirclePause, FilePenLine, SearchIcon, SquareKanban, Users, CircleCheck, ArrowRight, Send } from "lucide-react";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
@@ -17,10 +17,12 @@ import type { DraftListRow } from "@/features/jobs/drafts/list/client";
 import { cn } from "@/lib/utils";
 import { EMPLOYER_EMPLOYMENT_TYPE_LABELS, EMPLOYER_VACANCY_STATE_LABELS, EMPLOYER_WORK_MODE_LABELS, VACANCY_PIPELINE_STAGES, summarizeEmployerVacancies, vacancyCandidateTotal, vacancyInProcessCount, vacancyPipelineHref } from "./model";
 import type { EmployerVacancy, EmployerVacancyState, VacancyPipelineStage } from "./model";
+import { PublishDialog } from "./publication/publish-dialog";
+import { portfolioRowActions } from "./model";
 import { DRAFT_LIST_MESSAGES, usePortfolioDrafts } from "./use-portfolio-drafts";
 
 type StatusFilter = "all" | "draft" | EmployerVacancyState;
-type PortfolioDraft = { id: string; title: string; state: "draft"; draft: DraftListRow };
+type PortfolioDraft = { id: string; title: string; state: "draft" | "active"; draft: DraftListRow };
 type PortfolioVacancy = EmployerVacancy | PortfolioDraft;
 const STATUS_FILTERS: ReadonlyArray<{ value: StatusFilter; label: string }> = [
   { value: "all", label: "Todas" }, { value: "draft", label: "Borradores" }, { value: "active", label: "Activas" }, { value: "paused", label: "Pausadas" }, { value: "closed", label: "Cerradas" },
@@ -38,11 +40,13 @@ const dateFormat = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZon
 const formatDate = (value: string) => dateFormat.format(new Date(value));
 
 /** Shared row composition, with draft facts rather than invented publication or candidate data. */
-function VacancyRow({ vacancy }: { vacancy: PortfolioVacancy }) {
-  const draft = vacancy.state === "draft" ? vacancy.draft : null;
-  const meta = vacancy.state === "draft"
-    ? [draft?.work_mode ? EMPLOYER_WORK_MODE_LABELS[draft.work_mode] : "Modalidad sin definir", draft?.work_schedule ? EMPLOYER_EMPLOYMENT_TYPE_LABELS[draft.work_schedule] : null].filter(Boolean).join(" · ")
-    : `${EMPLOYER_WORK_MODE_LABELS[vacancy.workMode]} · ${EMPLOYER_EMPLOYMENT_TYPE_LABELS[vacancy.employmentType]}`;
+function VacancyRow({ vacancy, onPublished }: { vacancy: PortfolioVacancy; onPublished: (id: string, publishedAt: string) => void }) {
+  const [publishOpen, setPublishOpen] = React.useState(false);
+  const draft = "draft" in vacancy ? vacancy.draft : null;
+  const prototype = "draft" in vacancy ? null : vacancy;
+  const meta = draft
+    ? [draft.work_mode ? EMPLOYER_WORK_MODE_LABELS[draft.work_mode] : "Modalidad sin definir", draft.work_schedule ? EMPLOYER_EMPLOYMENT_TYPE_LABELS[draft.work_schedule] : null].filter(Boolean).join(" · ")
+    : prototype ? `${EMPLOYER_WORK_MODE_LABELS[prototype.workMode]} · ${EMPLOYER_EMPLOYMENT_TYPE_LABELS[prototype.employmentType]}` : "";
   return (
     <li data-pf-vacancy-row={vacancy.id} className={GRID}>
       <div className="flex min-w-0 items-start gap-3">
@@ -50,8 +54,8 @@ function VacancyRow({ vacancy }: { vacancy: PortfolioVacancy }) {
         <div className="min-w-0">
           <p className="truncate text-[14.5px] font-semibold text-foreground">{vacancy.title}</p>
           <p className={cn(META, "mt-1")}>{meta}</p>
-          <p className={cn(META, "mt-0.5")}>{vacancy.state === "draft" ? "Sin candidatos todavía" : `${vacancyCandidateTotal(vacancy.candidateCounts)} candidatos · ${vacancyInProcessCount(vacancy.candidateCounts)} en proceso`}</p>
-          <p className={cn(META, "mt-0.5")}><span className="sr-only">Reclutador: </span>{vacancy.state === "draft" ? vacancy.draft.principal_recruiter.name ?? "Usuario dado de baja" : vacancy.recruiter}</p>
+          <p className={cn(META, "mt-0.5")}>{prototype ? `${vacancyCandidateTotal(prototype.candidateCounts)} candidatos · ${vacancyInProcessCount(prototype.candidateCounts)} en proceso` : "Sin candidatos todavía"}</p>
+          <p className={cn(META, "mt-0.5")}><span className="sr-only">Reclutador: </span>{draft ? draft.principal_recruiter.name ?? "Usuario dado de baja" : prototype?.recruiter}</p>
           {draft?.requester?.name && <p className={cn(META, "mt-0.5")}>Solicitante: {draft.requester.name}</p>}
         </div>
       </div>
@@ -60,20 +64,22 @@ function VacancyRow({ vacancy }: { vacancy: PortfolioVacancy }) {
         <div aria-hidden="true" className="flex items-center gap-1">
           {VACANCY_PIPELINE_STAGES.map(stage => <span key={stage} className={cn("h-1.5 w-6 rounded-full", draft ? "bg-muted" : PIPELINE_BAR[stage])} />)}
         </div>
-        <p className={META}>{vacancy.state === "draft" ? "Sin pipeline · en borrador" : VACANCY_PIPELINE_STAGES.map(stage => `${STAGE_LABELS[stage]}: ${vacancy.candidateCounts[stage]}`).join(" · ")}</p>
+        <p className={META}>{vacancy.state === "draft" ? "Sin pipeline · en borrador" : prototype ? VACANCY_PIPELINE_STAGES.map(stage => `${STAGE_LABELS[stage]}: ${prototype.candidateCounts[stage]}`).join(" · ") : "Sin candidatos todavía"}</p>
       </div>
       <div className={META}>
-        {vacancy.state === "draft" ? <div className="flex flex-col gap-1"><span>Sin publicar</span><time dateTime={vacancy.draft.updated_at}>Editado {formatDate(vacancy.draft.updated_at)}</time></div> : <time dateTime={vacancy.publishedAt}><span className="sr-only">Publicada el </span>{formatDate(vacancy.publishedAt)}</time>}
+        {draft ? draft.status === "draft" ? <div className="flex flex-col gap-1"><span>Sin publicar</span><time dateTime={draft.updated_at}>Editado {formatDate(draft.updated_at)}</time></div> : draft.published_at ? <time dateTime={draft.published_at}>Publicada el {formatDate(draft.published_at)}</time> : "Fecha no disponible" : prototype && <time dateTime={prototype.publishedAt}><span className="sr-only">Publicada el </span>{formatDate(prototype.publishedAt)}</time>}
       </div>
       <div className="flex items-center gap-1">
-        {draft ? (
-          // A draft has two peer actions, so both live in one menu (rules §6).
+        {draft?.status === "draft" ? (
+          // Peer actions live in one menu (rules §6).
           <DropdownMenu>
             <DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className="h-10 gap-1.5 px-3.5" aria-label={`Acciones de ${vacancy.title}`} />}>Acciones<ChevronDown aria-hidden="true" data-icon="inline-end" /></DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-52">
               <DropdownMenuGroup>
-                <DropdownMenuItem className="min-h-10" render={<Link href={vacancyPipelineHref(vacancy.id)} />}><SquareKanban aria-hidden="true" />Ver pipeline</DropdownMenuItem>
-                <DropdownMenuItem className="min-h-10" render={<Link href={`/empresa/vacantes/borradores/${vacancy.id}`} />}><FilePenLine aria-hidden="true" />Continuar editando</DropdownMenuItem>
+                {portfolioRowActions(vacancy.id, draft.status).map(action => {
+                  const Icon = action.kind === "pipeline" ? SquareKanban : action.kind === "edit" ? FilePenLine : Send;
+                  return action.kind === "publish" ? <DropdownMenuItem key={action.kind} className="min-h-10" onClick={() => setPublishOpen(true)}><Icon aria-hidden="true" />{action.label}</DropdownMenuItem> : <DropdownMenuItem key={action.kind} className="min-h-10" render={<Link href={action.href!} />}><Icon aria-hidden="true" />{action.label}</DropdownMenuItem>;
+                })}
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -81,6 +87,7 @@ function VacancyRow({ vacancy }: { vacancy: PortfolioVacancy }) {
           <Link href={vacancyPipelineHref(vacancy.id)} data-pf-vacancy-pipeline={vacancy.id} aria-label={`Ver pipeline de ${vacancy.title}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-10 gap-1.5 px-3.5 transition-colors duration-200")}>Ver pipeline</Link>
         )}
       </div>
+      {draft?.status === "draft" && <PublishDialog draftId={draft.id} open={publishOpen} onOpenChange={setPublishOpen} onPublished={publishedAt => onPublished(draft.id, publishedAt)} />}
     </li>
   );
 }
@@ -98,15 +105,17 @@ export function VacancyPortfolio({ vacancies }: { vacancies: readonly EmployerVa
   const [status, setStatus] = React.useState<StatusFilter>("all");
   const drafts = usePortfolioDrafts();
   const summary = summarizeEmployerVacancies(vacancies);
-  const counts: Readonly<Record<StatusFilter, number>> = { all: summary.total + drafts.items.length, draft: drafts.items.length, active: summary.active, paused: summary.paused, closed: summary.closed };
+  const draftCount = drafts.items.filter(item => item.status === "draft").length;
+  const activeCount = summary.active + drafts.items.filter(item => item.status === "published").length;
+  const counts: Readonly<Record<StatusFilter, number>> = { all: summary.total + drafts.items.length, draft: draftCount, active: activeCount, paused: summary.paused, closed: summary.closed };
   const cards = [
-    { key: "active", label: "Activas", value: summary.active, icon: BriefcaseBusiness },
-    { key: "draft", label: "Borradores", value: drafts.items.length, icon: FilePenLine },
+    { key: "active", label: "Activas", value: activeCount, icon: BriefcaseBusiness },
+    { key: "draft", label: "Borradores", value: draftCount, icon: FilePenLine },
     { key: "paused", label: "Pausadas", value: summary.paused, icon: CirclePause },
     { key: "in-process", label: "Candidatos en proceso", value: summary.inProcessCandidates, icon: Users },
     { key: "closed", label: "Cerradas", value: summary.closed, icon: CircleCheck },
   ] as const;
-  const combined: PortfolioVacancy[] = [...drafts.items.map(draft => ({ id: draft.id, title: draft.title || "Sin título", state: "draft" as const, draft })), ...vacancies];
+  const combined: PortfolioVacancy[] = [...drafts.items.map(draft => ({ id: draft.id, title: draft.title || "Sin título", state: draft.status === "published" ? "active" as const : "draft" as const, draft })), ...vacancies];
   const needle = normalize(query);
   const results = combined.filter(vacancy => (status === "all" || vacancy.state === status) && (!needle || normalize(vacancy.title).includes(needle)));
   const filtersActive = query.trim() !== "" || status !== "all";
@@ -148,7 +157,7 @@ export function VacancyPortfolio({ vacancies }: { vacancies: readonly EmployerVa
               {results.length === 0 ? (status === "draft" && (loadingDraftRows || failure)) ? null : <Empty data-pf-vacancy-empty>
                 <EmptyHeader><EmptyMedia variant="icon">{status === "draft" ? <FilePenLine aria-hidden="true" /> : <SearchIcon aria-hidden="true" />}</EmptyMedia><EmptyTitle>{status === "draft" ? loadingDraftRows ? "Buscando tus borradores" : "No hay borradores que mostrar" : combined.length === 0 ? "Todavía no hay vacantes" : "Sin resultados"}</EmptyTitle><EmptyDescription>{status === "draft" ? "Prepara una vacante a tu ritmo. Aquí encontrarás los borradores guardados para continuar editándolos." : combined.length === 0 ? "Cuando publiques una vacante va a aparecer en este listado." : "No hay vacantes que coincidan con la búsqueda y el estado seleccionados."}</EmptyDescription></EmptyHeader>
                 <EmptyContent>{status === "draft" && <Button nativeButton={false} role="link" className="min-h-10" render={<Link href="/empresa/vacantes/borradores/nuevo" />}><FilePenLine aria-hidden="true" data-icon="inline-start" />Nuevo borrador<ArrowRight aria-hidden="true" data-icon="inline-end" /></Button>}{filtersActive && combined.length > 0 && <Button type="button" variant="outline" data-pf-vacancy-clear onClick={clearFilters} className="min-h-10">Limpiar filtros</Button>}</EmptyContent>
-              </Empty> : <ul className="divide-y divide-border">{results.map(vacancy => <VacancyRow key={vacancy.id} vacancy={vacancy} />)}</ul>}
+              </Empty> : <ul className="divide-y divide-border">{results.map(vacancy => <VacancyRow key={vacancy.id} vacancy={vacancy} onPublished={drafts.published} />)}</ul>}
               {!failure && drafts.retried && <div className="px-5"><ActionStatusSlot>{!drafts.pending && <ActionStatus id="portfolio-drafts-status" tone="success" text="Borradores cargados" />}</ActionStatusSlot></div>}
             </CardContent>
           </Card>

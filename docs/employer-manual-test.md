@@ -4,11 +4,11 @@ Guía para probar en el navegador, de punta a punta, el flujo
 **login recruiter → crear empresa → guardar borrador privado → encontrarlo en la
 lista → reabrirlo, editarlo y guardarlo → configurar las columnas de su pipeline**
 contra la API Go real. Esta prueba es el requisito para integrar
-`feat/pipeline-delivery-config` en `main`.
+`feat/vacancy-publication-ui` en `main`.
 
-- Rama frontend: `feat/pipeline-delivery-config`.
-- Rama backend: `feat/pipeline-delivery` (incluye todo lo de `main` más la
-  configuración de entrega). Trae la migración `00017`: corré `make db-migrate` y
+- Rama frontend: `feat/vacancy-publication-ui`.
+- Rama backend: `feat/vacancy-publication` (incluye todo lo de `main` más la
+  publicación). Trae las migraciones `00018` y `00019`: corré `make db-migrate` y
   confirmá con `make db-status` que no queda nada en «Pending».
 - Los servicios los levantás vos en tu terminal. Ningún agente lee ni modifica
   tus archivos `.env`; acá solo aparecen **nombres** de variables, nunca valores.
@@ -252,6 +252,28 @@ corepack pnpm dev
     **Esperado:** aviso «No puedes quitar la columna de corte» con «Ir a Entrega», y
     la fila queda marcada.
 
+29. **Solicitud (tema claro y oscuro).** En la configuración de un borrador, el
+    menú de apartados muestra «Columnas del pipeline», «Entrega» y «Solicitud».
+    Entrá a «Solicitud». **Esperado:** «Fecha de solicitud» solo deja elegir hoy o
+    días pasados; «Plazas a cubrir» acepta de 1 a 999 (probá «0» y «abc»). Guardá
+    y recargá.
+30. **Faltantes.** Con un borrador incompleto, abrí «Publicar» desde el «⋯» de la
+    fila en Vacantes (o desde el pipeline o el último paso del editor). **Esperado:**
+    «Te falta para publicar» con los faltantes agrupados en «Editor de la vacante»,
+    «Solicitud» y «Entrega», cada uno con «Completar» que lleva a donde se completa.
+    No hay botón para publicar.
+31. **Publicar.** Completá todo y volvé a abrir «Publicar». **Esperado:** «Publicar
+    vacante» con el resumen (vacante, columna de corte, objetivo de entrega y fecha
+    compromiso) y el aviso de que empieza a contar el tiempo de entrega. Confirmá.
+    **Esperado:** aviso «Vacante publicada»; en Vacantes la fila pasa a «Activa» con
+    «Publicada el …» y sale de la pestaña «Borradores»; el pipeline muestra una
+    tarjeta por columna con «Sin candidatos todavía».
+32. **Editor con cambios sin guardar.** En el último paso del editor de otro
+    borrador, cambiá algo sin guardar y tocá «Publicar». **Esperado:** «Guarda los
+    cambios antes de publicar», sin botón para publicar.
+33. **Fecha vencida (opcional).** Si un borrador tiene una fecha compromiso pasada,
+    «Publicar» la lista como «La fecha compromiso ya pasó» en «Entrega».
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:
@@ -299,5 +321,5 @@ pero **no** copies cabeceras, cookies ni cuerpos.
 docker start nest-practice   # si lo habías frenado
 ```
 
-Si todo pasa, el siguiente paso es integrar `feat/pipeline-delivery-config` en
+Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
 `main`. La rama del backend la integra su propio agente. El push lo hacés vos.

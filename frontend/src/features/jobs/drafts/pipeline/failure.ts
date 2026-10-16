@@ -10,13 +10,26 @@ export type DraftPipelineActionFailure = {
   reference: { status?: number; code?: string };
 };
 
+/** Publication extends the shared vocabulary without widening unrelated configuration forms. */
+export type DraftPublicationActionFailure = DraftPipelineActionFailure | {
+  ok: false;
+  reason: "already_published" | "idempotency_conflict";
+  reference: { status?: number; code?: string };
+} | {
+  ok: false;
+  reason: "publication_incomplete";
+  missing: string[];
+  reference: { status?: number; code?: string };
+};
+
 const safeCodes = new Set([
   "invalid_request", "validation_error", "unauthenticated", "forbidden", "company_inactive", "non_business_date", "cutoff_stage_in_use",
   "not_found", "company_not_active", "version_conflict", "precondition_required", "payload_too_large", "internal_error",
+  "publication_incomplete", "already_published", "idempotency_conflict",
 ]);
 
 /** Only public classifications and allowlisted references cross the action boundary. */
-export function mapDraftPipelineFailure({ error, envelope }: DraftPipelineFailure): DraftPipelineActionFailure {
+export function mapDraftPipelineFailure({ error, envelope }: Omit<DraftPipelineFailure, "envelope"> & { envelope?: { error: string; code: string; missing?: string[] } }): DraftPipelineActionFailure {
   const status = error.status;
   const code = envelope && safeCodes.has(envelope.code) ? envelope.code : undefined;
   let reason: DraftPipelineActionFailure["reason"] = "unrecognized_response";
@@ -34,4 +47,15 @@ export function mapDraftPipelineFailure({ error, envelope }: DraftPipelineFailur
   else if (status === 413) reason = "payload_too_large";
   else if (status !== undefined && status >= 500 && status < 600) reason = "server_error";
   return { ok: false, reason, reference: { ...(status !== undefined ? { status } : {}), ...(code ? { code } : {}) } };
+}
+
+export function mapDraftPublicationFailure(input: Omit<DraftPipelineFailure, "envelope"> & { envelope?: { error: string; code: string; missing?: string[] } }): DraftPublicationActionFailure {
+  const { error, envelope } = input;
+  const status = error.status;
+  const code = envelope?.code;
+  if (status === 422 && code === "publication_incomplete" && Array.isArray(envelope?.missing) && envelope.missing.every(item => typeof item === "string" && item.trim())) {
+    return { ok: false, reason: "publication_incomplete", missing: envelope.missing, reference: { status, code } };
+  }
+  if (status === 409 && (code === "already_published" || code === "idempotency_conflict")) return { ok: false, reason: code, reference: { status, code } };
+  return mapDraftPipelineFailure(input);
 }

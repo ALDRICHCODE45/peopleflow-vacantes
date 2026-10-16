@@ -747,3 +747,15 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
   una función pura (por ejemplo `stageRowActions`) que se prueba aparte, y el test de UI
   verifica el trigger (nombre, `aria-haspopup`). Lo que solo se ve con el menú abierto
   se confirma en la prueba manual.
+
+### 13.8 Textos consistentes y diálogos de confirmación
+
+- Un mismo dato se llama igual en todas partes: formulario, resumen, diálogo y
+  checklist (por ejemplo «Columna de corte» y «Objetivo de entrega», no «Columna de
+  entrega» o «Meta de entrega» en el resumen).
+- Un `Dialog` que confirma una acción importante muestra primero lo que falta (lista
+  agrupada por dónde se completa, con un enlace «Completar» por ítem) o, si está todo,
+  un resumen con ícono + etiqueta + valor y la consecuencia de confirmar. Su
+  `DialogFooter` usa `ActionBar` como cualquier pie de acciones (sección 12).
+- Si el resultado de la acción es incierto (sin respuesta), el diálogo ofrece
+  «Comprobar», que solo lee el estado; nunca reintenta solo.

@@ -116,6 +116,17 @@ export function vacancyPipelineHref(jobId: string): string {
   return `/empresa/vacantes/${jobId}/pipeline`;
 }
 
+/** Pure menu contract: portal rendering is verified in the browser, options here. */
+export function portfolioRowActions(id: string, status: "draft" | "published") {
+  return [
+    { label: "Ver pipeline", kind: "pipeline" as const, href: vacancyPipelineHref(id) },
+    ...(status === "draft" ? [
+      { label: "Continuar editando", kind: "edit" as const, href: `/empresa/vacantes/borradores/${id}` },
+      { label: "Publicar", kind: "publish" as const, href: undefined },
+    ] : []),
+  ];
+}
+
 /** Resolves one vacancy by exact id; an absent or unknown id stays unknown. */
 export function findEmployerVacancy(vacancies: readonly EmployerVacancy[], jobId: string): EmployerVacancy | undefined {
   return vacancies.find((vacancy) => vacancy.id === jobId);
