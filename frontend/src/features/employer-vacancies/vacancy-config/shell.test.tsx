@@ -40,9 +40,21 @@ it("lists only implemented modules with active navigation and descriptions", asy
     expect(links[index]).toHaveTextContent(module.title);
     expect(links[index]).toHaveTextContent(module.description);
     expect(links[index]).toHaveAttribute("href", `/empresa/vacantes/${read.id}/configuracion/${module.slug}`);
-    expect(links[index]).toHaveAttribute("aria-current", "page");
-    expect(links[index]).toHaveClass("min-h-10", "bg-card", "text-foreground", "ring-1", "ring-primary/40");
+    expect(links[index]).toHaveClass("min-h-10");
+    if (module.slug === "columnas") {
+      expect(links[index]).toHaveAttribute("aria-current", "page");
+      expect(links[index]).toHaveClass("bg-card", "text-foreground", "ring-1", "ring-primary/40");
+    } else expect(links[index]).not.toHaveAttribute("aria-current");
   }
+});
+it("does not expose a Subestados link on its obsolete route", async () => {
+  vi.mocked(usePathname).mockReturnValue(`/empresa/vacantes/${read.id}/configuracion/subestados`);
+  render(shell());
+  const nav = await screen.findByRole("navigation", { name: "Apartados de configuración de la vacante" });
+  const links = within(nav).getAllByRole("link");
+  expect(links[0]).not.toHaveAttribute("aria-current");
+  expect(links).toHaveLength(1);
+  expect(within(nav).queryByRole("link", { name: /Subestados/ })).not.toBeInTheDocument();
 });
 it("reserves loading content and withholds the module until the draft is authorized", async () => {
   let resolve!: (value: DraftEditResult) => void;
@@ -69,8 +81,10 @@ it("does not mark an unrelated pathname as the current module", async () => {
   vi.mocked(usePathname).mockReturnValue(`/empresa/vacantes/${read.id}/configuracion/otro`);
   render(shell());
   const nav = await screen.findByRole("navigation", { name: "Apartados de configuración de la vacante" });
-  expect(within(nav).getByRole("link")).not.toHaveAttribute("aria-current");
-  expect(within(nav).getByRole("link")).not.toHaveClass("bg-card");
+  for (const link of within(nav).getAllByRole("link")) {
+    expect(link).not.toHaveAttribute("aria-current");
+    expect(link).not.toHaveClass("bg-card");
+  }
 });
 it("ignores the previous vacancy's late draft result", async () => {
   let resolve!: (value: DraftEditResult) => void;

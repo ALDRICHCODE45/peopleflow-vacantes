@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { cn } from "cn";
-import { ArrowDown, ArrowUp, Ellipsis, GripVertical, Lock, LogOut, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, Ellipsis, GripVertical, ListChecks, Lock, LogOut, Trash2 } from "lucide-react";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,7 +30,7 @@ function nameError(error: EditorError | undefined, max: number) {
     default: return undefined;
   }
 }
-export type StageRowAction = { id: "up" | "down" | "remove"; label: string; disabled: boolean };
+export type StageRowAction = { id: "up" | "down" | "remove" | "substates"; label: string; disabled: boolean };
 
 /** Items of a movable row's actions menu; "remove" only exists for custom stages. */
 export function stageRowActions(state: PipelineEditorState, key: string): StageRowAction[] {
@@ -38,15 +38,18 @@ export function stageRowActions(state: PipelineEditorState, key: string): StageR
     { id: "up", label: "Subir", disabled: !canMove(state, key, "up") },
     { id: "down", label: "Bajar", disabled: !canMove(state, key, "down") },
   ];
+  if (state.stages.some(stage => stage.key === key && stage.kind === "in_process")) {
+    actions.push({ id: "substates", label: "Subestados", disabled: false });
+  }
   if (canRemoveStage(state, key)) actions.push({ id: "remove", label: "Quitar columna", disabled: false });
   return actions;
 }
-const ACTION_ICONS = { up: ArrowUp, down: ArrowDown, remove: Trash2 } as const;
+const ACTION_ICONS = { up: ArrowUp, down: ArrowDown, remove: Trash2, substates: ListChecks } as const;
 
 export function StageKindBadge({ kind }: { kind: StageKind }) {
   return <Badge variant={STAGE_VARIANTS[kind]}>{STAGE_KIND_LABELS[kind]}</Badge>;
 }
-export function StageRow({ stage, position, state, error, disabled, inputRef, onRename, onBlur, onMove, onRemove }: {
+export function StageRow({ stage, position, state, error, disabled, inputRef, onRename, onBlur, onMove, onRemove, substateCount, onSubstates }: {
   stage: EditorStage | EditorExit;
   position: number;
   state: PipelineEditorState;
@@ -57,6 +60,8 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
   onBlur: () => void;
   onMove: (direction: MoveDirection) => void;
   onRemove: () => void;
+  substateCount?: number;
+  onSubstates?: () => void;
 }) {
   const id = `pipeline-stage-${stage.key}`;
   const message = nameError(error, state.limits.nameMaxLength);
@@ -73,7 +78,7 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
     const remove = action.id === "remove";
     return (
       <DropdownMenuItem key={action.id} className="min-h-10" variant={remove ? "destructive" : "default"} disabled={action.disabled}
-        onClick={() => { if (action.id === "remove") onRemove(); else onMove(action.id); }}>
+        onClick={() => { if (action.id === "remove") onRemove(); else if (action.id === "substates") onSubstates?.(); else onMove(action.id); }}>
         <Icon aria-hidden="true" />{action.label}
       </DropdownMenuItem>
     );
@@ -102,7 +107,10 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
             {message && <FieldError id={`${id}-error`}>{message}</FieldError>}
           </Field>
         </FieldGroup>
-        {showKind && <div><StageKindBadge kind={stage.kind} /></div>}
+        {(showKind || stage.kind === "in_process") && <div className="flex flex-wrap gap-2">
+          {showKind && <StageKindBadge kind={stage.kind} />}
+          {stage.kind === "in_process" && <Badge variant="neutral">{!substateCount ? "Sin subestados" : substateCount === 1 ? "1 subestado" : `${substateCount} subestados`}</Badge>}
+        </div>}
       </ItemContent>
       {!isExit && <ItemActions className="flex-wrap">
         {fixed ? <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Lock className="size-3.5" aria-hidden="true" />Posición fija</span> : (
@@ -112,10 +120,10 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
               <Ellipsis aria-hidden="true" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-44">
-              <DropdownMenuGroup>{actions.filter(action => action.id !== "remove").map(item)}</DropdownMenuGroup>
-              {actions.some(action => action.id === "remove") && <>
+              <DropdownMenuGroup>{actions.filter(action => action.id === "up" || action.id === "down").map(item)}</DropdownMenuGroup>
+              {actions.some(action => action.id === "substates" || action.id === "remove") && <>
                 <DropdownMenuSeparator />
-                <DropdownMenuGroup>{actions.filter(action => action.id === "remove").map(item)}</DropdownMenuGroup>
+                <DropdownMenuGroup>{actions.filter(action => action.id === "substates" || action.id === "remove").map(item)}</DropdownMenuGroup>
               </>}
             </DropdownMenuContent>
           </DropdownMenu>

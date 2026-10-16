@@ -588,6 +588,13 @@ puede hacer la persona ahora.** Un párrafo rojo suelto, largo o con jerga técn
   `ActionStatusSlot` que se renderiza siempre, aunque esté vacío, con alto reservado.
   Así un resultado que aparece o cambia nunca mueve el botón. Nunca va arriba de la
   acción ni ocupa más de una línea por resultado.
+- **Excepción: footer de `Sheet`.** Para que el pie del panel lateral no duplique su
+  alto, el `ActionStatusSlot` va **a la izquierda** de las acciones, en la misma fila
+  (`SheetFooter` con `flex-row items-start`, el slot en un contenedor
+  `order-first min-w-0 flex-1` y las acciones a la derecha). El slot se sigue
+  renderizando siempre y la fila se alinea arriba, así un estado que aparece o se
+  parte en dos líneas no mueve los botones. En el DOM las acciones siguen antes que el
+  estado. Aprobado por el usuario para el Sheet de subestados (2026-10-16).
 - La línea de estado (`ActionStatus`) es el respaldo accesible y persistente del toast.
   Resume el resultado en pocas palabras («Guardado · versión 2», «No se guardó · ver
   aviso») y, si hay una acción útil (iniciar sesión, crear la empresa), la ofrece ahí

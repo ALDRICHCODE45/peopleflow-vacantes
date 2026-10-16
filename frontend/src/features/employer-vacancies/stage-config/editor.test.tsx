@@ -219,7 +219,11 @@ it("offers move actions in a row menu that never cross fixed columns, and remove
   ]);
   expect(stageRowActions(state, inProcess.key)).toEqual([
     { id: "up", label: "Subir", disabled: false }, { id: "down", label: "Bajar", disabled: false },
+    { id: "substates", label: "Subestados", disabled: false },
   ]);
+  for (const stage of [...state.stages, state.exit].filter(stage => stage.kind !== "in_process")) {
+    expect(stageRowActions(state, stage.key)).not.toContainEqual(expect.objectContaining({ id: "substates" }));
+  }
   expect(stageRowActions(state, custom.key)).toEqual([
     { id: "up", label: "Subir", disabled: false }, { id: "down", label: "Bajar", disabled: true },
     { id: "remove", label: "Quitar columna", disabled: false },
