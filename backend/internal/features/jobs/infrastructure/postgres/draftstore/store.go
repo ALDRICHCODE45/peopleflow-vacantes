@@ -56,13 +56,14 @@ const timestampLayout = "2006-01-02T15:04:05.000000Z"
 type Store struct {
 	pool  *pgxpool.Pool
 	audit auditrepositories.AuditEventRepository
+	clock func() time.Time
 }
 
 // NewStore wraps the connection pool and the stateless, tx-scoped audit port.
 // The pool is retained so every operation can open its own transaction; the
 // audit adapter appends inside that transaction.
 func NewStore(pool *pgxpool.Pool, audit auditrepositories.AuditEventRepository) *Store {
-	return &Store{pool: pool, audit: audit}
+	return &Store{pool: pool, audit: audit, clock: time.Now}
 }
 
 // Compile-time assertion that the adapter satisfies the port.
