@@ -96,11 +96,15 @@ func Resolve(code Code) Definition {
 	case CodeInternalError:
 		return Definition{code, http.StatusInternalServerError, "an internal error occurred"}
 	default:
+		if def, ok := resolvePipelineError(code); ok {
+			return def
+		}
 		return Definition{CodeInternalError, http.StatusInternalServerError, "an internal error occurred"}
 	}
 }
 
-// ListCodes returns a fresh ordered slice of all V1 codes.
+// ListCodes returns a fresh ordered slice of the pinned baseline V1 codes.
+// Additive pipeline extension codes are listed by PipelineErrorCodes.
 func ListCodes() []Code {
 	return []Code{
 		CodeInvalidRequest, CodeInvalidStatusTransition, CodeUnauthenticated,

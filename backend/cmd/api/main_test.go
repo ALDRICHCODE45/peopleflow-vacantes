@@ -1541,6 +1541,7 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Get /v2/me/company/job-drafts/{id}",
 		"Get /v2/me/company/job-drafts/{id}/pipeline",
 		"Get /v2/me/company/job-drafts/{id}/pipeline/substates",
+		"Get /v2/me/company/job-drafts/{id}/pipeline/delivery",
 		"Mount /jobs",
 		"Mount /profile",
 		"Patch /{id}/transition",
@@ -1558,6 +1559,7 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Post /v2/me/company/job-drafts",
 		"Put /v2/me/company/job-drafts/{id}/pipeline",
 		"Put /v2/me/company/job-drafts/{id}/pipeline/substates",
+		"Put /v2/me/company/job-drafts/{id}/pipeline/delivery",
 		"Route /jobs/{jobId}/applications",
 		"Route /me",
 	}

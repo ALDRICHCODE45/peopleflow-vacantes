@@ -36,8 +36,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/deliveryconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftinput"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -279,6 +281,10 @@ func classifyDraftError(err error) httpjson.Definition {
 		return httpjson.Resolve(httpjson.CodePayloadTooLarge)
 	case errors.Is(err, drafts.ErrInvalidRequest):
 		return httpjson.Resolve(httpjson.CodeInvalidRequest)
+	case errors.Is(err, deliveryconfig.ErrNonBusinessDate):
+		return httpjson.Resolve(httpjson.CodeNonBusinessDate)
+	case errors.Is(err, pipelineconfig.ErrCutoffStageInUse):
+		return httpjson.Resolve(httpjson.CodeCutoffStageInUse)
 	case errors.Is(err, drafts.ErrValidation):
 		return httpjson.Resolve(httpjson.CodeValidationError)
 	case errors.Is(err, drafts.ErrEmptyPatch):
