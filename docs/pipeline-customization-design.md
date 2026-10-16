@@ -559,7 +559,9 @@ Keys exactly `status` (`draft` | `published`), `publishedAt` (RFC 3339 UTC or `n
   at, frozen snapshot of target, cutoff stage id and name, commitment date, headcount and
   request date).
 
-Evaluation order on `POST`: auth gates → draft authorization (`404`) → `Idempotency-Key`
+Evaluation order on `POST`: auth gates → transport body budget and read (`413` /
+`400`, inherited from §4 and identical for every draft, so not an existence oracle) →
+draft authorization (`404`) → `Idempotency-Key`
 shape → **replay** (same key and payload returns the original `201` with
 `Idempotency-Replayed: true`, even though the draft is now published; same key with a
 different payload → `409 idempotency_conflict`) → `If-Match` (`428`/`400`/`412`) →
