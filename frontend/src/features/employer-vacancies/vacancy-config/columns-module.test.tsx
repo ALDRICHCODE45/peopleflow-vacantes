@@ -3,17 +3,22 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import "@testing-library/jest-dom/vitest";
 import { loadDraftPipelineAction, type DraftPipelineActionFailure, type DraftPipelineActionResult } from "@/features/jobs/drafts/pipeline/actions";
 import { pipelineFixture } from "../stage-config/test-fixture";
+import { loadDraftSubstatesAction, type DraftSubstatesActionResult } from "@/features/jobs/drafts/pipeline/substates-actions";
+import { substatesFixture } from "../substates-config/test-fixture";
 import { VacancyColumnsModule } from "./columns-module";
 vi.mock("@/features/jobs/drafts/pipeline/actions", () => ({ loadDraftPipelineAction: vi.fn(), saveDraftPipelineAction: vi.fn() }));
+vi.mock("@/features/jobs/drafts/pipeline/substates-actions", () => ({ loadDraftSubstatesAction: vi.fn(), saveDraftSubstatesAction: vi.fn() }));
 const id = "123e4567-e89b-42d3-a456-426614174000";
+const catalogSuccess = (): DraftSubstatesActionResult => ({ ok: true, catalog: substatesFixture(), etag: '"substates-0"' });
 const success = () => ({ ok: true, pipeline: pipelineFixture(), etag: '"pipeline-0"' } as const);
-beforeEach(() => { vi.resetAllMocks(); vi.mocked(loadDraftPipelineAction).mockResolvedValue(success()); });
+beforeEach(() => { vi.resetAllMocks(); vi.mocked(loadDraftPipelineAction).mockResolvedValue(success()); vi.mocked(loadDraftSubstatesAction).mockResolvedValue(catalogSuccess()); });
 afterEach(cleanup);
 it("reserves the editor composition during its first load", async () => {
   let resolve!: (value: DraftPipelineActionResult) => void;
   vi.mocked(loadDraftPipelineAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
   const { container } = render(<VacancyColumnsModule draftId={id} />);
   expect(loadDraftPipelineAction).toHaveBeenCalledExactlyOnceWith(id);
+  expect(loadDraftSubstatesAction).toHaveBeenCalledExactlyOnceWith(id);
   expect(screen.getAllByRole("status")).toHaveLength(1);
   expect(screen.getByRole("status")).toHaveTextContent("Cargando pipeline");
   expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
@@ -24,6 +29,7 @@ it("renders the real column editor without a second header", async () => {
   const { container } = render(<VacancyColumnsModule draftId={id} />);
   expect(await screen.findByRole("heading", { level: 3, name: "Columnas del pipeline" })).toBeVisible();
   expect(screen.getAllByRole("textbox")).toHaveLength(6);
+  expect(screen.getByText("Sin subestados")).toHaveAttribute("data-variant", "neutral");
   expect(container.querySelector("header")).toBeNull();
 });
 it.each([
@@ -40,6 +46,30 @@ it.each([
   fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
   await screen.findByRole("heading", { name: "Columnas del pipeline" });
   expect(loadDraftPipelineAction).toHaveBeenCalledTimes(2);
+});
+it.each(["server_error", "version_conflict", "not_found"] as const)("shows the existing error state if catalog load fails with %s and retries both reads", async reason => {
+  vi.mocked(loadDraftSubstatesAction).mockResolvedValueOnce({ ok: false, reason, reference: {} });
+  render(<VacancyColumnsModule draftId={id} />);
+  expect(await screen.findByRole("heading", { name: reason === "server_error" ? "El servidor tuvo un problema" : reason === "not_found" ? "No encontramos este borrador" : "No pudimos confirmar el resultado" })).toBeVisible();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+  await screen.findByRole("heading", { name: "Columnas del pipeline" });
+  expect(loadDraftPipelineAction).toHaveBeenCalledTimes(2); expect(loadDraftSubstatesAction).toHaveBeenCalledTimes(2);
+});
+it("waits for the catalog before exposing the editor, loading both resources in parallel", async () => {
+  let resolve!: (value: DraftSubstatesActionResult) => void;
+  vi.mocked(loadDraftSubstatesAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
+  render(<VacancyColumnsModule draftId={id} />);
+  expect(loadDraftPipelineAction).toHaveBeenCalledExactlyOnceWith(id); expect(loadDraftSubstatesAction).toHaveBeenCalledExactlyOnceWith(id);
+  await act(async () => {});
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  await act(async () => resolve(catalogSuccess()));
+  expect(screen.getByText("Sin subestados")).toBeVisible();
+});
+it("handles rejected catalog reads safely", async () => {
+  vi.mocked(loadDraftSubstatesAction).mockRejectedValueOnce(new Error("network"));
+  render(<VacancyColumnsModule draftId={id} />);
+  expect(await screen.findByRole("heading", { name: "No hubo respuesta del servidor" })).toBeVisible();
 });
 it("handles rejected reads safely", async () => {
   vi.mocked(loadDraftPipelineAction).mockRejectedValueOnce(new Error("network"));

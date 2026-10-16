@@ -22,12 +22,18 @@ import { conflictNotice, invalidNotice, pipelineFailureNotice, recoveryLabels, s
 import { PipelinePreview } from "./preview";
 import { StageRow } from "./stage-row";
 import { StageReorder } from "./reorder";
+import { SubstatesSheet } from "@/features/employer-vacancies/substates-config/sheet";
+import type { SubstatesCatalog } from "@/features/jobs/drafts/pipeline/substates-model";
 
 type Session = { editor: PipelineEditorState; etag: string };
 const noResponse = (): DraftPipelineActionResult => ({ ok: false, reason: "no_response", reference: {} });
 
 /** An isolated, in-memory editing session. No autosave and no automatic mutation retry. */
-export function PipelineStageEditor({ draftId, pipeline, etag }: { draftId: string; pipeline: EditorPipeline; etag: string }) {
+export function PipelineStageEditor({ draftId, pipeline, etag, substates, substatesEtag }: {
+  draftId: string; pipeline: EditorPipeline; etag: string; substates?: SubstatesCatalog; substatesEtag?: string;
+}) {
+  const [savedSubstates, setSavedSubstates] = useState(() => substates && substatesEtag ? { catalog: substates, etag: substatesEtag } : null);
+  const [substatesOpen, setSubstatesOpen] = useState(false);
   const [session, setSession] = useState<Session>(() => ({ editor: editorFromPipeline(pipeline), etag }));
   const current = useRef(session);
   const [pending, setPending] = useState<"save" | "reload" | "check" | null>(null);
@@ -143,7 +149,9 @@ export function PipelineStageEditor({ draftId, pipeline, etag }: { draftId: stri
       onRename={name => edit(renameStage(current.current.editor, stage.key, name))}
       onBlur={() => setTouched(previous => new Set(previous).add(stage.key))}
       onMove={direction => edit(moveStage(current.current.editor, stage.key, direction))}
-      onRemove={() => edit(removeCustomStage(current.current.editor, stage.key))} />;
+      onRemove={() => edit(removeCustomStage(current.current.editor, stage.key))}
+      substateCount={savedSubstates?.catalog.substates.length}
+      onSubstates={() => { if (!busy.current && savedSubstates) setSubstatesOpen(true); }} />;
   }
   const recovery = notice?.recovery;
   const statusAction = recovery ? <Button type="button" variant="outline" className="min-h-10" disabled={pending !== null} onClick={() => void recover(recovery)}>
@@ -190,6 +198,9 @@ export function PipelineStageEditor({ draftId, pipeline, etag }: { draftId: stri
       </Card>
       <PipelinePreview state={state} />
       <CriticalRenameDialog open={confirming} onOpenChange={setConfirming} renames={criticalRenames(state)} onConfirm={() => void persist()} />
+      {savedSubstates && <SubstatesSheet draftId={draftId} inProcessName={state.stages.find(stage => stage.kind === "in_process")?.name ?? ""}
+        catalog={savedSubstates.catalog} etag={savedSubstates.etag} open={substatesOpen} onOpenChange={setSubstatesOpen}
+        onSaved={(catalog: SubstatesCatalog, etag: string) => setSavedSubstates({ catalog, etag })} />}
     </>
   );
 }

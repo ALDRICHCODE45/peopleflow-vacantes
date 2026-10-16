@@ -205,25 +205,31 @@ corepack pnpm dev
     arriba del editor hay un botón «Configurar columnas» que lleva a la
     configuración de columnas de ese borrador.
 
-21. **Subestados vacíos (tema claro y oscuro).** En la configuración de un
-    borrador, el menú de apartados muestra «Columnas del pipeline» y «Subestados».
-    Entrá a «Subestados». **Esperado:** la tarjeta «Subestados de En proceso» (o el
-    nombre que le hayas puesto a esa columna), «0 de 50 subestados», el mensaje
-    «Todavía no hay subestados» y las sugerencias «Primera entrevista», «Segunda
-    entrevista», «Pruebas psicométricas» y «Propuesta entregada».
-22. **Agregar y guardar.** Elegí dos sugerencias y agregá uno propio con «Agregar
-    subestado» (por ejemplo «Entrevista técnica»). Cada sugerencia elegida desaparece
-    de la lista de sugerencias. Ordenalos arrastrando o con «⋯» → Subir/Bajar y
-    presioná «Guardar cambios». **Esperado:** aviso «Subestados guardados»; al
-    recargar vuelven en el mismo orden. Las columnas no cambiaron.
-23. **Validaciones y quitar.** Dejá un nombre vacío y repetí otro con distinta
-    mayúscula. **Esperado:** «Escribe un nombre para el subestado.» y «Ya hay otro
-    subestado con este nombre.»; al guardar no se envía nada. Quitá uno con «⋯» →
-    «Quitar subestado»: si era una sugerencia, vuelve a aparecer en «Sugerencias».
-24. **Independencia.** Con «Subestados» abierto en una pestaña y «Columnas del
-    pipeline» en otra, guardá en las dos. **Esperado:** ninguna da «Esto cambió en
-    otro lugar». Si renombraste En proceso, el título de los subestados muestra el
-    nombre nuevo al recargar.
+21. **Subestados vacíos (tema claro y oscuro).** En «Columnas del pipeline», la
+    fila de En proceso muestra el badge «Sin subestados» y el menú de apartados de
+    la izquierda solo tiene «Columnas del pipeline». Abrí el «⋯» de En proceso y
+    elegí «Subestados». **Esperado:** se abre un panel lateral (en celular, a pantalla
+    completa) «Subestados de En proceso» (o el nombre que tenga esa columna, aunque
+    no lo hayas guardado), «0 de 50 subestados», las cuatro sugerencias en una fila
+    alineada a la izquierda y «Todavía no hay subestados. Elige una sugerencia o
+    agrega uno.»
+22. **Agregar y guardar.** Elegí dos sugerencias (desaparecen de «Sugerencias») y
+    agregá uno propio con «Agregar subestado» (por ejemplo «Entrevista técnica»).
+    Ordenalos arrastrando o con «⋯» → Subir/Bajar y presioná «Guardar subestados».
+    **Esperado:** aviso «Subestados guardados», el panel se cierra y la fila de En
+    proceso dice «3 subestados». Al recargar y volver a abrirlo, están en el mismo
+    orden.
+23. **Validaciones, quitar y descartar.** Dejá un nombre vacío y repetí otro con
+    distinta mayúscula. **Esperado:** «Escribe un nombre para el subestado.» y «Ya
+    hay otro subestado con este nombre.»; no se envía nada. Quitá uno con «⋯» →
+    «Quitar subestado»: si era una sugerencia, vuelve a «Sugerencias». Cerrá el panel
+    (Cancelar, Escape o clic afuera) sin guardar. **Esperado:** pregunta «¿Descartar
+    los cambios de subestados?»; «Seguir editando» vuelve al panel y «Descartar» lo
+    cierra sin guardar. Sin cambios, se cierra directo.
+24. **Independencia.** Renombrá una columna sin guardar, abrí «Subestados», agregá
+    uno y guardalo. **Esperado:** el rename de la columna sigue en la tarjeta sin
+    guardar («Guardar cambios» habilitado); guardalo y ninguno de los dos da «Esto
+    cambió en otro lugar».
 
 ## 5. Verificación en la base (solo lectura)
 

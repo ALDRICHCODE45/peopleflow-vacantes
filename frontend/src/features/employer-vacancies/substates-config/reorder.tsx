@@ -8,8 +8,9 @@ import { canMoveTo, type SubstatesEditorState } from "@/features/jobs/drafts/pip
 import { POSITION_MEDALLION } from "../stage-config/reorder";
 
 /** Unlike columns, every substate can occupy either endpoint. */
-export function SubstatesReorder({ state, disabled, onMove, children }: {
-  state: SubstatesEditorState; disabled: boolean; onMove: (key: string, targetIndex: number) => void; children: ReactNode;
+export function SubstatesReorder({ state, disabled, onMove, onDragStateChange, children }: {
+  state: SubstatesEditorState; disabled: boolean; onMove: (key: string, targetIndex: number) => void;
+  onDragStateChange?: (dragging: boolean) => void; children: ReactNode;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const inputMode = useRef<"pointer" | "keyboard">("pointer");
@@ -35,9 +36,9 @@ export function SubstatesReorder({ state, disabled, onMove, children }: {
   const active = state.entries.find(entry => entry.key === activeId);
   return <DndContext id="pipeline-substates-reorder" sensors={sensors} collisionDetection={collisionDetection}
     accessibility={{ screenReaderInstructions: { draggable: "Presiona espacio o enter para tomar el subestado, usa las flechas arriba y abajo y vuelve a presionar espacio o enter para soltarlo. Escape cancela el movimiento." }, announcements }}
-    onDragStart={event => { inputMode.current = event.activatorEvent.type === "keydown" ? "keyboard" : "pointer"; setActiveId(String(event.active.id)); }}
-    onDragCancel={() => setActiveId(null)}
-    onDragEnd={({ active, over }) => { setActiveId(null); if (!disabled && over) onMove(String(active.id), position(over.id)); }}>
+    onDragStart={event => { inputMode.current = event.activatorEvent.type === "keydown" ? "keyboard" : "pointer"; setActiveId(String(event.active.id)); onDragStateChange?.(true); }}
+    onDragCancel={() => { setActiveId(null); onDragStateChange?.(false); }}
+    onDragEnd={({ active, over }) => { setActiveId(null); onDragStateChange?.(false); if (!disabled && over) onMove(String(active.id), position(over.id)); }}>
     {children}
     <DragOverlay dropAnimation={null} aria-hidden="true">
       {active && <Item variant="outline" className="bg-card shadow-lg"><ItemMedia variant="icon" className={POSITION_MEDALLION}>{position(active.key) + 1}</ItemMedia><ItemContent><ItemTitle>{active.name || "Sin nombre"}</ItemTitle></ItemContent></Item>}

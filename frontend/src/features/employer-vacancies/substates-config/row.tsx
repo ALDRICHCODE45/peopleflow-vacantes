@@ -46,11 +46,11 @@ export function SubstateRow({ entry, position, state, error, disabled, inputRef,
     return <DropdownMenuItem key={action.id} className="min-h-10" disabled={action.disabled} variant={action.id === "remove" ? "destructive" : "default"}
       onClick={() => { if (action.id === "remove") onRemove(); else onMove(action.id); }}><Icon aria-hidden="true" />{action.label}</DropdownMenuItem>;
   };
-  return <Item ref={setRowRef} render={<li />} variant="outline" className={cn(isDragging && "opacity-60", isOver && "ring-2 ring-ring")}>
+  return <Item ref={setRowRef} render={<li />} variant="outline" size="xs" className={cn("flex-nowrap", isDragging && "opacity-60", isOver && "ring-2 ring-ring")}>
     <Button type="button" variant="ghost" size="icon" className="size-10 shrink-0 cursor-grab touch-none active:cursor-grabbing" ref={setActivatorNodeRef}
       disabled={disabled} {...attributes} {...listeners} aria-label={`Arrastrar ${entry.name}`}><GripVertical aria-hidden="true" /></Button>
     <ItemMedia variant="icon" className={POSITION_MEDALLION} aria-hidden="true">{position}</ItemMedia>
-    <ItemContent className="min-w-40">
+    <ItemContent className="min-w-0">
       <FieldGroup><Field data-invalid={!!message} data-disabled={disabled}>
         <FieldLabel htmlFor={id} className="sr-only">Nombre del subestado {position}</FieldLabel>
         <Input id={id} ref={inputRef} className="min-h-10" value={entry.name} disabled={disabled} onChange={event => onRename(event.target.value)} onBlur={onBlur}

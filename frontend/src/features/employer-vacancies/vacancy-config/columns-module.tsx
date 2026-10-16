@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { DraftEditErrorState } from "@/features/jobs/drafts/reopen/error-state";
 import type { DraftEditFailureReason } from "@/features/jobs/drafts/reopen/load";
 import { loadDraftPipelineAction, type DraftPipelineActionResult } from "@/features/jobs/drafts/pipeline/actions";
+import { loadDraftSubstatesAction, type DraftSubstatesActionResult } from "@/features/jobs/drafts/pipeline/substates-actions";
 import { PipelineStageEditor } from "../stage-config/editor";
 import { PipelineEditorSkeleton } from "../stage-config/loading";
 
@@ -18,17 +19,22 @@ export function pipelineLoadReason(reason: string): DraftEditFailureReason {
 /** The pipeline configuration is read only when this sub-module is mounted. */
 export function VacancyColumnsModule({ draftId }: { draftId: string }) {
   const [attempt, setAttempt] = useState(0);
-  const [loaded, setLoaded] = useState<{ id: string; result: DraftPipelineActionResult } | null>(null);
-  const result = loaded?.id === draftId ? loaded.result : null;
+  const [loaded, setLoaded] = useState<{ id: string; pipeline: DraftPipelineActionResult; substates: DraftSubstatesActionResult } | null>(null);
+  const result = loaded?.id === draftId ? loaded : null;
   useEffect(() => {
     let current = true;
-    loadDraftPipelineAction(draftId).catch((): DraftPipelineActionResult => ({ ok: false, reason: "no_response", reference: {} })).then(result => {
-      if (current) setLoaded({ id: draftId, result });
+    Promise.all([
+      loadDraftPipelineAction(draftId).catch((): DraftPipelineActionResult => ({ ok: false, reason: "no_response", reference: {} })),
+      loadDraftSubstatesAction(draftId).catch((): DraftSubstatesActionResult => ({ ok: false, reason: "no_response", reference: {} })),
+    ]).then(([pipeline, substates]) => {
+      if (current) setLoaded({ id: draftId, pipeline, substates });
     });
     return () => { current = false; };
   }, [draftId, attempt]);
   const retry = () => { setLoaded(null); setAttempt(value => value + 1); };
   if (result === null) return <PipelineEditorSkeleton />;
-  if (!result.ok) return <DraftEditErrorState reason={pipelineLoadReason(result.reason)} onRetry={retry} />;
-  return <PipelineStageEditor key={draftId} draftId={draftId} pipeline={result.pipeline} etag={result.etag} />;
+  if (!result.pipeline.ok) return <DraftEditErrorState reason={pipelineLoadReason(result.pipeline.reason)} onRetry={retry} />;
+  if (!result.substates.ok) return <DraftEditErrorState reason={pipelineLoadReason(result.substates.reason)} onRetry={retry} />;
+  return <PipelineStageEditor key={draftId} draftId={draftId} pipeline={result.pipeline.pipeline} etag={result.pipeline.etag}
+    substates={result.substates.catalog} substatesEtag={result.substates.etag} />;
 }
