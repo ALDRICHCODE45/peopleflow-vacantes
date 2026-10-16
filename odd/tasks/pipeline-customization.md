@@ -25,6 +25,7 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **S17.** P2 answers: «P2a listado/detalle, P2b postular (Recomendado)»; «Todas obligatorias (Recomendado)»; «No se deja guardar (Recomendado)»; «Texto, ubicación, modalidad, jornada, contrato, área (Rec.)».
 - **S18.** P2b CV library (user): «Hasta 10 (Recomendado)» CVs per candidate; deleting a used CV: «La postulación lo conserva (Recomendado)» — it leaves the library but applications keep the exact version (DOC-7); final retention stays an open privacy decision.
 - **S19.** P2b (user): «Solo «Enviada» por ahora (Recomendado)» — candidates see only «Postulación enviada» until cut 4; «Sí, renombrar (Recomendado)» — CVs can be renamed (library label only).
+- **S20.** Candidate identity (user): «Mismo pool, rol en nuestra base (Recomendado)»; «Dos cuentas separadas (Recomendado)»; «Email y contraseña (Recomendado)».
 
 ## Tasks
 
@@ -63,8 +64,9 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - [x] T33 — S14–S17: publication P2 design proposal, design §10 (P2a detailed, P2b outline) (inline) — proposal commit
 - [x] T34 — S14: P2a contract review with frontend agent; 4 clarifications accepted — contract commit
 - [x] T35 — S17 + §10.2–§10.4: P2a backend — projection migration 00020 (own commit), projection write in publish and published saves, published-write guard (422 on draft PATCH / delivery PUT / management PUT), GET /v2/jobs and /v2/jobs/{id} over legacy + projection, docs (worker) — 0471bcf (00020), b365a17
-- [ ] T36 — parent integration run on isolated DB + independent verification — pending
-- [ ] T37 — S15–S19: P2b design and contract (CV library + apply), design §10.5 — proposal commit, frontend review pending
+- [x] T36 — parent integration run on isolated DB (L34) + independent verification passed + native review approved (L36)
+- [x] T37 — S15–S19: P2b design and contract (CV library + apply), design §10.5 — accepted by the frontend (L36); blocked on candidate identity
+- [ ] T38 — S20: candidate identity cut (P2b0) design and contract, design §11 — pending
 
 ## Log
 
@@ -103,3 +105,4 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **L33.** User answered two P2b CV-library questions (S18) while the P2a worker runs.
 - **L34.** P2a backend committed by the parent: 0471bcf migration 00020 (vacancy_public_projections, FK cascade to vacancy_processes, generated Spanish tsvector + GIN) with its tests and the sqlc model struct, b365a17 projection builder + transactional writes in publish and published saves + published-write guard (422 on draft PATCH, delivery PUT, management PUT) + GET /v2/jobs and /v2/jobs/{id} + docs (backend/docs/public-jobs-v2.md). First split left the sqlc model in the second commit, so the migration commit failed the sqlc drift gate alone; both local commits were redone with `git reset --soft` (no content lost; final tree byte-identical). Each commit builds, vets (incl. integration tag) and passes `go test ./...` alone in a detached temporary worktree. Integration with `-race` over infrastructure/postgres/..., cmd/api and migrations green on an isolated `draft_test` (created and dropped): 7 P2a tests, 0 failures, 0 data races; the legacy jobs repository tests skip (they need DATABASE_URL, package untouched). Risk: item 1 (new migration), item 3 (new public API and guard on existing writes, requested).
 - **L35.** Frontend agent (msg a5dc68ae) asked to close P2b in parallel: CV library list/upload/rename/delete, public screening GET, apply with per-question details, candidate list, Next body limit. User answered the candidate-visible status and CV renaming (S19). §10.5 now holds the full P2b proposal.
+- **L36.** P2a closed backend-side: independent verify (gentle-ai-verify mvblogox-f-0mc9) PASS with no blocking defect — privacy confirmed in SQL and DTOs, ordering/cursor, guard atomicity, legacy untouched, `resolvePublicationError` is live (errors.go:102). Native review: assess on 3c2184e reported high risk (`reviewDue`), inspect offered the accumulated branch since origin/main (cuts 1–3, P1 and frontend files), so START used the explicit P2a slice base 3c2184e with lenses risk + reliability; lineage review-153a08d109e8cdbd approved by both lenses and acknowledged (authority burned). Frontend agent (msg a82eaafb) accepted the P2b contract but found there is no candidate session (frontend `/candidato/login` is visual-only; NextAuth/Cognito only for recruiters) → a candidate identity cut (P2b0) must come first; upload will go through a Next Route Handler (no global Server Action limit change). User answered the identity questions (S20).
