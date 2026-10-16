@@ -24,6 +24,7 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **S16.** Applying (user): «Sí, con sesión (Recomendado)» — organic applications require a signed-in candidate account; «Sí, queda en sus CVs (Recomendado)» — an uploaded CV joins the candidate's CV library and can be reused across applications, each application keeping the exact version it used.
 - **S17.** P2 answers: «P2a listado/detalle, P2b postular (Recomendado)»; «Todas obligatorias (Recomendado)»; «No se deja guardar (Recomendado)»; «Texto, ubicación, modalidad, jornada, contrato, área (Rec.)».
 - **S18.** P2b CV library (user): «Hasta 10 (Recomendado)» CVs per candidate; deleting a used CV: «La postulación lo conserva (Recomendado)» — it leaves the library but applications keep the exact version (DOC-7); final retention stays an open privacy decision.
+- **S19.** P2b (user): «Solo «Enviada» por ahora (Recomendado)» — candidates see only «Postulación enviada» until cut 4; «Sí, renombrar (Recomendado)» — CVs can be renamed (library label only).
 
 ## Tasks
 
@@ -63,7 +64,7 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - [x] T34 — S14: P2a contract review with frontend agent; 4 clarifications accepted — contract commit
 - [x] T35 — S17 + §10.2–§10.4: P2a backend — projection migration 00020 (own commit), projection write in publish and published saves, published-write guard (422 on draft PATCH / delivery PUT / management PUT), GET /v2/jobs and /v2/jobs/{id} over legacy + projection, docs (worker) — 0471bcf (00020), b365a17
 - [ ] T36 — parent integration run on isolated DB + independent verification — pending
-- [ ] T37 — P2b design and contract (CV library + apply) — pending
+- [ ] T37 — S15–S19: P2b design and contract (CV library + apply), design §10.5 — proposal commit, frontend review pending
 
 ## Log
 
@@ -101,3 +102,4 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **L32.** Frontend agent (msg 53e0858c) accepted P2a with four clarifications recorded in §10.3 (seniority enum and nullability, legacy `published_at` meaning, compensation = draft shape with `pay_period` and completeness rule, legacy_salary as nullable decimal strings, public error/headers). The draft key is `pay_period`; the proposal's `period` was corrected.
 - **L33.** User answered two P2b CV-library questions (S18) while the P2a worker runs.
 - **L34.** P2a backend committed by the parent: 0471bcf migration 00020 (vacancy_public_projections, FK cascade to vacancy_processes, generated Spanish tsvector + GIN) with its tests and the sqlc model struct, b365a17 projection builder + transactional writes in publish and published saves + published-write guard (422 on draft PATCH, delivery PUT, management PUT) + GET /v2/jobs and /v2/jobs/{id} + docs (backend/docs/public-jobs-v2.md). First split left the sqlc model in the second commit, so the migration commit failed the sqlc drift gate alone; both local commits were redone with `git reset --soft` (no content lost; final tree byte-identical). Each commit builds, vets (incl. integration tag) and passes `go test ./...` alone in a detached temporary worktree. Integration with `-race` over infrastructure/postgres/..., cmd/api and migrations green on an isolated `draft_test` (created and dropped): 7 P2a tests, 0 failures, 0 data races; the legacy jobs repository tests skip (they need DATABASE_URL, package untouched). Risk: item 1 (new migration), item 3 (new public API and guard on existing writes, requested).
+- **L35.** Frontend agent (msg a5dc68ae) asked to close P2b in parallel: CV library list/upload/rename/delete, public screening GET, apply with per-question details, candidate list, Next body limit. User answered the candidate-visible status and CV renaming (S19). §10.5 now holds the full P2b proposal.

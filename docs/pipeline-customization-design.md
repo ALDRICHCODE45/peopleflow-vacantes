@@ -631,7 +631,8 @@ the editor — frontend decides.
 
 ## 10. Publication P2 — public vacancies and applications (proposal)
 
-Status: **P2a contract agreed** with the frontend agent (msg 53e0858c); **P2b outline.**
+Status: **P2a contract agreed** with the frontend agent (msg 53e0858c); **P2b proposal**
+(§10.5) under frontend review.
 Product answers in §10.6.
 P2 is split (§10.6 S1): **P2a** makes published vacancies publicly visible next to
 legacy catalog jobs; **P2b** adds the candidate CV library and applying with CV and
@@ -767,19 +768,86 @@ Additive migration `00020`: projection table keyed by the vacancy id (FK to the 
 typed filter columns, JSONB for rich description / benefits / compensation, generated
 `tsvector` with GIN index, and the source draft version. No existing rows rewritten.
 
-### 10.5 P2b outline (to be finalized after P2a closes)
+### 10.5 P2b contract — CV library and applying (proposal)
 
-- **CV library:** `POST /v2/me/cvs` (multipart, signed-in candidate) → `{id, name, size,
-  content_type, uploaded_at}`; PDF or DOCX verified by content, ≤5 MB; `413 cv_too_large`,
-  `415 cv_unsupported_type`, `400 cv_content_mismatch`; immutable versions; private
-  storage port with a local-disk adapter (S3 later), generated keys, no public mount,
-  orphan cleanup. `GET /v2/me/cvs` lists them; reuse across applications (§10.6 S6).
-- **Apply:** `POST /v2/jobs/{id}/applications` (signed-in candidate, `Idempotency-Key`),
-  body `{cv_id, answers}`; all screening questions required, open answers ≤2,000
-  characters (§10.6 S2); answers bound to the questionnaire revision; creates a process
-  participation in the `new` stage with intake audit and the exact CV version; no cover
-  letter; `409` when already applied. Legacy `applications` untouched.
-- **Candidate view:** the candidate's applications list for `/candidato/postulaciones`.
+Status: **proposal under frontend review.** All routes require a signed-in **candidate**
+(Bearer of a `candidate` user; a recruiter or owner token → `403 forbidden`; no session →
+`401`). Error envelope `{error, code}` unless stated; private responses carry
+`Cache-Control: no-store`.
+
+**CV library** (§10.6 S5, S6, S8, S9):
+
+- `GET /v2/me/cvs` → `{ "items": [cv], "limits": { "max_cvs": 10, "max_bytes": 5242880,
+  "content_types": ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"] } }`,
+  newest first. `cv` is exactly `{id, name, size, content_type, uploaded_at, in_use}`;
+  `in_use` is true when any application references it.
+- `POST /v2/me/cvs` — `multipart/form-data` with exactly one file part `file`
+  (≤5 MB = 5,242,880 bytes) and an optional text part `name` (1–120 code points after
+  normalization; default: the file name without path). → `201` with `cv`.
+  Rejections: `413 cv_too_large`; `415 cv_unsupported_type` (neither PDF nor DOCX);
+  `400 cv_content_mismatch` (allowed extension, different real content); `409
+  cv_library_full` (already 10); `400 invalid_request` (malformed multipart, missing or
+  repeated `file`, unknown parts). Type is decided by content: PDF magic `%PDF-`;
+  DOCX = ZIP with `[Content_Types].xml` and `word/document.xml`. No upload idempotency
+  key: a retried upload creates another CV the candidate can delete.
+- `PATCH /v2/me/cvs/{id}` body exactly `{ "name": … }` → `200` with `cv`; renames only
+  the library label (§10.6 S9).
+- `DELETE /v2/me/cvs/{id}` → `204`. The CV leaves the library; every application keeps
+  the exact version it used (DOC-7, §10.6 S8). An unused CV's file is removed from
+  storage; a used one is retained for its applications. Final retention remains open.
+- `GET /v2/me/cvs/{id}/file` → the candidate's own file with its stored content type
+  and `Content-Disposition: attachment`. Another candidate's id → `404`.
+- Storage: private port with a local-disk adapter now (root from configuration, random
+  keys, never served by a static mount), S3 adapter later without contract changes. File
+  first, then the database row; a failed row write deletes the file; a reconciler removes
+  files with no row.
+
+**Screening form** — `GET /v2/jobs/{id}/screening` (public, like the detail) → `{
+"questionnaire_revision": string, "questions": [ {id, prompt, type, options} ],
+"limits": { "open_answer_max_length": 2000 } }`. `type` is `open | single_choice`;
+`options` is `[{id,label}]` for `single_choice` and `null` for `open`; all questions are
+required (§10.6 S2). It never reveals answer keys or whether a question is evaluated
+(existing safe projector). `questionnaire_revision` is an opaque fingerprint of the
+current questions. Legacy or unpublished id → `404`. A vacancy with no questions returns
+`questions: []`.
+
+**Apply** — `POST /v2/jobs/{id}/applications`, `Idempotency-Key` required (same rules
+as draft create, scoped to candidate + vacancy), body exactly:
+
+```json
+{ "cv_id": "…", "questionnaire_revision": "…",
+  "answers": [ { "question_id": "…", "option_id": "…" }, { "question_id": "…", "text": "…" } ] }
+```
+
+- One answer per question, all questions answered; `option_id` for `single_choice`,
+  `text` (1–2,000 code points after trim) for `open`.
+- `201` → exactly `{ "id", "vacancy_id", "status": "submitted", "applied_at" }`; replay
+  with the same key returns the original `201` with `Idempotency-Replayed: true`.
+- One transaction: lock the vacancy process → check published and company active →
+  check revision → validate answers → create the participation in the vacancy's `new`
+  stage with the exact CV version, a snapshot of the questions and answers, source
+  `organic`, an intake history entry and an audit event. No cover letter, no automatic
+  rejection or movement (INT-18, INT-22). Legacy `applications` untouched.
+- Rejections: `404 not_found` (unknown, legacy, unpublished or inactive-company
+  vacancy); `409 already_applied`; `409 questionnaire_changed` (stale revision — reload
+  the form); `422 invalid_answers` with `{error, code, details: [{question_id, reason}]}`
+  where `reason` is `required | unknown_option | too_long | wrong_type`; `422
+  cv_unavailable` (CV not in the candidate's library); `400 invalid_request` (shape,
+  unknown or duplicate question ids); `409 idempotency_conflict`; `400`/`428`
+  idempotency-key codes as draft create.
+
+**Candidate list** — `GET /v2/me/applications?cursor&limit` → `{ "items": [ { "id",
+"vacancy": {id, title}, "company": {id, name}, "applied_at", "status": "submitted" } ],
+"next_cursor": string | null }`, newest first. Only `submitted` exists until cut 4
+decides what candidates see (§10.6 S10); internal stages are never exposed.
+
+**Storage (backend):** additive migrations for candidate CV files/versions, process
+participations (unique per process and candidate) with stage history, and their
+idempotency records. Existing data untouched.
+
+**Frontend note:** the upload crosses a Next Server Action or route handler; any body
+limit there must allow at least 5 MB plus multipart overhead (frontend configuration,
+queued for user review).
 
 ### 10.6 Decisions recorded for P2
 
@@ -792,5 +860,9 @@ typed filter columns, JSONB for rich description / benefits / compensation, gene
 - **S5 (user, S15):** CV mandatory, local storage behind an interface, PDF/DOCX, 5 MB.
 - **S6 (user, S16):** applying requires a candidate session; CVs live in the candidate's
   library and are reusable, each application keeping its exact version.
-- **Frontend inputs (msgs dbea2adf, b6993910):** one public listing with a common shape;
+- **S8 (user):** up to 10 CVs per candidate; deleting a used CV keeps the version in its
+  applications.
+- **S9 (user):** candidates can rename CVs (library label only).
+- **S10 (user):** candidates see only «Postulación enviada» until cut 4 decides more.
+- **Frontend inputs (msgs dbea2adf, b6993910, a5dc68ae):** one public listing with a common shape;
   VAC-4 only; two-step upload then apply; field-specific CV codes; URL compatibility.
