@@ -628,3 +628,149 @@ the editor — frontend decides.
 - **S7 (user):** confirmation with a summary before publishing.
 - **Frontend inputs (msg 253fa21d):** server-side readiness codes, Idempotency-Key plus
   draft If-Match, `422` with a `missing` list, same id, portfolio status.
+
+## 10. Publication P2 — public vacancies and applications (proposal)
+
+Status: **P2a proposal under frontend review; P2b outline.** Product answers in §10.6.
+P2 is split (§10.6 S1): **P2a** makes published vacancies publicly visible next to
+legacy catalog jobs; **P2b** adds the candidate CV library and applying with CV and
+screening answers, landing in the `new` stage. Branch `feat/vacancy-public` is stacked
+on `feat/vacancy-publication` (L28).
+
+Rules: VAC-4 (only offer content is public; salary only when enabled), VAC-6 (paused /
+closed behavior — later lifecycle cut), SAL-3…SAL-8 (salary filters — later cut,
+§10.6 S4), SRCH-1 (filter vocabulary — frontend), INT-17/INT-18 (CV mandatory, no
+cover letter — P2b), INT-22 (no automatic rejection — P2b), DOC-7 (each application
+keeps its CV version — P2b).
+
+### 10.1 Repository facts (exploration, L31)
+
+- Public catalog today: `GET /jobs` and `/jobs/{id}` over legacy `jobs` only, lenient
+  query parsing, Spanish full-text over title (A) and description (B), keyset paging,
+  company `{id,name}`; the legacy DTO has no rich description, requirements, benefits,
+  schedule, contract or professional area.
+- A published vacancy's content lives in `job_drafts.fields` (BYTEA canonical JSON) —
+  not queryable. Compensation visibility is the draft key `public_visible` (default
+  false). Rich descriptions have a derived plain text.
+- A safe screening projector already exists (`dtos/screening_candidate_v2.go`): id,
+  prompt, `open | single_choice`, options `{id,label}` — never answer keys or whether a
+  question is evaluated.
+- No upload handling exists in the backend; the frontend apply wizard is a prototype.
+
+### 10.2 P2a model — public projection
+
+- **One public projection row per published vacancy** (same id), holding only VAC-4
+  content plus the public filter columns: title, rich description, plain description,
+  required/preferred requirements, benefits (predefined codes + custom), location,
+  work mode, work schedule, contract type, professional area, seniority, compensation
+  **only when `public_visible` is true**, `published_at`, company id, and a generated
+  Spanish search vector (title A, plain description B). Never stored there: requester,
+  headcount, request date, delivery, pipeline, screening answer keys, hidden salary.
+- **Kept in sync transactionally:** written in the publish transaction and in every
+  draft save of a published vacancy (same transaction as the save, P1 §9.7 S3). No
+  eventual consistency.
+- **Published content cannot become incomplete** (§10.6 S3): while a vacancy is
+  published, a write that would make any §9.3 requirement missing is rejected with
+  `422 publication_incomplete` and the codes that would be missing — on draft `PATCH`,
+  delivery `PUT` and management `PUT`. `commitment_date_past` is exempt (time passes;
+  publication is not undone). Changing values remains allowed.
+- **Legacy rows are untouched** and keep their own visibility rules. Vacancies published
+  before this cut (only in review databases, P1 unmerged) appear publicly after their
+  next draft save; no data backfill migration.
+
+### 10.3 P2a contract — public routes (anonymous, additive)
+
+New routes; legacy `GET /jobs*` stay unchanged.
+
+`GET /v2/jobs` — query parameters, each at most once, unknown keys rejected:
+
+| Param | Meaning |
+| --- | --- |
+| `q` | Spanish full-text over title and description |
+| `location` | case-insensitive substring of location |
+| `work_mode` | `onsite \| remote \| hybrid` |
+| `work_schedule` | `full_time \| part_time` |
+| `contract_type` | `project \| indefinite \| professional_services \| temporary \| internship` |
+| `professional_area` | one of the 16 catalog codes |
+| `limit` | 1–50, default 20 |
+| `cursor` | opaque token from `next_cursor` |
+
+Invalid values → `400 invalid_request` (v2 is strict, unlike v1). Filters on schedule,
+contract and professional area match only published vacancies: legacy rows have no such
+dimension and are excluded while those filters are active (legacy `employment_type` is
+never mapped to contract types or schedule — business rules §12.2).
+
+Ordering: with `q`, rank descending; then `published_at` descending; then source and id
+as stable tie-breakers; the cursor encodes that position across both sources.
+
+List item and detail share one shape (`snake_case`, like the v1 public API):
+
+```json
+{
+  "id": "…",
+  "source": "vacancy",
+  "title": "Backend Go",
+  "company": { "id": "…", "name": "Acme" },
+  "location": "Ciudad de México",
+  "work_mode": "hybrid",
+  "work_schedule": "full_time",
+  "contract_type": "indefinite",
+  "professional_area": "technology_systems",
+  "seniority": "mid",
+  "legacy_employment_type": null,
+  "compensation": { "mode": "range", "amount": null, "min": "30000.00", "max": "40000.00", "currency": "MXN", "period": "monthly", "basis": "gross" },
+  "legacy_salary": null,
+  "published_at": "2026-10-16T18:00:00.000000Z"
+}
+```
+
+- `source` is `legacy | vacancy`. Every key is always present; dimensions a source does
+  not have are `null` (`work_schedule`, `contract_type`, `professional_area` for
+  legacy; `legacy_employment_type` and `legacy_salary {min,max,currency}` for vacancies).
+  `compensation` is `null` unless the vacancy enabled public salary.
+- List envelope `{ "items": [...], "next_cursor": string | null }`.
+
+`GET /v2/jobs/{id}` → `200` with the list shape plus `description` (rich document for
+vacancies, `null` for legacy), `description_plain` (both), `requirements
+{required, preferred}` (nullable strings; both `null` for legacy) and `benefits
+{predefined: [codes], custom: [strings]}` (empty arrays for legacy). `404 not_found`
+for unknown, unpublished or inactive-company ids. Ids are UUIDs in both sources, so
+existing `/vacantes/{id}` links keep working; `source` tells the client which apply flow
+applies (legacy flow unchanged; vacancy flow arrives in P2b).
+
+Responses are public and cacheable only as the legacy public routes are today; no
+private data is ever included.
+
+### 10.4 P2a storage (backend)
+
+Additive migration `00020`: projection table keyed by the vacancy id (FK to the process),
+typed filter columns, JSONB for rich description / benefits / compensation, generated
+`tsvector` with GIN index, and the source draft version. No existing rows rewritten.
+
+### 10.5 P2b outline (to be finalized after P2a closes)
+
+- **CV library:** `POST /v2/me/cvs` (multipart, signed-in candidate) → `{id, name, size,
+  content_type, uploaded_at}`; PDF or DOCX verified by content, ≤5 MB; `413 cv_too_large`,
+  `415 cv_unsupported_type`, `400 cv_content_mismatch`; immutable versions; private
+  storage port with a local-disk adapter (S3 later), generated keys, no public mount,
+  orphan cleanup. `GET /v2/me/cvs` lists them; reuse across applications (§10.6 S6).
+- **Apply:** `POST /v2/jobs/{id}/applications` (signed-in candidate, `Idempotency-Key`),
+  body `{cv_id, answers}`; all screening questions required, open answers ≤2,000
+  characters (§10.6 S2); answers bound to the questionnaire revision; creates a process
+  participation in the `new` stage with intake audit and the exact CV version; no cover
+  letter; `409` when already applied. Legacy `applications` untouched.
+- **Candidate view:** the candidate's applications list for `/candidato/postulaciones`.
+
+### 10.6 Decisions recorded for P2
+
+- **S1 (user):** split into P2a (public listing/detail) and P2b (CV library and apply).
+- **S2 (user):** all screening questions are required; open answers up to 2,000
+  characters; never automatic rejection (INT-22).
+- **S3 (user):** a published vacancy cannot be saved with a required item missing.
+- **S4 (user):** P2a filters: text, location, modality, jornada, contract, professional
+  area; salary and language filters in their own cut.
+- **S5 (user, S15):** CV mandatory, local storage behind an interface, PDF/DOCX, 5 MB.
+- **S6 (user, S16):** applying requires a candidate session; CVs live in the candidate's
+  library and are reusable, each application keeping its exact version.
+- **Frontend inputs (msgs dbea2adf, b6993910):** one public listing with a common shape;
+  VAC-4 only; two-step upload then apply; field-specific CV codes; URL compatibility.

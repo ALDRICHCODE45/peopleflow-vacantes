@@ -22,6 +22,7 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **S14.** Working mode while away (user, relayed by frontend msg dbea2adf): «Mira hermano, ahora no tengo tiempo de probarlo localmente, la verdad es que no estoy en mi casa, estoy usando una herramienta para poder controlar mis agentes, es por eso que te pido (a ti y al backend, comunicaselo) que sigan implementando features en medida de lo posible por favor, y vayan acumulando las cosas que yo tengo que revisar, cuando llegue a mi casa, lo reviso todo y hago los comentarios/mejoras necesarias, pero no quiero atascar el trabajo. si puedo responderles y contestar sus dudas pero no puedo ver nada en el navegador.»
 - **S15.** P2 CV handling (user): «Almacenamiento local detrás de una interfaz (Recomendado)» — CV mandatory now (INT-17), stored on local disk behind a storage interface, S3 later. Formats: «PDF y Word (.docx) (Recomendado)»; maximum size: «5 MB (Recomendado)».
 - **S16.** Applying (user): «Sí, con sesión (Recomendado)» — organic applications require a signed-in candidate account; «Sí, queda en sus CVs (Recomendado)» — an uploaded CV joins the candidate's CV library and can be reused across applications, each application keeping the exact version it used.
+- **S17.** P2 answers: «P2a listado/detalle, P2b postular (Recomendado)»; «Todas obligatorias (Recomendado)»; «No se deja guardar (Recomendado)»; «Texto, ubicación, modalidad, jornada, contrato, área (Rec.)».
 
 ## Tasks
 
@@ -57,7 +58,7 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - [x] T30 — §9.4: draft list items gain `status` and `published_at` (requested contract change, Risk item 3) + docs (worker) — 9965943
 - [x] T31 — parent integration run on isolated DB (L26) + independent verification passed (L27)
 - [ ] T32 — S3: user browser test with frontend, then local merge to main — pending
-- [ ] T33 — S14: publication P2 design proposal, design §10 (inline) — pending
+- [x] T33 — S14–S17: publication P2 design proposal, design §10 (P2a detailed, P2b outline) (inline) — proposal commit
 - [ ] T34 — S14: P2 contract review with frontend agent — pending
 
 ## Log
@@ -92,3 +93,4 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **L28.** Working mode agreed with the frontend agent under S14: nothing merges into `main` without the user's browser test; branches are stacked (backend P2 `feat/vacancy-public` on `feat/vacancy-publication`; frontend P2 on `feat/vacancy-publication-ui`); each side keeps a review queue (backend: `backend/docs/pending-user-review.md`); product questions still go to the user. T32 (P1 browser test) stays pending in that queue.
 - **L29.** User decided P2 CV handling (S15). Exploration for P2 launched (public listing/search, public projection, screening v2 privacy, apply flow, upload handling).
 - **L30.** Frontend inputs for the CV upload (msg b6993910): two steps (multipart upload → `{cvId, name, size, type}`, then apply with `cvId` + answers + Idempotency-Key); Next Server Action body limit raised to ~6 MB on the frontend (queued for user review); field-specific rejections (`cv_too_large` 413, `cv_unsupported_type` 415, `cv_content_mismatch` 400). User answered session and reuse (S16).
+- **L31.** Exploration (gentle-ai-explore mvbfnfzn-d-9n9l): legacy public API lenient and legacy-only; published content in BYTEA (needs a projection); compensation key is `public_visible`; safe screening projector exists; no upload handling; wizard is a prototype. User answered four P2 questions (S17).
