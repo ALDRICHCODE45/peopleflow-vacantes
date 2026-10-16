@@ -302,3 +302,132 @@ The contract did not change.
 - **S4 (user):** names unique within the vacancy, same comparison as columns.
 - **Frontend inputs (msg 88c7cf5b):** own resource and ETag; reuse cut-1 conventions;
   `limits` in the response; substates hang from kind `in_process`.
+
+## 8. Cut 3 — delivery cutoff, target and commitment date (proposal)
+
+Status: **proposal under frontend review.** Product answers (user, 2026-10-16) in §8.6.
+Rules: PIPE-7 (any progression stage may be the cutoff, never `Descartados`),
+PIPE-15 (replace an active cutoff before deleting its column), CFG-1, CFG-2, CFG-4,
+CFG-6, CFG-8, CFG-9, CFG-10, CFG-12, VAC-3 (all three are required to publish, not to
+save a draft). Out of scope: CFG-11 (publishing with a past date — publication cut),
+CFG-3/CFG-7 freeze at fulfillment and delivery evaluation (cuts 4+), CFG-5 pauses.
+
+### 8.1 Model
+
+Three independent, individually nullable fields per vacancy (today: the draft):
+
+| Field | Meaning | Valid value |
+| --- | --- | --- |
+| `cutoffStageId` | Delivery milestone column (DEL-1) | id of a **progression** stage of the current pipeline configuration (stored or deterministic default ids); never the `discarded` exit |
+| `targetQuantity` | Distinct candidates to deliver | integer 1–999 (technical ceiling, §8.6 S2) |
+| `commitmentDate` | Fecha compromiso de entrega | local date `YYYY-MM-DD` in `America/Mexico_City`; must be a business day |
+
+- A never-configured vacancy has all three `null` (version `"0"`); the cutoff starts
+  empty (§8.6 S1). Any combination of nulls may be saved: a draft may be incomplete.
+  Requiring all three is the publication cut's job (VAC-3).
+- The commitment date covers the whole local day (CFG-9); the server's "today" is the
+  current date in `America/Mexico_City`, never the viewer's zone (CFG-12).
+- **Date window on change:** a new or changed `commitmentDate` must be a business day
+  in `[today, today + 1 year]` (§8.6 S3); `today + 1 year` is the same calendar date
+  next year (29 Feb → 28 Feb). A stored date sent back **unchanged** is accepted even if
+  it is now in the past or outside the window, so an old draft can still save its other
+  fields; CFG-11 blocks publishing it later.
+- Removing the cutoff column: built-in stages can never be removed (Q1), so only a
+  custom cutoff stage is affected. A pipeline `PUT` that omits the stage currently
+  stored as `cutoffStageId` is rejected with `409 cutoff_stage_in_use` and writes
+  nothing (PIPE-15). Reordering or renaming the cutoff stage is allowed. Delivery and
+  pipeline writes lock the same draft row, so they cannot race.
+
+### 8.2 Business-day calendar
+
+Business days are Monday–Friday excluding the mandatory rest days of art. 74 of the
+Ley Federal del Trabajo (text in force, fraction VII reformed DOF 30-09-2024),
+**computed by rule** in the backend (§8.6 S4), never hardcoded in the client:
+
+- fixed: 1 January, 1 May, 16 September, 25 December;
+- movable Mondays: first Monday of February, third Monday of March, third Monday of
+  November;
+- 1 October every six years when it is the federal executive transmission (2030,
+  2036, …);
+- fraction IX (ordinary election days set by electoral law) currently always falls on a
+  Sunday, so it is already excluded as a weekend and is not modeled; if the law changes,
+  the rule changes in code.
+
+No organization calendars (CFG-8). A law change is a code change plus a note here.
+
+### 8.3 Contract
+
+Own resource, own version and ETag:
+`/v2/me/company/job-drafts/{draftId}/pipeline/delivery`. Identity, authorization,
+`Cache-Control: no-store`, envelope and inherited status codes exactly as §4.
+
+`GET` → `200`:
+
+```json
+{
+  "version": "1",
+  "cutoffStageId": "…",
+  "targetQuantity": 5,
+  "commitmentDate": "2026-11-30",
+  "limits": { "maxTargetQuantity": 999 },
+  "calendar": {
+    "timeZone": "America/Mexico_City",
+    "today": "2026-10-16",
+    "minDate": "2026-10-16",
+    "maxDate": "2027-10-16",
+    "nonBusinessDates": ["2026-10-17", "2026-10-18", "…", "2026-11-16", "…"]
+  }
+}
+```
+
+- Keys exactly as above; `cutoffStageId`, `targetQuantity`, `commitmentDate` always
+  present, `null` when not configured. `calendar.nonBusinessDates` lists **every**
+  non-business date (weekends and art. 74 days) in `[minDate, maxDate]`, ascending,
+  each once, so the client only disables what it receives.
+- `PUT` with `If-Match`, full replacement, body exactly
+  `{ "cutoffStageId": …, "targetQuantity": …, "commitmentDate": … }` — all three keys
+  required, each nullable. Response: same shape as `GET` with the new `ETag`.
+- Version semantics, opaque strong ETag (never a draft/pipeline/substate tag),
+  independence from the other three resources, first `PUT` materializing `"1"` with
+  audit (even all-null), and no-op `PUT` without audit — all as cut 2.
+- Each changing `PUT` writes one `JobDraftDeliveryConfigured` audit event in the same
+  transaction with actor and previous/new values of the three fields (CFG-2, CFG-6).
+
+Status codes, in addition to §4:
+
+| Status | Code | Case |
+| --- | --- | --- |
+| `400` | `invalid_request` | Missing or unknown key, wrong JSON type (e.g. string target, fractional number), malformed date string |
+| `400` | `validation_error` | Unknown or `discarded` cutoff id; target outside 1–999; changed date outside the window |
+| `400` | `non_business_date` | Changed `commitmentDate` on a weekend or art. 74 day (field-specific, CFG-10) |
+| `409` | `cutoff_stage_in_use` | **On pipeline `PUT`** (cut-1 route): the request omits the custom stage stored as cutoff |
+
+`non_business_date` and `cutoff_stage_in_use` are the first field-specific codes; they
+are added to the shared catalog and to `backend/docs/pipeline-config.md`. All other
+§4 behavior of the pipeline route is unchanged.
+
+### 8.4 Storage (backend)
+
+Additive migration `00017`: table keyed by draft id with positive version, nullable
+typed columns (`cutoff_stage_id UUID`, `target_quantity INTEGER CHECK 1–999`,
+`commitment_date DATE`). No existing data is rewritten. The binary embeds the time-zone
+database so `America/Mexico_City` resolves in any container.
+
+### 8.5 Frontend placement (frontend owns this)
+
+New subsection «Entrega» at `/empresa/vacantes/{id}/configuracion/entrega`, saved
+separately. The column editor reads the delivery resource to badge the cutoff column
+and disable removing it; a `409 cutoff_stage_in_use` from the pipeline `PUT` is shown
+as that column's error.
+
+### 8.6 Decisions recorded for cut 3
+
+- **S1 (user):** the cutoff starts empty.
+- **S2 (user):** target ceiling 999.
+- **S3 (user):** selectable commitment dates from today up to one year.
+- **S4 (user):** business days computed by rule from art. 74 LFT (closes the
+  calendar-sourcing part of open decision §17.2; partial days and early/late
+  business-day calculation remain open for the evaluation cut).
+- **Frontend inputs (msg d3d1b987):** own resource; cut-1/2 conventions; nullable fields;
+  server-provided non-business dates; field-specific codes; cutoff read from this
+  resource by the column editor; CFG-11 belongs to publication.

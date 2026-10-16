@@ -14,6 +14,8 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 
 - **S7.** Cut 2 (user, 2026-10-16): «Bien hermano, coordinate con el backend para dar inicio a los siguientes pasos por favor.» (relayed by frontend agent msg 88c7cf5b).
 - **S8.** Cut 2 Q1 «Techo técnico de 50 (Recomendado)»; Q2 «El que elige el reclutador (Recomendado)»; Q3 «Vacía, con sugerencias (Recomendado)»; Q4 «Sí, únicos (Recomendado)».
+- **S9.** Cut 3 (user, relayed by frontend msg d3d1b987): «Si hermano, notificale al backend que ya vamos a pasar al siguiente paso y yo continuo con el, pero entre ustedes dos deben coordinarse para que mientras el implementa el backend, tu implementas la ui.»
+- **S10.** Cut 3 answers: «Calculado por regla del art. 74 LFT (Recomendado)»; «Vacía (Recomendado)»; «Techo técnico de 999 (Recomendado)»; «Desde hoy hasta 1 año (Recomendado)».
 
 ## Tasks
 
@@ -33,6 +35,8 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - [x] T14 — design §7.2: HTTP GET/PUT `…/pipeline/substates`, router, real-router tests, `backend/docs/pipeline-substates.md` (worker) — c698860
 - [x] T15 — parent integration run on isolated DB (L13) + independent verification passed (L14)
 - [x] T16 — S3: user browser test approved; frontend merged a6014b1, backend merged into local main (see L15)
+- [ ] T17 — S9, S10: cut-3 design proposal, design §8 (inline) — commit pending
+- [ ] T18 — S9: cut-3 contract review with frontend agent — pending
 
 ## Log
 
@@ -51,3 +55,4 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **L13.** Cut 2 backend committed: bf198df model, f5a7c39 migration 00016 (additive table job_draft_substate_catalogs, ON DELETE CASCADE to job_drafts) + sqlc output + store + audit, c698860 routes + docs. Parent evidence: `go test ./...` green, `go vet` clean; integration (draftstore, cmd/api, migrations) green on an isolated `draft_test` database created and dropped in the local container; every TestSubstates*/TestMigration00016 ran, 0 failures, only the four legacy 00009 tests skip. Risk: item 1 (new migration).
 - **L14.** Independent verify (gentle-ai-verify mvah1cfx-4-s1s7) on c81c20a..17faea2: PASS, no blocking defect; S8 answers, §7.1 invariants 1–5, every §7.2 bullet and inherited status code covered by code + test (integration parent-run, L13); observed `go test ./...` green, `go vet` clean. Qualification: 00016 down drops saved catalogs (documented); not data-preserving. Native review: assess on c81c20a committed range → medium, reviewDue false, not started.
 - **L15.** Frontend agent (msg 9ace7ba2, 2026-10-16): «El usuario aprobó el corte 2 en el navegador.» Frontend feat/pipeline-substates-config merged into local main a6014b1, no push. Substates are edited in a Sheet from the ⋯ menu of the in_process column in «Columnas del pipeline»; contract unchanged. Backend feat/pipeline-substates merged into local main after this entry; the user pushes. Cut 2 closed; next is cut 3 (delivery cutoff, target, commitment date).
+- **L16.** Cut 3 started on branch `feat/pipeline-delivery` from main 0209ee9. Evidence for the calendar rule: art. 74 LFT text in force (diputados.gob.mx LFT.pdf; fraction VII reformed DOF 30-09-2024, dof.gob.mx nota 5739950). User answered with the recommended options (S10).
