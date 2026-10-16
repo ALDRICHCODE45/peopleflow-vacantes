@@ -12,6 +12,9 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **S5.** Q2 «Sí, únicos (Recomendado)» — «No puede haber dos columnas «Entrevista» en el mismo tablero.»; compared ignoring case and surplus whitespace, preserving accents.
 - **S6.** Q3 «Nuevos siempre primera (Recomendado)» — «Se reordena todo lo que está entre Nuevos y Placement.»
 
+- **S7.** Cut 2 (user, 2026-10-16): «Bien hermano, coordinate con el backend para dar inicio a los siguientes pasos por favor.» (relayed by frontend agent msg 88c7cf5b).
+- **S8.** Cut 2 Q1 «Techo técnico de 50 (Recomendado)»; Q2 «El que elige el reclutador (Recomendado)»; Q3 «Vacía, con sugerencias (Recomendado)»; Q4 «Sí, únicos (Recomendado)».
+
 ## Tasks
 
 - [x] T1 — S1, S2: design proposal `docs/pipeline-customization-design.md` (inline) — d7be650
@@ -23,6 +26,13 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - [x] T7 — cut 1, design §4: HTTP GET/PUT `/v2/me/company/job-drafts/{draftId}/pipeline`, router wiring, real-router tests, `backend/docs/pipeline-config.md` (worker) — 709e746
 - [x] T8 — independent verification of T5–T7 against design §3–§4 (verify) — passed, recorded in L8
 - [x] T9 — S3: user browser test approved; frontend merged 87ac357, backend merged into local main (see L9)
+- [x] T10 — S7, S8: cut-2 design proposal, design §7 (inline) — 204e002
+- [x] T11 — S7: cut-2 contract review with frontend agent; 4 clarifications accepted — contract commit
+- [x] T12 — S8 + design §7.1: pure substate-catalog model with unit tests (worker) — bf198df
+- [x] T13 — design §7.2–§7.3: migration 00016 (own commit, Risk item 1) + store GET/PUT + audit `JobDraftSubstatesConfigured` (worker) — f5a7c39
+- [x] T14 — design §7.2: HTTP GET/PUT `…/pipeline/substates`, router, real-router tests, `backend/docs/pipeline-substates.md` (worker) — c698860
+- [x] T15 — parent integration run on isolated DB (L13) + independent verification passed (L14)
+- [x] T16 — S3: user browser test approved; frontend merged a6014b1, backend merged into local main (see L15)
 
 ## Log
 
@@ -35,3 +45,9 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **L7.** Cut 1 backend committed: 0cd4110 model, 81dc0ef migration 00015 (additive table job_draft_pipeline_configs, ON DELETE CASCADE to job_drafts) + store + audit, 709e746 routes + docs. Parent ran sqlc generate and gofmt (worker scope gap). Evidence: `go test ./...` green, `go vet` clean; integration tests (draftstore, cmd/api, migrations) green against an isolated `draft_test` database created and dropped in the local container; every TestPipeline*/TestMigration00015 ran (no skips). Slice note: ~1.6k lines, mostly tests, past the ~400-line slice; split by work unit into three commits, migration alone. Risk: item 1 (new migration).
 - **L8.** Independent verify (gentle-ai-verify mvaaij8m-2-h7lw) on c0910bc..57f75d7: no blocking functional defect; S4–S6, invariants 1–7, every §4 bullet and status code covered by code + test (integration evidence parent-run, L7); observed `go test ./...` green and `go vet` clean. Qualification: migration 00015 down drops saved pipeline configurations (documented); not a data-preserving rollback. Unverified by backend: client timeout/reconcile, browser behavior, race detector. Native review: assess on c0910bc committed range → medium, reviewDue false (under budget), not started.
 - **L9.** Frontend agent (msg 9d7779e0, 2026-10-16): «El usuario aprobó el corte 1 en el navegador.» Frontend feat/pipeline-stage-config merged into local main 87ac357, no push. Editor moved to `/empresa/vacantes/{id}/configuracion/columnas` (gear on the pipeline page); contract unchanged. User decided no native review for cut 1 («entonces no la corremos, no pasa nada»). Backend feat/pipeline-config merged into local main after this entry; the user pushes. Cut 1 closed; next is cut 2 (`En proceso` substate catalog).
+- **L10.** Cut 2 started on branch `feat/pipeline-substates` from main 6e237ed. User answered cut-2 questions with the recommended options (S8).
+- **L11.** Frontend agent (msg 29a86067) accepted §7 with clarifications: suggestions always an array, not filtered by the server (backend choice: fixed list); strict response keys; in_process name read from GET /pipeline; empty first PUT creates version "1" with audit. All recorded in §7.2.
+- **L12.** Cut-2 implementation prepared on `feat/pipeline-substates`: T12 pure `substatecatalog`, T13 additive migration 00016 + transactional store/audit + regenerated sqlc model, T14 routes + real-router tests + `backend/docs/pipeline-substates.md` (includes the test-to-contract map). Observed RED: strict decoding/invariants returned no error before implementation; migration definition test failed on missing 00016; HTTP GET returned 404 before registration (expected 401). Focused tests, `cd backend && go test ./... -count=1`, and `cd backend && go vet ./...` pass. Integration packages compile, but all new DB-backed tests explicitly skip because `DRAFT_TEST_DATABASE_URL` is unset; no database was created. Parent still owns the three work-unit commits, hashes/checkmarks for T12–T14, isolated-DB execution (T15), and review. Risk: item 1, new migration; down removes stored catalogs while retaining audit rows.
+- **L13.** Cut 2 backend committed: bf198df model, f5a7c39 migration 00016 (additive table job_draft_substate_catalogs, ON DELETE CASCADE to job_drafts) + sqlc output + store + audit, c698860 routes + docs. Parent evidence: `go test ./...` green, `go vet` clean; integration (draftstore, cmd/api, migrations) green on an isolated `draft_test` database created and dropped in the local container; every TestSubstates*/TestMigration00016 ran, 0 failures, only the four legacy 00009 tests skip. Risk: item 1 (new migration).
+- **L14.** Independent verify (gentle-ai-verify mvah1cfx-4-s1s7) on c81c20a..17faea2: PASS, no blocking defect; S8 answers, §7.1 invariants 1–5, every §7.2 bullet and inherited status code covered by code + test (integration parent-run, L13); observed `go test ./...` green, `go vet` clean. Qualification: 00016 down drops saved catalogs (documented); not data-preserving. Native review: assess on c81c20a committed range → medium, reviewDue false, not started.
+- **L15.** Frontend agent (msg 9ace7ba2, 2026-10-16): «El usuario aprobó el corte 2 en el navegador.» Frontend feat/pipeline-substates-config merged into local main a6014b1, no push. Substates are edited in a Sheet from the ⋯ menu of the in_process column in «Columnas del pipeline»; contract unchanged. Backend feat/pipeline-substates merged into local main after this entry; the user pushes. Cut 2 closed; next is cut 3 (delivery cutoff, target, commitment date).

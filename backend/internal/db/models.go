@@ -168,6 +168,12 @@ type JobDraftRequester struct {
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 }
 
+type JobDraftSubstateCatalog struct {
+	DraftID uuid.UUID `json:"draft_id"`
+	Version int64     `json:"version"`
+	Catalog []byte    `json:"catalog"`
+}
+
 type User struct {
 	ID         uuid.UUID          `json:"id"`
 	CognitoSub string             `json:"cognito_sub"`

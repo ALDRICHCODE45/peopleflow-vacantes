@@ -194,3 +194,111 @@ invalid response: adding a kind is a contract change.
   `If-Match`; draft error vocabulary; string version and opaque ETag; independent
   versions; pure `GET`; no-op `PUT` without audit; requester-catalog normalization;
   `Descartados` renamable.
+
+## 7. Cut 2 — `En proceso` substate catalog (proposal)
+
+Status: **cut-2 contract agreed** with the frontend agent (msg 29a86067). Product
+answers (user, 2026-10-16) are recorded in §7.5. Rules: SUB-1 (unlimited user-defined substates only inside semantic
+`En proceso`), SUB-2 (the four names are examples, not built-ins), SUB-4 (tracking
+labels, not sequential steps), SUB-6 (substates instead of a column per interview).
+Assigning a substate to a candidate (SUB-3) and filtering (SUB-5) are cut 6.
+
+### 7.1 Model
+
+- The catalog belongs to the vacancy (today: the draft) and applies to its stage of
+  kind `in_process`, whatever that stage is named (PIPE-9). It never references the
+  column name.
+- A catalog is an ordered list of substates `{ id, name }`. The order is the
+  recruiter's display order only; it never implies a sequence (SUB-4).
+- Invariants on every save:
+  1. At most 50 substates (technical ceiling, §7.5 S1).
+  2. Names normalized exactly like stage names (§3 invariant 5), 1–40 code points.
+  3. Names unique within the catalog on the full-Unicode casefold of the normalized
+     name, accents preserved (§3 invariant 6). Substate names are not compared with
+     column names.
+  4. Existing substates referenced by `id`; new ones sent without `id` get a random
+     server UUID; unknown or duplicated ids are rejected.
+  5. An empty catalog is valid.
+- Removal is free in cut 2: no candidate can hold a substate yet. Cut 6/7 add the
+  occupant and history rules (PIPE-15).
+- A never-configured vacancy has an empty catalog (version `"0"`); `GET` never writes.
+  The examples from SUB-2 are returned as `suggestions` for one-click adding; they are
+  never stored unless the recruiter saves them.
+
+### 7.2 Contract
+
+Own resource, own version and ETag, so saving substates never invalidates an open
+column editor and vice versa:
+`/v2/me/company/job-drafts/{draftId}/pipeline/substates`. Identity, authorization,
+`Cache-Control: no-store`, error envelope and status codes are exactly the cut-1 ones
+(§4), including `404` for missing/foreign/non-principal drafts and authorization
+before precondition comparison.
+
+`GET` → `200`:
+
+```json
+{
+  "version": "2",
+  "substates": [
+    { "id": "…", "name": "Primera entrevista" },
+    { "id": "…", "name": "Pruebas psicométricas" }
+  ],
+  "limits": { "maxSubstates": 50, "nameMaxLength": 40 },
+  "suggestions": ["Primera entrevista", "Segunda entrevista", "Pruebas psicométricas", "Propuesta entregada"]
+}
+```
+
+`PUT` with `If-Match`, full replacement, body exactly `{ "substates": [...] }`:
+
+```json
+{ "substates": [ { "id": "…", "name": "Entrevista técnica" }, { "name": "Propuesta entregada" } ] }
+```
+
+- Response: same shape as `GET`, `substates` in request order with server ids for new
+  entries, new `ETag`.
+- Response keys are exactly `version`, `substates`, `limits`, `suggestions`; each
+  substate is exactly `{ id, name }`; `limits` is exactly `{ maxSubstates,
+  nameMaxLength }` with positive integers. Adding a key is a contract change.
+- `suggestions` is always present as an array (possibly empty, never null). It is the
+  same fixed list on every response, **not filtered** against the catalog; each entry
+  is already normalized, casefold-unique and within `nameMaxLength`. The client
+  filters it against its editor state.
+- The current name of the `in_process` stage is read from `GET …/pipeline`; this
+  resource does not repeat it.
+- `version` decimal string, `"0"` = never saved; the ETag is strong, opaque and never
+  equal to or parseable as a draft or pipeline tag.
+- Versions are independent: a substate `PUT` never changes the draft or pipeline
+  version, and neither of those changes the substate version.
+- First `PUT` materializes version `"1"` with an audit event (cut-1 precedent), even an
+  empty list over version `"0"`; later a
+  `PUT` whose normalized result equals the stored catalog returns `200` with the same
+  version and no audit event.
+- Each changing `PUT` writes one `audit_events` row (`JobDraftSubstatesConfigured`) in
+  the same transaction, with actor and previous/new catalog.
+- `400 validation_error` for any §7.1 invariant; `400 invalid_request` for malformed
+  JSON, unknown or duplicate keys, invalid UTF-8, malformed path id or malformed
+  `If-Match`; `412 version_conflict`, `413 payload_too_large`, `428
+  precondition_required` as in §4.
+
+### 7.3 Storage (backend)
+
+Additive migration `00016` with one table keyed by draft id (same pattern as
+`job_draft_pipeline_configs`): draft id, positive version, encoded catalog. No existing
+data is rewritten.
+
+### 7.4 Frontend placement (frontend owns this)
+
+After the cut-2 browser test, substates are not a separate subsection: they are edited
+in a Sheet opened from the ⋯ menu of the `in_process` column in «Columnas del
+pipeline», with their own save. It shows the current name of the `in_process` stage.
+The contract did not change.
+
+### 7.5 Decisions recorded for cut 2
+
+- **S1 (user):** technical ceiling of 50 substates per vacancy.
+- **S2 (user):** display order chosen by the recruiter (up/down), display only.
+- **S3 (user):** a new vacancy starts empty; the four SUB-2 examples are offered as
+  suggestions.
+- **S4 (user):** names unique within the vacancy, same comparison as columns.
+- **Frontend inputs (msg 88c7cf5b):** own resource and ETag; reuse cut-1 conventions;
+  `limits` in the response; substates hang from kind `in_process`.
