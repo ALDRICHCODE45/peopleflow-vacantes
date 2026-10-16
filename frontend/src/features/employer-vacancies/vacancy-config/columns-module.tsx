@@ -7,7 +7,7 @@ import { loadDraftPipelineAction, type DraftPipelineActionResult } from "@/featu
 import { PipelineStageEditor } from "../stage-config/editor";
 import { PipelineEditorSkeleton } from "../stage-config/loading";
 
-function pipelineLoadReason(reason: string): DraftEditFailureReason {
+export function pipelineLoadReason(reason: string): DraftEditFailureReason {
   switch (reason) {
     case "unauthenticated": case "forbidden": case "not_found": case "company_inactive": case "company_not_active":
     case "no_response": case "server_error": case "unrecognized_response": return reason;

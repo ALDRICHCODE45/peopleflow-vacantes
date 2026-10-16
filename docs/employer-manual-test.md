@@ -4,13 +4,12 @@ Guía para probar en el navegador, de punta a punta, el flujo
 **login recruiter → crear empresa → guardar borrador privado → encontrarlo en la
 lista → reabrirlo, editarlo y guardarlo → configurar las columnas de su pipeline**
 contra la API Go real. Esta prueba es el requisito para integrar
-`feat/pipeline-stage-config` en `main`.
+`feat/pipeline-substates-config` en `main`.
 
-- Rama frontend: `feat/pipeline-stage-config`.
-- Rama backend: `feat/pipeline-config` (incluye todo lo de `main` más la
-  configuración de columnas del pipeline). Trae la migración
-  `00015`: corré `make db-migrate` y confirmá con `make db-status` que no queda
-  nada en «Pending».
+- Rama frontend: `feat/pipeline-substates-config`.
+- Rama backend: `feat/pipeline-substates` (incluye todo lo de `main` más los
+  subestados de En proceso). Trae la migración `00016`: corré `make db-migrate` y
+  confirmá con `make db-status` que no queda nada en «Pending».
 - Los servicios los levantás vos en tu terminal. Ningún agente lee ni modifica
   tus archivos `.env`; acá solo aparecen **nombres** de variables, nunca valores.
 - No pegues tokens, cookies, contraseñas ni el contenido de tus `.env` en el chat.
@@ -206,6 +205,26 @@ corepack pnpm dev
     arriba del editor hay un botón «Configurar columnas» que lleva a la
     configuración de columnas de ese borrador.
 
+21. **Subestados vacíos (tema claro y oscuro).** En la configuración de un
+    borrador, el menú de apartados muestra «Columnas del pipeline» y «Subestados».
+    Entrá a «Subestados». **Esperado:** la tarjeta «Subestados de En proceso» (o el
+    nombre que le hayas puesto a esa columna), «0 de 50 subestados», el mensaje
+    «Todavía no hay subestados» y las sugerencias «Primera entrevista», «Segunda
+    entrevista», «Pruebas psicométricas» y «Propuesta entregada».
+22. **Agregar y guardar.** Elegí dos sugerencias y agregá uno propio con «Agregar
+    subestado» (por ejemplo «Entrevista técnica»). Cada sugerencia elegida desaparece
+    de la lista de sugerencias. Ordenalos arrastrando o con «⋯» → Subir/Bajar y
+    presioná «Guardar cambios». **Esperado:** aviso «Subestados guardados»; al
+    recargar vuelven en el mismo orden. Las columnas no cambiaron.
+23. **Validaciones y quitar.** Dejá un nombre vacío y repetí otro con distinta
+    mayúscula. **Esperado:** «Escribe un nombre para el subestado.» y «Ya hay otro
+    subestado con este nombre.»; al guardar no se envía nada. Quitá uno con «⋯» →
+    «Quitar subestado»: si era una sugerencia, vuelve a aparecer en «Sugerencias».
+24. **Independencia.** Con «Subestados» abierto en una pestaña y «Columnas del
+    pipeline» en otra, guardá en las dos. **Esperado:** ninguna da «Esto cambió en
+    otro lugar». Si renombraste En proceso, el título de los subestados muestra el
+    nombre nuevo al recargar.
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:
@@ -253,5 +272,5 @@ pero **no** copies cabeceras, cookies ni cuerpos.
 docker start nest-practice   # si lo habías frenado
 ```
 
-Si todo pasa, el siguiente paso es integrar `feat/pipeline-stage-config` en
+Si todo pasa, el siguiente paso es integrar `feat/pipeline-substates-config` en
 `main`. La rama del backend la integra su propio agente. El push lo hacés vos.
