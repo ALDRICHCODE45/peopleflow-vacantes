@@ -866,3 +866,111 @@ queued for user review).
 - **S10 (user):** candidates see only «Postulación enviada» until cut 4 decides more.
 - **Frontend inputs (msgs dbea2adf, b6993910, a5dc68ae):** one public listing with a common shape;
   VAC-4 only; two-step upload then apply; field-specific CV codes; URL compatibility.
+
+## 11. P2b0 — candidate identity (proposal)
+
+Status: **proposal under frontend review.** Product answers in §11.6. Branch
+`feat/candidate-identity`, stacked on `feat/vacancy-public` (L28). Prerequisite of P2b:
+today no candidate can create an account (L38).
+
+### 11.1 Repository facts (exploration, L38)
+
+- Recruiter accounts are created by the local identity bootstrap (operator-approved,
+  recruiter only). The Cognito PostConfirmation Lambda maps `cognito:groups` to a user
+  type, skips accounts without a recognized group, discards the app-client id, returns
+  only an error where AWS expects the event, and is not deployed (AWS phase deferred).
+- `RequireAuth` verifies the access token (RS256, issuer, `token_use`, one configured
+  client id) and exposes only subject and groups. A valid token without a `users` row
+  gets `401` downstream; nothing provisions it.
+- Existing candidate routes (`/me/profile*`, `GET /me/applications`,
+  `POST /jobs/{id}/applications`) require only authentication: a recruiter passes.
+  Company routes are protected by membership, and candidates can never become members
+  (company creation and AddMember reject them).
+- The local bootstrap already has a hardened UserInfo client (subject match, verified
+  email, strict claims) that this cut can reuse.
+
+### 11.2 Model
+
+- **Same Cognito user pool and app client** for both roles (§11.6 S1). The role lives
+  only in `users.user_type`; JWT groups and the app client never grant a role.
+- **Explicit candidate onboarding** (§11.6 S2): after signing up and in through the
+  hosted login, the person completes «Crear mi cuenta de candidato» in `/candidato`. The
+  API creates a `candidate` user only when the token's subject has no live user row. It
+  never changes the role of an existing account and never links accounts by email.
+- **One account, one role** (S20): a recruiter account cannot become a candidate; a person
+  wanting both uses a second email. Recruiter provisioning stays as today (bootstrap).
+- **Trusted identity data:** email comes from Cognito UserInfo fetched server-side with the
+  caller's access token — subject must match the token and `email_verified` must be true.
+  The browser never supplies the email. The name comes from the onboarding form
+  (2–120 code points after the usual normalization), because sign-up only asks for email
+  and password.
+- **Role enforcement** (§11.6 S3): every candidate route — the legacy ones listed in
+  §11.1 and all new `/v2/me/*` candidate routes of P2b — requires a live `candidate` user.
+  Company routes keep their membership authorization unchanged.
+
+### 11.3 Contract
+
+All routes: `RequireAuth`, `Cache-Control: no-store`, envelope `{error, code}`.
+
+`GET /v2/me` → `200`:
+
+```json
+{ "role": "candidate", "user": { "id": "…", "email": "ana@example.com", "full_name": "Ana Pérez" } }
+```
+
+`role` is `recruiter | candidate | null`; `user` is `null` exactly when `role` is `null`
+(valid token, no live account yet). Keys are exactly these. The frontend uses it for the
+`/empresa` and `/candidato` area guards and to route a new person to onboarding.
+
+`POST /v2/me/candidate-account`, body exactly `{ "full_name": "…" }`:
+
+| Result | Case |
+| --- | --- |
+| `201` + `GET /v2/me` body | Candidate account created |
+| `200` + `GET /v2/me` body | The subject already has a candidate account (safe retry; name unchanged) |
+| `409 account_exists` | The subject already has a recruiter account |
+| `409 email_in_use` | Another account already uses this verified email |
+| `422 email_not_verified` | UserInfo reports an unverified email |
+| `400 validation_error` | Name invalid |
+| `400 invalid_request` | Malformed body, unknown or duplicate keys |
+| `503 identity_unavailable` | UserInfo unreachable or malformed; nothing written |
+
+Creation and its audit event are one transaction; uniqueness on subject and email is
+enforced by the existing constraints, so concurrent onboarding yields one account.
+
+Role errors on candidate routes (legacy and new):
+
+| Result | Case |
+| --- | --- |
+| `403 account_required` | Valid token, no live account (client sends the person to onboarding) |
+| `403 wrong_role` | The account is a recruiter |
+
+These replace today's `401` for a missing user row and today's acceptance of recruiters
+on those routes; this is the requested change to existing contracts (Risk item 2 and
+item 3). Company routes are unchanged.
+
+### 11.4 Configuration and AWS console (user)
+
+No migration (the `users` table and its `candidate` type exist). New backend setting:
+the Cognito UserInfo endpoint for the API (name decided in implementation; value from
+the existing hosted domain; never committed). Console checks for the user, queued in
+`backend/docs/pending-user-review.md`, on the existing pool and app client:
+
+1. Self sign-up enabled, email as the sign-in identifier, email verification required.
+2. Allowed sign-out URL also includes `http://localhost:3000/candidato/login`.
+3. The callback stays `http://localhost:3000/api/auth/callback/cognito`; scopes
+   `openid email profile` (already required by the recruiter flow).
+
+### 11.5 Frontend placement (frontend owns this)
+
+Real sign-up and sign-in at `/candidato/login` with the same NextAuth provider; onboarding
+screen «Crear mi cuenta de candidato» when `role` is `null`; area guards by `role` with a
+«Esta cuenta es de empresa/candidato» screen; candidate session, refresh and logout like
+the recruiter's.
+
+### 11.6 Decisions recorded for P2b0
+
+- **S1 (user, S20):** same Cognito user pool; the role lives in our database.
+- **S2 (user):** explicit onboarding step in our API (no Lambda, no AWS deployment).
+- **S3 (user):** existing candidate routes are restricted to candidates in this cut.
+- **S20 (user):** one account, one role; email and password sign-up.
