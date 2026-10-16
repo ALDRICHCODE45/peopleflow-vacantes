@@ -1,16 +1,16 @@
-# Pipeline customization — design proposal (cut 1: stage configuration)
+# Pipeline customization — design and cut-1 contract
 
-Status: **proposal under review** by the backend and frontend agents. Nothing here is
-implemented. Product rules come from `docs/recruitment-business-rules.md` (§5 PIPE-*,
-§5.1 SUB-*, §6 CFG-*); this document never restates or changes them, it only maps
-them to a model and a contract.
+Status: **cut-1 contract agreed** between the backend and frontend agents, with the
+user's product answers (Q1–Q3). Not implemented yet. Product rules come from
+`docs/recruitment-business-rules.md` (§5 PIPE-*, §5.1 SUB-*, §6 CFG-*); this document
+maps them to a model and a contract and adds only the decisions recorded in §6.
 
 ## 1. Delivery plan (one feature at a time)
 
 | Cut | Scope | Candidates involved | Risk |
 | --- | --- | --- | --- |
 | 0 | This design and contract agreement | — | none |
-| **1** | **Per-vacancy stage configuration: rename, reorder before `Placement`, up to 3 extra columns** | none | low |
+| **1** | **Per-vacancy stage configuration: rename, reorder, up to 3 extra columns** | none | low |
 | 2 | `En proceso` substate catalog (SUB-1, SUB-2, SUB-6) | none | low |
 | 3 | Delivery cutoff, target and commitment date configuration (CFG-1…CFG-13) | none | medium |
 | 4 | Real candidate movement between stages, with history | yes | **high** (migrates `applications`) |
@@ -32,25 +32,24 @@ merge to `main`, user pushes. No PRs.
 - The frontend pipeline is local fixtures with four stages.
 
 Consequence: **cut 1 attaches the configuration to the draft.** When the publish path
-exists, the published process inherits it (the draft id becomes the process
-identity or is linked to it — backend decision for that later cut).
+exists, the published process inherits it (backend decision for that later cut).
 
 ## 3. Model
 
 A configuration has two parts:
 
-- **Progression** — an ordered list of stages. `Placement` is always last.
+- **Progression** — an ordered list of stages, `Nuevos` first and `Placement` last.
 - **Exit** — exactly one `Descartados` stage, outside the order (PIPE-8).
 
 Each stage has:
 
 | Field | Meaning |
 | --- | --- |
-| `id` | Stable UUID. Never reused, never changes on rename or reorder. Cut 4 will reference it from candidate history, so stability is the point. |
+| `id` | Stable UUID. Never reused, never changes on rename or reorder. Cut 4 references it from candidate history. |
 | `kind` | Semantic function, fixed for life: `new`, `screening`, `screening_ok`, `in_process`, `placement`, `custom`, `discarded`. |
-| `name` | Display name, editable. Renaming never changes `kind` (PIPE-9). |
+| `name` | Display name, editable for every stage including `Descartados` (PIPE-2). Renaming never changes `kind` (PIPE-9). |
 
-Defaults (PIPE default list) — created with fresh ids:
+Defaults:
 
 | Order | kind | name |
 | --- | --- | --- |
@@ -64,28 +63,47 @@ Defaults (PIPE default list) — created with fresh ids:
 Invariants enforced by the backend on every save:
 
 1. Exactly one stage of each built-in kind (`new`, `screening`, `screening_ok`,
-   `in_process`, `placement`, `discarded`) — see open question Q1.
-2. `placement` is the last progression stage (PIPE-3).
+   `in_process`, `placement`, `discarded`). Built-in stages are never removed (Q1).
+2. `new` is the first progression stage (Q3) and `placement` the last (PIPE-3).
+   Everything between them is freely reorderable.
 3. `discarded` is never in the progression (PIPE-8).
-4. At most 3 `custom` stages (PIPE-4), always before `placement` (PIPE-5) — implied by 2.
-5. Names: trimmed, non-empty, at most 40 characters counted in runes — see Q2 for uniqueness.
-6. Ids of built-in stages cannot be swapped between kinds; a client cannot invent
-   ids — a new custom stage is sent without `id` and the server assigns one.
+4. At most 3 `custom` stages (PIPE-4); by invariant 2 they always sit before
+   `placement` (PIPE-5). Custom stages may be removed in cut 1 (no occupants, no
+   cutoff yet).
+5. Names are normalized exactly like requester-catalog names
+   (`backend/docs/requester-catalog.md`): UTF-8 → NFC → trim and collapse Unicode
+   `White_Space` (including NBSP) to one ASCII space; non-whitespace control
+   characters rejected; zero-width and other format characters kept. After
+   normalization a name has 1–40 code points.
+6. Names are unique within one configuration, progression and exit together (Q2),
+   compared on the full-Unicode casefold of the normalized name: accents preserved,
+   no NFKC, no fuzzy matching (`Área` = `ÁREA`, `Area` ≠ `Área`).
+7. A client cannot invent ids or kinds: existing stages are referenced by `id`, a
+   new custom stage is sent without `id` and the server assigns a random UUID.
 
 Critical-action kinds (`in_process`, `placement`, `discarded`) are exposed through
 `kind`; the rename confirmation dialog (PIPE-10) is a frontend concern driven by it.
 
-## 4. Contract (proposal)
+### Defaults without writes
+
+A draft whose configuration was never saved has no stored row. `GET` returns the
+defaults with **deterministic ids**: each built-in stage id is a UUIDv5 derived from
+the draft id and the stage kind. Two concurrent `GET`s therefore return the same ids,
+`GET` never writes, and existing drafts need no backfill migration. The first
+successful `PUT` stores the configuration with those same built-in ids.
+
+## 4. Contract (agreed)
 
 Base: `/v2/me/company/job-drafts/{draftId}/pipeline`. Same identity, authorization
-and error vocabulary as the draft routes (`backend/docs/private-job-drafts.md`):
-owner or draft principal; foreign or missing draft → `404 not_found`.
+and error envelope as the draft routes (`backend/docs/private-job-drafts.md`):
+owner or draft principal; missing, foreign or non-principal draft → `404 not_found`
+after the general auth gates; every response carries `Cache-Control: no-store`.
 
 ### `GET` → `200`
 
 ```json
 {
-  "version": 3,
+  "version": "3",
   "stages": [
     { "id": "…", "kind": "new", "name": "Nuevos" },
     { "id": "…", "kind": "screening", "name": "Screening" },
@@ -99,14 +117,16 @@ owner or draft principal; foreign or missing draft → `404 not_found`.
 }
 ```
 
-Header `ETag: "<version>"`. A draft without a stored configuration is materialized
-with the defaults on first access (inside the read transaction or at draft creation —
-backend choice), so the frontend always gets real stable ids.
+- `version` is a decimal string; `"0"` means "defaults, never saved".
+- `ETag` is a strong, opaque pipeline tag. Clients never construct it; it never
+  equals or parses as a draft tag.
+- Pipeline and draft versions are **independent**: a pipeline `PUT` never changes the
+  draft version or ETag, and a draft `PATCH` never changes the pipeline version.
 
-### `PUT` (full replacement) → `200` with the same body
+### `PUT` (full replacement) → `200` with the same body and new `ETag`
 
-Request: `If-Match` required. Body is the desired `stages` and `exit` — existing ones
-by `id`, new custom stages without `id`, removed custom stages simply omitted.
+`If-Match` required. Body is exactly `stages` and `exit`; existing stages by `id`, new
+custom stages without `id`, removed custom stages omitted. Unknown keys are rejected.
 
 ```json
 {
@@ -122,51 +142,54 @@ by `id`, new custom stages without `id`, removed custom stages simply omitted.
 }
 ```
 
-`kind` is not accepted from the client: it is derived from the stored id; an
-id-less entry is always `custom`.
+- `kind` is never accepted from the client; it is derived from the stored (or
+  deterministic default) id; an id-less entry is always `custom`.
+- The response `stages` order is the request order, with server-assigned ids for new
+  custom stages, so the editor keeps working without another `GET`.
+- A `PUT` whose normalized result equals the stored configuration returns `200` with
+  the same version and ETag and writes no audit event.
+- An uncertain `PUT` (timeout) is not retried: the client reconciles with `GET`. No
+  `Idempotency-Key`.
 
-Errors:
+Status codes (subset of the draft catalog, envelope `{ "error", "code" }`, no details):
 
-| Case | Status / code |
-| --- | --- |
-| Missing `If-Match` | `428 precondition_required` |
-| Stale `If-Match` | `412 precondition_failed` |
-| Unknown or duplicated id, missing built-in stage, `placement` not last, more than 3 custom, bad name | `422 validation_failed` with per-field details (`stages[3].name`, …) |
+| Status | Code | Case |
+| --- | --- | --- |
+| `400` | `invalid_request` | Malformed JSON, unknown/duplicate key, invalid UTF-8, malformed path id, empty/weak/list/malformed `If-Match` |
+| `400` | `validation_error` | Any invariant in §3 violated (unknown or duplicated id, built-in missing, `new` not first, `placement` not last, more than 3 custom, bad or duplicate name) |
+| `401` / `403` / `404` / `409` | as drafts | Auth gates, inactive company, missing/foreign/non-principal draft |
+| `412` | `version_conflict` | Stale or foreign `If-Match`; no data |
+| `413` | `payload_too_large` | Raw body over the budget |
+| `428` | `precondition_required` | `PUT` without `If-Match` |
+| `500` | `internal_error` | Unexpected failure |
 
-Why full replacement instead of granular operations: reorder + rename + add in one
-editor save is one atomic, auditable change, and a stale editor can never half-apply.
+The frontend validates against `limits` and the §3 rules before sending; a server
+`400` is shown as a generic failure that keeps the edited state.
 
 ### Audit
 
-Each successful `PUT` writes one `audit_events` row (`pipeline_config_changed`) with
-actor, previous and new configuration. Even without candidates this is a
-behavior-changing configuration edit (PIPE-16, AUD-*).
+Each `PUT` that changes the configuration writes one `audit_events` row
+(`JobDraftPipelineConfigured`) in the same transaction, with actor and the previous
+and new configuration (PIPE-16, AUD-*).
 
-### Removing custom stages in cut 1
+## 5. Frontend placement (frontend owns this)
 
-Allowed freely: no candidates can occupy a draft's stage yet and the cutoff does not
-exist yet. Cut 3 adds "cannot remove the cutoff stage" and cut 7 adds the occupant
-and history rules of PIPE-15.
+Confirmed by the user through the frontend agent: the editor lives on the vacancy
+pipeline page `/empresa/vacantes/{id}/pipeline`, which today shows an empty state for
+drafts. It is not a step of the draft editor. The first `GET` happens when that page
+opens. Reordering
+uses accessible up/down buttons with `Nuevos` and `Placement` fixed. Stage colors are
+derived from `kind` client-side; custom stages are neutral. An unknown `kind` is an
+invalid response: adding a kind is a contract change.
 
-## 5. Open questions
+## 6. Decisions recorded for this design
 
-Product (need the user):
-
-- **Q1.** Can the default columns `Nuevos`, `Screening` and `Screening OK` be removed,
-  or only renamed and reordered? The rules only say they can be renamed (PIPE-2) and
-  reordered (PIPE-3). Proposal: not removable.
-- **Q2.** Must stage names be unique within a vacancy (ignoring case and extra spaces,
-  as in the requester catalog)? Proposal: yes — two columns called "Entrevista" on one
-  board are ambiguous.
-- **Q3.** Where do new organic applications land: always in `Nuevos` (wherever it was
-  moved), or in whatever column is first? Proposal: `Nuevos` must stay first, which
-  also resolves the question. Needed before cut 4, but it changes the cut-1 invariants.
-
-Contract (frontend agent):
-
-- **F1.** Is full replacement with `If-Match` comfortable for the editor UX, or is a
-  per-action API needed?
-- **F2.** Where does the editor live (inside the draft editor, as a tab of the pipeline
-  page, or both)? It decides when the frontend first calls `GET`.
-- **F3.** Any field missing for rendering (colors per stage, descriptions)? Colors
-  are not in the business rules; proposal: derived from `kind` client-side.
+- **Q1 (user, 2026-10-15):** built-in columns are only renamed and reordered, never
+  removed.
+- **Q2 (user):** stage names are unique within a vacancy, compared ignoring case and
+  surplus whitespace, preserving accents.
+- **Q3 (user):** `Nuevos` is always the first column.
+- **F1–F3 and contract objections (frontend agent):** full replacement with
+  `If-Match`; draft error vocabulary; string version and opaque ETag; independent
+  versions; pure `GET`; no-op `PUT` without audit; requester-catalog normalization;
+  `Descartados` renamable.
