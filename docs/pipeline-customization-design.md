@@ -444,3 +444,161 @@ as that column's error.
 - **Frontend inputs (msg d3d1b987):** own resource; cut-1/2 conventions; nullable fields;
   server-provided non-business dates; field-specific codes; cutoff read from this
   resource by the column editor; CFG-11 belongs to publication.
+
+## 9. Publication P1 — publish a draft (proposal)
+
+Status: **proposal under frontend review.** Product answers (user, 2026-10-16) in §9.7.
+Publication is split in two cuts (§9.7 S1): **P1** (this section) turns a draft into a
+published vacancy for the employer — process record, clock start, VAC-3 gate, CFG-11 —
+and **P2** adds public listing/detail with the full offer content and organic
+applications entering `Nuevos`. Cut 4 (candidate movement) follows P2.
+
+Rules: VAC-1 (publishing starts the delivery clock), VAC-2 (incomplete drafts allowed),
+VAC-3 (publication requirements), VAC-4 (public content; P2), CFG-11 (no initial
+publication with a past commitment date), AUD-* (publication is audited).
+Out of scope for P1: public visibility and applications (P2), pause/close/reopen
+(VAC-5…VAC-10), principal reassignment, legacy `jobs`/`applications` (left as they are,
+§9.7 S4).
+
+### 9.1 Repository facts (exploration, L23)
+
+- A v2 draft already holds: principal recruiter (assigned at creation), requester
+  `{kind,id}`, title, rich description, location (one string), work mode, work schedule,
+  contract type, professional area, requirements, benefits, compensation with
+  `visible` (default false), screening.
+- Missing for VAC-3: **request date** and **hiring headcount**.
+- Delivery cutoff/target/date live in the cut-3 resource; pipeline and substates in
+  cuts 1–2; all are keyed by the draft id.
+- No link exists between drafts and legacy `jobs`; applications reference `jobs`.
+
+### 9.2 Model
+
+- **Same id.** The published vacancy keeps the draft id; every employer route
+  `/empresa/vacantes/{id}` and every configuration resource stays valid.
+- **Process record.** Publishing creates one process row keyed by that id with status
+  `published`, `published_at` (the delivery clock start, VAC-1) and `published_by`.
+  A draft is published at most once; later lifecycle states (paused, closed) extend this
+  record in their own cut.
+- **Inheritance without copies.** Columns, substates and delivery stay the per-id
+  resources of cuts 1–3 and keep working after publication (§9.7 S3). Built-in stage ids
+  that were never saved are materialized at publication so the process always has
+  stored, stable stage ids.
+- **Editing after publication** (§9.7 S3): draft content, columns, substates and delivery
+  remain editable with their existing audit. Rules that need candidates (PIPE-15…18)
+  arrive in cut 7.
+- **Management fields** (new, internal, never public — VAC-3): `requestDate` (local
+  date, today or any past day in `America/Mexico_City`, any weekday, §9.7 S6) and
+  `hiringHeadcount` (integer 1–999, independent of the delivery target — VAC-11,
+  §9.7 S5). An unchanged stored value is accepted on save, like cut 3.
+
+### 9.3 Readiness — what is missing to publish
+
+Requirement codes (stable; the client translates them and treats unknown codes as a
+generic missing item):
+
+| Code | Requirement | Where it is completed |
+| --- | --- | --- |
+| `title_missing` | title | draft editor |
+| `description_missing` | non-empty description | draft editor |
+| `location_missing` | location | draft editor |
+| `work_mode_missing` | modality | draft editor |
+| `work_schedule_missing` | jornada | draft editor |
+| `contract_type_missing` | contract type | draft editor |
+| `professional_area_missing` | professional area | draft editor |
+| `requester_missing` | requester | draft editor |
+| `request_date_missing` | request date | management |
+| `hiring_headcount_missing` | hiring headcount | management |
+| `delivery_cutoff_missing` | cutoff column | delivery |
+| `delivery_target_missing` | delivery target | delivery |
+| `commitment_date_missing` | commitment date | delivery |
+| `commitment_date_past` | commitment date before today in Mexico City (CFG-11) | delivery |
+
+Requirements, benefits and salary are optional (§9.7 S2). The principal recruiter always
+exists, so it has no code. Codes are listed in the table order.
+
+### 9.4 Contract
+
+All routes: same identity, authorization (owner or draft principal; `404` otherwise),
+`Cache-Control: no-store` and envelope as §4.
+
+**Management** — `GET`/`PUT /v2/me/company/job-drafts/{draftId}/management`, cut-3
+conventions (own version/ETag, full replacement with `If-Match`, pure `GET`, first `PUT`
+materializes `"1"` with audit, no-op without audit, independent versions). Keys exactly:
+
+```json
+{ "version": "1", "requestDate": "2026-10-10", "hiringHeadcount": 2,
+  "limits": { "maxHiringHeadcount": 999 }, "today": "2026-10-16" }
+```
+
+`PUT` body exactly `{ "requestDate": …, "hiringHeadcount": … }`, both required and
+nullable. Changed future date or headcount outside 1–999 → `400 validation_error`;
+type/shape errors → `400 invalid_request`. Audit `JobDraftManagementConfigured` with
+previous/new values.
+
+**Readiness** — `GET /v2/me/company/job-drafts/{draftId}/publication` → `200`:
+
+```json
+{ "status": "draft", "publishedAt": null, "missing": ["request_date_missing", "commitment_date_past"] }
+```
+
+Keys exactly `status` (`draft` | `published`), `publishedAt` (RFC 3339 UTC or `null`),
+`missing` (array, empty when ready or already published). Pure read.
+
+**Publish** — `POST /v2/me/company/job-drafts/{draftId}/publication`, body exactly `{}`:
+
+- `Idempotency-Key` required, same rules and replay semantics as draft create
+  (`Idempotency-Replayed`, `409 idempotency_conflict`).
+- `If-Match` required with the **draft** ETag: the client publishes only the content it
+  saw. Configuration resources have their own versions, so the server re-evaluates every
+  requirement atomically inside the publish transaction (draft row locked like cuts 1–3).
+- `201` body `{ "id", "status": "published", "publishedAt" }` (keys exactly these). No
+  public URL in P1.
+- One transaction: lock draft → check If-Match → evaluate §9.3 → materialize default
+  stage ids if needed → insert process row → audit `VacancyPublished` (actor, published
+  at, frozen snapshot of target, cutoff stage id and name, commitment date, headcount and
+  request date).
+
+Status codes, in addition to §4:
+
+| Status | Code | Case |
+| --- | --- | --- |
+| `422` | `publication_incomplete` | Requirements missing; body `{ "error", "code", "missing": [codes] }` — the first envelope with a list, only for this code |
+| `409` | `already_published` | Draft already published (a replay with the same key returns the original `201` instead) |
+| `412` | `version_conflict` | Stale draft `If-Match` |
+| `428` | `precondition_required` | Missing `If-Match` |
+
+**Portfolio list** — `GET /v2/me/company/job-drafts` items gain `status`
+(`draft` | `published`) and `published_at` (RFC 3339 UTC or `null`). This is a
+coordinated contract change to the draft list; ordering, cursor and filters are
+unchanged.
+
+### 9.5 Storage (backend)
+
+Additive migrations: `00018` management table (draft id, version, nullable
+`request_date DATE`, `hiring_headcount INTEGER CHECK 1–999`) and `00019` process table
+(id = draft id, company id, status `CHECK ('published')`, `published_at`,
+`published_by`). No existing data is rewritten; legacy `jobs`/`applications` untouched.
+
+### 9.6 Frontend placement (frontend owns this)
+
+«Publicar» in the draft editor's review step, the portfolio row actions and the draft
+pipeline empty state; a «Te falta para publicar» checklist from `missing`; a confirmation
+dialog with commitment date, target and cutoff column warning that the clock starts
+(§9.7 S7); after publishing the row shows «Activa» with its date and the pipeline page
+shows the (empty) board. Management fields need a home in the configuration section or
+the editor — frontend decides.
+
+### 9.7 Decisions recorded for P1
+
+- **S1 (user):** split publication into P1 (publish) and P2 (public listing/detail and
+  applications).
+- **S2 (user):** required public content: title, description, location, modality,
+  jornada, contract type and professional area; requirements, benefits and salary
+  optional (closes open decision §17.10 for publication).
+- **S3 (user):** after publication, content and configuration stay editable with audit.
+- **S4 (user):** legacy catalog vacancies and their applications are left as they are.
+- **S5 (user):** hiring headcount 1–999.
+- **S6 (user):** request date today or any past date.
+- **S7 (user):** confirmation with a summary before publishing.
+- **Frontend inputs (msg 253fa21d):** server-side readiness codes, Idempotency-Key plus
+  draft If-Match, `422` with a `missing` list, same id, portfolio status.

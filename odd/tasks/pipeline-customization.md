@@ -18,6 +18,7 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **S10.** Cut 3 answers: «Calculado por regla del art. 74 LFT (Recomendado)»; «Vacía (Recomendado)»; «Techo técnico de 999 (Recomendado)»; «Desde hoy hasta 1 año (Recomendado)».
 - **S11.** Next cut (user, relayed by frontend msg 40879028): «Bien hermano, me parece perfecto, por favor avancemos al siguiente corte. recureda todo lo que hemos dicho, system design, shadcn, y coordinate con el backend para trabajar en conjunto y sacer features mas rapido.»
 - **S12.** Order (user): «Primero un corte de publicación (Recomendado)» — draft → published vacancy inheriting columns, substates and delivery, before cut 4.
+- **S13.** Publication answers: «Sí: primero publicar, después lo público (Recomendado)»; «Sí, con resumen (Recomendado)»; «Contenido y configuración, con auditoría (Recomendado)»; «Dejarlas como están (Recomendado)»; «Lo esencial de la oferta (Recomendado)»; «De 1 a 999 (Recomendado)»; «Hoy o cualquier fecha pasada (Recomendado)».
 
 ## Tasks
 
@@ -45,8 +46,8 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - [x] T22 — design §8.3: HTTP routes, error codes, tzdata embed, real-router tests, `backend/docs/pipeline-delivery.md` + update `backend/docs/pipeline-config.md` (worker) — 80946e8
 - [x] T23 — parent integration run on isolated DB (L18) + independent verification passed (L19)
 - [x] T24 — S3: user browser test approved; frontend merged 6ba0b3f, backend merged into local main (see L20)
-- [ ] T25 — S11, S12: map publication path (explore) — running
-- [ ] T26 — S11, S12: publication design proposal, design §9 (inline) — pending
+- [x] T25 — S11, S12: map publication path (explore) — L23
+- [x] T26 — S11–S13: publication P1 design proposal, design §9 (inline) — proposal commit
 - [ ] T27 — S11: publication contract review with frontend agent — pending
 
 ## Log
@@ -73,3 +74,4 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **L20.** Frontend agent (msg f9c812d9, 2026-10-16): «El usuario aprobó el corte 3 en el navegador.» Frontend feat/pipeline-delivery-config merged into local main 6ba0b3f, no push; contract unchanged. Backend feat/pipeline-delivery merged into local main after this entry; the user pushes. Cut 3 closed — configuration cuts without candidates (1–3) are complete. Cut 4 (real candidate movement, migrates `applications`, high risk) starts only when the user decides.
 - **L21.** Frontend agent (msg 40879028) found that cut 4 has no vacancy to act on: drafts carry configuration but never receive applications; legacy `jobs` receive applications but have no stage configuration. User chose a publication cut first (S12). Branch `feat/vacancy-publication` from main 79cda65.
 - **L22.** Frontend inputs for publication (msg 253fa21d): «Publicar» in draft editor Revisión step, portfolio row actions and draft pipeline empty state; server-side readiness GET with stable per-requirement codes; POST publish with Idempotency-Key and If-Match on the draft ETag, atomic validation; rejection `422 publication_incomplete` with `missing: [codes]` (first list envelope); 201 with vacancy id (same as draft or new?), status, publishedAt, public URL/slug; portfolio list must include published vacancies; editability after publishing (draft content, columns, substates, delivery); public listing visibility (VAC-4 only). Product questions to ask the user: confirmation before publishing, editing public content after publishing, whether the id is kept.
+- **L23.** Exploration (gentle-ai-explore mvbb8asy-9-dg8b): draft lacks request date and headcount; legacy public catalog only understands basic fields; applications do not require CV and still accept cover letter (conflicts INT-17/18; CV storage needs deferred AWS); no draft↔jobs link; recommendation: additive process record keyed by the draft, legacy untouched. User answered seven publication questions (S13).
