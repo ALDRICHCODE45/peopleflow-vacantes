@@ -7,7 +7,7 @@ import { VacancyApplicationWizard } from "@/features/jobs/application/vacancy-ap
 import { VacancyApplicationSummary } from "@/features/jobs/application/vacancy-application-summary";
 
 import { VacancyApplicationShell } from "../../../../../features/jobs/application/vacancy-application-shell";
-import { enrichJob } from "../../../../../features/jobs/enrich";
+import { legacyApplicationJob } from "../../../../../features/jobs/enrich";
 import { createVacanteDetailScope } from "../page-data";
 
 // The application read is request-scoped: it must run on the Node server on
@@ -30,7 +30,7 @@ export async function generateMetadata({
   const { jobId } = await params;
   const result = await getApplicationScope().metadata(jobId);
 
-  if (result.kind === "found") {
+  if (result.kind === "found" && result.job.source === "legacy") {
     // Loaded lazily so route collection during offline builds never triggers
     // the eager environment validation.
     const { serverEnv } = await import("../../../../../lib/env/server");
@@ -72,21 +72,23 @@ export default async function VacanteApplicationPage({
     throw new Error("La postulación no pudo cargarse");
   }
 
-  // The prototype enrichment is attached here, at the route boundary, so the
-  // request-scoped read above stays pure wire data.
+  // P2a exposes reading only for vacancy-source ids. No application flow or
+  // application metadata is advertised until P2b.
+  if (result.job.source === "vacancy") notFound();
+  const job = legacyApplicationJob(result.job);
   return (
-    <VacancyApplicationShell job={enrichJob(result.job)}>
+    <VacancyApplicationShell job={job}>
       {/* VAF-03/VAF-06/VAF-07: the four-step wizard owns the local candidate
           draft, the optional local CV and the desktop rail. The vacancy summary
           stays server-composed and is handed down as a slot, so the route ships
           no second data read and the prototype still never implies a submission
           that does not exist. */}
       <VacancyApplicationWizard
-        job={enrichJob(result.job)}
+        job={job}
         identity={CANDIDATE_IDENTITY}
         profile={CANDIDATE_PROFILE}
         avatarSrc="/candidate/ximena-barrera.jpg"
-        vacancySummary={<VacancyApplicationSummary job={enrichJob(result.job)} />}
+        vacancySummary={<VacancyApplicationSummary job={job} />}
       />
     </VacancyApplicationShell>
   );

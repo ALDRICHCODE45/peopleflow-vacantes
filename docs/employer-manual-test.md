@@ -274,6 +274,21 @@ corepack pnpm dev
 33. **Fecha vencida (opcional).** Si un borrador tiene una fecha compromiso pasada,
     «Publicar» la lista como «La fecha compromiso ya pasó» en «Entrega».
 
+34. **Sitio público con vacantes publicadas (P2a).** Sin sesión, entrá a
+    `/vacantes`. **Esperado:** aparecen juntas las vacantes del catálogo anterior y
+    tu vacante publicada (paso 31), cada una con «Publicada el …». Filtrá por
+    modalidad, jornada, contrato y área: con jornada, contrato o área aparece la
+    nota «Algunas vacantes del catálogo anterior no tienen este dato y no aparecen
+    con este filtro.». No hay filtros de salario ni de idioma.
+35. **Detalle de la vacante publicada.** Abrí tu vacante. **Esperado:** descripción
+    con formato, «Requisitos», «Beneficios», salario solo si lo marcaste como
+    visible y nada interno (ni solicitante, ni plazas, ni entrega). No hay botón
+    «Postularme» (llega en P2b); en una vacante del catálogo anterior sí está.
+36. **Vacante publicada incompleta.** En el editor de tu vacante publicada borrá el
+    título (o en «Entrega» quitá el objetivo) y guardá. **Esperado:** aviso «La
+    vacante está publicada» con «No puedes dejarla sin: …»; lo editado sigue en
+    pantalla.
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:

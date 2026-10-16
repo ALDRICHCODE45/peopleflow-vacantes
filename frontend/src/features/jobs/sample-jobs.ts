@@ -1,5 +1,5 @@
-import { jobsListSchema } from "./schemas";
-import type { JobItem, JobsList } from "./types";
+import { publicJobDetailSchema, publicJobsListSchema } from "./schemas";
+import type { JobItem, PublicJobDetail, PublicJobItem, PublicJobsList } from "./types";
 import { parseJobsQuery } from "./url";
 import type { JobsQuery } from "./url";
 
@@ -174,8 +174,30 @@ export const SAMPLE_JOBS: readonly JobItem[] = Object.freeze(
 );
 
 /** Whether one sample vacancy carries the exact id. */
-export function findSampleJob(jobId: string): JobItem | undefined {
-  return SAMPLE_JOBS.find((job) => job.id === jobId);
+export function findSampleJob(jobId: string): PublicJobDetail | undefined {
+  return PUBLIC_SAMPLE_DETAILS.find((job) => job.id === jobId);
+}
+
+// Explicit fictional publication date for the sample records that predate
+// publication metadata. This adapter never runs against a real API response.
+const PUBLIC_SAMPLE_DETAILS: readonly PublicJobDetail[] = SAMPLE_JOBS.map((job) => publicJobDetailSchema.parse({
+  id: job.id, source: "legacy", title: job.title, company: job.company,
+  location: job.location ?? null, work_mode: job.work_mode,
+  work_schedule: null, contract_type: null, professional_area: null,
+  seniority: job.seniority, legacy_employment_type: job.employment_type,
+  compensation: null,
+  legacy_salary: job.salary_min === undefined && job.salary_max === undefined ? null : {
+    min: job.salary_min?.toFixed(2) ?? null, max: job.salary_max?.toFixed(2) ?? null, currency: job.salary_currency,
+  },
+  published_at: job.published_at ?? "2026-02-14T09:30:00Z",
+  description: null, description_plain: job.description,
+  requirements: { required: null, preferred: null }, benefits: { predefined: [], custom: [] },
+}));
+
+function sampleItem(detail: PublicJobDetail): PublicJobItem {
+  const item = { ...detail };
+  for (const key of ["description", "description_plain", "requirements", "benefits"]) Reflect.deleteProperty(item, key);
+  return item;
 }
 
 /** Canonicalizes the input exactly like the URL model, so direct calls are safe. */
@@ -196,29 +218,23 @@ function searchTokens(value: string): string[] {
 }
 
 /** `q` matches every token, case-insensitively, across title and description. */
-function matchesSearch(job: JobItem, q: string): boolean {
-  const haystack = `${job.title} ${job.description}`.toLowerCase();
+function matchesSearch(job: PublicJobDetail, q: string): boolean {
+  const haystack = `${job.title} ${job.description_plain}`.toLowerCase();
   return searchTokens(q).every((token) => haystack.includes(token));
 }
 
 /** Every present canonical predicate must match: strict AND, never OR. */
-function matchesFilters(job: JobItem, query: JobsQuery): boolean {
+function matchesFilters(job: PublicJobDetail, query: JobsQuery): boolean {
   if (query.q !== undefined && !matchesSearch(job, query.q)) return false;
-  if (query.seniority !== undefined && job.seniority !== query.seniority)
-    return false;
+  for (const key of ["work_schedule", "contract_type", "professional_area"] as const) {
+    if (query[key] !== undefined && job[key] !== query[key]) return false;
+  }
   if (query.work_mode !== undefined && job.work_mode !== query.work_mode)
-    return false;
-  if (
-    query.employment_type !== undefined &&
-    job.employment_type !== query.employment_type
-  )
     return false;
   if (
     query.location !== undefined &&
     !(job.location ?? "").toLowerCase().includes(query.location.toLowerCase())
   )
-    return false;
-  if (query.currency !== undefined && job.salary_currency !== query.currency)
     return false;
   return true;
 }
@@ -245,9 +261,9 @@ function encodeCursorOffset(offset: number): string {
  * can never select an arbitrary slice. The result parses through the list
  * schema, keeping the sample read on the same contract as the wire read.
  */
-export function listSampleJobs(query: JobsQuery): JobsList {
+export function listSampleJobs(query: JobsQuery): PublicJobsList {
   const canonical = canonicalQuery(query);
-  const matched = SAMPLE_JOBS.filter((job) => matchesFilters(job, canonical));
+  const matched = PUBLIC_SAMPLE_DETAILS.filter((job) => matchesFilters(job, canonical));
   const ordered = [...matched].sort((left, right) =>
     left.id < right.id ? -1 : left.id > right.id ? 1 : 0,
   );
@@ -255,11 +271,11 @@ export function listSampleJobs(query: JobsQuery): JobsList {
   const decoded =
     canonical.cursor === undefined ? null : decodeCursorOffset(canonical.cursor);
   const offset = decoded !== null && decoded <= ordered.length ? decoded : 0;
-  const items = ordered.slice(offset, offset + SAMPLE_PAGE_SIZE);
+  const items = ordered.slice(offset, offset + SAMPLE_PAGE_SIZE).map(sampleItem);
   const nextOffset = offset + SAMPLE_PAGE_SIZE;
-  const page: JobsList =
+  const page: PublicJobsList =
     nextOffset < ordered.length
       ? { items, next_cursor: encodeCursorOffset(nextOffset) }
-      : { items };
-  return jobsListSchema.parse(page);
+      : { items, next_cursor: null };
+  return publicJobsListSchema.parse(page);
 }

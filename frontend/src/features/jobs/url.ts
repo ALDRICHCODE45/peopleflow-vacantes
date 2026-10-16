@@ -2,20 +2,22 @@
  * Canonical `/vacantes` query state.
  *
  * The URL is the only durable list state. Supported keys are exactly
- * `q`, `seniority`, `work_mode`, `employment_type`, `location`, `currency`,
+ * `q`, `location`, `work_mode`, `work_schedule`, `contract_type`, `professional_area`,
  * and the opaque forward `cursor`. Every key is scalar; unknown, empty,
  * invalid, and repeated values are omitted rather than given hidden
  * multi-value semantics. Cursors are transported untouched: never decoded,
  * normalized, logged, or interpreted.
  */
 
+import { CONTRACT_TYPES, PROFESSIONAL_AREAS, WORK_MODES, WORK_SCHEDULES } from "./drafts/scalars";
+
 const FILTER_KEYS = [
   "q",
-  "seniority",
-  "work_mode",
-  "employment_type",
   "location",
-  "currency",
+  "work_mode",
+  "work_schedule",
+  "contract_type",
+  "professional_area",
 ] as const;
 
 const CURSOR_KEY = "cursor";
@@ -31,10 +33,10 @@ export type JobsQuery = Partial<Record<JobsQueryKey, string>>;
 
 /** Exact backend wire values; no case or spelling tolerance. */
 const ENUM_VALUES = {
-  seniority: ["intern", "junior", "mid", "senior", "lead"],
-  work_mode: ["onsite", "remote", "hybrid"],
-  employment_type: ["full_time", "part_time", "contract", "internship"],
-  currency: ["MXN", "USD"],
+  work_mode: WORK_MODES,
+  work_schedule: WORK_SCHEDULES,
+  contract_type: CONTRACT_TYPES,
+  professional_area: PROFESSIONAL_AREAS,
 } as const satisfies Record<
   Exclude<FilterKey, "q" | "location">,
   readonly string[]

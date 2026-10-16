@@ -11,16 +11,9 @@ const routeFile = join(routeDir, "page.tsx");
 
 /** Exact wire-only fixture the shared detail loader already knows. */
 const jobId = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
-const wireJob = {
-  id: jobId,
-  title: "Ingeniera Frontend",
-  description: "Construye la experiencia de vacantes.",
-  work_mode: "remote",
-  employment_type: "full_time",
-  seniority: "senior",
-  salary_currency: "MXN",
-  company: { id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f", name: "Acme" },
-};
+const wireJob = legacyDetail;
+
+import { legacyDetail, vacancyDetail } from "../../../../../features/jobs/api/public-fixtures";
 
 const NEXT_NOT_FOUND = new Error("NEXT_NOT_FOUND");
 const paramsFor = (id: string) => Promise.resolve({ jobId: id });
@@ -98,11 +91,13 @@ describe("/vacantes/[jobId]/postular route boundaries", () => {
     expect(source).toMatch(/\bnotFound\(\)/);
     expect(source).toMatch(/kind\s*===\s*"unavailable"/);
     expect(source).toMatch(/throw\s+new\s+Error\(/);
-    // Enrichment is attached only at the render boundary, never in page-data.
-    expect(source).toMatch(/<VacancyApplicationShell[^>]*job=\{enrichJob\(result\.job\)\}/);
+    // Only source=legacy is adapted into the unchanged application model.
+    expect(source).toContain('if (result.job.source === "vacancy") notFound();');
+    expect(source).toContain("const job = legacyApplicationJob(result.job)");
+    expect(source).toMatch(/<VacancyApplicationShell[^>]*job=\{job\}/);
     // The static vacancy summary is a server-composed slot handed to the client wizard.
     expect(source).toMatch(/vacancySummary=\{<VacancyApplicationSummary\b/);
-    expect(source).toMatch(/vacancySummary=\{<VacancyApplicationSummary[^>]*job=\{enrichJob\(result\.job\)\}[^>]*\/>\}/);
+    expect(source).toMatch(/vacancySummary=\{<VacancyApplicationSummary[^>]*job=\{job\}[^>]*\/>\}/);
     expect(source).toMatch(/from\s*["'][^"']*vacancy-application-summary["']/);
     expect(source).not.toMatch(
       /["']use client["']|requestJson|QueryClientProvider|HydrationBoundary/,
@@ -126,6 +121,13 @@ describe("/vacantes/[jobId]/postular route boundaries", () => {
     const Page = (await load("page")).default;
     await expect(Page({ params: paramsFor("nope") })).rejects.toThrow(NEXT_NOT_FOUND);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns not-found for vacancy-source ids and emits no application metadata", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => vacancyDetail }));
+    const { default: Page, generateMetadata } = await load("page");
+    await expect(Page({ params: paramsFor(vacancyDetail.id) })).rejects.toThrow(NEXT_NOT_FOUND);
+    expect(await generateMetadata({ params: paramsFor(vacancyDetail.id) })).toEqual({});
   });
 
   it("maps a backend 404 to notFound() and a retryable failure to a real error", async () => {

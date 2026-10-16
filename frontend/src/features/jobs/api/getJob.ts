@@ -4,8 +4,8 @@ import { requestJson } from "../../../lib/api/server";
 import type { RequestJsonResult } from "../../../lib/api/server";
 import { isValidJobId } from "../jobId";
 import { findSampleJob } from "../sample-jobs";
-import { jobItemSchema } from "../schemas";
-import type { JobItem } from "../types";
+import { publicJobDetailSchema } from "../schemas";
+import type { PublicJobDetail } from "../types";
 
 const NOT_FOUND_STATUS = 404;
 
@@ -32,7 +32,7 @@ export function getJobQueryOptions(jobId: string) {
  */
 export async function getJob(
  jobId: string,
-): Promise<RequestJsonResult<JobItem>> {
+): Promise<RequestJsonResult<PublicJobDetail>> {
  if (!isValidJobId(jobId)) {
   return {
    ok: false,
@@ -59,10 +59,10 @@ export async function getJob(
   return { ok: true, data: sample };
  }
 
- const url = new URL(`/jobs/${jobId}`, serverEnv.apiBaseUrl);
+ const url = new URL(`/v2/jobs/${jobId}`, serverEnv.apiBaseUrl);
 
  return requestJson(url.toString(), {
-  decoder: (value: unknown) => jobItemSchema.parse(value),
+  decoder: (value: unknown) => publicJobDetailSchema.parse(value),
   notFoundStatus: NOT_FOUND_STATUS,
   timeoutMs: serverEnv.apiTimeoutMs,
  });

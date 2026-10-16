@@ -220,7 +220,10 @@ describe("VAF-03 wizard source contract", () => {
     expect(route).toMatch(/from\s*["']@\/features\/candidate\/prototype-candidate["']/);
     const wizardTag = route.match(/<VacancyApplicationWizard\b[\s\S]*?\/?>/)?.[0] ?? "";
     expect(wizardTag).not.toBe("");
-    expect(wizardTag).toMatch(/job=\{enrichJob\(result\.job\)\}/);
+    // P2a: only legacy jobs reach the wizard; vacancy-source ids are not found until P2b.
+    expect(route).toMatch(/if \(result\.job\.source === "vacancy"\) notFound\(\);/);
+    expect(route).toMatch(/const job = legacyApplicationJob\(result\.job\);/);
+    expect(wizardTag).toMatch(/job=\{job\}/);
     expect(wizardTag).toMatch(/identity=\{CANDIDATE_IDENTITY\}/);
     expect(wizardTag).toMatch(/profile=\{CANDIDATE_PROFILE\}/);
     expect(wizardTag).toMatch(/avatarSrc="\/candidate\/ximena-barrera\.jpg"/);

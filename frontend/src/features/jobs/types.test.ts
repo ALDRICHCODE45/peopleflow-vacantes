@@ -1,7 +1,8 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
-import { jobItemSchema, jobsListSchema } from "./schemas";
-import type { JobItem, JobsList } from "./types";
+import { jobItemSchema, jobsListSchema, publicJobDetailSchema, publicJobItemSchema, publicJobsListSchema } from "./schemas";
+import type { JobItem, JobsList, PublicJobDetail, PublicJobItem, PublicJobsList } from "./types";
+import { legacyDetail, vacancyDetail, listItem } from "./api/public-fixtures";
 
 const JOB_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const COMPANY_ID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f";
@@ -16,6 +17,20 @@ const validJob = {
   salary_currency: "MXN",
   company: { id: COMPANY_ID, name: "Acme" },
 };
+
+describe("public v2 inferred types", () => {
+  it("keeps separate required list/detail shapes and source-specific nullability", () => {
+    expectTypeOf(publicJobItemSchema.parse(listItem(vacancyDetail))).toEqualTypeOf<PublicJobItem>();
+    expectTypeOf(publicJobDetailSchema.parse(legacyDetail)).toEqualTypeOf<PublicJobDetail>();
+    expectTypeOf(publicJobsListSchema.parse({ items: [], next_cursor: null })).toEqualTypeOf<PublicJobsList>();
+    type VacancyDescription = Extract<PublicJobDetail, { source: "vacancy" }>["description"];
+    expectTypeOf<VacancyDescription>().toEqualTypeOf<NonNullable<VacancyDescription>>();
+    expectTypeOf<PublicJobItem["published_at"]>().toEqualTypeOf<string>();
+    expectTypeOf<PublicJobsList["next_cursor"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<Extract<PublicJobItem, { source: "legacy" }>["seniority"]>().toEqualTypeOf<"intern" | "junior" | "mid" | "senior" | "lead">();
+    expectTypeOf<Extract<PublicJobItem, { source: "vacancy" }>["seniority"]>().toEqualTypeOf<"intern" | "junior" | "mid" | "senior" | "lead" | null>();
+  });
+});
 
 describe("jobs schema-inferred type contract", () => {
   it("types parsed schema output exactly as the exported JobItem and JobsList", () => {

@@ -26,6 +26,8 @@ import { findCompanyProfile } from "../../company-profile/model";
 import { PROTOTYPE_COMPANY_PROFILES } from "../../company-profile/prototype-companies";
 import { vacancyApplicationHref } from "../application/application-draft";
 import type { JobLanguage, PrototypeJobView } from "../enrich";
+import type { PublicJobDetail } from "../types";
+import { PublicJobDetailView } from "./PublicJobDetailView";
 import {
   employmentTypeLabel,
   formatClosingDate,
@@ -110,7 +112,7 @@ function DescriptionParagraphs({ description }: { description: string }) {
     .filter((paragraph) => paragraph.length > 0);
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4">
       {paragraphs.map((paragraph, index) => (
         <p
           key={index}
@@ -349,7 +351,8 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
  * component: it forwards plain strings to the controls and owns no client
  * directive, hook, request, storage, or business mutation.
  */
-export function JobDetailView({ job }: { job: PrototypeJobView }) {
+export function JobDetailView({ job }: { job: PrototypeJobView | PublicJobDetail }) {
+  if ("source" in job) return <PublicJobDetailView job={job} />;
   const prototype = job.prototype;
   const profile = prototypeProfile(job);
   const salary =

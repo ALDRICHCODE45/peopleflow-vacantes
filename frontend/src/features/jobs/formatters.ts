@@ -1,5 +1,7 @@
 import type { JobPayFrequency } from "./enrich";
-import type { JobItem } from "./types";
+import type { JobItem, PublicJobItem } from "./types";
+import { BASIS_OPTIONS, PAY_PERIOD_OPTIONS } from "./drafts/ui/draft-labels";
+import { normalizeCompensationMoney } from "./drafts/compensation";
 
 /**
  * Fixed Mexico Spanish label maps keyed by the schema-inferred wire enums, so
@@ -118,6 +120,27 @@ export type SalaryInput = {
  max?: number;
  currency: SalaryCurrency;
 };
+
+/** Exact public vacancy money strings, with shared draft period/basis labels. */
+export function formatPublicCompensation(value: NonNullable<PublicJobItem["compensation"]>): string {
+ const amount = value.mode === "fixed"
+  ? normalizeCompensationMoney(value.amount!)
+  : `${normalizeCompensationMoney(value.min!)} – ${normalizeCompensationMoney(value.max!)}`;
+ const period = PAY_PERIOD_OPTIONS.find((option) => option.value === value.pay_period)!.label;
+ const basis = BASIS_OPTIONS.find((option) => option.value === value.basis)!.label;
+ return `${amount} ${value.currency} · ${period} · ${basis}`;
+}
+
+/** Legacy salary has no period or basis; preserve its existing public labels. */
+export function formatPublicSalary(job: PublicJobItem): string | null {
+ if (job.source === "vacancy") return job.compensation === null ? null : formatPublicCompensation(job.compensation);
+ if (job.legacy_salary === null) return null;
+ return formatSalary({
+  min: job.legacy_salary.min === null ? undefined : Number(job.legacy_salary.min),
+  max: job.legacy_salary.max === null ? undefined : Number(job.legacy_salary.max),
+  currency: job.legacy_salary.currency,
+ });
+}
 
 export function formatSalary(input: SalaryInput): string | null {
  const { min, max, currency } = input;

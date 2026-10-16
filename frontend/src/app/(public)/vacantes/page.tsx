@@ -65,11 +65,11 @@ export default async function VacantesPage({
           Bolsa de trabajo
         </p>
         <h1 className="mt-3 max-w-2xl font-heading text-4xl font-bold leading-tight tracking-tight text-foreground md:text-5xl">
-          Encuentra tu próximo trabajo en tech
+          Encuentra tu próximo trabajo
         </h1>
         <p className="mt-3 max-w-xl text-base text-muted-foreground">
-          Explora vacantes publicadas y filtra por modalidad, senioridad,
-          ubicación y moneda.
+          Explora vacantes publicadas y filtra por ubicación, modalidad,
+          jornada, tipo de contrato y área profesional.
         </p>
       </section>
       <JobsNavigationIsland key={routeKey} routeKey={routeKey} query={query}>

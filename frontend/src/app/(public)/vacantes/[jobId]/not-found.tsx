@@ -1,25 +1,16 @@
-import * as React from "react";
 import Link from "next/link";
+import { SearchXIcon } from "lucide-react";
+import { buttonVariants } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { cn } from "@/lib/utils";
 
-// Branded not-found state for the detail route: rendered for malformed job IDs
-// (rejected before any API access) and backend 404s alike. Retryable service
-// failures never land here; they use the route error boundary instead.
 export default function VacanteDetailNotFound() {
-  return (
-    <section className="flex flex-col items-start gap-3 py-6">
-      <h1 className="font-heading text-xl font-medium text-foreground">
-        Esta vacante no está disponible
-      </h1>
-      <p className="max-w-prose text-sm text-muted-foreground">
-        La vacante que buscas no existe o ya no está publicada. Explora otras
-        vacantes disponibles.
-      </p>
-      <Link
-        href="/vacantes"
-        className="text-sm font-medium text-primary underline-offset-4 transition-colors hover:underline"
-      >
-        Volver a vacantes
-      </Link>
-    </section>
-  );
+  return <Empty>
+    <EmptyHeader>
+      <EmptyMedia variant="icon"><SearchXIcon aria-hidden="true" /></EmptyMedia>
+      <EmptyTitle><h1>Esta vacante no está disponible</h1></EmptyTitle>
+      <EmptyDescription>La vacante que buscas no existe o ya no está publicada. Explora otras vacantes disponibles.</EmptyDescription>
+    </EmptyHeader>
+    <EmptyContent><Link href="/vacantes" className={cn(buttonVariants(), "min-h-10")}>Volver a vacantes</Link></EmptyContent>
+  </Empty>;
 }

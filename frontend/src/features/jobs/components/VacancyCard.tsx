@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ArrowRightIcon, BriefcaseIcon, Building2Icon, ClockIcon, GlobeIcon, MapPinIcon, UsersIcon, ZapIcon } from "lucide-react";
 
 import type { PrototypeJobView } from "../enrich";
+import type { PublicJobItem } from "../types";
+import { PublicVacancyCard } from "./PublicVacancyCard";
 import { employmentTypeLabel, formatPublishedDate, formatSalary, payFrequencyLabel, seniorityLabel, workModeLabel } from "../formatters";
 import { PrototypeFeedbackButton } from "./prototype-feedback-island";
 import { CompanyMonogram, VerifiedByPeopleFlow, prototypeApplicantsLabel, prototypeResponseLabel } from "./prototype-ui";
@@ -62,7 +64,8 @@ const featuredDotClass = "size-1.5 shrink-0 rounded-full bg-primary";
  * server component: it forwards plain strings to the control and owns no fetch,
  * state, hook, request, storage, raw color, or inline style.
  */
-export function VacancyCard({ job, companyHref }: { job: PrototypeJobView; companyHref?: string }) {
+export function VacancyCard({ job, companyHref }: { job: PrototypeJobView | PublicJobItem; companyHref?: string }) {
+  if ("source" in job) return <PublicVacancyCard job={job} />;
   const prototype = job.prototype;
   const salary = formatSalary({ min: job.salary_min, max: job.salary_max, currency: job.salary_currency });
   const published = prototype?.publishedAgoLabel ?? (job.published_at === undefined ? undefined : `Publicada: ${formatPublishedDate(job.published_at)}`);

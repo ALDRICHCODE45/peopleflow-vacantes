@@ -4,7 +4,7 @@ import {
    getJob,
    getJobQueryOptions,
 } from "../../../../features/jobs/api/getJob";
-import type { JobItem } from "../../../../features/jobs/types";
+import type { PublicJobDetail } from "../../../../features/jobs/types";
 
 /** Validated detail failure shape, derived without importing the transport façade. */
 type GetJobResult = Awaited<ReturnType<typeof getJob>>;
@@ -17,7 +17,7 @@ type GetJobError = Extract<GetJobResult, { ok: false }>["error"];
  * error boundary instead of ever presenting it as not found.
  */
 export type VacanteDetailResult =
-   | { kind: "found"; job: JobItem }
+   | { kind: "found"; job: PublicJobDetail }
    | { kind: "notFound" }
    | { kind: "unavailable"; error: GetJobError };
 

@@ -4,10 +4,29 @@ import {
   formatClosingDate,
   formatPublishedDate,
   formatSalary,
+  formatPublicCompensation,
+  formatPublicSalary,
   payFrequencyLabel,
   seniorityLabel,
   workModeLabel,
 } from "./formatters";
+
+import { legacyDetail, vacancyDetail } from "./api/public-fixtures";
+
+describe("public v2 salary formatting", () => {
+  it("uses exact decimal strings and shared draft cadence/basis labels", () => {
+    expect(formatPublicCompensation(vacancyDetail.compensation)).toBe("30000.00 – 40000.00 MXN · Mensual · Bruto");
+    expect(formatPublicCompensation({ mode: "fixed", amount: "999999999999.99", min: null, max: null, currency: "USD", pay_period: "semimonthly", basis: "net" })).toBe("999999999999.99 USD · Quincenal · Neto");
+    expect(formatPublicCompensation({ mode: "fixed", amount: "0", min: null, max: null, currency: "MXN", pay_period: "hourly", basis: "gross" })).toBe("0.00 MXN · Por hora · Bruto");
+  });
+  it("omits hidden vacancy money and never invents a legacy period or basis", () => {
+    expect(formatPublicSalary({ ...vacancyDetail, compensation: null })).toBeNull();
+    expect(formatPublicSalary({ ...legacyDetail, legacy_salary: null })).toBeNull();
+    expect(formatPublicSalary({ ...legacyDetail, legacy_salary: { min: "3000", max: null, currency: "USD" } })).toBe("Desde USD 3,000");
+    expect(formatPublicSalary({ ...legacyDetail, legacy_salary: { min: null, max: "3000", currency: "USD" } })).toBe("Hasta USD 3,000");
+    expect(formatPublicSalary(legacyDetail)).not.toMatch(/Mensual|Bruto|Neto/);
+  });
+});
 
 describe("jobs es-MX formatters", () => {
   it("maps every backend enum wire value to a fixed Mexico Spanish label", () => {

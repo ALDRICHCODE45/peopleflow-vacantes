@@ -11,12 +11,13 @@ Branch feat/vacancy-public-ui stacked on feat/vacancy-publication-ui (122df2f); 
 - S6. Employer screens of a published vacancy (draft editor save, Entrega, Solicitud): a 422 publication_incomplete on save is shown as «La vacante está publicada: no puedes dejarla sin …» listing the missing items (labels from publication-model.ts), edits kept, no retry.
 
 ## Tasks
-- T1 [in_progress] S1-S5 | writer A | Public site to /v2/jobs: client + schemas, URL/query helpers, list filters, cards, detail page, apply visibility, tests. | commit: -
+- T1 [done] S1-S5 | writer mvbgqwx4-c-1nlo + parent | Public site to /v2/jobs: client + schemas, URL/query helpers, list filters, cards, detail page, apply visibility, tests. | commit: -
 - T2 [done] S1,S2,S6 | writer mvbge99u-b-y7c4 + parent review | 422 publication_incomplete on draft PATCH, delivery PUT and management PUT of a published vacancy. | commit: -
-- T3 [pending] S1-S6 | parent | Rule audit, checks, guide, review queue entry; browser test when the user is back. | commit: -
+- T3 [blocked: user browser test] S1-S6 | parent | Rule audit, checks, guide, review queue entry; browser test when the user is back. | commit: -
 
 ## Log
 - L1. Backend proposal f287f4c (§10) with the user's decisions in S2; frontend notes on seniority, legacy published_at, compensation shape and errors answered in 4d8edf2 (S3/S4). P2b (CV library + apply) is outlined in §10.5 and closes later.
 - L2. Parent decision for review: on vacancy-source details the apply action is hidden (not disabled with «Disponible pronto») because the rules forbid «próximamente» placeholders and P2a ships together with P2b after the user's review.
 - L3. The parallel-writer guard rejected writer A again: any surface under frontend/src/app/ with `(group)` or `[param]` segments is read as a glob that overlaps every path, even as `(public)/vacantes/**`. Route-touching writers therefore run alone; T1 starts after T2 (same task text).
 - L4. T2 writer mvbge99u-b-y7c4: RED 25 → GREEN 2362/57 files, tsc 0, eslint 0. Parent review: one shared formatter (publication-model formatPublishedSaveMissing) used by the draft editor, Entrega and Solicitud (rules §13.8), 422 decoded strictly only for publication_incomplete, no retry. T1 launched now.
+- L5. T1 writer mvbgqwx4-c-1nlo: RED (8 contract + filters/detail/postular) → GREEN 187/20 public files + 26 related, tsc 0, eslint 0, §9 code audit passed. Parent review: replaced a pre-existing `space-y-4` in JobDetailView with flex gap (rules §3). Full suite: 4 failures — two stale tests outside the writer's surfaces still expecting v1 (jobId.test detail URL/payload → v2 /v2/jobs/{id} with public-fixtures; wizard source contract expecting enrichJob → legacyApplicationJob + vacancy notFound), fixed; two load timeouts (benefits-section, local-draft-form) pass alone. 4 files/110 tests green, tsc 0, eslint . 0. Guide steps 34-36; review queue item 2 lists every visual decision.

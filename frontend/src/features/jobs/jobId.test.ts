@@ -21,20 +21,12 @@ vi.mock("../../lib/env/server", () => ({
 
 import { getJob, getJobQueryOptions } from "./api/getJob";
 import { isValidJobId } from "./jobId";
-import { jobItemSchema } from "./schemas";
+import { legacyDetail } from "./api/public-fixtures";
+import { publicJobDetailSchema } from "./schemas";
 
 const UUID = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 
-const validDetail = {
-  id: UUID,
-  title: "Ingeniera Frontend",
-  description: "Construye la experiencia de vacantes.",
-  work_mode: "remote",
-  employment_type: "full_time",
-  seniority: "senior",
-  salary_currency: "MXN",
-  company: { id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f", name: "Acme" },
-};
+const validDetail = { ...legacyDetail, id: UUID };
 const ok = (status: number, body?: unknown) => ({
   ok: status < 300,
   status,
@@ -97,10 +89,10 @@ describe("detail query function failure classification", () => {
     vi.stubGlobal("fetch", fetchMock);
     await expect(getJob(UUID)).resolves.toEqual({
       ok: true,
-      data: jobItemSchema.parse(validDetail),
+      data: publicJobDetailSchema.parse(validDetail),
     });
     const [calledUrl] = fetchMock.mock.calls[0] as [string];
-    expect(calledUrl).toBe(`http://127.0.0.1:8080/jobs/${UUID}`);
+    expect(calledUrl).toBe(`http://127.0.0.1:8080/v2/jobs/${UUID}`);
   });
 });
 

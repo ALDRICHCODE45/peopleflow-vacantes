@@ -18,25 +18,17 @@ vi.mock("../../../lib/env/server", () => ({
 
 import type { RequestJsonResult } from "../../../lib/api/server";
 import { serverEnv } from "../../../lib/env/server";
-import { SAMPLE_JOBS } from "../sample-jobs";
-import { jobItemSchema } from "../schemas";
-import type { JobItem } from "../types";
+import { findSampleJob, SAMPLE_JOBS } from "../sample-jobs";
+import { publicJobDetailSchema } from "../schemas";
+import type { PublicJobDetail } from "../types";
+import { legacyDetail } from "./public-fixtures";
 import { getJob, getJobQueryOptions } from "./getJob";
 
 const env = serverEnv as { sampleJobs: boolean };
-const sampleJob = SAMPLE_JOBS[0]!;
+const sampleJob = findSampleJob(SAMPLE_JOBS[0]!.id)!;
 const unknownSampleId = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7fff";
 
-const wireJob = {
-  id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e",
-  title: "Ingeniera Frontend",
-  description: "Construye la experiencia de vacantes.",
-  work_mode: "remote",
-  employment_type: "full_time",
-  seniority: "senior",
-  salary_currency: "MXN",
-  company: { id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8f", name: "Acme" },
-};
+const wireJob = legacyDetail;
 
 function ok(status: number, body?: unknown) {
   return {
@@ -89,10 +81,10 @@ describe("getJob detail read", () => {
     vi.stubGlobal("fetch", fetchMock);
     await expect(getJob(wireJob.id)).resolves.toEqual({
       ok: true,
-      data: jobItemSchema.parse(wireJob),
+      data: publicJobDetailSchema.parse(wireJob),
     });
     const [calledUrl] = fetchMock.mock.calls[0] as [string];
-    expect(calledUrl).toBe(`http://127.0.0.1:8080/jobs/${wireJob.id}`);
+    expect(calledUrl).toBe(`http://127.0.0.1:8080/v2/jobs/${wireJob.id}`);
   });
 
   it("maps a backend 404 to not-found and other failures to status without a not-found mapping", async () => {
@@ -115,8 +107,8 @@ describe("getJob detail read", () => {
     const options = getJobQueryOptions(wireJob.id);
     expect(options.queryKey).toEqual(["jobs", "detail", wireJob.id]);
     await expect(
-      (options.queryFn as () => Promise<RequestJsonResult<JobItem>>)(),
-    ).resolves.toEqual({ ok: true, data: jobItemSchema.parse(wireJob) });
-    expectTypeOf(getJob(wireJob.id)).toEqualTypeOf<Promise<RequestJsonResult<JobItem>>>();
+      (options.queryFn as () => Promise<RequestJsonResult<PublicJobDetail>>)(),
+    ).resolves.toEqual({ ok: true, data: publicJobDetailSchema.parse(wireJob) });
+    expectTypeOf(getJob(wireJob.id)).toEqualTypeOf<Promise<RequestJsonResult<PublicJobDetail>>>();
   });
 });
