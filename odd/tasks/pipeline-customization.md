@@ -37,10 +37,10 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - [x] T16 — S3: user browser test approved; frontend merged a6014b1, backend merged into local main (see L15)
 - [x] T17 — S9, S10: cut-3 design proposal, design §8 (inline) — edb5bc7
 - [x] T18 — S9: cut-3 contract review with frontend agent; accepted with 3 notes — contract commit
-- [ ] T19 — S10 + design §8.2: pure art. 74 business-day calendar with unit tests (worker) — commit pending
-- [ ] T20 — S10 + design §8.1, §8.3: pure delivery model (strict decoding, nullable fields, window on change, calendar view) with unit tests (worker) — commit pending
-- [ ] T21 — design §8.1, §8.3, §8.4: migration 00017 (own commit, Risk item 1) + store GET/PUT + audit `JobDraftDeliveryConfigured` + pipeline PUT `409 cutoff_stage_in_use` (Risk item 3, requested cut-1 contract change) (worker) — commit pending
-- [ ] T22 — design §8.3: HTTP routes, error codes, tzdata embed, real-router tests, `backend/docs/pipeline-delivery.md` + update `backend/docs/pipeline-config.md` (worker) — commit pending
+- [x] T19 — S10 + design §8.2: pure art. 74 business-day calendar with unit tests (worker) — d845553
+- [x] T20 — S10 + design §8.1, §8.3: pure delivery model (strict decoding, nullable fields, window on change, calendar view) with unit tests (worker) — 479edfd
+- [x] T21 — design §8.1, §8.3, §8.4: migration 00017 (own commit, Risk item 1) + store GET/PUT + audit `JobDraftDeliveryConfigured` + pipeline PUT `409 cutoff_stage_in_use` (Risk item 3, requested cut-1 contract change) (worker) — dccde91
+- [x] T22 — design §8.3: HTTP routes, error codes, tzdata embed, real-router tests, `backend/docs/pipeline-delivery.md` + update `backend/docs/pipeline-config.md` (worker) — 80946e8
 - [ ] T23 — parent integration run on isolated DB + independent verification — pending
 - [ ] T24 — S3: user browser test with frontend, then local merge to main — pending
 
@@ -63,3 +63,4 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **L15.** Frontend agent (msg 9ace7ba2, 2026-10-16): «El usuario aprobó el corte 2 en el navegador.» Frontend feat/pipeline-substates-config merged into local main a6014b1, no push. Substates are edited in a Sheet from the ⋯ menu of the in_process column in «Columnas del pipeline»; contract unchanged. Backend feat/pipeline-substates merged into local main after this entry; the user pushes. Cut 2 closed; next is cut 3 (delivery cutoff, target, commitment date).
 - **L16.** Cut 3 started on branch `feat/pipeline-delivery` from main 0209ee9. Evidence for the calendar rule: art. 74 LFT text in force (diputados.gob.mx LFT.pdf; fraction VII reformed DOF 30-09-2024, dof.gob.mx nota 5739950). User answered with the recommended options (S10).
 - **L17.** Frontend agent (msg e88fd491) accepted §8 and closed the contract, with three client-side notes recorded in §8.3. The frontend builds the UI in parallel against simulated actions (S9).
+- **L18.** Cut 3 backend committed by the parent (the worker may not commit): d845553 art. 74 calendar, 479edfd delivery model, dccde91 migration 00017 (additive table job_draft_delivery_configs, typed nullable columns, CHECK target 1–999, ON DELETE CASCADE) + sqlc output + store + audit + pipeline PUT `409 cutoff_stage_in_use`, 80946e8 routes + shared error catalog entries (`non_business_date`, `cutoff_stage_in_use`, additive pipeline_errors.go) + tzdata embed + docs. Scope was extended once to `backend/internal/shared/httpjson` (catalog rejects unknown codes). Parent evidence: `go test ./...` green, `go vet` clean, each of the four commits builds and vets alone (temporary detached worktrees); integration (draftstore, cmd/api, migrations) green on an isolated `draft_test` database created and dropped — every TestDelivery*/TestMigration00017 ran, 0 failures, only the four legacy 00009 tests skip. Risk: item 1 (new migration) and item 3 (requested change to the cut-1 pipeline PUT).
