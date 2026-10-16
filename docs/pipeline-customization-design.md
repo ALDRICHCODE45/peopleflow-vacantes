@@ -174,10 +174,11 @@ and new configuration (PIPE-16, AUD-*).
 
 ## 5. Frontend placement (frontend owns this)
 
-Confirmed by the user through the frontend agent: the editor lives on the vacancy
-pipeline page `/empresa/vacantes/{id}/pipeline`, which today shows an empty state for
-drafts. It is not a step of the draft editor. The first `GET` happens when that page
-opens. Reordering
+After the cut-1 browser test, the editor moved to a vacancy configuration section
+with subsections: `/empresa/vacantes/{id}/configuracion/columnas`, reached from a
+gear on the pipeline page `/empresa/vacantes/{id}/pipeline`. It is not a step of the
+draft editor. Cuts 2 (substates) and 3 (delivery configuration) enter as new
+subsections of that section. The contract did not change. Reordering
 uses accessible up/down buttons with `Nuevos` and `Placement` fixed. Stage colors are
 derived from `kind` client-side; custom stages are neutral. An unknown `kind` is an
 invalid response: adding a kind is a contract change.
