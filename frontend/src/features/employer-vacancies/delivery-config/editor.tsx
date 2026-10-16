@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Flag, Target } from "lucide-react";
-import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
+import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -131,14 +131,13 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
           onChange={value => { if (!busy.current) { edit(setCommitmentDate(current.current.editor, value)); setDateRejected(false); } }} />
       </FieldGroup>
     </CardContent>
-    <CardFooter className="flex-col items-stretch gap-2 border-t">
-      <div className="flex flex-wrap justify-end gap-2">
+    <CardFooter className="border-t">
+      <ActionBar status={notice && <ActionStatus id="delivery-save-status" tone={dirty && notice.text === "Guardado" ? "info" : notice.tone} text={dirty && notice.text === "Guardado" ? "Cambios sin guardar" : notice.text} action={statusAction} />}>
         <Button type="button" variant="ghost" className="min-h-10" disabled={!dirty || pending !== null} onClick={() => { edit(fromDelivery(current.current.editor.baseline)); resetErrors(); setNotice(null); }}>Descartar cambios</Button>
         <Button type="button" className="min-h-10" disabled={!dirty || pending !== null} aria-busy={pending === "save"} aria-describedby={notice ? "delivery-save-status" : undefined} onClick={() => void persist()}>
           {pending === "save" && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending === "save" ? "Guardando…" : "Guardar cambios"}
         </Button>
-      </div>
-      <ActionStatusSlot>{notice && <ActionStatus id="delivery-save-status" tone={dirty && notice.text === "Guardado" ? "info" : notice.tone} text={dirty && notice.text === "Guardado" ? "Cambios sin guardar" : notice.text} action={statusAction} />}</ActionStatusSlot>
+      </ActionBar>
     </CardFooter>
   </Card>;
 }

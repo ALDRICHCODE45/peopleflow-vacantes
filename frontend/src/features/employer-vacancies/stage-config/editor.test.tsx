@@ -183,6 +183,9 @@ it("composes ordered Item rows, fixed endpoints, a preview and an initially empt
   const slot = container.querySelector("[data-pf-action-status-slot]")!;
   expect(slot).toBeEmptyDOMElement();
   expect(save().compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  // Compact action footer (rules §12): one ActionBar row inside the CardFooter.
+  expect(slot.closest("[data-pf-action-bar]")).not.toBeNull();
+  expect(slot.closest('[data-slot="card-footer"]')).toContainElement(save());
   const preview = screen.getByRole("region", { name: "Vista previa" });
   const variants = ["info", "review", "accent", "review", "success", "danger"];
   within(preview).getAllByText(/Nuevos|Screening|En proceso|Placement|Descartados/).filter(node => node.hasAttribute("data-slot")).forEach((badge, index) => {

@@ -576,7 +576,7 @@ puede hacer la persona ahora.** Un párrafo rojo suelto, largo o con jerga técn
 | Qué | Patrón | Pieza |
 | --- | --- | --- |
 | Resultado de una acción (guardar, crear, cargar) | Toast de Sileo arriba a la derecha | `notifyActionResult` (`@/components/feedback/notify`) |
-| Estado persistente de esa acción | Una línea breve junto al botón, con ícono | `ActionStatus` (`@/components/feedback/action-status`) |
+| Estado persistente de esa acción | Una línea breve junto al botón, con ícono | `ActionStatus` en un `ActionBar` (`@/components/feedback/action-status`) |
 | Un campo inválido | Mensaje corto junto al campo, `aria-invalid` en el control | `Field` + `FieldError` |
 | Una página o sección sin datos que mostrar | Estado vacío con acción | `Empty` |
 
@@ -584,17 +584,21 @@ puede hacer la persona ahora.** Un párrafo rojo suelto, largo o con jerga técn
 - `notifyActionResult` es la única forma de emitir toasts de resultado. Recibe una clave
   por acción (por ejemplo `"draft-save"`), cierra el toast anterior de esa clave y deja
   uno solo visible por acción.
-- La línea de estado (`ActionStatus`) va **debajo** de la acción, dentro de un
+- La línea de estado (`ActionStatus`) va **junto a** la acción, dentro de un
   `ActionStatusSlot` que se renderiza siempre, aunque esté vacío, con alto reservado.
-  Así un resultado que aparece o cambia nunca mueve el botón. Nunca va arriba de la
-  acción ni ocupa más de una línea por resultado.
-- **Excepción: footer de `Sheet`.** Para que el pie del panel lateral no duplique su
-  alto, el `ActionStatusSlot` va **a la izquierda** de las acciones, en la misma fila
-  (`SheetFooter` con `flex-row items-start`, el slot en un contenedor
-  `order-first min-w-0 flex-1` y las acciones a la derecha). El slot se sigue
-  renderizando siempre y la fila se alinea arriba, así un estado que aparece o se
-  parte en dos líneas no mueve los botones. En el DOM las acciones siguen antes que el
-  estado. Aprobado por el usuario para el Sheet de subestados (2026-10-16).
+  Así un resultado que aparece o cambia nunca mueve el botón. En filas de acciones va a
+  la izquierda de los botones con `ActionBar` (punto siguiente); solo un botón aislado,
+  fuera de una fila de acciones, la lleva debajo. Nunca va arriba de la acción ni ocupa
+  más de una línea por resultado.
+- **Footer de acciones compacto (`ActionBar`).** En el pie de una `Card` o de un
+  `Sheet` (o en cualquier fila de acciones de un formulario), el `ActionStatusSlot` va
+  **a la izquierda** de las acciones, en la misma fila: se usa `ActionBar`
+  (`@/components/feedback/action-status`) dentro del `CardFooter`/`SheetFooter`, sin
+  `flex-col`. El slot se sigue renderizando siempre y la fila se alinea arriba, así un
+  estado que aparece o se parte en dos líneas no mueve los botones; en el DOM las
+  acciones siguen antes que el estado. Apilar el estado debajo de los botones duplica el
+  alto del footer (~128px contra ~80px en una `Card`) y queda prohibido. Aprobado por
+  el usuario tras las pruebas de los cortes 2 y 3 (2026-10-16).
 - La línea de estado (`ActionStatus`) es el respaldo accesible y persistente del toast.
   Resume el resultado en pocas palabras («Guardado · versión 2», «No se guardó · ver
   aviso») y, si hay una acción útil (iniciar sesión, crear la empresa), la ofrece ahí
@@ -707,7 +711,7 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
   datos propios, tiene su propio botón de guardar, independiente del formulario de
   fondo, y cerrarlo con cambios sin guardar pide confirmación con un `Dialog`
   («Seguir editando» / «Descartar»).
-- Su footer es una sola fila (excepción de la sección 12).
+- Su footer es una sola fila con `ActionBar` (sección 12).
 
 ### 13.4 Secciones de configuración con apartados
 

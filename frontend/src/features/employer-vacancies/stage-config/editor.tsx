@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
+import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -201,8 +201,8 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
             {row(state.exit, state.stages.length + 1)}
           </section>
         </CardContent>
-        <CardFooter className="flex-col items-stretch gap-2 border-t">
-          <div className="flex flex-wrap justify-end gap-2">
+        <CardFooter className="border-t">
+          <ActionBar status={notice && <ActionStatus id="pipeline-save-status" tone={dirty && notice.text === "Guardado" ? "info" : notice.tone} text={dirty && notice.text === "Guardado" ? "Cambios sin guardar" : notice.text} action={statusAction} />}>
             <Button type="button" variant="ghost" className="min-h-10" disabled={!dirty || pending !== null} onClick={() => {
               edit(editorFromPipeline(current.current.editor.baseline)); setTouched(new Set()); setAttempted(false); setCutoffRejected(false); setNotice(null);
             }}>Descartar cambios</Button>
@@ -210,8 +210,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
               aria-describedby={notice ? "pipeline-save-status" : undefined} onClick={requestSave}>
               {pending === "save" && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending === "save" ? "Guardando…" : "Guardar cambios"}
             </Button>
-          </div>
-          <ActionStatusSlot>{notice && <ActionStatus id="pipeline-save-status" tone={dirty && notice.text === "Guardado" ? "info" : notice.tone} text={dirty && notice.text === "Guardado" ? "Cambios sin guardar" : notice.text} action={statusAction} />}</ActionStatusSlot>
+          </ActionBar>
         </CardFooter>
       </Card>
       <PipelinePreview state={state} />

@@ -47,6 +47,9 @@ it("composes one Entrega card, three icon Fields and an empty status slot below 
   for (const label of container.querySelectorAll('[data-slot="field-label"]')) expect(label.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
   expect(target()).toHaveAttribute("type", "text"); expect(target()).toHaveAttribute("inputmode", "numeric"); expect(target()).toHaveAccessibleDescription("Cuántos candidatos distintos tienes que entregar (1 a 999).");
   const slot = container.querySelector('[data-pf-action-status-slot]')!; expect(slot).toBeEmptyDOMElement(); expect(save().compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  // Compact action footer (rules §12): one ActionBar row inside the CardFooter.
+  expect(slot.closest("[data-pf-action-bar]")).not.toBeNull();
+  expect(slot.closest('[data-slot="card-footer"]')).toContainElement(save());
   expect(save()).toBeDisabled(); expect(screen.getByRole("button", { name: "Descartar cambios" })).toBeDisabled();
 });
 it("offers Sin definir plus current progression names in order, excluding the exit", async () => {

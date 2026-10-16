@@ -17,6 +17,20 @@ export function ActionStatusSlot({ children }: { children?: ReactNode }) {
   return <div data-pf-action-status-slot="" className="flex min-h-10 items-center">{children}</div>;
 }
 
+/**
+ * Compact action footer row (rules §12): the actions sit on the right and the reserved
+ * status slot on the left of the same row, top-aligned so a status that appears or wraps
+ * never moves the actions. The actions stay first in the DOM for reading order.
+ */
+export function ActionBar({ status, children }: { status: ReactNode; children: ReactNode }) {
+  return (
+    <div data-pf-action-bar="" className="flex w-full items-start gap-3">
+      <div data-pf-action-bar-actions="" className="flex shrink-0 flex-wrap justify-end gap-2">{children}</div>
+      <div className="order-first min-w-0 flex-1"><ActionStatusSlot>{status}</ActionStatusSlot></div>
+    </div>
+  );
+}
+
 export function ActionStatus({ id, tone, text, action }: {
   id: string;
   tone: keyof typeof tones;
