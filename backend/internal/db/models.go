@@ -160,6 +160,13 @@ type JobDraftIdempotency struct {
 	FingerprintAlgorithm string             `json:"fingerprint_algorithm"`
 }
 
+type JobDraftManagementConfig struct {
+	DraftID         uuid.UUID   `json:"draft_id"`
+	Version         int64       `json:"version"`
+	RequestDate     pgtype.Date `json:"request_date"`
+	HiringHeadcount pgtype.Int4 `json:"hiring_headcount"`
+}
+
 type JobDraftPipelineConfig struct {
 	DraftID       uuid.UUID `json:"draft_id"`
 	Version       int64     `json:"version"`
@@ -191,4 +198,12 @@ type User struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 	DeletedAt  pgtype.Timestamptz `json:"deleted_at"`
+}
+
+type VacancyProcess struct {
+	ID          uuid.UUID          `json:"id"`
+	CompanyID   uuid.UUID          `json:"company_id"`
+	Status      string             `json:"status"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	PublishedBy uuid.UUID          `json:"published_by"`
 }
