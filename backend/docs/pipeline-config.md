@@ -62,7 +62,8 @@ version or ETag.
 
 Body is exactly `stages` and `exit`. Each stage accepts exactly `name` and an
 optional `id`; `kind` is never accepted. Use existing IDs from GET; omit `id`
-only when adding a custom stage. Remove a custom stage by omitting it.
+only when adding a custom stage. Remove a custom stage by omitting it, unless it
+is the stored delivery cutoff (cut 3; see [pipeline-delivery.md](pipeline-delivery.md)).
 
 ```json
 {
@@ -89,7 +90,11 @@ client.
 2. `new` is always first and `placement` always last. All intervening stages
    can be reordered freely.
 3. `discarded` exists only in `exit`, never in progression.
-4. At most three custom stages, before placement. They may be removed in cut 1.
+4. At most three custom stages, before placement. A custom stage stored as
+   `cutoffStageId` cannot be omitted: `409 cutoff_stage_in_use`, with no config,
+   version or audit write. Clear/replace the delivery cutoff first. Renaming or
+   reordering that column remains allowed. Delivery and pipeline writes lock the
+   same parent draft, so cutoff selection and deletion cannot race.
 5. Names use the unchanged requester-catalog normalizer: valid UTF-8 → NFC →
    trim/collapse Unicode `White_Space` (including NBSP) to one ASCII space.
    Non-whitespace controls are rejected; zero-width/format characters remain.
@@ -151,10 +156,16 @@ Error envelope is exactly `{ "error": string, "code": string }`, without DTO,
 | `403` | `company_inactive` | Company missing or tombstoned |
 | `404` | `not_found` | Missing/foreign/non-principal draft after general gates |
 | `409` | `company_not_active` | Company inactive at the transactional guard |
+| `409` | `cutoff_stage_in_use` | Omitted custom stage is the stored delivery cutoff; no writes |
 | `412` | `version_conflict` | Stale or foreign strong If-Match |
 | `413` | `payload_too_large` | Raw body over budget |
 | `428` | `precondition_required` | PUT without If-Match |
 | `500` | `internal_error` | Unexpected failure, invalid stored data or version overflow |
+
+The additive shared catalog also includes `400 non_business_date` for a changed
+weekend/holiday commitment date on the delivery PUT, not the pipeline PUT.
+The `409 cutoff_stage_in_use` envelope contains no stage ID; if the editor did not
+expect that column to be the cutoff, re-read GET `…/pipeline/delivery`.
 
 ## Validation commands
 

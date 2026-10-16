@@ -35,6 +35,7 @@ type routerDeps struct {
 	draftListHandler   *jobshttp.DraftListHandler
 	pipelineHandler    *jobshttp.PipelineHandler
 	substatesHandler   *jobshttp.SubstatesHandler
+	deliveryHandler    *jobshttp.DeliveryHandler
 	requesterHandler   *jobshttp.RequesterHandler
 	applicationHandler *applicationshttp.ApplicationHandler
 	queries            *db.Queries
@@ -138,6 +139,7 @@ func newRouter(d routerDeps) chi.Router {
 	draftV2Handlers := d.draftV2Handler.DraftHandlers()
 	pipelineHandlers := d.pipelineHandler.PipelineHandlers()
 	substatesHandlers := d.substatesHandler.SubstatesHandlers()
+	deliveryHandlers := d.deliveryHandler.DeliveryHandlers()
 	r.Group(func(r chi.Router) {
 		r.Use(jobshttp.NoStore, d.requireAuth, d.requireRecruiter)
 		r.Post("/v2/me/company/job-drafts", draftV2Handlers.CreateDraft)
@@ -149,6 +151,8 @@ func newRouter(d routerDeps) chi.Router {
 		r.Put("/v2/me/company/job-drafts/{id}/pipeline", pipelineHandlers.PutPipeline)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline/substates", substatesHandlers.GetSubstates)
 		r.Put("/v2/me/company/job-drafts/{id}/pipeline/substates", substatesHandlers.PutSubstates)
+		r.Get("/v2/me/company/job-drafts/{id}/pipeline/delivery", deliveryHandlers.GetDelivery)
+		r.Put("/v2/me/company/job-drafts/{id}/pipeline/delivery", deliveryHandlers.PutDelivery)
 	})
 	// Requester catalog (contract §7): private like the drafts, so NoStore runs
 	// before both gates. The store re-checks user, company and membership.

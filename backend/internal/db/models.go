@@ -139,6 +139,14 @@ type JobDraft struct {
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 }
 
+type JobDraftDeliveryConfig struct {
+	DraftID        uuid.UUID   `json:"draft_id"`
+	Version        int64       `json:"version"`
+	CutoffStageID  pgtype.UUID `json:"cutoff_stage_id"`
+	TargetQuantity pgtype.Int4 `json:"target_quantity"`
+	CommitmentDate pgtype.Date `json:"commitment_date"`
+}
+
 type JobDraftIdempotency struct {
 	ID                   uuid.UUID          `json:"id"`
 	CompanyID            uuid.UUID          `json:"company_id"`

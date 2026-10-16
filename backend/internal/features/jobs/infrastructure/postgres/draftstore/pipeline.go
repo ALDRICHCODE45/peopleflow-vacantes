@@ -59,6 +59,22 @@ func (s *Store) PutPipeline(ctx context.Context, companyID, actorID, id uuid.UUI
 	if err != nil {
 		return drafts.Result{}, err
 	}
+	delivery, _, err := readDelivery(ctx, tx, id)
+	if err != nil {
+		return drafts.Result{}, err
+	}
+	if delivery.CutoffStageID != nil {
+		retained := false
+		for _, stage := range next.Stages {
+			if stage.ID == *delivery.CutoffStageID {
+				retained = true
+				break
+			}
+		}
+		if !retained {
+			return drafts.Result{}, pipelineconfig.ErrCutoffStageInUse
+		}
+	}
 	// Only a stored configuration can be a stored no-op. The first successful
 	// PUT materializes version 1, even when the caller chooses all defaults.
 	if version > 0 && previous.Equal(next) {
