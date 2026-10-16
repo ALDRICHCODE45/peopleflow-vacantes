@@ -197,8 +197,8 @@ invalid response: adding a kind is a contract change.
 
 ## 7. Cut 2 — `En proceso` substate catalog (proposal)
 
-Status: **proposal under frontend review.** Product answers (user, 2026-10-16) are
-recorded in §7.5. Rules: SUB-1 (unlimited user-defined substates only inside semantic
+Status: **cut-2 contract agreed** with the frontend agent (msg 29a86067). Product
+answers (user, 2026-10-16) are recorded in §7.5. Rules: SUB-1 (unlimited user-defined substates only inside semantic
 `En proceso`), SUB-2 (the four names are examples, not built-ins), SUB-4 (tracking
 labels, not sequential steps), SUB-6 (substates instead of a column per interview).
 Assigning a substate to a candidate (SUB-3) and filtering (SUB-5) are cut 6.
@@ -256,11 +256,21 @@ before precondition comparison.
 
 - Response: same shape as `GET`, `substates` in request order with server ids for new
   entries, new `ETag`.
+- Response keys are exactly `version`, `substates`, `limits`, `suggestions`; each
+  substate is exactly `{ id, name }`; `limits` is exactly `{ maxSubstates,
+  nameMaxLength }` with positive integers. Adding a key is a contract change.
+- `suggestions` is always present as an array (possibly empty, never null). It is the
+  same fixed list on every response, **not filtered** against the catalog; each entry
+  is already normalized, casefold-unique and within `nameMaxLength`. The client
+  filters it against its editor state.
+- The current name of the `in_process` stage is read from `GET …/pipeline`; this
+  resource does not repeat it.
 - `version` decimal string, `"0"` = never saved; the ETag is strong, opaque and never
   equal to or parseable as a draft or pipeline tag.
 - Versions are independent: a substate `PUT` never changes the draft or pipeline
   version, and neither of those changes the substate version.
-- First `PUT` materializes version `"1"` with an audit event (cut-1 precedent); later a
+- First `PUT` materializes version `"1"` with an audit event (cut-1 precedent), even an
+  empty list over version `"0"`; later a
   `PUT` whose normalized result equals the stored catalog returns `200` with the same
   version and no audit event.
 - Each changing `PUT` writes one `audit_events` row (`JobDraftSubstatesConfigured`) in
