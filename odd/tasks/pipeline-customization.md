@@ -48,7 +48,12 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - [x] T24 — S3: user browser test approved; frontend merged 6ba0b3f, backend merged into local main (see L20)
 - [x] T25 — S11, S12: map publication path (explore) — L23
 - [x] T26 — S11–S13: publication P1 design proposal, design §9 (inline) — proposal commit
-- [ ] T27 — S11: publication contract review with frontend agent — pending
+- [x] T27 — S11: publication contract review with frontend agent; accepted with 5 notes — contract commit
+- [ ] T28 — S13 + §9.2, §9.4: management model + migration 00018 (own commit) + store + routes (worker) — commit pending
+- [ ] T29 — S13 + §9.3, §9.4: readiness evaluation + publish (migration 00019 own commit, idempotency, If-Match, atomic revalidation, default stage materialization, audit) + routes + new codes (worker) — commit pending
+- [ ] T30 — §9.4: draft list items gain `status` and `published_at` (requested contract change, Risk item 3) + docs (worker) — commit pending
+- [ ] T31 — parent integration run on isolated DB + independent verification — pending
+- [ ] T32 — S3: user browser test with frontend, then local merge to main — pending
 
 ## Log
 
@@ -75,3 +80,4 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **L21.** Frontend agent (msg 40879028) found that cut 4 has no vacancy to act on: drafts carry configuration but never receive applications; legacy `jobs` receive applications but have no stage configuration. User chose a publication cut first (S12). Branch `feat/vacancy-publication` from main 79cda65.
 - **L22.** Frontend inputs for publication (msg 253fa21d): «Publicar» in draft editor Revisión step, portfolio row actions and draft pipeline empty state; server-side readiness GET with stable per-requirement codes; POST publish with Idempotency-Key and If-Match on the draft ETag, atomic validation; rejection `422 publication_incomplete` with `missing: [codes]` (first list envelope); 201 with vacancy id (same as draft or new?), status, publishedAt, public URL/slug; portfolio list must include published vacancies; editability after publishing (draft content, columns, substates, delivery); public listing visibility (VAC-4 only). Product questions to ask the user: confirmation before publishing, editing public content after publishing, whether the id is kept.
 - **L23.** Exploration (gentle-ai-explore mvbb8asy-9-dg8b): draft lacks request date and headcount; legacy public catalog only understands basic fields; applications do not require CV and still accept cover letter (conflicts INT-17/18; CV storage needs deferred AWS); no draft↔jobs link; recommendation: additive process record keyed by the draft, legacy untouched. User answered seven publication questions (S13).
+- **L24.** Frontend agent (msg b7f35cff) accepted §9 and closed the P1 contract with five client notes (recorded in §9.4). Backend added the explicit POST evaluation order so a same-key replay returns the original 201 before `already_published`.

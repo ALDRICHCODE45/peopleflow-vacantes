@@ -447,7 +447,8 @@ as that column's error.
 
 ## 9. Publication P1 — publish a draft (proposal)
 
-Status: **proposal under frontend review.** Product answers (user, 2026-10-16) in §9.7.
+Status: **P1 contract agreed** with the frontend agent (msg b7f35cff). Product answers
+(user, 2026-10-16) in §9.7.
 Publication is split in two cuts (§9.7 S1): **P1** (this section) turns a draft into a
 published vacancy for the employer — process record, clock start, VAC-3 gate, CFG-11 —
 and **P2** adds public listing/detail with the full offer content and organic
@@ -558,6 +559,13 @@ Keys exactly `status` (`draft` | `published`), `publishedAt` (RFC 3339 UTC or `n
   at, frozen snapshot of target, cutoff stage id and name, commitment date, headcount and
   request date).
 
+Evaluation order on `POST`: auth gates → draft authorization (`404`) → `Idempotency-Key`
+shape → **replay** (same key and payload returns the original `201` with
+`Idempotency-Replayed: true`, even though the draft is now published; same key with a
+different payload → `409 idempotency_conflict`) → `If-Match` (`428`/`400`/`412`) →
+`409 already_published` → requirements (`422`) → write. Publishing does not change the
+draft version or ETag.
+
 Status codes, in addition to §4:
 
 | Status | Code | Case |
@@ -571,6 +579,22 @@ Status codes, in addition to §4:
 (`draft` | `published`) and `published_at` (RFC 3339 UTC or `null`). This is a
 coordinated contract change to the draft list; ordering, cursor and filters are
 unchanged.
+
+Frontend notes recorded with the agreement (no backend change):
+
+- From the portfolio row or pipeline page the confirmation dialog first reads the draft
+  (ETag and summary) and `GET …/publication`; a `412` is shown as «Esto cambió en otro
+  lugar».
+- One `Idempotency-Key` per confirmation attempt; an uncertain `POST` is never retried
+  automatically: «Comprobar» reads `GET …/publication` and, if still `draft`, allows
+  publishing again with the same key.
+- The `422` body is decoded strictly only for `publication_incomplete`; unknown missing
+  codes are generic; `409 already_published` is treated as idempotent success.
+- Management lives in the configuration subsection «Solicitud»
+  (`/configuracion/solicitud`) with its own save; its date picker uses the response's
+  `today`.
+- List `status` is a strict enum and `published_at` RFC 3339 or `null`; a published row
+  shows «Activa» and leaves the Borradores tab.
 
 ### 9.5 Storage (backend)
 
