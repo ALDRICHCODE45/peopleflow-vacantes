@@ -145,7 +145,7 @@ function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenCh
     requestClose();
   }}>
     {/* Same-specificity primitive widths otherwise win by stylesheet order. Geometry only. */}
-    <SheetContent side="right" presentation="edge" showCloseButton={false} className="data-[side=right]:w-full! data-[side=right]:sm:max-w-lg! overflow-hidden"
+    <SheetContent side="right" showCloseButton={false} className="data-[side=right]:w-full! data-[side=right]:sm:max-w-lg! overflow-hidden"
       onKeyDown={event => {
         // Base UI stops composite keys at its popup; dnd-kit's sensor listens on document.
         if (dragging.current && (event.key === "ArrowUp" || event.key === "ArrowDown")) event.preventBaseUIHandler();

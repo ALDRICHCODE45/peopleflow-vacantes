@@ -44,6 +44,9 @@ it("composes an accessible right Sheet with one left-aligned suggestions row and
   const dialog = screen.getByRole("dialog", { name: "Subestados de Entrevistas" });
   expect(within(dialog).getByRole("heading", { name: "Subestados de Entrevistas" })).toBeVisible();
   expect(dialog).toHaveAttribute("data-side", "right");
+  // Floating presentation: inset from every viewport edge and rounded (shared primitive).
+  expect(dialog).toHaveAttribute("data-presentation", "floating");
+  expect(dialog.className).toContain("data-[side=right]:rounded-2xl");
   expect(dialog).toHaveAccessibleDescription("Úsalos para registrar en qué punto del proceso está cada candidato, por ejemplo cada entrevista. No son pasos obligatorios ni tienen que seguir un orden.");
   expect(screen.getByText("0 de 50 subestados")).toHaveAttribute("data-variant", "neutral");
   expect(screen.getByText("Todavía no hay subestados. Elige una sugerencia o agrega uno.")).toBeVisible();

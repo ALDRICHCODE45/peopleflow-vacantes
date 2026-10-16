@@ -161,6 +161,9 @@ describe("shared Sheet floating presentation", () => {
     expect(footer).not.toBeNull();
     expect(header!.className).toContain("shrink-0");
     expect(footer!.className).toContain("shrink-0");
+    // Compact footer: same horizontal rhythm as the header, shorter vertical padding.
+    expect(footer!).toHaveClass("px-6", "py-3");
+    expect(footer!).not.toHaveClass("p-6");
     // The panel is a column that can shrink, so `flex-1` bodies scroll.
     expect(content.className).toContain("min-h-0");
     expect(content.className).toContain("flex-col");
