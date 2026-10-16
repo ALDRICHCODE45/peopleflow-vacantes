@@ -336,3 +336,55 @@ func TestPublicationDeliveryRaceRevalidatesFrozenSnapshot(t *testing.T) {
 		})
 	}
 }
+
+// TestPublicationSubstatesAndManagementStayEditableAfterPublishing pins §9.2
+// (§9.7 S3) for the two resources the publish test does not edit: substates
+// and management keep saving with their own audit, and the process row and
+// readiness stay published and unchanged.
+func TestPublicationSubstatesAndManagementStayEditableAfterPublishing(t *testing.T) {
+	pool := requireDraftPool(t)
+	s, p, draft := readyPublication(t, pool)
+	ctx := context.Background()
+	id := draftIDOf(t, draft)
+	if _, err := s.Publish(ctx, p.companyID, p.ownerID, id, uuid.NewString(), true, draft.ETag, true, []byte(`{}`)); err != nil {
+		t.Fatal(err)
+	}
+	var publishedAt time.Time
+	if err := pool.QueryRow(ctx, `SELECT published_at FROM vacancy_processes WHERE id=$1`, id).Scan(&publishedAt); err != nil {
+		t.Fatal(err)
+	}
+	readiness, err := s.GetPublication(ctx, p.companyID, p.ownerID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	substatesBefore := auditCount(t, pool, id, substatesConfiguredEvent)
+	managementBefore := auditCount(t, pool, id, managementConfiguredEvent)
+
+	substates, err := s.GetSubstates(ctx, p.companyID, p.ownerID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	savedSubstates, err := s.PutSubstates(ctx, p.companyID, p.ownerID, id, substates.ETag, true, []byte(`{"substates":[{"name":"Primera entrevista"}]}`))
+	if err != nil || savedSubstates.ETag == substates.ETag || !bytes.Contains(savedSubstates.Body, []byte(`"Primera entrevista"`)) || auditCount(t, pool, id, substatesConfiguredEvent) != substatesBefore+1 {
+		t.Fatalf("substates after publishing=%+v %v", savedSubstates, err)
+	}
+
+	management, err := s.GetManagement(ctx, p.companyID, p.ownerID, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	savedManagement, err := s.PutManagement(ctx, p.companyID, p.ownerID, id, management.ETag, true, []byte(`{"requestDate":"2026-10-11","hiringHeadcount":3}`))
+	if err != nil || savedManagement.ETag == management.ETag || !bytes.Contains(savedManagement.Body, []byte(`"hiringHeadcount":3`)) || auditCount(t, pool, id, managementConfiguredEvent) != managementBefore+1 {
+		t.Fatalf("management after publishing=%+v %v", savedManagement, err)
+	}
+
+	var after time.Time
+	var rows int
+	if err := pool.QueryRow(ctx, `SELECT published_at, (SELECT count(*) FROM vacancy_processes WHERE id=$1) FROM vacancy_processes WHERE id=$1`, id).Scan(&after, &rows); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetPublication(ctx, p.companyID, p.ownerID, id)
+	if err != nil || rows != 1 || !after.Equal(publishedAt) || !bytes.Equal(got.Body, readiness.Body) || auditCount(t, pool, id, vacancyPublishedEvent) != 1 {
+		t.Fatalf("process changed by later edits: rows=%d at=%s body=%s %v", rows, after, got.Body, err)
+	}
+}
