@@ -16,6 +16,8 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **S8.** Cut 2 Q1 «Techo técnico de 50 (Recomendado)»; Q2 «El que elige el reclutador (Recomendado)»; Q3 «Vacía, con sugerencias (Recomendado)»; Q4 «Sí, únicos (Recomendado)».
 - **S9.** Cut 3 (user, relayed by frontend msg d3d1b987): «Si hermano, notificale al backend que ya vamos a pasar al siguiente paso y yo continuo con el, pero entre ustedes dos deben coordinarse para que mientras el implementa el backend, tu implementas la ui.»
 - **S10.** Cut 3 answers: «Calculado por regla del art. 74 LFT (Recomendado)»; «Vacía (Recomendado)»; «Techo técnico de 999 (Recomendado)»; «Desde hoy hasta 1 año (Recomendado)».
+- **S11.** Next cut (user, relayed by frontend msg 40879028): «Bien hermano, me parece perfecto, por favor avancemos al siguiente corte. recureda todo lo que hemos dicho, system design, shadcn, y coordinate con el backend para trabajar en conjunto y sacer features mas rapido.»
+- **S12.** Order (user): «Primero un corte de publicación (Recomendado)» — draft → published vacancy inheriting columns, substates and delivery, before cut 4.
 
 ## Tasks
 
@@ -43,6 +45,9 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - [x] T22 — design §8.3: HTTP routes, error codes, tzdata embed, real-router tests, `backend/docs/pipeline-delivery.md` + update `backend/docs/pipeline-config.md` (worker) — 80946e8
 - [x] T23 — parent integration run on isolated DB (L18) + independent verification passed (L19)
 - [x] T24 — S3: user browser test approved; frontend merged 6ba0b3f, backend merged into local main (see L20)
+- [ ] T25 — S11, S12: map publication path (explore) — running
+- [ ] T26 — S11, S12: publication design proposal, design §9 (inline) — pending
+- [ ] T27 — S11: publication contract review with frontend agent — pending
 
 ## Log
 
@@ -66,3 +71,4 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **L18.** Cut 3 backend committed by the parent (the worker may not commit): d845553 art. 74 calendar, 479edfd delivery model, dccde91 migration 00017 (additive table job_draft_delivery_configs, typed nullable columns, CHECK target 1–999, ON DELETE CASCADE) + sqlc output + store + audit + pipeline PUT `409 cutoff_stage_in_use`, 80946e8 routes + shared error catalog entries (`non_business_date`, `cutoff_stage_in_use`, additive pipeline_errors.go) + tzdata embed + docs. Scope was extended once to `backend/internal/shared/httpjson` (catalog rejects unknown codes). Parent evidence: `go test ./...` green, `go vet` clean, each of the four commits builds and vets alone (temporary detached worktrees); integration (draftstore, cmd/api, migrations) green on an isolated `draft_test` database created and dropped — every TestDelivery*/TestMigration00017 ran, 0 failures, only the four legacy 00009 tests skip. Risk: item 1 (new migration) and item 3 (requested change to the cut-1 pipeline PUT).
 - **L19.** Independent verify (gentle-ai-verify mvba14m4-8-jczc) on dccce61..1d76ea1: PASS, no blocking defect; S10, §8.1, §8.2 pinned dates and leap edge, every §8.3 bullet and status code covered by code + test; Risk 1 (additive 00017) and Risk 3 (pipeline PUT change confined to the cutoff guard) pass; shared catalog change additive. Gap closed by the parent: the cross-resource race (cutoff selection vs cutoff-stage removal) was code-only; 3dcf628 adds TestDelivery_ConcurrentCutoffSelectionAndRemovalNeverDangle (20 races, both orderings observed 19/1, cutoff never dangles). Ran with `-race` over all draftstore and cmd/api integration tests on an isolated draft_test database (created and dropped): green, no data race. Remaining unverified: tzdata fallback in a minimal container, frontend/browser behavior. Native review: assess on dccce61 committed range → medium, reviewDue false, not started.
 - **L20.** Frontend agent (msg f9c812d9, 2026-10-16): «El usuario aprobó el corte 3 en el navegador.» Frontend feat/pipeline-delivery-config merged into local main 6ba0b3f, no push; contract unchanged. Backend feat/pipeline-delivery merged into local main after this entry; the user pushes. Cut 3 closed — configuration cuts without candidates (1–3) are complete. Cut 4 (real candidate movement, migrates `applications`, high risk) starts only when the user decides.
+- **L21.** Frontend agent (msg 40879028) found that cut 4 has no vacancy to act on: drafts carry configuration but never receive applications; legacy `jobs` receive applications but have no stage configuration. User chose a publication cut first (S12). Branch `feat/vacancy-publication` from main 79cda65.
