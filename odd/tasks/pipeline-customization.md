@@ -23,6 +23,7 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **S15.** P2 CV handling (user): «Almacenamiento local detrás de una interfaz (Recomendado)» — CV mandatory now (INT-17), stored on local disk behind a storage interface, S3 later. Formats: «PDF y Word (.docx) (Recomendado)»; maximum size: «5 MB (Recomendado)».
 - **S16.** Applying (user): «Sí, con sesión (Recomendado)» — organic applications require a signed-in candidate account; «Sí, queda en sus CVs (Recomendado)» — an uploaded CV joins the candidate's CV library and can be reused across applications, each application keeping the exact version it used.
 - **S17.** P2 answers: «P2a listado/detalle, P2b postular (Recomendado)»; «Todas obligatorias (Recomendado)»; «No se deja guardar (Recomendado)»; «Texto, ubicación, modalidad, jornada, contrato, área (Rec.)».
+- **S18.** P2b CV library (user): «Hasta 10 (Recomendado)» CVs per candidate; deleting a used CV: «La postulación lo conserva (Recomendado)» — it leaves the library but applications keep the exact version (DOC-7); final retention stays an open privacy decision.
 
 ## Tasks
 
@@ -98,3 +99,4 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **L30.** Frontend inputs for the CV upload (msg b6993910): two steps (multipart upload → `{cvId, name, size, type}`, then apply with `cvId` + answers + Idempotency-Key); Next Server Action body limit raised to ~6 MB on the frontend (queued for user review); field-specific rejections (`cv_too_large` 413, `cv_unsupported_type` 415, `cv_content_mismatch` 400). User answered session and reuse (S16).
 - **L31.** Exploration (gentle-ai-explore mvbfnfzn-d-9n9l): legacy public API lenient and legacy-only; published content in BYTEA (needs a projection); compensation key is `public_visible`; safe screening projector exists; no upload handling; wizard is a prototype. User answered four P2 questions (S17).
 - **L32.** Frontend agent (msg 53e0858c) accepted P2a with four clarifications recorded in §10.3 (seniority enum and nullability, legacy `published_at` meaning, compensation = draft shape with `pay_period` and completeness rule, legacy_salary as nullable decimal strings, public error/headers). The draft key is `pay_period`; the proposal's `period` was corrected.
+- **L33.** User answered two P2b CV-library questions (S18) while the P2a worker runs.
