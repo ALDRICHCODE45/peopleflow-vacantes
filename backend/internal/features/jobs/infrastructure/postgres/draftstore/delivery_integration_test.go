@@ -346,3 +346,82 @@ func TestDelivery_CustomCutoffRemovalBlockedRenameAndReorderAllowed(t *testing.T
 		t.Fatalf("removed cutoff=%+v %v", got, err)
 	}
 }
+
+// TestDelivery_ConcurrentCutoffSelectionAndRemovalNeverDangle races choosing a
+// custom stage as the delivery cutoff against removing that stage from the
+// pipeline. Both writes lock the same draft row (§8.1), so exactly one wins and
+// the stored cutoff never points to a stage the pipeline no longer has.
+func TestDelivery_ConcurrentCutoffSelectionAndRemovalNeverDangle(t *testing.T) {
+	pool := requireDraftPool(t)
+	ctx := context.Background()
+	outcomes := map[string]int{}
+	for range 20 {
+		s, p, created := createV2Draft(t, pool)
+		s.clock = fixedDeliveryClock
+		id := draftIDOf(t, created)
+		initial := pipelineconfig.Defaults(id)
+		stages := []map[string]string{{"id": initial.Stages[0].ID, "name": "Nuevos"}, {"name": "Prueba"}}
+		for _, stage := range initial.Stages[1:] {
+			stages = append(stages, map[string]string{"id": stage.ID, "name": stage.Name})
+		}
+		raw, err := json.Marshal(map[string]any{"stages": stages, "exit": map[string]string{"id": initial.Exit.ID, "name": initial.Exit.Name}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		saved, err := s.PutPipeline(ctx, p.companyID, p.ownerID, id, pipelineconfig.ETag(id, 0), true, raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		custom := pipelineConfigOf(t, saved.Body).Stages[1].ID
+
+		start := make(chan struct{})
+		var deliveryErr, pipelineErr error
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, deliveryErr = s.PutDelivery(ctx, p.companyID, p.ownerID, id, deliveryconfig.ETag(id, 0), true, deliveryBody(t, deliveryconfig.Configuration{CutoffStageID: &custom}))
+		}()
+		go func() {
+			defer wg.Done()
+			<-start
+			_, pipelineErr = s.PutPipeline(ctx, p.companyID, p.ownerID, id, saved.ETag, true, pipelineWriteBody(t, initial))
+		}()
+		close(start)
+		wg.Wait()
+
+		pipeline, err := s.GetPipeline(ctx, p.companyID, p.ownerID, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		delivery, err := s.GetDelivery(ctx, p.companyID, p.ownerID, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		stored := deliveryOf(t, delivery.Body)
+		hasCustom := false
+		for _, stage := range pipelineConfigOf(t, pipeline.Body).Stages {
+			if stage.ID == custom {
+				hasCustom = true
+			}
+		}
+		switch {
+		case deliveryErr == nil && errors.Is(pipelineErr, pipelineconfig.ErrCutoffStageInUse):
+			// Delivery won: the stage must survive and remain the cutoff.
+			if !hasCustom || stored.CutoffStageID == nil || *stored.CutoffStageID != custom || pipeline.ETag != saved.ETag {
+				t.Fatalf("delivery won but state is inconsistent: hasCustom=%v cutoff=%v", hasCustom, stored.CutoffStageID)
+			}
+			outcomes["delivery"]++
+		case pipelineErr == nil && errors.Is(deliveryErr, drafts.ErrValidation):
+			// Pipeline won: the stage is gone and nothing references it.
+			if hasCustom || stored.CutoffStageID != nil || delivery.ETag != deliveryconfig.ETag(id, 0) || auditCount(t, pool, id, deliveryConfiguredEvent) != 0 {
+				t.Fatalf("pipeline won but state is inconsistent: hasCustom=%v cutoff=%v", hasCustom, stored.CutoffStageID)
+			}
+			outcomes["pipeline"]++
+		default:
+			t.Fatalf("unexpected outcome: delivery=%v pipeline=%v", deliveryErr, pipelineErr)
+		}
+	}
+	t.Logf("outcomes over 20 races: %v", outcomes)
+}
