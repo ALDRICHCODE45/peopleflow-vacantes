@@ -269,6 +269,7 @@ func newDraftFlowHarness(t *testing.T) *draftFlowHarness {
 		draftV2Handler:   draftV2Handler,
 		draftListHandler: jobshttp.NewDraftListHandler(store),
 		pipelineHandler:  jobshttp.NewPipelineHandler(store),
+		substatesHandler: jobshttp.NewSubstatesHandler(store),
 		requesterHandler: jobshttp.NewRequesterHandler(store),
 		queries:          queries,
 		pool:             pool,
