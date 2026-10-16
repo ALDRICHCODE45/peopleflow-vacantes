@@ -18,9 +18,9 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - [x] T2 — S1, S2: contract review with frontend agent (intercom); F1–F3 answered, 7 contract objections accepted — contract commit
 - [x] T3 — S4–S6: user answered Q1–Q3 — contract commit
 - [x] T4 — S1: cut-1 contract closed and sent to the frontend agent — contract commit
-- [ ] T5 — cut 1, S4–S6 + design §3: pure pipeline-config model (defaults with UUIDv5 ids, PUT decoding, invariants, requester-catalog name normalization, no-op detection) with unit tests (worker) — commit pending
-- [ ] T6 — cut 1, design §3–§4: migration 00015 (stored config, own commit, Risk item 1) + store GET/PUT in one transaction with draft authorization, If-Match, independent version, audit `JobDraftPipelineConfigured` (worker) — commit pending
-- [ ] T7 — cut 1, design §4: HTTP GET/PUT `/v2/me/company/job-drafts/{draftId}/pipeline`, router wiring, real-router tests, `backend/docs/pipeline-config.md` (worker) — commit pending
+- [x] T5 — cut 1, S4–S6 + design §3: pure pipeline-config model (defaults with UUIDv5 ids, PUT decoding, invariants, requester-catalog name normalization, no-op detection) with unit tests (worker) — 0cd4110
+- [x] T6 — cut 1, design §3–§4: migration 00015 (stored config, own commit, Risk item 1) + store GET/PUT in one transaction with draft authorization, If-Match, independent version, audit `JobDraftPipelineConfigured` (worker) — 81dc0ef
+- [x] T7 — cut 1, design §4: HTTP GET/PUT `/v2/me/company/job-drafts/{draftId}/pipeline`, router wiring, real-router tests, `backend/docs/pipeline-config.md` (worker) — 709e746
 - [ ] T8 — independent verification of T5–T7 against design §3–§4 (verify) — pending
 - [ ] T9 — S3: user browser test with frontend, then local merge to main — pending
 
@@ -32,3 +32,4 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **L4.** User answered Q1–Q3 with the recommended options (S4–S6).
 - **L5.** Frontend agent review (msg 36b2e105): full replacement with If-Match OK; reuse draft error vocabulary (412 version_conflict, 400 validation_error, no details); string version + opaque pipeline ETag; independent draft/pipeline versions; pure GET; no-op PUT without audit; requester-catalog name normalization; Descartados renamable. All accepted. Backend choice: deterministic UUIDv5 ids for built-in stages so GET is pure and no backfill is needed.
 - **L6.** Frontend agent (msg 428027ca): user confirmed the editor lives on `/empresa/vacantes/{id}/pipeline`, not in the draft editor.
+- **L7.** Cut 1 backend committed: 0cd4110 model, 81dc0ef migration 00015 (additive table job_draft_pipeline_configs, ON DELETE CASCADE to job_drafts) + store + audit, 709e746 routes + docs. Parent ran sqlc generate and gofmt (worker scope gap). Evidence: `go test ./...` green, `go vet` clean; integration tests (draftstore, cmd/api, migrations) green against an isolated `draft_test` database created and dropped in the local container; every TestPipeline*/TestMigration00015 ran (no skips). Slice note: ~1.6k lines, mostly tests, past the ~400-line slice; split by work unit into three commits, migration alone. Risk: item 1 (new migration).
