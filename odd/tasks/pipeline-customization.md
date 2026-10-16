@@ -18,7 +18,11 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - [x] T2 — S1, S2: contract review with frontend agent (intercom); F1–F3 answered, 7 contract objections accepted — contract commit
 - [x] T3 — S4–S6: user answered Q1–Q3 — contract commit
 - [x] T4 — S1: cut-1 contract closed and sent to the frontend agent — contract commit
-- [ ] T5 — cut 1 backend implementation (GET/PUT pipeline, migration, audit, docs) — not started; tasks opened when cut 1 starts
+- [ ] T5 — cut 1, S4–S6 + design §3: pure pipeline-config model (defaults with UUIDv5 ids, PUT decoding, invariants, requester-catalog name normalization, no-op detection) with unit tests (worker) — commit pending
+- [ ] T6 — cut 1, design §3–§4: migration 00015 (stored config, own commit, Risk item 1) + store GET/PUT in one transaction with draft authorization, If-Match, independent version, audit `JobDraftPipelineConfigured` (worker) — commit pending
+- [ ] T7 — cut 1, design §4: HTTP GET/PUT `/v2/me/company/job-drafts/{draftId}/pipeline`, router wiring, real-router tests, `backend/docs/pipeline-config.md` (worker) — commit pending
+- [ ] T8 — independent verification of T5–T7 against design §3–§4 (verify) — pending
+- [ ] T9 — S3: user browser test with frontend, then local merge to main — pending
 
 ## Log
 
