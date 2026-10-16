@@ -31,6 +31,7 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
   const [targetTouched, setTargetTouched] = useState(false);
   const [dateRejected, setDateRejected] = useState(false);
   const targetInput = useRef<HTMLInputElement>(null);
+  const statusLink = useRef<HTMLAnchorElement | null>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const state = session.editor;
   const dirty = isDirty(state);
@@ -46,10 +47,8 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
   function report(next: PipelineNotice, reference?: { status?: number; code?: string }) {
     setNotice(next);
     const action = next.recovery ? { title: recoveryLabels[next.recovery], onClick: () => { void recover(next.recovery!); } }
-      : next.link ? { title: next.link.title, onClick: () => {
-        if (next.link?.href === "/empresa/login") window.open("/empresa/login", "_blank", "noopener,noreferrer");
-        else if (next.link?.href === "/empresa/configuracion") window.open("/empresa/configuracion", "_blank", "noopener,noreferrer");
-      } } : undefined;
+      // The toast shortcut follows the status line's real link (same as the substates Sheet).
+      : next.link ? { title: next.link.title, onClick: () => { statusLink.current?.click(); } } : undefined;
     notifyActionResult({ key: "delivery-save", type: next.tone, title: next.title, description: next.description,
       ...(next.tone === "error" ? { reference: { ...reference, at: new Date().toISOString() } } : {}), action });
   }
@@ -103,7 +102,7 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
   const recovery = notice?.recovery;
   const statusAction = recovery ? <Button type="button" variant="outline" className="min-h-10" disabled={pending !== null} onClick={() => void recover(recovery)}>
     {pending === recovery && <Spinner aria-hidden="true" data-icon="inline-start" />}{recoveryLabels[recovery]}
-  </Button> : notice?.link ? <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link href={notice.link.href} target="_blank" rel="noopener noreferrer" />}>{notice.link.title}</Button> : undefined;
+  </Button> : notice?.link ? <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link ref={statusLink} href={notice.link.href} target="_blank" rel="noopener noreferrer" />}>{notice.link.title}</Button> : undefined;
   const options = [{ value: "undefined", label: "Sin definir" }, ...stages.map(stage => ({ value: stage.id, label: stage.name }))];
   return <Card aria-labelledby="delivery-heading">
     <CardHeader className="border-b">

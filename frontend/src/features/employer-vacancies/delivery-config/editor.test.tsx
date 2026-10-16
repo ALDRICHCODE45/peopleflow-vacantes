@@ -128,6 +128,17 @@ it("shows spinner, blocks duplicate writes and preserves the form during pending
   let resolve!: (value: DraftDeliveryActionResult) => void; vi.mocked(saveDraftDeliveryAction).mockReturnValue(new Promise(yes => { resolve = yes; })); const { container } = mount(); edit(); fireEvent.click(save());
   const pending = screen.getByRole("button", { name: "Guardando…" }); expect(pending).toBeDisabled(); expect(container.querySelector('[data-slot="spinner"]')).not.toBeNull(); expect(target()).toBeDisabled(); fireEvent.click(pending); await act(async () => resolve(success())); expect(saveDraftDeliveryAction).toHaveBeenCalledTimes(1);
 });
+it("makes the toast shortcut follow the status line's real link instead of opening a URL itself", async () => {
+  vi.mocked(saveDraftDeliveryAction).mockResolvedValue({ ok: false, reason: "unauthenticated", reference: {} });
+  const open = vi.spyOn(window, "open").mockReturnValue(null);
+  const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  mount(); edit(); fireEvent.click(save()); await screen.findByRole("status");
+  const call = vi.mocked(notifyActionResult).mock.calls.at(-1)![0];
+  call.action!.onClick();
+  expect(open).not.toHaveBeenCalled();
+  expect(click).toHaveBeenCalledTimes(1);
+  expect(click.mock.contexts[0]).toHaveAttribute("href", "/empresa/login");
+});
 it.each(["unauthenticated", "company_inactive"] as const)("offers a real recovery link for %s", async reason => {
   vi.mocked(saveDraftDeliveryAction).mockResolvedValue({ ok: false, reason, reference: {} }); mount(); edit(); fireEvent.click(save()); const status = await screen.findByRole("status"); expect(within(status).getByRole("link")).toHaveAttribute("href", reason === "unauthenticated" ? "/empresa/login" : "/empresa/configuracion");
 });
