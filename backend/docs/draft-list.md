@@ -71,6 +71,8 @@ without a cursor shows it again.
       "requester": { "kind": "client", "id": "0192a000-0000-7000-8000-000000000004", "name": "Acme" },
       "principal_recruiter": { "id": "0192a000-0000-7000-8000-000000000002", "name": "Ana Pérez" },
       "version": "7",
+      "status": "draft",
+      "published_at": null,
       "created_at": "2026-10-01T09:00:00.000001Z",
       "updated_at": "2026-10-15T12:30:45.123456Z"
     }
@@ -88,7 +90,15 @@ without a cursor shows it again.
 | `requester` | `null` when the draft has no requester. Otherwise `kind`, `id` (`null` when only the kind was chosen) and `name` (catalog name; `null` exactly when `id` is `null`). |
 | `principal_recruiter` | `id` of the principal recruiter and `name` (`users.full_name`), `null` only when that user was deleted. |
 | `version` | Decimal string, the same value as the draft read envelope. It is for display only: save with the `ETag` of `GET /v2/me/company/job-drafts/{id}`. |
+| `status` | Strict enum `draft` or `published`, derived from the process record; published vacancies remain in this list. |
+| `published_at` | Publication instant as RFC 3339 UTC (six fractional digits), or `null` when still draft. |
 | `created_at`, `updated_at` | UTC, six fractional digits, the same values as the draft read envelope. |
+
+P1 adds exactly `status` and `published_at` to each item. Publication does not
+change the draft version, timestamps, ordering, cursor or visibility/filtering
+rules. The frontend labels published rows “Activa” and removes them from its
+Borradores tab; the backend still returns both states. See
+[vacancy-publication.md](vacancy-publication.md) for readiness and publication.
 
 ## Status codes
 

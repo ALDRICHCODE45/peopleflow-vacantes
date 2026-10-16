@@ -43,6 +43,8 @@ type draftListItem struct {
 	Requester          *draftListRequester `json:"requester"`
 	PrincipalRecruiter draftListPrincipal  `json:"principal_recruiter"`
 	Version            string              `json:"version"`
+	Status             string              `json:"status"`
+	PublishedAt        *string             `json:"published_at"`
 	CreatedAt          string              `json:"created_at"`
 	UpdatedAt          string              `json:"updated_at"`
 }
@@ -96,8 +98,13 @@ func toDraftListItem(item draftlist.Item) draftListItem {
 		WorkSchedule:       item.Schedule,
 		PrincipalRecruiter: draftListPrincipal{ID: item.Principal.ID.String(), Name: item.Principal.Name},
 		Version:            strconv.FormatInt(item.Version, 10),
+		Status:             item.Status,
 		CreatedAt:          item.CreatedAt.UTC().Format(draftListTimestampLayout),
 		UpdatedAt:          item.UpdatedAt.UTC().Format(draftListTimestampLayout),
+	}
+	if item.PublishedAt != nil {
+		at := item.PublishedAt.UTC().Format(draftListTimestampLayout)
+		out.PublishedAt = &at
 	}
 	if item.Requester != nil {
 		out.Requester = &draftListRequester{Kind: item.Requester.Kind, ID: item.Requester.ID, Name: item.Requester.Name}
