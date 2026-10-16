@@ -481,9 +481,10 @@ Out of scope for P1: public visibility and applications (P2), pause/close/reopen
   A draft is published at most once; later lifecycle states (paused, closed) extend this
   record in their own cut.
 - **Inheritance without copies.** Columns, substates and delivery stay the per-id
-  resources of cuts 1–3 and keep working after publication (§9.7 S3). Built-in stage ids
-  that were never saved are materialized at publication so the process always has
-  stored, stable stage ids.
+  resources of cuts 1–3 and keep working after publication (§9.7 S3). Never-saved
+  columns need no materialization: built-in stage ids are deterministic (UUIDv5 of the
+  draft id and kind, §3), so the process already has stable stage ids and the pipeline
+  keeps version `"0"` until its first save.
 - **Editing after publication** (§9.7 S3): draft content, columns, substates and delivery
   remain editable with their existing audit. Rules that need candidates (PIPE-15…18)
   arrive in cut 7.
@@ -554,8 +555,7 @@ Keys exactly `status` (`draft` | `published`), `publishedAt` (RFC 3339 UTC or `n
   requirement atomically inside the publish transaction (draft row locked like cuts 1–3).
 - `201` body `{ "id", "status": "published", "publishedAt" }` (keys exactly these). No
   public URL in P1.
-- One transaction: lock draft → check If-Match → evaluate §9.3 → materialize default
-  stage ids if needed → insert process row → audit `VacancyPublished` (actor, published
+- One transaction: lock draft → check If-Match → evaluate §9.3 → insert process row → audit `VacancyPublished` (actor, published
   at, frozen snapshot of target, cutoff stage id and name, commitment date, headcount and
   request date).
 
