@@ -176,14 +176,18 @@ function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenCh
         </div>
         {errors.$catalog && <FieldError>No puedes guardar más de {state.limits.maxSubstates} subestados.</FieldError>}
       </div>
-      <SheetFooter className="border-t">
-        <div className="flex flex-wrap justify-end gap-2">
+      {/* Compact Sheet footer (rules §12 Sheet exception): status left, actions right, top-aligned
+          so a status that appears or wraps never moves the actions. */}
+      <SheetFooter className="flex-row items-start gap-3 border-t">
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
           <Button type="button" variant="ghost" className="min-h-10" disabled={pending !== null} onClick={requestClose}>Cancelar</Button>
           <Button type="button" className="min-h-10" disabled={!dirty || pending !== null} aria-busy={pending === "save"} aria-describedby={notice ? "substates-save-status" : undefined} onClick={requestSave}>
             {pending === "save" && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending === "save" ? "Guardando…" : "Guardar subestados"}
           </Button>
         </div>
-        <ActionStatusSlot>{notice && <ActionStatus id="substates-save-status" tone={dirty && notice.text === "Guardado" ? "info" : notice.tone} text={dirty && notice.text === "Guardado" ? "Cambios sin guardar" : notice.text} action={statusAction} />}</ActionStatusSlot>
+        <div className="order-first min-w-0 flex-1">
+          <ActionStatusSlot>{notice && <ActionStatus id="substates-save-status" tone={dirty && notice.text === "Guardado" ? "info" : notice.tone} text={dirty && notice.text === "Guardado" ? "Cambios sin guardar" : notice.text} action={statusAction} />}</ActionStatusSlot>
+        </div>
       </SheetFooter>
       <Dialog open={confirmingDiscard} onOpenChange={setConfirmingDiscard}>
         <DialogContent showCloseButton={false}>

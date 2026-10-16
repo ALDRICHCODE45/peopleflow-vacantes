@@ -59,6 +59,13 @@ it("composes an accessible right Sheet with one left-aligned suggestions row and
   expect(buttons[0]).toHaveClass("min-h-10");
   const slot = dialog.querySelector("[data-pf-action-status-slot]")!;
   expect(slot).toBeEmptyDOMElement(); expect(save().compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); expect(save()).toBeDisabled();
+  // Compact Sheet footer (user decision, rules §12 Sheet exception): one row, the reserved
+  // status slot on the left and the actions on the right, top-aligned so a growing status
+  // never moves them.
+  const footer = dialog.querySelector<HTMLElement>('[data-slot="sheet-footer"]')!;
+  expect(footer).toHaveClass("flex-row", "items-start");
+  expect(slot.parentElement).toHaveClass("order-first", "flex-1", "min-w-0");
+  expect(footer.contains(slot.parentElement)).toBe(true);
 });
 it.each(["  Entrevistas\u00a0 técnicas  ", "  "])("normalizes the current column title %j, with a semantic fallback", name => {
   mount(substatesFixture(), name);
