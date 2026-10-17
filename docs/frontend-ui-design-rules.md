@@ -815,3 +815,34 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
 - Motivo interno, comentario interno y mensaje público son datos distintos. El diálogo
   explica quién verá cada uno; el historial conserva sus etiquetas. Los mensajes se
   renderizan como texto de React con `whitespace-pre-wrap` y `break-words`, nunca HTML.
+
+## 14. Tipografía y pulido de producto (decisiones de la pasada de UI)
+
+### 14.1 Tipografía de la aplicación
+
+- Inter es la única familia de la aplicación: cuerpo y títulos. `--font-heading` resuelve
+  a Inter. Clash Display queda solo en la landing de marketing, registrada con su propio
+  nombre de familia.
+- La jerarquía se arma con tamaño y peso, nunca con una fuente display: título de página
+  20px/600; título de sección 15–16px/600; etiqueta de sección dentro de una ficha en
+  mayúsculas pequeñas 11–12px/500 con tracking amplio y `text-muted-foreground`; cuerpo
+  14px/400; metadatos 12–13px en muted; números con `tabular-nums`.
+
+### 14.2 Reglas de pulido observadas en el tablero y la ficha
+
+- Nunca repetir un dato en dos formatos contiguos (nombre de columna y badge con el mismo
+  nombre; «Etapa: Descartados» seguido de un badge «Descartados»).
+- Un hito histórico no se presenta como estado actual: si la cobertura completa se
+  alcanzó y ya no se cumple, se muestra como nota con fecha, no como badge de éxito.
+- Un estado vacío repetido en varias columnas es un hueco discreto de una línea, no un
+  `Empty` con ícono y párrafo por columna.
+- Una tarjeta o card no ocupa el ancho completo para mostrar un solo número: los
+  indicadores van compactos en el encabezado de la página.
+- Una ficha de entidad tiene encabezado de identidad fijo (avatar con iniciales, nombre,
+  badge de estado, acciones primarias arriba y un único cierre), contenido en pestañas
+  con contador, datos en grilla etiqueta/valor y archivos como tarjeta de archivo (ícono
+  del tipo, nombre, acción de descarga), no como enlace subrayado.
+- Ningún contenido se corta contra el borde de un contenedor con scroll horizontal.
+
+El detalle de composición del tablero y la ficha se completa con la referencia de v0
+(`docs/design/v0/pipeline-board-and-candidate-sheet.md`) antes de implementarlos.
