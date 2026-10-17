@@ -184,7 +184,8 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
             <Badge variant="info">Corte de entrega</Badge>
             <FieldError>{removedCutoff.name} es el corte de entrega. Cámbiala en Entrega antes de quitarla.</FieldError>
           </div>}
-          <StageReorder state={state} disabled={pending !== null}
+          {state.baseline.structure_locked && <FieldDescription>Esta vacante ya tiene candidatos: solo puedes renombrar las columnas.</FieldDescription>}
+          <StageReorder state={state} disabled={pending !== null || state.baseline.structure_locked}
             onMove={(key, targetIndex) => edit(moveStageTo(current.current.editor, key, targetIndex))}>
             <ol aria-label="Columnas del pipeline" className="flex flex-col gap-3">{state.stages.map((stage, index) => row(stage, index + 1))}</ol>
           </StageReorder>
@@ -192,7 +193,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
             <Button type="button" variant="outline" className="min-h-10" disabled={pending !== null || !canAddCustomStage(state)} onClick={add}>
               <Plus aria-hidden="true" data-icon="inline-start" />Agregar columna
             </Button>
-            {!canAddCustomStage(state) && <FieldDescription>Llegaste al máximo de {state.limits.maxCustomStages} columnas propias.</FieldDescription>}
+            {!state.baseline.structure_locked && !canAddCustomStage(state) && <FieldDescription>Llegaste al máximo de {state.limits.maxCustomStages} columnas propias.</FieldDescription>}
           </div>
           <Separator />
           <section aria-labelledby="pipeline-exit-heading" className="flex flex-col gap-3">

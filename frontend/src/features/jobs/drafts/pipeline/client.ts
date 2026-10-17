@@ -10,6 +10,7 @@ const stageSchema = z.object({ id: uuid, kind: stageKindSchema, name: z.string()
 const pipelineSchema = z.object({
   // The final assertion requires end-of-input, including after a trailing newline.
   version: z.string().regex(/^(0|[1-9][0-9]*)$(?![\s\S])/),
+  structure_locked: z.boolean(),
   stages: z.array(stageSchema),
   exit: z.object({ id: uuid, kind: z.literal("discarded"), name: z.string() }).strict(),
   limits: z.object({ maxCustomStages: z.number().int().positive(), nameMaxLength: z.number().int().positive() }).strict(),

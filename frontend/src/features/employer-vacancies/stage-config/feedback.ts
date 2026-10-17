@@ -35,6 +35,11 @@ const uncertain = (title: string): PipelineNotice => ({
 });
 const failures: Record<DraftPipelineActionFailure["reason"], PipelineNotice> = {
   version_conflict: conflictNotice,
+  stage_change_requires_empty_pipeline: {
+    tone: "error", title: "Solo puedes renombrar las columnas",
+    description: "Esta vacante ya tiene candidatos. No se guardó el cambio de estructura. Tus cambios siguen aquí; conserva el orden y las columnas actuales para guardar los nombres.",
+    text: "No se guardó · solo se permiten renombres",
+  },
   no_response: uncertain("No hubo respuesta del servidor"),
   server_error: uncertain("El servidor tuvo un problema"),
   unrecognized_response: uncertain("No pudimos confirmar el resultado"),

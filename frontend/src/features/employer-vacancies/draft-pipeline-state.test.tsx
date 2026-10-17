@@ -60,7 +60,7 @@ it.each([read.fields.title, null])("renders title %s, badge, empty state and con
 });
 it("published state renders current column cards and hides publish", async () => {
   vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "published", publishedAt: "2026-10-16T12:00:00Z", missing: [] } });
-  vi.mocked(loadDraftPipelineAction).mockResolvedValue({ ok: true, etag: '"pipeline"', pipeline: { version: "1", stages: [{ id: read.id, kind: "new", name: "Entrada actual" }, { id: "other", kind: "custom", name: "Prueba actual" }], exit: { id: "exit", kind: "discarded", name: "Fuera actual" }, limits: { maxCustomStages: 3, nameMaxLength: 40 } } });
+  vi.mocked(loadDraftPipelineAction).mockResolvedValue({ ok: true, etag: '"pipeline"', pipeline: { version: "1", structure_locked: false, stages: [{ id: read.id, kind: "new", name: "Entrada actual" }, { id: "other", kind: "custom", name: "Prueba actual" }], exit: { id: "exit", kind: "discarded", name: "Fuera actual" }, limits: { maxCustomStages: 3, nameMaxLength: 40 } } });
   const { container } = render(<DraftPipelineState draftId={read.id} />);
   await screen.findByRole("heading", { name: "Entrada actual" });
   expect(screen.getByRole("heading", { name: "Prueba actual" })).toBeVisible();

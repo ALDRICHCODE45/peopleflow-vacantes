@@ -17,6 +17,7 @@ export type PipelineLimits = { maxCustomStages: number; nameMaxLength: number };
 /** Local wire types: this pure module does not depend on the server-only client. */
 export type EditorPipeline = {
   version: string;
+  structure_locked: boolean;
   stages: { id: string; kind: ProgressionKind; name: string }[];
   exit: { id: string; kind: "discarded"; name: string };
   limits: PipelineLimits;
@@ -76,6 +77,7 @@ export function editorFromPipeline(pipeline: EditorPipeline): PipelineEditorStat
     limits: { ...pipeline.limits },
     baseline: {
       version: pipeline.version,
+      structure_locked: pipeline.structure_locked,
       stages: pipeline.stages.map((stage) => ({ ...stage })),
       exit: { ...pipeline.exit },
       limits: { ...pipeline.limits },
@@ -94,6 +96,7 @@ export function renameStage(state: PipelineEditorState, key: string, name: strin
 }
 
 export function canMove(state: PipelineEditorState, key: string, direction: MoveDirection): boolean {
+  if (state.baseline.structure_locked) return false;
   const index = state.stages.findIndex((entry) => entry.key === key);
   const stage = state.stages[index];
   if (!stage || stage.kind === "new" || stage.kind === "placement") return false;
@@ -111,6 +114,7 @@ export function moveStage(state: PipelineEditorState, key: string, direction: Mo
 }
 
 export function canMoveTo(state: PipelineEditorState, key: string, targetIndex: number): boolean {
+  if (state.baseline.structure_locked) return false;
   const index = state.stages.findIndex(entry => entry.key === key);
   const stage = state.stages[index];
   return !!stage && stage.kind !== "new" && stage.kind !== "placement"
@@ -129,7 +133,7 @@ export function moveStageTo(state: PipelineEditorState, key: string, targetIndex
 }
 
 export function canAddCustomStage(state: PipelineEditorState): boolean {
-  return state.stages.filter((entry) => entry.kind === "custom").length < state.limits.maxCustomStages;
+  return !state.baseline.structure_locked && state.stages.filter((entry) => entry.kind === "custom").length < state.limits.maxCustomStages;
 }
 
 export function addCustomStage(state: PipelineEditorState, name = ""): PipelineEditorState {
@@ -148,7 +152,7 @@ export function addCustomStage(state: PipelineEditorState, name = ""): PipelineE
 }
 
 export function canRemoveStage(state: PipelineEditorState, key: string): boolean {
-  return state.stages.some((entry) => entry.key === key && entry.kind === "custom");
+  return !state.baseline.structure_locked && state.stages.some((entry) => entry.key === key && entry.kind === "custom");
 }
 
 export function removeCustomStage(state: PipelineEditorState, key: string): PipelineEditorState {

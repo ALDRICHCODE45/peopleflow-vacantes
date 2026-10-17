@@ -3,6 +3,7 @@ import type { EditorPipeline } from "@/features/jobs/drafts/pipeline/editor-mode
 export function pipelineFixture(): EditorPipeline {
   return {
     version: "0",
+    structure_locked: false,
     stages: [
       { id: "n", kind: "new", name: "Nuevos" },
       { id: "s", kind: "screening", name: "Screening" },

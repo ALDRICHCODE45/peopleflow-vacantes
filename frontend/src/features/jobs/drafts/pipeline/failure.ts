@@ -13,7 +13,7 @@ export type DraftPipelineActionFailure = {
   ok: false;
   reason: "unauthenticated" | "forbidden" | "company_inactive" | "not_found" | "company_not_active" |
     "invalid_request" | "validation_error" | "version_conflict" | "precondition_required" |
-    "payload_too_large" | "server_error" | "no_response" | "unrecognized_response" | "non_business_date" | "cutoff_stage_in_use";
+    "payload_too_large" | "server_error" | "no_response" | "unrecognized_response" | "non_business_date" | "cutoff_stage_in_use" | "stage_change_requires_empty_pipeline";
   reference: { status?: number; code?: string };
 };
 
@@ -34,7 +34,7 @@ export type DraftPublicationActionFailure = DraftPublishedSaveActionFailure | {
 const safeCodes = new Set([
   "invalid_request", "validation_error", "unauthenticated", "forbidden", "company_inactive", "non_business_date", "cutoff_stage_in_use",
   "not_found", "company_not_active", "version_conflict", "precondition_required", "payload_too_large", "internal_error",
-  "publication_incomplete", "already_published", "idempotency_conflict",
+  "publication_incomplete", "already_published", "idempotency_conflict", "stage_change_requires_empty_pipeline",
 ]);
 
 /** Only public classifications and allowlisted references cross the action boundary. */
@@ -48,6 +48,7 @@ export function mapDraftPipelineFailure({ error, envelope }: Omit<DraftPipelineF
   else if (status === 400 && code === "validation_error") reason = "validation_error";
   else if (status === 400 && code === "non_business_date") reason = "non_business_date";
   else if (status === 409 && code === "cutoff_stage_in_use") reason = "cutoff_stage_in_use";
+  else if (status === 409 && code === "stage_change_requires_empty_pipeline") reason = "stage_change_requires_empty_pipeline";
   else if (status === 403) reason = code === "company_inactive" ? "company_inactive" : "forbidden";
   else if (status === 404) reason = "not_found";
   else if (status === 409 && code === "company_not_active") reason = "company_not_active";

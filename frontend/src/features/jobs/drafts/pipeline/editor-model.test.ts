@@ -26,6 +26,7 @@ import {
 function pipeline(): EditorPipeline {
   return {
     version: "0",
+    structure_locked: false,
     stages: [
       { id: "n", kind: "new", name: "Nuevos" },
       { id: "s", kind: "screening", name: "Screening" },
@@ -304,6 +305,7 @@ describe("save lifecycle (S5)", () => {
     const keys = state.stages.map(({ key }) => key);
     const response: EditorPipeline = {
       version: "1",
+      structure_locked: false,
       stages: state.stages.map(({ id, kind, name }) => ({ id: id ?? "server-custom", kind, name })),
       exit: { id: "e", kind: "discarded", name: "Descartados" },
       limits: { maxCustomStages: 2, nameMaxLength: 10 },

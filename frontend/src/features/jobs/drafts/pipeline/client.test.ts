@@ -16,6 +16,7 @@ const draftId = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const etag = '"opaque-pipeline-tag+/="';
 const pipeline = {
   version: "0",
+  structure_locked: false,
   stages: ["new", "screening", "screening_ok", "in_process", "placement", "custom"].map((kind, index) => ({
     id: `0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8${index}`,
     kind,
@@ -58,6 +59,15 @@ for (const method of ["GET", "PUT"] as const) {
         ...(method === "PUT" ? { "content-type": "application/json", "if-match": etag } : {}),
       });
       expect(init.body).toBe(method === "PUT" ? JSON.stringify(body) : undefined);
+    });
+
+    it.each([false, true])("decodes the required structure_locked boolean (%s)", async structure_locked => {
+      response({ ...pipeline, structure_locked });
+      expect(await call()).toEqual({ ok: true, data: { ...pipeline, structure_locked }, etag });
+    });
+    it.each([undefined, null, "true", 1])("rejects absent or nonboolean structure_locked (%s)", async structure_locked => {
+      response({ ...pipeline, structure_locked });
+      expect(await call()).toEqual({ ok: false, error: { kind: "invalid_response", retryable: false } });
     });
 
     it.each(["0", "1", "90071992547409931234567890"])("preserves decimal version %s", async version => {
