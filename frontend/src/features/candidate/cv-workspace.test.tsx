@@ -1,358 +1,146 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
-import { CANDIDATE_CVS } from "./prototype-portfolio";
+vi.mock("@/features/candidate-cvs/actions", () => ({ loadCvsAction: vi.fn(), renameCvAction: vi.fn(), deleteCvAction: vi.fn() }));
+vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
+import { loadCvsAction } from "@/features/candidate-cvs/actions";
+import { notifyActionResult } from "@/components/feedback/notify";
+import { cv, library } from "@/features/candidate-cvs/test-fixtures";
 import { CvWorkspace } from "./cv-workspace";
-
-// Source as text, so the module boundary, side-effect ban and paint contract stay asserted here.
-const SOURCE = readFileSync(join(process.cwd(), "src/features/candidate/cv-workspace.tsx"), "utf8");
-const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|color-mix)\(/u;
-const [PRIMARY, SECONDARY] = CANDIDATE_CVS;
-/** Strips technical comments so the rendered-copy ban inspects only product strings. */
-const stripComments = (source: string) => source.replace(/\/\*[\s\S]*?\*\//gu, " ").replace(/\/\/[^\n]*/gu, " ");
-/** Rendered copy may not expose implementation status; `\b` keeps `localStorage` and data ids intact. */
-const IMPLEMENTATION_STATUS_COPY = /\b(?:demo|mock|prototip\w*|fictici\w*|prueba|test|local|no disponible|no implementado|no se guarda|no se env[ií]a|no se sube)\b/iu;
-// Frozen-fixture derivations used only to exercise the remaining deterministic branches.
-const older = { ...SECONDARY, id: "cv-archivo", fileName: "cv-archivo.pdf", updatedAt: "2026-01-01T10:00:00-06:00" };
-const tieA = { ...SECONDARY, id: "cv-a", fileName: "cv-a.pdf" };
-const tieB = { ...SECONDARY, id: "cv-b", fileName: "cv-b.pdf" };
-const withoutPrimary = CANDIDATE_CVS.map((cv) => ({ ...cv, isPrimary: false }));
-const buttons = (container: HTMLElement) => Array.from(container.querySelectorAll("button")) as HTMLButtonElement[];
-const cardIds = (container: HTMLElement) => Array.from(container.querySelectorAll("[data-pf-cv-card]")).map((node) => node.getAttribute("data-pf-cv-card"));
-const card = (container: HTMLElement, id: string) => container.querySelector(`[data-pf-cv-card="${id}"]`) as HTMLElement;
-const classesOf = (root: Element) => Array.from(root.querySelectorAll("[class]")).map((node) => node.getAttribute("class") ?? "").join(" ");
-const renderWorkspace = (cvs = CANDIDATE_CVS) => render(<CvWorkspace cvs={cvs} />);
-const triggers = (container: HTMLElement) => Array.from(container.querySelectorAll("[data-pf-cv-actions-trigger]")) as HTMLButtonElement[];
-
-/**
- * jsdom implements neither matchMedia nor ResizeObserver, and the Base UI menu
- * root reads both while it mounts. Menu open/close itself is not observable
- * through the jsdom portal, so this file asserts the closed trigger inventory and
- * the source contract; the real open-menu keyboard semantics stay in the browser
- * acceptance test.
- */
-function stubBrowserApis() {
-  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, media: "", onchange: null, addEventListener: vi.fn(), removeEventListener: vi.fn(), addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(() => false) })));
+const fetchMock = vi.fn();
+beforeEach(() => {
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
   vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} });
-}
-
-beforeEach(stubBrowserApis);
-afterEach(() => {
-  cleanup();
-  vi.unstubAllGlobals();
+  vi.stubGlobal("fetch", fetchMock); fetchMock.mockReset(); vi.mocked(notifyActionResult).mockReset();
+  vi.mocked(loadCvsAction).mockReset().mockResolvedValue({ ok: true, data: library });
 });
-
-describe("cv workspace summary", () => {
-  it("derives a natural count from props and names the exact primary label and filename", () => {
-    const { container } = renderWorkspace();
-    expect(container.querySelectorAll("[data-pf-cv-card]")).toHaveLength(2);
-    const summary = container.querySelector("[data-pf-cv-summary]") as HTMLElement;
-    expect(summary).toHaveTextContent("Tienes 2 CVs.");
-    expect(summary).toHaveTextContent(`«${PRIMARY.label}»`);
-    expect(summary).toHaveTextContent(`(${PRIMARY.fileName})`);
-    expect(summary).not.toHaveTextContent(SECONDARY.fileName);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+async function ready() { const rendered = render(<CvWorkspace />); await screen.findByRole("heading", { name: cv.name }); return rendered; }
+function selectFile(file: File) { fireEvent.change(screen.getByLabelText("Archivo del CV"), { target: { files: [file] } }); }
+const unavailableTitle = "Los CVs no están disponibles en este momento";
+const unavailableDescription = "Puedes intentarlo más tarde; lo que ya escribiste se conserva.";
+describe("real CV workspace", () => {
+  it("shows storage unavailable with explicit retry and no automatic requests", async () => {
+    vi.mocked(loadCvsAction).mockResolvedValueOnce({ ok: false, reason: "storage_unavailable", reference: { status: 503, code: "cv_storage_unavailable" } });
+    render(<CvWorkspace />);
+    expect(await screen.findByRole("heading", { name: unavailableTitle })).toBeVisible();
+    expect(screen.getByText(unavailableDescription)).toBeVisible();
+    expect(loadCvsAction).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByRole("heading", { name: cv.name })).toBeVisible();
+    expect(loadCvsAction).toHaveBeenCalledTimes(2);
   });
-
-  it("uses the natural Spanish singular for exactly one CV", () => {
-    renderWorkspace([PRIMARY]);
-    expect(screen.getByText(/Tienes 1 CV\./u)).toBeInTheDocument();
-    expect(screen.queryByText(/1 CVs/u)).toBeNull();
+  it("retains the library and gives the storage copy in upload toast and ActionStatus", async () => {
+    await ready(); fetchMock.mockResolvedValue(Response.json({ error: "private", code: "cv_storage_unavailable" }, { status: 503 }));
+    selectFile(new File(["pdf"], "cv.pdf", { type: "application/pdf" }));
+    await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", title: unavailableTitle, description: unavailableDescription })));
+    expect(screen.getByRole("status")).toHaveTextContent(unavailableTitle);
+    expect(screen.getByRole("status")).toHaveTextContent(unavailableDescription);
+    expect(screen.getByRole("heading", { name: cv.name })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reintentar" })).toBeVisible();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
-
-  it("covers the honest no-primary and true-empty branches without an impossible claim", () => {
-    renderWorkspace(withoutPrimary);
-    expect(screen.getByText(/ninguno está marcado como principal/u)).toBeInTheDocument();
-    expect(screen.queryByText(/Tu CV principal es/u)).toBeNull();
-    cleanup();
-    renderWorkspace([]);
-    expect(screen.getByText("Todavía no tienes CVs.")).toBeInTheDocument();
-    expect(screen.queryByText(/marcado como principal/u)).toBeNull();
-    expect(screen.queryByText(/Tu CV principal es/u)).toBeNull();
+  it.each(["read", "upload"] as const)("shows the existing company-account state after %s wrong_role", async source => {
+    if (source === "read") vi.mocked(loadCvsAction).mockResolvedValue({ ok: false, reason: "wrong_role", reference: { status: 403, code: "wrong_role" } });
+    else { await ready(); fetchMock.mockResolvedValue(Response.json({ error: "private", code: "wrong_role" }, { status: 403 })); selectFile(new File(["pdf"], "cv.pdf", { type: "application/pdf" })); }
+    if (source === "read") render(<CvWorkspace />);
+    expect(await screen.findByRole("heading", { name: "Esta cuenta es de empresa" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Ir a empresa" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeVisible();
   });
-});
-
-describe("cv workspace ordering", () => {
-  it("copies props, puts the primary first, then updatedAt desc, and never mutates the input", () => {
-    const reversed = [...CANDIDATE_CVS].reverse();
-    const before = JSON.stringify(reversed);
-    const { container } = renderWorkspace(reversed);
-    expect(cardIds(container)).toEqual([PRIMARY.id, SECONDARY.id]);
-    expect(JSON.stringify(reversed)).toBe(before);
-    expect(reversed[0].isPrimary).toBe(false);
-    expect(reversed[0].id).toBe(SECONDARY.id);
+  it("shows a structural skeleton while the action is pending", () => {
+    vi.mocked(loadCvsAction).mockReturnValue(new Promise(() => {}));
+    const { container } = render(<CvWorkspace />);
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando CVs");
+    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(1);
+    expect(screen.queryByText("Sin CVs")).toBeNull();
   });
-
-  it("orders secondary CVs by updatedAt desc and falls back to a stable id tie", () => {
-    const byDate = renderWorkspace([older, SECONDARY, PRIMARY]);
-    expect(cardIds(byDate.container)).toEqual([PRIMARY.id, SECONDARY.id, older.id]);
-    cleanup();
-    const byTie = renderWorkspace([PRIMARY, tieB, tieA]);
-    expect(cardIds(byTie.container)).toEqual([PRIMARY.id, tieA.id, tieB.id]);
-  });
-});
-
-describe("cv workspace cards", () => {
-  it("renders the exact language, Spanish UTC date, KB size, PDF format and primary role", () => {
-    const { container } = renderWorkspace();
-    const primaryCard = card(container, PRIMARY.id);
-    for (const value of [PRIMARY.label, PRIMARY.fileName, "Rol", "Principal", "Español", "10 de marzo de 2026", "340 KB", "PDF"]) expect(primaryCard).toHaveTextContent(value);
-    const secondaryCard = card(container, SECONDARY.id);
-    for (const value of [SECONDARY.label, SECONDARY.fileName, "Secundario", "Inglés", "18 de febrero de 2026", "291 KB", "PDF"]) expect(secondaryCard).toHaveTextContent(value);
-    expect(primaryCard.querySelectorAll("dl")).toHaveLength(1);
-    expect(primaryCard.querySelectorAll("dt")).toHaveLength(5);
-  });
-
-  it("renders a deterministic one-decimal MB size for large documents", () => {
-    const large = { ...PRIMARY, id: "cv-grande", fileName: "cv-grande.pdf", sizeBytes: 2_621_440 };
-    const { container } = renderWorkspace([large]);
-    expect(card(container, large.id)).toHaveTextContent("2.5 MB");
-    expect(card(container, large.id)).not.toHaveTextContent("KB");
-  });
-});
-
-describe("cv workspace actions", () => {
-  it("renders exactly one enabled upload document action and no direct per-card action", () => {
-    const { container } = renderWorkspace();
-    expect(container.querySelectorAll("[data-pf-cv-upload]")).toHaveLength(1);
-    const upload = container.querySelector("[data-pf-cv-upload]") as HTMLButtonElement;
-    expect([upload.tagName, upload.getAttribute("type"), upload.disabled, upload.getAttribute("onclick")]).toEqual(["BUTTON", "button", false, null]);
-    expect(upload.className).toContain("min-h-10");
-    expect(upload.querySelector("svg.lucide-upload")).not.toBeNull();
-    for (const hook of ["[data-pf-cv-replace]", "[data-pf-cv-download]", "[data-pf-cv-make-primary]"]) {
-      expect(container.querySelectorAll(hook)).toHaveLength(0);
-    }
-    // One upload plus the two disclosure triggers.
-    expect(buttons(container)).toHaveLength(3);
-    expect(container.querySelectorAll("form")).toHaveLength(0);
-    expect(container.querySelectorAll("a")).toHaveLength(0);
-    expect(container.querySelectorAll("input")).toHaveLength(0);
-    expect(container.querySelectorAll("[onclick]")).toHaveLength(0);
-  });
-
-  it("gives every CV one enabled 40px disclosure trigger with a row-specific name", () => {
-    const { container } = renderWorkspace();
-    const opened = triggers(container);
-    expect(opened).toHaveLength(2);
-    expect(opened.map((trigger) => trigger.getAttribute("data-pf-cv-actions-trigger"))).toEqual([PRIMARY.id, SECONDARY.id]);
-    expect(opened.map((trigger) => trigger.getAttribute("aria-label"))).toEqual([`Acciones de ${PRIMARY.label}`, `Acciones de ${SECONDARY.label}`]);
-    expect(new Set(opened.map((trigger) => trigger.getAttribute("aria-label"))).size).toBe(opened.length);
-    for (const trigger of opened) {
-      expect([trigger.tagName, trigger.getAttribute("type"), trigger.disabled, trigger.getAttribute("onclick")]).toEqual(["BUTTON", "button", false, null]);
-      expect(trigger).toHaveAttribute("aria-haspopup", "menu");
-      expect(trigger).toHaveAttribute("aria-expanded", "false");
-      expect(trigger.className).toContain("size-10");
-      expect(trigger.className).toContain("hover:bg-muted");
-      expect(trigger.querySelectorAll("svg")).toHaveLength(1);
-      expect(trigger.querySelector("svg.lucide-ellipsis")).not.toBeNull();
-      expect(trigger.closest("[data-slot='card-action']")).not.toBeNull();
-      expect(trigger.closest("[data-slot='card-header']")).not.toBeNull();
-      expect(trigger.closest("[data-pf-cv-card]")).not.toBeNull();
-    }
-  });
-
-  it("keeps every menu closed on render with no mounted menu surface or menuitem", () => {
-    const { container } = renderWorkspace();
-    expect(container.querySelector("[data-slot='dropdown-menu-content']")).toBeNull();
-    expect(container.querySelectorAll("[data-slot='dropdown-menu-item']")).toHaveLength(0);
-    expect(container.querySelectorAll("[data-pf-cv-replace], [data-pf-cv-download], [data-pf-cv-make-primary]")).toHaveLength(0);
-    expect(screen.queryAllByRole("menuitem")).toHaveLength(0);
-  });
-});
-
-describe("cv workspace empty state", () => {
-  it("stays honest with zero cards and an enabled upload action", () => {
-    const { container } = renderWorkspace([]);
-    expect(container.querySelectorAll("[data-pf-cv-card]")).toHaveLength(0);
-    expect(container.querySelectorAll("[data-pf-cv-list]")).toHaveLength(0);
-    expect(container.querySelector("[data-pf-cv-summary]")).toHaveTextContent("Todavía no tienes CVs");
-    expect(screen.getByRole("button", { name: "Subir CV" })).toBeEnabled();
-    expect(container).not.toHaveTextContent(/Tu CV principal es/u);
-  });
-});
-
-describe("cv workspace composition contract", () => {
-  it("composes the installed Card anatomy with a real heading and list semantics per CV", () => {
-    const { container } = renderWorkspace();
-    const list = container.querySelector("[data-pf-cv-list]") as HTMLElement;
-    expect(list.tagName).toBe("UL");
-    for (const cv of [PRIMARY, SECONDARY]) {
-      const cvCard = card(container, cv.id);
-      expect(cvCard.getAttribute("data-slot")).toBe("card");
-      expect(cvCard.parentElement?.tagName).toBe("LI");
-      expect(cvCard.querySelector('[data-slot="card-header"]')).not.toBeNull();
-      expect(cvCard.querySelector('[data-slot="card-content"]')).not.toBeNull();
-      expect(cvCard.querySelector('[data-slot="card-footer"]')).toBeNull();
-      const action = cvCard.querySelector('[data-slot="card-action"]') as HTMLElement;
-      expect(action).not.toBeNull();
-      expect(action.parentElement?.getAttribute("data-slot")).toBe("card-header");
-      expect(action.querySelector("[data-pf-cv-actions-trigger]")).not.toBeNull();
-      expect(cvCard.lastElementChild?.getAttribute("data-slot")).toBe("card-content");
-      expect(screen.getByRole("heading", { level: 3, name: cv.label })).toHaveTextContent(cv.label);
-    }
-    expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(2);
-    expect(screen.getByRole("heading", { level: 2, name: "Tus CVs" })).toBeInTheDocument();
-  });
-
-  it("marks the role with an installed Badge whose Spanish word, not only its tone, distinguishes it", () => {
-    const { container } = renderWorkspace();
-    const badgesOf = (id: string) => Array.from(card(container, id).querySelectorAll('[data-slot="badge"]')) as HTMLElement[];
-    expect(badgesOf(PRIMARY.id)).toHaveLength(1);
-    expect(badgesOf(SECONDARY.id)).toHaveLength(1);
-    expect(badgesOf(PRIMARY.id)[0]).toHaveTextContent("Principal");
-    expect(badgesOf(SECONDARY.id)[0]).toHaveTextContent("Secundario");
-    expect(badgesOf(PRIMARY.id)[0].getAttribute("data-variant")).toBe("accent");
-    expect(badgesOf(SECONDARY.id)[0].getAttribute("data-variant")).toBe("neutral");
-    // A role is not a lifecycle status, so neither badge opts into the decorative dot.
-    for (const badge of [...badgesOf(PRIMARY.id), ...badgesOf(SECONDARY.id)]) {
-      expect(badge).not.toHaveAttribute("data-dot");
-      expect(badge.querySelectorAll("*")).toHaveLength(0);
-    }
-    // The saturated filled role tone and the outline metadata recipe are gone.
-    expect(SOURCE).toContain('variant={isPrimary ? "accent" : "neutral"}');
-    expect(SOURCE).not.toMatch(/variant=\{isPrimary \? "default"/u);
-    expect(SOURCE).not.toMatch(/<Badge[^>]*\bdot\b/u);
-  });
-
-  it("gives the document identity, every fact label and every disclosure trigger a contextual lucide icon", () => {
-    const { container } = renderWorkspace();
-    for (const cv of [PRIMARY, SECONDARY]) {
-      const cvCard = card(container, cv.id);
-      expect(cvCard.querySelector('[data-slot="card-header"] svg.lucide-file-text')).not.toBeNull();
-      const terms = Array.from(cvCard.querySelectorAll("dt"));
-      expect(terms).toHaveLength(5);
-      for (const term of terms) expect(term.querySelector("svg")).not.toBeNull();
-    }
-    expect(card(container, PRIMARY.id).querySelector("svg.lucide-star")).not.toBeNull();
-    for (const trigger of triggers(container)) expect(trigger.querySelector("svg.lucide-ellipsis")).not.toBeNull();
-    expect(container.querySelector('[data-pf-cv-upload] svg.lucide-upload')).not.toBeNull();
-    // The disabled menu icons live inside the unmounted portal, so source holds them.
-    for (const icon of ["<Ellipsis aria-hidden=\"true\" />", "<RefreshCw aria-hidden=\"true\" />", "<Download aria-hidden=\"true\" />", "<Star aria-hidden=\"true\" />"]) expect(SOURCE).toContain(icon);
-    const icons = Array.from(container.querySelectorAll("svg"));
-    expect(icons.length).toBeGreaterThan(0);
-    for (const icon of icons) expect(icon.getAttribute("aria-hidden")).toBe("true");
-  });
-
-  it("contracts one installed menu per CV with two or three inert items and no footer", () => {
-    const { container } = renderWorkspace();
-    expect(container.querySelectorAll("[data-slot='card-footer']")).toHaveLength(0);
-    expect(container.querySelectorAll("[data-pf-cv-card-actions]")).toHaveLength(0);
-    expect(SOURCE).toContain('from "@/components/ui/card"');
-    expect(SOURCE).toContain("CardAction");
-    expect(SOURCE).toContain('from "@/components/ui/dropdown-menu"');
-    expect(SOURCE).not.toContain("CardFooter");
-    expect(SOURCE).not.toContain("card-footer");
-    expect(SOURCE.match(/<CvActionsMenu\b/gu)).toHaveLength(1);
-    expect(SOURCE.match(/<DropdownMenu\b/gu)).toHaveLength(1);
-    expect(SOURCE.match(/<DropdownMenuTrigger\b/gu)).toHaveLength(1);
-    expect(SOURCE.match(/<DropdownMenuContent\b/gu)).toHaveLength(1);
-    expect(SOURCE.match(/<DropdownMenuGroup\b/gu)).toHaveLength(1);
-    expect(SOURCE.match(/<DropdownMenuItem\b/gu)).toHaveLength(3);
-    expect(SOURCE.match(/<DropdownMenuItem disabled/gu)).toBeNull();
-    expect(SOURCE.match(/className=\{MENU_ITEM\}/gu)).toHaveLength(3);
-    expect(SOURCE).toMatch(/<DropdownMenuContent align="end" side="bottom"/u);
-    // Exactly one conditional definition: the primary CV keeps two items, every secondary gains the third.
-    expect(SOURCE.match(/\{cv\.isPrimary \? null : \(/gu)).toHaveLength(1);
-    for (const hook of ["data-pf-cv-replace", "data-pf-cv-download", "data-pf-cv-make-primary"]) {
-      expect(SOURCE.match(new RegExp(hook, "gu"))).toHaveLength(1);
-    }
-    for (const label of ["Reemplazar", "Descargar", "Usar como principal"]) expect(SOURCE).toContain(label);
-    expect(SOURCE).not.toContain("(no disponible)");
-    expect(SOURCE).toContain("aria-label={`Acciones de ${cv.label}`}");
-  });
-
-  it("keeps the empty branch on the installed Empty primitive with no list and no card", () => {
-    const { container } = renderWorkspace([]);
-    const empty = container.querySelector('[data-slot="empty"]') as HTMLElement;
-    expect(empty).not.toBeNull();
-    expect(empty.querySelector('[data-slot="empty-icon"]')).not.toBeNull();
-    expect(empty.querySelector('[data-slot="empty-title"]')).toHaveTextContent("Sin CVs");
-    expect(empty.querySelector('[data-slot="empty-description"]')).not.toHaveTextContent(/Tu CV principal es/u);
-    expect(container.querySelector("[data-pf-cv-list]")).toBeNull();
-    expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(0);
+  it("renders the empty state and the server limit counter", async () => {
+    vi.mocked(loadCvsAction).mockResolvedValue({ ok: true, data: { ...library, items: [] } });
+    render(<CvWorkspace />);
+    expect(await screen.findByText("Sin CVs")).toBeInTheDocument();
+    expect(screen.getByText("0 de 10 CVs")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Subir CV" })).toBeEnabled();
   });
-
-  it("stacks and splits the document grid while the header keeps the trigger beside natural wrapping filenames", () => {
-    const { container } = renderWorkspace();
-    const list = container.querySelector("[data-pf-cv-list]") as HTMLElement;
-    expect([list.className.includes("grid-cols-1"), list.className.includes("lg:grid-cols-2")]).toEqual([true, true]);
-    expect(list.className).toContain("items-start");
-    for (const cv of [PRIMARY, SECONDARY]) {
-      const cvCard = card(container, cv.id);
-      const header = cvCard.querySelector('[data-slot="card-header"]') as HTMLElement;
-      expect(header.className).toContain("border-b");
-      expect(header.querySelector("[data-slot='card-action'] [data-pf-cv-actions-trigger]")).not.toBeNull();
-      expect(cvCard.className).not.toContain("h-full");
-    }
-    const filename = container.querySelector(`[data-pf-cv-filename="${SECONDARY.id}"]`) as HTMLElement;
-    expect(filename.className).toContain("break-words");
-    expect(filename.className).not.toContain("break-all");
-    expect(filename.closest(".min-w-0")).not.toBeNull();
-    expect(SOURCE).not.toContain("break-all");
+  it("shows actual name, type, size, es-MX date and neutral in-use badge in the approved cards", async () => {
+    const { container } = await ready();
+    const card = container.querySelector('[data-pf-cv-card]')!;
+    for (const text of ["PDF", "340 KB", "10 de marzo de 2026", "En uso"]) expect(card).toHaveTextContent(text);
+    expect(screen.getByText("En uso")).toHaveAttribute("data-variant", "neutral");
+    expect(screen.getByText("1 de 10 CVs")).toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: `Acciones de ${cv.name}` });
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu"); expect(trigger.className).toContain("size-10");
+    expect(trigger.closest('[data-slot="card-action"]')).not.toBeNull();
+    expect(card.querySelector('[data-slot="card-footer"]')).toBeNull();
   });
-
-  it("centers the workspace on the approved full width with a single padding owner and no inner width cap", () => {
-    const { container } = renderWorkspace();
-    const root = container.querySelector("[data-pf-cv-workspace]") as HTMLElement;
-    const tokens = root.className.split(/\s+/u);
-    expect(["mx-auto", "w-full", "max-w-screen-2xl"].filter((token) => !tokens.includes(token))).toEqual([]);
-    expect(["px-4", "py-4", "md:py-6", "lg:px-6"].filter((token) => !tokens.includes(token))).toEqual([]);
-    const owners = Array.from(container.querySelectorAll("[class]")).filter((node) => {
-      const value = (node.getAttribute("class") ?? "").split(/\s+/u);
-      return value.includes("px-4") && value.includes("lg:px-6");
-    });
-    expect(owners).toHaveLength(1);
-    expect(owners[0]).toBe(root);
-    // The canonical `max-w-screen-2xl` measure now travels through the shared
-    // page-content wrapper prop, so the workspace source declares none of its
-    // own and still cannot introduce a narrower inner cap.
-    expect([...SOURCE.matchAll(/max-w-[a-z0-9-]+/gu)].map((match) => match[0])).toEqual([]);
+  it("shows Word without fabricating primary-role or language data", async () => {
+    vi.mocked(loadCvsAction).mockResolvedValue({ ok: true, data: { ...library, items: [{ ...cv, in_use: false, content_type: library.limits.content_types[1] as "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }] } });
+    render(<CvWorkspace />); expect(await screen.findByText("Word")).toBeInTheDocument();
+    expect(screen.queryByText("En uso")).toBeNull(); expect(screen.queryByText("Principal")).toBeNull();
   });
-
-  it("paints only with semantic tokens inside the workspace", () => {
-    const { container } = renderWorkspace();
-    expect(RAW_COLOR.test(classesOf(container))).toBe(false);
-    expect(container.querySelectorAll("[style]")).toHaveLength(0);
-    expect(SOURCE).not.toContain("bg-card/40");
-    expect(SOURCE).not.toContain("dark:");
-    expect(SOURCE).not.toMatch(RAW_COLOR);
-    expect(SOURCE).not.toMatch(/space-[xy]-/u);
-    expect(SOURCE).not.toMatch(/[wh]-\[\d/u);
-    expect(SOURCE).not.toMatch(/(?<![\w-])h-\d/u);
+  it("keeps errors persistent, and allows explicit load retry", async () => {
+    vi.mocked(loadCvsAction).mockResolvedValueOnce({ ok: false, reason: "unauthenticated", reference: { status: 401 } });
+    render(<CvWorkspace />); expect(await screen.findByText("Tu sesión expiró")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Iniciar sesión" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
+    expect(await screen.findByRole("heading", { name: cv.name })).toBeInTheDocument();
   });
-});
-
-describe("cv workspace source contract", () => {
-  it("stays a props-only server surface limited to the installed UI, model and icon modules", () => {
-    const modules = [...new Set([...SOURCE.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]))].sort();
-    expect(modules).toEqual([
-      "./portfolio-model",
-      "@/components/dashboard-page-content",
-      "@/components/ui/badge",
-      "@/components/ui/button",
-      "@/components/ui/card",
-      "@/components/ui/dropdown-menu",
-      "@/components/ui/empty",
-      "lucide-react",
-    ]);
-    const lucideNames = [...SOURCE.matchAll(/import \{([^}]*)\} from "lucide-react"/gu)]
-      .flatMap((match) => match[1].split(",").map((name) => name.trim()).filter((name) => name !== ""))
-      .sort();
-    expect(lucideNames).toEqual(["CalendarClock", "Download", "Ellipsis", "FileText", "FileType2", "HardDrive", "Languages", "RefreshCw", "Star", "Upload"]);
-    expect(SOURCE).not.toMatch(/["']use client["']/u);
-    for (const forbidden of [
-      "@/features/", "prototype-", "CANDIDATE_CVS",
-      "fetch(", "XMLHttpRequest", "axios", "localStorage", "sessionStorage", "indexedDB",
-      "navigator.", "window.", "document.", "useRouter", "next/navigation", "next/link", "next/router",
-      "onClick", "onChange", "onSubmit", "onDrag", "draggable", "<form", "<input", "<a ", "href=",
-      "downloadUrl", "createObjectURL", "useEffect", "useState", "setTimeout", "setInterval",
-      "requestAnimationFrame", "Math.random", "Date.now", "crypto.", "randomUUID", "generated",
-    ]) expect(SOURCE, `cv-workspace.tsx must not contain ${forbidden}`).not.toContain(forbidden);
-    // Rendered copy must stay product-facing: no implementation-status disclosure.
-    expect(IMPLEMENTATION_STATUS_COPY.test(stripComments(SOURCE))).toBe(false);
-    for (const hook of ["data-pf-cv-disclosure", "data-pf-cv-actions-note", "pf-cv-actions-note"]) expect(SOURCE).not.toContain(hook);
+  it.each([
+    [new File(["x"], "cv.exe", { type: "application/octet-stream" }), "Sube un PDF o un documento de Word (.docx)."],
+    [new File([new Uint8Array(5242881)], "cv.pdf", { type: "application/pdf" }), "El archivo pesa más de 5 MB."],
+  ])("checks the file before any browser request", async (file, message) => {
+    await ready(); selectFile(file);
+    expect(await screen.findByText(message)).toBeInTheDocument(); expect(fetchMock).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Archivo del CV")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Archivo del CV")).toHaveFocus();
+  });
+  it("uploads once to the same-origin route, shows Spinner and confirmed success", async () => {
+    await ready(); let resolve!: (value: Response) => void;
+    fetchMock.mockReturnValue(new Promise<Response>(done => { resolve = done; }));
+    selectFile(new File(["%PDF-"], "cv.pdf", { type: "application/pdf" }));
+    expect(await screen.findByRole("button", { name: "Subiendo…" })).toBeDisabled();
+    expect(document.querySelector('[data-slot="spinner"]')).not.toBeNull();
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/candidate/cvs");
+    expect(fetchMock.mock.calls[0][1].body.getAll("file")).toHaveLength(1);
+    resolve(Response.json({ ...cv, id: "b12b3456-1234-4234-8234-123456789abc" }, { status: 201 }));
+    await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "CV subido" })));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it.each([
+    [400, "cv_content_mismatch", "El archivo no coincide con su formato. Expórtalo de nuevo como PDF o Word."],
+    [409, "cv_library_full", "Ya tienes 10 CVs. Elimina uno para subir otro."],
+  ])("maps upload failure %s %s", async (status, code, description) => {
+    await ready(); fetchMock.mockResolvedValue(Response.json({ error: "private detail", code }, { status: Number(status) }));
+    selectFile(new File(["%PDF-"], "cv.pdf", { type: "application/pdf" }));
+    await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", description, reference: expect.objectContaining({ status, code }) })));
+    expect(screen.getByRole("status")).not.toHaveTextContent("private detail");
+    if (code === "cv_content_mismatch") expect(screen.getByLabelText("Archivo del CV")).toHaveFocus();
+  });
+  it.each([[503, "no_response", "No hubo respuesta del servidor"], [502, "unrecognized_response", "No pudimos confirmar el resultado"]])("preserves a sanitized route transport classification %i", async (status, code, title) => {
+    await ready(); fetchMock.mockResolvedValue(Response.json({ error: code, code }, { status: Number(status) }));
+    selectFile(new File(["%PDF-"], "cv.pdf", { type: "application/pdf" }));
+    await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ title })));
+  });
+  it("never retries an uncertain upload automatically; offers a read-only check", async () => {
+    await ready(); fetchMock.mockRejectedValue(new Error("secret"));
+    selectFile(new File(["%PDF-"], "cv.pdf", { type: "application/pdf" }));
+    expect(await screen.findByRole("button", { name: "Comprobar" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Subir CV" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Comprobar" }));
+    await waitFor(() => expect(loadCvsAction).toHaveBeenCalledTimes(2));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("disables upload at the real limit with an associated explanation", async () => {
+    vi.mocked(loadCvsAction).mockResolvedValue({ ok: true, data: { ...library, limits: { ...library.limits, max_cvs: 1 } } });
+    await ready(); expect(screen.getByRole("button", { name: "Subir CV" })).toBeDisabled();
+    expect(screen.getByText("Ya tienes 1 CVs. Elimina uno para subir otro.")).toBeInTheDocument();
+  });
+  it("keeps semantic paint and a responsive document grid", async () => {
+    const { container } = await ready();
+    expect(container.querySelector('[data-pf-cv-list]')?.className).toContain("lg:grid-cols-2");
+    const source = readFileSync("src/features/candidate/cv-workspace.tsx", "utf8");
+    expect(source).not.toMatch(/#[0-9a-f]{3,8}\b|(?:rgb|hsl|oklch|color-mix)\(|dark:|space-[xy]-|bg-card\/40/u);
+    expect(container.querySelector('[data-pf-cv-workspace]')?.className).toContain("max-w-screen-2xl");
   });
 });
