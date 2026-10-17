@@ -84,3 +84,70 @@ func TestCandidateIdentityRoutesRequireAuthentication(t *testing.T) {
 		})
 	}
 }
+
+// Regression for the per-method applications mount (L40): through the real
+// router, recruiter list/detail/transition still run requireAuth then the
+// recruiter gate (never the candidate gate) and keep their previous headers,
+// while the candidate POST runs the candidate gate and never the recruiter gate.
+func TestApplicationsMountKeepsRecruiterGatesThroughRealRouter(t *testing.T) {
+	const recruiterGateStatus = http.StatusTeapot
+	recruiterGateHits := 0
+	recruiterGate := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			recruiterGateHits++
+			w.WriteHeader(recruiterGateStatus)
+		})
+	}
+	r := newRouter(routerDeps{
+		requireAuth:      identityhttp.RequireAuth(identityRouteVerifier{}),
+		requireCandidate: identityhttp.RequireCandidateRole(identityRouteUsers{}),
+		requireRecruiter: recruiterGate,
+		requireOwner:     routeRequireAuth,
+	})
+	jobID := uuid.NewString()
+	appID := uuid.NewString()
+	recruiterRoutes := []struct{ method, path string }{
+		{"GET", "/jobs/" + jobID + "/applications/"},
+		{"GET", "/jobs/" + jobID + "/applications/" + appID},
+		{"PATCH", "/jobs/" + jobID + "/applications/" + appID + "/transition"},
+	}
+	for _, route := range recruiterRoutes {
+		t.Run("anonymous "+route.method+route.path, func(t *testing.T) {
+			before := recruiterGateHits
+			w := httptest.NewRecorder()
+			r.ServeHTTP(w, httptest.NewRequest(route.method, route.path, strings.NewReader(`{}`)))
+			if w.Code != http.StatusUnauthorized || recruiterGateHits != before {
+				t.Fatalf("got %d, recruiter gate hits %d→%d", w.Code, before, recruiterGateHits)
+			}
+		})
+		// A candidate token would pass the candidate gate; reaching the recruiter
+		// gate proves the recruiter routes are not candidate-gated.
+		for _, subject := range []string{"candidate", "recruiter", "unknown"} {
+			t.Run(subject+" "+route.method+route.path, func(t *testing.T) {
+				before := recruiterGateHits
+				w := httptest.NewRecorder()
+				req := httptest.NewRequest(route.method, route.path, strings.NewReader(`{}`))
+				req.Header.Set("Authorization", "Bearer "+subject)
+				r.ServeHTTP(w, req)
+				if w.Code != recruiterGateStatus || recruiterGateHits != before+1 {
+					t.Fatalf("got %d, recruiter gate hits %d→%d", w.Code, before, recruiterGateHits)
+				}
+				if got := w.Header().Get("Cache-Control"); got != "" {
+					t.Fatalf("recruiter route gained Cache-Control %q", got)
+				}
+			})
+		}
+	}
+	t.Run("candidate POST never reaches the recruiter gate", func(t *testing.T) {
+		before := recruiterGateHits
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest("POST", "/jobs/"+jobID+"/applications", strings.NewReader(`{}`))
+		req.Header.Set("Authorization", "Bearer recruiter")
+		r.ServeHTTP(w, req)
+		var body map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &body)
+		if w.Code != http.StatusForbidden || body["code"] != "wrong_role" || recruiterGateHits != before {
+			t.Fatalf("got %d %s, recruiter gate hits %d→%d", w.Code, w.Body.String(), before, recruiterGateHits)
+		}
+	})
+}
