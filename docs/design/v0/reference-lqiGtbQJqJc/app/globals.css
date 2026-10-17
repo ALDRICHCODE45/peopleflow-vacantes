@@ -1,0 +1,56 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@custom-variant dark (&:is(.dark *));
+@theme inline {
+  --font-sans: var(--font-inter);
+  --color-background: var(--background); --color-foreground: var(--foreground);
+  --color-card: var(--card); --color-card-foreground: var(--foreground);
+  --color-popover: var(--popover); --color-popover-foreground: var(--foreground);
+  --color-primary: var(--primary); --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary); --color-secondary-foreground: var(--foreground);
+  --color-muted: var(--muted); --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent); --color-accent-foreground: var(--foreground);
+  --color-border: var(--border); --color-input: var(--input); --color-ring: var(--primary);
+  --color-destructive: var(--destructive);
+  --color-status-info: var(--status-info); --color-status-review: var(--status-review);
+  --color-status-success: var(--status-success); --color-status-danger: var(--status-danger);
+  --radius-sm: calc(var(--radius) * .6); --radius-md: calc(var(--radius) * .8);
+  --radius-lg: var(--radius); --radius-xl: calc(var(--radius) * 1.4);
+}
+:root {
+ color-scheme: light; --background: #F7F5FB; --foreground: #1A1626; --card: #FFFFFF; --popover: #FFFFFF;
+ --primary: oklch(0.491 0.27 292.581); --primary-foreground: oklch(0.969 0.016 293.756);
+ --secondary: #F1EEF7; --muted: #F1EEF7; --accent: #F1EEF7; --muted-foreground: #6B6480;
+ --border: #E4DFF0; --input: #E4DFF0; --destructive: oklch(0.577 0.245 27.325);
+ --status-info: oklch(0.45 0.16 250); --status-review: oklch(0.47 0.12 70);
+ --status-success: oklch(0.46 0.13 152); --status-danger: oklch(0.45 0.2 25); --radius: .625rem;
+}
+.dark {
+ color-scheme: dark; --background: #0C0912; --foreground: #F6F2FF; --card: #15121F; --popover: #1A1626;
+ --primary: oklch(0.432 0.232 292.759); --secondary: #171226; --muted: #171226; --accent: #171226;
+ --muted-foreground: #A79FBF; --border: #262233; --input: #262233; --destructive: oklch(0.704 0.191 22.216);
+ --status-info: oklch(0.78 0.12 245); --status-review: oklch(0.82 0.12 78);
+ --status-success: oklch(0.78 0.14 155); --status-danger: oklch(0.75 0.15 22);
+}
+@layer base {
+ * { @apply border-border outline-ring/50; }
+ body { @apply bg-background text-foreground font-sans text-sm antialiased; }
+ button, [role='button'], a { -webkit-tap-highlight-color: transparent; }
+ button:not(:disabled), [role='button'] { cursor: pointer; }
+ button:focus-visible, [role='button']:focus-visible { @apply outline-2 outline-offset-2 outline-primary; }
+}
+.stage-neutral { --stage: var(--muted-foreground); }
+.stage-info { --stage: var(--status-info); }
+.stage-review { --stage: var(--status-review); }
+.stage-process { --stage: var(--primary); }
+.dark .stage-process { --stage: color-mix(in oklch, var(--primary) 60%, var(--foreground)); }
+.stage-success { --stage: var(--status-success); }
+.stage-danger { --stage: var(--status-danger); }
+.stage-column { background: color-mix(in oklch, var(--stage) 4%, var(--background)); }
+.stage-heading, .stage-badge { background: color-mix(in oklch, var(--stage) 10%, var(--card)); color: var(--stage); }
+.stage-dot { background: var(--stage); }
+.candidate-card { box-shadow: 0 2px 3px color-mix(in srgb, var(--foreground) 4%, transparent), 0 0 0 1px color-mix(in srgb, var(--border) 50%, transparent); }
+.board-scroll { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+[data-slot='sheet-overlay'] { background: color-mix(in srgb, var(--foreground) 8%, transparent); backdrop-filter: none; }
+[data-slot='dropdown-menu-item'] { min-height: 40px; }

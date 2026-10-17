@@ -1,0 +1,9 @@
+'use client'
+import { Component, type ReactNode } from 'react'
+import { Button } from '@/components/ui/button'
+import { RotateCcw } from 'lucide-react'
+export class TabErrorBoundary extends Component<{children:ReactNode},{failed:boolean}> {
+ state={failed:false}
+ static getDerivedStateFromError(){return {failed:true}}
+ render(){return this.state.failed?<div role="alert" className="flex flex-col items-start gap-3 rounded-lg bg-muted p-4"><p className="text-sm">No pudimos cargar esta información.</p><Button variant="outline" className="h-10" onClick={()=>this.setState({failed:false})}><RotateCcw/>Reintentar</Button></div>:this.props.children}
+}

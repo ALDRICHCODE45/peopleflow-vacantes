@@ -1,0 +1,18 @@
+export const stages = [
+ { name: 'Nuevos', color: 'stage-neutral' }, { name: 'Screening', color: 'stage-info' },
+ { name: 'Screening OK', color: 'stage-review' }, { name: 'En proceso', color: 'stage-process' },
+ { name: 'Placement', color: 'stage-success' }, { name: 'Descartados', color: 'stage-danger' },
+]
+export type Event = { title: string; date: string; candidate?: boolean; badge?: string }
+export type Candidate = { id: number; name: string; stage: number; file: string; moving?: boolean; since: string; previous?: number; reason?: string; group?: string; internal?: string; message?: string; history: Event[] }
+export const initialCandidates: Candidate[] = ['Ana Pérez', 'Luis Hernández García', 'María Fernanda López Ortiz', 'Jorge Ramírez', 'Sofía Castillo', 'Diego Torres Medina', 'Valeria Ruiz', 'Carlos Mendoza', 'Fernanda Navarro'].map((name, id) => ({
+ id, name, stage: [0,0,0,1,1,3,4,5,5][id], file: `CV-${name.split(' ').slice(0,2).join('-')}.${id % 3 === 1 ? 'docx' : 'pdf'}`, since: '18 oct 2026', moving: id === 5,
+ ...(id > 6 ? { previous: 1, reason: 'No cumple requisitos', group: 'Decisión de la empresa', internal: 'La experiencia no coincide con los requisitos de esta vacante.', message: 'Gracias por tu interés. En esta ocasión continuaremos con otros perfiles.' } : {}),
+ history: [ {title:'Postulación recibida',date:'17 oct 2026, 14:32',candidate:true}, {title:'Nuevos → Screening',date:'17 oct 2026, 16:10'}, {title:'Screening → Nuevos',date:'18 oct 2026, 09:00'}, {title:'CV actualizado',date:'18 oct 2026, 09:15',candidate:true} ],
+}))
+export const initials = (name: string) => name.split(' ').slice(0,2).map(n => n[0]).join('')
+export const allowed = (stage: number) => stages.map((_,i)=>i).filter(i=>i<5 && i!==stage && i<=stage+1)
+export const reasonGroups = [
+ { name:'Decisión de la empresa', reasons:['No cumple requisitos','Perfil no adecuado','Expectativa salarial','Seleccionamos a otra persona','Otro'] },
+ { name:'Decisión del candidato', reasons:['Aceptó otra oferta','Ya no le interesa','Sin respuesta del candidato','Otro'] },
+]
