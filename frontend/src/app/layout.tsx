@@ -7,9 +7,8 @@ import "./globals.css";
 
 // Preset b27M1Ev2 typography: Inter serves the body role through the
 // framework-managed next/font loader (self-hosted at runtime, no network font
-// dependency). The heading role keeps the licensed "Clash Display" preference
-// in --font-heading (globals.css) and degrades to Inter when that face is not
-// available, so no hosted stylesheet or CDN preconnect is needed.
+// dependency). Inter is the only app face: --font-heading resolves to it too
+// (globals.css); Clash Display is scoped to the marketing landing.
 const inter = Inter({
     subsets: ["latin"],
     display: "swap",
