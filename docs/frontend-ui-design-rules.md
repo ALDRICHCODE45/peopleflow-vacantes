@@ -759,3 +759,17 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
   `DialogFooter` usa `ActionBar` como cualquier pie de acciones (sección 12).
 - Si el resultado de la acción es incierto (sin respuesta), el diálogo ofrece
   «Comprobar», que solo lee el estado; nunca reintenta solo.
+
+### 13.9 Subida de archivos
+
+- Los archivos viajan por un Route Handler de Next (`app/api/…`) que agrega el Bearer del
+  lado del servidor, corta el cuerpo al límite que manda el backend (más un margen chico
+  para el multipart) y reenvía solo las partes esperadas. No se sube el límite global de
+  las Server Actions y el token nunca llega al navegador.
+- El tipo MIME del navegador es orientativo: se acepta un tipo permitido o un tipo vacío
+  / `application/octet-stream` cuya extensión corresponda a uno permitido; el backend
+  decide por el contenido real. El `accept` del input lista tipos **y** extensiones
+  (`.pdf,.docx`).
+- Antes de enviar se valida tamaño y tipo en el cliente con mensajes junto al campo; los
+  rechazos del servidor (tamaño, tipo, contenido que no coincide, límite de la
+  biblioteca) tienen su propio texto.

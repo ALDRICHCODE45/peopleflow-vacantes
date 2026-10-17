@@ -304,6 +304,22 @@ corepack pnpm dev
 40. **Backend sin UserInfo (opcional).** Sin `IDENTITY_USERINFO_ENDPOINT` en el
     backend, el alta muestra un error con «Reintentar» y el resto sigue funcionando.
 
+41. **Biblioteca de CVs (P2b).** Con tu cuenta de candidato entrá a `/candidato/cvs`.
+    **Esperado:** «0 de 10 CVs»; subí un PDF y un .docx (y probá un .txt y uno de más
+    de 5 MB: mensajes junto al campo). Renombrá uno y descargalo. Eliminar pide
+    confirmación.
+42. **Postularse.** Sin sesión, abrí tu vacante publicada en `/vacantes/{id}` y tocá
+    «Postularme». **Esperado:** «Ingresar como candidato»; al entrar volvés a la
+    postulación. Pasos: datos (tu nombre y email), CV (elegí uno o subí otro), preguntas
+    (todas obligatorias, las abiertas con contador) y resumen. «Enviar postulación».
+    **Esperado:** «Postulación enviada» con enlace a «Mis postulaciones».
+43. **Mis postulaciones.** En `/candidato/postulaciones` aparece la vacante con
+    «Postulación enviada». Volvé a postularte a la misma: **esperado** «Ya te postulaste
+    a esta vacante». El CV usado queda «En uso» en tu biblioteca.
+44. **Preguntas cambiadas (opcional).** Con la postulación abierta, cambiá las preguntas
+    de la vacante desde el editor y enviá. **Esperado:** «Las preguntas cambiaron. Revisa
+    tus respuestas.» con el formulario recargado.
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:
