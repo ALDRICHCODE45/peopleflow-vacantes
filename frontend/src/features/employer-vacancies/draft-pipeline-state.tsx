@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, GitBranch, Settings } from "lucide-react";
+import { ArrowLeft, ArrowRight, GitBranch, Settings, Settings2 } from "lucide-react";
 import { SiteHeader } from "@/components/company-dashboard/site-header";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,6 @@ import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/dr
 
 import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publication-actions";
 import type { DraftPublication } from "@/features/jobs/drafts/pipeline/publication-client";
-import { formatPublicationDate } from "@/features/jobs/drafts/pipeline/publication-model";
 import { PublishButton } from "./publication/publish-dialog";
 import { MovementBoard } from "@/features/pipeline-movement/board";
 
@@ -49,21 +48,20 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
       <SiteHeader title={title} parent={{ label: "Vacantes", href: "/empresa/vacantes" }} status={result?.ok ? <Badge variant={published ? "accent" : "info"} dot>{published ? "Activa" : "Borrador"}</Badge> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-24" /> : undefined} />
       <div className="@container/main flex flex-1 flex-col">
         <DashboardPageContent width="screen-2xl" className="gap-5 md:gap-6">
-          <section aria-labelledby="draft-pipeline-heading" className="flex items-start justify-between gap-4">
+          {!published && <section aria-labelledby="draft-pipeline-heading" className="flex items-start justify-between gap-4">
             <div className="flex min-w-0 flex-col gap-1.5">
               <h2 id="draft-pipeline-heading" className="font-heading text-[20px] font-semibold text-foreground">Pipeline</h2>
               <p className="max-w-prose text-[13.5px] text-muted-foreground">Da seguimiento a los candidatos de esta vacante.</p>
-              {publishedAt && <p className="text-sm text-muted-foreground">Publicada el {formatPublicationDate(publishedAt)}</p>}
             </div>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger render={<Button nativeButton={false} role="link" variant="outline" size="icon" className="size-10" aria-label="Configuración de la vacante" render={<Link href={configHref} />} />}>
-                  <Settings aria-hidden="true" />
+                  <Settings2 aria-hidden="true" />
                 </TooltipTrigger>
-                <TooltipContent>Configuración</TooltipContent>
+                <TooltipContent>Configuración de la vacante</TooltipContent>
               </Tooltip>
             </TooltipProvider>
-          </section>
+          </section>}
           {result === null ? (
             <>
               <span role="status" className="sr-only">Cargando borrador</span>
@@ -72,7 +70,7 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
               </CardContent></Card>
             </>
           ) : !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : published ? (
-            <MovementBoard vacancyId={draftId} />
+            <MovementBoard vacancyId={draftId} vacancyTitle={title} publishedAt={publishedAt} />
           ) : (
             <Card><CardContent>
               <Empty className="min-h-80">

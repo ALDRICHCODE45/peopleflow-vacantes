@@ -256,7 +256,7 @@ esta regla.
 | Identidad de candidato/empleador | `Avatar`, `AvatarImage`, `AvatarFallback`, `AvatarGroup` | Instalado |
 | Estado, etapa, etiquetas | `Badge` | Instalado |
 | Cambiar vista lista/board o filtros cortos (2–7 opciones) | `Tabs` **o** `ToggleGroup` | Instalado |
-| Área scrolleable interna (columnas Kanban) | `ScrollArea` | **No instalado → consultar registry** |
+| Área scrolleable interna (columnas Kanban) | `ScrollArea` + `ScrollBar` horizontal | Instalado |
 | Menú de acciones por tarjeta | `DropdownMenu` | Instalado |
 | Estado vacío (sin vacantes / sin postulantes) | `Empty`, `EmptyHeader`, `EmptyTitle`, `EmptyDescription`, `EmptyContent` | Instalado |
 | Modal de detalle o confirmación con formulario | `Dialog` | Instalado |
@@ -277,7 +277,7 @@ Regla operativa: si el primitivo no está instalado, **primero** se consulta en 
 registry (herramientas MCP en solo lectura) y **no se implementa a mano**. Agregarlo
 requiere autorización humana normal y revisión del paquete/registro (sección 1): no hay
 instalación automática. La columna "Estado" es un inventario y no convierte en instalado
-lo ausente (`HoverCard`, `ScrollArea`, `Command`).
+lo ausente (`HoverCard`, `Command`).
 
 ## 8. Evidencia del inventario del registry
 
@@ -781,7 +781,12 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
   Un destino no permitido se deshabilita en `useDroppable` y se explica durante el
   arrastre. No poner `aria-disabled` en la región completa: también deshabilitaría
   semánticamente los controles de detalle que siguen disponibles.
-- Cada tarjeta tiene su propio bloqueo de escritura y su `ActionStatusSlot` reservado.
+- Cada tarjeta tiene su propio bloqueo de escritura. En el pipeline compacto, el éxito
+  se anuncia con el toast existente y con el cambio real de columna; no queda un
+  «Candidato movido/descartado» persistente ni un slot vacío dentro de la tarjeta.
+  Los errores y avisos de reconciliación sí conservan un `ActionStatus` compacto en la
+  tarjeta, referenciado desde sus controles. Esta es la excepción acotada a la reserva
+  de `ActionStatusSlot` de la sección 12.
   Al cambiar de columna, recuperar el foco de teclado perdido en su menú, sin robarlo
   de otro control que la persona haya usado durante la espera.
 - Una salida con consecuencias se confirma con el `Dialog` instalado (sección 13.8),
@@ -790,7 +795,7 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
 - Ante resultado incierto, respuesta no reconocida o conflicto que exige reconciliar,
   conservar el tablero y leerlo **una vez**, sin repetir la escritura. Si la lectura
   falla, bloquear movimientos sobre la copia desactualizada y ofrecer «Reintentar»
-  solo para leer. Los resultados mantienen toast y estado persistente junto a la acción.
+  solo para leer. Los errores mantienen toast y estado persistente junto a la acción.
 - Si coinciden escrituras independientes y el resumen global no tiene versión propia
   (por ejemplo cobertura), hacer una sola lectura al terminar todas: las respuestas
   pueden llegar fuera de orden. No convertir esa lectura en un reintento de escritura.
@@ -844,5 +849,47 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
   del tipo, nombre, acción de descarga), no como enlace subrayado.
 - Ningún contenido se corta contra el borde de un contenedor con scroll horizontal.
 
-El detalle de composición del tablero y la ficha se completa con la referencia de v0
-(`docs/design/v0/pipeline-board-and-candidate-sheet.md`) antes de implementarlos.
+### 14.3 Composición del pipeline aprobada en v0
+
+Referencia: `docs/design/v0/reference-lqiGtbQJqJc/` y capturas de L5 en
+`odd/tasks/ui-polish.md`. Se porta la presentación, nunca su estado de demostración.
+
+- Encabezado «Pipeline» 20px/600, fecha corta 12px muted; cobertura compacta con
+  `CheckCheck` y `Progress` de 4px success sobre border, divisor vertical y engranaje
+  de 40px que navega a la configuración real. Capacidad desconocida: sin denominador
+  ni barra. Cobertura completa actual: texto success; hito pasado: nota muted
+  «Se completó el …», nunca badge de éxito.
+- Fechas con `Intl` es-MX, día numérico, mes corto, año; sin conectores «de».
+  Metadatos de tarjeta sin año; actividad con hora de 24h. Se conserva la zona de
+  negocio `America/Mexico_City` del tablero anterior.
+- Riel `ScrollArea` + `ScrollBar` horizontal, snap y pequeño inset que preserva los
+  bordes de la primera tarjeta. Columnas de 284px con tintes centrales `.stage-*`
+  (new/custom neutral, screening info, screening_ok review, in_process primary,
+  placement success, discarded danger); oscuro manual y de sistema comparten el
+  ajuste de primary hacia foreground. Los tintes solo viven en `globals.css`, con
+  tokens y `color-mix`, sin pintura inline ni paleta nueva.
+- Excepciones locales a §6: el `Badge` de identidad de etapa consume la receta central
+  `.stage-badge`; los contadores de columna y tabs tienen densidad compacta definida
+  por sus contenedores. No se convierten en nuevas variantes globales ni se replican
+  recetas de color por llamada. Una columna vacía usa una sola línea en un hueco
+  dashed de 96px, no un `Empty` repetido.
+- Tarjetas `Card` con composición nativa, avatar de 32px, nombre 14px/500 de dos
+  líneas con tooltip, metadatos de fechas, `Separator` y archivo por extensión o
+  motivo/grupo de descarte. Menú: destinos permitidos → «Ver ficha» → «Descartar»;
+  descartada: «Recuperar» → «Ver ficha». La manija dnd-kit sigue independiente,
+  disponible con foco y siempre visible en pantallas pequeñas; su target de 40px
+  ocupa el aire alrededor de la fila compacta del CV, no añade otra fila de acciones.
+- Ficha de hasta 560px, identidad con avatar de 48px, acciones arriba, único cierre
+  «Cerrar ficha», `Tabs` de 44px con contadores reales y contenido `ScrollArea`
+  vertical. Excepción de densidad a §6: este riel local usa triggers de radio menor
+  y 12px; estados activos, teclado y foco siguen siendo del primitive instalado.
+  El foco inicial va al título y vuelve al detalle al cerrar. Se conserva la ficha
+  flotante de §13.3 y el overlay instalado; ningún cambio global de overlay.
+- Resumen con dl de etiqueta/valor e íconos; CV en tarjeta descargable real; preguntas
+  de filtro y actividad en tabs independientes, con skeleton/error/reintento según la
+  lectura real (sin timers de demostración). Timeline ordenado más reciente primero,
+  actores reales y badges «Contratación» / «Salida de Placement». Footer: título real
+  de la vacante, sin número de postulación ni datos inventados.
+- Descartar/recuperar conservan `Dialog`, `ActionBar`, validación Unicode, mensajes
+  privados/públicos y confirmaciones de Placement. Las confirmaciones que parten de
+  la ficha se anidan dentro de ella y devuelven el foco a su acción.

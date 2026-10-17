@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
-import { ListChecks, MessageSquare, NotebookPen, TriangleAlert } from "lucide-react";
+import { ListChecks, MessageSquare, NotebookPen, RotateCcw, TriangleAlert, UserRoundX } from "lucide-react";
+import { cn } from "cn";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -47,8 +48,8 @@ export function DispositionDialog({ disposition, board, pending, stale, reading,
     onConfirm(buildDiscardBody(reason, comment, message));
   }
   return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-    <DialogContent showCloseButton={!pending} finalFocus={finalFocus} className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
-      <DialogHeader><DialogTitle>{discarding ? "Descartar candidato" : "Recuperar candidato"}</DialogTitle><DialogDescription>{discarding ? "Registra el motivo del descarte. El motivo y el comentario interno no se comparten con el candidato." : `Volverá a ${previous?.name ?? "su etapa anterior"}. Se conservará el historial y el mensaje dejará de verse en sus postulaciones.`}</DialogDescription></DialogHeader>
+    <DialogContent showCloseButton={!pending} finalFocus={finalFocus} className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain sm:max-w-[520px]">
+      <DialogHeader><div className={cn("mb-3 flex size-10 items-center justify-center rounded-xl", discarding ? "bg-status-danger/10 text-status-danger" : "bg-status-info/10 text-status-info")}>{discarding ? <UserRoundX aria-hidden="true" className="size-5" /> : <RotateCcw aria-hidden="true" className="size-5" />}</div><DialogTitle>{discarding ? "Descartar candidato" : "Recuperar candidato"}</DialogTitle><DialogDescription>{discarding ? "Registra el motivo del descarte. El motivo y el comentario interno no se comparten con el candidato." : `Volverá a ${previous?.name ?? "su etapa anterior"}. Se conservará el historial y el mensaje dejará de verse en sus postulaciones.`}</DialogDescription></DialogHeader>
       <p className="font-medium">{disposition.item.candidate.full_name}</p>
       {disposition.placementConfirmation && <p className="flex items-start gap-2 text-sm"><TriangleAlert aria-hidden="true" className="size-4 shrink-0" />{discarding ? `Salir de ${stage?.name ?? "Placement"} reduce las plazas cubiertas y registra una salida; conserva el historial de contratación y los hitos de cobertura.` : `Volver a ${previous?.name ?? "Placement"} implica volver a ocupar una plaza y registrar una nueva contratación. Confirma esta consecuencia.`}</p>}
       {discarding && <FieldGroup>
@@ -61,20 +62,18 @@ export function DispositionDialog({ disposition, board, pending, stale, reading,
           {attempted && !reason && <FieldError id="discard-reason-error">Elige un motivo.</FieldError>}
         </Field>
         <Field data-invalid={!!internalError} data-disabled={pending}>
-          <FieldLabel htmlFor="discard-comment"><NotebookPen aria-hidden="true" className="size-3.5" />Comentario interno{reason?.key === "other" ? " (obligatorio)" : " (opcional)"}</FieldLabel>
-          <Textarea id="discard-comment" ref={commentControl} disabled={pending} value={comment} onChange={event => setComment(event.target.value)} aria-invalid={!!internalError} aria-describedby={`discard-comment-count${internalError ? " discard-comment-error" : ""}`} />
-          <FieldDescription id="discard-comment-count">{internal.count} / 1000</FieldDescription>
+          <div className="flex items-center justify-between gap-2"><FieldLabel htmlFor="discard-comment"><NotebookPen aria-hidden="true" className="size-3.5" />Comentario interno{reason?.key === "other" ? " (obligatorio)" : " (opcional)"}</FieldLabel><FieldDescription id="discard-comment-count" className="shrink-0 text-xs tabular-nums">{internal.count} / 1000</FieldDescription></div>
+          <Textarea className="min-h-24 resize-none" placeholder="Agrega contexto para tu equipo…" id="discard-comment" ref={commentControl} disabled={pending} value={comment} onChange={event => setComment(event.target.value)} aria-invalid={!!internalError} aria-describedby={`discard-comment-count${internalError ? " discard-comment-error" : ""}`} />
           <FieldError id="discard-comment-error">{internalError}</FieldError>
         </Field>
         <Field data-invalid={!!candidateError} data-disabled={pending}>
-          <FieldLabel htmlFor="discard-message"><MessageSquare aria-hidden="true" className="size-3.5" />Mensaje para el candidato (opcional)</FieldLabel>
-          <Textarea id="discard-message" ref={messageControl} disabled={pending} value={message} onChange={event => setMessage(event.target.value)} aria-invalid={!!candidateError} aria-describedby={`discard-message-help discard-message-count${candidateError ? " discard-message-error" : ""}`} />
+          <div className="flex items-center justify-between gap-2"><FieldLabel htmlFor="discard-message"><MessageSquare aria-hidden="true" className="size-3.5" />Mensaje para el candidato (opcional)</FieldLabel><FieldDescription id="discard-message-count" className="shrink-0 text-xs tabular-nums">{candidate.count} / 500</FieldDescription></div>
+          <Textarea className="min-h-24 resize-none" placeholder="Escribe un mensaje para el candidato…" id="discard-message" ref={messageControl} disabled={pending} value={message} onChange={event => setMessage(event.target.value)} aria-invalid={!!candidateError} aria-describedby={`discard-message-help discard-message-count${candidateError ? " discard-message-error" : ""}`} />
           <FieldDescription id="discard-message-help">El candidato verá «Finalizada» y este mensaje, nunca el motivo ni el comentario interno. No se enviará una notificación.</FieldDescription>
-          <FieldDescription id="discard-message-count">{candidate.count} / 500</FieldDescription>
           <FieldError id="discard-message-error">{candidateError}</FieldError>
         </Field>
       </FieldGroup>}
-      <DialogFooter className="flex-row"><ActionBar status={pending ? <span role="status" className="text-sm">Guardando…</span> : stale ? <ActionStatus id={statusId} tone="info" text={reading ? "Actualizando el tablero. Espera antes de confirmar." : "Cancela y usa Reintentar para actualizar el tablero antes de confirmar."} /> : notice ? <ActionStatus id={statusId} tone={notice.tone} text={notice.text} /> : null}>
+      <DialogFooter className="flex-row bg-transparent"><ActionBar status={pending ? <span role="status" className="text-sm">Guardando…</span> : stale ? <ActionStatus id={statusId} tone="info" text={reading ? "Actualizando el tablero. Espera antes de confirmar." : "Cancela y usa Reintentar para actualizar el tablero antes de confirmar."} /> : notice ? <ActionStatus id={statusId} tone={notice.tone} text={notice.text} /> : null}>
         <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={onClose}>Cancelar</Button>
         <Button type="button" variant={discarding ? "destructive" : "default"} className="min-h-10" disabled={pending || stale || reading} aria-busy={pending} aria-describedby={stale || notice ? statusId : undefined} onClick={confirm}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{discarding ? "Confirmar descarte" : "Confirmar recuperación"}</Button>
       </ActionBar></DialogFooter>

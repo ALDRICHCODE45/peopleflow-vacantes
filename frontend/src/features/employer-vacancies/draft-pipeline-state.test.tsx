@@ -68,9 +68,9 @@ it("published state renders current column cards and hides publish", async () =>
   expect(screen.getByRole("heading", { name: "Prueba actual" })).toBeVisible();
   expect(screen.getByRole("heading", { name: "Fuera actual" })).toBeVisible();
   expect(screen.getByText("Activa")).toHaveAttribute("data-dot");
-  expect(screen.getByText("Publicada el 16 de octubre de 2026")).toBeVisible();
-  expect(screen.getAllByText("Sin candidatos todavía")).toHaveLength(3);
-  expect(screen.getByText("Los candidatos aparecerán aquí cuando la vacante reciba postulaciones.")).toBeVisible();
+  expect(screen.getByText("16 oct 2026").closest("p")).toHaveTextContent("Publicada el 16 oct 2026");
+  expect(screen.getAllByText("Sin candidatos en esta etapa")).toHaveLength(3);
+  expect(screen.getByText(/candidatos en el pipeline/)).toHaveTextContent("0 candidatos en el pipeline");
   expect(screen.queryByRole("button", { name: "Publicar" })).not.toBeInTheDocument();
   expect(container.querySelectorAll('[data-pf-published-column]')).toHaveLength(3);
   expect(loadBoardAction).toHaveBeenCalledExactlyOnceWith(read.id);
@@ -80,7 +80,7 @@ it("composes the installed tooltip with the configuration copy", () => {
   // Portal positioning is a browser boundary; opening it in jsdom stalls subsequent tests.
   const source = readFileSync(join(process.cwd(), "src/features/employer-vacancies/draft-pipeline-state.tsx"), "utf8");
   expect(source).toContain('from "@/components/ui/tooltip"');
-  expect(source).toContain("<TooltipContent>Configuración</TooltipContent>");
+  expect(source).toContain("<TooltipContent>Configuración de la vacante</TooltipContent>");
   expect(source).toContain("<TooltipProvider>");
 });
 it.each(["not_found", "forbidden", "server_error", "no_response"] as const)("shows draft failure %s and retries only the draft", async reason => {

@@ -1,7 +1,7 @@
 // Real-primitive integration checks. Menu positioning and drag geometry remain
 // browser boundaries; these tests deliberately do not open a menu portal.
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { MovementBoard } from "./board";
 import { loadBoardAction, loadHistoryAction, loadParticipationAction, moveParticipationAction } from "./actions";
@@ -9,6 +9,11 @@ import { boardFixture, detailFixture, historyFixture, vacancyId } from "./board-
 import type { Board, Result } from "./model";
 vi.mock("./actions", () => ({ loadBoardAction: vi.fn(), loadHistoryAction: vi.fn(), loadParticipationAction: vi.fn(), moveParticipationAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
+// Focus restoration opens the name tooltip. Exclude only its positioning portal:
+// jsdom has no anchor geometry (the same boundary as menu positioning).
+vi.mock("@/components/ui/tooltip", async importOriginal => ({
+  ...await importOriginal<typeof import("@/components/ui/tooltip")>(), TooltipContent: () => null,
+}));
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: boardFixture() });
@@ -20,12 +25,15 @@ it("real drag handle is independent of detail and menu; drop restrictions do not
   render(<MovementBoard vacancyId={vacancyId} />);
   const open = await screen.findByRole("button", { name: "Ver detalle de Ana Pérez" });
   expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toHaveAttribute("aria-roledescription", "Tarjeta de candidato");
-  expect(screen.getByRole("button", { name: "Mover a… Ana Pérez" })).toHaveAttribute("aria-haspopup", "menu");
+  expect(screen.getByRole("button", { name: "Acciones de Ana Pérez" })).toHaveAttribute("aria-haspopup", "menu");
   expect(screen.getByRole("region", { name: "Entrada: 1 candidatos" })).not.toHaveAttribute("aria-disabled");
   expect(open.closest("button")?.parentElement?.closest("button")).toBeNull();
   fireEvent.click(screen.getByText("CV Ana.pdf"));
   expect(await screen.findByRole("dialog", { name: "Ana Pérez" })).toBeVisible();
   expect(moveParticipationAction).not.toHaveBeenCalled();
+  const sheet = screen.getByRole("dialog", { name: "Ana Pérez" });
+  fireEvent.click(within(sheet).getByRole("button", { name: "Cerrar ficha" }));
+  await waitFor(() => expect(open).toHaveFocus());
 });
 it("ignores old-vacancy board reads after the route changes", async () => {
   let resolve!: (value: Result<Board>) => void;
