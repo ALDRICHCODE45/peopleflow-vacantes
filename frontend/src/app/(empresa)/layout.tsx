@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 
 import { EmployerShell } from "@/components/company-dashboard/employer-shell";
 import { EmployerSessionProvider } from "@/features/company-site-editor/employer-session";
+import { IdentitySessionProvider } from "@/features/identity/identity-session";
+import { EmployerGuard } from "@/features/identity/area-guards";
 
 /**
  * The shadcn sidebar primitive persists its desktop state in this cookie; the
@@ -32,8 +34,10 @@ export default async function EmployerLayout({
   const defaultOpen = cookieStore.get(SIDEBAR_COOKIE_NAME)?.value !== "false";
 
   return (
-    <EmployerShell defaultOpen={defaultOpen}>
-      <EmployerSessionProvider>{children}</EmployerSessionProvider>
-    </EmployerShell>
+    <IdentitySessionProvider>
+      <EmployerShell defaultOpen={defaultOpen}>
+        <EmployerSessionProvider><EmployerGuard>{children}</EmployerGuard></EmployerSessionProvider>
+      </EmployerShell>
+    </IdentitySessionProvider>
   );
 }

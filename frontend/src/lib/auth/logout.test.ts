@@ -36,6 +36,12 @@ describe("employer logout destination", () => {
     expect(buildCognitoLogoutUrl(config)).not.toContain("//evil.example.com");
   });
 
+  it.each(["candidato", undefined, "https://evil.example", "//evil.example", "/candidato/login", "/empresa/dashboard", "CANDIDATO", "candidato?next=https://evil.example"])("strictly allowlists logout destination %s", (to) => {
+    const url = new URL(buildCognitoLogoutUrl(config, to));
+    expect(url.searchParams.get("logout_uri")).toBe(`http://localhost:3000/${to === "candidato" ? "candidato" : "empresa"}/login`);
+    expect(url.origin).toBe(config.domain);
+  });
+
   it("clears prefixed cookies with secure attributes and plain cookies without them", () => {
     expect(cookieClearOptions("next-auth.session-token")).toEqual({
       maxAge: 0,

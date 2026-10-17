@@ -19,10 +19,13 @@ export function buildEmployerLoginUrl(config: AuthEnv): string {
  * The return URL comes from the configured origin only, so a caller cannot
  * inject an arbitrary redirect target.
  */
-export function buildCognitoLogoutUrl(config: AuthEnv): string {
+export function buildCognitoLogoutUrl(config: AuthEnv, to?: string | null): string {
   const url = new URL("/logout", config.domain);
   url.searchParams.set("client_id", config.clientId);
-  url.searchParams.set("logout_uri", config.employerLoginUrl);
+  // An enum, never a request-supplied URL or path. Unknown values preserve employer logout.
+  url.searchParams.set("logout_uri", to === "candidato"
+    ? new URL("/candidato/login", config.siteUrl).toString()
+    : config.employerLoginUrl);
   return url.toString();
 }
 

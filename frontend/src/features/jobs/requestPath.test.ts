@@ -45,6 +45,8 @@ describe("single application-facing request path", () => {
     );
     expect(importers.map(rel).sort()).toEqual([
       "features/employer-company/api/company-client.ts",
+      "features/identity/candidate-account-client.ts",
+      "features/identity/me-client.ts",
       "features/jobs/api/getJob.ts",
       "features/jobs/api/listJobs.ts",
       "features/jobs/create/createJob.ts",
@@ -67,6 +69,8 @@ describe("single application-facing request path", () => {
     );
     expect(transportImporters.map(rel).sort()).toEqual([
       "features/employer-company/api/company-client.ts",
+      "features/identity/candidate-account-client.ts",
+      "features/identity/me-client.ts",
       "features/jobs/api/getJob.ts",
       "features/jobs/api/listJobs.ts",
       "features/jobs/create/createJob.ts",

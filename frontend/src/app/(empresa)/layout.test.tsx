@@ -10,6 +10,10 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ get: (name: string) => readCookie(name) }),
 }));
 
+// SSR frame tests; real role guards are exercised in identity/flow.test.tsx.
+vi.mock("@/features/identity/identity-session", () => ({ IdentitySessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+vi.mock("@/features/identity/area-guards", () => ({ EmployerGuard: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+
 import EmployerLayout from "./layout";
 
 // The routes below the group must stay content-only: the layout owns the shell.
@@ -43,6 +47,13 @@ afterEach(() => {
 
 describe("(empresa) route-group layout owns the single employer shell", () => {
   beforeEach(stubBrowserApis);
+
+  it("adds the client guard without moving session resolution into the RSC", () => {
+    const source = readFileSync(join(process.cwd(), "src/app/(empresa)/layout.tsx"), "utf8");
+    expect(source).toContain("<IdentitySessionProvider>");
+    expect(source).toContain("<EmployerGuard>");
+    expect(source).not.toMatch(/getActionAccessToken|getServerSession/);
+  });
 
   it("mounts exactly one employer frame around the route children", async () => {
     readCookie.mockReturnValue(undefined);

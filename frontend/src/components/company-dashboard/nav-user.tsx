@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { Spinner } from "@/components/ui/spinner"
 
 import {
   Avatar,
@@ -77,9 +78,17 @@ const DEFAULT_MENU_ITEMS = (
 export function NavUser({
   user,
   menuItems,
+  onLogout,
+  logoutPending = false,
+  secondaryText,
+  logoutStatusId,
 }: {
   user: NavUserIdentity
   menuItems?: ReadonlyArray<NavUserMenuItem>
+  onLogout?: () => void
+  logoutPending?: boolean
+  secondaryText?: string
+  logoutStatusId?: string
 }) {
   const { isMobile } = useSidebar()
   const initials = accountInitials(user.name)
@@ -88,6 +97,7 @@ export function NavUser({
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger
+            aria-describedby={logoutStatusId}
             render={
               <SidebarMenuButton size="lg" className="aria-expanded:bg-muted" />
             }
@@ -105,7 +115,7 @@ export function NavUser({
                   real text, so the role is part of the trigger's accessible
                   name without an extra line or geometry change. */}
               <span className="truncate text-xs text-foreground/70">
-                {user.role} · {user.company}
+                {secondaryText ?? `${user.role} · ${user.company}`}
               </span>
             </div>
             <IconDotsVertical className="ml-auto size-4" />
@@ -148,17 +158,16 @@ export function NavUser({
                     </DropdownMenuItem>
                   ))
                 : DEFAULT_MENU_ITEMS}
+              {menuItems && !onLogout ? null : (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="min-h-10" disabled={logoutPending} aria-busy={logoutPending || undefined} aria-describedby={logoutStatusId} onClick={onLogout}>
+                    {logoutPending ? <Spinner aria-hidden="true" /> : <IconLogout aria-hidden="true" />}
+                    Cerrar sesión
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuGroup>
-            {menuItems ? null : (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <IconLogout
-                  />
-                  Cerrar sesión
-                </DropdownMenuItem>
-              </>
-            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>

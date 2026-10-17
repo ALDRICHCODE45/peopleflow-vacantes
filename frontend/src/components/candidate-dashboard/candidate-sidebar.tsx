@@ -4,13 +4,11 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 import { PeopleFlowLogo } from "@/components/brand/logo"
-import { NavUser } from "@/components/company-dashboard/nav-user"
+import { CandidateNavUser } from "./candidate-nav-user"
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
 } from "@/components/company-dashboard/ui/sidebar"
-import type { CandidateIdentity } from "@/features/candidate/model"
-import { CANDIDATE_IDENTITY } from "@/features/candidate/prototype-candidate"
 import { IconBookmark, IconBriefcase, IconFileCv, IconLayoutDashboard, IconSearch, IconSettings, IconUserCircle } from "@tabler/icons-react"
 
 type CandidateNavItem = { title: string; url: string; icon: React.ReactNode }
@@ -28,20 +26,6 @@ const CANDIDATE_NAV_GROUPS: Array<{ label: string; items: CandidateNavItem[] }> 
     { title: "Configuración", url: "/candidato/configuracion", icon: <IconSettings /> },
   ] },
 ]
-
-/** Honest account label for the signed-in user type; no other user type exists. */
-const CANDIDATE_USER_TYPE_LABELS: Readonly<Record<CandidateIdentity["userType"], string>> = { candidate: "Candidata" }
-
-/**
- * Candidate account actions for the shared NavUser dropdown: three truthful real
- * routes with candidate-appropriate icons and no session, billing or notification
- * action. They feed the same shared account menu.
- */
-const CANDIDATE_ACCOUNT_MENU = [
-  { title: "Mi perfil", href: "/candidato/perfil", icon: <IconUserCircle /> },
-  { title: "Mis CVs", href: "/candidato/cvs", icon: <IconFileCv /> },
-  { title: "Configuración", href: "/candidato/configuracion", icon: <IconSettings /> },
-] as const
 
 /** Active on the exact route and nested routes; unknown paths and sibling prefixes stay inactive. */
 export function isActiveCandidateDestination(url: string, pathname: string | null): boolean {
@@ -107,15 +91,7 @@ export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sideb
       </SidebarContent>
       <SidebarFooter>
         {/* The shared account row: a dropdown trigger, never a plain footer link. */}
-        <NavUser
-          user={{
-            name: CANDIDATE_IDENTITY.fullName,
-            email: CANDIDATE_IDENTITY.email,
-            role: CANDIDATE_USER_TYPE_LABELS[CANDIDATE_IDENTITY.userType],
-            company: "Espacio personal",
-          }}
-          menuItems={CANDIDATE_ACCOUNT_MENU}
-        />
+        <CandidateNavUser />
       </SidebarFooter>
     </Sidebar>
   )

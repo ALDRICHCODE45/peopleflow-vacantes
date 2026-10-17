@@ -12,6 +12,10 @@ const { readCookie, pathnameMock } = vi.hoisted(() => ({
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: (name: string) => readCookie(name) }) }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
 
+// Layout tests isolate SSR frame ownership; identity behavior is covered by identity/flow.test.tsx.
+vi.mock("@/features/identity/identity-session", () => ({ IdentitySessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>, useIdentity: () => ({ status: "loading" }) }));
+vi.mock("@/features/identity/area-guards", () => ({ CandidateGuard: ({ children }: { children: React.ReactNode }) => <>{children}</> }));
+
 import CandidateLayout from "./layout";
 import { CandidateShell } from "@/components/candidate-dashboard/candidate-shell";
 import DashboardPage, { metadata as dashboardMetadata } from "./candidato/dashboard/page";
@@ -56,6 +60,13 @@ afterEach(() => {
 
 describe("(candidato) route-group layout owns the single candidate shell", () => {
   beforeEach(stubBrowserApis);
+
+  it("mounts a client identity guard inside the SSR shell without reading tokens in an RSC", () => {
+    const source = readFileSync(join(process.cwd(), "src/app/(candidato)/layout.tsx"), "utf8");
+    expect(source).toContain("<IdentitySessionProvider>");
+    expect(source).toContain("<CandidateGuard>{children}</CandidateGuard>");
+    expect(source).not.toMatch(/getActionAccessToken|getServerSession/);
+  });
 
   it("mounts exactly one candidate frame with one main landmark around the route children", async () => {
     readCookie.mockReturnValue(undefined);

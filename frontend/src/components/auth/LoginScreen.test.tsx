@@ -31,6 +31,9 @@ const fetchSpy = vi.fn(() => Promise.reject(new Error("login shell must not call
 // the shell must wire.
 // The real managed-login leaf is covered by EmployerAuthControls.test.tsx.
 // Keep shell regression tests independent of live session fetching.
+vi.mock("./CandidateAuthControls", () => ({
+  CandidateAuthControls: () => <button type="button">Ingresar</button>,
+}));
 vi.mock("./EmployerAuthControls", () => ({
   EmployerAuthControls: () => <button type="button">Ingresar con Cognito</button>,
 }));

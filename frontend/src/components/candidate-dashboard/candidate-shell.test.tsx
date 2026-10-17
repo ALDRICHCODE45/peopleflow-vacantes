@@ -8,6 +8,9 @@ import { join } from "node:path";
 // The shell never navigates itself, so the suite drives the pathname hook directly.
 const { pathnameMock } = vi.hoisted(() => ({ pathnameMock: vi.fn<() => string | null>(() => "/candidato/dashboard") }));
 vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
+// Auth is covered by identity/flow.test.tsx; this suite tests the shared frame
+// with an API identity, not the old prototype candidate.
+vi.mock("@/features/identity/identity-session", () => ({ useIdentity: () => ({ result: { ok: true, data: { role: "candidate", user: { id: "id", full_name: "Ana Pérez", email: "ana@example.com" } } } }) }));
 
 import { CandidateShell } from "./candidate-shell";
 import { CandidateHeader } from "./candidate-header";
@@ -116,8 +119,8 @@ describe("candidate shell frame", () => {
     expect(navLinks().map((link) => link.textContent)).toEqual(NAV.map(([label]) => label));
     expect(within(drawer).getByRole("link", { name: "Perfil" })).toHaveAttribute("data-active");
     // The drawer keeps the shared account trigger, not a direct footer link.
-    expect(within(drawer).getByRole("button", { name: /Ximena Barrera/ })).toBeInTheDocument();
-    expect(within(drawer).queryByRole("link", { name: /Ximena Barrera/ })).toBeNull();
+    expect(within(drawer).getByRole("button", { name: /Ana Pérez/ })).toBeInTheDocument();
+    expect(within(drawer).queryByRole("link", { name: /Ana Pérez/ })).toBeNull();
     expect(cookie("sidebar_state")).toBeUndefined();
   });
 });
@@ -188,13 +191,14 @@ describe("candidate identity", () => {
     const footer = document.querySelector("[data-slot='sidebar-footer']") as HTMLElement;
     // Shared composition: shadcn Avatar + DropdownMenu trigger, not a plain link
     // and not a hand-rolled initials span.
-    expect(within(footer).queryByRole("link", { name: /Ximena Barrera/ })).toBeNull();
-    expect(within(footer).getByRole("button", { name: /Ximena Barrera/ })).toBeInTheDocument();
+    expect(within(footer).queryByRole("link", { name: /Ana Pérez/ })).toBeNull();
+    expect(within(footer).getByRole("button", { name: /Ana Pérez/ })).toBeInTheDocument();
     expect(footer.querySelector("[data-slot='avatar']")).not.toBeNull();
-    expect(within(footer).getByText("XB")).toBeInTheDocument();
-    expect(within(footer).getByText("Candidata · Espacio personal")).toBeInTheDocument();
-    expect(SIDEBAR).toContain('from "@/components/company-dashboard/nav-user"');
-    expect(SIDEBAR).toContain("<NavUser");
+    expect(within(footer).getByText("AP")).toBeInTheDocument();
+    expect(within(footer).getByText("ana@example.com")).toBeInTheDocument();
+    expect(SIDEBAR).toContain('from "./candidate-nav-user"');
+    expect(SIDEBAR).toContain("<CandidateNavUser");
+    expect(SIDEBAR).not.toContain("CANDIDATE_IDENTITY");
     expect(SIDEBAR).not.toContain("candidateInitials");
     expect(SIDEBAR).not.toContain("bg-sidebar-primary");
     expect(SIDEBAR).not.toContain('"XB"');

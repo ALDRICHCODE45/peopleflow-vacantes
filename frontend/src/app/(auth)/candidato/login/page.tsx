@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
+import { CandidateAuthControls } from "@/components/auth/CandidateAuthControls";
 
 import { LoginScreen } from "@/components/auth/LoginScreen";
 
@@ -7,7 +9,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-// LOGIN-01 visual-only candidate route: shared shell, no auth wiring.
 export default function CandidateLoginPage() {
-  return <LoginScreen variant="candidate" />;
+  return <LoginScreen variant="candidate" authControls={<Suspense><CandidateAuthControls /></Suspense>} />;
 }
