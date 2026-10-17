@@ -773,3 +773,24 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
 - Antes de enviar se valida tamaño y tipo en el cliente con mensajes junto al campo; los
   rechazos del servidor (tamaño, tipo, contenido que no coincide, límite de la
   biblioteca) tienen su propio texto.
+
+### 13.10 Tableros con movimientos persistidos
+
+- La manija y el menú «Mover a…» son controles hermanos de la entrada al detalle;
+  comparten las mismas reglas de destino, basadas en el orden que entrega el servidor.
+  Un destino no permitido se deshabilita en `useDroppable` y se explica durante el
+  arrastre. No poner `aria-disabled` en la región completa: también deshabilitaría
+  semánticamente los controles de detalle que siguen disponibles.
+- Cada tarjeta tiene su propio bloqueo de escritura y su `ActionStatusSlot` reservado.
+  Al cambiar de columna, recuperar el foco de teclado perdido en su menú, sin robarlo
+  de otro control que la persona haya usado durante la espera.
+- Una salida con consecuencias se confirma con el `Dialog` instalado (sección 13.8),
+  no requiere agregar otro primitive. El resultado de otra tarjeta nunca cierra esa
+  confirmación.
+- Ante resultado incierto, respuesta no reconocida o conflicto que exige reconciliar,
+  conservar el tablero y leerlo **una vez**, sin repetir la escritura. Si la lectura
+  falla, bloquear movimientos sobre la copia desactualizada y ofrecer «Reintentar»
+  solo para leer. Los resultados mantienen toast y estado persistente junto a la acción.
+- Si coinciden escrituras independientes y el resumen global no tiene versión propia
+  (por ejemplo cobertura), hacer una sola lectura al terminar todas: las respuestas
+  pueden llegar fuera de orden. No convertir esa lectura en un reintento de escritura.

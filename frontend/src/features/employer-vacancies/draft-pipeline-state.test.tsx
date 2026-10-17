@@ -6,9 +6,11 @@ import "@testing-library/jest-dom/vitest";
 import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/drafts/reopen/load";
 import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publication-actions";
 import { loadDraftPipelineAction } from "@/features/jobs/drafts/pipeline/actions";
+import { loadBoardAction } from "@/features/pipeline-movement/actions";
 import { draftEditSeedFromRead } from "@/features/jobs/drafts/reopen/seed";
 import { filledDraftRead } from "@/features/jobs/drafts/reopen/test-fixture";
 import { DraftPipelineState } from "./draft-pipeline-state";
+vi.mock("@/features/pipeline-movement/actions", () => ({ loadBoardAction: vi.fn(), loadHistoryAction: vi.fn(), loadParticipationAction: vi.fn(), moveParticipationAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/pipeline/publication-actions", () => ({ loadDraftPublicationAction: vi.fn(), publishDraftAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/pipeline/actions", () => ({ loadDraftPipelineAction: vi.fn(), saveDraftPipelineAction: vi.fn() }));
@@ -60,7 +62,7 @@ it.each([read.fields.title, null])("renders title %s, badge, empty state and con
 });
 it("published state renders current column cards and hides publish", async () => {
   vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "published", publishedAt: "2026-10-16T12:00:00Z", missing: [] } });
-  vi.mocked(loadDraftPipelineAction).mockResolvedValue({ ok: true, etag: '"pipeline"', pipeline: { version: "1", structure_locked: false, stages: [{ id: read.id, kind: "new", name: "Entrada actual" }, { id: "other", kind: "custom", name: "Prueba actual" }], exit: { id: "exit", kind: "discarded", name: "Fuera actual" }, limits: { maxCustomStages: 3, nameMaxLength: 40 } } });
+  vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: { stages: [{ id: read.id, kind: "new", name: "Entrada actual", count: 0 }, { id: "other", kind: "custom", name: "Prueba actual", count: 0 }], exit: { id: "exit", kind: "discarded", name: "Fuera actual", count: 0 }, coverage: { covered: 0, required: null, full_coverage_reached_at: null }, participations: [] } });
   const { container } = render(<DraftPipelineState draftId={read.id} />);
   await screen.findByRole("heading", { name: "Entrada actual" });
   expect(screen.getByRole("heading", { name: "Prueba actual" })).toBeVisible();
@@ -71,6 +73,8 @@ it("published state renders current column cards and hides publish", async () =>
   expect(screen.getByText("Los candidatos aparecerán aquí cuando la vacante reciba postulaciones.")).toBeVisible();
   expect(screen.queryByRole("button", { name: "Publicar" })).not.toBeInTheDocument();
   expect(container.querySelectorAll('[data-pf-published-column]')).toHaveLength(3);
+  expect(loadBoardAction).toHaveBeenCalledExactlyOnceWith(read.id);
+  expect(loadDraftPipelineAction).not.toHaveBeenCalled();
 });
 it("composes the installed tooltip with the configuration copy", () => {
   // Portal positioning is a browser boundary; opening it in jsdom stalls subsequent tests.

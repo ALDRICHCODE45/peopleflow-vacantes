@@ -7,7 +7,7 @@ import { SiteHeader } from "@/components/company-dashboard/site-header";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -16,16 +16,14 @@ import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/dr
 
 import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publication-actions";
 import type { DraftPublication } from "@/features/jobs/drafts/pipeline/publication-client";
-import { loadDraftPipelineAction } from "@/features/jobs/drafts/pipeline/actions";
-import type { DraftPipeline } from "@/features/jobs/drafts/pipeline/client";
 import { formatPublicationDate } from "@/features/jobs/drafts/pipeline/publication-model";
 import { PublishButton } from "./publication/publish-dialog";
-import { StageKindBadge } from "./stage-config/stage-row";
+import { MovementBoard } from "@/features/pipeline-movement/board";
 
-/** Reads readiness alongside the draft; published processes show their current configured columns. */
+/** Reads readiness alongside the draft; published processes load their real board independently. */
 export function DraftPipelineState({ draftId }: { draftId: string }) {
   const [attempt, setAttempt] = useState(0);
-  const [loaded, setLoaded] = useState<{ id: string; result: DraftEditResult; publication?: DraftPublication; pipeline?: DraftPipeline } | null>(null);
+  const [loaded, setLoaded] = useState<{ id: string; result: DraftEditResult; publication?: DraftPublication } | null>(null);
   const result = loaded?.id === draftId ? loaded.result : null;
   useEffect(() => {
     let current = true;
@@ -35,10 +33,7 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
         if (!current) return;
         if (!result.ok) { setLoaded({ id: draftId, result }); return; }
         if (!publication.ok) { setLoaded({ id: draftId, result: { ok: false, reason: "unrecognized_response" } }); return; }
-        const pipeline = publication.publication.status === "published" ? await loadDraftPipelineAction(draftId) : null;
-        if (!current) return;
-        if (pipeline && !pipeline.ok) { setLoaded({ id: draftId, result: { ok: false, reason: "unrecognized_response" } }); return; }
-        setLoaded({ id: draftId, result, publication: publication.publication, ...(pipeline?.ok ? { pipeline: pipeline.pipeline } : {}) });
+        setLoaded({ id: draftId, result, publication: publication.publication });
       } catch { if (current) setLoaded({ id: draftId, result: { ok: false, reason: "no_response" } }); }
     }
     void load();
@@ -47,7 +42,6 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
   const retry = () => { setLoaded(null); setAttempt(value => value + 1); };
   const published = loaded?.id === draftId && loaded.publication?.status === "published";
   const publishedAt = published ? loaded?.publication?.publishedAt : null;
-  const pipeline = loaded?.id === draftId ? loaded.pipeline : undefined;
   const title = result?.ok ? result.seed.model.fields.title || "Sin título" : "Pipeline";
   const configHref = `/empresa/vacantes/${draftId}/configuracion/columnas`;
   return (
@@ -77,14 +71,8 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
                 <Skeleton className="size-10" /><Skeleton className="h-6 w-64 max-w-full" /><Skeleton className="h-5 w-80 max-w-full" /><Skeleton className="h-5 w-72 max-w-full" /><Skeleton className="h-10 w-48" />
               </CardContent></Card>
             </>
-          ) : !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : published && pipeline ? (
-            <section aria-label="Columnas del pipeline" className="flex flex-col gap-4">
-              <p className="text-sm text-muted-foreground">Los candidatos aparecerán aquí cuando la vacante reciba postulaciones.</p>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{[...pipeline.stages, pipeline.exit].map(stage => <Card key={stage.id} data-pf-published-column="" aria-labelledby={`column-${stage.id}`}>
-                <CardHeader className="border-b"><h3 id={`column-${stage.id}`} className="font-heading text-base font-semibold">{stage.name}</h3><StageKindBadge kind={stage.kind} /></CardHeader>
-                <CardContent><Empty><EmptyHeader><EmptyMedia variant="icon"><GitBranch aria-hidden="true" /></EmptyMedia><EmptyTitle>Sin candidatos todavía</EmptyTitle></EmptyHeader></Empty></CardContent>
-              </Card>)}</div>
-            </section>
+          ) : !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : published ? (
+            <MovementBoard vacancyId={draftId} />
           ) : (
             <Card><CardContent>
               <Empty className="min-h-80">
