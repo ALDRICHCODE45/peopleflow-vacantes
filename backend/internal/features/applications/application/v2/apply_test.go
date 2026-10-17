@@ -54,6 +54,44 @@ func TestFingerprintDoesNotReplayDifferentAnswerShape(t *testing.T) {
 		t.Fatal("wrong type hidden by fingerprint")
 	}
 }
+func TestSingleChoiceAnswerAndCanonicalOrder(t *testing.T) {
+	f := form()
+	f.Questions[1].Options = []Option{{ID: option, Label: "Yes"}}
+	cv := uuid.NewString()
+	decode := func(answers string) Request {
+		t.Helper()
+		req, err := decodeApply([]byte(`{"cv_id":"` + cv + `","questionnaire_revision":"r","answers":` + answers + `}`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err = ValidateAnswers(f, req.Answers); err != nil {
+			t.Fatal("valid single choice rejected", err)
+		}
+		return req
+	}
+	open := `{"question_id":"` + qOpen + `","text":"Because"}`
+	choice := `{"question_id":"` + qChoice + `","option_id":"` + option + `"}`
+	a := decode(`[` + open + `,` + choice + `]`)
+	b := decode(`[` + choice + `,` + open + `]`)
+	aHash, err := Fingerprint(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bHash, err := Fingerprint(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(aHash, bHash) {
+		t.Fatal("answer order changes canonical fingerprint")
+	}
+	if a.Answers[0].QuestionID != qOpen || b.Answers[0].QuestionID != qChoice {
+		t.Fatal("fingerprinting mutated caller answers")
+	}
+	b.Answers[0].OptionID = uuid.NewString()
+	if err := ValidateAnswers(f, b.Answers); err == nil {
+		t.Fatal("unknown option accepted")
+	}
+}
 func aBytes(s string) []byte { return []byte(s) }
 func TestValidateAnswers(t *testing.T) {
 	f := form()

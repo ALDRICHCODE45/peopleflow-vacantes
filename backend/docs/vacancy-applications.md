@@ -30,6 +30,8 @@ This route is anonymous like detail, without private no-store headers or ETag.
 Uses `NoStore → RequireAuth → RequireCandidateRole`. No account →
 `403 account_required`; recruiter → `403 wrong_role`; no session → 401.
 Every private response (including errors) has `Cache-Control: no-store`.
+Applying and the candidate list do not access file storage: they remain available
+when `CV_STORAGE_ROOT` is unset (only CV-library routes return 503).
 No cover letter or client-supplied actor, source, stage, evaluation or status.
 Unknown/duplicate JSON keys, unknown fields and malformed identifiers are rejected.
 JSON bodies have the existing 1 MiB budget (`413 payload_too_large`).
@@ -105,18 +107,21 @@ parameters, invalid encoding and malformed/noncanonical opaque cursors are 400.
 | --- | --- |
 | `TestBuildScreeningPrivacyRevisionAndNullOptions` | safe questions, open null options, stable/changing revision, empty array |
 | `TestPublicScreeningHTTPExactShape`, `TestP2bScreeningIsPublic` | exact public envelope/limits, missing 404, no private headers |
-| `TestDecodeApplyStrictAndCanonical`, `TestValidateAnswers` | strict shape, trimming, unknown/duplicate question IDs, all four detail reasons |
+| `TestDecodeApplyStrictAndCanonical`, `TestValidateAnswers`, `TestSingleChoiceAnswerAndCanonicalOrder` | strict shape, trimming, unknown/duplicate question IDs, all four detail reasons; valid single-choice answer and order-independent canonical fingerprint |
 | `TestFingerprintDoesNotReplayDifferentAnswerShape` | different answer shape never replays as the original payload |
 | `TestApplyTransport` | exact 201 keys/replay headers, key validation, all application codes and details-only error envelope |
 | `TestStrictListQuery`, `TestCandidateListHTTPStrictQueryAndShape` | strict limits, unknown/duplicate parameters, cursor round-trip/rejection, exact list/item envelopes |
 | `TestApplicationErrorExtension`, `TestOnlyInvalidAnswersHasDetails` | additive error statuses; only invalid_answers carries details |
 | `TestParticipationRulesReusePublishedContracts` | production composition reuses safe questions and deterministic default stage identities |
 | `TestP2bPrivateRoutesLiveCandidateGates` | every method's 401/403/live candidate gate and no-store |
-| `TestParticipationAtomicReplaySnapshotAndCVRetention` (integration) | rejected writes unchanged; replay/conflict; foreign CV; initial deterministic stage; immutable question snapshot; CV retention; own-only list |
+| `TestParticipationAtomicReplaySnapshotAndCVRetention` (integration) | rejected writes unchanged; replay/conflict; foreign CV; initial deterministic stage; immutable question and answer snapshots after questionnaire edits; CV retention; own-only list |
 | `TestConcurrentAppliesCreateOneParticipation` (integration) | concurrent same-candidate applies produce one participation |
 | `TestParticipationAuditFailureRollsBackAllEffects` (integration) | injected audit failure rolls back participation/history/idempotency and leaves files/legacy untouched |
 | `TestCandidateListPagingAndVacancyScopedKeys` (integration) | stable newest-first pages; same key in a different vacancy is independent |
 | `TestScreeningAndApplyHideLegacyUnpublishedAndInactive` (integration) | public source lookup and apply hide legacy/unpublished/unknown/inactive/deleted-company vacancies with no writes |
+| `TestParticipationCanonicalAnswerOrderReplays` (integration) | same key and answers in different order replay the exact original response, with one set of effects |
+| `TestCVRemovalVersusApplyCandidateLock` (integration) | force both candidate-lock orderings; apply retains its version or receives cv_unavailable after removal |
+| `TestMigration00022ParticipationDownRefusesDataAndSucceedsEmpty` (integration) | down refuses participation/history or idempotency-only data transactionally; empty down succeeds |
 | `TestProcessParticipationMigration` | additive table/uniqueness/version-reference definitions, legacy table untouched |
 
 Run integration tests only against an existing, isolated loopback database named

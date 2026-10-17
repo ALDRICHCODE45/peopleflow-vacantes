@@ -341,8 +341,8 @@ func TestParticipationAtomicReplaySnapshotAndCVRetention(t *testing.T) {
 	}
 	f.assertSingleEffects(t)
 	var stage uuid.UUID
-	var snapshot string
-	if err = f.pool.QueryRow(ctx, `SELECT stage_id,questions_snapshot::text FROM process_participations WHERE process_id=$1`, f.vacancy).Scan(&stage, &snapshot); err != nil {
+	var snapshot, answers string
+	if err = f.pool.QueryRow(ctx, `SELECT stage_id,questions_snapshot::text,answers_snapshot::text FROM process_participations WHERE process_id=$1`, f.vacancy).Scan(&stage, &snapshot, &answers); err != nil {
 		t.Fatal(err)
 	}
 	if stage.String() != pipelineconfig.Defaults(f.vacancy).Stages[0].ID {
@@ -351,10 +351,16 @@ func TestParticipationAtomicReplaySnapshotAndCVRetention(t *testing.T) {
 	if _, err = f.pool.Exec(ctx, `UPDATE job_drafts SET fields=convert_to(replace(convert_from(fields,'UTF8'),'Why?','Changed?'),'UTF8') WHERE id=$1`, f.vacancy); err != nil {
 		t.Fatal(err)
 	}
-	var after string
-	f.pool.QueryRow(ctx, `SELECT questions_snapshot::text FROM process_participations WHERE process_id=$1`, f.vacancy).Scan(&after)
-	if snapshot != after {
-		t.Fatal("snapshot changed")
+	var after, answersAfter string
+	if err = f.pool.QueryRow(ctx, `SELECT questions_snapshot::text,answers_snapshot::text FROM process_participations WHERE process_id=$1`, f.vacancy).Scan(&after, &answersAfter); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot != after || answers != answersAfter {
+		t.Fatal("question/answer snapshot changed after questionnaire edit")
+	}
+	var frozen []app.Answer
+	if err = json.Unmarshal([]byte(answersAfter), &frozen); err != nil || len(frozen) != 1 || frozen[0].QuestionID != req.Answers[0].QuestionID || frozen[0].Text != "Because" {
+		t.Fatal("original answer was not frozen", err)
 	}
 	if _, err = f.library.Rename(ctx, f.sub, cv.ID, "Updated label"); err != nil {
 		t.Fatal(err)
@@ -401,6 +407,18 @@ func TestCVLibraryLimitRemovalOrphanReconciler(t *testing.T) {
 	}
 	if _, err := f.library.Upload(ctx, f.sub, "CV", "cv.pdf", []byte("%PDF-1")); !errors.Is(err, cvapp.ErrLibraryFull) {
 		t.Fatal(err)
+	}
+	if _, err := f.library.Rename(ctx, f.other, first.ID, "Foreign rename"); !errors.Is(err, cvapp.ErrNotFound) {
+		t.Fatal("foreign rename must be not found", err)
+	}
+	items, err := f.library.List(ctx, f.sub)
+	if err != nil || len(items) != 10 {
+		t.Fatal("list failed", err)
+	}
+	for _, item := range items {
+		if item.Name != "CV" {
+			t.Fatal("foreign rename changed owner's label")
+		}
 	}
 	if err := f.library.Remove(ctx, f.other, first.ID); !errors.Is(err, cvapp.ErrNotFound) {
 		t.Fatal(err)
