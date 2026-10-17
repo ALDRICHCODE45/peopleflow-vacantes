@@ -151,3 +151,20 @@ describe("development refresh signal in the production callbacks", () => {
     expect(signals).toEqual([]);
   });
 });
+
+describe("redirect allowlist for NextAuth sign-in and sign-out callbacks", () => {
+  const redirect = callbacks.redirect!;
+  const baseUrl = "http://localhost:3000";
+  it.each([
+    "/empresa/login", "/candidato/ingresar", "/api/auth/cognito/logout", "/api/auth/cognito/logout?to=candidato",
+    "http://localhost:3000/empresa/vacantes",
+  ])("keeps the allowlisted same-origin destination %s", async url => {
+    expect(await redirect({ url, baseUrl })).toBe(new URL(url, baseUrl).toString());
+  });
+  it.each([
+    "https://evil.example/empresa", "//evil.example/empresa", "/\\evil.example", "/not-allowlisted",
+    "http://localhost:3000/not-allowlisted", "/empresa-fake", "/api/auth/other", "javascript:alert(1)",
+  ])("falls back to the site root for %s", async url => {
+    expect(await redirect({ url, baseUrl })).toBe(`${baseUrl}/`);
+  });
+});

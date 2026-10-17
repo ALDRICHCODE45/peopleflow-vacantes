@@ -21,6 +21,10 @@ describe("identity transport", () => {
     fetchMock.mockResolvedValue(Response.json(data));
     expect(await loadMe({ token: "access" })).toMatchObject({ ok: false, error: { kind: "invalid_response" } });
   });
+  it("treats any uncontracted 2xx (for example 202) as an unconfirmed result, never as a created account", async () => {
+    fetchMock.mockResolvedValue(Response.json(candidate, { status: 202 }));
+    expect(await createCandidateAccount({ token: "access", body: { full_name: "Ana Pérez" } })).toMatchObject({ ok: false, error: { kind: "invalid_response" } });
+  });
   it.each([200, 201])("creates only the name, accepts %i", async status => {
     fetchMock.mockResolvedValue(Response.json(candidate, { status }));
     expect(await createCandidateAccount({ token: "access", body: { full_name: "  Ana Pérez  " } })).toEqual({ ok: true, data: candidate });

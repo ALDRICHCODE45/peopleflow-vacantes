@@ -289,6 +289,21 @@ corepack pnpm dev
     vacante está publicada» con «No puedes dejarla sin: …»; lo editado sigue en
     pantalla.
 
+37. **Cuenta de candidato (P2b0).** Con otro email (nunca el de tu empresa), entrá a
+    `/candidato/login` y tocá «Crear cuenta»: se abre el login de Cognito; registrate,
+    verificá el email y entrá. **Esperado:** «Crear mi cuenta de candidato» con el
+    aviso «Vas a crear una cuenta de candidato con {tu email}. Esta cuenta no podrá
+    usarse para publicar vacantes.». Escribí tu nombre y confirmá con el botón (no se
+    crea sola). **Esperado:** aviso «Cuenta de candidato creada» y entrás a tu área;
+    el menú de usuario muestra tu nombre y email reales.
+38. **Roles cruzados.** Con la sesión de candidato entrá a `/empresa/vacantes`.
+    **Esperado:** «Esta cuenta es de candidato» con salida. Con tu cuenta de empresa
+    entrá a `/candidato/dashboard`. **Esperado:** «Esta cuenta es de empresa».
+39. **Cerrar sesión de candidato.** Desde el menú del candidato, «Cerrar sesión».
+    **Esperado:** volvés a `/candidato/login` (no a la de empresa).
+40. **Backend sin UserInfo (opcional).** Sin `IDENTITY_USERINFO_ENDPOINT` en el
+    backend, el alta muestra un error con «Reintentar» y el resto sigue funcionando.
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:

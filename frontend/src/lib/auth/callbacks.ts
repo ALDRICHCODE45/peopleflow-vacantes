@@ -4,6 +4,28 @@ import { buildCognitoProvider } from "./provider";
 import { expireSession, hasUsableCredentials, refreshAccessToken, refreshSessionToken, type RefreshObserver, type TokenLike } from "./refresh";
 import { toPublicSession } from "./session";
 
+/** Same-origin path prefixes NextAuth may send the browser to after sign-in or sign-out. */
+const REDIRECT_PREFIXES = ["/empresa", "/candidato", "/api/auth/cognito/logout"] as const;
+
+/**
+ * Allowlisted NextAuth redirect: only same-origin URLs whose path is one of the
+ * product areas (or the Cognito logout route) survive; anything else, including
+ * other origins, protocol-relative URLs and unknown paths, falls back to the root.
+ */
+export function allowlistedRedirect(url: string, baseUrl: string): string {
+  try {
+    const base = new URL(baseUrl);
+    const root = new URL("/", base).toString();
+    const target = new URL(url, base);
+    if (target.origin !== base.origin) return root;
+    const allowed = REDIRECT_PREFIXES.some(prefix => target.pathname === prefix || target.pathname.startsWith(`${prefix}/`));
+    return allowed ? target.toString() : root;
+  } catch {
+    // NextAuth always supplies a valid baseUrl; a malformed one never redirects anywhere.
+    return "/";
+  }
+}
+
 // The server-only entry point supplies validated environment configuration.
 // Keeping this factory free of ambient environment reads lets regression tests
 // exercise the exact production callbacks with synthetic credentials. The
@@ -40,6 +62,9 @@ export function buildAuthOptions(authEnv: AuthEnv, observer?: RefreshObserver): 
       },
       async session({ session, token }) {
         return toPublicSession(session, token as TokenLike);
+      },
+      async redirect({ url, baseUrl }) {
+        return allowlistedRedirect(url, baseUrl);
       },
     },
   };

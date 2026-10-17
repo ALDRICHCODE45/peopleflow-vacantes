@@ -398,6 +398,19 @@ describe("generic JSON transport", () => {
     }
   });
 
+  it("accepts a list of expected statuses and fails closed on any other 2xx", async () => {
+    for (const status of [200, 201]) {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(status, { hello: "mundo" })));
+      await expect(requestJson(url, { decoder, expectedStatus: [200, 201] })).resolves.toEqual({ ok: true, data: { hello: "mundo" } });
+    }
+    const jsonSpy = vi.fn(async () => ({ hello: "mundo" }));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 202, json: jsonSpy }));
+    await expect(requestJson(url, { decoder, expectedStatus: [200, 201] })).resolves.toEqual({
+      ok: false, error: { kind: "invalid_response", retryable: false },
+    });
+    expect(jsonSpy).not.toHaveBeenCalled();
+  });
+
   it("accepts only the exact expected status and fails closed on any other 2xx", async () => {
     vi.stubGlobal(
       "fetch",

@@ -13,6 +13,8 @@ export async function createCandidateAccount(input: { token: string; body: unkno
   const { serverEnv } = await import("@/lib/env/server");
   return requestJson(new URL("/v2/me/candidate-account", serverEnv.apiBaseUrl).toString(), {
     method: "POST", body: body.data, redirect: "error", headers: { authorization: `Bearer ${input.token}` },
+    // Contract: 201 created or 200 already a candidate; any other 2xx is unconfirmed.
+    expectedStatus: [200, 201],
     timeoutMs: serverEnv.apiTimeoutMs,
     decoder: value => {
       const data = decodeIdentity(value);

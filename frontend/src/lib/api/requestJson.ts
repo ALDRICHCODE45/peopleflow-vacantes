@@ -31,9 +31,10 @@ export type RequestJsonOptions<T, E = never> = {
    * reported, and its body is never decoded as an error envelope. Omitting the
    * option keeps the historical "any 2xx" rule every read caller relies on.
    * Non-2xx responses keep the existing status/not-found classification and
-   * envelope decoding whatever the expected status is.
+   * envelope decoding whatever the expected status is. A list accepts exactly
+   * those statuses (for example `[200, 201]` for a create-or-return endpoint).
    */
-  expectedStatus?: number;
+  expectedStatus?: number | readonly number[];
   /** HTTP method. Omitting it keeps the GET-only default every read caller relies on. */
   method?: string;
   /**
@@ -85,7 +86,9 @@ export async function requestJson<T, E = never>(
     const succeeded =
       options.expectedStatus === undefined
         ? response.ok
-        : status === options.expectedStatus;
+        : typeof options.expectedStatus === "number"
+          ? status === options.expectedStatus
+          : options.expectedStatus.includes(status);
 
     if (!succeeded) {
       // A success-class body that misses the exact expected status is a success
