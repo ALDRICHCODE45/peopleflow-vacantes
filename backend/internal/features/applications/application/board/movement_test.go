@@ -5,7 +5,13 @@ import (
 	"testing"
 
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/deliveryconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftversion"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/substatecatalog"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancymanagement"
 	"github.com/google/uuid"
 )
 
@@ -57,6 +63,38 @@ func TestMoveStrictDecode(t *testing.T) {
 		})
 	}
 }
+
+// Config resources share the strong-tag comparator; draft r2 has a stricter
+// scheme parser. A foreign strong tag conflicts, not a malformed-header error.
+func TestParticipationETagResourceSeparation(t *testing.T) {
+	id := uuid.New()
+	participation := app.ETag(id, 1)
+	draft, err := draftversion.FormatETagV2(id.String(), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ name, tag string }{
+		{"pipeline", pipelineconfig.ETag(id, 1)},
+		{"substates", substatecatalog.ETag(id, 1)},
+		{"delivery", deliveryconfig.ETag(id, 1)},
+		{"management", vacancymanagement.ETag(id, 1)},
+		{"draft", draft},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := app.CheckIfMatch(participation, tc.tag, true); !errors.Is(err, app.ErrVersionConflict) {
+				t.Fatalf("participation accepted foreign %s tag: %v", tc.name, err)
+			}
+			if tc.name == "draft" {
+				if _, err := draftversion.ParseIfMatchV2(participation, true); !errors.Is(err, draftversion.ErrInvalidRequest) {
+					t.Fatal(err)
+				}
+			} else if err := pipelineconfig.CheckIfMatch(tc.tag, participation, true); !errors.Is(err, drafts.ErrVersionConflict) {
+				t.Fatalf("%s accepted participation tag: %v", tc.name, err)
+			}
+		})
+	}
+}
+
 func TestParticipationETag(t *testing.T) {
 	id := uuid.New()
 	tag := app.ETag(id, 1)
