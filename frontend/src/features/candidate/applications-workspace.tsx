@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Briefcase, Building2, CalendarDays } from "lucide-react";
+import { Briefcase, Building2, CalendarDays, Search } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
@@ -9,17 +9,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { loadApplicationsAction } from "@/features/candidate-applications/actions";
 import type { ApplicationsPage, Failure } from "@/features/candidate-applications/model";
 const date = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "UTC" });
+/** Case- and accent-insensitive comparison key (same rule as the former prototype search). */
+const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLowerCase().trim();
 export function ApplicationsWorkspace() {
   const [data, setData] = useState<ApplicationsPage>();
   const [failure, setFailure] = useState<Failure>();
   const [pending, setPending] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const locked = useRef(false);
+  const [query, setQuery] = useState("");
+  const needle = normalize(query);
+  const visible = (data?.items ?? []).filter(item => needle === "" || normalize(`${item.vacancy.title} ${item.company.name}`).includes(needle));
   useEffect(() => {
     let active = true;
     void loadApplicationsAction().catch(() => ({ ok: false, reason: "no_response", reference: {} }) as const).then(result => {
@@ -46,7 +52,13 @@ export function ApplicationsWorkspace() {
     <header className="flex flex-col gap-2"><h2 className="font-heading text-2xl font-semibold">Postulaciones</h2><p className="text-sm text-muted-foreground">Consulta las vacantes a las que te postulaste.</p></header>
     {!data && !failure ? <section aria-busy="true" aria-label="Postulaciones" className="flex flex-col gap-3"><span role="status" className="sr-only">Cargando postulaciones</span>{[0, 1, 2].map(index => <Skeleton key={index} aria-hidden="true" className="h-28 w-full" />)}</section> : <>
       {data?.items.length === 0 && !failure && <Empty><EmptyHeader><EmptyTitle>Todavía no te postulaste a ninguna vacante</EmptyTitle><EmptyDescription>Explora las vacantes y elige tu siguiente oportunidad.</EmptyDescription></EmptyHeader><EmptyContent><Link href="/vacantes" className={buttonVariants({ className: "min-h-10" })}>Explorar vacantes</Link></EmptyContent></Empty>}
-      {!!data?.items.length && <ul className="flex flex-col gap-3">{data.items.map(item => <li key={item.id} className="min-w-0">
+      {!!data?.items.length && <div className="flex flex-col gap-2">
+        <label htmlFor="applications-search" className="text-[12.5px] font-medium text-foreground">Buscar por puesto o empresa</label>
+        <InputGroup className="h-11 w-full lg:w-72"><InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon><InputGroupInput id="applications-search" type="search" value={query} onChange={event => setQuery(event.target.value)} /></InputGroup>
+        {needle !== "" && data.next_cursor && <p className="text-sm text-muted-foreground">La búsqueda cubre las postulaciones cargadas. Carga más para buscar en el resto.</p>}
+      </div>}
+      {!!data?.items.length && visible.length === 0 && <Empty><EmptyHeader><EmptyTitle>Ninguna postulación coincide con «{query.trim()}».</EmptyTitle><EmptyDescription>Prueba con otro puesto o empresa.</EmptyDescription></EmptyHeader><EmptyContent><Button variant="outline" className="min-h-10" onClick={() => setQuery("")}>Limpiar búsqueda</Button></EmptyContent></Empty>}
+      {visible.length > 0 && <ul className="flex flex-col gap-3">{visible.map(item => <li key={item.id} className="min-w-0">
         <Card size="sm">
           <CardHeader>
             <div className="grid min-w-0 items-start gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
