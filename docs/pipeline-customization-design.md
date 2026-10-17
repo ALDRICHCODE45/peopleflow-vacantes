@@ -1000,8 +1000,8 @@ the recruiter's.
 
 ## 12. Cut 4 — moving candidates between stages (proposal)
 
-Status: **proposal under frontend review.** Product answers in §12.6. Branch
-`feat/pipeline-movement`, stacked on `feat/candidate-applications`. Participations exist
+Status: **cut-4 contract agreed** with the frontend agent (msg 0e9b4188; clarifications in
+§12.7). Product answers in §12.6. Branch `feat/pipeline-movement`, stacked on `feat/candidate-applications`. Participations exist
 since P2b (`process_participations` with `stage_id`, `participation_stage_history`).
 
 Rules: PIPE-11 (no skipping required stages), PIPE-14 (backward moves keep history; leaving
@@ -1090,6 +1090,38 @@ Pipeline `PUT` (cut 1 route) gains `409 stage_change_requires_empty_pipeline`.
 Candidate list (`GET /v2/me/applications`, P2b): `status` becomes `submitted | in_process`
 — `submitted` while the participation is in the `new` stage, `in_process` in any other
 stage (§12.6 S3). This widens a P2b enum (contract change agreed here).
+
+### 12.7 Contract clarifications (agreed, frontend msg 0e9b4188)
+
+1. **Per-item precondition.** Every board item (and the move response) carries `etag`: a
+   strong, opaque participation tag (never equal to or parseable as any other resource tag).
+   The client sends it unchanged as `If-Match`; the move `200` returns the new tag in the
+   item and in the `ETag` header. Empty, weak, list or malformed `If-Match` → `400
+   invalid_request`; stale or foreign → `412 version_conflict`; missing → `428`. The board
+   item `version` stays as a decimal string for display only.
+2. **Locked structure is visible.** `GET`/`PUT …/pipeline` (cut 1) responses gain
+   `structure_locked: boolean` — true while the vacancy has at least one participation. The
+   client disables reorder/add/remove with an explanation; the `409
+   stage_change_requires_empty_pipeline` stays the authority.
+3. **Closed enums.** `source`: `organic` (recruiter intake adds values in its own cut).
+   `stages[].kind`: `new | screening | screening_ok | in_process | placement | custom`;
+   `exit.kind`: `discarded`.
+4. **History actor.** `actor` is always `{kind: "candidate" | "recruiter", id, full_name}`,
+   never `null`; the intake entry's actor is the candidate.
+5. **Recruiter CV download** in this cut: `GET …/participations/{participationId}/cv` →
+   the exact CV version of that participation as an attachment with its stored content
+   type, `Cache-Control: no-store`; owner or principal only (`404` otherwise); `503
+   cv_storage_unavailable` when storage is not configured.
+6. **Screening answers** in this cut: `GET …/participations/{participationId}` → the board
+   item plus `screening: [{question_id, prompt, type, answer}]` from the application
+   snapshot, where `answer` is `{option_id, label}` (single choice) or `{text}` (open). No
+   score, correctness or automatic evaluation is shown (INT-22; scoring stays open).
+7. `GET …/board` can also return `422 board_too_large` and `409 vacancy_not_published`;
+   `required: null` means headcount not set.
+8. The candidate-facing API exposes only `status` (`submitted | in_process`) for a
+   participation; no stage id, name or history.
+9. The client recomputes column counts from the moved item plus `coverage`; on an uncertain
+   result, `412` or `404`, it reloads the board and never retries automatically.
 
 ### 12.3 Storage (backend)
 
