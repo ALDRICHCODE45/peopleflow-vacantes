@@ -773,8 +773,8 @@ typed filter columns, JSONB for rich description / benefits / compensation, gene
 Status: **P2b contract agreed** with the frontend agent (msg a82eaafb). Since P2b0 (§11),
 "signed-in candidate" means a live `candidate` user (`403 account_required` / `403
 wrong_role` otherwise). All routes require a signed-in **candidate**
-(Bearer of a `candidate` user; a recruiter or owner token → `403 forbidden`; no session →
-`401`). Error envelope `{error, code}` unless stated; private responses carry
+(Bearer of a `candidate` user; a recruiter or owner token → `403 wrong_role`;
+no live account → `403 account_required`; no session → `401`). Error envelope `{error, code}` unless stated; private responses carry
 `Cache-Control: no-store`.
 
 **CV library** (§10.6 S5, S6, S8, S9):
@@ -799,6 +799,9 @@ wrong_role` otherwise). All routes require a signed-in **candidate**
   storage; a used one is retained for its applications. Final retention remains open.
 - `GET /v2/me/cvs/{id}/file` → the candidate's own file with its stored content type
   and `Content-Disposition: attachment`. Another candidate's id → `404`.
+- When storage is not configured, every `/v2/me/cvs*` route returns
+  `503 cv_storage_unavailable` after the existing authentication and candidate gates;
+  the rest of the API, including applying, remains available.
 - Storage: private port with a local-disk adapter now (root from configuration, random
   keys, never served by a static mount), S3 adapter later without contract changes. File
   first, then the database row; a failed row write deletes the file; a reconciler removes
@@ -835,8 +838,9 @@ as draft create, scoped to candidate + vacancy), body exactly:
   the form); `422 invalid_answers` with `{error, code, details: [{question_id, reason}]}`
   where `reason` is `required | unknown_option | too_long | wrong_type`; `422
   cv_unavailable` (CV not in the candidate's library); `400 invalid_request` (shape,
-  unknown or duplicate question ids); `409 idempotency_conflict`; `400`/`428`
-  idempotency-key codes as draft create.
+  unknown or duplicate question ids); `409 idempotency_conflict`;
+  `400 idempotency_key_required` (missing key) / `400 invalid_idempotency_key`
+  (empty, repeated or malformed key), as draft create.
 
 **Candidate list** — `GET /v2/me/applications?cursor&limit` → `{ "items": [ { "id",
 "vacancy": {id, title}, "company": {id, name}, "applied_at", "status": "submitted" } ],

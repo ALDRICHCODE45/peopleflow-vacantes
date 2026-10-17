@@ -47,6 +47,7 @@ bounded (1,024 entries; required markers must be nonempty, unencrypted and at mo
 | `cv_unsupported_type` (unsupported extension) | 415 |
 | `cv_too_large` | 413 |
 | `cv_library_full` | 409 |
+| `cv_storage_unavailable` (storage not configured) | 503 |
 | `not_found` (own-only lookup) | 404 |
 
 Errors use only `{error,code}`. JSON rename bodies also have the existing 1 MiB
@@ -56,7 +57,14 @@ nosniff`; no static file-serving route exists.
 
 ## Storage and operations
 
-Set **`CV_STORAGE_ROOT`** to an absolute, dedicated private directory outside any
+**`CV_STORAGE_ROOT` is optional.** When unset/empty, the API starts normally;
+all `/v2/me/cvs*` methods return `503 cv_storage_unavailable` with `{error,code}`
+and `Cache-Control: no-store`, after authentication and the candidate-role gate
+(401/403 take precedence). Applying, screening and the candidate applications list
+remain available because they do not access file storage. A set-but-invalid root
+still fails startup without echoing the configured value.
+
+To enable CV routes, set it to an absolute, dedicated private directory outside any
 web/static root. The filesystem adapter opens an `os.Root`, permits only generated
 64-character lowercase random hexadecimal keys, creates objects with mode 0600,
 and creates its root with mode 0700. Existing directory ownership/permissions,
@@ -85,15 +93,18 @@ Both migration down paths refuse while their new data exists; no silent data los
 
 | Tests | Rules |
 | --- | --- |
-| `TestInspect`, `TestNormalizeName` | PDF/DOCX signatures, spoofed extensions/arbitrary ZIP, size and Unicode label limits |
+| `TestInspect`, `TestInspectDOCXDirectoryHardeningWithoutOpeningEntries`, `TestNormalizeName` | PDF/DOCX signatures, spoofed extensions/arbitrary ZIP, size and Unicode label limits; ZIP entry count, marker size/encryption/duplicates, instrumented proof that no entry opens |
 | `TestLocalPrivateRandomKeysAndTraversal`, `TestCVStorageConfig` | temporary private root, random keys, traversal rejection, round-trip/delete, explicit absolute configuration |
 | `TestReconcilePreservesReferencedFilesAndFailsClosed` | executable orphan reconciliation; keeps live/used files; failed reference lookup never authorizes deletion |
 | `TestUploadTransport` | exact six-key CV response, no-store, multipart cardinality/unknown parts, oversize and type codes; rejected transport never reaches storage |
 | `TestLibraryHTTPExactShapesAndAttachment`, `TestUploadLibraryFullIsConflict` | exact list/limits and attachment headers, label normalization/strict rename, delete 204, missing/foreign errors, library-full code |
-| `TestP2bPrivateRoutesLiveCandidateGates` | every private method rejects anonymous/recruiter/no-account, exact envelopes and no-store |
+| `TestP2bPrivateRoutesLiveCandidateGates`, `TestCVStorageDisabledRoutesAndUnrelatedServices` | every private method rejects anonymous/recruiter/no-account first; disabled CV routes return exact 503 envelope/no-store, unrelated services still run |
 | `TestCVFailedRowWriteDeletesPrivateFile` (integration) | row failure compensates the file-first write and leaves no version |
-| `TestCVLibraryLimitRemovalOrphanReconciler` (integration) | 10-entry limit, own-only removal/download, unused deletion and orphan cleanup |
+| `TestCVLibraryLimitRemovalOrphanReconciler` (integration) | 10-entry limit, foreign rename returns not found without changing owner label, own-only removal/download, unused deletion and orphan cleanup |
 | `TestParticipationAtomicReplaySnapshotAndCVRetention` (integration) | foreign CV unavailable/404, label-only rename, used-version retention |
+| `TestCVReconcilerVersusUploadAdvisoryLock`, `TestCVRemovalVersusApplyCandidateLock` (integration) | force both advisory/candidate-lock orderings; committed uploads survive reconciliation; apply wins with retained version or removal wins with cv_unavailable |
+| `TestCVLibraryNewestFirstAndInUseAfterApply` (integration) | deterministic newest-first library and in_use changes after apply |
+| `TestMigration00021CVDownRefusesDataAndSucceedsEmpty` (integration) | real down refusal retains data/schema/version; empty down succeeds |
 | `TestCandidateCVMigration` | additive schema definition |
 
 DB tests require loopback `draft_test` via `DRAFT_TEST_DATABASE_URL`; absent means

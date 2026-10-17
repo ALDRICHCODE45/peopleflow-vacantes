@@ -12,7 +12,7 @@ func TestApplicationErrorExtension(t *testing.T) {
 		code   Code
 		status int
 	}{
-		{"cv_too_large", 413}, {"cv_unsupported_type", 415}, {"cv_content_mismatch", 400}, {"cv_library_full", 409}, {"questionnaire_changed", 409}, {"already_applied", 409}, {"invalid_answers", 422}, {"cv_unavailable", 422},
+		{"cv_storage_unavailable", 503}, {"cv_too_large", 413}, {"cv_unsupported_type", 415}, {"cv_content_mismatch", 400}, {"cv_library_full", 409}, {"questionnaire_changed", 409}, {"already_applied", 409}, {"invalid_answers", 422}, {"cv_unavailable", 422},
 	} {
 		t.Run(string(tc.code), func(t *testing.T) {
 			got := Resolve(tc.code)

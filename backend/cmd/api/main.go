@@ -172,12 +172,16 @@ func run() error {
 	candidateRepo := candidatespostgres.NewCandidateRepository(pool)
 	candidateService := candidatesusecases.NewCandidateService(candidateRepo, identityUserRepo)
 	candidateHandler := candidateshttp.NewCandidateHandler(candidateService)
-	privateCVStorage, err := cvstorage.NewLocal(cvConfig.Root)
-	if err != nil {
-		return errors.New("initialize private CV storage")
+	// An absent root disables only CV routes, after their usual identity gates.
+	var cvHandler *cvshttp.Handler
+	if cvConfig.Root != "" {
+		privateCVStorage, err := cvstorage.NewLocal(cvConfig.Root)
+		if err != nil {
+			return errors.New("initialize private CV storage")
+		}
+		defer privateCVStorage.Close()
+		cvHandler = cvshttp.NewHandler(cvspostgres.NewLibrary(pool, privateCVStorage), draftjson.Decode)
 	}
-	defer privateCVStorage.Close()
-	cvHandler := cvshttp.NewHandler(cvspostgres.NewLibrary(pool, privateCVStorage), draftjson.Decode)
 	participationHandler := applicationsv2http.NewHandler(applicationsv2postgres.NewStore(pool, auditRepo, participationRules{}), draftjson.Decode)
 
 	// Jobs wiring: jobs repo (sqlc data layer over the same pool)

@@ -3,6 +3,7 @@ package httpjson
 import "net/http"
 
 const (
+	CodeCVStorageUnavailable Code = "cv_storage_unavailable"
 	CodeCVTooLarge           Code = "cv_too_large"
 	CodeCVUnsupportedType    Code = "cv_unsupported_type"
 	CodeCVContentMismatch    Code = "cv_content_mismatch"
@@ -19,12 +20,14 @@ type AnswerDetail struct {
 }
 
 func ApplicationErrorCodes() []Code {
-	return []Code{CodeCVTooLarge, CodeCVUnsupportedType, CodeCVContentMismatch, CodeCVLibraryFull, CodeQuestionnaireChanged, CodeAlreadyApplied, CodeInvalidAnswers, CodeCVUnavailable}
+	return []Code{CodeCVStorageUnavailable, CodeCVTooLarge, CodeCVUnsupportedType, CodeCVContentMismatch, CodeCVLibraryFull, CodeQuestionnaireChanged, CodeAlreadyApplied, CodeInvalidAnswers, CodeCVUnavailable}
 }
 
 // Called by Resolve's additive extension chain.
 func resolveApplicationError(code Code) (Definition, bool) {
 	switch code {
+	case CodeCVStorageUnavailable:
+		return Definition{code, http.StatusServiceUnavailable, "CV storage unavailable"}, true
 	case CodeCVTooLarge:
 		return Definition{code, 413, "CV too large"}, true
 	case CodeCVUnsupportedType:

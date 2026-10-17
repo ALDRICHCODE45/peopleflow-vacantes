@@ -24,6 +24,16 @@ type Handler struct {
 func NewHandler(library app.Library, decode func([]byte) (any, error)) *Handler {
 	return &Handler{library, decode}
 }
+
+// A nil handler/library is the composition root's disabled-storage mode.
+// Route authentication and candidate gates run before this availability check.
+func (h *Handler) available(w http.ResponseWriter) bool {
+	if h == nil || h.library == nil {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeCVStorageUnavailable))
+		return false
+	}
+	return true
+}
 func subject(r *http.Request) string { return security.ClaimsFromContext(r.Context()).Subject }
 func private(w http.ResponseWriter)  { w.Header().Set("Cache-Control", "no-store") }
 func writeError(w http.ResponseWriter, err error) {
@@ -46,6 +56,9 @@ func writeError(w http.ResponseWriter, err error) {
 }
 func (h *Handler) Upload(w http.ResponseWriter, r *http.Request) {
 	private(w)
+	if !h.available(w) {
+		return
+	}
 	// Bound raw multipart overhead as well as each part, without spooling any
 	// attacker-controlled bytes into the system temporary directory.
 	r.Body = http.MaxBytesReader(w, r.Body, int64(app.MaxBytes+65536))
@@ -145,6 +158,9 @@ func multipartError(w http.ResponseWriter, err error) {
 }
 func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 	private(w)
+	if !h.available(w) {
+		return
+	}
 	items, err := h.library.List(r.Context(), subject(r))
 	if err != nil {
 		writeError(w, err)
@@ -162,6 +178,9 @@ func parseID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 }
 func (h *Handler) Rename(w http.ResponseWriter, r *http.Request) {
 	private(w)
+	if !h.available(w) {
+		return
+	}
 	id, ok := parseID(w, r)
 	if !ok {
 		return
@@ -205,6 +224,9 @@ func (h *Handler) Rename(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) Remove(w http.ResponseWriter, r *http.Request) {
 	private(w)
+	if !h.available(w) {
+		return
+	}
 	id, ok := parseID(w, r)
 	if !ok {
 		return
@@ -217,6 +239,9 @@ func (h *Handler) Remove(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) File(w http.ResponseWriter, r *http.Request) {
 	private(w)
+	if !h.available(w) {
+		return
+	}
 	id, ok := parseID(w, r)
 	if !ok {
 		return
