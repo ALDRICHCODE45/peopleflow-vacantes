@@ -1203,7 +1203,7 @@ Base `/v2/me/company/job-drafts/{vacancyId}/participations/{participationId}`; s
 `POST …/discard`, `If-Match` required, body exactly (optional keys may be omitted):
 
 ```json
-{ "reason": { "group": "recruiter", "code": "other" },
+{ "reason": { "group": "recruiter", "key": "other" },
   "comment": "…", "candidate_message": "…", "confirm_placement_exit": false }
 ```
 
@@ -1214,14 +1214,14 @@ Both return `200` with the board item, `coverage` and the new `ETag`, like a mov
 
 | Status | Code | Case |
 | --- | --- | --- |
-| `400` | `validation_error` | Unknown group/code, code not in its group, `other` without comment, comment/message too long or empty after trim |
+| `400` | `validation_error` | Unknown group/key, key not in its group, `other` without comment, comment/message too long or empty after trim |
 | `409` | `already_discarded` | Discard of a discarded participation |
 | `409` | `not_discarded` | Recovery of a participation that is not discarded |
 | `409` | `placement_exit_confirmation_required` | Discard from `Placement` without the flag |
 | `409` | `placement_reentry_confirmation_required` | Recovery into `Placement` without the flag |
 | `400` | `invalid_request`, `412`, `428`, `404`, `409 vacancy_not_published` | As cut 4 |
 
-Board items (cut 4) gain `discard`: `null`, or `{ "reason": {group, code}, "discarded_at",
+Board items (cut 4) gain `discard`: `null`, or `{ "reason": {group, key}, "discarded_at",
 "previous_stage_id" }` for participations in the exit stage. The internal comment and the
 candidate message are returned only by the participation detail (`GET
 …/participations/{id}`), which gains the same `discard` object plus `comment` and
@@ -1269,7 +1269,7 @@ re-entry confirmation); `/candidato/postulaciones` shows «Finalizada» and the 
 2. **History items are a discriminated union** with exact keys:
    - `intake` and `move`: unchanged from cut 4 (no new keys);
    - `discard`: `kind, from_stage_id` (previous stage), `to_stage_id` (exit id),
-     `hire` (false), `departure`, `reason {group, code}`, `comment` (string or null),
+     `hire` (false), `departure`, `reason {group, key}`, `comment` (string or null),
      `candidate_message` (string or null), `actor, at`;
    - `recovery`: `kind, from_stage_id` (exit id), `to_stage_id` (previous stage), `hire`,
      `departure` (false), `actor, at`.
@@ -1285,3 +1285,8 @@ re-entry confirmation); `/candidato/postulaciones` shows «Finalizada» and the 
    «Enviada» / «En proceso» / «Finalizada».
 8. Group titles in the UI: «Decisión de la empresa» (`recruiter`) and «Decisión del
    candidato» (`candidate`), labels as in §13.1.
+9. **Field name** (frontend msg, agreed): the reason is `{group, key}` everywhere (discard
+   body, board/detail `discard.reason`, history `reason`); values unchanged. `code` is
+   reserved for error envelopes (and the architecture guard rejects ad-hoc `"code"`
+   keys outside the error catalog). A body with `code` instead of `key` is `400
+   invalid_request`.
