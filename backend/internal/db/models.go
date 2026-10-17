@@ -221,6 +221,18 @@ type ParticipationStageHistory struct {
 	StageID         uuid.UUID          `json:"stage_id"`
 	ActorID         uuid.UUID          `json:"actor_id"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	FromStageID     pgtype.UUID        `json:"from_stage_id"`
+	Hire            bool               `json:"hire"`
+	Departure       bool               `json:"departure"`
+	ActorKind       string             `json:"actor_kind"`
+}
+
+type ProcessCoverageMilestone struct {
+	ID        uuid.UUID          `json:"id"`
+	ProcessID uuid.UUID          `json:"process_id"`
+	ReachedAt pgtype.Timestamptz `json:"reached_at"`
+	Covered   int32              `json:"covered"`
+	Required  int32              `json:"required"`
 }
 
 type ProcessParticipation struct {
@@ -233,6 +245,7 @@ type ProcessParticipation struct {
 	AnswersSnapshot   []byte             `json:"answers_snapshot"`
 	Source            string             `json:"source"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	Version           int64              `json:"version"`
 }
 
 type User struct {

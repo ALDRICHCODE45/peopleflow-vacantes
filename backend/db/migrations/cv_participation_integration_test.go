@@ -63,6 +63,8 @@ func TestMigration00022ParticipationDownRefusesDataAndSucceedsEmpty(t *testing.T
 	db, pool, cleanup := isolatedMigrationDB(t)
 	defer cleanup()
 	gooseUpAll(t, db)
+	// Exercise this migration, not whichever migration happens to be latest.
+	gooseDownTo(t, db, 22)
 	ctx := context.Background()
 	actor, recruiter, company, vacancy, version, participation, key := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	exec := func(t *testing.T, query string, args ...any) {
