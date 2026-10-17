@@ -315,7 +315,10 @@ corepack pnpm dev
     **Esperado:** «Postulación enviada» con enlace a «Mis postulaciones».
 43. **Mis postulaciones.** En `/candidato/postulaciones` aparece la vacante con
     «Postulación enviada». Volvé a postularte a la misma: **esperado** «Ya te postulaste
-    a esta vacante». El CV usado queda «En uso» en tu biblioteca.
+    a esta vacante». El CV usado queda «En uso» en tu biblioteca. Escribí parte del
+    puesto o de la empresa sin tildes en «Buscar por puesto o empresa»: **esperado** la
+    postulación sigue visible; con un texto que no coincide aparece «Ninguna postulación
+    coincide con «…».» y «Limpiar búsqueda» vuelve a mostrar todo.
 44. **Preguntas cambiadas (opcional).** Con la postulación abierta, cambiá las preguntas
     de la vacante desde el editor y enviá. **Esperado:** «Las preguntas cambiaron. Revisa
     tus respuestas.» con el formulario recargado.
