@@ -37,8 +37,14 @@ describe.each([
     expect(wordmark).toHaveAttribute("aria-hidden", "true");
     expect(wordmark).toHaveClass("invisible", "opacity-0");
     const mark = within(brand).getByRole("img", { name: "PeopleFlow" });
-    expect(mark).toHaveTextContent("P");
-    expect(mark).toHaveClass("size-10", "shrink-0", "rounded-lg", "bg-primary", "text-primary-foreground", "font-sans", "font-semibold");
+    expect(mark).toHaveClass("size-10", "shrink-0");
+    const isotypes = [...mark.querySelectorAll("img")].map(img => [img.getAttribute("src") ?? "", img.className]);
+    expect(isotypes).toHaveLength(2);
+    expect(isotypes[0][0]).toContain("peopleflow-mark-light.png");
+    expect(isotypes[0][1]).toContain("brand-mark-light");
+    expect(isotypes[1][0]).toContain("peopleflow-mark-dark.png");
+    expect(isotypes[1][1]).toContain("brand-mark-dark");
+    for (const img of mark.querySelectorAll("img")) expect(img).toHaveAttribute("alt", "");
     expect(mark).not.toHaveClass("invisible");
     for (const layer of [wordmark, mark]) {
       expect(layer).toHaveClass("transition-[opacity,visibility]", "duration-200", "ease-linear", "motion-reduce:transition-none");
@@ -107,7 +113,7 @@ describe.each([
     expect(mark).toHaveClass("invisible", "opacity-0");
     expect(within(brand).getAllByRole("img", { name: "PeopleFlow" })).toHaveLength(2);
     expect(brand).toHaveClass("h-10", "data-[slot=sidebar-menu-button]:p-1.5!");
-    for (const image of brand.querySelectorAll("img")) {
+    for (const image of brand.querySelectorAll("[data-brand='wordmark'] img")) {
       expect(image).toHaveClass("h-5", "w-auto");
     }
     const action = screen.getByRole("button", { name: actionLabel });

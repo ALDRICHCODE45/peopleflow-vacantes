@@ -138,7 +138,7 @@ describe("company dashboard sidebar identity", () => {
     const brand = screen.getByRole("link", { name: "PeopleFlow" });
     expect(brand).toHaveAttribute("href", "/empresa/dashboard");
 
-    const marks = Array.from(brand.querySelectorAll("img"));
+    const marks = Array.from(brand.querySelectorAll("[data-brand='wordmark'] img"));
     expect(marks.map((img) => img.getAttribute("src"))).toEqual([
       expect.stringContaining("peopleflow-light"),
       expect.stringContaining("peopleflow-dark"),
@@ -160,7 +160,7 @@ describe("company dashboard sidebar identity", () => {
     expect(brand.className).toContain("h-10");
     expect(brand.className).toContain("data-[slot=sidebar-menu-button]:p-1.5!");
 
-    for (const mark of Array.from(brand.querySelectorAll("img"))) {
+    for (const mark of Array.from(brand.querySelectorAll("[data-brand='wordmark'] img"))) {
       expect(mark.className).toContain("h-5");
       expect(mark.className).toContain("w-auto");
       expect(mark.className).not.toContain("h-8");

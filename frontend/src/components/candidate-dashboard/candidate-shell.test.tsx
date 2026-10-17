@@ -94,7 +94,7 @@ describe("candidate shell frame", () => {
     }
     expect(brand.className).toContain("data-[slot=sidebar-menu-button]:p-1.5!");
     expect(brand.querySelector("[data-brand='wordmark']")).toHaveAttribute("aria-hidden", "true");
-    expect(within(brand).getByRole("img", { name: "PeopleFlow" })).toHaveTextContent("P");
+    expect(within(brand).getByRole("img", { name: "PeopleFlow" }).querySelectorAll("img")).toHaveLength(2);
     for (const [label] of NAV) expect(screen.getByRole("link", { name: label })).toHaveAccessibleName(label);
     for (const target of destinations) {
       expect(target).toHaveAttribute("data-base-ui-tooltip-trigger");

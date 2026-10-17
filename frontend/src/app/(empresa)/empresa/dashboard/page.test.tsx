@@ -1003,7 +1003,7 @@ describe("dashboard-01 screenshot-era icons", () => {
     expect(appSidebarSource).toContain("PeopleFlowSidebarLogo");
 
     const brand = screen.getByRole("link", { name: "PeopleFlow" });
-    expect(brand.querySelectorAll("img")).toHaveLength(2);
+    expect(brand.querySelectorAll("[data-brand='wordmark'] img")).toHaveLength(2);
 
     // Tabler icons still render elsewhere in the block, which proves the real
     // library is mounted rather than a Lucide stand-in.

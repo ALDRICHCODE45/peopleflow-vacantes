@@ -16,17 +16,26 @@ const BRAND_MARKS = [
   },
 ] as const;
 
-/** Provisional compact identity; replace this tile with the approved isotype later. */
+// Approved PeopleFlow isotypes (500x500) copied to public/brand: the transparent
+// black «pf» for light surfaces, the black disc with a white «p» for dark ones.
+const BRAND_ISOTYPES = [
+  { src: "/brand/peopleflow-mark-light.png", schemeClass: "brand-mark-light" },
+  { src: "/brand/peopleflow-mark-dark.png", schemeClass: "brand-mark-dark" },
+] as const;
+
+/** Compact identity for the collapsed rail: one accessible image, one isotype per scheme. */
 export function PeopleFlowMark({ className, ...props }: React.ComponentProps<"span">) {
   return (
     <span
       role="img"
       aria-label="PeopleFlow"
       data-brand="mark"
-      className={cn("flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary font-sans text-lg font-semibold text-primary-foreground", className)}
+      className={cn("flex size-10 shrink-0 items-center justify-center", className)}
       {...props}
     >
-      P
+      {BRAND_ISOTYPES.map(({ src, schemeClass }) => (
+        <Image key={src} src={src} alt="" width={500} height={500} className={cn("size-8", schemeClass)} />
+      ))}
     </span>
   );
 }

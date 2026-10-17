@@ -372,8 +372,8 @@ corepack pnpm dev
     iniciales, fechas cortas y chip del CV; la manija aparece al pasar el mouse o con el
     teclado. Abrí una ficha: barra superior con «Mover a…», «Descartar»/«Recuperar» y una
     sola X; pestañas «Resumen», «Respuestas», «Historial» con contador; línea de tiempo.
-56. **Sidebar colapsado.** Cerrá el sidebar (empresa y candidato). **Esperado:** marca «P»
-    centrada en lugar del logo aplastado; todos los ítems, «Nueva vacante» y el avatar son
+56. **Sidebar colapsado.** Cerrá el sidebar (empresa y candidato). **Esperado:** el isotipo «pf»
+    centrado en lugar del logo aplastado (con su versión de tema oscuro); todos los ítems, «Nueva vacante» y el avatar son
     cuadrados iguales y centrados, también al pasar el mouse, seleccionados y con foco.
 
 ## 5. Verificación en la base (solo lectura)
