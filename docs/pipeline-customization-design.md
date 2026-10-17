@@ -1150,3 +1150,112 @@ fulfillment from history (delivery cut), configuration impact preview (cut 7).
 - **S3 (user):** candidates see «Enviada» in `Nuevos` and «En proceso» elsewhere.
 - **S4 (user):** one candidate per move; no bulk moves.
 - **S5 (user):** while a vacancy has candidates, columns can only be renamed until cut 7.
+
+## 13. Cut 5 — discard with a reason and recovery (proposal)
+
+Status: **proposal under frontend review.** Product answers in §13.5. Branch
+`feat/pipeline-discard`, stacked on `feat/pipeline-movement`.
+
+Rules: PIPE-12 (a discard records a reason distinguishing a recruiter decision from a
+candidate withdrawal; an extra comment is optional), PIPE-13 (recovery requires
+confirmation, returns to the previous stage, keeps both events; if that stage was
+`Placement`, renewed occupancy is explicitly confirmed before restoring hiring/coverage),
+DEL-2/DEL-5 (leaving `Placement` needs confirmation and reduces coverage; history is never
+erased), AUD-*. Thanks to the cut-4 structure lock (columns cannot be removed while
+candidates exist), the previous stage always exists in this cut; the open case of a deleted
+previous stage (§17.1) stays for cut 7.
+
+### 13.1 Model
+
+- **Discard** moves a participation from any progression stage to the exit stage
+  `Descartados` (kind `discarded`). It stores the previous stage, the reason, an optional
+  internal comment, an optional message for the candidate, the actor and the time.
+- **Reason catalog** (fixed, §13.5 S1), always tied to its group:
+  - `recruiter`: `requirements_not_met` (No cumple requisitos), `profile_mismatch` (Perfil no
+    adecuado), `salary_expectation` (Expectativa salarial), `other_candidate_selected`
+    (Seleccionamos a otra persona), `other` (Otro);
+  - `candidate`: `accepted_other_offer` (Aceptó otra oferta), `no_longer_interested` (Ya no
+    le interesa), `unresponsive` (Sin respuesta del candidato), `other` (Otro).
+  - `other` requires an internal comment (1–1,000 characters); for every other code the
+    comment is optional (≤1,000). The internal reason and comment are never shown to the
+    candidate.
+- **Message for the candidate** (§13.5 S2): optional plain text, 1–500 characters after
+  trim, written by the recruiter, shown to the candidate with the status «Finalizada».
+- **Discarding from `Placement`** is leaving `Placement`: it requires
+  `confirm_placement_exit: true` and records a departure (coverage decreases; milestones
+  stay).
+- **Recovery** (§13.5 S3) returns a discarded participation to its stored previous stage,
+  with explicit confirmation. If that stage is `Placement`, the request must also carry
+  `confirm_placement_reentry: true`; recovery then records a renewed hire and may reach a
+  new full-coverage milestone. Recovery is never a skip. After recovery the candidate no
+  longer sees the message (§13.5 S4); history keeps everything.
+- **Moves** (cut 4) never target `Descartados` and never start from it: discard and
+  recovery have their own operations.
+- **Authorization and concurrency:** owner or principal recruiter, as cut 4; the same
+  per-participation `etag` / `If-Match` rules; one transaction per operation with history,
+  audit and coverage.
+
+### 13.2 Contract
+
+Base `/v2/me/company/job-drafts/{vacancyId}/participations/{participationId}`; same gates,
+`Cache-Control: no-store` and envelope as cut 4.
+
+`POST …/discard`, `If-Match` required, body exactly (optional keys may be omitted):
+
+```json
+{ "reason": { "group": "recruiter", "code": "other" },
+  "comment": "…", "candidate_message": "…", "confirm_placement_exit": false }
+```
+
+`POST …/recover`, `If-Match` required, body exactly `{ "confirm_placement_reentry": false }`
+(the key may be omitted; an empty object `{}` is valid).
+
+Both return `200` with the board item, `coverage` and the new `ETag`, like a move.
+
+| Status | Code | Case |
+| --- | --- | --- |
+| `400` | `validation_error` | Unknown group/code, code not in its group, `other` without comment, comment/message too long or empty after trim |
+| `409` | `already_discarded` | Discard of a discarded participation |
+| `409` | `not_discarded` | Recovery of a participation that is not discarded |
+| `409` | `placement_exit_confirmation_required` | Discard from `Placement` without the flag |
+| `409` | `placement_reentry_confirmation_required` | Recovery into `Placement` without the flag |
+| `400` | `invalid_request`, `412`, `428`, `404`, `409 vacancy_not_published` | As cut 4 |
+
+Board items (cut 4) gain `discard`: `null`, or `{ "reason": {group, code}, "discarded_at",
+"previous_stage_id" }` for participations in the exit stage. The internal comment and the
+candidate message are returned only by the participation detail (`GET
+…/participations/{id}`), which gains the same `discard` object plus `comment` and
+`candidate_message`.
+
+History items gain kinds `discard` and `recovery`: a discard item carries `reason`,
+`comment`, `candidate_message` and `departure`; a recovery item carries `hire` when it
+re-enters `Placement`. Existing kinds and keys are unchanged.
+
+Candidate list (`GET /v2/me/applications`): `status` becomes `submitted | in_process |
+closed`, and each item gains `message` — the candidate message while `closed`, otherwise
+`null`. The internal reason never appears.
+
+### 13.3 Storage (backend)
+
+Additive migration `00024`: discard columns on participations (previous stage, reason group
+and code with a CHECK on the catalog, comment, candidate message, discarded at) and history
+columns for event kind and discard details. Existing rows stay valid (event kind derived for
+intake and moves). The down refuses while discard data exists.
+
+### 13.4 Frontend placement (frontend owns this)
+
+A «Descartar» action on the card and in the candidate sheet with the reason (grouped
+recruiter / candidate), comment, optional candidate message and the Placement confirmation;
+the `Descartados` column shows the reason; «Recuperar» with confirmation (and the Placement
+re-entry confirmation); `/candidato/postulaciones` shows «Finalizada» and the message.
+
+### 13.5 Decisions recorded for cut 5
+
+- **S1 (user):** fixed short reason catalog as listed; `other` requires an explanation.
+- **S2 (user):** the candidate sees «Finalizada» plus an optional free message written by
+  the recruiter (up to 500 characters), never the internal reason.
+- **S3 (user):** discard and recovery by the same people who move candidates (owner or
+  principal).
+- **S4 (user):** after recovery the candidate message disappears from the candidate's view;
+  internal history keeps it.
+- No notification is sent to the candidate in this cut.
