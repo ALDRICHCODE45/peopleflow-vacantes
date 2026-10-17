@@ -1,0 +1,31 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { act, cleanup, render, screen, within, fireEvent } from "@testing-library/react";
+import "@testing-library/jest-dom/vitest";
+import { CandidateSheet } from "./candidate-sheet";
+import { loadParticipationAction } from "./actions";
+import { boardFixture, detailFixture, historyFixture, vacancyId } from "./board-fixture";
+vi.mock("./actions", () => ({ loadParticipationAction: vi.fn(async () => ({ ok: true, data: detailFixture() })), loadHistoryAction: vi.fn(async () => ({ ok: true, data: historyFixture() })) }));
+afterEach(cleanup);
+it("has one close, counted tabs, real vacancy footer and newest-first activity", async () => {
+  const board = boardFixture();
+  render(<CandidateSheet vacancyId={vacancyId} vacancyTitle="Software Developer" item={board.participations[0]} board={board} onClose={vi.fn()} />);
+  const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
+  expect(within(sheet).getAllByRole("button", { name: /Cerrar/ })).toHaveLength(1);
+  expect(within(sheet).getByRole("button", { name: "Cerrar ficha" })).toBeVisible();
+  expect(await within(sheet).findByRole("tab", { name: "Respuestas 2" })).toBeVisible();
+  expect(within(sheet).getByText("Software Developer")).toBeVisible();
+  expect(sheet).not.toHaveTextContent("Postulación #");
+  expect(within(sheet).getByRole("link", { name: "Descargar CV" })).toHaveAttribute("download");
+  await act(async () => { fireEvent.click(within(sheet).getByRole("tab", { name: "Historial 3" })); });
+  expect(within(sheet).getAllByRole("listitem")[0]).toHaveTextContent("Contratación → Revisión");
+});
+it("shows honest empty discard notes rather than omitting their private/public meaning", async () => {
+  const board = boardFixture();
+  board.participations[0].stage_id = "exit";
+  board.participations[0].discard = { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: "new", discarded_at: "2026-10-18T12:00:00Z" };
+  vi.mocked(loadParticipationAction).mockResolvedValueOnce({ ok: true, data: { ...detailFixture(), ...board.participations[0] } });
+  render(<CandidateSheet vacancyId={vacancyId} vacancyTitle="Software Developer" item={board.participations[0]} board={board} onClose={vi.fn()} />);
+  expect(await screen.findByText("Sin comentario interno")).toBeVisible();
+  expect(screen.getByText("Sin mensaje")).toBeVisible();
+  expect(screen.getByText(/El candidato ve este mensaje con el estado Finalizada/)).toBeVisible();
+});

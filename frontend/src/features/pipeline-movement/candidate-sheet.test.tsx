@@ -17,7 +17,7 @@ afterEach(cleanup);
 function SheetHarness() {
   const [open, setOpen] = useState(true);
   const board = boardFixture();
-  return open ? <CandidateSheet vacancyId={vacancyId} item={board.participations[0]} board={board} onClose={() => setOpen(false)} /> : null;
+  return open ? <CandidateSheet vacancyId={vacancyId} vacancyTitle="Software Developer" item={board.participations[0]} board={board} onClose={() => setOpen(false)} /> : null;
 }
 it("sheet loading is independent, closes with a Spanish button, and ignores the late read", async () => {
   let resolve!: (value: Result<History>) => void;
@@ -26,7 +26,7 @@ it("sheet loading is independent, closes with a Spanish button, and ignores the 
   const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
   expect(within(sheet).getByRole("status")).toHaveTextContent("Cargando detalle e historial");
   expect(sheet.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(3);
-  fireEvent.click(within(sheet).getByRole("button", { name: "Cerrar" }));
+  fireEvent.click(within(sheet).getByRole("button", { name: "Cerrar ficha" }));
   await act(async () => resolve({ ok: true, data: historyFixture() }));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
@@ -35,6 +35,8 @@ it("a rejected detail load offers retry; screening/history display no invented s
   render(<SheetHarness />);
   const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
   fireEvent.click(await within(sheet).findByRole("button", { name: "Reintentar" }));
+  await within(sheet).findByRole("tab", { name: "Respuestas 2" });
+  fireEvent.click(within(sheet).getByRole("tab", { name: "Respuestas 2" }));
   expect(await within(sheet).findByText("¿Disponibilidad?")).toBeVisible();
   expect(sheet).not.toHaveTextContent(/Compatibilidad|Puntuación|Correcta|Experiencia/);
   expect(loadParticipationAction).toHaveBeenCalledTimes(2);
