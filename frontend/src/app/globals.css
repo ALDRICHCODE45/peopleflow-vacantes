@@ -448,6 +448,50 @@ html[data-pf-theme-vt="active"]::view-transition-new(root) {
   }
 }
 
+/* Pipeline presentation: stage paint is derived only from shared theme tokens.
+   A single recipe covers columns, headings, dots and the sheet identity badge. */
+.stage-neutral { --stage: var(--muted-foreground); }
+.stage-info { --stage: var(--status-info); }
+.stage-review { --stage: var(--status-review); }
+.stage-process { --stage: var(--primary); }
+.dark .stage-process { --stage: color-mix(in oklch, var(--primary) 60%, var(--foreground)); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .stage-process { --stage: color-mix(in oklch, var(--primary) 60%, var(--foreground)); }
+}
+.stage-success { --stage: var(--status-success); }
+.stage-danger { --stage: var(--status-danger); }
+.stage-column { background: color-mix(in oklch, var(--stage) 4%, var(--background)); }
+.stage-heading, [data-slot="badge"].stage-badge {
+  background: color-mix(in oklch, var(--stage) 10%, var(--card));
+  color: var(--stage);
+}
+[data-slot="badge"].stage-badge { border-color: transparent; }
+.stage-dot { background: var(--stage); }
+.stage-heading .stage-count {
+  background: color-mix(in oklch, var(--card) 60%, transparent);
+  color: inherit;
+  padding-inline: 0.375rem;
+  font-size: 11px;
+}
+[data-slot="card"].pf-candidate-card {
+  border: 1px solid transparent;
+  box-shadow: 0 2px 3px color-mix(in srgb, var(--foreground) 4%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--border) 50%, transparent);
+  transition: box-shadow 150ms;
+}
+@media (hover: hover) {
+  [data-slot="card"].pf-candidate-card:hover {
+    box-shadow: 0 4px 8px color-mix(in srgb, var(--foreground) 8%, transparent),
+      0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+  }
+}
+.pf-card-error > [role="status"] { font-size: 12px; gap: 6px; }
+.pf-board-scroll > [data-slot="scroll-area-viewport"] { scroll-snap-type: x proximity; }
+.pf-sheet-scroll > [data-slot="scroll-area-viewport"] { overscroll-behavior: contain; }
+.pf-candidate-sheet .pf-candidate-tabs [data-slot="badge"] { background: var(--background); }
+.pf-board-coverage [data-slot="progress-track"] { height: 4px; background: var(--border); }
+.pf-board-coverage [data-slot="progress-indicator"] { background: var(--status-success); }
+
 /* Reduced motion: collapse nonessential transition/animation timing so
    surfaces appear/disappear immediately instead of sliding, fading, or
    looping. Visual and semantic states (focus rings, hover colors, disabled

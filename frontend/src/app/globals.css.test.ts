@@ -161,6 +161,24 @@ describe("globals.css foundation tokens", () => {
   });
 });
 
+describe("pipeline reference presentation", () => {
+  it("derives every stage tint from semantic tokens and adapts process contrast in both dark modes", () => {
+    for (const [selector, token] of [[".stage-neutral", "muted-foreground"], [".stage-info", "status-info"], [".stage-review", "status-review"], [".stage-process", "primary"], [".stage-success", "status-success"], [".stage-danger", "status-danger"]]) {
+      expect(cssBlock(selector)).toContain(`--stage: var(--${token})`);
+    }
+    expect(cssBlock(".stage-column")).toContain("color-mix(in oklch, var(--stage) 4%, var(--background))");
+    expect(cssBlock(".dark .stage-process")).toContain("var(--primary) 60%, var(--foreground)");
+    expect(cssBlock(":root:not([data-theme]) .stage-process")).toContain("var(--primary) 60%, var(--foreground)");
+  });
+  it("keeps structural card edges, scoped success progress and contained overlay scrolling", () => {
+    expect(cssBlock('[data-slot="card"].pf-candidate-card')).toContain("border: 1px solid transparent");
+    expect(cssBlock('.pf-board-coverage [data-slot="progress-track"]')).toContain("height: 4px");
+    expect(cssBlock('.pf-board-coverage [data-slot="progress-indicator"]')).toContain("var(--status-success)");
+    expect(cssBlock('.pf-sheet-scroll > [data-slot="scroll-area-viewport"]')).toContain("overscroll-behavior: contain");
+    expect(css).not.toMatch(/\[data-slot=["']sheet-overlay["']\]\s*\{/u);
+  });
+});
+
 describe("app typography", () => {
   it("uses Inter for headings too; Clash Display stays scoped to the marketing landing", () => {
     expect(css).toContain("--font-heading: var(--font-sans)");
