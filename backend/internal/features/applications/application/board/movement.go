@@ -68,6 +68,7 @@ type Item struct {
 	Source    string    `json:"source"`
 	CV        CV        `json:"cv"`
 	MovedAt   time.Time `json:"moved_at"`
+	Discard   *Discard  `json:"discard"`
 }
 type Coverage struct {
 	Covered               int64      `json:"covered"`
@@ -93,13 +94,16 @@ type Actor struct {
 	Person
 }
 type Entry struct {
-	Kind        string    `json:"kind"`
-	FromStageID *string   `json:"from_stage_id"`
-	ToStageID   string    `json:"to_stage_id"`
-	Hire        bool      `json:"hire"`
-	Departure   bool      `json:"departure"`
-	Actor       Actor     `json:"actor"`
-	At          time.Time `json:"at"`
+	Kind             string    `json:"kind"`
+	FromStageID      *string   `json:"from_stage_id"`
+	ToStageID        string    `json:"to_stage_id"`
+	Hire             bool      `json:"hire"`
+	Departure        bool      `json:"departure"`
+	Actor            Actor     `json:"actor"`
+	At               time.Time `json:"at"`
+	Reason           *Reason   `json:"-"`
+	Comment          *string   `json:"-"`
+	CandidateMessage *string   `json:"-"`
 }
 type History struct {
 	Items []Entry `json:"items"`
@@ -117,7 +121,9 @@ type Screening struct {
 }
 type Detail struct {
 	Item
-	Screening []Screening `json:"screening"`
+	Screening        []Screening `json:"screening"`
+	Comment          *string     `json:"comment"`
+	CandidateMessage *string     `json:"candidate_message"`
 }
 type File struct {
 	Name, ContentType string
@@ -127,6 +133,8 @@ type File struct {
 type Store interface {
 	Board(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (Board, error)
 	Move(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, string, bool, []byte) (Moved, error)
+	Discard(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, string, bool, []byte) (Moved, error)
+	Recover(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, string, bool, []byte) (Moved, error)
 	History(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (History, error)
 	Detail(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (Detail, error)
 	File(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID) (File, error)

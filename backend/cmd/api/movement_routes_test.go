@@ -23,6 +23,7 @@ type movementRouteStore struct {
 	tag                          string
 	present                      bool
 	body                         []byte
+	operation                    string
 }
 
 func (s *movementRouteStore) record(c, a, v, p uuid.UUID) {
@@ -38,10 +39,21 @@ func (s *movementRouteStore) Board(_ context.Context, c, a, v uuid.UUID) (app.Bo
 }
 func (s *movementRouteStore) Move(_ context.Context, c, a, v, p uuid.UUID, tag string, present bool, body []byte) (app.Moved, error) {
 	s.record(c, a, v, p)
+	s.operation = "move"
 	s.tag = tag
 	s.present = present
 	s.body = body
 	return app.Moved{Item: app.Item{ID: p, ETag: `"item-tag"`, Version: "2"}}, s.err
+}
+func (s *movementRouteStore) Discard(ctx context.Context, c, a, v, p uuid.UUID, tag string, present bool, body []byte) (app.Moved, error) {
+	out, err := s.Move(ctx, c, a, v, p, tag, present, body)
+	s.operation = "discard"
+	return out, err
+}
+func (s *movementRouteStore) Recover(ctx context.Context, c, a, v, p uuid.UUID, tag string, present bool, body []byte) (app.Moved, error) {
+	out, err := s.Move(ctx, c, a, v, p, tag, present, body)
+	s.operation = "recover"
+	return out, err
 }
 func (s *movementRouteStore) Detail(_ context.Context, c, a, v, p uuid.UUID) (app.Detail, error) {
 	s.record(c, a, v, p)
@@ -62,7 +74,7 @@ func TestMovementRoutesGatesErrorsAndSuccess(t *testing.T) {
 	base := "/v2/me/company/job-drafts/" + routeTestDraftID.String()
 	pid := uuid.New()
 	item := base + "/participations/" + pid.String()
-	for _, route := range []struct{ method, path string }{{"GET", base + "/board"}, {"POST", item + "/moves"}, {"GET", item}, {"GET", item + "/history"}, {"GET", item + "/cv"}} {
+	for _, route := range []struct{ method, path string }{{"GET", base + "/board"}, {"POST", item + "/moves"}, {"POST", item + "/discard"}, {"POST", item + "/recover"}, {"GET", item}, {"GET", item + "/history"}, {"GET", item + "/cv"}} {
 		t.Run(route.method+route.path, func(t *testing.T) {
 			for _, tc := range []struct {
 				name    string
@@ -97,7 +109,7 @@ func TestMovementRoutesGatesErrorsAndSuccess(t *testing.T) {
 						}
 						return
 					}
-					if strings.HasSuffix(route.path, "/moves") {
+					if route.method == "POST" {
 						var out map[string]any
 						if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil || out["etag"] != `"item-tag"` || out["coverage"] == nil || rec.Header().Get("ETag") != `"item-tag"` {
 							t.Fatal(rec.Body.String(), rec.Header())

@@ -1521,6 +1521,8 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Get /v2/me/company/job-drafts/{id}/participations/{pid}/history",
 		"Get /v2/me/company/job-drafts/{id}/participations/{pid}/cv",
 		"Post /v2/me/company/job-drafts/{id}/participations/{pid}/moves",
+		"Post /v2/me/company/job-drafts/{id}/participations/{pid}/discard",
+		"Post /v2/me/company/job-drafts/{id}/participations/{pid}/recover",
 		"Get /v2/jobs/{id}/screening",
 		"Get /v2/me/cvs",
 		"Post /v2/me/cvs",

@@ -57,13 +57,16 @@ func (s *Store) begin(ctx context.Context, company, actor, id uuid.UUID) (pgx.Tx
 }
 
 const itemSQL = `SELECT p.id,p.stage_id,p.version,u.id,u.full_name,p.created_at,p.source,l.id,l.name,
- COALESCE((SELECT max(h.created_at) FROM participation_stage_history h WHERE h.participation_id=p.id),p.created_at)
+ COALESCE((SELECT max(h.created_at) FROM participation_stage_history h WHERE h.participation_id=p.id),p.created_at),
+ p.previous_stage_id,p.reason_group,p.reason_code,p.discarded_at
  FROM process_participations p JOIN users u ON u.id=p.candidate_id JOIN candidate_cv_library l ON l.version_id=p.cv_version_id `
 
 func readItem(row pgx.Row) (app.Item, int64, error) {
 	var i app.Item
 	var version int64
-	err := row.Scan(&i.ID, &i.StageID, &version, &i.Candidate.ID, &i.Candidate.FullName, &i.AppliedAt, &i.Source, &i.CV.ID, &i.CV.Name, &i.MovedAt)
+	var previous, group, code *string
+	var discardedAt *time.Time
+	err := row.Scan(&i.ID, &i.StageID, &version, &i.Candidate.ID, &i.Candidate.FullName, &i.AppliedAt, &i.Source, &i.CV.ID, &i.CV.Name, &i.MovedAt, &previous, &group, &code, &discardedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return i, 0, app.ErrNotFound
 	}
@@ -72,6 +75,13 @@ func readItem(row pgx.Row) (app.Item, int64, error) {
 	}
 	if version < 1 || i.Source != "organic" {
 		return i, 0, errors.New("invalid stored participation")
+	}
+	if discardedAt != nil {
+		if previous == nil || group == nil || code == nil || !app.ValidReason(app.Reason{Group: *group, Key: *code}) {
+			return i, 0, errors.New("invalid stored discard")
+		}
+		i.Discard = &app.Discard{Reason: app.Reason{Group: *group, Key: *code}, PreviousStageID: *previous, DiscardedAt: discardedAt.UTC()}
+		i.MovedAt = i.Discard.DiscardedAt
 	}
 	i.Version = strconv.FormatInt(version, 10)
 	i.ETag = app.ETag(i.ID, version)
@@ -170,6 +180,10 @@ func (s *Store) Move(ctx context.Context, company, actor, id, pid uuid.UUID, tag
 	if err != nil {
 		return app.Moved{}, err
 	}
+	// The exit is not a progression stage; only discard/recovery may cross it.
+	if item.StageID == p.Exit.ID || request.ToStageID == p.Exit.ID {
+		return app.Moved{}, app.ErrValidation
+	}
 	hire, departure, err := app.ValidateMove(p.Stages, item.StageID, request)
 	if err != nil {
 		return app.Moved{}, err
@@ -185,7 +199,7 @@ func (s *Store) Move(ctx context.Context, company, actor, id, pid uuid.UUID, tag
 	if _, err = tx.Exec(ctx, `UPDATE process_participations SET stage_id=$3,version=version+1 WHERE process_id=$1 AND id=$2`, id, pid, request.ToStageID); err != nil {
 		return app.Moved{}, err
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,created_at,from_stage_id,hire,departure,actor_kind) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'recruiter')`, uuid.New(), pid, request.ToStageID, actor, at, item.StageID, hire, departure); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,created_at,from_stage_id,hire,departure,actor_kind,event_kind) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'recruiter','move')`, uuid.New(), pid, request.ToStageID, actor, at, item.StageID, hire, departure); err != nil {
 		return app.Moved{}, err
 	}
 	next, err := coverage(ctx, tx, id, p)
@@ -223,7 +237,7 @@ func (s *Store) History(ctx context.Context, company, actor, id, pid uuid.UUID) 
 	if _, _, err = readItem(tx.QueryRow(ctx, itemSQL+`WHERE p.process_id=$1 AND p.id=$2`, id, pid)); err != nil {
 		return app.History{}, err
 	}
-	rows, err := tx.Query(ctx, `SELECT h.from_stage_id,h.stage_id,h.hire,h.departure,h.actor_kind,u.id,u.full_name,h.created_at FROM participation_stage_history h JOIN users u ON u.id=h.actor_id WHERE h.participation_id=$1 ORDER BY h.created_at,h.id`, pid)
+	rows, err := tx.Query(ctx, `SELECT h.from_stage_id,h.stage_id,h.hire,h.departure,h.actor_kind,u.id,u.full_name,h.created_at,h.event_kind,h.reason_group,h.reason_code,h.comment,h.candidate_message FROM participation_stage_history h JOIN users u ON u.id=h.actor_id WHERE h.participation_id=$1 ORDER BY h.created_at,h.id`, pid)
 	if err != nil {
 		return app.History{}, err
 	}
@@ -231,12 +245,12 @@ func (s *Store) History(ctx context.Context, company, actor, id, pid uuid.UUID) 
 	out := app.History{Items: []app.Entry{}}
 	for rows.Next() {
 		var e app.Entry
-		if err = rows.Scan(&e.FromStageID, &e.ToStageID, &e.Hire, &e.Departure, &e.Actor.Kind, &e.Actor.ID, &e.Actor.FullName, &e.At); err != nil {
+		var group, code *string
+		if err = rows.Scan(&e.FromStageID, &e.ToStageID, &e.Hire, &e.Departure, &e.Actor.Kind, &e.Actor.ID, &e.Actor.FullName, &e.At, &e.Kind, &group, &code, &e.Comment, &e.CandidateMessage); err != nil {
 			return out, err
 		}
-		e.Kind = "move"
-		if e.FromStageID == nil {
-			e.Kind = "intake"
+		if group != nil && code != nil {
+			e.Reason = &app.Reason{Group: *group, Key: *code}
 		}
 		e.At = e.At.UTC()
 		out.Items = append(out.Items, e)
@@ -254,7 +268,8 @@ func (s *Store) Detail(ctx context.Context, company, actor, id, pid uuid.UUID) (
 		return app.Detail{}, err
 	}
 	var questions, answers []byte
-	if err = tx.QueryRow(ctx, `SELECT questions_snapshot,answers_snapshot FROM process_participations WHERE process_id=$1 AND id=$2`, id, pid).Scan(&questions, &answers); err != nil {
+	var comment, candidateMessage *string
+	if err = tx.QueryRow(ctx, `SELECT questions_snapshot,answers_snapshot,comment,candidate_message FROM process_participations WHERE process_id=$1 AND id=$2`, id, pid).Scan(&questions, &answers, &comment, &candidateMessage); err != nil {
 		return app.Detail{}, err
 	}
 	var qs []intake.Question
@@ -266,6 +281,9 @@ func (s *Store) Detail(ctx context.Context, company, actor, id, pid uuid.UUID) (
 		return app.Detail{}, err
 	}
 	out := app.Detail{Item: item, Screening: []app.Screening{}}
+	if item.Discard != nil {
+		out.Comment, out.CandidateMessage = comment, candidateMessage
+	}
 	byID := map[string]intake.Answer{}
 	for _, a := range as {
 		byID[a.QuestionID] = a

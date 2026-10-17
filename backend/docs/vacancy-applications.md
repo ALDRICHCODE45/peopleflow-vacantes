@@ -94,11 +94,16 @@ candidate ownership. Down refuses while participation/idempotency data exists.
 ## Candidate list (private)
 
 `GET /v2/me/applications?cursor&limit` →
-`{items:[{id,vacancy:{id,title},company:{id,name},applied_at,status}],next_cursor}`.
-As of cut 4, `status` is the closed enum `submitted | in_process`: `submitted`
-while in the deterministic semantic `new` stage, `in_process` in every other
-stage. Renaming columns does not affect it; moving back to `new` returns it to
-`submitted`. No stage identity, name or history is exposed to candidates.
+`{items:[{id,vacancy:{id,title},company:{id,name},applied_at,status,message}],next_cursor}`.
+As of cut 5, `status` is the closed enum `submitted | in_process | closed`:
+`closed` while currently discarded, otherwise `submitted` in the deterministic
+semantic `new` stage and `in_process` in every other progression stage.
+`message` is **always present**: the recruiter's optional candidate-facing message
+while closed, otherwise null (also null if discarded without a message). It is plain
+text, not HTML. Recovery removes it from the candidate view; retained internal
+history is recruiter-only. The internal reason and comment are never selected or
+exposed to candidates. Renaming columns does not affect status; recovering or moving
+back to `new` returns it to `submitted`. No stage identity, name or history is exposed.
 The original apply/replay response remains `status: "submitted"`, even after moves.
 Newest first, ID descending as tie-breaker. Only the candidate's new participations;
 legacy applications stay on their legacy endpoint. Internal stages are never exposed.
@@ -108,7 +113,10 @@ parameters, invalid encoding and malformed/noncanonical opaque cursors are 400.
 
 Cut-4 status coverage: `TestCandidateStatusHidesStage` (unit) and
 `TestMovementBoardMovesHistoryCoverageAndRetention` (database; forward and backward
-status changes). See [pipeline-movement.md](pipeline-movement.md).
+status changes). Cut-5 tests `TestDiscardRecoveryEachStageAndCoverage` and
+`TestDiscardRecoveryExactWireAndCandidatePrivacy` protect closed/message visibility,
+nulls after recovery and absence of internal reason/comment. See
+[pipeline-movement.md](pipeline-movement.md) and [pipeline-discard.md](pipeline-discard.md).
 
 ## §10.5 test map and evidence boundary
 

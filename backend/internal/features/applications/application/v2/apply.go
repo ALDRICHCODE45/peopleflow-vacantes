@@ -63,6 +63,7 @@ type Item struct {
 	Company   Company   `json:"company"`
 	AppliedAt time.Time `json:"applied_at"`
 	Status    string    `json:"status"`
+	Message   *string   `json:"message"`
 }
 type Page struct {
 	Items      []Item  `json:"items"`

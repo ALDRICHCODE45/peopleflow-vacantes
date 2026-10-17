@@ -192,6 +192,8 @@ func newRouter(d routerDeps) chi.Router {
 		r.Patch("/v2/me/company/job-drafts/{id}", draftV2Handlers.SaveDraft)
 		r.Get("/v2/me/company/job-drafts/{id}/board", d.movementHandler.Board)
 		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/moves", d.movementHandler.Move)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/discard", d.movementHandler.Discard)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/recover", d.movementHandler.Recover)
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}", d.movementHandler.Detail)
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/history", d.movementHandler.History)
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/cv", d.movementHandler.File)

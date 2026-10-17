@@ -39,7 +39,8 @@ func TestMovementScreeningChoiceSnapshotNoScoring(t *testing.T) {
 	if err = json.Unmarshal(raw, &out); err != nil {
 		t.Fatal(err)
 	}
-	if len(out) != 10 {
+	// Cut 5 (§13.6) adds discard, comment and candidate_message, null unless discarded.
+	if len(out) != 13 || out["discard"] != nil || out["comment"] != nil || out["candidate_message"] != nil {
 		t.Fatal("detail keys drifted", string(raw))
 	}
 	screening := out["screening"].([]any)

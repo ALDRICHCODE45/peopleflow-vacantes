@@ -6,7 +6,8 @@ including the agreed clarifications in §12.7. Legacy applications are unchanged
 
 ## Quick path
 
-1. Apply migration **00023** with `make db-migrate` before running this API.
+1. Apply migrations through **00024** with `make db-migrate` before running this API.
+   Cut-5 discard/recovery extensions are documented in [pipeline-discard.md](pipeline-discard.md).
 2. Read the board and keep each item's opaque `etag`.
 3. POST a move using that item's tag as `If-Match`; reconcile with GET after an
    uncertain result or 412. Never automatically retry a move.
@@ -38,7 +39,8 @@ An item is exactly:
   "id": "…", "stage_id": "…", "version": "1", "etag": "\"opaque\"",
   "candidate": {"id": "…", "full_name": "Ana Pérez"},
   "applied_at": "2026-10-16T18:00:00Z", "source": "organic",
-  "cv": {"id": "…", "name": "CV"}, "moved_at": "2026-10-16T18:00:00Z"
+  "cv": {"id": "…", "name": "CV"}, "moved_at": "2026-10-16T18:00:00Z",
+  "discard": null
 }
 ```
 
@@ -61,7 +63,8 @@ The transport enforces the existing 1 MiB JSON budget.
 
 - Forward only to the next stage in the **current** stored/default pipeline order,
   including custom stages. Backward to any earlier stage.
-- Same/unknown/exit stage is invalid. Discard and recovery are not implemented.
+- Same/unknown stage is invalid. Both moves **into and out of** the exit stage
+  return `400 validation_error`; use the cut-5 discard/recover operations instead.
 - Entering Placement records a hire. Leaving requires explicit confirmation and
   records a departure, without erasing previous history.
 - 200 is the item shape above **plus `coverage`**, flattened, with the new tag both
@@ -95,11 +98,13 @@ reports the first. Headcount edits alone do not synthesize hire milestones.
 | Route | 200 response |
 | --- | --- |
 | `GET …/participations/{participationId}/history` | `{items:[entry]}`, oldest first, then history ID |
-| `GET …/participations/{participationId}` | Item plus `screening:[{question_id,prompt,type,answer}]` |
+| `GET …/participations/{participationId}` | Item plus `screening:[{question_id,prompt,type,answer}]`, `comment`, `candidate_message` (last two null unless currently discarded) |
 | `GET …/participations/{participationId}/cv` | Exact referenced CV version as an attachment with its stored content type |
 
 History entries are exactly `{kind, from_stage_id, to_stage_id, hire, departure,
-actor, at}`. `kind` is `intake | move`. `actor` is always
+actor, at}` for `intake | move | recovery`. Discard entries additionally carry
+`reason`, `comment`, `candidate_message`; see the exact discriminated union in
+[pipeline-discard.md](pipeline-discard.md). `actor` is always
 `{kind: "candidate" | "recruiter", id, full_name}`. Intake's actor is the candidate,
 `from_stage_id` is null and both flags are false. Moves have recruiter actors.
 Names of stages come from the current board, not frozen display labels.
@@ -117,8 +122,10 @@ unconfigured; an authorized existing participation then receives
 - Pipeline GET/PUT adds `structure_locked: boolean`. With any participation, only
   renames are accepted; reorder/add/remove → 409 without writes. See
   [pipeline-config.md](pipeline-config.md). Substates and delivery stay editable.
-- Candidate list status widens to `submitted | in_process`, based only on whether
-  the current semantic stage is `new`. Candidates receive no stage/history data.
+- Candidate list status is `submitted | in_process | closed` as of cut 5;
+  `closed` means currently discarded and exposes only the optional candidate-facing
+  `message`. Otherwise status depends on whether the semantic stage is `new`.
+  Candidates receive no stage/history data or internal reason/comment.
   See [vacancy-applications.md](vacancy-applications.md). Apply replays remain frozen.
 
 ## Errors
@@ -128,7 +135,7 @@ Errors remain exactly `{error,code}` without editor data or ETag.
 | Status | Code | Cause |
 | --- | --- | --- |
 | 400 | `invalid_request` | Body/path/header shape |
-| 400 | `validation_error` | Same, unknown or discarded target |
+| 400 | `validation_error` | Same/unknown stage, or exit as source or target |
 | 401 / 403 / 404 | Existing draft gate codes | Authentication, membership, liveness, owner/principal scope |
 | 409 | `company_not_active` | Transactional active-company gate |
 | 409 | `stage_skip_not_allowed` | Non-adjacent forward target |

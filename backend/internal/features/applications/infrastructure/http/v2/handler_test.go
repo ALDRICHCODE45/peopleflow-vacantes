@@ -50,7 +50,7 @@ func TestCandidateListHTTPStrictQueryAndShape(t *testing.T) {
 				t.Fatal(w.Code, body)
 			}
 			item := body["items"].([]any)[0].(map[string]any)
-			if len(item) != 5 || item["status"] != "submitted" || len(item["vacancy"].(map[string]any)) != 2 || len(item["company"].(map[string]any)) != 2 {
+			if len(item) != 6 || item["message"] != nil || item["status"] != "submitted" || len(item["vacancy"].(map[string]any)) != 2 || len(item["company"].(map[string]any)) != 2 {
 				t.Fatal(item)
 			}
 		})

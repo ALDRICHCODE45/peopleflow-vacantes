@@ -43,6 +43,12 @@ func writeError(w http.ResponseWriter, err error) {
 		code = httpjson.CodeStageSkipNotAllowed
 	case errors.Is(err, app.ErrPlacementExit):
 		code = httpjson.CodePlacementExitConfirmationRequired
+	case errors.Is(err, app.ErrPlacementReentry):
+		code = httpjson.CodePlacementReentryConfirmationRequired
+	case errors.Is(err, app.ErrAlreadyDiscarded):
+		code = httpjson.CodeAlreadyDiscarded
+	case errors.Is(err, app.ErrNotDiscarded):
+		code = httpjson.CodeNotDiscarded
 	case errors.Is(err, app.ErrNotPublished):
 		code = httpjson.CodeVacancyNotPublished
 	case errors.Is(err, app.ErrTooLarge):
@@ -86,7 +92,10 @@ func (h *Handler) Board(w http.ResponseWriter, r *http.Request) {
 	}
 	httpjson.WriteJSON(w, 200, out)
 }
-func (h *Handler) Move(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) Move(w http.ResponseWriter, r *http.Request)    { h.mutate(w, r, "move") }
+func (h *Handler) Discard(w http.ResponseWriter, r *http.Request) { h.mutate(w, r, "discard") }
+func (h *Handler) Recover(w http.ResponseWriter, r *http.Request) { h.mutate(w, r, "recover") }
+func (h *Handler) mutate(w http.ResponseWriter, r *http.Request, kind string) {
 	cc, id, pid, ok := h.params(w, r, true)
 	if !ok {
 		return
@@ -102,7 +111,14 @@ func (h *Handler) Move(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tags := r.Header.Values("If-Match")
-	out, err := h.store.Move(r.Context(), cc.CompanyID, cc.UserID, id, pid, strings.Join(tags, ","), len(tags) > 0, body)
+	operation := h.store.Move
+	switch kind {
+	case "discard":
+		operation = h.store.Discard
+	case "recover":
+		operation = h.store.Recover
+	}
+	out, err := operation(r.Context(), cc.CompanyID, cc.UserID, id, pid, strings.Join(tags, ","), len(tags) > 0, body)
 	if err != nil {
 		writeError(w, err)
 		return

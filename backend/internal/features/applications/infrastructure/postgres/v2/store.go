@@ -161,7 +161,7 @@ func (s *Store) List(ctx context.Context, sub string, q app.Query) (app.Page, er
 		at = q.After.At
 		id = q.After.ID
 	}
-	rows, err := tx.Query(ctx, `SELECT p.id,p.process_id,v.title,c.id,c.name,p.created_at,p.stage_id FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id JOIN vacancy_public_projections v ON v.id=vp.id JOIN companies c ON c.id=vp.company_id WHERE p.candidate_id=$1 AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2::timestamptz,$3::uuid)) ORDER BY p.created_at DESC,p.id DESC LIMIT $4`, candidate, at, id, q.Limit+1)
+	rows, err := tx.Query(ctx, `SELECT p.id,p.process_id,v.title,c.id,c.name,p.created_at,p.stage_id,p.discarded_at IS NOT NULL,CASE WHEN p.discarded_at IS NOT NULL THEN p.candidate_message ELSE NULL END FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id JOIN vacancy_public_projections v ON v.id=vp.id JOIN companies c ON c.id=vp.company_id WHERE p.candidate_id=$1 AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2::timestamptz,$3::uuid)) ORDER BY p.created_at DESC,p.id DESC LIMIT $4`, candidate, at, id, q.Limit+1)
 	if err != nil {
 		return app.Page{}, err
 	}
@@ -170,10 +170,11 @@ func (s *Store) List(ctx context.Context, sub string, q app.Query) (app.Page, er
 	for rows.Next() {
 		var item app.Item
 		var stage uuid.UUID
-		if err = rows.Scan(&item.ID, &item.Vacancy.ID, &item.Vacancy.Title, &item.Company.ID, &item.Company.Name, &item.AppliedAt, &stage); err != nil {
+		var discarded bool
+		if err = rows.Scan(&item.ID, &item.Vacancy.ID, &item.Vacancy.Title, &item.Company.ID, &item.Company.Name, &item.AppliedAt, &stage, &discarded, &item.Message); err != nil {
 			return app.Page{}, err
 		}
-		item.Status = app.CandidateStatus(stage, s.rules.InitialStage(item.Vacancy.ID))
+		item.Status = app.CandidateStatus(stage, s.rules.InitialStage(item.Vacancy.ID), discarded)
 		item.AppliedAt = item.AppliedAt.UTC()
 		page.Items = append(page.Items, item)
 	}

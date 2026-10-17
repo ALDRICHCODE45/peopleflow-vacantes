@@ -37,6 +37,8 @@ func movementRequest(t *testing.T, m movementFixture, method string, vacancy, pi
 	r.Get("/{id}/participations/{pid}/history", h.History)
 	r.Get("/{id}/participations/{pid}/cv", h.File)
 	r.Post("/{id}/participations/{pid}/moves", h.Move)
+	r.Post("/{id}/participations/{pid}/discard", h.Discard)
+	r.Post("/{id}/participations/{pid}/recover", h.Recover)
 	path := "/" + vacancy.String() + "/board"
 	if pid != uuid.Nil {
 		path = "/" + vacancy.String() + "/participations/" + pid.String() + suffix
@@ -81,7 +83,7 @@ func movementKeys(t *testing.T, value any, want ...string) map[string]any {
 }
 func movementItemKeys(t *testing.T, obj map[string]any, extra ...string) {
 	t.Helper()
-	movementKeys(t, obj, append([]string{"id", "stage_id", "version", "etag", "candidate", "applied_at", "source", "cv", "moved_at"}, extra...)...)
+	movementKeys(t, obj, append([]string{"id", "stage_id", "version", "etag", "candidate", "applied_at", "source", "cv", "moved_at", "discard"}, extra...)...)
 	movementKeys(t, obj["candidate"], "id", "full_name")
 	movementKeys(t, obj["cv"], "id", "name")
 }
