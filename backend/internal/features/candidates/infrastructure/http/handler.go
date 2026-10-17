@@ -1,6 +1,8 @@
 // Package http exposes the candidates bounded-context HTTP handlers.
 // The handler is mounted by the auth wiring (WU5) under
-// /me/profile and /me/profile/languages. It is the thin transport
+// /me/profile and /me/profile/languages behind RequireAuth and the live-user
+// RequireCandidateRole gate (403 account_required / wrong_role; no-store).
+// See backend/docs/candidate-identity.md. It is the thin transport
 // adapter: it reads the JWT subject from the request context, hands
 // it to the use case, and translates domain errors to HTTP statuses
 // via classifyCandidateError.

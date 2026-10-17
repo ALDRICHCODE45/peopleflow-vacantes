@@ -96,6 +96,9 @@ func Resolve(code Code) Definition {
 	case CodeInternalError:
 		return Definition{code, http.StatusInternalServerError, "an internal error occurred"}
 	default:
+		if def, ok := resolveIdentityError(code); ok {
+			return def
+		}
 		if def, ok := resolvePipelineError(code); ok {
 			return def
 		}
@@ -107,7 +110,7 @@ func Resolve(code Code) Definition {
 }
 
 // ListCodes returns a fresh ordered slice of the pinned baseline V1 codes.
-// Additive extension codes are listed by PipelineErrorCodes and PublicationErrorCodes.
+// Additive extension codes are listed by PipelineErrorCodes, PublicationErrorCodes and IdentityErrorCodes.
 func ListCodes() []Code {
 	return []Code{
 		CodeInvalidRequest, CodeInvalidStatusTransition, CodeUnauthenticated,

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/userinfo"
 )
 
 // UserInfo is the strict, bounded projection of the identity provider's
@@ -60,31 +62,8 @@ func NewHTTPUserInfoClient(endpoint string, timeout time.Duration) *HTTPUserInfo
 // required attributes. Every upstream failure collapses to a static sentinel so
 // no provider body, header or token can reach the caller or a log.
 func (c *HTTPUserInfoClient) Fetch(ctx context.Context, accessToken string) (UserInfo, error) {
-	reqCtx, cancel := context.WithTimeout(ctx, c.timeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, c.endpoint, nil)
+	body, err := userinfo.Read(ctx, c.endpoint, accessToken, c.timeout, c.client)
 	if err != nil {
-		return UserInfo{}, ErrUserInfoUnavailable
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return UserInfo{}, ErrUserInfoUnavailable
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return UserInfo{}, ErrUserInfoUnavailable
-	}
-
-	body, err := io.ReadAll(io.LimitReader(resp.Body, MaxUserInfoBytes+1))
-	if err != nil {
-		return UserInfo{}, ErrUserInfoUnavailable
-	}
-	if len(body) > MaxUserInfoBytes {
 		return UserInfo{}, ErrUserInfoUnavailable
 	}
 	return parseUserInfo(body)

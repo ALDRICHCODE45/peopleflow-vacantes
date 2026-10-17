@@ -11,6 +11,7 @@ import (
 	applicationshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http"
 	candidateshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
+	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	industrieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/industries/infrastructure/http"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/health"
@@ -24,6 +25,8 @@ import (
 // handlers, health ports); no globals, no init().
 type routerDeps struct {
 	requireAuth        func(http.Handler) http.Handler
+	requireCandidate   func(http.Handler) http.Handler
+	identityHandler    *identityhttp.CandidateIdentityHandler
 	requireRecruiter   func(http.Handler) http.Handler
 	requireOwner       func(http.Handler) http.Handler
 	companyHandler     *companieshttp.CompanyHandler
@@ -60,6 +63,10 @@ type routerDeps struct {
 // newRouter builds the chi router: middleware, health, all feature registrations
 // (exact multiset pinned by TestRouteTopology_ExactRegistrations).
 func newRouter(d routerDeps) chi.Router {
+	// A missing composition dependency fails closed, never grants candidate access.
+	if d.requireCandidate == nil {
+		d.requireCandidate = identityhttp.RequireCandidateRole(nil)
+	}
 	r := chi.NewRouter()
 	// Task 6.3 production wiring (design §8.3): RequestID runs FIRST (the
 	// completion record's request_id is read from the request context, never
@@ -94,23 +101,34 @@ func newRouter(d routerDeps) chi.Router {
 	r.With(d.requireAuth, d.requireRecruiter).Post("/jobs", jobHandlers.CreateJob)
 	r.With(d.requireAuth, d.requireRecruiter).Delete("/jobs/{id}", jobHandlers.SoftDeleteJob)
 
-	// Applications — candidate apply (RequireAuth ONLY) + recruiter pipeline
-	// (requireAuth + requireRecruiter); ROOT router so /jobs mount never serves them.
-	applicationHandlers := d.applicationHandler.ApplicationHandlers()
-	r.With(d.requireAuth).Post("/jobs/{jobId}/applications", applicationHandlers.ApplyToJob)
-	r.With(d.requireAuth, d.requireRecruiter).Route("/jobs/{jobId}/applications", func(r chi.Router) {
-		r.Get("/", applicationHandlers.ListJobApplications)
-		r.Get("/{id}", applicationHandlers.GetApplication)
-		r.Patch("/{id}/transition", applicationHandlers.TransitionApplication)
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth)
+		r.Get("/v2/me", d.identityHandler.Me)
+		r.Post("/v2/me/candidate-account", d.identityHandler.CreateCandidateAccount)
 	})
 
-	// /me/* authenticated slice: RequireAuth rejects invalid tokens pre-handler.
+	// Applications — candidate apply (RequireAuth + live candidate) + recruiter pipeline
+	// (requireAuth + requireRecruiter); ROOT router so /jobs mount never serves them.
+	applicationHandlers := d.applicationHandler.ApplicationHandlers()
+	// One mount with per-method gates: a recruiter-gated mount at this same
+	// path would also intercept the candidate POST before its own middleware.
+	r.Route("/jobs/{jobId}/applications", func(r chi.Router) {
+		r.With(identityhttp.NoStore, d.requireAuth, d.requireCandidate).Post("/", applicationHandlers.ApplyToJob)
+		r.With(d.requireAuth, d.requireRecruiter).Get("/", applicationHandlers.ListJobApplications)
+		r.With(d.requireAuth, d.requireRecruiter).Get("/{id}", applicationHandlers.GetApplication)
+		r.With(d.requireAuth, d.requireRecruiter).Patch("/{id}/transition", applicationHandlers.TransitionApplication)
+	})
+
+	// Candidate self-service: NoStore wraps even authentication failures.
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireCandidate)
+		r.Mount("/me/profile", d.candidateHandler.Routes())
+		r.Get("/me/applications", applicationHandlers.ListMyApplications)
+	})
+
+	// Company /me routes retain their existing authorization and status codes.
 	r.Route("/me", func(r chi.Router) {
 		r.Use(d.requireAuth)
-		r.Mount("/profile", d.candidateHandler.Routes())
-		// The candidate's own applications; identity resolves candidate_id
-		// from the JWT sub (no IDOR).
-		r.Get("/applications", applicationHandlers.ListMyApplications)
 
 		// Membership gates: GET /company UNGATED by role (spec "non-member gets 404");
 		// reads need recruiter; mutations owner. requireOwner reuses companyRepo as the

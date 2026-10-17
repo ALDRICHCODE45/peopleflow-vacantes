@@ -16,6 +16,7 @@ func TestTask63A1g_CompositionDirectLiteralKeys(t *testing.T) {
 			t.Fatalf("parse %s: %v", compositionFile, err)
 		}
 		seeded := false
+		var want string
 		ast.Inspect(file, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
 			if !ok || !isPkgSelector(call.Fun, "slog", "Error") || len(call.Args) < 2 {
@@ -23,6 +24,8 @@ func TestTask63A1g_CompositionDirectLiteralKeys(t *testing.T) {
 			}
 			if key, ok := call.Args[1].(*ast.BasicLit); ok && key.Value == `"code_class"` {
 				key.Value = `"token"`
+				pos := fset.Position(key.Pos())
+				want = fmt.Sprintf("%s:%d:%d: T63-A1G forbidden direct slog key %q", pos.Filename, pos.Line, pos.Column, "token")
 				seeded = true
 			}
 			return true
@@ -31,7 +34,6 @@ func TestTask63A1g_CompositionDirectLiteralKeys(t *testing.T) {
 			t.Fatal("expected to seed the terminal slog.Error key")
 		}
 		got := t63A1gForbiddenDirectLiteralKeys(fset, file)
-		want := `main.go:47:31: T63-A1G forbidden direct slog key "token"`
 		if len(got) != 1 || got[0] != want {
 			t.Fatalf("findings = %q, want [%q]", got, want)
 		}

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	applicationsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/usecases"
@@ -24,9 +25,11 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
+	identityusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/userinfo"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publicjobs"
 	jobsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
@@ -69,6 +72,11 @@ func run() error {
 	}
 	slog.Info("identity verifier ready")
 
+	identityConfig, err := runtimeconfig.LoadIdentityConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+
 	// Root context cancelled on SIGINT/SIGTERM. This is the graceful shutdown trigger.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -108,6 +116,11 @@ func run() error {
 	// the applications wiring block); the applications wiring block
 	// below now references the hoisted variable.
 	auditRepo := auditpostgres.NewAuditEventRepository()
+	var identityProvider identityusecases.UserInfoProvider
+	if identityConfig.UserInfoEndpoint != "" {
+		identityProvider = userinfo.NewClient(identityConfig.UserInfoEndpoint, 5*time.Second)
+	}
+	identityHandler := identityhttp.NewCandidateIdentityHandler(identityusecases.NewCandidateIdentity(identitypostgres.NewCandidateAccountStore(pool, auditRepo), identityProvider))
 
 	// Feature wiring: companies (adapter -> use case -> handler).
 	// The bootstrap repository opens the transaction that creates a company
@@ -206,6 +219,7 @@ func run() error {
 	// instance is consumed at both `RequireCompanyRole` call sites
 	// (`requireRecruiter` + `requireOwner`).
 	requireAuth := identityhttp.RequireAuth(verifier)
+	requireCandidate := identityhttp.RequireCandidateRole(identityUserRepo)
 	requireRecruiter := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, companyRepo, valueobjects.RecruiterRole)
 	requireOwner := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, companyRepo, valueobjects.OwnerRole)
 
@@ -233,6 +247,7 @@ func run() error {
 	// WS6B-1b-b: router.go owns the chi router; the composition root passes it.
 	r := newRouter(routerDeps{
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
+		requireCandidate: requireCandidate, identityHandler: identityHandler,
 		companyHandler: companyHandler, memberHandler: memberHandler,
 		candidateHandler: candidateHandler, jobHandler: jobHandler, applicationHandler: applicationHandler,
 		draftHandler: draftHandler, draftV2Handler: draftV2Handler, draftListHandler: draftListHandler,
