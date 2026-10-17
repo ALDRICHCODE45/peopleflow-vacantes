@@ -20,7 +20,7 @@ it("keeps metadata, one header and one live workspace inside the existing shell"
   expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
   expect(document.querySelectorAll("[data-pf-applications-workspace]")).toHaveLength(1);
   expect(await screen.findByRole("link", { name: "Backend Go" })).toHaveAttribute("href", `/vacantes/${id}`);
-  expect(screen.getByText("Postulación enviada")).toBeVisible();
+  expect(screen.getByText("Enviada")).toBeVisible();
   const nav = document.querySelector("[data-slot='sidebar-content']")!;
   expect(Array.from(nav.querySelectorAll("a[data-active]")).map(link => link.textContent)).toEqual(["Postulaciones"]);
 });

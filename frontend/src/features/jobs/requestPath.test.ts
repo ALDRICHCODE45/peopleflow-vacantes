@@ -25,6 +25,7 @@ describe("single application-facing request path", () => {
       "app/(auth)/empresa/bootstrap-local/bootstrap-local-panel.tsx",
       "features/candidate-cvs/file-client.ts",
       "features/candidate-cvs/upload.ts",
+      "features/pipeline-movement/file-client.ts",
       "lib/api/requestJson.ts",
     ]);
   });
@@ -46,6 +47,13 @@ describe("single application-facing request path", () => {
     expect(upload).toContain('fetch("/api/candidate/cvs"');
     expect(upload).not.toMatch(/https?:\/\/|lib\/auth|authorization|cookie:/);
     const adapter = source(join(SRC, "features/candidate-cvs/file-client.ts"));
+    expect(adapter).toContain('import "server-only"');
+    expect(adapter).toContain('redirect: "error"');
+    expect(adapter).toContain('cache: "no-store"');
+  });
+
+  it("keeps the recruiter participation CV adapter server-only with the same fetch guards", () => {
+    const adapter = source(join(SRC, "features/pipeline-movement/file-client.ts"));
     expect(adapter).toContain('import "server-only"');
     expect(adapter).toContain('redirect: "error"');
     expect(adapter).toContain('cache: "no-store"');
@@ -73,6 +81,7 @@ describe("single application-facing request path", () => {
       "features/jobs/drafts/pipeline/publication-client.ts",
       "features/jobs/drafts/pipeline/substates-client.ts",
       "features/jobs/drafts/requesters/client.ts",
+      "features/pipeline-movement/client.ts",
       "lib/auth/backend-check.ts",
     ]);
     // The transport module is imported only by guarded API functions and the guarded façade.
@@ -99,12 +108,13 @@ describe("single application-facing request path", () => {
       "features/jobs/drafts/pipeline/publication-client.ts",
       "features/jobs/drafts/pipeline/substates-client.ts",
       "features/jobs/drafts/requesters/client.ts",
+      "features/pipeline-movement/client.ts",
       "lib/api/server.ts",
       "lib/auth/backend-check.ts",
     ]);
   });
 
-  it("allows only identity handlers and the candidate file upload/download boundary, not client stores", () => {
+  it("allows only identity handlers and the candidate/recruiter CV file boundaries, not client stores", () => {
     const handlers = files.filter((file) => file.endsWith("route.ts"));
     expect(handlers.map(rel).sort()).toEqual([
       "app/api/auth/[...nextauth]/route.ts",
@@ -115,6 +125,7 @@ describe("single application-facing request path", () => {
       "app/api/auth/local-bootstrap/stage/route.ts",
       "app/api/candidate/cvs/[id]/file/route.ts",
       "app/api/candidate/cvs/route.ts",
+      "app/api/company/vacancies/[vacancyId]/participations/[participationId]/cv/route.ts",
     ]);
     for (const handler of handlers) {
       expect(source(handler)).not.toMatch(/lib\/api\/(?:server|requestJson)/);
