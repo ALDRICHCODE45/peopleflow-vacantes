@@ -323,6 +323,29 @@ corepack pnpm dev
     de la vacante desde el editor y enviá. **Esperado:** «Las preguntas cambiaron. Revisa
     tus respuestas.» con el formulario recargado.
 
+### Corte 4: mover candidatos (rama `feat/pipeline-movement-ui`, backend `feat/pipeline-movement`, migración 00023)
+
+45. **Tablero real.** Con la vacante publicada y la postulación del paso 42, entrá como
+    empresa a `/empresa/vacantes/{id}/pipeline`. **Esperado:** las columnas configuradas
+    con sus conteos, la tarjeta del candidato en la primera columna, «Descartados» solo de
+    lectura y «X de Y plazas cubiertas» (o «X plazas cubiertas» si no definiste plazas).
+46. **Mover.** Abrí el menú «Mover a…» de la tarjeta: solo aparece la columna siguiente.
+    Movela y después arrastrala con la manija (mouse y teclado: espacio, flechas, espacio).
+    **Esperado:** no se puede soltar en una columna que salta etapas; «Candidato movido»
+    y conteos actualizados. Hacia atrás se puede ir a cualquier columna anterior.
+47. **Placement.** Llevá al candidato hasta Placement: la cobertura sube. Movelo hacia
+    atrás. **Esperado:** diálogo «Salir de …» que explica que reduce las plazas cubiertas;
+    cancelar no mueve nada; confirmar lo mueve y la cobertura baja.
+48. **Conflicto (opcional).** Con el tablero abierto en dos pestañas, mové al candidato en
+    una y después en la otra. **Esperado:** «Otro usuario movió a este candidato.
+    Actualizamos el tablero.» y el tablero recargado, sin repetir el movimiento.
+49. **Ficha y candidato.** Tocá la tarjeta. **Esperado:** ficha con la fecha de
+    postulación, las respuestas de filtro, el historial (postulación y cada movimiento,
+    con quién y cuándo) y el CV que se descarga. En `…/configuracion/columnas` solo se
+    puede renombrar, con el aviso de que la vacante ya tiene candidatos. Como candidato,
+    `/candidato/postulaciones` muestra «En proceso» («Enviada» mientras esté en la
+    primera columna).
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:
