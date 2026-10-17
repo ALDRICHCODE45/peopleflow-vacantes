@@ -33,6 +33,23 @@ type AuditEvent struct {
 	Metadata   []byte             `json:"metadata"`
 }
 
+type CandidateCvLibrary struct {
+	ID          uuid.UUID          `json:"id"`
+	CandidateID uuid.UUID          `json:"candidate_id"`
+	VersionID   uuid.UUID          `json:"version_id"`
+	Name        string             `json:"name"`
+	RemovedAt   pgtype.Timestamptz `json:"removed_at"`
+}
+
+type CandidateCvVersion struct {
+	ID          uuid.UUID          `json:"id"`
+	CandidateID uuid.UUID          `json:"candidate_id"`
+	StorageKey  string             `json:"storage_key"`
+	Size        int64              `json:"size"`
+	ContentType string             `json:"content_type"`
+	UploadedAt  pgtype.Timestamptz `json:"uploaded_at"`
+}
+
 type CandidateLanguage struct {
 	UserID   uuid.UUID `json:"user_id"`
 	Language string    `json:"language"`
@@ -187,6 +204,35 @@ type JobDraftSubstateCatalog struct {
 	DraftID uuid.UUID `json:"draft_id"`
 	Version int64     `json:"version"`
 	Catalog []byte    `json:"catalog"`
+}
+
+type ParticipationIdempotency struct {
+	CandidateID          uuid.UUID `json:"candidate_id"`
+	ProcessID            uuid.UUID `json:"process_id"`
+	IdemKey              uuid.UUID `json:"idem_key"`
+	Fingerprint          []byte    `json:"fingerprint"`
+	FingerprintAlgorithm string    `json:"fingerprint_algorithm"`
+	ResponseBody         []byte    `json:"response_body"`
+}
+
+type ParticipationStageHistory struct {
+	ID              uuid.UUID          `json:"id"`
+	ParticipationID uuid.UUID          `json:"participation_id"`
+	StageID         uuid.UUID          `json:"stage_id"`
+	ActorID         uuid.UUID          `json:"actor_id"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type ProcessParticipation struct {
+	ID                uuid.UUID          `json:"id"`
+	ProcessID         uuid.UUID          `json:"process_id"`
+	CandidateID       uuid.UUID          `json:"candidate_id"`
+	StageID           uuid.UUID          `json:"stage_id"`
+	CvVersionID       uuid.UUID          `json:"cv_version_id"`
+	QuestionsSnapshot []byte             `json:"questions_snapshot"`
+	AnswersSnapshot   []byte             `json:"answers_snapshot"`
+	Source            string             `json:"source"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 }
 
 type User struct {

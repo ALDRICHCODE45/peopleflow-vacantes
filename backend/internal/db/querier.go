@@ -163,6 +163,7 @@ type Querier interface {
 	// pgx.ErrNoRows when the user has no membership, which the service maps to
 	// ErrNotAMember.
 	GetMembershipByUserID(ctx context.Context, userID uuid.UUID) (CompanyMember, error)
+	GetPublishedScreeningSource(ctx context.Context, id uuid.UUID) ([]byte, error)
 	GetUserByCognitoSub(ctx context.Context, cognitoSub string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	// Append-only INSERT (the audit_events slice has NO read / update / delete
