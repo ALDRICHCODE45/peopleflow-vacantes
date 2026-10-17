@@ -1153,8 +1153,8 @@ fulfillment from history (delivery cut), configuration impact preview (cut 7).
 
 ## 13. Cut 5 — discard with a reason and recovery (proposal)
 
-Status: **proposal under frontend review.** Product answers in §13.5. Branch
-`feat/pipeline-discard`, stacked on `feat/pipeline-movement`.
+Status: **cut-5 contract agreed** with the frontend agent (msg a47610b6; clarifications in
+§13.6). Product answers in §13.5. Branch `feat/pipeline-discard`, stacked on `feat/pipeline-movement`.
 
 Rules: PIPE-12 (a discard records a reason distinguishing a recruiter decision from a
 candidate withdrawal; an extra comment is optional), PIPE-13 (recovery requires
@@ -1259,3 +1259,29 @@ re-entry confirmation); `/candidato/postulaciones` shows «Finalizada» and the 
 - **S4 (user):** after recovery the candidate message disappears from the candidate's view;
   internal history keeps it.
 - No notification is sent to the candidate in this cut.
+
+### 13.6 Contract clarifications (agreed, frontend msg a47610b6)
+
+1. **Text rules** for `comment` and `candidate_message`: lengths are Unicode code points
+   after trimming leading/trailing Unicode `White_Space`; the interior is kept as sent;
+   control characters other than newline and tab are rejected; an empty value after trim
+   is `400 validation_error` (clients omit empty optional fields). Plain text only.
+2. **History items are a discriminated union** with exact keys:
+   - `intake` and `move`: unchanged from cut 4 (no new keys);
+   - `discard`: `kind, from_stage_id` (previous stage), `to_stage_id` (exit id),
+     `hire` (false), `departure`, `reason {group, code}`, `comment` (string or null),
+     `candidate_message` (string or null), `actor, at`;
+   - `recovery`: `kind, from_stage_id` (exit id), `to_stage_id` (previous stage), `hire`,
+     `departure` (false), `actor, at`.
+3. **Participation detail:** `discard`, `comment` and `candidate_message` are always present;
+   all `null` unless the participation is currently discarded.
+4. **Discarded board items:** `stage_id` is the exit id, they count in `exit.count`,
+   `moved_at` equals `discarded_at`, and `discard.previous_stage_id` is always a current
+   progression stage (cut-4 structure lock).
+5. `409 already_discarded` / `not_discarded` are "changed elsewhere": reload once, never retry
+   (like `412`/`404`).
+6. `400 validation_error` carries no details; the client validates with the same rules.
+7. Candidate list: `message` always present, `null` unless `closed`; shown as plain text with
+   «Enviada» / «En proceso» / «Finalizada».
+8. Group titles in the UI: «Decisión de la empresa» (`recruiter`) and «Decisión del
+   candidato» (`candidate`), labels as in §13.1.
