@@ -794,3 +794,24 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
 - Si coinciden escrituras independientes y el resumen global no tiene versión propia
   (por ejemplo cobertura), hacer una sola lectura al terminar todas: las respuestas
   pueden llegar fuera de orden. No convertir esa lectura en un reintento de escritura.
+- Las operaciones de ciclo de vida (descartar/recuperar) comparten el bloqueo por
+  tarjeta, los resultados y la reconciliación de los movimientos, pero no sus destinos
+  de arrastre. Una columna sin movimientos directos puede conservar detalle y acciones
+  propias habilitados: no llamarla «Solo lectura» si permite recuperar candidatos.
+- La confirmación puede contener datos capturados. Un rechazo de validación sin detalles
+  deja el diálogo abierto y conserva esos datos; un `409` que exige confirmar una
+  consecuencia agrega la explicación y espera **otro clic explícito**, sin reenviar solo.
+
+### 13.11 Texto plano con límites Unicode
+
+- Si el contrato cuenta puntos de código, el contador, la validación y el cuerpo usan
+  una misma función pura: recortar únicamente `Unicode White_Space` en los extremos,
+  contar con `Array.from`, conservar el interior y rechazar controles salvo `\n` y `\t`
+  cuando el contrato los permita. No usar `maxLength` de HTML: cuenta unidades UTF-16 y
+  corta antes de tiempo los caracteres suplementarios.
+- Los campos opcionales vacíos después de ese recorte se **omiten** del cuerpo; nunca
+  se envía `""`. Una opción «Otro» puede volver obligatorio el comentario: esa condición
+  depende del catálogo seleccionado, no de un campo separado duplicado.
+- Motivo interno, comentario interno y mensaje público son datos distintos. El diálogo
+  explica quién verá cada uno; el historial conserva sus etiquetas. Los mensajes se
+  renderizan como texto de React con `whitespace-pre-wrap` y `break-words`, nunca HTML.

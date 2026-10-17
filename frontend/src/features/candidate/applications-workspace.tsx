@@ -69,10 +69,10 @@ export function ApplicationsWorkspace() {
                   <p className="flex items-center gap-1.5 text-sm text-muted-foreground"><Building2 aria-hidden="true" className="size-3.5 shrink-0" /><span className="min-w-0 break-words">{item.company.name}</span></p>
                 </div>
               </div>
-              <Badge variant={item.status === "submitted" ? "info" : "review"} dot>{item.status === "submitted" ? "Enviada" : "En proceso"}</Badge>
+              <Badge variant={item.status === "submitted" ? "info" : item.status === "closed" ? "neutral" : "review"} dot>{item.status === "submitted" ? "Enviada" : item.status === "closed" ? "Finalizada" : "En proceso"}</Badge>
             </div>
           </CardHeader>
-          <CardContent><p className="flex flex-wrap items-center gap-1.5 text-sm"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><span className="text-muted-foreground">Postulada</span><time dateTime={item.applied_at}>{date.format(new Date(item.applied_at))}</time></p></CardContent>
+          <CardContent className="flex flex-col gap-3">{item.status === "closed" && item.message !== null && <p className="whitespace-pre-wrap break-words text-sm">{item.message}</p>}<p className="flex flex-wrap items-center gap-1.5 text-sm"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><span className="text-muted-foreground">Postulada</span><time dateTime={item.applied_at}>{date.format(new Date(item.applied_at))}</time></p></CardContent>
         </Card>
       </li>)}</ul>}
       {(failure || loaded || data?.next_cursor) && <ActionBar status={failure ? <ActionStatus id="applications-status" tone="error" text="No pudimos cargar las postulaciones" action={failure.reason === "unauthenticated" ? <Link href="/candidato/ingresar" className="inline-flex min-h-10 items-center underline">Ingresar como candidato</Link> : undefined} /> : loaded ? <ActionStatus id="applications-status" tone="success" text="Postulaciones cargadas" /> : null}>

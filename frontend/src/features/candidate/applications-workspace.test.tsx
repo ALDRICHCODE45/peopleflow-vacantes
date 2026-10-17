@@ -36,6 +36,14 @@ it("shows En proceso for moved applications without revealing their internal sta
   expect(screen.queryByText("Enviada")).not.toBeInTheDocument();
   expect(screen.queryByText("Postulación enviada")).not.toBeInTheDocument();
 });
+it("shows Finalizada and the candidate message as plain text, not internal reasons", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { ...page, items: [{ ...page.items[0], status: "closed", message: "<b>Gracias</b>\nSigue buscando" }] } });
+  const { container } = render(<ApplicationsWorkspace />);
+  expect(await screen.findByText("Finalizada")).toBeVisible();
+  expect(screen.getByText(/<b>Gracias<\/b>/)).toBeVisible();
+  expect(container.querySelector("b")).toBeNull();
+  expect(container).not.toHaveTextContent("Perfil no adecuado");
+});
 it("preserves loaded rows and the same cursor when loading more fails", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValueOnce({ ok: true, data: { ...page, next_cursor: "opaque" } }).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: {} }).mockResolvedValueOnce({ ok: true, data: { items: [], next_cursor: null } });
   render(<ApplicationsWorkspace />); await userEvent.setup().click(await screen.findByRole("button", { name: "Cargar más" })); expect(await screen.findByRole("button", { name: "Reintentar" })).toBeVisible(); expect(screen.getByRole("link", { name: "Backend Go" })).toBeVisible(); await userEvent.setup().click(screen.getByRole("button", { name: "Reintentar" })); expect(loadApplicationsAction).toHaveBeenLastCalledWith({ cursor: "opaque" });

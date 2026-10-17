@@ -8,7 +8,7 @@ vi.mock("@/features/candidate-applications/actions", () => ({ loadApplicationsAc
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
 const item = (id: string, title: string, company: string) => ({
   id, vacancy: { id: `0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d${id}`, title }, company: { id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7dff", name: company },
-  applied_at: "2026-10-16T18:00:00.000000Z", status: "submitted" as const,
+  applied_at: "2026-10-16T18:00:00.000000Z", status: "submitted" as const, message: null,
 });
 beforeEach(() => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [item("01", "Diseñadora UX", "Acme"), item("02", "Backend Go", "Ñandú Labs")], next_cursor: null } });
