@@ -176,10 +176,11 @@ describe("company dashboard sidebar identity", () => {
     expect(rows.length).toBeGreaterThan(0);
 
     for (const row of rows) {
-      // The shared primitive owns the 40px expanded row and the 40px collapsed
-      // icon rail, so neither the candidate nor the employer shell drifts.
+      // Shared 40px targets fit inside the rail with equal horizontal insets.
       expect(row.className).toContain("h-10");
       expect(row.className).toContain("group-data-[collapsible=icon]:size-10!");
+      expect(row.className).toContain("group-data-[collapsible=icon]:mx-auto");
+      expect(row.className).toContain("group-data-[collapsible=icon]:justify-center");
       expect(row.className).not.toContain("h-8");
       expect(row.className).not.toContain("group-data-[collapsible=icon]:size-8!");
     }

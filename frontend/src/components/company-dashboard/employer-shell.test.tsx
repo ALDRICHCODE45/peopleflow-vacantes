@@ -50,16 +50,25 @@ describe("EmployerShell shared employer frame", () => {
     expect(document.querySelector("[data-slot='sidebar-inset']")).not.toBeNull();
     expect(screen.getByText("contenido de la ruta")).toBeInTheDocument();
     expect(sidebar()).toHaveAttribute("data-state", "expanded");
+    const brand = screen.getByRole("link", { name: "PeopleFlow" });
+    const wordmark = brand.querySelector("[data-brand='wordmark']");
+    const mark = brand.querySelector("[data-brand='mark']");
+    expect(wordmark).toHaveAttribute("aria-hidden", "false");
+    expect(mark).toHaveAttribute("aria-hidden", "true");
 
     await user.click(screen.getByRole("button", { name: /toggle sidebar/i }));
     expect(sidebar()).toHaveAttribute("data-state", "collapsed");
     // The desktop rail collapses to icons instead of sliding off canvas.
     expect(sidebar()).toHaveAttribute("data-collapsible", "icon");
+    expect(wordmark).toHaveAttribute("aria-hidden", "true");
+    expect(mark).toHaveAttribute("aria-hidden", "false");
     expect(cookie("sidebar_state")).toBe("false");
 
     await user.click(screen.getByRole("button", { name: /toggle sidebar/i }));
     expect(sidebar()).toHaveAttribute("data-state", "expanded");
     expect(cookie("sidebar_state")).toBe("true");
+    expect(wordmark).toHaveAttribute("aria-hidden", "false");
+    expect(mark).toHaveAttribute("aria-hidden", "true");
   });
 
   it("honors the server-derived collapsed preference without touching the cookie", () => {

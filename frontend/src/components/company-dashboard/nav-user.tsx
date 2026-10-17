@@ -109,7 +109,7 @@ export function NavUser({
                 {initials}
               </AvatarFallback>
             </Avatar>
-            <div className="grid flex-1 text-left text-sm leading-tight">
+            <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:sr-only">
               <span className="truncate font-medium">{user.name}</span>
               {/* The account summary carries the agreed role and employer as
                   real text, so the role is part of the trigger's accessible
@@ -118,7 +118,7 @@ export function NavUser({
                 {secondaryText ?? `${user.role} · ${user.company}`}
               </span>
             </div>
-            <IconDotsVertical className="ml-auto size-4" />
+            <IconDotsVertical aria-hidden="true" className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             className="min-w-56"

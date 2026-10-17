@@ -87,10 +87,14 @@ describe("candidate shell frame", () => {
       expect(target).toHaveAttribute("data-size", "default");
       expect(target.className).toContain("h-10");
       expect(target.className).toContain("group-data-[collapsible=icon]:size-10!");
+      expect(target.className).toContain("group-data-[collapsible=icon]:mx-auto");
+      expect(target.className).toContain("group-data-[collapsible=icon]:justify-center");
       expect(target.className).not.toContain("group-data-[collapsible=icon]:size-8!");
       expect(target.className).not.toContain("h-12");
     }
     expect(brand.className).toContain("data-[slot=sidebar-menu-button]:p-1.5!");
+    expect(brand.querySelector("[data-brand='wordmark']")).toHaveAttribute("aria-hidden", "true");
+    expect(within(brand).getByRole("img", { name: "PeopleFlow" })).toHaveTextContent("P");
     for (const [label] of NAV) expect(screen.getByRole("link", { name: label })).toHaveAccessibleName(label);
     for (const target of destinations) {
       expect(target).toHaveAttribute("data-base-ui-tooltip-trigger");

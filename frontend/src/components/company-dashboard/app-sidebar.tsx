@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
-import { PeopleFlowLogo } from "@/components/brand/logo"
+import { PeopleFlowSidebarLogo } from "@/components/brand/logo"
 import { NavUser } from "./nav-user"
 import {
   Sidebar,
@@ -16,6 +16,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "./ui/sidebar"
 import {
   IconBriefcase,
@@ -104,7 +105,7 @@ function NavLink({
         render={<Link href={item.url} />}
       >
         {item.icon}
-        <span>{item.title}</span>
+        <span className="group-data-[collapsible=icon]:sr-only">{item.title}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   )
@@ -141,6 +142,7 @@ const ACCOUNT_MENU = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const { state, isMobile } = useSidebar()
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -151,9 +153,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:p-1.5!"
               render={<Link href="/empresa/dashboard" aria-label="PeopleFlow" />}
             >
-              {/* The wordmark replaces the stock company glyph inside the same
-                  20px box, one mark per color scheme via the brand classes. */}
-              <PeopleFlowLogo className="h-5 w-auto" />
+              <PeopleFlowSidebarLogo collapsed={state === "collapsed" && !isMobile && props.collapsible === "icon"} />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -180,7 +180,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
                   >
                     <IconCirclePlusFilled />
-                    <span>Nueva vacante</span>
+                    <span className="group-data-[collapsible=icon]:sr-only">Nueva vacante</span>
                   </SidebarMenuButton>
                 </form>
               </SidebarMenuItem>

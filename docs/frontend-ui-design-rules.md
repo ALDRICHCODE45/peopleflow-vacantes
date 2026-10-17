@@ -906,3 +906,19 @@ Referencia: `docs/design/v0/reference-lqiGtbQJqJc/` y capturas de L5 en
 - Bajo `md`, la página mantiene su scroll natural y el tablero tiene altura acotada con
   scroll interno. Si falta altura en escritorio, el mínimo se resuelve dentro del tablero,
   no ampliando la página.
+
+### 14.5 Sidebar colapsado y marca de la app
+
+- El sidebar colapsado nunca reduce ni deforma el wordmark: muestra una marca compacta
+  centrada. El wordmark queda para el estado expandido y el drawer móvil.
+- La marca compacta es un único componente reemplazable (`PeopleFlowMark`) con el nombre
+  accesible «PeopleFlow». Mientras no exista un isotipo aprobado, usa «P» en Inter 600,
+  `rounded-lg` y tokens `primary`.
+- Todos los botones del riel (navegación, acción primaria y cuenta) comparten un cuadrado
+  de 40px centrado, con el ícono o el avatar centrado; hover, selección y foco usan esa
+  misma geometría.
+- El ancho del riel contempla el tamaño del botón y sus márgenes simétricos; las
+  desalineaciones no se corrigen con desplazamientos por ítem. Las etiquetas conservan su
+  nombre accesible y los tooltips siguen disponibles.
+- La transición dura 200ms con `ease-linear`, respeta movimiento reducido y no altera la
+  presentación expandida.

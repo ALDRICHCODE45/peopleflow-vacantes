@@ -3,11 +3,11 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
-import { PeopleFlowLogo } from "@/components/brand/logo"
+import { PeopleFlowSidebarLogo } from "@/components/brand/logo"
 import { CandidateNavUser } from "./candidate-nav-user"
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent,
-  SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
+  SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar,
 } from "@/components/company-dashboard/ui/sidebar"
 import { IconBookmark, IconBriefcase, IconFileCv, IconLayoutDashboard, IconSearch, IconSettings, IconUserCircle } from "@tabler/icons-react"
 
@@ -35,6 +35,7 @@ export function isActiveCandidateDestination(url: string, pathname: string | nul
 
 export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const { state, isMobile } = useSidebar()
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -44,8 +45,7 @@ export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sideb
             {/* Native default geometry: the brand keeps the shared button's
                 collapse behavior, its PeopleFlow link and its brand padding. */}
             <SidebarMenuButton className="data-[slot=sidebar-menu-button]:p-1.5!" render={<Link href="/candidato/dashboard" aria-label="PeopleFlow" />}>
-              {/* The wordmark brands the header; candidate identity belongs to the account row. */}
-              <PeopleFlowLogo className="h-5 w-auto" />
+              <PeopleFlowSidebarLogo collapsed={state === "collapsed" && !isMobile && props.collapsible === "icon"} />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -67,7 +67,7 @@ export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sideb
                         className="min-w-8 bg-primary text-primary-foreground duration-200 ease-linear hover:bg-primary/90 hover:text-primary-foreground active:bg-primary/90 active:text-primary-foreground"
                       >
                         <IconSearch />
-                        <span>Explorar vacantes</span>
+                        <span className="group-data-[collapsible=icon]:sr-only">Explorar vacantes</span>
                       </SidebarMenuButton>
                     </form>
                   </SidebarMenuItem>
@@ -80,7 +80,7 @@ export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sideb
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton tooltip={item.title} isActive={isActiveCandidateDestination(item.url, pathname)} render={<Link href={item.url} />}>
                       {item.icon}
-                      <span>{item.title}</span>
+                      <span className="group-data-[collapsible=icon]:sr-only">{item.title}</span>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
                 ))}
