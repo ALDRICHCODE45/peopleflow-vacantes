@@ -27,3 +27,8 @@ Open decisions awaiting the user:
 - Reversal of a mistaken candidate onboarding (support/admin tool or none) — design §11.3.
 - AWS console checks for candidate sign-up — design §11.4 (self sign-up with email
   verification, sign-out URL `http://localhost:3000/candidato/login`).
+- Follow-up tests suggested by the cut-5 verification (L56, not blocking): 00024 migration
+  fixture with existing hire/departure history rows; discard/move/recover race on a
+  participation in Placement. Known flaky test (pre-existing, unrelated):
+  `TestMigration00014UpCreatesDraftListIndexUsedByTheListOrder` under the loaded `-race`
+  integration suite (L52).
