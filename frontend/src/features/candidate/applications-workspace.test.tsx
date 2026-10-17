@@ -25,9 +25,16 @@ it("retains an error and retries only explicitly", async () => {
 it("shows only contract facts and status, then appends the next page", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValueOnce({ ok: true, data: { ...page, next_cursor: "opaque" } }).mockResolvedValueOnce({ ok: true, data: { items: [{ ...page.items[0], id, vacancy: { id, title: "Frontend" } }], next_cursor: null } });
   const { container } = render(<ApplicationsWorkspace />); expect(await screen.findByText("Acme")).toBeVisible(); expect(screen.getByText("16 de octubre de 2026")).toBeVisible();
-  const badge = screen.getByText("Postulación enviada"); expect(badge).toHaveAttribute("data-variant", "info"); expect(badge).toHaveAttribute("data-dot");
+  const badge = screen.getByText("Enviada"); expect(badge).toHaveAttribute("data-variant", "info"); expect(badge).toHaveAttribute("data-dot");
   await userEvent.setup().click(screen.getByRole("button", { name: "Cargar más" })); expect(loadApplicationsAction).toHaveBeenLastCalledWith({ cursor: "opaque" }); expect(await screen.findByRole("link", { name: "Frontend" })).toBeVisible(); expect(screen.getByRole("link", { name: "Backend Go" })).toBeVisible();
   expect(container).not.toHaveTextContent(/En revisión|Contratada|Rechazada|Carta de presentación|Fuente/); expect(screen.queryByRole("button", { name: "Cargar más" })).toBeNull();
+});
+it("shows En proceso for moved applications without revealing their internal stage", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { ...page, items: [{ ...page.items[0], status: "in_process" }] } });
+  render(<ApplicationsWorkspace />);
+  expect(await screen.findByText("En proceso")).toHaveAttribute("data-variant", "review");
+  expect(screen.queryByText("Enviada")).not.toBeInTheDocument();
+  expect(screen.queryByText("Postulación enviada")).not.toBeInTheDocument();
 });
 it("preserves loaded rows and the same cursor when loading more fails", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValueOnce({ ok: true, data: { ...page, next_cursor: "opaque" } }).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: {} }).mockResolvedValueOnce({ ok: true, data: { items: [], next_cursor: null } });

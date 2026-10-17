@@ -69,7 +69,7 @@ export function ApplicationsWorkspace() {
                   <p className="flex items-center gap-1.5 text-sm text-muted-foreground"><Building2 aria-hidden="true" className="size-3.5 shrink-0" /><span className="min-w-0 break-words">{item.company.name}</span></p>
                 </div>
               </div>
-              <Badge variant="info" dot>Postulación enviada</Badge>
+              <Badge variant={item.status === "submitted" ? "info" : "review"} dot>{item.status === "submitted" ? "Enviada" : "En proceso"}</Badge>
             </div>
           </CardHeader>
           <CardContent><p className="flex flex-wrap items-center gap-1.5 text-sm"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><span className="text-muted-foreground">Postulada</span><time dateTime={item.applied_at}>{date.format(new Date(item.applied_at))}</time></p></CardContent>

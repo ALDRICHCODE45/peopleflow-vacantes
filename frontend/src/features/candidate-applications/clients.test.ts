@@ -55,6 +55,11 @@ describe("candidate application contracts", () => {
     expect(await loadApplications({ token: "private-token", query: { limit: 0 } })).toMatchObject({ ok: false });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+  it.each(["submitted", "in_process"])("accepts only the candidate-visible status %s", async status => {
+    const data = { ...page, items: [{ ...page.items[0], status }] };
+    fetchMock.mockResolvedValue(Response.json(data));
+    expect(await loadApplications({ token: "private-token" })).toEqual({ ok: true, data });
+  });
   it("pages the candidate list with encoded opaque cursor", async () => {
     fetchMock.mockResolvedValue(Response.json(page));
     expect(await loadApplications({ token: "private-token", query: { cursor: "a+/=", limit: 10 } })).toEqual({ ok: true, data: page });

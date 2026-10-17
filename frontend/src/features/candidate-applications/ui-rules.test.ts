@@ -12,6 +12,8 @@ it.each(sources)("keeps %s on installed primitives and semantic tokens (§9 sour
 });
 it("keeps semantic lifecycle badges and no local status palette", () => {
   const source = readFileSync(join(process.cwd(), "src/features/candidate/applications-workspace.tsx"), "utf8");
-  expect(source).toContain('<Badge variant="info" dot>Postulación enviada</Badge>');
+  // Labels and both status variants are asserted through the rendered workspace tests.
+  expect(source).toContain('from "@/components/ui/badge"');
+  expect(source).not.toMatch(/<Badge[^>]*className=/);
   expect(source).not.toMatch(/prototype-|in_review|hired|rejected|coverLetter/);
 });
