@@ -997,3 +997,124 @@ the recruiter's.
 - **S2 (user):** explicit onboarding step in our API (no Lambda, no AWS deployment).
 - **S3 (user):** existing candidate routes are restricted to candidates in this cut.
 - **S20 (user):** one account, one role; email and password sign-up.
+
+## 12. Cut 4 — moving candidates between stages (proposal)
+
+Status: **proposal under frontend review.** Product answers in §12.6. Branch
+`feat/pipeline-movement`, stacked on `feat/candidate-applications`. Participations exist
+since P2b (`process_participations` with `stage_id`, `participation_stage_history`).
+
+Rules: PIPE-11 (no skipping required stages), PIPE-14 (backward moves keep history; leaving
+`Placement` has DEL-5 consequences), DEL-3/DEL-4/DEL-5 (one person once; entering
+`Placement` confirms a hire and covers a position; leaving needs explicit confirmation and
+reduces coverage without erasing history), DEL-9 (full-coverage milestone kept), AUD-*.
+Out of scope: `Descartados`, reasons and recovery (cut 5), substates per candidate (cut 6),
+delivery fulfillment and KPIs (delivery cut), configuration impact rules (cut 7),
+collaborators, bulk moves (§12.6 S4).
+
+### 12.1 Model
+
+- **One move = one participation from its current stage to a target progression stage.**
+  Forward: only to the next stage in the vacancy's current order. Backward: to any earlier
+  stage (§12.6 S1). The target must differ from the current stage; `Descartados` is not a
+  target in this cut.
+- **Placement:** entering it records a hire; leaving it (backward) requires the request to
+  carry `confirm_placement_exit: true` and records a departure. Covered positions = live
+  participations currently in `Placement` (one per person per process, DEL-3). When a hire
+  makes covered ≥ hiring headcount, a full-coverage milestone with its timestamp is stored;
+  later departures never delete it (DEL-9). Coverage is shown as covered / headcount
+  (§12.6 S2).
+- **History:** every move appends a history entry (from, to, actor, time, and hire /
+  departure when applicable) and an audit event, in the same transaction. Intake entries
+  from P2b stay the first entry.
+- **Concurrency:** each participation has a version; a move requires `If-Match` with the
+  participation's ETag and locks the participation and its process. No automatic retry; the
+  client reconciles with `GET`.
+- **Configuration while candidates exist** (§12.6 S5): when a vacancy has at least one
+  participation, a pipeline `PUT` may only rename stages; reordering, adding or removing a
+  stage → `409 stage_change_requires_empty_pipeline`, nothing written. Substates and
+  delivery stay editable as today.
+- **Authorization:** owner or principal recruiter, like every vacancy configuration route
+  (`404` otherwise). Only published vacancies have a board; a draft → `409
+  vacancy_not_published`.
+
+### 12.2 Contract
+
+Base `/v2/me/company/job-drafts/{vacancyId}`. `RequireAuth` + recruiter company gates,
+`Cache-Control: no-store`, envelope `{error, code}`.
+
+`GET …/board` → `200`:
+
+```json
+{
+  "stages": [ { "id": "…", "kind": "new", "name": "Nuevos", "count": 3 } ],
+  "exit": { "id": "…", "kind": "discarded", "name": "Descartados", "count": 0 },
+  "coverage": { "covered": 1, "required": 2, "full_coverage_reached_at": null },
+  "participations": [
+    { "id": "…", "stage_id": "…", "version": "4",
+      "candidate": { "id": "…", "full_name": "Ana Pérez" },
+      "applied_at": "…", "source": "organic", "cv": { "id": "…", "name": "CV" },
+      "moved_at": "…" }
+  ]
+}
+```
+
+- `stages` in pipeline order with current names; `required` is the hiring headcount or
+  `null` if unset; `full_coverage_reached_at` is the first milestone (RFC 3339) or `null`.
+- `participations` ordered by stage order, then `moved_at` descending, then id; at most
+  1,000 (more → `422 board_too_large`; paging arrives when needed).
+
+`POST …/participations/{participationId}/moves`, `If-Match` required, body exactly
+`{ "to_stage_id": "…", "confirm_placement_exit": false }` (the flag is optional, default
+false) → `200` with the moved participation (board item shape) plus `coverage`, and the new
+`ETag`.
+
+| Status | Code | Case |
+| --- | --- | --- |
+| `409` | `stage_skip_not_allowed` | Forward move beyond the next stage (PIPE-11) |
+| `409` | `placement_exit_confirmation_required` | Leaving `Placement` without the flag (DEL-5) |
+| `400` | `validation_error` | Unknown stage, `Descartados`, or same stage |
+| `400` | `invalid_request` | Malformed body, unknown/duplicate keys |
+| `412` | `version_conflict` | Stale participation ETag |
+| `428` | `precondition_required` | Missing `If-Match` |
+| `404` | `not_found` | Unknown or foreign vacancy/participation |
+| `409` | `vacancy_not_published` | Vacancy is a draft |
+
+`GET …/participations/{participationId}/history` → `200` `{ "items": [ { "kind":
+"intake" | "move", "from_stage_id": null | "…", "to_stage_id": "…", "hire": bool,
+"departure": bool, "actor": {id, full_name}, "at": "…" } ] }`, oldest first. Stage names
+come from the board (current names).
+
+Pipeline `PUT` (cut 1 route) gains `409 stage_change_requires_empty_pipeline`.
+
+Candidate list (`GET /v2/me/applications`, P2b): `status` becomes `submitted | in_process`
+— `submitted` while the participation is in the `new` stage, `in_process` in any other
+stage (§12.6 S3). This widens a P2b enum (contract change agreed here).
+
+### 12.3 Storage (backend)
+
+Additive migration `00023`: participation `version`, history columns for from-stage, hire
+and departure flags, and a coverage milestone table (process, reached at, covered,
+required). No existing rows rewritten (existing participations start at version 1; intake
+history rows keep `from` null).
+
+### 12.4 Frontend placement (frontend owns this)
+
+The existing board (`pipeline-board.tsx`, drag and drop and move menu) on
+`/empresa/vacantes/{id}/pipeline` connects to `GET …/board`; a move to a non-adjacent
+forward column is disabled in the UI and the server stays the authority; leaving Placement
+opens a confirmation dialog; coverage «X de Y plazas cubiertas»; a candidate sheet shows
+the history.
+
+### 12.5 Open for later cuts
+
+Discard and recovery (cut 5), substate per candidate and filters (cut 6), delivery
+fulfillment from history (delivery cut), configuration impact preview (cut 7).
+
+### 12.6 Decisions recorded for cut 4
+
+- **S1 (user):** forward one stage at a time; backward to any earlier stage.
+- **S2 (user):** coverage counting (covered of headcount) is in this cut.
+- **S3 (user):** candidates see «Enviada» in `Nuevos` and «En proceso» elsewhere.
+- **S4 (user):** one candidate per move; no bulk moves.
+- **S5 (user):** while a vacancy has candidates, columns can only be renamed until cut 7.
