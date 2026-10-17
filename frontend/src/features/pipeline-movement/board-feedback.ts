@@ -20,7 +20,7 @@ export function moveErrorCopy(reason: FailureReason) {
   }
 }
 export function needsReconciliation(failure: Failure): boolean {
-  return ["uncertain", "no_response", "unrecognized_response", "version_conflict", "not_found", "server_error"].includes(failure.reason);
+  return ["uncertain", "no_response", "unrecognized_response", "version_conflict", "not_found", "server_error", "already_discarded", "not_discarded"].includes(failure.reason);
 }
 export function reconciliationCopy(reason: FailureReason, refreshed: boolean): string {
   if (!refreshed) return "No pudimos actualizar el tablero. No repetimos el movimiento; vuelve a cargar antes de mover candidatos.";

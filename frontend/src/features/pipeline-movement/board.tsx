@@ -8,6 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { BoardColumns } from "./board-columns";
 import { BoardCoverage, BoardError, BoardSkeleton } from "./board-states";
 import { CandidateSheet } from "./candidate-sheet";
+import { DispositionDialog } from "./disposition-dialog";
 import { useMovementBoard } from "./use-movement-board";
 
 /** A keyed session prevents reads/writes from a previous vacancy reaching this one. */
@@ -36,6 +37,7 @@ function BoardSession({ vacancyId }: { vacancyId: string }) {
   const from = board?.stages.find(stage => stage.id === confirmation?.item.stage_id)?.name ?? "Placement";
   const to = board?.stages.find(stage => stage.id === confirmation?.target)?.name ?? "la etapa seleccionada";
   const confirming = !!confirmation && state.pending.has(confirmation.item.id);
+  const dispositionDialog = board && state.disposition && <DispositionDialog key={`${state.disposition.kind}-${state.disposition.item.id}`} disposition={state.disposition} board={board} pending={pending.has(state.disposition.item.id)} stale={stale} reading={state.reading} notice={state.notices[state.disposition.item.id]} onClose={state.closeDisposition} onConfirm={state.confirmDisposition} finalFocus={() => document.getElementById(`${selectedItem ? "candidate-disposition" : "candidate-move"}-${state.disposition!.item.id}`)} />;
   if (!board && state.reading && !state.failure) return <BoardSkeleton />;
   return <section aria-label="Tablero de candidatos" className="flex min-w-0 flex-col gap-4" aria-busy={state.reading}>
     {board && <BoardCoverage coverage={board.coverage} />}
@@ -44,9 +46,10 @@ function BoardSession({ vacancyId }: { vacancyId: string }) {
     {state.stale && state.reading && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner aria-hidden="true" />Comprobando el estado del tablero…</p>}
     {board && <>
       {!board.participations.length && <p className="text-sm text-muted-foreground">Los candidatos aparecerán aquí cuando la vacante reciba postulaciones.</p>}
-      <BoardColumns board={board} pending={state.pending} locked={state.stale || !!confirmation} notices={state.notices} onMove={requestMove} onDetail={setSelected} />
+      <BoardColumns board={board} pending={state.pending} locked={state.stale || !!confirmation || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
       {Object.entries(state.notices).filter(([id]) => !board.participations.some(item => item.id === id)).map(([id, notice]) => <ActionStatusSlot key={id}><ActionStatus id={`move-status-${id}`} tone={notice.tone} text={notice.text} /></ActionStatusSlot>)}
-      {selectedItem && <CandidateSheet vacancyId={vacancyId} item={selectedItem} board={board} onClose={() => setSelected(null)} />}
+      {selectedItem && <CandidateSheet vacancyId={vacancyId} item={selectedItem} board={board} onClose={() => setSelected(null)} onDisposition={state.requestDisposition} locked={stale || pending.has(selectedItem.id) || !!confirmation || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}</CandidateSheet>}
+      {!selectedItem && dispositionDialog}
     </>}
     <Dialog open={!!confirmation} onOpenChange={open => { if (!open) state.closeConfirmation(); }}>
       {confirmation && <DialogContent showCloseButton={!confirming} finalFocus={() => document.getElementById(`candidate-move-${confirmation.item.id}`)}>

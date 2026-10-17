@@ -3,12 +3,12 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { MovementBoard } from "./board";
-import { loadBoardAction, loadHistoryAction, loadParticipationAction, moveParticipationAction } from "./actions";
+import { loadBoardAction, loadHistoryAction, loadParticipationAction, moveParticipationAction, discardParticipationAction, recoverParticipationAction } from "./actions";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { boardFixture, detailFixture, historyFixture, vacancyId } from "./board-fixture";
 import type { Board, FailureReason, Move, Result } from "./model";
 
-vi.mock("./actions", () => ({ loadBoardAction: vi.fn(), loadHistoryAction: vi.fn(), loadParticipationAction: vi.fn(), moveParticipationAction: vi.fn() }));
+vi.mock("./actions", () => ({ loadBoardAction: vi.fn(), loadHistoryAction: vi.fn(), loadParticipationAction: vi.fn(), moveParticipationAction: vi.fn(), discardParticipationAction: vi.fn(), recoverParticipationAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
 // Only the portal boundary is replaced: test product menu composition and actions,
 // not Base UI positioning (the real menu/keyboard boundary needs browser review).
@@ -22,6 +22,22 @@ vi.mock("@/components/ui/dropdown-menu", async () => {
     DropdownMenuGroup: ({ children }: { children: ReactNode }) => <div role="group">{children}</div>,
     DropdownMenuLabel: ({ children }: { children: ReactNode }) => <span>{children}</span>,
     DropdownMenuItem: ({ children, onClick, disabled }: ComponentProps<"button">) => <button role="menuitem" disabled={disabled} onClick={onClick}>{children}</button>,
+  };
+});
+// Installed Select portal focus restoration loops in jsdom (same boundary as
+// delivery-config). Preserve the product's groups, labels and controlled values.
+vi.mock("@/components/ui/select", async () => {
+  const React = await import("react");
+  type Value = { value: string | null; items: { value: string; label: string }[]; change: (value: string) => void };
+  const Context = React.createContext<Value>({ value: null, items: [], change: () => {} });
+  return {
+    Select: ({ value, items, onValueChange, children }: Value & { onValueChange: Value["change"]; children: ReactNode }) => <Context.Provider value={{ value, items, change: onValueChange }}>{children}</Context.Provider>,
+    SelectTrigger: ({ children, ...props }: ComponentProps<"button">) => <button role="combobox" aria-expanded="true" aria-controls="discard-options" {...props}>{children}</button>,
+    SelectValue: () => { const context = React.useContext(Context); return context.items.find(item => item.value === context.value)?.label; },
+    SelectContent: ({ children }: { children: ReactNode }) => <div role="listbox" id="discard-options">{children}</div>,
+    SelectGroup: ({ children }: { children: ReactNode }) => <div role="group">{children}</div>,
+    SelectLabel: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+    SelectItem: ({ value, children }: { value: string; children: ReactNode }) => { const context = React.useContext(Context); return <button role="option" aria-selected={context.value === value} onClick={() => context.change(value)}>{children}</button>; },
   };
 });
 const drag = vi.hoisted(() => ({ props: {} as Record<string, (event: unknown) => void>, drops: new Map<string, boolean>() }));
@@ -49,10 +65,10 @@ async function mount(board?: Board) {
 function menu() { fireEvent.click(screen.getByRole("button", { name: "Mover a… Ana Pérez" })); return screen.getByRole("menu"); }
 function move(label = "Revisión") { fireEvent.click(within(menu()).getByRole("menuitem", { name: label })); }
 
-it("menu lists exactly next forward and any earlier target, never current, skipped or exit", async () => {
+it("menu lists next forward and earlier targets plus discard, never current, skipped or exit as a move", async () => {
   const board = boardFixture(); board.participations[0].stage_id = "interview";
   await mount(board);
-  expect(within(menu()).getAllByRole("menuitem").map(item => item.textContent)).toEqual(["Entrada", "Revisión", "Contratación"]);
+  expect(within(menu()).getAllByRole("menuitem").map(item => item.textContent)).toEqual(["Entrada", "Revisión", "Contratación", "Descartar"]);
 });
 it("disables non-adjacent forward columns and the exit as drop targets", async () => {
   await mount();
@@ -136,7 +152,7 @@ it("loads a skeleton then keeps friendly empty columns and read-only exit", asyn
   await act(async () => resolve({ ok: true, data: board }));
   expect(screen.getAllByText("Sin candidatos todavía")).toHaveLength(5);
   expect(screen.getByText("Los candidatos aparecerán aquí cuando la vacante reciba postulaciones.")).toBeVisible();
-  expect(screen.getByText("Solo lectura")).toBeVisible(); expect(notifyActionResult).not.toHaveBeenCalled();
+  expect(screen.getByText("Sin movimientos directos")).toBeVisible(); expect(notifyActionResult).not.toHaveBeenCalled();
 });
 it("200 applies new stage, counts, etag and server coverage; double submission is locked", async () => {
   let resolve!: (value: Result<Move>) => void;
@@ -228,4 +244,173 @@ it("sheet has independent loading/error/retry without reloading board or moving"
   expect(await within(sheet).findByText("Entrevista → Contratación")).toBeVisible();
   expect(loadBoardAction).toHaveBeenCalledTimes(1); expect(loadHistoryAction).toHaveBeenCalledTimes(2);
   expect(moveParticipationAction).not.toHaveBeenCalled();
+});
+
+async function openDiscard(board?: Board) {
+  await mount(board); fireEvent.click(within(menu()).getByRole("menuitem", { name: "Descartar" }));
+  return screen.findByRole("dialog", { name: "Descartar candidato" });
+}
+function discardedBoard(previous = "new"): Board {
+  const board = boardFixture();
+  board.participations[0] = { ...board.participations[0], stage_id: "exit", discard: { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: previous, discarded_at: "2026-10-18T12:00:00Z" } };
+  board.stages[0].count = 0; board.exit.count = 1; return board;
+}
+it("discard form requires a grouped reason and explanation for other, with code-point counters", async () => {
+  const dialog = await openDiscard();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
+  expect(await within(dialog).findByText("Elige un motivo.")).toBeVisible();
+  fireEvent.click(within(dialog).getByRole("combobox", { name: "Motivo" }));
+  expect(await screen.findByText("Decisión de la empresa")).toBeVisible();
+  expect(screen.getByText("Decisión del candidato")).toBeVisible();
+  fireEvent.click(screen.getAllByRole("option", { name: "Otro" })[0]);
+  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
+  expect(await within(dialog).findByText("Explica el motivo en el comentario.")).toBeVisible();
+  expect(discardParticipationAction).not.toHaveBeenCalled();
+  fireEvent.change(within(dialog).getByRole("textbox", { name: /Comentario interno/ }), { target: { value: "😀" } });
+  expect(within(dialog).getByText("1 / 1000")).toBeVisible();
+  expect(dialog).toHaveTextContent("Finalizada"); expect(dialog).toHaveTextContent("nunca el motivo");
+});
+it("discard from Placement explicitly confirms departure and reduces coverage without erasing history", async () => {
+  const board = boardFixture(); board.participations[0].stage_id = "hire";
+  vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: { ...discardedBoard("hire").participations[0], coverage: board.coverage } });
+  const dialog = await openDiscard(board);
+  expect(dialog).toHaveTextContent("reduce las plazas cubiertas");
+  fireEvent.click(within(dialog).getByRole("combobox", { name: "Motivo" }));
+  fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
+  expect(await screen.findByText("Candidato descartado")).toBeVisible();
+  expect(discardParticipationAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, participationId: "person", etag: '"opaque-item-tag"', body: { reason: { group: "recruiter", key: "requirements_not_met" }, confirm_placement_exit: true } });
+});
+it.each(["new", "hire"])("discarded column shows reason and recover confirms the current name of %s", async previous => {
+  const board = discardedBoard(previous);
+  vi.mocked(recoverParticipationAction).mockResolvedValue({ ok: true, data: { ...boardFixture().participations[0], stage_id: previous, coverage: board.coverage } });
+  await mount(board);
+  expect(screen.getByRole("region", { name: "Descartados: 1 candidatos" })).toHaveTextContent("Perfil no adecuado");
+  fireEvent.click(within(menu()).getByRole("menuitem", { name: "Recuperar" }));
+  const dialog = await screen.findByRole("dialog", { name: "Recuperar candidato" });
+  expect(dialog).toHaveTextContent(previous === "hire" ? "Contratación" : "Entrada");
+  if (previous === "hire") expect(dialog).toHaveTextContent("ocupar una plaza");
+  expect(recoverParticipationAction).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar recuperación" }));
+  await screen.findByText("Candidato recuperado");
+  expect(recoverParticipationAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, participationId: "person", etag: '"opaque-item-tag"', body: previous === "hire" ? { confirm_placement_reentry: true } : {} });
+  expect(moveParticipationAction).not.toHaveBeenCalled();
+});
+it.each(["already_discarded", "not_discarded", "version_conflict", "not_found", "uncertain", "unrecognized_response"] as const)("discard %s reloads once and never retries", async reason => {
+  vi.mocked(discardParticipationAction).mockResolvedValue({ ok: false, reason, reference: {} });
+  const dialog = await openDiscard();
+  fireEvent.click(within(dialog).getByRole("combobox", { name: "Motivo" }));
+  fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
+  await screen.findByText(/Actualizamos el tablero|Otro usuario/);
+  expect(loadBoardAction).toHaveBeenCalledTimes(2); expect(discardParticipationAction).toHaveBeenCalledTimes(1);
+});
+it("validation_error keeps the dialog and user input, without a reload", async () => {
+  vi.mocked(discardParticipationAction).mockResolvedValue({ ok: false, reason: "validation_error", reference: { status: 400 } });
+  const dialog = await openDiscard();
+  fireEvent.click(within(dialog).getByRole("combobox", { name: "Motivo" }));
+  fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
+  fireEvent.change(within(dialog).getByRole("textbox", { name: /Comentario interno/ }), { target: { value: "Mi comentario" } });
+  fireEvent.change(within(dialog).getByRole("textbox", { name: /Mensaje para el candidato/ }), { target: { value: "Gracias" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
+  expect(await within(dialog).findByText("No se guardó. Revisa los datos e intenta de nuevo.")).toBeVisible();
+  expect(within(dialog).getByRole("textbox", { name: /Comentario interno/ })).toHaveValue("Mi comentario");
+  expect(within(dialog).getByRole("textbox", { name: /Mensaje para el candidato/ })).toHaveValue("Gracias");
+  expect(loadBoardAction).toHaveBeenCalledTimes(1);
+});
+it.each(["discard", "recover"] as const)("server 409 %s confirmation requires a fresh explicit confirmation", async operation => {
+  if (operation === "discard") {
+    vi.mocked(discardParticipationAction).mockResolvedValue({ ok: false, reason: "placement_exit_confirmation_required", reference: { status: 409 } });
+    const dialog = await openDiscard();
+    fireEvent.click(within(dialog).getByRole("combobox", { name: "Motivo" }));
+    fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
+    expect(await within(dialog).findByText(/reduce las plazas cubiertas/)).toBeVisible();
+    expect(discardParticipationAction).toHaveBeenCalledTimes(1);
+    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" })));
+    expect(discardParticipationAction).toHaveBeenLastCalledWith(expect.objectContaining({ body: expect.objectContaining({ confirm_placement_exit: true }) }));
+  } else {
+    vi.mocked(recoverParticipationAction).mockResolvedValue({ ok: false, reason: "placement_reentry_confirmation_required", reference: { status: 409 } });
+    await mount(discardedBoard()); fireEvent.click(within(menu()).getByRole("menuitem", { name: "Recuperar" }));
+    const dialog = await screen.findByRole("dialog", { name: "Recuperar candidato" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar recuperación" }));
+    expect(await within(dialog).findByText(/ocupar una plaza/)).toBeVisible();
+    expect(recoverParticipationAction).toHaveBeenCalledTimes(1);
+    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar recuperación" })));
+    expect(recoverParticipationAction).toHaveBeenLastCalledWith(expect.objectContaining({ body: { confirm_placement_reentry: true } }));
+  }
+});
+it("sheet offers discard, shows current discard details and renders discard/recovery history", async () => {
+  const board = discardedBoard(); const base = { ...historyFixture().items[1], from_stage_id: "hire" };
+  vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: { ...detailFixture(), ...board.participations[0], comment: "Solo interno", candidate_message: "Gracias por participar" } });
+  vi.mocked(loadHistoryAction).mockResolvedValue({ ok: true, data: { items: [
+    { ...base, kind: "discard", hire: false, departure: true, reason: { group: "candidate", key: "other" }, comment: "Cambió de planes", candidate_message: "Mensaje histórico" },
+    { ...base, kind: "recovery", hire: true, departure: false },
+  ] } });
+  await mount(board); fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Ana Pérez" }));
+  const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
+  expect(await within(sheet).findByText("Solo interno")).toBeVisible();
+  for (const text of ["Gracias por participar", "Cambió de planes", "Mensaje histórico", "Recuperación", "Contratación registrada", "Salida registrada"]) expect(within(sheet).getByText(text)).toBeVisible();
+  fireEvent.click(within(sheet).getByRole("button", { name: "Recuperar" }));
+  expect(await screen.findByRole("dialog", { name: "Recuperar candidato" })).toBeVisible();
+});
+it.each(["not_discarded", "version_conflict", "not_found", "uncertain", "unrecognized_response"] as const)("recovery %s reloads once, never replaying", async reason => {
+  vi.mocked(recoverParticipationAction).mockResolvedValue({ ok: false, reason, reference: {} });
+  await mount(discardedBoard()); fireEvent.click(within(menu()).getByRole("menuitem", { name: "Recuperar" }));
+  const dialog = await screen.findByRole("dialog", { name: "Recuperar candidato" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar recuperación" }));
+  await screen.findByText(/Actualizamos el tablero|Otro usuario/);
+  expect(loadBoardAction).toHaveBeenCalledTimes(2); expect(recoverParticipationAction).toHaveBeenCalledTimes(1);
+});
+it.each(["discard", "recover"] as const)("%s shares the per-card mutex and cannot be double-submitted or cancelled while pending", async operation => {
+  let resolve!: (value: Result<Move>) => void;
+  const action = operation === "discard" ? discardParticipationAction : recoverParticipationAction;
+  vi.mocked(action).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
+  let dialog;
+  if (operation === "discard") {
+    dialog = await openDiscard();
+    fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
+  } else {
+    await mount(discardedBoard()); fireEvent.click(within(menu()).getByRole("menuitem", { name: "Recuperar" }));
+    dialog = await screen.findByRole("dialog", { name: "Recuperar candidato" });
+  }
+  const confirm = within(dialog).getByRole("button", { name: operation === "discard" ? "Confirmar descarte" : "Confirmar recuperación" });
+  fireEvent.click(confirm); fireEvent.click(confirm);
+  expect(confirm).toBeDisabled(); expect(within(dialog).getByRole("button", { name: "Cancelar" })).toBeDisabled();
+  expect(action).toHaveBeenCalledTimes(1);
+  await act(async () => resolve({ ok: true, data: { ...(operation === "discard" ? discardedBoard().participations[0] : boardFixture().participations[0]), coverage: boardFixture().coverage } }));
+  expect(screen.queryByRole("dialog")).toBeNull(); expect(loadBoardAction).toHaveBeenCalledTimes(1);
+});
+it("validates controls and both code-point limits in the form, then sends trimmed text without blank optional fields", async () => {
+  vi.mocked(discardParticipationAction).mockResolvedValue({ ok: false, reason: "validation_error", reference: {} });
+  const dialog = await openDiscard();
+  fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
+  const comment = within(dialog).getByRole("textbox", { name: /Comentario interno/ });
+  const message = within(dialog).getByRole("textbox", { name: /Mensaje para el candidato/ });
+  const confirm = within(dialog).getByRole("button", { name: "Confirmar descarte" });
+  fireEvent.change(comment, { target: { value: "😀".repeat(1001) } });
+  fireEvent.click(confirm); expect(within(dialog).getByText("Usa como máximo 1000 caracteres.")).toBeVisible(); expect(comment).toHaveFocus();
+  fireEvent.change(comment, { target: { value: "\u0085\t" } });
+  fireEvent.change(message, { target: { value: "😀".repeat(501) } });
+  fireEvent.click(confirm); expect(within(dialog).getByText("Usa como máximo 500 caracteres.")).toBeVisible(); expect(message).toHaveFocus();
+  fireEvent.change(message, { target: { value: "Hola\u0000" } });
+  fireEvent.click(confirm); expect(within(dialog).getByText(/Quita los caracteres de control/)).toBeVisible();
+  expect(discardParticipationAction).not.toHaveBeenCalled();
+  fireEvent.change(message, { target: { value: "\u0085 😀\nTexto \u2003" } });
+  fireEvent.click(confirm); await within(dialog).findByText("No se guardó. Revisa los datos e intenta de nuevo.");
+  expect(discardParticipationAction).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ body: { reason: { group: "recruiter", key: "requirements_not_met" }, candidate_message: "😀\nTexto" } }));
+});
+it("sheet starts discard and refreshes current detail/history after successful disposition", async () => {
+  await mount(); fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Ana Pérez" }));
+  const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
+  fireEvent.click(await within(sheet).findByRole("button", { name: "Descartar" }));
+  const dialog = await screen.findByRole("dialog", { name: "Descartar candidato" });
+  fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
+  const discarded = { ...discardedBoard().participations[0], etag: '"discarded"', version: "5" };
+  vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: { ...detailFixture(), ...discarded, comment: "Nuevo descarte" } });
+  vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: { ...discarded, coverage: boardFixture().coverage } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
+  expect(await screen.findByText("Nuevo descarte")).toBeVisible();
+  expect(loadParticipationAction).toHaveBeenCalledTimes(2); expect(loadHistoryAction).toHaveBeenCalledTimes(2);
+  expect(within(screen.getByRole("dialog", { name: "Ana Pérez" })).getByRole("button", { name: "Recuperar" })).toBeEnabled();
 });
