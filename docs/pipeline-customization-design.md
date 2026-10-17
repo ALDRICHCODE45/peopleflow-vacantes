@@ -631,8 +631,8 @@ the editor — frontend decides.
 
 ## 10. Publication P2 — public vacancies and applications (proposal)
 
-Status: **P2a contract agreed** with the frontend agent (msg 53e0858c); **P2b proposal**
-(§10.5) under frontend review.
+Status: **P2a contract agreed** (msg 53e0858c); **P2b contract agreed** (§10.5, msg
+a82eaafb).
 Product answers in §10.6.
 P2 is split (§10.6 S1): **P2a** makes published vacancies publicly visible next to
 legacy catalog jobs; **P2b** adds the candidate CV library and applying with CV and
@@ -770,7 +770,9 @@ typed filter columns, JSONB for rich description / benefits / compensation, gene
 
 ### 10.5 P2b contract — CV library and applying (proposal)
 
-Status: **proposal under frontend review.** All routes require a signed-in **candidate**
+Status: **P2b contract agreed** with the frontend agent (msg a82eaafb). Since P2b0 (§11),
+"signed-in candidate" means a live `candidate` user (`403 account_required` / `403
+wrong_role` otherwise). All routes require a signed-in **candidate**
 (Bearer of a `candidate` user; a recruiter or owner token → `403 forbidden`; no session →
 `401`). Error envelope `{error, code}` unless stated; private responses carry
 `Cache-Control: no-store`.
@@ -845,9 +847,11 @@ decides what candidates see (§10.6 S10); internal stages are never exposed.
 participations (unique per process and candidate) with stage history, and their
 idempotency records. Existing data untouched.
 
-**Frontend note:** the upload crosses a Next Server Action or route handler; any body
-limit there must allow at least 5 MB plus multipart overhead (frontend configuration,
-queued for user review).
+**Frontend notes (msg a82eaafb):** upload and download go through a Next Route Handler
+that forwards the request with the server-side Bearer (no global Server Action body
+limit change); `422 invalid_answers` details are decoded strictly as
+`[{question_id, reason}]`, an unknown `question_id` is shown as a general error and the
+form reloads.
 
 ### 10.6 Decisions recorded for P2
 
