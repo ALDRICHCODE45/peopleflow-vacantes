@@ -9,7 +9,9 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	applicationshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http"
+	applicationsv2http "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/v2"
 	candidateshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http"
+	cvshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http/cvs"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	industrieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/industries/infrastructure/http"
@@ -24,29 +26,31 @@ import (
 // routerDeps = the composition root's explicit dependencies (gates built in main.go,
 // handlers, health ports); no globals, no init().
 type routerDeps struct {
-	requireAuth        func(http.Handler) http.Handler
-	requireCandidate   func(http.Handler) http.Handler
-	identityHandler    *identityhttp.CandidateIdentityHandler
-	requireRecruiter   func(http.Handler) http.Handler
-	requireOwner       func(http.Handler) http.Handler
-	companyHandler     *companieshttp.CompanyHandler
-	memberHandler      *companieshttp.MemberHandler
-	candidateHandler   *candidateshttp.CandidateHandler
-	publicJobsHandler  *jobshttp.PublicJobsHandler
-	jobHandler         *jobshttp.JobHandler
-	draftHandler       *jobshttp.DraftHandler
-	draftV2Handler     *jobshttp.DraftV2Handler
-	draftListHandler   *jobshttp.DraftListHandler
-	pipelineHandler    *jobshttp.PipelineHandler
-	substatesHandler   *jobshttp.SubstatesHandler
-	deliveryHandler    *jobshttp.DeliveryHandler
-	managementHandler  *jobshttp.ManagementHandler
-	publicationHandler *jobshttp.PublicationHandler
-	requesterHandler   *jobshttp.RequesterHandler
-	applicationHandler *applicationshttp.ApplicationHandler
-	queries            *db.Queries
-	pool               health.Pinger
-	readinessTimeout   time.Duration
+	requireAuth          func(http.Handler) http.Handler
+	requireCandidate     func(http.Handler) http.Handler
+	identityHandler      *identityhttp.CandidateIdentityHandler
+	requireRecruiter     func(http.Handler) http.Handler
+	requireOwner         func(http.Handler) http.Handler
+	companyHandler       *companieshttp.CompanyHandler
+	memberHandler        *companieshttp.MemberHandler
+	candidateHandler     *candidateshttp.CandidateHandler
+	publicJobsHandler    *jobshttp.PublicJobsHandler
+	jobHandler           *jobshttp.JobHandler
+	draftHandler         *jobshttp.DraftHandler
+	draftV2Handler       *jobshttp.DraftV2Handler
+	draftListHandler     *jobshttp.DraftListHandler
+	pipelineHandler      *jobshttp.PipelineHandler
+	substatesHandler     *jobshttp.SubstatesHandler
+	deliveryHandler      *jobshttp.DeliveryHandler
+	managementHandler    *jobshttp.ManagementHandler
+	publicationHandler   *jobshttp.PublicationHandler
+	requesterHandler     *jobshttp.RequesterHandler
+	applicationHandler   *applicationshttp.ApplicationHandler
+	cvHandler            *cvshttp.Handler
+	participationHandler *applicationsv2http.Handler
+	queries              *db.Queries
+	pool                 health.Pinger
+	readinessTimeout     time.Duration
 	// httpMetrics = the no-op HTTP metrics default composed by the
 	// composition root (main.go); RequestObservability also defaults the
 	// completion logger to slog.Default() when nil. No exporter/endpoint.
@@ -93,6 +97,17 @@ func newRouter(d routerDeps) chi.Router {
 	// Additive anonymous catalog. Deliberately outside private NoStore/auth groups.
 	r.Get("/v2/jobs", d.publicJobsHandler.List)
 	r.Get("/v2/jobs/{id}", d.publicJobsHandler.Get)
+	r.Get("/v2/jobs/{id}/screening", d.publicJobsHandler.Screening)
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireCandidate)
+		r.Get("/v2/me/cvs", d.cvHandler.List)
+		r.Post("/v2/me/cvs", d.cvHandler.Upload)
+		r.Patch("/v2/me/cvs/{id}", d.cvHandler.Rename)
+		r.Delete("/v2/me/cvs/{id}", d.cvHandler.Remove)
+		r.Get("/v2/me/cvs/{id}/file", d.cvHandler.File)
+		r.Post("/v2/jobs/{id}/applications", d.participationHandler.Apply)
+		r.Get("/v2/me/applications", d.participationHandler.List)
+	})
 
 	// Gated writes on the ROOT router (outside the public mount), each with
 	// requireAuth + requireRecruiter (routing-split defense).

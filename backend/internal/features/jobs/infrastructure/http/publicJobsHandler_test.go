@@ -15,6 +15,7 @@ import (
 )
 
 type publicReaderStub struct {
+	form  *publicjobs.Screening
 	rows  []publicjobs.Row
 	err   error
 	calls int
@@ -33,6 +34,47 @@ func (s *publicReaderStub) Get(_ context.Context, id uuid.UUID) (publicjobs.Deta
 		return publicjobs.Detail{}, publicjobs.ErrNotFound
 	}
 	return s.rows[0].Detail, nil
+}
+
+func (s *publicReaderStub) Screening(context.Context, uuid.UUID) (publicjobs.Screening, error) {
+	s.calls++
+	if s.err != nil {
+		return publicjobs.Screening{}, s.err
+	}
+	if s.form == nil {
+		return publicjobs.Screening{}, publicjobs.ErrNotFound
+	}
+	return *s.form, nil
+}
+func TestPublicScreeningHTTPExactShape(t *testing.T) {
+	form := publicjobs.Screening{Revision: "opaque", Questions: []publicjobs.ScreeningQuestion{{ID: uuid.NewString(), Prompt: "Why?", Type: "open", Options: nil}}, Limits: publicjobs.ScreeningLimits{OpenAnswerMaxLength: 2000}}
+	stub := &publicReaderStub{form: &form}
+	h := NewPublicJobsHandler(publicjobs.NewCatalog(stub))
+	r := chi.NewRouter()
+	r.Get("/v2/jobs/{id}/screening", h.Screening)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/v2/jobs/"+uuid.NewString()+"/screening", nil))
+	var got map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if w.Code != 200 || len(got) != 3 || w.Header().Get("Cache-Control") != "" || w.Header().Get("ETag") != "" {
+		t.Fatal(w.Code, got, w.Header())
+	}
+	q := got["questions"].([]any)[0].(map[string]any)
+	if len(q) != 4 || q["options"] != nil || q["type"] != "open" {
+		t.Fatal(q)
+	}
+	limits := got["limits"].(map[string]any)
+	if len(limits) != 1 || limits["open_answer_max_length"] != float64(2000) {
+		t.Fatal(limits)
+	}
+	stub.form = nil
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/v2/jobs/"+uuid.NewString()+"/screening", nil))
+	if w.Code != 404 {
+		t.Fatal(w.Code)
+	}
 }
 
 func TestPublicJobsHTTPStrictAnonymousAndCacheHeaders(t *testing.T) {

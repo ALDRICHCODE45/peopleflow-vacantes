@@ -44,6 +44,21 @@ func (h *PublicJobsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 	httpjson.WriteJSON(w, http.StatusOK, detail)
 }
+
+// Screening is public like the job detail, never behind a candidate gate.
+func (h *PublicJobsHandler) Screening(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		writePublicJobsError(w, publicjobs.ErrNotFound)
+		return
+	}
+	form, err := h.catalog.Screening(r.Context(), id)
+	if err != nil {
+		writePublicJobsError(w, err)
+		return
+	}
+	httpjson.WriteJSON(w, http.StatusOK, form)
+}
 func writePublicJobsError(w http.ResponseWriter, err error) {
 	code := httpjson.CodeInternalError
 	switch {
