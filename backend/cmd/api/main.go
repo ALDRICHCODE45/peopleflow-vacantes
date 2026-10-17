@@ -16,8 +16,10 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	applicationsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/usecases"
 	applicationshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http"
+	movementhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/board"
 	applicationsv2http "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/v2"
 	applicationspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres"
+	movementpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/board"
 	applicationsv2postgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/v2"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	candidatesusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/usecases"
@@ -174,12 +176,14 @@ func run() error {
 	candidateHandler := candidateshttp.NewCandidateHandler(candidateService)
 	// An absent root disables only CV routes, after their usual identity gates.
 	var cvHandler *cvshttp.Handler
+	var movementStorage movementpostgres.Storage
 	if cvConfig.Root != "" {
 		privateCVStorage, err := cvstorage.NewLocal(cvConfig.Root)
 		if err != nil {
 			return errors.New("initialize private CV storage")
 		}
 		defer privateCVStorage.Close()
+		movementStorage = privateCVStorage
 		cvHandler = cvshttp.NewHandler(cvspostgres.NewLibrary(pool, privateCVStorage), draftjson.Decode)
 	}
 	participationHandler := applicationsv2http.NewHandler(applicationsv2postgres.NewStore(pool, auditRepo, participationRules{}), draftjson.Decode)
@@ -202,6 +206,7 @@ func run() error {
 	// store owns the owner-or-principal rule and every precondition; the HTTP
 	// adapter is a thin transport over drafts.Store.
 	draftStore := draftstore.NewStore(pool, auditRepo)
+	movementHandler := movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{draftStore}, movementStorage, draftjson.Decode))
 	draftHandler := jobshttp.NewDraftHandler(draftStore)
 	draftV2Handler := jobshttp.NewDraftV2Handler(draftStore, draftStore, draftStore)
 	draftListHandler := jobshttp.NewDraftListHandler(draftStore)
@@ -270,7 +275,7 @@ func run() error {
 	r := newRouter(routerDeps{
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
 		requireCandidate: requireCandidate, identityHandler: identityHandler,
-		cvHandler: cvHandler, participationHandler: participationHandler,
+		cvHandler: cvHandler, participationHandler: participationHandler, movementHandler: movementHandler,
 		companyHandler: companyHandler, memberHandler: memberHandler,
 		candidateHandler: candidateHandler, jobHandler: jobHandler, applicationHandler: applicationHandler,
 		draftHandler: draftHandler, draftV2Handler: draftV2Handler, draftListHandler: draftListHandler,

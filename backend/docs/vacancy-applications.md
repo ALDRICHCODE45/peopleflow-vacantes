@@ -94,12 +94,21 @@ candidate ownership. Down refuses while participation/idempotency data exists.
 ## Candidate list (private)
 
 `GET /v2/me/applications?cursor&limit` →
-`{items:[{id,vacancy:{id,title},company:{id,name},applied_at,status:"submitted"}],next_cursor}`.
+`{items:[{id,vacancy:{id,title},company:{id,name},applied_at,status}],next_cursor}`.
+As of cut 4, `status` is the closed enum `submitted | in_process`: `submitted`
+while in the deterministic semantic `new` stage, `in_process` in every other
+stage. Renaming columns does not affect it; moving back to `new` returns it to
+`submitted`. No stage identity, name or history is exposed to candidates.
+The original apply/replay response remains `status: "submitted"`, even after moves.
 Newest first, ID descending as tie-breaker. Only the candidate's new participations;
 legacy applications stay on their legacy endpoint. Internal stages are never exposed.
 `limit` defaults to 20, range 1–50; only canonical decimal values. Unknown/repeated
 parameters, invalid encoding and malformed/noncanonical opaque cursors are 400.
 `next_cursor` is null when no following page exists.
+
+Cut-4 status coverage: `TestCandidateStatusHidesStage` (unit) and
+`TestMovementBoardMovesHistoryCoverageAndRetention` (database; forward and backward
+status changes). See [pipeline-movement.md](pipeline-movement.md).
 
 ## §10.5 test map and evidence boundary
 

@@ -1516,6 +1516,11 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 	sort.Strings(got)
 
 	want := []string{
+		"Get /v2/me/company/job-drafts/{id}/board",
+		"Get /v2/me/company/job-drafts/{id}/participations/{pid}",
+		"Get /v2/me/company/job-drafts/{id}/participations/{pid}/history",
+		"Get /v2/me/company/job-drafts/{id}/participations/{pid}/cv",
+		"Post /v2/me/company/job-drafts/{id}/participations/{pid}/moves",
 		"Get /v2/jobs/{id}/screening",
 		"Get /v2/me/cvs",
 		"Post /v2/me/cvs",

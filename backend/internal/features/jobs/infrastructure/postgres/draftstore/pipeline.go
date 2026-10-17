@@ -33,7 +33,11 @@ func (s *Store) GetPipeline(ctx context.Context, companyID, actorID, id uuid.UUI
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	return renderPipeline(id, c, version)
+	locked, err := pipelineStructureLocked(ctx, tx, id)
+	if err != nil {
+		return drafts.Result{}, err
+	}
+	return renderPipeline(id, c, version, locked)
 }
 
 // PutPipeline locks the parent draft, not just the optional configuration row.
@@ -59,6 +63,13 @@ func (s *Store) PutPipeline(ctx context.Context, companyID, actorID, id uuid.UUI
 	if err != nil {
 		return drafts.Result{}, err
 	}
+	locked, err := pipelineStructureLocked(ctx, tx, id)
+	if err != nil {
+		return drafts.Result{}, err
+	}
+	if locked && !previous.SameStructure(next) {
+		return drafts.Result{}, pipelineconfig.ErrStructureLocked
+	}
 	delivery, _, err := readDelivery(ctx, tx, id)
 	if err != nil {
 		return drafts.Result{}, err
@@ -78,7 +89,7 @@ func (s *Store) PutPipeline(ctx context.Context, companyID, actorID, id uuid.UUI
 	// Only a stored configuration can be a stored no-op. The first successful
 	// PUT materializes version 1, even when the caller chooses all defaults.
 	if version > 0 && previous.Equal(next) {
-		return renderPipeline(id, previous, version)
+		return renderPipeline(id, previous, version, locked)
 	}
 	if version == math.MaxInt64 {
 		return drafts.Result{}, drafts.ErrVersionOverflow
@@ -104,7 +115,7 @@ func (s *Store) PutPipeline(ctx context.Context, companyID, actorID, id uuid.UUI
 	if err := s.audit.Append(ctx, tx, event); err != nil {
 		return drafts.Result{}, fmt.Errorf("co-write pipeline audit: %w", err)
 	}
-	result, err := renderPipeline(id, next, version+1)
+	result, err := renderPipeline(id, next, version+1, locked)
 	if err != nil {
 		return drafts.Result{}, err
 	}
@@ -161,17 +172,24 @@ func readPipeline(ctx context.Context, tx pgx.Tx, id uuid.UUID) (pipelineconfig.
 	return c, version, nil
 }
 
-func renderPipeline(id uuid.UUID, c pipelineconfig.Configuration, version int64) (drafts.Result, error) {
+func pipelineStructureLocked(ctx context.Context, tx pgx.Tx, id uuid.UUID) (bool, error) {
+	var locked bool
+	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM process_participations WHERE process_id=$1)`, id).Scan(&locked)
+	return locked, err
+}
+
+func renderPipeline(id uuid.UUID, c pipelineconfig.Configuration, version int64, locked bool) (drafts.Result, error) {
 	body, err := json.Marshal(struct {
-		Version string                 `json:"version"`
-		Stages  []pipelineconfig.Stage `json:"stages"`
-		Exit    pipelineconfig.Stage   `json:"exit"`
-		Limits  struct {
+		Version         string                 `json:"version"`
+		StructureLocked bool                   `json:"structure_locked"`
+		Stages          []pipelineconfig.Stage `json:"stages"`
+		Exit            pipelineconfig.Stage   `json:"exit"`
+		Limits          struct {
 			MaxCustomStages int `json:"maxCustomStages"`
 			NameMaxLength   int `json:"nameMaxLength"`
 		} `json:"limits"`
 	}{
-		Version: strconv.FormatInt(version, 10), Stages: c.Stages, Exit: c.Exit,
+		Version: strconv.FormatInt(version, 10), StructureLocked: locked, Stages: c.Stages, Exit: c.Exit,
 		Limits: struct {
 			MaxCustomStages int `json:"maxCustomStages"`
 			NameMaxLength   int `json:"nameMaxLength"`

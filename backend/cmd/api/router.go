@@ -9,6 +9,7 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	applicationshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http"
+	movementhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/board"
 	applicationsv2http "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/v2"
 	candidateshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http"
 	cvshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http/cvs"
@@ -48,6 +49,7 @@ type routerDeps struct {
 	applicationHandler   *applicationshttp.ApplicationHandler
 	cvHandler            *cvshttp.Handler
 	participationHandler *applicationsv2http.Handler
+	movementHandler      *movementhttp.Handler
 	queries              *db.Queries
 	pool                 health.Pinger
 	readinessTimeout     time.Duration
@@ -188,6 +190,11 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/job-drafts", d.draftListHandler.ListDrafts)
 		r.Get("/v2/me/company/job-drafts/{id}", draftV2Handlers.GetDraft)
 		r.Patch("/v2/me/company/job-drafts/{id}", draftV2Handlers.SaveDraft)
+		r.Get("/v2/me/company/job-drafts/{id}/board", d.movementHandler.Board)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/moves", d.movementHandler.Move)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}", d.movementHandler.Detail)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/history", d.movementHandler.History)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/cv", d.movementHandler.File)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline", pipelineHandlers.GetPipeline)
 		r.Put("/v2/me/company/job-drafts/{id}/pipeline", pipelineHandlers.PutPipeline)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline/substates", substatesHandlers.GetSubstates)
