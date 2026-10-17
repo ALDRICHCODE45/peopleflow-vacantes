@@ -346,6 +346,23 @@ corepack pnpm dev
     `/candidato/postulaciones` muestra «En proceso» («Enviada» mientras esté en la
     primera columna).
 
+### Corte 5: descartar y recuperar (rama `feat/pipeline-discard-ui`, backend `feat/pipeline-discard`, migración 00024)
+
+50. **Descartar.** En el tablero, abrí el menú de la tarjeta y elegí «Descartar».
+    **Esperado:** diálogo con los motivos agrupados en «Decisión de la empresa» y
+    «Decisión del candidato»; con «Otro» no deja confirmar sin comentario; los
+    contadores no dejan pasar 1.000 (comentario) ni 500 (mensaje). Escribí un mensaje para
+    el candidato y confirmá: la tarjeta pasa a «Descartados» con su motivo.
+51. **Vista del candidato.** Como candidato, `/candidato/postulaciones` muestra
+    «Finalizada» y tu mensaje, nunca el motivo interno.
+52. **Recuperar.** En «Descartados», «Recuperar». **Esperado:** el diálogo nombra la
+    etapa a la que vuelve; al confirmar, la tarjeta vuelve ahí y el candidato deja de ver
+    el mensaje (vuelve a «Enviada» o «En proceso»). La ficha muestra en el historial el
+    descarte (motivo, comentario, mensaje) y la recuperación.
+53. **Placement (opcional).** Descartá a alguien que está en Placement: el diálogo avisa que
+    baja la cobertura. Recuperalo: el diálogo avisa que vuelve a ocupar una plaza y la
+    cobertura sube.
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:
