@@ -18,7 +18,9 @@ export function allowlistedRedirect(url: string, baseUrl: string): string {
     const root = new URL("/", base).toString();
     const target = new URL(url, base);
     if (target.origin !== base.origin) return root;
-    const allowed = REDIRECT_PREFIXES.some(prefix => target.pathname === prefix || target.pathname.startsWith(`${prefix}/`));
+    // Admit only the candidate apply callback, not the whole public catalog.
+    const applyCallback = /^\/vacantes\/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\/postular$/.test(target.pathname);
+    const allowed = applyCallback || REDIRECT_PREFIXES.some(prefix => target.pathname === prefix || target.pathname.startsWith(`${prefix}/`));
     return allowed ? target.toString() : root;
   } catch {
     // NextAuth always supplies a valid baseUrl; a malformed one never redirects anywhere.

@@ -19,10 +19,12 @@ const source = (file: string) => readFileSync(file, "utf8");
 const files = productionFiles(SRC);
 
 describe("single application-facing request path", () => {
-  it("calls fetch only inside the server-only transport", () => {
+  it("calls fetch only inside guarded transports and fixed same-origin upload/bootstrap adapters", () => {
     const fetchCallers = files.filter((file) => /\bfetch\(/.test(source(file)));
     expect(fetchCallers.map(rel).sort()).toEqual([
       "app/(auth)/empresa/bootstrap-local/bootstrap-local-panel.tsx",
+      "features/candidate-cvs/file-client.ts",
+      "features/candidate-cvs/upload.ts",
       "lib/api/requestJson.ts",
     ]);
   });
@@ -39,11 +41,23 @@ describe("single application-facing request path", () => {
     ]);
   });
 
+  it("keeps CV browser uploads fixed to one same-origin route and the file adapter server-only", () => {
+    const upload = source(join(SRC, "features/candidate-cvs/upload.ts"));
+    expect(upload).toContain('fetch("/api/candidate/cvs"');
+    expect(upload).not.toMatch(/https?:\/\/|lib\/auth|authorization|cookie:/);
+    const adapter = source(join(SRC, "features/candidate-cvs/file-client.ts"));
+    expect(adapter).toContain('import "server-only"');
+    expect(adapter).toContain('redirect: "error"');
+    expect(adapter).toContain('cache: "no-store"');
+  });
+
   it("reaches the transport only through the guarded API functions", () => {
     const importers = files.filter((file) =>
       /lib\/api\/server"/.test(source(file)),
     );
     expect(importers.map(rel).sort()).toEqual([
+      "features/candidate-applications/client.ts",
+      "features/candidate-cvs/client.ts",
       "features/employer-company/api/company-client.ts",
       "features/identity/candidate-account-client.ts",
       "features/identity/me-client.ts",
@@ -68,6 +82,8 @@ describe("single application-facing request path", () => {
         /from "\.\/requestJson"/.test(source(file)),
     );
     expect(transportImporters.map(rel).sort()).toEqual([
+      "features/candidate-applications/client.ts",
+      "features/candidate-cvs/client.ts",
       "features/employer-company/api/company-client.ts",
       "features/identity/candidate-account-client.ts",
       "features/identity/me-client.ts",
@@ -88,7 +104,7 @@ describe("single application-facing request path", () => {
     ]);
   });
 
-  it("allows only identity route handlers, not application API proxies or client stores", () => {
+  it("allows only identity handlers and the candidate file upload/download boundary, not client stores", () => {
     const handlers = files.filter((file) => file.endsWith("route.ts"));
     expect(handlers.map(rel).sort()).toEqual([
       "app/api/auth/[...nextauth]/route.ts",
@@ -97,6 +113,8 @@ describe("single application-facing request path", () => {
       "app/api/auth/local-bootstrap/apply/route.ts",
       "app/api/auth/local-bootstrap/nonce/route.ts",
       "app/api/auth/local-bootstrap/stage/route.ts",
+      "app/api/candidate/cvs/[id]/file/route.ts",
+      "app/api/candidate/cvs/route.ts",
     ]);
     for (const handler of handlers) {
       expect(source(handler)).not.toMatch(/lib\/api\/(?:server|requestJson)/);

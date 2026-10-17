@@ -156,13 +156,13 @@ describe("redirect allowlist for NextAuth sign-in and sign-out callbacks", () =>
   const redirect = callbacks.redirect!;
   const baseUrl = "http://localhost:3000";
   it.each([
-    "/empresa/login", "/candidato/ingresar", "/api/auth/cognito/logout", "/api/auth/cognito/logout?to=candidato",
+    "/vacantes/A12B3456-1234-4234-8234-123456789ABC/postular", "/empresa/login", "/candidato/ingresar", "/vacantes/a12b3456-1234-4234-8234-123456789abc/postular", "/api/auth/cognito/logout", "/api/auth/cognito/logout?to=candidato",
     "http://localhost:3000/empresa/vacantes",
   ])("keeps the allowlisted same-origin destination %s", async url => {
     expect(await redirect({ url, baseUrl })).toBe(new URL(url, baseUrl).toString());
   });
   it.each([
-    "https://evil.example/empresa", "//evil.example/empresa", "/\\evil.example", "/not-allowlisted",
+    "/VACANTES/a12b3456-1234-4234-8234-123456789abc/POSTULAR", "/Vacantes/a12b3456-1234-4234-8234-123456789abc/postular", "/vacantes/a12b3456-1234-4234-8234-123456789abc/Postular", "/vacantes/a12b3456-1234-4234-8234-123456789abc/postular/", "/vacantes", "/vacantes/bad/postular", "/vacantes/a12b3456-1234-4234-8234-123456789abc", "/vacantes/a12b3456-1234-4234-8234-123456789abc/postular/extra", "https://evil.example/vacantes/a12b3456-1234-4234-8234-123456789abc/postular", "https://evil.example/empresa", "//evil.example/empresa", "/\\evil.example", "/not-allowlisted",
     "http://localhost:3000/not-allowlisted", "/empresa-fake", "/api/auth/other", "javascript:alert(1)",
   ])("falls back to the site root for %s", async url => {
     expect(await redirect({ url, baseUrl })).toBe(`${baseUrl}/`);

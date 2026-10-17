@@ -58,6 +58,8 @@ const errorFetch = (status: number) =>
 const RAW_COLOR_UTILITY =
   /(?:^|\s|[a-z-]+:)(?:text|bg|border)-(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose|white|black)-\d{2,3}(?:\s|$)/;
 
+vi.mock("@/features/candidate-applications/wizard", () => ({ CandidateApplicationWizard: () => <h2>Datos de candidato</h2> }));
+
 vi.mock("next/navigation", () => ({
   notFound: () => {
     throw NEXT_NOT_FOUND;
@@ -92,7 +94,7 @@ describe("/vacantes/[jobId]/postular route boundaries", () => {
     expect(source).toMatch(/kind\s*===\s*"unavailable"/);
     expect(source).toMatch(/throw\s+new\s+Error\(/);
     // Only source=legacy is adapted into the unchanged application model.
-    expect(source).toContain('if (result.job.source === "vacancy") notFound();');
+    expect(source).toContain('<CandidateApplicationWizard job={result.job}');
     expect(source).toContain("const job = legacyApplicationJob(result.job)");
     expect(source).toMatch(/<VacancyApplicationShell[^>]*job=\{job\}/);
     // The static vacancy summary is a server-composed slot handed to the client wizard.
@@ -123,11 +125,12 @@ describe("/vacantes/[jobId]/postular route boundaries", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("returns not-found for vacancy-source ids and emits no application metadata", async () => {
+  it("renders the real candidate wizard and noindex metadata for vacancy-source ids", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => vacancyDetail }));
     const { default: Page, generateMetadata } = await load("page");
-    await expect(Page({ params: paramsFor(vacancyDetail.id) })).rejects.toThrow(NEXT_NOT_FOUND);
-    expect(await generateMetadata({ params: paramsFor(vacancyDetail.id) })).toEqual({});
+    render(await Page({ params: paramsFor(vacancyDetail.id) }));
+    expect(screen.getByRole("heading", { name: "Datos de candidato" })).toBeVisible();
+    expect(await generateMetadata({ params: paramsFor(vacancyDetail.id) })).toMatchObject({ title: `Postularme · ${vacancyDetail.title}`, robots: { index: false, follow: false } });
   });
 
   it("maps a backend 404 to notFound() and a retryable failure to a real error", async () => {

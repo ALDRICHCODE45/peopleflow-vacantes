@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { CANDIDATE_IDENTITY, CANDIDATE_PROFILE } from "@/features/candidate/prototype-candidate";
+import { CandidateApplicationWizard } from "@/features/candidate-applications/wizard";
 import { VacancyApplicationWizard } from "@/features/jobs/application/vacancy-application-wizard";
 import { VacancyApplicationSummary } from "@/features/jobs/application/vacancy-application-summary";
 
@@ -30,7 +31,7 @@ export async function generateMetadata({
   const { jobId } = await params;
   const result = await getApplicationScope().metadata(jobId);
 
-  if (result.kind === "found" && result.job.source === "legacy") {
+  if (result.kind === "found") {
     // Loaded lazily so route collection during offline builds never triggers
     // the eager environment validation.
     const { serverEnv } = await import("../../../../../lib/env/server");
@@ -72,9 +73,7 @@ export default async function VacanteApplicationPage({
     throw new Error("La postulación no pudo cargarse");
   }
 
-  // P2a exposes reading only for vacancy-source ids. No application flow or
-  // application metadata is advertised until P2b.
-  if (result.job.source === "vacancy") notFound();
+  if (result.job.source === "vacancy") return <VacancyApplicationShell job={result.job}><CandidateApplicationWizard job={result.job} /></VacancyApplicationShell>;
   const job = legacyApplicationJob(result.job);
   return (
     <VacancyApplicationShell job={job}>

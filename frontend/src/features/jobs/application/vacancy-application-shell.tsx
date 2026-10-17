@@ -4,8 +4,6 @@ import { ArrowLeftIcon } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
 
-import type { PrototypeJobView } from "../enrich";
-
 /**
  * Server-rendered shell of the public application route: the breadcrumb back to
  * the exact vacancy and the `Postularme` identity header. It stays a server
@@ -17,7 +15,7 @@ import type { PrototypeJobView } from "../enrich";
  * card; this shell never grows a form, a rail, or a fetch of its own.
  */
 type VacancyApplicationShellProps = {
-  job: PrototypeJobView;
+  job: { id: string; title: string; company: { name: string } };
   /** Application body owned by the caller; it already carries the responsive grid. */
   children?: React.ReactNode;
 };

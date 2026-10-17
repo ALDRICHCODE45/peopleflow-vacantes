@@ -15,7 +15,6 @@ import { PublicJobFacts } from "./public-job-facts";
 /** V2 public detail: VAC-4 only, without inferred or private draft metadata. */
 export function PublicJobDetailView({ job }: { job: PublicJobDetail }) {
   const salary = formatPublicSalary(job);
-  const hasRail = salary !== null || job.source === "legacy";
   const hasRequirements = job.requirements.required || job.requirements.preferred;
   const benefits = [...job.benefits.predefined.map(benefitLabel), ...job.benefits.custom];
   return <article className="flex w-full flex-col gap-6">
@@ -37,7 +36,7 @@ export function PublicJobDetailView({ job }: { job: PublicJobDetail }) {
         <span className="flex items-center gap-1.5 text-sm text-muted-foreground"><CalendarClockIcon aria-hidden="true" className="size-3.5 shrink-0" /><time dateTime={job.published_at}>Publicada el {formatPublishedDate(job.published_at)}</time></span>
       </CardFooter>
     </Card>
-    <div className={cn("grid gap-6", hasRail && "lg:grid-cols-[minmax(0,1fr)_21rem]")}>
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]">
       <div className="flex min-w-0 flex-col gap-6">
         <Card>
           <CardHeader className="border-b"><CardTitle><h2 className="font-heading text-xl font-semibold">Sobre la vacante</h2></CardTitle></CardHeader>
@@ -59,16 +58,16 @@ export function PublicJobDetailView({ job }: { job: PublicJobDetail }) {
           <CardContent><ul className="grid gap-3 sm:grid-cols-2">{benefits.map((benefit, index) => <li key={index} className="min-w-0"><Item variant="outline" size="sm"><ItemMedia variant="icon"><GiftIcon aria-hidden="true" /></ItemMedia><ItemContent className="min-w-0"><span className="break-words">{benefit}</span></ItemContent></Item></li>)}</ul></CardContent>
         </Card>}
       </div>
-      {hasRail && <aside className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-24 lg:self-start">
+      <aside className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-24 lg:self-start">
         {salary !== null && <Card>
           <CardHeader><CardTitle><h2 className="flex items-center gap-2 font-heading text-lg font-semibold"><BanknoteIcon aria-hidden="true" className="size-5" />{job.source === "vacancy" ? "Compensación" : "Salario"}</h2></CardTitle></CardHeader>
           <CardContent><p className="font-heading text-xl font-semibold break-words">{salary}</p></CardContent>
         </Card>}
-        {job.source === "legacy" && <Card>
+        <Card>
           <CardHeader><CardTitle><h2 className="font-heading text-lg font-semibold">Postulación</h2></CardTitle></CardHeader>
           <CardFooter><Link href={vacancyApplicationHref(job.id)} className={cn(buttonVariants(), "min-h-10 w-full")}>Postularme<ArrowRightIcon aria-hidden="true" data-icon="inline-end" /></Link></CardFooter>
-        </Card>}
-      </aside>}
+        </Card>
+      </aside>
     </div>
   </article>;
 }

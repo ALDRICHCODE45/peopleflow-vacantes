@@ -26,7 +26,7 @@ it.each([legacyDetail, vacancyDetail])("renders a unified $source card with its 
   expect(container).not.toHaveTextContent(/Hace 5 h|Verificada|Postulantes/);
 });
 
-it("renders a vacancy rich description, requirements, benefit labels and no apply or internal data", () => {
+it("renders a vacancy rich description, requirements, benefits and the apply action without internal data", () => {
   const { container } = render(<JobDetailView job={vacancyDetail} />);
   expect(container.querySelector("strong")).toHaveTextContent("Construye servicios seguros.");
   expect(screen.getByRole("heading", { name: "Requisitos" })).toBeVisible();
@@ -37,7 +37,7 @@ it("renders a vacancy rich description, requirements, benefit labels and no appl
   expect(screen.getByText("Seguro de gastos médicos")).toBeVisible();
   expect(screen.getByText("Apoyo de transporte")).toBeVisible();
   expect(screen.getByText("Publicada el 16 de octubre de 2026")).toBeVisible();
-  expect(screen.queryByRole("link", { name: "Postularme" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Postularme" })).toHaveAttribute("href", `/vacantes/${vacancyDetail.id}/postular`);
   expect(container).not.toHaveTextContent(/Próximamente|Disponible pronto|Solicitante|Reclutador|Entrega|Pipeline|Hace 5 h/);
 });
 
@@ -53,8 +53,8 @@ it("omits optional vacancy blocks and hidden compensation without placeholders",
   const { container } = render(<JobDetailView job={{ ...vacancyDetail, compensation: null, requirements: { required: null, preferred: null }, benefits: { predefined: [], custom: [] } }} />);
   for (const name of ["Requisitos", "Beneficios", "Compensación"]) expect(screen.queryByRole("heading", { name })).toBeNull();
   expect(container).not.toHaveTextContent(/Salario a convenir|Sin especificar|Sin seleccionar/);
-  expect(container.querySelector("aside")).toBeNull();
-  expect(container.querySelector("article > .grid")).not.toHaveClass("lg:grid-cols-[minmax(0,1fr)_21rem]");
+  expect(container.querySelector("aside")).not.toBeNull();
+  expect(screen.getByRole("link", { name: "Postularme" })).toBeVisible();
 });
 
 it("keeps long custom benefits readable in native Item rows, not fixed-height badges", () => {

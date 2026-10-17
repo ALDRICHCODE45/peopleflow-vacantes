@@ -1,0 +1,110 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("server-only", () => ({}));
+vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "https://api.example.test", apiTimeoutMs: 1000 } }));
+vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
+import { getActionAccessToken } from "@/lib/auth/action-session";
+import { loadScreening, submitApplication, loadApplications } from "./client";
+import { loadScreeningAction, submitApplicationAction, loadApplicationsAction } from "./actions";
+import { body, id, key, screening, submitted, page } from "./test-fixtures";
+const fetchMock = vi.fn();
+beforeEach(() => { vi.stubGlobal("fetch", fetchMock); fetchMock.mockReset(); vi.mocked(getActionAccessToken).mockResolvedValue("private-token"); });
+afterEach(() => vi.unstubAllGlobals());
+describe("candidate application contracts", () => {
+  it("loads public screening without credentials", async () => {
+    fetchMock.mockResolvedValue(Response.json(screening));
+    expect(await loadScreening(id)).toEqual({ ok: true, data: screening });
+    expect(fetchMock.mock.calls[0][0]).toBe(`https://api.example.test/v2/jobs/${id}/screening`);
+    expect(fetchMock.mock.calls[0][1].headers.has("authorization")).toBe(false);
+  });
+  it.each([
+    { ...screening, extra: true }, { ...screening, questionnaire_revision: "" },
+    { ...screening, limits: { open_answer_max_length: 0 } },
+    { ...screening, limits: { open_answer_max_length: 1.5 } },
+    { ...screening, questions: [{ ...screening.questions[0], options: [] }] },
+    { ...screening, questions: [{ ...screening.questions[1], options: null }] },
+    { ...screening, questions: [{ ...screening.questions[0], type: "boolean" }] },
+    { ...screening, questions: [screening.questions[0], screening.questions[0]] },
+    { ...screening, questions: [{ ...screening.questions[1], options: [{ id, label: "A" }, { id, label: "B" }] }] },
+  ])("rejects malformed screening %j", async value => {
+    fetchMock.mockResolvedValue(Response.json(value));
+    expect(await loadScreening(id)).toMatchObject({ ok: false, error: { kind: "invalid_response" } });
+  });
+  it("accepts an empty questionnaire", async () => {
+    fetchMock.mockResolvedValue(Response.json({ ...screening, questions: [] }));
+    expect(await loadScreening(id)).toMatchObject({ ok: true });
+  });
+  it("sends exact body, candidate credential and UUID key, expecting only 201", async () => {
+    fetchMock.mockResolvedValueOnce(Response.json(submitted, { status: 201 }));
+    expect(await submitApplication({ token: "private-token", id, key, body })).toEqual({ ok: true, data: submitted });
+    const init = fetchMock.mock.calls[0][1];
+    expect(init.body).toBe(JSON.stringify(body));
+    expect(init.headers.get("idempotency-key")).toBe(key);
+    expect(init.headers.get("authorization")).toBe("Bearer private-token");
+    expect(init).toMatchObject({ method: "POST", redirect: "error", cache: "no-store" });
+    fetchMock.mockResolvedValueOnce(Response.json(submitted));
+    expect(await submitApplication({ token: "private-token", id, key, body })).toMatchObject({ ok: false, error: { kind: "invalid_response" } });
+  });
+  it.each([{ ...submitted, extra: true }, { ...submitted, status: "in_review" }, { ...submitted, applied_at: "2026-02-30T12:00:00Z" }, { ...submitted, vacancy_id: key }])("rejects malformed 201 %j", async value => {
+    fetchMock.mockResolvedValue(Response.json(value, { status: 201 }));
+    expect(await submitApplication({ token: "private-token", id, key, body })).toMatchObject({ ok: false });
+  });
+  it("rejects unsafe input before fetch", async () => {
+    for (const args of [{ id: "../x", key, body }, { id, key: "bad", body }, { id, key, body: { ...body, extra: true } }, { id, key, body: { ...body, answers: [{ question_id: id, text: "a", option_id: key }] } }])
+      expect(await submitApplication({ token: "private-token", ...args })).toMatchObject({ ok: false });
+    expect(await loadScreening("bad")).toMatchObject({ ok: false });
+    expect(await loadApplications({ token: "private-token", query: { limit: 0 } })).toMatchObject({ ok: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("pages the candidate list with encoded opaque cursor", async () => {
+    fetchMock.mockResolvedValue(Response.json(page));
+    expect(await loadApplications({ token: "private-token", query: { cursor: "a+/=", limit: 10 } })).toEqual({ ok: true, data: page });
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.example.test/v2/me/applications?cursor=a%2B%2F%3D&limit=10");
+  });
+  it.each([{ ...page, extra: true }, { ...page, next_cursor: "" }, { ...page, items: [{ ...page.items[0], status: "hired" }] }, { ...page, items: [{ ...page.items[0], vacancy: { id, title: "x", private: true } }] }])("rejects malformed list %j", async value => {
+    fetchMock.mockResolvedValue(Response.json(value));
+    expect(await loadApplications({ token: "private-token" })).toMatchObject({ ok: false });
+  });
+});
+describe("action failure boundary", () => {
+  it("does not recognize 428 idempotency_key_required", async () => {
+    fetchMock.mockResolvedValue(Response.json({ error: "private", code: "idempotency_key_required" }, { status: 428 }));
+    expect(await submitApplicationAction(id, key, body)).toEqual({ ok: false, reason: "unrecognized_response", reference: { status: 428, code: "idempotency_key_required" } });
+  });
+  it.each([403, 400])("maps wrong_role only with 403 (got %i), including the list", async status => {
+    fetchMock.mockImplementation(() => Promise.resolve(Response.json({ error: "private-token", code: "wrong_role" }, { status })));
+    for (const result of [await submitApplicationAction(id, key, body), await loadApplicationsAction()])
+      expect(result).toEqual({ ok: false, reason: status === 403 ? "wrong_role" : "unrecognized_response", reference: { status, code: "wrong_role" } });
+  });
+  it("does not require a session for public screening", async () => {
+    vi.mocked(getActionAccessToken).mockResolvedValue(null);
+    fetchMock.mockResolvedValue(Response.json(screening));
+    expect(await loadScreeningAction(id)).toMatchObject({ ok: true });
+    expect(await loadApplicationsAction()).toEqual({ ok: false, reason: "unauthenticated", reference: {} });
+    expect(await submitApplicationAction(id, key, body)).toEqual({ ok: false, reason: "unauthenticated", reference: {} });
+  });
+  it.each([[404, "not_found"], [409, "already_applied"], [409, "questionnaire_changed"], [422, "cv_unavailable"], [400, "invalid_request"], [409, "idempotency_conflict"], [400, "invalid_idempotency_key"], [400, "idempotency_key_required"], [401, "unauthenticated"], [403, "forbidden"], [500, "internal_error"]] as const)("maps %i %s", async (status, code) => {
+    fetchMock.mockResolvedValue(Response.json({ error: "private-token", code }, { status }));
+    const result = await submitApplicationAction(id, key, body);
+    expect(result).toMatchObject({ ok: false, reason: status === 500 ? "server_error" : code });
+    expect(JSON.stringify(result)).not.toContain("private-token");
+  });
+  it("strictly exposes invalid_answers details only for that code", async () => {
+    const details = [{ question_id: id, reason: "required" }];
+    fetchMock.mockResolvedValue(Response.json({ error: "private", code: "invalid_answers", details }, { status: 422 }));
+    expect(await submitApplicationAction(id, key, body)).toEqual({ ok: false, reason: "invalid_answers", reference: { status: 422, code: "invalid_answers" }, details });
+    for (const invalid of [undefined, [], [{ question_id: id, reason: "unknown" }], [{ question_id: id, reason: "required", extra: true }]]) {
+      fetchMock.mockResolvedValue(Response.json({ error: "private", code: "invalid_answers", details: invalid }, { status: 422 }));
+      expect(await submitApplicationAction(id, key, body)).toMatchObject({ reason: "unrecognized_response" });
+    }
+    fetchMock.mockResolvedValue(Response.json({ error: "private", code: "cv_unavailable", details }, { status: 422 }));
+    expect(await submitApplicationAction(id, key, body)).toEqual({ ok: false, reason: "unrecognized_response", reference: { status: 422 } });
+  });
+  it("sanitizes unknown codes, session exceptions and network errors", async () => {
+    fetchMock.mockResolvedValue(Response.json({ error: "secret", code: "secret" }, { status: 400 }));
+    expect(await submitApplicationAction(id, key, body)).toEqual({ ok: false, reason: "unrecognized_response", reference: { status: 400 } });
+    fetchMock.mockRejectedValue(new Error("secret"));
+    expect(await loadScreeningAction(id)).toEqual({ ok: false, reason: "no_response", reference: {} });
+    vi.mocked(getActionAccessToken).mockRejectedValue(new Error("secret"));
+    expect(await loadApplicationsAction()).toEqual({ ok: false, reason: "no_response", reference: {} });
+  });
+});
