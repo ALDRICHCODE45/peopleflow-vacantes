@@ -53,6 +53,8 @@ func TestMigration00023MovementDefaultsAndGuardedDown(t *testing.T) {
 	exec(`INSERT INTO process_participations(id,process_id,candidate_id,stage_id,cv_version_id,questions_snapshot,answers_snapshot,source) VALUES($1,$2,$3,$4,$5,'[]','[]','organic')`, pid, vacancy, actor, stage, version)
 	exec(`INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id) VALUES($1,$2,$3,$4)`, uuid.New(), pid, stage, actor)
 	gooseUpAll(t, db)
+	// Pin the rollback under test, independently of later additive migrations.
+	gooseDownTo(t, db, 23)
 	var initial int64
 	var from *uuid.UUID
 	var hire, departure bool

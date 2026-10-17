@@ -216,15 +216,20 @@ type ParticipationIdempotency struct {
 }
 
 type ParticipationStageHistory struct {
-	ID              uuid.UUID          `json:"id"`
-	ParticipationID uuid.UUID          `json:"participation_id"`
-	StageID         uuid.UUID          `json:"stage_id"`
-	ActorID         uuid.UUID          `json:"actor_id"`
-	CreatedAt       pgtype.Timestamptz `json:"created_at"`
-	FromStageID     pgtype.UUID        `json:"from_stage_id"`
-	Hire            bool               `json:"hire"`
-	Departure       bool               `json:"departure"`
-	ActorKind       string             `json:"actor_kind"`
+	ID               uuid.UUID          `json:"id"`
+	ParticipationID  uuid.UUID          `json:"participation_id"`
+	StageID          uuid.UUID          `json:"stage_id"`
+	ActorID          uuid.UUID          `json:"actor_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	FromStageID      pgtype.UUID        `json:"from_stage_id"`
+	Hire             bool               `json:"hire"`
+	Departure        bool               `json:"departure"`
+	ActorKind        string             `json:"actor_kind"`
+	EventKind        string             `json:"event_kind"`
+	ReasonGroup      pgtype.Text        `json:"reason_group"`
+	ReasonCode       pgtype.Text        `json:"reason_code"`
+	Comment          pgtype.Text        `json:"comment"`
+	CandidateMessage pgtype.Text        `json:"candidate_message"`
 }
 
 type ProcessCoverageMilestone struct {
@@ -246,6 +251,12 @@ type ProcessParticipation struct {
 	Source            string             `json:"source"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	Version           int64              `json:"version"`
+	PreviousStageID   pgtype.UUID        `json:"previous_stage_id"`
+	ReasonGroup       pgtype.Text        `json:"reason_group"`
+	ReasonCode        pgtype.Text        `json:"reason_code"`
+	Comment           pgtype.Text        `json:"comment"`
+	CandidateMessage  pgtype.Text        `json:"candidate_message"`
+	DiscardedAt       pgtype.Timestamptz `json:"discarded_at"`
 }
 
 type User struct {
