@@ -363,6 +363,19 @@ corepack pnpm dev
     baja la cobertura. Recuperalo: el diálogo avisa que vuelve a ocupar una plaza y la
     cobertura sube.
 
+### Pulido de UI (rama `feat/ui-polish`, sin cambios de backend)
+
+54. **Tipografía.** Recorré la app de empresa y de candidato. **Esperado:** todos los
+    títulos en Inter (la misma letra del texto); la landing conserva su tipografía propia.
+55. **Tablero y ficha.** En el pipeline: columnas teñidas por etapa que llegan hasta abajo
+    con scroll propio, encabezado con «X de Y plazas cubiertas» compacto, tarjetas con
+    iniciales, fechas cortas y chip del CV; la manija aparece al pasar el mouse o con el
+    teclado. Abrí una ficha: barra superior con «Mover a…», «Descartar»/«Recuperar» y una
+    sola X; pestañas «Resumen», «Respuestas», «Historial» con contador; línea de tiempo.
+56. **Sidebar colapsado.** Cerrá el sidebar (empresa y candidato). **Esperado:** marca «P»
+    centrada en lugar del logo aplastado; todos los ítems, «Nueva vacante» y el avatar son
+    cuadrados iguales y centrados, también al pasar el mouse, seleccionados y con foco.
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:
