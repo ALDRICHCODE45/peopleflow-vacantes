@@ -4,6 +4,8 @@ import type { Failure, FailureReason } from "./model";
 const codes: Record<string, { status: number; reason: FailureReason }> = {
   board_too_large: { status: 422, reason: "board_too_large" }, vacancy_not_published: { status: 409, reason: "vacancy_not_published" },
   stage_skip_not_allowed: { status: 409, reason: "stage_skip_not_allowed" }, placement_exit_confirmation_required: { status: 409, reason: "placement_exit_confirmation_required" },
+  already_discarded: { status: 409, reason: "already_discarded" }, not_discarded: { status: 409, reason: "not_discarded" },
+  placement_reentry_confirmation_required: { status: 409, reason: "placement_reentry_confirmation_required" },
   validation_error: { status: 400, reason: "validation_error" }, invalid_request: { status: 400, reason: "invalid_request" },
   cv_storage_unavailable: { status: 503, reason: "cv_storage_unavailable" }, company_inactive: { status: 403, reason: "company_inactive" },
   company_not_active: { status: 409, reason: "company_not_active" }, unauthenticated: { status: 401, reason: "unauthenticated" },

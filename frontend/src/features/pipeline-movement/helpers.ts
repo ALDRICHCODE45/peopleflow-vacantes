@@ -1,6 +1,7 @@
 import type { Board, Participation, Move } from "./model";
 /** Order comes from the board, never from a hardcoded stage-kind sequence. */
 export function allowedMoveTargets(board: Board, item: Participation): Board["stages"] {
+  if (item.discard || item.stage_id === board.exit.id) return [];
   const current = board.stages.findIndex(stage => stage.id === item.stage_id);
   return current < 0 ? [] : board.stages.filter((_, index) => index < current || index === current + 1);
 }
@@ -9,7 +10,9 @@ export function leavesPlacement(board: Board, item: Participation, target: strin
     && allowedMoveTargets(board, item).some(stage => stage.id === target);
 }
 /** Confirmed moves replace, never append duplicates; milestone/coverage remain server-owned. */
-export function applyMoveToBoard(board: Board, move: Move): Board {
+export const applyMoveToBoard = applyParticipationToBoard;
+/** All three operations return the same server-owned board item and coverage. */
+export function applyParticipationToBoard(board: Board, move: Move): Board {
   const { coverage, ...item } = move;
   const order = new Map([...board.stages, board.exit].map((stage, index) => [stage.id, index]));
   const participations = [...board.participations.filter(previous => previous.id !== item.id), item].sort((a, b) =>

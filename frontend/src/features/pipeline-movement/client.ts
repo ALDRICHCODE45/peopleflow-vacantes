@@ -1,7 +1,8 @@
 import "server-only";
 import { z } from "zod";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
-import { boardSchema, detailSchema, historySchema, moveBodySchema, moveSchema, errorEnvelopeSchema, uuidSchema, etagSchema, type Board, type History, type Move, type ParticipationDetail } from "./model";
+import { boardSchema, detailSchema, historySchema, moveBodySchema, moveSchema, discardBodySchema, recoverBodySchema, errorEnvelopeSchema, uuidSchema, etagSchema, type Board, type History, type Move, type ParticipationDetail } from "./model";
+import { validateDiscardText } from "./discard-text";
 export type ReadInput = { token: string; vacancyId: string };
 export type ParticipationInput = ReadInput & { participationId: string };
 export type MoveInput = ParticipationInput & { etag: string; body: unknown };
@@ -12,7 +13,7 @@ function guard(input: ReadInput | ParticipationInput): ClientFailure | undefined
   if (typeof input?.token !== "string" || !input.token.trim()) return invalid("missing_token");
   if (!uuidSchema.safeParse(input.vacancyId).success || ("participationId" in input && !uuidSchema.safeParse(input.participationId).success)) return invalid("invalid_request");
 }
-async function request<T>(input: ReadInput, path: string, schema: z.ZodType<T>, write?: { etag: string; body: z.infer<typeof moveBodySchema> }): Promise<ClientResult<T>> {
+async function request<T>(input: ReadInput, path: string, schema: z.ZodType<T>, write?: { etag: string; body: object }): Promise<ClientResult<T>> {
   const { serverEnv } = await import("@/lib/env/server");
   const result = await requestJson(new URL(`/v2/me/company/job-drafts/${input.vacancyId}/${path}`, serverEnv.apiBaseUrl).toString(), {
     method: write ? "POST" : "GET", headers: { authorization: `Bearer ${input.token.trim()}`, ...(write ? { "if-match": write.etag } : {}) },
@@ -38,4 +39,25 @@ export async function moveParticipation(input: MoveInput): Promise<ClientResult<
   const body = moveBodySchema.safeParse(input.body);
   if (!body.success || !etagSchema.safeParse(input.etag).success) return invalid("invalid_request");
   return request(input, `participations/${input.participationId}/moves`, moveSchema, { etag: input.etag, body: body.data });
+}
+/** Strip only blank optional text; invalid nonblank text still fails validation. */
+export async function discardParticipation(input: MoveInput): Promise<ClientResult<Move>> {
+  const failure = guard(input); if (failure) return failure;
+  let raw = input.body;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    const normalized: Record<string, unknown> = { ...raw };
+    for (const key of ["comment", "candidate_message"]) {
+      if (typeof normalized[key] === "string" && !validateDiscardText(normalized[key], 1000).value) delete normalized[key];
+    }
+    raw = normalized;
+  }
+  const body = discardBodySchema.safeParse(raw);
+  if (!body.success || !etagSchema.safeParse(input.etag).success) return invalid("invalid_request");
+  return request(input, `participations/${input.participationId}/discard`, moveSchema, { etag: input.etag, body: body.data });
+}
+export async function recoverParticipation(input: MoveInput): Promise<ClientResult<Move>> {
+  const failure = guard(input); if (failure) return failure;
+  const body = recoverBodySchema.safeParse(input.body);
+  if (!body.success || !etagSchema.safeParse(input.etag).success) return invalid("invalid_request");
+  return request(input, `participations/${input.participationId}/recover`, moveSchema, { etag: input.etag, body: body.data });
 }
