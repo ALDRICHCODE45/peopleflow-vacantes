@@ -1000,7 +1000,7 @@ describe("dashboard-01 screenshot-era icons", () => {
     render(<EmployerDashboardPage />);
 
     expect(appSidebarSource).not.toContain("IconInnerShadowTop");
-    expect(appSidebarSource).toContain("PeopleFlowLogo");
+    expect(appSidebarSource).toContain("PeopleFlowSidebarLogo");
 
     const brand = screen.getByRole("link", { name: "PeopleFlow" });
     expect(brand.querySelectorAll("img")).toHaveLength(2);
