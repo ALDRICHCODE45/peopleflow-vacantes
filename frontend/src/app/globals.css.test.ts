@@ -170,6 +170,10 @@ describe("pipeline reference presentation", () => {
     expect(cssBlock(".dark .stage-process")).toContain("var(--primary) 60%, var(--foreground)");
     expect(cssBlock(":root:not([data-theme]) .stage-process")).toContain("var(--primary) 60%, var(--foreground)");
   });
+  it("contains each column's vertical scroll without changing the board's horizontal snap", () => {
+    expect(cssBlock('.pf-column-scroll > [data-slot="scroll-area-viewport"]')).toContain("overscroll-behavior-y: contain");
+    expect(cssBlock('.pf-board-scroll > [data-slot="scroll-area-viewport"]')).toContain("scroll-snap-type: x proximity");
+  });
   it("keeps structural card edges, scoped success progress and contained overlay scrolling", () => {
     expect(cssBlock('[data-slot="card"].pf-candidate-card')).toContain("border: 1px solid transparent");
     expect(cssBlock('.pf-board-coverage [data-slot="progress-track"]')).toContain("height: 4px");

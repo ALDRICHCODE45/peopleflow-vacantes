@@ -64,11 +64,14 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
 function Column({ stage, disabled, dragging, children }: { stage: Board["stages"][number] | Board["exit"]; disabled: boolean; dragging: boolean; children: React.ReactNode }) {
   const { setNodeRef } = useDroppable({ id: stage.id, disabled });
   return <section ref={setNodeRef} role="region" aria-label={`${stage.name}: ${stage.count} candidatos`} aria-describedby={dragging ? `drop-status-${stage.id}` : undefined}
-    data-drop-disabled={disabled} data-pf-published-column="" className={cn("stage-column w-[284px] shrink-0 snap-start self-start rounded-xl p-2 transition-opacity", stageClass(stage.kind), dragging && (disabled ? "opacity-35" : "outline outline-1 outline-dashed outline-primary"))}>
-    <div className="stage-heading mb-3 flex h-10 items-center gap-2 rounded-lg px-3"><span aria-hidden="true" className="stage-dot size-2 shrink-0 rounded-full" /><h3 className="min-w-0 truncate text-[13px] font-semibold" title={stage.name}>{stage.name}</h3><Badge variant="secondary" className="stage-count tabular-nums" aria-label={`${stage.count} candidatos`}>{stage.count}</Badge>
+    data-drop-disabled={disabled} data-pf-published-column="" className={cn("stage-column flex min-h-[420px] w-[284px] shrink-0 snap-start flex-col rounded-xl p-2 transition-opacity", stageClass(stage.kind), dragging && (disabled ? "opacity-35" : "outline outline-1 outline-dashed outline-primary"))}>
+    <div className="stage-heading mb-3 flex h-10 shrink-0 items-center gap-2 rounded-lg px-3"><span aria-hidden="true" className="stage-dot size-2 shrink-0 rounded-full" /><h3 className="min-w-0 truncate text-[13px] font-semibold" title={stage.name}>{stage.name}</h3><Badge variant="secondary" className="stage-count tabular-nums" aria-label={`${stage.count} candidatos`}>{stage.count}</Badge>
       {stage.kind === "discarded" && <Hint text="Se llega descartando, no moviendo"><span tabIndex={0} aria-label="Se llega descartando, no moviendo" className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"><LockKeyhole aria-hidden="true" className="size-3.5" /></span></Hint>}
     </div>
-    {dragging && <p id={`drop-status-${stage.id}`} className="sr-only">{disabled ? "Destino no permitido para este movimiento." : "Suelta aquí para solicitar el movimiento."}</p>}{children}
+    {dragging && <p id={`drop-status-${stage.id}`} className="sr-only">{disabled ? "Destino no permitido para este movimiento." : "Suelta aquí para solicitar el movimiento."}</p>}
+    <ScrollArea role="region" aria-label={`Candidatos en ${stage.name}`} className="pf-column-scroll min-h-0 flex-1">
+      <div className="p-0.5 pr-3">{children}</div>
+    </ScrollArea>
   </section>;
 }
 export function BoardColumns({ board, pending, locked, notices, onMove, onDetail, onDisposition }: Props) {
@@ -94,8 +97,8 @@ export function BoardColumns({ board, pending, locked, notices, onMove, onDetail
         onDragEnd: ({ over }) => over ? "Movimiento solicitado. Espera la confirmación del servidor." : "No se movió la tarjeta.",
         onDragCancel: () => "Movimiento cancelado. No cambió la etapa.",
       } }}>
-    <ScrollArea role="region" aria-label="Columnas del pipeline" className="pf-board-scroll min-w-0">
-      <div className="flex w-max items-start gap-3 px-0.5 pt-0.5 pb-6">
+    <ScrollArea role="region" aria-label="Columnas del pipeline" className="pf-board-scroll h-[min(70dvh,640px)] min-h-[448px] min-w-0 md:h-auto md:min-h-0 md:flex-1">
+      <div data-pf-board-track="" className="flex h-full min-h-[448px] w-max items-stretch gap-3 px-0.5 pt-0.5 pb-6">
         {[...board.stages, board.exit].map(stage => {
           const items = board.participations.filter(item => item.stage_id === stage.id);
           return <Column key={stage.id} stage={stage} dragging={!!active} disabled={locked || !targets.some(target => target.id === stage.id)}>

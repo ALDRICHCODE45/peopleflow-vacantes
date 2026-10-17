@@ -893,3 +893,16 @@ Referencia: `docs/design/v0/reference-lqiGtbQJqJc/` y capturas de L5 en
 - Descartar/recuperar conservan `Dialog`, `ActionBar`, validación Unicode, mensajes
   privados/públicos y confirmaciones de Placement. Las confirmaciones que parten de
   la ficha se anidan dentro de ella y devuelven el foco a su acción.
+
+### 14.4 Tableros a altura completa
+
+- En escritorio (`md`+), el pipeline publicado ocupa el alto disponible del viewport:
+  contenido en columna flex y tablero con `flex-1 min-h-0`, sin alargar la página.
+- Las columnas se estiran al alto del tablero, con un mínimo de 420px; toda su superficie
+  conserva las reglas de destino del arrastre.
+- Cada columna mantiene su encabezado fuera del `ScrollArea` vertical. Las vacías
+  conservan arriba el bloque compacto «Sin candidatos en esta etapa» (nunca un recuadro
+  punteado de altura completa); la barra horizontal queda al borde inferior del tablero.
+- Bajo `md`, la página mantiene su scroll natural y el tablero tiene altura acotada con
+  scroll interno. Si falta altura en escritorio, el mínimo se resuelve dentro del tablero,
+  no ampliando la página.

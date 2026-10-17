@@ -487,6 +487,7 @@ html[data-pf-theme-vt="active"]::view-transition-new(root) {
 }
 .pf-card-error > [role="status"] { font-size: 12px; gap: 6px; }
 .pf-board-scroll > [data-slot="scroll-area-viewport"] { scroll-snap-type: x proximity; }
+.pf-column-scroll > [data-slot="scroll-area-viewport"] { overscroll-behavior-y: contain; }
 .pf-sheet-scroll > [data-slot="scroll-area-viewport"] { overscroll-behavior: contain; }
 .pf-candidate-sheet .pf-candidate-tabs [data-slot="badge"] { background: var(--background); }
 .pf-board-coverage [data-slot="progress-track"] { height: 4px; background: var(--border); }

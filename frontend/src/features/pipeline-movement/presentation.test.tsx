@@ -34,6 +34,40 @@ it("keeps compact empty columns, exit guidance and card actions, without persist
   const card = screen.getByRole("button", { name: "Ver detalle de Ana Pérez" }).closest('[data-slot="card"]')!;
   expect(within(card as HTMLElement).getByText(/En la etapa desde/)).toHaveTextContent("En la etapa desde 16 oct");
 });
+it("stretches every drop surface and scrolls only its cards below a fixed heading", async () => {
+  const board = boardFixture();
+  await act(async () => render(<BoardColumns board={board} pending={new Set()} locked={false} notices={{}} onMove={vi.fn()} onDetail={vi.fn()} onDisposition={vi.fn()} />));
+  const region = screen.getByRole("region", { name: "Columnas del pipeline" });
+  expect(region).toHaveClass("md:flex-1", "md:min-h-0", "h-[min(70dvh,640px)]");
+  const track = region.querySelector('[data-pf-board-track]');
+  expect(track).toHaveClass("h-full", "items-stretch", "min-h-[448px]");
+  for (const stage of [...board.stages, board.exit]) {
+    const column = screen.getByRole("region", { name: `${stage.name}: ${stage.count} candidatos` });
+    expect(column).toHaveAttribute("data-pf-published-column");
+    expect(column).toHaveClass("flex", "flex-col", "min-h-[420px]");
+    expect(column).not.toHaveClass("self-start");
+    const listScroll = within(column).getByRole("region", { name: `Candidatos en ${stage.name}` });
+    expect(listScroll).toHaveAttribute("data-slot", "scroll-area");
+    expect(listScroll).toHaveClass("pf-column-scroll", "flex-1", "min-h-0");
+    // Base UI hides the default vertical scrollbar when jsdom reports no
+    // overflow. Assert the real viewport, not geometry-dependent visibility.
+    const viewport = listScroll.querySelector('[data-slot="scroll-area-viewport"]');
+    expect(viewport).toBeInTheDocument();
+    expect(listScroll.querySelector('[data-slot="scroll-area-scrollbar"][data-orientation="horizontal"]')).not.toBeInTheDocument();
+    const heading = within(column).getByRole("heading", { name: stage.name });
+    expect(listScroll).not.toContainElement(heading);
+    expect(heading.parentElement).toHaveClass("shrink-0");
+    if (stage.count) {
+      expect(viewport).toContainElement(within(column).getByRole("list"));
+      expect(viewport).toContainElement(screen.getByRole("button", { name: "Arrastrar Ana Pérez" }));
+    } else {
+      const empty = within(listScroll).getByText("Sin candidatos en esta etapa");
+      expect(viewport).toContainElement(empty);
+      expect(empty).toHaveClass("h-24", "border-dashed");
+      expect(empty).not.toHaveClass("h-full", "flex-1");
+    }
+  }
+});
 it("maps document extensions, Unicode initials and strict stage kinds without demo data", () => {
   expect(filePresentation("Mi CV.PDF")).toBe("pdf");
   expect(filePresentation("Mi CV.docx")).toBe("word");

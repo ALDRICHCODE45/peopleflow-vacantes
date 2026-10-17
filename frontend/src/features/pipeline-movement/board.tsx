@@ -52,8 +52,8 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
       </ActionBar></DialogFooter>
     </DialogContent>}
   </Dialog>;
-  return <section aria-label="Tablero de candidatos" className="flex min-w-0 flex-col gap-4" aria-busy={state.reading}>
-    <div className="flex flex-wrap items-center justify-between gap-4 pb-2">
+  return <section aria-label="Tablero de candidatos" className="flex min-h-0 min-w-0 flex-1 flex-col gap-4" aria-busy={state.reading}>
+    <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 pb-2">
       <div className="flex flex-col gap-1.5"><h2 className="text-xl font-semibold tracking-tight">Pipeline</h2>{publishedAt && <p className="text-xs text-muted-foreground">Publicada el <MovementDate value={publishedAt} /></p>}</div>
       <div className="flex items-center gap-5">{board && <BoardCoverage coverage={board.coverage} />}<Separator orientation="vertical" className="h-8" /><Hint text="Configuración de la vacante"><Button nativeButton={false} role="link" variant="outline" size="icon" className="size-10 bg-card" aria-label="Configuración de la vacante" render={<Link href={`/empresa/vacantes/${vacancyId}/configuracion/columnas`} />}><Settings2 aria-hidden="true" /></Button></Hint></div>
     </div>
@@ -62,7 +62,7 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
     {!state.failure && state.readNotice && <ActionStatusSlot><ActionStatus id="board-read-status" tone={state.readNotice.tone} text={state.readNotice.text} /></ActionStatusSlot>}
     {state.stale && state.reading && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner aria-hidden="true" />Comprobando el estado del tablero…</p>}
     {board && <>
-      <div className="flex items-center justify-between gap-4"><p className="flex items-center gap-2 text-xs text-muted-foreground"><UsersRound aria-hidden="true" className="size-4" /><span><strong className="font-medium text-foreground tabular-nums">{board.participations.length}</strong> candidatos en el pipeline</span></p><span className="hidden items-center gap-1.5 text-[11px] text-muted-foreground sm:flex"><GripVertical aria-hidden="true" className="size-3.5" />Arrastra una tarjeta para moverla</span></div>
+      <div className="flex shrink-0 items-center justify-between gap-4"><p className="flex items-center gap-2 text-xs text-muted-foreground"><UsersRound aria-hidden="true" className="size-4" /><span><strong className="font-medium text-foreground tabular-nums">{board.participations.length}</strong> candidatos en el pipeline</span></p><span className="hidden items-center gap-1.5 text-[11px] text-muted-foreground sm:flex"><GripVertical aria-hidden="true" className="size-3.5" />Arrastra una tarjeta para moverla</span></div>
       <BoardColumns board={board} pending={state.pending} locked={state.stale || !!confirmation || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
       {Object.entries(state.notices).filter(([id]) => !board.participations.some(item => item.id === id)).map(([id, notice]) => <ActionStatusSlot key={id}><ActionStatus id={`move-status-${id}`} tone={notice.tone} text={notice.text} /></ActionStatusSlot>)}
       {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} onClose={() => setSelected(null)} onMove={requestMove} onDisposition={state.requestDisposition} locked={stale || pending.has(selectedItem.id) || !!confirmation || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}</CandidateSheet>}

@@ -59,6 +59,7 @@ it.each([read.fields.title, null])("renders title %s, badge, empty state and con
   expect(container.querySelector('[data-slot="badge"]')).toHaveAttribute("data-dot");
   expect(container.querySelector('[data-slot="badge"]')).toHaveAttribute("data-variant", "info");
   expect(container.querySelectorAll("header")).toHaveLength(1);
+  expect(container.firstElementChild).not.toHaveClass("md:h-[calc(100dvh-1rem)]", "md:overflow-hidden");
 });
 it("published state renders current column cards and hides publish", async () => {
   vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "published", publishedAt: "2026-10-16T12:00:00Z", missing: [] } });
@@ -73,6 +74,11 @@ it("published state renders current column cards and hides publish", async () =>
   expect(screen.getByText(/candidatos en el pipeline/)).toHaveTextContent("0 candidatos en el pipeline");
   expect(screen.queryByRole("button", { name: "Publicar" })).not.toBeInTheDocument();
   expect(container.querySelectorAll('[data-pf-published-column]')).toHaveLength(3);
+  expect(container.firstElementChild).toHaveClass("min-h-0", "md:h-[calc(100dvh-1rem)]", "md:flex-none", "md:overflow-hidden");
+  const content = container.querySelector('[data-pf-page-content]');
+  expect(content).toHaveClass("min-h-0", "flex-1");
+  expect(content?.parentElement).toHaveClass("min-h-0", "flex-1");
+  expect(screen.getByRole("region", { name: "Tablero de candidatos" })).toHaveClass("min-h-0", "flex-1");
   expect(loadBoardAction).toHaveBeenCalledExactlyOnceWith(read.id);
   expect(loadDraftPipelineAction).not.toHaveBeenCalled();
 });
