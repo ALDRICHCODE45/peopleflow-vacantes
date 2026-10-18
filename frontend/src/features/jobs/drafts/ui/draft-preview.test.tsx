@@ -236,7 +236,7 @@ describe("DraftPreview compensation visibility", () => {
     visible.compensation = { ...hidden.compensation, public_visible: true };
     render(<DraftPreview state={visible} />);
 
-    expect(within(region("public")).getByText("30000.50")).toBeVisible();
+    expect(within(region("public")).getByText("$30,000.50 MXN")).toBeVisible();
     expect(
       within(region("internal")).getByText("Se mostrará en la vista pública"),
     ).toBeVisible();
@@ -258,7 +258,7 @@ describe("DraftPreview compensation visibility", () => {
 
     expect(
       within(region("public")).getByText(
-        "Peso mexicano (MXN) · Mensual · Bruto",
+        "Mensual · Bruto",
       ),
     ).toBeVisible();
   });
@@ -280,10 +280,10 @@ describe("DraftPreview compensation visibility", () => {
     const pub = region("public");
 
     expect(within(pub).queryByText("12000")).toBeNull();
-    expect(within(pub).getByText("30000 – 45000")).toBeVisible();
+    expect(within(pub).getByText("$30,000 – $45,000 MXN")).toBeVisible();
   });
 
-  it("renders money exactly as typed without numeric conversion", () => {
+  it("formats exact money without numeric conversion or precision loss", () => {
     const state = populatedState();
     state.compensation = {
       ...state.compensation,
@@ -297,10 +297,10 @@ describe("DraftPreview compensation visibility", () => {
 
     render(<DraftPreview state={state} />);
 
-    expect(within(region("public")).getByText("999999999999.99")).toBeVisible();
+    expect(within(region("public")).getByText("$999,999,999,999.99 MXN")).toBeVisible();
   });
 
-  it("shows an incomplete amount exactly as typed instead of a normalized value", () => {
+  it("formats a valid one-decimal amount without changing the raw buffer", () => {
     const state = populatedState();
     state.compensation = {
       ...state.compensation,
@@ -315,7 +315,7 @@ describe("DraftPreview compensation visibility", () => {
     render(<DraftPreview state={state} />);
     const pub = region("public");
 
-    expect(within(pub).getByText("12000.5")).toBeVisible();
+    expect(within(pub).getByText("$12,000.50 MXN")).toBeVisible();
     expect(within(pub).queryByText("12000.50")).toBeNull();
   });
 });
@@ -404,7 +404,7 @@ describe("DraftPreview invalid compensation", () => {
     render(<DraftPreview state={state} />);
     const pub = region("public");
 
-    expect(within(pub).getByText("30000")).toBeVisible();
+    expect(within(pub).getByText("Desde $30,000 MXN")).toBeVisible();
     expect(within(pub).queryByText("Revisar compensación")).toBeNull();
   });
 

@@ -204,13 +204,13 @@ function QuestionnaireSimulation({
         </QuestionnaireItem>
       ))}
 
-      <QuestionnaireActions>
-        <QuestionnairePrevious className={MIN_TARGET_HEIGHT}>
+      <QuestionnaireActions className="grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+        <QuestionnairePrevious className={`${MIN_TARGET_HEIGHT} col-start-1 row-start-auto w-full sm:row-start-1 sm:w-auto`}>
           Anterior
         </QuestionnairePrevious>
-        <QuestionnaireSkip className={MIN_TARGET_HEIGHT}>Omitir</QuestionnaireSkip>
-        <QuestionnaireNext className={MIN_TARGET_HEIGHT}>Siguiente</QuestionnaireNext>
-        <QuestionnaireSubmit className={MIN_TARGET_HEIGHT}>
+        <QuestionnaireSkip className={`${MIN_TARGET_HEIGHT} col-start-1 row-start-auto w-full sm:col-start-2 sm:row-start-1 sm:w-auto`}>Omitir</QuestionnaireSkip>
+        <QuestionnaireNext className={`${MIN_TARGET_HEIGHT} col-start-1 row-start-auto w-full sm:col-start-3 sm:row-start-1 sm:w-auto`}>Siguiente</QuestionnaireNext>
+        <QuestionnaireSubmit className={`${MIN_TARGET_HEIGHT} col-start-1 row-start-auto w-full sm:col-start-3 sm:row-start-1 sm:w-auto`}>
           Finalizar simulación
         </QuestionnaireSubmit>
       </QuestionnaireActions>

@@ -45,8 +45,8 @@ function DraftEditorSkeleton() {
                   <FieldGroup className="gap-4">{fields(["h-10", "h-10"])}</FieldGroup>
                 </section>
               </CardContent>
-              <CardFooter className="flex-wrap items-center justify-between gap-3">
-                <Skeleton className="h-10 w-16" /><div className="flex flex-wrap items-center gap-3"><Skeleton className="h-8 w-24" /></div>
+              <CardFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between [&_button]:min-h-10">
+                <Skeleton className="h-10 w-full sm:w-16" /><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><Skeleton className="h-10 w-full sm:w-24" /></div>
               </CardFooter>
             </Card>
           </section>

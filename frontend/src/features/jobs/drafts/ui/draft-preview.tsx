@@ -9,6 +9,7 @@ import {
   EyeIcon,
   FileTextIcon,
   GlobeIcon,
+  GiftIcon,
   LanguagesIcon,
   LayoutGridIcon,
   ListChecksIcon,
@@ -25,13 +26,13 @@ import type { ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { compensationSchema } from "../compensation";
+import { previewSalaryParts } from "../../create/form/preview-salary";
 import { BENEFITS } from "../lists";
 import { draftLanguagesSchema } from "../nested";
 import type { DraftCompensationState, DraftFormState } from "./draft-form-state";
 import {
   BASIS_OPTIONS,
   CONTRACT_TYPE_OPTIONS,
-  CURRENCY_OPTIONS,
   LANGUAGE_LEVEL_OPTIONS,
   LANGUAGE_OPTIONS,
   PAY_PERIOD_OPTIONS,
@@ -61,9 +62,8 @@ import {
  * It is presentational only: it reads the raw state, never mutates or
  * normalizes it, owns no request/storage/navigation, and never interprets
  * user HTML. The rich description is validated with the complete approved rich
- * schema and then rendered as safe React nodes, so its approved marks, links,
- * sizes and lists are represented without dangerous HTML. Money is displayed as
- * the exact typed string, with no numeric conversion.
+ * schema and rendered as safe React nodes. Valid money uses the public salary
+ * formatter without numeric conversion or mutations to the raw editor state.
  */
 
 const NOT_DEFINED_TITLE = "Título sin definir";
@@ -72,8 +72,7 @@ const DESCRIPTION_UNAVAILABLE = "La descripción todavía no se puede mostrar.";
 const NO_SELECTION = "Sin seleccionar";
 const INTERNAL_ONLY_NOTE = "Información interna: no aparece en la vista pública.";
 const NO_SCREENING = "Sin preguntas de filtro.";
-const NO_SALARY_AMOUNT = "Sin monto definido";
-const SALARY_RAW_NOTE = "El monto se muestra tal como lo escribiste, sin redondear.";
+const NO_SALARY_AMOUNT = "Compensación por completar";
 const SALARY_VISIBLE_STATUS = "Se mostrará en la vista pública";
 const SALARY_HIDDEN_STATUS = "No se mostrará en la vista pública";
 
@@ -173,28 +172,28 @@ type CompensationView =
   | { kind: "valid"; amount: string | null; meta: string | null };
 
 /**
- * Public compensation view. Hidden compensation reveals nothing, not even an
- * invalid one. A publicly visible invalid one is reported as needing review
- * instead of being presented as a normal salary; only a schema-valid one shows
- * the exact typed money strings.
+ * Hidden compensation never reveals private amounts. Invalid values need
+ * review; complete values use the shared public presentation. Draft-only
+ * single-bound ranges retain their explicit Desde/Hasta qualifier.
  */
 function compensationView(state: DraftCompensationState): CompensationView {
   if (!state.public_visible) return { kind: "hidden" };
-  if (!isCompensationValid(state)) return { kind: "invalid" };
-  let amount: string | null = null;
-  if (state.mode === "fixed" && state.amount !== "") amount = state.amount;
-  if (state.mode === "range") {
-    const min = state.min === "" ? null : state.min;
-    const max = state.max === "" ? null : state.max;
-    if (min !== null && max !== null) amount = `${min} – ${max}`;
-    else amount = min ?? max;
-  }
-  const parts = [
-    labelOf(CURRENCY_OPTIONS, state.currency),
-    labelOf(PAY_PERIOD_OPTIONS, state.pay_period),
-    labelOf(BASIS_OPTIONS, state.basis),
-  ].filter((value): value is string => value !== null);
-  return { kind: "valid", amount, meta: parts.length === 0 ? null : parts.join(" · ") };
+  const parsed = compensationSchema.safeParse(composeCompensation(state));
+  if (!parsed.success) return { kind: "invalid" };
+  const { mode, amount, min, max, currency, pay_period, basis } = parsed.data;
+  const meta = [labelOf(PAY_PERIOD_OPTIONS, state.pay_period) ?? "Periodicidad sin definir", labelOf(BASIS_OPTIONS, state.basis) ?? "Neto/bruto sin definir"].join(" · ");
+  // Incomplete drafts are valid for saving, but cannot be presented as a
+  // complete public salary. Never fill missing currency, cadence or basis.
+  if (!currency || !pay_period || !basis || !mode) return { kind: "valid", amount: null, meta };
+  const single = mode === "range" && (min === null || max === null);
+  const fixed = mode === "fixed" ? amount : single ? min ?? max : null;
+  if ((mode === "fixed" || single) && fixed === null) return { kind: "valid", amount: null, meta };
+  const parts = previewSalaryParts({ source: "vacancy", compensation: {
+    mode: single ? "fixed" : mode, amount: single ? fixed : amount,
+    min: single ? null : min, max: single ? null : max, currency, pay_period, basis,
+  } });
+  const prefix = single ? min === null ? "Hasta " : "Desde " : "";
+  return { kind: "valid", amount: parts ? `${prefix}${parts.amount} ${parts.currency}` : null, meta: parts?.cadence ?? meta };
 }
 
 /** One labelled data row with its contextual decorative icon. */
@@ -339,6 +338,18 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
         )}
 
         <div className="flex flex-col gap-2">
+          <PreviewGroupTitle id="draft-preview-compensation" icon={BanknoteIcon}>Compensación</PreviewGroupTitle>
+          {compensation.kind === "hidden" ? <p className="text-sm text-muted-foreground">Salario no publicado</p>
+            : compensation.kind === "invalid" ? <>
+              <Badge variant="danger">Revisar compensación</Badge>
+              <p className="text-sm text-muted-foreground">La compensación capturada no es válida; corrígela antes de publicar.</p>
+            </> : <>
+              <p className="font-heading text-2xl font-semibold tabular-nums text-foreground">{compensation.amount ?? NO_SALARY_AMOUNT}</p>
+              {compensation.meta && <p className="text-sm text-muted-foreground">{compensation.meta}</p>}
+            </>}
+        </div>
+
+        <div className="flex flex-col gap-2">
           <PreviewGroupTitle id="draft-preview-description" icon={FileTextIcon}>
             Descripción
           </PreviewGroupTitle>
@@ -392,7 +403,7 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
             <ul className="flex flex-wrap gap-2">
               {skills.map((skill, index) => (
                 <li key={`${skill}-${index}`}>
-                  <Badge variant="outline" className="text-muted-foreground">
+                  <Badge variant="secondary" className="h-auto max-w-full whitespace-normal break-words">
                     {skill}
                   </Badge>
                 </li>
@@ -406,66 +417,23 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
             <PreviewGroupTitle id="draft-preview-languages" icon={LanguagesIcon}>
               Idiomas
             </PreviewGroupTitle>
-            <ul className="flex flex-wrap gap-2">
-              {languages.map((language) =>
-                language.valid ? (
-                  <li key={language.id}>
-                    <Badge variant="outline" className="text-muted-foreground">
-                      {language.text}
-                    </Badge>
-                  </li>
-                ) : (
-                  <li key={language.id}>
-                    <span className="text-sm text-muted-foreground">{language.text}</span>
-                  </li>
-                ),
-              )}
+            <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
+              {languages.map((language) => <li key={language.id} className="break-words">{language.text}</li>)}
             </ul>
           </div>
         )}
 
         {benefitLabels.length > 0 && (
           <div className="flex flex-col gap-2">
-            <PreviewGroupTitle id="draft-preview-benefits" icon={BanknoteIcon}>
+            <PreviewGroupTitle id="draft-preview-benefits" icon={GiftIcon}>
               Prestaciones
             </PreviewGroupTitle>
-            <ul className="flex flex-wrap gap-2">
-              {benefitLabels.map((benefit, index) => (
-                <li key={`${benefit}-${index}`}>
-                  <Badge variant="outline" className="text-muted-foreground">
-                    {benefit}
-                  </Badge>
-                </li>
-              ))}
+            <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
+              {benefitLabels.map((benefit, index) => <li key={`${benefit}-${index}`} className="break-words">{benefit}</li>)}
             </ul>
           </div>
         )}
 
-        {compensation.kind === "hidden" ? null : (
-          <div className="flex flex-col gap-2">
-            <PreviewGroupTitle id="draft-preview-compensation" icon={BanknoteIcon}>
-              Compensación
-            </PreviewGroupTitle>
-            {compensation.kind === "invalid" ? (
-              <>
-                <Badge variant="danger">Revisar compensación</Badge>
-                <p className="text-xs text-muted-foreground">
-                  La compensación capturada no es válida; corrígela antes de publicar.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="font-heading text-lg font-semibold text-foreground">
-                  {compensation.amount === null ? NO_SALARY_AMOUNT : compensation.amount}
-                </p>
-                {compensation.meta === null ? null : (
-                  <p className="text-xs text-muted-foreground">{compensation.meta}</p>
-                )}
-                <p className="text-xs text-muted-foreground">{SALARY_RAW_NOTE}</p>
-              </>
-            )}
-          </div>
-        )}
         </CardContent>
       </Card>
 
@@ -517,11 +485,9 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
             Compensación
           </PreviewGroupTitle>
           <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className="text-muted-foreground">
-              {state.compensation.public_visible
-                ? SALARY_VISIBLE_STATUS
-                : SALARY_HIDDEN_STATUS}
-            </Badge>
+            <p className="text-sm text-muted-foreground">
+              {state.compensation.public_visible ? SALARY_VISIBLE_STATUS : SALARY_HIDDEN_STATUS}
+            </p>
             {isCompensationValid(state.compensation) ? null : (
               <Badge variant="danger">Revisar compensación</Badge>
             )}

@@ -13,7 +13,6 @@ import {
 } from "@/components/ui/card";
 import {
   employmentTypeLabel,
-  formatSalary,
   seniorityLabel,
   workModeLabel,
 } from "../formatters";
@@ -23,6 +22,7 @@ import type {
   Seniority,
   WorkMode,
 } from "../formatters";
+import { previewSalaryParts } from "./form/preview-salary";
 import { PrototypeDossier, toPlainSummary } from "./form/prototype-dossier";
 import type { VacancyPrototypeValues } from "./form/prototype-model";
 
@@ -92,7 +92,7 @@ export function VacancyPreview({
   const reversed = min !== undefined && max !== undefined && min > max;
   const salary = reversed
     ? null
-    : formatSalary({ min, max, currency: salaryCurrency });
+    : previewSalaryParts({ source: "legacy", legacy_salary: min === undefined && max === undefined ? null : { min: min === undefined ? null : String(min), max: max === undefined ? null : String(max), currency: salaryCurrency } });
 
   // Each unselected enum keeps its slot with an explicit placeholder, so the
   // card never renders an empty row or an invented value.
@@ -132,7 +132,7 @@ export function VacancyPreview({
             <CardTitle><h3 className="flex items-start gap-3">
             <span
               aria-hidden="true"
-              className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"
+              className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/12 text-foreground ring-1 ring-primary/40"
             >
               <Building2Icon className="size-5" />
             </span>
@@ -152,40 +152,34 @@ export function VacancyPreview({
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-1.5">
-            {chips.map((chip) => (
-              <Badge
-                key={chip.key}
-                variant={chip.placeholder ? "outline" : "secondary"}
-                className={chip.placeholder ? "text-muted-foreground" : undefined}
-              >
-                {chip.label}
-              </Badge>
-            ))}
+          <div className="flex flex-col gap-2">
+            <p className="text-sm">{chips[0].label}</p>
+            <p className="text-sm text-muted-foreground">{chips.slice(1).map((chip) => chip.label).join(" · ")}</p>
           </div>
 
           <p
             className={cn(
-              "line-clamp-3 text-xs leading-relaxed whitespace-pre-line text-muted-foreground",
+              "text-sm leading-relaxed whitespace-pre-line text-muted-foreground",
               trimmedDescription === "" && "italic",
             )}
           >
             {trimmedDescription === ""
               ? "Todavía no escribiste una descripción."
-              : toPlainSummary(trimmedDescription)}
+              : toPlainSummary(trimmedDescription, 240)}
           </p>
 
           </CardContent>
-          <CardFooter className="border-t text-xs">
+          <CardFooter className="flex-col items-start gap-1 border-t">
             <span
               className={cn(
                 salary === null
                   ? "text-muted-foreground"
-                  : "font-semibold text-foreground",
+                  : "text-xl font-semibold tabular-nums text-foreground",
               )}
             >
-              {salary ?? "Salario a convenir"}
+              {salary ? `${salary.amount} ${salary.currency}` : "Salario no publicado"}
             </span>
+            {salary && <p className="text-sm text-muted-foreground">Periodicidad y neto/bruto no publicados</p>}
           </CardFooter>
         </Card>
 

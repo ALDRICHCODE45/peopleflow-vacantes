@@ -52,6 +52,15 @@ describe("DraftQuestionnairePreview empty state", () => {
 });
 
 describe("DraftQuestionnairePreview simulation", () => {
+  it("stacks navigation on mobile without shrinking independent controls", async () => {
+    const { container } = render(<DraftQuestionnairePreview questions={[open("q1", "Pregunta"), open("q2", "Otra")]} />);
+    expect(container.querySelector('[data-slot="questionnaire-actions"]')).toHaveClass("grid-cols-1");
+    for (const name of ["Omitir", "Siguiente"]) expect(screen.getByRole("button", { name })).toHaveClass("w-full", "sm:w-auto");
+    expect(screen.getByRole("button", { name: "Siguiente" })).toHaveAttribute("data-variant", "default");
+    expect(screen.getByRole("button", { name: "Omitir" })).toHaveAttribute("data-variant", "outline");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Omitir" }));
+    for (const name of ["Anterior", "Finalizar simulación"]) expect(screen.getByRole("button", { name })).toHaveClass("w-full", "sm:w-auto");
+  });
   it("renders three questions in order and advances with the official navigation", async () => {
     const user = userEvent.setup();
     const { container } = render(

@@ -282,9 +282,9 @@ function DraftStepFooter({
   );
   if (status === undefined) {
     return (
-      <CardFooter className="flex-wrap items-center justify-between gap-3">
+      <CardFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between [&_button]:min-h-10">
         {back}
-        <div className="flex flex-wrap items-center gap-3">{children}</div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">{children}</div>
       </CardFooter>
     );
   }
@@ -623,7 +623,7 @@ export function LocalDraftForm({
                   >
                     {index + 1}
                   </span>
-                  <span className="min-w-0 text-[11px] font-medium leading-tight text-foreground sm:text-xs">
+                  <span className="min-w-0 text-sm font-medium leading-tight text-foreground">
                     {title}
                   </span>
                 </li>

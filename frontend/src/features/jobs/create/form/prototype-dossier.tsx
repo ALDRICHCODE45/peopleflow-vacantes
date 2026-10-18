@@ -1,7 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "cn";
 
 import { toPlainText } from "./rich-text-model";
 import { BENEFIT_OPTIONS, PAY_FREQUENCY_OPTIONS } from "./prototype-model";
@@ -17,10 +16,7 @@ import type { VacancyPrototypeValues } from "./prototype-model";
  * never imports the preview or the rail, so the dependency stays one-way.
  */
 
-/** How many technology badges the dossier shows before it counts the rest. */
-const MAX_VISIBLE_SKILLS = 6;
-
-type ExploratoryRow = { label: string; value: string; clamp?: boolean };
+type ExploratoryRow = { label: string; value: string };
 
 /** Spanish label of the exploratory pay frequency, or null when unset. */
 export function payFrequencyLabel(
@@ -35,8 +31,14 @@ export function payFrequencyLabel(
  * reads as one honest sentence. The baseline description and the exploratory
  * summaries share this one path.
  */
-export function toPlainSummary(value: string): string {
-  return toPlainText(value).replace(/\s+/gu, " ").trim();
+export function toPlainSummary(value: string, maxLength?: number): string {
+  const text = toPlainText(value).replace(/\s+/gu, " ").trim();
+  if (maxLength === undefined || Array.from(text).length <= maxLength) return text;
+  const prefix = Array.from(text).slice(0, maxLength + 1).join("");
+  const boundary = prefix.lastIndexOf(" ");
+  // A single long token is kept whole rather than splitting a word.
+  const end = boundary > 0 ? boundary : text.indexOf(" ");
+  return end < 0 ? text : `${text.slice(0, end)}…`;
 }
 
 /** Formats a date-input value in Spanish without any time-zone shift. */
@@ -102,12 +104,12 @@ function exploratoryRows(prototype: VacancyPrototypeValues): ExploratoryRow[] {
 
   const required = toPlainSummary(prototype.requiredRequirements);
   if (required !== "") {
-    rows.push({ label: "Requisitos obligatorios", value: required, clamp: true });
+    rows.push({ label: "Requisitos obligatorios", value: required });
   }
 
   const preferred = toPlainSummary(prototype.preferredRequirements);
   if (preferred !== "") {
-    rows.push({ label: "Requisitos deseables", value: preferred, clamp: true });
+    rows.push({ label: "Requisitos deseables", value: preferred });
   }
 
   const questions = prototype.screeningQuestions.length;
@@ -148,8 +150,7 @@ export type PrototypeDossierProps = {
 export function PrototypeDossier({ prototype }: PrototypeDossierProps) {
   if (prototype === undefined || !hasExploratoryContent(prototype)) return null;
 
-  const visibleSkills = prototype.skills.slice(0, MAX_VISIBLE_SKILLS);
-  const hiddenSkills = prototype.skills.length - visibleSkills.length;
+  const visibleSkills = prototype.skills;
 
   return (
     <Card size="sm">
@@ -162,11 +163,10 @@ export function PrototypeDossier({ prototype }: PrototypeDossierProps) {
             Tecnologías
           </span>
           {visibleSkills.map((skill) => (
-            <Badge key={skill} variant="secondary">
+            <Badge key={skill} variant="secondary" className="h-auto max-w-full whitespace-normal break-words">
               {skill}
             </Badge>
           ))}
-          {hiddenSkills > 0 && <Badge variant="outline">{`+${hiddenSkills}`}</Badge>}
         </div>
       )}
 
@@ -176,7 +176,7 @@ export function PrototypeDossier({ prototype }: PrototypeDossierProps) {
         {exploratoryRows(prototype).map((row) => (
           <div key={row.label} className="flex flex-col gap-0.5">
             <dt className="font-medium text-muted-foreground">{row.label}</dt>
-            <dd className={cn("leading-relaxed", row.clamp === true && "line-clamp-2")}>
+            <dd className="leading-relaxed break-words">
               {row.value}
             </dd>
           </div>

@@ -77,6 +77,14 @@ const enrichedPrototype: VacancyPrototypeValues = {
 };
 
 describe("VacancyPreview", () => {
+  it("marks a long excerpt at a word boundary and leaves short descriptions complete", () => {
+    const { rerender } = render(<VacancyPreview {...filledDraft} description={`${"Palabra ".repeat(32)}extraordinariamente`} />);
+    const excerpt = screen.getByText(/Palabra.*…/u);
+    expect(excerpt.textContent).not.toMatch(/extraord/u);
+    expect(excerpt.textContent).toMatch(/Palabra…$/u);
+    rerender(<VacancyPreview {...filledDraft} description="Descripción completa" />);
+    expect(screen.getByText("Descripción completa")).toBeVisible();
+  });
   it("renders an explicit draft card with useful placeholders instead of invented data", () => {
     render(<VacancyPreview {...emptyDraft} />);
 
@@ -85,12 +93,11 @@ describe("VacancyPreview", () => {
     expect(screen.getByText("Título del puesto")).toBeVisible();
     expect(screen.getByText("Tu empresa")).toBeVisible();
     expect(screen.getByText("Modalidad sin definir")).toBeVisible();
-    expect(screen.getByText("Jornada sin definir")).toBeVisible();
-    expect(screen.getByText("Seniority sin definir")).toBeVisible();
+    expect(screen.getByText("Jornada sin definir · Seniority sin definir")).toBeVisible();
     expect(
       screen.getByText("Todavía no escribiste una descripción."),
     ).toBeVisible();
-    expect(screen.getByText("Salario a convenir")).toBeVisible();
+    expect(screen.getByText("Salario no publicado")).toBeVisible();
   });
 
   it("renders the current values with fixed Spanish enum labels", () => {
@@ -99,8 +106,7 @@ describe("VacancyPreview", () => {
     expect(screen.getByText("Backend Developer (Senior)")).toBeVisible();
     expect(screen.getByText("Tu empresa · Monterrey, NL")).toBeVisible();
     expect(screen.getByText("Remoto")).toBeVisible();
-    expect(screen.getByText("Tiempo completo")).toBeVisible();
-    expect(screen.getByText("Líder")).toBeVisible();
+    expect(screen.getByText("Tiempo completo · Líder")).toBeVisible();
     expect(
       screen.getByText("Liderá el diseño y la evolución de nuestros servicios core."),
     ).toBeVisible();
@@ -110,10 +116,10 @@ describe("VacancyPreview", () => {
     const { rerender } = render(<VacancyPreview {...filledDraft} />);
     // The shared feature formatter owns the wire-currency rendering, so the
     // preview shows the same string the public vacancy page shows.
-    expect(screen.getByText("MXN 25,000 – MXN 40,000")).toBeVisible();
+    expect(screen.getByText("$25,000 – $40,000 MXN")).toBeVisible();
 
     rerender(<VacancyPreview {...filledDraft} salaryMax="" />);
-    expect(screen.getByText("Desde MXN 25,000")).toBeVisible();
+    expect(screen.getByText("Desde $25,000 MXN")).toBeVisible();
 
     rerender(
       <VacancyPreview
@@ -122,17 +128,17 @@ describe("VacancyPreview", () => {
         salaryCurrency="USD"
       />,
     );
-    expect(screen.getByText("Hasta USD 40,000")).toBeVisible();
+    expect(screen.getByText("Hasta $40,000 USD")).toBeVisible();
   });
 
   it("ignores salary input the contract cannot accept instead of inventing an amount", () => {
     const { rerender } = render(
       <VacancyPreview {...filledDraft} salaryMin="25,000" salaryMax="" />,
     );
-    expect(screen.getByText("Salario a convenir")).toBeVisible();
+    expect(screen.getByText("Salario no publicado")).toBeVisible();
 
     rerender(<VacancyPreview {...filledDraft} salaryMin="" salaryMax="" />);
-    expect(screen.getByText("Salario a convenir")).toBeVisible();
+    expect(screen.getByText("Salario no publicado")).toBeVisible();
 
     rerender(
       <VacancyPreview
@@ -141,7 +147,7 @@ describe("VacancyPreview", () => {
         salaryCurrency="USD"
       />,
     );
-    expect(screen.getByText("Hasta USD 40,000")).toBeVisible();
+    expect(screen.getByText("Hasta $40,000 USD")).toBeVisible();
   });
 
   it("never renders a reversed salary range instead of inventing an order", () => {
@@ -149,14 +155,14 @@ describe("VacancyPreview", () => {
       <VacancyPreview {...filledDraft} salaryMin="40000" salaryMax="25000" />,
     );
 
-    expect(screen.getByText("Salario a convenir")).toBeVisible();
-    expect(screen.queryByText(/MXN 40,000 – MXN 25,000/u)).toBeNull();
+    expect(screen.getByText("Salario no publicado")).toBeVisible();
+    expect(screen.queryByText(/\$40,000 – \$25,000 MXN/u)).toBeNull();
 
     // Equal bounds still render; only a strictly reversed pair falls back.
     rerender(
       <VacancyPreview {...filledDraft} salaryMin="25000" salaryMax="25000" />,
     );
-    expect(screen.getByText("MXN 25,000 – MXN 25,000")).toBeVisible();
+    expect(screen.getByText("$25,000 – $25,000 MXN")).toBeVisible();
   });
 
   it("never claims the vacancy is published and exposes no unsupported field or action", () => {
@@ -181,9 +187,9 @@ describe("VacancyPreview baseline without prototype state", () => {
 
     expect(screen.queryByText("Información complementaria")).toBeNull();
     expect(screen.queryByText("Prototipo")).toBeNull();
-    // The salary line keeps its exact baseline reading.
+    // The salary line uses the public formatter.
     expect(
-      screen.getByText("MXN 25,000 – MXN 40,000"),
+      screen.getByText("$25,000 – $40,000 MXN"),
     ).toBeVisible();
     expect(container.textContent).not.toMatch(/Mensual|Anual|Por hora/);
   });
@@ -198,7 +204,7 @@ describe("VacancyPreview baseline without prototype state", () => {
 
     expect(screen.queryByText("Información complementaria")).toBeNull();
     expect(
-      screen.getByText("MXN 25,000 – MXN 40,000"),
+      screen.getByText("$25,000 – $40,000 MXN"),
     ).toBeVisible();
   });
 
@@ -214,7 +220,7 @@ describe("VacancyPreview baseline without prototype state", () => {
     );
 
     expect(screen.queryByText("Información complementaria")).toBeNull();
-    expect(screen.getByText("MXN 25,000 – MXN 40,000")).toBeVisible();
+    expect(screen.getByText("$25,000 – $40,000 MXN")).toBeVisible();
   });
 });
 
@@ -230,8 +236,8 @@ describe("VacancyPreview exploratory dossier", () => {
     expect(screen.getByText("Ingeniería")).toBeVisible();
     expect(screen.getByText("Frecuencia de pago")).toBeVisible();
     expect(screen.getByText("Mensual")).toBeVisible();
-    // The salary line keeps its exact contract-backed reading.
-    expect(screen.getByText("MXN 25,000 – MXN 40,000")).toBeVisible();
+    // The salary line uses the public formatter.
+    expect(screen.getByText("$25,000 – $40,000 MXN")).toBeVisible();
     expect(screen.getByText("Inglés · B2 · Portugués")).toBeVisible();
     expect(screen.getByText("Beneficios (2)")).toBeVisible();
     expect(screen.getByText("Seguro de salud · Bono anual")).toBeVisible();
@@ -287,24 +293,17 @@ describe("VacancyPreview exploratory dossier", () => {
     expect(screen.queryByText("Prototipo")).toBeNull();
     expect(screen.getByText("Frecuencia de pago")).toBeVisible();
     expect(screen.getByText("Mensual")).toBeVisible();
-    // The salary display is preserved exactly.
-    expect(screen.getByText("MXN 25,000 – MXN 40,000")).toBeVisible();
+    // Local-only frequency is not asserted as contractual salary cadence.
+    expect(screen.getByText("$25,000 – $40,000 MXN")).toBeVisible();
     expect(container.textContent).not.toContain(
-      "MXN 25,000 – MXN 40,000 · Mensual",
+      "$25,000 – $40,000 MXN · Mensual",
     );
   });
 
-  it("clamps the technology badges and reports the remainder", () => {
+  it("keeps all locally available skills readable without a dead-end remainder", () => {
     render(<VacancyPreview {...filledDraft} prototype={enrichedPrototype} />);
-
-    for (const skill of SKILLS.slice(0, 6)) {
-      expect(screen.getByText(skill)).toBeVisible();
-    }
-    // Exactly six badges plus one remainder counter for the four hidden skills.
-    expect(screen.getByText("+4")).toBeVisible();
-    for (const hidden of SKILLS.slice(6)) {
-      expect(screen.queryByText(hidden)).toBeNull();
-    }
+    for (const skill of enrichedPrototype.skills) expect(screen.getByText(skill)).toBeVisible();
+    expect(screen.queryByText("+4")).toBeNull();
   });
 
   it("strips formatting tokens and link addresses from the summaries", () => {
