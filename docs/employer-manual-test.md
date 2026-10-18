@@ -397,6 +397,10 @@ corepack pnpm dev
     resultados públicos. **Esperado:** una sola acción principal por pantalla, salir de la
     pantalla nunca junto a ella, cada vacío dice qué pasa y qué hacer, y en el celular los
     botones se apilan.
+61. **Crear una vacante.** En «Tus vacantes», el sidebar y la barra pública solo hay un
+    botón para crear («Nueva vacante» / «Publicar vacante») y abre el editor de
+    borradores. Entrar a `/empresa/vacantes/nueva` también lleva ahí. Con la lista vacía no
+    aparece otro botón de crear: la descripción remite a «Nueva vacante».
 
 ## 5. Verificación en la base (solo lectura)
 
