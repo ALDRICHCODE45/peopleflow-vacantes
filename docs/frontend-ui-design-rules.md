@@ -627,6 +627,9 @@ puede hacer la persona ahora.** Un párrafo rojo suelto, largo o con jerga técn
 
 ### Redacción
 
+- El título nombra qué pasó y a quién; la descripción añade la consecuencia o el
+  siguiente paso, nunca repite el título. Máximo dos oraciones cortas y lenguaje
+  neutro respecto al género («Ana pasó a Screening», no «Candidato movido»).
 - **Título:** qué pasó, en seis palabras o menos y sin culpar a la persona («Borrador
   guardado», «No se pudo guardar el borrador», «El servidor tuvo un problema»).
 - **Descripción:** una o dos oraciones con la consecuencia (qué se guardó o no) y el

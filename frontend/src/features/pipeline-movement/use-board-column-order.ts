@@ -39,10 +39,10 @@ export function useBoardColumnOrder(vacancyId: string, board: Board | null, disa
     && board.stages.length === editor.stages.length
     && board.stages.every((stage, index) => stage.id === editor.stages[index].id);
   const locked = disabled || busy || unavailable || structureLocked || !matches;
-  function report(value: Notice, reference?: { status?: number; code?: string }) {
+  function report(value: Notice, title: string, reference?: { status?: number; code?: string }) {
     setNotice(value);
     notifyActionResult({ key: "pipeline-column-order", type: value.tone,
-      title: value.tone === "success" ? "Columnas reordenadas" : "Revisa el orden de columnas", description: value.text,
+      title, description: value.text,
       ...(value.tone === "error" ? { reference: { ...reference, at: new Date().toISOString() } } : {}) });
   }
   async function refresh() {
@@ -52,7 +52,7 @@ export function useBoardColumnOrder(vacancyId: string, board: Board | null, disa
     if (!alive.current) return;
     if (config.ok) setLoaded(config);
     setUnavailable(!config.ok || !boardOk);
-    report({ tone: config.ok && boardOk ? "info" : "error", text: config.ok && boardOk ? "Columnas actualizadas. No repetimos el guardado." : "No pudimos actualizar las columnas. Intenta leerlas de nuevo antes de reordenar." }, config.ok ? undefined : config.reference);
+    report({ tone: config.ok && boardOk ? "info" : "error", text: config.ok && boardOk ? "Columnas actualizadas. No repetimos el guardado." : "No pudimos actualizar las columnas. Intenta leerlas de nuevo antes de reordenar." }, config.ok && boardOk ? "Actualizamos el tablero" : "No se actualizaron las columnas", config.ok ? undefined : config.reference);
     setBusy(false); mutex.current = false;
   }
   async function move(key: string, targetIndex: number) {
@@ -70,7 +70,12 @@ export function useBoardColumnOrder(vacancyId: string, board: Board | null, disa
       const boardOk = await reloadBoard();
       if (!alive.current) return;
       setUnavailable(!boardOk);
-      report({ tone: "success", text: boardOk ? "Columnas reordenadas" : "Columnas reordenadas. Actualiza el tablero antes de continuar." });
+      const index = result.pipeline.stages.findIndex(stage => stage.id === key);
+      const stages = result.pipeline.stages;
+      const position = index === 1
+        ? `${stages[index].name} ahora va antes de ${stages[index + 1].name}.`
+        : `${stages[index].name} ahora va después de ${stages[index - 1].name}.`;
+      report({ tone: "success", text: `${position}${boardOk ? "" : " Actualiza el tablero antes de continuar."}` }, "Columnas reordenadas");
     } else {
       // Every rejection/uncertain result returns to server order with exactly one
       // config GET and one board GET, never an automatic second PUT.
@@ -84,7 +89,7 @@ export function useBoardColumnOrder(vacancyId: string, board: Board | null, disa
         : result.reason === "version_conflict"
           ? "Otro usuario cambió las columnas. Actualizamos el tablero."
           : "No pudimos confirmar el cambio. Actualizamos el tablero sin repetir el guardado.";
-      report({ tone: "error", text: config.ok && boardOk ? text : "No pudimos actualizar las columnas. Los cambios están bloqueados; usa Actualizar columnas para comprobar, sin repetir el guardado." }, result.reference);
+      report({ tone: "error", text: config.ok && boardOk ? text : "No pudimos actualizar las columnas. Los cambios están bloqueados; usa Actualizar columnas para comprobar, sin repetir el guardado." }, "No se guardó el orden de columnas", result.reference);
     }
     setOptimistic(null); setBusy(false); mutex.current = false;
   }

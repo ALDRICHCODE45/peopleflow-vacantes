@@ -113,7 +113,7 @@ it("drop saves the reordered full body with If-Match, optimistically orders and 
 it("success announces confirmation, reloads board order and adopts the next ETag", async () => {
   vi.mocked(loadBoardAction).mockResolvedValueOnce({ ok: true, data: board() }).mockResolvedValue({ ok: true, data: board(saved()) });
   await mount(); drop();
-  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Columnas reordenadas" })));
+  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Columnas reordenadas", description: "Screening ahora va después de Screening OK." })));
   expect(order()).toEqual(saved().stages.map(stage => stage.name).concat("Descartados"));
   expect(loadBoardAction).toHaveBeenCalledTimes(2); expect(loadDraftPipelineAction).toHaveBeenCalledTimes(1);
   drop("screen", "process");
@@ -131,7 +131,7 @@ it.each([
   expect(await screen.findByText(text)).toBeVisible();
   expect(order()).toEqual(pipeline().stages.map(stage => stage.name).concat("Descartados"));
   expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1); expect(loadBoardAction).toHaveBeenCalledTimes(2); expect(loadDraftPipelineAction).toHaveBeenCalledTimes(2);
-  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", description: text }));
+  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", title: "No se guardó el orden de columnas", description: text }));
 });
 it("a failed reconciliation locks stale column writes; retry is read-only", async () => {
   await mount();
@@ -145,6 +145,15 @@ it("a failed reconciliation locks stale column writes; retry is read-only", asyn
   await waitFor(() => expect(screen.getByRole("button", { name: "Reordenar Screening" })).toBeEnabled());
   expect(screen.getByText("Columnas actualizadas. No repetimos el guardado.")).toBeVisible();
   expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1);
+});
+it("first reorderable slot names the following column, not the fixed entry", async () => {
+  const first = { ...pipeline(), stages: moveStageTo(editorFromPipeline(pipeline()), "custom", 1).stages.map(stage => ({ id: stage.id!, kind: stage.kind, name: stage.name })) };
+  vi.mocked(saveDraftPipelineAction).mockResolvedValueOnce({ ok: true, pipeline: first, etag: '"first-slot"' });
+  vi.mocked(loadBoardAction).mockResolvedValueOnce({ ok: true, data: board() }).mockResolvedValue({ ok: true, data: board(first) });
+  await mount(); drop("custom", "screen");
+  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({
+    key: "pipeline-column-order", type: "success", title: "Columnas reordenadas", description: "Técnica ahora va antes de Screening.",
+  })));
 });
 it("lifts the column, marks the insertion side, and cancels without a PUT", async () => {
   await mount();

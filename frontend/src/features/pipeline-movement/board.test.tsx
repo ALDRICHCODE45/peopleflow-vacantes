@@ -89,8 +89,8 @@ it("confirms leaving Placement with reduced coverage and retained history before
   expect(dialog).toHaveTextContent("reduce las plazas cubiertas"); expect(dialog).toHaveTextContent("conserva el historial");
   expect(moveParticipationAction).not.toHaveBeenCalled();
   fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar movimiento" }));
-  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Candidato movido" })));
-  expect(screen.queryByText("Candidato movido")).not.toBeInTheDocument();
+  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Ana Pérez salió de Contratación" })));
+  expect(screen.queryByText("Ana Pérez salió de Contratación")).not.toBeInTheDocument();
   expect(moveParticipationAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, participationId: "person", etag: '"opaque-item-tag"', body: { to_stage_id: "screen", confirm_placement_exit: true } });
 });
 it("also requests explicit Placement confirmation after the server's 409", async () => {
@@ -99,7 +99,7 @@ it("also requests explicit Placement confirmation after the server's 409", async
   const dialog = await screen.findByRole("dialog");
   expect(moveParticipationAction).toHaveBeenCalledTimes(1);
   fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar movimiento" }));
-  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Candidato movido" })));
+  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Ana Pérez pasó a Revisión" })));
   expect(moveParticipationAction).toHaveBeenLastCalledWith(expect.objectContaining({ body: { to_stage_id: "screen", confirm_placement_exit: true } }));
 });
 it("412 reloads once and explains the other user's move", async () => {
@@ -183,7 +183,7 @@ it("200 applies new stage, counts, etag and server coverage; double submission i
   expect(screen.getByRole("region", { name: "Revisión: 1 candidatos" })).toHaveTextContent("Ana Pérez");
   expect(screen.getByRole("region", { name: "Entrada: 0 candidatos" })).not.toHaveTextContent("Ana Pérez");
   expect(screen.getByLabelText("Cobertura")).toHaveTextContent("1 de 2 plazas cubiertas");
-  move("Entrada"); await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Candidato movido" })));
+  move("Entrada"); await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Ana Pérez pasó a Entrada" })));
   expect(moveParticipationAction).toHaveBeenLastCalledWith(expect.objectContaining({ etag: '"new-opaque"' }));
   expect(loadBoardAction).toHaveBeenCalledTimes(1);
 });
@@ -208,7 +208,7 @@ it("restores keyboard focus to the moved card's menu", async () => {
   await mount();
   screen.getByRole("button", { name: "Acciones de Ana Pérez" }).focus();
   move();
-  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Candidato movido" })));
+  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Ana Pérez pasó a Revisión" })));
   await waitFor(() => expect(screen.getByRole("button", { name: "Acciones de Ana Pérez" })).toHaveFocus());
 });
 it("overlapping moves reconcile global coverage once after both responses, without replay", async () => {
@@ -296,8 +296,8 @@ it("discard from Placement explicitly confirms departure and reduces coverage wi
   fireEvent.click(within(dialog).getByRole("combobox", { name: "Motivo" }));
   fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
   fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
-  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Candidato descartado" })));
-  expect(screen.queryByText("Candidato descartado")).not.toBeInTheDocument();
+  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Descartaste a Ana Pérez" })));
+  expect(screen.queryByText("Descartaste a Ana Pérez")).not.toBeInTheDocument();
   expect(discardParticipationAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, participationId: "person", etag: '"opaque-item-tag"', body: { reason: { group: "recruiter", key: "requirements_not_met" }, confirm_placement_exit: true } });
 });
 it.each(["new", "hire"])("discarded column shows reason and recover confirms the current name of %s", async previous => {
@@ -313,7 +313,7 @@ it.each(["new", "hire"])("discarded column shows reason and recover confirms the
   if (previous === "hire") expect(dialog).toHaveTextContent("ocupar una plaza");
   expect(recoverParticipationAction).not.toHaveBeenCalled();
   fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar recuperación" }));
-  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Candidato recuperado" })));
+  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Recuperaste a Ana Pérez" })));
   expect(recoverParticipationAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, participationId: "person", etag: '"opaque-item-tag"', body: previous === "hire" ? { confirm_placement_reentry: true } : {} });
   expect(moveParticipationAction).not.toHaveBeenCalled();
 });

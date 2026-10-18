@@ -6,8 +6,8 @@ import { allowedMoveTargets, applyParticipationToBoard, leavesPlacement } from "
 import { boardErrorCopy, moveErrorCopy, needsReconciliation, reconciliationCopy, type Notice } from "./board-feedback";
 import type { Board, DiscardBody, Failure, Participation, Result } from "./model";
 import { useBoardColumnOrder } from "./use-board-column-order";
+import { boardSuccessCopy, type BoardWrite } from "./board-toast-copy";
 export type Disposition = { kind: "discard" | "recover"; item: Participation; placementConfirmation: boolean };
-type Write = { kind: "move"; target: string; confirmed: boolean } | { kind: "discard"; body: DiscardBody } | { kind: "recover"; confirmed: boolean };
 
 type Confirmation = { item: Participation; target: string };
 const noResponse: Failure = { ok: false, reason: "no_response", reference: {} };
@@ -50,10 +50,10 @@ export function useMovementBoard(vacancyId: string) {
     return result.ok;
   }
   function adopt(value: Board) { snapshot.current = value; setBoard(value); }
-  function report(id: string, notice: Notice, reference?: Failure["reference"]) {
+  function report(id: string, notice: Notice, title: string, reference?: Failure["reference"]) {
     setNotices(previous => ({ ...previous, [id]: notice }));
     notifyActionResult({ key: `pipeline-move-${id}`, type: notice.tone,
-      title: notice.tone === "success" ? notice.text : "Revisa la acción", description: notice.text,
+      title, description: notice.text,
       ...(notice.tone === "error" ? { reference: { ...reference, at: new Date().toISOString() } } : {}) });
   }
   useEffect(() => {
@@ -77,7 +77,7 @@ export function useMovementBoard(vacancyId: string) {
     if (result.ok) { adopt(result.data); setFailure(null); mustRead.current = false; setStale(false); }
     else setFailure(result);
     for (const [id, failure] of requested) {
-      report(id, { tone: "error", text: reconciliationCopy(failure.reason, result.ok) }, failure.reference);
+      report(id, { tone: "error", text: reconciliationCopy(failure.reason, result.ok) }, "Actualizamos el tablero", failure.reference);
     }
     readBusy.current = false; setReading(false);
   }
@@ -95,8 +95,9 @@ export function useMovementBoard(vacancyId: string) {
       ...(!result.ok ? { reference: { ...result.reference, at: new Date().toISOString() } } : {}) });
     readBusy.current = false; setReading(false);
   }
-  async function submit(item: Participation, write: Write) {
-    if (locks.current.has(item.id) || mustRead.current || readBusy.current) return;
+  async function submit(item: Participation, write: BoardWrite) {
+    const actionBoard = snapshot.current;
+    if (!actionBoard || locks.current.has(item.id) || mustRead.current || readBusy.current) return;
     if (locks.current.size) overlapping.current = true;
     locks.current.add(item.id); setPending(new Set(locks.current));
     setNotices(previous => { const next = { ...previous }; delete next[item.id]; return next; });
@@ -113,7 +114,8 @@ export function useMovementBoard(vacancyId: string) {
     if (!alive.current) return;
     if (result.ok) {
       if (snapshot.current) adopt(applyParticipationToBoard(snapshot.current, result.data));
-      report(item.id, { tone: "success", text: write.kind === "move" ? "Candidato movido" : write.kind === "discard" ? "Candidato descartado" : "Candidato recuperado" });
+      const copy = boardSuccessCopy(actionBoard, item, write, result.data);
+      report(item.id, { tone: "success", text: copy.description }, copy.title);
       if (confirming.current?.item.id === item.id) { confirming.current = null; setConfirmation(null); }
       if (disposing.current?.item.id === item.id) { disposing.current = null; setDisposition(null); }
     } else if (write.kind === "move" && result.reason === "placement_exit_confirmation_required") {
@@ -122,14 +124,17 @@ export function useMovementBoard(vacancyId: string) {
       // The next write is possible only after another explicit confirmation.
       const next: Disposition = { kind: write.kind, item, placementConfirmation: true };
       disposing.current = next; setDisposition(next);
-      report(item.id, { tone: "info", text: "Confirma la consecuencia sobre las plazas cubiertas antes de continuar." });
+      report(item.id, { tone: "info", text: "Confirma la consecuencia sobre las plazas cubiertas antes de continuar." }, "Confirma el cambio de cobertura");
     } else {
       if (confirming.current?.item.id === item.id) { confirming.current = null; setConfirmation(null); }
       if (needsReconciliation(result)) {
         if (disposing.current?.item.id === item.id) { disposing.current = null; setDisposition(null); }
         mustRead.current = true; setStale(true);
         reconcile.current.set(item.id, result);
-      } else report(item.id, { tone: "error", text: write.kind === "move" ? moveErrorCopy(result.reason) : result.reason === "validation_error" ? "No se guardó. Revisa los datos e intenta de nuevo." : "No se guardó. Revisa tu sesión y los permisos antes de intentar de nuevo." }, result.reference);
+      } else {
+        const title = write.kind === "move" ? `No se movió a ${item.candidate.full_name}` : write.kind === "discard" ? `No se descartó a ${item.candidate.full_name}` : `No se recuperó a ${item.candidate.full_name}`;
+        report(item.id, { tone: "error", text: write.kind === "move" ? moveErrorCopy(result.reason) : result.reason === "validation_error" ? "No se guardó. Revisa los datos e intenta de nuevo." : "No se guardó. Revisa tu sesión y los permisos antes de intentar de nuevo." }, title, result.reference);
+      }
     }
     locks.current.delete(item.id); setPending(new Set(locks.current));
     await reconcileOnce();
