@@ -514,8 +514,12 @@ migración masiva ni conectar prototipos a persistencia inexistente.
 
 ### Skeletons por contexto
 
-- Representar la estructura que llegará: filas de tabla, cards, encabezados o formulario.
-  Reservar tamaños y mantener la misma grilla responsive para evitar saltos de layout.
+- Un skeleton **duplica la estructura** de lo que va a llegar, no la sugiere: los mismos
+  primitives y slots (si lo cargado es una `Card`, el skeleton es una `Card` con
+  `CardHeader`/`CardTitle`/`CardDescription`/`CardAction`/`CardContent`/`CardFooter` en
+  el mismo orden; si es una lista de `Item`, filas de `Item`), la misma cantidad y orden
+  de secciones, la misma grilla responsive y las mismas medidas de título, badge, avatar,
+  botón o campo. Al llegar el contenido no debe moverse nada.
 - Componer el primitive `@/components/ui/skeleton`; no crear divs con `animate-pulse`
   como sustituto, ni usar una pantalla genérica de carga para todo el sistema.
 - Marcar los bloques decorativos con `aria-hidden="true"`; el contenedor lleva
@@ -525,13 +529,25 @@ migración masiva ni conectar prototipos a persistencia inexistente.
 - No agregar timers, latencias ni skeletons a datos locales ya disponibles. Un
   `loading.tsx` representa una espera real del segmento; no reemplaza automáticamente
   la carga de consultas del cliente.
+- Cuando la estructura es observable, un test compara la secuencia de `data-slot` del
+  skeleton con la del componente cargado.
 
 ```tsx
-<section aria-busy="true" aria-label="Listado de vacantes" className="flex flex-col gap-3">
-  <span role="status" className="sr-only">Cargando vacantes</span>
-  <Skeleton aria-hidden="true" className="h-6 w-48" />
-  <Skeleton aria-hidden="true" className="h-24 w-full" />
-</section>
+// Real: <Card><CardHeader><CardTitle/><CardDescription/><CardAction><Badge/></CardAction>
+//       </CardHeader><CardContent>…</CardContent><CardFooter><Button/></CardFooter></Card>
+<Card aria-busy="true" aria-label="Solicitud">
+  <span role="status" className="sr-only">Cargando solicitud</span>
+  <CardHeader>
+    <CardTitle><Skeleton aria-hidden="true" className="h-5 w-40" /></CardTitle>
+    <CardDescription><Skeleton aria-hidden="true" className="h-4 w-64" /></CardDescription>
+    <CardAction><Skeleton aria-hidden="true" className="h-5 w-16 rounded-full" /></CardAction>
+  </CardHeader>
+  <CardContent className="grid gap-4 sm:grid-cols-2">
+    <Skeleton aria-hidden="true" className="h-10 w-full" />
+    <Skeleton aria-hidden="true" className="h-10 w-full" />
+  </CardContent>
+  <CardFooter><Skeleton aria-hidden="true" className="h-10 w-32" /></CardFooter>
+</Card>
 ```
 
 ### Spinner puntual
