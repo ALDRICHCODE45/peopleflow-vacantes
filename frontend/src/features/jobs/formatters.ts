@@ -72,6 +72,30 @@ export function formatPublishedDate(value: string): string {
  return publishedDateFormat.format(new Date(value));
 }
 
+const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+
+/** Explicit clock: no server/browser timezone or render-time clock dependency. */
+export function isNewPublication(value: string, now: number): boolean {
+ const age = now - Date.parse(value);
+ return age >= 0 && age < 2 * DAY;
+}
+
+/** Recent elapsed minutes/hours, then UTC calendar days; a week or future dates use the date. */
+export function formatRelativePublishedDate(value: string, now: number): string {
+ const published = Date.parse(value);
+ const age = now - published;
+ if (age < 0) return formatPublishedDate(value);
+ if (age < MINUTE) return "Hace unos instantes";
+ if (age < HOUR) return `Hace ${Math.floor(age / MINUTE)} min`;
+ if (age < DAY) return `Hace ${Math.floor(age / HOUR)} h`;
+ const days = Math.floor(now / DAY) - Math.floor(published / DAY);
+ if (days === 1) return "Ayer";
+ if (days < 7) return `Hace ${days} días`;
+ return formatPublishedDate(value);
+}
+
 /** Deterministic long-form Mexico Spanish closing date, always rendered in UTC. */
 const closingDateFormat = new Intl.DateTimeFormat("es-MX", {
  dateStyle: "long",

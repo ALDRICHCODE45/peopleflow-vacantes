@@ -1,4 +1,4 @@
-import { BriefcaseIcon, ClockIcon, FileTextIcon, GlobeIcon, LayoutGridIcon, MapPinIcon, TrendingUpIcon, type LucideIcon } from "lucide-react";
+import { BriefcaseIcon, Building2Icon, ClockIcon, FileTextIcon, GlobeIcon, LayoutGridIcon, MapPinIcon, TrendingUpIcon, type LucideIcon } from "lucide-react";
 import type { PublicJobItem } from "../types";
 import { CONTRACT_TYPE_OPTIONS, PROFESSIONAL_AREA_OPTIONS, SENIORITY_OPTIONS, WORK_MODE_OPTIONS, WORK_SCHEDULE_OPTIONS, type DraftOption } from "../drafts/ui/draft-labels";
 import { employmentTypeLabel } from "../formatters";
@@ -22,6 +22,15 @@ export function publicJobFacts(job: PublicJobItem): Fact[] {
   }
   if (job.seniority !== null) facts.push({ key: "seniority", label: "Nivel", value: label(SENIORITY_OPTIONS, job.seniority), Icon: TrendingUpIcon });
   return facts;
+}
+
+/** Compact card chips: location belongs to the identity meta line, never a duplicate chip. */
+export function publicJobChips(job: PublicJobItem): Fact[] {
+  const order = ["work_mode", "work_schedule", "legacy_employment_type", "contract_type", "seniority", "professional_area"];
+  return publicJobFacts(job)
+    .filter(fact => fact.key !== "location")
+    .map(fact => fact.key === "work_mode" ? { ...fact, Icon: job.work_mode === "remote" ? GlobeIcon : job.work_mode === "hybrid" ? Building2Icon : MapPinIcon } : fact)
+    .sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
 }
 
 export function PublicJobFacts({ job }: { job: PublicJobItem }) {

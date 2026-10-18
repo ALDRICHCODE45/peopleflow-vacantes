@@ -13,7 +13,7 @@ afterEach(() => { cleanup(); push.mockReset(); });
 it.each([legacyDetail, vacancyDetail])("renders a unified $source card with its publication date", (detail) => {
   const { container } = render(<ul><VacancyCard job={listItem(detail)} /></ul>);
   expect(screen.getByRole("link", { name: detail.title })).toHaveAttribute("href", `/vacantes/${detail.id}`);
-  expect(screen.getByText("Publicada el 16 de octubre de 2026")).toBeVisible();
+  expect(container.querySelector("time")).toHaveAttribute("datetime", detail.published_at);
   expect(container.querySelector('[data-slot="card"]')).not.toBeNull();
   if (detail.source === "vacancy") {
     for (const label of ["Tiempo completo", "Indefinido", "Tecnología y sistemas", "Mensual", "Bruto"]) expect(container).toHaveTextContent(label);

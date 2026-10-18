@@ -28,4 +28,13 @@ it("mirrors the loaded list: search card, quick filters, filters card with heade
   expect(slots(cards[1])).toEqual(["card-header", "card-title", "card-content"]);
   expect(cards[1].querySelectorAll("[data-skeleton-field]")).toHaveLength(4);
   expect(cards[1].querySelectorAll("[data-skeleton-button]")).toHaveLength(2);
+  const results = container.querySelectorAll('[data-skeleton-results] [data-slot="card"]');
+  expect(results).toHaveLength(3);
+  for (const card of results) {
+    expect(card).toHaveClass("grid", "md:grid-cols-[minmax(0,1fr)_14rem]");
+    expect(slots(card)).toEqual(["card-header", "card-title", "card-description", "card-action", "card-content", "card-footer"]);
+    expect(card.querySelector('[data-slot="card-footer"]')).toHaveClass("md:border-l", "md:row-span-2");
+    expect(card.querySelector('[data-slot="card-title"] [data-slot="skeleton"]')).toHaveClass("size-12");
+    expect(card.querySelectorAll('[data-public-job-chips] [data-slot="skeleton"]')).toHaveLength(4);
+  }
 });
