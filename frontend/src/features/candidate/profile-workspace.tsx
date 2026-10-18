@@ -102,7 +102,7 @@ const companyOf = (draft: CandidateProfileDraft): string => (declared(draft.curr
 
 const HERO = "border-b border-border/60";
 const AVATAR = "size-24 shrink-0 ring-2 ring-primary/25 ring-offset-2 ring-offset-background sm:size-28";
-const META = "flex min-w-0 flex-col gap-1.5";
+const META = "flex min-w-0 max-w-prose flex-col gap-1.5";
 const ROLE_BADGE = "max-w-full";
 const NAME = "font-heading text-xl font-semibold text-foreground";
 const EMAIL = "text-sm text-muted-foreground";
@@ -117,7 +117,7 @@ const COMPLETION_BAR = "w-full gap-0";
 const COMPLETION_COUNT = "text-sm text-muted-foreground";
 const TOOLBAR = "flex flex-col gap-3 px-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between";
 const TOOLBAR_COPY = "flex min-w-0 flex-1 flex-col gap-1";
-const STATUS = "text-sm text-muted-foreground";
+const STATUS = "max-w-prose text-sm text-muted-foreground";
 const ACTIONS = "flex flex-col gap-3 sm:flex-row sm:flex-wrap";
 const ACTION = "min-h-10 transition-colors duration-200 motion-reduce:transition-none";
 const CARD = "border border-border/70 ring-border/60";
@@ -184,7 +184,7 @@ export function ProfileWorkspace({ identity, profile, avatarSrc }: ProfileWorksp
         <div data-pf-profile-toolbar className={TOOLBAR}>
           <div className={TOOLBAR_COPY}>
             <p role="status" aria-live="polite" data-pf-profile-status className={STATUS}>
-              <span data-pf-profile-dirty>{dirty ? DIRTY : PRISTINE}</span>
+              <Badge variant={dirty ? "review" : "neutral"} data-pf-profile-dirty>{dirty ? DIRTY : PRISTINE}</Badge>
               {announcement === null ? null : <span data-pf-profile-announcement>{` ${announcement}`}</span>}
             </p>
           </div>

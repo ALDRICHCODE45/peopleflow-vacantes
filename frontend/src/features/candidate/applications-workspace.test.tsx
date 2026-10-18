@@ -32,6 +32,16 @@ it("shows a structural skeleton during the real initial read", () => {
   }
   expect(container.querySelector('[data-pf-applications-loading-search]')).not.toBeNull();
 });
+it("makes the empty state's next step prominent, readable and mobile-width", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [], next_cursor: null } });
+  render(<ApplicationsWorkspace />);
+  const title = await screen.findByText("Todavía no te postulaste a ninguna vacante");
+  expect(title).toHaveClass("text-xl", "font-semibold");
+  expect(title.closest('[data-slot="empty-header"]')).toHaveClass("max-w-md");
+  const action = screen.getByRole("link", { name: "Explorar vacantes" });
+  expect(action).toHaveClass("bg-primary", "w-full", "sm:w-auto");
+  expect(screen.getByText("Tus postulaciones aparecerán aquí cuando envíes una. Mientras tanto, explora las vacantes disponibles.")).toBeVisible();
+});
 it("shows the empty state with a vacancy link", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [], next_cursor: null } }); render(<ApplicationsWorkspace />);
   expect(await screen.findByText("Todavía no te postulaste a ninguna vacante")).toBeVisible(); expect(screen.getByRole("link", { name: "Explorar vacantes" })).toHaveAttribute("href", "/vacantes");

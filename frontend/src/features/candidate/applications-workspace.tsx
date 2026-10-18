@@ -69,15 +69,15 @@ export function ApplicationsWorkspace() {
     }
   }
   return <DashboardPageContent data-pf-applications-workspace width="screen-2xl" className="gap-5">
-    <header className="flex flex-col gap-2"><h2 className="font-heading text-2xl font-semibold">Postulaciones</h2><p className="text-sm text-muted-foreground">Consulta las vacantes a las que te postulaste.</p></header>
+    <header className="flex flex-col gap-2"><h2 className="font-heading text-2xl font-semibold">Postulaciones</h2><p className="max-w-prose text-sm text-muted-foreground">Consulta las vacantes a las que te postulaste.</p></header>
     {!data && !failure ? <ApplicationsSkeleton /> : <>
-      {data?.items.length === 0 && !failure && <Empty><EmptyHeader><EmptyTitle>Todavía no te postulaste a ninguna vacante</EmptyTitle><EmptyDescription>Explora las vacantes y elige tu siguiente oportunidad.</EmptyDescription></EmptyHeader><EmptyContent><Link href="/vacantes" className={buttonVariants({ className: "min-h-10" })}>Explorar vacantes</Link></EmptyContent></Empty>}
+      {data?.items.length === 0 && !failure && <Empty><EmptyHeader className="max-w-md"><EmptyTitle className="text-xl font-semibold">Todavía no te postulaste a ninguna vacante</EmptyTitle><EmptyDescription>Tus postulaciones aparecerán aquí cuando envíes una. Mientras tanto, explora las vacantes disponibles.</EmptyDescription></EmptyHeader><EmptyContent className="flex-col sm:flex-row sm:justify-center"><Link href="/vacantes" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Explorar vacantes</Link></EmptyContent></Empty>}
       {!!data?.items.length && <div className="flex flex-col gap-2">
         <label htmlFor="applications-search" className="text-[12.5px] font-medium text-foreground">Buscar por puesto o empresa</label>
         <InputGroup className="h-11 w-full lg:w-72"><InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon><InputGroupInput id="applications-search" type="search" value={query} onChange={event => setQuery(event.target.value)} /></InputGroup>
         {needle !== "" && data.next_cursor && <p className="text-sm text-muted-foreground">La búsqueda cubre las postulaciones cargadas. Carga más para buscar en el resto.</p>}
       </div>}
-      {!!data?.items.length && visible.length === 0 && <Empty><EmptyHeader><EmptyTitle>Ninguna postulación coincide con «{query.trim()}».</EmptyTitle><EmptyDescription>Prueba con otro puesto o empresa.</EmptyDescription></EmptyHeader><EmptyContent><Button variant="outline" className="min-h-10" onClick={() => setQuery("")}>Limpiar búsqueda</Button></EmptyContent></Empty>}
+      {!!data?.items.length && visible.length === 0 && <Empty><EmptyHeader className="max-w-md"><EmptyTitle className="text-xl font-semibold">Ninguna postulación coincide con «{query.trim()}».</EmptyTitle><EmptyDescription>Prueba con otro puesto o empresa, o limpia la búsqueda para ver tus postulaciones cargadas.</EmptyDescription></EmptyHeader><EmptyContent className="flex-col sm:flex-row sm:justify-center"><Button className="min-h-10 w-full sm:w-auto" onClick={() => setQuery("")}>Limpiar búsqueda</Button></EmptyContent></Empty>}
       {visible.length > 0 && <ul className="flex flex-col gap-3">{visible.map(item => <li key={item.id} className="min-w-0">
         <Card size="sm">
           <CardHeader>
@@ -88,7 +88,7 @@ export function ApplicationsWorkspace() {
             <CardDescription className="flex items-center gap-1.5"><Building2 aria-hidden="true" className="size-3.5 shrink-0" /><span className="min-w-0 break-words">{item.company.name}</span></CardDescription>
             <CardAction><Badge variant={item.status === "submitted" ? "info" : item.status === "closed" ? "neutral" : "review"} dot>{item.status === "submitted" ? "Enviada" : item.status === "closed" ? "Finalizada" : "En proceso"}</Badge></CardAction>
           </CardHeader>
-          {item.status === "closed" && item.message !== null && <CardContent><p className="whitespace-pre-wrap break-words text-sm">{item.message}</p></CardContent>}
+          {item.status === "closed" && item.message !== null && <CardContent><p className="max-w-prose whitespace-pre-wrap break-words text-sm">{item.message}</p></CardContent>}
           <CardFooter><p className="flex flex-wrap items-center gap-1.5 text-sm"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><span className="text-muted-foreground">Postulada</span><time dateTime={item.applied_at}>{date.format(new Date(item.applied_at))}</time></p></CardFooter>
         </Card>
       </li>)}</ul>}

@@ -130,7 +130,7 @@ function ScalarField({ spec, draft, error, onChange }: Readonly<{ spec: ScalarSp
         ? <DatePickerField id={id} value={value} onChange={onChange} allowPast error={error ?? undefined} data-pf-profile-field="birthDate" className="w-full" />
         : items === null
           ? spec.multiline
-            ? <InputGroup className={FRAME}><InputGroupTextarea {...aria} value={value} className="min-h-24" maxLength={spec.maxLength} onChange={handle} /></InputGroup>
+            ? <InputGroup className={`${FRAME} max-w-prose`}><InputGroupTextarea {...aria} value={value} className="min-h-24" maxLength={spec.maxLength} onChange={handle} /></InputGroup>
             : <InputGroup className={FRAME}>
               <InputGroupInput {...aria} value={value} className={TARGET} type={spec.type ?? "text"} min={spec.min} max={spec.max} step={spec.step} maxLength={spec.maxLength} onChange={handle} />
               {spec.unit === undefined ? null : <InputGroupAddon align="inline-end"><InputGroupText>{spec.unit(draft)}</InputGroupText></InputGroupAddon>}
@@ -243,7 +243,7 @@ export function ProfileFormFields({ draft, issues, onChange, category }: Profile
   const sections = category === undefined ? SECTIONS : SECTIONS.filter((section) => section.category === category);
   const withLanguages = category === undefined || category === "languages";
   return (
-    <FieldGroup data-pf-profile-fields="" className="grid grid-cols-1 gap-5 md:grid-cols-2">
+    <FieldGroup data-pf-profile-fields="" className="grid grid-cols-1 items-start gap-5 md:grid-cols-2">
       {sections.map((section) => (
         <ScalarSection key={section.slug} section={section} draft={draft} errorFor={errorFor} onChange={updateScalar} />
       ))}

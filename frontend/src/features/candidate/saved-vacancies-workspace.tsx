@@ -5,7 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import type { PrototypeJobView } from "@/features/jobs/enrich";
 import { employmentTypeLabel, formatSalary, seniorityLabel, workModeLabel } from "@/features/jobs/formatters";
 
@@ -86,7 +86,7 @@ function Fact({ icon: Icon, label, value }: { readonly icon: LucideIcon; readonl
  */
 function SavedVacancyCard({ job }: { readonly job: PrototypeJobView }) {
   return (
-    <Card data-pf-saved-vacancy={job.id} className="h-full">
+    <Card data-pf-saved-vacancy={job.id}>
       <CardHeader className="border-b">
         <CardTitle className="flex min-w-0 items-start gap-3">
           <span data-pf-saved-vacancy-identity aria-hidden="true" className={IDENTITY}>
@@ -103,7 +103,7 @@ function SavedVacancyCard({ job }: { readonly job: PrototypeJobView }) {
           ))}
         </dl>
       </CardContent>
-      <CardFooter className="mt-auto justify-end border-t">
+      <CardFooter className="justify-end border-t">
         <Link
           href={`/vacantes/${job.id}`}
           data-slot="button"
@@ -124,17 +124,20 @@ export function SavedVacanciesWorkspace({ savedVacancies }: SavedVacanciesWorksp
     <DashboardPageContent data-pf-saved-vacancies-workspace width="screen-2xl" className="gap-5">
       <header data-pf-saved-vacancies-intro className="flex flex-col gap-2">
         <h2 className="font-heading text-2xl font-semibold tracking-tight text-foreground">Vacantes guardadas</h2>
-        <p className="text-sm text-muted-foreground">Las vacantes que guardaste para revisarlas con calma.</p>
+        <p className="max-w-prose text-sm text-muted-foreground">Las vacantes que guardaste para revisarlas con calma.</p>
       </header>
       {savedVacancies.length === 0 ? (
         <Empty data-pf-saved-vacancies-empty className="border border-dashed border-border bg-card p-6">
-          <EmptyHeader>
-            <EmptyTitle>Todavía no tienes vacantes guardadas</EmptyTitle>
+          <EmptyHeader className="max-w-md">
+            <EmptyTitle className="text-xl font-semibold">Todavía no tienes vacantes guardadas</EmptyTitle>
             <EmptyDescription>Cuando guardes una vacante, va a aparecer en este listado.</EmptyDescription>
           </EmptyHeader>
+          <EmptyContent className="flex-col sm:flex-row sm:justify-center">
+            <Link href="/vacantes" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Explorar vacantes</Link>
+          </EmptyContent>
         </Empty>
       ) : (
-        <div data-pf-saved-vacancies-grid className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div data-pf-saved-vacancies-grid className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
           {savedVacancies.map((job) => (<SavedVacancyCard key={job.id} job={job} />))}
         </div>
       )}

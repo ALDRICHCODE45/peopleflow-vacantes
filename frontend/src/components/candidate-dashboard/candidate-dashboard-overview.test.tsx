@@ -178,6 +178,23 @@ describe("candidate dashboard overview", () => {
     expect(section("profile-guidance")).toHaveTextContent("Te falta 1 campo");
   });
 
+  it("gives empty dashboard sections a single task-focused action without stretching cards", () => {
+    renderOverview({ applications: [], cvs: [] });
+    const recent = section("recent-applications"), cvs = section("cv-snapshot");
+    const explore = within(recent).getByRole("link", { name: "Explorar vacantes" });
+    expect(explore).toHaveAttribute("href", "/vacantes");
+    expect(explore).toHaveClass("bg-primary", "w-full", "sm:w-auto");
+    expect(explore.closest('[data-slot="empty-content"]')).not.toBeNull();
+    expect(within(recent).queryByRole("link", { name: "Ver todas mis postulaciones" })).toBeNull();
+    const cvLink = within(cvs).getByRole("link", { name: "Ver mis CVs" });
+    expect(cvLink.closest('[data-slot="empty-content"]')).not.toBeNull();
+    expect(cvLink).toHaveClass("w-full", "sm:w-auto");
+    for (const surface of [recent, cvs]) {
+      expect(surface.querySelector('[data-slot="empty-title"]')).toHaveClass("text-xl", "font-semibold");
+      expect(surface.querySelector('[data-slot="empty-header"]')).toHaveClass("max-w-md");
+      expect(surface.querySelector('[data-slot="card"]')?.className.split(/\s+/u)).not.toContain("h-full");
+    }
+  });
   it("stays honest with empty applications and CVs, zeroing every metric", () => {
     renderOverview({ applications: [], cvs: [] });
     expect(metric("Postulaciones")).toHaveTextContent("0 postulaciones registradas");

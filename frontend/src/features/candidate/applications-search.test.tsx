@@ -32,7 +32,10 @@ it("explains an empty search and clears it", async () => {
   const search = await screen.findByRole("searchbox", { name: "Buscar por puesto o empresa" });
   fireEvent.change(search, { target: { value: "zzz" } });
   expect(screen.getByText("Ninguna postulación coincide con «zzz».")).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Limpiar búsqueda" }));
+  const clear = screen.getByRole("button", { name: "Limpiar búsqueda" });
+  expect(clear).toHaveClass("bg-primary", "w-full", "sm:w-auto");
+  expect(screen.getByText("Ninguna postulación coincide con «zzz».").closest('[data-slot="empty-title"]')).toHaveClass("text-xl", "font-semibold");
+  fireEvent.click(clear);
   expect(search).toHaveValue("");
   expect(within(screen.getByRole("list")).getAllByRole("listitem")).toHaveLength(2);
 });

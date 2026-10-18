@@ -53,6 +53,15 @@ describe("post-sign-in router", () => {
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ key: "identity-read", type: "success" }));
   });
 });
+it("gives role-blocked accounts one main destination and a readable mobile alternative", async () => {
+  mocks.load.mockResolvedValue(result("recruiter"));
+  render(<CandidateEntryPage />);
+  const heading = await screen.findByRole("heading", { name: "Esta cuenta es de empresa" });
+  expect(heading.closest('[data-slot="empty-title"]')).toHaveClass("text-xl", "font-semibold");
+  expect(heading.closest('[data-slot="empty-header"]')).toHaveClass("max-w-md");
+  expect(screen.getByRole("link", { name: "Ir a empresa" })).toHaveClass("bg-primary", "w-full", "sm:w-auto");
+  expect(screen.getByRole("button", { name: "Cerrar sesión" })).not.toHaveClass("bg-primary");
+});
 describe("explicit candidate onboarding", () => {
   it("keeps the onboarding skeleton and loaded card slot sequences identical", async () => {
     let finish!: (value: unknown) => void;
@@ -60,7 +69,7 @@ describe("explicit candidate onboarding", () => {
     const { container } = render(<CandidateEntryPage />);
     const slots = () => Array.from(container.querySelectorAll('[data-slot^="card"]')).map(node => node.getAttribute("data-slot"));
     const loadingSlots = slots();
-    expect(loadingSlots).toEqual(["card", "card-header", "card-title", "card-description", "card-content", "card-footer"]);
+    expect(loadingSlots).toEqual(["card", "card-header", "card-title", "card-description", "card-action", "card-content", "card-footer"]);
     expect(screen.getByRole("status")).toHaveTextContent("Cargando tu cuenta");
     finish(result(null));
     await screen.findByLabelText("Nombre completo");
@@ -73,6 +82,8 @@ describe("explicit candidate onboarding", () => {
     const card = input.closest('[data-slot="card"]')!;
     expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-title"] h2')).toHaveTextContent("Crear mi cuenta de candidato");
     expect(card.querySelector('[data-slot="card-description"]')).toHaveTextContent("session@example.com");
+    expect(card.querySelector('[data-slot="card-description"]')).toHaveClass("max-w-prose");
+    expect(card.querySelector('[data-slot="card-action"] [data-slot="badge"]')).toHaveTextContent("Cuenta pendiente");
     expect(card.querySelector('[data-slot="card-footer"]')).toContainElement(screen.getByRole("button", { name: "Crear mi cuenta de candidato" }));
   });
   it("displays session-only email, validates and focuses the name, never auto-submits", async () => {

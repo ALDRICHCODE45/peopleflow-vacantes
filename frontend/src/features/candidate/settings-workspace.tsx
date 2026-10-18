@@ -68,7 +68,7 @@ function SettingsSection({ section, children }: { readonly section: SectionSpec;
       <Card>
         <CardHeader className="border-b border-border/60">
           <CardTitle><h2 id={`${section.id}-heading`} className="font-heading text-xl font-semibold text-foreground">{section.heading}</h2></CardTitle>
-          <CardDescription>{section.description}</CardDescription>
+          <CardDescription className="max-w-prose">{section.description}</CardDescription>
         </CardHeader>
         <CardContent>{children}</CardContent>
       </Card>
@@ -107,7 +107,7 @@ function SettingRow({ icon: Icon, titleId, title, descriptionId, description, ch
         </ItemMedia>
         <ItemContent className="min-w-0">
           <ItemTitle id={titleId}>{title}</ItemTitle>
-          <ItemDescription id={descriptionId}>{description}</ItemDescription>
+          <ItemDescription id={descriptionId} className="max-w-prose line-clamp-none">{description}</ItemDescription>
         </ItemContent>
         <ItemActions className="w-full justify-end sm:w-auto">{children}</ItemActions>
       </Item>

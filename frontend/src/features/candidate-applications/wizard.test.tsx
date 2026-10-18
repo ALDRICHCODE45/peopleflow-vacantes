@@ -62,6 +62,30 @@ it("mirrors the previous question controls while changed questions are being loa
   finish({ ok: true, data: screening });
   expect(await screen.findByLabelText("Cuéntanos tu experiencia")).toBeVisible();
 });
+it("separates wizard back/continue actions without reserving a result slot before an action result", async () => {
+  const { container } = mount();
+  await screen.findByDisplayValue("Ana Pérez");
+  expect(container.querySelector('[data-pf-action-status-slot]')).toBeNull();
+  expect(screen.getByRole("button", { name: "Continuar" })).toHaveClass("bg-primary", "w-full", "sm:w-auto");
+  await toCv();
+  const back = screen.getByRole("button", { name: "Atrás" });
+  expect(back).not.toHaveClass("bg-primary");
+  expect(back.closest('[data-slot="card-footer"]')).toHaveClass("flex-col", "sm:flex-row");
+  expect(container.querySelector('[data-pf-action-status-slot]')?.closest('[data-slot="card-footer"]')).toBeFalsy();
+});
+it.each([
+  ["already_applied", "Ya te postulaste a esta vacante", "Ya enviada", "Mis postulaciones"],
+  ["not_found", "Esta vacante ya no está disponible", "No disponible", "Explorar vacantes"],
+] as const)("makes %s a visible, actionable result state", async (reason, title, badge, action) => {
+  vi.mocked(loadScreeningAction).mockResolvedValue({ ok: false, reason, reference: {} });
+  mount();
+  const heading = await screen.findByRole("heading", { name: title });
+  expect(heading.closest('[data-slot="empty-title"]')).toHaveClass("text-xl", "font-semibold");
+  const card = heading.closest('[data-slot="card"]')!;
+  expect(card.querySelector('[data-slot="card-header"] [data-slot="badge"]')).toHaveTextContent(badge);
+  expect(screen.getByRole("link", { name: action }).closest('[data-slot="empty-content"]')).not.toBeNull();
+  expect(screen.getByRole("link", { name: action })).toHaveClass("bg-primary", "w-full", "sm:w-auto");
+});
 it("shows the Datos sign-in card without a form and preserves the callback URL", async () => {
   vi.mocked(loadMeAction).mockResolvedValue({ ok: false, reason: "unauthenticated", reference: {} }); mount();
   await user().click(await screen.findByRole("button", { name: "Ingresar como candidato" }));
@@ -85,7 +109,10 @@ it("renders readonly identity, mandatory CV, required answers, counter and exact
   expect(screen.getByRole("heading", { name: "Resumen" })).toBeVisible(); expect(screen.getByText("Experiencia Go")).toBeVisible(); expect(screen.getByText(cv.name)).toBeVisible();
   await user().click(screen.getByRole("button", { name: "Enviar postulación" }));
   expect(submitApplicationAction).toHaveBeenCalledWith(id, expect.stringMatching(/^[\da-f-]{36}$/), { cv_id: cv.id, questionnaire_revision: screening.questionnaire_revision, answers: [{ question_id: id, text: "Experiencia Go" }, { question_id: questionId, option_id: optionId }] });
-  expect(await screen.findByRole("heading", { name: "Postulación enviada" })).toBeVisible(); expect(screen.getByRole("link", { name: "Mis postulaciones" })).toHaveAttribute("href", "/candidato/postulaciones");
+  const sent = await screen.findByRole("heading", { name: "Postulación enviada" });
+  expect(sent).toBeVisible();
+  expect(sent.closest('[data-slot="card"]')?.querySelector('[data-slot="card-header"] [data-slot="badge"]')).toHaveTextContent("Enviada");
+  expect(screen.getByRole("link", { name: "Mis postulaciones" })).toHaveAttribute("href", "/candidato/postulaciones");
 });
 it.each(["a".repeat(1999) + "😀", "😀".repeat(2000)])("accepts and submits a 2000-code-point answer (%#)", async answer => {
   mount(); await toQuestions();
@@ -199,7 +226,11 @@ it("skips empty questions", async () => {
 });
 it.each(["no_response", "server_error", "unrecognized_response"] as const)("explicitly retries %s with the same key and body", async reason => {
   vi.mocked(submitApplicationAction).mockResolvedValueOnce({ ok: false, reason, reference: {} }).mockResolvedValueOnce({ ok: true, data: submitted });
-  mount(); await toSummary(); await user().click(screen.getByRole("button", { name: "Enviar postulación" }));
+  mount(); await toSummary();
+  const reserved = document.querySelector('[data-slot="card-footer"] [data-pf-action-status-slot]');
+  expect(reserved).not.toBeNull();
+  await user().click(screen.getByRole("button", { name: "Enviar postulación" }));
+  expect(document.querySelector('[data-slot="card-footer"] [data-pf-action-status-slot]')).toBe(reserved);
   expect(submitApplicationAction).toHaveBeenCalledTimes(1); await user().click(await screen.findByRole("button", { name: "Reintentar" }));
   expect(submitApplicationAction).toHaveBeenCalledTimes(2); expect(vi.mocked(submitApplicationAction).mock.calls[1]).toEqual(vi.mocked(submitApplicationAction).mock.calls[0]);
 });

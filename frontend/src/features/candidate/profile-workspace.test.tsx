@@ -92,6 +92,8 @@ describe("profile workspace initial state", () => {
     expect(screen.getByLabelText("Nivel del idioma 2")).toHaveTextContent("Intermedio alto");
     expect(screen.queryByRole("note")).toBeNull();
     expect(dirtyLabel(container)).toBe("Sin cambios pendientes");
+    expect(container.querySelector('[data-pf-profile-dirty]')).toHaveAttribute("data-slot", "badge");
+    expect(screen.getByRole("status")).toHaveClass("max-w-prose");
     expect(reset()).toBeDisabled();
   });
 

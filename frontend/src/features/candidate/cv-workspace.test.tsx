@@ -26,6 +26,8 @@ describe("real CV workspace", () => {
     render(<CvWorkspace />);
     expect(await screen.findByRole("heading", { name: unavailableTitle })).toBeVisible();
     expect(screen.getByText(unavailableDescription)).toBeVisible();
+    expect(screen.getByRole("heading", { name: unavailableTitle }).closest('[data-slot="empty-title"]')).toHaveClass("text-xl", "font-semibold");
+    expect(screen.getByRole("button", { name: "Reintentar" })).toHaveClass("w-full", "sm:w-auto");
     expect(loadCvsAction).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     expect(await screen.findByRole("heading", { name: cv.name })).toBeVisible();
@@ -69,7 +71,14 @@ describe("real CV workspace", () => {
     render(<CvWorkspace />);
     expect(await screen.findByText("Sin CVs")).toBeInTheDocument();
     expect(screen.getByText("0 de 10 CVs")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Subir CV" })).toBeEnabled();
+    const upload = screen.getByRole("button", { name: "Subir CV" });
+    expect(upload).toBeEnabled();
+    expect(upload).toHaveClass("bg-primary", "w-full", "sm:w-auto");
+    expect(upload.closest('[data-slot="empty-content"]')).not.toBeNull();
+    const title = screen.getByText("Sin CVs");
+    expect(title).toHaveClass("text-xl", "font-semibold");
+    expect(title.closest('[data-slot="empty-header"]')).toHaveClass("max-w-md");
+    expect(screen.getAllByRole("button", { name: "Subir CV" })).toHaveLength(1);
   });
   it("shows actual name, type, size, es-MX date and neutral in-use badge in the approved cards", async () => {
     const { container } = await ready();

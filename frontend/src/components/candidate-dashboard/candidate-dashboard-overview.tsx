@@ -6,7 +6,7 @@ import { DashboardPageContent } from "@/components/dashboard-page-content"
 import { Badge, type BadgeVariant } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress"
 
@@ -204,7 +204,7 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
       <div data-pf-candidate-overview-inner className="flex w-full flex-col gap-4 md:gap-6">
         <section aria-labelledby="candidate-overview-welcome" className="flex flex-col gap-1">
           <h2 id="candidate-overview-welcome" className="font-heading text-2xl font-semibold text-foreground">Hola, {firstName}</h2>
-          <p className="max-w-3xl text-sm text-muted-foreground">
+          <p className="max-w-prose text-sm text-muted-foreground">
             {`Tienes ${countLabel(total, "postulación registrada", "postulaciones registradas")} y ${inProcess} en proceso. Tu perfil está al ${completeness.percentage}% y tienes ${countLabel(cvTotal, "CV disponible", "CVs disponibles")}.`}
           </p>
         </section>
@@ -213,24 +213,27 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
           {metrics.map((metric) => (<MetricCard key={metric.label} {...metric} />))}
         </section>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
           <section aria-labelledby="candidate-overview-recent" data-pf-recent-applications className="lg:col-span-2">
-            <Card size="sm" className="h-full">
+            <Card size="sm">
               <CardHeader>
                 <CardTitle><h3 id="candidate-overview-recent" className="font-heading text-base font-semibold text-foreground">Postulaciones recientes</h3></CardTitle>
                 <CardDescription className="col-start-1 row-start-2">Tus últimos envíos, ordenados por actualización.</CardDescription>
-                <CardAction className="max-sm:col-span-2 max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-start">
+                {recent.length > 0 && <CardAction className="max-sm:col-span-2 max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-start">
                   <Link href="/candidato/postulaciones" aria-label="Ver todas mis postulaciones" className={QUIET_LINK}>Ver todas</Link>
-                </CardAction>
+                </CardAction>}
               </CardHeader>
               <CardContent>
                 {recent.length === 0 ? (
-                  <Empty className="border border-dashed border-border">
-                    <EmptyHeader>
+                  <Empty className="px-4 py-8">
+                    <EmptyHeader className="max-w-md">
                       <EmptyMedia variant="icon"><BriefcaseBusiness aria-hidden="true" /></EmptyMedia>
-                      <EmptyTitle>Sin postulaciones</EmptyTitle>
-                      <EmptyDescription>Todavía no tienes postulaciones. Aquí verás tus envíos recientes.</EmptyDescription>
+                      <EmptyTitle className="text-xl font-semibold">Sin postulaciones</EmptyTitle>
+                      <EmptyDescription>Todavía no tienes postulaciones. Aquí verás tus envíos recientes; explora vacantes para encontrar tu siguiente oportunidad.</EmptyDescription>
                     </EmptyHeader>
+                    <EmptyContent className="flex-col sm:flex-row sm:justify-center">
+                      <Link href="/vacantes" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Explorar vacantes</Link>
+                    </EmptyContent>
                   </Empty>
                 ) : (
                   <ul className="flex flex-col divide-y divide-border">
@@ -242,7 +245,7 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
           </section>
 
           <section aria-labelledby="candidate-overview-status" data-pf-status-breakdown>
-            <Card size="sm" className="h-full">
+            <Card size="sm">
               <CardHeader>
                 <CardTitle><h3 id="candidate-overview-status" className="font-heading text-base font-semibold text-foreground">Estado de tus postulaciones</h3></CardTitle>
                 <CardDescription>{countLabel(total, "postulación registrada", "postulaciones registradas")} en total.</CardDescription>
@@ -269,9 +272,9 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
           </section>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
           <section aria-labelledby="candidate-overview-profile" data-pf-profile-guidance>
-            <Card size="sm" className="h-full">
+            <Card size="sm">
               <CardHeader>
                 <CardTitle><h3 id="candidate-overview-profile" className="font-heading text-base font-semibold text-foreground">Tu perfil</h3></CardTitle>
                 <CardAction>
@@ -309,18 +312,21 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
           </section>
 
           <section aria-labelledby="candidate-overview-cvs" data-pf-cv-snapshot>
-            <Card size="sm" className="h-full">
+            <Card size="sm">
               <CardHeader>
                 <CardTitle><h3 id="candidate-overview-cvs" className="font-heading text-base font-semibold text-foreground">Tus CVs</h3></CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 {cvTotal === 0 ? (
-                  <Empty className="border border-dashed border-border">
-                    <EmptyHeader>
+                  <Empty className="px-4 py-8">
+                    <EmptyHeader className="max-w-md">
                       <EmptyMedia variant="icon"><Files aria-hidden="true" /></EmptyMedia>
-                      <EmptyTitle>Sin CVs</EmptyTitle>
-                      <EmptyDescription>Cuando agregues un CV, vas a ver aquí su información.</EmptyDescription>
+                      <EmptyTitle className="text-xl font-semibold">Sin CVs</EmptyTitle>
+                      <EmptyDescription>Cuando agregues un CV, vas a ver aquí su información. Puedes subirlo desde tu biblioteca.</EmptyDescription>
                     </EmptyHeader>
+                    <EmptyContent className="flex-col sm:flex-row sm:justify-center">
+                      <Link href="/candidato/cvs" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Ver mis CVs</Link>
+                    </EmptyContent>
                   </Empty>
                 ) : primary === undefined ? (
                   <p className="text-sm text-muted-foreground">Tienes {countLabel(cvTotal, "CV", "CVs")}, pero ninguno está marcado como principal.</p>
@@ -347,9 +353,9 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
                   </>
                 )}
               </CardContent>
-              <CardFooter>
+              {cvTotal > 0 && <CardFooter>
                 <Link href="/candidato/cvs" className={PRIMARY_LINK}>Ver mis CVs</Link>
-              </CardFooter>
+              </CardFooter>}
             </Card>
           </section>
         </div>

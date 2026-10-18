@@ -12,6 +12,8 @@ import { loadCvsAction } from "@/features/candidate-cvs/actions";
 import type { CvFailure, CvLibrary } from "@/features/candidate-cvs/model";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
@@ -46,15 +48,21 @@ function Loading({ step = "Datos", questions = [] }: { step?: Step; questions?: 
           {question.type === "open" ? <><Skeleton><FieldLabel className="invisible">{question.prompt}</FieldLabel></Skeleton><Skeleton><Textarea disabled tabIndex={-1} className="invisible min-h-32" /></Skeleton><Skeleton className="w-40"><FieldDescription>&nbsp;</FieldDescription></Skeleton></> : <FieldSet><FieldLegend variant="label"><Skeleton><span className="invisible">{question.prompt}</span></Skeleton></FieldLegend><Skeleton><ToggleGroup disabled variant="outline" orientation="vertical" className="invisible w-full">{question.options.map(option => <ToggleGroupItem key={option.id} value={option.id} tabIndex={-1} className="min-h-10 justify-start whitespace-normal break-words">{option.label}</ToggleGroupItem>)}</ToggleGroup></Skeleton></FieldSet>}
         </Field>)}
       </FieldGroup></CardContent>
-      <CardFooter className="items-start gap-3 border-t">
-        {step !== "Datos" && <Skeleton><Button variant="outline" disabled tabIndex={-1} className="invisible min-h-10">Atrás</Button></Skeleton>}
-        <ActionBar status={null}><Skeleton><Button disabled tabIndex={-1} className="invisible min-h-10">Continuar</Button></Skeleton></ActionBar>
+      <CardFooter className="flex-col items-stretch gap-3 border-t sm:flex-row sm:items-start">
+        {step !== "Datos" && <Skeleton><Button variant="outline" disabled tabIndex={-1} className="invisible min-h-10 w-full sm:w-auto">Atrás</Button></Skeleton>}
+        <div className="flex w-full justify-end sm:ml-auto sm:w-auto"><Skeleton className="w-full sm:w-auto"><Button disabled tabIndex={-1} className="invisible min-h-10 w-full sm:w-auto">Continuar</Button></Skeleton></div>
       </CardFooter>
     </Card>
   </section>;
 }
-function ResultCard({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) {
-  return <Card><CardHeader><CardTitle><h2 className="font-heading text-xl font-semibold">{title}</h2></CardTitle><CardDescription>{description}</CardDescription></CardHeader>{children && <CardFooter>{children}</CardFooter>}</Card>;
+function ResultCard({ title, description, state, tone = "neutral", children }: { title: string; description: string; state: string; tone?: BadgeVariant; children?: React.ReactNode }) {
+  return <Card>
+    <CardHeader className="border-b"><CardTitle><Badge variant={tone}>{state}</Badge></CardTitle></CardHeader>
+    <CardContent><Empty className="px-4 py-8 sm:py-10">
+      <EmptyHeader className="max-w-md"><EmptyTitle className="text-xl font-semibold"><h2>{title}</h2></EmptyTitle><EmptyDescription>{description}</EmptyDescription></EmptyHeader>
+      {children && <EmptyContent className="max-w-md flex-col sm:flex-row sm:justify-center [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink [&_[data-pf-action-bar-actions]]:max-sm:flex-1">{children}</EmptyContent>}
+    </Empty></CardContent>
+  </Card>;
 }
 export function CandidateApplicationWizard({ job }: { job: Job }) {
   const [identity, setIdentity] = useState<IdentityResult>();
@@ -190,25 +198,26 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
       }
     } finally { locked.current = false; setPending(false); }
   }
-  const applicationsLink = <Link href="/candidato/postulaciones" className={buttonVariants({ className: "min-h-10" })}>Mis postulaciones</Link>;
-  if (success) return <ResultCard title="Postulación enviada" description="Tu postulación está en Mis postulaciones.">{applicationsLink}</ResultCard>;
-  if (failure?.reason === "already_applied") return <ResultCard title="Ya te postulaste a esta vacante" description="Consulta tu postulación en Mis postulaciones.">{applicationsLink}</ResultCard>;
-  if (failure?.reason === "not_found") return <ResultCard title="Esta vacante ya no está disponible" description="Puedes explorar otras vacantes."><Link href="/vacantes" className={buttonVariants({ className: "min-h-10" })}>Explorar vacantes</Link></ResultCard>;
+  const applicationsLink = <Link href="/candidato/postulaciones" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Mis postulaciones</Link>;
+  if (success) return <ResultCard title="Postulación enviada" state="Enviada" tone="success" description="El equipo recibió tu postulación. Puedes consultarla en Mis postulaciones.">{applicationsLink}</ResultCard>;
+  if (failure?.reason === "already_applied") return <ResultCard title="Ya te postulaste a esta vacante" state="Ya enviada" tone="info" description="Consulta tu postulación en Mis postulaciones.">{applicationsLink}</ResultCard>;
+  if (failure?.reason === "not_found") return <ResultCard title="Esta vacante ya no está disponible" state="No disponible" description="No puedes enviar una postulación a esta vacante. Puedes explorar otras oportunidades."><Link href="/vacantes" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Explorar vacantes</Link></ResultCard>;
   if (!identity) return <Loading />;
-  if ((!identity.ok && identity.reason === "unauthenticated") || failure?.reason === "unauthenticated") return <ResultCard title="Datos" description="Ingresa con tu cuenta de candidato para postularte."><Button className="min-h-10" onClick={() => void signIn("cognito", { callbackUrl: `/vacantes/${job.id}/postular` })}>Ingresar como candidato</Button></ResultCard>;
+  if ((!identity.ok && identity.reason === "unauthenticated") || failure?.reason === "unauthenticated") return <ResultCard title="Datos" state="Sesión requerida" tone="review" description="Ingresa con tu cuenta de candidato para postularte."><Button className="min-h-10 w-full sm:w-auto" onClick={() => void signIn("cognito", { callbackUrl: `/vacantes/${job.id}/postular` })}>Ingresar como candidato</Button></ResultCard>;
   if ((identity.ok && identity.data.role === "recruiter") || failure?.reason === "wrong_role" || libraryError?.reason === "wrong_role") return <RoleBlocked kind="recruiter" />;
   if (libraryError?.reason === "storage_unavailable") return <CvStorageUnavailable retry={() => void retryCvs()} pending={loading} status={<ActionStatus id="application-cvs-status" tone="error" text={cvFailureStatus(libraryError, cvFailureCopy(libraryError))} />} statusId="application-cvs-status" />;
-  if (identity.ok && identity.data.role === null) return <ResultCard title="Datos" description="Completa tu cuenta antes de postularte."><Link href="/candidato/ingresar" className={buttonVariants({ className: "min-h-10" })}>Completar mi cuenta de candidato</Link></ResultCard>;
+  if (identity.ok && identity.data.role === null) return <ResultCard title="Datos" state="Cuenta pendiente" tone="review" description="Completa tu cuenta antes de postularte."><Link href="/candidato/ingresar" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Completar mi cuenta de candidato</Link></ResultCard>;
   if (!candidate || !library || !screening) {
     if ((!failure || loading) && identity.ok) return <Loading step={step} questions={loadingQuestions.current} />;
-    return <ResultCard title="No pudimos cargar la postulación" description="Tus datos siguen aquí. Puedes reintentar."><ActionBar status={<ActionStatus id="application-read-status" tone="error" text={copy?.title ?? "No pudimos cargar tu cuenta"} />}><Button disabled={loading} aria-describedby="application-read-status" className="min-h-10" onClick={() => void retryRead()}>{loading && <Spinner aria-hidden="true" data-icon="inline-start" />}Reintentar</Button></ActionBar></ResultCard>;
+    return <ResultCard title="No pudimos cargar la postulación" state="Error de carga" tone="danger" description="Tus datos siguen aquí. Puedes reintentar sin enviar una postulación."><ActionBar status={<ActionStatus id="application-read-status" tone="error" text={copy?.title ?? "No pudimos cargar tu cuenta"} />}><Button disabled={loading} aria-describedby="application-read-status" className="min-h-10 w-full sm:w-auto" onClick={() => void retryRead()}>{loading && <Spinner aria-hidden="true" data-icon="inline-start" />}Reintentar</Button></ActionBar></ResultCard>;
   }
   const cv = library.items.find(item => item.id === selected);
   const busy = pending || uploading || loading;
+  const forwardAction = <Button disabled={busy} aria-busy={pending} aria-describedby={copy ? "application-status" : undefined} className="min-h-10 w-full sm:w-auto" onClick={() => step === "Resumen" ? void submit() : next()}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending ? "Enviando…" : step === "Resumen" ? isUncertain ? "Reintentar" : "Enviar postulación" : "Continuar"}</Button>;
   return <div ref={root} className="flex min-w-0 flex-col gap-6">
     <Progress value={steps.indexOf(step) + 1} max={steps.length} aria-valuetext={`Paso ${steps.indexOf(step) + 1} de ${steps.length}`}><ProgressLabel>{steps.join(" → ")}</ProgressLabel></Progress>
     <Card>
-      <CardHeader className="border-b"><CardTitle><h2 ref={heading} tabIndex={-1} className="font-heading text-xl font-semibold">{step}</h2></CardTitle><CardDescription>{step === "Datos" ? "Estos datos vienen de tu cuenta de candidato." : step === "CV" ? "Selecciona el CV que recibirá el equipo." : step === "Preguntas" ? "Todas las preguntas son obligatorias." : "Revisa la vacante, tu CV y tus respuestas antes de enviar."}</CardDescription></CardHeader>
+      <CardHeader className="border-b"><CardTitle><h2 ref={heading} tabIndex={-1} className="font-heading text-xl font-semibold">{step}</h2></CardTitle><CardDescription className="max-w-prose">{step === "Datos" ? "Estos datos vienen de tu cuenta de candidato." : step === "CV" ? "Selecciona el CV que recibirá el equipo." : step === "Preguntas" ? "Todas las preguntas son obligatorias." : "Revisa la vacante, tu CV y tus respuestas antes de enviar."}</CardDescription></CardHeader>
       <CardContent className="flex flex-col gap-6">
         {notice && <ActionStatus id="application-notice" tone="warning" text={notice} />}
         {step === "Datos" && <FieldGroup><Field><FieldLabel htmlFor="apply-name">Nombre completo</FieldLabel><Input id="apply-name" readOnly value={candidate.full_name} className="min-h-10" /></Field><Field><FieldLabel htmlFor="apply-email">Correo electrónico</FieldLabel><Input id="apply-email" readOnly value={candidate.email} className="min-h-10" /></Field></FieldGroup>}
@@ -224,11 +233,9 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
           {screening.questions.map(question => <div key={question.id}><dt className="flex items-center gap-2 text-xs text-muted-foreground"><ListChecks aria-hidden="true" className="size-4" />{question.prompt}</dt><dd className="whitespace-pre-wrap break-words">{question.type === "open" ? answers[question.id]?.trim() : question.options.find(option => option.id === answers[question.id])?.label}</dd></div>)}
         </dl>}
       </CardContent>
-      <CardFooter className="items-start gap-3 border-t">
-        {step !== "Datos" && !isUncertain && <Button variant="outline" disabled={busy} className="min-h-10" onClick={() => go(steps[steps.indexOf(step) - 1])}>Atrás</Button>}
-        <ActionBar status={copy ? <ActionStatus id="application-status" tone={failure?.reason === "questionnaire_changed" ? "warning" : "error"} text={copy.title} /> : null}>
-          <Button disabled={busy} aria-busy={pending} aria-describedby={copy ? "application-status" : undefined} className="min-h-10" onClick={() => step === "Resumen" ? void submit() : next()}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending ? "Enviando…" : step === "Resumen" ? isUncertain ? "Reintentar" : "Enviar postulación" : "Continuar"}</Button>
-        </ActionBar>
+      <CardFooter className="flex-col items-stretch gap-3 border-t sm:flex-row sm:items-start [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink">
+        {step !== "Datos" && !isUncertain && <Button variant="outline" disabled={busy} className="min-h-10 w-full sm:w-auto" onClick={() => go(steps[steps.indexOf(step) - 1])}>Atrás</Button>}
+        {step === "Resumen" || copy ? <ActionBar status={copy ? <ActionStatus id="application-status" tone={failure?.reason === "questionnaire_changed" ? "warning" : "error"} text={copy.title} /> : null}>{forwardAction}</ActionBar> : <div className="flex w-full justify-end sm:ml-auto sm:w-auto">{forwardAction}</div>}
       </CardFooter>
     </Card>
   </div>;

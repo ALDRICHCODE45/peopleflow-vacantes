@@ -5,7 +5,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { IconShieldLock } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyMedia } from "@/components/ui/empty";
@@ -34,7 +34,8 @@ export function IdentitySkeleton() {
     <Card aria-hidden="true">
       <CardHeader className="border-b">
         <CardTitle className="flex flex-col gap-1.5"><Skeleton className="size-9" /><Skeleton className="h-8 w-96 max-w-full" /></CardTitle>
-        <CardDescription><Skeleton className="h-10 w-full" /></CardDescription>
+        <CardDescription className="max-w-prose"><Skeleton className="h-10 w-full" /></CardDescription>
+        <CardAction><Skeleton className="h-6 w-32" /></CardAction>
       </CardHeader>
       <CardContent><FieldGroup><Field><Skeleton className="w-32"><FieldLabel>&nbsp;</FieldLabel></Skeleton><Skeleton><Input disabled tabIndex={-1} className="invisible min-h-10" /></Skeleton></Field></FieldGroup></CardContent>
       <CardFooter className="border-t"><ActionBar status={null}><Skeleton><Button type="button" disabled tabIndex={-1} className="invisible h-auto min-h-10 max-w-full whitespace-normal">Crear mi cuenta de candidato</Button></Skeleton></ActionBar></CardFooter>
@@ -55,7 +56,7 @@ export function LogoutButton({ area }: { area: "candidate" | "employer" }) {
     } finally { setPending(false); }
   }
   return <ActionBar status={failed ? <ActionStatus id="identity-logout-status" tone="error" text="No se cerró la sesión. Intenta nuevamente." /> : null}>
-    <Button type="button" variant="outline" className="min-h-10" disabled={pending} aria-describedby={failed ? "identity-logout-status" : undefined} onClick={() => void logout()}>{pending && <Spinner aria-hidden="true" />}Cerrar sesión</Button>
+    <Button type="button" variant="outline" className="min-h-10 w-full sm:w-auto" disabled={pending} aria-describedby={failed ? "identity-logout-status" : undefined} onClick={() => void logout()}>{pending && <Spinner aria-hidden="true" />}Cerrar sesión</Button>
   </ActionBar>;
 }
 
@@ -64,15 +65,15 @@ export function RoleBlocked({ kind, area = "candidate" }: { kind: "recruiter" | 
   const href = kind === "candidate" ? "/candidato/dashboard" : kind === "no-company" ? "/candidato/login" : "/empresa/login";
   const label = kind === "candidate" ? "Ir a mi área de candidato" : kind === "no-company" ? "Ir a candidatos" : "Ir a empresa";
   return <Empty className="px-4 py-8 sm:p-12">
-    <EmptyHeader><EmptyMedia variant="icon"><IconShieldLock aria-hidden="true" /></EmptyMedia><EmptyTitle><h2>{title}</h2></EmptyTitle>
+    <EmptyHeader className="max-w-md"><EmptyMedia variant="icon"><IconShieldLock aria-hidden="true" /></EmptyMedia><EmptyTitle className="text-xl font-semibold"><h2>{title}</h2></EmptyTitle>
       <EmptyDescription>Una cuenta tiene un solo rol. Para usar otra área necesitas una cuenta con otro email.</EmptyDescription></EmptyHeader>
-    <EmptyContent><Button nativeButton={false} role="link" className="h-auto min-h-10 max-w-full whitespace-normal" render={<Link href={href} />}>{label}</Button><LogoutButton area={area} /></EmptyContent>
+    <EmptyContent className="max-w-md flex-col gap-2 sm:flex-row sm:justify-center [&>[data-pf-action-bar]]:w-full sm:[&>[data-pf-action-bar]]:w-auto [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink [&_[data-pf-action-bar-actions]]:max-sm:flex-1"><Button nativeButton={false} role="link" className="h-auto min-h-10 w-full max-w-full whitespace-normal sm:w-auto" render={<Link href={href} />}>{label}</Button><LogoutButton area={area} /></EmptyContent>
   </Empty>;
 }
 
 export function IdentityError({ retry }: { retry: () => void }) {
   const statusId = React.useId();
-  return <Empty className="px-4 py-8 sm:p-12"><EmptyHeader><EmptyTitle><h2>No pudimos cargar tu cuenta</h2></EmptyTitle><EmptyDescription>Puedes volver a comprobar tu acceso sin crear una cuenta.</EmptyDescription></EmptyHeader><EmptyContent>
-    <ActionBar status={<ActionStatus id={statusId} tone="error" text="No confirmamos tu acceso." />}><Button type="button" className="min-h-10" aria-describedby={statusId} onClick={retry}>Reintentar</Button></ActionBar>
+  return <Empty className="px-4 py-8 sm:p-12"><EmptyHeader className="max-w-md"><EmptyTitle className="text-xl font-semibold"><h2>No pudimos cargar tu cuenta</h2></EmptyTitle><EmptyDescription>Puedes volver a comprobar tu acceso sin crear una cuenta.</EmptyDescription></EmptyHeader><EmptyContent className="max-w-md [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink [&_[data-pf-action-bar-actions]]:max-sm:flex-1">
+    <ActionBar status={<ActionStatus id={statusId} tone="error" text="No confirmamos tu acceso." />}><Button type="button" className="min-h-10 w-full sm:w-auto" aria-describedby={statusId} onClick={retry}>Reintentar</Button></ActionBar>
   </EmptyContent></Empty>;
 }

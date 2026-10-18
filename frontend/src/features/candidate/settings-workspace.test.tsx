@@ -52,7 +52,8 @@ it("wraps every settings section heading in the native card-title slot", () => {
   expect(cards).toHaveLength(3);
   for (const card of cards) {
     expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-title"] h2')).not.toBeNull();
-    expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-description"]')).not.toBeNull();
+    expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-description"]')).toHaveClass("max-w-prose");
+    for (const description of card.querySelectorAll('[data-slot="item-description"]')) expect(description).toHaveClass("max-w-prose", "line-clamp-none");
   }
 });
 
@@ -295,7 +296,7 @@ describe("settings composition and presentation", () => {
     expect(RAW_COLOR.test(classes(container))).toBe(false);
     expect(WORKSPACE).not.toContain("dark:");
     expect(WORKSPACE).not.toContain("bg-card/40");
-    expect(WORKSPACE).not.toMatch(/max-w-(?!screen-2xl)/u);
+    expect(root.className).not.toMatch(/max-w-(?!screen-2xl)/u);
     expect(WORKSPACE).not.toMatch(/(^|["'\s])h-\d/u);
     expect(WORKSPACE).not.toMatch(/[wh]-\[[^\]]+\]/u);
     expect(WORKSPACE).not.toMatch(/style=\{\{/u);

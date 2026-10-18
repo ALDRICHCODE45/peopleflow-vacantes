@@ -107,7 +107,8 @@ describe("saved vacancies grid", () => {
     for (const node of rendered) {
       expect(node).toHaveAttribute("data-slot", "card");
       expect(node.className).toContain("flex-col");
-      expect(node.className).toContain("h-full");
+      expect(node.className.split(/\s+/u)).not.toContain("h-full");
+      expect(grid).toHaveClass("items-start");
       for (const part of ["card-header", "card-title", "card-description", "card-content", "card-footer"]) expect(slot(node, part), part).not.toBeNull();
       expect(slot(node, "card-header").className).toContain("border-b");
       expect(slot(node, "card-footer").className).toContain("border-t");
@@ -206,7 +207,7 @@ describe("saved vacancies footer action", () => {
 });
 
 describe("saved vacancies empty state", () => {
-  it("renders the installed Empty hierarchy for an empty list with honest copy and no card or link", () => {
+  it("renders an actionable Empty with honest copy and one exploration link", () => {
     const { container } = renderWorkspace([]);
     const marker = container.querySelector("[data-pf-saved-vacancies-empty]") as HTMLElement;
     expect(marker).not.toBeNull();
@@ -218,7 +219,13 @@ describe("saved vacancies empty state", () => {
     expect(empty.className).toMatch(/(?:^|\s)(?:p|py|px)-\d/u);
     expect(empty.className).not.toContain("p-12");
     expect(cards(container)).toHaveLength(0);
-    expect(container.querySelectorAll("a")).toHaveLength(0);
+    expect(container.querySelectorAll("a")).toHaveLength(1);
+    const explore = screen.getByRole("link", { name: "Explorar vacantes" });
+    expect(explore).toHaveAttribute("href", "/vacantes");
+    expect(explore).toHaveClass("bg-primary", "w-full", "sm:w-auto");
+    expect(explore.closest('[data-slot="empty-content"]')).not.toBeNull();
+    expect(slot(empty, "empty-title")).toHaveClass("text-xl", "font-semibold");
+    expect(slot(empty, "empty-header")).toHaveClass("max-w-md");
     expect(container.querySelector("[data-pf-saved-vacancies-grid]")).toBeNull();
     // The empty list carries no filter vocabulary and no recovery control, because
     // this surface has no filter and nothing to recover.

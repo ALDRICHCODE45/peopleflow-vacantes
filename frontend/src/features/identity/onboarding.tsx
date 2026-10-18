@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { IconUserCircle } from "@tabler/icons-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardAction, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -78,7 +79,8 @@ export function CandidateOnboarding() {
           <IconUserCircle aria-hidden="true" className="size-9" />
           <h2 id="candidate-account-title" className="font-heading text-2xl font-semibold">Crear mi cuenta de candidato</h2>
         </CardTitle>
-        <CardDescription>Vas a crear una cuenta de candidato con {identity.email}. Esta cuenta no podrá usarse para publicar vacantes.</CardDescription>
+        <CardDescription className="max-w-prose">Vas a crear una cuenta de candidato con {identity.email}. Esta cuenta no podrá usarse para publicar vacantes.</CardDescription>
+        <CardAction><Badge variant={created ? "success" : "review"}>{created ? "Cuenta creada" : "Cuenta pendiente"}</Badge></CardAction>
       </CardHeader>
       <CardContent><FieldGroup><Field data-invalid={Boolean(fieldError)}>
         <FieldLabel htmlFor="candidate-full-name">Nombre completo</FieldLabel>

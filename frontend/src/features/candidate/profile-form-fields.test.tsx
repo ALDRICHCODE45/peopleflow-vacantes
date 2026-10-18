@@ -45,6 +45,13 @@ const modulesOf = (source: string) => [...new Set([...source.matchAll(/from "([^
 afterEach(cleanup);
 
 describe("profile form fields inventory", () => {
+  it("keeps section cards content-sized and long-form fields within a reading measure", () => {
+    const { container } = renderFields();
+    expect(container.querySelector('[data-pf-profile-fields]')).toHaveClass("items-start");
+    for (const label of ["Resumen profesional", "Habilidades"]) {
+      expect(screen.getByLabelText(label).closest('[data-slot="input-group"]')).toHaveClass("max-w-prose");
+    }
+  });
   it("uses native compact card spacing, a closing add action and fieldsets for language rows", () => {
     const { container } = renderFields();
     for (const card of container.querySelectorAll('[data-pf-profile-section-card]')) {

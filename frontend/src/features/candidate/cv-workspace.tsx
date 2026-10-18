@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -58,10 +58,10 @@ function CvCard({ cv, onEdit }: { cv: Cv; onEdit: (mode: "rename" | "delete") =>
 function LoadingCvs() {
   return <section aria-busy="true" aria-label="Biblioteca de CVs" className="flex flex-col gap-5">
     <span role="status" className="sr-only">Cargando CVs</span>
-    <div aria-hidden="true" data-pf-cv-loading-upload className="flex flex-col gap-3">
+    <div aria-hidden="true" data-pf-cv-loading-upload className="flex w-full flex-col gap-3 text-left [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink [&_[data-pf-action-bar-actions]]:max-sm:flex-1 [&_[data-pf-action-bar-actions]]:max-sm:flex-col">
       <Skeleton className="h-5 w-28" /><Skeleton><Progress value={null} className="invisible" /></Skeleton>
       <FieldGroup><Field><Skeleton className="w-32"><FieldLabel>&nbsp;</FieldLabel></Skeleton><Skeleton><Input type="file" disabled tabIndex={-1} className="invisible min-h-10" /></Skeleton><Skeleton className="w-56 max-w-full"><FieldDescription>&nbsp;</FieldDescription></Skeleton></Field></FieldGroup>
-      <ActionBar status={null}><Skeleton><Button type="button" variant="outline" disabled tabIndex={-1} className="invisible min-h-10"><Upload aria-hidden="true" data-icon="inline-start" />Subir CV</Button></Skeleton></ActionBar>
+      <ActionBar status={null}><Skeleton className="w-full sm:w-auto"><Button type="button" disabled tabIndex={-1} className="invisible min-h-10 w-full sm:w-auto"><Upload aria-hidden="true" data-icon="inline-start" />Subir CV</Button></Skeleton></ActionBar>
     </div>
     {/* Skeletons mirror CvCard; the library size is not known until the initial read completes. */}
     <ul className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">{[0, 1].map(key => <li key={key} className="min-w-0">
@@ -146,25 +146,26 @@ export function CvWorkspace() {
   const atLimit = library && library.items.length >= library.limits.max_cvs;
   const limitReason = atLimit ? `Ya tienes ${library.limits.max_cvs} CVs. Elimina uno para subir otro.` : undefined;
   const resultStatus = status ? <ActionStatus id="cv-library-status" tone={status.tone} text={status.text} action={status.failure?.reason === "unauthenticated" ? <a className="inline-flex min-h-10 items-center underline" href="/candidato/login">Iniciar sesión</a> : undefined} /> : null;
+  // Reuse one uploader: the empty state brings the same action next to its explanation.
+  const uploadForm = library ? <div className="flex w-full flex-col gap-3 text-left [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink [&_[data-pf-action-bar-actions]]:max-sm:flex-1 [&_[data-pf-action-bar-actions]]:max-sm:flex-col">
+    <p id="cv-count" className="text-sm font-medium">{library.items.length} de {library.limits.max_cvs} CVs</p>
+    <Progress value={library.items.length / library.limits.max_cvs * 100} aria-labelledby="cv-count" />
+    <FieldGroup><Field data-invalid={!!fileError} data-disabled={!!atLimit || uploading || uploadUncertain}>
+      <FieldLabel htmlFor="cv-file">Archivo del CV</FieldLabel>
+      <Input ref={input} type="file" id="cv-file" accept={[...library.limits.content_types, ".pdf", ".docx"].join(",")} aria-invalid={!!fileError} aria-describedby={fileError ? "cv-file-error" : "cv-upload-description"} disabled={!!atLimit || uploading || uploadUncertain} className="min-h-10" onChange={event => void selected(event.target.files?.[0])} />
+      <FieldDescription id="cv-upload-description">{limitReason ?? `PDF o Word (.docx), hasta ${library.limits.max_bytes / 1048576} MB.`}</FieldDescription>
+      {fileError && <FieldError id="cv-file-error">{fileError}</FieldError>}
+    </Field></FieldGroup>
+    <ActionBar status={resultStatus}>
+      {(uploadUncertain || (status?.tone === "error" && !uploading)) && <Button type="button" variant="outline" className="min-h-10 w-full sm:w-auto" disabled={refreshing} onClick={() => void refresh()} aria-describedby={status ? "cv-library-status" : undefined}>{refreshing && <Spinner aria-hidden="true" data-icon="inline-start" />}{uploadUncertain ? "Comprobar" : status?.failure?.reason === "storage_unavailable" ? "Reintentar" : "Actualizar"}</Button>}
+      <Button type="button" className="min-h-10 w-full sm:w-auto" disabled={!!atLimit || uploading || uploadUncertain} aria-busy={uploading} aria-describedby={status ? "cv-library-status" : "cv-upload-description"} onClick={() => input.current?.click()}>{uploading ? <Spinner aria-hidden="true" data-icon="inline-start" /> : <Upload aria-hidden="true" data-icon="inline-start" />}{uploading ? "Subiendo…" : "Subir CV"}</Button>
+    </ActionBar>
+  </div> : null;
   return <DashboardPageContent data-pf-cv-workspace width="screen-2xl" className="gap-5">
-    <header className="flex flex-col gap-1.5"><h2 className="font-heading text-2xl font-semibold tracking-tight">Tus CVs</h2><p className="text-sm text-muted-foreground">Guarda tus documentos y elige cuál usar en cada postulación.</p></header>
+    <header className="flex flex-col gap-1.5"><h2 className="font-heading text-2xl font-semibold tracking-tight">Tus CVs</h2><p className="max-w-prose text-sm text-muted-foreground">Guarda tus documentos y elige cuál usar en cada postulación.</p></header>
     {loading ? <LoadingCvs /> : <>
       {library ? <>
-        <div className="flex flex-col gap-3">
-          <p id="cv-count" className="text-sm font-medium">{library.items.length} de {library.limits.max_cvs} CVs</p>
-          <Progress value={library.items.length / library.limits.max_cvs * 100} aria-labelledby="cv-count" />
-          <FieldGroup><Field data-invalid={!!fileError} data-disabled={!!atLimit || uploading || uploadUncertain}>
-            <FieldLabel htmlFor="cv-file">Archivo del CV</FieldLabel>
-            <Input ref={input} type="file" id="cv-file" accept={[...library.limits.content_types, ".pdf", ".docx"].join(",")} aria-invalid={!!fileError} aria-describedby={fileError ? "cv-file-error" : "cv-upload-description"} disabled={!!atLimit || uploading || uploadUncertain} className="min-h-10" onChange={event => void selected(event.target.files?.[0])} />
-            <FieldDescription id="cv-upload-description">{limitReason ?? `PDF o Word (.docx), hasta ${library.limits.max_bytes / 1048576} MB.`}</FieldDescription>
-            {fileError && <FieldError id="cv-file-error">{fileError}</FieldError>}
-          </Field></FieldGroup>
-          <ActionBar status={resultStatus}>
-            {(uploadUncertain || (status?.tone === "error" && !uploading)) && <Button type="button" variant="outline" className="min-h-10" disabled={refreshing} onClick={() => void refresh()} aria-describedby={status ? "cv-library-status" : undefined}>{refreshing && <Spinner aria-hidden="true" data-icon="inline-start" />}{uploadUncertain ? "Comprobar" : status?.failure?.reason === "storage_unavailable" ? "Reintentar" : "Actualizar"}</Button>}
-            <Button type="button" variant="outline" className="min-h-10" disabled={!!atLimit || uploading || uploadUncertain} aria-busy={uploading} aria-describedby={status ? "cv-library-status" : "cv-upload-description"} onClick={() => input.current?.click()}>{uploading ? <Spinner aria-hidden="true" data-icon="inline-start" /> : <Upload aria-hidden="true" data-icon="inline-start" />}{uploading ? "Subiendo…" : "Subir CV"}</Button>
-          </ActionBar>
-        </div>
-        {library.items.length ? <ul data-pf-cv-list className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">{library.items.map(cv => <CvCard key={cv.id} cv={cv} onEdit={mode => setEditing({ cv, mode })} />)}</ul> : <Empty className="bg-card"><EmptyHeader><EmptyMedia variant="icon"><FileText aria-hidden="true" /></EmptyMedia><EmptyTitle>Sin CVs</EmptyTitle><EmptyDescription>Sube tu primer CV para usarlo en tus postulaciones.</EmptyDescription></EmptyHeader></Empty>}
+        {library.items.length ? <>{uploadForm}<ul data-pf-cv-list className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">{library.items.map(cv => <CvCard key={cv.id} cv={cv} onEdit={mode => setEditing({ cv, mode })} />)}</ul></> : <Empty className="bg-card px-4 py-8 sm:p-12"><EmptyHeader className="max-w-md"><EmptyMedia variant="icon"><FileText aria-hidden="true" /></EmptyMedia><EmptyTitle className="text-xl font-semibold">Sin CVs</EmptyTitle><EmptyDescription>Sube tu primer CV: aparecerá en esta biblioteca y podrás elegirlo al postularte.</EmptyDescription></EmptyHeader><EmptyContent className="max-w-md">{uploadForm}</EmptyContent></Empty>}
       </> : status?.failure?.reason === "storage_unavailable" ? <CvStorageUnavailable retry={() => void refresh()} pending={refreshing} status={resultStatus} statusId="cv-library-status" /> : <ActionBar status={resultStatus}><Button type="button" className="min-h-10" disabled={refreshing} aria-describedby={status ? "cv-library-status" : undefined} onClick={() => void refresh()}>{refreshing && <Spinner aria-hidden="true" data-icon="inline-start" />}Reintentar</Button></ActionBar>}
     </>}
     {editing && <CvDialog key={`${editing.cv.id}-${editing.mode}`} {...editing} onClose={() => setEditing(undefined)} onCheck={refresh} onWrongRole={failure => setStatus({ tone: "error", text: failureCopy(failure).title, failure })} onSaved={updated => {
