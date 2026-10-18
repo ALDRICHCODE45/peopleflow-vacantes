@@ -375,6 +375,14 @@ corepack pnpm dev
 56. **Sidebar colapsado.** Cerrá el sidebar (empresa y candidato). **Esperado:** el isotipo «pf»
     centrado en lugar del logo aplastado (con su versión de tema oscuro); todos los ítems, «Nueva vacante» y el avatar son
     cuadrados iguales y centrados, también al pasar el mouse, seleccionados y con foco.
+57. **Reordenar columnas.** En una vacante publicada **sin candidatos**, arrastrá una columna
+    del medio desde la manija de su encabezado (o usá su menú con el teclado).
+    **Esperado:** se guarda al soltar, con «Columnas reordenadas» y «{columna} ahora va
+    después de {otra}»; «Nuevos», «Placement» y «Descartados» no se mueven. En una vacante
+    con candidatos, la manija aparece bloqueada con la explicación.
+58. **Toasts.** Mové, descartá y recuperá un candidato. **Esperado:** cada aviso dice qué
+    pasó y con quién («Ana Pérez pasó a Screening») y abajo la consecuencia (etapa anterior,
+    plazas cubiertas, motivo o si verá tu mensaje), sin repetir el título.
 
 ## 5. Verificación en la base (solo lectura)
 
