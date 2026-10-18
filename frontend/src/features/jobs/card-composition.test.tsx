@@ -94,7 +94,7 @@ it("composes both preview cards and the complementary dossier instead of hand-ma
   expectHeader(screen.getByRole("heading", { name: values.title }));
   expectHeader(screen.getByRole("heading", { name: "Información complementaria" }));
   expect(screen.getByText("Borrador").closest('[data-slot="card-action"]')).not.toBeNull();
-  expect(screen.getByText("MXN 30,000 – MXN 40,000").closest('[data-slot="card-footer"]')).not.toBeNull();
+  expect(screen.getByText("$30,000 – $40,000 MXN").closest('[data-slot="card-footer"]')).not.toBeNull();
   expect(screen.getByText(/Vista previa de borrador:/).closest('[data-slot="card-footer"]')).not.toBeNull();
 });
 

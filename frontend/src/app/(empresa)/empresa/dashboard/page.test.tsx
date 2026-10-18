@@ -1328,7 +1328,7 @@ describe("dashboard-01 residual raster fidelity", () => {
     expect(growthLine).toContain("line-clamp-1 flex gap-2 font-medium");
     // The marked line renders the bound KPI trend line, never the context line.
     expect(growthLine).toContain("kpi.trendLine");
-    expect(growthLine).toContain('<IconTrendingUp className="size-4" />');
+    expect(growthLine).toContain('<IconTrendingUp aria-hidden="true" className="size-4" />');
     expect(growthLine).not.toContain("kpi.context");
   });
 
