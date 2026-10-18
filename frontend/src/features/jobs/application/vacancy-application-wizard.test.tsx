@@ -563,7 +563,8 @@ describe("VAF-07 wizard focus management", () => {
     // Initial mount keeps the page's own focus: nothing is stolen.
     expect(stepTitle(container)).toHaveTextContent("Tus datos");
     expect(stepTitle(container)).toHaveAttribute("tabindex", "-1");
-    expect(stepTitle(container)).toHaveAttribute("role", "heading");
+    expect(stepTitle(container).tagName).toBe("H2");
+    expect(stepTitle(container).parentElement).toHaveAttribute("data-slot", "card-title");
     expect(stepTitle(container)).not.toHaveFocus();
     expect(document.activeElement).toBe(document.body);
 

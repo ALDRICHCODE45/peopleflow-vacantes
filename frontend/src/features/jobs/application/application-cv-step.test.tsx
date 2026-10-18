@@ -180,8 +180,8 @@ describe("ApplicationCvStep selected document", () => {
     const title = container.querySelector("[data-pf-application-step-title]") as HTMLElement;
     expect(title).toHaveTextContent("Tu CV");
     expect(title).toHaveAttribute("tabindex", "-1");
-    expect(title).toHaveAttribute("role", "heading");
-    expect(title).toHaveAttribute("aria-level", "2");
+    expect(title.tagName).toBe("H2");
+    expect(title.parentElement).toHaveAttribute("data-slot", "card-title");
   });
 
   it("shows the accepted file name, format and size with a named remove action", () => {

@@ -57,7 +57,7 @@ export type ApplicationCvStepProps = {
   onBack: () => void;
   onContinue: () => void;
   /** The step title, which the wizard focuses after a real step transition. */
-  titleRef?: React.Ref<HTMLDivElement>;
+  titleRef?: React.Ref<HTMLHeadingElement>;
 };
 
 /** Help and error ids shared by the file control's `aria-describedby`. */
@@ -143,16 +143,14 @@ export function ApplicationCvStep({
   return (
     <Card data-pf-application-step="cv">
       <CardHeader>
-        <CardTitle
+        <CardTitle><h2
           ref={titleRef}
           tabIndex={-1}
-          role="heading"
-          aria-level={2}
           data-pf-application-step-title
           className="outline-none"
         >
           Tu CV
-        </CardTitle>
+        </h2></CardTitle>
         <CardDescription>
           Adjunta tu CV si quieres compartirlo con el equipo. Es opcional.
         </CardDescription>

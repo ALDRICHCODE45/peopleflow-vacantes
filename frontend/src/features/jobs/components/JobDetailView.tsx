@@ -9,6 +9,7 @@ import {
   CalendarHeartIcon,
   ChevronRightIcon,
   ClockIcon,
+  EllipsisIcon,
   GlobeIcon,
   GraduationCapIcon,
   HeartPulseIcon,
@@ -22,6 +23,10 @@ import {
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Item, ItemContent, ItemMedia } from "@/components/ui/item";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { findCompanyProfile } from "../../company-profile/model";
 import { PROTOTYPE_COMPANY_PROFILES } from "../../company-profile/prototype-companies";
 import { vacancyApplicationHref } from "../application/application-draft";
@@ -47,7 +52,6 @@ const WORK_MODE_ICONS = {
   hybrid: Building2Icon,
 } as const satisfies Record<PrototypeJobView["work_mode"], typeof MapPinIcon>;
 
-const cardSurface = "rounded-2xl border border-border bg-card/60";
 const statTile = "grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-foreground";
 const statValue = "break-words font-medium text-foreground";
 const metaValue = "mt-0.5 font-medium break-words text-foreground";
@@ -60,12 +64,6 @@ const bodyLink =
 const actionPrimary = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/15 px-4 text-sm font-semibold text-foreground";
 /** Secondary save affordance, styled for the toggle save island. */
 const actionGhost = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold text-muted-foreground";
-const shareButton =
-  "grid h-10 flex-1 place-items-center rounded-lg border border-border bg-background text-muted-foreground";
-/** One benefit tile: tinted token surface, decorative icon, and complete safe text. */
-const benefitTile =
-  "flex min-w-0 items-center gap-3 rounded-xl border border-border bg-card/60 p-3 text-sm text-muted-foreground";
-const benefitIconTile = "grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-foreground";
 /**
  * Benefits are free fictional text, so the icon is chosen by a small keyword
  * rule and always falls back to the generic mark. Every rule and every tile
@@ -167,18 +165,12 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
   const hasBeforeApplying = closingDate !== null || questions.length > 0;
 
   return (
-    <section
-      aria-labelledby="vacante-rol"
-      data-detail-card="prototype"
-      className="flex flex-col gap-6 rounded-2xl border border-dashed border-primary/40 bg-primary/5 p-6 md:p-7"
-    >
+    <Card role="region" aria-labelledby="vacante-rol" data-detail-card="prototype">
+      <CardHeader>
+        <CardTitle><h2 id="vacante-rol" className="font-heading text-lg font-semibold">{prototype.department}</h2></CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-6">
       <div data-detail-group="profile" className="flex flex-col gap-3">
-        <h2
-          id="vacante-rol"
-          className="font-heading text-lg font-semibold text-foreground"
-        >
-          {prototype.department}
-        </h2>
         <dl className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
           <div className="flex items-baseline gap-2">
             <dt className="text-muted-foreground">Frecuencia de pago</dt>
@@ -283,11 +275,11 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
             {benefits.map((benefit) => {
               const Icon = benefitIcon(benefit);
               return (
-                <li key={benefit} data-benefit-tile className={benefitTile}>
-                  <span aria-hidden="true" className={benefitIconTile}>
-                    <Icon className="size-[18px]" />
-                  </span>
-                  <span className="min-w-0 break-words">{benefit}</span>
+                <li key={benefit} data-benefit-tile className="min-w-0">
+                  <Item variant="outline" size="sm">
+                    <ItemMedia variant="icon" aria-hidden="true"><Icon /></ItemMedia>
+                    <ItemContent className="min-w-0 break-words text-muted-foreground">{benefit}</ItemContent>
+                  </Item>
                 </li>
               );
             })}
@@ -332,7 +324,8 @@ function PrototypeRoleSection({ job }: { job: PrototypeJobView }) {
           )}
         </div>
       )}
-    </section>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -407,21 +400,22 @@ export function JobDetailView({ job }: { job: PrototypeJobView | PublicJobDetail
         </ol>
       </nav>
 
-      <header data-detail-region="header" className={`${cardSurface} p-6 md:p-7`}>
-        <div className="flex items-start gap-4">
-          <CompanyMonogram name={job.company.name} />
-          <div className="flex min-w-0 flex-1 flex-col gap-3">
-            <div className="flex flex-wrap items-center gap-x-2.5 gap-y-2">
-              <h1 className="min-w-0 break-words font-heading text-2xl font-bold tracking-tight text-foreground md:text-3xl">{job.title}</h1>
-              {prototype?.featured === true && <Badge variant="accent" data-detail-flag="featured">Destacada</Badge>}
-            </div>
-            <div className="text-sm text-muted-foreground">
+      <Card data-detail-region="header">
+        <CardHeader>
+          <CardTitle><h1 className="flex items-start gap-4 font-heading text-2xl font-bold tracking-tight md:text-3xl">
+            <CompanyMonogram name={job.company.name} />
+            <span className="min-w-0 break-words">{job.title}</span>
+          </h1></CardTitle>
+          {prototype?.featured === true && <CardAction><Badge variant="accent" data-detail-flag="featured">Destacada</Badge></CardAction>}
+          <CardDescription>
               {profile === undefined ? (
                 <span>{job.company.name}</span>
               ) : (
                 <Link href={`/empresas/${profile.companyId}`} className={`${bodyLink} text-sm`}>{job.company.name}</Link>
               )}
-            </div>
+          </CardDescription>
+        </CardHeader>
+        {meta.length > 0 && <CardFooter>
             {meta.length > 0 && (
               <dl className="flex flex-wrap gap-x-8 gap-y-3">
                 {meta.map(({ key, label, Icon, value }) => (
@@ -434,89 +428,94 @@ export function JobDetailView({ job }: { job: PrototypeJobView | PublicJobDetail
                 ))}
               </dl>
             )}
-          </div>
-        </div>
-      </header>
+        </CardFooter>}
+      </Card>
 
-      <dl data-detail-region="stats" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div data-detail-region="stats" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map(({ key, label, Icon, value }) => (
-          <div key={key} data-detail-stat={key} className={`${cardSurface} flex flex-col gap-2 p-4`}>
-            <dt className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Card key={key} size="sm" data-detail-stat={key} aria-labelledby={`job-stat-${key}`}>
+            <CardHeader><CardTitle><h2 id={`job-stat-${key}`} className="flex items-center gap-2 text-xs text-muted-foreground">
               <span aria-hidden="true" className={statTile}><Icon className="size-3.5" /></span>{label}
-            </dt>
-            <dd className={statValue}>{value}</dd>
-          </div>
+            </h2></CardTitle></CardHeader>
+            <CardContent><span className={statValue}>{value}</span></CardContent>
+          </Card>
         ))}
-      </dl>
+      </div>
 
       {/* Responsive scaffold: one content column with the rail beside it from `lg` up. The rail becomes sticky inside its grid area at desktop and stacks back into normal flow below `lg`. */}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <div data-detail-region="content" className="flex min-w-0 flex-col gap-6">
-          <section className={`${cardSurface} bg-card/40 p-6 md:p-7`}>
-            <h2 className="font-heading text-xl font-semibold text-foreground">Sobre la vacante</h2>
-            <div className="mt-4"><DescriptionParagraphs description={job.description} /></div>
-          </section>
+          <Card>
+            <CardHeader><CardTitle><h2 className="font-heading text-xl font-semibold">Sobre la vacante</h2></CardTitle></CardHeader>
+            <CardContent><DescriptionParagraphs description={job.description} /></CardContent>
+          </Card>
           <PrototypeRoleSection job={job} />
         </div>
 
         {(salary !== null || profile !== undefined) && (
           <aside data-detail-region="rail" className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-24 lg:self-start">
             {salary !== null && (
-              <dl data-detail-card="salary" className={`${cardSurface} flex flex-col gap-1 p-6`}>
-                <dt className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+              <Card data-detail-card="salary">
+                <CardHeader><CardTitle><h2 className="flex items-center gap-1.5">
                   <BanknoteIcon aria-hidden="true" className="size-3.5 shrink-0" />Salario
-                </dt>
-                <dd className="font-heading text-2xl font-bold tracking-tight text-foreground">{salary}</dd>
-              </dl>
+                </h2></CardTitle></CardHeader>
+                <CardContent><span className="font-heading text-2xl font-bold tracking-tight">{salary}</span></CardContent>
+              </Card>
             )}
 
             {prototype !== undefined && (
-              <section data-detail-card="actions" className={`${cardSurface} flex flex-col gap-3 p-6`}>
-                <h3 className="text-sm font-semibold text-foreground">Postulación</h3>
-                <span className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <ZapIcon aria-hidden="true" className="size-4 shrink-0" />
-                  {prototypeResponseLabel(prototype.responseTimeDays)}
-                </span>
-                <Link
+              <Card data-detail-card="actions">
+                <CardHeader>
+                  <CardTitle><h3>Postulación</h3></CardTitle>
+                  <CardDescription className="flex items-center gap-2">
+                    <ZapIcon aria-hidden="true" className="size-4 shrink-0" />
+                    {prototypeResponseLabel(prototype.responseTimeDays)}
+                  </CardDescription>
+                  <CardAction><PrototypeFeedbackButton icon="bookmark" label="Guardar vacante" text="Guardar" className={actionGhost} /></CardAction>
+                </CardHeader>
+                {prototype.verifiedByPeopleFlow && <CardContent><VerifiedByPeopleFlow /></CardContent>}
+                <CardFooter><Link
                   href={vacancyApplicationHref(job.id)}
                   className={actionPrimary}
                 >
                   Postularme
                   <ChevronRightIcon aria-hidden="true" className="size-4 shrink-0" />
-                </Link>
-                <PrototypeFeedbackButton
-                  icon="bookmark" label="Guardar vacante" text="Guardar" className={actionGhost}
-                />
-                {prototype.verifiedByPeopleFlow && <VerifiedByPeopleFlow />}
-              </section>
+                </Link></CardFooter>
+              </Card>
             )}
 
             {profile !== undefined && (
-              <section data-detail-card="company" className={`${cardSurface} flex flex-col gap-3 bg-card/40 p-6`}>
-                <div className="flex items-center gap-3">
-                  <CompanyMonogram name={profile.name} size="compact" />
-                  <div className="min-w-0">
-                    <h3 className="font-heading text-base font-semibold text-foreground">{profile.name}</h3>
-                    <span className="flex flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+              <Card data-detail-card="company">
+                <CardHeader>
+                  <CardTitle><h3 className="flex items-center gap-3">
+                    <CompanyMonogram name={profile.name} size="compact" />{profile.name}
+                  </h3></CardTitle>
+                  <CardDescription className="flex flex-wrap items-center gap-x-1.5">
                       <span>{profile.companySize}</span>
                       <span aria-hidden="true">·</span>
                       <span>{profile.location}</span>
-                    </span>
-                  </div>
-                </div>
-                <Link href={`/empresas/${profile.companyId}`} className={`${bodyLink} inline-flex items-center gap-1.5 self-start text-sm`}>Conoce a {profile.name}</Link>
-              </section>
+                  </CardDescription>
+                </CardHeader>
+                <CardFooter><Link href={`/empresas/${profile.companyId}`} className={`${bodyLink} inline-flex items-center gap-1.5 self-start text-sm`}>Conoce a {profile.name}</Link></CardFooter>
+              </Card>
             )}
 
             {prototype !== undefined && (
-              <section data-detail-card="share" className={`${cardSurface} bg-card/40 p-5`}>
-                <h3 className="text-sm font-semibold text-foreground">Compartir vacante</h3>
-                <div className="mt-3 flex items-center gap-2">
-                  {SHARE_ACTIONS.map(({ key, label }) => (
-                    <PrototypeFeedbackButton key={key} icon={key} label={label} iconOnly iconClassName="size-[18px]" className={shareButton} />
-                  ))}
-                </div>
-              </section>
+              <Card data-detail-card="share">
+                <CardHeader>
+                  <CardTitle><h3>Compartir vacante</h3></CardTitle>
+                  <CardAction>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10" aria-label="Acciones de compartir vacante"><EllipsisIcon /></Button>} />
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuGroup>
+                          {SHARE_ACTIONS.map(({ key, label }) => <DropdownMenuItem key={key} className="min-h-10">{label}</DropdownMenuItem>)}
+                        </DropdownMenuGroup>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </CardAction>
+                </CardHeader>
+              </Card>
             )}
           </aside>
         )}

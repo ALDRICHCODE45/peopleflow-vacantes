@@ -91,8 +91,6 @@ const STEP_COUNT = STEP_LABELS.length;
  */
 const STEP_TITLE_ATTRS = {
   tabIndex: -1,
-  role: "heading",
-  "aria-level": 2,
   "data-pf-application-step-title": true,
   className: "outline-none",
 } as const;
@@ -223,7 +221,7 @@ export function VacancyApplicationWizard({
     Partial<Record<ApplicationCandidateField, HTMLInputElement | null>>
   >({});
   const coverLetterRef = React.useRef<HTMLTextAreaElement | null>(null);
-  const stepTitleRef = React.useRef<HTMLDivElement | null>(null);
+  const stepTitleRef = React.useRef<HTMLHeadingElement | null>(null);
   const focusStepOnMount = React.useRef(false);
 
   // A real transition unmounts the control the visitor just activated, so focus
@@ -368,7 +366,7 @@ export function VacancyApplicationWizard({
         {step === 0 ? (
           <Card data-pf-application-step="profile">
             <CardHeader>
-              <CardTitle ref={stepTitleRef} {...STEP_TITLE_ATTRS}>Tus datos</CardTitle>
+              <CardTitle><h2 ref={stepTitleRef} {...STEP_TITLE_ATTRS}>Tus datos</h2></CardTitle>
               <CardDescription>
                 Revisa y actualiza tus datos de contacto para esta postulación.
               </CardDescription>
@@ -413,7 +411,7 @@ export function VacancyApplicationWizard({
         {step === 1 ? (
           <Card data-pf-application-step="application">
             <CardHeader>
-              <CardTitle ref={stepTitleRef} {...STEP_TITLE_ATTRS}>Tu postulación</CardTitle>
+              <CardTitle><h2 ref={stepTitleRef} {...STEP_TITLE_ATTRS}>Tu postulación</h2></CardTitle>
               <CardDescription>
                 Contale al equipo de {job.company.name} por qué te interesa esta
                 vacante.
@@ -513,7 +511,7 @@ export function VacancyApplicationWizard({
         {step === 3 ? (
           <Card data-pf-application-step="review">
             <CardHeader>
-              <CardTitle ref={stepTitleRef} {...STEP_TITLE_ATTRS}>Revisar</CardTitle>
+              <CardTitle><h2 ref={stepTitleRef} {...STEP_TITLE_ATTRS}>Revisar</h2></CardTitle>
               <CardDescription>
                 Revisa tu postulación antes de continuar.
               </CardDescription>

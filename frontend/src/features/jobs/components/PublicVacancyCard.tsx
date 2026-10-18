@@ -14,13 +14,11 @@ export function PublicVacancyCard({ job }: { job: PublicJobItem }) {
   return <li>
     <Card>
       <CardHeader className="border-b">
-        <div className="flex min-w-0 items-start gap-3">
+        <CardTitle><h3 className="flex items-start gap-3 font-heading text-lg font-semibold break-words">
           <Avatar size="lg" aria-hidden="true"><AvatarFallback><Building2Icon aria-hidden="true" className="size-5" /></AvatarFallback></Avatar>
-          <div className="flex min-w-0 flex-col gap-1">
-            <CardTitle><h3 className="font-heading text-lg font-semibold break-words"><Link href={`/vacantes/${job.id}`} className="inline-flex min-h-10 items-center rounded-md hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{job.title}</Link></h3></CardTitle>
-            <CardDescription>{job.company.name}</CardDescription>
-          </div>
-        </div>
+          <Link href={`/vacantes/${job.id}`} className="inline-flex min-h-10 min-w-0 items-center rounded-md hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">{job.title}</Link>
+        </h3></CardTitle>
+        <CardDescription>{job.company.name}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <PublicJobFacts job={job} />

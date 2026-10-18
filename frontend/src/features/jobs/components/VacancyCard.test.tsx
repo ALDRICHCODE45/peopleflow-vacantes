@@ -52,24 +52,21 @@ const ISLAND_PROPS = ["icon", "label", "className", "iconClassName", "iconPositi
 afterEach(() => cleanup());
 
 describe("VacancyCard layout and affordances", () => {
-  it("lays one list item out as a two-child content grid with an integrated salary rail", () => {
+  it("composes one list item with a native header, content and closing salary footer", () => {
     const { container } = render(<VacancyCard job={enriched} />);
-    const card = container.querySelector("li");
-    expect(card?.children).toHaveLength(2);
+    const card = container.querySelector('[data-slot="card"]')!;
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
-    expect(card?.className).toMatch(/(?:^|\s)grid(?:\s|$)/u);
-    expect(card?.className).toMatch(/(?:^|\s)md:grid-cols-/u);
-    const [content, rail] = Array.from(card?.children ?? []) as HTMLElement[];
-    expect([content.className.includes("flex-col"), rail.className.includes("flex-col")]).toEqual([true, true]);
-    expect(rail.className).toMatch(/border-t/u);
-    expect(rail.className).toMatch(/md:border-l/u);
-    expect(rail.textContent).toContain("SALARIO MENSUAL");
+    expect([...card.children].map(part => part.getAttribute("data-slot"))).toEqual(["card-header", "card-content", "card-footer"]);
+    const footer = card.querySelector('[data-slot="card-footer"]')!;
+    expect(footer).toHaveClass("border-t");
+    expect(footer).toHaveTextContent("SALARIO MENSUAL");
   });
 
   it("renders the company monogram, the canonical H3 title link, and an enabled bookmark toggle", () => {
     const { container } = render(<VacancyCard job={enriched} />);
     const headings = screen.getAllByRole("heading", { level: 3 });
-    expect([headings.length, headings[0].textContent]).toEqual([1, FRONTEND_JOB.title]);
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveAccessibleName(FRONTEND_JOB.title);
     const titleLink = screen.getByRole("link", { name: FRONTEND_JOB.title });
     expect([titleLink.getAttribute("href"), titleLink.className]).toEqual([`/vacantes/${FRONTEND_JOB.id}`, expect.stringMatching(/focus-visible:outline/u)]);
     expect(container.querySelector("span[aria-hidden='true']")?.textContent).toBe("Ac");
@@ -101,7 +98,7 @@ describe("VacancyCard wire fallback state", () => {
     expect([container.querySelectorAll("button").length, screen.queryByRole("note"), screen.queryByRole("button", { name: /guardar/iu })]).toEqual([0, null, null]);
     expect(FORBIDDEN_COPY.test(text)).toBe(false);
     expect(RENDERED_STATUS_COPY.test(text)).toBe(false);
-    expect(container.querySelector("li")?.children).toHaveLength(2);
+    expect(container.querySelector('[data-slot="card"]')?.children).toHaveLength(3);
   });
 });
 
@@ -158,10 +155,9 @@ describe("VacancyCard enriched state", () => {
 describe("VacancyCard responsive, motion, and token contract", () => {
   it("keeps the card overflow-safe with token surfaces, restrained hover, and reduced-motion guards", () => {
     const { container } = render(<VacancyCard job={enriched} companyHref={COMPANY_HREF} />);
-    const classes = container.querySelector("li")?.className ?? "";
-    for (const utility of ["rounded-2xl", "border-border", "bg-card/60", "p-4", "md:p-6", "[overflow-wrap:anywhere]", "group", "hover:border-primary/40", "focus-within:border-primary/40", "hover:shadow-lg", "duration-200", "motion-safe:hover:-translate-y-0.5", "motion-reduce:transition-none", "motion-reduce:translate-none"]) expect(classes).toContain(utility);
-    const rail = classesOf(container.querySelector("li") as Element);
-    expect([rail.includes("md:border-l"), rail.includes("md:pl-6"), container.querySelectorAll("li > *")]).toEqual([true, true, expect.objectContaining({ length: 2 })]);
+    const classes = container.querySelector('[data-slot="card"]')?.className ?? "";
+    for (const utility of ["bg-card", "[overflow-wrap:anywhere]", "group", "hover:shadow-lg", "duration-200", "motion-safe:hover:-translate-y-0.5", "motion-reduce:transition-none", "motion-reduce:translate-none"]) expect(classes).toContain(utility);
+    expect(classes).not.toMatch(/(?:^|\s)(?:p-0|py-0|gap-\d)/u);
     expect([container.querySelectorAll("[style]").length, RAW_COLOR.test(classesOf(container))]).toEqual([0, false]);
   });
 });
@@ -194,25 +190,14 @@ describe("VacancyCard prototype feedback island (CCP-R5A)", () => {
 });
 
 describe("VacancyCard featured status bubble (CCP-R9A)", () => {
-  it("floats one card-level Destacada status pill outside the company metadata row", () => {
+  it("places the promotional Badge in CardAction without a hand-painted floating pill", () => {
     const { container } = render(<VacancyCard job={enriched} />);
-    const card = container.querySelector("li") as HTMLElement;
-    const pill = container.querySelector("[data-prototype-featured]") as HTMLElement;
-    const companyRow = screen.getByText("Acme").parentElement as HTMLElement;
-    expect(pill).not.toBeNull();
-    // The pill belongs to the card, never to the company metadata row it left.
-    expect([card.contains(pill), companyRow.contains(pill), companyRow.className.includes("flex-wrap"), pill.closest("li")]).toEqual([true, false, true, card]);
-    expect([pill.tagName, pill.textContent]).toEqual(["SPAN", "Destacada"]);
-    for (const utility of ["absolute", "inline-flex", "items-center", "gap-1.5", "rounded-full", "border", "bg-card", "text-foreground", "shadow-sm"]) expect(pill.className).toContain(utility);
-    // Negative top with a positive right inset: the pill straddles the top
-    // border instead of hanging off the right edge.
-    expect(pill.className).toMatch(/(?:^|\s)-top-[0-9.]+/u);
-    expect(pill.className).toMatch(/(?:^|\s)md:right-[0-9.]+(?:\s|$)/u);
-    expect(pill.className).not.toMatch(/(?:^|\s)-right-/u);
-    const dot = pill.querySelector("[data-prototype-featured-dot]") as HTMLElement;
-    expect([dot?.tagName, dot?.textContent, dot?.className.includes("rounded-full"), dot?.className.includes("bg-primary"), dot?.className.includes("size-1.5")]).toEqual(["SPAN", "", true, true, true]);
-    // Absolute positioning resolves against the relatively positioned card.
-    for (const pattern of [/(?:^|\s)relative(?:\s|$)/u, /(?:^|\s)overflow-visible(?:\s|$)/u]) expect(card.className).toMatch(pattern);
+    const pill = container.querySelector("[data-prototype-featured]")!;
+    expect(pill).toHaveAttribute("data-slot", "badge");
+    expect(pill).toHaveAttribute("data-variant", "accent");
+    expect(pill).not.toHaveAttribute("data-dot");
+    expect(pill.closest('[data-slot="card-action"]')?.parentElement).toHaveAttribute("data-slot", "card-header");
+    expect(pill.className).not.toContain("absolute");
     expect(screen.getAllByText("Destacada")).toHaveLength(1);
   });
 
@@ -221,9 +206,7 @@ describe("VacancyCard featured status bubble (CCP-R9A)", () => {
     const [featured, plain, wire] = Array.from(container.querySelectorAll("li"));
     expect([featured, plain, wire].map((card) => card.querySelectorAll("[data-prototype-featured]").length)).toEqual([1, 0, 0]);
     expect([within(featured).getAllByText("Destacada").length, within(plain).queryAllByText("Destacada").length, within(wire).queryAllByText("Destacada").length]).toEqual([1, 0, 0]);
-    // The floating pill stays inside the card's content region, so the shared
-    // two-region grid contract keeps exactly two element children.
-    for (const card of [featured, plain, wire]) expect(card.children).toHaveLength(2);
+    for (const card of [featured, plain, wire]) expect(card.querySelector('[data-slot="card"]')?.children).toHaveLength(3);
   });
 
   it("keeps the floating pill strictly token-only with no raw paint or inline style", () => {

@@ -77,7 +77,7 @@ export function JobsVisualPreferences({
   return (
     <FieldSet
       data-jobs-visual-preferences
-      className="gap-4 rounded-2xl border border-border bg-card/60 p-5"
+      className="gap-4"
     >
       <FieldLegend variant="label" className="mb-0">
         Preferencias

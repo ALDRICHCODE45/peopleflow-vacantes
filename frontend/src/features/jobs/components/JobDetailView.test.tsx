@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import type { ReactNode } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
@@ -22,6 +23,13 @@ import type { PrototypeJobView } from "../enrich";
 import type { JobItem } from "../types";
 import { companyInitials, prototypeApplicantsLabel, prototypeResponseLabel } from "./prototype-ui";
 import { JobDetailView } from "./JobDetailView";
+
+// jsdom cannot position the portaled popup. Keep the real menu root, trigger,
+// group and items; only replace its geometry boundary in this view-level test.
+vi.mock("@/components/ui/dropdown-menu", async (original) => ({
+  ...await original<typeof import("@/components/ui/dropdown-menu")>(),
+  DropdownMenuContent: ({ children }: { children: ReactNode }) => <div role="menu">{children}</div>,
+}));
 
 /** Font-size utilities share the `text-` prefix with the color utilities below. */
 const FONT_SIZE_TOKENS = new Set(["xs", "sm", "base", "lg", "xl", "2xl", "3xl", "4xl", "5xl", "6xl", "7xl", "8xl", "9xl"]);
@@ -232,7 +240,7 @@ describe("JobDetailView prototype role block", () => {
 
   it("nests the prototype block headings inside the page hierarchy", () => {
     const { container } = render(<JobDetailView job={enrichedJob} />);
-    const block = container.querySelector("section[aria-labelledby='vacante-rol']");
+    const block = container.querySelector('[data-detail-card="prototype"]');
     const headings = [...(block?.querySelectorAll("h1, h2, h3, h4, h5, h6") ?? [])];
     expect(headings.map((heading) => [heading.tagName, heading.textContent])).toEqual([
       ["H2", enrichedJob.prototype!.department],
@@ -252,7 +260,7 @@ describe("JobDetailView prototype role block", () => {
     const levels = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")].map((heading) =>
       Number(heading.tagName.slice(1)),
     );
-    expect(levels).toEqual([1, 2, 2, 3, 4, 4, 3, 3, 3, 3, 4, 3, 3, 3]);
+    expect(levels).toEqual([1, 2, 2, 2, 2, 2, 2, 3, 4, 4, 3, 3, 3, 3, 4, 3, 3, 3]);
     levels.forEach((level, index) => {
       if (index > 0) expect(level - levels[index - 1]).toBeLessThanOrEqual(1);
     });
@@ -352,10 +360,9 @@ describe("JobDetailView reference header, stats, and scaffold (CCP-R4A)", () => 
     ] as const;
     for (const [key, label, value] of expected) {
       const card = stat(container, key);
-      expect(card.querySelector("dt")?.textContent).toContain(label);
-      expect(card.querySelector("dd")?.textContent).toContain(value);
-      // Each label carries one decorative icon tile, never a text substitute.
-      expect(card.querySelector("dt [aria-hidden='true'] svg")).not.toBeNull();
+      expect(card.querySelector('[data-slot="card-title"]')?.textContent).toContain(label);
+      expect(card.querySelector('[data-slot="card-content"]')?.textContent).toContain(value);
+      expect(card.querySelector('[data-slot="card-title"] [aria-hidden="true"] svg')).not.toBeNull();
     }
     // The fixture experience label is a role term, never a wire stat.
     expect(stats).not.toHaveTextContent(prototype.experienceLabel);
@@ -366,8 +373,8 @@ describe("JobDetailView reference header, stats, and scaffold (CCP-R4A)", () => 
     const header = region(container, "header");
     for (const absent of ["Destacada", "Postulantes"]) expect(within(header).queryByText(absent)).toBeNull();
     expect(within(header).queryByRole("note")).toBeNull();
-    expect(stat(container, "area").querySelector("dd")?.textContent).toBe("Sin especificar");
-    expect(stat(container, "level").querySelector("dd")?.textContent).toBe(seniorityLabel(fullJob.seniority));
+    expect(stat(container, "area").querySelector('[data-slot="card-content"]')?.textContent).toBe("Sin especificar");
+    expect(stat(container, "level").querySelector('[data-slot="card-content"]')?.textContent).toBe(seniorityLabel(fullJob.seniority));
     expect(container.querySelector("article [data-detail-stat='experience']")).toBeNull();
   });
 
@@ -416,7 +423,7 @@ describe("JobDetailView reference header, stats, and scaffold (CCP-R4A)", () => 
     expect(viewSource).not.toMatch(/<button\b/u);
     expect(viewSource).toContain("./prototype-feedback-island");
     const islands = [...viewSource.matchAll(/<PrototypeFeedbackButton\b[\s\S]*?\/>/gu)].map((match) => match[0]);
-    expect(islands).toHaveLength(2);
+    expect(islands).toHaveLength(1);
     for (const island of islands) {
       expect(island).not.toMatch(/=>|function|\{\s*\(/u);
       // React's `key` is a framework slot, not a prop forwarded to the island.
@@ -521,19 +528,17 @@ describe("JobDetailView reference content and sticky rail (CCP-R4B)", () => {
     expect(screen.queryByText(/no se envió ninguna postulación real/i)).toBeNull();
   });
 
-  it("keeps the four placeholder controls with clean names, enabled and inert", async () => {
+  it("keeps save enabled and the three named share options in their contextual menu", async () => {
     const user = userEvent.setup();
     render(<JobDetailView job={enrichedJob} />);
-    const controls = screen.getAllByRole("button");
-    expect(controls.map((control) => control.getAttribute("aria-label"))).toEqual([...DEMO_NAMES]);
-    const [save, ...shares] = controls;
+    const save = screen.getByRole("button", { name: DEMO_NAMES[0] });
+    expect(save).toBeEnabled();
     expect([save.getAttribute("aria-pressed"), save.textContent]).toEqual([null, "Guardar"]);
-    for (const control of [save, ...shares]) {
-      const name = control.getAttribute("aria-label");
-      expect([control.matches(":enabled"), control.getAttribute("type"), control.getAttribute("aria-disabled")]).toEqual([true, "button", null]);
-      await user.click(control);
-      expect([control.getAttribute("aria-label"), control.getAttribute("aria-pressed")]).toEqual([name, null]);
-    }
+    await user.click(save);
+    screen.getByRole("button", { name: "Acciones de compartir vacante" }).focus();
+    await user.keyboard("{Enter}");
+    expect((await screen.findAllByRole("menuitem")).map(item => item.textContent)).toEqual(DEMO_NAMES.slice(1));
+    for (const item of screen.getAllByRole("menuitem")) expect(item).not.toHaveAttribute("aria-disabled", "true");
     expect(screen.queryAllByRole("status")).toHaveLength(0);
   });
 
@@ -541,13 +546,16 @@ describe("JobDetailView reference content and sticky rail (CCP-R4B)", () => {
     const user = userEvent.setup();
     const before = window.location.href;
     const { container } = render(<JobDetailView job={enrichedJob} />);
-    const [save, ...shares] = DEMO_NAMES.map((name) => screen.getByRole("button", { name }));
-    for (const control of [save, ...shares]) await user.click(control);
-    await user.keyboard("{Enter}");
+    const save = screen.getByRole("button", { name: DEMO_NAMES[0] });
+    await user.click(save);
+    for (const name of DEMO_NAMES.slice(1)) {
+      screen.getByRole("button", { name: "Acciones de compartir vacante" }).focus();
+      await user.keyboard("{Enter}");
+      await user.click(await screen.findByRole("menuitem", { name }));
+    }
     expect(container.querySelectorAll("[role='status'], [role='note']")).toHaveLength(0);
     expect(window.location.href).toBe(before);
     expect([save.getAttribute("aria-pressed"), save.getAttribute("aria-label")]).toEqual([null, "Guardar vacante"]);
-    expect(shares.map((control) => control.getAttribute("aria-label"))).toEqual(["Copiar enlace", "Compartir en redes", "Enviar por correo"]);
   });
 
   it("renders the company profile context and canonical link in the rail", () => {
@@ -690,8 +698,8 @@ describe("JobDetailView candidate profile, languages, and application prompts (V
     const { container } = render(<JobDetailView job={enrichedJob} />);
     const level = container.querySelector<HTMLElement>("article [data-detail-stat='level']");
     expect(level).not.toBeNull();
-    expect(level!.querySelector("dt")?.textContent).toContain("Nivel");
-    expect(level!.querySelector("dd")?.textContent).toBe(seniorityLabel(baseJob.seniority));
+    expect(level!.querySelector('[data-slot="card-title"]')?.textContent).toContain("Nivel");
+    expect(level!.querySelector('[data-slot="card-content"]')?.textContent).toBe(seniorityLabel(baseJob.seniority));
     expect(container.querySelector("article [data-detail-stat='experience']")).toBeNull();
     const profile = group(container, "profile");
     expect(profile).toHaveTextContent("Experiencia");
@@ -701,9 +709,9 @@ describe("JobDetailView candidate profile, languages, and application prompts (V
 
   it("keeps no wire level or experience claim on a vacancy without enrichment", () => {
     render(<JobDetailView job={baseJob} />);
-    const level = screen.getByText("Nivel").closest("[data-detail-stat='level']") as HTMLElement;
+    const level = screen.getByRole("heading", { name: "Nivel" }).closest("[data-detail-stat='level']") as HTMLElement;
     expect(level).not.toBeNull();
-    expect(level.querySelector("dd")?.textContent).toBe(seniorityLabel(baseJob.seniority));
+    expect(level.querySelector('[data-slot="card-content"]')?.textContent).toBe(seniorityLabel(baseJob.seniority));
     expect(screen.queryByText("Experiencia")).toBeNull();
     expect(screen.queryByRole("heading", { level: 3, name: "Idiomas" })).toBeNull();
     expect(screen.queryByRole("heading", { level: 4, name: "Preguntas al postularte" })).toBeNull();

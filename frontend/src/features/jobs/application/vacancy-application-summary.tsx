@@ -2,7 +2,7 @@ import { BanknoteIcon, MapPinIcon } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
 import { companyInitials } from "../components/prototype-ui";
@@ -44,9 +44,8 @@ export function VacancyApplicationSummary({ job }: VacancyApplicationSummaryProp
   return (
     <Card>
       <CardHeader>
-        <h2 className="font-heading text-base font-medium text-foreground">
-          Resumen de la vacante
-        </h2>
+        <CardTitle><h2>Resumen de la vacante</h2></CardTitle>
+        <CardDescription>{job.company.name}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
@@ -57,9 +56,7 @@ export function VacancyApplicationSummary({ job }: VacancyApplicationSummaryProp
             <p className="truncate font-heading text-sm font-semibold text-foreground">
               {job.title}
             </p>
-            <p className="truncate text-xs text-muted-foreground">
-              {job.company.name}
-            </p>
+
           </div>
         </div>
 

@@ -23,13 +23,11 @@ export function PublicJobDetailView({ job }: { job: PublicJobDetail }) {
     </nav>
     <Card>
       <CardHeader className="border-b">
-        <div className="flex items-start gap-4">
+        <CardTitle><h1 className="flex items-start gap-4 font-heading text-2xl font-semibold break-words md:text-3xl">
           <Avatar size="lg" aria-hidden="true"><AvatarFallback><Building2Icon aria-hidden="true" className="size-5" /></AvatarFallback></Avatar>
-          <div className="flex min-w-0 flex-col gap-2">
-            <CardTitle><h1 className="font-heading text-2xl font-semibold break-words md:text-3xl">{job.title}</h1></CardTitle>
-            <CardDescription>{job.company.name}</CardDescription>
-          </div>
-        </div>
+          <span className="min-w-0">{job.title}</span>
+        </h1></CardTitle>
+        <CardDescription>{job.company.name}</CardDescription>
       </CardHeader>
       <CardContent><PublicJobFacts job={job} /></CardContent>
       <CardFooter className="border-t">

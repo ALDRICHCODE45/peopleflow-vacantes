@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { InfoIcon, MapPinIcon, SearchIcon } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
@@ -88,15 +88,18 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
       </ToggleGroup>
       <div className="flex flex-col gap-6 md:flex-row md:items-start">
         <div className="hidden w-full shrink-0 md:sticky md:top-24 md:block md:w-60">
-          <Card>
-            <CardHeader className="border-b"><CardTitle><h2>Filtros</h2></CardTitle></CardHeader>
-            <CardContent>
-              <form data-nav-intent="filters" onSubmit={handleOwnedSubmit} aria-label="Filtros" className="flex flex-col gap-5">
+          <form data-nav-intent="filters" onSubmit={handleOwnedSubmit} aria-label="Filtros">
+            <Card>
+              <CardHeader className="border-b"><CardTitle><h2>Filtros</h2></CardTitle></CardHeader>
+              <CardContent>
                 <FieldGroup className="gap-4"><FilterFields idPrefix="desktop-" query={query} /></FieldGroup>
-                <div className="flex flex-col gap-2"><Button type="submit" className="min-h-10">Aplicar filtros</Button><Link href="/vacantes" className={cn(buttonVariants({ variant: "ghost" }), "min-h-10")}>Limpiar filtros</Link></div>
-              </form>
-            </CardContent>
-          </Card>
+              </CardContent>
+              <CardFooter className="flex-col items-stretch gap-2">
+                <Button type="submit" className="min-h-10">Aplicar filtros</Button>
+                <Link href="/vacantes" className={cn(buttonVariants({ variant: "ghost" }), "min-h-10")}>Limpiar filtros</Link>
+              </CardFooter>
+            </Card>
+          </form>
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-4">
           <div className="flex items-center justify-between gap-3">

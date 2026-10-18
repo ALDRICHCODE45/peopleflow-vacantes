@@ -2,7 +2,7 @@ import { MailIcon, MapPinIcon, PhoneIcon } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 import {
   applicationCandidateInitials,
@@ -55,7 +55,10 @@ export function ApplicationCandidateCard({
   return (
     <Card data-pf-application-candidate>
       <CardHeader className="border-b">
-        <h2 className="font-heading text-base font-medium text-foreground">Tu perfil</h2>
+        <CardTitle><h2>Tu perfil</h2></CardTitle>
+        <CardDescription data-pf-application-candidate-title>
+          {declared(draft.professionalTitle)}
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <div className="flex items-center gap-3">
@@ -75,12 +78,7 @@ export function ApplicationCandidateCard({
             >
               {declared(draft.fullName)}
             </p>
-            <p
-              data-pf-application-candidate-title
-              className="truncate text-xs text-muted-foreground"
-            >
-              {declared(draft.professionalTitle)}
-            </p>
+
           </div>
         </div>
 
