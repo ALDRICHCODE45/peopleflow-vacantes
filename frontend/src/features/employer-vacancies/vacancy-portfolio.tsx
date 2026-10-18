@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BriefcaseBusiness, ChevronDown, CirclePause, FilePenLine, SearchIcon, SquareKanban, Users, CircleCheck, ArrowRight, Send } from "lucide-react";
+import { BriefcaseBusiness, ChevronDown, CirclePause, FilePenLine, SearchIcon, SquareKanban, Users, CircleCheck, Send } from "lucide-react";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
@@ -120,7 +120,11 @@ export function VacancyPortfolio({ vacancies }: { vacancies: readonly EmployerVa
   const results = combined.filter(vacancy => (status === "all" || vacancy.state === status) && (!needle || normalize(vacancy.title).includes(needle)));
   const filtersActive = query.trim() !== "" || status !== "all";
   const emptyDrafts = status === "draft" && draftCount === 0 && !query.trim();
-  const offerCreate = combined.length === 0 || emptyDrafts;
+  const emptyDescription = combined.length === 0
+    ? "Crea tu primera vacante con «Nueva vacante». Se guarda como borrador hasta que la publiques."
+    : emptyDrafts
+      ? "Crea una vacante con «Nueva vacante». Se guarda como borrador hasta que la publiques."
+      : "No hay vacantes que coincidan con la búsqueda y el estado seleccionados. Limpia los filtros para volver a ver el listado.";
   const clearFilters = () => { setQuery(""); setStatus("all"); };
   const loadingDraftRows = drafts.pending && (status === "all" || status === "draft");
   const failure = drafts.failure;
@@ -157,8 +161,8 @@ export function VacancyPortfolio({ vacancies }: { vacancies: readonly EmployerVa
               {loadingDraftRows && <DraftSkeletonRows />}
               {drafts.capped && <p className={cn(META, "px-5 py-3")}>Se muestran hasta 500 borradores. El listado puede estar incompleto; los más recientes aparecen primero.</p>}
               {results.length === 0 ? (status === "draft" && (loadingDraftRows || failure)) ? null : <Empty data-pf-vacancy-empty>
-                <EmptyHeader className="max-w-md"><EmptyMedia variant="icon">{status === "draft" ? <FilePenLine aria-hidden="true" /> : <SearchIcon aria-hidden="true" />}</EmptyMedia><EmptyTitle className="text-xl font-semibold">{combined.length === 0 ? "Todavía no hay vacantes" : emptyDrafts ? "No hay borradores que mostrar" : "Sin resultados"}</EmptyTitle><EmptyDescription>{offerCreate ? "Prepara una vacante a tu ritmo. Aquí encontrarás los borradores guardados para continuar editándolos." : "No hay vacantes que coincidan con la búsqueda y el estado seleccionados. Limpia los filtros para volver a ver el listado."}</EmptyDescription></EmptyHeader>
-                <EmptyContent className="flex-col gap-2 sm:flex-row sm:justify-center">{offerCreate && <Button nativeButton={false} role="link" className="min-h-10 w-full sm:w-auto" render={<Link href="/empresa/vacantes/borradores/nuevo" />}><FilePenLine aria-hidden="true" data-icon="inline-start" />Nuevo borrador<ArrowRight aria-hidden="true" data-icon="inline-end" /></Button>}{filtersActive && combined.length > 0 && <Button type="button" variant={offerCreate ? "outline" : "default"} data-pf-vacancy-clear onClick={clearFilters} className="min-h-10 w-full sm:w-auto">Limpiar filtros</Button>}</EmptyContent>
+                <EmptyHeader className="max-w-md"><EmptyMedia variant="icon">{status === "draft" ? <FilePenLine aria-hidden="true" /> : <SearchIcon aria-hidden="true" />}</EmptyMedia><EmptyTitle className="text-xl font-semibold">{combined.length === 0 ? "Todavía no hay vacantes" : emptyDrafts ? "No hay borradores que mostrar" : "Sin resultados"}</EmptyTitle><EmptyDescription>{emptyDescription}</EmptyDescription></EmptyHeader>
+                {filtersActive && <EmptyContent className="flex-col gap-2 sm:flex-row sm:justify-center"><Button type="button" data-pf-vacancy-clear onClick={clearFilters} className="min-h-10 w-full sm:w-auto">Limpiar filtros</Button></EmptyContent>}
               </Empty> : <ul className="divide-y divide-border">{results.map(vacancy => <VacancyRow key={vacancy.id} vacancy={vacancy} onPublished={drafts.published} />)}</ul>}
               {!failure && drafts.retried && <div className="px-5"><ActionStatusSlot>{!drafts.pending && <ActionStatus id="portfolio-drafts-status" tone="success" text="Borradores cargados" />}</ActionStatusSlot></div>}
             </CardContent>

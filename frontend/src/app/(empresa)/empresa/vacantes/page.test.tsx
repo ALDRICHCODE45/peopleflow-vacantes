@@ -103,7 +103,7 @@ describe("/empresa/vacantes employer route", () => {
     ).toBeInTheDocument();
   });
 
-  it("introduces the section and links to the create-vacancy route", () => {
+  it("introduces the section and links to the draft editor", () => {
     render(<Page />);
 
     expect(
@@ -113,26 +113,20 @@ describe("/empresa/vacantes employer route", () => {
     ).toBeInTheDocument();
 
     const cta = screen.getByRole("link", { name: /Nueva vacante/i });
-    expect(cta).toHaveAttribute("href", "/empresa/vacantes/nueva");
+    expect(cta).toHaveAttribute("href", "/empresa/vacantes/borradores/nuevo");
   });
 
-  it("adds the local-draft entry alongside the preserved create-vacancy link", () => {
+  it("owns exactly one primary create link in the page intro", () => {
     render(<Page />);
 
+    const intro = document.querySelector("[data-pf-vacantes-intro]") as HTMLElement;
+    const links = within(intro).getAllByRole("link");
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAccessibleName("Nueva vacante");
+    expect(links[0]).toHaveAttribute("href", "/empresa/vacantes/borradores/nuevo");
+    expect(links[0]).toHaveClass("bg-primary", "text-primary-foreground", "h-10");
+    expect(screen.queryByRole("link", { name: /Nuevo borrador/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^Borradores$/i })).not.toBeInTheDocument();
-    const draftLink = screen.getByRole("link", { name: /Nuevo borrador/i });
-    expect(draftLink).toHaveAttribute(
-      "href",
-      "/empresa/vacantes/borradores/nuevo",
-    );
-
-    const createLink = screen.getByRole("link", { name: /Nueva vacante/i });
-    expect(createLink).toHaveAttribute("href", "/empresa/vacantes/nueva");
-
-    // Both entry points share the intro row, so the draft link is additive.
-    const intro = document.querySelector("[data-pf-vacantes-intro]");
-    expect(intro!.contains(draftLink)).toBe(true);
-    expect(intro!.contains(createLink)).toBe(true);
   });
 
   it("renders no route-level local-demo disclosure or implementation-status copy", () => {
@@ -196,9 +190,11 @@ describe("/empresa/vacantes composition boundary", () => {
     expect(pageSource).toContain("<VacancyPortfolio vacancies={NEXO_VACANCIES} />");
   });
 
-  it("keeps the create-vacancy link while adding the local-draft link", () => {
-    expect(pageSource).toContain('href="/empresa/vacantes/nueva"');
+  it("uses the canonical draft editor and the shared class-name utility", () => {
+    expect(pageSource).not.toContain('href="/empresa/vacantes/nueva"');
     expect(pageSource).toContain('href="/empresa/vacantes/borradores/nuevo"');
+    expect(pageSource).toContain('import { cn } from "@/lib/utils"');
+    expect(pageSource).not.toContain('from "cn"');
   });
 
   it("stays a server component", () => {

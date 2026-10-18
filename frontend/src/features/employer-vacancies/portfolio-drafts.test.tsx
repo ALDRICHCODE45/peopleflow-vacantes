@@ -93,19 +93,30 @@ it.each(["server_error", "unauthenticated", "forbidden", "company_inactive", "co
  fireEvent.click(retry); await screen.findByText(row.title);
  expect(listDraftsAction).toHaveBeenCalledTimes(2);
 });
-it("offers a new draft in an empty Borradores filter", async () => {
+it("points an empty Borradores filter to the header and offers only clearing filters", async () => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [], nextCursor: null });
- renderPortfolio(); await waitFor(() => expect(screen.queryByText("Cargando borradores")).not.toBeInTheDocument());
+ const { container } = renderPortfolio(); await waitFor(() => expect(screen.queryByText("Cargando borradores")).not.toBeInTheDocument());
  fireEvent.click(screen.getByRole("tab", { name: "Borradores 0" }));
- expect(await screen.findByRole("link", { name: "Nuevo borrador" })).toHaveAttribute("href", "/empresa/vacantes/borradores/nuevo");
+ const empty = container.querySelector("[data-pf-vacancy-empty]") as HTMLElement;
+ expect(empty).toHaveTextContent("No hay borradores que mostrar");
+ expect(empty).toHaveTextContent("Crea una vacante con «Nueva vacante». Se guarda como borrador hasta que la publiques.");
+ expect(within(empty).queryAllByRole("link")).toHaveLength(0);
+ const clear = within(empty).getByRole("button", { name: "Limpiar filtros" });
+ expect(within(empty).getAllByRole("button")).toEqual([clear]);
+ expect(clear).toHaveClass("bg-primary");
+ fireEvent.click(clear);
+ expect(container.querySelectorAll("[data-pf-vacancy-row]")).toHaveLength(6);
+ expect(screen.getByRole("tab", { name: "Todas 6" })).toHaveAttribute("aria-selected", "true");
 });
-it("offers a way to prepare a vacancy when the entire portfolio is empty", async () => {
+it("points to the single header action without its own create button when the portfolio is empty", async () => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [], nextCursor: null });
  const { container } = render(<VacancyPortfolio vacancies={[]} />);
  await waitFor(() => expect(screen.queryByText("Cargando borradores")).not.toBeInTheDocument());
  const empty = container.querySelector("[data-pf-vacancy-empty]") as HTMLElement;
  expect(within(empty).getByText("Todavía no hay vacantes")).toHaveClass("text-xl", "font-semibold");
- expect(within(empty).getByRole("link", { name: "Nuevo borrador" })).toHaveAttribute("href", "/empresa/vacantes/borradores/nuevo");
+ expect(empty).toHaveTextContent("Crea tu primera vacante con «Nueva vacante». Se guarda como borrador hasta que la publiques.");
+ expect(within(empty).queryAllByRole("link")).toHaveLength(0);
+ expect(within(empty).queryAllByRole("button")).toHaveLength(0);
  expect(empty.querySelector('[data-slot="empty-header"]')).toHaveClass("max-w-md");
 });
 it("uses clearing filters as the only recovery when a draft search misses", async () => {
@@ -113,7 +124,7 @@ it("uses clearing filters as the only recovery when a draft search misses", asyn
  fireEvent.click(screen.getByRole("tab", { name: "Borradores 2" }));
  fireEvent.change(screen.getByLabelText("Buscar vacante"), { target: { value: "no existe" } });
  const empty = container.querySelector("[data-pf-vacancy-empty]") as HTMLElement;
- expect(within(empty).queryByRole("link", { name: "Nuevo borrador" })).not.toBeInTheDocument();
+ expect(within(empty).queryAllByRole("link")).toHaveLength(0);
  const clear = within(empty).getByRole("button", { name: "Limpiar filtros" });
  expect(clear).toHaveClass("bg-primary", "w-full", "sm:w-auto");
  fireEvent.click(clear);

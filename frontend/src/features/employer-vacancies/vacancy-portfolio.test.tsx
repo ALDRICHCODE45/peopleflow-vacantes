@@ -1,6 +1,6 @@
 import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
@@ -137,6 +137,10 @@ describe("VacancyPortfolio empty states", () => {
     expect(rowIds(container)).toEqual([]);
     const clear = screen.getByRole("button", { name: "Limpiar filtros" });
     expect(clear).toHaveAttribute("data-pf-vacancy-clear");
+    expect(clear).toHaveClass("bg-primary");
+    const empty = container.querySelector("[data-pf-vacancy-empty]") as HTMLElement;
+    expect(within(empty).queryAllByRole("link")).toHaveLength(0);
+    expect(within(empty).getAllByRole("button")).toEqual([clear]);
     await user.click(clear);
     expect(rowIds(container)).toHaveLength(6);
     expect(search).toHaveValue("");
@@ -145,18 +149,30 @@ describe("VacancyPortfolio empty states", () => {
 
   it("shows an honest empty portfolio with no clear action when nothing exists", () => {
     const { container } = render(<VacancyPortfolio vacancies={[]} />);
-    expect(container.querySelector("[data-pf-vacancy-empty]")).toHaveTextContent("Todavía no hay vacantes");
+    const empty = container.querySelector("[data-pf-vacancy-empty]") as HTMLElement;
+    expect(empty).toHaveTextContent("Todavía no hay vacantes");
+    expect(empty).toHaveTextContent("Crea tu primera vacante con «Nueva vacante». Se guarda como borrador hasta que la publiques.");
+    expect(within(empty).queryAllByRole("link")).toHaveLength(0);
+    expect(within(empty).queryAllByRole("button")).toHaveLength(0);
     expect(screen.queryByRole("button", { name: "Limpiar filtros" })).toBeNull();
     expect(container.querySelectorAll("[data-pf-vacancy-metric]")).toHaveLength(5);
   });
 
-  it("never offers a clear action it cannot fulfil while the portfolio is empty", async () => {
+  it("can clear active filters even when the portfolio is empty, without duplicating create", async () => {
     const user = userEvent.setup();
     const { container } = render(<VacancyPortfolio vacancies={[]} />);
     await user.type(screen.getByLabelText("Buscar vacante"), "algo");
     await user.click(filterButton(/Activas/));
     expect(container.querySelector("[data-pf-vacancy-empty]")).toHaveTextContent("Todavía no hay vacantes");
     expect(rowIds(container)).toEqual([]);
+    const empty = container.querySelector("[data-pf-vacancy-empty]") as HTMLElement;
+    expect(within(empty).queryAllByRole("link")).toHaveLength(0);
+    const clear = within(empty).getByRole("button", { name: "Limpiar filtros" });
+    expect(within(empty).getAllByRole("button")).toEqual([clear]);
+    expect(clear).toHaveClass("bg-primary");
+    await user.click(clear);
+    expect(screen.getByLabelText("Buscar vacante")).toHaveValue("");
+    expect(filterButton(/^Todas/)).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByRole("button", { name: "Limpiar filtros" })).toBeNull();
   });
 });

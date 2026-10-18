@@ -82,8 +82,8 @@ const data = {
 
 /**
  * A destination is active on its own route and on any route nested below it, so
- * `/empresa/vacantes/nueva` and `/empresa/vacantes/:id/pipeline` keep `Vacantes`
- * lit. Unknown pathnames stay inactive.
+ * `/empresa/vacantes/borradores/nuevo` and `/empresa/vacantes/:id/pipeline`
+ * keep `Vacantes` lit. Unknown pathnames stay inactive.
  */
 function isActiveDestination(url: string, pathname: string | null): boolean {
   if (!pathname) return false
@@ -166,14 +166,15 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <SidebarMenuItem>
                 {/*
                   Progressive enhancement: the primary action is a native GET
-                  form, so the browser alone navigates to the create screen.
+                  form, so the browser alone opens the canonical draft editor
+                  at `/empresa/vacantes/borradores/nuevo` for a new vacancy.
                   The control therefore stays a button instead of becoming an
                   anchor, and this sidebar needs no router, click handler or
                   client navigation runtime for the action itself.
                   `SidebarMenuButton` declares no button type of its own, so the
                   submit role is explicit here.
                 */}
-                <form action="/empresa/vacantes/nueva" method="get">
+                <form action="/empresa/vacantes/borradores/nuevo" method="get">
                   <SidebarMenuButton
                     type="submit"
                     tooltip="Nueva vacante"

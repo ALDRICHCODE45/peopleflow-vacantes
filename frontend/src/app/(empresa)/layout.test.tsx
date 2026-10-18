@@ -62,6 +62,13 @@ describe("(empresa) route-group layout owns the single employer shell", () => {
     expect(screen.getByText("contenido")).toBeInTheDocument();
   });
 
+  it("offers the canonical draft editor through the shared shell", async () => {
+    await renderLayout();
+    const create = screen.getByRole("button", { name: "Nueva vacante" });
+    expect(create.closest("form")).toHaveAttribute("action", "/empresa/vacantes/borradores/nuevo");
+    expect(create.closest("form")).toHaveAttribute("method", "get");
+  });
+
   it("leaves no route owning its own provider, sidebar or dashboard theme", () => {
     for (const source of routeSources) {
       for (const owned of [

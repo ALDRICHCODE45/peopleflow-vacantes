@@ -201,12 +201,12 @@ describe("PublicShell", () => {
     }
   });
 
-  it("renders Publicar vacante to the employer create route with shared button styling", () => {
+  it("renders Publicar vacante to the draft editor with shared button styling", () => {
     const { container } = renderShell();
 
     const publish = headerLink(container, "Publicar vacante");
     expect(publish).toBeDefined();
-    expect(publish).toHaveAttribute("href", "/empresa/vacantes/nueva");
+    expect(publish).toHaveAttribute("href", "/empresa/vacantes/borradores/nuevo");
     // Reuses the project's Button variant output rather than a new component.
     expect(publish!.className).toContain("bg-primary");
     expect(publish!.className).toContain("text-primary-foreground");
@@ -242,7 +242,7 @@ describe("PublicShell", () => {
       EMPRESAS_HREF,
       // Login destinations live inside the Ingresar menu popup, so the publish
       // CTA is the only auth-adjacent anchor left in the closed DOM.
-      "/empresa/vacantes/nueva",
+      "/empresa/vacantes/borradores/nuevo",
     ];
     expect(hrefs).toHaveLength(allowedHrefs.length);
     for (const href of hrefs) {

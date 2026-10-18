@@ -1,13 +1,13 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { FilePlus2Icon, PlusIcon } from "lucide-react"
+import { PlusIcon } from "lucide-react"
 
 import { SiteHeader } from "@/components/company-dashboard/site-header"
 import { DashboardPageContent } from "@/components/dashboard-page-content"
 import { buttonVariants } from "@/components/ui/button"
 import { NEXO_VACANCIES } from "@/features/employer-vacancies/prototype-vacancies"
 import { VacancyPortfolio } from "@/features/employer-vacancies/vacancy-portfolio"
-import { cn } from "cn"
+import { cn } from "@/lib/utils"
 
 /**
  * Employer vacancy portfolio route content.
@@ -43,28 +43,16 @@ export default function Page() {
                 Gestiona tus vacantes y su publicación en la bolsa de trabajo.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/empresa/vacantes/borradores/nuevo"
-                className={cn(
-                  buttonVariants({ variant: "outline", size: "lg" }),
-                  "h-10 gap-2 px-4",
-                )}
-              >
-                <FilePlus2Icon aria-hidden="true" className="size-4" />
-                Nuevo borrador
-              </Link>
-              <Link
-                href="/empresa/vacantes/nueva"
-                className={cn(
-                  buttonVariants({ variant: "default", size: "lg" }),
-                  "h-10 gap-2 px-4",
-                )}
-              >
-                <PlusIcon aria-hidden="true" className="size-4" />
-                Nueva vacante
-              </Link>
-            </div>
+            <Link
+              href="/empresa/vacantes/borradores/nuevo"
+              className={cn(
+                buttonVariants({ variant: "default", size: "lg" }),
+                "h-10 gap-2 px-4",
+              )}
+            >
+              <PlusIcon aria-hidden="true" className="size-4" />
+              Nueva vacante
+            </Link>
           </section>
           <VacancyPortfolio vacancies={NEXO_VACANCIES} />
         </DashboardPageContent>

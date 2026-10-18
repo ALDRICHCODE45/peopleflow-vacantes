@@ -448,7 +448,8 @@ describe("PeopleFlowNavbar public mode", () => {
     renderPublicNavbar();
     const header = document.querySelector("header")!;
     const cta = findHeaderLink(header, "Publicar vacante")!;
-    expect(cta).toHaveAttribute("href", "/empresa/vacantes/nueva");
+    expect(cta).toHaveAttribute("href", "/empresa/vacantes/borradores/nuevo");
+    expect(screen.getAllByRole("link", { name: "Publicar vacante" })).toHaveLength(1);
     const actions = Array.from(cta.parentElement!.children);
     expect(actions).toHaveLength(3);
     expect(actions[0]).toBe(ingresarTrigger());

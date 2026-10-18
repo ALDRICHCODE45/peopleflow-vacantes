@@ -202,7 +202,7 @@ const PublicNavbar = React.memo(function PublicNavbar() {
           {/* Below sm the CTA compacts its padding/typography, never its label,
               so the public capsule fits 375px without overflow. */}
           <Link
-            href="/empresa/vacantes/nueva"
+            href="/empresa/vacantes/borradores/nuevo"
             className={cn(
               buttonVariants({ size: "lg" }),
               "min-h-10 max-sm:px-2.5 max-sm:text-[13px]",
@@ -235,8 +235,9 @@ const PublicNavbar = React.memo(function PublicNavbar() {
  *   route rendered through `PublicShell` (board, canonical detail, company
  *   careers), carrying the brand home, `Vacantes` -> `/vacantes`, `Empresas`
  *   -> the canonical prototype company, the shared Ingresar menu, the shared
- *   theme control, and `Publicar vacante` -> `/empresa/vacantes/nueva`. Desktop
- *   destinations collapse below md; the retained controls stay reachable at
+ *   theme control, and `Publicar vacante` -> `/empresa/vacantes/borradores/nuevo`
+ *   (the canonical draft editor). Desktop destinations collapse below md;
+ *   the retained controls stay reachable at
  *   375px. No placeholder link survives.
  *
  * All modes share the same theme control. The component is a client boundary

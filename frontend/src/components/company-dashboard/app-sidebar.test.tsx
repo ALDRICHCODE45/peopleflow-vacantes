@@ -16,7 +16,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => pathnameMock() }));
 import { AppSidebar } from "./app-sidebar";
 import { SidebarProvider } from "./ui/sidebar";
 
-const CREATE_VACANCY_ROUTE = "/empresa/vacantes/nueva";
+const CREATE_VACANCY_ROUTE = "/empresa/vacantes/borradores/nuevo";
 
 // Vitest runs from frontend/, so cwd-relative paths keep the assertions stable.
 const source = readFileSync(
@@ -250,6 +250,7 @@ describe("company dashboard sidebar navigation", () => {
     ["/empresa/vacantes", "Vacantes"],
     // Nested vacancy routes keep their section active.
     ["/empresa/vacantes/nueva", "Vacantes"],
+    ["/empresa/vacantes/borradores/nuevo", "Vacantes"],
     ["/empresa/vacantes/abc-123/pipeline", "Vacantes"],
     ["/empresa/vacantes/", "Vacantes"],
     ["/empresa/equipo", "Equipo"],
@@ -357,7 +358,7 @@ describe("company dashboard sidebar create action", () => {
     expect(screen.queryByRole("link", { name: "Nueva vacante" })).toBeNull();
   });
 
-  it("submits the create-vacancy route through a native GET form", () => {
+  it("opens the canonical draft editor through a native GET form", () => {
     renderSidebar();
 
     const cta = screen.getByRole("button", { name: "Nueva vacante" });
