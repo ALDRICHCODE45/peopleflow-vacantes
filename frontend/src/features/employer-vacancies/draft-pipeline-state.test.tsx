@@ -1,7 +1,5 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/drafts/reopen/load";
 import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publication-actions";
@@ -34,12 +32,12 @@ it("loads draft and readiness and reserves the empty-state composition", async (
   expect(screen.getByRole("status")).toHaveTextContent("Cargando borrador");
   expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
   expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(4);
-  const slots = () => [...container.querySelectorAll('[data-slot^="empty"]')].map(node => node.getAttribute("data-slot"));
+  const slots = () => [...container.querySelectorAll('[data-slot^="card"], [data-slot^="empty"]')].map(node => node.getAttribute("data-slot"));
   const loadingSlots = slots();
-  expect(container.querySelectorAll('[data-slot="empty-content"] [data-slot="skeleton"]')).toHaveLength(4);
+  expect(container.querySelectorAll('[data-slot="empty-content"] [data-slot="skeleton"]')).toHaveLength(2);
   await act(async () => resolve(success));
   expect(slots()).toEqual(loadingSlots);
-  expect(container.querySelectorAll('[data-slot="empty-content"] button, [data-slot="empty-content"] a')).toHaveLength(4);
+  expect(container.querySelectorAll('[data-slot="empty-content"] button, [data-slot="empty-content"] a')).toHaveLength(2);
 });
 it.each([read.fields.title, null])("renders title %s, badge, empty state and configuration entry points", async title => {
   const seed = { ...success.seed, model: { ...success.seed.model, fields: { ...success.seed.model.fields, title } } };
@@ -47,18 +45,30 @@ it.each([read.fields.title, null])("renders title %s, badge, empty state and con
   const { container } = render(<DraftPipelineState draftId={read.id} />);
   expect(await screen.findByRole("heading", { level: 1, name: title || "Sin título" })).toBeVisible();
   expect(screen.getByRole("heading", { level: 2, name: "Pipeline" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Publicar" })).toBeVisible();
+  // Primary decision in the card: «Publicar vacante» (primary) next to «Continuar editando» (outline).
+  const empty = container.querySelector('[data-slot="card-content"] [data-slot="empty"]')!;
+  const publish = within(empty as HTMLElement).getByRole("button", { name: "Publicar vacante" });
+  expect(publish).toHaveClass("bg-primary");
+  const edit = within(empty as HTMLElement).getByRole("link", { name: "Continuar editando" });
+  expect(edit).toHaveAttribute("href", `/empresa/vacantes/borradores/${read.id}`);
+  expect(edit).not.toHaveClass("bg-primary");
+  expect(edit.className).toContain("border");
+  expect(publish.parentElement).toHaveClass("flex-col", "sm:flex-row");
   expect(screen.getByRole("heading", { name: "Esta vacante todavía no tiene pipeline" })).toBeVisible();
   expect(screen.getByText("Da seguimiento a los candidatos de esta vacante.")).toBeVisible();
-  expect(screen.getByText("Esta vacante está en borrador. Los candidatos aparecerán aquí una vez que se publique. Puedes continuar editándola y preparar todo antes de publicar.")).toBeVisible();
-  for (const name of ["Configuración de la vacante", "Configurar columnas"]) {
-    expect(screen.getByRole("link", { name })).toHaveAttribute("href", `/empresa/vacantes/${read.id}/configuracion/columnas`);
-  }
-  const gear = screen.getByRole("link", { name: "Configuración de la vacante" });
-  expect(gear).toHaveClass("size-10");
-  expect(gear).toHaveAttribute("data-slot", "tooltip-trigger");
-  expect(screen.getByRole("link", { name: "Continuar editando" })).toHaveAttribute("href", `/empresa/vacantes/borradores/${read.id}`);
-  expect(screen.getByRole("link", { name: "Volver a Vacantes" })).toHaveAttribute("href", "/empresa/vacantes");
+  expect(screen.getByText("Los candidatos aparecerán aquí una vez que publiques la vacante. Mientras tanto, puedes continuar editándola y preparar todo antes de publicar.")).toBeVisible();
+  // State and pipeline settings in the card header; one configuration entry point.
+  const header = container.querySelector('[data-slot="card-header"]')!;
+  expect(within(header as HTMLElement).getByText("Vacante en borrador")).toBeVisible();
+  const columns = within(header.querySelector('[data-slot="card-action"]') as HTMLElement).getByRole("link", { name: "Configurar columnas" });
+  expect(columns).toHaveAttribute("href", `/empresa/vacantes/${read.id}/configuracion/columnas`);
+  expect(screen.getAllByRole("link", { name: /Configura/ })).toHaveLength(1);
+  expect(screen.queryByRole("link", { name: "Configuración de la vacante" })).not.toBeInTheDocument();
+  expect(within(container.querySelector('[data-slot="card-footer"]') as HTMLElement).getByText("Puedes configurar las columnas de tu proceso antes de publicar.")).toBeVisible();
+  // Leaving the screen is navigation, outside the card.
+  const back = screen.getByRole("link", { name: "Volver a Vacantes" });
+  expect(back).toHaveAttribute("href", "/empresa/vacantes");
+  expect(back.closest('[data-slot="card"]')).toBeNull();
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   expect(loadDraftPipelineAction).not.toHaveBeenCalled();
   expect(container.querySelector('[data-slot="badge"]')).toHaveAttribute("data-dot");
@@ -77,7 +87,7 @@ it("published state renders current column cards and hides publish", async () =>
   expect(screen.getByText("16 oct 2026").closest("p")).toHaveTextContent("Publicada el 16 oct 2026");
   expect(screen.getAllByText("Sin candidatos en esta etapa")).toHaveLength(3);
   expect(screen.getByText(/candidatos en el pipeline/)).toHaveTextContent("0 candidatos en el pipeline");
-  expect(screen.queryByRole("button", { name: "Publicar" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Publicar vacante" })).not.toBeInTheDocument();
   expect(container.querySelectorAll('[data-pf-published-column]')).toHaveLength(3);
   expect(container.firstElementChild).toHaveClass("min-h-0", "md:h-[calc(100dvh-1rem)]", "md:flex-none", "md:overflow-hidden");
   const content = container.querySelector('[data-pf-page-content]');
@@ -86,13 +96,6 @@ it("published state renders current column cards and hides publish", async () =>
   expect(screen.getByRole("region", { name: "Tablero de candidatos" })).toHaveClass("min-h-0", "flex-1");
   expect(loadBoardAction).toHaveBeenCalledExactlyOnceWith(read.id);
   expect(loadDraftPipelineAction).toHaveBeenCalledExactlyOnceWith(read.id);
-});
-it("composes the installed tooltip with the configuration copy", () => {
-  // Portal positioning is a browser boundary; opening it in jsdom stalls subsequent tests.
-  const source = readFileSync(join(process.cwd(), "src/features/employer-vacancies/draft-pipeline-state.tsx"), "utf8");
-  expect(source).toContain('from "@/components/ui/tooltip"');
-  expect(source).toContain("<TooltipContent>Configuración de la vacante</TooltipContent>");
-  expect(source).toContain("<TooltipProvider>");
 });
 it.each(["not_found", "forbidden", "server_error", "no_response"] as const)("shows draft failure %s and retries only the draft", async reason => {
   vi.mocked(loadDraftForEditAction).mockResolvedValueOnce({ ok: false, reason });

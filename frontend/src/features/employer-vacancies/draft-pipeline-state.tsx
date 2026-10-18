@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, GitBranch, Settings, Settings2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, FilePen, GitBranch, SlidersHorizontal } from "lucide-react";
 import { SiteHeader } from "@/components/company-dashboard/site-header";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { DraftEditErrorState } from "@/features/jobs/drafts/reopen/error-state";
 import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/drafts/reopen/load";
 
@@ -55,49 +55,72 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
               <h2 id="draft-pipeline-heading" className="font-heading text-[20px] font-semibold text-foreground">Pipeline</h2>
               <p className="max-w-prose text-[13.5px] text-muted-foreground">Da seguimiento a los candidatos de esta vacante.</p>
             </div>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger render={<Button nativeButton={false} role="link" variant="outline" size="icon" className="size-10" aria-label="Configuración de la vacante" render={<Link href={configHref} />} />}>
-                  <Settings2 aria-hidden="true" />
-                </TooltipTrigger>
-                <TooltipContent>Configuración de la vacante</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
           </section>}
           {result === null ? (
             <>
               <span role="status" className="sr-only">Cargando borrador</span>
-              <Empty aria-hidden="true" className="min-h-80 bg-card shadow-sm ring-1 ring-foreground/5">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon"><Skeleton className="size-10" /></EmptyMedia>
-                  <EmptyTitle><Skeleton className="h-6 w-80 max-w-full" /></EmptyTitle>
-                  <Skeleton className="h-20 w-80 max-w-full"><EmptyDescription className="invisible">&nbsp;</EmptyDescription></Skeleton>
-                </EmptyHeader>
-                <EmptyContent>
-                  <div className="flex flex-wrap justify-center gap-2"><Skeleton className="h-10 w-24" /><Skeleton className="h-10 w-44" /></div>
-                  <Skeleton className="h-10 w-48" /><Skeleton className="h-10 w-40" />
-                </EmptyContent>
-              </Empty>
+              <DraftPipelineCard aria-hidden="true"
+                state={<Skeleton className="h-7 w-40 rounded-full" />}
+                settings={<Skeleton className="h-10 w-44" />}
+                icon={<Skeleton className="size-10" />}
+                title={<Skeleton className="h-7 w-96 max-w-full" />}
+                description={<Skeleton className="h-16 w-full max-w-md"><span className="invisible">&nbsp;</span></Skeleton>}
+                actions={<><Skeleton className="h-10 w-full sm:w-40" /><Skeleton className="h-10 w-full sm:w-44" /></>}
+                hint={<Skeleton className="h-5 w-96 max-w-full" />}
+              />
+              <Skeleton aria-hidden="true" className="h-10 w-40" />
             </>
           ) : !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : published ? (
             <MovementBoard vacancyId={draftId} vacancyTitle={title} publishedAt={publishedAt} />
           ) : (
-              <Empty className="min-h-80 bg-card shadow-sm ring-1 ring-foreground/5">
-                <EmptyHeader>
-                  <EmptyMedia variant="icon"><GitBranch aria-hidden="true" /></EmptyMedia>
-                  <EmptyTitle role="heading" aria-level={3}>Esta vacante todavía no tiene pipeline</EmptyTitle>
-                  <EmptyDescription>Esta vacante está en borrador. Los candidatos aparecerán aquí una vez que se publique. Puedes continuar editándola y preparar todo antes de publicar.</EmptyDescription>
-                </EmptyHeader>
-                <EmptyContent>
-                  <div className="flex flex-wrap justify-center gap-2"><PublishButton draftId={draftId} variant="default" onPublished={retry} />
-                  <Button nativeButton={false} role="link" variant="outline" render={<Link href={configHref} />} className="min-h-10"><Settings aria-hidden="true" data-icon="inline-start" />Configurar columnas</Button></div>
+            <>
+              <DraftPipelineCard
+                state={<Badge variant="secondary" className="h-7 gap-1.5 px-3 font-normal"><FilePen aria-hidden="true" />Vacante en borrador</Badge>}
+                settings={<Button nativeButton={false} role="link" variant="ghost" render={<Link href={configHref} />} className="min-h-10"><SlidersHorizontal aria-hidden="true" data-icon="inline-start" />Configurar columnas</Button>}
+                icon={<GitBranch aria-hidden="true" />}
+                title="Esta vacante todavía no tiene pipeline"
+                description="Los candidatos aparecerán aquí una vez que publiques la vacante. Mientras tanto, puedes continuar editándola y preparar todo antes de publicar."
+                actions={<>
+                  <PublishButton draftId={draftId} variant="default" label="Publicar vacante" onPublished={retry} />
                   <Button nativeButton={false} role="link" variant="outline" render={<Link href={`/empresa/vacantes/borradores/${draftId}`} />} className="min-h-10">Continuar editando<ArrowRight aria-hidden="true" data-icon="inline-end" /></Button>
-                  <Button nativeButton={false} role="link" variant="ghost" render={<Link href="/empresa/vacantes" />} className="min-h-10"><ArrowLeft aria-hidden="true" data-icon="inline-start" />Volver a Vacantes</Button>
-                </EmptyContent>
-              </Empty>
+                </>}
+                hint={<><GitBranch aria-hidden="true" className="size-4 shrink-0" />Puedes configurar las columnas de tu proceso antes de publicar.</>}
+              />
+              {/* Leaving the screen is navigation, kept outside the card so it never competes with the task. */}
+              <Button nativeButton={false} role="link" variant="ghost" render={<Link href="/empresa/vacantes" />} className="min-h-10 self-start"><ArrowLeft aria-hidden="true" data-icon="inline-start" />Volver a Vacantes</Button>
+            </>
           )}
         </DashboardPageContent>
       </div>
     </div>
+  );
+}
+
+/**
+ * Draft pipeline card: state and pipeline settings in the header, the action-oriented empty state
+ * (what happens → what will happen → what you can do) in the content, and a hint in the footer.
+ * The loading skeleton renders this same component with placeholders, so nothing shifts.
+ */
+function DraftPipelineCard({ state, settings, icon, title, description, actions, hint, ...props }: {
+  state: ReactNode; settings: ReactNode; icon: ReactNode; title: ReactNode; description: ReactNode; actions: ReactNode; hint: ReactNode; "aria-hidden"?: "true";
+}) {
+  return (
+    <Card {...props}>
+      <CardHeader className="border-b">
+        <CardTitle>{state}</CardTitle>
+        <CardAction>{settings}</CardAction>
+      </CardHeader>
+      <CardContent>
+        <Empty className="py-10">
+          <EmptyHeader className="max-w-md">
+            <EmptyMedia variant="icon">{icon}</EmptyMedia>
+            <EmptyTitle role="heading" aria-level={3} className="text-xl font-semibold">{title}</EmptyTitle>
+            <EmptyDescription>{description}</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent className="flex-col gap-2 sm:flex-row sm:justify-center">{actions}</EmptyContent>
+        </Empty>
+      </CardContent>
+      <CardFooter className="justify-center gap-2 border-t text-sm text-muted-foreground">{hint}</CardFooter>
+    </Card>
   );
 }

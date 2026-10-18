@@ -33,10 +33,10 @@ export function PublishDialog(props: Props) {
   </Dialog>;
 }
 
-export function PublishButton({ draftId, onPublished, unsavedChanges, variant = "outline" }: Pick<Props, "draftId" | "onPublished" | "unsavedChanges"> & { variant?: ComponentProps<typeof Button>["variant"] }) {
+export function PublishButton({ draftId, onPublished, unsavedChanges, variant = "outline", label = "Publicar" }: Pick<Props, "draftId" | "onPublished" | "unsavedChanges"> & { variant?: ComponentProps<typeof Button>["variant"]; label?: string }) {
   const [open, setOpen] = useState(false);
   return <Dialog open={open} onOpenChange={setOpen}>
-    <DialogTrigger render={<Button type="button" variant={variant} className="min-h-10" />}><Send aria-hidden="true" data-icon="inline-start" />Publicar</DialogTrigger>
+    <DialogTrigger render={<Button type="button" variant={variant} className="min-h-10" />}><Send aria-hidden="true" data-icon="inline-start" />{label}</DialogTrigger>
     {open && <PublicationSession key={draftId} draftId={draftId} open onOpenChange={setOpen} onPublished={onPublished} unsavedChanges={unsavedChanges} />}
   </Dialog>;
 }

@@ -363,6 +363,13 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
 - [ ] ¿El `CardFooter` se usa solo para metadatos y como máximo **una** acción directa, y
       las entidades con dos o más acciones pares agrupan esas acciones en un `DropdownMenu`
       dentro del `CardAction` (sección 6), en lugar de una bandeja de botones?
+- [ ] ¿Hay **una** acción principal por superficie, elegida por el objetivo principal de la
+      pantalla, y las alternativas tienen menos peso (sección 15)?
+- [ ] ¿Ajustes, decisión y navegación viven en zonas distintas: ajustes y estado arriba,
+      decisión en el centro, salir de la pantalla fuera de la card (sección 15)?
+- [ ] ¿El estado de la entidad se ve de un vistazo (badge), sin depender de leer un
+      párrafo (sección 15)?
+- [ ] ¿Cada estado vacío responde qué ocurre → qué pasará → qué puedes hacer (sección 15)?
 
 ---
 
@@ -1007,3 +1014,26 @@ Referencia: `docs/design/v0/reference-lqiGtbQJqJc/` y capturas de L5 en
   configuración y tablero, sin repetir el PUT; si falla, bloquear el reordenamiento y
   ofrecer solo actualización de lectura. Toast real y estado persistente en el slot
   reservado de la barra del tablero, sin alterar el editor de configuración.
+
+
+## 15. Principios de jerarquía y composición
+
+Principios de diseño aplicados al rediseño del pipeline de un borrador. Son buenas
+prácticas, no resultados medidos con usuarios: cuando una pantalla tenga métricas o
+pruebas con usuarios, mandan esos datos.
+
+| Principio | Regla | Para qué sirve |
+| --- | --- | --- |
+| Jerarquía visual | Una sola acción principal (`Button` por defecto) por superficie; las alternativas van en `outline` o `ghost`. La principal se elige por el objetivo de la pantalla: si primero hay que revisar, la principal es revisar. | El siguiente paso es evidente sin ocultar las alternativas. |
+| Proximidad (Gestalt) | Las acciones sobre la entidad van juntas; los ajustes de otra cosa (por ejemplo, las columnas del pipeline) van en el `CardAction` del encabezado. | Separa decidir sobre la entidad de configurar el proceso. |
+| Acción frente a navegación | Salir de la pantalla («Volver a …») va fuera de la card, como `ghost` alineado al inicio; nunca junto a la acción principal. | Salir no compite con completar la tarea. |
+| Visibilidad del estado | El estado de la entidad se muestra como badge en el encabezado de su card o de la página («Vacante en borrador», «Activa»). | Se entiende la situación de un vistazo. |
+| Un solo punto de entrada | Una misma acción aparece una sola vez por pantalla (no una tuerca en la página y «Configurar columnas» en la card). | Evita elegir entre dos caminos iguales. |
+| Espacio en blanco intencional | Una card no se estira para llenar la pantalla: su alto sigue al contenido y se organiza en encabezado, contenido y pie. | Aire sin alejar lo que está relacionado. |
+| Estado vacío orientado a la acción | Título que dice qué ocurre, descripción que dice qué pasará (y qué puede hacerse mientras), acciones para salir del estado; una pista secundaria opcional en el `CardFooter`. | El vacío deja de ser un aviso y ofrece una salida clara. |
+| Legibilidad y adaptación | El texto de apoyo limita su ancho (`max-w-md` o `max-w-prose`); el título del estado vacío se refuerza (`text-xl font-semibold`); los botones se apilan a ancho completo en móvil (`flex-col sm:flex-row`). | Escaneo rápido y controles cómodos en pantallas chicas. |
+
+Ejemplo de referencia: `DraftPipelineCard` en
+`src/features/employer-vacancies/draft-pipeline-state.tsx` (estado y ajustes arriba,
+decisión al centro, pista al pie, «Volver a Vacantes» afuera). Su skeleton usa el mismo
+componente con placeholders, como pide la sección 11.
