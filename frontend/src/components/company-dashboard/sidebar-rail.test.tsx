@@ -36,6 +36,8 @@ describe.each([
     const wordmark = brand.querySelector("[data-brand='wordmark']");
     expect(wordmark).toHaveAttribute("aria-hidden", "true");
     expect(wordmark).toHaveClass("invisible", "opacity-0");
+    // The 40px isotype fills the collapsed 40px button: no inherited brand padding clips it.
+    expect(brand.className).toContain("group-data-[collapsible=icon]:data-[slot=sidebar-menu-button]:p-0!");
     const mark = within(brand).getByRole("img", { name: "PeopleFlow" });
     expect(mark).toHaveClass("size-10", "shrink-0");
     const isotypes = [...mark.querySelectorAll("img")].map(img => [img.getAttribute("src") ?? "", img.className]);

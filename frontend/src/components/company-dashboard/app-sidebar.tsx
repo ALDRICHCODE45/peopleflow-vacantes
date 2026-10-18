@@ -150,7 +150,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              className="data-[slot=sidebar-menu-button]:p-1.5!"
+              className="data-[slot=sidebar-menu-button]:p-1.5! group-data-[collapsible=icon]:data-[slot=sidebar-menu-button]:p-0!"
               render={<Link href="/empresa/dashboard" aria-label="PeopleFlow" />}
             >
               <PeopleFlowSidebarLogo collapsed={state === "collapsed" && !isMobile && props.collapsible === "icon"} />

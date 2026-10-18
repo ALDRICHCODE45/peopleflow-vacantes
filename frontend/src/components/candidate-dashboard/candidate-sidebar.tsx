@@ -44,7 +44,7 @@ export function CandidateSidebar({ ...props }: React.ComponentProps<typeof Sideb
           <SidebarMenuItem>
             {/* Native default geometry: the brand keeps the shared button's
                 collapse behavior, its PeopleFlow link and its brand padding. */}
-            <SidebarMenuButton className="data-[slot=sidebar-menu-button]:p-1.5!" render={<Link href="/candidato/dashboard" aria-label="PeopleFlow" />}>
+            <SidebarMenuButton className="data-[slot=sidebar-menu-button]:p-1.5! group-data-[collapsible=icon]:data-[slot=sidebar-menu-button]:p-0!" render={<Link href="/candidato/dashboard" aria-label="PeopleFlow" />}>
               <PeopleFlowSidebarLogo collapsed={state === "collapsed" && !isMobile && props.collapsible === "icon"} />
             </SidebarMenuButton>
           </SidebarMenuItem>
