@@ -119,11 +119,11 @@ export function vacancyPipelineHref(jobId: string): string {
 /** Pure menu contract: portal rendering is verified in the browser, options here. */
 export function portfolioRowActions(id: string, status: "draft" | "published") {
   return [
-    { label: "Ver pipeline", kind: "pipeline" as const, href: vacancyPipelineHref(id) },
     ...(status === "draft" ? [
       { label: "Continuar editando", kind: "edit" as const, href: `/empresa/vacantes/borradores/${id}` },
       { label: "Publicar", kind: "publish" as const, href: undefined },
     ] : []),
+    { label: "Ver pipeline", kind: "pipeline" as const, href: vacancyPipelineHref(id) },
   ];
 }
 

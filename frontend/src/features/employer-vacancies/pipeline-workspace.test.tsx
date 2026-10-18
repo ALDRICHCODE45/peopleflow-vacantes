@@ -510,7 +510,10 @@ describe("PipelineWorkspace sample copy and empty recovery", () => {
     expect(container.querySelectorAll("[data-pf-pipeline-column-empty]")).toHaveLength(4);
     const clear = container.querySelector("[data-pf-pipeline-clear]") as HTMLElement;
     expect([clear.tagName, clear.className.includes("h-10"), clear.className.includes("focus-visible:ring")]).toEqual(["BUTTON", true, true]);
-    expect(container.querySelector("[data-pf-pipeline-recovery]")).not.toBeNull();
+    const recovery = container.querySelector("[data-pf-pipeline-recovery]")!;
+    expect(recovery).not.toBeNull();
+    expect(recovery.querySelector('[data-slot="empty-title"]')).toHaveClass("text-xl", "font-semibold");
+    expect(clear).toHaveClass("bg-primary", "w-full", "sm:w-auto");
     await user.click(clear);
     expect(cardIds(container)).toHaveLength(4);
     expect(search).toHaveValue("");

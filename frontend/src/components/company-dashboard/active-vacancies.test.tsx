@@ -210,6 +210,12 @@ describe("ActiveVacancies honest empty state", () => {
     render(<ActiveVacancies vacancies={[]} />);
 
     expect(screen.getByText("No hay vacantes activas")).toBeInTheDocument();
+    const empty = panel().querySelector('[data-pf-active-vacancies-empty]')!;
+    expect(empty.querySelector('[data-slot="empty-title"]')).toHaveClass("text-xl", "font-semibold");
+    expect(empty.querySelector('[data-slot="empty-description"]')).toHaveClass("max-w-md");
+    const portfolio = screen.getByRole("link", { name: "Ver todas" });
+    expect(portfolio.closest('[data-slot="empty-content"]')).not.toBeNull();
+    expect(portfolio).toHaveClass("bg-primary");
     expect(panel().querySelectorAll("li")).toHaveLength(0);
     expect(screen.getByRole("link", { name: "Ver todas" })).toHaveAttribute("href", "/empresa/vacantes");
   });

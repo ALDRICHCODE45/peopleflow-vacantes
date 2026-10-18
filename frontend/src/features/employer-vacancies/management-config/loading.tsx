@@ -10,7 +10,7 @@ export function ManagementSkeleton() {
     <Card aria-hidden="true">
       <CardHeader className="border-b">
         <CardTitle><Skeleton className="h-6 w-20" /></CardTitle>
-        <CardDescription><Skeleton className="h-5 w-full" /></CardDescription>
+        <CardDescription className="max-w-prose"><Skeleton className="h-5 w-full" /></CardDescription>
       </CardHeader>
       <CardContent>
         <FieldGroup>

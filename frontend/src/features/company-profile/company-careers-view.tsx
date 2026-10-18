@@ -253,18 +253,18 @@ export function CompanyCareersView({
         </SectionTag>
         {jobs.length === 0 ? (
           <Empty className="mt-6 border border-border bg-card">
-            <EmptyHeader>
+            <EmptyHeader className="max-w-md">
               <EmptyMedia variant="icon">
                 <BriefcaseIcon aria-hidden="true" />
               </EmptyMedia>
-              <EmptyTitle>Sin vacantes por ahora</EmptyTitle>
+              <EmptyTitle className="text-xl font-semibold">Sin vacantes por ahora</EmptyTitle>
               <EmptyDescription>
                 {content.name} todavía no lista sus vacantes aquí. Mientras tanto, puedes revisar
                 las vacantes publicadas en PeopleFlow.
               </EmptyDescription>
             </EmptyHeader>
-            <EmptyContent>
-              <Link href="/vacantes" className={linkClass}>
+            <EmptyContent className="flex-col sm:flex-row sm:justify-center">
+              <Link href="/vacantes" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>
                 Ver vacantes publicadas
               </Link>
             </EmptyContent>

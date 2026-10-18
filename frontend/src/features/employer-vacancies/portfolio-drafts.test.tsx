@@ -47,7 +47,7 @@ it("composes honest draft rows before prototypes, newest first, with both real a
  // Same boundary as IngresarMenu: jsdom cannot drive the floating-ui portal.
  const source = readFileSync("src/features/employer-vacancies/vacancy-portfolio.tsx", "utf8");
  expect(source).toContain("<DropdownMenuGroup>");
- expect(portfolioRowActions(id, "draft").map(item => item.label)).toEqual(["Ver pipeline", "Continuar editando", "Publicar"]);
+ expect(portfolioRowActions(id, "draft").map(item => item.label)).toEqual(["Continuar editando", "Publicar", "Ver pipeline"]);
  expect(portfolioRowActions(id, "published").map(item => item.label)).toEqual(["Ver pipeline"]);
 });
 it("counts drafts in Todas, metric and filter; searches draft titles", async () => {
@@ -98,6 +98,26 @@ it("offers a new draft in an empty Borradores filter", async () => {
  renderPortfolio(); await waitFor(() => expect(screen.queryByText("Cargando borradores")).not.toBeInTheDocument());
  fireEvent.click(screen.getByRole("tab", { name: "Borradores 0" }));
  expect(await screen.findByRole("link", { name: "Nuevo borrador" })).toHaveAttribute("href", "/empresa/vacantes/borradores/nuevo");
+});
+it("offers a way to prepare a vacancy when the entire portfolio is empty", async () => {
+ vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [], nextCursor: null });
+ const { container } = render(<VacancyPortfolio vacancies={[]} />);
+ await waitFor(() => expect(screen.queryByText("Cargando borradores")).not.toBeInTheDocument());
+ const empty = container.querySelector("[data-pf-vacancy-empty]") as HTMLElement;
+ expect(within(empty).getByText("Todavía no hay vacantes")).toHaveClass("text-xl", "font-semibold");
+ expect(within(empty).getByRole("link", { name: "Nuevo borrador" })).toHaveAttribute("href", "/empresa/vacantes/borradores/nuevo");
+ expect(empty.querySelector('[data-slot="empty-header"]')).toHaveClass("max-w-md");
+});
+it("uses clearing filters as the only recovery when a draft search misses", async () => {
+ const { container } = renderPortfolio(); await screen.findByText(row.title);
+ fireEvent.click(screen.getByRole("tab", { name: "Borradores 2" }));
+ fireEvent.change(screen.getByLabelText("Buscar vacante"), { target: { value: "no existe" } });
+ const empty = container.querySelector("[data-pf-vacancy-empty]") as HTMLElement;
+ expect(within(empty).queryByRole("link", { name: "Nuevo borrador" })).not.toBeInTheDocument();
+ const clear = within(empty).getByRole("button", { name: "Limpiar filtros" });
+ expect(clear).toHaveClass("bg-primary", "w-full", "sm:w-auto");
+ fireEvent.click(clear);
+ expect(screen.getByText(row.title)).toBeVisible();
 });
 it("keeps the retry target mounted and reserves status space while an explicit retry waits", async () => {
  let resolve!: (result: DraftListActionResult) => void;

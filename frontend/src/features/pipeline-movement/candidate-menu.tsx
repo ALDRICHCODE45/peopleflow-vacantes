@@ -13,7 +13,7 @@ type Props = {
 };
 export function CandidateMenu({ item, targets, disabled, pending, full, describedBy, onMove, onDetail, onDisposition }: Props) {
   return <DropdownMenu>
-    <DropdownMenuTrigger render={<Button type="button" variant={full ? "outline" : "ghost"} size={full ? "default" : "icon"} className={full ? "h-10" : "size-10"} disabled={disabled} id={full ? `candidate-sheet-move-${item.id}` : `candidate-move-${item.id}`} aria-label={full ? "Mover a…" : `Acciones de ${item.candidate.full_name}`} aria-describedby={describedBy} />}>
+    <DropdownMenuTrigger render={<Button type="button" variant={full ? "default" : "ghost"} size={full ? "default" : "icon"} className={full ? "h-10" : "size-10"} disabled={disabled} id={full ? `candidate-sheet-move-${item.id}` : `candidate-move-${item.id}`} aria-label={full ? "Mover a…" : `Acciones de ${item.candidate.full_name}`} aria-describedby={describedBy} />}>
       {pending ? <Spinner aria-label="Guardando cambio…" /> : full ? <><ArrowRight aria-hidden="true" data-icon="inline-start" />Mover a…</> : <Ellipsis aria-hidden="true" />}
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="w-56" onClick={event => event.stopPropagation()}>

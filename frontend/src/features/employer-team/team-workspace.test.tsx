@@ -24,6 +24,14 @@ const rowText = (root: HTMLElement, id: string) => rowOf(root, id).textContent ?
 const filterButton = (name: RegExp) => screen.getByRole("button", { name });
 const searchInput = () => screen.getByLabelText("Buscar miembro");
 afterEach(() => cleanup());
+it("keeps empty-team guidance honest without duplicating the page invitation", () => {
+  const { container } = renderTeam([]);
+  const empty = container.querySelector('[data-pf-team-empty]')!;
+  expect(empty.querySelector('[data-slot="empty-title"]')).toHaveClass("text-xl", "font-semibold");
+  expect(empty.querySelector('[data-slot="empty-description"]')).toHaveClass("max-w-md");
+  expect(empty).not.toHaveClass("bg-card/40");
+  expect(empty).toHaveTextContent("Puedes revisar la búsqueda y los filtros mientras tanto.");
+});
 
 describe("TeamWorkspace summary metrics", () => {
   it("renders the four derived metrics over the exact six default members", () => {

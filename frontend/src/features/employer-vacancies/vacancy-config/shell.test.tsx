@@ -6,6 +6,8 @@ import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/dr
 import { draftEditSeedFromRead } from "@/features/jobs/drafts/reopen/seed";
 import { filledDraftRead } from "@/features/jobs/drafts/reopen/test-fixture";
 import { VACANCY_CONFIG_MODULES, VacancyConfigShell } from "./shell";
+import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publication-actions";
+vi.mock("@/features/jobs/drafts/pipeline/publication-actions", () => ({ loadDraftPublicationAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
 vi.mock("next/navigation", () => ({ usePathname: vi.fn(() => `/empresa/vacantes/${read.id}/configuracion/columnas`) }));
 vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: ({ title, parent, status }: { title: React.ReactNode; parent: { label: string; href: string }; status: React.ReactNode }) => <header><h1>{title}</h1><a href={parent.href}>{parent.label}</a>{status}</header> }));
@@ -16,6 +18,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(usePathname).mockReturnValue(`/empresa/vacantes/${read.id}/configuracion/columnas`);
   vi.mocked(loadDraftForEditAction).mockResolvedValue(success);
+  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: [] } });
 });
 afterEach(cleanup);
 it.each([read.fields.title, null])("owns one header with the draft title %s, badge and Pipeline parent", async title => {
@@ -29,6 +32,19 @@ it.each([read.fields.title, null])("owns one header with the draft title %s, bad
   expect(screen.getByRole("heading", { level: 2, name: "Configuración de la vacante" })).toBeVisible();
   expect(screen.getByText("Ajusta cómo funciona esta vacante. Los cambios de cada apartado se guardan por separado.")).toBeVisible();
   expect(screen.getByText("Contenido del apartado")).toBeVisible();
+});
+it("shows the confirmed published state instead of labelling an active vacancy as a draft", async () => {
+  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "published", publishedAt: "2026-10-18T12:00:00Z", missing: [] } });
+  render(shell());
+  expect(await screen.findByText("Activa")).toHaveAttribute("data-variant", "accent");
+  expect(screen.queryByText("Borrador")).not.toBeInTheDocument();
+});
+it("does not invent a publication state when its read fails", async () => {
+  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
+  render(shell());
+  expect(await screen.findByText("Contenido del apartado")).toBeVisible();
+  expect(screen.queryByText("Borrador")).not.toBeInTheDocument();
+  expect(screen.queryByText("Activa")).not.toBeInTheDocument();
 });
 it("lists only implemented modules with active navigation and descriptions", async () => {
   render(shell());

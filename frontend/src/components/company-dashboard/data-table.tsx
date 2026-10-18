@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
 import {
   columnFilteringFeature,
   columnVisibilityFeature,
@@ -41,6 +42,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyTitle,
@@ -544,11 +546,18 @@ export function DataTable({ data: initialData }: { data: ApplicantRow[] }) {
                   >
                     <Empty>
                       <EmptyHeader>
-                        <EmptyTitle>Sin candidatos</EmptyTitle>
-                        <EmptyDescription>
-                          No hay postulantes en este estado de la vacante.
+                        <EmptyTitle className="text-xl font-semibold">Sin candidatos</EmptyTitle>
+                        <EmptyDescription className="max-w-md">
+                          {applicants.length === 0 ? "Aquí puedes revisar las postulaciones y su estado. Mientras tanto, consulta tus vacantes." : "No hay postulantes en este estado. Limpia el filtro para ver los demás candidatos."}
                         </EmptyDescription>
                       </EmptyHeader>
+                      <EmptyContent className="flex-col sm:flex-row sm:justify-center">
+                        {statusTab !== "all" && applicants.length > 0 ? (
+                          <Button type="button" className="min-h-10 w-full sm:w-auto" onClick={() => selectStatus("all")}>Limpiar filtros</Button>
+                        ) : (
+                          <Button nativeButton={false} role="link" className="min-h-10 w-full sm:w-auto" render={<Link href="/empresa/vacantes" />}>Ver vacantes</Button>
+                        )}
+                      </EmptyContent>
                     </Empty>
                   </TableCell>
                 </TableRow>

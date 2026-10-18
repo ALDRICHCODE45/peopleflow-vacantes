@@ -35,7 +35,11 @@ it("a rejected detail load offers retry; screening/history display no invented s
   vi.mocked(loadParticipationAction).mockRejectedValueOnce(new Error("offline"));
   render(<SheetHarness />);
   const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
-  fireEvent.click(await within(sheet).findByRole("button", { name: "Reintentar" }));
+  const retry = await within(sheet).findByRole("button", { name: "Reintentar" });
+  expect(retry.closest('[data-slot="empty-content"]')).not.toBeNull();
+  expect(within(sheet).getByText("No pudimos cargar el detalle")).toHaveClass("text-xl", "font-semibold");
+  expect(retry).toHaveClass("w-full", "sm:w-auto");
+  fireEvent.click(retry);
   await within(sheet).findByRole("tab", { name: "Respuestas 2" });
   fireEvent.click(within(sheet).getByRole("tab", { name: "Respuestas 2" }));
   expect(await within(sheet).findByText("¿Disponibilidad?")).toBeVisible();

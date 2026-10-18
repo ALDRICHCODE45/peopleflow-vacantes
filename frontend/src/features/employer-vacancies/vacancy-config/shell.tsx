@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DraftEditErrorState } from "@/features/jobs/drafts/reopen/error-state";
 import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/drafts/reopen/load";
+import { loadDraftPublicationAction } from "@/features/jobs/drafts/pipeline/publication-actions";
+import type { DraftPublication } from "@/features/jobs/drafts/pipeline/publication-client";
 import { PipelineEditorSkeleton } from "../stage-config/loading";
 import { DeliverySkeleton } from "../delivery-config/loading";
 import { ManagementSkeleton } from "../management-config/loading";
@@ -25,20 +27,25 @@ export const VACANCY_CONFIG_MODULES = [
 export function VacancyConfigShell({ draftId, children }: { draftId: string; children: ReactNode }) {
   const pathname = usePathname();
   const [attempt, setAttempt] = useState(0);
-  const [loaded, setLoaded] = useState<{ id: string; result: DraftEditResult } | null>(null);
+  const [loaded, setLoaded] = useState<{ id: string; result: DraftEditResult; publication: DraftPublication | null } | null>(null);
   const result = loaded?.id === draftId ? loaded.result : null;
   useEffect(() => {
     let current = true;
-    loadDraftForEditAction(draftId).catch((): DraftEditResult => ({ ok: false, reason: "no_response" })).then(result => {
-      if (current) setLoaded({ id: draftId, result });
+    Promise.all([
+      loadDraftForEditAction(draftId).catch((): DraftEditResult => ({ ok: false, reason: "no_response" })),
+      loadDraftPublicationAction(draftId).catch(() => null),
+    ]).then(([result, publication]) => {
+      if (current) setLoaded({ id: draftId, result, publication: publication?.ok ? publication.publication : null });
     });
     return () => { current = false; };
   }, [draftId, attempt]);
   const retry = () => { setLoaded(null); setAttempt(value => value + 1); };
   const title = result?.ok ? result.seed.model.fields.title || "Sin título" : "Configuración";
+  const publication = loaded?.id === draftId ? loaded.publication : null;
+  const published = publication?.status === "published";
   return (
     <div className="flex flex-1 flex-col" aria-busy={result === null}>
-      <SiteHeader title={title} parent={{ label: "Pipeline", href: `/empresa/vacantes/${draftId}/pipeline` }} status={result?.ok ? <Badge variant="info" dot>Borrador</Badge> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
+      <SiteHeader title={title} parent={{ label: "Pipeline", href: `/empresa/vacantes/${draftId}/pipeline` }} status={result?.ok && publication ? <Badge variant={published ? "accent" : "info"} dot>{published ? "Activa" : "Borrador"}</Badge> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
       <div className="@container/main flex flex-1 flex-col">
         <DashboardPageContent width="screen-2xl" className="gap-5 md:gap-6">
           {result && !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : (

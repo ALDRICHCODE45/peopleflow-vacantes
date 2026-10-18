@@ -176,7 +176,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
       <Card aria-labelledby="pipeline-columns-heading">
         <CardHeader className="border-b has-data-[slot=card-action]:grid-cols-1 sm:has-data-[slot=card-action]:grid-cols-[1fr_auto]">
           <CardTitle><h3 id="pipeline-columns-heading">Columnas del pipeline</h3></CardTitle>
-          <CardDescription>Nuevos va primero y Placement al final. Puedes agregar hasta {state.limits.maxCustomStages} columnas propias.</CardDescription>
+          <CardDescription className="max-w-prose">Nuevos va primero y Placement al final. Puedes agregar hasta {state.limits.maxCustomStages} columnas propias.</CardDescription>
           <CardAction className="col-start-1 row-span-1 row-start-auto justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end"><Badge variant="neutral">{state.stages.filter(entry => entry.kind === "custom").length} de {state.limits.maxCustomStages} columnas propias</Badge></CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
@@ -198,7 +198,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
           <Separator />
           <section aria-labelledby="pipeline-exit-heading" className="flex flex-col gap-3">
             <h4 id="pipeline-exit-heading" className="font-heading text-base font-medium">Salida del proceso</h4>
-            <p className="text-sm text-muted-foreground">Descartados queda fuera del orden: un candidato puede salir desde cualquier etapa.</p>
+            <p className="max-w-prose text-sm text-muted-foreground">Descartados queda fuera del orden: un candidato puede salir desde cualquier etapa.</p>
             {row(state.exit, state.stages.length + 1)}
           </section>
         </CardContent>

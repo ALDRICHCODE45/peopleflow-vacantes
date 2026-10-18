@@ -28,6 +28,16 @@ const capabilityItems = (container: HTMLElement) =>
   Array.from(container.querySelector("h2#que-hacemos")?.closest("section")?.querySelectorAll("[data-capability-text]") ?? []).map((item) => item.textContent ?? "");
 
 afterEach(() => cleanup());
+it("gives the careers vacancy empty state a readable title and one real recovery action", () => {
+  const { container } = view();
+  const title = screen.getByText("Sin vacantes por ahora");
+  expect(title).toHaveClass("text-xl", "font-semibold");
+  expect(title.closest('[data-slot="empty-header"]')).toHaveClass("max-w-md");
+  const link = screen.getByRole("link", { name: "Ver vacantes publicadas" });
+  expect(link).toHaveClass("bg-primary", "w-full", "sm:w-auto");
+  expect(link).toHaveAttribute("href", "/vacantes");
+  expect(container.querySelector('[data-slot="empty-content"]')).toHaveClass("flex-col", "sm:flex-row");
+});
 
 describe("CompanyCareersView wire text safety", () => {
   it("renders markup-bearing job titles as literal text, never injected elements", () => {
@@ -271,11 +281,10 @@ describe("CompanyCareersView link contrast", () => {
     expect(className).toMatch(/focus-visible:outline-ring/);
   };
 
-  it("keeps the board and website links readable in both themes without text-primary", () => {
+  it("uses the native primary button contrast for recovery and foreground for the website body link", () => {
     view();
-    for (const name of [`Sitio web de ${profile.name}`, "Ver vacantes publicadas"]) {
-      expectHighContrastBodyLink(screen.getByRole("link", { name }));
-    }
+    expectHighContrastBodyLink(screen.getByRole("link", { name: `Sitio web de ${profile.name}` }));
+    expect(screen.getByRole("link", { name: "Ver vacantes publicadas" })).toHaveClass("bg-primary", "text-primary-foreground");
   });
 
   it("keeps a high-contrast website link while the company has its own vacancies", () => {

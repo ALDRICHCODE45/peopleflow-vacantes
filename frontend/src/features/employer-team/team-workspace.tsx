@@ -149,15 +149,15 @@ export function TeamWorkspace({ members }: { members: readonly TeamMember[] }) {
         </div>
         {results.length === 0 ? (
           <div className="p-4">
-            <Empty data-pf-team-empty className="border border-border bg-card/40">
+            <Empty data-pf-team-empty>
               <EmptyHeader>
                 <EmptyMedia variant="icon"><SearchIcon aria-hidden="true" /></EmptyMedia>
-                <EmptyTitle>{members.length === 0 ? "Todavía no hay miembros del equipo" : "Sin resultados"}</EmptyTitle>
-                <EmptyDescription>{members.length === 0 ? "Cuando alguien se sume al equipo va a aparecer en este listado." : "No hay miembros que coincidan con la búsqueda y el estado seleccionados."}</EmptyDescription>
+                <EmptyTitle className="text-xl font-semibold">{members.length === 0 ? "Todavía no hay miembros del equipo" : "Sin resultados"}</EmptyTitle>
+                <EmptyDescription className="max-w-md">{members.length === 0 ? "Aquí se muestran los miembros y su carga de trabajo. Puedes revisar la búsqueda y los filtros mientras tanto." : "No hay miembros que coincidan con la búsqueda y el estado seleccionados. Limpia los filtros para volver a ver tu equipo."}</EmptyDescription>
               </EmptyHeader>
               {filtersActive && members.length > 0 && (
-                <EmptyContent>
-                  <Button type="button" variant="outline" data-pf-team-clear onClick={clearFilters} className="min-h-10">Limpiar filtros</Button>
+                <EmptyContent className="flex-col sm:flex-row sm:justify-center">
+                  <Button type="button" variant="outline" data-pf-team-clear onClick={clearFilters} className="min-h-10 w-full sm:w-auto">Limpiar filtros</Button>
                 </EmptyContent>
               )}
             </Empty>

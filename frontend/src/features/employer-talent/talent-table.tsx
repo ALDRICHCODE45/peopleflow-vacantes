@@ -381,6 +381,8 @@ export type TalentTableProps = {
   selectedPersonId: string | null;
   /** Page size for the local paginator. */
   pageSize?: number;
+  /** Distinguishes an empty base from a filtered result without inferring new data. */
+  emptyBase?: boolean;
   /** Optional recovery action shown in the truthful empty state. */
   onClearFilters?: () => void;
 };
@@ -390,6 +392,7 @@ export function TalentTable({
   onSelectPerson,
   selectedPersonId,
   pageSize = 10,
+  emptyBase = false,
   onClearFilters,
 }: TalentTableProps) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
@@ -930,16 +933,16 @@ export function TalentTable({
                       <EmptyMedia variant="icon">
                         <IconUserSearch aria-hidden="true" />
                       </EmptyMedia>
-                      <EmptyTitle>Sin resultados</EmptyTitle>
-                      <EmptyDescription>
-                        Ajusta la búsqueda o quita filtros para ver más personas.
+                      <EmptyTitle className="text-xl font-semibold">{emptyBase ? "Todavía no hay personas en tu base de talento" : "Sin resultados"}</EmptyTitle>
+                      <EmptyDescription className="max-w-md">
+                        {emptyBase ? "Aquí puedes consultar los perfiles y sus postulaciones cuando haya personas en la base de talento." : "Ajusta la búsqueda o quita filtros para volver a ver las personas de tu base de talento."}
                       </EmptyDescription>
                     </EmptyHeader>
-                    {onClearFilters ? (
-                      <EmptyContent>
+                    {onClearFilters && !emptyBase ? (
+                      <EmptyContent className="flex-col sm:flex-row sm:justify-center">
                         <Button
                           type="button"
-                          variant="outline"
+                          className="min-h-10 w-full sm:w-auto"
                           onClick={onClearFilters}
                         >
                           Limpiar filtros

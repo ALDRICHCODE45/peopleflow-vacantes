@@ -96,7 +96,7 @@ export function ManagementEditor({ draftId, management, etag }: { draftId: strin
   return <Card aria-labelledby="management-heading">
     <CardHeader className="border-b">
       <CardTitle><h3 id="management-heading">Solicitud</h3></CardTitle>
-      <CardDescription>Datos internos de la solicitud. Los candidatos nunca los ven. Hacen falta para publicar.</CardDescription>
+      <CardDescription className="max-w-prose">Datos internos de la solicitud. Los candidatos nunca los ven. Hacen falta para publicar.</CardDescription>
     </CardHeader>
     <CardContent>
       <FieldGroup>

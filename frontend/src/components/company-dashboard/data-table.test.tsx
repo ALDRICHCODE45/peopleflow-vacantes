@@ -773,12 +773,23 @@ describe("company dashboard candidate detail drawer", () => {
 describe("company dashboard table empty and demo-free surface", () => {
   beforeEach(stubBrowserApis);
 
+  it("offers clearing the state filter without sending the recruiter away", () => {
+    render(<DataTable data={rows.filter(row => row.status === "submitted")} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Contratados 0" }));
+    const title = screen.getByText("Sin candidatos");
+    expect(title).toHaveClass("text-xl", "font-semibold");
+    const clear = screen.getByRole("button", { name: "Limpiar filtros" });
+    expect(clear).toHaveClass("bg-primary", "w-full", "sm:w-auto");
+    fireEvent.click(clear);
+    expect(screen.getByRole("tab", { name: "Todos 5" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByText("Sin candidatos")).not.toBeInTheDocument();
+  });
   it("renders a localized empty state when no applicant matches", () => {
     render(<DataTable data={[]} />);
 
     expect(screen.getByText("Sin candidatos")).toBeInTheDocument();
     expect(
-      screen.getByText("No hay postulantes en este estado de la vacante."),
+      screen.getByText("Aquí puedes revisar las postulaciones y su estado. Mientras tanto, consulta tus vacantes."),
     ).toBeInTheDocument();
     expect(screen.getByText("0 de 0 candidatos seleccionados.")).toBeInTheDocument();
   });

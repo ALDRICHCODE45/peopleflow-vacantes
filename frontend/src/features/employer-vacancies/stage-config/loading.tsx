@@ -25,7 +25,7 @@ export function PipelineEditorSkeleton() {
     <Card aria-hidden="true">
       <CardHeader className="border-b has-data-[slot=card-action]:grid-cols-1 sm:has-data-[slot=card-action]:grid-cols-[1fr_auto]">
         <CardTitle><Skeleton className="h-6 w-44" /></CardTitle>
-        <CardDescription><Skeleton className="h-10 w-full" /></CardDescription>
+        <CardDescription className="max-w-prose"><Skeleton className="h-10 w-full" /></CardDescription>
         <CardAction className="col-start-1 row-span-1 row-start-auto justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end"><Skeleton className="h-5 w-44" /></CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-5">

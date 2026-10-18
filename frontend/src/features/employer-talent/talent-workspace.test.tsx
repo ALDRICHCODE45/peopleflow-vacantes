@@ -653,6 +653,12 @@ describe("employer talent workspace search and facets", () => {
     expect(rowIds()).toEqual(["persona-dual", "persona-simple"]);
   });
 
+  it("distinguishes an empty base from a filtered search with no matches", () => {
+    renderWorkspace([]);
+    const empty = document.querySelector('[data-pf-talento-empty]') as HTMLElement;
+    expect(empty).toHaveTextContent("Todavía no hay personas en tu base de talento");
+    expect(within(empty).queryByRole("button", { name: "Limpiar filtros" })).not.toBeInTheDocument();
+  });
   it("renders a truthful empty state when nothing matches", async () => {
     const user = userEvent.setup();
     renderWorkspace([DUAL, SIMPLE]);
@@ -662,7 +668,11 @@ describe("employer talent workspace search and facets", () => {
     const empty = document.querySelector("[data-pf-talento-empty]");
     expect(empty).not.toBeNull();
     expect(empty).toHaveTextContent(/Sin resultados/);
-    expect(rowIds()).toEqual([]);
+    expect(empty!.querySelector('[data-slot="empty-title"]')).toHaveClass("text-xl", "font-semibold");
+    const clear = within(empty as HTMLElement).getByRole("button", { name: "Limpiar filtros" });
+    expect(clear).toHaveClass("bg-primary", "min-h-10", "w-full", "sm:w-auto");
+    await user.click(clear);
+    expect(rowIds()).toEqual(["persona-dual", "persona-simple"]);
   });
 });
 

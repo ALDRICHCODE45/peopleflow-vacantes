@@ -64,6 +64,7 @@ export function TalentWorkspace({
       />
       <TalentTable
         people={filteredPeople}
+        emptyBase={people.length === 0}
         onSelectPerson={setSelectedPersonId}
         selectedPersonId={selectedPersonId}
         pageSize={pageSize}

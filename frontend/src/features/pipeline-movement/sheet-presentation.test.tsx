@@ -6,6 +6,20 @@ import { loadParticipationAction } from "./actions";
 import { boardFixture, detailFixture, historyFixture, vacancyId } from "./board-fixture";
 vi.mock("./actions", () => ({ loadParticipationAction: vi.fn(async () => ({ ok: true, data: detailFixture() })), loadHistoryAction: vi.fn(async () => ({ ok: true, data: historyFixture() })) }));
 afterEach(cleanup);
+it("prioritizes moving forward over the destructive alternative", async () => {
+  const board = boardFixture();
+  const move = vi.fn();
+  const disposition = vi.fn();
+  render(<CandidateSheet vacancyId={vacancyId} item={board.participations[0]} board={board} onClose={vi.fn()} onMove={move} onDisposition={disposition} />);
+  const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
+  expect(within(sheet).getByRole("button", { name: "Mover a…" })).toHaveClass("bg-primary");
+  const discard = within(sheet).getByRole("button", { name: "Descartar" });
+  expect(discard).not.toHaveClass("bg-primary");
+  expect(discard).toHaveClass("text-destructive");
+  fireEvent.click(discard);
+  expect(disposition).toHaveBeenCalledWith(board.participations[0].id, "discard");
+  expect(move).not.toHaveBeenCalled();
+});
 it("has one close, counted tabs, real vacancy footer and newest-first activity", async () => {
   const board = boardFixture();
   render(<CandidateSheet vacancyId={vacancyId} vacancyTitle="Software Developer" item={board.participations[0]} board={board} onClose={vi.fn()} />);

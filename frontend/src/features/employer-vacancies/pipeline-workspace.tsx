@@ -435,13 +435,13 @@ function PipelineVacancySession({
         />
       )}
       {hasActive && filtered.length === 0 ? (
-        <Empty data-pf-pipeline-recovery className="border border-dashed border-border bg-card/40 p-6">
-          <EmptyHeader>
-            <EmptyTitle>Sin resultados</EmptyTitle>
+        <Empty data-pf-pipeline-recovery className="border border-dashed border-border p-6">
+          <EmptyHeader className="max-w-md">
+            <EmptyTitle className="text-xl font-semibold">Sin resultados</EmptyTitle>
             <EmptyDescription>{pipelineNoResultsCopy(filters)}</EmptyDescription>
           </EmptyHeader>
-          <EmptyContent>
-            <Button type="button" variant="outline" data-pf-pipeline-clear onClick={() => setFilters(createEmptyPipelineFilters())} className="h-10">Limpiar filtros</Button>
+          <EmptyContent className="flex-col sm:flex-row sm:justify-center">
+            <Button type="button" data-pf-pipeline-clear onClick={() => setFilters(createEmptyPipelineFilters())} className="h-10 w-full sm:w-auto">Limpiar filtros</Button>
           </EmptyContent>
         </Empty>
       ) : null}

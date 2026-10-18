@@ -107,7 +107,7 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
   return <Card aria-labelledby="delivery-heading">
     <CardHeader className="border-b">
       <CardTitle><h3 id="delivery-heading">Entrega</h3></CardTitle>
-      <CardDescription>Define qué cuenta como entrega de esta vacante y para cuándo te comprometes. Puedes guardar los datos por partes; para publicar harán falta los tres.</CardDescription>
+      <CardDescription className="max-w-prose">Define qué cuenta como entrega de esta vacante y para cuándo te comprometes. Puedes guardar los datos por partes; para publicar harán falta los tres.</CardDescription>
     </CardHeader>
     <CardContent>
       <FieldGroup>

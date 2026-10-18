@@ -23,6 +23,9 @@ it.each([
   const skeleton = render(loading);
   const real = render(loaded);
   expect(cardSlots(skeleton.container)).toEqual(cardSlots(real.container));
+  for (const root of [skeleton.container, real.container]) {
+    expect(root.querySelector('[data-slot="card-description"]')).toHaveClass("max-w-prose");
+  }
   expect(skeleton.container.querySelectorAll('[data-slot="field"]')).toHaveLength(fields);
   expect(skeleton.container.querySelectorAll('[data-slot="field-label"]')).toHaveLength(fields);
   expect(skeleton.container.querySelectorAll('[data-slot="field-description"]')).toHaveLength(fields);
@@ -32,6 +35,9 @@ it("mirrors the stage editor, Item rows, exit section and all default preview ca
   const skeleton = render(<PipelineEditorSkeleton />);
   const real = render(<PipelineStageEditor draftId="draft" pipeline={pipelineFixture()} etag={'"v1"'} />);
   expect(cardSlots(skeleton.container)).toEqual(cardSlots(real.container));
+  for (const root of [skeleton.container, real.container]) {
+    expect(root.querySelector('[data-slot="card-description"]')).toHaveClass("max-w-prose");
+  }
   expect(skeleton.container.querySelectorAll('[data-slot="item"]')).toHaveLength(6);
   expect(skeleton.container.querySelectorAll('[data-slot="item-content"] [data-slot="field"]')).toHaveLength(6);
   expect(skeleton.container.querySelectorAll('[data-slot="separator"]')).toHaveLength(real.container.querySelectorAll('[data-slot="separator"]').length);

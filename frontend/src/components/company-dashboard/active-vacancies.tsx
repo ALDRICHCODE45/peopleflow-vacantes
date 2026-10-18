@@ -1,8 +1,9 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import {
   EMPLOYER_VACANCY_STATE_LABELS,
@@ -54,17 +55,25 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVac
         >
           Vacantes activas
         </h2></CardTitle>
-        <CardAction><Link
+        {active.length > 0 && <CardAction><Link
           href="/empresa/vacantes"
           data-pf-active-vacancies-portfolio=""
           className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-border px-3.5 text-sm font-medium text-foreground transition-colors duration-200 hover:border-primary/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none"
         >
           Ver todas
-        </Link></CardAction>
+        </Link></CardAction>}
       </CardHeader>
       <CardContent>
       {active.length === 0 ? (
-        <Empty data-pf-active-vacancies-empty=""><EmptyHeader><EmptyDescription>No hay vacantes activas</EmptyDescription></EmptyHeader></Empty>
+        <Empty data-pf-active-vacancies-empty="">
+          <EmptyHeader className="max-w-md">
+            <EmptyTitle className="text-xl font-semibold">No hay vacantes activas</EmptyTitle>
+            <EmptyDescription className="max-w-md">Aquí verás los procesos de tus vacantes activas. Mientras tanto, revisa tus vacantes y prepara la siguiente publicación.</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent className="flex-col sm:flex-row sm:justify-center">
+            <Link href="/empresa/vacantes" data-pf-active-vacancies-portfolio="" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Ver todas</Link>
+          </EmptyContent>
+        </Empty>
       ) : (
         <ul className="flex flex-col divide-y divide-border">
           {active.map((vacancy) => {

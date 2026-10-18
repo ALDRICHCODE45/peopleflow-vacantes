@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -94,10 +94,13 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       </TabsList></div><Separator />
       <ScrollArea className="pf-sheet-scroll min-h-0 flex-1" key={tab}>
         <TabsContent value={tab} className="p-6" aria-busy={reading}>
-          {reading ? <><span role="status" className="sr-only">Cargando detalle e historial</span><CandidateDetailSkeleton tab={tab} discarded={!!item.discard} answerCount={loaded?.detail.screening.length} historyCount={loaded?.history.items.length} /></> : failure ? <div className="flex flex-col items-center gap-3"><Empty><EmptyHeader><EmptyTitle role="heading" aria-level={3}>No pudimos cargar el detalle</EmptyTitle><EmptyDescription>{failure.reason === "unauthenticated" ? "Tu sesión expiró. Inicia sesión de nuevo." : "No se modificó la postulación. Puedes volver a cargar las respuestas y el historial."}</EmptyDescription></EmptyHeader></Empty>
-            <Button type="button" variant="outline" className="min-h-10" disabled={reading} aria-describedby={notice ? "detail-read-status" : undefined} onClick={() => { setReading(true); setNotice(null); setAttempt(value => value + 1); }}>Reintentar</Button>
-            {notice && <ActionStatus id="detail-read-status" tone={notice.tone} text={notice.text} />}
-          </div> : loaded && <>
+          {reading ? <><span role="status" className="sr-only">Cargando detalle e historial</span><CandidateDetailSkeleton tab={tab} discarded={!!item.discard} answerCount={loaded?.detail.screening.length} historyCount={loaded?.history.items.length} /></> : failure ? <Empty>
+            <EmptyHeader className="max-w-md"><EmptyTitle role="heading" aria-level={3} className="text-xl font-semibold">No pudimos cargar el detalle</EmptyTitle><EmptyDescription>{failure.reason === "unauthenticated" ? "Tu sesión expiró. Inicia sesión de nuevo." : "No se modificó la postulación. Puedes volver a cargar las respuestas y el historial."}</EmptyDescription></EmptyHeader>
+            <EmptyContent>
+              <Button type="button" variant="outline" className="min-h-10 w-full sm:w-auto" disabled={reading} aria-describedby={notice ? "detail-read-status" : undefined} onClick={() => { setReading(true); setNotice(null); setAttempt(value => value + 1); }}>Reintentar</Button>
+              {notice && <ActionStatus id="detail-read-status" tone={notice.tone} text={notice.text} />}
+            </EmptyContent>
+          </Empty> : loaded && <>
             {tab === "summary" && <div className="flex flex-col gap-7">
               <section className="flex flex-col gap-5"><SectionTitle>Información de la postulación</SectionTitle>
                 <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">
