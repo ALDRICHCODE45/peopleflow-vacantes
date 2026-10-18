@@ -370,6 +370,15 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
 - [ ] ¿El estado de la entidad se ve de un vistazo (badge), sin depender de leer un
       párrafo (sección 15)?
 - [ ] ¿Cada estado vacío responde qué ocurre → qué pasará → qué puedes hacer (sección 15)?
+- [ ] ¿La pantalla está diseñada para su decisión (explorar, evaluar o completar) y los
+      registros comparables siguen identidad → condiciones → complemento → acción
+      (sección 16)?
+- [ ] ¿Los badges se reservan para categorías y el resto es texto; la información no
+      parece un control (sección 16)?
+- [ ] ¿Un monto de dinero se lee con separadores y siempre va con moneda, periodicidad y
+      neto/bruto (sección 16)?
+- [ ] ¿En móvil la pantalla se reorganiza (apila, mueve) en lugar de achicar texto y
+      controles (sección 16)?
 
 ---
 
@@ -1037,3 +1046,30 @@ Ejemplo de referencia: `DraftPipelineCard` en
 `src/features/employer-vacancies/draft-pipeline-state.tsx` (estado y ajustes arriba,
 decisión al centro, pista al pie, «Volver a Vacantes» afuera). Su skeleton usa el mismo
 componente con placeholders, como pide la sección 11.
+
+## 16. Diseñar según la decisión y estructuras comparables
+
+Principios surgidos del rediseño del listado y el detalle públicos de vacantes (propuesta
+de v0, portada al sistema). Igual que la sección 15, son buenas prácticas, no resultados
+medidos con usuarios. Complementan la sección 15 (jerarquía, proximidad, acción frente a
+navegación), que no se repite acá.
+
+| Principio | Regla | Para qué sirve |
+| --- | --- | --- |
+| Diseñar según la decisión | Cada superficie sirve a una decisión: la card ayuda a **explorar** (¿vale la pena abrirla?), el detalle a **evaluar** (¿me postulo?), el formulario a **completar** una acción. Solo entra lo que ayuda a esa decisión; el resto va al paso siguiente. | Evita cards que intentan ser un detalle y detalles que intentan ser un formulario. |
+| Estructura estable | Los registros comparables (cards de vacantes, de postulaciones, de candidatos) siguen siempre el mismo orden: **identidad → condiciones → información complementaria → acción**, cada grupo en su zona. | Se comparan registros sin releer cada uno. |
+| Badges solo para categorías | Un badge marca una categoría o un estado («Nueva», «Remoto», «En proceso»). La información secundaria va como texto con separadores («Indefinido · Intermedio · Ingeniería»). La información nunca se ve como un botón; los íconos de una lista informativa son distintos entre sí y sin borde de control. | Lo clicable se distingue de lo que solo se lee. |
+| Legibilidad numérica | Un monto se formatea con separadores y sin decimales vacíos (`$50,000 MXN`, no `50000.00 MXN`); las condiciones del monto van debajo, en texto secundario. | El número se lee de un vistazo sin perder información. |
+| Información decisiva visible | El salario siempre va con moneda, periodicidad y neto/bruto. Si no se publica, se dice («Salario no publicado»), nunca se omite en silencio ni se inventa. | Nadie decide con un dato a medias. |
+| Resumen completo | Un extracto corta en un límite de palabra y marca el corte con «…» solo si recortó; nunca a mitad de una palabra. | Ayuda a decidir sin texto roto. |
+| Divulgación progresiva | Se muestra lo esencial (los primeros beneficios o habilidades) y el resto detrás de «y N más». Si la superficie no tiene el dato completo, «y N más» lleva al lugar donde está (por ejemplo, `#beneficios` del detalle), nunca despliega algo inventado. | Menos carga sin esconder lo que existe. |
+| Información de decisión junto a la acción | En una pantalla de evaluación, los datos que deciden (compensación, requisitos de postulación) van en el mismo bloque que la acción principal, y ese bloque queda visible al desplazarse en escritorio (`lg:sticky`, con el desplazamiento del encabezado). | La decisión y la acción no quedan lejos. |
+| Accesos directos en páginas largas | Una página con varias secciones largas ofrece navegación por anclas, solo a las secciones que tienen datos, con estado activo visible. | Control y eficiencia sin recorrer todo. |
+| Escaneabilidad | Las listas reales se muestran como listas espaciadas y se separan los grupos con significado distinto (indispensables frente a deseables). El texto que la persona escribió como párrafo se respeta: no se inventan viñetas. | Se lee rápido sin falsear el contenido. |
+| Reorganizar en móvil | En pantallas chicas se apilan zonas (el pie de la card, la columna lateral del detalle pasa abajo) y los botones van a ancho completo; el tamaño del texto y de los controles no se reduce. | Legible y cómodo en cualquier pantalla. |
+
+Ejemplos de referencia: `PublicVacancyCard` (identidad → condiciones → complemento →
+pie con compensación y «Ver vacante») y `PublicJobDetailView` (encabezado, «La vacante de
+un vistazo», navegación por secciones y columna fija con compensación y «Postularme») en
+`src/features/jobs/components/`. Referencia de diseño:
+`docs/design/v0/reference-c6eMqlbQQtD/`.
