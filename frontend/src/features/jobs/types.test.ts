@@ -26,6 +26,13 @@ describe("public v2 inferred types", () => {
     type VacancyDescription = Extract<PublicJobDetail, { source: "vacancy" }>["description"];
     expectTypeOf<VacancyDescription>().toEqualTypeOf<NonNullable<VacancyDescription>>();
     expectTypeOf<PublicJobItem["published_at"]>().toEqualTypeOf<string>();
+    expectTypeOf<PublicJobItem["company"]["logo_url"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<PublicJobItem["excerpt"]>().toEqualTypeOf<string | null>();
+    expectTypeOf<PublicJobItem["excerpt_truncated"]>().toEqualTypeOf<boolean>();
+    expectTypeOf<PublicJobItem["skills_preview"]>().toEqualTypeOf<string[]>();
+    expectTypeOf<PublicJobDetail["skills"]>().toEqualTypeOf<string[]>();
+    expectTypeOf<PublicJobItem["applicants"]>().toEqualTypeOf<"under_10" | "10_plus" | "25_plus" | "50_plus" | null>();
+    expectTypeOf<PublicJobItem["screening_questions"]>().toEqualTypeOf<number | null>();
     expectTypeOf<PublicJobsList["next_cursor"]>().toEqualTypeOf<string | null>();
     expectTypeOf<Extract<PublicJobItem, { source: "legacy" }>["seniority"]>().toEqualTypeOf<"intern" | "junior" | "mid" | "senior" | "lead">();
     expectTypeOf<Extract<PublicJobItem, { source: "vacancy" }>["seniority"]>().toEqualTypeOf<"intern" | "junior" | "mid" | "senior" | "lead" | null>();

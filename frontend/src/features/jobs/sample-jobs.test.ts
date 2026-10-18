@@ -17,7 +17,13 @@ describe("sample public v2 reads", () => {
       expect(detail.description_plain).toBe(job.description);
       expect(detail.description).toBeNull();
       expect(detail.title).toBe(job.title);
-      expect(detail.company).toEqual(job.company);
+      expect(detail.company).toEqual({ ...job.company, logo_url: null });
+      expect(detail).toMatchObject({
+        excerpt: job.description.replace(/\p{White_Space}+/gu, " ").trim(), excerpt_truncated: false,
+        skills: [], skills_preview: [], skills_total: 0,
+        benefits_preview: { predefined: [], custom: [] }, benefits_total: 0,
+        applicants: null, screening_questions: null,
+      });
     }
     expect(findSampleJob("0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7fff")).toBeUndefined();
   });
@@ -27,7 +33,11 @@ describe("sample public v2 reads", () => {
     expect(sortedIds(page.items)).toEqual(sortedIds(SAMPLE_JOBS));
     expect(page.next_cursor).toBeNull();
     expect(publicJobsListSchema.safeParse(page).success).toBe(true);
-    expect(page.items[0]).not.toHaveProperty("description");
+    for (const item of page.items) {
+      for (const key of ["description", "description_plain", "requirements", "benefits", "skills"]) expect(item).not.toHaveProperty(key);
+      expect(item).toMatchObject({ company: { logo_url: null }, skills_preview: [], applicants: null, screening_questions: null });
+      expect(Object.keys(item)).toHaveLength(22);
+    }
   });
   it("applies text, location and modality conjunctively", () => {
     expect(listSampleJobs({ q: "analista datos", work_mode: "remote", location: "ciudad de méxico" }).items.map((job) => job.title).sort()).toEqual(["Analista de Datos", "Analista de Datos Senior"]);

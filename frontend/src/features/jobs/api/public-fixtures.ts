@@ -5,7 +5,7 @@ export const vacancyDetail = {
   id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d92",
   source: "vacancy",
   title: "Backend Go",
-  company: { id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d93", name: "Acme" },
+  company: { id: "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d93", name: "Acme", logo_url: null },
   location: "Ciudad de México",
   work_mode: "hybrid",
   work_schedule: "full_time",
@@ -18,6 +18,10 @@ export const vacancyDetail = {
   published_at: "2026-10-16T18:00:00.000000Z",
   description: { schema_version: 1, document: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Construye servicios seguros.", marks: [{ type: "bold" }] }] }] } },
   description_plain: "Construye servicios seguros.",
+  excerpt: "Construye servicios seguros.", excerpt_truncated: false,
+  benefits_preview: { predefined: ["health_insurance"], custom: ["Apoyo de transporte"] }, benefits_total: 2,
+  skills_preview: ["Go", "SQL"], skills_total: 2, skills: ["Go", "SQL"],
+  applicants: "under_10", screening_questions: 0,
   requirements: { required: "Experiencia con Go", preferred: "PostgreSQL" },
   benefits: { predefined: ["health_insurance"], custom: ["Apoyo de transporte"] },
 } satisfies PublicJobDetail;
@@ -39,10 +43,17 @@ export const legacyDetail = {
   description_plain: "Construye experiencias accesibles.",
   requirements: { required: null, preferred: null },
   benefits: { predefined: [], custom: [] },
+  excerpt: "Construye experiencias accesibles.", excerpt_truncated: false,
+  benefits_preview: { predefined: [], custom: [] }, benefits_total: 0,
+  skills_preview: [], skills_total: 0, skills: [],
+  applicants: null, screening_questions: null,
 } satisfies PublicJobDetail;
 
+export function listItem(detail: Extract<PublicJobDetail, { source: "vacancy" }>): Extract<PublicJobItem, { source: "vacancy" }>;
+export function listItem(detail: Extract<PublicJobDetail, { source: "legacy" }>): Extract<PublicJobItem, { source: "legacy" }>;
+export function listItem(detail: PublicJobDetail): PublicJobItem;
 export function listItem(detail: PublicJobDetail): PublicJobItem {
   const item = { ...detail };
-  for (const key of ["description", "description_plain", "requirements", "benefits"]) Reflect.deleteProperty(item, key);
+  for (const key of ["description", "description_plain", "requirements", "benefits", "skills"]) Reflect.deleteProperty(item, key);
   return item;
 }

@@ -178,10 +178,20 @@ export function findSampleJob(jobId: string): PublicJobDetail | undefined {
   return PUBLIC_SAMPLE_DETAILS.find((job) => job.id === jobId);
 }
 
+/** Mirrors the public excerpt contract for this explicitly fictional, local-only adapter. */
+function sampleExcerpt(description: string): { excerpt: string | null; excerpt_truncated: boolean } {
+  const normalized = description.replace(/\p{White_Space}+/gu, " ").replace(/^ | $/gu, "");
+  const points = [...normalized];
+  if (points.length <= 240) return { excerpt: normalized || null, excerpt_truncated: false };
+  const prefix = points.slice(0, 240).join("");
+  const boundary = prefix.lastIndexOf(" ");
+  return { excerpt: (boundary > 0 ? prefix.slice(0, boundary) : prefix).replace(/ $/u, ""), excerpt_truncated: true };
+}
+
 // Explicit fictional publication date for the sample records that predate
 // publication metadata. This adapter never runs against a real API response.
 const PUBLIC_SAMPLE_DETAILS: readonly PublicJobDetail[] = SAMPLE_JOBS.map((job) => publicJobDetailSchema.parse({
-  id: job.id, source: "legacy", title: job.title, company: job.company,
+  id: job.id, source: "legacy", title: job.title, company: { ...job.company, logo_url: null },
   location: job.location ?? null, work_mode: job.work_mode,
   work_schedule: null, contract_type: null, professional_area: null,
   seniority: job.seniority, legacy_employment_type: job.employment_type,
@@ -192,11 +202,15 @@ const PUBLIC_SAMPLE_DETAILS: readonly PublicJobDetail[] = SAMPLE_JOBS.map((job) 
   published_at: job.published_at ?? "2026-02-14T09:30:00Z",
   description: null, description_plain: job.description,
   requirements: { required: null, preferred: null }, benefits: { predefined: [], custom: [] },
+  ...sampleExcerpt(job.description),
+  benefits_preview: { predefined: [], custom: [] }, benefits_total: 0,
+  skills_preview: [], skills_total: 0, skills: [],
+  applicants: null, screening_questions: null,
 }));
 
 function sampleItem(detail: PublicJobDetail): PublicJobItem {
   const item = { ...detail };
-  for (const key of ["description", "description_plain", "requirements", "benefits"]) Reflect.deleteProperty(item, key);
+  for (const key of ["description", "description_plain", "requirements", "benefits", "skills"]) Reflect.deleteProperty(item, key);
   return item;
 }
 

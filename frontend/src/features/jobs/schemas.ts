@@ -57,12 +57,32 @@ const legacySalarySchema = z.object({
   currency,
 }).strict().refine((value) => value.min !== null || value.max !== null);
 
+// Public values are validated, never normalized or silently defaulted by the decoder.
+const publicLogoSchema = z.string().url().refine((value) => {
+  try {
+    const url = new URL(value);
+    // URL normalizes empty userinfo away, so also reject its raw authority marker.
+    return value === value.trim() && /^https:\/\//iu.test(value)
+      && !/^https:\/\/[^/?#]*@/iu.test(value)
+      && url.protocol === "https:" && url.hostname !== ""
+      && url.username === "" && url.password === "";
+  } catch { return false; }
+}).nullable();
+const publicListTextSchema = z.string().refine((value) => value.length > 0 && !/^\p{White_Space}|\p{White_Space}$/u.test(value) && [...value].length <= 200);
+const publicBenefitsSchema = z.object({
+  predefined: z.array(z.enum(BENEFITS)), custom: z.array(publicListTextSchema),
+}).strict();
+const emptyBenefitsSchema = z.object({
+  predefined: z.array(z.enum(BENEFITS)).max(0), custom: z.array(publicListTextSchema).max(0),
+}).strict();
 const publicCommon = {
   id: uuid,
   title: nonEmptyString,
-  company: z.object({ id: uuid, name: nonEmptyString }).strict(),
+  company: z.object({ id: uuid, name: nonEmptyString, logo_url: publicLogoSchema }).strict(),
   work_mode: z.enum(WORK_MODES),
   published_at: offsetAwareIsoDateTime,
+  excerpt: z.string().refine((value) => value.length > 0 && [...value].length <= 240 && value === value.replace(/\p{White_Space}+/gu, " ").replace(/^ | $/gu, "")).nullable(),
+  excerpt_truncated: z.boolean(),
 };
 const publicLegacy = z.object({
   ...publicCommon,
@@ -75,6 +95,12 @@ const publicLegacy = z.object({
   legacy_employment_type: z.enum(["full_time", "part_time", "contract", "internship"]),
   compensation: z.null(),
   legacy_salary: legacySalarySchema.nullable(),
+  benefits_preview: emptyBenefitsSchema,
+  benefits_total: z.literal(0),
+  skills_preview: z.array(publicListTextSchema).max(0),
+  skills_total: z.literal(0),
+  applicants: z.null(),
+  screening_questions: z.null(),
 });
 const publicVacancy = z.object({
   ...publicCommon,
@@ -87,6 +113,12 @@ const publicVacancy = z.object({
   legacy_employment_type: z.null(),
   compensation: publicCompensationSchema.nullable(),
   legacy_salary: z.null(),
+  benefits_preview: publicBenefitsSchema.refine((value) => value.predefined.length + value.custom.length <= 3),
+  benefits_total: integer.nonnegative(),
+  skills_preview: z.array(publicListTextSchema).max(6),
+  skills_total: integer.nonnegative(),
+  applicants: z.enum(["under_10", "10_plus", "25_plus", "50_plus"]),
+  screening_questions: integer.nonnegative(),
 });
 export const publicJobItemSchema = z.discriminatedUnion("source", [publicLegacy.strict(), publicVacancy.strict()]);
 export const publicJobsListSchema = z.object({
@@ -99,12 +131,14 @@ export const publicJobDetailSchema = z.discriminatedUnion("source", [
     description: z.null(),
     description_plain: z.string(),
     requirements: z.object({ required: z.null(), preferred: z.null() }).strict(),
-    benefits: z.object({ predefined: z.array(z.enum(BENEFITS)).max(0), custom: z.array(z.string()).max(0) }).strict(),
+    benefits: emptyBenefitsSchema,
+    skills: z.array(publicListTextSchema).max(0),
   }).strict(),
   publicVacancy.extend({
     description: draftRichDescriptionSchema.refine((value) => value !== null),
     description_plain: z.string(),
     requirements: z.object({ required: z.string().nullable(), preferred: z.string().nullable() }).strict(),
-    benefits: z.object({ predefined: z.array(z.enum(BENEFITS)), custom: z.array(z.string()) }).strict(),
+    benefits: publicBenefitsSchema,
+    skills: z.array(publicListTextSchema).max(100),
   }).strict(),
 ]);
