@@ -10,11 +10,14 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 
 - S4. User request (L13): «me gustaria que el orden de las columnas en el pipeline se pueda modificar directamente arrastrando las columnas, no solo llendo al apartado de configuracion». User decision: «Solo sin candidatos» — the board allows dragging columns only while the vacancy has no candidates (structure_locked false); with candidates the column handle is shown locked with the explanation (cut-4 rule S5 «while a vacancy has candidates, columns can only be renamed until cut 7» stays). «Nuevos» and «Placement» keep their fixed positions; Descartados is not reorderable.
 
+- S5. User request (L15): «hay que mejorar los mensajes de los toasts, porque cuando muevo un candidato, aparece "Candidato Movido" y como descripcion: "Candidato Movido" … hay que ponerle mas detalles, no quiero un toast larguisimo pero oye.. algo mas elavorado por favor». Approved copy («Si, perfecto»): Mover «Ana Pérez pasó a Screening» / «Antes estaba en Nuevos. El cambio queda en su historial.»; Llegar a Placement «Ana Pérez llegó a Placement» / «Se cubrió una plaza: ahora 1 de 2 cubiertas.»; Salir de Placement «Ana Pérez salió de Placement» / «Se liberó una plaza: 0 de 2 cubiertas. Su contratación queda en el historial.»; Descartar «Descartaste a Ana Pérez» / «Motivo: No cumple requisitos. Verá el estado Finalizada con tu mensaje.» (sin mensaje: «Puedes recuperar su postulación desde Descartados.»); Recuperar «Recuperaste a Ana Pérez» / «Volvió a Screening. El descarte queda en su historial.»; Reordenar «Columnas reordenadas» / «Screening ahora va después de Nuevos.». Errors: title = what failed, description = what to do, never repeating the title. Gender-neutral phrasing.
+
 ## Tasks
 - T1 [done] S1,S2 | parent | Typography: Inter for app headings; Clash Display landing-only; rules §14. | commit: ceed4b6
 - T2 [done] S2 | parent | v0 prompt for board + candidate sheet. | commit: (this doc commit)
 - T3 [done] S1,S3 | writer | Board + candidate sheet + discard dialog redesign faithful to the v0 reference (header with compact coverage, tinted columns, cards, empty columns, ScrollArea, sheet top bar/identity/tabs/timeline/file card). | commit: -
 - T6 [done] S4 | writer | Board column drag-reorder while the structure is unlocked, saved through the existing pipeline PUT (If-Match), with keyboard alternative and locked state. | commit: -
+- T7 [pending] S5 | writer | Detailed, non-repetitive toast copy for move/Placement/discard/recover/column reorder and their errors; rule in §12. | commit: -
 - T5 [pending] S1 | parent | Pass over the remaining screens, one reviewable delivery each. | commit: -
 
 ## Log
