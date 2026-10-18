@@ -38,7 +38,7 @@ export function PublicJobDetailView({ job }: { job: PublicJobDetail }) {
       <div className="flex min-w-0 flex-col gap-6">
         <Card>
           <CardHeader className="border-b"><CardTitle><h2 className="font-heading text-xl font-semibold">Sobre la vacante</h2></CardTitle></CardHeader>
-          <CardContent>
+          <CardContent className="max-w-prose">
             {job.source === "vacancy" && job.description !== null
               ? <DraftRichDescriptionContent description={job.description} />
               : <div className="flex flex-col gap-4 text-sm leading-relaxed">{job.description_plain.split(/\n\s*\n/u).map((text, index) => <p key={index} className="whitespace-pre-line break-words">{text}</p>)}</div>}
@@ -46,7 +46,7 @@ export function PublicJobDetailView({ job }: { job: PublicJobDetail }) {
         </Card>
         {job.source === "vacancy" && hasRequirements && <Card>
           <CardHeader className="border-b"><CardTitle><h2 className="flex items-center gap-2 font-heading text-xl font-semibold"><ListChecksIcon aria-hidden="true" className="size-5" />Requisitos</h2></CardTitle></CardHeader>
-          <CardContent><dl className="flex flex-col gap-4">
+          <CardContent><dl className="flex max-w-prose flex-col gap-4">
             {job.requirements.required && <div className="flex flex-col gap-1"><dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><CheckCircle2Icon aria-hidden="true" className="size-3.5" />Obligatorios</dt><dd className="whitespace-pre-line break-words">{job.requirements.required}</dd></div>}
             {job.requirements.preferred && <div className="flex flex-col gap-1"><dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><SparklesIcon aria-hidden="true" className="size-3.5" />Deseables</dt><dd className="whitespace-pre-line break-words">{job.requirements.preferred}</dd></div>}
           </dl></CardContent>

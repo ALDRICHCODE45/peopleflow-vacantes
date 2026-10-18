@@ -25,7 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Item, ItemContent, ItemMedia } from "@/components/ui/item";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { findCompanyProfile } from "../../company-profile/model";
 import { PROTOTYPE_COMPANY_PROFILES } from "../../company-profile/prototype-companies";
@@ -55,13 +55,11 @@ const WORK_MODE_ICONS = {
 const statTile = "grid size-7 shrink-0 place-items-center rounded-lg bg-primary/10 text-foreground";
 const statValue = "break-words font-medium text-foreground";
 const metaValue = "mt-0.5 font-medium break-words text-foreground";
-const focusRing =
-  "rounded-md transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring";
 /* Body links keep `text-foreground` with an always-visible underline, because the accent token fails AA for body text on the dark page background. */
 const bodyLink =
   "font-medium text-foreground underline decoration-foreground/50 underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
-/** Primary apply affordance: a token tint shared by the real application link. */
-const actionPrimary = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/15 px-4 text-sm font-semibold text-foreground";
+/** The installed primary variant makes the real application link the focal action. */
+const actionPrimary = buttonVariants({ className: "min-h-11 w-full" });
 /** Secondary save affordance, styled for the toggle save island. */
 const actionGhost = "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-border bg-background px-4 text-sm font-semibold text-muted-foreground";
 /**
@@ -110,7 +108,7 @@ function DescriptionParagraphs({ description }: { description: string }) {
     .filter((paragraph) => paragraph.length > 0);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex max-w-prose flex-col gap-4">
       {paragraphs.map((paragraph, index) => (
         <p
           key={index}
@@ -391,7 +389,7 @@ export function JobDetailView({ job }: { job: PrototypeJobView | PublicJobDetail
       <nav aria-label="Ruta de navegación" className="text-sm text-muted-foreground">
         <ol className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
           <li className="flex min-w-0 items-center gap-1.5">
-            <Link href="/vacantes" aria-label="Volver a vacantes" className={`${focusRing} inline-flex min-h-10 items-center gap-1.5`}>
+            <Link href="/vacantes" aria-label="Volver a vacantes" className={buttonVariants({ variant: "ghost", className: "min-h-10 gap-1.5" })}>
               <ArrowLeftIcon aria-hidden="true" className="size-4 shrink-0" />Vacantes
             </Link>
             <ChevronRightIcon aria-hidden="true" className="size-3.5 shrink-0" />

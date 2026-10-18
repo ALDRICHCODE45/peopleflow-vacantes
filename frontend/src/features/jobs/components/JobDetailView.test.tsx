@@ -515,9 +515,8 @@ describe("JobDetailView reference content and sticky rail (CCP-R4B)", () => {
     const apply = links[0];
     expect(apply).toHaveAttribute("href", vacancyApplicationHref(enrichedJob.id));
     expect(apply).not.toHaveAttribute("aria-describedby");
-    // Token action surface shared by the primary affordance: semantic tokens only.
-    expect(apply.className).toMatch(/(?:^|\s)bg-primary\/15(?:\s|$)/);
-    expect(apply.className).toMatch(/(?:^|\s)border-primary\/40(?:\s|$)/);
+    // The installed primary variant carries the single focal action.
+    expect(apply).toHaveClass("bg-primary", "text-primary-foreground");
     expect(apply.className).not.toMatch(RAW_COLOR_UTILITY);
     // One decorative arrow trails the label, so the control reads as navigation.
     const icon = apply.querySelector("svg[aria-hidden='true']");

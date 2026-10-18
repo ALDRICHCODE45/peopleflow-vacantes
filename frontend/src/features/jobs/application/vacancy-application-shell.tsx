@@ -30,7 +30,7 @@ export function VacancyApplicationShell({
         <Link
           href={`/vacantes/${job.id}`}
           className={buttonVariants({
-            variant: "outline",
+            variant: "ghost",
             size: "lg",
             className: "min-h-11 gap-1.5",
           })}

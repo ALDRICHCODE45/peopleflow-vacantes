@@ -11,12 +11,12 @@ type ListJobsResult = Awaited<ReturnType<typeof listJobs>>;
 
 export function JobsResults({ result, query }: { result: ListJobsResult; query: JobsQuery }) {
   if (!result.ok) return <Empty role="alert">
-    <EmptyHeader><EmptyTitle><h2>No se pudieron cargar las vacantes</h2></EmptyTitle><EmptyDescription>El servicio de vacantes no respondió correctamente.</EmptyDescription></EmptyHeader>
-    <EmptyContent><Link href={buildJobsUrl(query)} className={cn(buttonVariants(), "min-h-10")}>Intentar de nuevo</Link></EmptyContent>
+    <EmptyHeader className="max-w-md"><EmptyTitle className="text-xl font-semibold"><h2>No se pudieron cargar las vacantes</h2></EmptyTitle><EmptyDescription>El servicio de vacantes no respondió correctamente. Intenta de nuevo para cargar los resultados de tu búsqueda.</EmptyDescription></EmptyHeader>
+    <EmptyContent><Link href={buildJobsUrl(query)} className={cn(buttonVariants(), "min-h-10 w-full sm:w-auto")}>Intentar de nuevo</Link></EmptyContent>
   </Empty>;
   if (result.data.items.length === 0) return <Empty>
-    <EmptyHeader><EmptyMedia variant="icon"><SearchXIcon aria-hidden="true" /></EmptyMedia><EmptyTitle>No hay vacantes</EmptyTitle><EmptyDescription>No encontramos vacantes para esta búsqueda. Prueba con otros filtros.</EmptyDescription></EmptyHeader>
-    <EmptyContent><Link href="/vacantes" className={cn(buttonVariants(), "min-h-10")}>Quitar filtros</Link></EmptyContent>
+    <EmptyHeader className="max-w-md"><EmptyMedia variant="icon"><SearchXIcon aria-hidden="true" /></EmptyMedia><EmptyTitle className="text-xl font-semibold">No hay vacantes</EmptyTitle><EmptyDescription>No encontramos vacantes para esta búsqueda. Quita los filtros para volver a ver el catálogo disponible.</EmptyDescription></EmptyHeader>
+    <EmptyContent><Link href="/vacantes" className={cn(buttonVariants(), "min-h-10 w-full sm:w-auto")}>Quitar filtros</Link></EmptyContent>
   </Empty>;
   return <>
     <ul aria-label="Listado de vacantes" className="flex flex-col gap-4">{result.data.items.map((job) => <VacancyCard key={job.id} job={job} />)}</ul>

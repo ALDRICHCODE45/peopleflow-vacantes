@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { cn } from "@/lib/utils";
 import { FileText, Trash2, Upload } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -205,7 +206,7 @@ export function ApplicationCvStep({
               </Button>
             </div>
           </div>
-          <FieldDescription id={HELP_ID}>
+          <FieldDescription id={HELP_ID} className="max-w-prose">
             Formatos PDF, DOC o DOCX. Tamaño máximo 10 MB. Tu CV se queda en
             esta página: se conserva solo mientras completas el formulario y se
             pierde si recargas o sales. Al iniciar sesión para enviar, tendrás
@@ -247,11 +248,11 @@ export function ApplicationCvStep({
           </Item>
         )}
       </CardContent>
-      <CardFooter className="justify-between">
-        <Button type="button" variant="outline" className={ACTION} onClick={onBack}>
+      <CardFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+        <Button type="button" variant="outline" className={cn(ACTION, "w-full sm:w-auto")} onClick={onBack}>
           Atrás
         </Button>
-        <Button type="button" className={ACTION} onClick={onContinue}>
+        <Button type="button" className={cn(ACTION, "w-full sm:w-auto")} onClick={onContinue}>
           Continuar
         </Button>
       </CardFooter>

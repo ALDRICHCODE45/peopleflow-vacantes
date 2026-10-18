@@ -28,6 +28,9 @@ describe("JobsResults v2 composition", () => {
     const { container } = render(<JobsResults result={listOf([])} query={{ q: "react" }} />);
     expect(container.querySelector('[data-slot="empty"]')).not.toBeNull();
     expect(screen.getByText("No hay vacantes")).toBeVisible();
+    expect(screen.getByText("No hay vacantes")).toHaveClass("text-xl", "font-semibold");
+    expect(screen.getByText(/Quita los filtros para volver a ver/u)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Quitar filtros" })).toHaveClass("w-full", "sm:w-auto");
     expect(screen.getByRole("link", { name: "Quitar filtros" })).toHaveAttribute("href", "/vacantes");
     expect(screen.queryByRole("list", { name: "Listado de vacantes" })).toBeNull();
   });

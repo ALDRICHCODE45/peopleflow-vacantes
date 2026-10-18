@@ -400,8 +400,8 @@ export function VacancyApplicationWizard({
                 })}
               </FieldGroup>
             </CardContent>
-            <CardFooter className="justify-end">
-              <Button type="button" className="min-h-11" onClick={continueFromCandidate}>
+            <CardFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+              <Button type="button" className="min-h-11 w-full sm:w-auto" onClick={continueFromCandidate}>
                 Continuar
               </Button>
             </CardFooter>
@@ -485,11 +485,11 @@ export function VacancyApplicationWizard({
                 </Field>
               </FieldGroup>
             </CardContent>
-            <CardFooter className="justify-between">
-              <Button type="button" variant="outline" className="min-h-11" onClick={() => goToStep(0)}>
+            <CardFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+              <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" onClick={() => goToStep(0)}>
                 Atrás
               </Button>
-              <Button type="button" className="min-h-11" onClick={continueFromApplication}>
+              <Button type="button" className="min-h-11 w-full sm:w-auto" onClick={continueFromApplication}>
                 Continuar
               </Button>
             </CardFooter>
@@ -602,19 +602,19 @@ export function VacancyApplicationWizard({
               <Separator />
               <p
                 role="note"
-                className="text-xs leading-relaxed text-muted-foreground"
+                className="max-w-prose text-xs leading-relaxed text-muted-foreground"
               >
                 Para enviar tu postulación necesitas iniciar sesión después de
                 revisar estos datos.
               </p>
             </CardContent>
-            <CardFooter className="justify-between">
-              <Button type="button" variant="outline" className="min-h-11" onClick={() => goToStep(2)}>
+            <CardFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+              <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" onClick={() => goToStep(2)}>
                 Atrás
               </Button>
               <Link
                 href="/candidato/login"
-                className={buttonVariants({ size: "lg", className: "min-h-11" })}
+                className={buttonVariants({ size: "lg", className: "min-h-11 w-full sm:w-auto" })}
               >
                 Iniciar sesión para enviar
               </Link>

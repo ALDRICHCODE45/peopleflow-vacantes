@@ -64,6 +64,18 @@ it("composes the legacy vacancy row with a contextual action and a closing salar
   expect(screen.getByRole("link", { name: "Ver vacante" }).closest('[data-slot="card-footer"]')).not.toBeNull();
 });
 
+it.each([vacancyDetail, enrichJob(job)])("separates public detail return navigation from the sole apply action", (job) => {
+  render(<JobDetailView job={job} />);
+  const back = screen.getByRole("link", { name: "Volver a vacantes" });
+  expect(back.closest('[data-slot="card"]')).toBeNull();
+  expect(back).not.toHaveClass("bg-primary");
+  expect(back).toHaveClass("hover:bg-muted");
+  expect(screen.getByRole("link", { name: "Postularme" })).toHaveClass("bg-primary");
+  expect(screen.getAllByRole("link", { name: "Postularme" })).toHaveLength(1);
+  const description = screen.getByRole("heading", { name: "Sobre la vacante" }).closest('[data-slot="card"]')!;
+  expect(description.querySelector(".max-w-prose")).not.toBeNull();
+});
+
 it("uses Card for every legacy detail surface, Item for benefit rows, and native header actions", () => {
   const { container } = render(<JobDetailView job={enrichJob(job)} />);
   for (const node of container.querySelectorAll('[data-detail-card], [data-detail-stat], [data-detail-region="header"]')) expect(node).toHaveAttribute("data-slot", "card");
@@ -88,6 +100,8 @@ it("puts the draft publication and save actions in footers while preserving the 
   render(<DraftRail values={values} prototypeValues={INITIAL_PROTOTYPE_VALUES} profileReady={false} published={false} onPublish={vi.fn()} />);
   for (const name of ["Publicar vacante", "Guardar borrador"]) expect(screen.getByRole("button", { name }).closest('[data-slot="card-footer"]')).not.toBeNull();
   expect(screen.getByRole("button", { name: "Publicar vacante" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Publicar vacante" })).not.toHaveClass("bg-primary");
+  expect(screen.getByRole("button", { name: "Guardar borrador" })).toHaveClass("bg-primary");
   expect(screen.getByRole("link", { name: "Completar perfil de empresa" })).toHaveAttribute("href", "/empresa/sitio");
 });
 

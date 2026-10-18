@@ -65,13 +65,13 @@ export function PublicJobDetailSkeleton({ job }: { job?: PublicJobDetail } = {})
         <div className="flex min-w-0 flex-col gap-6">
           <Card>
             <CardHeader className="border-b"><CardTitle><Skeleton aria-hidden="true" className="h-7 w-48" /></CardTitle></CardHeader>
-            <CardContent><div className="flex flex-col gap-4 text-sm leading-relaxed">
+            <CardContent className="max-w-prose"><div className="flex flex-col gap-4 text-sm leading-relaxed">
               {Array.from({ length: job?.description_plain.split(/\n\s*\n/u).length ?? 3 }, (_, key) => <Skeleton key={key} aria-hidden="true" className="h-5 w-full" />)}
             </div></CardContent>
           </Card>
           {requirements && <Card>
             <CardHeader className="border-b"><CardTitle><Skeleton aria-hidden="true" className="h-7 w-40" /></CardTitle></CardHeader>
-            <CardContent><dl className="flex flex-col gap-4">
+            <CardContent><dl className="flex max-w-prose flex-col gap-4">
               {(job === undefined ? [true, true] : [job.requirements.required, job.requirements.preferred]).map((present, key) => present && <div key={key} className="flex flex-col gap-1"><dt><Skeleton aria-hidden="true" className="h-4 w-28" /></dt><dd><Skeleton aria-hidden="true" className="h-5 w-full" /></dd></div>)}
             </dl></CardContent>
           </Card>}
