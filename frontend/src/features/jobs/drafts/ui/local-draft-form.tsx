@@ -8,11 +8,13 @@ import {
 import { cn } from "cn";
 
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { useDraftSave, type DraftIdentity } from "./draft-save-state";
 import { DRAFT_SAVE_NOTICE, DraftSaveFeedback } from "./draft-save-feedback";
 import { ActionBar } from "@/components/feedback/action-status";
 import { Card,
+  CardAction,
   CardContent,
   CardFooter,
   CardHeader,
@@ -207,10 +209,12 @@ function DraftStepHeading({
   index,
   title,
   headingRef,
+  published = false,
 }: {
   index: number;
   title: string;
   headingRef: React.Ref<HTMLHeadingElement>;
+  published?: boolean | null;
 }) {
   return (
     <CardHeader>
@@ -223,6 +227,7 @@ function DraftStepHeading({
         <span className="sr-only">{`Paso ${index + 1} de ${STEP_COUNT}: `}</span>
         {title}
       </h2></CardTitle>
+      <CardAction><Badge variant={published === null ? "neutral" : published ? "accent" : "info"} dot={published !== null}>{published === null ? "Estado por confirmar" : published ? "Activa" : "Borrador"}</Badge></CardAction>
     </CardHeader>
   );
 }
@@ -286,7 +291,7 @@ function DraftStepFooter({
   return (
     <CardFooter className="items-start gap-3">
       <div className="shrink-0">{back}</div>
-      <div className="min-w-0 flex-1"><ActionBar status={status}>{children}</ActionBar></div>
+      <div className="min-w-0 flex-1"><ActionBar status={status}><div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">{children}</div></ActionBar></div>
     </CardFooter>
   );
 }
@@ -393,10 +398,12 @@ function DraftQuestionnaireDialog({
   open,
   onOpenChange,
   projection,
+  onEditQuestions,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projection: CandidateScreeningProjection;
+  onEditQuestions: () => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -413,7 +420,7 @@ function DraftQuestionnaireDialog({
           className="flex min-h-0 flex-1 flex-col overflow-y-auto pe-1"
         >
           {projection.ok ? (
-            <DraftQuestionnairePreview questions={projection.questions} />
+            <DraftQuestionnairePreview questions={projection.questions} onEditQuestions={onEditQuestions} />
           ) : (
             <p
               role="status"
@@ -472,7 +479,7 @@ export function LocalDraftForm({
   );
   const draftSave = useDraftSave(initialIdentity);
   const [savedDraftId, setSavedDraftId] = React.useState(initialIdentity?.draftId);
-  const [published, setPublished] = React.useState(false);
+  const [published, setPublished] = React.useState<boolean | null>(initialIdentity ? null : false);
   const savedResultId = draftSave.result?.ok ? draftSave.result.draftId : undefined;
   React.useEffect(() => { if (savedResultId) setSavedDraftId(savedResultId); }, [savedResultId]);
   React.useEffect(() => {
@@ -591,7 +598,7 @@ export function LocalDraftForm({
         className="flex gap-2 rounded-2xl bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
       >
         <InfoIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-        <p>{isV2 ? DRAFT_SAVE_NOTICE : LOCAL_ONLY_NOTICE}</p>
+        <p className="max-w-prose">{isV2 ? DRAFT_SAVE_NOTICE : LOCAL_ONLY_NOTICE}</p>
       </div>
 
       <form noValidate onSubmit={handleValidate} className="flex flex-col gap-6">
@@ -644,6 +651,7 @@ export function LocalDraftForm({
           <Card data-pf-draft-card="1">
             <DraftStepHeading
               index={0}
+              published={published}
               title={STEP_TITLES[0]}
               headingRef={step === 0 ? stepHeadingRef : null}
             />
@@ -795,6 +803,7 @@ export function LocalDraftForm({
           <Card data-pf-draft-card="2">
             <DraftStepHeading
               index={1}
+              published={published}
               title={STEP_TITLES[1]}
               headingRef={step === 1 ? stepHeadingRef : null}
             />
@@ -890,6 +899,7 @@ export function LocalDraftForm({
           <Card data-pf-draft-card="3">
             <DraftStepHeading
               index={2}
+              published={published}
               title={STEP_TITLES[2]}
               headingRef={step === 2 ? stepHeadingRef : null}
             />
@@ -950,6 +960,7 @@ export function LocalDraftForm({
           <Card data-pf-draft-card="4">
             <DraftStepHeading
               index={3}
+              published={published}
               title={STEP_TITLES[3]}
               headingRef={step === 3 ? stepHeadingRef : null}
             />
@@ -1000,12 +1011,13 @@ export function LocalDraftForm({
           <Card data-pf-draft-card="5">
             <DraftStepHeading
               index={4}
+              published={published}
               title={STEP_TITLES[LAST_STEP]}
               headingRef={step === LAST_STEP ? stepHeadingRef : null}
             />
             <CardContent className="flex flex-col gap-6">
               <div className="flex flex-col gap-4">
-                <p className="text-sm text-muted-foreground">
+                <p className="max-w-prose text-sm text-muted-foreground">
                   {isV2
                     ? "Revisa lo que llevas capturado. Puedes guardar el borrador aunque falten campos. Solo se guarda cuando pulsas el botón."
                     : "Revisa lo que llevas capturado. Puedes validar el borrador aunque falten campos: los campos vacíos se validan como vacíos."}
@@ -1022,15 +1034,6 @@ export function LocalDraftForm({
                   }
                 />
               </div>
-            </CardContent>
-            <DraftStepFooter
-              onBack={() => goToStep(step - 1)}
-              status={
-                isV2 ? <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} /> : undefined
-              }
-            >
-              <FieldError id="draft-model-error">{errors.model}</FieldError>
-              {isV2 && savedDraftId && !published && <PublishButton draftId={savedDraftId} unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={() => setPublished(true)} />}
               {isV2 && candidateProjection !== null && !candidateProjection.ok ? (
                 <p
                   role="status"
@@ -1045,6 +1048,7 @@ export function LocalDraftForm({
                 <Button
                   type="button"
                   variant="outline"
+                  className="min-h-10 w-full self-start sm:w-auto"
                   disabled={candidateProjection !== null && !candidateProjection.ok}
                   aria-describedby={
                     candidateProjection !== null && !candidateProjection.ok
@@ -1056,6 +1060,15 @@ export function LocalDraftForm({
                   {QUESTIONNAIRE_DIALOG_OPEN}
                 </Button>
               ) : null}
+            </CardContent>
+            <DraftStepFooter
+              onBack={() => goToStep(step - 1)}
+              status={
+                isV2 ? <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} /> : undefined
+              }
+            >
+              <FieldError id="draft-model-error">{errors.model}</FieldError>
+              {isV2 && savedDraftId && !published && <PublishButton draftId={savedDraftId} variant="outline" unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={() => setPublished(true)} />}
               {validated === null ? null : (
                 <p
                   role="status"
@@ -1068,7 +1081,7 @@ export function LocalDraftForm({
               {isV2 ? (
                 <Button
                   type="submit"
-                  className="min-h-10 min-w-40"
+                  className="min-h-10 w-full min-w-40 sm:w-auto"
                   disabled={draftSave.pending}
                   aria-busy={draftSave.pending}
                   aria-describedby={draftSave.result ? "draft-save-status" : undefined}
@@ -1087,6 +1100,7 @@ export function LocalDraftForm({
           open={previewOpen}
           onOpenChange={setPreviewOpen}
           projection={candidateProjection}
+          onEditQuestions={() => { setPreviewOpen(false); goToStep(3); }}
         />
       ) : null}
     </div>

@@ -10,6 +10,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import {
   Field,
   FieldDescription,
@@ -412,12 +413,26 @@ export function DraftScreeningV2Field({
     setOpenId(neighbor === null ? null : neighbor.id);
   }
 
+  const addAction = (
+    <div className="flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row">
+      <Button type="button" variant="outline" size="sm" className="min-h-10 w-full sm:w-auto" disabled={atLimit} onClick={handleAddQuestion}>
+        <PlusIcon data-icon="inline-start" aria-hidden="true" />
+        Agregar pregunta
+      </Button>
+      <FieldDescription>{questions.length} de {SCREENING_QUESTIONS_MAX}</FieldDescription>
+    </div>
+  );
+
   return (
     <FieldGroup className="gap-5" data-pf-screening-v2="">
       {questions.length === 0 ? (
-        <FieldDescription>
-          Sin preguntas por ahora. Puedes agregar hasta {SCREENING_QUESTIONS_MAX}.
-        </FieldDescription>
+        <Empty>
+          <EmptyHeader className="max-w-md">
+            <EmptyTitle className="text-xl font-semibold">Sin preguntas por ahora.</EmptyTitle>
+            <EmptyDescription>Puedes continuar sin preguntas o agregar hasta {SCREENING_QUESTIONS_MAX} para conocer mejor a quienes se postulen.</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>{addAction}</EmptyContent>
+        </Empty>
       ) : (
         <Accordion
           data-pf-screening-v2-list=""
@@ -474,22 +489,7 @@ export function DraftScreeningV2Field({
         </Accordion>
       )}
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="min-h-10"
-          disabled={atLimit}
-          onClick={handleAddQuestion}
-        >
-          <PlusIcon data-icon="inline-start" aria-hidden="true" />
-          Agregar pregunta
-        </Button>
-        <FieldDescription>
-          {questions.length} de {SCREENING_QUESTIONS_MAX}
-        </FieldDescription>
-      </div>
+      {questions.length > 0 && addAction}
       <FieldError id="draft-screening-limit-error">{limitError}</FieldError>
     </FieldGroup>
   );

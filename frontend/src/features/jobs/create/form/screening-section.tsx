@@ -3,6 +3,7 @@ import { PlusIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyTitle,
@@ -56,22 +57,34 @@ export function ScreeningSection({ values, onChange }: ScreeningSectionProps) {
     if (next !== questions) onChange({ ...values, screeningQuestions: next });
   }
 
+  const addAction = <Button
+    type="button"
+    variant="outline"
+    className="min-h-10 w-full sm:w-auto"
+    disabled={atLimit}
+    onClick={addQuestion}
+  >
+    <PlusIcon data-icon="inline-start" />
+    Agregar pregunta
+  </Button>;
+
   return (
     <FieldGroup className="gap-4">
-        <p className="text-sm text-muted-foreground">
+        <p className="max-w-prose text-sm text-muted-foreground">
           Son opcionales: puedes publicar la vacante sin ninguna y agregar hasta{" "}
           {MAX_SCREENING_QUESTIONS}.
         </p>
 
         {questions.length === 0 ? (
           <Empty className="border border-border p-6">
-            <EmptyHeader>
-              <EmptyTitle>Sin preguntas de filtro</EmptyTitle>
+            <EmptyHeader className="max-w-md">
+              <EmptyTitle className="text-xl font-semibold">Sin preguntas de filtro</EmptyTitle>
               <EmptyDescription>
-                Agrega una pregunta para filtrar las postulaciones que recibe la
-                vacante.
+                Agrega una pregunta para conocer mejor a quienes se postulen.
+                También puedes continuar sin preguntas.
               </EmptyDescription>
             </EmptyHeader>
+            <EmptyContent>{addAction}</EmptyContent>
           </Empty>
         ) : (
           <div className="flex flex-col gap-3">
@@ -119,18 +132,7 @@ export function ScreeningSection({ values, onChange }: ScreeningSectionProps) {
           </div>
         )}
 
-        <div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={atLimit}
-            onClick={addQuestion}
-          >
-            <PlusIcon data-icon="inline-start" />
-            Agregar pregunta
-          </Button>
-        </div>
+        {questions.length > 0 && <div>{addAction}</div>}
       </FieldGroup>
   );
 }

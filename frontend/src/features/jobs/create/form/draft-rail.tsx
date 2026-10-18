@@ -112,6 +112,7 @@ export function DraftRail({
         <CardFooter>
           <Button
             type="button"
+            variant="outline"
             className="h-10 w-full"
             disabled={!profileReady}
             aria-describedby={profileReady ? undefined : PUBLICATION_GUIDANCE_ID}

@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import { LockIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyTitle,
@@ -68,8 +70,10 @@ type SimulationItemDefinition = {
 
 export function DraftQuestionnairePreview({
   questions,
+  onEditQuestions,
 }: {
   questions: CandidateScreeningQuestion[];
+  onEditQuestions?: () => void;
 }) {
   // Content fingerprint: a plain change of the candidate questions remounts the
   // simulation, so no stale answer can target a new question or a removed
@@ -88,7 +92,7 @@ export function DraftQuestionnairePreview({
         >
           Simular cuestionario
         </h3></CardTitle>
-        <CardDescription className="flex items-start gap-1.5">
+        <CardDescription className="flex max-w-prose items-start gap-1.5">
           <LockIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
           <span>{LOCAL_NOTICE}</span>
         </CardDescription>
@@ -101,10 +105,13 @@ export function DraftQuestionnairePreview({
       <CardContent>
       {questions.length === 0 ? (
         <Empty>
-          <EmptyHeader>
-            <EmptyTitle>{EMPTY_TITLE}</EmptyTitle>
+          <EmptyHeader className="max-w-md">
+            <EmptyTitle className="text-xl font-semibold">{EMPTY_TITLE}</EmptyTitle>
             <EmptyDescription>{EMPTY_DESCRIPTION}</EmptyDescription>
           </EmptyHeader>
+          {onEditQuestions && <EmptyContent>
+            <Button type="button" variant="outline" className="min-h-10 w-full sm:w-auto" onClick={onEditQuestions}>Editar preguntas</Button>
+          </EmptyContent>}
         </Empty>
       ) : (
         <QuestionnaireSimulation key={fingerprint} questions={questions} />

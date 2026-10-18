@@ -35,6 +35,7 @@ it("shows editor-shaped Skeletons with one accessible status while loading", asy
   expect(screen.getByRole("status").closest('[aria-busy="true"]')).not.toBeNull();
   const skeletons = container.querySelectorAll('[data-slot="skeleton"]');
   expect(skeletons.length).toBeGreaterThan(5);
+  expect(container.querySelector('[data-slot="skeleton"].max-w-prose')).not.toBeNull();
   skeletons.forEach(item => expect(item.closest('[aria-hidden="true"]')).not.toBeNull());
   expect(screen.queryByRole("textbox",{name:"Título"})).not.toBeInTheDocument();
   const skeletonCard = container.querySelector('[data-slot="card"]')!;

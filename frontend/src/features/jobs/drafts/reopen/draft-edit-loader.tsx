@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Progress, ProgressLabel } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LocalDraftForm } from "../ui/local-draft-form";
+import { DRAFT_SAVE_NOTICE } from "../ui/draft-save-feedback";
 import { DraftEditErrorState } from "./error-state";
 import { loadDraftForEditAction, type DraftEditResult } from "./load";
 
@@ -20,7 +21,7 @@ function DraftEditorSkeleton() {
     <section aria-busy="true" aria-label="Editor de borrador" className="flex flex-col gap-5">
       <span role="status" className="sr-only">Cargando borrador</span>
       <div aria-hidden="true" className="flex flex-col gap-5">
-        <div className="flex gap-2 rounded-2xl bg-muted/50 px-3 py-2"><Skeleton className="mt-0.5 size-4 shrink-0" /><Skeleton className="h-5 w-full" /></div>
+        <div className="flex gap-2 rounded-2xl bg-muted/50 px-3 py-2"><Skeleton className="mt-0.5 size-4 shrink-0" /><Skeleton className="w-full max-w-prose text-sm"><span className="invisible">{DRAFT_SAVE_NOTICE}</span></Skeleton></div>
         <div className="flex flex-col gap-6">
           <div className="flex flex-col gap-3">
             <ol className="grid grid-cols-2 gap-2 sm:grid-cols-5">
@@ -30,7 +31,7 @@ function DraftEditorSkeleton() {
           </div>
           <section className="min-w-0">
             <Card>
-              <CardHeader><CardTitle><Skeleton className="h-7 w-56 max-w-full" /></CardTitle></CardHeader>
+              <CardHeader><CardTitle><Skeleton className="h-7 w-56 max-w-full" /></CardTitle><CardAction><Skeleton className="h-5 w-20" /></CardAction></CardHeader>
               <CardContent className="flex flex-col gap-6">
                 <FieldGroup className="grid gap-4 sm:grid-cols-2">{fields(["h-8", "h-8", "h-10"])}</FieldGroup>
                 <Separator />

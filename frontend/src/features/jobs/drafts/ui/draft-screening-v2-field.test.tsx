@@ -335,7 +335,11 @@ describe("DraftScreeningV2Field content", () => {
     render(<Harness initial={[]} />);
 
     expect(screen.getByText(/sin preguntas por ahora/i)).toBeVisible();
-    expect(screen.getByRole("button", { name: "Agregar pregunta" })).toBeEnabled();
+    expect(screen.getByText(/sin preguntas por ahora/i)).toHaveClass("text-xl", "font-semibold");
+    const add = screen.getByRole("button", { name: "Agregar pregunta" });
+    expect(add).toBeEnabled();
+    expect(add.closest('[data-slot="empty-content"]')).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: "Agregar pregunta" })).toHaveLength(1);
     expect(screen.queryByRole("textbox", { name: "Pregunta 1" })).toBeNull();
   });
 

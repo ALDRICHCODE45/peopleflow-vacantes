@@ -1,9 +1,21 @@
 import { afterEach, expect, it } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { DraftEditErrorState } from "./error-state";
 
 afterEach(cleanup);
+it("prioritizes retry and separates the ghost return navigation", () => {
+  let attempts = 0;
+  render(<DraftEditErrorState reason="server_error" onRetry={() => { attempts++; }} />);
+  const retry = screen.getByRole("button", { name: "Reintentar" });
+  const back = screen.getByRole("link", { name: "Volver a Vacantes" });
+  expect(retry).toHaveClass("bg-primary");
+  expect(back).not.toHaveClass("bg-primary");
+  expect(back.closest('[data-slot="empty"]')).toBeNull();
+  expect(back.closest('[data-slot="card"]')).toBeNull();
+  fireEvent.click(retry);
+  expect(attempts).toBe(1);
+});
 it.each([
   ["invalid_id","No encontramos este borrador","/empresa/vacantes"],
   ["not_found","No encontramos este borrador","/empresa/vacantes"],

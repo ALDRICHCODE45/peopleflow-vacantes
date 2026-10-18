@@ -30,23 +30,29 @@ const messages = {
 /** Page-load failures are Empty states, not action toasts or raw backend errors. */
 export function DraftEditErrorState({reason,onRetry}:{reason:DraftEditFailureReason;onRetry?:()=>void}) {
   const {title,description,action} = messages[reason];
+  const isBack = action.href === back.href;
   return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyMedia variant="icon"><CircleAlert aria-hidden="true" /></EmptyMedia>
-        <EmptyTitle role="heading" aria-level={2}>{title}</EmptyTitle>
-        <EmptyDescription>{description}</EmptyDescription>
-      </EmptyHeader>
-      <EmptyContent>
-        <div className="flex flex-wrap justify-center gap-2">
-          {onRetry && <Button type="button" variant="outline" className="min-h-10" onClick={onRetry}>
-            <RefreshCw aria-hidden="true" data-icon="inline-start" />Reintentar
-          </Button>}
-          <Button nativeButton={false} role="link" render={<Link href={action.href} />} className="min-h-10">
-            <ArrowLeft aria-hidden="true" data-icon="inline-start" />{action.label}
-          </Button>
-        </div>
-      </EmptyContent>
-    </Empty>
+    <div className="flex flex-col gap-4">
+      <Empty>
+        <EmptyHeader className="max-w-md">
+          <EmptyMedia variant="icon"><CircleAlert aria-hidden="true" /></EmptyMedia>
+          <EmptyTitle role="heading" aria-level={2} className="text-xl font-semibold">{title}</EmptyTitle>
+          <EmptyDescription>{description}</EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <div className="flex w-full flex-col justify-center gap-2 sm:flex-row">
+            {onRetry && <Button type="button" className="min-h-10 w-full sm:w-auto" onClick={onRetry}>
+              <RefreshCw aria-hidden="true" data-icon="inline-start" />Reintentar
+            </Button>}
+            {!isBack && <Button nativeButton={false} role="link" variant={onRetry ? "outline" : "default"} render={<Link href={action.href} />} className="min-h-10 w-full sm:w-auto">
+              {action.label}
+            </Button>}
+          </div>
+        </EmptyContent>
+      </Empty>
+      {isBack && <Button nativeButton={false} role="link" variant="ghost" render={<Link href={action.href} />} className="min-h-10 self-start">
+        <ArrowLeft aria-hidden="true" data-icon="inline-start" />{action.label}
+      </Button>}
+    </div>
   );
 }

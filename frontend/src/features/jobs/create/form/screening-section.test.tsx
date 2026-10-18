@@ -60,11 +60,15 @@ describe("ScreeningSection empty state", () => {
     expect(screen.queryByRole("heading")).toBeNull();
     expect(screen.queryAllByRole("textbox")).toHaveLength(0);
     expect(screen.getByText("Sin preguntas de filtro")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Agregar pregunta" })).toBeEnabled();
+    const add = screen.getByRole("button", { name: "Agregar pregunta" });
+    expect(add).toBeEnabled();
+    expect(add.closest('[data-slot="empty-content"]')).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: "Agregar pregunta" })).toHaveLength(1);
+    expect(screen.getByText("Sin preguntas de filtro")).toHaveClass("text-xl", "font-semibold");
     // Neutral Mexican Spanish, never voseo, on every visible state of this section.
     expect(screen.getByText(/Son opcionales: puedes publicar la vacante/u)).toBeVisible();
     expect(
-      screen.getByText(/Agrega una pregunta para filtrar las postulaciones/u),
+      screen.getByText(/Agrega una pregunta para conocer mejor/u),
     ).toBeVisible();
   });
 
