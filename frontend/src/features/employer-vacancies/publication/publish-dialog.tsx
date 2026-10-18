@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ComponentProps } from "react";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, ClipboardList, FileText, Flag, GitBranch, Send, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -151,11 +152,11 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
   return <DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-2xl" showCloseButton={!pending}>
     <DialogHeader><DialogTitle ref={heading} tabIndex={-1} className="outline-none">{title}</DialogTitle><DialogDescription>{unsavedChanges ? "Vuelve al editor y guarda lo que cambiaste. No publicaremos una versión anterior." : "Revisa los requisitos y confirma el inicio del tiempo de entrega."}</DialogDescription></DialogHeader>
     <div className="flex min-h-0 flex-col gap-5 overflow-y-auto" aria-busy={!unsavedChanges && mode === "loading"}>
-      {!unsavedChanges && mode === "loading" ? <><span role="status" className="sr-only">Cargando publicación</span><Skeleton aria-hidden="true" className="h-6 w-2/3" />{[0, 1, 2].map(key => <Skeleton key={key} aria-hidden="true" className="h-14 w-full" />)}</> : null}
+      {!unsavedChanges && mode === "loading" ? <><span role="status" className="sr-only">Cargando publicación</span><PublicationSkeleton missing={snapshot?.publication.missing ?? []} /></> : null}
       {!unsavedChanges && mode === "load_error" && <p className="text-sm text-muted-foreground">No se modificó la vacante. Puedes volver a cargar los datos.</p>}
       {!unsavedChanges && snapshot && mode !== "loading" && mode !== "load_error" && (missing.length ? groupMissing(missing).map(group => {
         const Icon = GROUP_ICONS[group.group];
-        return <section key={group.group} aria-labelledby={`publication-${group.group}`} className="flex flex-col gap-3"><h3 id={`publication-${group.group}`} className="font-heading text-sm font-semibold">{MISSING_GROUP_LABELS[group.group]}</h3><ItemGroup>{group.items.map((item, index) => <Item key={`${item.code}-${index}`} variant="outline" size="sm" role="listitem"><ItemMedia variant="icon"><Icon aria-hidden="true" /></ItemMedia><ItemContent><ItemTitle>{item.label}</ItemTitle></ItemContent><ItemActions><Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link href={item.href(draftId)} />}>Completar<span className="sr-only"> {item.label}</span><ArrowRight aria-hidden="true" data-icon="inline-end" /></Button></ItemActions></Item>)}</ItemGroup></section>;
+        return <Card key={group.group} size="sm" role="region" aria-labelledby={`publication-${group.group}`}><CardHeader><CardTitle><h3 id={`publication-${group.group}`}>{MISSING_GROUP_LABELS[group.group]}</h3></CardTitle></CardHeader><CardContent><ItemGroup>{group.items.map((item, index) => <Item key={`${item.code}-${index}`} variant="outline" size="sm" role="listitem"><ItemMedia variant="icon"><Icon aria-hidden="true" /></ItemMedia><ItemContent><ItemTitle>{item.label}</ItemTitle></ItemContent><ItemActions><Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link href={item.href(draftId)} />}>Completar<span className="sr-only"> {item.label}</span><ArrowRight aria-hidden="true" data-icon="inline-end" /></Button></ItemActions></Item>)}</ItemGroup></CardContent></Card>;
       }) : already ? <p className="text-sm text-muted-foreground">{snapshot.publication.publishedAt ? `Publicada el ${formatPublicationDate(snapshot.publication.publishedAt)}` : "El tiempo de entrega ya está en marcha."}</p> : <>
         <ItemGroup>{[
           { icon: FileText, label: "Vacante", value: snapshot.title },
@@ -168,10 +169,17 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
     </div>
     <DialogFooter className="flex-row"><ActionBar status={notice ? <ActionStatus id="publication-status" tone={notice.tone} text={notice.text} /> : null}>
       <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={() => onOpenChange(false)}>Cancelar</Button>
+      {!unsavedChanges && mode === "loading" && <Skeleton aria-hidden="true" className="h-10 w-40" />}
       {!unsavedChanges && mode === "load_error" && <Button type="button" className="min-h-10" onClick={() => reload()}>Reintentar</Button>}
       {!unsavedChanges && (mode === "conflict" || mode === "rejected") && <Button type="button" className="min-h-10" onClick={() => reload(mode === "conflict")}>Revisar de nuevo</Button>}
       {!unsavedChanges && mode === "uncertain" && <Button type="button" className="min-h-10" disabled={pending} onClick={() => void reconcile()} aria-describedby="publication-status">{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}Comprobar</Button>}
       {!unsavedChanges && mode === "loaded" && snapshot && !already && missing.length === 0 && <Button type="button" className="min-h-10" disabled={pending} aria-busy={pending} aria-describedby={notice ? "publication-status" : undefined} onClick={() => void publish()}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending ? "Publicando…" : "Publicar vacante"}</Button>}
     </ActionBar></DialogFooter>
   </DialogContent>;
+}
+
+// Skeleton exception: use known checklist groups on reload; otherwise mirror the four summary Items.
+function PublicationSkeleton({ missing }: { missing: readonly string[] }) {
+  if (missing.length) return <div aria-hidden="true" className="flex flex-col gap-5">{groupMissing([...missing]).map(group => <Card key={group.group} size="sm"><CardHeader><CardTitle><Skeleton className="h-6 w-40" /></CardTitle></CardHeader><CardContent><ItemGroup>{group.items.map((item, index) => <Item key={`${item.code}-${index}`} variant="outline" size="sm"><ItemMedia variant="icon"><Skeleton className="size-4" /></ItemMedia><ItemContent><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent><ItemActions><Skeleton className="h-10 w-28" /></ItemActions></Item>)}</ItemGroup></CardContent></Card>)}</div>;
+  return <div aria-hidden="true" className="flex flex-col gap-5"><ItemGroup>{[0, 1, 2, 3].map(index => <Item key={index} variant="outline" size="sm"><ItemMedia variant="icon"><Skeleton className="size-4" /></ItemMedia><ItemContent><span><Skeleton className="h-4 w-28" /></span><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent></Item>)}</ItemGroup><Skeleton className="h-10 w-full" /></div>;
 }

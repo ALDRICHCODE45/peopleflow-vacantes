@@ -4,6 +4,7 @@ import * as React from "react";
 import { LayoutDashboardIcon, MailIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogClose,
@@ -222,13 +223,9 @@ export function PipelineMoveDialog({
               </FieldError>
             </Field>
 
-            <div
-              data-pf-pipeline-preview=""
-              className="flex flex-col gap-3 rounded-xl bg-muted p-3"
-            >
-              <p className="text-sm font-semibold text-foreground">
-                Vista previa de la notificación
-              </p>
+            <Card data-pf-pipeline-preview="" size="sm">
+              <CardHeader><CardTitle><h3>Vista previa de la notificación</h3></CardTitle></CardHeader>
+              <CardContent className="flex flex-col gap-3">
               <div data-pf-pipeline-preview-email="" className="flex flex-col gap-1">
                 <p className={`flex items-center gap-1.5 ${QA}`}>
                   <MailIcon aria-hidden="true" className="size-3.5" />
@@ -250,7 +247,8 @@ export function PipelineMoveDialog({
                 <p className="text-sm text-foreground">{preview.processEntry}</p>
                 <p className="text-sm whitespace-pre-wrap break-words text-foreground">{preview.processMessage || "Sin mensaje"}</p>
               </div>
-            </div>
+              </CardContent>
+            </Card>
           </FieldGroup>
         ) : null}
 

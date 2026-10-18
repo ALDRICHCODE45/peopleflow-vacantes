@@ -26,6 +26,7 @@ type Props = {
   onMove: (id: string, target: string) => void; onDetail: (id: string) => void;
   onDisposition: (id: string, kind: "discard" | "recover") => void;
 };
+// Draggable board-card exception (§14.3): compact handle/menu anatomy owns its spacing.
 function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDetail, onDisposition, suppressClick }: {
   item: Participation; targets: Board["stages"]; disabled: boolean; pending: boolean; notice?: Notice;
   onMove: Props["onMove"]; onDetail: Props["onDetail"]; onDisposition: Props["onDisposition"]; suppressClick: RefObject<boolean>;
@@ -124,6 +125,7 @@ export function BoardColumns({ board, pending, locked, notices, onMove, onDetail
         })}
       </div><ScrollBar orientation="horizontal" />
     </ScrollArea>
+    {/* Draggable board-card exception: the non-interactive overlay carries only the lifted identity. */}
     <DragOverlay dropAnimation={null} aria-hidden="true">{activeColumn && <div className={cn("stage-column flex min-h-[420px] w-[284px] flex-col rounded-xl p-2 opacity-95 shadow-xl", stageClass(activeColumn.kind))}><div className="stage-heading flex h-10 items-center gap-2 rounded-lg px-3"><GripVertical aria-hidden="true" className="size-4" /><span className="truncate text-[13px] font-semibold">{activeColumn.name}</span></div></div>}{active && <Card size="sm" className="rounded-xl"><CardHeader><CardTitle>{active.candidate.full_name}</CardTitle></CardHeader></Card>}</DragOverlay>
   </DndContext>;
 }

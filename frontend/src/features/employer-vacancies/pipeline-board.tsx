@@ -24,6 +24,7 @@ import {
   Card,
   CardAction,
   CardContent,
+  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
@@ -212,6 +213,7 @@ export function PipelineCandidateActions({
  * pointer. No control nests another: the card is not a button, and the drag
  * handle and the menu are siblings of the detail control.
  */
+// Draggable board-card exception: identity, handle and menu remain independent controls.
 function CandidateCard({
   candidate,
   onOpenDetail,
@@ -266,9 +268,9 @@ function CandidateCard({
                 </Button>
               </h3>
             </CardTitle>
-            <p className={`mt-0.5 text-pretty leading-snug ${META}`}>
+            <CardDescription className="text-pretty leading-snug">
               {candidate.professionalTitle}
-            </p>
+            </CardDescription>
           </div>
         </div>
         <CardAction className="flex items-center gap-1">
@@ -321,6 +323,7 @@ function CandidateCard({
 /** The dragged card's ghost: identity and stage only, so the pointer carries no
     extra interactive surface. */
 function DragPreview({ candidate }: { candidate: PipelineCandidate }) {
+  // Draggable board-card exception: the ghost repeats the dragged identity and stage.
   return (
     <Card size="sm" data-pf-pipeline-drag-preview={candidate.id} className="shadow-lg">
       <CardHeader className="flex flex-row items-center gap-2.5">
@@ -330,14 +333,12 @@ function DragPreview({ candidate }: { candidate: PipelineCandidate }) {
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0 flex-1">
-          <p className="text-[14px] leading-snug font-semibold text-foreground">
-            {candidate.fullName}
-          </p>
-          <p className={`mt-0.5 ${META}`}>{candidate.professionalTitle}</p>
+          <CardTitle>{candidate.fullName}</CardTitle>
+          <CardDescription>{candidate.professionalTitle}</CardDescription>
         </div>
-        <Badge variant={STAGE_VARIANT[candidate.status]} dot className="text-[11px] font-semibold">
+        <CardAction><Badge variant={STAGE_VARIANT[candidate.status]} dot className="text-[11px] font-semibold">
           {CANDIDATE_STATUS_LABELS[candidate.status]}
-        </Badge>
+        </Badge></CardAction>
       </CardHeader>
     </Card>
   );
@@ -362,27 +363,30 @@ function BoardColumn({
   const label = CANDIDATE_STATUS_LABELS[stage];
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   return (
-    <section
+    <Card
       ref={setNodeRef}
+      role="region"
+      size="sm"
       data-pf-pipeline-column={stage}
       data-pf-pipeline-column-over={isOver ? "" : undefined}
       aria-label={`${label}: ${plural(count, "candidato", "candidatos")}`}
       tabIndex={-1}
-      className={cn("flex min-w-0 flex-col rounded-2xl border border-border bg-card/40 p-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/30", isOver && "ring-2 ring-ring/40")}
+      className={cn("min-w-0 outline-none focus-visible:ring-3 focus-visible:ring-ring/30", isOver && "ring-2 ring-ring/40")}
     >
-      <header className="flex items-center justify-between gap-2 px-1 pb-3">
-        <div className="flex items-center gap-2">
+      <CardHeader>
+        <CardTitle><h3 className="flex items-center gap-2 text-[13.5px] font-semibold">
           <span aria-hidden="true" className={`size-2.5 rounded-full ${STAGE_DOT[stage]}`} />
-          <h3 className="text-[13.5px] font-semibold text-foreground">{label}</h3>
-        </div>
-        <Badge
+          {label}
+        </h3></CardTitle>
+        <CardAction><Badge
           variant={STAGE_VARIANT[stage]}
           data-pf-pipeline-column-count={stage}
           className="text-[11px] font-semibold tabular-nums"
         >
           {count}
-        </Badge>
-      </header>
+        </Badge></CardAction>
+      </CardHeader>
+      <CardContent>
       {candidates.length === 0 ? (
         <Empty
           data-pf-pipeline-column-empty={stage}
@@ -406,7 +410,8 @@ function BoardColumn({
           ))}
         </ul>
       )}
-    </section>
+      </CardContent>
+    </Card>
   );
 }
 

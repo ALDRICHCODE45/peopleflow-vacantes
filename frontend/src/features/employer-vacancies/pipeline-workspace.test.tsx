@@ -399,7 +399,7 @@ describe("PipelineWorkspace candidate cards", () => {
   it("keeps the column-heading stage marker as a non-Badge dot outside the migrated labels", () => {
     const { container } = renderWorkspace();
     for (const stage of VACANCY_PIPELINE_STAGES) {
-      const marker = column(container, stage).querySelector("header [aria-hidden='true']") as HTMLElement;
+      const marker = column(container, stage).querySelector("[data-slot='card-header'] [aria-hidden='true']") as HTMLElement;
       expect(marker, stage).not.toBeNull();
       expect(marker.getAttribute("data-slot")).toBeNull();
       expect(marker.className).toContain(STATUS_TONES[stage]);
@@ -792,8 +792,8 @@ describe("PipelineWorkspace surface contract", () => {
     expect(modules).toEqual([
       "./model", "./pipeline-model", "./pipeline-filter-model", "./pipeline-filters",
       "./pipeline-board", "./pipeline-move-dialog", "./pipeline-move-model",
-      "@/components/ui/badge", "@/components/ui/button", "@/components/ui/empty",
-      "@/components/ui/input-group", "@/components/ui/table", "@/components/ui/toggle-group",
+      "@/components/ui/badge", "@/components/ui/button", "@/components/ui/card", "@/components/ui/empty",
+      "@/components/ui/input-group", "@/components/ui/item", "@/components/ui/table", "@/components/ui/toggle-group",
       "@/features/employer-talent/talent-detail-sheet",
       "lucide-react", "react",
     ].sort());
@@ -814,14 +814,14 @@ describe("PipelineWorkspace EPR-05 visual correction", () => {
     const { container } = renderWorkspace();
     await user.click(screen.getByRole("button", { name: "Lista" }));
     const region = list(container);
-    expect.soft(region.querySelector(":scope > [data-slot='table-container']"), "list owns the shadcn table-container box").not.toBeNull();
+    expect.soft(region.querySelector(":scope > [data-slot='card-content'] > [data-slot='table-container']"), "list owns the shadcn table-container box").not.toBeNull();
     expect.soft(region.className, "list owns the wide scroll").toContain("overflow-x-auto");
-    expect.soft(region.className, "table-container neutralized so the outer focusable region scrolls").toMatch(/\[&[^:]*data-slot=table-container[^:]*\]?:contents/u);
+    expect.soft(region.querySelector('[data-slot="card-content"]')?.className, "table-container neutralized so the outer focusable region scrolls").toMatch(/\[&[^:]*data-slot=table-container[^:]*\]?:contents/u);
     await user.click(screen.getByRole("button", { name: "Tablero" }));
     const clipped = backendCandidates.flatMap((candidate) => {
       const card = container.querySelector(`[data-pf-pipeline-card="${candidate.id}"]`) as HTMLElement;
       const name = card.querySelector("[data-slot='card-title'] h3") as HTMLElement;
-      const title = Array.from(card.querySelectorAll("p")).find((node) => node.textContent === candidate.professionalTitle) as HTMLElement;
+      const title = card.querySelector('[data-slot="card-description"]') as HTMLElement;
       expect.soft(name.textContent, `${candidate.id} keeps the full name`).toBe(candidate.fullName);
       expect.soft(title.textContent, `${candidate.id} keeps the full title`).toBe(candidate.professionalTitle);
       return [name, title].filter((node) => /(?:^|\s)(?:truncate|line-clamp-|h-(?:\[[^\]]+\]|\d)|max-h-)/u.test(node.className)).map((node) => node.textContent);

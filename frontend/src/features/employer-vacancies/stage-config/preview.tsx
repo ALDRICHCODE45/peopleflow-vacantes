@@ -1,5 +1,5 @@
 import { Columns3 } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardAction, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { normalizeStageName, type PipelineEditorState } from "@/features/jobs/drafts/pipeline/editor-model";
 import { StageKindBadge } from "./stage-row";
@@ -9,7 +9,7 @@ export function PipelinePreview({ state }: { state: PipelineEditorState }) {
     <Card key={stage.key} size="sm" className="w-52 shrink-0">
       <CardHeader>
         <CardTitle><h4 className="break-words">{normalizeStageName(stage.name) || "Sin nombre"}</h4></CardTitle>
-        <CardDescription><StageKindBadge kind={stage.kind} /></CardDescription>
+        <CardAction><StageKindBadge kind={stage.kind} /></CardAction>
       </CardHeader>
       <CardContent><p className="text-xs text-muted-foreground">Sin candidatos todavía</p></CardContent>
     </Card>

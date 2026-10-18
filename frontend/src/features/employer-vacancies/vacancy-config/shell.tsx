@@ -12,6 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DraftEditErrorState } from "@/features/jobs/drafts/reopen/error-state";
 import { loadDraftForEditAction, type DraftEditResult } from "@/features/jobs/drafts/reopen/load";
 import { PipelineEditorSkeleton } from "../stage-config/loading";
+import { DeliverySkeleton } from "../delivery-config/loading";
+import { ManagementSkeleton } from "../management-config/loading";
 
 export const VACANCY_CONFIG_MODULES = [
   { slug: "columnas", title: "Columnas del pipeline", description: "Nombres, orden y columnas propias.", icon: Columns3 },
@@ -36,7 +38,7 @@ export function VacancyConfigShell({ draftId, children }: { draftId: string; chi
   const title = result?.ok ? result.seed.model.fields.title || "Sin título" : "Configuración";
   return (
     <div className="flex flex-1 flex-col" aria-busy={result === null}>
-      <SiteHeader title={title} parent={{ label: "Pipeline", href: `/empresa/vacantes/${draftId}/pipeline` }} status={result?.ok ? <Badge variant="info" dot>Borrador</Badge> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-24" /> : undefined} />
+      <SiteHeader title={title} parent={{ label: "Pipeline", href: `/empresa/vacantes/${draftId}/pipeline` }} status={result?.ok ? <Badge variant="info" dot>Borrador</Badge> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
       <div className="@container/main flex flex-1 flex-col">
         <DashboardPageContent width="screen-2xl" className="gap-5 md:gap-6">
           {result && !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : (
@@ -48,8 +50,8 @@ export function VacancyConfigShell({ draftId, children }: { draftId: string; chi
               {result === null ? (
                 <section aria-label="Configuración de la vacante" className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
                   <span role="status" className="sr-only">Cargando configuración</span>
-                  <Skeleton aria-hidden="true" className="h-16 w-full" />
-                  <div aria-hidden="true"><PipelineEditorSkeleton /></div>
+                  <div aria-hidden="true" className="min-w-0 lg:self-start"><ul className="grid grid-cols-1 gap-1 sm:grid-cols-2 lg:grid-cols-1">{VACANCY_CONFIG_MODULES.map(module => <li key={module.slug} className="flex min-h-10 min-w-0 items-start gap-2 rounded-2xl px-3 py-3"><Skeleton className="mt-0.5 size-4 shrink-0" /><span className="flex min-w-0 flex-1 flex-col gap-1"><Skeleton className="h-5 w-32 max-w-full" /><Skeleton className="h-8 w-full" /></span></li>)}</ul></div>
+                  <div aria-hidden="true" className="flex min-w-0 flex-col gap-5">{pathname?.endsWith("/entrega") ? <DeliverySkeleton /> : pathname?.endsWith("/solicitud") ? <ManagementSkeleton /> : <PipelineEditorSkeleton />}</div>
                 </section>
               ) : (
                 <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">

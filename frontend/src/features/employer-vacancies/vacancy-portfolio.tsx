@@ -5,7 +5,7 @@ import Link from "next/link";
 import { BriefcaseBusiness, ChevronDown, CirclePause, FilePenLine, SearchIcon, SquareKanban, Users, CircleCheck, ArrowRight, Send } from "lucide-react";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardHeader, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
@@ -93,10 +93,10 @@ function VacancyRow({ vacancy, onPublished }: { vacancy: PortfolioVacancy; onPub
 }
 
 function DraftSkeletonRows() {
-  return <div aria-hidden="true">{[0, 1].map(key => <div key={key} data-pf-draft-skeleton="" className={GRID}>
+  return <ul aria-hidden="true" className="divide-y divide-border">{[0, 1].map(key => <li key={key} data-pf-draft-skeleton="" className={GRID}>
     <div className="flex items-start gap-3"><Skeleton className="size-10 shrink-0" /><div className="flex flex-1 flex-col gap-2"><Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-1/3" /></div></div>
-    <Skeleton className="h-5 w-20" /><div className="flex flex-col gap-2"><Skeleton className="h-2 w-28" /><Skeleton className="h-4 w-36" /></div><Skeleton className="h-5 w-24" /><Skeleton className="h-10 w-28" />
-  </div>)}</div>;
+    <div><Badge variant="info" dot><Skeleton className="h-3 w-12" /></Badge></div><div className="flex flex-col gap-1"><Skeleton className="h-1.5 w-28" /><Skeleton className="h-4 w-36" /></div><div className="flex flex-col gap-1"><Skeleton className="h-4 w-20" /><Skeleton className="h-4 w-36" /></div><div className="flex items-center gap-1"><Skeleton className="h-10 w-28" /></div>
+  </li>)}</ul>;
 }
 
 /** Local prototype rows remain usable while the authenticated draft read loads. */
@@ -127,7 +127,7 @@ export function VacancyPortfolio({ vacancies }: { vacancies: readonly EmployerVa
     <div data-pf-vacancy-portfolio className="flex flex-col gap-5">
       <section data-pf-vacancy-summary aria-label="Resumen de vacantes" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {cards.map(card => <Card key={card.key} size="sm" data-pf-vacancy-metric={card.key} className="last:sm:col-span-2 last:xl:col-span-1">
-          <CardContent><div className="font-heading text-[26px] font-bold text-foreground tabular-nums">{card.key === "draft" && drafts.pending && drafts.items.length === 0 ? <Skeleton aria-hidden="true" className="h-8 w-10" /> : card.value}</div><p className={cn(META, "mt-1 flex items-center gap-1.5")}><card.icon aria-hidden="true" className="size-3.5" />{card.label}</p></CardContent>
+          <CardHeader><CardTitle><h3 className="text-[26px] font-bold tabular-nums">{card.key === "draft" && drafts.pending && drafts.items.length === 0 ? <Skeleton aria-hidden="true" className="h-8 w-10" /> : card.value}</h3></CardTitle><CardDescription className="flex items-center gap-1.5"><card.icon aria-hidden="true" className="size-3.5" />{card.label}</CardDescription></CardHeader>
         </Card>)}
       </section>
       <Tabs value={status} onValueChange={value => setStatus(value as StatusFilter)} className="gap-4">
@@ -143,9 +143,9 @@ export function VacancyPortfolio({ vacancies }: { vacancies: readonly EmployerVa
           </div>
         </div>
         <TabsContent value={status}>
-          <Card data-pf-vacancy-results aria-busy={drafts.pending} className="gap-0 overflow-hidden py-0">
-            <CardHeader className="p-0"><div aria-hidden="true" className={HEADER}><span>Vacante</span><span>Estado</span><span>Pipeline</span><span>Publicada</span><span /></div></CardHeader>
-            <CardContent className="px-0">
+          <Card data-pf-vacancy-results aria-busy={drafts.pending}>
+            <CardContent className="-mx-(--card-spacing)">
+              <div aria-hidden="true" className={HEADER}><span>Vacante</span><span>Estado</span><span>Pipeline</span><span>Publicada</span><span /></div>
               {drafts.pending && <span role="status" className="sr-only">Cargando borradores</span>}
               {failure && <div className="border-b border-border bg-muted p-4 sm:px-5">
                 <p className="text-sm font-semibold">No pudimos cargar tus borradores</p><p className={cn(META, "mt-1")}>{DRAFT_LIST_MESSAGES[failure.reason]} Las demás vacantes siguen disponibles.</p>

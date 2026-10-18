@@ -5,6 +5,8 @@ import { Columns3Icon, ListIcon, SearchIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Item, ItemContent, ItemDescription, ItemTitle } from "@/components/ui/item";
 import {
   Empty,
   EmptyContent,
@@ -229,7 +231,8 @@ function CandidateList({
   onRequestMove: (candidateId: string, to: CandidateStatus) => void;
 }) {
   return (
-    <div data-pf-pipeline-list role="region" aria-label={label} tabIndex={0} className="overflow-x-auto rounded-2xl border border-border bg-card/40 p-1 focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none [&>[data-slot=table-container]]:contents">
+    <Card data-pf-pipeline-list role="region" aria-label={label} tabIndex={0} className="overflow-x-auto focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none">
+      <CardContent className="-mx-(--card-spacing) [&>[data-slot=table-container]]:contents">
       {candidates.length === 0 ? (
         <Empty data-pf-pipeline-list-empty className="border border-dashed border-border p-6">
           <EmptyDescription className="text-[12.5px]">{emptyCopy}</EmptyDescription>
@@ -254,7 +257,8 @@ function CandidateList({
           </TableBody>
         </Table>
       )}
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -268,7 +272,7 @@ function PipelineActivity({ records }: { records: readonly PipelineMoveRecord[] 
   const items = pipelineActivityItems(records);
   if (items.length === 0) {
     return (
-      <p data-pf-pipeline-activity-empty="" className="rounded-xl bg-muted p-3 text-[12.5px] text-muted-foreground">
+      <p data-pf-pipeline-activity-empty="" className="text-[12.5px] text-muted-foreground">
         Aún no hay movimientos registrados.
       </p>
     );
@@ -276,16 +280,16 @@ function PipelineActivity({ records }: { records: readonly PipelineMoveRecord[] 
   return (
     <ul data-pf-pipeline-activity="" className="flex flex-col gap-3">
       {items.map((item) => (
-        <li key={item.key} data-pf-pipeline-activity-item={item.key} className="flex flex-col gap-1 rounded-xl bg-muted p-3">
-          <p className="text-sm font-semibold text-foreground">{item.title}</p>
-          <p className="text-[12.5px] text-muted-foreground">{item.detail}</p>
+        <Item render={<li />} key={item.key} data-pf-pipeline-activity-item={item.key} variant="muted" size="sm">
+          <ItemContent><ItemTitle>{item.title}</ItemTitle>
+          <ItemDescription>{item.detail}</ItemDescription>
           {item.message === null ? null : (
-            <p data-pf-pipeline-activity-message="" className="mt-1 rounded-lg bg-card px-2.5 py-2 text-sm text-foreground">
+            <p data-pf-pipeline-activity-message="" className="mt-1 text-sm text-foreground">
               <span className="font-semibold">Mensaje: </span>
               {item.message}
             </p>
-          )}
-        </li>
+          )}</ItemContent>
+        </Item>
       ))}
     </ul>
   );

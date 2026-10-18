@@ -7,6 +7,8 @@ import { notifyActionResult } from "@/components/feedback/notify";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -92,7 +94,7 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       </TabsList></div><Separator />
       <ScrollArea className="pf-sheet-scroll min-h-0 flex-1" key={tab}>
         <TabsContent value={tab} className="p-6" aria-busy={reading}>
-          {reading ? <div className="flex flex-col gap-4"><span role="status" className="sr-only">Cargando detalle e historial</span><Skeleton aria-hidden="true" className="h-5 w-48" /><Skeleton aria-hidden="true" className={tab === "history" ? "h-48 w-full" : "h-24 w-full"} /><Skeleton aria-hidden="true" className="h-20 w-full" /></div> : failure ? <div className="flex flex-col items-center gap-3"><Empty><EmptyHeader><EmptyTitle role="heading" aria-level={3}>No pudimos cargar el detalle</EmptyTitle><EmptyDescription>{failure.reason === "unauthenticated" ? "Tu sesión expiró. Inicia sesión de nuevo." : "No se modificó la postulación. Puedes volver a cargar las respuestas y el historial."}</EmptyDescription></EmptyHeader></Empty>
+          {reading ? <><span role="status" className="sr-only">Cargando detalle e historial</span><CandidateDetailSkeleton tab={tab} discarded={!!item.discard} answerCount={loaded?.detail.screening.length} historyCount={loaded?.history.items.length} /></> : failure ? <div className="flex flex-col items-center gap-3"><Empty><EmptyHeader><EmptyTitle role="heading" aria-level={3}>No pudimos cargar el detalle</EmptyTitle><EmptyDescription>{failure.reason === "unauthenticated" ? "Tu sesión expiró. Inicia sesión de nuevo." : "No se modificó la postulación. Puedes volver a cargar las respuestas y el historial."}</EmptyDescription></EmptyHeader></Empty>
             <Button type="button" variant="outline" className="min-h-10" disabled={reading} aria-describedby={notice ? "detail-read-status" : undefined} onClick={() => { setReading(true); setNotice(null); setAttempt(value => value + 1); }}>Reintentar</Button>
             {notice && <ActionStatus id="detail-read-status" tone={notice.tone} text={notice.text} />}
           </div> : loaded && <>
@@ -105,16 +107,16 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
                   <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Globe2 aria-hidden="true" className="size-4 shrink-0" />Fuente</dt><dd className="text-sm font-medium">Orgánica</dd>
                 </dl>
               </section><Separator />
-              <section className="flex flex-col gap-3"><SectionTitle>CV</SectionTitle><div className="flex items-center gap-3 rounded-xl border p-4">
-                <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground"><FileIcon aria-hidden="true" className="size-5" /></div>
-                <div className="flex min-w-0 flex-1 flex-col gap-1"><Hint text={detail.cv.name}><span className="truncate text-sm font-medium">{detail.cv.name}</span></Hint><span className="text-xs text-muted-foreground">{filePresentation(detail.cv.name) === "pdf" ? "Documento PDF" : "Documento Word"}</span></div>
-                <Hint text="Descargar CV"><Button nativeButton={false} role="link" render={<a href={`/api/company/vacancies/${encodeURIComponent(vacancyId)}/participations/${encodeURIComponent(item.id)}/cv`} download />} variant="ghost" size="icon" className="size-10" aria-label="Descargar CV"><ArrowDownToLine aria-hidden="true" /></Button></Hint>
-              </div></section>
-              {loaded.detail.discard && <section className="flex flex-col gap-4 rounded-xl bg-status-danger/10 p-4"><SectionTitle>Descarte</SectionTitle><div><p className="text-sm font-medium text-status-danger">{discardReasonLabel(loaded.detail.discard.reason)}</p><p className="text-xs text-muted-foreground">{discardGroupLabel(loaded.detail.discard.reason)}</p></div>
-                <p className="text-xs text-muted-foreground">Etapa anterior: <strong className="text-foreground">{stageName(loaded.detail.discard.previous_stage_id)}</strong></p>
-                <DiscardNotes comment={loaded.detail.comment} message={loaded.detail.candidate_message} showEmpty />
-                <p className="text-xs text-muted-foreground">El candidato ve este mensaje con el estado Finalizada.</p>
-              </section>}
+              <section className="flex flex-col gap-3"><SectionTitle>CV</SectionTitle><Item variant="outline">
+                <ItemMedia><div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground"><FileIcon aria-hidden="true" className="size-5" /></div></ItemMedia>
+                <ItemContent className="min-w-0"><ItemTitle className="max-w-full"><Hint text={detail.cv.name}><span className="truncate">{detail.cv.name}</span></Hint></ItemTitle><ItemDescription>{filePresentation(detail.cv.name) === "pdf" ? "Documento PDF" : "Documento Word"}</ItemDescription></ItemContent>
+                <ItemActions><Hint text="Descargar CV"><Button nativeButton={false} role="link" render={<a href={`/api/company/vacancies/${encodeURIComponent(vacancyId)}/participations/${encodeURIComponent(item.id)}/cv`} download />} variant="ghost" size="icon" className="size-10" aria-label="Descargar CV"><ArrowDownToLine aria-hidden="true" /></Button></Hint></ItemActions>
+              </Item></section>
+              {loaded.detail.discard && <Card size="sm" className="bg-status-danger/10"><CardHeader><CardTitle><SectionTitle>Descarte</SectionTitle></CardTitle><CardDescription><p className="text-sm font-medium text-status-danger">{discardReasonLabel(loaded.detail.discard.reason)}</p><p className="text-xs">{discardGroupLabel(loaded.detail.discard.reason)}</p></CardDescription></CardHeader>
+                <CardContent className="flex flex-col gap-4"><p className="text-xs text-muted-foreground">Etapa anterior: <strong className="text-foreground">{stageName(loaded.detail.discard.previous_stage_id)}</strong></p>
+                <DiscardNotes comment={loaded.detail.comment} message={loaded.detail.candidate_message} showEmpty /></CardContent>
+                <CardFooter><p className="text-xs text-muted-foreground">El candidato ve este mensaje con el estado Finalizada.</p></CardFooter>
+              </Card>}
               <p className="flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-xs leading-5 text-muted-foreground"><Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />Esta información es visible únicamente para tu equipo de reclutamiento.</p>
             </div>}
             {tab === "answers" && <section className="flex flex-col gap-6"><SectionTitle>Preguntas de filtro</SectionTitle>
@@ -141,6 +143,18 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
     <SheetFooter className="border-t py-4 text-xs text-muted-foreground"><span className="truncate">{vacancyTitle}</span></SheetFooter>
     {children}
   </SheetContent>;
+}
+// Skeleton exception: each tab mirrors its real section/list anatomy instead of generic blocks.
+export function CandidateDetailSkeleton({ tab, discarded, answerCount = 2, historyCount = 1 }: { tab: string; discarded: boolean; answerCount?: number; historyCount?: number }) {
+  if (tab === "answers") return <section aria-hidden="true" data-pf-detail-skeleton="answers" className="flex flex-col gap-6"><Skeleton className="h-4 w-36" />{answerCount ? <dl className="flex flex-col gap-6">{Array.from({ length: answerCount }, (_, index) => <div key={index} className="flex flex-col gap-2 border-b pb-5"><dt><Skeleton className="h-5 w-48 max-w-full" /></dt><dd><Skeleton className="h-6 w-full" /></dd></div>)}</dl> : <Skeleton className="h-5 w-64 max-w-full" />}</section>;
+  if (tab === "history") return <section aria-hidden="true" data-pf-detail-skeleton="history" className="flex flex-col gap-6"><Skeleton className="h-4 w-44" />{historyCount ? <ol>{Array.from({ length: historyCount }, (_, index) => <li key={index} className="relative flex gap-4 pb-7 last:pb-0"><div className="flex flex-col items-center"><Skeleton className="size-6 rounded-full" />{index < historyCount - 1 && <span className="w-px flex-1 bg-border" />}</div><div className="flex min-w-0 flex-1 flex-col gap-2"><Skeleton className="h-5 w-40" /><Skeleton className="h-4 w-32" /><div className="flex items-center gap-2"><Avatar className="size-5 shrink-0"><AvatarFallback><Skeleton className="size-5 rounded-full" /></AvatarFallback></Avatar><Skeleton className="h-4 w-44 max-w-full" /></div><Skeleton className="h-4 w-32" /></div></li>)}</ol> : <Skeleton className="h-5 w-64 max-w-full" />}</section>;
+  return <div aria-hidden="true" data-pf-detail-skeleton="summary" className="flex flex-col gap-7">
+    <section className="flex flex-col gap-5"><Skeleton className="h-4 w-56 max-w-full" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1, 2, 3].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl></section>
+    <Separator />
+    <section className="flex flex-col gap-3"><Skeleton className="h-4 w-6" /><Item variant="outline"><ItemMedia><Skeleton className="size-11 rounded-lg" /></ItemMedia><ItemContent className="min-w-0"><ItemTitle><Skeleton className="h-5 w-32" /></ItemTitle><Skeleton className="h-5 w-28"><ItemDescription className="invisible">&nbsp;</ItemDescription></Skeleton></ItemContent><ItemActions><Skeleton className="size-10" /></ItemActions></Item></section>
+    {discarded && <Card size="sm" className="bg-status-danger/10"><CardHeader><CardTitle><Skeleton className="h-4 w-20" /></CardTitle><CardDescription><Skeleton className="h-5 w-44" /><Skeleton className="h-4 w-32" /></CardDescription></CardHeader><CardContent className="flex flex-col gap-4"><Skeleton className="h-4 w-40" /><dl className="flex flex-col gap-4">{[0, 1].map(index => <div key={index} className="flex flex-col gap-1"><dt><Skeleton className="h-4 w-32" /></dt><dd><Skeleton className="h-5 w-full" /></dd></div>)}</dl></CardContent><CardFooter><Skeleton className="h-8 w-full" /></CardFooter></Card>}
+    <Skeleton className="h-16 w-full rounded-lg" />
+  </div>;
 }
 function SectionTitle({ children }: { children: ReactNode }) {
   return <h3 className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">{children}</h3>;

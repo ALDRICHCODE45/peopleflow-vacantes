@@ -25,7 +25,8 @@ it("sheet loading is independent, closes with a Spanish button, and ignores the 
   render(<SheetHarness />);
   const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
   expect(within(sheet).getByRole("status")).toHaveTextContent("Cargando detalle e historial");
-  expect(sheet.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(3);
+  expect(sheet.querySelector('[data-pf-detail-skeleton="summary"] dl')?.querySelectorAll('dt')).toHaveLength(4);
+  expect(sheet.querySelector('[data-pf-detail-skeleton="summary"] [data-slot="item"] [data-slot="item-actions"] [data-slot="skeleton"]')).not.toBeNull();
   fireEvent.click(within(sheet).getByRole("button", { name: "Cerrar ficha" }));
   await act(async () => resolve({ ok: true, data: historyFixture() }));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

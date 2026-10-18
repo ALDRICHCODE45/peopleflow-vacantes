@@ -34,7 +34,12 @@ it("loads draft and readiness and reserves the empty-state composition", async (
   expect(screen.getByRole("status")).toHaveTextContent("Cargando borrador");
   expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
   expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(4);
+  const slots = () => [...container.querySelectorAll('[data-slot^="empty"]')].map(node => node.getAttribute("data-slot"));
+  const loadingSlots = slots();
+  expect(container.querySelectorAll('[data-slot="empty-content"] [data-slot="skeleton"]')).toHaveLength(4);
   await act(async () => resolve(success));
+  expect(slots()).toEqual(loadingSlots);
+  expect(container.querySelectorAll('[data-slot="empty-content"] button, [data-slot="empty-content"] a')).toHaveLength(4);
 });
 it.each([read.fields.title, null])("renders title %s, badge, empty state and configuration entry points", async title => {
   const seed = { ...success.seed, model: { ...success.seed.model, fields: { ...success.seed.model.fields, title } } };

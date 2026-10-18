@@ -7,7 +7,6 @@ import { SiteHeader } from "@/components/company-dashboard/site-header";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -48,7 +47,7 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
     // The inset shell has 8px above and below it on desktop. Only the live
     // board owns a viewport frame; drafts and mobile retain page scrolling.
     <div className={cn("flex min-h-0 flex-1 flex-col", published && "md:h-[calc(100dvh-1rem)] md:flex-none md:overflow-hidden")} aria-busy={result === null}>
-      <SiteHeader title={title} parent={{ label: "Vacantes", href: "/empresa/vacantes" }} status={result?.ok ? <Badge variant={published ? "accent" : "info"} dot>{published ? "Activa" : "Borrador"}</Badge> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-24" /> : undefined} />
+      <SiteHeader title={title} parent={{ label: "Vacantes", href: "/empresa/vacantes" }} status={result?.ok ? <Badge variant={published ? "accent" : "info"} dot>{published ? "Activa" : "Borrador"}</Badge> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
       <div className="@container/main flex min-h-0 flex-1 flex-col">
         <DashboardPageContent width="screen-2xl" className="min-h-0 flex-1 gap-5 md:gap-6">
           {!published && <section aria-labelledby="draft-pipeline-heading" className="flex items-start justify-between gap-4">
@@ -68,15 +67,22 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
           {result === null ? (
             <>
               <span role="status" className="sr-only">Cargando borrador</span>
-              <Card aria-hidden="true"><CardContent className="flex min-h-80 flex-col items-center justify-center gap-4">
-                <Skeleton className="size-10" /><Skeleton className="h-6 w-64 max-w-full" /><Skeleton className="h-5 w-80 max-w-full" /><Skeleton className="h-5 w-72 max-w-full" /><Skeleton className="h-10 w-48" />
-              </CardContent></Card>
+              <Empty aria-hidden="true" className="min-h-80 bg-card shadow-sm ring-1 ring-foreground/5">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon"><Skeleton className="size-10" /></EmptyMedia>
+                  <EmptyTitle><Skeleton className="h-6 w-80 max-w-full" /></EmptyTitle>
+                  <Skeleton className="h-20 w-80 max-w-full"><EmptyDescription className="invisible">&nbsp;</EmptyDescription></Skeleton>
+                </EmptyHeader>
+                <EmptyContent>
+                  <div className="flex flex-wrap justify-center gap-2"><Skeleton className="h-10 w-24" /><Skeleton className="h-10 w-44" /></div>
+                  <Skeleton className="h-10 w-48" /><Skeleton className="h-10 w-40" />
+                </EmptyContent>
+              </Empty>
             </>
           ) : !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : published ? (
             <MovementBoard vacancyId={draftId} vacancyTitle={title} publishedAt={publishedAt} />
           ) : (
-            <Card><CardContent>
-              <Empty className="min-h-80">
+              <Empty className="min-h-80 bg-card shadow-sm ring-1 ring-foreground/5">
                 <EmptyHeader>
                   <EmptyMedia variant="icon"><GitBranch aria-hidden="true" /></EmptyMedia>
                   <EmptyTitle role="heading" aria-level={3}>Esta vacante todavía no tiene pipeline</EmptyTitle>
@@ -89,7 +95,6 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
                   <Button nativeButton={false} role="link" variant="ghost" render={<Link href="/empresa/vacantes" />} className="min-h-10"><ArrowLeft aria-hidden="true" data-icon="inline-start" />Volver a Vacantes</Button>
                 </EmptyContent>
               </Empty>
-            </CardContent></Card>
           )}
         </DashboardPageContent>
       </div>

@@ -36,13 +36,22 @@ it("loads all four reads in parallel with structure skeleton and pre-result Acti
  expect(loadDraftForEditAction).toHaveBeenCalledTimes(1); expect(loadDraftDeliveryAction).toHaveBeenCalledTimes(1); expect(loadDraftPipelineAction).toHaveBeenCalledTimes(1);
  expect(document.querySelector('[aria-busy="true"] [data-slot="skeleton"]')).not.toBeNull();
  expect(document.querySelector('[data-slot="dialog-footer"] [data-pf-action-bar] [data-pf-action-status-slot]')).not.toBeNull();
+ const slots = () => [...document.querySelectorAll('[data-slot^="item"]')].map(node => node.getAttribute("data-slot"));
+ const loadingSlots = slots();
+ expect(document.querySelectorAll('[data-slot="item"]')).toHaveLength(4);
  await act(async () => resolve({ ...ready, publication: { ...ready.publication, missing: [] } }));
+ expect(slots()).toEqual(loadingSlots);
 });
 it("blocks unsaved changes before reads or publish", async () => { mount(true); expect(await screen.findByText("Guarda los cambios antes de publicar")).toBeVisible(); expect(screen.queryByRole("button", { name: "Publicar vacante" })).not.toBeInTheDocument(); expect(loadDraftForEditAction).not.toHaveBeenCalled(); });
 it("groups checklist links by owner with unknown-code fallback and no publish", async () => {
  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: ["title_missing", "request_date_missing", "commitment_date_past", "future"] } }); mount();
  await screen.findByRole("heading", { name: "Te falta para publicar" });
- for (const name of ["Editor de la vacante", "Solicitud", "Entrega"]) expect(screen.getByRole("heading", { name })).toBeVisible();
+ for (const name of ["Editor de la vacante", "Solicitud", "Entrega"]) {
+  const heading = screen.getByRole("heading", { name });
+  expect(heading).toBeVisible();
+  expect(heading.closest('[data-slot="card-title"]')?.parentElement).toHaveAttribute("data-slot", "card-header");
+  expect(heading.closest('[data-slot="card"]')?.querySelector('[data-slot="card-content"] [data-slot="item-group"]')).not.toBeNull();
+ }
  expect(screen.getByText("Otro requisito pendiente", { selector: '[data-slot="item-title"]' })).toBeVisible(); expect(screen.getByText("La fecha compromiso ya pasó", { selector: '[data-slot="item-title"]' })).toBeVisible();
  expect(screen.getAllByRole("link", { name: /Completar/ }).map(link => link.getAttribute("href"))).toEqual([`/empresa/vacantes/borradores/${draft.id}`, `/empresa/vacantes/borradores/${draft.id}`, `/empresa/vacantes/${draft.id}/configuracion/solicitud`, `/empresa/vacantes/${draft.id}/configuracion/entrega`]);
  expect(screen.queryByRole("button", { name: "Publicar vacante" })).not.toBeInTheDocument();

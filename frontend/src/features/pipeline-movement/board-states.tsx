@@ -1,7 +1,10 @@
 import { CheckCheck, CircleAlert } from "lucide-react";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,11 +20,29 @@ export function formatMovementDate(value: string, compact = false, withTime = fa
 export function MovementDate({ value, compact, withTime }: { value: string; compact?: boolean; withTime?: boolean }) {
   return <time dateTime={value}>{formatMovementDate(value, compact, withTime)}</time>;
 }
-export function BoardSkeleton() {
-  return <section aria-busy="true" aria-label="Tablero de candidatos" className="flex flex-col gap-4">
+// Skeleton exception: repeat the draggable card's compact anatomy, including its independent handles.
+export function BoardSkeleton({ columnCount = 6 }: { columnCount?: number }) {
+  return <section aria-busy="true" aria-label="Tablero de candidatos" className="flex min-h-0 flex-1 flex-col gap-4">
     <span role="status" className="sr-only">Cargando tablero</span>
-    <Skeleton aria-hidden="true" className="h-8 w-64 max-w-full" />
-    <div className="flex gap-3 overflow-hidden">{[0, 1, 2, 3].map(key => <div key={key} aria-hidden="true" className="stage-neutral stage-column flex w-[284px] shrink-0 flex-col gap-3 rounded-xl p-2"><Skeleton className="h-10 w-full rounded-lg" /><Card className="gap-3 rounded-xl p-3"><CardHeader className="flex flex-row items-center gap-2 px-0"><Skeleton className="size-8 rounded-full" /><Skeleton className="h-5 w-36" /></CardHeader><CardContent className="flex flex-col gap-2 px-0"><Skeleton className="h-3 w-32" /><Skeleton className="h-3 w-44" /><Skeleton className="mt-2 h-6 w-40" /></CardContent></Card></div>)}</div>
+    <div aria-hidden="true" className="flex shrink-0 flex-wrap items-center justify-between gap-4"><Skeleton className="h-4 w-44" /><Skeleton className="h-4 w-56" /></div>
+    <ScrollArea aria-hidden="true" className="pf-board-scroll h-[min(70dvh,640px)] min-h-[448px] min-w-0 md:h-auto md:min-h-0 md:flex-1">
+      <div className="flex h-full min-h-[448px] w-max items-stretch gap-3 px-0.5 pt-0.5 pb-6">
+        {Array.from({ length: columnCount }, (_, key) => <div key={key} className="stage-neutral stage-column flex min-h-[420px] w-[284px] shrink-0 flex-col rounded-xl p-2">
+          <div className="stage-heading mb-3 flex h-10 shrink-0 items-center gap-2 rounded-lg px-2"><Skeleton className="size-2 rounded-full" /><Skeleton className="h-4 w-24" /><Skeleton className="h-5 w-6" /><Skeleton className="ml-auto size-10" /></div>
+          <ScrollArea className="pf-column-scroll min-h-0 flex-1"><div className="p-0.5 pr-3"><ul className="flex flex-col gap-3"><li>
+            <Card size="sm" className="pf-candidate-card rounded-xl gap-3 p-3">
+              <CardHeader className="items-center gap-2 px-0">
+                <div className="flex min-w-0 items-center gap-2"><Avatar className="size-8 shrink-0"><AvatarFallback><Skeleton className="size-8 rounded-full" /></AvatarFallback></Avatar><CardTitle className="min-w-0"><Skeleton className="h-10 w-32" /></CardTitle></div>
+                <CardAction className="row-span-1 self-center"><Skeleton className="size-10" /></CardAction>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-1.5 px-0"><Skeleton className="h-4 w-40" /><Skeleton className="h-4 w-44" /></CardContent>
+              <Separator />
+              <CardFooter className="min-h-6 gap-2 px-0"><Skeleton className="h-6 w-36" /><Skeleton className="-my-2 ml-auto size-10" /></CardFooter>
+            </Card>
+          </li></ul></div></ScrollArea>
+        </div>)}
+      </div><ScrollBar orientation="horizontal" />
+    </ScrollArea>
   </section>;
 }
 export function BoardError({ failure, reading, notice, retry }: { failure: Failure; reading: boolean; notice: Notice | null; retry: () => void }) {

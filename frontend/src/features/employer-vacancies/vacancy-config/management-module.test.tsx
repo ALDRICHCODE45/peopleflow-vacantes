@@ -12,7 +12,7 @@ afterEach(cleanup);
 it("withholds the editor behind the two-field skeleton until the authorized read finishes", async () => {
   let resolve!: (result: DraftManagementActionResult) => void; vi.mocked(loadDraftManagementAction).mockReturnValue(new Promise(yes => { resolve = yes; }));
   const { container } = render(<VacancyManagementModule draftId={id} />); expect(loadDraftManagementAction).toHaveBeenCalledExactlyOnceWith(id);
-  expect(screen.getByRole("status")).toHaveTextContent("Cargando solicitud"); expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(9); expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent("Cargando solicitud"); expect(container.querySelectorAll('[data-slot="field"]')).toHaveLength(2); expect(container.querySelectorAll('[data-slot="card-footer"] [data-slot="skeleton"]')).toHaveLength(2); expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   expect(screen.getByLabelText("Solicitud")).toHaveAttribute("aria-busy", "true");
   await act(async () => resolve(success())); expect(screen.getByRole("heading", { level: 3, name: "Solicitud" })).toBeVisible(); expect(container.querySelector("header")).toBeNull();
 });
