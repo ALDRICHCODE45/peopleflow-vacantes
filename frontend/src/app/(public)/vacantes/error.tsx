@@ -9,7 +9,7 @@ export default function VacantesError({ reset }: { error: Error & { digest?: str
     <EmptyHeader>
       <EmptyMedia variant="icon"><CircleAlertIcon aria-hidden="true" /></EmptyMedia>
       <EmptyTitle><h1>No se pudieron cargar las vacantes</h1></EmptyTitle>
-      <EmptyDescription>Ocurrió un error inesperado. Puedes reintentar la carga.</EmptyDescription>
+      <EmptyDescription>No se mostró ninguna vacante. Vuelve a intentarlo; si el problema sigue, prueba de nuevo en unos minutos.</EmptyDescription>
     </EmptyHeader>
     <EmptyContent><Button type="button" onClick={reset} className="min-h-10">Intentar de nuevo</Button></EmptyContent>
   </Empty>;

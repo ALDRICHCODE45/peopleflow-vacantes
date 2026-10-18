@@ -53,10 +53,12 @@ describe("public detail route", () => {
   it("keeps one branded not-found H1 and a path back", () => {
     const { container } = render(<NotFound />);
     expect(container.querySelector('[data-slot="empty"]')).not.toBeNull();
-    expect(screen.getByRole("link", { name: /volver a vacantes/i })).toHaveClass("min-h-10");
+    // The only way out is the main action: explore other vacancies (primary).
+    const explore = screen.getByRole("link", { name: "Explorar vacantes" });
+    expect(explore).toHaveClass("min-h-10", "bg-primary");
+    expect(explore).toHaveAttribute("href", "/vacantes");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Esta vacante no está disponible");
-    expect(screen.getByRole("link", { name: /volver a vacantes/i })).toHaveAttribute("href", "/vacantes");
   });
   it("keeps the error boundary distinct with one H1 and a retry", () => {
     const reset = vi.fn();
@@ -66,6 +68,12 @@ describe("public detail route", () => {
     expect(screen.getByRole("alert")).toBeVisible();
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("No se pudo cargar la vacante");
+    // Retry is the action; going back is navigation, apart from it and lighter.
+    const retry = screen.getByRole("button", { name: /intentar de nuevo/i });
+    expect(retry).toHaveClass("bg-primary");
+    const back = screen.getByRole("link", { name: "Volver a vacantes" });
+    expect(back).not.toHaveClass("bg-primary");
+    expect(back.closest('[data-slot="empty-content"]')).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /intentar de nuevo/i }));
     expect(reset).toHaveBeenCalledOnce();
     expect(screen.queryByText("Esta vacante no está disponible")).toBeNull();

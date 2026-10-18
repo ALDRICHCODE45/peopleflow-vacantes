@@ -13,9 +13,8 @@ export default function VacanteDetailError({ reset }: { error: Error & { digest?
       <EmptyTitle><h1>No se pudo cargar la vacante</h1></EmptyTitle>
       <EmptyDescription>El servicio de vacantes no respondió correctamente. Puedes reintentar la carga.</EmptyDescription>
     </EmptyHeader>
-    <EmptyContent>
-      <Button type="button" onClick={reset} className="min-h-10">Intentar de nuevo</Button>
-      <Link href="/vacantes" className={cn(buttonVariants({ variant: "ghost" }), "min-h-10")}>Volver a vacantes</Link>
-    </EmptyContent>
+    <EmptyContent><Button type="button" onClick={reset} className="min-h-10">Intentar de nuevo</Button></EmptyContent>
+    {/* Navigation, kept apart from the action so leaving never competes with retrying. */}
+    <Link href="/vacantes" className={cn(buttonVariants({ variant: "ghost" }), "min-h-10 text-muted-foreground")}>Volver a vacantes</Link>
   </Empty>;
 }

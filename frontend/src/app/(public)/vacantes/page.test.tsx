@@ -57,6 +57,8 @@ describe("/vacantes synchronous boundaries", () => {
     expect(screen.getByRole("button", { name: /intentar de nuevo/i })).toHaveClass("min-h-10");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("alert")).toHaveTextContent("No se pudieron cargar las vacantes");
+    expect(screen.getByText("No se mostró ninguna vacante. Vuelve a intentarlo; si el problema sigue, prueba de nuevo en unos minutos.")).toBeVisible();
+    expect(screen.getByRole("button", { name: /intentar de nuevo/i })).toHaveClass("bg-primary");
     fireEvent.click(screen.getByRole("button", { name: /intentar de nuevo/i }));
     expect(reset).toHaveBeenCalledOnce();
   });

@@ -11,6 +11,6 @@ export default function VacanteDetailNotFound() {
       <EmptyTitle><h1>Esta vacante no está disponible</h1></EmptyTitle>
       <EmptyDescription>La vacante que buscas no existe o ya no está publicada. Explora otras vacantes disponibles.</EmptyDescription>
     </EmptyHeader>
-    <EmptyContent><Link href="/vacantes" className={cn(buttonVariants(), "min-h-10")}>Volver a vacantes</Link></EmptyContent>
+    <EmptyContent><Link href="/vacantes" className={cn(buttonVariants(), "min-h-10")}>Explorar vacantes</Link></EmptyContent>
   </Empty>;
 }
