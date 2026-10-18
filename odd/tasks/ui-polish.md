@@ -35,7 +35,7 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - T10 [done] S9 | writer | Single create entry point to the draft editor; /nueva redirects. | commit: -
 - T11 [done] S10 | writer | Phase 1: two-zone public vacancy card + applications card on current data, slots ready for phase-2 fields. | commit: -
 - T12 [done] S10 | parent + backend | Phase 2 contract: enrich GET /v2/jobs items. | commit: -
-- T13 [pending] S11 | writer | Port the v0 public vacancy card and detail redesign. | commit: -
+- T13 [done] S11 | writer | Port the v0 public vacancy card and detail redesign. | commit: -
 - T5 [pending] S1 | parent | Pass over the remaining screens, one reviewable delivery each. | commit: -
 
 ## Log
@@ -84,3 +84,4 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - L33. Phase 1 committed: two-zone public vacancy card (colored initials, title + «Nueva» < 48 h, company, location · relative time with exact-date tooltip, contract chips, salary rail + primary «Ver vacante»; optional excerpt/benefits/skills/quickApply props for phase 2) and richer application card; skeletons mirror them. Writer: 464 tests in jobs/components, (public), candidate; tsc 0. Not browser-verified.
 - L34. Phase 2 committed: 6fcfd48 strict decoders + fixtures + sample adapter for the enriched listing; dc41337 logo/initials avatar, excerpt, skills/benefits previews with +N, applicant ranges, «Postulación rápida» / N preguntas de filtro, detail «Habilidades» card, mirrored skeletons. Full suite 5,428 passed (only the known local-draft-form timeout), tsc 0. Paired with backend feat/public-listing-enrichment (00025). Guide 62, queue 54-62. Not browser-verified.
 - L35. User rejected the phase-2 card look and provided a v0 redesign for the card and the detail; parent fetched the chat files into docs/design/v0/reference-c6eMqlbQQtD/.
+- L36. v0 public redesign committed (b8fcae4 salary parts + styles, 71bbd90 card/detail/skeletons). Deviations: «Habilidades» label, «y N beneficios más» links to #beneficios (list has only 3), applicant range in the conditions row, our shell/breadcrumb, real apply flow, no preview dialog, existing salary labels. Full suite 5,441 passed (only the known local-draft-form timeout), tsc 0. Guide 62 rewritten. Not browser-verified.

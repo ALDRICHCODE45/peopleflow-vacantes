@@ -401,14 +401,15 @@ corepack pnpm dev
     botón para crear («Nueva vacante» / «Publicar vacante») y abre el editor de
     borradores. Entrar a `/empresa/vacantes/nueva` también lleva ahí. Con la lista vacía no
     aparece otro botón de crear: la descripción remite a «Nueva vacante».
-62. **Cards ricas** (backend `feat/public-listing-enrichment`, `make db-migrate` aplica la
-    00025). En `/vacantes`: card de dos zonas con logo o iniciales en color, «Nueva» si
-    se publicó hace menos de 48 h, ubicación y «Hace …» (fecha exacta al pasar el mouse),
-    rango de postulantes, chips, extracto de dos líneas, «HABILIDADES» y «BENEFICIOS» con
-    «+N», y en el riel la compensación, «Ver vacante» y «Postulación rápida» o «N
-    preguntas de filtro». En el detalle, la card «Habilidades» completa. En
-    `/candidato/postulaciones`: card con estado arriba a la derecha, fecha y «Ver vacante»
-    al pie (y el mensaje de la empresa si está «Finalizada»).
+62. **Cards y detalle públicos** (backend `feat/public-listing-enrichment`, `make db-migrate`
+    aplica la 00025). En `/vacantes`, card como el diseño de v0: logo o iniciales,
+    título, empresa y «Nueva» arriba a la derecha; condiciones con íconos (incluye el rango
+    de postulantes); extracto; «Contrato · Nivel · Área»; «Habilidades» con «+N»;
+    beneficios con «y N beneficios más» (lleva al detalle); pie con la compensación, «Ver
+    vacante» y «Postulación rápida» o «N preguntas de filtro». En el detalle: encabezado,
+    «La vacante de un vistazo», navegación por secciones, beneficios con íconos y la
+    columna fija con «Postularme» y «Compartir vacante» («Enlace copiado»). En
+    `/candidato/postulaciones`: card con estado arriba a la derecha y «Ver vacante».
 
 ## 5. Verificación en la base (solo lectura)
 
