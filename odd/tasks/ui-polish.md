@@ -16,6 +16,8 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 
 - S7. User request (L18): «los skeletons son otro tema, asegurate de que cada skeleton realmente duplique la estructura de lo que se esta cargando, me explico?». Rule: §11 «Skeletons por contexto» (same primitives/slots, sections, grid and sizes as the loaded UI; data-slot comparison test when observable).
 
+- S8. User request (L24): apply the §15 principles across the current screens («si por favor hermano»). Decision: «lo principal seria Guardar hermano» — in the draft editor's last step «Guardar» is the primary action and «Publicar» secondary.
+
 ## Tasks
 - T1 [done] S1,S2 | parent | Typography: Inter for app headings; Clash Display landing-only; rules §14. | commit: ceed4b6
 - T2 [done] S2 | parent | v0 prompt for board + candidate sheet. | commit: (this doc commit)
@@ -23,6 +25,7 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - T6 [done] S4 | writer | Board column drag-reorder while the structure is unlocked, saved through the existing pipeline PUT (If-Match), with keyboard alternative and locked state. | commit: -
 - T7 [done] S5 | writer | Detailed, non-repetitive toast copy for move/Placement/discard/recover/column reorder and their errors; rule in §12. | commit: -
 - T8 [done] S6 | 3 writers (employer / jobs+public / candidate) | Card structure audit and fixes app-wide. | commit: -
+- T9 [pending] S8 | 3 writers (employer / jobs / candidate) + parent (app/(public) error/not-found) | §15 audit: action-oriented empty states, one primary action, action vs navigation, visible state, single entry point, legibility. | commit: -
 - T5 [pending] S1 | parent | Pass over the remaining screens, one reviewable delivery each. | commit: -
 
 ## Log
@@ -60,3 +63,4 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - L22. User screenshot after 5ba736c: content spilled out of the dialog and rows were ~100px. Causes: base-ui ScrollArea needs a definite height (its viewport grew with the content inside a max-h flex dialog, unseen by jsdom); ItemGroup gap + ItemSeparator margin doubled the row spacing. Fix: native min-h-0 flex-1 overflow-y-auto container with shrink-0 cards, ItemGroup gap-0, separator my-0, rows py-1.5. RED 1 → GREEN; 397 tests, tsc 0. §13.8 rules updated (ScrollArea only with a definite height).
 
 - L23. User shared a better proposal for the unpublished pipeline and its principles (jerarquía visual, proximidad, acción vs navegación, visibilidad del estado, espacio en blanco intencional, estado vacío orientado a la acción, legibilidad y adaptación). Implemented test-first (RED 3 → GREEN): DraftPipelineCard with «Vacante en borrador» badge + «Configurar columnas» in the header (page gear removed: one entry point), action-oriented Empty with «Publicar vacante» primary + «Continuar editando» outline (stacked on mobile), footer hint, «Volver a Vacantes» outside the card; skeleton reuses the same component. PublishButton gained an optional label. Principles recorded as rules §15 + §9 checklist (with the caveat that they are principles, not user-tested results, and the primary action follows the screen's main goal).
+- L24. Parent listed candidate spots (21 Empty states, candidate sheet primary, draft editor Guardar/Publicar, row menus, application result, public detail/error back links, config state badge, wide helper text); user approved and chose «Guardar» as the editor's primary action.
