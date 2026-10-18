@@ -4,12 +4,12 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { ApplicationSalary } from "./application-salary";
 
 import { companyInitials } from "../components/prototype-ui";
 import type { PrototypeJobView } from "../enrich";
 import {
   employmentTypeLabel,
-  formatSalary,
   seniorityLabel,
   workModeLabel,
 } from "../formatters";
@@ -30,17 +30,6 @@ const metaTerm = "flex items-center gap-2 text-xs text-muted-foreground";
 const metaValue = "text-right font-medium break-words text-foreground";
 
 export function VacancyApplicationSummary({ job }: VacancyApplicationSummaryProps) {
-  // The salary line exists only when the wire vacancy carries an amount; the
-  // shared formatter stays the single source for its presentation.
-  const salary =
-    job.salary_min !== undefined || job.salary_max !== undefined
-      ? formatSalary({
-          min: job.salary_min,
-          max: job.salary_max,
-          currency: job.salary_currency,
-        })
-      : null;
-
   return (
     <Card>
       <CardHeader>
@@ -53,7 +42,7 @@ export function VacancyApplicationSummary({ job }: VacancyApplicationSummaryProp
             <AvatarFallback>{companyInitials(job.company.name)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
-            <p className="truncate font-heading text-sm font-semibold text-foreground">
+            <p className="font-heading text-sm font-semibold break-words text-foreground">
               {job.title}
             </p>
 
@@ -62,22 +51,16 @@ export function VacancyApplicationSummary({ job }: VacancyApplicationSummaryProp
 
         <ul className="flex flex-wrap gap-2">
           <li><Badge variant="secondary">{workModeLabel(job.work_mode)}</Badge></li>
-          <li><Badge variant="secondary">{employmentTypeLabel(job.employment_type)}</Badge></li>
-          <li><Badge variant="secondary">{seniorityLabel(job.seniority)}</Badge></li>
+          <li className="text-sm text-muted-foreground">{employmentTypeLabel(job.employment_type)} · {seniorityLabel(job.seniority)}</li>
         </ul>
 
         <Separator />
 
         <dl className="flex flex-col gap-3 text-sm">
-          {salary !== null && (
-            <div className={metaRow}>
-              <dt className={metaTerm}>
-                <BanknoteIcon aria-hidden="true" className="size-4 shrink-0" />
-                Salario
-              </dt>
-              <dd className={metaValue}>{salary}</dd>
-            </div>
-          )}
+          <div className="flex flex-col gap-2">
+            <dt className={metaTerm}><BanknoteIcon aria-hidden="true" className="size-4 shrink-0" />Salario</dt>
+            <dd><ApplicationSalary job={job} /></dd>
+          </div>
           {job.location !== undefined && (
             <div className={metaRow}>
               <dt className={metaTerm}>

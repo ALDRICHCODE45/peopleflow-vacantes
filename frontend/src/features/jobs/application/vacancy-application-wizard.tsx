@@ -45,6 +45,7 @@ import {
   type ApplicationCandidateDraftIssue,
   type ApplicationCandidateField,
 } from "./application-candidate-draft";
+import { ApplicationSalary } from "./application-salary";
 import { ApplicationCandidateCard } from "./application-candidate-card";
 import {
   applicationCvFormatLabel,
@@ -346,7 +347,7 @@ export function VacancyApplicationWizard({
                 >
                   {index + 1}
                 </span>
-                <span className="min-w-0 text-[11px] font-medium leading-tight text-foreground sm:text-xs">
+                <span className="min-w-0 text-sm font-medium leading-tight text-foreground">
                   {label}
                 </span>
               </li>
@@ -608,7 +609,12 @@ export function VacancyApplicationWizard({
                 revisar estos datos.
               </p>
             </CardContent>
-            <CardFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+            <CardFooter className="flex-col gap-4 border-t sm:flex-row sm:flex-wrap sm:justify-between">
+              <div className="flex w-full min-w-0 flex-col gap-2" aria-label="Vacante a la que te postulas">
+                <p className="font-semibold break-words">{job.title}</p>
+                <p className="text-sm text-muted-foreground">{job.company.name}</p>
+                <ApplicationSalary job={job} />
+              </div>
               <Button type="button" variant="outline" className="min-h-11 w-full sm:w-auto" onClick={() => goToStep(2)}>
                 Atrás
               </Button>

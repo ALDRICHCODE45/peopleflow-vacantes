@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { CANDIDATE_IDENTITY, CANDIDATE_PROFILE } from "@/features/candidate/prototype-candidate";
 import { enrichJob } from "../enrich";
@@ -8,6 +8,15 @@ import { VacancyApplicationWizard } from "./vacancy-application-wizard";
 
 const job = enrichJob({ id: "job-id", title: "Frontend", description: "Interfaces", work_mode: "remote", employment_type: "full_time", seniority: "senior", salary_currency: "MXN", company: { id: "company-id", name: "Acme" } });
 afterEach(cleanup);
+
+it("keeps vacancy, company and honest salary information beside the final action", () => {
+  render(<VacancyApplicationWizard job={job} identity={CANDIDATE_IDENTITY} profile={CANDIDATE_PROFILE} avatarSrc="" vacancySummary={null} />);
+  for (let step = 0; step < 3; step++) fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+  const footer = screen.getByRole("link", { name: "Iniciar sesión para enviar" }).closest('[data-slot="card-footer"]')! as HTMLElement;
+  expect(within(footer).getByText("Frontend")).toBeVisible();
+  expect(within(footer).getByText("Acme")).toBeVisible();
+  expect(within(footer).getByText("Salario no publicado")).toBeVisible();
+});
 
 it("keeps leaving the application outside the task cards as ghost navigation", () => {
   render(<VacancyApplicationShell job={job}><p>Formulario</p></VacancyApplicationShell>);

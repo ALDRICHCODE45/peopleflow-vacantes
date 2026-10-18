@@ -50,7 +50,7 @@ export function ApplicationCandidateCard({
   skills,
   avatarSrc,
 }: ApplicationCandidateCardProps) {
-  const visibleSkills = skills.slice(0, 6);
+  const visibleSkills = skills;
 
   return (
     <Card data-pf-application-candidate>
@@ -74,7 +74,7 @@ export function ApplicationCandidateCard({
           <div className="min-w-0">
             <p
               data-pf-application-candidate-name
-              className="truncate font-heading text-sm font-semibold text-foreground"
+              className="font-heading text-sm font-semibold break-words text-foreground"
             >
               {declared(draft.fullName)}
             </p>
@@ -118,7 +118,7 @@ export function ApplicationCandidateCard({
             <ul data-pf-application-candidate-skills className="flex flex-wrap gap-1.5">
               {visibleSkills.map((skill) => (
                 <li key={skill}>
-                  <Badge variant="outline" className="text-[11px] font-normal capitalize text-muted-foreground">
+                  <Badge variant="secondary" className="h-auto max-w-full whitespace-normal break-words">
                     {skill}
                   </Badge>
                 </li>
