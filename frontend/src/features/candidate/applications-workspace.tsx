@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Briefcase, Building2, CalendarDays, Search } from "lucide-react";
+import { ArrowUpRight, Briefcase, Building2, CalendarDays, CircleDot, MessageSquare, Search } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +18,43 @@ import type { ApplicationsPage, Failure } from "@/features/candidate-application
 const date = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "UTC" });
 /** Case- and accent-insensitive comparison key (same rule as the former prototype search). */
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLowerCase().trim();
+const APPLICATION_GRID = "grid gap-4 lg:grid-cols-2";
+const APPLICATION_FACTS = "grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2";
+const APPLICATION_FOOTER = "mt-auto flex-col items-start gap-3 border-t sm:flex-row sm:items-center sm:justify-between";
+const STATUS_EXPLANATION = {
+  submitted: "Tu postulación fue enviada.",
+  in_process: "Tu postulación avanzó en el proceso.",
+  closed: "El proceso de tu postulación finalizó.",
+} satisfies Record<ApplicationsPage["items"][number]["status"], string>;
+
+function ApplicationCard({ item }: { item: ApplicationsPage["items"][number] }) {
+  return <Card className="h-full min-w-0">
+    <CardHeader className="border-b">
+      <CardTitle className="flex min-w-0 items-start gap-3">
+        <Avatar className="size-11" aria-hidden="true"><AvatarFallback className="bg-primary/12 text-foreground ring-1 ring-primary/40"><Briefcase className="size-5" /></AvatarFallback></Avatar>
+        <h3 className="min-w-0 font-heading text-base font-semibold"><Link href={`/vacantes/${item.vacancy.id}`} className="inline-flex min-h-10 items-center rounded-md break-words underline-offset-4 hover:underline focus-visible:outline-ring focus-visible:outline-2">{item.vacancy.title}</Link></h3>
+      </CardTitle>
+      <CardDescription className="flex min-w-0 items-center gap-1.5 pl-14"><Building2 aria-hidden="true" className="size-3.5 shrink-0" /><span className="min-w-0 break-words">{item.company.name}</span></CardDescription>
+      <CardAction><Badge variant={item.status === "submitted" ? "info" : item.status === "closed" ? "neutral" : "review"} dot>{item.status === "submitted" ? "Enviada" : item.status === "closed" ? "Finalizada" : "En proceso"}</Badge></CardAction>
+    </CardHeader>
+    <CardContent className="flex flex-col gap-5">
+      <dl className={APPLICATION_FACTS}>
+        <div className="flex min-w-0 flex-col gap-1.5"><dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays aria-hidden="true" className="size-3.5" />Postulada</dt><dd><time dateTime={item.applied_at}>{date.format(new Date(item.applied_at))}</time></dd></div>
+        <div className="flex min-w-0 flex-col gap-1.5"><dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><CircleDot aria-hidden="true" className="size-3.5" />Estado</dt><dd>{STATUS_EXPLANATION[item.status]}</dd></div>
+      </dl>
+      {item.status === "closed" && item.message !== null && <div data-pf-application-message className="flex min-w-0 flex-col gap-2 border-l-2 border-border pl-4">
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><MessageSquare aria-hidden="true" className="size-3.5" />Mensaje de la empresa</p>
+        <p className="max-w-prose whitespace-pre-wrap break-words text-sm text-muted-foreground">{item.message}</p>
+      </div>}
+    </CardContent>
+    <CardFooter className={APPLICATION_FOOTER}>
+      {/* The contract has no updated_at: this is the actual application date, not an invented update. */}
+      <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><time dateTime={item.applied_at}>{date.format(new Date(item.applied_at))}</time></p>
+      <Link href={`/vacantes/${item.vacancy.id}`} className={buttonVariants({ variant: "outline", className: "min-h-10 w-full sm:w-auto" })}>Ver vacante<ArrowUpRight aria-hidden="true" data-icon="inline-end" /></Link>
+    </CardFooter>
+  </Card>;
+}
+
 function ApplicationsSkeleton() {
   return <section aria-busy="true" aria-label="Postulaciones" className="flex flex-col gap-3">
     <span role="status" className="sr-only">Cargando postulaciones</span>
@@ -24,15 +62,16 @@ function ApplicationsSkeleton() {
       <Skeleton className="h-[19px] w-52" />
       <Skeleton className="w-full lg:w-72"><InputGroup className="invisible h-11"><InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon><InputGroupInput disabled tabIndex={-1} /></InputGroup></Skeleton>
     </div>
-    {/* Skeletons retain the compact application card anatomy; the initial result count is unknown. */}
-    <ul className="flex flex-col gap-3">{[0, 1, 2].map(index => <li key={index} className="min-w-0">
-      <Card size="sm" aria-hidden="true">
-        <CardHeader>
-          <CardTitle className="flex min-w-0 items-start gap-3"><Skeleton className="size-10 shrink-0 rounded-full" /><Skeleton className="my-2 h-6 w-44 max-w-full" /></CardTitle>
-          <CardDescription><Skeleton className="h-5 w-28" /></CardDescription>
+    {/* Unknown status: mirror the standard facts card, without inventing a company message. */}
+    <ul className={APPLICATION_GRID}>{[0, 1, 2].map(index => <li key={index} className="min-w-0">
+      <Card aria-hidden="true" className="h-full min-w-0">
+        <CardHeader className="border-b">
+          <CardTitle className="flex min-w-0 items-start gap-3"><Skeleton className="size-11 shrink-0 rounded-full" /><Skeleton className="h-10 w-44 max-w-full" /></CardTitle>
+          <CardDescription className="pl-14"><Skeleton className="h-5 w-28 max-w-full" /></CardDescription>
           <CardAction><Skeleton className="h-6 w-20" /></CardAction>
         </CardHeader>
-        <CardFooter><Skeleton className="h-5 w-60 max-w-full" /></CardFooter>
+        <CardContent className="flex flex-col gap-5"><dl className={APPLICATION_FACTS}>{[0, 1].map(key => <div key={key} className="flex min-w-0 flex-col gap-1.5"><dt><Skeleton className="h-4 w-20" /></dt><dd><Skeleton className="h-5 w-full" /></dd></div>)}</dl></CardContent>
+        <CardFooter className={APPLICATION_FOOTER}><Skeleton className="h-4 w-40 max-w-full" /><Skeleton className="h-10 w-full sm:w-32" /></CardFooter>
       </Card>
     </li>)}</ul>
   </section>;
@@ -78,20 +117,7 @@ export function ApplicationsWorkspace() {
         {needle !== "" && data.next_cursor && <p className="text-sm text-muted-foreground">La búsqueda cubre las postulaciones cargadas. Carga más para buscar en el resto.</p>}
       </div>}
       {!!data?.items.length && visible.length === 0 && <Empty><EmptyHeader className="max-w-md"><EmptyTitle className="text-xl font-semibold">Ninguna postulación coincide con «{query.trim()}».</EmptyTitle><EmptyDescription>Prueba con otro puesto o empresa, o limpia la búsqueda para ver tus postulaciones cargadas.</EmptyDescription></EmptyHeader><EmptyContent className="flex-col sm:flex-row sm:justify-center"><Button className="min-h-10 w-full sm:w-auto" onClick={() => setQuery("")}>Limpiar búsqueda</Button></EmptyContent></Empty>}
-      {visible.length > 0 && <ul className="flex flex-col gap-3">{visible.map(item => <li key={item.id} className="min-w-0">
-        <Card size="sm">
-          <CardHeader>
-            <CardTitle className="flex min-w-0 items-start gap-3">
-              <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/12 text-foreground ring-1 ring-primary/40"><Briefcase className="size-5" /></span>
-              <h3 className="min-w-0 font-heading text-base font-semibold"><Link href={`/vacantes/${item.vacancy.id}`} className="inline-flex min-h-10 items-center rounded-md break-words underline-offset-4 hover:underline focus-visible:outline-ring focus-visible:outline-2">{item.vacancy.title}</Link></h3>
-            </CardTitle>
-            <CardDescription className="flex items-center gap-1.5"><Building2 aria-hidden="true" className="size-3.5 shrink-0" /><span className="min-w-0 break-words">{item.company.name}</span></CardDescription>
-            <CardAction><Badge variant={item.status === "submitted" ? "info" : item.status === "closed" ? "neutral" : "review"} dot>{item.status === "submitted" ? "Enviada" : item.status === "closed" ? "Finalizada" : "En proceso"}</Badge></CardAction>
-          </CardHeader>
-          {item.status === "closed" && item.message !== null && <CardContent><p className="max-w-prose whitespace-pre-wrap break-words text-sm">{item.message}</p></CardContent>}
-          <CardFooter><p className="flex flex-wrap items-center gap-1.5 text-sm"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><span className="text-muted-foreground">Postulada</span><time dateTime={item.applied_at}>{date.format(new Date(item.applied_at))}</time></p></CardFooter>
-        </Card>
-      </li>)}</ul>}
+      {visible.length > 0 && <ul className={APPLICATION_GRID}>{visible.map(item => <li key={item.id} className="min-w-0"><ApplicationCard item={item} /></li>)}</ul>}
       {(failure || loaded || data?.next_cursor) && <ActionBar status={failure ? <ActionStatus id="applications-status" tone="error" text="No pudimos cargar las postulaciones" action={failure.reason === "unauthenticated" ? <Link href="/candidato/ingresar" className="inline-flex min-h-10 items-center underline">Ingresar como candidato</Link> : undefined} /> : loaded ? <ActionStatus id="applications-status" tone="success" text="Postulaciones cargadas" /> : null}>
         {(failure || data?.next_cursor) && <Button variant="outline" className="min-h-10" disabled={pending} aria-busy={pending} aria-describedby={failure || loaded ? "applications-status" : undefined} onClick={() => void loadMore()}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{failure ? "Reintentar" : "Cargar más"}</Button>}
       </ActionBar>}
