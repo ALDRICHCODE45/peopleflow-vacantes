@@ -66,7 +66,7 @@ export function PublicJobDetailSkeleton({ job }: { job?: PublicJobDetail } = {})
           <Card>
             <CardHeader className="border-b"><CardTitle><Skeleton aria-hidden="true" className="h-7 w-48" /></CardTitle></CardHeader>
             <CardContent><div className="flex flex-col gap-4 text-sm leading-relaxed">
-              {Array.from({ length: job?.description_plain.split(/\n\s*\n/u).length ?? 3 }, (_, key) => <Skeleton key={key} className="h-5 w-full" />)}
+              {Array.from({ length: job?.description_plain.split(/\n\s*\n/u).length ?? 3 }, (_, key) => <Skeleton key={key} aria-hidden="true" className="h-5 w-full" />)}
             </div></CardContent>
           </Card>
           {requirements && <Card>
