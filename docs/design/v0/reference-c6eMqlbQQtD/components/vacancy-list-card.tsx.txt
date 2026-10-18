@@ -1,0 +1,45 @@
+import Link from 'next/link'
+import { ArrowRight, MapPin, Globe2, Clock3, Gift, ListChecks, ChevronDown } from 'lucide-react'
+import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { buttonVariants } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+
+export function VacancyListCard() {
+  return <article aria-labelledby="vacancy-title">
+    <Card className="vacancy-card listing-card">
+      <CardHeader>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-4">
+            <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-background font-semibold text-primary">TC</span>
+            <div className="flex flex-col gap-1.5">
+              <h2 id="vacancy-title" className="text-xl font-semibold tracking-tight"><Link href="/vacantes/software-developer" className="rounded-sm hover:text-primary focus-visible:outline-2 focus-visible:outline-ring">Software Developer</Link></h2>
+              <p className="text-sm text-muted-foreground">Trust People Company</p>
+            </div>
+          </div>
+          <Badge variant="secondary" className="job-badge">Nueva</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col gap-5">
+          <ul aria-label="Condiciones principales" className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
+            <li className="flex items-center gap-2"><Globe2 aria-hidden="true" className="size-4 text-muted-foreground" />Remoto</li>
+            <li className="flex items-center gap-2"><MapPin aria-hidden="true" className="size-4 text-muted-foreground" />Ciudad de México</li>
+            <li className="flex items-center gap-2"><Clock3 aria-hidden="true" className="size-4 text-muted-foreground" />Medio tiempo</li>
+          </ul>
+          <p className="text-sm leading-relaxed text-muted-foreground">Diseña, construye y mantén servicios backend de alto rendimiento junto a nuestro equipo de ingeniería.</p>
+          <p className="text-sm text-muted-foreground">Indefinido <span aria-hidden="true">·</span> Intermedio <span aria-hidden="true">·</span> Ingeniería</p>
+          <div className="flex flex-wrap items-center gap-2" aria-label="Habilidades"><span className="mr-1 text-sm text-muted-foreground">Tecnologías</span>{['Go', 'TypeScript', 'PostgreSQL', 'Docker', 'REST'].map(skill => <Badge key={skill} variant="secondary" className="job-badge">{skill}</Badge>)}</div>
+          <details className="group/benefits text-sm">
+            <summary className="flex cursor-pointer list-none items-start gap-2 rounded-sm text-muted-foreground focus-visible:outline-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden"><Gift aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span className="flex-1 leading-relaxed">Seguro de gastos médicos · Horario flexible <span className="whitespace-nowrap text-primary">y 6 beneficios más</span></span><ChevronDown aria-hidden="true" className="mt-0.5 size-4 shrink-0 transition-transform group-open/benefits:rotate-180" /></summary>
+            <ul className="mt-4 grid list-inside list-disc gap-2 rounded-xl bg-background p-4 text-muted-foreground sm:grid-cols-2">{['Equipo de cómputo', 'Apoyo para trabajo remoto', 'Bienestar', 'Bono anual', 'Presupuesto de capacitación', 'Días libres adicionales'].map(benefit => <li key={benefit}>{benefit}</li>)}</ul>
+          </details>
+        </div>
+      </CardContent>
+      <CardFooter className="listing-card-footer">
+        <div className="flex flex-col gap-1"><p className="text-xl font-semibold tracking-tight tabular-nums">$50,000 <span className="text-sm font-medium">MXN</span></p><p className="text-sm text-muted-foreground">Quincenales · Neto</p></div>
+        <div className="flex flex-col items-end gap-2"><Link href="/vacantes/software-developer" className={cn(buttonVariants(), 'min-h-11 px-5')}>Ver vacante<ArrowRight data-icon="inline-end" /></Link><p className="flex items-center gap-1.5 text-sm text-muted-foreground"><ListChecks aria-hidden="true" className="size-4" />4 preguntas de filtro</p></div>
+      </CardFooter>
+    </Card>
+  </article>
+}

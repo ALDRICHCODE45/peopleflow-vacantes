@@ -22,6 +22,8 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 
 - S10. User request (L29): «realmente a mi si me interesa tener todos esos datos, o al menos algo que los pueda sustituir, porque la card se ve muy bien, limpia, ordenada, rica». Restore the old two-zone vacancy card (reference /home/aldrich_coder45/Pictures/Screenshots/Screenshot_2026-10-18-15-26-51_5360x2520.png; old code `git show 649e270^:frontend/src/features/jobs/components/VacancyCard.tsx`) and the old applications card (`git show b4d0aec^:frontend/src/features/candidate/applications-workspace.tsx`, ApplicationCard), adapted to our palette/rules. Decisions: «Sí, las dos» (phase 1 frontend design now; phase 2 small backend cut enriching the public list: logo, excerpt, top benefits, applicant range, screening question count); applicants «En rangos». Skills: «Si, por favor, decido que aparezcan en la vacante publicada» — skills become public (detail: all; list: first 6 + total). Real substitutes: relative «Hace 2 h» with exact date tooltip, colored initials, «Nueva» badge (< 48 h); no «Verificada», «Destacada», response time or bookmark until those features exist.
 
+- S11. User request (L35): «las cards del listado publico no me terminan de gustar del todo … me tome la libertad de hacer un rediseno con v0 … y tambien un rediseno del detalle de la vacante». Reference: v0 chat c6eMqlbQQtD (files in docs/design/v0/reference-c6eMqlbQQtD/, screenshots /home/aldrich_coder45/Pictures/Screenshots/Screenshot_2026-10-18-16-43-27_5360x2520.png, -16-43-38- (card with benefits expanded), -16-43-03- and -16-43-09- (detail)). Port faithfully onto real contract data and existing behavior.
+
 ## Tasks
 - T1 [done] S1,S2 | parent | Typography: Inter for app headings; Clash Display landing-only; rules §14. | commit: ceed4b6
 - T2 [done] S2 | parent | v0 prompt for board + candidate sheet. | commit: (this doc commit)
@@ -33,6 +35,7 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - T10 [done] S9 | writer | Single create entry point to the draft editor; /nueva redirects. | commit: -
 - T11 [done] S10 | writer | Phase 1: two-zone public vacancy card + applications card on current data, slots ready for phase-2 fields. | commit: -
 - T12 [done] S10 | parent + backend | Phase 2 contract: enrich GET /v2/jobs items. | commit: -
+- T13 [pending] S11 | writer | Port the v0 public vacancy card and detail redesign. | commit: -
 - T5 [pending] S1 | parent | Pass over the remaining screens, one reviewable delivery each. | commit: -
 
 ## Log
@@ -80,3 +83,4 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - L32. Backend closed §14.5: logo_url https-only absolute with host and no credentials, else null (both sources); excerpt collapses Unicode White_Space runs before counting, excerpt_truncated vs the normalized text; skills trimmed, non-empty, ≤200 code points each, ≤100 per vacancy, load order; custom benefits trimmed, non-empty, ≤200 code points; predefined use the draft catalog codes. Backend implementing (migration 00025).
 - L33. Phase 1 committed: two-zone public vacancy card (colored initials, title + «Nueva» < 48 h, company, location · relative time with exact-date tooltip, contract chips, salary rail + primary «Ver vacante»; optional excerpt/benefits/skills/quickApply props for phase 2) and richer application card; skeletons mirror them. Writer: 464 tests in jobs/components, (public), candidate; tsc 0. Not browser-verified.
 - L34. Phase 2 committed: 6fcfd48 strict decoders + fixtures + sample adapter for the enriched listing; dc41337 logo/initials avatar, excerpt, skills/benefits previews with +N, applicant ranges, «Postulación rápida» / N preguntas de filtro, detail «Habilidades» card, mirrored skeletons. Full suite 5,428 passed (only the known local-draft-form timeout), tsc 0. Paired with backend feat/public-listing-enrichment (00025). Guide 62, queue 54-62. Not browser-verified.
+- L35. User rejected the phase-2 card look and provided a v0 redesign for the card and the detail; parent fetched the chat files into docs/design/v0/reference-c6eMqlbQQtD/.

@@ -1,0 +1,46 @@
+import { ArrowLeft, ArrowRight, FilePenLine, GitBranch, Send, Settings2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card'
+import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from '@/components/ui/empty'
+import { Separator } from '@/components/ui/separator'
+
+export function PipelineCard() {
+  return (
+    <section aria-labelledby="pipeline-heading" className="flex flex-col gap-6">
+      <header className="flex flex-col gap-2">
+        <h1 id="pipeline-heading" className="text-2xl font-semibold tracking-tight">Pipeline</h1>
+        <p className="text-sm leading-6 text-muted-foreground">Da seguimiento a los candidatos de esta vacante.</p>
+      </header>
+      <Card className="pipeline-card">
+        <CardHeader className="pipeline-card-header">
+          <Badge variant="secondary" className="draft-badge"><FilePenLine data-icon="inline-start" />Vacante en borrador</Badge>
+          <Button variant="ghost" className="h-10" type="button"><Settings2 data-icon="inline-start" />Configurar columnas</Button>
+        </CardHeader>
+        <Separator />
+        <CardContent className="pipeline-card-content">
+          <Empty className="pipeline-empty">
+            <EmptyHeader className="pipeline-empty-header">
+              <EmptyMedia variant="icon" className="pipeline-icon"><GitBranch aria-hidden="true" /></EmptyMedia>
+              <EmptyTitle><h2 className="text-balance text-2xl font-semibold tracking-tight">Esta vacante todavía no tiene pipeline</h2></EmptyTitle>
+              <EmptyDescription>
+                <p className="text-pretty leading-6">Los candidatos aparecerán aquí una vez que publiques la vacante. Mientras tanto, puedes continuar editándola y preparar todo antes de publicar.</p>
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent className="pipeline-actions">
+              <Button type="button" className="h-11 rounded-full px-6"><Send data-icon="inline-start" />Publicar vacante</Button>
+              <Button type="button" variant="outline" className="h-11 px-5">Continuar editando<ArrowRight data-icon="inline-end" /></Button>
+            </EmptyContent>
+          </Empty>
+        </CardContent>
+        <CardFooter className="pipeline-card-footer">
+          <GitBranch className="size-4 shrink-0" aria-hidden="true" />
+          <p className="text-sm leading-6">Puedes configurar las columnas de tu proceso antes de publicar.</p>
+        </CardFooter>
+      </Card>
+      <nav aria-label="Navegación de vacantes">
+        <Button variant="ghost" className="h-11" type="button"><ArrowLeft data-icon="inline-start" />Volver a Vacantes</Button>
+      </nav>
+    </section>
+  )
+}

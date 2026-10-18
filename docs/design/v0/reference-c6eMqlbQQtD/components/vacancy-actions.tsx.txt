@@ -1,0 +1,29 @@
+'use client'
+
+import { useRef, useState } from 'react'
+import { ArrowRight, Banknote, Share2, X, Building2 } from 'lucide-react'
+import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+
+export function VacancyActions() {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const [shareMessage, setShareMessage] = useState('')
+  async function share() {
+    try { await navigator.clipboard.writeText(window.location.href); setShareMessage('Enlace copiado') }
+    catch { setShareMessage('Copia la dirección de esta página para compartirla.') }
+  }
+  return <>
+    <Card className="vacancy-card application-card">
+      <CardHeader><h2 className="flex items-center gap-2 text-sm font-medium text-muted-foreground"><Banknote className="size-5" aria-hidden="true" />Compensación</h2></CardHeader>
+      <CardContent className="flex flex-col gap-6">
+        <div className="flex flex-col gap-2"><p className="flex items-baseline gap-2"><strong className="text-4xl font-semibold tracking-tight">$50,000</strong><span className="text-sm text-muted-foreground">MXN</span></p><p className="text-sm text-muted-foreground">Quincenales · Sueldo neto</p></div>
+        <Separator />
+        <div className="flex flex-col gap-3"><h3 className="font-semibold">¿Te ves en este equipo?</h3><p className="text-sm leading-relaxed text-muted-foreground">Da el siguiente paso en tu carrera con Trust People Company.</p></div>
+        <div className="flex flex-col gap-2"><Button className="h-12 w-full rounded-xl" onClick={() => dialog.current?.showModal()}>Postularme <ArrowRight data-icon="inline-end" /></Button><Button variant="ghost" className="h-11 w-full" onClick={share}><Share2 data-icon="inline-start" />Compartir vacante</Button>{shareMessage && <p role="status" className="text-center text-sm text-muted-foreground">{shareMessage}</p>}</div>
+      </CardContent>
+      <CardFooter className="gap-3"><Building2 className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" /><div className="flex flex-col gap-1"><p className="text-sm font-medium">Trust People Company</p><p className="text-sm text-muted-foreground">Ciudad de México · Remoto</p></div></CardFooter>
+    </Card>
+    <dialog ref={dialog} aria-labelledby="application-title" className="application-dialog"><div className="flex items-center justify-between gap-4"><h2 id="application-title" className="text-xl font-semibold">Postularme a esta vacante</h2><Button variant="ghost" size="icon" aria-label="Cerrar" onClick={() => dialog.current?.close()}><X /></Button></div><p className="py-6 text-sm leading-relaxed text-muted-foreground">Esta es una vista previa del rediseño. El proceso de postulación se conectará al flujo existente del sistema; no se ha enviado ninguna solicitud.</p><Button className="h-11 w-full" onClick={() => dialog.current?.close()}>Volver a la vacante</Button></dialog>
+  </>
+}

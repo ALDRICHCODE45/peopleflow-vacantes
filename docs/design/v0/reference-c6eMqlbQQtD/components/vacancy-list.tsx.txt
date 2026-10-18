@@ -1,0 +1,14 @@
+import Link from 'next/link'
+import { VacancyListCard } from '@/components/vacancy-list-card'
+
+export function VacancyList() {
+  return <div className="min-h-screen font-sans">
+    <header className="border-b border-border bg-card text-card-foreground"><div className="mx-auto flex h-20 max-w-6xl items-center justify-between gap-6 px-5 sm:px-8"><Link href="/vacantes" aria-label="PeopleFlow, vacantes" className="text-2xl font-extrabold tracking-tighter">people<span className="font-medium italic text-primary">flow</span></Link><nav aria-label="Navegación principal" className="flex items-center gap-6 text-sm"><Link href="/vacantes" aria-current="page" className="font-medium">Vacantes</Link><Link href="/pipeline" className="text-muted-foreground hover:text-primary">Ver pipeline</Link></nav></div></header>
+    <main className="mx-auto max-w-4xl px-5 py-10 sm:px-8 sm:py-14">
+      <div className="flex flex-col gap-3"><p className="text-sm font-medium text-muted-foreground">BOLSA DE TRABAJO</p><h1 className="text-balance text-3xl font-semibold tracking-tight sm:text-4xl">Tu próximo paso empieza aquí.</h1><p className="max-w-xl text-pretty leading-relaxed text-muted-foreground">Conoce las condiciones, compara lo que importa y encuentra una oportunidad para crecer.</p></div>
+      <section aria-labelledby="results-heading" className="mt-10"><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><h2 id="results-heading" className="text-lg font-semibold">Vacantes disponibles</h2><p className="text-sm text-muted-foreground">Vista de ejemplo · 1 vacante</p></div><VacancyListCard /></section>
+      <p className="mt-6 text-center text-sm leading-relaxed text-muted-foreground">Explora todos los requisitos y beneficios en el detalle de la vacante.</p>
+    </main>
+    <footer className="mx-auto max-w-4xl px-5 py-8 sm:px-8"><p className="border-t border-border pt-6 text-sm text-muted-foreground">PeopleFlow · Encuentra tu próxima oportunidad.</p></footer>
+  </div>
+}

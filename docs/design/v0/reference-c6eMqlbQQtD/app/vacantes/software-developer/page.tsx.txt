@@ -1,0 +1,7 @@
+import { VacancyDetail } from '@/components/vacancy-detail'
+
+export const metadata = { title: 'Software Developer | PeopleFlow' }
+
+export default function Page() {
+  return <VacancyDetail />
+}

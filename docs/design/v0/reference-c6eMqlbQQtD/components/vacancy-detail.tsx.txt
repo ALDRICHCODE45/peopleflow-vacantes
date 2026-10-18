@@ -1,0 +1,86 @@
+import { Building2, MapPin, Globe2, Clock3, FileText, Layers, TrendingUp, CalendarDays, Check, ShieldPlus, Laptop, House, Heart, Gift, GraduationCap, Sun, ArrowLeft } from 'lucide-react'
+import { Card, CardHeader, CardContent } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { Separator } from '@/components/ui/separator'
+import { VacancyActions } from '@/components/vacancy-actions'
+
+const facts = [
+  { icon: MapPin, label: 'Ubicación', value: 'Ciudad de México' },
+  { icon: Globe2, label: 'Modalidad', value: 'Remoto' },
+  { icon: Clock3, label: 'Jornada', value: 'Medio tiempo' },
+  { icon: FileText, label: 'Contrato', value: 'Indefinido' },
+  { icon: Layers, label: 'Área profesional', value: 'Ingeniería' },
+  { icon: TrendingUp, label: 'Nivel', value: 'Intermedio' },
+]
+const responsibilities = [
+  'Colaborar con el equipo de producto y arquitectura para traducir requerimientos en servicios robustos.',
+  'Implementar buenas prácticas de código limpio, pruebas unitarias y de integración.',
+  'Optimizar consultas a bases de datos y supervisar el rendimiento de los microservicios en producción.',
+  'Participar en revisiones de código (code reviews) y metodologías ágiles.',
+]
+const requirements = [
+  'Licenciatura en Ciencias de la Computación, Ingeniería de Software o área afín.',
+  'Mínimo 3 años de experiencia en desarrollo Backend con Go o Node.js/TypeScript.',
+  'Experiencia en diseño y consumo de APIs RESTful y bases de datos relacionales (PostgreSQL).',
+  'Manejo de Git y flujos de trabajo en equipo (GitFlow).',
+  'Conocimiento intermedio/avanzado de Docker y despliegue en la nube (AWS/GCP).',
+]
+const desirable = [
+  'Domain-Driven Design (DDD) y Clean Architecture.',
+  'Kubernetes y pipelines de CI/CD (GitHub Actions).',
+  'Metodologías ágiles: Scrum o Kanban.',
+  'Arquitecturas orientadas a eventos o sistemas distribuidos.',
+]
+const benefits = [
+  { icon: ShieldPlus, text: 'Seguro de gastos médicos' }, { icon: Laptop, text: 'Equipo de cómputo' },
+  { icon: Clock3, text: 'Horario flexible' }, { icon: House, text: 'Apoyo para trabajo remoto' },
+  { icon: Heart, text: 'Bienestar' }, { icon: Gift, text: 'Bono anual' },
+  { icon: GraduationCap, text: 'Presupuesto de capacitación' }, { icon: Sun, text: 'Días libres adicionales' },
+]
+function TextList({ items }: { items: string[] }) {
+  return <ul className="flex flex-col gap-3">{items.map(item => <li key={item} className="flex items-start gap-3"><Check aria-hidden="true" className="mt-1 size-4 shrink-0 text-muted-foreground" /><span>{item}</span></li>)}</ul>
+}
+export function VacancyDetail() {
+  return <div className="min-h-screen font-sans">
+    <header className="border-b border-border bg-card text-card-foreground">
+      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+        <div className="flex h-20 items-center justify-between gap-6">
+          <a href="/" aria-label="PeopleFlow, inicio" className="text-2xl font-extrabold tracking-tighter">people<span className="font-medium italic text-primary">flow</span></a>
+          <nav aria-label="Navegación principal" className="flex items-center gap-6 text-sm"><a href="/vacantes" className="hidden font-medium hover:text-primary sm:inline">Vacantes</a><a href="/pipeline" className="text-muted-foreground transition-colors hover:text-primary">Ver pipeline</a></nav>
+        </div>
+      </div>
+    </header>
+    <main className="mx-auto max-w-6xl px-5 py-8 sm:px-8 sm:py-10">
+      <div className="mb-7 flex items-center gap-3 text-sm text-muted-foreground"><ArrowLeft className="size-4" aria-hidden="true" /><a href="/vacantes" className="hover:text-primary">Vacantes</a><span aria-hidden="true">/</span><span className="text-foreground">Detalle de la vacante</span></div>
+      <Card className="vacancy-card job-hero">
+        <CardHeader>
+          <div className="flex items-start gap-5">
+            <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl border border-border bg-background text-muted-foreground"><Building2 className="size-7" strokeWidth={1.5} aria-hidden="true" /></div>
+            <div className="flex flex-col gap-2"><p className="text-sm text-muted-foreground">Trust People Company</p><h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-4xl">Software Developer</h1><div className="flex flex-wrap items-center gap-2"><Badge variant="secondary" className="job-badge"><Globe2 data-icon="inline-start" />Remoto</Badge><Badge variant="secondary" className="job-badge">Medio tiempo</Badge><Badge variant="secondary" className="job-badge">Ingeniería</Badge></div></div>
+          </div>
+        </CardHeader>
+        <CardContent><p className="flex items-center gap-2 text-sm text-muted-foreground"><CalendarDays className="size-4" aria-hidden="true" /><span>Publicada el <time dateTime="2026-10-18">18 de octubre de 2026</time></span></p></CardContent>
+      </Card>
+      <div className="job-layout">
+        <div className="flex min-w-0 flex-col gap-6">
+          <Card className="vacancy-card">
+            <CardHeader><h2 className="text-lg font-semibold">La vacante de un vistazo</h2></CardHeader>
+            <CardContent><dl className="grid grid-cols-2 gap-x-5 gap-y-7 sm:grid-cols-3">{facts.map(({ icon: Icon, label, value }) => <div key={label} className="flex flex-col gap-2"><dt className="flex items-center gap-2 text-sm text-muted-foreground"><Icon className="size-4" aria-hidden="true" />{label}</dt><dd className="text-sm font-medium">{value}</dd></div>)}</dl></CardContent>
+          </Card>
+          <Card className="vacancy-card">
+            <CardHeader><nav aria-label="Secciones de la vacante" className="section-nav"><a href="#descripcion">Descripción</a><a href="#requisitos">Requisitos</a><a href="#beneficios">Beneficios</a></nav></CardHeader>
+            <CardContent className="job-body">
+              <section id="descripcion" className="flex scroll-mt-6 flex-col gap-5"><h2 className="text-xl font-semibold tracking-tight">Sobre la vacante</h2><p>Estamos en búsqueda de un <strong className="font-semibold">Desarrollador Backend Senior</strong> para integrarse a nuestro equipo de ingeniería. En este rol, serás responsable de diseñar, construir y mantener servicios de alto rendimiento, asegurando la escalabilidad, modularidad y mantenibilidad del software.</p><h3 className="font-semibold">Lo que harás en tu día a día</h3><TextList items={responsibilities} /><p>Ofrecemos modalidad de trabajo <strong className="font-semibold">100% remota</strong>, horario flexible y un entorno enfocado en el crecimiento profesional continuo.</p></section>
+              <Separator />
+              <section id="requisitos" className="flex scroll-mt-6 flex-col gap-6"><div className="flex flex-col gap-2"><h2 className="text-xl font-semibold tracking-tight">Lo que buscamos</h2><p className="text-muted-foreground">Conocimientos y experiencia para este puesto.</p></div><div className="flex flex-col gap-4"><h3 className="font-semibold">Requisitos indispensables</h3><TextList items={requirements} /></div><div className="flex flex-col gap-4"><h3 className="font-semibold">También valoramos</h3><TextList items={desirable} /></div></section>
+              <Separator />
+              <section id="beneficios" className="flex scroll-mt-6 flex-col gap-6"><div className="flex flex-col gap-2"><h2 className="text-xl font-semibold tracking-tight">Beneficios para ti</h2><p className="text-muted-foreground">Más allá de tu compensación.</p></div><ul className="grid gap-x-5 gap-y-5 sm:grid-cols-2">{benefits.map(({ icon: Icon, text }) => <li key={text} className="flex items-center gap-3"><span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-background text-muted-foreground"><Icon className="size-5" strokeWidth={1.6} aria-hidden="true" /></span><span className="text-sm">{text}</span></li>)}</ul></section>
+            </CardContent>
+          </Card>
+        </div>
+        <aside className="job-sidebar" aria-label="Compensación y postulación"><VacancyActions /></aside>
+      </div>
+    </main>
+    <footer className="mx-auto max-w-6xl px-5 pb-8 pt-4 sm:px-8"><div className="flex flex-wrap justify-between gap-3 border-t border-border pt-6 text-sm text-muted-foreground"><p>PeopleFlow · Encuentra tu próxima oportunidad.</p><p>Hecho para conectar talento.</p></div></footer>
+  </div>
+}
