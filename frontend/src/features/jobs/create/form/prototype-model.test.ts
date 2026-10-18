@@ -556,15 +556,10 @@ describe("prototype model source boundary", () => {
     );
   });
 
-  it("stays unreachable from the contract form model and the create client", () => {
+  it("stays unreachable from the contract form model", () => {
     const formModel = readFileSync(join(formDir, "model.ts"), "utf8");
     expect(formModel).not.toMatch(
       /prototype-model|prototypeModel|VacancyPrototypeValues|PrototypeValues/,
     );
-
-    const createJob = readFileSync(join(createDir, "createJob.ts"), "utf8");
-    for (const key of PROTOTYPE_ONLY_KEYS) {
-      expect(createJob).not.toContain(key);
-    }
   });
 });

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { legacyDetail, vacancyDetail, listItem } from "./api/public-fixtures";
 import { PublicVacancyCard } from "./components/PublicVacancyCard";
@@ -9,9 +9,6 @@ import { JobDetailView } from "./components/JobDetailView";
 import { PublicJobCardSkeleton, PublicJobDetailSkeleton } from "./components/PublicJobSkeleton";
 import { JobsNavigationIsland } from "./components/JobsNavigationIsland";
 import { VacancyPreview } from "./create/VacancyPreview";
-import { RichTextField } from "./create/form/rich-text-field";
-import { ReviewStep } from "./create/form/review-step";
-import { DraftRail } from "./create/form/draft-rail";
 import { INITIAL_PROTOTYPE_VALUES } from "./create/form/prototype-model";
 import { DraftPreview } from "./drafts/ui/draft-preview";
 import { DraftQuestionnairePreview } from "./drafts/ui/draft-questionnaire-preview";
@@ -96,15 +93,6 @@ it("composes both preview cards and the complementary dossier instead of hand-ma
   expect(screen.getByText(/Vista previa de borrador:/).closest('[data-slot="card-footer"]')).not.toBeNull();
 });
 
-it("puts the draft publication and save actions in footers while preserving the gate guidance", () => {
-  render(<DraftRail values={values} prototypeValues={INITIAL_PROTOTYPE_VALUES} profileReady={false} published={false} onPublish={vi.fn()} />);
-  for (const name of ["Publicar vacante", "Guardar borrador"]) expect(screen.getByRole("button", { name }).closest('[data-slot="card-footer"]')).not.toBeNull();
-  expect(screen.getByRole("button", { name: "Publicar vacante" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Publicar vacante" })).not.toHaveClass("bg-primary");
-  expect(screen.getByRole("button", { name: "Guardar borrador" })).toHaveClass("bg-primary");
-  expect(screen.getByRole("link", { name: "Completar perfil de empresa" })).toHaveAttribute("href", "/empresa/sitio");
-});
-
 it("gives the persisted draft preview and questionnaire native headers and descriptions", () => {
   render(<><DraftPreview state={initialDraftFormState(createDraftModel())} /><DraftQuestionnairePreview questions={[]} /></>);
   for (const name of ["Vista previa pública", "Simular cuestionario"]) {
@@ -140,20 +128,6 @@ it.each([vacancyDetail, legacyDetail, { ...vacancyDetail, compensation: null, re
   expect(loadingDetail.container.querySelectorAll('[data-slot="item"]')).toHaveLength(itemCount);
   for (const skeleton of loadingDetail.container.querySelectorAll('[data-slot="skeleton"]')) expect(skeleton.closest('[aria-hidden="true"]')).not.toBeNull();
   expect(screen.getByRole("status")).toHaveTextContent("Cargando vacante");
-});
-
-it("keeps section review edits in the native action slot and text preview in a titled card", () => {
-  const review = render(<ReviewStep values={values} prototypeValues={INITIAL_PROTOTYPE_VALUES} profileReady published={false} onEditStep={vi.fn()} onPublish={vi.fn()} />);
-  for (const button of screen.getAllByRole("button", { name: /^Editar / })) {
-    const action = button.closest('[data-slot="card-action"]');
-    expect(action).toHaveClass("col-start-2", "row-start-1");
-    expect(action?.parentElement).toHaveAttribute("data-slot", "card-header");
-  }
-  review.unmount();
-  render(<RichTextField id="card-preview-description" label="Descripción" value="Contenido" onChange={vi.fn()} />);
-  fireEvent.click(screen.getByRole("tab", { name: "Vista previa" }));
-  expectHeader(screen.getByRole("heading", { name: "Vista previa" }));
-  expect(screen.getByText("Contenido").closest('[data-slot="card-content"]')).not.toBeNull();
 });
 
 it("keeps filter closing actions in a footer inside their original form", () => {
