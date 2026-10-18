@@ -39,7 +39,7 @@ func TestBuildProjectionPrivacyAndCompensation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, key := range []string{"requester", "headcount", "request_date", "delivery", "screening", "public_visible"} {
+			for _, key := range []string{"requester", "headcount", "request_date", "delivery", "correct_option_id", "public_visible"} {
 				if strings.Contains(string(raw), key) {
 					t.Fatalf("private key %s: %s", key, raw)
 				}
@@ -97,6 +97,46 @@ func TestBuildProjectionEveryIncompleteCompensationIsNull(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+func TestBuildProjectionSkillsAndScreeningCount(t *testing.T) {
+	draft, err := draftinput.DecodeCreateV2([]byte(`{"fields":{"skills":[" SQL ","Go","e\u0301"],"screening_questions":[{"id":"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d","type":"open","prompt":"Why?"}]}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := BuildProjection(draft.Fingerprint())
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got["skills"], []any{"SQL", "Go", "e\u0301"}) || got["screening_questions"] != float64(1) {
+		t.Fatalf("%s", raw)
+	}
+	empty, err := draftinput.DecodeCreateV2([]byte(`{"fields":{}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err = BuildProjection(empty.Fingerprint())
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err = json.Marshal(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got["skills"], []any{}) || got["screening_questions"] != float64(0) {
+		t.Fatalf("%s", raw)
 	}
 }
 

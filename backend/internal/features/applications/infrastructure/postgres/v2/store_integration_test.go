@@ -264,7 +264,7 @@ func setup(t *testing.T) fixture {
 	}
 	exec(`INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) VALUES($1,$2,$3,$3,$4)`, f.vacancy, f.company, recruiter, d.Fingerprint())
 	exec(`INSERT INTO vacancy_processes(id,company_id,status,published_at,published_by) VALUES($1,$2,'published',now(),$3)`, f.vacancy, f.company, recruiter)
-	exec(`INSERT INTO vacancy_public_projections(id,company_id,title,description_plain,location,work_mode,work_schedule,contract_type,professional_area,benefits,published_at,source_draft_version) VALUES($1,$2,'Engineer','Role','CDMX','remote','full_time','indefinite','technology_systems','{}',now(),1)`, f.vacancy, f.company)
+	exec(`INSERT INTO vacancy_public_projections(id,company_id,title,description_plain,location,work_mode,work_schedule,contract_type,professional_area,benefits,published_at,source_draft_version,skills,screening_questions) VALUES($1,$2,'Engineer','Role','CDMX','remote','full_time','indefinite','technology_systems','{}',now(),1,ARRAY[]::text[],$3)`, f.vacancy, f.company, len(f.form.Questions))
 	return f
 }
 func (f fixture) request(cv uuid.UUID) app.Request {
@@ -453,7 +453,7 @@ func TestCandidateListPagingAndVacancyScopedKeys(t *testing.T) {
 	for _, sql := range []string{
 		`INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) SELECT $1,company_id,created_by,principal_recruiter_id,fields FROM job_drafts WHERE id=$2`,
 		`INSERT INTO vacancy_processes(id,company_id,status,published_at,published_by) SELECT $1,company_id,status,published_at,published_by FROM vacancy_processes WHERE id=$2`,
-		`INSERT INTO vacancy_public_projections(id,company_id,title,description_plain,location,work_mode,work_schedule,contract_type,professional_area,benefits,published_at,source_draft_version) SELECT $1,company_id,'Second',description_plain,location,work_mode,work_schedule,contract_type,professional_area,benefits,published_at,source_draft_version FROM vacancy_public_projections WHERE id=$2`,
+		`INSERT INTO vacancy_public_projections(id,company_id,title,description_plain,location,work_mode,work_schedule,contract_type,professional_area,benefits,published_at,source_draft_version,skills,screening_questions) SELECT $1,company_id,'Second',description_plain,location,work_mode,work_schedule,contract_type,professional_area,benefits,published_at,source_draft_version,skills,screening_questions FROM vacancy_public_projections WHERE id=$2`,
 	} {
 		if _, err := f.pool.Exec(ctx, sql, second, f.vacancy); err != nil {
 			t.Fatal(err)

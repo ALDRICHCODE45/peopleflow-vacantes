@@ -24,8 +24,9 @@ var (
 )
 
 type Company struct {
-	ID   uuid.UUID `json:"id"`
-	Name string    `json:"name"`
+	ID      uuid.UUID `json:"id"`
+	Name    string    `json:"name"`
+	LogoURL *string   `json:"logo_url"`
 }
 type LegacySalary struct {
 	Min      *string `json:"min"`
@@ -47,6 +48,14 @@ type Item struct {
 	Compensation         *Compensation `json:"compensation"`
 	LegacySalary         *LegacySalary `json:"legacy_salary"`
 	PublishedAt          time.Time     `json:"published_at"`
+	Excerpt              *string       `json:"excerpt"`
+	ExcerptTruncated     bool          `json:"excerpt_truncated"`
+	BenefitsPreview      Benefits      `json:"benefits_preview"`
+	BenefitsTotal        int           `json:"benefits_total"`
+	SkillsPreview        []string      `json:"skills_preview"`
+	SkillsTotal          int           `json:"skills_total"`
+	Applicants           *string       `json:"applicants"`
+	ScreeningQuestions   *int          `json:"screening_questions"`
 }
 type Detail struct {
 	Item
@@ -54,6 +63,7 @@ type Detail struct {
 	DescriptionPlain string          `json:"description_plain"`
 	Requirements     Requirements    `json:"requirements"`
 	Benefits         Benefits        `json:"benefits"`
+	Skills           []string        `json:"skills"`
 }
 type Page struct {
 	Items      []Item  `json:"items"`
@@ -103,12 +113,19 @@ func (c *Catalog) List(ctx context.Context, q Query) (Page, error) {
 		rows = rows[:limit]
 	}
 	for _, row := range rows {
-		page.Items = append(page.Items, row.Detail.Item)
+		detail := enrich(row.Detail)
+		page.Items = append(page.Items, detail.Item)
 	}
 	return page, nil
 }
+
+// Get keeps the detail's shared card metadata identical to List.
 func (c *Catalog) Get(ctx context.Context, id uuid.UUID) (Detail, error) {
-	return c.reader.Get(ctx, id)
+	detail, err := c.reader.Get(ctx, id)
+	if err != nil {
+		return Detail{}, err
+	}
+	return enrich(detail), nil
 }
 
 // ParseQuery rejects unknown/duplicate keys and invalid URL encoding, and

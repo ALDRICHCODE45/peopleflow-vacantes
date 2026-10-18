@@ -83,17 +83,19 @@ func TestPublicProjectionPublicationSaveGuardAndRollback(t *testing.T) {
 	}
 	// Past commitment alone is exempt. The projection has the exact source version.
 	s.clock = func() time.Time { return fixedDeliveryClock().Add(24 * time.Hour) }
-	saved, err := s.SaveV2(ctx, p.companyID, p.ownerID, id, draft.ETag, true, []byte(`{"fields":{"title":"Updated public title"}}`))
+	saved, err := s.SaveV2(ctx, p.companyID, p.ownerID, id, draft.ETag, true, []byte(`{"fields":{"title":"Updated public title","skills":["SQL","Go"],"screening_questions":[{"id":"1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d","type":"open","prompt":"Why?"}]}}`))
 	if err != nil {
 		t.Fatal(err)
 	}
 	var title string
 	var version, draftVersion int64
 	var publishedAt time.Time
-	if err := pool.QueryRow(ctx, `SELECT p.title,p.source_draft_version,d.version,p.published_at FROM vacancy_public_projections p JOIN job_drafts d USING(id) WHERE p.id=$1`, id).Scan(&title, &version, &draftVersion, &publishedAt); err != nil {
+	var skills []string
+	var questions int
+	if err := pool.QueryRow(ctx, `SELECT p.title,p.source_draft_version,d.version,p.published_at,p.skills,p.screening_questions FROM vacancy_public_projections p JOIN job_drafts d USING(id) WHERE p.id=$1`, id).Scan(&title, &version, &draftVersion, &publishedAt, &skills, &questions); err != nil {
 		t.Fatal(err)
 	}
-	if title != "Updated public title" || version != draftVersion || !publishedAt.Equal(fixedDeliveryClock()) {
+	if title != "Updated public title" || version != draftVersion || !publishedAt.Equal(fixedDeliveryClock()) || !reflect.DeepEqual(skills, []string{"SQL", "Go"}) || questions != 1 {
 		t.Fatal("stale projection")
 	}
 	// Audit failure after a published save must roll back BOTH draft and projection.
@@ -101,7 +103,7 @@ func TestPublicProjectionPublicationSaveGuardAndRollback(t *testing.T) {
 	failing.clock = s.clock
 	snapshot := publicationSnapshot(t, pool, id)
 	projection := publicProjectionSnapshot(t, pool, id)
-	if _, err := failing.SaveV2(ctx, p.companyID, p.ownerID, id, saved.ETag, true, []byte(`{"fields":{"title":"Must roll back"}}`)); err == nil {
+	if _, err := failing.SaveV2(ctx, p.companyID, p.ownerID, id, saved.ETag, true, []byte(`{"fields":{"title":"Must roll back","skills":[],"screening_questions":[]}}`)); err == nil {
 		t.Fatal("audit failure ignored")
 	}
 	if snapshot != publicationSnapshot(t, pool, id) || projection != publicProjectionSnapshot(t, pool, id) {

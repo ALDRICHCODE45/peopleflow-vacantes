@@ -31,18 +31,20 @@ type Benefits struct {
 // Projection is an allowlist, never a copy of the private fields object.
 // Identity, publication time and source version are supplied by the transaction.
 type Projection struct {
-	Title            string          `json:"title"`
-	Description      json.RawMessage `json:"description"`
-	DescriptionPlain string          `json:"description_plain"`
-	Location         *string         `json:"location"`
-	WorkMode         *string         `json:"work_mode"`
-	WorkSchedule     *string         `json:"work_schedule"`
-	ContractType     *string         `json:"contract_type"`
-	ProfessionalArea *string         `json:"professional_area"`
-	Seniority        *string         `json:"seniority"`
-	Requirements     Requirements    `json:"requirements"`
-	Benefits         Benefits        `json:"benefits"`
-	Compensation     *Compensation   `json:"compensation"`
+	Title              string          `json:"title"`
+	Description        json.RawMessage `json:"description"`
+	DescriptionPlain   string          `json:"description_plain"`
+	Location           *string         `json:"location"`
+	WorkMode           *string         `json:"work_mode"`
+	WorkSchedule       *string         `json:"work_schedule"`
+	ContractType       *string         `json:"contract_type"`
+	ProfessionalArea   *string         `json:"professional_area"`
+	Seniority          *string         `json:"seniority"`
+	Requirements       Requirements    `json:"requirements"`
+	Benefits           Benefits        `json:"benefits"`
+	Compensation       *Compensation   `json:"compensation"`
+	Skills             []string        `json:"skills"`
+	ScreeningQuestions int             `json:"screening_questions"`
 }
 
 // BuildProjection accepts only a validated complete persisted v2 document.
@@ -58,7 +60,7 @@ func BuildProjection(stored []byte) (Projection, error) {
 	}
 	fields := value.(map[string]any)["fields"].(map[string]any)
 	public := map[string]any{}
-	for _, key := range []string{"title", "description", "location", "work_mode", "work_schedule", "contract_type", "professional_area", "seniority", "compensation"} {
+	for _, key := range []string{"title", "description", "location", "work_mode", "work_schedule", "contract_type", "professional_area", "seniority", "compensation", "skills"} {
 		public[key] = fields[key]
 	}
 	rawPublic, err := json.Marshal(public)
@@ -82,6 +84,7 @@ func BuildProjection(stored []byte) (Projection, error) {
 	if err := json.Unmarshal(raw, &groups); err != nil {
 		return Projection{}, err
 	}
+	out.ScreeningQuestions = len(fields["screening_questions"].([]any))
 	out.Requirements = Requirements{Required: groups.Required, Preferred: groups.Preferred}
 	out.Benefits = Benefits{Predefined: []string{}, Custom: groups.Custom}
 	for _, v := range fields["benefits"].([]any) {

@@ -75,6 +75,7 @@ func writePublicProjection(ctx context.Context, tx pgx.Tx, record draftRecord, a
 		ID: record.id, CompanyID: record.companyID, Title: p.Title, Description: p.Description, DescriptionPlain: p.DescriptionPlain,
 		Location: *p.Location, WorkMode: *p.WorkMode, WorkSchedule: *p.WorkSchedule, ContractType: *p.ContractType, ProfessionalArea: *p.ProfessionalArea,
 		Seniority: text(p.Seniority), RequiredRequirements: text(p.Requirements.Required), PreferredRequirements: text(p.Requirements.Preferred),
+		Skills: p.Skills, ScreeningQuestions: int32(p.ScreeningQuestions),
 		Benefits: benefits, Compensation: compensation, PublishedAt: pgtype.Timestamptz{Time: at, Valid: true}, SourceDraftVersion: record.version,
 	})
 	if err != nil {

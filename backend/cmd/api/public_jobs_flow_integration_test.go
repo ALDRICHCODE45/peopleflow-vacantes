@@ -65,9 +65,9 @@ func publicFlowLegacy(t *testing.T, h *draftFlowHarness, company uuid.UUID, titl
 }
 func publicFlowAssertKeys(t *testing.T, item map[string]any, detail bool) {
 	t.Helper()
-	want := []string{"id", "source", "title", "company", "location", "work_mode", "work_schedule", "contract_type", "professional_area", "seniority", "legacy_employment_type", "compensation", "legacy_salary", "published_at"}
+	want := []string{"id", "source", "title", "company", "location", "work_mode", "work_schedule", "contract_type", "professional_area", "seniority", "legacy_employment_type", "compensation", "legacy_salary", "published_at", "excerpt", "excerpt_truncated", "benefits_preview", "benefits_total", "skills_preview", "skills_total", "applicants", "screening_questions"}
 	if detail {
-		want = append(want, "description", "description_plain", "requirements", "benefits")
+		want = append(want, "description", "description_plain", "requirements", "benefits", "skills")
 	}
 	if len(item) != len(want) {
 		t.Fatalf("keys=%v", item)
@@ -78,7 +78,7 @@ func publicFlowAssertKeys(t *testing.T, item map[string]any, detail bool) {
 		}
 	}
 	company := item["company"].(map[string]any)
-	if len(company) != 2 || company["id"] == nil || company["name"] == nil {
+	if len(company) != 3 || company["id"] == nil || company["name"] == nil {
 		t.Fatalf("company=%v", company)
 	}
 	if !strings.HasSuffix(item["published_at"].(string), "Z") {
@@ -190,7 +190,7 @@ func TestPublicJobsFlowUnionOrderingPagingFiltersAndPrivacy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, private := range []string{"requester", "headcount", "requestDate", "request_date", "delivery", "screening", "correct_option_id", "987654321", "Private screening"} {
+	for _, private := range []string{"requester", "headcount", "requestDate", "request_date", "delivery", "pipeline", "questions_snapshot", "answers_snapshot", "correct_option_id", "987654321", "Private screening"} {
 		if strings.Contains(string(raw), private) {
 			t.Fatalf("leaked %s", private)
 		}

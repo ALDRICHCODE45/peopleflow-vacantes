@@ -16,7 +16,7 @@ const upsertVacancyPublicProjection = `-- name: UpsertVacancyPublicProjection :e
 INSERT INTO vacancy_public_projections (
  id,company_id,title,description,description_plain,location,work_mode,work_schedule,
  contract_type,professional_area,seniority,required_requirements,preferred_requirements,
- benefits,compensation,published_at,source_draft_version
+ benefits,compensation,published_at,source_draft_version,skills,screening_questions
 ) VALUES (
  $1::uuid,$2::uuid,$3::text,
  $4::jsonb,$5::text,
@@ -25,14 +25,15 @@ INSERT INTO vacancy_public_projections (
  $11::text,$12::text,
  $13::text,$14::jsonb,
  $15::jsonb,$16::timestamptz,
- $17::bigint
+ $17::bigint,$18::text[],$19::int
 ) ON CONFLICT (id) DO UPDATE SET
  title=EXCLUDED.title,description=EXCLUDED.description,description_plain=EXCLUDED.description_plain,
  location=EXCLUDED.location,work_mode=EXCLUDED.work_mode,work_schedule=EXCLUDED.work_schedule,
  contract_type=EXCLUDED.contract_type,professional_area=EXCLUDED.professional_area,
  seniority=EXCLUDED.seniority,required_requirements=EXCLUDED.required_requirements,
  preferred_requirements=EXCLUDED.preferred_requirements,benefits=EXCLUDED.benefits,
- compensation=EXCLUDED.compensation,source_draft_version=EXCLUDED.source_draft_version
+ compensation=EXCLUDED.compensation,source_draft_version=EXCLUDED.source_draft_version,
+ skills=EXCLUDED.skills,screening_questions=EXCLUDED.screening_questions
 `
 
 type UpsertVacancyPublicProjectionParams struct {
@@ -53,6 +54,8 @@ type UpsertVacancyPublicProjectionParams struct {
 	Compensation          []byte             `json:"compensation"`
 	PublishedAt           pgtype.Timestamptz `json:"published_at"`
 	SourceDraftVersion    int64              `json:"source_draft_version"`
+	Skills                []string           `json:"skills"`
+	ScreeningQuestions    int32              `json:"screening_questions"`
 }
 
 func (q *Queries) UpsertVacancyPublicProjection(ctx context.Context, arg UpsertVacancyPublicProjectionParams) error {
@@ -74,6 +77,8 @@ func (q *Queries) UpsertVacancyPublicProjection(ctx context.Context, arg UpsertV
 		arg.Compensation,
 		arg.PublishedAt,
 		arg.SourceDraftVersion,
+		arg.Skills,
+		arg.ScreeningQuestions,
 	)
 	return err
 }
