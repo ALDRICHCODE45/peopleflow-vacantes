@@ -8,10 +8,13 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 
 - S3. User request (L5): «realmente me gusta mucho y quisiera replicarlo lo mas fiel posible, Recuerda, siempre prioriza el uso de shadcn, tienes el mcp de shadcn para ocuparlo cuando lo creas conveniente. hay componentes interesantes como scroll area, etc.. explora y arma algo bien hecho, con atencion a los detalles, con obsesion ux/ui, de verdad, quiero que se sienta hecho con carino». Reference: v0 chat lqiGtbQJqJc (files in docs/design/v0/reference-lqiGtbQJqJc/, screenshots /home/aldrich_coder45/Pictures/Screenshots/Screenshot_2026-10-17-14-43-46_5360x2520.png … 14-44-59). Port the visual design faithfully onto real data and the existing behavior (dnd-kit handle drag, allowed targets, locks, reconciliation, confirmations, strict contracts); drop demo-only parts (nexo sidebar, «Espacio de demostración» footer, «Tu proceso, a tu ritmo» note, «CV actualizado» events, «Postulación #0001», read-only settings dialog — our gear links to the configuration page).
 
+- S4. User request (L13): «me gustaria que el orden de las columnas en el pipeline se pueda modificar directamente arrastrando las columnas, no solo llendo al apartado de configuracion». User decision: «Solo sin candidatos» — the board allows dragging columns only while the vacancy has no candidates (structure_locked false); with candidates the column handle is shown locked with the explanation (cut-4 rule S5 «while a vacancy has candidates, columns can only be renamed until cut 7» stays). «Nuevos» and «Placement» keep their fixed positions; Descartados is not reorderable.
+
 ## Tasks
 - T1 [done] S1,S2 | parent | Typography: Inter for app headings; Clash Display landing-only; rules §14. | commit: ceed4b6
 - T2 [done] S2 | parent | v0 prompt for board + candidate sheet. | commit: (this doc commit)
 - T3 [done] S1,S3 | writer | Board + candidate sheet + discard dialog redesign faithful to the v0 reference (header with compact coverage, tinted columns, cards, empty columns, ScrollArea, sheet top bar/identity/tabs/timeline/file card). | commit: -
+- T6 [pending] S4 | writer | Board column drag-reorder while the structure is unlocked, saved through the existing pipeline PUT (If-Match), with keyboard alternative and locked state. | commit: -
 - T5 [pending] S1 | parent | Pass over the remaining screens, one reviewable delivery each. | commit: -
 
 ## Log
@@ -32,3 +35,4 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - L10. User: the collapsed isotype «se ve un poco cortada». Cause: the brand button kept its expanded `p-1.5!` padding in the 40px collapsed button, leaving 28px for the 40px mark, clipped by overflow-hidden. Fix: `group-data-[collapsible=icon]:data-[slot=sidebar-menu-button]:p-0!` on both brand buttons (more specific than the expanded padding); RED 2 → GREEN; src/components + dashboard 601 tests, tsc 0.
 - L11. User: «el logo en el sidebar abierto esta un poco chico, lo haria solo un poco mas grande». Expanded wordmark h-5 → h-6 (20 → 24px, fits the 28px content box of the 40px row); RED 3 → GREEN; src/components + dashboard 601 tests.
 - L12. User: «cambia de nuevo los logos … el que ahora aparece en darkmode, que aparezca en light mode y viceversa». Swapped: white-disc isotype (Logo_smal_Dark) in the light theme, black-disc (Logo_small_Light) in the dark theme.
+- L13. User asked for column reordering by dragging on the board; parent flagged the conflict with S5 (backend 409 stage_change_requires_empty_pipeline, editor lock); user chose «Solo sin candidatos».
