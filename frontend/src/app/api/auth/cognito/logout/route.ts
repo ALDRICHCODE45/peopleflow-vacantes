@@ -13,10 +13,10 @@ export const dynamic = "force-dynamic";
  * The destination comes from validated configuration only, so request input
  * cannot turn this into an open redirect.
  */
-export function GET(request?: Request) {
+export function GET(request: Request) {
   let destination: string;
   try {
-    const values = request ? new URL(request.url).searchParams.getAll("to") : [];
+    const values = new URL(request.url).searchParams.getAll("to");
     destination = buildCognitoLogoutUrl(validateAuthEnv(process.env), values.length === 1 ? values[0] : undefined);
   } catch {
     return new NextResponse("Authentication is not configured.", { status: 500 });
