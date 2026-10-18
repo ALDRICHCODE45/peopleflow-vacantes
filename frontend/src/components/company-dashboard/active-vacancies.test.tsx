@@ -188,7 +188,7 @@ describe("ActiveVacancies interaction and token-only contract", () => {
     }
   });
 
-  it("keeps the responsive panel token-only and free of Card primitives and inline styles", () => {
+  it("keeps the responsive Card panel token-only and free of inline styles", () => {
     render(<ActiveVacancies vacancies={vacancies} />);
 
     const sectionEl = panel();
@@ -198,7 +198,10 @@ describe("ActiveVacancies interaction and token-only contract", () => {
 
     expect(allClasses).not.toMatch(RAW_COLOR);
     expect(sectionEl.querySelectorAll("[style]")).toHaveLength(0);
-    expect(sectionEl.querySelectorAll("[data-slot='card']")).toHaveLength(0);
+    expect(sectionEl.querySelectorAll("[data-slot='card']")).toHaveLength(1);
+    expect(sectionEl.querySelector('[data-slot="card-title"] h2')).toHaveTextContent("Vacantes activas");
+    expect(sectionEl.querySelector('[data-slot="card-action"] a')).toHaveTextContent("Ver todas");
+    expect(sectionEl.querySelectorAll('[data-slot="card-content"] [data-slot="item"]')).toHaveLength(3);
   });
 });
 
@@ -286,11 +289,9 @@ describe("ActiveVacancies source contract", () => {
     expect(source).not.toMatch(/href=\{?["'`]?\/empresa\/vacantes\//u);
   });
 
-  it("composes the panel without Card primitives, card slots, or raw color", () => {
-    // Only the Card primitive and its slots stay forbidden; the shared Badge
-    // legitimately exposes `data-slot="badge"` through the recipe.
+  it("composes the panel from the installed Card instead of hand-written slots or raw color", () => {
     expect(source).not.toMatch(/data-slot=["']card/u);
-    expect(source).not.toMatch(/from\s+["']@\/components\/ui\/card/u);
+    expect(source).toMatch(/from\s+["']@\/components\/ui\/card/u);
     expect(source).not.toMatch(RAW_COLOR);
   });
 

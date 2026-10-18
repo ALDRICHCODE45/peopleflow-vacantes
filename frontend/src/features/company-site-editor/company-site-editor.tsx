@@ -5,7 +5,7 @@ import { BookOpenIcon, Building2Icon, WrenchIcon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Field,
   FieldDescription,
@@ -172,13 +172,15 @@ export function CompanySiteEditor() {
 
       {/* Profile readiness: the minimum gate, kept beside the editor it reads. */}
       <Card data-pf-sitio-readiness size="sm" className="min-w-0">
-        <CardContent className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <Badge variant={profileReady ? "success" : "neutral"} dot>
-            {profileReady ? "Perfil listo" : "Perfil incompleto"}
-          </Badge>
-          <p className="min-w-0 flex-1 basis-56 text-[13.5px] text-muted-foreground">
-            {profileGuidance(nameDeclared, nameConfirmed, aboutDeclared)}
-          </p>
+        <CardHeader>
+          <CardDescription>{profileGuidance(nameDeclared, nameConfirmed, aboutDeclared)}</CardDescription>
+          <CardAction>
+            <Badge variant={profileReady ? "success" : "neutral"} dot>
+              {profileReady ? "Perfil listo" : "Perfil incompleto"}
+            </Badge>
+          </CardAction>
+        </CardHeader>
+        <CardFooter>
           <Button
             type="button"
             className="h-10"
@@ -187,7 +189,7 @@ export function CompanySiteEditor() {
           >
             Confirmar nombre
           </Button>
-        </CardContent>
+        </CardFooter>
       </Card>
 
       <div
@@ -269,15 +271,8 @@ export function CompanySiteEditor() {
           aria-labelledby={PREVIEW_ID}
           className="flex min-w-0 flex-col gap-3"
         >
-          <div className="flex flex-col gap-1">
-            <h2
-              id={PREVIEW_ID}
-              className="font-heading text-xl font-semibold tracking-tight text-foreground"
-            >
-              Vista previa
-            </h2>
-          </div>
           <Card data-pf-sitio-preview-surface size="sm" className="min-w-0">
+            <CardHeader><CardTitle><h2 id={PREVIEW_ID} className="text-xl font-semibold tracking-tight">Vista previa</h2></CardTitle></CardHeader>
             <CardContent className="min-w-0">
               <CompanyCareersView
                 content={content}

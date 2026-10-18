@@ -19,6 +19,7 @@ import { cn } from "cn";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Item, ItemActions, ItemContent, ItemTitle } from "@/components/ui/item";
 import {
   Sheet,
   SheetClose,
@@ -410,9 +411,11 @@ export function TalentDetailSheet({
                 a separate equal-column action row that wraps safely on the
                 narrowest panel. */}
             <DetailSection id="talento-detalle-curriculum" title="Currículum">
-              <div
+              <Item
                 data-pf-talento-curriculum=""
-                className="flex flex-col gap-3 rounded-xl bg-muted p-3"
+                variant="muted"
+                size="sm"
+                className="flex-col items-stretch"
               >
                 <div
                   data-pf-talento-curriculum-text=""
@@ -424,17 +427,17 @@ export function TalentDetailSheet({
                   >
                     <IconFileTypePdf className="size-6" />
                   </span>
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <p
+                  <ItemContent className="min-w-0">
+                    <ItemTitle
                       data-pf-talento-curriculum-filename=""
                       title={talentCvDemoFileName(person.fullName)}
                       className="min-w-0 truncate text-sm font-medium text-foreground"
                     >
                       {talentCvDemoFileName(person.fullName)}
-                    </p>
-                  </div>
+                    </ItemTitle>
+                  </ItemContent>
                 </div>
-                <div
+                <ItemActions
                   data-pf-talento-curriculum-actions=""
                   className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(7rem,1fr))] gap-2"
                 >
@@ -454,8 +457,8 @@ export function TalentDetailSheet({
                     <IconDownload aria-hidden="true" />
                     Descargar
                   </Button>
-                </div>
-              </div>
+                </ItemActions>
+              </Item>
             </DetailSection>
 
             {applications.length === 0 ? null : (

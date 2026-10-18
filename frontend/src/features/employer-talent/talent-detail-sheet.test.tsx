@@ -364,7 +364,8 @@ describe("TalentDetailSheet interior", () => {
     const card = section.querySelector<HTMLElement>(
       "[data-pf-talento-curriculum]",
     );
-    expect(card, "curriculum card").not.toBeNull();
+    expect(card, "curriculum item").toHaveAttribute("data-slot", "item");
+    expect(card!.querySelector('[data-slot="item-content"] [data-slot="item-title"]')).not.toBeNull();
 
     // The card composes from its own local width. A `sm:` viewport row is the
     // regression: the floating Sheet panel is capped at 24rem even on a wide
@@ -381,7 +382,7 @@ describe("TalentDetailSheet interior", () => {
       "[data-pf-talento-curriculum-actions]",
     );
     expect(textRow, "curriculum text row").not.toBeNull();
-    expect(actionsRow, "curriculum actions row").not.toBeNull();
+    expect(actionsRow, "curriculum actions row").toHaveAttribute("data-slot", "item-actions");
 
     // The actions are a sibling row below the text, not a third column in the
     // same horizontal row as the icon and filename.

@@ -59,7 +59,19 @@ it("keeps context and accessible skeleton while initial load waits", async () =>
   expect(screen.getByRole("status")).toHaveTextContent("Cargando empresa");
   expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(2);
   expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
+  const cardSlots = () => [...container.querySelectorAll('[data-slot^="card"]')].map(node => node.getAttribute("data-slot"));
+  const loadingSlots = cardSlots();
+  expect(container.querySelectorAll('[data-slot="field"]')).toHaveLength(3);
+  expect(container.querySelector('[data-slot="card-footer"] [data-slot="skeleton"]')).toHaveClass("h-10");
   await act(async () => pending.resolve(none)); expect(await screen.findByLabelText("RFC")).toBeInTheDocument(); expect(sileo.success).not.toHaveBeenCalled();
+  expect(cardSlots()).toEqual(loadingSlots);
+});
+it("composes the company creation action in the footer without detaching form submission", async () => {
+  render(<CompanySection />);
+  const button = await screen.findByRole("button", { name: "Crear empresa" });
+  expect(button.closest('[data-slot="card-footer"]')).not.toBeNull();
+  expect(button).toHaveAttribute("form", "company-create");
+  expect(document.getElementById("company-create")?.closest('[data-slot="card-content"]')).not.toBeNull();
 });
 it("shows persistent local field validation without calling create", async () => {
   render(<CompanySection />); await screen.findByLabelText("RFC");

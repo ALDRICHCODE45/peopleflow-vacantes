@@ -70,6 +70,10 @@ describe("company dashboard application-source chart", () => {
     expect(card).not.toBeNull();
     expect(card).toHaveAttribute("data-pf-chart-card", "");
     expect(card).toHaveAttribute("data-slot", "card");
+    expect(card?.querySelector('[data-slot="card-header"] > [data-slot="card-title"] h2')).not.toBeNull();
+    expect(card?.querySelector('[data-slot="card-header"] > [data-slot="card-description"]')).not.toBeNull();
+    expect(card?.querySelector('[data-slot="card-header"] > [data-slot="card-action"]')).not.toBeNull();
+    expect(card?.querySelector('[data-slot="card-content"]')?.className).not.toMatch(/(?:^|\s)(?:sm:)?(?:px|pt)-\d/u);
     expect(document.querySelector("[data-slot='chart']")).not.toBeNull();
   });
 

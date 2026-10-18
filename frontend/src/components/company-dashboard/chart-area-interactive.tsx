@@ -227,7 +227,7 @@ export function ChartAreaInteractive() {
   return (
     <Card className="@container/card" data-pf-chart-card="">
       <CardHeader>
-        <CardTitle>
+        <CardTitle><h2>
           {/* The full heading is the desktop copy. Below the card's 540px
               breakpoint it wrapped onto a second 24px line and pushed the mobile
               chart down to 406px, so the concise title keeps the header on one
@@ -237,7 +237,7 @@ export function ChartAreaInteractive() {
             Origen de las postulaciones
           </span>
           <span className="@[540px]/card:hidden">Postulaciones</span>
-        </CardTitle>
+        </h2></CardTitle>
         <CardDescription>
           <span className="hidden @[540px]/card:block">{subtitle.long}</span>
           <span className="@[540px]/card:hidden">{subtitle.short}</span>
@@ -286,7 +286,7 @@ export function ChartAreaInteractive() {
           </Select>
         </CardAction>
       </CardHeader>
-      <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6">
+      <CardContent>
         <ChartContainer
           config={chartConfig}
           className="aspect-auto h-[250px] w-full"

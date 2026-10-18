@@ -7,7 +7,7 @@ import { dismissActionResult, notifyActionResult } from "@/components/feedback/n
 import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -139,26 +139,24 @@ export function CompanySection() {
     <section aria-labelledby="company-heading" id="empresa-identidad">
       <Card>
         <CardHeader className="border-b border-border/60">
-          <div className="flex items-center gap-3">
-            <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Building2 className="size-5" /></span>
-            <CardTitle><h2 id="company-heading" className="font-heading text-xl font-semibold">Tu empresa</h2></CardTitle>
-          </div>
+          <CardTitle><h2 id="company-heading" className="flex items-center gap-3 text-xl font-semibold"><span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary"><Building2 className="size-5" /></span>Tu empresa</h2></CardTitle>
           <CardDescription>Registra tu empresa para preparar tus procesos de reclutamiento.</CardDescription>
+          {state.kind === "exists" && <CardAction><Badge variant={STATUS[state.company.status].variant} dot>{STATUS[state.company.status].label}</Badge></CardAction>}
         </CardHeader>
         <CardContent>
-          {state.kind === "loading" && <div aria-busy="true" className="flex flex-col gap-5"><span role="status" className="sr-only">Cargando empresa</span>{[0, 1, 2].map(key => <div key={key} aria-hidden="true" className="flex flex-col gap-2"><Skeleton className="h-4 w-36" /><Skeleton className="h-10 w-full" /></div>)}</div>}
+          {state.kind === "loading" && <div aria-busy="true"><span role="status" className="sr-only">Cargando empresa</span><FieldGroup aria-hidden="true">{[0, 1, 2].map(key => <Field key={key}><FieldLabel><Skeleton className="h-5 w-36" /></FieldLabel><Skeleton className="h-10 w-full" /></Field>)}</FieldGroup></div>}
           {state.kind === "unauthenticated" && <ActionStatus id="company-action-status" tone="error" text="No se cargó · ver aviso" action={login} />}
           {(state.kind === "server_error" || state.kind === "no_response" || state.kind === "unrecognized_response") && <ActionStatus id="company-action-status" tone="error" text="No se cargó · ver aviso" action={retry} />}
           {state.kind === "exists" && <div className="flex flex-col gap-5">
             {result?.kind === "created" && <ActionStatus id="company-action-status" tone="success" text="Empresa creada" />}
-            <div className="flex flex-wrap items-center gap-3"><p className="font-heading text-lg font-semibold">{state.company.name}</p><Badge variant={STATUS[state.company.status].variant} dot>{STATUS[state.company.status].label}</Badge></div>
+            <p className="font-heading text-lg font-semibold">{state.company.name}</p>
             <dl className="grid gap-5 sm:grid-cols-3">
               <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><Fingerprint aria-hidden="true" className="size-3.5" />RFC</dt><dd>{state.company.rfc}</dd></div>
               <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><Factory aria-hidden="true" className="size-3.5" />Industria</dt><dd>{state.industryLabel}</dd></div>
               <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><UsersRound aria-hidden="true" className="size-3.5" />Tu rol</dt><dd>{state.role === "owner" ? "Propietario" : "Reclutador"}</dd></div>
             </dl>
           </div>}
-          {state.kind === "none" && <form onSubmit={submit} noValidate className="flex flex-col gap-5">
+          {state.kind === "none" && <form id="company-create" onSubmit={submit} noValidate>
             <FieldGroup>
               <Field data-invalid={!!fields.name}>
                 <FieldLabel htmlFor="company-name"><Building2 aria-hidden="true" className="size-3.5" />Nombre de la empresa</FieldLabel>
@@ -179,14 +177,17 @@ export function CompanySection() {
                 <FieldError id="company-industry-error">{fields.industryId}</FieldError>
               </Field>
             </FieldGroup>
+          </form>}
+        </CardContent>
+        {state.kind === "loading" && <CardFooter aria-hidden="true"><div className="flex flex-col items-start gap-2"><Skeleton className="h-10 w-40" /><ActionStatusSlot /></div></CardFooter>}
+        {state.kind === "none" && <CardFooter>
             <div className="flex flex-col items-start gap-2">
-              {!needsReload(result?.kind) && <Button type="submit" className="min-h-10" disabled={pending || reloading} aria-busy={pending} aria-describedby={failedResult ? "company-action-status" : undefined}>{pending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <ShieldCheck data-icon="inline-start" aria-hidden="true" />}{pending ? "Creando empresa…" : "Crear empresa"}</Button>}
+              {!needsReload(result?.kind) && <Button type="submit" form="company-create" className="min-h-10" disabled={pending || reloading} aria-busy={pending} aria-describedby={failedResult ? "company-action-status" : undefined}>{pending ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <ShieldCheck data-icon="inline-start" aria-hidden="true" />}{pending ? "Creando empresa…" : "Crear empresa"}</Button>}
               <ActionStatusSlot>
                 {failedResult && <ActionStatus id="company-action-status" tone="error" text={["server_error", "no_response", "unrecognized_response"].includes(failedResult.kind) ? "Resultado sin confirmar · ver aviso" : "No se creó · ver aviso"} action={failedResult.kind === "unauthenticated" ? login : needsReload(failedResult.kind) ? retry : undefined} />}
               </ActionStatusSlot>
             </div>
-          </form>}
-        </CardContent>
+        </CardFooter>}
       </Card>
     </section>
   );

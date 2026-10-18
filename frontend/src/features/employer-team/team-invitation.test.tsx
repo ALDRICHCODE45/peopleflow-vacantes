@@ -201,7 +201,10 @@ describe("TeamInvitation interaction and source contract", () => {
     expect(interactive.map((node) => node.className.includes("h-10") && node.className.includes("focus-visible:ring-3"))).toEqual([true, true, true, true]);
     const fields = control("data-pf-team-invitation-fields");
     expect([fields.className.includes("grid-cols-1"), fields.className.includes("sm:grid-cols-2")]).toEqual([true, true]);
-    expect(panel()?.className).toContain("rounded-3xl");
+    expect(panel()).toHaveAttribute("data-slot", "card");
+    expect(control("data-pf-team-invitation-form").closest('[data-slot="card-content"]')).not.toBeNull();
+    expect(control("data-pf-team-invitation-submit").closest('[data-slot="card-footer"]')).not.toBeNull();
+    expect(control("data-pf-team-invitation-submit")).toHaveAttribute("form", "team-invitation-form");
     expect(RAW_COLOR.test(classesOf(container))).toBe(false);
     expect(container.querySelectorAll("[style]")).toHaveLength(0);
     // The affordance owns no member list, row, or metric surface it could append to.

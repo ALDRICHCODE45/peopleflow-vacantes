@@ -6,6 +6,7 @@ import { SearchIcon } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -112,10 +113,12 @@ export function TeamWorkspace({ members }: { members: readonly TeamMember[] }) {
     <div data-pf-team-workspace className="flex flex-col gap-5">
       <section data-pf-team-summary aria-label="Resumen del equipo" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {cards.map((card) => (
-          <div key={card.key} data-pf-team-metric={card.key} className="rounded-xl border border-border bg-card/50 p-4">
-            <p className="font-heading text-[22px] font-bold text-foreground tabular-nums">{card.value}</p>
-            <p className={META}>{card.value === 1 ? card.singular : card.plural}</p>
-          </div>
+          <Card key={card.key} data-pf-team-metric={card.key} size="sm">
+            <CardHeader>
+              <CardTitle><h3 className="text-[22px] font-bold tabular-nums">{card.value}</h3></CardTitle>
+              <CardDescription>{card.value === 1 ? card.singular : card.plural}</CardDescription>
+            </CardHeader>
+          </Card>
         ))}
       </section>
       <div className="flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-end lg:justify-between">
@@ -139,7 +142,8 @@ export function TeamWorkspace({ members }: { members: readonly TeamMember[] }) {
         </div>
       </div>
       <p data-pf-team-count role="status" aria-live="polite" className={META}>{plural(results.length, "miembro", "miembros")}</p>
-      <div data-pf-team-results className="overflow-hidden rounded-2xl border border-border bg-card/40">
+      <Card data-pf-team-results>
+        <CardContent className="-mx-(--card-spacing)">
         <div data-pf-team-header aria-hidden="true" className={HEADER}>
           <span>Miembro</span><span>Rol</span><span>Estado</span><span>Carga</span>
         </div>
@@ -163,7 +167,8 @@ export function TeamWorkspace({ members }: { members: readonly TeamMember[] }) {
             {results.map((member) => (<TeamMemberRow key={member.id} member={member} />))}
           </ul>
         )}
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

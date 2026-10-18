@@ -4,6 +4,7 @@ import * as React from "react";
 import { UserPlusIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -97,8 +98,9 @@ export function TeamInvitation() {
         </Button>
       </div>
       {open && (
-        <div id={PANEL_ID} data-pf-team-invitation-panel className="rounded-3xl border border-border bg-card/50 p-4 sm:p-5">
-          <form noValidate data-pf-team-invitation-form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <Card id={PANEL_ID} data-pf-team-invitation-panel size="sm">
+          <CardContent>
+          <form id="team-invitation-form" noValidate data-pf-team-invitation-form onSubmit={onSubmit} className="flex flex-col gap-4">
             <div data-pf-team-invitation-fields className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor={EMAIL_ID} className={LABEL}>Correo electrónico</Label>
@@ -128,12 +130,13 @@ export function TeamInvitation() {
                 {error}
               </p>
             )}
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="submit" data-pf-team-invitation-submit className="h-10 px-4">Enviar invitación</Button>
-              <Button type="button" variant="outline" data-pf-team-invitation-cancel onClick={close} className="h-10 px-4">Cancelar</Button>
-            </div>
           </form>
-        </div>
+          </CardContent>
+          <CardFooter className="flex-wrap gap-2">
+              <Button type="submit" form="team-invitation-form" data-pf-team-invitation-submit className="h-10 px-4">Enviar invitación</Button>
+              <Button type="button" variant="outline" data-pf-team-invitation-cancel onClick={close} className="h-10 px-4">Cancelar</Button>
+          </CardFooter>
+        </Card>
       )}
     </div>
   );

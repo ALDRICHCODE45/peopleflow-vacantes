@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { employmentTypeLabel, formatPublishedDate, formatSalary, seniorityLabel, workModeLabel } from "../jobs/formatters";
 import type { JobItem } from "../jobs/types";
@@ -82,6 +82,7 @@ export function CompanyCareersView({
   const headings = companySiteHeadings(headingLevel, idPrefix);
   const NameTag = headings.nameTag;
   const SectionTag = headings.sectionTag;
+  const DetailTag = headingLevel === 1 ? "h3" : "h4";
   const cover = content.coverPhoto;
   const highlights = content.whatWeDo === undefined ? [] : whatWeDoHighlights(content.whatWeDo);
   const facts = [
@@ -167,7 +168,9 @@ export function CompanyCareersView({
                   </div>
                 ))}
               </dl>
-              {content.website !== undefined && (
+            </CardContent>
+            {content.website !== undefined && (
+              <CardFooter>
                 <a
                   href={content.website}
                   target="_blank"
@@ -177,8 +180,8 @@ export function CompanyCareersView({
                   Sitio web de {content.name}
                   <ExternalLinkIcon aria-hidden="true" className="size-4" />
                 </a>
-              )}
-            </CardContent>
+              </CardFooter>
+            )}
           </Card>
         </section>
       )}
@@ -201,9 +204,9 @@ export function CompanyCareersView({
             )}
           </div>
           {content.mission !== undefined && (
-            <Card className="self-start bg-secondary lg:col-span-5">
-              <CardContent className="flex flex-col gap-3">
-                <p className="text-sm font-medium text-foreground">Nuestra misión</p>
+            <Card data-pf-company-mission className="self-start bg-secondary lg:col-span-5">
+              <CardHeader><CardTitle><DetailTag>Nuestra misión</DetailTag></CardTitle></CardHeader>
+              <CardContent>
                 <p className="text-pretty font-heading text-lg leading-snug text-foreground">
                   {content.mission}
                 </p>
@@ -276,14 +279,17 @@ export function CompanyCareersView({
                     size="sm"
                     className="transition-[box-shadow,border-color] duration-200 ease-out hover:ring-foreground/10 motion-reduce:transition-none"
                   >
-                    <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-                      <div className="flex min-w-0 flex-col gap-2">
-                        <h3 className="font-heading text-lg font-semibold tracking-tight text-foreground">
+                    <CardHeader>
+                      <CardTitle>
+                        <h3 className="text-lg font-semibold tracking-tight">
                           <Link href={`/vacantes/${job.id}`} className={focusRing}>
                             {job.title}
                           </Link>
                         </h3>
-                        <p className="text-sm text-muted-foreground">{job.company.name}</p>
+                      </CardTitle>
+                      <CardDescription>{job.company.name}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                           {job.location !== undefined && (
                             <span className="flex items-center gap-1.5">
@@ -307,8 +313,8 @@ export function CompanyCareersView({
                             </span>
                           )}
                         </div>
-                      </div>
-                      <div className="flex shrink-0 flex-col gap-2 sm:items-end">
+                    </CardContent>
+                    <CardFooter className="flex-wrap justify-between gap-3">
                         <p className="font-heading text-base font-semibold text-foreground">
                           {formatSalary({
                             min: job.salary_min,
@@ -323,8 +329,7 @@ export function CompanyCareersView({
                           Ver vacante
                           <ArrowRightIcon aria-hidden="true" className="size-4" />
                         </Link>
-                      </div>
-                    </CardContent>
+                    </CardFooter>
                   </Card>
                 </li>
               );

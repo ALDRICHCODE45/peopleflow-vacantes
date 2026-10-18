@@ -56,7 +56,7 @@ export function SectionCards() {
           <CardHeader>
             <CardDescription>{kpi.label}</CardDescription>
             <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-              {kpi.value}
+              <h3>{kpi.value}</h3>
             </CardTitle>
             <CardAction>
               <Badge variant="outline">

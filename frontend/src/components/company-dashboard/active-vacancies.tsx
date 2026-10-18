@@ -1,6 +1,9 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader } from "@/components/ui/empty";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import {
   EMPLOYER_VACANCY_STATE_LABELS,
   vacancyCandidateTotal,
@@ -43,56 +46,49 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVac
       data-pf-active-vacancies=""
       className="flex flex-col gap-4"
     >
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <h2
+      <Card>
+      <CardHeader>
+        <CardTitle><h2
           id={HEADING_ID}
           className="font-heading text-[15px] font-semibold tracking-tight text-foreground"
         >
           Vacantes activas
-        </h2>
-        <Link
+        </h2></CardTitle>
+        <CardAction><Link
           href="/empresa/vacantes"
           data-pf-active-vacancies-portfolio=""
           className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-border px-3.5 text-sm font-medium text-foreground transition-colors duration-200 hover:border-primary/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none"
         >
           Ver todas
-        </Link>
-      </header>
+        </Link></CardAction>
+      </CardHeader>
+      <CardContent>
       {active.length === 0 ? (
-        <p
-          data-pf-active-vacancies-empty=""
-          className="rounded-xl border border-border bg-card/40 px-4 py-6 text-center text-[13px] text-muted-foreground"
-        >
-          No hay vacantes activas
-        </p>
+        <Empty data-pf-active-vacancies-empty=""><EmptyHeader><EmptyDescription>No hay vacantes activas</EmptyDescription></EmptyHeader></Empty>
       ) : (
-        <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card/40">
+        <ul className="flex flex-col divide-y divide-border">
           {active.map((vacancy) => {
             const total = vacancyCandidateTotal(vacancy.candidateCounts);
             return (
-              <li
+              <Item render={<li />}
                 key={vacancy.id}
                 data-pf-active-vacancy-row={vacancy.id}
                 className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
               >
-                <div className="flex min-w-0 items-start gap-3">
-                  <span
+                  <ItemMedia><span
                     aria-hidden="true"
                     data-pf-active-vacancy-monogram=""
                     className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-[13px] font-bold text-foreground"
                   >
                     {monogram(vacancy.title)}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate text-[14.5px] font-semibold text-foreground">
+                  </span></ItemMedia>
+                  <ItemContent className="min-w-0">
+                    <ItemTitle className="truncate">
                       {vacancy.title}
-                    </p>
-                    <p className="mt-1 text-[12.5px] text-muted-foreground">
-                      {historyCopy(total)}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
+                    </ItemTitle>
+                    <ItemDescription>{historyCopy(total)}</ItemDescription>
+                  </ItemContent>
+                <ItemActions className="flex-wrap">
                   <Badge
                     data-pf-active-vacancy-status=""
                     variant="accent"
@@ -108,12 +104,14 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVac
                   >
                     Ver pipeline
                   </Link>
-                </div>
-              </li>
+                </ItemActions>
+              </Item>
             );
           })}
         </ul>
       )}
+      </CardContent>
+      </Card>
     </section>
   );
 }

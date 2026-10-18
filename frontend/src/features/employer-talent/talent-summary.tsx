@@ -55,7 +55,7 @@ export function TalentSummary({ people }: TalentSummaryProps) {
               data-pf-talento-stat-value={stat.id}
               className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl"
             >
-              {stat.value}
+              <h3>{stat.value}</h3>
             </CardTitle>
           </CardHeader>
         </Card>
