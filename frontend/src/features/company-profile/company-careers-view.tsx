@@ -44,22 +44,6 @@ const WORK_MODE_ICONS = {
 } as const satisfies Record<JobItem["work_mode"], typeof MapPinIcon>;
 
 /**
- * Splits the profile's own `whatWeDo` sentence on its enumerating punctuation.
- * It is a verbatim, deterministic split of profile content, so a highlight can
- * never claim a capability the profile does not state; a sentence with nothing
- * to split stays one highlight instead of rendering an empty list.
- */
-function whatWeDoHighlights(whatWeDo: string): string[] {
-  const clauses = whatWeDo
-    .split(/,\s*|\s+y\s+(?=[a-záéíóúñ])/u)
-    .map((clause) => clause.trim())
-    .filter((clause) => clause.length > 0);
-  return (clauses.length > 0 ? clauses : [whatWeDo]).map(
-    (clause) => clause.charAt(0).toUpperCase() + clause.slice(1),
-  );
-}
-
-/**
  * Server-rendered editorial careers site for one company. The caller supplies
  * identity-only presentation content (the public route derives it from the
  * approved profile) plus wire-backed vacancies, so the view never invents a
@@ -84,7 +68,6 @@ export function CompanyCareersView({
   const SectionTag = headings.sectionTag;
   const DetailTag = headingLevel === 1 ? "h3" : "h4";
   const cover = content.coverPhoto;
-  const highlights = content.whatWeDo === undefined ? [] : whatWeDoHighlights(content.whatWeDo);
   const facts = [
     content.location === undefined ? null : { label: "Ubicación", value: content.location, Icon: MapPinIcon },
     content.companySize === undefined ? null : { label: "Tamaño del equipo", value: content.companySize, Icon: UsersIcon },
@@ -216,31 +199,15 @@ export function CompanyCareersView({
         </div>
       </section>
 
-      {/* Capability rows: verbatim profile capabilities as full-width rows with
-          a single leading marker each, never a templated three-card grid. */}
+      {/* Authored prose stays prose: punctuation is not evidence of a list. */}
       {content.whatWeDo !== undefined && (
         <section aria-labelledby={headings.capabilitiesId}>
           <SectionTag id={headings.capabilitiesId} className={headingClass}>
             Qué hacemos
           </SectionTag>
-          <ul className="mt-6 flex flex-col">
-            {highlights.map((highlight) => (
-              <li
-                key={highlight}
-                className="flex items-start gap-4 border-b border-border py-5 first:border-t"
-              >
-                <span
-                  aria-hidden="true"
-                  className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"
-                >
-                  <ArrowRightIcon className="size-4" />
-                </span>
-                <p data-capability-text className="max-w-prose leading-relaxed text-foreground">
-                  {highlight}
-                </p>
-              </li>
-            ))}
-          </ul>
+          <p data-capability-text className="mt-6 max-w-prose whitespace-pre-wrap leading-relaxed text-foreground">
+            {content.whatWeDo}
+          </p>
         </section>
       )}
 
@@ -272,6 +239,8 @@ export function CompanyCareersView({
         ) : (
           <ul aria-label={`Vacantes en ${content.name}`} className="mt-6 flex flex-col gap-3">
             {jobs.map((job) => {
+              // The legacy company projection has no period or basis: disclose the gap, never infer it.
+              const salary = formatSalary({ min: job.salary_min, max: job.salary_max, currency: job.salary_currency });
               const WorkModeIcon = WORK_MODE_ICONS[job.work_mode];
               return (
                 <li key={job.id}>
@@ -281,16 +250,16 @@ export function CompanyCareersView({
                   >
                     <CardHeader>
                       <CardTitle>
-                        <h3 className="text-lg font-semibold tracking-tight">
+                        <DetailTag className="break-words text-lg font-semibold tracking-tight">
                           <Link href={`/vacantes/${job.id}`} className={focusRing}>
                             {job.title}
                           </Link>
-                        </h3>
+                        </DetailTag>
                       </CardTitle>
                       <CardDescription>{job.company.name}</CardDescription>
                     </CardHeader>
-                    <CardContent>
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+                    <CardContent className="flex flex-col gap-3">
+                        <div aria-label="Condiciones principales" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
                           {job.location !== undefined && (
                             <span className="flex items-center gap-1.5">
                               <MapPinIcon aria-hidden="true" className="size-3.5 shrink-0" />
@@ -301,33 +270,26 @@ export function CompanyCareersView({
                             <WorkModeIcon aria-hidden="true" className="size-3.5 shrink-0" />
                             {workModeLabel(job.work_mode)}
                           </span>
-                          <span className="flex items-center gap-1.5">
-                            <BriefcaseIcon aria-hidden="true" className="size-3.5 shrink-0" />
-                            {employmentTypeLabel(job.employment_type)}
-                          </span>
-                          <span>{seniorityLabel(job.seniority)}</span>
-                          {job.published_at !== undefined && (
-                            <span className="flex items-center gap-1.5">
-                              <CalendarDaysIcon aria-hidden="true" className="size-3.5 shrink-0" />
-                              Publicada: {formatPublishedDate(job.published_at)}
-                            </span>
-                          )}
                         </div>
+                        <p className="text-sm text-muted-foreground">{employmentTypeLabel(job.employment_type)} · {seniorityLabel(job.seniority)}</p>
+                          {job.published_at !== undefined && (
+                            <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                              <CalendarDaysIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                              Publicada: <time dateTime={job.published_at}>{formatPublishedDate(job.published_at)}</time>
+                            </p>
+                          )}
                     </CardContent>
-                    <CardFooter className="flex-wrap justify-between gap-3">
-                        <p className="font-heading text-base font-semibold text-foreground">
-                          {formatSalary({
-                            min: job.salary_min,
-                            max: job.salary_max,
-                            currency: job.salary_currency,
-                          }) ?? "Salario a convenir"}
-                        </p>
+                    <CardFooter className="flex-col items-stretch justify-between gap-4 border-t sm:flex-row sm:items-center">
+                        <div className="flex flex-col gap-1">
+                          <p className="font-heading text-lg font-semibold tabular-nums text-foreground">{salary ?? "Salario no publicado"}</p>
+                          {salary !== null && <p className="text-sm text-muted-foreground">Periodicidad y neto/bruto no disponibles</p>}
+                        </div>
                         <Link
                           href={`/vacantes/${job.id}`}
-                          className={`inline-flex min-h-10 items-center gap-1.5 ${linkClass}`}
+                          className={buttonVariants({ className: "min-h-11 w-full sm:w-auto" })}
                         >
                           Ver vacante
-                          <ArrowRightIcon aria-hidden="true" className="size-4" />
+                          <ArrowRightIcon aria-hidden="true" data-icon="inline-end" />
                         </Link>
                     </CardFooter>
                   </Card>

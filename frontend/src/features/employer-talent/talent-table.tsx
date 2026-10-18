@@ -358,18 +358,18 @@ function TalentHeaderCell<TValue>({
   );
 }
 
-function SkillsCell({ skills }: { skills: readonly string[] }) {
+function SkillsCell({ skills, fullName, onMore }: { skills: readonly string[]; fullName: string; onMore: () => void }) {
   const shown = skills.slice(0, 2);
   const rest = skills.length - shown.length;
   return (
-    <span className="flex items-center gap-1">
+    <span className="flex flex-wrap items-center gap-1">
       {shown.map((skill) => (
         <Badge key={skill} variant="outline" className="text-muted-foreground">
           {skill}
         </Badge>
       ))}
       {rest > 0 ? (
-        <span className="text-xs text-muted-foreground">{`+${rest}`}</span>
+        <Button type="button" variant="link" className="min-h-10 px-0" aria-label={`y ${rest} habilidades más de ${fullName}`} onClick={onMore}>y {rest} más</Button>
       ) : null}
     </span>
   );
@@ -589,7 +589,7 @@ export function TalentTable({
                   type="button"
                   variant="link"
                   data-pf-talento-open={row.original.id}
-                  className="h-auto min-w-0 max-w-[200px] justify-start px-0 text-left font-medium text-foreground"
+                  className="h-auto min-h-10 min-w-0 max-w-[200px] justify-start px-0 text-left font-medium text-foreground"
                   onClick={() => onSelectPerson(row.original.id)}
                 >
                   <span className="truncate">{row.original.fullName}</span>
@@ -661,7 +661,7 @@ export function TalentTable({
         columnHelper.accessor((row) => row.skills.join(", "), {
           id: "skills",
           header: ({ column }) => renderHeader(column),
-          cell: ({ row }) => <SkillsCell skills={row.original.skills} />,
+          cell: ({ row }) => <SkillsCell skills={row.original.skills} fullName={row.original.fullName} onMore={() => onSelectPerson(row.original.id)} />,
           size: TALENT_COLUMN_SIZES.skills,
           minSize: 200,
         }),
@@ -694,9 +694,9 @@ export function TalentTable({
           id: "applicationsCount",
           header: ({ column }) => renderHeader(column),
           cell: ({ row }) => (
-            <Badge variant="secondary">
+            <span className="tabular-nums text-muted-foreground">
               {formatTalentApplicationsCount(row.original.applications.length)}
-            </Badge>
+            </span>
           ),
           size: TALENT_COLUMN_SIZES.applicationsCount,
           minSize: 130,

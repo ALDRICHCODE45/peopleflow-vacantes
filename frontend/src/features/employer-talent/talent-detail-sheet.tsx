@@ -209,7 +209,7 @@ function InfoTile({
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col gap-1 rounded-xl bg-muted p-3",
+        "flex min-w-0 flex-col gap-1 py-2",
         className,
       )}
     >
@@ -314,14 +314,14 @@ export function TalentDetailSheet({
               >
                 <div className="flex flex-wrap items-center gap-1.5">
                   {person.preferredModality === undefined ? (
-                    <Badge variant="neutral">Modalidad no disponible</Badge>
+                    <span className="text-sm text-muted-foreground">Modalidad no disponible</span>
                   ) : (
                     <Badge variant={TALENT_MODALITY_VARIANT[person.preferredModality]}>
                       {TALENT_MODALITY_LABELS[person.preferredModality]}
                     </Badge>
                   )}
                   {person.availability === undefined ? (
-                    <Badge variant="neutral">Disponibilidad no disponible</Badge>
+                    <span className="text-sm text-muted-foreground">Disponibilidad no disponible</span>
                   ) : (
                     <Badge variant={TALENT_AVAILABILITY_VARIANT[person.availability]}>
                       <IconClock aria-hidden="true" />
@@ -465,7 +465,7 @@ export function TalentDetailSheet({
               <DetailSection
                 id="talento-detalle-postulaciones"
                 title="Historial de postulaciones"
-                action={person === null ? null : <Badge variant="secondary">{applications.length}</Badge>}
+                action={<span className="text-sm tabular-nums text-muted-foreground">{applications.length}</span>}
               >
                 <ul data-pf-talento-history="" className="flex flex-col gap-3">
                   {applicationsByMostRecentView(applications).map((application) => {

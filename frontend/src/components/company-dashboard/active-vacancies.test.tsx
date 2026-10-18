@@ -100,6 +100,16 @@ describe("ActiveVacancies derived active-only order and rows", () => {
     expect(ids).not.toContain("qa-automation-engineer");
   });
 
+  it("keeps work conditions and state before history, with only the action in the action slot", () => {
+    render(<ActiveVacancies vacancies={vacancies} />);
+    const row = rows()[0];
+    const content = row.querySelector('[data-slot="item-content"]')!;
+    expect(content).toHaveTextContent("Remoto · Tiempo completo");
+    expect(content.querySelector('[data-slot="badge"]')).toHaveTextContent("Activa");
+    expect(row.querySelector('[data-slot="item-actions"] [data-slot="badge"]')).toBeNull();
+    expect(within(row).getByRole("link")).toHaveClass("w-full", "sm:w-auto");
+  });
+
   it("renders one canonical pipeline link per non-interactive row with truthful content", () => {
     render(<ActiveVacancies vacancies={vacancies} />);
 

@@ -7,6 +7,8 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import {
   EMPLOYER_VACANCY_STATE_LABELS,
+  EMPLOYER_WORK_MODE_LABELS,
+  EMPLOYER_EMPLOYMENT_TYPE_LABELS,
   vacancyCandidateTotal,
   vacancyPipelineHref,
 } from "@/features/employer-vacancies/model";
@@ -58,7 +60,7 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVac
         {active.length > 0 && <CardAction><Link
           href="/empresa/vacantes"
           data-pf-active-vacancies-portfolio=""
-          className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-border px-3.5 text-sm font-medium text-foreground transition-colors duration-200 hover:border-primary/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none"
+          className={buttonVariants({ variant: "outline", className: "min-h-10" })}
         >
           Ver todas
         </Link></CardAction>}
@@ -92,24 +94,21 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVac
                     {monogram(vacancy.title)}
                   </span></ItemMedia>
                   <ItemContent className="min-w-0">
-                    <ItemTitle className="truncate">
+                    <ItemTitle className="break-words">
                       {vacancy.title}
                     </ItemTitle>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge data-pf-active-vacancy-status="" variant="accent" dot>{EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]}</Badge>
+                      <p className="text-sm text-muted-foreground">{EMPLOYER_WORK_MODE_LABELS[vacancy.workMode]} · {EMPLOYER_EMPLOYMENT_TYPE_LABELS[vacancy.employmentType]}</p>
+                    </div>
                     <ItemDescription>{historyCopy(total)}</ItemDescription>
                   </ItemContent>
-                <ItemActions className="flex-wrap">
-                  <Badge
-                    data-pf-active-vacancy-status=""
-                    variant="accent"
-                    dot
-                  >
-                    {EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]}
-                  </Badge>
+                <ItemActions className="w-full sm:w-auto">
                   <Link
                     href={vacancyPipelineHref(vacancy.id)}
                     data-pf-active-vacancy-pipeline={vacancy.id}
                     aria-label={`Ver pipeline de ${vacancy.title}`}
-                    className="inline-flex min-h-10 items-center gap-1.5 rounded-full border border-border px-3.5 text-sm font-medium text-foreground transition-colors duration-200 hover:border-primary/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none"
+                    className={buttonVariants({ variant: "outline", className: "min-h-10 w-full sm:w-auto" })}
                   >
                     Ver pipeline
                   </Link>

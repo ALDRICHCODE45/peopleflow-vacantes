@@ -497,6 +497,14 @@ describe("TalentDetailSheet interior", () => {
     expect(within(sheet).getByText("5 años")).toBeInTheDocument();
   });
 
+  it("keeps history counts and profile facts informational rather than control-shaped", () => {
+    renderSheet();
+    const history = screen.getByRole("heading", { name: "Historial de postulaciones" }).parentElement!;
+    expect(within(history).getByText("2").closest('[data-slot="badge"]')).toBeNull();
+    const email = screen.getByText(PERSON.email);
+    expect(email.closest("dl > div")).not.toHaveClass("rounded-xl", "bg-muted");
+  });
+
   it("reads the preference badges from the exported variant maps without a lifecycle dot", () => {
     renderSheet();
 

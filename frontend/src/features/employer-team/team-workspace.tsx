@@ -61,8 +61,8 @@ function TeamMemberRow({ member }: { member: TeamMember }) {
           <AvatarFallback>{initials(member.fullName)}</AvatarFallback>
         </Avatar>
         <div className={CELL}>
-          <p className="truncate text-[14.5px] font-semibold text-foreground">{member.fullName}</p>
-          <p className={cn(META, "mt-0.5 truncate")}>{member.email}</p>
+          <p className="break-words text-[14.5px] font-semibold text-foreground">{member.fullName}</p>
+          <p className={cn(META, "mt-0.5 break-all")}>{member.email}</p>
         </div>
       </div>
       <div className={CELL}>

@@ -102,14 +102,14 @@ describe("company dashboard KPI cards", () => {
     render(<SectionCards />);
 
     for (const card of kpiCards()) {
-      const badge = card.querySelector("[data-slot='badge']");
-      expect(badge, "trend badge").not.toBeNull();
+      const trend = within(card).getByText(KPI_CARDS[kpiCards().indexOf(card)].trend);
+      expect(trend.closest("[data-slot='badge']"), "numeric deltas are information, not categories").toBeNull();
       expect(
-        badge!.querySelector("svg.tabler-icon-trending-up"),
+        trend.querySelector("svg.tabler-icon-trending-up"),
         "upward trend glyph",
       ).not.toBeNull();
       expect(
-        badge!.querySelector("svg.tabler-icon-trending-down"),
+        trend.querySelector("svg.tabler-icon-trending-down"),
         "downward trend glyph",
       ).toBeNull();
     }

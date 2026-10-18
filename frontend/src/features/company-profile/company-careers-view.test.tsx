@@ -58,13 +58,12 @@ describe("CompanyCareersView headings and narrative", () => {
     expect(headings.slice(1).map((node) => node.textContent)).toEqual([`Sobre ${profile.name}`, "Qué hacemos", "Vacantes"]);
   });
 
-  it("renders the profile narrative and a list of its own capabilities", () => {
+  it("preserves the profile's authored capability paragraph without inventing bullets", () => {
     const { container } = view();
     for (const value of [profile.tagline, profile.about, profile.mission]) expect(container.textContent).toContain(value);
     const highlights = capabilityItems(container);
-    expect(highlights.length).toBeGreaterThanOrEqual(3);
-    // Every capability row is verbatim profile content, never an invented claim.
-    for (const highlight of highlights) expect(profile.whatWeDo.toLowerCase()).toContain(highlight.toLowerCase());
+    expect(highlights).toEqual([profile.whatWeDo]);
+    expect(container.querySelector("#que-hacemos")?.closest("section")?.querySelector("ul")).toBeNull();
   });
 
   it("keeps the whole sentence when a profile has nothing to enumerate", () => {
@@ -234,11 +233,34 @@ describe("CompanyCareersView vacancies", () => {
     expect(items[0].textContent).toContain("Remoto");
     expect(items[0].textContent).toContain("Tiempo completo");
     expect(items[0].textContent).toContain("Senior");
-    expect(items[0].textContent).toContain("Salario a convenir");
+    expect(items[0].textContent).toContain("Salario no publicado");
     expect(items[1].textContent).toContain("Híbrido");
     expect(items[1].textContent).toContain("Por contrato");
     expect(items[1].textContent).toContain("Líder");
     expect(items[1].textContent).toContain("MXN 30,000");
+  });
+
+  it("separates comparable conditions, secondary facts and salary from the full-width mobile action", () => {
+    view(ACME_PROTOTYPE_JOBS);
+    const rows = within(screen.getByRole("list", { name: "Vacantes en Acme" })).getAllByRole("listitem");
+    const row = rows[1];
+    expect(within(row).getByText("Por contrato · Líder")).toBeVisible();
+    expect(within(row).getByText("Periodicidad y neto/bruto no disponibles")).toBeVisible();
+    expect(within(row).getByRole("link", { name: "Ver vacante" })).toHaveClass("w-full", "sm:w-auto");
+    expect(row.querySelector('[data-slot="card-footer"]')).toHaveClass("flex-col", "sm:flex-row");
+  });
+
+  it.each([
+    [50000, undefined, "MXN", "Desde MXN 50,000"],
+    [undefined, 75000, "USD", "Hasta USD 75,000"],
+    [50000, 75000, "MXN", "MXN 50,000 – MXN 75,000"],
+    [undefined, undefined, "MXN", "Salario no publicado"],
+  ] as const)("keeps salary bounds %s/%s and currency %s honest", (salary_min, salary_max, salary_currency, expected) => {
+    view([{ ...ACME_PROTOTYPE_JOBS[0], salary_min, salary_max, salary_currency }]);
+    const row = within(screen.getByRole("list", { name: "Vacantes en Acme" })).getAllByRole("listitem")[0];
+    expect(row).toHaveTextContent(expected);
+    expect(row).not.toHaveTextContent(".00");
+    expect(within(row).queryByText("Periodicidad y neto/bruto no disponibles") !== null).toBe(salary_min !== undefined || salary_max !== undefined);
   });
 
   it("keeps the vacancy section an honest placeholder with one board link", () => {

@@ -33,6 +33,15 @@ it("keeps empty-team guidance honest without duplicating the page invitation", (
   expect(empty).toHaveTextContent("Puedes revisar la búsqueda y los filtros mientras tanto.");
 });
 
+it("wraps member identity instead of reducing or clipping it on narrow screens", () => {
+  const { container } = renderTeam();
+  const member = NEXO_TEAM_MEMBERS[0];
+  const row = rowOf(container, member.id);
+  expect(screen.getByText(member.fullName)).toHaveClass("break-words");
+  expect(screen.getByText(member.email)).toHaveClass("break-all");
+  expect(row.querySelectorAll('[data-slot="badge"]')).toHaveLength(1);
+});
+
 describe("TeamWorkspace summary metrics", () => {
   it("renders the four derived metrics over the exact six default members", () => {
     const { container } = renderTeam();

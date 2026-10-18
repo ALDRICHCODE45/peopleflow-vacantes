@@ -1,6 +1,5 @@
 "use client"
 
-import { Badge } from "@/components/ui/badge"
 import {
   Card,
   CardAction,
@@ -49,7 +48,7 @@ export function SectionCards() {
   return (
     <div
       data-pf-kpi-cards=""
-      className="grid grid-cols-1 gap-4 *:data-[slot=card]:bg-linear-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs @xl/main:grid-cols-2 @5xl/main:grid-cols-4 dark:*:data-[slot=card]:bg-card"
+      className="grid grid-cols-1 gap-4 @xl/main:grid-cols-2 @5xl/main:grid-cols-4"
     >
       {kpiCards.map((kpi, index) => (
         <Card key={kpi.label} className="@container/card">
@@ -59,10 +58,10 @@ export function SectionCards() {
               <h3>{kpi.value}</h3>
             </CardTitle>
             <CardAction>
-              <Badge variant="outline">
-                <IconTrendingUp />
+              <p className="flex items-center gap-1.5 text-sm tabular-nums text-muted-foreground">
+                <IconTrendingUp aria-hidden="true" className="size-4" />
                 {kpi.trend}
-              </Badge>
+              </p>
             </CardAction>
           </CardHeader>
           <CardFooter className="flex-col items-start gap-1.5 text-sm">
@@ -70,7 +69,7 @@ export function SectionCards() {
               data-pf-growth-footer={index === kpiCards.length - 1 ? "" : undefined}
               className="line-clamp-1 flex gap-2 font-medium"
             >
-              {kpi.trendLine} <IconTrendingUp className="size-4" />
+              {kpi.trendLine} <IconTrendingUp aria-hidden="true" className="size-4" />
             </div>
             <div className="text-muted-foreground">{kpi.context}</div>
           </CardFooter>
