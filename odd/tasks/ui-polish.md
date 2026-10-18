@@ -22,7 +22,7 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - T3 [done] S1,S3 | writer | Board + candidate sheet + discard dialog redesign faithful to the v0 reference (header with compact coverage, tinted columns, cards, empty columns, ScrollArea, sheet top bar/identity/tabs/timeline/file card). | commit: -
 - T6 [done] S4 | writer | Board column drag-reorder while the structure is unlocked, saved through the existing pipeline PUT (If-Match), with keyboard alternative and locked state. | commit: -
 - T7 [done] S5 | writer | Detailed, non-repetitive toast copy for move/Placement/discard/recover/column reorder and their errors; rule in §12. | commit: -
-- T8 [pending] S6 | 3 writers (employer / jobs+public / candidate) | Card structure audit and fixes app-wide. | commit: -
+- T8 [done] S6 | 3 writers (employer / jobs+public / candidate) | Card structure audit and fixes app-wide. | commit: -
 - T5 [pending] S1 | parent | Pass over the remaining screens, one reviewable delivery each. | commit: -
 
 ## Log
@@ -55,3 +55,4 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - L17. User asked for a shadcn Card structure audit. Parent fetched the official Card docs (composition, size, --card-spacing, image, CardAction), wrote the audit criteria into rules §6 Card, inventoried 44 Card files plus hand-made card-like divs, and split the audit into three writers with disjoint surfaces.
 - L18. Skeleton requirement relayed to the three running card-audit writers (each owns its area's skeletons); rule strengthened in §11 with a Card-mirroring example.
 - L19. Candidate writer asked how identity guards should load (their children vary by route). Parent decision: guards use the «Spinner puntual» pattern («Verificando tu cuenta»), the onboarding screen keeps its mirrored skeleton; rule added to §11.
+- L20. Card + skeleton audit committed: candidate 3704c49 + 3c3e38f (identity guard spinner), employer 79d2b6d + ac8370a (publish dialog groups → Card+Item, portfolio, config editors/loaders, board/sheet skeletons, dashboard, team, talent, company), jobs 3947955 + 5a77604 (+ 13edd2d, 89f9f3d restoring aria-hidden on public skeleton blocks), /vacantes loader 7a6451a. Full suite 5,520 passed; only known timeouts (benefits-section, local-draft-form) fail and pass alone; tsc 0. Guide 59, queue item 7 now 54-59. Not verified in a browser (no CLS measurement).

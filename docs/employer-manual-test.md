@@ -383,6 +383,12 @@ corepack pnpm dev
 58. **Toasts.** Mové, descartá y recuperá un candidato. **Esperado:** cada aviso dice qué
     pasó y con quién («Ana Pérez pasó a Screening») y abajo la consecuencia (etapa anterior,
     plazas cubiertas, motivo o si verá tu mensaje), sin repetir el título.
+59. **Cards y skeletons.** Recorré empresa (dashboard, vacantes, «Publicar» con faltantes,
+    configuración, equipo, talento, perfil), candidato (dashboard, perfil, CVs,
+    postulaciones) y el sitio público. **Esperado:** cada tarjeta con su título arriba,
+    acción o estado arriba a la derecha y botones de cierre al pie; mientras carga, el
+    skeleton tiene la misma forma que lo que aparece (nada salta). Antes de entrar a
+    /empresa o /candidato solo se ve un spinner discreto, no un formulario falso.
 
 ## 5. Verificación en la base (solo lectura)
 
