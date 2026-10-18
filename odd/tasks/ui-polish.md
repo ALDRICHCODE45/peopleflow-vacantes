@@ -31,7 +31,7 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - T8 [done] S6 | 3 writers (employer / jobs+public / candidate) | Card structure audit and fixes app-wide. | commit: -
 - T9 [done] S8 | 3 writers (employer / jobs / candidate) + parent (app/(public) error/not-found) | §15 audit: action-oriented empty states, one primary action, action vs navigation, visible state, single entry point, legibility. | commit: -
 - T10 [done] S9 | writer | Single create entry point to the draft editor; /nueva redirects. | commit: -
-- T11 [pending] S10 | writer | Phase 1: two-zone public vacancy card + applications card on current data, slots ready for phase-2 fields. | commit: -
+- T11 [done] S10 | writer | Phase 1: two-zone public vacancy card + applications card on current data, slots ready for phase-2 fields. | commit: -
 - T12 [pending] S10 | parent + backend | Phase 2 contract: enrich GET /v2/jobs items. | commit: -
 - T5 [pending] S1 | parent | Pass over the remaining screens, one reviewable delivery each. | commit: -
 
@@ -78,3 +78,4 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - L30. User decided skills are published. Phase-2 contract proposal sent to the backend session.
 - L31. Backend proposal 71559a6 §14 (feat/public-listing-enrichment): company.logo_url, excerpt (≤240 code points at a word boundary) + excerpt_truncated, benefits_preview {predefined, custom} (first 3) + benefits_total, skills_preview (first 6) + skills_total, detail skills[], applicants under_10|10_plus|25_plus|50_plus|null counting all applications incl. discarded, screening_questions number|null; keys always present; backfill in 00025. Frontend agreed and asked to close: https-only logo_url (else null), whitespace collapse before the excerpt cut, skill length limits; unknown benefit codes are unrecognized responses.
 - L32. Backend closed §14.5: logo_url https-only absolute with host and no credentials, else null (both sources); excerpt collapses Unicode White_Space runs before counting, excerpt_truncated vs the normalized text; skills trimmed, non-empty, ≤200 code points each, ≤100 per vacancy, load order; custom benefits trimmed, non-empty, ≤200 code points; predefined use the draft catalog codes. Backend implementing (migration 00025).
+- L33. Phase 1 committed: two-zone public vacancy card (colored initials, title + «Nueva» < 48 h, company, location · relative time with exact-date tooltip, contract chips, salary rail + primary «Ver vacante»; optional excerpt/benefits/skills/quickApply props for phase 2) and richer application card; skeletons mirror them. Writer: 464 tests in jobs/components, (public), candidate; tsc 0. Not browser-verified.
