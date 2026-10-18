@@ -70,6 +70,16 @@ afterEach(() => {
 });
 
 describe("profile workspace initial state", () => {
+  it("composes the identity title, supporting context and header badge without spacing overrides", () => {
+    const { container } = renderWorkspace();
+    const card = container.querySelector('[data-pf-profile-card]')!;
+    const header = identityCard(container);
+    expect(header.querySelector(':scope > [data-slot="card-title"] h2')).toHaveTextContent(CANDIDATE_IDENTITY.fullName);
+    expect(header.querySelector(':scope > [data-slot="card-description"]')).toHaveTextContent(CANDIDATE_IDENTITY.email);
+    expect(header.querySelector(':scope > [data-slot="card-action"] [data-pf-profile-headline]')).not.toBeNull();
+    expect(card.className.split(/\s+/u)).not.toEqual(expect.arrayContaining(["py-0", "gap-0"]));
+    expect(card.querySelector(':scope > [data-slot="card-content"] [data-slot="tabs"]')).not.toBeNull();
+  });
   it("seeds the private draft from the profile with a clean pristine state", () => {
     const { container } = renderWorkspace();
     const seeded = profileToDraft(CANDIDATE_PROFILE);

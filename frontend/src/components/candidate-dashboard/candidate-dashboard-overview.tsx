@@ -126,14 +126,14 @@ function MetricCard({ label, icon: Icon, value, detail }: OverviewMetric) {
   return (
     <Card size="sm" data-pf-overview-metric={label}>
       <CardHeader>
-        <div className="flex items-center gap-2.5">
+        <CardTitle className="flex items-center gap-2.5">
           <Medallion icon={Icon} />
-          <CardTitle className={META}>{label}</CardTitle>
-        </div>
+          <h3 className={META}>{label}</h3>
+        </CardTitle>
+        <CardDescription>{detail}</CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-col gap-1">
+      <CardContent>
         <p data-pf-overview-metric-value className="font-heading text-2xl font-semibold tabular-nums text-foreground">{value}</p>
-        <p className={META}>{detail}</p>
       </CardContent>
     </Card>
   )
@@ -217,7 +217,7 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
           <section aria-labelledby="candidate-overview-recent" data-pf-recent-applications className="lg:col-span-2">
             <Card size="sm" className="h-full">
               <CardHeader>
-                <h3 id="candidate-overview-recent" className="font-heading text-base font-semibold text-foreground">Postulaciones recientes</h3>
+                <CardTitle><h3 id="candidate-overview-recent" className="font-heading text-base font-semibold text-foreground">Postulaciones recientes</h3></CardTitle>
                 <CardDescription className="col-start-1 row-start-2">Tus últimos envíos, ordenados por actualización.</CardDescription>
                 <CardAction className="max-sm:col-span-2 max-sm:col-start-1 max-sm:row-span-1 max-sm:row-start-3 max-sm:justify-self-start">
                   <Link href="/candidato/postulaciones" aria-label="Ver todas mis postulaciones" className={QUIET_LINK}>Ver todas</Link>
@@ -244,7 +244,7 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
           <section aria-labelledby="candidate-overview-status" data-pf-status-breakdown>
             <Card size="sm" className="h-full">
               <CardHeader>
-                <h3 id="candidate-overview-status" className="font-heading text-base font-semibold text-foreground">Estado de tus postulaciones</h3>
+                <CardTitle><h3 id="candidate-overview-status" className="font-heading text-base font-semibold text-foreground">Estado de tus postulaciones</h3></CardTitle>
                 <CardDescription>{countLabel(total, "postulación registrada", "postulaciones registradas")} en total.</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
@@ -273,7 +273,7 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
           <section aria-labelledby="candidate-overview-profile" data-pf-profile-guidance>
             <Card size="sm" className="h-full">
               <CardHeader>
-                <h3 id="candidate-overview-profile" className="font-heading text-base font-semibold text-foreground">Tu perfil</h3>
+                <CardTitle><h3 id="candidate-overview-profile" className="font-heading text-base font-semibold text-foreground">Tu perfil</h3></CardTitle>
                 <CardAction>
                   <Badge variant={completeness.percentage === 100 ? "success" : "review"}>
                     {completeness.percentage === 100 ? "Completo" : "Incompleto"}
@@ -311,7 +311,7 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
           <section aria-labelledby="candidate-overview-cvs" data-pf-cv-snapshot>
             <Card size="sm" className="h-full">
               <CardHeader>
-                <h3 id="candidate-overview-cvs" className="font-heading text-base font-semibold text-foreground">Tus CVs</h3>
+                <CardTitle><h3 id="candidate-overview-cvs" className="font-heading text-base font-semibold text-foreground">Tus CVs</h3></CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 {cvTotal === 0 ? (

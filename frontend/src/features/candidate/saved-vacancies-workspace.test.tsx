@@ -108,7 +108,7 @@ describe("saved vacancies grid", () => {
       expect(node).toHaveAttribute("data-slot", "card");
       expect(node.className).toContain("flex-col");
       expect(node.className).toContain("h-full");
-      for (const part of ["card-header", "card-title", "card-content", "card-footer"]) expect(slot(node, part), part).not.toBeNull();
+      for (const part of ["card-header", "card-title", "card-description", "card-content", "card-footer"]) expect(slot(node, part), part).not.toBeNull();
       expect(slot(node, "card-header").className).toContain("border-b");
       expect(slot(node, "card-footer").className).toContain("border-t");
       expect(node.className + " " + classesOf(node)).not.toMatch(/min-h-screen|h-screen|min-h-dvh|h-dvh|min-h-svh|h-svh/u);

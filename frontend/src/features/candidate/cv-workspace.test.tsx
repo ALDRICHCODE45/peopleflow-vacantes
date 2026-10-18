@@ -55,6 +55,14 @@ describe("real CV workspace", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Cargando CVs");
     expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(1);
     expect(screen.queryByText("Sin CVs")).toBeNull();
+    const cards = container.querySelectorAll('[data-slot="card"]');
+    expect(cards).toHaveLength(2);
+    for (const card of cards) {
+      expect(card).toHaveAttribute("aria-hidden", "true");
+      for (const slot of ["card-header", "card-title", "card-action", "card-content"]) expect(card.querySelector(`[data-slot="${slot}"]`)).not.toBeNull();
+      expect(card.querySelectorAll("dl > div")).toHaveLength(2);
+    }
+    expect(container.querySelector('[data-pf-cv-loading-upload] [data-slot="field"]')).not.toBeNull();
   });
   it("renders the empty state and the server limit counter", async () => {
     vi.mocked(loadCvsAction).mockResolvedValue({ ok: true, data: { ...library, items: [] } });
@@ -66,6 +74,7 @@ describe("real CV workspace", () => {
   it("shows actual name, type, size, es-MX date and neutral in-use badge in the approved cards", async () => {
     const { container } = await ready();
     const card = container.querySelector('[data-pf-cv-card]')!;
+    expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-title"] h3')).toHaveTextContent(cv.name);
     for (const text of ["PDF", "340 KB", "10 de marzo de 2026", "En uso"]) expect(card).toHaveTextContent(text);
     expect(screen.getByText("En uso")).toHaveAttribute("data-variant", "neutral");
     expect(screen.getByText("1 de 10 CVs")).toBeInTheDocument();

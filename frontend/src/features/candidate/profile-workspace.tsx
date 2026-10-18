@@ -7,7 +7,7 @@ import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { CandidateIdentity, CandidateProfile } from "./model";
@@ -100,16 +100,15 @@ const titleOf = (draft: CandidateProfileDraft): string => (declared(draft.profes
 const locationOf = (draft: CandidateProfileDraft): string => [draft.city, draft.country].map((part) => part.trim()).filter(declared).join(", ") || NO_LOCATION;
 const companyOf = (draft: CandidateProfileDraft): string => (declared(draft.currentCompany) ? draft.currentCompany.trim() : NO_COMPANY);
 
-const HERO = "flex flex-col gap-5 border-b border-border/60 bg-muted/40 py-(--card-spacing) sm:flex-row sm:items-center sm:gap-6";
+const HERO = "border-b border-border/60";
 const AVATAR = "size-24 shrink-0 ring-2 ring-primary/25 ring-offset-2 ring-offset-background sm:size-28";
-const META = "flex min-w-0 flex-1 flex-col gap-1.5";
-const TITLE_ROW = "flex flex-wrap items-center gap-2";
+const META = "flex min-w-0 flex-col gap-1.5";
 const ROLE_BADGE = "max-w-full";
 const NAME = "font-heading text-xl font-semibold text-foreground";
 const EMAIL = "text-sm text-muted-foreground";
 const CONTEXT = "flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground";
 const CONTEXT_ITEM = "inline-flex min-w-0 items-center";
-const COMPLETION_ACTION = "w-full sm:ml-auto sm:w-72";
+const COMPLETION_ACTION = "flex w-full flex-col gap-4 max-md:col-span-2 max-md:col-start-1 max-md:row-span-1 max-md:row-start-3 md:w-72";
 const COMPLETION = "flex flex-col gap-2.5";
 const COMPLETION_HEAD = "flex items-baseline justify-between gap-3";
 const COMPLETION_TITLE = "font-heading text-sm font-semibold text-foreground";
@@ -121,8 +120,8 @@ const TOOLBAR_COPY = "flex min-w-0 flex-1 flex-col gap-1";
 const STATUS = "text-sm text-muted-foreground";
 const ACTIONS = "flex flex-col gap-3 sm:flex-row sm:flex-wrap";
 const ACTION = "min-h-10 transition-colors duration-200 motion-reduce:transition-none";
-const CARD = "gap-0 border border-border/70 py-0 ring-border/60";
-const CARD_CONTENT = "flex flex-col gap-4 py-(--card-spacing)";
+const CARD = "border border-border/70 ring-border/60";
+const CARD_CONTENT = "flex flex-col gap-4";
 const TAB_LIST = "max-w-full justify-start overflow-auto focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 export function ProfileWorkspace({ identity, profile, avatarSrc }: ProfileWorkspaceProps) {
@@ -202,15 +201,14 @@ export function ProfileWorkspace({ identity, profile, avatarSrc }: ProfileWorksp
         </div>
         <Card data-pf-profile-card className={CARD}>
           <CardHeader data-pf-profile-identity className={HERO}>
-            <Avatar className={AVATAR}>
-              <AvatarImage src={avatarSrc} alt={`Fotografía de retrato de ${identity.fullName}`} />
-              <AvatarFallback>{initialsOf(identity.fullName)}</AvatarFallback>
-            </Avatar>
-            <div className={META}>
-              <div className={TITLE_ROW}>
-                <h2 id={IDENTITY_HEADING_ID} className={NAME}>{identity.fullName}</h2>
-                <Badge variant="secondary" data-pf-profile-headline className={ROLE_BADGE}>{titleOf(draft)}</Badge>
-              </div>
+            <CardTitle className="flex min-w-0 items-center gap-5">
+              <Avatar className={AVATAR}>
+                <AvatarImage src={avatarSrc} alt={`Fotografía de retrato de ${identity.fullName}`} />
+                <AvatarFallback>{initialsOf(identity.fullName)}</AvatarFallback>
+              </Avatar>
+              <h2 id={IDENTITY_HEADING_ID} className={NAME}>{identity.fullName}</h2>
+            </CardTitle>
+            <CardDescription className={META}>
               <p className={EMAIL}>
                 <span data-pf-profile-email>{identity.email}</span>
               </p>
@@ -218,9 +216,10 @@ export function ProfileWorkspace({ identity, profile, avatarSrc }: ProfileWorksp
                 <span className={CONTEXT_ITEM}>{locationOf(draft)}</span>
                 <span className={CONTEXT_ITEM}>{companyOf(draft)}</span>
               </p>
-            </div>
-            <div data-pf-profile-completeness className={COMPLETION_ACTION}>
-              <div className={COMPLETION}>
+            </CardDescription>
+            <CardAction className={COMPLETION_ACTION}>
+              <Badge variant="secondary" data-pf-profile-headline className={ROLE_BADGE}>{titleOf(draft)}</Badge>
+              <div data-pf-profile-completeness className={COMPLETION}>
                 <div className={COMPLETION_HEAD}>
                   <h3 id={COMPLETION_HEADING_ID} className={COMPLETION_TITLE}>Avance del perfil</h3>
                   <span className={COMPLETION_PERCENT}>{`${completion.percent}%`}</span>
@@ -228,10 +227,10 @@ export function ProfileWorkspace({ identity, profile, avatarSrc }: ProfileWorksp
                 <Progress aria-labelledby={COMPLETION_HEADING_ID} value={completion.done} max={COMPLETION_TOTAL} className={COMPLETION_BAR} />
                 <p data-pf-profile-completeness-value className={COMPLETION_COUNT}>{`${completion.done} de ${COMPLETION_TOTAL} datos clave`}</p>
               </div>
-            </div>
+            </CardAction>
           </CardHeader>
-          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProfileCategory)}>
-            <CardContent className={CARD_CONTENT}>
+          <CardContent>
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as ProfileCategory)} className={CARD_CONTENT}>
               <TabsList variant="line" aria-label="Secciones del perfil" tabIndex={0} className={TAB_LIST}>
                 {CATEGORY_TABS.map((item) => (
                   <TabsTrigger key={item.value} value={item.value}>{item.label}</TabsTrigger>
@@ -240,8 +239,8 @@ export function ProfileWorkspace({ identity, profile, avatarSrc }: ProfileWorksp
               <TabsContent value={activeTab}>
                 <ProfileFormFields draft={draft} issues={issues} onChange={handleChange} category={activeTab} />
               </TabsContent>
-            </CardContent>
-          </Tabs>
+            </Tabs>
+          </CardContent>
         </Card>
       </form>
     </DashboardPageContent>

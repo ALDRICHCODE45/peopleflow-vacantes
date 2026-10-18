@@ -38,6 +38,9 @@ describe("candidate destination shell", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Perfil");
     expect(screen.getByText("Resumen del perfil de la candidata.")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Qué vas a encontrar");
+    const preview = document.querySelector('[data-pf-destination-preview]')!;
+    expect(preview.querySelector('[data-slot="card"] > [data-slot="card-header"] > [data-slot="card-title"] h2')).not.toBeNull();
+    expect(preview.querySelector('[data-slot="card-content"] ul')).not.toBeNull();
     expect(screen.getByText("Datos personales")).toBeInTheDocument();
     expect(screen.getByText("Idiomas y habilidades")).toBeInTheDocument();
     // The destination shell ships no implementation-status note or disclosure hook.

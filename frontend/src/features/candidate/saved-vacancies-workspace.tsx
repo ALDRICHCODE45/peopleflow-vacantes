@@ -4,7 +4,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import type { PrototypeJobView } from "@/features/jobs/enrich";
 import { employmentTypeLabel, formatSalary, seniorityLabel, workModeLabel } from "@/features/jobs/formatters";
@@ -88,17 +88,13 @@ function SavedVacancyCard({ job }: { readonly job: PrototypeJobView }) {
   return (
     <Card data-pf-saved-vacancy={job.id} className="h-full">
       <CardHeader className="border-b">
-        <div className="flex min-w-0 items-start gap-3">
+        <CardTitle className="flex min-w-0 items-start gap-3">
           <span data-pf-saved-vacancy-identity aria-hidden="true" className={IDENTITY}>
             <Bookmark className="size-5" />
           </span>
-          <div className="min-w-0">
-            <CardTitle>
-              <h3 className="font-heading text-base font-semibold text-foreground">{job.title}</h3>
-            </CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">{job.company.name}</p>
-          </div>
-        </div>
+          <h3 className="min-w-0 font-heading text-base font-semibold text-foreground">{job.title}</h3>
+        </CardTitle>
+        <CardDescription>{job.company.name}</CardDescription>
       </CardHeader>
       <CardContent>
         <dl data-pf-saved-vacancy-metadata={job.id} className={CARD_FACTS}>

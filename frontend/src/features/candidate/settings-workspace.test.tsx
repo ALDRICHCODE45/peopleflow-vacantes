@@ -46,6 +46,16 @@ vi.mock("@/components/ui/select", async () => {
   return { Select, SelectTrigger, SelectValue: NullPart, SelectContent: NullPart, SelectGroup: NullPart, SelectItem: NullPart };
 });
 
+it("wraps every settings section heading in the native card-title slot", () => {
+  const { container } = render(<SettingsWorkspace />);
+  const cards = container.querySelectorAll('[data-slot="card"]');
+  expect(cards).toHaveLength(3);
+  for (const card of cards) {
+    expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-title"] h2')).not.toBeNull();
+    expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-description"]')).not.toBeNull();
+  }
+});
+
 const read = (relative: string) => readFileSync(join(process.cwd(), relative), "utf8");
 const WORKSPACE = read("src/features/candidate/settings-workspace.tsx");
 const SWITCH = read("src/components/ui/switch.tsx");

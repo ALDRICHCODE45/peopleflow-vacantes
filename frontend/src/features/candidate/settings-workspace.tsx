@@ -6,7 +6,7 @@ import { BellRing, CalendarClock, KeyRound, MessagesSquare, Palette, ShieldCheck
 
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -67,7 +67,7 @@ function SettingsSection({ section, children }: { readonly section: SectionSpec;
     <section id={section.id} aria-labelledby={`${section.id}-heading`} data-pf-settings-section={section.id} className="scroll-mt-4">
       <Card>
         <CardHeader className="border-b border-border/60">
-          <h2 id={`${section.id}-heading`} className="font-heading text-xl font-semibold text-foreground">{section.heading}</h2>
+          <CardTitle><h2 id={`${section.id}-heading`} className="font-heading text-xl font-semibold text-foreground">{section.heading}</h2></CardTitle>
           <CardDescription>{section.description}</CardDescription>
         </CardHeader>
         <CardContent>{children}</CardContent>

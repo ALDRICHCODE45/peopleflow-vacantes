@@ -4,7 +4,7 @@ import { PlusIcon, Trash2Icon } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText, InputGroupTextarea } from "@/components/ui/input-group";
@@ -106,12 +106,12 @@ const CONTROLS = `${TARGET} focus-visible:outline-hidden focus-visible:ring-3 fo
 const FRAME = "min-h-10 transition-[color,box-shadow] duration-200 motion-reduce:transition-none";
 /** Full-width Select trigger: 40px target, visible focus and the primitive's token-only paint. */
 const SELECT_TRIGGER = `${TARGET} w-full motion-reduce:transition-none`;
-const SECTION_CARD = "gap-0 py-0 shadow-none ring-border/70";
+const SECTION_CARD = "shadow-none ring-border/70";
 const SECTION = "gap-4";
-const SECTION_HEADER = "border-b py-(--card-spacing)";
-const SECTION_CONTENT = "flex flex-col gap-4 py-(--card-spacing)";
+const SECTION_HEADER = "border-b";
+const SECTION_CONTENT = "flex flex-col gap-4";
 const LEGEND = "sr-only";
-const ROW = "rounded-xl border border-border/70 bg-muted/30 p-3";
+const ROW = "gap-3";
 const ROW_GRID = "grid grid-cols-1 gap-3 sm:grid-cols-2";
 
 /** One labelled control: schema-aligned frame, optional adornment and error-only aria wiring. */
@@ -153,7 +153,7 @@ function ScalarSection({ section, draft, errorFor, onChange }: Readonly<{ sectio
   return (
     <Card size="sm" data-pf-profile-section-card="" className={SECTION_CARD}>
       <CardHeader className={SECTION_HEADER}>
-        <CardTitle aria-hidden="true">{section.legend}</CardTitle>
+        <CardTitle aria-hidden="true"><h3>{section.legend}</h3></CardTitle>
       </CardHeader>
       <CardContent className={SECTION_CONTENT}>
         <FieldSet data-pf-profile-group={section.slug} className={SECTION}>
@@ -189,7 +189,7 @@ export function ProfileFormFields({ draft, issues, onChange, category }: Profile
     const nameError = errorFor(`languages.${index}.name`);
     const levelError = errorFor(`languages.${index}.level`);
     return (
-      <div key={index} data-pf-profile-language-row={index} role="group" aria-label={`Idioma ${index + 1}`} className={ROW}>
+      <FieldSet key={index} data-pf-profile-language-row={index} role="group" aria-label={`Idioma ${index + 1}`} className={ROW}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <Badge variant="secondary">{`Idioma ${index + 1}`}</Badge>
           <Button type="button" variant="ghost" size="sm" data-pf-profile-language-remove className={`${CONTROLS} ${CALM}`} onClick={() => removeLanguage(index)}>
@@ -217,13 +217,13 @@ export function ProfileFormFields({ draft, issues, onChange, category }: Profile
             {levelError === null ? null : <FieldError id={`${levelId}-error`}>{levelError}</FieldError>}
           </Field>
         </div>
-      </div>
+      </FieldSet>
     );
   };
   const languagesCard = (
     <Card size="sm" data-pf-profile-section-card="" className={`${SECTION_CARD} md:col-span-2`}>
       <CardHeader className={SECTION_HEADER}>
-        <CardTitle aria-hidden="true">{"Idiomas"}</CardTitle>
+        <CardTitle aria-hidden="true"><h3>{"Idiomas"}</h3></CardTitle>
       </CardHeader>
       <CardContent className={SECTION_CONTENT}>
         <FieldSet data-pf-profile-group="languages" data-pf-profile-field="languages" className={SECTION} aria-describedby={languagesError === null ? undefined : "profile-languages-error"}>
@@ -231,11 +231,13 @@ export function ProfileFormFields({ draft, issues, onChange, category }: Profile
           {languagesError === null ? null : <FieldError id="profile-languages-error">{languagesError}</FieldError>}
           <Separator data-pf-profile-divider="" />
           <FieldGroup className="gap-3">{draft.languages.map(languageRow)}</FieldGroup>
-          <Button type="button" variant="outline" data-pf-profile-language-add className={`${CONTROLS} ${CALM} w-fit`} onClick={addLanguage}>
-            <PlusIcon data-icon="inline-start" />Agregar idioma
-          </Button>
         </FieldSet>
       </CardContent>
+      <CardFooter>
+        <Button type="button" variant="outline" data-pf-profile-language-add className={`${CONTROLS} ${CALM} w-fit`} onClick={addLanguage}>
+          <PlusIcon data-icon="inline-start" />Agregar idioma
+        </Button>
+      </CardFooter>
     </Card>
   );
   const sections = category === undefined ? SECTIONS : SECTIONS.filter((section) => section.category === category);

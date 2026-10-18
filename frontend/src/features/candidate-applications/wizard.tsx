@@ -34,7 +34,25 @@ function libraryFailure(result: CvFailure): Failure {
   return { ok: false, reason: reason === "unauthenticated" || reason === "wrong_role" || reason === "forbidden" || reason === "no_response" || reason === "server_error" ? reason : "unrecognized_response", reference: result.reference };
 }
 const answerMessages = { required: "Responde esta pregunta.", unknown_option: "Elige una opción disponible.", too_long: "Tu respuesta supera el límite de caracteres.", wrong_type: "Revisa el formato de tu respuesta." };
-function Loading() { return <section aria-busy="true" aria-label="Formulario de postulación" className="flex flex-col gap-4"><span role="status" className="sr-only">Cargando postulación</span><Skeleton aria-hidden="true" className="h-8 w-40" /><Skeleton aria-hidden="true" className="h-40 w-full" /><Skeleton aria-hidden="true" className="h-10 w-32" /></section>; }
+function Loading({ step = "Datos", questions = [] }: { step?: Step; questions?: readonly Screening["questions"][number][] }) {
+  return <section aria-busy="true" aria-label="Formulario de postulación" className="flex min-w-0 flex-col gap-6">
+    <span role="status" className="sr-only">Cargando postulación</span>
+    <div aria-hidden="true"><Progress value={null}><ProgressLabel><Skeleton className="h-5 w-72 max-w-full" /></ProgressLabel></Progress></div>
+    {/* Skeleton keeps the wizard anatomy, including the current questions during a schema reload. */}
+    <Card aria-hidden="true">
+      <CardHeader className="border-b"><CardTitle><Skeleton className="h-7 w-32" /></CardTitle><CardDescription><Skeleton className="h-5 w-80 max-w-full" /></CardDescription></CardHeader>
+      <CardContent className="flex flex-col gap-6"><FieldGroup>
+        {step === "Datos" ? [0, 1].map(index => <Field key={index}><Skeleton className="w-32"><FieldLabel>&nbsp;</FieldLabel></Skeleton><Skeleton><Input disabled tabIndex={-1} className="invisible min-h-10" /></Skeleton></Field>) : questions.map(question => <Field key={question.id}>
+          {question.type === "open" ? <><Skeleton><FieldLabel className="invisible">{question.prompt}</FieldLabel></Skeleton><Skeleton><Textarea disabled tabIndex={-1} className="invisible min-h-32" /></Skeleton><Skeleton className="w-40"><FieldDescription>&nbsp;</FieldDescription></Skeleton></> : <FieldSet><FieldLegend variant="label"><Skeleton><span className="invisible">{question.prompt}</span></Skeleton></FieldLegend><Skeleton><ToggleGroup disabled variant="outline" orientation="vertical" className="invisible w-full">{question.options.map(option => <ToggleGroupItem key={option.id} value={option.id} tabIndex={-1} className="min-h-10 justify-start whitespace-normal break-words">{option.label}</ToggleGroupItem>)}</ToggleGroup></Skeleton></FieldSet>}
+        </Field>)}
+      </FieldGroup></CardContent>
+      <CardFooter className="items-start gap-3 border-t">
+        {step !== "Datos" && <Skeleton><Button variant="outline" disabled tabIndex={-1} className="invisible min-h-10">Atrás</Button></Skeleton>}
+        <ActionBar status={null}><Skeleton><Button disabled tabIndex={-1} className="invisible min-h-10">Continuar</Button></Skeleton></ActionBar>
+      </CardFooter>
+    </Card>
+  </section>;
+}
 function ResultCard({ title, description, children }: { title: string; description: string; children?: React.ReactNode }) {
   return <Card><CardHeader><CardTitle><h2 className="font-heading text-xl font-semibold">{title}</h2></CardTitle><CardDescription>{description}</CardDescription></CardHeader>{children && <CardFooter>{children}</CardFooter>}</Card>;
 }
@@ -61,6 +79,7 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
   const heading = useRef<HTMLHeadingElement>(null);
   const focusTarget = useRef<string | undefined>(undefined);
   const transition = useRef(false);
+  const loadingQuestions = useRef<Screening["questions"]>([]);
   function go(next: Step) { transition.current = true; setStep(next); }
   useEffect(() => {
     if (focusTarget.current) { root.current?.querySelector<HTMLElement>(`[data-question-id="${focusTarget.current}"] textarea, [data-question-id="${focusTarget.current}"] button`)?.focus(); focusTarget.current = undefined; }
@@ -87,6 +106,7 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
     notifyActionResult({ key: "application-submit", type: "error", ...failureCopy(result), reference: { ...result.reference, at: new Date().toISOString() } });
   }
   async function reloadQuestions(message: string) {
+    loadingQuestions.current = screening?.questions ?? [];
     go("Preguntas");
     setLoading(true); setScreening(undefined); setAnswers({}); setErrors({}); setNotice(message);
     const result = await loadScreeningAction(job.id).catch((): Result<Screening> => noResponse);
@@ -180,7 +200,7 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
   if (libraryError?.reason === "storage_unavailable") return <CvStorageUnavailable retry={() => void retryCvs()} pending={loading} status={<ActionStatus id="application-cvs-status" tone="error" text={cvFailureStatus(libraryError, cvFailureCopy(libraryError))} />} statusId="application-cvs-status" />;
   if (identity.ok && identity.data.role === null) return <ResultCard title="Datos" description="Completa tu cuenta antes de postularte."><Link href="/candidato/ingresar" className={buttonVariants({ className: "min-h-10" })}>Completar mi cuenta de candidato</Link></ResultCard>;
   if (!candidate || !library || !screening) {
-    if (!failure && identity.ok) return <Loading />;
+    if ((!failure || loading) && identity.ok) return <Loading step={step} questions={loadingQuestions.current} />;
     return <ResultCard title="No pudimos cargar la postulación" description="Tus datos siguen aquí. Puedes reintentar."><ActionBar status={<ActionStatus id="application-read-status" tone="error" text={copy?.title ?? "No pudimos cargar tu cuenta"} />}><Button disabled={loading} aria-describedby="application-read-status" className="min-h-10" onClick={() => void retryRead()}>{loading && <Spinner aria-hidden="true" data-icon="inline-start" />}Reintentar</Button></ActionBar></ResultCard>;
   }
   const cv = library.items.find(item => item.id === selected);

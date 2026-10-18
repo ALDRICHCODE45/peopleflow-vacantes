@@ -30,6 +30,38 @@ const mount = () => render(<CandidateApplicationWizard job={{ id, title: "Backen
 async function toCv() { await screen.findByDisplayValue("Ana Pérez"); await user().click(screen.getByRole("button", { name: "Continuar" })); await screen.findByRole("button", { name: cv.name }); }
 async function toQuestions() { await toCv(); await user().click(screen.getByRole("button", { name: cv.name })); await user().click(screen.getByRole("button", { name: "Continuar" })); }
 async function toSummary() { await toQuestions(); fireEvent.change(screen.getByLabelText("Cuéntanos tu experiencia"), { target: { value: "Experiencia Go" } }); await user().click(screen.getByRole("button", { name: "Inmediata" })); await user().click(screen.getByRole("button", { name: "Continuar" })); }
+it("mirrors the Datos card slots and two identity fields while initially loading", async () => {
+  let finish!: (result: Awaited<ReturnType<typeof loadMeAction>>) => void;
+  vi.mocked(loadMeAction).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  const { container } = mount();
+  const card = container.querySelector('[data-slot="card"]')!;
+  expect(card).not.toBeNull();
+  for (const slot of ["card-header", "card-title", "card-description", "card-content", "card-footer"]) expect(card.querySelector(`[data-slot="${slot}"]`)).not.toBeNull();
+  expect(card.querySelectorAll('[data-slot="field"]')).toHaveLength(2);
+  expect(card).toHaveAttribute("aria-hidden", "true");
+  expect(screen.getByRole("status")).toHaveTextContent("Cargando postulación");
+  const slots = (root: Element) => Array.from(root.querySelectorAll('[data-slot^="card-"]')).map(node => node.getAttribute("data-slot"));
+  const skeletonSlots = slots(card);
+  finish({ ok: true, data: { role: "candidate", user: { id, full_name: "Ana Pérez", email: "ana@example.test" } } });
+  await screen.findByDisplayValue("Ana Pérez");
+  expect(slots(container.querySelector('[data-slot="card"]')!)).toEqual(skeletonSlots);
+});
+it("mirrors the previous question controls while changed questions are being loaded", async () => {
+  let finish!: (result: Awaited<ReturnType<typeof loadScreeningAction>>) => void;
+  mount(); await toSummary();
+  const slots = (root: Element) => Array.from(root.querySelectorAll('[data-slot^="card-"]')).map(node => node.getAttribute("data-slot"));
+  const loadedSlots = slots(document.querySelector('[data-slot="card"]')!);
+  vi.mocked(loadScreeningAction).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+  vi.mocked(submitApplicationAction).mockResolvedValueOnce({ ok: false, reason: "questionnaire_changed", reference: {} });
+  await user().click(screen.getByRole("button", { name: "Enviar postulación" }));
+  expect(screen.getByRole("status")).toHaveTextContent("Cargando postulación");
+  const card = document.querySelector('[data-slot="card"]')!;
+  expect(slots(card)).toEqual(loadedSlots);
+  expect(card.querySelectorAll('[data-slot="field"]')).toHaveLength(screening.questions.length);
+  expect(card.querySelector('[data-slot="field-description"]')).not.toBeNull();
+  finish({ ok: true, data: screening });
+  expect(await screen.findByLabelText("Cuéntanos tu experiencia")).toBeVisible();
+});
 it("shows the Datos sign-in card without a form and preserves the callback URL", async () => {
   vi.mocked(loadMeAction).mockResolvedValue({ ok: false, reason: "unauthenticated", reference: {} }); mount();
   await user().click(await screen.findByRole("button", { name: "Ingresar como candidato" }));

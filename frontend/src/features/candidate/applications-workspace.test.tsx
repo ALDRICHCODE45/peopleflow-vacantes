@@ -9,10 +9,28 @@ import { page, id } from "@/features/candidate-applications/test-fixtures";
 import { ApplicationsWorkspace } from "./applications-workspace";
 beforeEach(() => { vi.resetAllMocks(); });
 afterEach(cleanup);
+it("composes application identity, status and closing date in their native card slots", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: page });
+  render(<ApplicationsWorkspace />);
+  const title = await screen.findByRole("link", { name: "Backend Go" });
+  const card = title.closest('[data-slot="card"]')!;
+  expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-title"] h3')).toContainElement(title);
+  expect(card.querySelector('[data-slot="card-description"]')).toHaveTextContent("Acme");
+  expect(card.querySelector('[data-slot="card-action"]')).toHaveTextContent("Enviada");
+  expect(card.querySelector(':scope > [data-slot="card-footer"] time')).toHaveAttribute("datetime", page.items[0].applied_at);
+});
 it("shows a structural skeleton during the real initial read", () => {
   vi.mocked(loadApplicationsAction).mockReturnValue(new Promise(() => {}));
   const { container } = render(<ApplicationsWorkspace />);
   expect(screen.getByText("Cargando postulaciones")).toBeInTheDocument(); expect(container.querySelector('[data-slot="skeleton"]')).not.toBeNull();
+  const placeholders = container.querySelectorAll('[data-slot="card"]');
+  expect(placeholders).toHaveLength(3);
+  for (const card of placeholders) {
+    expect(card).toHaveAttribute("data-size", "sm");
+    for (const slot of ["card-header", "card-title", "card-description", "card-action", "card-footer"]) expect(card.querySelector(`[data-slot="${slot}"]`)).not.toBeNull();
+    expect(card).toHaveAttribute("aria-hidden", "true");
+  }
+  expect(container.querySelector('[data-pf-applications-loading-search]')).not.toBeNull();
 });
 it("shows the empty state with a vacancy link", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [], next_cursor: null } }); render(<ApplicationsWorkspace />);

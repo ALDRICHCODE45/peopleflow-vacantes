@@ -56,6 +56,16 @@ const modules = () => [...new Set([...SOURCE.matchAll(/from "([^"]+)"/gu)].map((
 
 afterEach(cleanup);
 
+it("puts every dashboard card heading in CardTitle and KPI support in CardDescription", () => {
+  const { container } = renderOverview();
+  for (const card of container.querySelectorAll('[data-slot="card"]')) {
+    expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-title"] h3')).not.toBeNull();
+  }
+  for (const card of container.querySelectorAll('[data-pf-overview-metric]')) {
+    expect(card.querySelector('[data-slot="card-description"]')).not.toBeNull();
+  }
+});
+
 describe("profile completeness helper", () => {
   it("scores the complete fixture as 100% and stays pure", () => {
     const before = JSON.stringify(CANDIDATE_PROFILE);

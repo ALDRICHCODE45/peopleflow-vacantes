@@ -45,6 +45,18 @@ const modulesOf = (source: string) => [...new Set([...source.matchAll(/from "([^
 afterEach(cleanup);
 
 describe("profile form fields inventory", () => {
+  it("uses native compact card spacing, a closing add action and fieldsets for language rows", () => {
+    const { container } = renderFields();
+    for (const card of container.querySelectorAll('[data-pf-profile-section-card]')) {
+      expect(card.className.split(/\s+/u)).not.toEqual(expect.arrayContaining(["py-0", "gap-0"]));
+      expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-title"] h3')).not.toBeNull();
+    }
+    expect(screen.getByRole("button", { name: "Agregar idioma" }).closest('[data-slot="card-footer"]')).not.toBeNull();
+    for (const row of container.querySelectorAll('[data-pf-profile-language-row]')) {
+      expect(row).toHaveAttribute("data-slot", "field-set");
+      expect(row.className).not.toMatch(/rounded|bg-muted|border-border/u);
+    }
+  });
   it("renders the nine section groups that the five tabs distribute without a native control", () => {
     const { container, onChange } = renderFields();
     expect(onChange).not.toHaveBeenCalled();
@@ -297,7 +309,7 @@ describe("profile form fields composition", () => {
 
   it("keeps every control on a shadcn field primitive with badges, one divider and one date picker", () => {
     const { container } = renderFields();
-    expect(container.querySelectorAll('[data-slot="field-set"]')).toHaveLength(9);
+    expect(container.querySelectorAll('[data-slot="field-set"]')).toHaveLength(9 + draft().languages.length);
     expect(container.querySelectorAll('[data-slot="field"]')).toHaveLength(SCALARS.length + 2 * draft().languages.length);
     expect(container.querySelectorAll('[data-slot="field-legend"]')).toHaveLength(9);
     expect(container.querySelectorAll('[data-slot="field-description"]')).toHaveLength(0);
@@ -332,7 +344,8 @@ describe("profile form fields contract", () => {
     for (const grid of grids) expect(classes(grid)).not.toMatch(/(?:^|\s)flex(?:\s|$)/u);
     const row = container.querySelector("[data-pf-profile-language-row]") as HTMLElement;
     const rowGrid = row.querySelector("[data-pf-profile-language-grid]") as HTMLElement;
-    expect([classes(row).includes("border"), classes(rowGrid).includes("grid-cols-1"), classes(rowGrid).includes("sm:grid-cols-2")]).toEqual([true, true, true]);
+    expect(row).toHaveAttribute("data-slot", "field-set");
+    expect([classes(rowGrid).includes("grid-cols-1"), classes(rowGrid).includes("sm:grid-cols-2")]).toEqual([true, true]);
     expect(SOURCE).toContain("motion-reduce:transition-none");
     expect(container.querySelector("[data-pf-profile-language-add]")).toHaveTextContent("Agregar idioma");
     expect(container.querySelectorAll("[data-slot='select-trigger']")).toHaveLength(2 + draft().languages.length);

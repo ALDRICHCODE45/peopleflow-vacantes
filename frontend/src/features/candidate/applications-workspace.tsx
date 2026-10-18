@@ -7,7 +7,7 @@ import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +17,26 @@ import type { ApplicationsPage, Failure } from "@/features/candidate-application
 const date = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "UTC" });
 /** Case- and accent-insensitive comparison key (same rule as the former prototype search). */
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLowerCase().trim();
+function ApplicationsSkeleton() {
+  return <section aria-busy="true" aria-label="Postulaciones" className="flex flex-col gap-3">
+    <span role="status" className="sr-only">Cargando postulaciones</span>
+    <div aria-hidden="true" data-pf-applications-loading-search className="flex flex-col gap-2">
+      <Skeleton className="h-[19px] w-52" />
+      <Skeleton className="w-full lg:w-72"><InputGroup className="invisible h-11"><InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon><InputGroupInput disabled tabIndex={-1} /></InputGroup></Skeleton>
+    </div>
+    {/* Skeletons retain the compact application card anatomy; the initial result count is unknown. */}
+    <ul className="flex flex-col gap-3">{[0, 1, 2].map(index => <li key={index} className="min-w-0">
+      <Card size="sm" aria-hidden="true">
+        <CardHeader>
+          <CardTitle className="flex min-w-0 items-start gap-3"><Skeleton className="size-10 shrink-0 rounded-full" /><Skeleton className="my-2 h-6 w-44 max-w-full" /></CardTitle>
+          <CardDescription><Skeleton className="h-5 w-28" /></CardDescription>
+          <CardAction><Skeleton className="h-6 w-20" /></CardAction>
+        </CardHeader>
+        <CardFooter><Skeleton className="h-5 w-60 max-w-full" /></CardFooter>
+      </Card>
+    </li>)}</ul>
+  </section>;
+}
 export function ApplicationsWorkspace() {
   const [data, setData] = useState<ApplicationsPage>();
   const [failure, setFailure] = useState<Failure>();
@@ -50,7 +70,7 @@ export function ApplicationsWorkspace() {
   }
   return <DashboardPageContent data-pf-applications-workspace width="screen-2xl" className="gap-5">
     <header className="flex flex-col gap-2"><h2 className="font-heading text-2xl font-semibold">Postulaciones</h2><p className="text-sm text-muted-foreground">Consulta las vacantes a las que te postulaste.</p></header>
-    {!data && !failure ? <section aria-busy="true" aria-label="Postulaciones" className="flex flex-col gap-3"><span role="status" className="sr-only">Cargando postulaciones</span>{[0, 1, 2].map(index => <Skeleton key={index} aria-hidden="true" className="h-28 w-full" />)}</section> : <>
+    {!data && !failure ? <ApplicationsSkeleton /> : <>
       {data?.items.length === 0 && !failure && <Empty><EmptyHeader><EmptyTitle>Todavía no te postulaste a ninguna vacante</EmptyTitle><EmptyDescription>Explora las vacantes y elige tu siguiente oportunidad.</EmptyDescription></EmptyHeader><EmptyContent><Link href="/vacantes" className={buttonVariants({ className: "min-h-10" })}>Explorar vacantes</Link></EmptyContent></Empty>}
       {!!data?.items.length && <div className="flex flex-col gap-2">
         <label htmlFor="applications-search" className="text-[12.5px] font-medium text-foreground">Buscar por puesto o empresa</label>
@@ -61,18 +81,15 @@ export function ApplicationsWorkspace() {
       {visible.length > 0 && <ul className="flex flex-col gap-3">{visible.map(item => <li key={item.id} className="min-w-0">
         <Card size="sm">
           <CardHeader>
-            <div className="grid min-w-0 items-start gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-              <div className="flex min-w-0 items-start gap-3">
-                <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/12 text-foreground ring-1 ring-primary/40"><Briefcase className="size-5" /></span>
-                <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <CardTitle><h3 className="font-heading text-base font-semibold"><Link href={`/vacantes/${item.vacancy.id}`} className="inline-flex min-h-10 items-center rounded-md break-words underline-offset-4 hover:underline focus-visible:outline-ring focus-visible:outline-2">{item.vacancy.title}</Link></h3></CardTitle>
-                  <p className="flex items-center gap-1.5 text-sm text-muted-foreground"><Building2 aria-hidden="true" className="size-3.5 shrink-0" /><span className="min-w-0 break-words">{item.company.name}</span></p>
-                </div>
-              </div>
-              <Badge variant={item.status === "submitted" ? "info" : item.status === "closed" ? "neutral" : "review"} dot>{item.status === "submitted" ? "Enviada" : item.status === "closed" ? "Finalizada" : "En proceso"}</Badge>
-            </div>
+            <CardTitle className="flex min-w-0 items-start gap-3">
+              <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-primary/12 text-foreground ring-1 ring-primary/40"><Briefcase className="size-5" /></span>
+              <h3 className="min-w-0 font-heading text-base font-semibold"><Link href={`/vacantes/${item.vacancy.id}`} className="inline-flex min-h-10 items-center rounded-md break-words underline-offset-4 hover:underline focus-visible:outline-ring focus-visible:outline-2">{item.vacancy.title}</Link></h3>
+            </CardTitle>
+            <CardDescription className="flex items-center gap-1.5"><Building2 aria-hidden="true" className="size-3.5 shrink-0" /><span className="min-w-0 break-words">{item.company.name}</span></CardDescription>
+            <CardAction><Badge variant={item.status === "submitted" ? "info" : item.status === "closed" ? "neutral" : "review"} dot>{item.status === "submitted" ? "Enviada" : item.status === "closed" ? "Finalizada" : "En proceso"}</Badge></CardAction>
           </CardHeader>
-          <CardContent className="flex flex-col gap-3">{item.status === "closed" && item.message !== null && <p className="whitespace-pre-wrap break-words text-sm">{item.message}</p>}<p className="flex flex-wrap items-center gap-1.5 text-sm"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><span className="text-muted-foreground">Postulada</span><time dateTime={item.applied_at}>{date.format(new Date(item.applied_at))}</time></p></CardContent>
+          {item.status === "closed" && item.message !== null && <CardContent><p className="whitespace-pre-wrap break-words text-sm">{item.message}</p></CardContent>}
+          <CardFooter><p className="flex flex-wrap items-center gap-1.5 text-sm"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><span className="text-muted-foreground">Postulada</span><time dateTime={item.applied_at}>{date.format(new Date(item.applied_at))}</time></p></CardFooter>
         </Card>
       </li>)}</ul>}
       {(failure || loaded || data?.next_cursor) && <ActionBar status={failure ? <ActionStatus id="applications-status" tone="error" text="No pudimos cargar las postulaciones" action={failure.reason === "unauthenticated" ? <Link href="/candidato/ingresar" className="inline-flex min-h-10 items-center underline">Ingresar como candidato</Link> : undefined} /> : loaded ? <ActionStatus id="applications-status" tone="success" text="Postulaciones cargadas" /> : null}>

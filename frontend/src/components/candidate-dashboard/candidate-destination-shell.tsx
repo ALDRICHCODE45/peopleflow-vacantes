@@ -1,5 +1,6 @@
 import * as React from "react"
 
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CandidateHeader } from "./candidate-header"
 
 /**
@@ -22,9 +23,11 @@ export function CandidateDestinationShell({
           <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
             <div className="flex w-full flex-col gap-4 px-4 lg:px-6">
               <p className="max-w-3xl text-sm text-muted-foreground">{summary}</p>
-              <section data-pf-destination-preview aria-labelledby="candidate-preview-title" className="rounded-2xl border border-border bg-card/40 p-4 md:p-6">
-                <h2 id="candidate-preview-title" className="font-heading text-base font-semibold text-foreground">Qué vas a encontrar</h2>
-                <ul className="mt-4 flex flex-col gap-2.5">
+              <section data-pf-destination-preview aria-labelledby="candidate-preview-title">
+                <Card>
+                  <CardHeader><CardTitle><h2 id="candidate-preview-title" className="font-heading text-base font-semibold text-foreground">Qué vas a encontrar</h2></CardTitle></CardHeader>
+                  <CardContent>
+                <ul className="flex flex-col gap-2.5">
                   {preview.map((item) => (
                     <li key={item} className="flex gap-2.5 text-sm text-foreground">
                       <span aria-hidden="true" className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
@@ -32,6 +35,8 @@ export function CandidateDestinationShell({
                     </li>
                   ))}
                 </ul>
+                  </CardContent>
+                </Card>
               </section>
             </div>
           </div>

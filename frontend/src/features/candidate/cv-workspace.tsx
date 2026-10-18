@@ -30,10 +30,10 @@ function CvCard({ cv, onEdit }: { cv: Cv; onEdit: (mode: "rename" | "delete") =>
   const [download, rename, remove] = cvRowActions(cv);
   return <li className="min-w-0"><Card data-pf-cv-card={cv.id}>
     <CardHeader className="border-b">
-      <div className="flex min-w-0 items-start gap-3">
+      <CardTitle className="flex min-w-0 items-start gap-3">
         <span aria-hidden="true" className="grid size-11 shrink-0 place-items-center rounded-full bg-primary/12 text-foreground ring-1 ring-primary/40"><FileText className="size-5" /></span>
-        <CardTitle><h3 className="break-words font-heading text-base font-semibold">{cv.name}</h3></CardTitle>
-      </div>
+        <h3 className="min-w-0 break-words font-heading text-base font-semibold">{cv.name}</h3>
+      </CardTitle>
       <CardAction><DropdownMenu>
         <DropdownMenuTrigger render={<Button type="button" variant="ghost" size="icon" className="size-10" aria-label={`Acciones de ${cv.name}`} data-pf-cv-actions-trigger={cv.id} />}><Ellipsis aria-hidden="true" /></DropdownMenuTrigger>
         <DropdownMenuContent align="end" side="bottom" className="min-w-44">
@@ -56,10 +56,26 @@ function CvCard({ cv, onEdit }: { cv: Cv; onEdit: (mode: "rename" | "delete") =>
   </Card></li>;
 }
 function LoadingCvs() {
-  return <section aria-busy="true" aria-label="Biblioteca de CVs" className="flex flex-col gap-4">
+  return <section aria-busy="true" aria-label="Biblioteca de CVs" className="flex flex-col gap-5">
     <span role="status" className="sr-only">Cargando CVs</span>
-    <Skeleton aria-hidden="true" className="h-10 w-48" />
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">{[0, 1].map(key => <Skeleton aria-hidden="true" key={key} className="h-48 w-full" />)}</div>
+    <div aria-hidden="true" data-pf-cv-loading-upload className="flex flex-col gap-3">
+      <Skeleton className="h-5 w-28" /><Skeleton><Progress value={null} className="invisible" /></Skeleton>
+      <FieldGroup><Field><Skeleton className="w-32"><FieldLabel>&nbsp;</FieldLabel></Skeleton><Skeleton><Input type="file" disabled tabIndex={-1} className="invisible min-h-10" /></Skeleton><Skeleton className="w-56 max-w-full"><FieldDescription>&nbsp;</FieldDescription></Skeleton></Field></FieldGroup>
+      <ActionBar status={null}><Skeleton><Button type="button" variant="outline" disabled tabIndex={-1} className="invisible min-h-10"><Upload aria-hidden="true" data-icon="inline-start" />Subir CV</Button></Skeleton></ActionBar>
+    </div>
+    {/* Skeletons mirror CvCard; the library size is not known until the initial read completes. */}
+    <ul className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">{[0, 1].map(key => <li key={key} className="min-w-0">
+      <Card aria-hidden="true">
+        <CardHeader className="border-b">
+          <CardTitle className="flex min-w-0 items-start gap-3"><Skeleton className="size-11 shrink-0 rounded-full" /><Skeleton className="h-6 w-44 max-w-full" /></CardTitle>
+          <CardAction><Skeleton><Button type="button" variant="ghost" size="icon" disabled tabIndex={-1} className="invisible size-10"><Ellipsis aria-hidden="true" /></Button></Skeleton></CardAction>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-wrap gap-2"><Skeleton className="h-6 w-12" /><Skeleton className="h-6 w-16" /></div>
+          <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">{[0, 1].map(fact => <div key={fact}><dt><Skeleton className="h-[19px] w-20" /></dt><dd className="mt-1"><Skeleton className="h-5 w-36 max-w-full" /></dd></div>)}</dl>
+        </CardContent>
+      </Card>
+    </li>)}</ul>
   </section>;
 }
 /** Real library; only the initial read replaces content with skeletons. Mutations never retry themselves. */
