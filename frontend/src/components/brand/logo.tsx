@@ -16,8 +16,8 @@ const BRAND_MARKS = [
   },
 ] as const;
 
-// Approved PeopleFlow isotypes (500x500) copied to public/brand: the transparent
-// black «pf» for light surfaces, the black disc with a white «p» for dark ones.
+// Approved PeopleFlow isotypes (500x500, transparent corners) copied to
+// public/brand: Logo_small_Light for the light theme, Logo_smal_Dark for the dark one.
 const BRAND_ISOTYPES = [
   { src: "/brand/peopleflow-mark-light.png", schemeClass: "brand-mark-light" },
   { src: "/brand/peopleflow-mark-dark.png", schemeClass: "brand-mark-dark" },

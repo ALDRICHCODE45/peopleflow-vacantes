@@ -913,8 +913,8 @@ Referencia: `docs/design/v0/reference-lqiGtbQJqJc/` y capturas de L5 en
   centrada. El wordmark queda para el estado expandido y el drawer móvil.
 - La marca compacta es un único componente (`PeopleFlowMark`) con el nombre accesible
   «PeopleFlow» que muestra el isotipo aprobado, uno por tema: `peopleflow-mark-light.png`
-  («pf» negra sin fondo) en tema claro y `peopleflow-mark-dark.png` (disco negro con «p»
-  blanca) en tema oscuro, a 32px dentro del cuadrado de 40px. Las imágenes son
+  (disco negro con «p» blanca) en tema claro y `peopleflow-mark-dark.png` (disco blanco
+  con «p» negra) en tema oscuro, ambos con las esquinas transparentes, a 32px dentro del cuadrado de 40px. Las imágenes son
   decorativas (`alt=""`); el nombre lo da el contenedor.
 - Todos los botones del riel (navegación, acción primaria y cuenta) comparten un cuadrado
   de 40px centrado, con el ícono o el avatar centrado; hover, selección y foco usan esa
