@@ -815,9 +815,15 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
   «Comprobar», que solo lee el estado; nunca reintenta solo.
 
 - Un diálogo con una lista que puede crecer (faltantes, resultados) tiene alto máximo
-  (`max-h-[min(44rem,calc(100dvh-2rem))]`) y **un solo** `ScrollArea` entre el
-  encabezado y el pie. Las cards de adentro llevan `shrink-0`: una `Card` que se encoge
-  recorta su contenido («cards cortadas») en lugar de dejar que el área haga scroll.
+  (`max-h-[min(44rem,calc(100dvh-2rem))]`) y **un solo** contenedor de scroll entre el
+  encabezado y el pie: un `div` con `min-h-0 flex-1 overflow-y-auto`. Las cards de
+  adentro llevan `shrink-0`: una `Card` que se encoge recorta su contenido («cards
+  cortadas») en lugar de dejar que el área haga scroll.
+- `ScrollArea` solo se usa con una altura definida (fija, o el alto completo de un
+  contenedor que ya la tiene, como las columnas del tablero). En un alto flexible por
+  `max-h`, su área interna crece con el contenido y se desborda del contenedor.
+- En una lista compacta con `ItemSeparator`, el `ItemGroup` lleva `gap-0` y el separador
+  `my-0`: si no, el espacio se suma dos veces y cada fila queda el doble de alta.
 - Las filas de una lista dentro de una card son `Item` compactos separados por
   `ItemSeparator`, no una caja con borde por fila; el conteo del grupo va en `CardAction`
   y el total, en la descripción del diálogo («Faltan 13 datos en 3 secciones»).

@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "@/components/ui/item";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
@@ -157,17 +156,18 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
   const title = unsavedChanges ? "Guarda los cambios antes de publicar" : missing.length ? "Te falta para publicar" : already ? "Esta vacante ya está publicada" : "Publicar vacante";
   return <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col sm:max-w-lg" showCloseButton={!pending}>
     <DialogHeader><DialogTitle ref={heading} tabIndex={-1} className="outline-none">{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
-    {/* One scroll region owns the overflow; children never shrink (shrinking clipped the cards). */}
-    <ScrollArea className="-mx-1 min-h-0 flex-1"><div className="flex flex-col gap-4 px-1 pb-1" aria-busy={!unsavedChanges && mode === "loading"}>
+    {/* One native scroll region owns the overflow and its children never shrink (shrinking clipped
+        the cards). Not ScrollArea: base-ui needs a fixed height and spilled out of this flexible dialog. */}
+    <div data-pf-publication-scroll className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pb-1 [scrollbar-width:thin]" aria-busy={!unsavedChanges && mode === "loading"}>
       {!unsavedChanges && mode === "loading" ? <><span role="status" className="sr-only">Cargando publicación</span><PublicationSkeleton missing={snapshot?.publication.missing ?? []} /></> : null}
       {!unsavedChanges && mode === "load_error" && <p className="text-sm text-muted-foreground">No se modificó la vacante. Puedes volver a cargar los datos.</p>}
       {!unsavedChanges && snapshot && mode !== "loading" && mode !== "load_error" && (missing.length ? groups.map(group => {
         const Icon = GROUP_ICONS[group.group];
         return <Card key={group.group} size="sm" role="region" aria-labelledby={`publication-${group.group}`} className="shrink-0">
           <CardHeader><CardTitle><h3 id={`publication-${group.group}`}>{MISSING_GROUP_LABELS[group.group]}</h3></CardTitle><CardAction><Badge variant="secondary" className="tabular-nums">{group.items.length}</Badge></CardAction></CardHeader>
-          <CardContent><ItemGroup>{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>
-            {index > 0 && <ItemSeparator />}
-            <Item size="sm" role="listitem" className="px-0"><ItemMedia variant="icon"><Icon aria-hidden="true" /></ItemMedia><ItemContent><ItemTitle>{item.label}</ItemTitle></ItemContent><ItemActions><Button nativeButton={false} role="link" variant="ghost" className="min-h-10" render={<Link href={item.href(draftId)} />}>Completar<span className="sr-only"> {item.label}</span><ArrowRight aria-hidden="true" data-icon="inline-end" /></Button></ItemActions></Item>
+          <CardContent><ItemGroup className="gap-0">{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>
+            {index > 0 && <ItemSeparator className="my-0" />}
+            <Item size="sm" role="listitem" className="px-0 py-1.5"><ItemMedia variant="icon"><Icon aria-hidden="true" /></ItemMedia><ItemContent><ItemTitle>{item.label}</ItemTitle></ItemContent><ItemActions><Button nativeButton={false} role="link" variant="ghost" className="min-h-10" render={<Link href={item.href(draftId)} />}>Completar<span className="sr-only"> {item.label}</span><ArrowRight aria-hidden="true" data-icon="inline-end" /></Button></ItemActions></Item>
           </Fragment>)}</ItemGroup></CardContent>
         </Card>;
       }) : already ? <p className="text-sm text-muted-foreground">{snapshot.publication.publishedAt ? `Publicada el ${formatPublicationDate(snapshot.publication.publishedAt)}` : "El tiempo de entrega ya está en marcha."}</p> : <>
@@ -179,7 +179,7 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
         ].map(row => <Item key={row.label} variant="outline" size="sm" role="listitem"><ItemMedia variant="icon"><row.icon aria-hidden="true" /></ItemMedia><ItemContent><span className="text-xs text-muted-foreground">{row.label}</span><ItemTitle>{row.value}</ItemTitle></ItemContent></Item>)}</ItemGroup>
         <p className="text-sm text-muted-foreground">Al publicar empieza a contar el tiempo de entrega. Los candidatos todavía no la verán: la publicación en el sitio llega en el siguiente paso.</p>
       </>)}
-    </div></ScrollArea>
+    </div>
     <DialogFooter className="flex-row"><ActionBar status={notice ? <ActionStatus id="publication-status" tone={notice.tone} text={notice.text} /> : null}>
       <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={() => onOpenChange(false)}>Cancelar</Button>
       {!unsavedChanges && mode === "loading" && <Skeleton aria-hidden="true" className="h-10 w-40" />}
@@ -193,6 +193,6 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
 
 // Skeleton exception: use known checklist groups on reload; otherwise mirror the four summary Items.
 function PublicationSkeleton({ missing }: { missing: readonly string[] }) {
-  if (missing.length) return <div aria-hidden="true" className="flex flex-col gap-4">{groupMissing([...missing]).map(group => <Card key={group.group} size="sm" className="shrink-0"><CardHeader><CardTitle><Skeleton className="h-6 w-40" /></CardTitle><CardAction><Skeleton className="h-5 w-6 rounded-full" /></CardAction></CardHeader><CardContent><ItemGroup>{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>{index > 0 && <ItemSeparator />}<Item size="sm" className="px-0"><ItemMedia variant="icon"><Skeleton className="size-4" /></ItemMedia><ItemContent><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent><ItemActions><Skeleton className="h-10 w-28" /></ItemActions></Item></Fragment>)}</ItemGroup></CardContent></Card>)}</div>;
+  if (missing.length) return <div aria-hidden="true" className="flex flex-col gap-4">{groupMissing([...missing]).map(group => <Card key={group.group} size="sm" className="shrink-0"><CardHeader><CardTitle><Skeleton className="h-6 w-40" /></CardTitle><CardAction><Skeleton className="h-5 w-6 rounded-full" /></CardAction></CardHeader><CardContent><ItemGroup className="gap-0">{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>{index > 0 && <ItemSeparator className="my-0" />}<Item size="sm" className="px-0 py-1.5"><ItemMedia variant="icon"><Skeleton className="size-4" /></ItemMedia><ItemContent><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent><ItemActions><Skeleton className="h-10 w-28" /></ItemActions></Item></Fragment>)}</ItemGroup></CardContent></Card>)}</div>;
   return <div aria-hidden="true" className="flex flex-col gap-5"><ItemGroup>{[0, 1, 2, 3].map(index => <Item key={index} variant="outline" size="sm"><ItemMedia variant="icon"><Skeleton className="size-4" /></ItemMedia><ItemContent><span><Skeleton className="h-4 w-28" /></span><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent></Item>)}</ItemGroup><Skeleton className="h-10 w-full" /></div>;
 }

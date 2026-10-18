@@ -65,12 +65,18 @@ it("keeps a long checklist compact and scrollable without clipping any group", a
  expect(cards).toHaveLength(3);
  // One scroll region owns the overflow; groups never shrink (shrinking clipped their rows).
  for (const card of cards) {
-  expect(card.closest('[data-slot="scroll-area"]')).not.toBeNull();
+  // Native overflow: base-ui ScrollArea needs a fixed height and spilled out of the
+  // flexible dialog in the browser; a min-h-0 flex-1 overflow container scrolls reliably.
+  expect(card.closest('[data-pf-publication-scroll]')).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
   expect(card).toHaveClass("shrink-0");
  }
  // Compact rows: no outlined box per item, separators between rows, a count per group.
  expect(document.querySelectorAll('[data-slot="item"][data-variant="outline"]')).toHaveLength(0);
  expect(cards[0].querySelectorAll('[data-slot="item-separator"]')).toHaveLength(2);
+ // Rows are 40px controls plus 6px insets: the group adds no gap on top of separators.
+ for (const group of document.querySelectorAll('[data-slot="item-group"]')) expect(group).toHaveClass("gap-0");
+ for (const separator of document.querySelectorAll('[data-slot="item-separator"]')) expect(separator).toHaveClass("my-0");
+ for (const row of document.querySelectorAll('[data-slot="item"]')) expect(row).toHaveClass("px-0", "py-1.5");
  expect(cards.map(card => card.querySelector('[data-slot="card-action"]')?.textContent)).toEqual(["3", "1", "1"]);
 });
 it("422 switches to server checklist", async () => { vi.mocked(publishDraftAction).mockResolvedValue({ ok: false, reason: "publication_incomplete", missing: ["description_missing"], reference: { status: 422 } }); mount(); await confirm(); expect(await screen.findByRole("heading", { name: "Te falta para publicar" })).toBeVisible(); expect(screen.getByText("Descripción", { selector: '[data-slot="item-title"]' })).toBeVisible(); });
