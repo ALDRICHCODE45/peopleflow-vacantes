@@ -814,6 +814,14 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
 - Si el resultado de la acción es incierto (sin respuesta), el diálogo ofrece
   «Comprobar», que solo lee el estado; nunca reintenta solo.
 
+- Un diálogo con una lista que puede crecer (faltantes, resultados) tiene alto máximo
+  (`max-h-[min(44rem,calc(100dvh-2rem))]`) y **un solo** `ScrollArea` entre el
+  encabezado y el pie. Las cards de adentro llevan `shrink-0`: una `Card` que se encoge
+  recorta su contenido («cards cortadas») en lugar de dejar que el área haga scroll.
+- Las filas de una lista dentro de una card son `Item` compactos separados por
+  `ItemSeparator`, no una caja con borde por fila; el conteo del grupo va en `CardAction`
+  y el total, en la descripción del diálogo («Faltan 13 datos en 3 secciones»).
+
 ### 13.9 Subida de archivos
 
 - Los archivos viajan por un Route Handler de Next (`app/api/…`) que agrega el Bearer del
