@@ -135,6 +135,37 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 
 No volcar todo en `CardContent`: la jerarquía nativa es la que da espaciado y composición.
 
+**Composición oficial de shadcn** (<https://ui.shadcn.com/docs/components/base/card>):
+
+```text
+Card
+├── CardHeader
+│   ├── CardTitle
+│   ├── CardDescription
+│   └── CardAction
+├── CardContent
+└── CardFooter
+```
+
+Criterios de auditoría (obligatorios en código nuevo y al tocar una card existente):
+
+- Una superficie con aspecto de tarjeta (fondo `card`, borde o anillo, radio, padding
+  propio) se construye con `Card`, nunca con un `div` estilizado a mano.
+- El título va en `CardTitle` y el texto de apoyo en `CardDescription`; no se reemplazan
+  por `p`/`span` sueltos ni por layouts flex propios dentro del `CardHeader`. El heading
+  semántico (`h2`/`h3`) va **dentro** de `CardTitle`.
+- Una acción, badge o menú del encabezado va en `CardAction` (arriba a la derecha), no en
+  un flex manual junto al título ni al final de `CardContent`.
+- Las acciones y metadatos del cierre van en `CardFooter`, no al final de `CardContent`.
+- El espaciado se ajusta con `size="sm"` o la variable `--card-spacing`
+  (`[--card-spacing:--spacing(6)]`), no con `p-0`/`py-*`/`gap-*` que pisen la estructura.
+  El contenido de borde a borde usa `-mx-(--card-spacing)`; sobre un footer, además
+  `-mb-(--card-spacing)` en `CardContent`.
+- Una imagen de portada va antes del `CardHeader`.
+- Excepciones legítimas, documentadas en el código con un comentario: tarjetas
+  arrastrables del tablero (anatomía propia de §14.3) y skeletons, que replican la
+  estructura con `Skeleton` dentro de las mismas partes.
+
 **Semántica y nombre accesible.** `Card`, `CardHeader`, `CardTitle` y `CardDescription`
 aportan composición y estilo, pero **no** convierten por sí solos el título en un heading
 accesible: `CardTitle`/`CardDescription` renderizan `div`, no `<h1>`–`<h6>` ni un rol de
