@@ -531,6 +531,10 @@ migración masiva ni conectar prototipos a persistencia inexistente.
   la carga de consultas del cliente.
 - Cuando la estructura es observable, un test compara la secuencia de `data-slot` del
   skeleton con la del componente cargado.
+- Si todavía no se sabe qué pantalla va a llegar (por ejemplo, el control de rol antes
+  de mostrar cualquier ruta de empresa o candidato), no se inventa un skeleton: se usa el
+  patrón «Spinner puntual» centrado en el área de contenido, con un único estado
+  accesible («Verificando tu cuenta») y sin bloques falsos.
 
 ```tsx
 // Real: <Card><CardHeader><CardTitle/><CardDescription/><CardAction><Badge/></CardAction>
