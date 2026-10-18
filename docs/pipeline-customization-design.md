@@ -1290,3 +1290,58 @@ re-entry confirmation); `/candidato/postulaciones` shows «Finalizada» and the 
    reserved for error envelopes (and the architecture guard rejects ad-hoc `"code"`
    keys outside the error catalog). A body with `code` instead of `key` is `400
    invalid_request`.
+
+## 14. Public listing enrichment (proposal)
+
+Status: **proposal under frontend review.** Requested by the frontend agent (msg a644dd14)
+for the public card, with the user's decisions in §14.4. Branch
+`feat/public-listing-enrichment`, stacked on `feat/pipeline-discard` (it reads
+participations). Extends the P2a public contract (§10.3); legacy `/jobs` routes unchanged.
+
+### 14.1 New keys on every `GET /v2/jobs` item (and therefore on the detail)
+
+All keys always present; closed enums; legacy values as stated.
+
+| Key | Type | Vacancy | Legacy |
+| --- | --- | --- | --- |
+| `company.logo_url` | string \| null | the company's public logo (same value as `GET /companies/{id}`) | same |
+| `excerpt` | string \| null | first ≤240 Unicode code points of `description_plain`, cut at the last whitespace boundary inside the limit (hard cut if there is none), trimmed; `null` if the plain description is empty | same rule over the legacy description |
+| `excerpt_truncated` | boolean | true when `excerpt` is shorter than the trimmed plain description | same |
+| `benefits_preview` | `{predefined: [codes], custom: [strings]}` | the first 3 benefits in stored order, predefined first | `{predefined: [], custom: []}` |
+| `benefits_total` | integer ≥0 | predefined + custom count | 0 |
+| `skills_preview` | string[] | the first 6 skills in the order the company entered them | `[]` |
+| `skills_total` | integer ≥0 | number of skills | 0 |
+| `applicants` | `under_10 \| 10_plus \| 25_plus \| 50_plus` \| null | range over **all** participations of the process, discarded included (§14.4 S1); never an exact number | `null` |
+| `screening_questions` | integer ≥0 \| null | number of questions in the current published questionnaire | `null` |
+
+Ranges: `under_10` = 0–9, `10_plus` = 10–24, `25_plus` = 25–49, `50_plus` = 50 or more.
+
+### 14.2 Detail
+
+`GET /v2/jobs/{id}` keeps the full `benefits` object and gains `skills: string[]` (all
+skills, entered order; `[]` for legacy). Preview keys are present in the detail too, because
+the detail extends the list item.
+
+### 14.3 Storage and privacy (backend)
+
+- Skills become public content (user decision): the public projection allowlist adds them.
+  The screening question count is stored in the projection as well, refreshed in the same
+  transaction as publish and published saves (§10.2).
+- Additive migration `00025` adds the projection columns and **backfills** existing
+  projections from their draft fields, so published vacancies never show a wrong
+  `screening_questions` (0 would read as «Postulación rápida»). Own commit; the down drops
+  the new columns only.
+- The applicant range is computed at read time from `process_participations` (count per
+  process); the exact count never leaves the backend. No candidate data is exposed.
+- Nothing else becomes public: requester, headcount, delivery, pipeline, hidden salary and
+  answer keys stay private.
+
+### 14.4 Decisions recorded
+
+- **S1 (user):** every received application counts, discarded included, so the range never
+  drops and does not reveal discards.
+- **S2 (user):** ranges «Menos de 10» / «10+» / «25+» / «50+».
+- **S3 (user, relayed by the frontend):** ranges only, never the exact number; company skills
+  are public — complete in the detail, the first ones in the list.
+- **Backend choice:** list previews use `*_preview` + `*_total` keys so `benefits` keeps one
+  meaning (complete) wherever it appears.
