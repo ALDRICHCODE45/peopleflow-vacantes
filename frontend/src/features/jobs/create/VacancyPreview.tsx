@@ -4,6 +4,8 @@ import { cn } from "cn";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
+  CardAction,
+  CardFooter,
   CardContent,
   CardDescription,
   CardHeader,
@@ -118,23 +120,23 @@ export function VacancyPreview({
           <h2 className="font-heading text-sm font-medium">
             Vista previa pública
           </h2>
-          <Badge variant="secondary">Borrador</Badge>
         </CardTitle>
+        <CardAction><Badge variant="secondary">Borrador</Badge></CardAction>
         <CardDescription>
           Así se verá tu vacante cuando esté publicada.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
-        <div className="rounded-2xl border border-border bg-background/60 p-4">
-          <div className="flex items-start gap-3">
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle><h3 className="flex items-start gap-3">
             <span
               aria-hidden="true"
               className="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"
             >
               <Building2Icon className="size-5" />
             </span>
-            <div className="min-w-0">
-              <p
+              <span
                 className={cn(
                   "text-sm leading-tight font-semibold break-words",
                   trimmedTitle === ""
@@ -143,14 +145,14 @@ export function VacancyPreview({
                 )}
               >
                 {trimmedTitle === "" ? "Título del puesto" : trimmedTitle}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                {`Tu empresa${trimmedLocation === "" ? "" : ` · ${trimmedLocation}`}`}
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-1.5">
+              </span>
+            </h3></CardTitle>
+            <CardDescription>
+              {`Tu empresa${trimmedLocation === "" ? "" : ` · ${trimmedLocation}`}`}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-1.5">
             {chips.map((chip) => (
               <Badge
                 key={chip.key}
@@ -164,7 +166,7 @@ export function VacancyPreview({
 
           <p
             className={cn(
-              "mt-3 line-clamp-3 text-xs leading-relaxed whitespace-pre-line text-muted-foreground",
+              "line-clamp-3 text-xs leading-relaxed whitespace-pre-line text-muted-foreground",
               trimmedDescription === "" && "italic",
             )}
           >
@@ -173,7 +175,8 @@ export function VacancyPreview({
               : toPlainSummary(trimmedDescription)}
           </p>
 
-          <div className="mt-3 border-t border-border/60 pt-2.5 text-xs">
+          </CardContent>
+          <CardFooter className="border-t text-xs">
             <span
               className={cn(
                 salary === null
@@ -183,15 +186,16 @@ export function VacancyPreview({
             >
               {salary ?? "Salario a convenir"}
             </span>
-          </div>
-        </div>
+          </CardFooter>
+        </Card>
 
         <PrototypeDossier prototype={prototype} />
-
+      </CardContent>
+      <CardFooter>
         <p className="text-xs leading-relaxed text-muted-foreground">
           Vista previa de borrador: esta vacante todavía no está publicada.
         </p>
-      </CardContent>
+      </CardFooter>
     </Card>
   );
 }

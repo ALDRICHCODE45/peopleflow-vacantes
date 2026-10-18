@@ -11,6 +11,7 @@ import {
 import { cn } from "cn";
 
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel, FieldTitle } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -256,15 +257,10 @@ export function RichTextField({
         </TabsContent>
 
         <TabsContent value="preview">
-          <div
-            role="region"
-            aria-label={`Vista previa de ${label}`}
-            aria-live="polite"
-            className="flex flex-col gap-2 rounded-2xl border border-border bg-muted/40 p-3"
-          >
-            <p className="text-xs font-medium text-muted-foreground">Vista previa</p>
-            <FormattedPreview value={value} />
-          </div>
+          <Card size="sm" role="region" aria-label={`Vista previa de ${label}`} aria-live="polite">
+            <CardHeader><CardTitle><h3 className="text-xs font-medium text-muted-foreground">Vista previa</h3></CardTitle></CardHeader>
+            <CardContent><FormattedPreview value={value} /></CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </Field>

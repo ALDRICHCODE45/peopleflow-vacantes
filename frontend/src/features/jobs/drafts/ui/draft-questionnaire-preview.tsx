@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { LockIcon } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 import {
   Empty,
@@ -79,29 +80,25 @@ export function DraftQuestionnairePreview({
   const edited = initialFingerprint !== fingerprint;
 
   return (
-    <section
-      aria-labelledby="draft-questionnaire-preview-heading"
-      data-pf-draft-questionnaire-preview=""
-      className="flex min-w-0 flex-col gap-4 rounded-2xl border border-dashed border-border p-5"
-    >
-      <div className="flex flex-col gap-1">
-        <h3
+    <Card aria-labelledby="draft-questionnaire-preview-heading" data-pf-draft-questionnaire-preview="" className="min-w-0">
+      <CardHeader>
+        <CardTitle><h3
           id="draft-questionnaire-preview-heading"
           className="font-heading text-sm font-medium text-foreground"
         >
           Simular cuestionario
-        </h3>
-        <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+        </h3></CardTitle>
+        <CardDescription className="flex items-start gap-1.5">
           <LockIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
           <span>{LOCAL_NOTICE}</span>
-        </p>
+        </CardDescription>
         {edited ? (
           <p role="status" className="text-xs text-muted-foreground">
             {RESET_NOTICE}
           </p>
         ) : null}
-      </div>
-
+      </CardHeader>
+      <CardContent>
       {questions.length === 0 ? (
         <Empty>
           <EmptyHeader>
@@ -112,7 +109,8 @@ export function DraftQuestionnairePreview({
       ) : (
         <QuestionnaireSimulation key={fingerprint} questions={questions} />
       )}
-    </section>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -37,8 +37,15 @@ it("shows editor-shaped Skeletons with one accessible status while loading", asy
   expect(skeletons.length).toBeGreaterThan(5);
   skeletons.forEach(item => expect(item.closest('[aria-hidden="true"]')).not.toBeNull());
   expect(screen.queryByRole("textbox",{name:"Título"})).not.toBeInTheDocument();
+  const skeletonCard = container.querySelector('[data-slot="card"]')!;
+  const slots = (node: Element) => [...node.querySelectorAll('[data-slot]')].map(part => part.getAttribute("data-slot")).filter(slot => slot !== "skeleton");
+  const skeletonSlots = slots(skeletonCard);
+  expect(skeletonCard.querySelectorAll('[data-slot="field"]')).toHaveLength(9);
+  expect(skeletonCard.querySelectorAll('[data-slot="separator"]')).toHaveLength(2);
   await act(async () => pending.resolve(success));
   expect(screen.queryByText("Cargando borrador")).not.toBeInTheDocument();
+  const loadedCard = container.querySelector('[data-pf-draft-card="1"]')!;
+  expect(skeletonSlots.filter(slot => slot?.startsWith("card-"))).toEqual(slots(loadedCard).filter(slot => slot?.startsWith("card-")));
 });
 it("loads the real seeded editor and first saves every stored field by PATCH with the GET ETag", async () => {
   render(<DraftEditLoader draftId={read.id} />);

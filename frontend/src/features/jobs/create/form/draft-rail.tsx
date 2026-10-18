@@ -6,6 +6,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
+  CardFooter,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -74,23 +75,12 @@ export function DraftRail({
             confirmado.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <Button
-            type="button"
-            className="h-10 w-full"
-            disabled={!profileReady}
-            aria-describedby={profileReady ? undefined : PUBLICATION_GUIDANCE_ID}
-            onClick={onPublish}
-          >
-            <RocketIcon data-icon="inline-start" />
-            Publicar vacante
-          </Button>
-
           {!profileReady && (
+            <CardContent>
             <div
               id={PUBLICATION_GUIDANCE_ID}
               data-pf-publication-guidance=""
-              className="flex flex-col gap-2 rounded-2xl bg-muted p-3"
+              className="flex flex-col gap-2"
             >
               <p className="text-sm text-foreground">
                 Completa el perfil de tu empresa antes de publicar la vacante.
@@ -105,9 +95,11 @@ export function DraftRail({
                 Completar perfil de empresa
               </Link>
             </div>
+            </CardContent>
           )}
 
           {profileReady && published && (
+            <CardContent>
             <p
               role="status"
               data-pf-publication-status="published"
@@ -115,8 +107,20 @@ export function DraftRail({
             >
               La vacante quedó publicada.
             </p>
+            </CardContent>
           )}
-        </CardContent>
+        <CardFooter>
+          <Button
+            type="button"
+            className="h-10 w-full"
+            disabled={!profileReady}
+            aria-describedby={profileReady ? undefined : PUBLICATION_GUIDANCE_ID}
+            onClick={onPublish}
+          >
+            <RocketIcon data-icon="inline-start" />
+            Publicar vacante
+          </Button>
+        </CardFooter>
       </Card>
 
       <Card>
@@ -131,12 +135,12 @@ export function DraftRail({
             sesión de reclutador.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-col gap-3">
+        <CardFooter>
           <Button type="submit" className="h-10 w-full">
             <SaveIcon data-icon="inline-start" />
             Guardar borrador
           </Button>
-        </CardContent>
+        </CardFooter>
       </Card>
     </aside>
   );

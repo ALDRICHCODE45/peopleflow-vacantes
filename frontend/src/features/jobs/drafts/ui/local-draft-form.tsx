@@ -210,21 +210,19 @@ function DraftStepHeading({
 }: {
   index: number;
   title: string;
-  headingRef: React.Ref<HTMLDivElement>;
+  headingRef: React.Ref<HTMLHeadingElement>;
 }) {
   return (
     <CardHeader>
-      <CardTitle
+      <CardTitle><h2
         ref={headingRef}
         id={`draft-step-heading-${index + 1}`}
-        role="heading"
-        aria-level={2}
         tabIndex={-1}
         className="text-lg outline-none"
       >
         <span className="sr-only">{`Paso ${index + 1} de ${STEP_COUNT}: `}</span>
         {title}
-      </CardTitle>
+      </h2></CardTitle>
     </CardHeader>
   );
 }
@@ -496,7 +494,7 @@ export function LocalDraftForm({
   // candidate simulation dialog from the last-step button.
   const [screeningOpenToken, setScreeningOpenToken] = React.useState(0);
   const [previewOpen, setPreviewOpen] = React.useState(false);
-  const stepHeadingRef = React.useRef<HTMLDivElement | null>(null);
+  const stepHeadingRef = React.useRef<HTMLHeadingElement | null>(null);
   const hasMountedRef = React.useRef(false);
 
   /**

@@ -1,39 +1,56 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Progress, ProgressLabel } from "@/components/ui/progress";
+import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LocalDraftForm } from "../ui/local-draft-form";
 import { DraftEditErrorState } from "./error-state";
 import { loadDraftForEditAction, type DraftEditResult } from "./load";
 
-/** Reserve the editor's progress rail, first-step fields and navigation. */
+/** Skeleton exception: mirror LocalDraftForm's first step, including its three field groups. */
 function DraftEditorSkeleton() {
+  const fields = (heights: string[]) => heights.map((height, index) => <Field key={index}>
+    <FieldLabel><Skeleton className="h-5 w-28" /></FieldLabel>
+    <Skeleton className={`${height} w-full`} />
+  </Field>);
   return (
     <section aria-busy="true" aria-label="Editor de borrador" className="flex flex-col gap-5">
       <span role="status" className="sr-only">Cargando borrador</span>
-      <div aria-hidden="true" className="flex flex-col gap-3">
-        <Skeleton className="h-5 w-48 max-w-full" />
-        <Skeleton className="h-2 w-full" />
-        <div className="grid grid-cols-5 gap-3">
-          {[0, 1, 2, 3, 4].map(step => <Skeleton key={step} className="h-6 w-full" />)}
+      <div aria-hidden="true" className="flex flex-col gap-5">
+        <div className="flex gap-2 rounded-2xl bg-muted/50 px-3 py-2"><Skeleton className="mt-0.5 size-4 shrink-0" /><Skeleton className="h-5 w-full" /></div>
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-3">
+            <ol className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {[0, 1, 2, 3, 4].map(step => <li key={step} className="flex min-w-0 items-center gap-2"><Skeleton className="size-6 shrink-0 rounded-full" /><Skeleton className="h-4 w-28 max-w-full" /></li>)}
+            </ol>
+            <Progress value={1} max={5}><ProgressLabel className="text-xs"><Skeleton className="h-4 w-24" /></ProgressLabel></Progress>
+          </div>
+          <section className="min-w-0">
+            <Card>
+              <CardHeader><CardTitle><Skeleton className="h-7 w-56 max-w-full" /></CardTitle></CardHeader>
+              <CardContent className="flex flex-col gap-6">
+                <FieldGroup className="grid gap-4 sm:grid-cols-2">{fields(["h-8", "h-8", "h-10"])}</FieldGroup>
+                <Separator />
+                <section className="flex min-w-0 flex-col gap-4">
+                  <Skeleton className="h-5 w-40" />
+                  <FieldGroup className="grid gap-4 sm:grid-cols-2">{fields(["h-10", "h-10", "h-10", "h-10"])}</FieldGroup>
+                </section>
+                <Separator />
+                <section className="flex min-w-0 flex-col gap-4">
+                  <Skeleton className="h-5 w-24" />
+                  <FieldGroup className="gap-4">{fields(["h-10", "h-10"])}</FieldGroup>
+                </section>
+              </CardContent>
+              <CardFooter className="flex-wrap items-center justify-between gap-3">
+                <Skeleton className="h-10 w-16" /><div className="flex flex-wrap items-center gap-3"><Skeleton className="h-8 w-24" /></div>
+              </CardFooter>
+            </Card>
+          </section>
         </div>
       </div>
-      <Card aria-hidden="true">
-        <CardHeader><Skeleton className="h-6 w-56 max-w-full" /></CardHeader>
-        <CardContent className="grid gap-5 md:grid-cols-2">
-          {[0, 1, 2, 3, 4, 5, 6, 7].map(field => (
-            <div key={field} className="flex flex-col gap-2">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          ))}
-        </CardContent>
-        <CardFooter className="justify-between gap-3">
-          <Skeleton className="h-10 w-20" />
-          <Skeleton className="h-10 w-28" />
-        </CardFooter>
-      </Card>
     </section>
   );
 }

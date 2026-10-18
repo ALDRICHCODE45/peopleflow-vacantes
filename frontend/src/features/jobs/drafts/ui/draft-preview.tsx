@@ -23,6 +23,7 @@ import {
 import type { ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { compensationSchema } from "../compensation";
 import { BENEFITS } from "../lists";
 import { draftLanguagesSchema } from "../nested";
@@ -308,25 +309,16 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
 
   return (
     <div className="flex flex-col gap-6" data-pf-draft-preview="">
-      <section
-        aria-labelledby="draft-preview-public-heading"
-        data-pf-draft-public=""
-        className="flex flex-col gap-4 rounded-2xl border border-dashed border-border p-5"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <EyeIcon aria-hidden="true" className="size-4 text-muted-foreground" />
-          <h4
-            id="draft-preview-public-heading"
-            className="font-heading text-sm font-semibold text-foreground"
-          >
+      <Card aria-labelledby="draft-preview-public-heading" data-pf-draft-public="">
+        <CardHeader>
+          <CardTitle><h4 id="draft-preview-public-heading" className="flex items-center gap-2 font-heading text-sm font-semibold">
+            <EyeIcon aria-hidden="true" className="size-4 text-muted-foreground" />
             Vista previa pública
-          </h4>
-          <Badge variant="secondary">Borrador</Badge>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Así se verá tu vacante cuando se publique. El solicitante no aparece aquí.
-        </p>
-
+          </h4></CardTitle>
+          <CardDescription>Así se verá tu vacante cuando se publique. El solicitante no aparece aquí.</CardDescription>
+          <CardAction><Badge variant="secondary">Borrador</Badge></CardAction>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
         <p
           className={cn(
             "font-heading text-lg font-semibold break-words",
@@ -474,7 +466,8 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
             )}
           </div>
         )}
-      </section>
+        </CardContent>
+      </Card>
 
       <section
         aria-labelledby="draft-preview-internal-heading"

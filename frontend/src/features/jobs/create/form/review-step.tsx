@@ -3,6 +3,7 @@ import { PencilIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardHeader,
   CardTitle,
@@ -236,7 +237,7 @@ export function ReviewStep({
                   {group.title}
                 </h3>
               </CardTitle>
-              <div data-slot="card-action" className="self-start">
+              <CardAction>
                 <Button
                   type="button"
                   variant="outline"
@@ -247,7 +248,7 @@ export function ReviewStep({
                   <PencilIcon data-icon="inline-start" />
                   Editar
                 </Button>
-              </div>
+              </CardAction>
             </CardHeader>
             <CardContent>
               <dl className="flex flex-col gap-2.5">

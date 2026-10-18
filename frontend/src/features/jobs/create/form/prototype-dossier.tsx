@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "cn";
 
 import { toPlainText } from "./rich-text-model";
@@ -151,8 +152,9 @@ export function PrototypeDossier({ prototype }: PrototypeDossierProps) {
   const hiddenSkills = prototype.skills.length - visibleSkills.length;
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-dashed border-border bg-muted/30 p-3">
-      <h3 className="font-heading text-xs font-medium">Información complementaria</h3>
+    <Card size="sm">
+      <CardHeader><CardTitle><h3 className="font-heading text-xs font-medium">Información complementaria</h3></CardTitle></CardHeader>
+      <CardContent className="flex flex-col gap-3">
 
       {visibleSkills.length > 0 && (
         <div className="flex flex-wrap items-center gap-1">
@@ -180,6 +182,7 @@ export function PrototypeDossier({ prototype }: PrototypeDossierProps) {
           </div>
         ))}
       </dl>
-    </div>
+      </CardContent>
+    </Card>
   );
 }

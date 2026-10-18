@@ -288,7 +288,10 @@ describe("LocalDraftForm presentation", () => {
     ];
     for (let step = 1; step <= steps.length; step += 1) {
       goToStep(step);
-      expect(screen.getByRole("heading", { name: steps[step - 1].heading })).toBeVisible();
+      const title = screen.getByRole("heading", { name: steps[step - 1].heading });
+      expect(title).toBeVisible();
+      expect(title.tagName).toBe("H2");
+      expect(title.parentElement).toHaveAttribute("data-slot", "card-title");
       for (const heading of steps[step - 1].sections) {
         expect(screen.getByRole("heading", { name: heading })).toBeVisible();
       }
