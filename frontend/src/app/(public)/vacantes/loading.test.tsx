@@ -31,10 +31,10 @@ it("mirrors the loaded list: search card, quick filters, filters card with heade
   const results = container.querySelectorAll('[data-skeleton-results] [data-slot="card"]');
   expect(results).toHaveLength(3);
   for (const card of results) {
-    expect(card).toHaveClass("grid", "md:grid-cols-[minmax(0,1fr)_14rem]");
+    expect(card).toHaveClass("[--card-spacing:--spacing(6)]");
     expect(slots(card)).toEqual(["card-header", "card-title", "card-description", "card-action", "card-content", "card-footer"]);
-    expect(card.querySelector('[data-slot="card-footer"]')).toHaveClass("md:border-l", "md:row-span-2");
-    expect(card.querySelector('[data-slot="card-title"] [data-slot="skeleton"]')).toHaveClass("size-12");
+    expect(card.querySelector('[data-slot="card-footer"]')).toHaveClass("border-t", "bg-muted/40", "max-[480px]:flex-col");
+    expect(card.querySelector('[data-slot="card-header"] .size-12')).toHaveClass("rounded-xl");
     expect(card.querySelectorAll('[data-public-job-chips] [data-slot="skeleton"]')).toHaveLength(4);
   }
 });

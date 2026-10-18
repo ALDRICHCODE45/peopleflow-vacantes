@@ -41,7 +41,7 @@ it.each(["card", "detail"])("loads a private-referrer lazy logo with a colored i
   act(() => { fireEvent.error(images[1]); });
   const fallback = failed.container.querySelector('[data-slot="avatar-fallback"]')!;
   expect(fallback).toHaveTextContent("Ac");
-  expect(fallback.className).toMatch(/bg-(primary|status-)/);
+  expect(fallback).toHaveClass("bg-background", "text-primary");
   expect(failed.container.querySelector('[data-slot="avatar"] img')).toBeNull();
 });
 
@@ -63,7 +63,7 @@ it("shows the six entered skills and remaining count, and catalog benefit labels
   for (const skill of detail.skills_preview) expect(within(skills).getByText(skill)).toBeVisible();
   expect(within(skills).getByText("+2")).toBeVisible();
   expect(within(skills).queryByText("Git")).toBeNull();
-  expect(screen.getByText("Seguro de gastos médicos · Presupuesto de capacitación · Café · +2")).toBeVisible();
+  expect(screen.getByRole("link", { name: "y 2 beneficios más" })).toBeVisible();
   expect(container).not.toHaveTextContent(/health_insurance|training_budget/);
   rerender(<PublicVacancyCard job={{ ...listItem(detail), skills_total: 6, benefits_total: 3 }} />);
   expect(screen.queryByText("+2")).toBeNull();
@@ -80,8 +80,8 @@ it.each([
   ["under_10", "Menos de 10 postulantes"], ["10_plus", "Más de 10 postulantes"],
   ["25_plus", "Más de 25 postulantes"], ["50_plus", "Más de 50 postulantes"],
 ] as const)("uses the same range copy and Users icon for %s on card and near the detail CTA", (applicants, copy) => {
-  const { container, unmount } = render(<PublicVacancyCard job={{ ...listItem(detail), applicants }} />);
-  const meta = container.querySelector('[data-slot="card-description"]')!;
+  const { unmount } = render(<PublicVacancyCard job={{ ...listItem(detail), applicants }} />);
+  const meta = screen.getByRole("list", { name: "Condiciones principales" });
   expect(within(meta as HTMLElement).getByText(copy).querySelector("svg")).toHaveClass("lucide-users");
   unmount();
   render(<PublicJobDetailView job={{ ...detail, applicants }} />);
@@ -101,18 +101,18 @@ it.each([[0, "Postulación rápida"], [1, "1 pregunta de filtro"], [3, "3 pregun
   expect(within(cta as HTMLElement).getByText(copy)).toBeVisible();
 });
 
-it("uses a full skills Card in entered order on detail, not just its preview, and omits empty skills", () => {
+it("uses a full skills section in entered order on detail, not just its preview, and omits empty skills", () => {
   const { rerender } = render(<PublicJobDetailView job={detail} />);
   const heading = screen.getByRole("heading", { name: "Habilidades" });
-  const card = heading.closest('[data-slot="card"]')!;
-  expect(heading.closest('[data-slot="card-title"]')).not.toBeNull();
+  const card = heading.closest("section")!;
+  expect(card).toHaveAttribute("id", "habilidades");
   expect([...card.querySelectorAll('[data-slot="badge"]')].map(node => node.textContent)).toEqual(detail.skills);
   rerender(<PublicJobDetailView job={legacyDetail} />);
   expect(screen.queryByRole("heading", { name: "Habilidades" })).toBeNull();
   expect(screen.queryByText(/postulantes|Postulación rápida|preguntas? de filtro/)).toBeNull();
 });
 
-it("mirrors enriched detail Card slots and reserves list excerpt and lower blocks while loading", () => {
+it("mirrors enriched detail Card slots and reserves list excerpt and preview rows while loading", () => {
   const slots = (root: Element) => [...root.querySelectorAll('[data-slot^="card"]')].map(node => node.getAttribute("data-slot"));
   const loaded = render(<PublicJobDetailView job={detail} />);
   const expected = slots(loaded.container);
@@ -122,5 +122,5 @@ it("mirrors enriched detail Card slots and reserves list excerpt and lower block
   skeleton.unmount();
   const { container } = render(<PublicJobCardSkeleton />);
   expect(container.querySelector('[data-skeleton-excerpt]')).not.toBeNull();
-  expect(container.querySelectorAll("dl > div")).toHaveLength(2);
+  expect(container.querySelectorAll('[data-public-job-chips] li')).toHaveLength(4);
 });

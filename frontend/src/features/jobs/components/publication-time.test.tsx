@@ -3,6 +3,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { listItem, vacancyDetail } from "../api/public-fixtures";
 import { PublicVacancyCard } from "./PublicVacancyCard";
+import { formatRelativePublishedDate } from "../formatters";
 
 const NOW = new Date("2026-10-18T12:00:00Z");
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -15,9 +16,8 @@ it.each([
   ["2026-10-01T10:00:00Z", "1 de octubre de 2026"],
   ["2026-10-18T14:00:00Z", "18 de octubre de 2026"],
 ])("formats the real publication %s as %s", (published_at, label) => {
-  vi.useFakeTimers(); vi.setSystemTime(NOW);
-  render(<PublicVacancyCard job={{ ...listItem(vacancyDetail), published_at }} />);
-  expect(screen.getByText(label, { selector: "time" })).toHaveAttribute("datetime", published_at);
+  // The formatter remains supported elsewhere; the redesigned card has no time line.
+  expect(formatRelativePublishedDate(published_at, NOW.getTime())).toBe(label);
 });
 it("refreshes time and expires Nueva while the list remains open", async () => {
   vi.useFakeTimers(); vi.setSystemTime(NOW);

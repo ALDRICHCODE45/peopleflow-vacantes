@@ -47,7 +47,12 @@ it("keeps public identity titles and descriptions directly in the native header 
   unmount();
   render(<PublicJobDetailView job={vacancyDetail} />);
   expectHeader(screen.getByRole("heading", { level: 1 }));
-  for (const heading of screen.getAllByRole("heading")) expectHeader(heading);
+  expectHeader(screen.getByRole("heading", { name: "La vacante de un vistazo" }));
+  expectHeader(screen.getByRole("heading", { name: "Compensación" }));
+  // Anchored sections share one content Card with a navigation header.
+  for (const name of ["Sobre la vacante", "Lo que buscamos", "Habilidades", "Beneficios para ti"]) {
+    expect(screen.getByRole("heading", { name }).closest("section")).not.toBeNull();
+  }
 });
 
 it("composes the legacy vacancy row with a contextual action and a closing salary/CTA footer", () => {
