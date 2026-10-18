@@ -12,7 +12,13 @@ it("prioritizes moving forward over the destructive alternative", async () => {
   const disposition = vi.fn();
   render(<CandidateSheet vacancyId={vacancyId} item={board.participations[0]} board={board} onClose={vi.fn()} onMove={move} onDisposition={disposition} />);
   const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
-  expect(within(sheet).getByRole("button", { name: "Mover a…" })).toHaveClass("bg-primary");
+  const moveButton = within(sheet).getByRole("button", { name: "Mover a…" });
+  expect(moveButton).toHaveClass("bg-primary");
+  const decision = moveButton.closest('[data-slot="sheet-header"]');
+  expect(decision).not.toBeNull();
+  expect(decision).toHaveTextContent("Ana Pérez");
+  expect(decision).toHaveTextContent("Postuló el");
+  expect(decision?.querySelector('[data-slot="badge"]')).not.toBeNull();
   const discard = within(sheet).getByRole("button", { name: "Descartar" });
   expect(discard).not.toHaveClass("bg-primary");
   expect(discard).toHaveClass("text-destructive");

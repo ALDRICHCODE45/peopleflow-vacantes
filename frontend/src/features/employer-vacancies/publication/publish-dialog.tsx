@@ -4,7 +4,6 @@ import { Fragment, useEffect, useRef, useState, type ComponentProps } from "reac
 import Link from "next/link";
 import { ArrowRight, CalendarDays, ClipboardList, FileText, Flag, GitBranch, Send, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "@/components/ui/item";
@@ -164,7 +163,7 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
       {!unsavedChanges && snapshot && mode !== "loading" && mode !== "load_error" && (missing.length ? groups.map(group => {
         const Icon = GROUP_ICONS[group.group];
         return <Card key={group.group} size="sm" role="region" aria-labelledby={`publication-${group.group}`} className="shrink-0">
-          <CardHeader><CardTitle><h3 id={`publication-${group.group}`}>{MISSING_GROUP_LABELS[group.group]}</h3></CardTitle><CardAction><Badge variant="secondary" className="tabular-nums">{group.items.length}</Badge></CardAction></CardHeader>
+          <CardHeader><CardTitle><h3 id={`publication-${group.group}`}>{MISSING_GROUP_LABELS[group.group]}</h3></CardTitle><CardAction><span className="text-sm tabular-nums text-muted-foreground">{group.items.length}</span></CardAction></CardHeader>
           <CardContent><ItemGroup className="gap-0">{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>
             {index > 0 && <ItemSeparator className="my-0" />}
             <Item size="sm" role="listitem" className="px-0 py-1.5"><ItemMedia variant="icon"><Icon aria-hidden="true" /></ItemMedia><ItemContent><ItemTitle>{item.label}</ItemTitle></ItemContent><ItemActions><Button nativeButton={false} role="link" variant="ghost" className="min-h-10" render={<Link href={item.href(draftId)} />}>Completar<span className="sr-only"> {item.label}</span><ArrowRight aria-hidden="true" data-icon="inline-end" /></Button></ItemActions></Item>
@@ -193,6 +192,6 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
 
 // Skeleton exception: use known checklist groups on reload; otherwise mirror the four summary Items.
 function PublicationSkeleton({ missing }: { missing: readonly string[] }) {
-  if (missing.length) return <div aria-hidden="true" className="flex flex-col gap-4">{groupMissing([...missing]).map(group => <Card key={group.group} size="sm" className="shrink-0"><CardHeader><CardTitle><Skeleton className="h-6 w-40" /></CardTitle><CardAction><Skeleton className="h-5 w-6 rounded-full" /></CardAction></CardHeader><CardContent><ItemGroup className="gap-0">{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>{index > 0 && <ItemSeparator className="my-0" />}<Item size="sm" className="px-0 py-1.5"><ItemMedia variant="icon"><Skeleton className="size-4" /></ItemMedia><ItemContent><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent><ItemActions><Skeleton className="h-10 w-28" /></ItemActions></Item></Fragment>)}</ItemGroup></CardContent></Card>)}</div>;
+  if (missing.length) return <div aria-hidden="true" className="flex flex-col gap-4">{groupMissing([...missing]).map(group => <Card key={group.group} size="sm" className="shrink-0"><CardHeader><CardTitle><Skeleton className="h-6 w-40" /></CardTitle><CardAction><Skeleton className="h-5 w-6" /></CardAction></CardHeader><CardContent><ItemGroup className="gap-0">{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>{index > 0 && <ItemSeparator className="my-0" />}<Item size="sm" className="px-0 py-1.5"><ItemMedia variant="icon"><Skeleton className="size-4" /></ItemMedia><ItemContent><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent><ItemActions><Skeleton className="h-10 w-28" /></ItemActions></Item></Fragment>)}</ItemGroup></CardContent></Card>)}</div>;
   return <div aria-hidden="true" className="flex flex-col gap-5"><ItemGroup>{[0, 1, 2, 3].map(index => <Item key={index} variant="outline" size="sm"><ItemMedia variant="icon"><Skeleton className="size-4" /></ItemMedia><ItemContent><span><Skeleton className="h-4 w-28" /></span><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent></Item>)}</ItemGroup><Skeleton className="h-10 w-full" /></div>;
 }

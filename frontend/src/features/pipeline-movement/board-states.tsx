@@ -37,7 +37,7 @@ export function BoardSkeleton({ columnCount = 6 }: { columnCount?: number }) {
               </CardHeader>
               <CardContent className="flex flex-col gap-1.5 px-0"><Skeleton className="h-4 w-40" /><Skeleton className="h-4 w-44" /></CardContent>
               <Separator />
-              <CardFooter className="min-h-6 gap-2 px-0"><Skeleton className="h-6 w-36" /><Skeleton className="-my-2 ml-auto size-10" /></CardFooter>
+              <CardFooter className="min-h-6 gap-2 px-0"><Skeleton className="h-4 w-36" /><Skeleton className="-my-2 ml-auto size-10" /></CardFooter>
             </Card>
           </li></ul></div></ScrollArea>
         </div>)}

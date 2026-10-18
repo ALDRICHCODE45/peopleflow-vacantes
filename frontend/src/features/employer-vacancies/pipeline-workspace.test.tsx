@@ -369,7 +369,8 @@ describe("PipelineWorkspace candidate cards", () => {
       expect(card).toHaveTextContent(value);
     }
     const badges = Array.from(card.querySelectorAll("[data-slot='badge']"));
-    for (const value of ["Node.js", "PostgreSQL", "88%"]) expect(badges.some((node) => node.textContent?.includes(value))).toBe(true);
+    for (const value of ["Node.js", "PostgreSQL"]) expect(badges.some((node) => node.textContent?.includes(value))).toBe(true);
+    expect(within(card).getByText("88%").closest('[data-slot="badge"]')).toBeNull();
   });
 
   it("keeps match scores, skills and stage counters dotless while only status labels carry the dot", async () => {
@@ -377,10 +378,9 @@ describe("PipelineWorkspace candidate cards", () => {
     const { container } = renderWorkspace();
     const card = container.querySelector('[data-pf-pipeline-card="lucia-fernandez"]') as HTMLElement;
     const badges = Array.from(card.querySelectorAll("[data-slot='badge']"));
-    const score = badges.find((node) => node.textContent?.includes("88%")) as HTMLElement;
-    expect(score).toHaveAttribute("data-variant", STAGE_VARIANTS.submitted);
-    expect(score).not.toHaveAttribute("data-dot");
-    expect(score.className).not.toContain("before:");
+    const score = within(card).getByText("88%");
+    expect(score.closest('[data-slot="badge"]')).toBeNull();
+    expect(score).toHaveClass("tabular-nums");
     for (const skill of ["Node.js", "PostgreSQL"]) {
       const chip = badges.find((node) => node.textContent === skill) as HTMLElement;
       expect(chip, skill).toHaveAttribute("data-variant", "outline");
@@ -391,9 +391,8 @@ describe("PipelineWorkspace candidate cards", () => {
       expect(count, stage).not.toHaveAttribute("data-dot");
     }
     await user.click(screen.getByRole("button", { name: "Lista" }));
-    const listScore = Array.from(container.querySelectorAll('[data-pf-pipeline-row] [data-slot="badge"]')).find((node) => node.textContent?.includes("88%")) as HTMLElement;
-    expect(listScore).toHaveAttribute("data-variant", "outline");
-    expect(listScore).not.toHaveAttribute("data-dot");
+    const listScore = screen.getByText("88%");
+    expect(listScore.closest('[data-slot="badge"]')).toBeNull();
   });
 
   it("keeps the column-heading stage marker as a non-Badge dot outside the migrated labels", () => {
@@ -435,7 +434,7 @@ describe("PipelineWorkspace candidate cards", () => {
       expect(card.querySelector("[data-slot='card-title'] h3")).toHaveTextContent(candidate.fullName);
       expect(slot(card, "avatar-fallback")).toHaveTextContent(initials[candidate.id]);
       const badges = Array.from(card.querySelectorAll("[data-slot='badge']"));
-      expect(badges.some((node) => node.textContent?.includes(`${candidate.matchScore}%`))).toBe(true);
+      expect(within(card).getByText(`${candidate.matchScore}%`).closest('[data-slot="badge"]')).toBeNull();
       for (const skill of candidate.skills.slice(0, 4)) expect(badges.some((node) => node.textContent === skill)).toBe(true);
       // The card is still not a control itself: it is a clickable surface whose
       // detail button, drag handle and actions menu are siblings, never nested.

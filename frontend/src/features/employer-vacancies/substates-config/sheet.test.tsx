@@ -48,7 +48,7 @@ it("composes an accessible right Sheet with one left-aligned suggestions row and
   expect(dialog).toHaveAttribute("data-presentation", "floating");
   expect(dialog.className).toContain("data-[side=right]:rounded-2xl");
   expect(dialog).toHaveAccessibleDescription("Úsalos para registrar en qué punto del proceso está cada candidato, por ejemplo cada entrevista. No son pasos obligatorios ni tienen que seguir un orden.");
-  expect(screen.getByText("0 de 50 subestados")).toHaveAttribute("data-variant", "neutral");
+  expect(screen.getByText("0 de 50 subestados").closest('[data-slot="badge"]')).toBeNull();
   expect(screen.getByText("Todavía no hay subestados. Elige una sugerencia o agrega uno.")).toBeVisible();
   expect(dialog.querySelector('[data-slot="empty"]')).toBeNull();
   const suggestions = screen.getByRole("region", { name: "Sugerencias" });

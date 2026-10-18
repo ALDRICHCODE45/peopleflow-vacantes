@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Plus, X } from "lucide-react";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FieldDescription, FieldError } from "@/components/ui/field";
@@ -153,7 +152,7 @@ function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenCh
       <SheetHeader className="border-b pr-16">
         <SheetTitle>Subestados de {normalizeStageName(inProcessName) || STAGE_KIND_LABELS.in_process}</SheetTitle>
         <SheetDescription>Úsalos para registrar en qué punto del proceso está cada candidato, por ejemplo cada entrevista. No son pasos obligatorios ni tienen que seguir un orden.</SheetDescription>
-        <div><Badge variant="neutral">{state.entries.length} de {state.limits.maxSubstates} subestados</Badge></div>
+        <p className="text-sm tabular-nums text-muted-foreground">{state.entries.length} de {state.limits.maxSubstates} subestados</p>
       </SheetHeader>
       <SheetClose disabled={pending !== null} render={<Button type="button" variant="ghost" size="icon" className="absolute right-4 top-4 size-10" aria-label="Cerrar subestados" />}><X aria-hidden="true" /></SheetClose>
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6">

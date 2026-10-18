@@ -177,7 +177,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
         <CardHeader className="border-b has-data-[slot=card-action]:grid-cols-1 sm:has-data-[slot=card-action]:grid-cols-[1fr_auto]">
           <CardTitle><h3 id="pipeline-columns-heading">Columnas del pipeline</h3></CardTitle>
           <CardDescription className="max-w-prose">Nuevos va primero y Placement al final. Puedes agregar hasta {state.limits.maxCustomStages} columnas propias.</CardDescription>
-          <CardAction className="col-start-1 row-span-1 row-start-auto justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end"><Badge variant="neutral">{state.stages.filter(entry => entry.kind === "custom").length} de {state.limits.maxCustomStages} columnas propias</Badge></CardAction>
+          <CardAction className="col-start-1 row-span-1 row-start-auto justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end"><p className="text-sm tabular-nums text-muted-foreground">{state.stages.filter(entry => entry.kind === "custom").length} de {state.limits.maxCustomStages} columnas propias</p></CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
           {removedCutoff && <div className="flex flex-col items-start gap-2">

@@ -113,7 +113,7 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
         {(showKind || stage.kind === "in_process" || (cutoffStageId != null && stage.id === cutoffStageId)) && <div className="flex flex-wrap gap-2">
           {cutoffStageId != null && stage.id === cutoffStageId && <Badge variant="info">Corte de entrega</Badge>}
           {showKind && <StageKindBadge kind={stage.kind} />}
-          {stage.kind === "in_process" && <Badge variant="neutral">{!substateCount ? "Sin subestados" : substateCount === 1 ? "1 subestado" : `${substateCount} subestados`}</Badge>}
+          {stage.kind === "in_process" && <span className="text-sm tabular-nums text-muted-foreground">{!substateCount ? "Sin subestados" : substateCount === 1 ? "1 subestado" : `${substateCount} subestados`}</span>}
         </div>}
       </ItemContent>
       {!isExit && <ItemActions className="flex-wrap">

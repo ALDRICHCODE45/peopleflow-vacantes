@@ -240,6 +240,7 @@ it("uses limits 2/10, focuses new columns, keeps custom neutral, and only remove
   const pipeline = pipelineFixture(); pipeline.limits = { maxCustomStages: 2, nameMaxLength: 10 };
   mount(pipeline);
   expect(screen.getByText("0 de 2 columnas propias")).toBeVisible();
+  expect(screen.getByText("0 de 2 columnas propias").closest('[data-slot="badge"]')).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Agregar columna" }));
   expect(field(5)).toHaveFocus(); edit(5, "Técnica");
   fireEvent.click(screen.getByRole("button", { name: "Agregar columna" }));

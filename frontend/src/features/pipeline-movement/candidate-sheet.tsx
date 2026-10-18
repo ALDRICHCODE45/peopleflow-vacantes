@@ -69,22 +69,23 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
   return <SheetContent showCloseButton={false} initialFocus={titleRef} className="pf-candidate-sheet gap-0 bg-card data-[side=right]:w-full data-[side=right]:sm:max-w-[560px]" finalFocus={() => document.getElementById(`candidate-detail-${item.id}`)}>
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6">
       <span className="flex items-center gap-2 text-xs text-muted-foreground"><span aria-hidden="true" className="size-1.5 rounded-full bg-muted-foreground" />Ficha del candidato</span>
-      <div className="ml-auto flex items-center gap-1">
-        {onMove && !item.discard && <CandidateMenu item={item} targets={allowedMoveTargets(board, item)} full disabled={locked} onMove={onMove} onDetail={() => {}} onDisposition={onDisposition ?? (() => {})} />}
-        {onDisposition && <Button id={`candidate-disposition-${item.id}`} type="button" variant="outline" className={cn("h-10", !item.discard && "border-destructive/25 text-destructive")} disabled={locked} aria-label={item.discard ? "Recuperar" : "Descartar"} aria-describedby={errorNotice ? "detail-action-status" : undefined} onClick={() => onDisposition(item.id, item.discard ? "recover" : "discard")}>
-          {item.discard ? <RotateCcw aria-hidden="true" data-icon="inline-start" /> : <UserRoundX aria-hidden="true" data-icon="inline-start" />}<span className="hidden sm:inline">{item.discard ? "Recuperar" : "Descartar"}</span>
-        </Button>}
-        <Hint text="Cerrar ficha"><Button type="button" variant="ghost" size="icon" className="size-10" aria-label="Cerrar ficha" onClick={onClose}><X aria-hidden="true" /></Button></Hint>
-      </div>
-      {errorNotice && <ActionStatus id="detail-action-status" tone={errorNotice.tone} text={errorNotice.text} />}
+      <Hint text="Cerrar ficha"><Button type="button" variant="ghost" size="icon" className="size-10" aria-label="Cerrar ficha" onClick={onClose}><X aria-hidden="true" /></Button></Hint>
     </div>
     <SheetHeader className="gap-4">
       <div className="flex items-center gap-3"><Avatar className="size-12 shrink-0"><AvatarFallback className="bg-secondary text-lg text-muted-foreground">{initials(item.candidate.full_name)}</AvatarFallback></Avatar>
-        <div className="flex min-w-0 flex-col gap-1.5"><SheetTitle ref={titleRef} tabIndex={-1} title={item.candidate.full_name} className="truncate text-lg font-semibold outline-none">{item.candidate.full_name}</SheetTitle>
+        <div className="flex min-w-0 flex-col gap-1.5"><SheetTitle ref={titleRef} tabIndex={-1} title={item.candidate.full_name} className="break-words text-lg font-semibold outline-none">{item.candidate.full_name}</SheetTitle>
           {stage && <Badge variant="neutral" dot className={cn("stage-badge max-w-full", stageClass(stage.kind))}><span className="truncate">{stage.name}</span></Badge>}
         </div>
       </div>
       <SheetDescription className="text-xs">Postuló el <MovementDate value={detail.applied_at} /> <span className="px-1">·</span> Fuente: Orgánica</SheetDescription>
+      {/* Evaluation context and its action stay together above the scrolling tabs. */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        {onMove && !item.discard && <CandidateMenu item={item} targets={allowedMoveTargets(board, item)} full disabled={locked} onMove={onMove} onDetail={() => {}} onDisposition={onDisposition ?? (() => {})} />}
+        {onDisposition && <Button id={`candidate-disposition-${item.id}`} type="button" variant="outline" className={cn("h-10", !item.discard && "border-destructive/25 text-destructive")} disabled={locked} aria-label={item.discard ? "Recuperar" : "Descartar"} aria-describedby={errorNotice ? "detail-action-status" : undefined} onClick={() => onDisposition(item.id, item.discard ? "recover" : "discard")}>
+          {item.discard ? <RotateCcw aria-hidden="true" data-icon="inline-start" /> : <UserRoundX aria-hidden="true" data-icon="inline-start" />}{item.discard ? "Recuperar" : "Descartar"}
+        </Button>}
+      </div>
+      {errorNotice && <ActionStatus id="detail-action-status" tone={errorNotice.tone} text={errorNotice.text} />}
     </SheetHeader>
     <Tabs value={tab} onValueChange={value => setTab(String(value))} className="min-h-0 flex-1 gap-0">
       <div className="px-6 pb-5"><TabsList aria-label="Secciones de la ficha" className="pf-candidate-tabs w-full rounded-lg group-data-horizontal/tabs:h-11 **:data-[slot=badge]:h-4 **:data-[slot=badge]:min-w-4 **:data-[slot=badge]:rounded-sm **:data-[slot=badge]:px-1 **:data-[slot=badge]:text-[11px]">

@@ -57,7 +57,7 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
     <Separator />
     <CardFooter className="min-h-6 gap-2 px-0">
       {item.discard ? <div className="flex min-w-0 flex-col items-start gap-2"><Badge variant="danger" className="h-auto whitespace-normal">{discardReasonLabel(item.discard.reason)}</Badge><p className="text-xs text-muted-foreground">{discardGroupLabel(item.discard.reason)}</p></div> : <>
-        <Hint text={item.cv.name}><span className="flex min-w-0 items-center gap-1.5 rounded-md bg-muted/60 px-2 py-1 text-xs text-muted-foreground"><FileIcon aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{item.cv.name}</span></span></Hint>
+        <Hint text={item.cv.name}><span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"><FileIcon aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{item.cv.name}</span></span></Hint>
         <Button type="button" variant="ghost" size="icon" className="-my-2 ml-auto size-10 shrink-0 cursor-grab touch-none text-muted-foreground opacity-100 active:cursor-grabbing sm:opacity-0 sm:group-hover/candidate:opacity-100 sm:group-focus-within/candidate:opacity-100 focus-visible:opacity-100"
           ref={setActivatorNodeRef} {...attributes} {...listeners} disabled={disabled} id={`candidate-drag-${item.id}`} aria-label={`Arrastrar ${item.candidate.full_name}`} aria-describedby={statusId}><GripVertical aria-hidden="true" /></Button>
       </>}

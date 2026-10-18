@@ -33,7 +33,7 @@ it("renders the real column editor without a second header", async () => {
   const { container } = render(<VacancyColumnsModule draftId={id} />);
   expect(await screen.findByRole("heading", { level: 3, name: "Columnas del pipeline" })).toBeVisible();
   expect(screen.getAllByRole("textbox")).toHaveLength(6);
-  expect(screen.getByText("Sin subestados")).toHaveAttribute("data-variant", "neutral");
+  expect(screen.getByText("Sin subestados").closest('[data-slot="badge"]')).toBeNull();
   expect(screen.getByText("Corte de entrega")).toHaveAttribute("data-variant", "info");
   expect(container.querySelector("header")).toBeNull();
 });

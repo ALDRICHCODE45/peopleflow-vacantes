@@ -87,6 +87,17 @@ describe("VacancyPortfolio vacancy rows", () => {
     expect(container.querySelectorAll('[role="tab"]')).toHaveLength(5);
   });
 
+  it("separates identity, conditions, complementary pipeline facts and the action in stable row zones", () => {
+    const { container } = renderPortfolio();
+    const row = container.querySelector('[data-pf-vacancy-row="backend-developer-senior"]')!;
+    expect(Array.from(row.children).map(node => node.getAttribute("data-pf-vacancy-zone"))).toEqual(["identity", "conditions", "complement", "action"]);
+    expect(row.children[0]).toHaveTextContent("Backend Developer (Senior)");
+    expect(row.children[1]).toHaveTextContent("Remoto · Tiempo completo");
+    expect(row.children[1]).toHaveTextContent("Activa");
+    expect(row.children[2]).toHaveTextContent("7 candidatos · 5 en proceso");
+    expect(row.children[3].querySelector("a")).toHaveClass("w-full", "lg:w-auto");
+  });
+
   it("renders the truthful text and status information of one vacancy", () => {
     const { container } = renderPortfolio();
     const backend = container.querySelector('[data-pf-vacancy-row="backend-developer-senior"]') as HTMLElement;

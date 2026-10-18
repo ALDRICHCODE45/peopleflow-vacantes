@@ -23,7 +23,9 @@ it("matches a real draggable card's slot sequence and avatar/menu/footer geometr
   expect(skeleton.container.querySelectorAll('.stage-column')).toHaveLength(board.stages.length + 1);
   expect(loadingCard.querySelector('[data-slot="avatar"]')).toHaveClass("size-8");
   expect(loadingCard.querySelector('[data-slot="card-action"] [data-slot="skeleton"]')).toHaveClass("size-10");
-  expect(loadingCard.querySelector('[data-slot="card-footer"] [data-slot="skeleton"]')).toHaveClass("h-6");
+  expect(loadingCard.querySelector('[data-slot="card-footer"] [data-slot="skeleton"]')).toHaveClass("h-4");
+  const cv = realCard.querySelector('[data-slot="card-footer"] span')!;
+  expect(cv).not.toHaveClass("rounded-md", "bg-muted/60");
 });
 it("mirrors each sheet tab while waiting, then keeps the CV Item slots when loaded", async () => {
   let resolve!: (value: Result<History>) => void;

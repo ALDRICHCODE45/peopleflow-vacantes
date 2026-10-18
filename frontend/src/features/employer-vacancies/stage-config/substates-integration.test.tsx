@@ -22,11 +22,12 @@ const draftId = "123e4567-e89b-42d3-a456-426614174000";
 const column = () => screen.getByRole("textbox", { name: "Nombre de la columna 4" });
 beforeEach(() => { vi.resetAllMocks(); boundary.open = undefined; });
 afterEach(cleanup);
-it.each([0, 1, 3])("counts %i saved substates on the in_process row only, with a neutral undotted badge", count => {
+it.each([0, 1, 3])("counts %i saved substates as secondary text on the in_process row only", count => {
   const catalog = { ...populatedSubstates(), substates: populatedSubstates().substates.slice(0, count) };
   render(<PipelineStageEditor draftId={draftId} pipeline={pipelineFixture()} etag='"pipeline-0"' substates={catalog} substatesEtag='"substates-1"' />);
   const badge = screen.getByText(count === 0 ? "Sin subestados" : count === 1 ? "1 subestado" : `${count} subestados`);
-  expect(badge).toHaveAttribute("data-variant", "neutral"); expect(badge).not.toHaveAttribute("data-dot");
+  expect(badge.closest('[data-slot="badge"]')).toBeNull();
+  expect(badge).toHaveClass("text-muted-foreground");
   expect(badge.closest("li")).toContainElement(column());
 });
 it("opens with the typed normalized name despite unsaved columns, saves independently and updates the saved count", async () => {

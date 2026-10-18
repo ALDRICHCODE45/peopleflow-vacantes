@@ -97,15 +97,13 @@ export function initialsOf(fullName: string): string {
   return `${first}${last}`.toUpperCase();
 }
 
-/** Match-score Badge shared by the board card and the list row. A counter is
-    not a status, so it never opts into the decorative dot even when it reuses a
-    semantic stage variant for color. */
-export function MatchScore({ score, variant }: { score: number; variant?: BadgeVariant }) {
+/** Numeric evidence, not a category or a control; shared by both representations. */
+export function MatchScore({ score }: { score: number }) {
   return (
-    <Badge variant={variant ?? "outline"} className="font-bold tabular-nums">
+    <span className="text-sm font-semibold tabular-nums">
       <span className="sr-only">Compatibilidad </span>
       {score}%
-    </Badge>
+    </span>
   );
 }
 
@@ -296,7 +294,7 @@ function CandidateCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          <MatchScore score={candidate.matchScore} variant={STAGE_VARIANT[candidate.status]} />
+          <MatchScore score={candidate.matchScore} />
           <p className={META}>{plural(candidate.yearsOfExperience, "año", "años")} de experiencia</p>
         </div>
         <SkillChips skills={candidate.skills} />

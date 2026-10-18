@@ -81,7 +81,13 @@ it("keeps prototype rows visible while draft-shaped skeleton rows load with one 
  expect(screen.getByRole("status")).toHaveTextContent("Cargando borradores");
  expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
  expect(container.querySelectorAll('[data-pf-draft-skeleton] [data-slot="skeleton"]').length).toBeGreaterThan(5);
- await act(async () => resolve({ ok: true, items: [], nextCursor: null }));
+ const skeleton = container.querySelector('[data-pf-draft-skeleton]')!;
+ const anatomy = (root: Element) => [...root.querySelectorAll('[data-pf-vacancy-zone]')].map(zone => zone.getAttribute('data-pf-vacancy-zone'));
+ const loadingAnatomy = anatomy(skeleton);
+ await act(async () => resolve({ ok: true, items: [unnamed], nextCursor: null }));
+ const loaded = container.querySelector(`[data-pf-vacancy-row="${unnamed.id}"]`)!;
+ expect(anatomy(loaded)).toEqual(loadingAnatomy);
+ expect(loaded.className).toBe(skeleton.className);
 });
 it.each(["server_error", "unauthenticated", "forbidden", "company_inactive", "company_not_active", "invalid_request", "no_response", "unrecognized_response"] as const)("shows persistent %s cause and explicit retry without losing prototypes", async reason => {
  vi.mocked(listDraftsAction).mockResolvedValueOnce({ ok: false, reason, reference: {} });

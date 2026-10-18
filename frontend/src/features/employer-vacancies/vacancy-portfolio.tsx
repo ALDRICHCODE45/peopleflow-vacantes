@@ -32,8 +32,8 @@ const STATUS_VARIANT: Readonly<Record<EmployerVacancyState, BadgeVariant>> = { a
 const PIPELINE_BAR: Readonly<Record<VacancyPipelineStage, string>> = { submitted: "bg-primary", in_review: "bg-primary/60", hired: "bg-primary/35", rejected: "bg-muted-foreground/40" };
 const META = "text-[12.5px] text-muted-foreground";
 // Reserve the same action column for every row, including the contextual disclosure.
-const GRID = "grid grid-cols-1 gap-3 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)_11rem] lg:items-center lg:gap-4";
-const HEADER = "hidden grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)_11rem] items-center gap-4 border-b border-border px-5 py-3 text-[12px] font-semibold tracking-wide text-muted-foreground uppercase lg:grid";
+const GRID = "grid grid-cols-1 gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.6fr)_11rem] lg:items-center";
+const HEADER = "hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.6fr)_11rem] items-center gap-4 border-b border-border px-5 py-3 text-[12px] font-semibold tracking-wide text-muted-foreground uppercase lg:grid";
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLowerCase().trim();
 const initials = (title: string) => title.split(/\s+/u).slice(0, 2).map(word => word.charAt(0)).join("").toUpperCase();
 const dateFormat = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "UTC" });
@@ -49,27 +49,31 @@ function VacancyRow({ vacancy, onPublished }: { vacancy: PortfolioVacancy; onPub
     : prototype ? `${EMPLOYER_WORK_MODE_LABELS[prototype.workMode]} · ${EMPLOYER_EMPLOYMENT_TYPE_LABELS[prototype.employmentType]}` : "";
   return (
     <li data-pf-vacancy-row={vacancy.id} className={GRID}>
-      <div className="flex min-w-0 items-start gap-3">
+      <div data-pf-vacancy-zone="identity" className="flex min-w-0 items-start gap-3">
         <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-lg bg-secondary text-[13px] font-bold text-foreground">{initials(vacancy.title)}</span>
         <div className="min-w-0">
-          <p className="truncate text-[14.5px] font-semibold text-foreground">{vacancy.title}</p>
-          <p className={cn(META, "mt-1")}>{meta}</p>
-          <p className={cn(META, "mt-0.5")}>{prototype ? `${vacancyCandidateTotal(prototype.candidateCounts)} candidatos · ${vacancyInProcessCount(prototype.candidateCounts)} en proceso` : "Sin candidatos todavía"}</p>
+          <p className="break-words text-[14.5px] font-semibold text-foreground">{vacancy.title}</p>
           <p className={cn(META, "mt-0.5")}><span className="sr-only">Reclutador: </span>{draft ? draft.principal_recruiter.name ?? "Usuario dado de baja" : prototype?.recruiter}</p>
           {draft?.requester?.name && <p className={cn(META, "mt-0.5")}>Solicitante: {draft.requester.name}</p>}
         </div>
       </div>
-      <div><Badge variant={vacancy.state === "draft" ? "info" : STATUS_VARIANT[vacancy.state]} dot>{vacancy.state === "draft" ? "Borrador" : EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]}</Badge></div>
-      <div className="flex flex-col gap-1">
-        <div aria-hidden="true" className="flex items-center gap-1">
-          {VACANCY_PIPELINE_STAGES.map(stage => <span key={stage} className={cn("h-1.5 w-6 rounded-full", draft ? "bg-muted" : PIPELINE_BAR[stage])} />)}
+      <div data-pf-vacancy-zone="conditions" className="flex flex-col items-start gap-2">
+        <Badge variant={vacancy.state === "draft" ? "info" : STATUS_VARIANT[vacancy.state]} dot>{vacancy.state === "draft" ? "Borrador" : EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]}</Badge>
+        <p className={META}>{meta}</p>
+      </div>
+      <div data-pf-vacancy-zone="complement" className="flex min-w-0 flex-col gap-2">
+        <p className={cn(META, "tabular-nums")}>{prototype ? `${vacancyCandidateTotal(prototype.candidateCounts)} candidatos · ${vacancyInProcessCount(prototype.candidateCounts)} en proceso` : "Sin candidatos todavía"}</p>
+        <div className="flex flex-col gap-1">
+          <div aria-hidden="true" className="flex items-center gap-1">
+            {VACANCY_PIPELINE_STAGES.map(stage => <span key={stage} className={cn("h-1.5 w-6 rounded-full", draft ? "bg-muted" : PIPELINE_BAR[stage])} />)}
+          </div>
+          <p className={META}>{vacancy.state === "draft" ? "Sin pipeline · en borrador" : prototype ? VACANCY_PIPELINE_STAGES.map(stage => `${STAGE_LABELS[stage]}: ${prototype.candidateCounts[stage]}`).join(" · ") : "Sin candidatos todavía"}</p>
         </div>
-        <p className={META}>{vacancy.state === "draft" ? "Sin pipeline · en borrador" : prototype ? VACANCY_PIPELINE_STAGES.map(stage => `${STAGE_LABELS[stage]}: ${prototype.candidateCounts[stage]}`).join(" · ") : "Sin candidatos todavía"}</p>
+        <div className={META}>
+          {draft ? draft.status === "draft" ? <div className="flex flex-col gap-1"><span>Sin publicar</span><time dateTime={draft.updated_at}>Editado {formatDate(draft.updated_at)}</time></div> : draft.published_at ? <time dateTime={draft.published_at}>Publicada el {formatDate(draft.published_at)}</time> : "Fecha no disponible" : prototype && <time dateTime={prototype.publishedAt}><span className="sr-only">Publicada el </span>{formatDate(prototype.publishedAt)}</time>}
+        </div>
       </div>
-      <div className={META}>
-        {draft ? draft.status === "draft" ? <div className="flex flex-col gap-1"><span>Sin publicar</span><time dateTime={draft.updated_at}>Editado {formatDate(draft.updated_at)}</time></div> : draft.published_at ? <time dateTime={draft.published_at}>Publicada el {formatDate(draft.published_at)}</time> : "Fecha no disponible" : prototype && <time dateTime={prototype.publishedAt}><span className="sr-only">Publicada el </span>{formatDate(prototype.publishedAt)}</time>}
-      </div>
-      <div className="flex items-center gap-1">
+      <div data-pf-vacancy-zone="action" className="flex items-center gap-1 [&>a]:w-full [&>a]:lg:w-auto [&>button]:w-full [&>button]:lg:w-auto">
         {draft?.status === "draft" ? (
           // Peer actions live in one menu (rules §6).
           <DropdownMenu>
@@ -84,7 +88,7 @@ function VacancyRow({ vacancy, onPublished }: { vacancy: PortfolioVacancy; onPub
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <Link href={vacancyPipelineHref(vacancy.id)} data-pf-vacancy-pipeline={vacancy.id} aria-label={`Ver pipeline de ${vacancy.title}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-10 gap-1.5 px-3.5 transition-colors duration-200")}>Ver pipeline</Link>
+          <Link href={vacancyPipelineHref(vacancy.id)} data-pf-vacancy-pipeline={vacancy.id} aria-label={`Ver pipeline de ${vacancy.title}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-10 w-full gap-1.5 px-3.5 transition-colors duration-200 lg:w-auto")}>Ver pipeline</Link>
         )}
       </div>
       {draft?.status === "draft" && <PublishDialog draftId={draft.id} open={publishOpen} onOpenChange={setPublishOpen} onPublished={publishedAt => onPublished(draft.id, publishedAt)} />}
@@ -94,8 +98,10 @@ function VacancyRow({ vacancy, onPublished }: { vacancy: PortfolioVacancy; onPub
 
 function DraftSkeletonRows() {
   return <ul aria-hidden="true" className="divide-y divide-border">{[0, 1].map(key => <li key={key} data-pf-draft-skeleton="" className={GRID}>
-    <div className="flex items-start gap-3"><Skeleton className="size-10 shrink-0" /><div className="flex flex-1 flex-col gap-2"><Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-4 w-2/3" /><Skeleton className="h-4 w-1/3" /></div></div>
-    <div><Badge variant="info" dot><Skeleton className="h-3 w-12" /></Badge></div><div className="flex flex-col gap-1"><Skeleton className="h-1.5 w-28" /><Skeleton className="h-4 w-36" /></div><div className="flex flex-col gap-1"><Skeleton className="h-4 w-20" /><Skeleton className="h-4 w-36" /></div><div className="flex items-center gap-1"><Skeleton className="h-10 w-28" /></div>
+    <div data-pf-vacancy-zone="identity" className="flex items-start gap-3"><Skeleton className="size-10 shrink-0" /><div className="flex flex-1 flex-col gap-2"><Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/3" /></div></div>
+    <div data-pf-vacancy-zone="conditions" className="flex flex-col items-start gap-2"><Badge variant="info" dot><Skeleton className="h-3 w-12" /></Badge><Skeleton className="h-4 w-1/2" /></div>
+    <div data-pf-vacancy-zone="complement" className="flex min-w-0 flex-col gap-2"><Skeleton className="h-4 w-2/3" /><div className="flex flex-col gap-1"><Skeleton className="h-1.5 w-28" /><Skeleton className="h-4 w-36" /></div><div className="flex flex-col gap-1"><Skeleton className="h-4 w-20" /><Skeleton className="h-4 w-36" /></div></div>
+    <div data-pf-vacancy-zone="action" className="flex items-center gap-1"><Skeleton className="h-10 w-full lg:w-28" /></div>
   </li>)}</ul>;
 }
 
@@ -151,7 +157,7 @@ export function VacancyPortfolio({ vacancies }: { vacancies: readonly EmployerVa
         <TabsContent value={status}>
           <Card data-pf-vacancy-results aria-busy={drafts.pending}>
             <CardContent className="-mx-(--card-spacing)">
-              <div aria-hidden="true" className={HEADER}><span>Vacante</span><span>Estado</span><span>Pipeline</span><span>Publicada</span><span /></div>
+              <div aria-hidden="true" className={HEADER}><span>Vacante</span><span>Condiciones y estado</span><span>Pipeline y fechas</span><span /></div>
               {drafts.pending && <span role="status" className="sr-only">Cargando borradores</span>}
               {failure && <div className="border-b border-border bg-muted p-4 sm:px-5">
                 <p className="text-sm font-semibold">No pudimos cargar tus borradores</p><p className={cn(META, "mt-1")}>{DRAFT_LIST_MESSAGES[failure.reason]} Las demás vacantes siguen disponibles.</p>
