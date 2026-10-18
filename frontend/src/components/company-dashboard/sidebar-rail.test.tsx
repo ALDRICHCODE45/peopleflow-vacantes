@@ -116,7 +116,7 @@ describe.each([
     expect(within(brand).getAllByRole("img", { name: "PeopleFlow" })).toHaveLength(2);
     expect(brand).toHaveClass("h-10", "data-[slot=sidebar-menu-button]:p-1.5!");
     for (const image of brand.querySelectorAll("[data-brand='wordmark'] img")) {
-      expect(image).toHaveClass("h-5", "w-auto");
+      expect(image).toHaveClass("h-6", "w-auto");
     }
     const action = screen.getByRole("button", { name: actionLabel });
     expect(action).toHaveClass("h-10", "w-full", "px-3", "gap-2");

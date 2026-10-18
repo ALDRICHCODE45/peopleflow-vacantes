@@ -154,14 +154,14 @@ describe("company dashboard sidebar identity", () => {
 
     const brand = screen.getByRole("link", { name: "PeopleFlow" });
 
-    // The stock header slot was a 20px glyph inside the shared 40px
-    // sidebar-menu-button row with the approved 6px padding override; the
-    // wordmark reuses that same box.
+    // The wordmark is 24px tall inside the shared 40px row with the approved
+    // 6px padding override (28px of room), slightly larger than the old 20px glyph.
+
     expect(brand.className).toContain("h-10");
     expect(brand.className).toContain("data-[slot=sidebar-menu-button]:p-1.5!");
 
     for (const mark of Array.from(brand.querySelectorAll("[data-brand='wordmark'] img"))) {
-      expect(mark.className).toContain("h-5");
+      expect(mark.className).toContain("h-6");
       expect(mark.className).toContain("w-auto");
       expect(mark.className).not.toContain("h-8");
     }

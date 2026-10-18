@@ -910,7 +910,8 @@ Referencia: `docs/design/v0/reference-lqiGtbQJqJc/` y capturas de L5 en
 ### 14.5 Sidebar colapsado y marca de la app
 
 - El sidebar colapsado nunca reduce ni deforma el wordmark: muestra una marca compacta
-  centrada. El wordmark queda para el estado expandido y el drawer móvil.
+  centrada. El wordmark queda para el estado expandido y el drawer móvil, a 24px de alto
+  (`h-6`) dentro de la fila de 40px.
 - La marca compacta es un único componente (`PeopleFlowMark`) con el nombre accesible
   «PeopleFlow» que muestra el isotipo aprobado, uno por tema: `peopleflow-mark-light.png`
   (disco negro con «p» blanca) en tema claro y `peopleflow-mark-dark.png` (disco blanco

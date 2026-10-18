@@ -50,7 +50,7 @@ export function PeopleFlowSidebarLogo({ collapsed }: { collapsed: boolean }) {
         aria-hidden={collapsed}
         className={cn("flex shrink-0 items-center", transition, collapsed && "invisible opacity-0")}
       >
-        <PeopleFlowLogo className="h-5 w-auto max-w-none" />
+        <PeopleFlowLogo className="h-6 w-auto max-w-none" />
       </span>
       <PeopleFlowMark
         aria-hidden={!collapsed}
