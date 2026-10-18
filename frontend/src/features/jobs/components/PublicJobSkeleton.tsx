@@ -5,10 +5,10 @@ import { Separator } from "@/components/ui/separator";
 import { formatPublicSalary } from "../formatters";
 import type { PublicJobDetail, PublicJobItem } from "../types";
 import { publicJobChips, publicJobFacts } from "./public-job-facts";
-import { PUBLIC_VACANCY_CARD, PUBLIC_VACANCY_CHIPS, PUBLIC_VACANCY_CONTENT, PUBLIC_VACANCY_DESCRIPTION, PUBLIC_VACANCY_HEADER, PUBLIC_VACANCY_META, PUBLIC_VACANCY_RAIL, PUBLIC_VACANCY_TITLE, type PublicVacancyCardExtras } from "./public-vacancy-layout";
+import { PUBLIC_VACANCY_CARD, PUBLIC_VACANCY_CHIPS, PUBLIC_VACANCY_CONTENT, PUBLIC_VACANCY_DESCRIPTION, PUBLIC_VACANCY_HEADER, PUBLIC_VACANCY_META, PUBLIC_VACANCY_RAIL, PUBLIC_VACANCY_TITLE } from "./public-vacancy-layout";
 
 /** When the projection is known, reserve only its actual optional blocks. */
-type CardSkeletonProps = { job?: PublicJobItem } & PublicVacancyCardExtras;
+type CardSkeletonProps = { job?: PublicJobItem };
 
 function IdentitySkeleton({ detail = false }: { detail?: boolean }) {
   return <CardHeader className="border-b">
@@ -31,10 +31,12 @@ function FactsSkeleton({ job }: CardSkeletonProps) {
 }
 
 /** Skeleton exception: the same native slots, columns, identity/chip rhythm and rail as the list card. */
-export function PublicJobCardSkeleton({ job, excerpt, skills = [], benefits = [], quickApply }: CardSkeletonProps = {}) {
+export function PublicJobCardSkeleton({ job }: CardSkeletonProps = {}) {
   const salary = job === undefined || formatPublicSalary(job) !== null;
   const chipsCount = job === undefined ? 4 : publicJobChips(job).length;
-  const hasExtras = Boolean(excerpt?.trim() || skills.length || benefits.length);
+  const excerpt = job === undefined || job.excerpt !== null;
+  const skillsCount = job === undefined ? 6 : job.skills_preview.length + (job.skills_preview.length > 0 && job.skills_total > 6 ? 1 : 0);
+  const benefits = job === undefined || job.benefits_preview.predefined.length + job.benefits_preview.custom.length > 0;
   return <Card aria-hidden="true" className={PUBLIC_VACANCY_CARD}>
     <CardHeader className={PUBLIC_VACANCY_HEADER}>
       <CardTitle className={PUBLIC_VACANCY_TITLE}><Skeleton aria-hidden="true" className="size-12 shrink-0 rounded-full" /><Skeleton aria-hidden="true" className="h-10 w-3/4" /></CardTitle>
@@ -43,25 +45,26 @@ export function PublicJobCardSkeleton({ job, excerpt, skills = [], benefits = []
         <div className={PUBLIC_VACANCY_META}>
           {(job === undefined || job.location) && <Skeleton aria-hidden="true" className="h-4 w-32 max-w-full" />}
           <Skeleton aria-hidden="true" className="h-4 w-24 max-w-full" />
+          {(job === undefined || job.applicants !== null) && <Skeleton aria-hidden="true" className="h-4 w-36 max-w-full" />}
         </div>
       </CardDescription>
       <CardAction />
     </CardHeader>
     <CardContent className={PUBLIC_VACANCY_CONTENT}>
       <div data-public-job-chips className={PUBLIC_VACANCY_CHIPS}>{Array.from({ length: chipsCount }, (_, key) => <Skeleton key={key} aria-hidden="true" className="h-5 w-24" />)}</div>
-      {hasExtras && <>
+      {excerpt && <Skeleton aria-hidden="true" data-skeleton-excerpt className="h-10 w-full max-w-prose" />}
+      {(skillsCount > 0 || benefits) && <>
         <Separator />
-        {excerpt?.trim() && <Skeleton aria-hidden="true" className="h-10 w-full max-w-prose" />}
-        {(skills.length > 0 || benefits.length > 0) && <dl className="grid gap-4 sm:grid-cols-2">
-          {skills.length > 0 && <div className="flex min-w-0 flex-col gap-2"><dt><Skeleton aria-hidden="true" className="h-4 w-24" /></dt><dd className="flex flex-wrap gap-1.5">{skills.map((_, key) => <Skeleton key={key} aria-hidden="true" className="h-5 w-16" />)}</dd></div>}
-          {benefits.length > 0 && <div className="flex min-w-0 flex-col gap-2"><dt><Skeleton aria-hidden="true" className="h-4 w-24" /></dt><dd><Skeleton aria-hidden="true" className="h-10 w-full" /></dd></div>}
-        </dl>}
+        <dl className="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          {skillsCount > 0 && <div className="flex min-w-0 flex-col gap-2"><dt><Skeleton aria-hidden="true" className="h-4 w-24" /></dt><dd className="flex flex-wrap gap-1.5">{Array.from({ length: skillsCount }, (_, key) => <Skeleton key={key} aria-hidden="true" className="h-5 w-16" />)}</dd></div>}
+          {benefits && <div className="flex min-w-0 flex-col gap-2"><dt><Skeleton aria-hidden="true" className="h-4 w-24" /></dt><dd><Skeleton aria-hidden="true" className="h-10 w-full" /></dd></div>}
+        </dl>
       </>}
     </CardContent>
     <CardFooter className={PUBLIC_VACANCY_RAIL}>
       <div className="flex min-w-0 flex-col gap-2"><Skeleton aria-hidden="true" className="h-4 w-28 max-w-full" /><Skeleton aria-hidden="true" className={salary ? "h-14 w-full" : "h-5 w-36 max-w-full"} /></div>
       <Skeleton aria-hidden="true" className="h-10 w-full" />
-      {quickApply === true && <Skeleton aria-hidden="true" className="h-4 w-32 max-w-full self-center" />}
+      {(job === undefined || job.screening_questions !== null) && <Skeleton aria-hidden="true" className="h-4 w-32 max-w-full self-center" />}
     </CardFooter>
   </Card>;
 }
@@ -94,6 +97,10 @@ export function PublicJobDetailSkeleton({ job }: { job?: PublicJobDetail } = {})
               {(job === undefined ? [true, true] : [job.requirements.required, job.requirements.preferred]).map((present, key) => present && <div key={key} className="flex flex-col gap-1"><dt><Skeleton aria-hidden="true" className="h-4 w-28" /></dt><dd><Skeleton aria-hidden="true" className="h-5 w-full" /></dd></div>)}
             </dl></CardContent>
           </Card>}
+          {(job === undefined || job.skills.length > 0) && <Card>
+            <CardHeader className="border-b"><CardTitle><Skeleton aria-hidden="true" className="h-7 w-40" /></CardTitle></CardHeader>
+            <CardContent><ul className="flex flex-wrap gap-2">{Array.from({ length: job?.skills.length ?? 6 }, (_, key) => <li key={key} className="min-w-0 max-w-full"><Skeleton aria-hidden="true" className="h-5 w-16" /></li>)}</ul></CardContent>
+          </Card>}
           {benefitCount > 0 && <Card>
             <CardHeader className="border-b"><CardTitle><Skeleton aria-hidden="true" className="h-7 w-40" /></CardTitle></CardHeader>
             <CardContent><ul className="grid gap-3 sm:grid-cols-2">
@@ -108,7 +115,8 @@ export function PublicJobDetailSkeleton({ job }: { job?: PublicJobDetail } = {})
           </Card>}
           <Card>
             <CardHeader><CardTitle><Skeleton aria-hidden="true" className="h-7 w-32" /></CardTitle></CardHeader>
-            <CardFooter><Skeleton aria-hidden="true" className="h-10 w-full" /></CardFooter>
+            {(job === undefined || job.applicants !== null) && <CardContent className="text-xs text-muted-foreground"><Skeleton aria-hidden="true" className="h-4 w-40 max-w-full" /></CardContent>}
+            <CardFooter className="flex-col items-stretch gap-3"><Skeleton aria-hidden="true" className="h-10 w-full" />{(job === undefined || job.screening_questions !== null) && <Skeleton aria-hidden="true" className="h-4 w-32 max-w-full self-center" />}</CardFooter>
           </Card>
         </aside>
       </div>

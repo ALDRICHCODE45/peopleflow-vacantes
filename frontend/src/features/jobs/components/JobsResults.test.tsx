@@ -16,7 +16,9 @@ describe("JobsResults v2 composition", () => {
     expect(container.querySelectorAll('li > [data-slot="card"]')).toHaveLength(2);
     expect(screen.getByRole("link", { name: vacancyDetail.title })).toHaveAttribute("href", `/vacantes/${vacancyDetail.id}`);
     expect(screen.getAllByText("Acme").every((node) => node.closest("a") === null)).toBe(true);
-    expect(container).not.toHaveTextContent(/Hace 5 h|Verificada|Habilidades/);
+    expect(container).not.toHaveTextContent(/Hace 5 h|Verificada/);
+    expect(screen.getByText("Habilidades")).toBeVisible();
+    expect(screen.getByText("Go")).toBeVisible();
   });
   it("keeps the retryable error and exact canonical retry URL", () => {
     render(<JobsResults result={{ ok: false, error: { kind: "status", retryable: true, status: 503 } }} query={{ q: "frontend", contract_type: "indefinite" }} />);

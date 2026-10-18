@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { ArrowLeftIcon, ArrowRightIcon, BanknoteIcon, Building2Icon, CalendarClockIcon, CheckCircle2Icon, GiftIcon, ListChecksIcon, SparklesIcon } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ArrowLeftIcon, ArrowRightIcon, BanknoteIcon, CalendarClockIcon, CheckCircle2Icon, GiftIcon, ListChecksIcon, SparklesIcon } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { PublicCompanyAvatar } from "./PublicCompanyAvatar";
+import { PublicApplicants, PublicScreeningInfo } from "./public-application-info";
 import { Item, ItemContent, ItemMedia } from "@/components/ui/item";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +26,7 @@ export function PublicJobDetailView({ job }: { job: PublicJobDetail }) {
     <Card>
       <CardHeader className="border-b">
         <CardTitle><h1 className="flex items-start gap-4 font-heading text-2xl font-semibold break-words md:text-3xl">
-          <Avatar size="lg" aria-hidden="true"><AvatarFallback><Building2Icon aria-hidden="true" className="size-5" /></AvatarFallback></Avatar>
+          <PublicCompanyAvatar company={job.company} detail />
           <span className="min-w-0">{job.title}</span>
         </h1></CardTitle>
         <CardDescription>{job.company.name}</CardDescription>
@@ -51,6 +53,10 @@ export function PublicJobDetailView({ job }: { job: PublicJobDetail }) {
             {job.requirements.preferred && <div className="flex flex-col gap-1"><dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><SparklesIcon aria-hidden="true" className="size-3.5" />Deseables</dt><dd className="whitespace-pre-line break-words">{job.requirements.preferred}</dd></div>}
           </dl></CardContent>
         </Card>}
+        {job.skills.length > 0 && <Card>
+          <CardHeader className="border-b"><CardTitle><h2 className="font-heading text-xl font-semibold">Habilidades</h2></CardTitle></CardHeader>
+          <CardContent><ul className="flex flex-wrap gap-2">{job.skills.map((skill, index) => <li key={index} className="min-w-0 max-w-full"><Badge variant="secondary" className="h-auto max-w-full whitespace-normal break-words">{skill}</Badge></li>)}</ul></CardContent>
+        </Card>}
         {job.source === "vacancy" && benefits.length > 0 && <Card>
           <CardHeader className="border-b"><CardTitle><h2 className="flex items-center gap-2 font-heading text-xl font-semibold"><GiftIcon aria-hidden="true" className="size-5" />Beneficios</h2></CardTitle></CardHeader>
           <CardContent><ul className="grid gap-3 sm:grid-cols-2">{benefits.map((benefit, index) => <li key={index} className="min-w-0"><Item variant="outline" size="sm"><ItemMedia variant="icon"><GiftIcon aria-hidden="true" /></ItemMedia><ItemContent className="min-w-0"><span className="break-words">{benefit}</span></ItemContent></Item></li>)}</ul></CardContent>
@@ -63,7 +69,8 @@ export function PublicJobDetailView({ job }: { job: PublicJobDetail }) {
         </Card>}
         <Card>
           <CardHeader><CardTitle><h2 className="font-heading text-lg font-semibold">Postulación</h2></CardTitle></CardHeader>
-          <CardFooter><Link href={vacancyApplicationHref(job.id)} className={cn(buttonVariants(), "min-h-10 w-full")}>Postularme<ArrowRightIcon aria-hidden="true" data-icon="inline-end" /></Link></CardFooter>
+          {job.applicants !== null && <CardContent className="text-xs text-muted-foreground"><PublicApplicants applicants={job.applicants} /></CardContent>}
+          <CardFooter className="flex-col items-stretch gap-3"><Link href={vacancyApplicationHref(job.id)} className={cn(buttonVariants(), "min-h-10 w-full")}>Postularme<ArrowRightIcon aria-hidden="true" data-icon="inline-end" /></Link><PublicScreeningInfo count={job.screening_questions} /></CardFooter>
         </Card>
       </aside>
     </div>

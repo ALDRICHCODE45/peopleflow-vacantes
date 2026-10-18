@@ -69,7 +69,9 @@ it("keeps long custom benefits readable in native Item rows, not fixed-height ba
 it("uses only public projection content even when ids match prototype enrichments", () => {
   const { container } = render(<JobsResults query={{}} result={{ ok: true, data: { items: [listItem(legacyDetail), listItem(vacancyDetail)], next_cursor: null } }} />);
   expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(2);
-  expect(container).not.toHaveTextContent(/Habilidades|Verificada|Hace 2 h|Hace 5 h/);
+  expect(container).not.toHaveTextContent(/Verificada|Hace 2 h|Hace 5 h/);
+  expect(screen.getByText("Habilidades")).toBeVisible();
+  expect(screen.getByText("Go")).toBeVisible();
 });
 
 describe("v2 filters", () => {

@@ -8,7 +8,6 @@ import { Separator } from "@/components/ui/separator";
 import type { PrototypeJobView } from "../enrich";
 import type { PublicJobItem } from "../types";
 import { PublicVacancyCard } from "./PublicVacancyCard";
-import type { PublicVacancyCardExtras } from "./public-vacancy-layout";
 import { employmentTypeLabel, formatPublishedDate, formatSalary, payFrequencyLabel, seniorityLabel, workModeLabel } from "../formatters";
 import { PrototypeFeedbackButton } from "./prototype-feedback-island";
 import { CompanyMonogram, VerifiedByPeopleFlow, prototypeApplicantsLabel, prototypeResponseLabel } from "./prototype-ui";
@@ -58,8 +57,8 @@ const bookmarkClass = `${focusRing} grid size-10 shrink-0 place-items-center rou
  * server component: it forwards plain strings to the control and owns no fetch,
  * state, hook, request, storage, raw color, or inline style.
  */
-export function VacancyCard({ job, companyHref, ...extras }: { job: PrototypeJobView | PublicJobItem; companyHref?: string } & PublicVacancyCardExtras) {
-  if ("source" in job) return <PublicVacancyCard job={job} {...extras} />;
+export function VacancyCard({ job, companyHref }: { job: PrototypeJobView | PublicJobItem; companyHref?: string }) {
+  if ("source" in job) return <PublicVacancyCard job={job} />;
   const prototype = job.prototype;
   const salary = formatSalary({ min: job.salary_min, max: job.salary_max, currency: job.salary_currency });
   const published = prototype?.publishedAgoLabel ?? (job.published_at === undefined ? undefined : `Publicada: ${formatPublishedDate(job.published_at)}`);

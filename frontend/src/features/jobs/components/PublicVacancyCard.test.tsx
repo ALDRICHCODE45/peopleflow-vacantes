@@ -33,9 +33,16 @@ it.each([vacancyDetail, legacyDetail])("restores two zones and company initials 
   expect(chips.querySelector('[data-fact="work_mode"] svg')).not.toBeNull();
   expect(chips).not.toHaveTextContent("Ciudad de México");
   if (detail.source === "legacy") expect(chips).not.toHaveTextContent(/Indefinido|Tecnología y sistemas|Mensual/);
-  expect(container).not.toHaveTextContent(/Destacada|Verificada|postulantes|Responde|Postulación rápida|Habilidades|Beneficios/);
+  expect(container).not.toHaveTextContent(/Destacada|Verificada|Responde/);
+  if (detail.source === "vacancy") {
+    expect(container).toHaveTextContent("Menos de 10 postulantes");
+    expect(container).toHaveTextContent("Postulación rápida");
+    expect(card.querySelector('[data-slot="separator"]')).not.toBeNull();
+  } else {
+    expect(container).not.toHaveTextContent(/postulantes|Postulación rápida|Habilidades|Beneficios/);
+    expect(card.querySelector('[data-slot="separator"]')).toBeNull();
+  }
   expect(screen.queryByRole("button", { name: /Guardar/ })).toBeNull();
-  expect(card.querySelector('[data-slot="separator"]')).toBeNull();
 });
 
 it("keeps the specified chip order and never fills absent optional facts", () => {
@@ -122,8 +129,8 @@ it.each([vacancyDetail, legacyDetail])("uses a quiet honest salary absence for $
   expect(container).not.toHaveTextContent(/A convenir|Salario a convenir/);
 });
 
-it("renders phase-2 slots only when explicitly supplied, safely as text", () => {
-  const { container } = render(<VacancyCard job={listItem(vacancyDetail)} excerpt="<b>Construye servicios</b>" skills={["Go", "SQL"]} benefits={["Formación", "Horario flexible"]} quickApply />);
+it("renders enriched projection content through VacancyCard, safely as text", () => {
+  const { container } = render(<VacancyCard job={{ ...listItem(vacancyDetail), excerpt: "<b>Construye servicios</b>" }} />);
   expect(screen.getByText("<b>Construye servicios</b>")).toBeVisible();
   expect(container.querySelector("b")).toBeNull();
   expect(container.querySelector('[data-slot="separator"]')).not.toBeNull();
@@ -132,8 +139,8 @@ it("renders phase-2 slots only when explicitly supplied, safely as text", () => 
   expect(screen.getByText("Postulación rápida")).toBeVisible();
 });
 
-it("leaves no phase-2 placeholders or separator for empty optional props", () => {
-  const { container } = render(<PublicVacancyCard job={listItem(vacancyDetail)} excerpt="   " benefits={[]} skills={[]} quickApply={false} />);
+it("leaves no enrichment placeholders or separator for absent legacy content", () => {
+  const { container } = render(<PublicVacancyCard job={{ ...listItem(legacyDetail), excerpt: null }} />);
   expect(container.querySelector('[data-slot="separator"]')).toBeNull();
   expect(container).not.toHaveTextContent(/Habilidades|Beneficios|Postulación rápida/);
 });
