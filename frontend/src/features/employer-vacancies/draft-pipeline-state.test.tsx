@@ -80,7 +80,7 @@ it("published state renders current column cards and hides publish", async () =>
   expect(content?.parentElement).toHaveClass("min-h-0", "flex-1");
   expect(screen.getByRole("region", { name: "Tablero de candidatos" })).toHaveClass("min-h-0", "flex-1");
   expect(loadBoardAction).toHaveBeenCalledExactlyOnceWith(read.id);
-  expect(loadDraftPipelineAction).not.toHaveBeenCalled();
+  expect(loadDraftPipelineAction).toHaveBeenCalledExactlyOnceWith(read.id);
 });
 it("composes the installed tooltip with the configuration copy", () => {
   // Portal positioning is a browser boundary; opening it in jsdom stalls subsequent tests.

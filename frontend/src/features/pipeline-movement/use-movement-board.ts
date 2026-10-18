@@ -5,6 +5,7 @@ import { loadBoardAction, moveParticipationAction, discardParticipationAction, r
 import { allowedMoveTargets, applyParticipationToBoard, leavesPlacement } from "./helpers";
 import { boardErrorCopy, moveErrorCopy, needsReconciliation, reconciliationCopy, type Notice } from "./board-feedback";
 import type { Board, DiscardBody, Failure, Participation, Result } from "./model";
+import { useBoardColumnOrder } from "./use-board-column-order";
 export type Disposition = { kind: "discard" | "recover"; item: Participation; placementConfirmation: boolean };
 type Write = { kind: "move"; target: string; confirmed: boolean } | { kind: "discard"; body: DiscardBody } | { kind: "recover"; confirmed: boolean };
 
@@ -37,6 +38,17 @@ export function useMovementBoard(vacancyId: string) {
   // letting a late, older response overwrite the global coverage/milestone.
   const overlapping = useRef(false);
   const alive = useRef(false);
+  const columns = useBoardColumnOrder(vacancyId, board, stale || reading || !!confirmation || !!disposition, reloadOrder);
+  async function reloadOrder() {
+    if (readBusy.current || locks.current.size) return false;
+    readBusy.current = true; mustRead.current = true; setStale(true); setReading(true);
+    const result = await readBoard(vacancyId);
+    if (!alive.current) return false;
+    if (result.ok) { adopt(result.data); setFailure(null); mustRead.current = false; setStale(false); }
+    else setFailure(result);
+    readBusy.current = false; setReading(false);
+    return result.ok;
+  }
   function adopt(value: Board) { snapshot.current = value; setBoard(value); }
   function report(id: string, notice: Notice, reference?: Failure["reference"]) {
     setNotices(previous => ({ ...previous, [id]: notice }));
@@ -158,5 +170,5 @@ export function useMovementBoard(vacancyId: string) {
     if (current.kind === "discard" && body) void submit(current.item, { kind: "discard", body: { ...body, ...(current.placementConfirmation ? { confirm_placement_exit: true } : {}) } });
     if (current.kind === "recover") void submit(current.item, { kind: "recover", confirmed: current.placementConfirmation });
   }
-  return { board, failure, reading, stale, pending, notices, readNotice, confirmation, disposition, retry, requestMove, closeConfirmation, confirmMove, requestDisposition, closeDisposition, confirmDisposition };
+  return { board: columns.board, columns, failure, reading, stale, pending, notices, readNotice, confirmation, disposition, retry, requestMove, closeConfirmation, confirmMove, requestDisposition, closeDisposition, confirmDisposition };
 }
