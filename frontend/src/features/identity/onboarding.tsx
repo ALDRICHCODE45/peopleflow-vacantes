@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { IconUserCircle } from "@tabler/icons-react";
-import { Card, CardHeader, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -74,8 +74,10 @@ export function CandidateOnboarding() {
   return <form onSubmit={submit} noValidate>
     <Card aria-labelledby="candidate-account-title">
       <CardHeader className="border-b">
-        <IconUserCircle aria-hidden="true" className="size-9" />
-        <h2 id="candidate-account-title" className="font-heading text-2xl font-semibold">Crear mi cuenta de candidato</h2>
+        <CardTitle className="flex flex-col gap-1.5">
+          <IconUserCircle aria-hidden="true" className="size-9" />
+          <h2 id="candidate-account-title" className="font-heading text-2xl font-semibold">Crear mi cuenta de candidato</h2>
+        </CardTitle>
         <CardDescription>Vas a crear una cuenta de candidato con {identity.email}. Esta cuenta no podrá usarse para publicar vacantes.</CardDescription>
       </CardHeader>
       <CardContent><FieldGroup><Field data-invalid={Boolean(fieldError)}>

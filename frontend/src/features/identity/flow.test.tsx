@@ -20,7 +20,11 @@ beforeEach(() => { vi.clearAllMocks(); mocks.session = { status: "authenticated"
 describe("post-sign-in router", () => {
   it.each([["candidate", "/candidato/dashboard"], [null, null], ["recruiter", null]] as const)("routes %s without an implicit write", async (role, target) => {
     mocks.load.mockResolvedValue(result(role)); render(<CandidateEntryPage />);
-    if (target) await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith(target));
+    if (target) {
+      await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith(target));
+      expect(screen.getByRole("status")).toHaveTextContent("Verificando tu cuenta");
+      expect(document.querySelector('[data-slot="skeleton"]')).toBeNull();
+    }
     else if (role === null) expect(await screen.findByRole("heading", { name: "Crear mi cuenta de candidato" })).toBeInTheDocument();
     else { expect(await screen.findByText("Esta cuenta es de empresa")).toBeInTheDocument(); expect(screen.getByRole("link", { name: "Ir a empresa" })).toHaveAttribute("href", "/empresa/login"); }
     expect(mocks.create).not.toHaveBeenCalled();
@@ -38,6 +42,11 @@ describe("post-sign-in router", () => {
     mocks.load.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })); render(<CandidateEntryPage />);
     expect(screen.getByRole("status")).toHaveTextContent("Cargando tu cuenta");
     expect(document.querySelector('[data-slot="skeleton"]')).not.toBeNull();
+    const card = document.querySelector('[data-slot="card"]')!;
+    expect(card).not.toBeNull();
+    for (const slot of ["card-header", "card-title", "card-description", "card-content", "card-footer"]) expect(card.querySelector(`[data-slot="${slot}"]`)).not.toBeNull();
+    expect(card).toHaveAttribute("aria-hidden", "true");
+    expect(card.querySelectorAll('[data-slot="field"]')).toHaveLength(1);
     finish(failure("no_response"));
     fireEvent.click(await screen.findByRole("button", { name: "Reintentar" }));
     expect(await screen.findByLabelText("Nombre completo")).toBeInTheDocument(); expect(mocks.load).toHaveBeenCalledTimes(2);
@@ -45,7 +54,27 @@ describe("post-sign-in router", () => {
   });
 });
 describe("explicit candidate onboarding", () => {
+  it("keeps the onboarding skeleton and loaded card slot sequences identical", async () => {
+    let finish!: (value: unknown) => void;
+    mocks.load.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const { container } = render(<CandidateEntryPage />);
+    const slots = () => Array.from(container.querySelectorAll('[data-slot^="card"]')).map(node => node.getAttribute("data-slot"));
+    const loadingSlots = slots();
+    expect(loadingSlots).toEqual(["card", "card-header", "card-title", "card-description", "card-content", "card-footer"]);
+    expect(screen.getByRole("status")).toHaveTextContent("Cargando tu cuenta");
+    finish(result(null));
+    await screen.findByLabelText("Nombre completo");
+    expect(slots()).toEqual(loadingSlots);
+    expect(container.querySelector('[data-slot="skeleton"]')).toBeNull();
+  });
   async function form() { render(<CandidateEntryPage />); return await screen.findByLabelText("Nombre completo"); }
+  it("composes onboarding with a semantic CardTitle, description and closing action", async () => {
+    const input = await form();
+    const card = input.closest('[data-slot="card"]')!;
+    expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-title"] h2')).toHaveTextContent("Crear mi cuenta de candidato");
+    expect(card.querySelector('[data-slot="card-description"]')).toHaveTextContent("session@example.com");
+    expect(card.querySelector('[data-slot="card-footer"]')).toContainElement(screen.getByRole("button", { name: "Crear mi cuenta de candidato" }));
+  });
   it("displays session-only email, validates and focuses the name, never auto-submits", async () => {
     const input = await form();
     expect(screen.getByText("Vas a crear una cuenta de candidato con session@example.com. Esta cuenta no podrá usarse para publicar vacantes.")).toBeInTheDocument();
@@ -93,9 +122,22 @@ describe("explicit candidate onboarding", () => {
   });
 });
 describe("area role guards", () => {
-  function guard(area: "candidate" | "employer") { const Guard = area === "candidate" ? CandidateGuard : EmployerGuard; return render(<IdentitySessionProvider><Guard><p>private content</p></Guard></IdentitySessionProvider>); }
-  it.each(["candidate", "employer"] as const)("%s hides children until identity resolves", area => {
-    mocks.load.mockImplementationOnce(() => new Promise(() => {})); guard(area); expect(screen.queryByText("private content")).toBeNull(); expect(screen.getByRole("status")).toBeInTheDocument();
+  function guard(area: "candidate" | "employer") { const Guard = area === "candidate" ? CandidateGuard : EmployerGuard; return render(<IdentitySessionProvider><section aria-label={`${area} shell`}><Guard><p>private content</p></Guard></section></IdentitySessionProvider>); }
+  it.each(["candidate", "employer"] as const)("%s shows only a quiet identity spinner until the role resolves", area => {
+    mocks.load.mockImplementationOnce(() => new Promise(() => {}));
+    const { container } = guard(area);
+    expect(screen.queryByText("private content")).toBeNull();
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent("Verificando tu cuenta");
+    expect(status).toHaveClass("sr-only");
+    expect(container.querySelectorAll('[role="status"]')).toHaveLength(1);
+    const busy = status.closest('[aria-busy="true"]')!;
+    expect(busy).toHaveClass("flex-1", "items-center", "justify-center", "min-h-svh");
+    expect(busy).toHaveClass(area === "candidate" ? "md:min-h-[calc(100svh-var(--spacing)*6)]" : "md:min-h-[calc(100svh-var(--spacing)*4)]");
+    expect(screen.getByRole("region", { name: `${area} shell` })).toBeVisible();
+    expect(container.querySelector('[data-slot="spinner"]')).toHaveAttribute("aria-hidden", "true");
+    expect(container.querySelector('[data-slot="skeleton"]')).toBeNull();
+    expect(container.querySelector('[data-slot="card"]')).toBeNull();
   });
   it.each(["candidate", "recruiter", null] as const)("candidate area handles %s", async role => {
     mocks.load.mockResolvedValue(result(role)); guard("candidate");
@@ -136,7 +178,8 @@ describe("area role guards", () => {
     mocks.session = { status: "authenticated", data: { user: { email: "session@example.com" } } };
     view.rerender(<IdentitySessionProvider><CandidateGuard><p>private content</p></CandidateGuard></IdentitySessionProvider>);
     expect(screen.queryByText("private content")).toBeNull();
-    expect(screen.getByRole("status")).toHaveTextContent("Cargando tu cuenta");
+    expect(screen.getByRole("status")).toHaveTextContent("Verificando tu cuenta");
+    expect(document.querySelector('[data-slot="skeleton"]')).toBeNull();
   });
   it("ignores a late identity result after switching accounts", async () => {
     let finish!: (value: unknown) => void;

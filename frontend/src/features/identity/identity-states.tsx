@@ -5,19 +5,40 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { IconShieldLock } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyMedia } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
+import { cn } from "@/lib/utils";
+
+/** Unknown destination: reserve the shell's inset area without inventing its content. */
+export function IdentityCheck({ area }: { area?: "candidate" | "employer" }) {
+  return <section aria-busy="true" aria-label="Tu cuenta" className={cn(
+    "flex min-h-64 w-full flex-1 items-center justify-center",
+    area === "candidate" && "min-h-svh md:min-h-[calc(100svh-var(--spacing)*6)]",
+    area === "employer" && "min-h-svh md:min-h-[calc(100svh-var(--spacing)*4)]",
+  )}>
+    <Spinner aria-hidden="true" role="presentation" />
+    <span role="status" className="sr-only">Verificando tu cuenta</span>
+  </section>;
+}
 
 export function IdentitySkeleton() {
-  return <section className="mx-auto flex w-full max-w-2xl flex-col gap-5 p-6" aria-busy="true" aria-label="Tu cuenta">
+  return <section aria-busy="true" aria-label="Tu cuenta">
     <span role="status" className="sr-only">Cargando tu cuenta</span>
-    <Skeleton aria-hidden="true" className="h-8 w-64 max-w-full" />
-    <Skeleton aria-hidden="true" className="h-16 w-full" />
-    <Skeleton aria-hidden="true" className="h-40 w-full" />
-    <Skeleton aria-hidden="true" className="h-10 w-48 max-w-full self-end" />
+    {/* Skeleton mirrors the known onboarding entry; unknown guarded routes use IdentityCheck. */}
+    <Card aria-hidden="true">
+      <CardHeader className="border-b">
+        <CardTitle className="flex flex-col gap-1.5"><Skeleton className="size-9" /><Skeleton className="h-8 w-96 max-w-full" /></CardTitle>
+        <CardDescription><Skeleton className="h-10 w-full" /></CardDescription>
+      </CardHeader>
+      <CardContent><FieldGroup><Field><Skeleton className="w-32"><FieldLabel>&nbsp;</FieldLabel></Skeleton><Skeleton><Input disabled tabIndex={-1} className="invisible min-h-10" /></Skeleton></Field></FieldGroup></CardContent>
+      <CardFooter className="border-t"><ActionBar status={null}><Skeleton><Button type="button" disabled tabIndex={-1} className="invisible h-auto min-h-10 max-w-full whitespace-normal">Crear mi cuenta de candidato</Button></Skeleton></ActionBar></CardFooter>
+    </Card>
   </section>;
 }
 

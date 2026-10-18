@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useIdentity } from "./identity-session";
-import { IdentityError, IdentitySkeleton, RoleBlocked } from "./identity-states";
+import { IdentityCheck, IdentityError, RoleBlocked } from "./identity-states";
 
 export function CandidateGuard({ children }: { children: React.ReactNode }) {
   const identity = useIdentity();
@@ -11,7 +11,7 @@ export function CandidateGuard({ children }: { children: React.ReactNode }) {
   const result = identity.result;
   const destination = identity.status === "unauthenticated" || (result && !result.ok && result.reason === "unauthenticated") ? "/candidato/login" : result?.ok && result.data.role === null ? "/candidato/ingresar" : null;
   React.useEffect(() => { if (destination) router.replace(destination); }, [destination, router]);
-  if (identity.status === "loading" || destination) return <IdentitySkeleton />;
+  if (identity.status === "loading" || destination) return <IdentityCheck area="candidate" />;
   if (!result?.ok) return <IdentityError retry={identity.retry} />;
   if (result.data.role === "recruiter") return <RoleBlocked kind="recruiter" />;
   return <>{children}</>;
@@ -19,7 +19,7 @@ export function CandidateGuard({ children }: { children: React.ReactNode }) {
 
 export function EmployerGuard({ children }: { children: React.ReactNode }) {
   const identity = useIdentity();
-  if (identity.status === "loading") return <IdentitySkeleton />;
+  if (identity.status === "loading") return <IdentityCheck area="employer" />;
   // Preserve the existing unauthenticated employer UI and its backend gates,
   // including the local bootstrap flow. This is not API authorization.
   if (identity.status === "unauthenticated") return <>{children}</>;
