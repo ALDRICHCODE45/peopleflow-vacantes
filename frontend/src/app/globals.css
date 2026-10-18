@@ -4,6 +4,71 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* The preset primary is a dark button fill in dark mode, not a body-text
+   color. Public accent text uses the existing foreground-strength brand token. */
+.pf-public-accent {
+  color: var(--brand-decorative-strong);
+}
+.pf-public-title:hover {
+  color: var(--brand-decorative-strong);
+}
+
+/* Public vacancy detail: real anchor navigation, not a tab panel/disclosure. */
+.pf-job-section-nav {
+  display: flex;
+  gap: 28px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+}
+.pf-job-section-nav a {
+  display: flex;
+  align-items: start;
+  min-height: 40px;
+  padding-bottom: 18px;
+  flex-shrink: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  font-weight: 500;
+}
+.pf-job-section-nav a:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+.pf-job-section-nav a:hover {
+  color: var(--brand-decorative-strong);
+}
+[data-slot="card"]:has(#descripcion:target) .pf-job-section-nav a[href="#descripcion"],
+[data-slot="card"]:has(#requisitos:target) .pf-job-section-nav a[href="#requisitos"],
+[data-slot="card"]:has(#beneficios:target) .pf-job-section-nav a[href="#beneficios"],
+[data-slot="card"]:has(#habilidades:target) .pf-job-section-nav a[href="#habilidades"] {
+  color: var(--brand-decorative-strong);
+  border-bottom-color: var(--primary);
+}
+/* Scope the reference's reading rhythm to this view, preserving authored marks
+   and ordered numbering from the shared safe rich-description renderer. */
+.pf-job-description > div {
+  font-size: inherit;
+  line-height: inherit;
+  gap: 20px;
+}
+.pf-job-description ul {
+  list-style: none;
+  padding-left: 0;
+  gap: 12px;
+}
+.pf-job-description ul > li {
+  position: relative;
+  padding-left: 28px;
+}
+.pf-job-description ul > li::before {
+  content: "✓" / "";
+  position: absolute;
+  left: 0;
+  color: var(--muted-foreground);
+}
+
+
 /* App typography: Inter (next/font, see app/layout.tsx) for body and headings.
    The landing display face is registered under its own family in
    components/marketing/reference-landing.css. */

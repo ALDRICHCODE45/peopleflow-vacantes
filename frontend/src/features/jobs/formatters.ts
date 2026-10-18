@@ -166,6 +166,24 @@ export function formatPublicSalary(job: PublicJobItem): string | null {
  });
 }
 
+/** Presentation parts for the public cards; labels remain owned by the shared formatter. */
+export function formatPublicSalaryParts(job: PublicJobItem): { amount: string; currency: string; cadence: string | null } | null {
+ const salary = formatPublicSalary(job);
+ if (salary === null) return null;
+ if (job.source === "legacy") {
+  const currency = job.legacy_salary!.currency;
+  return { amount: salary.replaceAll(`${currency} `, "$"), currency, cadence: null };
+ }
+ const [money, ...labels] = salary.split(" · ");
+ const currency = job.compensation!.currency;
+ // Group decimal strings directly: never round cents or coerce money through a float.
+ const amount = money.slice(0, -(currency.length + 1)).split(" – ").map(value => {
+  const [whole, fraction] = value.split(".");
+  return `$${whole.replace(/\B(?=(\d{3})+(?!\d))/gu, ",")}${fraction === undefined || fraction === "00" ? "" : `.${fraction}`}`;
+ }).join(" – ");
+ return { amount, currency, cadence: labels.join(" · ") };
+}
+
 export function formatSalary(input: SalaryInput): string | null {
  const { min, max, currency } = input;
  if (min !== undefined && max !== undefined) {

@@ -96,6 +96,26 @@ function expectBlockTokens(
   expect(block, `${label} input`).toContain(`--input: ${palette.line}`);
 }
 
+describe("public vacancy reference presentation", () => {
+  it("uses the foreground-strength brand token for public accent text in both themes", () => {
+    expect(cssBlock(".pf-public-accent")).toContain("color: var(--brand-decorative-strong)");
+    expect(cssBlock(".pf-public-title:hover")).toContain("color: var(--brand-decorative-strong)");
+  });
+  it("keeps anchor navigation scrollable, focusable and target-aware for every section", () => {
+    expect(cssBlock(".pf-job-section-nav")).toContain("overflow-x: auto");
+    expect(cssBlock(".pf-job-section-nav a:focus-visible")).toContain("outline:");
+    for (const id of ["descripcion", "requisitos", "beneficios", "habilidades"]) {
+      expect(css).toContain(`:has(#${id}:target) .pf-job-section-nav a[href=\"#${id}\"]`);
+    }
+    expect(css).toContain("border-bottom-color: var(--primary)");
+  });
+  it("styles rich bullet lists with check marks without changing ordered list numbering", () => {
+    expect(cssBlock(".pf-job-description ul")).toContain("list-style: none");
+    expect(cssBlock(".pf-job-description ul > li::before")).toContain('content: "✓"');
+    expect(css).not.toContain(".pf-job-description ol {");
+  });
+});
+
 describe("globals.css foundation tokens", () => {
   it("keeps the Tailwind v4 semantic token mapping", () => {
     expect(css).toContain('@import "tailwindcss"');

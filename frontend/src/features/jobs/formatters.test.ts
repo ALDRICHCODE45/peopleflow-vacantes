@@ -6,6 +6,7 @@ import {
   formatSalary,
   formatPublicCompensation,
   formatPublicSalary,
+  formatPublicSalaryParts,
   payFrequencyLabel,
   seniorityLabel,
   workModeLabel,
@@ -14,6 +15,18 @@ import {
 import { legacyDetail, vacancyDetail } from "./api/public-fixtures";
 
 describe("public v2 salary formatting", () => {
+  it("separates grouped amounts, currency and the existing cadence/basis without rounding decimal strings", () => {
+    expect(formatPublicSalaryParts(vacancyDetail)).toEqual({ amount: "$30,000 – $40,000", currency: "MXN", cadence: "Mensual · Bruto" });
+    expect(formatPublicSalaryParts({ ...vacancyDetail, compensation: { mode: "fixed", amount: "999999999999.99", min: null, max: null, currency: "USD", pay_period: "semimonthly", basis: "net" } })).toEqual({ amount: "$999,999,999,999.99", currency: "USD", cadence: "Quincenal · Neto" });
+    expect(formatPublicSalaryParts({ ...vacancyDetail, compensation: { ...vacancyDetail.compensation, min: "0.10", max: "1.01" } })).toEqual({ amount: "$0.10 – $1.01", currency: "MXN", cadence: "Mensual · Bruto" });
+    expect(formatPublicSalaryParts({ ...vacancyDetail, compensation: null })).toBeNull();
+  });
+  it("retains Desde/Hasta qualifiers and no invented cadence for legacy salary parts", () => {
+    expect(formatPublicSalaryParts(legacyDetail)).toEqual({ amount: "$30,000 – $45,000", currency: "MXN", cadence: null });
+    expect(formatPublicSalaryParts({ ...legacyDetail, legacy_salary: { min: "3000", max: null, currency: "USD" } })).toEqual({ amount: "Desde $3,000", currency: "USD", cadence: null });
+    expect(formatPublicSalaryParts({ ...legacyDetail, legacy_salary: { min: null, max: "3000", currency: "USD" } })).toEqual({ amount: "Hasta $3,000", currency: "USD", cadence: null });
+    expect(formatPublicSalaryParts({ ...legacyDetail, legacy_salary: null })).toBeNull();
+  });
   it("uses exact decimal strings and shared draft cadence/basis labels", () => {
     expect(formatPublicCompensation(vacancyDetail.compensation)).toBe("30000.00 – 40000.00 MXN · Mensual · Bruto");
     expect(formatPublicCompensation({ mode: "fixed", amount: "999999999999.99", min: null, max: null, currency: "USD", pay_period: "semimonthly", basis: "net" })).toBe("999999999999.99 USD · Quincenal · Neto");
