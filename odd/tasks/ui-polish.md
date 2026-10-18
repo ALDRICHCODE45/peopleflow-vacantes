@@ -24,6 +24,8 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 
 - S11. User request (L35): «las cards del listado publico no me terminan de gustar del todo … me tome la libertad de hacer un rediseno con v0 … y tambien un rediseno del detalle de la vacante». Reference: v0 chat c6eMqlbQQtD (files in docs/design/v0/reference-c6eMqlbQQtD/, screenshots /home/aldrich_coder45/Pictures/Screenshots/Screenshot_2026-10-18-16-43-27_5360x2520.png, -16-43-38- (card with benefits expanded), -16-43-03- and -16-43-09- (detail)). Port faithfully onto real contract data and existing behavior.
 
+- S12. User request (L38): «Si hermano, por favor, adelante» — apply §16 across the current screens.
+
 ## Tasks
 - T1 [done] S1,S2 | parent | Typography: Inter for app headings; Clash Display landing-only; rules §14. | commit: ceed4b6
 - T2 [done] S2 | parent | v0 prompt for board + candidate sheet. | commit: (this doc commit)
@@ -36,6 +38,7 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - T11 [done] S10 | writer | Phase 1: two-zone public vacancy card + applications card on current data, slots ready for phase-2 fields. | commit: -
 - T12 [done] S10 | parent + backend | Phase 2 contract: enrich GET /v2/jobs items. | commit: -
 - T13 [done] S11 | writer | Port the v0 public vacancy card and detail redesign. | commit: -
+- T14 [pending] S12 | 3 writers (employer / jobs drafts+application / candidate) | §16 audit. | commit: -
 - T5 [pending] S1 | parent | Pass over the remaining screens, one reviewable delivery each. | commit: -
 
 ## Log
