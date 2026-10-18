@@ -12,3 +12,20 @@ it.each(["./loading", "./[jobId]/loading"])("renders a contextual accessible ske
   expect(skeletons.length).toBeGreaterThan(5);
   for (const skeleton of skeletons) expect(skeleton).toHaveAttribute("aria-hidden", "true");
 });
+
+it("mirrors the loaded list: search card, quick filters, filters card with header and results", async () => {
+  const Loading = (await import("./loading")).default;
+  const { container } = render(<Loading />);
+  const cards = [...container.querySelectorAll('[data-slot="card"]')].filter(card => !card.closest('[data-skeleton-results]'));
+  const slots = (card: Element) => [...card.querySelectorAll("[data-slot^='card-']")].filter(el => el.closest('[data-slot="card"]') === card).map(el => el.getAttribute("data-slot"));
+  // Search card: content only, two labelled fields and the «Buscar» button.
+  expect(slots(cards[0])).toEqual(["card-content"]);
+  expect(cards[0].querySelectorAll("[data-skeleton-field]")).toHaveLength(2);
+  expect(cards[0].querySelectorAll("[data-skeleton-button]")).toHaveLength(1);
+  // Quick filters: four pills.
+  expect(container.querySelectorAll("[data-skeleton-quick-filter]")).toHaveLength(4);
+  // Filters card: header with title, four labelled selects and two buttons.
+  expect(slots(cards[1])).toEqual(["card-header", "card-title", "card-content"]);
+  expect(cards[1].querySelectorAll("[data-skeleton-field]")).toHaveLength(4);
+  expect(cards[1].querySelectorAll("[data-skeleton-button]")).toHaveLength(2);
+});
