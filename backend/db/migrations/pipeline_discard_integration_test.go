@@ -63,6 +63,8 @@ func TestMigration00024ExistingMovementCatalogAndGuardedDown(t *testing.T) {
 	}
 	before := oldSnapshot()
 	gooseUpAll(t, db)
+	// Pin the guarded rollback independently of later additive migrations.
+	gooseDownTo(t, db, 24)
 	if before != oldSnapshot() {
 		t.Fatal("up changed cut-4 personal data or movement history")
 	}

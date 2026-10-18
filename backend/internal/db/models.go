@@ -297,4 +297,6 @@ type VacancyPublicProjection struct {
 	PublishedAt           pgtype.Timestamptz `json:"published_at"`
 	SourceDraftVersion    int64              `json:"source_draft_version"`
 	SearchVector          interface{}        `json:"search_vector"`
+	Skills                []string           `json:"skills"`
+	ScreeningQuestions    int32              `json:"screening_questions"`
 }
