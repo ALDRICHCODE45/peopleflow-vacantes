@@ -18,6 +18,8 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 
 - S8. User request (L24): apply the §15 principles across the current screens («si por favor hermano»). Decision: «lo principal seria Guardar hermano» — in the draft editor's last step «Guardar» is the primary action and «Publicar» secondary.
 
+- S9. User decision (L26): «Si hermano, creo que es la opcion mejor» — the official create flow is the draft editor (/empresa/vacantes/borradores/nuevo): one primary «Nueva vacante» pointing there in the vacancy list header and the sidebar (and the public navbar's employer CTA), no second «Nuevo borrador» button, no duplicate create CTA in the list's empty state; the old /empresa/vacantes/nueva route redirects to the draft editor.
+
 ## Tasks
 - T1 [done] S1,S2 | parent | Typography: Inter for app headings; Clash Display landing-only; rules §14. | commit: ceed4b6
 - T2 [done] S2 | parent | v0 prompt for board + candidate sheet. | commit: (this doc commit)
@@ -26,6 +28,7 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - T7 [done] S5 | writer | Detailed, non-repetitive toast copy for move/Placement/discard/recover/column reorder and their errors; rule in §12. | commit: -
 - T8 [done] S6 | 3 writers (employer / jobs+public / candidate) | Card structure audit and fixes app-wide. | commit: -
 - T9 [done] S8 | 3 writers (employer / jobs / candidate) + parent (app/(public) error/not-found) | §15 audit: action-oriented empty states, one primary action, action vs navigation, visible state, single entry point, legibility. | commit: -
+- T10 [pending] S9 | writer | Single create entry point to the draft editor; /nueva redirects. | commit: -
 - T5 [pending] S1 | parent | Pass over the remaining screens, one reviewable delivery each. | commit: -
 
 ## Log
