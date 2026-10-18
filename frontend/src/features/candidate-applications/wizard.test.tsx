@@ -221,6 +221,14 @@ it.each(["cvs", "upload", "apply"] as const)("shows the existing company-account
   expect(await screen.findByRole("heading", { name: "Esta cuenta es de empresa" })).toBeVisible();
   expect(screen.getByRole("link", { name: "Ir a empresa" })).toBeVisible(); expect(screen.getByRole("button", { name: "Cerrar sesión" })).toBeVisible();
 });
+it("keeps the actual vacancy and company next to the final submission, not just above long answers", async () => {
+  const { container } = mount(); await toSummary();
+  const footer = screen.getByRole("button", { name: "Enviar postulación" }).closest('[data-slot="card-footer"]')!;
+  expect(footer).toHaveTextContent("Backend Go");
+  expect(footer).toHaveTextContent("Acme");
+  expect(container.querySelectorAll('[aria-label="Destino de la postulación"]')).toHaveLength(1);
+  expect(footer).not.toHaveTextContent("Salario no publicado"); // This prop carries no salary projection.
+});
 it("skips empty questions", async () => {
   vi.mocked(loadScreeningAction).mockResolvedValue({ ok: true, data: { ...screening, questions: [] } }); mount(); await toCv(); await user().click(screen.getByRole("button", { name: cv.name })); await user().click(screen.getByRole("button", { name: "Continuar" })); expect(screen.getByRole("heading", { name: "Resumen" })).toBeVisible();
 });

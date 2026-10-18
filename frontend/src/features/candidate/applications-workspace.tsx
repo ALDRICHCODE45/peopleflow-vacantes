@@ -20,7 +20,7 @@ const date = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "UT
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLowerCase().trim();
 const APPLICATION_GRID = "grid gap-4 lg:grid-cols-2";
 const APPLICATION_FACTS = "grid gap-x-6 gap-y-4 text-sm sm:grid-cols-2";
-const APPLICATION_FOOTER = "mt-auto flex-col items-start gap-3 border-t sm:flex-row sm:items-center sm:justify-between";
+const APPLICATION_FOOTER = "mt-auto justify-end border-t";
 const STATUS_EXPLANATION = {
   submitted: "Tu postulación fue enviada.",
   in_process: "Tu postulación avanzó en el proceso.",
@@ -48,8 +48,6 @@ function ApplicationCard({ item }: { item: ApplicationsPage["items"][number] }) 
       </div>}
     </CardContent>
     <CardFooter className={APPLICATION_FOOTER}>
-      {/* The contract has no updated_at: this is the actual application date, not an invented update. */}
-      <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><time dateTime={item.applied_at}>{date.format(new Date(item.applied_at))}</time></p>
       <Link href={`/vacantes/${item.vacancy.id}`} className={buttonVariants({ variant: "outline", className: "min-h-10 w-full sm:w-auto" })}>Ver vacante<ArrowUpRight aria-hidden="true" data-icon="inline-end" /></Link>
     </CardFooter>
   </Card>;
@@ -71,7 +69,7 @@ function ApplicationsSkeleton() {
           <CardAction><Skeleton className="h-6 w-20" /></CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-5"><dl className={APPLICATION_FACTS}>{[0, 1].map(key => <div key={key} className="flex min-w-0 flex-col gap-1.5"><dt><Skeleton className="h-4 w-20" /></dt><dd><Skeleton className="h-5 w-full" /></dd></div>)}</dl></CardContent>
-        <CardFooter className={APPLICATION_FOOTER}><Skeleton className="h-4 w-40 max-w-full" /><Skeleton className="h-10 w-full sm:w-32" /></CardFooter>
+        <CardFooter className={APPLICATION_FOOTER}><Skeleton className="h-10 w-full sm:w-32" /></CardFooter>
       </Card>
     </li>)}</ul>
   </section>;

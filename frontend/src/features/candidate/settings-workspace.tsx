@@ -106,10 +106,10 @@ function SettingRow({ icon: Icon, titleId, title, descriptionId, description, ch
           </span>
         </ItemMedia>
         <ItemContent className="min-w-0">
-          <ItemTitle id={titleId}>{title}</ItemTitle>
+          <ItemTitle id={titleId} className="line-clamp-none break-words">{title}</ItemTitle>
           <ItemDescription id={descriptionId} className="max-w-prose line-clamp-none">{description}</ItemDescription>
         </ItemContent>
-        <ItemActions className="w-full justify-end sm:w-auto">{children}</ItemActions>
+        <ItemActions className="w-full justify-start sm:w-auto sm:justify-end [&_[data-slot=button]]:w-full [&_[data-slot=select-trigger]]:w-full sm:[&_[data-slot=button]]:w-auto sm:[&_[data-slot=select-trigger]]:w-auto">{children}</ItemActions>
       </Item>
     </li>
   );

@@ -66,6 +66,20 @@ it("puts every dashboard card heading in CardTitle and KPI support in CardDescri
   }
 });
 
+it("keeps recent identity readable and primary CV facts distinct from controls on mobile", () => {
+  const { container } = renderOverview();
+  for (const row of container.querySelectorAll('[data-pf-recent-row]')) {
+    expect(row.querySelector('[data-slot="item-description"]')).toHaveClass("line-clamp-none");
+    const action = row.querySelector('[data-slot="item-actions"] a');
+    if (action) expect(action).toHaveClass("w-full", "sm:w-auto");
+  }
+  const terms = container.querySelectorAll('[data-pf-cv-snapshot] dt');
+  expect(terms).toHaveLength(4);
+  const icons = [...terms].map(term => term.querySelector("svg"));
+  expect(icons.every(Boolean)).toBe(true);
+  expect(new Set(icons.map(icon => icon?.getAttribute("class"))).size).toBe(4);
+});
+
 describe("profile completeness helper", () => {
   it("scores the complete fixture as 100% and stays pure", () => {
     const before = JSON.stringify(CANDIDATE_PROFILE);

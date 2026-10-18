@@ -314,7 +314,7 @@ describe("profile form fields composition", () => {
     expect(input(container, "expectedSalary")).toHaveValue(75000);
   });
 
-  it("keeps every control on a shadcn field primitive with badges, one divider and one date picker", () => {
+  it("keeps controls on shadcn fields and language row numbers as text, with one divider and date picker", () => {
     const { container } = renderFields();
     expect(container.querySelectorAll('[data-slot="field-set"]')).toHaveLength(9 + draft().languages.length);
     expect(container.querySelectorAll('[data-slot="field"]')).toHaveLength(SCALARS.length + 2 * draft().languages.length);
@@ -323,7 +323,8 @@ describe("profile form fields composition", () => {
     expect(container.querySelectorAll('[data-slot="field-label"]')).toHaveLength(SCALARS.length + 2 * draft().languages.length);
     expect(container.querySelectorAll('[data-slot="input-group"]')).toHaveLength(SCALARS.length - 1);
     expect(container.querySelectorAll('[data-slot="date-picker-field"]')).toHaveLength(1);
-    expect(container.querySelectorAll('[data-slot="badge"]')).toHaveLength(draft().languages.length);
+    expect(container.querySelectorAll('[data-slot="badge"]')).toHaveLength(0);
+    expect(container.querySelector('[data-pf-profile-fields]')).toHaveClass("grid-cols-1", "xl:grid-cols-2");
     expect(container.querySelectorAll("[data-pf-profile-divider]")).toHaveLength(1);
     expect(container.querySelectorAll('[data-slot="select-trigger"]')).toHaveLength(2 + draft().languages.length);
     for (const trigger of container.querySelectorAll('[data-slot="select-trigger"]')) expect(trigger.querySelector('[data-slot="select-value"]')).not.toBeNull();
@@ -346,8 +347,9 @@ describe("profile form fields contract", () => {
     for (const grid of grids) expect([classes(grid).includes("grid-cols-1"), /sm:grid-cols-(?:\d+|\[[^\]]+\])/u.test(classes(grid))]).toEqual([true, true]);
     const columns = grids.map((grid) => classes(grid).match(/sm:grid-cols-(?:\d+|\[[^\]]+\])/u)?.[0] ?? "");
     expect(new Set(columns).size).toBeGreaterThanOrEqual(3);
-    // Ubicación keeps one row of three at sm+: a wider date column, then Ciudad and País.
-    expect(classes(grids[1])).toContain("sm:grid-cols-[1.25fr_1.05fr_0.7fr]");
+    // Date gets its own full-width row; city and country remain comparable without shrinking controls.
+    expect(classes(grids[1])).toContain("sm:grid-cols-2");
+    expect(input(container, "birthDate").closest('[data-slot="field"]')).toHaveClass("sm:col-span-2");
     for (const grid of grids) expect(classes(grid)).not.toMatch(/(?:^|\s)flex(?:\s|$)/u);
     const row = container.querySelector("[data-pf-profile-language-row]") as HTMLElement;
     const rowGrid = row.querySelector("[data-pf-profile-language-grid]") as HTMLElement;
@@ -369,7 +371,7 @@ describe("profile form fields contract", () => {
     expect(container.querySelectorAll('[role="alert"]')).toHaveLength(0);
     expect(container.querySelectorAll('[role="group"]').length).toBeGreaterThan(0);
     expect(container.querySelectorAll('[type="submit"], [type="reset"]')).toHaveLength(0);
-    expect(modulesOf(SOURCE)).toEqual(["./model", "./profile-draft", "@/components/ui/badge", "@/components/ui/button", "@/components/ui/card", "@/components/ui/date-picker-field", "@/components/ui/field", "@/components/ui/input-group", "@/components/ui/select", "@/components/ui/separator", "lucide-react"]);
+    expect(modulesOf(SOURCE)).toEqual(["./model", "./profile-draft", "@/components/ui/button", "@/components/ui/card", "@/components/ui/date-picker-field", "@/components/ui/field", "@/components/ui/input-group", "@/components/ui/select", "@/components/ui/separator", "lucide-react"]);
     expect(SOURCE).toMatch(/^"use client";/u);
     for (const forbidden of ["email", "fullName", "userId", "createdAt", "updatedAt", "cv", "auth", "password", "useState", "useReducer", "useEffect", "useRef", "<form", "onSubmit", "submit", "reset", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.", "document.", "window.", "useRouter", "next/navigation", "setTimeout", "setInterval", "Math.random", "Date.now", "prototype-", "profile-draft.test", "parseProfileDraft", "safeParse", "validate"]) {
       expect(SOURCE, `profile-form-fields.tsx must not declare ${forbidden}`).not.toContain(forbidden);

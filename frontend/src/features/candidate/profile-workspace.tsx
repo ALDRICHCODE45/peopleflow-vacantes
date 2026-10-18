@@ -103,9 +103,9 @@ const companyOf = (draft: CandidateProfileDraft): string => (declared(draft.curr
 const HERO = "border-b border-border/60";
 const AVATAR = "size-24 shrink-0 ring-2 ring-primary/25 ring-offset-2 ring-offset-background sm:size-28";
 const META = "flex min-w-0 max-w-prose flex-col gap-1.5";
-const ROLE_BADGE = "max-w-full";
-const NAME = "font-heading text-xl font-semibold text-foreground";
-const EMAIL = "text-sm text-muted-foreground";
+const HEADLINE = "max-w-full break-words text-sm font-medium";
+const NAME = "min-w-0 break-words font-heading text-xl font-semibold text-foreground";
+const EMAIL = "break-words text-sm text-muted-foreground";
 const CONTEXT = "flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground";
 const CONTEXT_ITEM = "inline-flex min-w-0 items-center";
 const COMPLETION_ACTION = "flex w-full flex-col gap-4 max-md:col-span-2 max-md:col-start-1 max-md:row-span-1 max-md:row-start-3 md:w-72";
@@ -201,7 +201,7 @@ export function ProfileWorkspace({ identity, profile, avatarSrc }: ProfileWorksp
         </div>
         <Card data-pf-profile-card className={CARD}>
           <CardHeader data-pf-profile-identity className={HERO}>
-            <CardTitle className="flex min-w-0 items-center gap-5">
+            <CardTitle className="flex min-w-0 flex-col items-start gap-5 sm:flex-row sm:items-center">
               <Avatar className={AVATAR}>
                 <AvatarImage src={avatarSrc} alt={`Fotografía de retrato de ${identity.fullName}`} />
                 <AvatarFallback>{initialsOf(identity.fullName)}</AvatarFallback>
@@ -214,11 +214,12 @@ export function ProfileWorkspace({ identity, profile, avatarSrc }: ProfileWorksp
               </p>
               <p data-pf-profile-context className={CONTEXT}>
                 <span className={CONTEXT_ITEM}>{locationOf(draft)}</span>
+                <span aria-hidden="true">·</span>
                 <span className={CONTEXT_ITEM}>{companyOf(draft)}</span>
               </p>
             </CardDescription>
             <CardAction className={COMPLETION_ACTION}>
-              <Badge variant="secondary" data-pf-profile-headline className={ROLE_BADGE}>{titleOf(draft)}</Badge>
+              <p data-pf-profile-headline className={HEADLINE}>{titleOf(draft)}</p>
               <div data-pf-profile-completeness className={COMPLETION}>
                 <div className={COMPLETION_HEAD}>
                   <h3 id={COMPLETION_HEADING_ID} className={COMPLETION_TITLE}>Avance del perfil</h3>

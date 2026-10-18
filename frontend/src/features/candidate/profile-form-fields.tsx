@@ -2,7 +2,6 @@
 
 import { PlusIcon, Trash2Icon } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
@@ -68,8 +67,8 @@ const SECTIONS: readonly Section[] = [
     { path: "linkedinUrl", label: "Perfil de LinkedIn", type: "url", maxLength: 300 },
     { path: "portfolioUrl", label: "Portafolio o sitio web", type: "url", maxLength: 300, span: "sm:col-span-2" },
   ] },
-  { slug: "location", legend: "Ubicación", category: "personal", grid: "grid grid-cols-1 gap-4 sm:grid-cols-[1.25fr_1.05fr_0.7fr]", fields: [
-    { path: "birthDate", label: "Fecha de nacimiento" },
+  { slug: "location", legend: "Ubicación", category: "personal", grid: "grid grid-cols-1 gap-4 sm:grid-cols-2", fields: [
+    { path: "birthDate", label: "Fecha de nacimiento", span: "sm:col-span-2" },
     { path: "city", label: "Ciudad de residencia", maxLength: 120 },
     { path: "country", label: "País", maxLength: 120 },
   ] },
@@ -88,7 +87,7 @@ const SECTIONS: readonly Section[] = [
   { slug: "skills", legend: "Habilidades", category: "education", grid: "grid grid-cols-1 gap-4 sm:grid-cols-1", fields: [
     { path: "skills", label: "Habilidades", multiline: true },
   ] },
-  { slug: "compensation", legend: "Salario actual", category: "compensation", grid: "grid grid-cols-1 gap-4 sm:grid-cols-3", fields: [
+  { slug: "compensation", legend: "Salario actual", category: "compensation", grid: "grid grid-cols-1 gap-4 sm:grid-cols-2", fields: [
     { path: "currentSalaryGross", label: "Salario bruto actual", type: "number", min: 0, max: 100_000_000, step: 1, unit: currencyOf },
     { path: "currentSalaryNet", label: "Salario neto actual", type: "number", min: 0, max: 100_000_000, step: 1, unit: currencyOf },
     { path: "salaryCurrency", label: "Moneda", maxLength: 3, unit: () => "ISO 4217" },
@@ -191,7 +190,7 @@ export function ProfileFormFields({ draft, issues, onChange, category }: Profile
     return (
       <FieldSet key={index} data-pf-profile-language-row={index} role="group" aria-label={`Idioma ${index + 1}`} className={ROW}>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <Badge variant="secondary">{`Idioma ${index + 1}`}</Badge>
+          <p className="text-sm font-medium">{`Idioma ${index + 1}`}</p>
           <Button type="button" variant="ghost" size="sm" data-pf-profile-language-remove className={`${CONTROLS} ${CALM}`} onClick={() => removeLanguage(index)}>
             <Trash2Icon data-icon="inline-start" />{`Quitar idioma ${index + 1}`}
           </Button>
@@ -221,7 +220,7 @@ export function ProfileFormFields({ draft, issues, onChange, category }: Profile
     );
   };
   const languagesCard = (
-    <Card size="sm" data-pf-profile-section-card="" className={`${SECTION_CARD} md:col-span-2`}>
+    <Card size="sm" data-pf-profile-section-card="" className={`${SECTION_CARD} xl:col-span-2`}>
       <CardHeader className={SECTION_HEADER}>
         <CardTitle aria-hidden="true"><h3>{"Idiomas"}</h3></CardTitle>
       </CardHeader>
@@ -243,7 +242,7 @@ export function ProfileFormFields({ draft, issues, onChange, category }: Profile
   const sections = category === undefined ? SECTIONS : SECTIONS.filter((section) => section.category === category);
   const withLanguages = category === undefined || category === "languages";
   return (
-    <FieldGroup data-pf-profile-fields="" className="grid grid-cols-1 items-start gap-5 md:grid-cols-2">
+    <FieldGroup data-pf-profile-fields="" className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
       {sections.map((section) => (
         <ScalarSection key={section.slug} section={section} draft={draft} errorFor={errorFor} onChange={updateScalar} />
       ))}

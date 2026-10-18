@@ -26,15 +26,11 @@ const FAKE_PERSISTENCE_COPY = /guardar|quitar|eliminar|borrar|descartar|deshacer
 const HEADING = "Vacantes guardadas";
 const GO_FACTS = [
   ["Modalidad", "Híbrido"],
-  ["Tipo de empleo", "Por contrato"],
-  ["Nivel", "Líder"],
   ["Ubicación", "Monterrey, Nuevo León"],
-  ["Salario", "MXN 30,000 – MXN 45,000"],
 ] as const;
 const FRONTEND_FACTS = [
   ["Modalidad", "Remoto"],
-  ["Tipo de empleo", "Tiempo completo"],
-  ["Nivel", "Senior"],
+
 ] as const;
 
 const renderWorkspace = (savedVacancies = ACME_PROTOTYPE_JOBS) => render(<SavedVacanciesWorkspace savedVacancies={savedVacancies} />);
@@ -125,8 +121,8 @@ describe("saved vacancies grid", () => {
       expect(identity).not.toBeNull();
       expect(identity).toHaveAttribute("aria-hidden", "true");
       expect(identity.className).toContain("rounded-full");
-      expect(identity.className).toContain("bg-primary/10");
-      expect(identity.className).toContain("text-primary");
+      expect(identity.className).toContain("bg-primary/12");
+      expect(identity.className).toContain("text-foreground");
       expect(identity.querySelector("svg")).not.toBeNull();
       const heading = header.querySelector("[data-slot='card-title'] h3") as HTMLElement;
       expect(heading).not.toBeNull();
@@ -152,13 +148,20 @@ describe("saved vacancies grid", () => {
     }
   });
 
-  it("omits the salary and location facts a vacancy does not carry instead of inventing them", () => {
+  it("makes missing salary explicit, keeps secondary facts as text and never invents salary conditions", () => {
     const { container } = renderWorkspace();
     const facts = factsOf(card(container, ACME_PROTOTYPE_JOBS[0].id));
     expect(facts.labels).not.toContain("Salario");
     expect(facts.labels).not.toContain("Ubicación");
     expect(card(container, ACME_PROTOTYPE_JOBS[0].id)).not.toHaveTextContent("Salario a convenir");
     expect(card(container, ACME_PROTOTYPE_JOBS[0].id)).not.toHaveTextContent("Monterrey");
+    expect(slot(card(container, ACME_PROTOTYPE_JOBS[0].id), "card-footer")).toHaveTextContent("Salario no publicado");
+    const paid = card(container, ACME_PROTOTYPE_JOBS[1].id);
+    expect(slot(paid, "card-content")).toHaveTextContent("Por contrato · Líder");
+    expect(slot(paid, "card-footer")).toHaveTextContent("MXN 30,000 – MXN 45,000");
+    expect(slot(paid, "card-footer")).toHaveTextContent("Periodicidad y neto/bruto no especificados");
+    expect(slot(paid, "card-footer")).not.toHaveTextContent("Mensual");
+    expect(paid.querySelector('[data-slot="badge"]')).toBeNull();
   });
 
   it("renders the received order instead of sorting or filtering the list", () => {
@@ -183,7 +186,7 @@ describe("saved vacancies grid", () => {
 });
 
 describe("saved vacancies footer action", () => {
-  it("keeps exactly one canonical Ver vacante link per card in the footer and nothing else", () => {
+  it("keeps exactly one canonical Ver vacante link beside compensation in the mobile-stacked footer", () => {
     const { container } = renderWorkspace();
     const links = Array.from(container.querySelectorAll("a")) as HTMLElement[];
     expect(links).toHaveLength(ACME_PROTOTYPE_JOBS.length);
@@ -194,6 +197,8 @@ describe("saved vacancies footer action", () => {
       expect(cardLinks).toHaveLength(1);
       const link = cardLinks[0];
       expect(footer.contains(link)).toBe(true);
+      expect(footer).toHaveClass("flex-col", "sm:flex-row");
+      expect(link).toHaveClass("w-full", "sm:w-auto");
       expect(link).toHaveAttribute("href", `/vacantes/${job.id}`);
       expect(link).toHaveAttribute("data-slot", "button");
       expect(link).toHaveAttribute("aria-label", `Ver vacante de ${job.title} en ${job.company.name}`);

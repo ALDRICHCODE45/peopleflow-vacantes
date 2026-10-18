@@ -430,7 +430,8 @@ describe("profile workspace card composition", () => {
       expect(surface.className).not.toContain("ring-primary");
       expect(surface.className).not.toContain("border-primary");
     }
-    expect(role).toHaveAttribute("data-slot", "badge");
+    expect(role).not.toHaveAttribute("data-slot", "badge");
+    expect(role).toHaveClass("break-words");
     expect(progressBar(container).querySelector("[data-slot='progress-indicator']")).toHaveClass("bg-primary");
     expect(review().getAttribute("class") ?? "").toContain("bg-primary");
     // The active tab keeps the installed default variant's native paint, so primary stays off the rail.
@@ -647,7 +648,7 @@ describe("profile workspace reference hierarchy", () => {
     show("Idiomas");
     const wide = panelCards(container);
     expect(wide).toHaveLength(1);
-    expect(wide[0].className).toContain("md:col-span-2");
+    expect(wide[0].className).toContain("xl:col-span-2");
     expect(wide[0].className).not.toContain("ring-primary");
     expect(wide[0].className).not.toContain("hover:ring");
     expect(cardGrid(container).children).toHaveLength(1);

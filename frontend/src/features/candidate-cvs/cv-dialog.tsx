@@ -61,9 +61,9 @@ export function CvDialog({ cv, mode, onClose, onSaved, onCheck, onWrongRole }: {
           <DialogTitle>{isRename ? "Renombrar CV" : "Eliminar CV"}</DialogTitle>
           <DialogDescription>{isRename ? "Cambia solo el nombre en tu biblioteca." : "Las postulaciones que ya enviaste conservan su copia de este CV."}</DialogDescription>
         </DialogHeader>
-        <div className="flex min-w-0 items-center gap-3">
+        <div data-pf-cv-dialog-document className="flex min-w-0 flex-wrap items-center gap-3">
           <FileText aria-hidden="true" className="size-5 shrink-0" />
-          <div className="min-w-0"><p className="text-[12.5px] text-muted-foreground">Documento</p><p className="break-words font-medium">{cv.name}</p></div>
+          <div className="min-w-0 flex-1"><p className="text-[12.5px] text-muted-foreground">Documento</p><p className="break-words font-medium">{cv.name}</p></div>
           {cv.in_use && <Badge variant="neutral">En uso</Badge>}
         </div>
         <form onSubmit={event => { event.preventDefault(); void submit(); }} className="flex flex-col gap-6">
@@ -72,10 +72,10 @@ export function CvDialog({ cv, mode, onClose, onSaved, onCheck, onWrongRole }: {
             <Input ref={input} id="cv-rename" value={name} disabled={pending || checking} aria-invalid={!!fieldError} aria-describedby={fieldError ? "cv-name-error" : undefined} onChange={event => { setName(event.target.value); setFieldError(undefined); }} className="min-h-10" />
             {fieldError && <FieldError id="cv-name-error">{fieldError}</FieldError>}
           </Field></FieldGroup>}
-          <DialogFooter>
+          <DialogFooter className="[&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink [&_[data-pf-action-bar-actions]]:max-sm:flex-1 [&_[data-pf-action-bar-actions]]:max-sm:flex-col">
             <ActionBar status={copy ? <ActionStatus id={statusId} tone="error" text={failureStatus(failure!, copy)} action={failure?.reason === "unauthenticated" ? <a href="/candidato/login" className="inline-flex min-h-10 items-center underline">Iniciar sesión</a> : undefined} /> : null}>
-              <Button type="button" variant="outline" className="min-h-10" disabled={pending || checking} onClick={close}>Cancelar</Button>
-              {isUncertain ? <Button type="button" className="min-h-10" disabled={checking} onClick={() => void check()} aria-describedby={copy ? statusId : undefined}>{checking && <Spinner aria-hidden="true" data-icon="inline-start" />}Comprobar</Button> : <Button type="submit" variant={isRename ? "default" : "destructive"} className="min-h-10" disabled={pending} aria-describedby={copy ? statusId : undefined}>
+              <Button type="button" variant="outline" className="min-h-10 w-full sm:w-auto" disabled={pending || checking} onClick={close}>Cancelar</Button>
+              {isUncertain ? <Button type="button" className="min-h-10 w-full sm:w-auto" disabled={checking} onClick={() => void check()} aria-describedby={copy ? statusId : undefined}>{checking && <Spinner aria-hidden="true" data-icon="inline-start" />}Comprobar</Button> : <Button type="submit" variant={isRename ? "default" : "destructive"} className="min-h-10 w-full sm:w-auto" disabled={pending} aria-describedby={copy ? statusId : undefined}>
                 {pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending ? "Guardando…" : isRename ? "Guardar nombre" : "Eliminar CV"}
               </Button>}
             </ActionBar>

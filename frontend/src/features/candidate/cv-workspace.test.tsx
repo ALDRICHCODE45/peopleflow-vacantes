@@ -62,9 +62,24 @@ describe("real CV workspace", () => {
     for (const card of cards) {
       expect(card).toHaveAttribute("aria-hidden", "true");
       for (const slot of ["card-header", "card-title", "card-action", "card-content"]) expect(card.querySelector(`[data-slot="${slot}"]`)).not.toBeNull();
-      expect(card.querySelectorAll("dl > div")).toHaveLength(2);
+      expect(card.querySelectorAll("dl > div")).toHaveLength(1);
+      expect(card.querySelector('[data-slot="card-description"]')).not.toBeNull();
     }
     expect(container.querySelector('[data-pf-cv-loading-upload] [data-slot="field"]')).not.toBeNull();
+  });
+  it("mirrors the loaded CV card slots and facts in the initial skeleton", async () => {
+    let finish!: (result: Awaited<ReturnType<typeof loadCvsAction>>) => void;
+    vi.mocked(loadCvsAction).mockReturnValueOnce(new Promise(resolve => { finish = resolve; }));
+    const { container } = render(<CvWorkspace />);
+    const slots = (card: Element) => [...card.querySelectorAll('[data-slot^="card-"]')].map(node => node.getAttribute("data-slot"));
+    const skeleton = container.querySelector('[data-slot="card"]')!;
+    const expected = slots(skeleton);
+    const factsClass = skeleton.querySelector("dl")!.className;
+    finish({ ok: true, data: library });
+    await screen.findByRole("heading", { name: cv.name });
+    const loaded = container.querySelector('[data-pf-cv-card]')!;
+    expect(slots(loaded)).toEqual(expected);
+    expect(loaded.querySelector("dl")).toHaveAttribute("class", factsClass);
   });
   it("renders the empty state and the server limit counter", async () => {
     vi.mocked(loadCvsAction).mockResolvedValue({ ok: true, data: { ...library, items: [] } });
@@ -86,6 +101,8 @@ describe("real CV workspace", () => {
     expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-title"] h3')).toHaveTextContent(cv.name);
     for (const text of ["PDF", "340 KB", "10 de marzo de 2026", "En uso"]) expect(card).toHaveTextContent(text);
     expect(screen.getByText("En uso")).toHaveAttribute("data-variant", "neutral");
+    expect(card.querySelectorAll('[data-slot="badge"]')).toHaveLength(1);
+    expect(card.querySelector('[data-slot="card-description"]')).toHaveTextContent("PDF · 340 KB");
     expect(screen.getByText("1 de 10 CVs")).toBeInTheDocument();
     const trigger = screen.getByRole("button", { name: `Acciones de ${cv.name}` });
     expect(trigger).toHaveAttribute("aria-haspopup", "menu"); expect(trigger.className).toContain("size-10");
@@ -94,7 +111,7 @@ describe("real CV workspace", () => {
   });
   it("shows Word without fabricating primary-role or language data", async () => {
     vi.mocked(loadCvsAction).mockResolvedValue({ ok: true, data: { ...library, items: [{ ...cv, in_use: false, content_type: library.limits.content_types[1] as "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }] } });
-    render(<CvWorkspace />); expect(await screen.findByText("Word")).toBeInTheDocument();
+    render(<CvWorkspace />); expect(await screen.findByText("Word · 340 KB")).toBeInTheDocument();
     expect(screen.queryByText("En uso")).toBeNull(); expect(screen.queryByText("Principal")).toBeNull();
   });
   it("keeps errors persistent, and allows explicit load retry", async () => {

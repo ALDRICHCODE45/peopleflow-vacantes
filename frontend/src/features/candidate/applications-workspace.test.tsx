@@ -9,7 +9,7 @@ import { page, id } from "@/features/candidate-applications/test-fixtures";
 import { ApplicationsWorkspace } from "./applications-workspace";
 beforeEach(() => { vi.resetAllMocks(); });
 afterEach(cleanup);
-it("composes rich application identity, status, facts and dated vacancy footer in their native slots", async () => {
+it("orders identity, application conditions and action without repeating the date", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: page });
   render(<ApplicationsWorkspace />);
   const title = await screen.findByRole("link", { name: "Backend Go" });
@@ -25,7 +25,9 @@ it("composes rich application identity, status, facts and dated vacancy footer i
   expect(within(content as HTMLElement).getByText("Tu postulación fue enviada.")).toBeVisible();
   expect(content.querySelector("time")).toHaveAttribute("datetime", page.items[0].applied_at);
   const footer = card.querySelector(':scope > [data-slot="card-footer"]')!;
-  expect(footer.querySelector("time")).toHaveAttribute("datetime", page.items[0].applied_at);
+  expect(card.querySelectorAll("time")).toHaveLength(1);
+  expect(footer.querySelector("time")).toBeNull();
+  expect(card.querySelectorAll('[data-slot="badge"]')).toHaveLength(1);
   expect(within(footer as HTMLElement).getByRole("link", { name: "Ver vacante" })).toHaveAttribute("href", `/vacantes/${id}`);
   expect(card.querySelector('[data-slot="card-header"]')).toHaveClass("border-b");
   expect(footer).toHaveClass("border-t");

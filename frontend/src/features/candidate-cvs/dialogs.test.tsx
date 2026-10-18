@@ -63,6 +63,13 @@ describe("CV dialogs", () => {
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith({ ...cv, name: "Nuevo" }));
     expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Nombre actualizado" }));
   });
+  it.each(["rename", "delete"] as const)("reorganizes %s context and actions on mobile without narrowing controls", async mode => {
+    show(mode);
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.querySelector('[data-pf-cv-dialog-document]')).toHaveClass("flex-wrap");
+    for (const button of dialog.querySelectorAll('[data-slot="dialog-footer"] [data-slot="button"]')) expect(button).toHaveClass("w-full", "sm:w-auto", "min-h-10");
+    expect(dialog.querySelector('[data-slot="dialog-footer"]')).not.toBeNull();
+  });
   it("confirms deletion with the exact copy and an in-use note, never on opening", async () => {
     show("delete"); expect(await screen.findByRole("dialog")).toHaveTextContent("Las postulaciones que ya enviaste conservan su copia de este CV.");
     expect(screen.getByText("En uso")).toHaveAttribute("data-variant", "neutral");

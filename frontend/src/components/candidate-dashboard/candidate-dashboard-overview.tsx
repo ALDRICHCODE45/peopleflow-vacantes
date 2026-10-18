@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowUpRight, BriefcaseBusiness, CircleCheckBig, Clock3, FileText, Files, Link2Off } from "lucide-react"
+import { ArrowUpRight, BriefcaseBusiness, CalendarClock, CircleCheckBig, Clock3, FileText, Files, HardDrive, Languages, Link2Off } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 
 import { DashboardPageContent } from "@/components/dashboard-page-content"
@@ -94,8 +94,8 @@ const STATUS_BAR: Readonly<Record<ApplicationStatus, string>> = {
  * variants, focus ring and 40px target are applied to the Next Link instead of
  * routing it through the Base UI Button, which would relabel the navigation.
  */
-const PRIMARY_LINK = buttonVariants({ size: "sm", className: "min-h-10" })
-const OUTLINE_LINK = buttonVariants({ variant: "outline", size: "sm", className: "min-h-10" })
+const PRIMARY_LINK = buttonVariants({ size: "sm", className: "min-h-10 w-full sm:w-auto" })
+const OUTLINE_LINK = buttonVariants({ variant: "outline", size: "sm", className: "min-h-10 w-full sm:w-auto" })
 const QUIET_LINK = buttonVariants({ variant: "ghost", size: "sm", className: "min-h-10" })
 
 /** Quiet field term: it never competes with the value it labels. */
@@ -157,7 +157,7 @@ function RecentApplicationRow({ application, messages }: Readonly<{ application:
           <ItemTitle className="line-clamp-none block w-full">
             <h4 className="font-heading text-sm font-semibold text-foreground">{application.jobTitle}</h4>
           </ItemTitle>
-          <ItemDescription className="break-words">{application.companyName}</ItemDescription>
+          <ItemDescription className="line-clamp-none break-words">{application.companyName}</ItemDescription>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-0.5">
             <StatusBadge status={application.status} />
             <span className="text-sm text-muted-foreground">
@@ -345,10 +345,10 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
                       </ItemActions>
                     </Item>
                     <dl className="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-                      <div><dt className="text-muted-foreground">Idioma</dt><dd className="text-foreground">{CV_LANGUAGE_LABELS[primary.language]}</dd></div>
-                      <div><dt className="text-muted-foreground">Tamaño</dt><dd className="text-foreground">{formatFileSize(primary.sizeBytes)}</dd></div>
-                      <div><dt className="text-muted-foreground">Actualizado</dt><dd className="text-foreground"><time dateTime={primary.updatedAt}>{formatDate(primary.updatedAt)}</time></dd></div>
-                      <div><dt className="text-muted-foreground">CVs en tu portafolio</dt><dd className="text-foreground">{countLabel(cvTotal, "CV", "CVs")}</dd></div>
+                      <div><dt className="flex items-center gap-1.5 text-muted-foreground"><Languages aria-hidden="true" className="size-3.5 shrink-0" />Idioma</dt><dd className="text-foreground">{CV_LANGUAGE_LABELS[primary.language]}</dd></div>
+                      <div><dt className="flex items-center gap-1.5 text-muted-foreground"><HardDrive aria-hidden="true" className="size-3.5 shrink-0" />Tamaño</dt><dd className="text-foreground">{formatFileSize(primary.sizeBytes)}</dd></div>
+                      <div><dt className="flex items-center gap-1.5 text-muted-foreground"><CalendarClock aria-hidden="true" className="size-3.5 shrink-0" />Actualizado</dt><dd className="text-foreground"><time dateTime={primary.updatedAt}>{formatDate(primary.updatedAt)}</time></dd></div>
+                      <div><dt className="flex items-center gap-1.5 text-muted-foreground"><Files aria-hidden="true" className="size-3.5 shrink-0" />CVs en tu portafolio</dt><dd className="text-foreground">{countLabel(cvTotal, "CV", "CVs")}</dd></div>
                     </dl>
                   </>
                 )}

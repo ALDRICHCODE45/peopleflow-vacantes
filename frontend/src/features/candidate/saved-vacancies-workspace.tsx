@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, Bookmark, Briefcase, Building2, Globe, GraduationCap, MapPin, Wallet } from "lucide-react";
+import { ArrowUpRight, Bookmark, Building2, Globe, MapPin } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { DashboardPageContent } from "@/components/dashboard-page-content";
@@ -24,7 +24,7 @@ type SavedVacancyFact = { readonly key: string; readonly label: string; readonly
 
 /** Contextual icon per wire work mode, mirroring the public vacancy card. */
 const WORK_MODE_ICONS = {
-  onsite: MapPin,
+  onsite: Building2,
   remote: Globe,
   hybrid: Building2,
 } as const satisfies Record<PrototypeJobView["work_mode"], LucideIcon>;
@@ -34,7 +34,7 @@ const META = "text-[12.5px] font-medium text-muted-foreground";
 /** Card metadata: one column on mobile, two columns from `sm` up. */
 const CARD_FACTS = "grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2";
 /** Circular identity medallion that anchors each saved vacancy. */
-const IDENTITY = "grid size-11 shrink-0 place-items-center rounded-full bg-primary/10 text-primary";
+const IDENTITY = "grid size-11 shrink-0 place-items-center rounded-full bg-primary/12 text-foreground ring-1 ring-primary/40";
 /**
  * Vacancy navigation keeps the anchor element and its link role: the shadcn
  * Button contract (variants, focus ring, `data-slot`) is applied to the Next
@@ -45,22 +45,15 @@ const VACANCY_LINK = buttonVariants({ variant: "outline", size: "sm" });
 
 /**
  * The facts one saved vacancy actually carries, in reading order. The three wire
- * enums always exist and go through the shipped formatters; salary and location
- * are optional wire fields, so a vacancy without them simply renders fewer
- * facts instead of an invented placeholder.
+ * enums go through the shipped formatters. Location is optional; compensation
+ * belongs beside the action, with explicit unknown conditions for this legacy view.
  */
 function vacancyFacts(job: PrototypeJobView): readonly SavedVacancyFact[] {
-  const salary = formatSalary({ min: job.salary_min, max: job.salary_max, currency: job.salary_currency });
   const facts: SavedVacancyFact[] = [
     { key: "work-mode", label: "Modalidad", icon: WORK_MODE_ICONS[job.work_mode], value: workModeLabel(job.work_mode) },
-    { key: "employment-type", label: "Tipo de empleo", icon: Briefcase, value: employmentTypeLabel(job.employment_type) },
-    { key: "seniority", label: "Nivel", icon: GraduationCap, value: seniorityLabel(job.seniority) },
   ];
   if (job.location !== undefined) {
     facts.push({ key: "location", label: "Ubicación", icon: MapPin, value: job.location });
-  }
-  if (salary !== null) {
-    facts.push({ key: "salary", label: "Salario", icon: Wallet, value: salary });
   }
   return facts;
 }
@@ -85,6 +78,7 @@ function Fact({ icon: Icon, label, value }: { readonly icon: LucideIcon; readonl
  * parent owns the responsive one/two column layout.
  */
 function SavedVacancyCard({ job }: { readonly job: PrototypeJobView }) {
+  const salary = formatSalary({ min: job.salary_min, max: job.salary_max, currency: job.salary_currency });
   return (
     <Card data-pf-saved-vacancy={job.id}>
       <CardHeader className="border-b">
@@ -94,21 +88,26 @@ function SavedVacancyCard({ job }: { readonly job: PrototypeJobView }) {
           </span>
           <h3 className="min-w-0 font-heading text-base font-semibold text-foreground">{job.title}</h3>
         </CardTitle>
-        <CardDescription>{job.company.name}</CardDescription>
+        <CardDescription className="pl-14">{job.company.name}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-4">
         <dl data-pf-saved-vacancy-metadata={job.id} className={CARD_FACTS}>
           {vacancyFacts(job).map((fact) => (
             <Fact key={fact.key} icon={fact.icon} label={fact.label} value={fact.value} />
           ))}
         </dl>
+        <p className="text-sm text-muted-foreground">{employmentTypeLabel(job.employment_type)} · {seniorityLabel(job.seniority)}</p>
       </CardContent>
-      <CardFooter className="justify-end border-t">
+      <CardFooter className="flex-col items-stretch gap-4 border-t sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="font-semibold tabular-nums">{salary ?? "Salario no publicado"}</p>
+          {salary !== null && <p className="text-sm text-muted-foreground">Periodicidad y neto/bruto no especificados</p>}
+        </div>
         <Link
           href={`/vacantes/${job.id}`}
           data-slot="button"
           aria-label={`Ver vacante de ${job.title} en ${job.company.name}`}
-          className={`${VACANCY_LINK} min-h-10`}
+          className={`${VACANCY_LINK} min-h-10 w-full sm:w-auto`}
         >
           Ver vacante
           <ArrowUpRight aria-hidden="true" data-icon="inline-end" />

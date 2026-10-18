@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
-import { Briefcase, FileText, ListChecks, UserRound } from "lucide-react";
+import { Briefcase, Building2, FileText, ListChecks, UserRound } from "lucide-react";
 import { RoleBlocked } from "@/features/identity/identity-states";
 import { CvStorageUnavailable } from "@/features/candidate-cvs/storage-unavailable";
 import { failureCopy as cvFailureCopy, failureStatus as cvFailureStatus } from "@/features/candidate-cvs/feedback";
@@ -227,13 +227,16 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
           {errors[question.id] && <FieldError id={`error-${question.id}`}>{errors[question.id]}</FieldError>}
         </Field>)}</FieldGroup>}
         {step === "Resumen" && <dl className="flex flex-col gap-5">
-          <div><dt className="flex items-center gap-2 text-xs text-muted-foreground"><Briefcase aria-hidden="true" className="size-4" />Vacante</dt><dd className="break-words font-medium">{job.title} · {job.company.name}</dd></div>
           <div><dt className="flex items-center gap-2 text-xs text-muted-foreground"><UserRound aria-hidden="true" className="size-4" />Nombre completo</dt><dd>{candidate.full_name}</dd></div>
           <div><dt className="flex items-center gap-2 text-xs text-muted-foreground"><FileText aria-hidden="true" className="size-4" />CV</dt><dd className="break-words">{cv?.name}</dd></div>
           {screening.questions.map(question => <div key={question.id}><dt className="flex items-center gap-2 text-xs text-muted-foreground"><ListChecks aria-hidden="true" className="size-4" />{question.prompt}</dt><dd className="whitespace-pre-wrap break-words">{question.type === "open" ? answers[question.id]?.trim() : question.options.find(option => option.id === answers[question.id])?.label}</dd></div>)}
         </dl>}
       </CardContent>
-      <CardFooter className="flex-col items-stretch gap-3 border-t sm:flex-row sm:items-start [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink">
+      <CardFooter className="flex-col flex-wrap items-stretch gap-3 border-t sm:flex-row sm:items-start sm:[&>[data-pf-action-bar]]:min-w-0 sm:[&>[data-pf-action-bar]]:w-auto sm:[&>[data-pf-action-bar]]:flex-1 [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink [&_[data-pf-action-bar-actions]]:max-sm:flex-1 [&_[data-pf-action-bar-actions]]:max-sm:flex-col">
+        {step === "Resumen" && <div role="group" aria-label="Destino de la postulación" className="flex w-full min-w-0 flex-col gap-2 sm:basis-full">
+          <p className="flex items-start gap-2 break-words font-medium"><Briefcase aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span className="min-w-0">{job.title}</span></p>
+          <p className="flex items-start gap-2 text-sm text-muted-foreground"><Building2 aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span className="min-w-0 break-words">{job.company.name}</span></p>
+        </div>}
         {step !== "Datos" && !isUncertain && <Button variant="outline" disabled={busy} className="min-h-10 w-full sm:w-auto" onClick={() => go(steps[steps.indexOf(step) - 1])}>Atrás</Button>}
         {step === "Resumen" || copy ? <ActionBar status={copy ? <ActionStatus id="application-status" tone={failure?.reason === "questionnaire_changed" ? "warning" : "error"} text={copy.title} /> : null}>{forwardAction}</ActionBar> : <div className="flex w-full justify-end sm:ml-auto sm:w-auto">{forwardAction}</div>}
       </CardFooter>

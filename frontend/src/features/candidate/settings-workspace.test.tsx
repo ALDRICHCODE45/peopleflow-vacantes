@@ -54,6 +54,8 @@ it("wraps every settings section heading in the native card-title slot", () => {
     expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-title"] h2')).not.toBeNull();
     expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-description"]')).toHaveClass("max-w-prose");
     for (const description of card.querySelectorAll('[data-slot="item-description"]')) expect(description).toHaveClass("max-w-prose", "line-clamp-none");
+    for (const title of card.querySelectorAll('[data-slot="item-title"]')) expect(title).toHaveClass("line-clamp-none", "break-words");
+    for (const actions of card.querySelectorAll('[data-slot="item-actions"]')) expect(actions).toHaveClass("justify-start", "sm:justify-end");
   }
 });
 
