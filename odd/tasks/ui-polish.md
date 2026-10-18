@@ -38,7 +38,7 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - T11 [done] S10 | writer | Phase 1: two-zone public vacancy card + applications card on current data, slots ready for phase-2 fields. | commit: -
 - T12 [done] S10 | parent + backend | Phase 2 contract: enrich GET /v2/jobs items. | commit: -
 - T13 [done] S11 | writer | Port the v0 public vacancy card and detail redesign. | commit: -
-- T14 [pending] S12 | 3 writers (employer / jobs drafts+application / candidate) | §16 audit. | commit: -
+- T14 [done] S12 | 3 writers (employer / jobs drafts+application / candidate) | §16 audit. | commit: -
 - T5 [pending] S1 | parent | Pass over the remaining screens, one reviewable delivery each. | commit: -
 
 ## Log
@@ -89,3 +89,4 @@ Branch feat/ui-polish stacked on feat/pipeline-discard-ui (c5886f1). Rules: docs
 - L35. User rejected the phase-2 card look and provided a v0 redesign for the card and the detail; parent fetched the chat files into docs/design/v0/reference-c6eMqlbQQtD/.
 - L36. v0 public redesign committed (b8fcae4 salary parts + styles, 71bbd90 card/detail/skeletons). Deviations: «Habilidades» label, «y N beneficios más» links to #beneficios (list has only 3), applicant range in the conditions row, our shell/breadcrumb, real apply flow, no preview dialog, existing salary labels. Full suite 5,441 passed (only the known local-draft-form timeout), tsc 0. Guide 62 rewritten. Not browser-verified.
 - L37. User shared v0's UX/UI rationale for the public redesign and asked to add what is reusable. Parent added rules §16 (design by decision, stable structure identity→conditions→complement→action, badges only for categories, numeric legibility, decisive info visible, complete excerpt, progressive disclosure without inventing, decision info next to the action, anchor navigation, scannability without inventing bullets, reorganize on mobile) plus four §9 checklist items; overlaps with §15 not repeated.
+- L38. §16 audit committed: candidate fd1948d; drafts 5564cce (preview money via shared formatter; legacy states missing period/basis); application 1c6e2dc; vacancies/board/config 730d848; dashboard/team/talent/careers 95cc47c; test follow-ups 2aab... (salary text, aria-hidden icon). Full suite 5,466 passed before the follow-up fix (only known local-draft-form timeout besides the two fixed assertions), tsc 0. Guide 63, queue 54-63. Not browser-verified.

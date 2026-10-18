@@ -410,6 +410,13 @@ corepack pnpm dev
     «La vacante de un vistazo», navegación por secciones, beneficios con íconos y la
     columna fija con «Postularme» y «Compartir vacante» («Enlace copiado»). En
     `/candidato/postulaciones`: card con estado arriba a la derecha y «Ver vacante».
+63. **Estructuras comparables.** Recorré el listado de vacantes de la empresa, la ficha del
+    candidato, el dashboard, talento, las cards de postulaciones, CVs y guardadas, la vista
+    previa del borrador y el resumen de la postulación. **Esperado:** cada registro sigue
+    identidad → condiciones → complemento → acción; los badges solo marcan estado o
+    categoría y lo demás es texto con « · »; todo monto se lee como «$50,000 MXN» con su
+    periodicidad y neto/bruto debajo (o dice que no se publican); en el celular las zonas
+    se apilan sin achicar el texto.
 
 ## 5. Verificación en la base (solo lectura)
 
