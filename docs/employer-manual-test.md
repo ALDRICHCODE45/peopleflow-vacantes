@@ -389,6 +389,14 @@ corepack pnpm dev
     acción o estado arriba a la derecha y botones de cierre al pie; mientras carga, el
     skeleton tiene la misma forma que lo que aparece (nada salta). Antes de entrar a
     /empresa o /candidato solo se ve un spinner discreto, no un formulario falso.
+60. **Jerarquía y estados vacíos.** Recorré: pipeline de un borrador (badge «Vacante en
+    borrador», «Configurar columnas» arriba, «Publicar vacante» principal y «Continuar
+    editando» al lado, «Volver a Vacantes» fuera de la card); editor de borradores
+    («Guardar» principal, «Publicar» secundario); ficha del candidato («Mover a…»
+    principal); listados vacíos de vacantes, postulaciones, CVs, guardadas, talento y
+    resultados públicos. **Esperado:** una sola acción principal por pantalla, salir de la
+    pantalla nunca junto a ella, cada vacío dice qué pasa y qué hacer, y en el celular los
+    botones se apilan.
 
 ## 5. Verificación en la base (solo lectura)
 
