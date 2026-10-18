@@ -1293,7 +1293,7 @@ re-entry confirmation); `/candidato/postulaciones` shows «Finalizada» and the 
 
 ## 14. Public listing enrichment (proposal)
 
-Status: **proposal under frontend review.** Requested by the frontend agent (msg a644dd14)
+Status: **contract agreed** with the frontend agent (msg 05d47df2; clarifications in §14.5). Requested by the frontend agent (msg a644dd14)
 for the public card, with the user's decisions in §14.4. Branch
 `feat/public-listing-enrichment`, stacked on `feat/pipeline-discard` (it reads
 participations). Extends the P2a public contract (§10.3); legacy `/jobs` routes unchanged.
@@ -1345,3 +1345,17 @@ the detail extends the list item.
   are public — complete in the detail, the first ones in the list.
 - **Backend choice:** list previews use `*_preview` + `*_total` keys so `benefits` keeps one
   meaning (complete) wherever it appears.
+
+### 14.5 Contract clarifications (agreed, frontend msg 05d47df2)
+
+1. `company.logo_url` is either an absolute `https:` URL with a host (no credentials) or
+   `null`. Any other stored value (relative, `http:`, `data:`, malformed) is exposed as
+   `null` by the public routes; company data itself is not rewritten. Applies to both
+   sources.
+2. `excerpt`: before counting, every run of Unicode `White_Space` (newlines included) is
+   collapsed to one ASCII space and the result is trimmed; `excerpt_truncated` compares
+   against that normalized text.
+3. Skills are already trimmed, non-empty and ≤200 code points each (draft validation, at
+   most 100 per vacancy); `skills_preview` and `skills` keep the entered order.
+   `benefits_preview.predefined` uses the draft benefit catalog codes; custom benefits are
+   trimmed, non-empty, ≤200 code points.
