@@ -469,6 +469,13 @@ corepack pnpm dev
     ejecuta dos veces; con mucho contenido (descarte, lista de entrega) solo scrollea el
     medio y el título y los botones quedan visibles.
 
+72. **Subestados sin crear.** En una vacante sin subestados, abrí la configuración de «En
+    proceso». **Esperado:** chip «En proceso», «Configurar subestados» y su descripción;
+    «Empieza con una sugerencia» como lista con «+ Agregar» por fila; «O crea un subestado
+    personalizado» con un campo (Enter agrega) y la ayuda «Hasta 80 caracteres…». No hay
+    sección «Tus subestados» vacía. Al agregar una sugerencia desaparece de la lista de
+    sugerencias y aparece en tus subestados, que se ven igual que antes.
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:
