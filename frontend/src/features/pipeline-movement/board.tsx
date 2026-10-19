@@ -15,7 +15,7 @@ import { BoardCoverage, BoardError, BoardSkeleton, MovementDate } from "./board-
 import { CandidateSheet } from "./candidate-sheet";
 import { DispositionDialog } from "./disposition-dialog";
 import { useMovementBoard } from "./use-movement-board";
-import { BoardFilters, BoardFilterChips } from "./board-filters";
+import { BoardFilters } from "./board-filters";
 import { activeFilterCount, applyFilters, type FilterSelection } from "./filters";
 import { boardFilterDimensions } from "./board-filter-dimensions";
 
@@ -87,11 +87,11 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
     {board && <>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <p className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"><UsersRound aria-hidden="true" className="size-4" /><span><strong className="font-medium text-foreground tabular-nums">{board.participations.length}</strong> candidatos en el pipeline</span></p>
-        <div className="ml-auto flex min-w-0 flex-wrap items-center gap-3"><BoardFilters items={board.participations} dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} /><ActionStatusSlot>
+        <div className="ml-auto flex min-w-0 flex-wrap items-center gap-3"><ActionStatusSlot>
           {state.columns.busy ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner aria-hidden="true" />{state.columns.pending === "preview" ? "Revisando el impacto…" : "Guardando y actualizando columnas…"}</p> : state.columns.notice ? <ActionStatus id="column-order-status" tone={state.columns.notice.tone} text={state.columns.notice.text} action={state.columns.notice.link && <Link className="inline-flex min-h-10 items-center underline" href={state.columns.notice.link.href}>{state.columns.notice.link.title}</Link>} /> : state.columns.unavailable ? <p className="text-sm text-muted-foreground">No pudimos cargar el orden de columnas.</p> : !state.columns.locked && <span className="hidden items-center gap-1.5 text-[11px] text-muted-foreground lg:flex"><GripVertical aria-hidden="true" className="size-3.5" />Reordena columnas y revisa el impacto antes de guardar</span>}
         </ActionStatusSlot>{state.columns.unavailable && <Button type="button" variant="outline" className="min-h-10" disabled={state.columns.busy} onClick={() => void state.columns.refresh()}>Actualizar columnas</Button>}</div>
       </div>
-      <BoardFilterChips dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} total={board.participations.length} />
+      <BoardFilters items={board.participations} dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} />
       <BoardColumns visibleItems={visibleItems} filtered={activeFilterCount(filters) > 0} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={state.stale || state.columns.busy || !!confirmation || !!substate || !!column || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
       {Object.entries(state.notices).filter(([id]) => !visibleItems.some(item => item.id === id)).map(([id, notice]) => <ActionStatusSlot key={id}><ActionStatus id={`move-status-${id}`} tone={notice.tone} text={notice.text} /></ActionStatusSlot>)}
       {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} onClose={() => setSelected(null)} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={stale || state.columns.busy || !!column || pending.has(selectedItem.id) || !!confirmation || !!substate || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}{substateDialog}</CandidateSheet>}

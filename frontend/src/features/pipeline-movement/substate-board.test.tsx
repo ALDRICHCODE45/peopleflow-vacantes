@@ -85,7 +85,7 @@ it("card shows only the active substate badge; filtering gives X de Y and empty 
   expect(screen.getByText("Entrevista técnica").closest('[data-slot="badge"]')).toHaveAttribute("data-variant", "secondary");
   view.rerender(<BoardColumns {...props} visibleItems={[]} filtered />);
   expect(screen.queryByRole("button", { name: "Ver detalle de Ana Pérez" })).not.toBeInTheDocument();
-  expect(screen.getAllByText("Ningún candidato coincide con el filtro")).toHaveLength(5);
+  expect(screen.getAllByText("Ningún candidato coincide con los filtros en esta etapa.")).toHaveLength(5);
   expect(screen.getByText("0 de 1")).toBeVisible();
   view.rerender(<BoardColumns {...props} visibleItems={board.participations} />);
   expect(screen.getByRole("button", { name: "Ver detalle de Ana Pérez" })).toBeVisible();

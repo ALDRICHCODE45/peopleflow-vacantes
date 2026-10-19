@@ -313,7 +313,8 @@ it("toolbar filter wires OR selections, excludes other stages and clears without
   expect(screen.getByRole("region", { name: "Entrevista: 2 de 2 candidatos" })).toHaveTextContent("Ana Pérez");
   expect(screen.queryByRole("button", { name: "Ver detalle de Sol Díaz" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Filtros 2" })).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+  expect(screen.getByText(/Vista filtrada · Mostrando 2 de 3 candidatos/)).toHaveAttribute("aria-live", "polite");
+  fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
   vi.unstubAllGlobals();
   expect(screen.getByRole("button", { name: "Ver detalle de Sol Díaz" })).toBeVisible(); expect(loadBoardAction).toHaveBeenCalledTimes(1);
 });

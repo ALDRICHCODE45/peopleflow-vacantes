@@ -14,9 +14,21 @@ Branch `feat/pipeline-filter-bar-ui` from `main`. Reference: v0 chat `qqPqctX1XR
 
 ## Tasks
 
-- T1 [pending] S1-S4 | writer | Filter bar + results line + empty column state; update §13.12. | commit: -
+- T1 [done] S1-S4 | writer | Filter bar + results line + empty column state; update §13.12. | commit: -
 - T2 [pending] | parent | Guide step, queue item. | commit: -
 
 ## Log
 
 - L1. User request and choices above (2026-10-19).
+- L2. Implemented T1: single-row Card toolbar, scrolling 300px chips with dimension icons,
+  independent 32px remove buttons and full-text Tooltip/accessibility labels; filtered
+  results with plural helper and «Editar filtros» opening the existing Sheet. Preserved
+  column-order hint and counts. Filtered empty columns now share «Sin coincidencias»
+  and explanatory copy, with no per-column clear button (explicit task clarification
+  supersedes S3's original clear link). Updated UI rules §13.12 and §9.
+  RED: 3 expected failures (missing toolbar, new remove names/results copy), 263 passed.
+  GREEN: pipeline-movement suite 266/266 in 22 files; tsc --noEmit --incremental false,
+  eslint on six touched TSX files and git diff --check passed. Tooltip root/trigger and
+  portal remain real in tests; content positioning is replaced because jsdom geometry
+  caused timeouts. Browser verification of tooltip positioning, mobile scroll and both
+  themes remains for review. No packages installed, shared primitives changed or commit made.

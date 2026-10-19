@@ -358,6 +358,8 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
 - [ ] ¿Foco visible y nombre accesible en todos los controles?
 - [ ] ¿Los filtros de tablero/lista comparten un único «Filtros» Sheet, dimensiones
       multiselección OR/AND y chips removibles con anuncio de resultados (§13.12)?
+- [ ] ¿Los chips del tablero nunca envuelven ni empujan las columnas hacia abajo,
+      incluso con preguntas largas y en móvil (§13.12)?
 - [ ] ¿La pantalla tiene presencia visual: jerarquía, profundidad, iconografía,
       densidad y acento semántico (sección 10)?
 - [ ] ¿Si la vista ofrece dos modos, cada modo tiene una arquitectura distinta y no
@@ -941,16 +943,30 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
   lista de casillas. Pie con el resumen en vivo («N candidatos coinciden» y los filtros
   activos) y las acciones «Limpiar» y «Ver N candidato(s)». Los filtros aplican en
   vivo; el botón primario solo cierra y el foco vuelve a «Filtros».
-- Solo con filtros activos aparece una fila de chips removibles (botones, no badges
-  interactivos), uno por valor con su dimensión, más «Limpiar filtros» y el anuncio
-  cortés «Mostrando X de Y candidatos». El estado vive en el controlador/página local,
-  sin URL; filtrar no escribe ni vuelve a leer.
+- Una sola barra en superficie `Card`, con borde, `rounded-xl` y espaciado de 8–12px:
+  «Filtros» con contador a la izquierda; con filtros activos, `Separator` vertical,
+  riel de chips `min-w-0 flex-1` sin wrap y con scroll horizontal fino, y «Limpiar»
+  ghost con `RotateCcw` a la derecha. Sin filtros, solo «Filtros». La barra de controles
+  usa `CardContent` sin encabezado ni footer redundantes; el grupo tiene nombre accesible.
+- Cada chip es un control, nunca un badge interactivo: ícono de dimensión, etiqueta
+  muted + «: » + valor, máximo 300px, etiqueta y valor con `min-w-0 truncate`.
+  `Tooltip` → `TooltipTrigger` + `TooltipContent` (§19) conserva el texto completo
+  «{dimensión}: {valor}» al pasar o enfocar. Quitar usa un botón compacto de 32px
+  con nombre «Quitar filtro {dimensión}: {valor}», sin abreviar el contenido.
+- Solo con filtros activos aparece debajo «● Vista filtrada · Mostrando X de Y
+  candidato(s)», con anuncio cortés y helper de plural, más «Editar filtros ›» a la
+  derecha que abre el mismo Sheet y devuelve el foco a «Filtros». En móvil esa línea
+  puede envolver; la barra y sus chips nunca. El estado vive en el controlador/página
+  local, sin URL; filtrar no escribe ni vuelve a leer.
 - Convención futura del servidor: parámetros repetidos por valor, por ejemplo
   `?substate=a&substate=b&substate=none`, con la misma semántica OR/AND. No cambiar
   contratos ni emitir requests para implementar la presentación local.
 - Se conserva el tablero completo como fuente: las columnas muestran «X de Y» mientras
-  hay filtro y «Ningún candidato coincide con el filtro» si quedan vacías. La cobertura
-  no cambia. Si una escritura oculta su tarjeta, sus errores siguen visibles en la barra
+  hay filtro. Si quedan vacías, usan `Empty` con borde dashed, ícono de filtro muted,
+  título «Sin coincidencias» y «Ningún candidato coincide con los filtros en esta
+  etapa.», sin botón en ninguna columna: «Limpiar» vive en la barra. Es la excepción
+  de filtrado a los vacíos de una línea de §14.2–§14.3; sin filtros se conservan.
+  La cobertura no cambia. Si una escritura oculta su tarjeta, sus errores siguen visibles en la barra
   y el foco puede volver al filtro.
 
 ## 14. Tipografía y pulido de producto (decisiones de la pasada de UI)

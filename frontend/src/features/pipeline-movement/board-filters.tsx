@@ -1,8 +1,10 @@
 "use client";
 import { Fragment, useRef, useState } from "react";
-import { ArrowRight, ChevronDown, Info, RotateCcw, Search, SlidersHorizontal, X } from "lucide-react";
+import { ArrowRight, Briefcase, ChevronDown, ChevronRight, Columns3, GraduationCap, Info, MapPin, MessageSquareText, RotateCcw, Search, SlidersHorizontal, Sparkles, Tags, UserX, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldDescription, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
@@ -73,9 +75,23 @@ export function BoardFilters<Item>({ items, dimensions, selection, onChange, res
   const count = activeFilterCount(selection);
   const sections = [...new Set(dimensions.map(dimension => dimension.presentation?.section.key))];
   return <Sheet open={open} onOpenChange={setOpen}>
-    <SheetTrigger render={<Button ref={trigger} id="board-filters" type="button" variant="outline" className="min-h-10" />}>
-      <SlidersHorizontal aria-hidden="true" data-icon="inline-start" />Filtros{count > 0 && <Badge variant="secondary">{count}</Badge>}
-    </SheetTrigger>
+    {/* Toolbar-only Card: no heading/footer; its accessible group names the controls. */}
+    <Card role="group" aria-label="Filtros del pipeline" className="min-w-0 shrink-0 rounded-xl border [--card-spacing:--spacing(2)]">
+      <CardContent className="flex min-w-0 flex-nowrap items-center gap-2">
+        <SheetTrigger render={<Button ref={trigger} id="board-filters" type="button" variant="outline" className="min-h-10" />}>
+          <SlidersHorizontal aria-hidden="true" data-icon="inline-start" />Filtros{count > 0 && <Badge variant="secondary">{count}</Badge>}
+        </SheetTrigger>
+        {count > 0 && <>
+          <Separator orientation="vertical" />
+          <BoardFilterChips dimensions={dimensions} selection={selection} onChange={onChange} onEdit={() => setOpen(true)} />
+          <Button type="button" variant="ghost" className="min-h-10 shrink-0" onClick={() => onChange(clearFilters(selection))}><RotateCcw aria-hidden="true" data-icon="inline-start" />Limpiar</Button>
+        </>}
+      </CardContent>
+    </Card>
+    {count > 0 && <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <p role="status" aria-live="polite" className="text-xs text-muted-foreground"><span aria-hidden="true" className="text-primary">● </span>Vista filtrada · Mostrando {resultCount} de {plural(items.length, "candidato", "candidatos")}</p>
+      <Button type="button" variant="link" className="ml-auto min-h-10" onClick={() => setOpen(true)}>Editar filtros<ChevronRight aria-hidden="true" data-icon="inline-end" /></Button>
+    </div>}
     <SheetContent side="right" showCloseButton={false} finalFocus={trigger} className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md">
       <SheetHeader className="shrink-0 border-b p-6">
         <div data-slot="filter-icon" className="mb-2 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><SlidersHorizontal aria-hidden="true" className="size-5" /></div>
@@ -117,11 +133,27 @@ export function BoardFilters<Item>({ items, dimensions, selection, onChange, res
     </SheetContent>
   </Sheet>;
 }
-export function BoardFilterChips<Item>({ dimensions, selection, onChange, resultCount, total }: Omit<Props<Item>, "items"> & { total: number }) {
-  if (!activeFilterCount(selection)) return null;
-  return <div className="flex shrink-0 flex-wrap items-center gap-2" aria-label="Filtros activos">
-    {filterChips(dimensions, selection).map(chip => <Button key={`${chip.key}-${chip.value}`} type="button" variant="outline" className="min-h-10 max-w-full whitespace-normal" aria-label={`Quitar ${chip.label}`} onClick={() => onChange(toggleFilter(selection, chip.key, chip.value))}>{chip.label}<X aria-hidden="true" data-icon="inline-end" /></Button>)}
-    <Button type="button" variant="ghost" className="min-h-10" onClick={() => onChange(clearFilters(selection))}>Limpiar filtros</Button>
-    <p role="status" aria-live="polite" className="text-xs text-muted-foreground">Mostrando {resultCount} de {plural(total, "candidato", "candidatos")}</p>
-  </div>;
+const chipIcons = { column: Columns3, substate: Tags, discard: UserX, city: MapPin, skills: Sparkles, experience: Briefcase, education: GraduationCap };
+
+function BoardFilterChips<Item>({ dimensions, selection, onChange, onEdit }: Pick<Props<Item>, "dimensions" | "selection" | "onChange"> & { onEdit: () => void }) {
+  return <TooltipProvider><div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-x-auto p-1 [scrollbar-width:thin]" aria-label="Filtros activos">
+    {filterChips(dimensions, selection).map(chip => {
+      const dimension = dimensions.find(dimension => dimension.key === chip.key)!;
+      const value = dimension.options.find(option => option.value === chip.value)!.label;
+      const Icon = chip.key.startsWith("screening:") ? MessageSquareText : chipIcons[chip.key as keyof typeof chipIcons] ?? SlidersHorizontal;
+      return <div key={`${chip.key}-${chip.value}`} className="flex max-w-[300px] shrink-0 items-center rounded-lg border">
+        <Tooltip>
+          <TooltipTrigger render={<Button type="button" variant="ghost" className="min-w-0 shrink h-8 gap-1 px-2" aria-label={chip.label} onClick={onEdit} />}>
+            <Icon aria-hidden="true" data-icon="inline-start" />
+            <span className="min-w-0 truncate text-muted-foreground">{dimension.label}</span><span aria-hidden="true">: </span><span className="min-w-0 truncate">{value}</span>
+          </TooltipTrigger>
+          <TooltipContent className="break-words">{chip.label}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger render={<Button type="button" variant="ghost" size="icon" className="size-8 shrink-0" aria-label={`Quitar filtro ${chip.label}`} onClick={() => onChange(toggleFilter(selection, chip.key, chip.value))} />}><X aria-hidden="true" /></TooltipTrigger>
+          <TooltipContent className="break-words">{chip.label}</TooltipContent>
+        </Tooltip>
+      </div>;
+    })}
+  </div></TooltipProvider>;
 }

@@ -1,13 +1,14 @@
 "use client";
 import { useRef, useState, type RefObject } from "react";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, pointerWithin, useDraggable, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from "@dnd-kit/core";
-import { CalendarDays, Clock3, FileText, FileType2, GripVertical, LockKeyhole } from "lucide-react";
+import { CalendarDays, Clock3, FileText, FileType2, GripVertical, ListFilter, LockKeyhole } from "lucide-react";
 import { cn } from "cn";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { allowedMoveTargets } from "./helpers";
@@ -125,7 +126,13 @@ export function BoardColumns({ board, pending, locked, notices, onMove, onDetail
             {items.length ? <ul className="flex flex-col gap-3">{items.map(item => <li key={item.id}>
               <CandidateCard item={item} board={board} onSubstate={onSubstate} targets={allowedMoveTargets(board, item)} disabled={locked || pending.has(item.id)}
                 pending={pending.has(item.id)} notice={notices[item.id]} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} suppressClick={suppressClick} />
-            </li>)}</ul> : <p className="flex h-24 items-center justify-center rounded-lg border border-dashed border-border text-[11px] text-muted-foreground">{filtered ? "Ningún candidato coincide con el filtro" : "Sin candidatos en esta etapa"}</p>}
+            </li>)}</ul> : filtered ? <Empty className="rounded-lg border p-6 text-muted-foreground">
+              <EmptyHeader>
+                <EmptyMedia><ListFilter aria-hidden="true" className="size-5" /></EmptyMedia>
+                <EmptyTitle className="text-xs">Sin coincidencias</EmptyTitle>
+                <EmptyDescription className="text-[11px]">Ningún candidato coincide con los filtros en esta etapa.</EmptyDescription>
+              </EmptyHeader>
+            </Empty> : <p className="flex h-24 items-center justify-center rounded-lg border border-dashed border-border text-[11px] text-muted-foreground">Sin candidatos en esta etapa</p>}
           </Column>;
         })}
       </div><ScrollBar orientation="horizontal" />
