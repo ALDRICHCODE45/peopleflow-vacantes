@@ -230,6 +230,10 @@ type ParticipationStageHistory struct {
 	ReasonCode       pgtype.Text        `json:"reason_code"`
 	Comment          pgtype.Text        `json:"comment"`
 	CandidateMessage pgtype.Text        `json:"candidate_message"`
+	FromSubstateID   pgtype.UUID        `json:"from_substate_id"`
+	FromSubstateName pgtype.Text        `json:"from_substate_name"`
+	ToSubstateID     pgtype.UUID        `json:"to_substate_id"`
+	ToSubstateName   pgtype.Text        `json:"to_substate_name"`
 }
 
 type ProcessCoverageMilestone struct {
@@ -257,6 +261,7 @@ type ProcessParticipation struct {
 	Comment           pgtype.Text        `json:"comment"`
 	CandidateMessage  pgtype.Text        `json:"candidate_message"`
 	DiscardedAt       pgtype.Timestamptz `json:"discarded_at"`
+	SubstateID        pgtype.UUID        `json:"substate_id"`
 }
 
 type User struct {

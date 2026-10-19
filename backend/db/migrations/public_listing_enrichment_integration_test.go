@@ -57,6 +57,8 @@ func TestMigration00025BackfillDownAndUndecodableSource(t *testing.T) {
 	}
 	before := snapshot()
 	gooseUpAll(t, db)
+	// Pin the backfill/down assertions to this migration, not a later schema.
+	gooseDownTo(t, db, 25)
 	var skills []string
 	var count int
 	if err := pool.QueryRow(ctx, `SELECT skills,screening_questions FROM vacancy_public_projections WHERE id=$1`, id).Scan(&skills, &count); err != nil {
