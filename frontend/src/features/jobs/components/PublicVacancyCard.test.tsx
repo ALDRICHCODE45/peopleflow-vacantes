@@ -39,7 +39,7 @@ it("keeps condition and secondary fact order without filling absent optional fac
   const conditionKeys = () => [...container.querySelectorAll('[data-public-job-chips] [data-fact]')].map(node => node.getAttribute("data-fact"));
   expect(conditionKeys()).toEqual(["work_mode", "location", "work_schedule"]);
   expect(screen.getByText("Indefinido · Senior · Tecnología y sistemas")).toBeVisible();
-  rerender(<PublicVacancyCard job={listItem({ ...legacyDetail, location: null })} />);
+  rerender(<PublicVacancyCard job={listItem({ ...legacyDetail, location: null, location_label: null })} />);
   expect(conditionKeys()).toEqual(["work_mode", "legacy_employment_type"]);
   expect(container.querySelector('[data-public-secondary-facts]')).toHaveTextContent("Senior");
   expect(container.querySelector('[data-slot="card-description"]')).not.toHaveTextContent("·");

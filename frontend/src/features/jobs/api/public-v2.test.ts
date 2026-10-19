@@ -36,7 +36,7 @@ describe("public v2 contract", () => {
     for (const patch of [{ seniority: null }, { work_schedule: "full_time" }, { contract_type: "indefinite" }, { professional_area: "technology_systems" }, { compensation: vacancy.compensation }, { legacy_salary: { min: null, max: null, currency: "MXN" } }]) {
       expect(schemas.publicJobItemSchema.safeParse({ ...legacy, ...patch }).success).toBe(false);
     }
-    for (const patch of [{ legacy_employment_type: "full_time" }, { legacy_salary: legacy.legacy_salary }, { work_schedule: null }, { contract_type: null }, { professional_area: null }, { location: null }]) {
+    for (const patch of [{ legacy_employment_type: "full_time" }, { legacy_salary: legacy.legacy_salary }, { work_schedule: null }, { contract_type: null }, { professional_area: null }, { location: "CDMX" }]) {
       expect(schemas.publicJobItemSchema.safeParse({ ...vacancy, ...patch }).success).toBe(false);
     }
     expect(schemas.publicJobItemSchema.safeParse({ ...legacy, legacy_salary: { min: null, max: "50000.50", currency: "USD" } }).success).toBe(true);

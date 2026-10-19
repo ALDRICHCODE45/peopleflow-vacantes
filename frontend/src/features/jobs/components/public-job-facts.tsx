@@ -5,12 +5,26 @@ import { employmentTypeLabel } from "../formatters";
 import { PUBLIC_DETAIL_FACTS } from "./public-vacancy-layout";
 
 const label = (options: DraftOption[], value: string) => options.find((option) => option.value === value)!.label;
-type Fact = { key: string; label: string; value: string; Icon: LucideIcon };
+type Fact = { key: string; label: string; value: string; title?: string; Icon: LucideIcon };
+
+const joinNames = (names: string[]) => names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} y ${names.at(-1)}`;
+
+function remoteScopeFact(job: PublicJobItem): Fact[] {
+  if (job.work_mode !== "remote" || job.remote_scope === null) return [];
+  const scope = job.remote_scope;
+  if (scope.kind === "anywhere") return [{ key: "remote_scope", label: "Alcance remoto", value: "Desde cualquier lugar", Icon: Globe2Icon }];
+  const names = scope.countries.map(country => country.name);
+  const full = `Solo desde ${joinNames(names)}`;
+  return [{ key: "remote_scope", label: "Alcance remoto", Icon: Globe2Icon,
+    value: names.length > 3 ? `Solo desde ${names.slice(0, 2).join(", ")} y ${names.length - 2} más` : full,
+    title: names.length > 3 ? full : undefined }];
+}
 
 /** Shared public metadata, without inferred legacy dimensions or prototype data. */
 export function publicJobFacts(job: PublicJobItem): Fact[] {
   const facts: Fact[] = [];
-  if (job.location) facts.push({ key: "location", label: "Ubicación", value: job.location, Icon: MapPinIcon });
+  if (job.location_label !== null) facts.push({ key: "location", label: "Ubicación", value: job.location_label, Icon: MapPinIcon });
+  facts.push(...remoteScopeFact(job));
   facts.push({ key: "work_mode", label: "Modalidad", value: label(WORK_MODE_OPTIONS, job.work_mode), Icon: Globe2Icon });
   if (job.source === "legacy") {
     facts.push({ key: "legacy_employment_type", label: "Tipo de empleo", value: employmentTypeLabel(job.legacy_employment_type), Icon: BriefcaseIcon });
@@ -27,7 +41,7 @@ export function publicJobFacts(job: PublicJobItem): Fact[] {
 
 export function publicJobConditions(job: PublicJobItem): Fact[] {
   const facts = publicJobFacts(job);
-  const keys = ["work_mode", "location", "work_schedule", "legacy_employment_type"];
+  const keys = ["work_mode", "remote_scope", "location", "work_schedule", "legacy_employment_type"];
   return keys.flatMap(key => facts.filter(fact => fact.key === key));
 }
 
@@ -42,9 +56,9 @@ export function publicJobHeroFacts(job: PublicJobItem): Fact[] {
 
 export function PublicJobFacts({ job }: { job: PublicJobItem }) {
   return <dl className={PUBLIC_DETAIL_FACTS}>
-    {publicJobFacts(job).map(({ key, label, value, Icon }) => <div key={key} data-fact={key} className="flex min-w-0 flex-col gap-2">
+    {publicJobFacts(job).map(({ key, label, value, title, Icon }) => <div key={key} data-fact={key} className="flex min-w-0 flex-col gap-2">
       <dt className="flex items-center gap-2 text-sm text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0" />{label}</dt>
-      <dd className="break-words text-sm font-medium">{value}</dd>
+      <dd title={title} aria-label={title} className="break-words text-sm font-medium">{value}</dd>
     </div>)}
   </dl>;
 }
