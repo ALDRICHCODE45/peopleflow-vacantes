@@ -20,4 +20,5 @@ Branch `feat/geo-location-field-ui` from `main`. No screen adopts the field unti
 
 ## Log
 
-- L1. Backend G1 committed: 579748a (migration 00030), 5a8bbce (catalog, endpoints, importer, data). Local test: `make db-migrate` then `make geo-import`.
+- L1. Backend G1 committed: 579748a (migration 00030), 5a8bbce (catalog, endpoints, importer, data). Local test: `make db-migrate`, then `DATABASE_URL=… make geo-import` (geo-import does NOT read .env; export DATABASE_URL in the shell).
+- L1b. Backend G1 verified without catalog defects; ordering tests added (countries by Spanish name, states by code); API unchanged.
