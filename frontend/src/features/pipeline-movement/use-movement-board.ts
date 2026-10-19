@@ -56,7 +56,7 @@ export function useMovementBoard(vacancyId: string) {
   // Concurrent responses have no shared coverage version: one final GET avoids
   // letting a late, older response overwrite the global coverage/milestone.
   const overlapping = useRef(false);
-  const columns = useBoardColumnOrder(vacancyId, board, stale || reading || !!confirmation || !!disposition || !!substateConfirmation, reloadOrder);
+  const columns = useBoardColumnOrder(vacancyId, board, stale || reading || pending.size > 0 || !!confirmation || !!disposition || !!substateConfirmation, reloadOrder);
   async function reloadOrder() {
     if (readBusy.current || locks.current.size) return false;
     readBusy.current = true; mustRead.current = true; setStale(true); setReading(true);
@@ -175,6 +175,7 @@ export function useMovementBoard(vacancyId: string) {
     await reconcileOnce();
   }
   function setSubstate(id: string, substateId: string | null) {
+    if (columns.busy || columns.confirmation) return;
     const current = snapshot.current;
     const item = current?.participations.find(item => item.id === id);
     if (!current || !item || !isInProcess(current, item) || confirming.current || disposing.current || substateIntent.current || locks.current.has(id) || mustRead.current || readBusy.current) return;
@@ -182,6 +183,7 @@ export function useMovementBoard(vacancyId: string) {
     const next = { item, value: substateId }; substateIntent.current = next; setSubstateConfirmation(next);
   }
   function requestMove(id: string, target: string) {
+    if (columns.busy || columns.confirmation) return;
     const current = snapshot.current;
     const item = current?.participations.find(item => item.id === id);
     if (!current || !item || locks.current.has(id) || mustRead.current || readBusy.current || (confirming.current && !locks.current.has(confirming.current.item.id)) || disposing.current) return;
@@ -206,6 +208,7 @@ export function useMovementBoard(vacancyId: string) {
     if (current) void submit(current.item, { kind: "substate", substateId: current.value });
   }
   function requestDisposition(id: string, kind: Disposition["kind"]) {
+    if (columns.busy || columns.confirmation) return;
     if (substateIntent.current) return;
     const current = snapshot.current;
     const item = current?.participations.find(item => item.id === id);

@@ -5,6 +5,7 @@ import { ArrowRightLeft, BadgeCheck, Columns3, GripVertical, Settings2, Tags, Us
 import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { Button } from "@/components/ui/button";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
+import { ImpactDetails } from "@/features/employer-vacancies/stage-config/impact-details";
 import { Spinner } from "@/components/ui/spinner";
 import { Separator } from "@/components/ui/separator";
 import { Hint } from "./pipeline-presentation";
@@ -69,8 +70,11 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
   const column = state.columns.confirmation;
   const columnDialog = column && <ConfirmActionDialog icon={Columns3} open onOpenChange={open => { if (!open) state.columns.closeConfirmation(); }}
     finalFocus={() => document.getElementById(`column-menu-${column.key}`)}
-    title={`¿Mover la columna ${column.name}?`} description={`Queda ${column.position}. El orden se guarda para esta vacante.`}
-    confirmLabel="Mover columna" pendingLabel="Moviendo columna…" pending={state.columns.busy} confirmDisabled={state.reading || stale} onConfirm={() => void state.columns.confirmMove()} />;
+    title={`¿Mover la columna ${column.name}?`} description="Ningún candidato cambia de columna. El nuevo orden aplica a los próximos movimientos."
+    confirmLabel="Mover columna" pendingLabel="Moviendo columna…" pending={state.columns.busy} confirmDisabled={state.reading || stale} onConfirm={() => void state.columns.confirmMove()}>
+    <p className="text-sm">Queda {column.position}.</p>
+    <ImpactDetails preview={column.preview} baseline={column.next.baseline} />
+  </ConfirmActionDialog>;
   return <section aria-label="Tablero de candidatos" className="flex min-h-0 min-w-0 flex-1 flex-col gap-4" aria-busy={state.reading}>
     <div className="flex shrink-0 flex-col items-start justify-between gap-4 pb-2 lg:flex-row lg:items-center">
       <div className="flex flex-col gap-1.5"><h2 className="text-xl font-semibold tracking-tight">Pipeline</h2>{publishedAt && <p className="text-xs text-muted-foreground">Publicada el <MovementDate value={publishedAt} /></p>}</div>
@@ -84,13 +88,13 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <p className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"><UsersRound aria-hidden="true" className="size-4" /><span><strong className="font-medium text-foreground tabular-nums">{board.participations.length}</strong> candidatos en el pipeline</span></p>
         <div className="ml-auto flex min-w-0 flex-wrap items-center gap-3"><BoardFilters items={board.participations} dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} /><ActionStatusSlot>
-          {state.columns.busy ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner aria-hidden="true" />Guardando y actualizando columnas…</p> : state.columns.notice ? <ActionStatus id="column-order-status" tone={state.columns.notice.tone} text={state.columns.notice.text} /> : state.columns.unavailable ? <p className="text-sm text-muted-foreground">No pudimos cargar el orden de columnas.</p> : (state.columns.structureLocked || !state.columns.locked) && <span className="hidden items-center gap-1.5 text-[11px] text-muted-foreground lg:flex"><GripVertical aria-hidden="true" className="size-3.5" />{state.columns.structureLocked ? "Arrastra una tarjeta para moverla" : "Arrastra una columna para reordenarla"}</span>}
+          {state.columns.busy ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner aria-hidden="true" />{state.columns.pending === "preview" ? "Revisando el impacto…" : "Guardando y actualizando columnas…"}</p> : state.columns.notice ? <ActionStatus id="column-order-status" tone={state.columns.notice.tone} text={state.columns.notice.text} action={state.columns.notice.link && <Link className="inline-flex min-h-10 items-center underline" href={state.columns.notice.link.href}>{state.columns.notice.link.title}</Link>} /> : state.columns.unavailable ? <p className="text-sm text-muted-foreground">No pudimos cargar el orden de columnas.</p> : !state.columns.locked && <span className="hidden items-center gap-1.5 text-[11px] text-muted-foreground lg:flex"><GripVertical aria-hidden="true" className="size-3.5" />Reordena columnas y revisa el impacto antes de guardar</span>}
         </ActionStatusSlot>{state.columns.unavailable && <Button type="button" variant="outline" className="min-h-10" disabled={state.columns.busy} onClick={() => void state.columns.refresh()}>Actualizar columnas</Button>}</div>
       </div>
       <BoardFilterChips dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} total={board.participations.length} />
-      <BoardColumns visibleItems={visibleItems} filtered={activeFilterCount(filters) > 0} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={state.stale || !!confirmation || !!substate || !!column || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
+      <BoardColumns visibleItems={visibleItems} filtered={activeFilterCount(filters) > 0} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={state.stale || state.columns.busy || !!confirmation || !!substate || !!column || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
       {Object.entries(state.notices).filter(([id]) => !visibleItems.some(item => item.id === id)).map(([id, notice]) => <ActionStatusSlot key={id}><ActionStatus id={`move-status-${id}`} tone={notice.tone} text={notice.text} /></ActionStatusSlot>)}
-      {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} onClose={() => setSelected(null)} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={stale || pending.has(selectedItem.id) || !!confirmation || !!substate || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}{substateDialog}</CandidateSheet>}
+      {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} onClose={() => setSelected(null)} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={stale || state.columns.busy || !!column || pending.has(selectedItem.id) || !!confirmation || !!substate || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}{substateDialog}</CandidateSheet>}
       {!selectedItem && dispositionDialog}
     </>}
     {!selectedItem && placementDialog}
