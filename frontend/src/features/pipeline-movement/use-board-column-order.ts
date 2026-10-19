@@ -18,6 +18,7 @@ export function useBoardColumnOrder(vacancyId: string, board: Board | null, disa
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [optimistic, setOptimistic] = useState<Loaded["pipeline"] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmation, setConfirmation] = useState<{ key: string; targetIndex: number; name: string; position: string } | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const mutex = useRef(false);
@@ -56,6 +57,15 @@ export function useBoardColumnOrder(vacancyId: string, board: Board | null, disa
     setBusy(false); mutex.current = false;
   }
   async function move(key: string, targetIndex: number) {
+    if (mutex.current || locked || confirmation || !editor || !canMoveTo(editor, key, targetIndex)) return;
+    const next = moveStageTo(editor, key, targetIndex);
+    if (!validateEditor(next).ok) return;
+    setConfirmation({ key, targetIndex, name: next.stages[targetIndex].name, position: targetIndex === 1 ? `antes de ${next.stages[targetIndex + 1].name}` : `después de ${next.stages[targetIndex - 1].name}` });
+  }
+  function closeConfirmation() { if (!mutex.current) setConfirmation(null); }
+  async function confirmMove() {
+    if (!confirmation) return;
+    const { key, targetIndex } = confirmation;
     if (mutex.current || locked || !loaded || !editor || !canMoveTo(editor, key, targetIndex)) return;
     const next = moveStageTo(editor, key, targetIndex);
     if (!validateEditor(next).ok) return;
@@ -91,9 +101,9 @@ export function useBoardColumnOrder(vacancyId: string, board: Board | null, disa
           : "No pudimos confirmar el cambio. Actualizamos el tablero sin repetir el guardado.";
       report({ tone: "error", text: config.ok && boardOk ? text : "No pudimos actualizar las columnas. Los cambios están bloqueados; usa Actualizar columnas para comprobar, sin repetir el guardado." }, "No se guardó el orden de columnas", result.reference);
     }
-    setOptimistic(null); setBusy(false); mutex.current = false;
+    setOptimistic(null); setBusy(false); mutex.current = false; setConfirmation(null);
   }
   const displayBoard = board && optimistic ? { ...board, stages: optimistic.stages.map(stage => ({ ...stage, count: board.stages.find(item => item.id === stage.id)?.count ?? 0 })) } : board;
-  return { board: displayBoard, editor, locked, structureLocked, busy, unavailable: unavailable || (!!editor && !!board && !matches && !busy), notice, move, refresh };
+  return { board: displayBoard, editor, locked: locked || !!confirmation, confirmation, closeConfirmation, confirmMove, structureLocked, busy, unavailable: unavailable || (!!editor && !!board && !matches && !busy), notice, move, refresh };
 }
 export type BoardColumnOrder = ReturnType<typeof useBoardColumnOrder>;

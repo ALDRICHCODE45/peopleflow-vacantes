@@ -61,11 +61,28 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 async function mount() { render(<MovementBoard vacancyId={vacancyId} />); await screen.findByRole("button", { name: "Reordenar Screening" }); }
-function drop(id = "screen", target = "ok") {
+function drop(id = "screen", target = "ok", confirm = true) {
   act(() => dnd.props.onDragStart({ active: { id, data: { current: { type: "column" } } }, activatorEvent: { type: "pointerdown" } }));
   act(() => dnd.props.onDragEnd({ active: { id, data: { current: { type: "column" } } }, over: { id: target } }));
+  const action = screen.queryByRole("button", { name: "Mover columna" });
+  if (confirm && action) fireEvent.click(action);
 }
-const order = () => screen.getAllByRole("heading", { level: 3 }).map(heading => heading.textContent);
+const order = () => screen.getAllByRole("heading", { level: 3, hidden: true }).map(heading => heading.textContent);
+it.each(["drop", "menu"])("column %s keeps its order until confirmed and cancels without saving", async source => {
+  const request = () => {
+    if (source === "drop") drop("screen", "ok", false);
+    else { fireEvent.click(screen.getByRole("button", { name: "Orden de Screening" })); fireEvent.click(screen.getByRole("menuitem", { name: "Mover a la derecha" })); }
+  };
+  await mount(); const original = order(); request();
+  const dialog = screen.getByRole("alertdialog", { name: "¿Mover la columna Screening?" });
+  expect(dialog).toHaveAccessibleDescription("Queda después de Screening OK. El orden se guarda para esta vacante.");
+  expect(saveDraftPipelineAction).not.toHaveBeenCalled(); expect(order()).toEqual(original);
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+  expect(saveDraftPipelineAction).not.toHaveBeenCalled(); expect(order()).toEqual(original);
+  request(); const confirm = screen.getByRole("button", { name: "Mover columna" });
+  fireEvent.click(confirm); fireEvent.click(confirm);
+  await waitFor(() => expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1));
+});
 it("offers named handles only for intermediate progression columns", async () => {
   await mount();
   expect(screen.getAllByRole("button", { name: /^Reordenar / })).toHaveLength(4);
@@ -98,6 +115,9 @@ it("the keyboard/non-drag menu moves right and disables movement beyond fixed en
   expect(within(menu).getByRole("menuitem", { name: "Mover a la izquierda" })).toBeDisabled();
   within(menu).getByRole("menuitem", { name: "Mover a la derecha" }).focus();
   await user.keyboard("{Enter}");
+  expect(saveDraftPipelineAction).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Cancelar" })).toHaveFocus();
+  fireEvent.click(screen.getByRole("button", { name: "Mover columna" }));
   await waitFor(() => expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1));
 });
 it("drop saves the reordered full body with If-Match, optimistically orders and locks all column controls", async () => {
@@ -106,7 +126,7 @@ it("drop saves the reordered full body with If-Match, optimistically orders and 
   await mount(); drop();
   expect(order()).toEqual(saved().stages.map(stage => stage.name).concat("Descartados"));
   expect(saveDraftPipelineAction).toHaveBeenCalledExactlyOnceWith({ draftId: vacancyId, ifMatch: '"pipeline-1"', body: toPutBody(editorFromPipeline(saved())) });
-  expect(screen.getByRole("button", { name: "Reordenar Técnica" })).toBeDisabled();
+  expect(document.getElementById("column-drag-custom")).toBeDisabled();
   drop("process", "custom"); expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1);
   vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: board(saved()) });
   await act(async () => resolve({ ok: true, pipeline: saved(), etag: '"pipeline-2"' }));
@@ -173,6 +193,7 @@ it("the menu can also move left, and the last intermediate column cannot move ri
   const menu = screen.getByRole("menu");
   expect(within(menu).getByRole("menuitem", { name: "Mover a la derecha" })).toBeDisabled();
   fireEvent.click(within(menu).getByRole("menuitem", { name: "Mover a la izquierda" }));
+  fireEvent.click(screen.getByRole("button", { name: "Mover columna" }));
   await waitFor(() => expect(saveDraftPipelineAction).toHaveBeenCalledWith(expect.objectContaining({ body: toPutBody(moveStageTo(editorFromPipeline(pipeline()), "custom", 3)) })));
 });
 it("never offers column drag when candidates arrive in an otherwise unlocked snapshot", async () => {

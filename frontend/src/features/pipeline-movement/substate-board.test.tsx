@@ -24,13 +24,13 @@ afterEach(cleanup);
 it.each(["substate_requires_in_process", "version_conflict", "not_found", "uncertain", "unrecognized_response", "precondition_required"] as const)("substate %s reloads once without retry", async reason => {
   vi.mocked(setParticipationSubstateAction).mockResolvedValue({ ok: false, reason, reference: {} });
   const { result } = renderHook(() => useMovementBoard("vacancy")); await waitFor(() => expect(result.current.board).not.toBeNull());
-  await act(async () => result.current.setSubstate("person", null));
+  await act(async () => { result.current.setSubstate("person", null); result.current.confirmSubstate(); });
   await waitFor(() => expect(loadBoardAction).toHaveBeenCalledTimes(2)); expect(setParticipationSubstateAction).toHaveBeenCalledTimes(1);
 });
 it("substate validation keeps the board with a clear persistent error", async () => {
   vi.mocked(setParticipationSubstateAction).mockResolvedValue({ ok: false, reason: "validation_error", reference: { status: 400 } });
   const { result } = renderHook(() => useMovementBoard("vacancy")); await waitFor(() => expect(result.current.board).not.toBeNull());
-  await act(async () => result.current.setSubstate("person", null));
+  await act(async () => { result.current.setSubstate("person", null); result.current.confirmSubstate(); });
   await waitFor(() => expect(result.current.notices.person.text).toBe("No se guardó el subestado. Elige una opción del catálogo actual."));
   expect(result.current.board?.participations[0].substate_id).toBe("tech"); expect(loadBoardAction).toHaveBeenCalledTimes(1);
 });
@@ -38,7 +38,7 @@ it("set/clear uses the same per-card mutex as moves, applies returned item and a
   let resolve!: (result: Result<Move>) => void;
   vi.mocked(setParticipationSubstateAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
   const { result } = renderHook(() => useMovementBoard("vacancy")); await waitFor(() => expect(result.current.board).not.toBeNull());
-  act(() => { result.current.setSubstate("person", null); result.current.requestMove("person", "screen"); result.current.setSubstate("person", "offer"); });
+  act(() => { result.current.setSubstate("person", null); result.current.confirmSubstate(); result.current.requestMove("person", "screen"); result.current.setSubstate("person", "offer"); });
   expect(setParticipationSubstateAction).toHaveBeenCalledTimes(1); expect(moveParticipationAction).not.toHaveBeenCalled(); expect(result.current.pending.has("person")).toBe(true);
   const board = fixture(); const data = { delivery: board.delivery, ...board.participations[0], substate_id: null, etag: '"cleared"', coverage: board.coverage };
   await act(async () => resolve({ ok: true, data }));
@@ -46,7 +46,8 @@ it("set/clear uses the same per-card mutex as moves, applies returned item and a
   vi.mocked(setParticipationSubstateAction).mockResolvedValue({ ok: true, data });
   await act(async () => result.current.setSubstate("person", null));
   await waitFor(() => expect(result.current.pending.size).toBe(0));
-  expect(setParticipationSubstateAction).toHaveBeenLastCalledWith(expect.objectContaining({ etag: '"cleared"', body: { substate_id: null } }));
+  expect(setParticipationSubstateAction).toHaveBeenCalledTimes(1);
+  expect(result.current.substateConfirmation).toBeNull();
   expect(loadBoardAction).toHaveBeenCalledTimes(1);
 });
 it.each(["move", "discard"])("%s leaving in_process trusts the returned cleared substate and re-entry stays empty", operation => {
@@ -62,7 +63,7 @@ it("409 reconciles a stage changed elsewhere and rejects another substate write 
   vi.mocked(loadBoardAction).mockResolvedValueOnce({ ok: true, data: fixture() }).mockResolvedValueOnce({ ok: true, data: refreshed });
   vi.mocked(setParticipationSubstateAction).mockResolvedValue({ ok: false, reason: "substate_requires_in_process", reference: { status: 409 } });
   const { result } = renderHook(() => useMovementBoard("vacancy")); await waitFor(() => expect(result.current.board).not.toBeNull());
-  await act(async () => result.current.setSubstate("person", "offer"));
+  await act(async () => { result.current.setSubstate("person", "offer"); result.current.confirmSubstate(); });
   await waitFor(() => expect(result.current.board?.participations[0].stage_id).toBe("screen"));
   act(() => result.current.setSubstate("person", null));
   expect(setParticipationSubstateAction).toHaveBeenCalledTimes(1); expect(loadBoardAction).toHaveBeenCalledTimes(2);

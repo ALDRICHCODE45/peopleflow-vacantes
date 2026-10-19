@@ -112,7 +112,7 @@ export function BoardColumns({ board, pending, locked, notices, onMove, onDetail
       announcements: {
         onDragStart: ({ active }) => active.data?.current?.type === "column" ? `Tomaste la columna ${board.stages.find(stage => stage.id === active.id)?.name}.` : `Levantaste la tarjeta de ${board.participations.find(item => item.id === active.id)?.candidate.full_name ?? "candidato"}.`,
         onDragOver: ({ over }) => over ? `Sobre ${board.stages.find(stage => stage.id === over.id)?.name ?? "la etapa"}.` : "Fuera de las etapas permitidas.",
-        onDragEnd: ({ active, over }) => active.data?.current?.type === "column" ? "Arrastre terminado. Revisa el resultado del orden de columnas." : over ? "Movimiento solicitado. Espera la confirmación del servidor." : "No se movió la tarjeta.",
+        onDragEnd: ({ active, over }) => over ? active.data?.current?.type === "column" ? "Arrastre terminado. Revisa y confirma el nuevo orden de columnas." : "Arrastre terminado. Revisa y confirma el movimiento del candidato." : "Arrastre cancelado. No se guardaron cambios.",
         onDragCancel: () => "Movimiento cancelado. No cambió la etapa.",
       } }}>
     <ScrollArea role="region" aria-label="Columnas del pipeline" className="pf-board-scroll h-[min(70dvh,640px)] min-h-[448px] min-w-0 md:h-auto md:min-h-0 md:flex-1">

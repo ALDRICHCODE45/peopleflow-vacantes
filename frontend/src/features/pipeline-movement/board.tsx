@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, GripVertical, Settings2, TriangleAlert, UsersRound } from "lucide-react";
-import { ActionBar, ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
+import { ArrowRightLeft, BadgeCheck, Columns3, GripVertical, Settings2, Tags, UsersRound } from "lucide-react";
+import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { Separator } from "@/components/ui/separator";
 import { Hint } from "./pipeline-presentation";
@@ -53,16 +53,24 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
   const to = board?.stages.find(stage => stage.id === confirmation?.target)?.name ?? "la etapa seleccionada";
   const confirming = !!confirmation && state.pending.has(confirmation.item.id);
   const dispositionDialog = board && state.disposition && <DispositionDialog key={`${state.disposition.kind}-${state.disposition.item.id}`} disposition={state.disposition} board={board} pending={pending.has(state.disposition.item.id)} stale={stale} reading={state.reading} notice={state.notices[state.disposition.item.id]} onClose={state.closeDisposition} onConfirm={state.confirmDisposition} finalFocus={() => document.getElementById(`${selectedItem ? "candidate-disposition" : "candidate-move"}-${state.disposition!.item.id}`)} />;
-  const placementDialog = <Dialog open={!!confirmation} onOpenChange={open => { if (!open) state.closeConfirmation(); }}>
-    {confirmation && <DialogContent showCloseButton={!confirming} finalFocus={() => document.getElementById(`${selectedItem ? "candidate-sheet-move" : "candidate-move"}-${confirmation.item.id}`)}>
-      <DialogHeader><DialogTitle>Salir de {from}</DialogTitle><DialogDescription>Este movimiento reduce las plazas cubiertas y conserva el historial de contratación. Confirma antes de continuar.</DialogDescription></DialogHeader>
-      <div className="flex flex-col gap-3"><p className="font-medium">{confirmation.item.candidate.full_name}</p><p className="flex items-center gap-2">{from}<ArrowRight aria-hidden="true" className="size-4" />{to}</p><p className="flex items-start gap-2 text-sm"><TriangleAlert aria-hidden="true" className="size-4 shrink-0" />Se registrará la salida de Placement sin borrar los movimientos anteriores.</p></div>
-      <DialogFooter className="flex-row"><ActionBar status={confirming ? <span role="status" className="text-sm">Moviendo candidato…</span> : state.stale ? <ActionStatus id="placement-check-status" tone="info" text={state.reading ? "Actualizando el tablero. Espera antes de confirmar." : "Cancela y usa Reintentar para actualizar el tablero antes de confirmar."} /> : null}>
-        <Button type="button" variant="outline" className="min-h-10" disabled={confirming} onClick={state.closeConfirmation}>Cancelar</Button>
-        <Button type="button" className="min-h-10" disabled={confirming || state.reading || state.stale} aria-busy={confirming} aria-describedby={state.stale ? "placement-check-status" : undefined} onClick={state.confirmMove}>{confirming && <Spinner aria-hidden="true" data-icon="inline-start" />}Confirmar movimiento</Button>
-      </ActionBar></DialogFooter>
-    </DialogContent>}
-  </Dialog>;
+  const placementDialog = confirmation && <ConfirmActionDialog icon={confirmation.placementExit ? BadgeCheck : ArrowRightLeft} open onOpenChange={open => { if (!open) state.closeConfirmation(); }}
+    finalFocus={() => document.getElementById(`${selectedItem ? "candidate-sheet-move" : "candidate-move"}-${confirmation.item.id}`)}
+    title={`¿Mover a ${confirmation.item.candidate.full_name} a ${to}?`}
+    description={`Pasa de ${from} a ${to}. El cambio queda en su historial.${confirmation.placementExit ? " Las plazas cubiertas disminuyen en una y se conserva el historial de contratación." : ""}`}
+    confirmLabel="Mover" pendingLabel="Moviendo…" pending={confirming} confirmDisabled={state.reading || stale} onConfirm={state.confirmMove}>
+    {stale && <ActionStatus id="placement-check-status" tone="info" text={state.reading ? "Actualizando el tablero. Espera antes de confirmar." : "Cancela y usa Reintentar para actualizar el tablero antes de confirmar."} />}
+  </ConfirmActionDialog>;
+  const substate = state.substateConfirmation;
+  const substateName = (id: string | null) => board?.substates.find(item => item.id === id)?.name ?? "Sin subestado";
+  const substateDialog = substate && <ConfirmActionDialog icon={Tags} open onOpenChange={open => { if (!open) state.closeSubstateConfirmation(); }}
+    finalFocus={() => document.getElementById(selectedItem ? `candidate-substate-${substate.item.id}` : `candidate-move-${substate.item.id}`)}
+    title={`¿Cambiar el subestado de ${substate.item.candidate.full_name}?`} description={`Pasa de ${substateName(substate.item.substate_id)} a ${substateName(substate.value)}.`}
+    confirmLabel="Cambiar subestado" pendingLabel="Cambiando subestado…" pending={pending.has(substate.item.id)} confirmDisabled={state.reading || stale} onConfirm={state.confirmSubstate} />;
+  const column = state.columns.confirmation;
+  const columnDialog = column && <ConfirmActionDialog icon={Columns3} open onOpenChange={open => { if (!open) state.columns.closeConfirmation(); }}
+    finalFocus={() => document.getElementById(`column-menu-${column.key}`)}
+    title={`¿Mover la columna ${column.name}?`} description={`Queda ${column.position}. El orden se guarda para esta vacante.`}
+    confirmLabel="Mover columna" pendingLabel="Moviendo columna…" pending={state.columns.busy} confirmDisabled={state.reading || stale} onConfirm={() => void state.columns.confirmMove()} />;
   return <section aria-label="Tablero de candidatos" className="flex min-h-0 min-w-0 flex-1 flex-col gap-4" aria-busy={state.reading}>
     <div className="flex shrink-0 flex-col items-start justify-between gap-4 pb-2 lg:flex-row lg:items-center">
       <div className="flex flex-col gap-1.5"><h2 className="text-xl font-semibold tracking-tight">Pipeline</h2>{publishedAt && <p className="text-xs text-muted-foreground">Publicada el <MovementDate value={publishedAt} /></p>}</div>
@@ -80,11 +88,13 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
         </ActionStatusSlot>{state.columns.unavailable && <Button type="button" variant="outline" className="min-h-10" disabled={state.columns.busy} onClick={() => void state.columns.refresh()}>Actualizar columnas</Button>}</div>
       </div>
       <BoardFilterChips dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} total={board.participations.length} />
-      <BoardColumns visibleItems={visibleItems} filtered={activeFilterCount(filters) > 0} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={state.stale || !!confirmation || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
+      <BoardColumns visibleItems={visibleItems} filtered={activeFilterCount(filters) > 0} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={state.stale || !!confirmation || !!substate || !!column || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
       {Object.entries(state.notices).filter(([id]) => !visibleItems.some(item => item.id === id)).map(([id, notice]) => <ActionStatusSlot key={id}><ActionStatus id={`move-status-${id}`} tone={notice.tone} text={notice.text} /></ActionStatusSlot>)}
-      {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} onClose={() => setSelected(null)} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={stale || pending.has(selectedItem.id) || !!confirmation || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}</CandidateSheet>}
+      {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} onClose={() => setSelected(null)} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={stale || pending.has(selectedItem.id) || !!confirmation || !!substate || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}{substateDialog}</CandidateSheet>}
       {!selectedItem && dispositionDialog}
     </>}
     {!selectedItem && placementDialog}
+    {!selectedItem && substateDialog}
+    {columnDialog}
   </section>;
 }
