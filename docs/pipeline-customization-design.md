@@ -1666,6 +1666,10 @@ delivery), PIPE-13 (recovery returns to the previous stage with confirmation).
   the previous stage was removed; must be absent otherwise (`400 validation_error`); outside the
   allowed range → `400 validation_error`.
 - History union gains kind `not_applicable`: exactly `{kind, stage_id, actor, at}`.
+- **Applied impact echo** (frontend msg f597ac6a): the impact can change between preview and `PUT`
+  (a candidate moves meanwhile) without changing the pipeline version. The pipeline `PUT 200`
+  therefore always carries `applied_impact: {not_applicable, recovery_reassigned}` (preview item
+  shapes and ordering; empty arrays when nothing was applied). `GET` does not carry it.
 
 ### 17.3 Storage
 
