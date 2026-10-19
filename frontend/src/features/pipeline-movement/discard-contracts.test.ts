@@ -11,7 +11,7 @@ import { board, item, detail, history, id } from "./test-fixtures";
 import { applicationsSchema } from "@/features/candidate-applications/model";
 const reason = { group: "recruiter", key: "other" } as const;
 const discard = { reason, previous_stage_id: id(1), discarded_at: item.moved_at };
-const discarded = { ...item, stage_id: id(6), discard, coverage: board.coverage };
+const discarded = { ...item, stage_id: id(6), discard, coverage: board.coverage, delivery: { ...board.delivery, state: "pending" as const } };
 const input = { vacancyId: id(30), participationId: item.id, etag: item.etag };
 afterEach(() => vi.unstubAllGlobals());
 it("reason uses key, never code, in request, board, detail and discard history", () => {
@@ -47,7 +47,7 @@ it("counts code points after Unicode White_Space trim, preserves interior, rejec
   expect(buildDiscardBody(reason, "\u2003 explicación \u0085", " Hola ")).toEqual({ reason, comment: "explicación", candidate_message: "Hola" });
 });
 it.each(["discard", "recover"] as const)("%s action sends the unchanged ETag and exact body, without retries", async operation => {
-  const response = operation === "discard" ? discarded : { ...item, discard: null, coverage: board.coverage };
+  const response = operation === "discard" ? discarded : { ...item, discard: null, coverage: board.coverage, delivery: board.delivery };
   const fetch = vi.fn().mockResolvedValue(Response.json(response)); vi.stubGlobal("fetch", fetch);
   const body = operation === "discard" ? { reason, comment: "Motivo", confirm_placement_exit: true } : { confirm_placement_reentry: true };
   const call = operation === "discard" ? discardParticipationAction : recoverParticipationAction;
@@ -82,13 +82,13 @@ it("strict decoders require discard/detail fields, discriminate history, and rej
   expect(historySchema.safeParse({ items: [entry, { ...base, kind: "recovery", departure: false }] }).success).toBe(true);
   for (const bad of [{ ...entry, extra: true }, { ...entry, candidate_message: undefined }, { ...entry, hire: true }, { ...base, kind: "recovery", reason }, { ...base, kind: "move", comment: null }]) expect(historySchema.safeParse({ items: [bad] }).success).toBe(false);
 });
-function discardedItem() { const { coverage: _, ...value } = discarded; void _; return value; }
+function discardedItem() { const { coverage, delivery, ...value } = discarded; void coverage; void delivery; return value; }
 it("discard/recovery adoption recomputes counts, adopts coverage, and exit never participates in normal moves", () => {
   const parsed = boardSchema.parse(board);
   const after = applyParticipationToBoard(parsed, { ...discarded, coverage: { ...board.coverage, covered: 1 } });
   expect(after.exit.count).toBe(1); expect(after.stages[0].count).toBe(0); expect(after.coverage.covered).toBe(1);
   expect(allowedMoveTargets(after, after.participations[0])).toEqual([]);
-  const recovered = applyParticipationToBoard(after, { ...parsed.participations[0], coverage: board.coverage });
+  const recovered = applyParticipationToBoard(after, { ...parsed.participations[0], coverage: board.coverage, delivery: parsed.delivery });
   expect(recovered.exit.count).toBe(0); expect(recovered.stages[0].count).toBe(1);
 });
 it("rejects inconsistent discard placement, timestamp and previous stage in a board read", () => {

@@ -883,6 +883,11 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
 - Si coinciden escrituras independientes y el resumen global no tiene versión propia
   (por ejemplo cobertura), hacer una sola lectura al terminar todas: las respuestas
   pueden llegar fuera de orden. No convertir esa lectura en un reintento de escritura.
+- Un hito irreversible confirmado no retrocede por una respuesta de escritura anterior.
+  El resumen se adopta de la escritura; sus detalles se leen por separado, con una
+  secuencia de lectura que descarta respuestas antiguas. Si esos detalles fallan, se
+  conserva el hito y se muestra una descripción breve sin inventar fechas ni resultados.
+  La reconciliación vuelve a leer resumen y detalles, nunca repite la escritura.
 - Las operaciones de ciclo de vida (descartar/recuperar) comparten el bloqueo por
   tarjeta, los resultados y la reconciliación de los movimientos, pero no sus destinos
   de arrastre. Una columna sin movimientos directos puede conservar detalle y acciones

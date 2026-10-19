@@ -11,14 +11,15 @@ export function leavesPlacement(board: Board, item: Participation, target: strin
 }
 /** Confirmed moves replace, never append duplicates; milestone/coverage remain server-owned. */
 export const applyMoveToBoard = applyParticipationToBoard;
-/** All three operations return the same server-owned board item and coverage. */
+/** All four writes return the same server-owned item, coverage and delivery. */
 export function applyParticipationToBoard(board: Board, move: Move): Board {
-  const { coverage, ...item } = move;
+  const { coverage, delivery, ...item } = move;
   const order = new Map([...board.stages, board.exit].map((stage, index) => [stage.id, index]));
   const participations = [...board.participations.filter(previous => previous.id !== item.id), item].sort((a, b) =>
     (order.get(a.stage_id) ?? Infinity) - (order.get(b.stage_id) ?? Infinity)
     || Date.parse(b.moved_at) - Date.parse(a.moved_at) || a.id.localeCompare(b.id));
   const counts = new Map<string, number>();
   for (const participation of participations) counts.set(participation.stage_id, (counts.get(participation.stage_id) ?? 0) + 1);
-  return { ...board, participations, coverage, stages: board.stages.map(stage => ({ ...stage, count: counts.get(stage.id) ?? 0 })), exit: { ...board.exit, count: counts.get(board.exit.id) ?? 0 } };
+  // Fulfillment is immutable. An older overlapping response cannot undo it.
+  return { ...board, participations, coverage, delivery: board.delivery.state === "fulfilled" ? board.delivery : delivery, stages: board.stages.map(stage => ({ ...stage, count: counts.get(stage.id) ?? 0 })), exit: { ...board.exit, count: counts.get(board.exit.id) ?? 0 } };
 }

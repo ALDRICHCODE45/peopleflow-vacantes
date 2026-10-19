@@ -39,7 +39,7 @@ it("set/clear uses the same per-card mutex as moves, applies returned item and a
   const { result } = renderHook(() => useMovementBoard("vacancy")); await waitFor(() => expect(result.current.board).not.toBeNull());
   act(() => { result.current.setSubstate("person", null); result.current.requestMove("person", "screen"); result.current.setSubstate("person", "offer"); });
   expect(setParticipationSubstateAction).toHaveBeenCalledTimes(1); expect(moveParticipationAction).not.toHaveBeenCalled(); expect(result.current.pending.has("person")).toBe(true);
-  const board = fixture(); const data = { ...board.participations[0], substate_id: null, etag: '"cleared"', coverage: board.coverage };
+  const board = fixture(); const data = { delivery: board.delivery, ...board.participations[0], substate_id: null, etag: '"cleared"', coverage: board.coverage };
   await act(async () => resolve({ ok: true, data }));
   expect(result.current.board?.participations[0]).toMatchObject({ substate_id: null, etag: '"cleared"' });
   vi.mocked(setParticipationSubstateAction).mockResolvedValue({ ok: true, data });
@@ -50,7 +50,7 @@ it("set/clear uses the same per-card mutex as moves, applies returned item and a
 });
 it.each(["move", "discard"])("%s leaving in_process trusts the returned cleared substate and re-entry stays empty", operation => {
   const board = fixture(); const item = board.participations[0];
-  const returned: Move = { ...item, substate_id: null, stage_id: operation === "move" ? "screen" : "exit", discard: operation === "move" ? null : { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: "interview", discarded_at: item.moved_at }, coverage: board.coverage };
+  const returned: Move = { delivery: board.delivery, ...item, substate_id: null, stage_id: operation === "move" ? "screen" : "exit", discard: operation === "move" ? null : { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: "interview", discarded_at: item.moved_at }, coverage: board.coverage };
   const next = applyParticipationToBoard(board, returned);
   expect(next.participations[0].substate_id).toBeNull();
   const reentry = applyParticipationToBoard(next, { ...returned, discard: null, stage_id: "interview" });
@@ -106,6 +106,6 @@ it("select uses the current item, not stale detail, and exposes controlled value
 });
 it("substate toast names target and previous substate; clearing uses natural copy", () => {
   const board = fixture(), item = board.participations[0];
-  expect(boardSuccessCopy(board, { ...item, substate_id: null }, { kind: "substate", substateId: "tech" }, { ...item, coverage: board.coverage })).toEqual({ title: "Ana Pérez quedó en «Entrevista técnica»", description: "Antes: Sin subestado." });
-  expect(boardSuccessCopy(board, item, { kind: "substate", substateId: null }, { ...item, substate_id: null, coverage: board.coverage })).toEqual({ title: "Ana Pérez quedó sin subestado", description: "Antes: Entrevista técnica." });
+  expect(boardSuccessCopy(board, { ...item, substate_id: null }, { kind: "substate", substateId: "tech" }, { ...item, delivery: board.delivery, coverage: board.coverage })).toEqual({ title: "Ana Pérez quedó en «Entrevista técnica»", description: "Antes: Sin subestado." });
+  expect(boardSuccessCopy(board, item, { kind: "substate", substateId: null }, { ...item, substate_id: null, delivery: board.delivery, coverage: board.coverage })).toEqual({ title: "Ana Pérez quedó sin subestado", description: "Antes: Entrevista técnica." });
 });

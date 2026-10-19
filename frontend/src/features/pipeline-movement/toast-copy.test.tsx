@@ -29,7 +29,7 @@ async function mount(stage = "new", previous?: string) {
   return { ...hook, board };
 }
 function response(board: Board, stage: string, required: number | null = 2, covered = 1): Move {
-  return { ...board.participations[0], stage_id: stage, discard: null, coverage: { covered, required, full_coverage_reached_at: null } };
+  return { delivery: board.delivery, ...board.participations[0], stage_id: stage, discard: null, coverage: { covered, required, full_coverage_reached_at: null } };
 }
 function toast(title: string, description: string, type = "success") {
   expect(notifyActionResult).toHaveBeenLastCalledWith(expect.objectContaining({ key: "pipeline-move-person", type, title, description }));

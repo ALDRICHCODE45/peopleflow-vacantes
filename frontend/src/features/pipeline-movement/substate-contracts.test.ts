@@ -27,7 +27,7 @@ it("decodes exact substate history with name snapshots, not today's catalog", ()
   }
 });
 it.each([id(40), null])("set/clear %s sends exact body and unchanged If-Match, accepting no-op 200", async substate_id => {
-  const data = { ...active, substate_id, coverage: board.coverage };
+  const data = { ...active, substate_id, coverage: board.coverage, delivery: board.delivery };
   const fetch = vi.fn().mockResolvedValue(Response.json(data, { headers: { etag: active.etag } })); vi.stubGlobal("fetch", fetch);
   expect(await setParticipationSubstateAction({ vacancyId: id(30), participationId: item.id, etag: item.etag, body: { substate_id } })).toEqual({ ok: true, data });
   expect(fetch).toHaveBeenCalledTimes(1);

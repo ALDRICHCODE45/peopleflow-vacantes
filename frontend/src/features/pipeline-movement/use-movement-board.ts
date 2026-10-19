@@ -1,5 +1,7 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { loadDeliveryStatusAction } from "@/features/jobs/drafts/pipeline/delivery-actions";
+import { fulfillmentToast, type DeliveryStatus } from "@/features/jobs/drafts/pipeline/fulfillment-model";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { loadBoardAction, moveParticipationAction, discardParticipationAction, recoverParticipationAction, setParticipationSubstateAction } from "./actions";
 import { allowedMoveTargets, applyParticipationToBoard, leavesPlacement } from "./helpers";
@@ -21,6 +23,19 @@ async function readBoard(vacancyId: string): Promise<Result<Board>> {
 export function useMovementBoard(vacancyId: string) {
   const [board, setBoard] = useState<Board | null>(null);
   const snapshot = useRef<Board | null>(null);
+  const [deliveryStatus, setDeliveryStatus] = useState<DeliveryStatus | null>(null);
+  const statusSequence = useRef(0);
+  const fulfillmentAnnounced = useRef(false);
+  const alive = useRef(false);
+  const invalidateDelivery = useCallback(() => { statusSequence.current++; }, []);
+  const refreshDelivery = useCallback(async (announce = false) => {
+    const sequence = ++statusSequence.current;
+    let details: DeliveryStatus | null = null;
+    try { const result = await loadDeliveryStatusAction(vacancyId); if (result.ok) details = result.status; } catch { /* Keep the server-confirmed summary without inventing details. */ }
+    if (!alive.current) return;
+    if (sequence === statusSequence.current) setDeliveryStatus(details);
+    if (announce) notifyActionResult({ key: "pipeline-delivery", type: "success", title: "Entrega cumplida", description: fulfillmentToast(details?.state === "fulfilled" ? details.fulfillment : null) });
+  }, [vacancyId]);
   const [failure, setFailure] = useState<Failure | null>(null);
   const [reading, setReading] = useState(true);
   const [stale, setStale] = useState(false);
@@ -38,7 +53,6 @@ export function useMovementBoard(vacancyId: string) {
   // Concurrent responses have no shared coverage version: one final GET avoids
   // letting a late, older response overwrite the global coverage/milestone.
   const overlapping = useRef(false);
-  const alive = useRef(false);
   const columns = useBoardColumnOrder(vacancyId, board, stale || reading || !!confirmation || !!disposition, reloadOrder);
   async function reloadOrder() {
     if (readBusy.current || locks.current.size) return false;
@@ -50,7 +64,7 @@ export function useMovementBoard(vacancyId: string) {
     readBusy.current = false; setReading(false);
     return result.ok;
   }
-  function adopt(value: Board) { snapshot.current = value; setBoard(value); }
+  function adopt(value: Board, readStatus = true) { snapshot.current = value; setBoard(value); if (readStatus) void refreshDelivery(); }
   function report(id: string, notice: Notice, title: string, reference?: Failure["reference"]) {
     setNotices(previous => ({ ...previous, [id]: notice }));
     notifyActionResult({ key: `pipeline-move-${id}`, type: notice.tone,
@@ -62,11 +76,11 @@ export function useMovementBoard(vacancyId: string) {
     let current = true;
     void readBoard(vacancyId).then(result => {
       if (!current) return;
-      if (result.ok) { snapshot.current = result.data; setBoard(result.data); } else setFailure(result);
+      if (result.ok) { snapshot.current = result.data; setBoard(result.data); fulfillmentAnnounced.current = result.data.delivery.state === "fulfilled"; void refreshDelivery(); } else setFailure(result);
       setReading(false);
     });
-    return () => { current = false; alive.current = false; };
-  }, [vacancyId]);
+    return () => { current = false; alive.current = false; invalidateDelivery(); };
+  }, [vacancyId, refreshDelivery, invalidateDelivery]);
 
   async function reconcileOnce() {
     if ((!reconcile.current.size && !overlapping.current) || readBusy.current || locks.current.size) return;
@@ -116,7 +130,11 @@ export function useMovementBoard(vacancyId: string) {
     catch { result = { ok: false, reason: "uncertain", reference: {} } as const; }
     if (!alive.current) return;
     if (result.ok) {
-      if (snapshot.current) adopt(applyParticipationToBoard(snapshot.current, result.data));
+      const previousDelivery = snapshot.current?.delivery;
+      if (snapshot.current) adopt(applyParticipationToBoard(snapshot.current, result.data), false);
+      const fulfilledNow = previousDelivery?.state === "pending" && result.data.delivery.state === "fulfilled" && !fulfillmentAnnounced.current;
+      if (fulfilledNow) fulfillmentAnnounced.current = true;
+      if (previousDelivery?.state !== snapshot.current?.delivery.state || previousDelivery?.delivered !== snapshot.current?.delivery.delivered || previousDelivery?.target !== snapshot.current?.delivery.target) void refreshDelivery(fulfilledNow);
       const copy = boardSuccessCopy(actionBoard, item, write, result.data);
       report(item.id, { tone: "success", text: copy.description }, copy.title);
       if (confirming.current?.item.id === item.id) { confirming.current = null; setConfirmation(null); }
@@ -185,5 +203,5 @@ export function useMovementBoard(vacancyId: string) {
     if (current.kind === "discard" && body) void submit(current.item, { kind: "discard", body: { ...body, ...(current.placementConfirmation ? { confirm_placement_exit: true } : {}) } });
     if (current.kind === "recover") void submit(current.item, { kind: "recover", confirmed: current.placementConfirmation });
   }
-  return { board: columns.board, columns, failure, reading, stale, pending, notices, readNotice, confirmation, disposition, retry, setSubstate, requestMove, closeConfirmation, confirmMove, requestDisposition, closeDisposition, confirmDisposition };
+  return { board: columns.board, deliveryStatus, columns, failure, reading, stale, pending, notices, readNotice, confirmation, disposition, retry, setSubstate, requestMove, closeConfirmation, confirmMove, requestDisposition, closeDisposition, confirmDisposition };
 }

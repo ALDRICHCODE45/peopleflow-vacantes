@@ -61,7 +61,7 @@ beforeEach(() => {
   vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: boardFixture() });
   vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detailFixture() });
   vi.mocked(loadHistoryAction).mockResolvedValue({ ok: true, data: historyFixture() });
-  vi.mocked(moveParticipationAction).mockImplementation(async input => ({ ok: true, data: { ...boardFixture().participations[0], stage_id: (input.body as { to_stage_id: string }).to_stage_id, version: "5", etag: '"next-tag"', coverage: boardFixture().coverage } }));
+  vi.mocked(moveParticipationAction).mockImplementation(async input => ({ ok: true, data: { delivery: boardFixture().delivery, ...boardFixture().participations[0], stage_id: (input.body as { to_stage_id: string }).to_stage_id, version: "5", etag: '"next-tag"', coverage: boardFixture().coverage } }));
 });
 afterEach(cleanup);
 async function mount(board?: Board) {
@@ -186,7 +186,7 @@ it("200 applies new stage, counts, etag and server coverage; double submission i
   expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeDisabled();
   fireEvent.click(screen.getByRole("button", { name: "Acciones de Ana Pérez" }));
   expect(moveParticipationAction).toHaveBeenCalledTimes(1);
-  await act(async () => resolve({ ok: true, data: { ...boardFixture().participations[0], stage_id: "screen", version: "5", etag: '"new-opaque"', coverage: { covered: 1, required: 2, full_coverage_reached_at: null } } }));
+  await act(async () => resolve({ ok: true, data: { delivery: boardFixture().delivery, ...boardFixture().participations[0], stage_id: "screen", version: "5", etag: '"new-opaque"', coverage: { covered: 1, required: 2, full_coverage_reached_at: null } } }));
   expect(screen.getByRole("region", { name: "Revisión: 1 candidatos" })).toHaveTextContent("Ana Pérez");
   expect(screen.getByRole("region", { name: "Entrada: 0 candidatos" })).not.toHaveTextContent("Ana Pérez");
   expect(screen.getByLabelText("Cobertura")).toHaveTextContent("1 de 2 plazas cubiertas");
@@ -231,9 +231,9 @@ it("overlapping moves reconcile global coverage once after both responses, witho
   fireEvent.click(within(menus[menus.length - 1]).getByRole("menuitem", { name: "Revisión" }));
   const refreshed = { ...board, coverage: { covered: 2, required: 2, full_coverage_reached_at: "2026-10-18T12:00:00Z" } };
   vi.mocked(loadBoardAction).mockResolvedValueOnce({ ok: true, data: refreshed });
-  await act(async () => second({ ok: true, data: { ...board.participations[1], stage_id: "screen", coverage: refreshed.coverage } }));
+  await act(async () => second({ ok: true, data: { delivery: board.delivery, ...board.participations[1], stage_id: "screen", coverage: refreshed.coverage } }));
   expect(loadBoardAction).toHaveBeenCalledTimes(1);
-  await act(async () => first({ ok: true, data: { ...board.participations[0], stage_id: "screen", coverage: { ...board.coverage, covered: 1 } } }));
+  await act(async () => first({ ok: true, data: { delivery: board.delivery, ...board.participations[0], stage_id: "screen", coverage: { ...board.coverage, covered: 1 } } }));
   expect(loadBoardAction).toHaveBeenCalledTimes(2);
   expect(screen.getByText("Cobertura completa")).toBeVisible();
   expect(moveParticipationAction).toHaveBeenCalledTimes(2);
@@ -249,7 +249,7 @@ it.each(["success", "uncertain"])("another candidate's %s does not dismiss Place
   fireEvent.click(within(menus[menus.length - 1]).getByRole("menuitem", { name: "Revisión" }));
   await screen.findByRole("dialog", { name: "Salir de Contratación" });
   if (outcome === "uncertain") vi.mocked(loadBoardAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
-  await act(async () => resolve(outcome === "success" ? { ok: true, data: { ...board.participations[0], stage_id: "screen", coverage: board.coverage } } : { ok: false, reason: "uncertain", reference: {} }));
+  await act(async () => resolve(outcome === "success" ? { ok: true, data: { delivery: board.delivery, ...board.participations[0], stage_id: "screen", coverage: board.coverage } } : { ok: false, reason: "uncertain", reference: {} }));
   const dialog = screen.getByRole("dialog", { name: "Salir de Contratación" });
   expect(dialog).toHaveTextContent("Eva Ruiz");
   if (outcome === "uncertain") {
@@ -279,7 +279,7 @@ function activeSubstateBoard(): Board {
 }
 it("card radio options follow catalog order, share the write path and update the badge", async () => {
   const board = activeSubstateBoard();
-  vi.mocked(setParticipationSubstateAction).mockResolvedValue({ ok: true, data: { ...board.participations[0], substate_id: null, etag: '"cleared"', coverage: board.coverage } });
+  vi.mocked(setParticipationSubstateAction).mockResolvedValue({ ok: true, data: { delivery: board.delivery, ...board.participations[0], substate_id: null, etag: '"cleared"', coverage: board.coverage } });
   await mount(board);
   const actions = menu();
   expect(within(actions).getAllByRole("menuitemradio").map(option => option.textContent)).toEqual(["Entrevista técnica", "Oferta", "Sin subestado"]);
@@ -304,7 +304,7 @@ it("toolbar filter wires OR selections, excludes other stages and clears without
 it("sheet selector uses confirmed board value and snapshot history survives catalog renames", async () => {
   const board = activeSubstateBoard();
   vi.mocked(loadHistoryAction).mockResolvedValue({ ok: true, data: { items: [{ kind: "substate", from_substate_id: null, from_substate_name: null, to_substate_id: "tech", to_substate_name: "Nombre anterior", actor: { kind: "recruiter", id: "actor", full_name: "Luis López" }, at: "2026-10-18T12:00:00Z" }] } });
-  vi.mocked(setParticipationSubstateAction).mockResolvedValue({ ok: true, data: { ...board.participations[0], substate_id: "offer", etag: '"offer"', coverage: board.coverage } });
+  vi.mocked(setParticipationSubstateAction).mockResolvedValue({ ok: true, data: { delivery: board.delivery, ...board.participations[0], substate_id: "offer", etag: '"offer"', coverage: board.coverage } });
   await mount(board); fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Ana Pérez" }));
   const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
   expect(within(sheet).getByRole("combobox", { name: "Subestado" })).toHaveTextContent("Entrevista técnica");
@@ -339,7 +339,7 @@ it("discard form requires a grouped reason and explanation for other, with code-
 });
 it("discard from Placement explicitly confirms departure and reduces coverage without erasing history", async () => {
   const board = boardFixture(); board.participations[0].stage_id = "hire";
-  vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: { ...discardedBoard("hire").participations[0], coverage: board.coverage } });
+  vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: { delivery: board.delivery, ...discardedBoard("hire").participations[0], coverage: board.coverage } });
   const dialog = await openDiscard(board);
   expect(dialog).toHaveTextContent("reduce las plazas cubiertas");
   fireEvent.click(within(dialog).getByRole("combobox", { name: "Motivo" }));
@@ -351,7 +351,7 @@ it("discard from Placement explicitly confirms departure and reduces coverage wi
 });
 it.each(["new", "hire"])("discarded column shows reason and recover confirms the current name of %s", async previous => {
   const board = discardedBoard(previous);
-  vi.mocked(recoverParticipationAction).mockResolvedValue({ ok: true, data: { ...boardFixture().participations[0], stage_id: previous, coverage: board.coverage } });
+  vi.mocked(recoverParticipationAction).mockResolvedValue({ ok: true, data: { delivery: board.delivery, ...boardFixture().participations[0], stage_id: previous, coverage: board.coverage } });
   await mount(board);
   expect(screen.getByRole("region", { name: "Descartados: 1 candidatos" })).toHaveTextContent("Perfil no adecuado");
   const actions = menu();
@@ -450,7 +450,7 @@ it.each(["discard", "recover"] as const)("%s shares the per-card mutex and canno
   fireEvent.click(confirm); fireEvent.click(confirm);
   expect(confirm).toBeDisabled(); expect(within(dialog).getByRole("button", { name: "Cancelar" })).toBeDisabled();
   expect(action).toHaveBeenCalledTimes(1);
-  await act(async () => resolve({ ok: true, data: { ...(operation === "discard" ? discardedBoard().participations[0] : boardFixture().participations[0]), coverage: boardFixture().coverage } }));
+  await act(async () => resolve({ ok: true, data: { delivery: boardFixture().delivery, ...(operation === "discard" ? discardedBoard().participations[0] : boardFixture().participations[0]), coverage: boardFixture().coverage } }));
   expect(screen.queryByRole("dialog")).toBeNull(); expect(loadBoardAction).toHaveBeenCalledTimes(1);
 });
 it("validates controls and both code-point limits in the form, then sends trimmed text without blank optional fields", async () => {
@@ -480,7 +480,7 @@ it("sheet starts discard and refreshes current detail/history after successful d
   fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
   const discarded = { ...discardedBoard().participations[0], etag: '"discarded"', version: "5" };
   vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: { ...detailFixture(), ...discarded, comment: "Nuevo descarte" } });
-  vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: { ...discarded, coverage: boardFixture().coverage } });
+  vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: { delivery: boardFixture().delivery, ...discarded, coverage: boardFixture().coverage } });
   fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
   expect(await screen.findByText("Nuevo descarte")).toBeVisible();
   expect(loadParticipationAction).toHaveBeenCalledTimes(2); expect(loadHistoryAction).toHaveBeenCalledTimes(2);

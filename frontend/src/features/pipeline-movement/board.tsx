@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Spinner } from "@/components/ui/spinner";
 import { Separator } from "@/components/ui/separator";
 import { Hint } from "./pipeline-presentation";
+import { BoardDelivery } from "./board-delivery";
 import { BoardColumns } from "./board-columns";
 import { BoardCoverage, BoardError, BoardSkeleton, MovementDate } from "./board-states";
 import { CandidateSheet } from "./candidate-sheet";
@@ -62,7 +63,7 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
   return <section aria-label="Tablero de candidatos" className="flex min-h-0 min-w-0 flex-1 flex-col gap-4" aria-busy={state.reading}>
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 pb-2">
       <div className="flex flex-col gap-1.5"><h2 className="text-xl font-semibold tracking-tight">Pipeline</h2>{publishedAt && <p className="text-xs text-muted-foreground">Publicada el <MovementDate value={publishedAt} /></p>}</div>
-      <div className="flex items-center gap-5">{board && <BoardCoverage coverage={board.coverage} />}<Separator orientation="vertical" className="h-8" /><Hint text="Configuración de la vacante"><Button nativeButton={false} role="link" variant="outline" size="icon" className="size-10 bg-card" aria-label="Configuración de la vacante" render={<Link href={`/empresa/vacantes/${vacancyId}/configuracion/columnas`} />}><Settings2 aria-hidden="true" /></Button></Hint></div>
+      <div className="flex flex-wrap items-center gap-5">{board && <><BoardCoverage coverage={board.coverage} /><BoardDelivery delivery={board.delivery} status={state.deliveryStatus} /></>}<Separator orientation="vertical" className="h-8" /><Hint text="Configuración de la vacante"><Button nativeButton={false} role="link" variant="outline" size="icon" className="size-10 bg-card" aria-label="Configuración de la vacante" render={<Link href={`/empresa/vacantes/${vacancyId}/configuracion/columnas`} />}><Settings2 aria-hidden="true" /></Button></Hint></div>
     </div>
     {!board && state.reading && !state.failure && <BoardSkeleton columnCount={state.columns.editor ? state.columns.editor.stages.length + 1 : undefined} />}
     {state.failure && <BoardError failure={state.failure} reading={state.reading} notice={state.readNotice} retry={() => void state.retry()} />}

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { deliverySummarySchema } from "@/features/jobs/drafts/pipeline/fulfillment-model";
 import { validateDiscardText } from "./discard-text";
 export const discardReasonSchema = z.discriminatedUnion("group", [
   z.object({ group: z.literal("recruiter"), key: z.enum(["requirements_not_met", "profile_mismatch", "salary_expectation", "other_candidate_selected", "other"]) }).strict(),
@@ -27,7 +28,7 @@ export const boardSchema = z.object({
   stages: z.array(z.object({ id: uuidSchema, kind: stageKindSchema, name: text, count }).strict()),
   exit: z.object({ id: uuidSchema, kind: z.literal("discarded"), name: text, count }).strict(),
   substates: z.array(z.object({ id: uuidSchema, name: text }).strict()),
-  coverage: coverageSchema, participations: z.array(participationSchema).max(1000),
+  delivery: deliverySummarySchema, coverage: coverageSchema, participations: z.array(participationSchema).max(1000),
 }).strict().refine(board => board.participations.every(item => item.discard === null
   ? item.stage_id !== board.exit.id
   : item.stage_id === board.exit.id && Date.parse(item.moved_at) === Date.parse(item.discard.discarded_at)
@@ -36,7 +37,7 @@ export const boardSchema = z.object({
     (board.stages.some(stage => stage.id === item.stage_id && stage.kind === "in_process") && board.substates.some(substate => substate.id === item.substate_id))));
 export const substateBodySchema = z.object({ substate_id: uuidSchema.nullable() }).strict();
 export const moveBodySchema = z.object({ to_stage_id: uuidSchema, confirm_placement_exit: z.boolean().optional() }).strict();
-export const moveSchema = participationSchema.extend({ coverage: coverageSchema }).strict();
+export const moveSchema = participationSchema.extend({ coverage: coverageSchema, delivery: deliverySummarySchema }).strict();
 const screeningAnswer = z.discriminatedUnion("type", [
   z.object({ question_id: uuidSchema, prompt: text, type: z.literal("open"), answer: z.object({ text }).strict() }).strict(),
   z.object({ question_id: uuidSchema, prompt: text, type: z.literal("single_choice"), answer: z.object({ option_id: uuidSchema, label: text }).strict() }).strict(),
