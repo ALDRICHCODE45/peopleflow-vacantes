@@ -74,6 +74,7 @@ const acceptsPatch = (input: unknown) => draftV2PatchBodySchema.safeParse(input)
 const snapshotFields = (): LocalDraftV2Snapshot["fields"] => ({
   title: null,
   location: null,
+  remote_scope: null,
   work_mode: null,
   work_schedule: null,
   contract_type: null,
@@ -152,6 +153,7 @@ describe("draftV2PostBodySchema composition", () => {
     expect(body.fields).toStrictEqual({
       title: null,
       location: null,
+      remote_scope: null,
       work_mode: null,
       work_schedule: null,
       contract_type: null,
@@ -177,7 +179,7 @@ describe("draftV2PostBodySchema composition", () => {
       },
       description: null,
     });
-    expect(Object.keys(body.fields)).toHaveLength(17);
+    expect(Object.keys(body.fields)).toHaveLength(18);
   });
 
   it("matches the v1 POST defaults for every shared field", () => {
@@ -375,7 +377,7 @@ describe("local snapshot adapter", () => {
       }),
     );
     expect(Object.keys(body)).toStrictEqual(["fields"]);
-    expect(Object.keys(body.fields)).toHaveLength(17);
+    expect(Object.keys(body.fields)).toHaveLength(18);
     expect(body.fields.title).toBe("Backend Go");
     expect(body.fields.screening_questions).toStrictEqual(questions);
     expect(body.fields).not.toHaveProperty("requesterName");

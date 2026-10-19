@@ -63,6 +63,7 @@ export function useDraftSave(initialIdentity?: DraftIdentity) {
         // The user may have navigated back and edited while this write waited.
         setDirty(revision.current !== savingRevision);
       }
+      return revision.current === savingRevision ? response : undefined;
     } catch {
       // A rejected Server Action may have completed its write before disconnecting.
       const failure = { ok: false, reason: "no_response", reference: {} } as const;

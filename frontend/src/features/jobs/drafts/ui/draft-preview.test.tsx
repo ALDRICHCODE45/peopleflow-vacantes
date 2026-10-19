@@ -1,5 +1,7 @@
+import { mexicoLocationValue } from "../geography-fixture";
 import * as React from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ countries: { data: { items: [] } }, states: { data: { items: [] } }, municipalities: { data: { items: [] } } }) }));
 import { cleanup, render, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
@@ -15,6 +17,19 @@ import { initialDraftFormState, type DraftFormState } from "./draft-form-state";
  * the preview owns no request, storage or mutation.
  */
 
+it.each([
+  [{ kind: "anywhere" } as const, "Remoto · Desde cualquier lugar"],
+  [{ kind: "countries", countries: ["MX", "CO"] } as const, "Remoto · Solo desde México, Colombia"],
+])("renders remote scope from server-provided names: %j", (scope, expected) => {
+  const state = populatedState();
+  state.work_mode = "remote";
+  state.remote_scope = scope.kind === "anywhere" ? { kind: "anywhere" } : { kind: "countries", countries: [...scope.countries] };
+  state.remoteCountries = [{ id: "MX", name: "México" }, { id: "CO", name: "Colombia" }];
+  const { container } = render(<DraftPreview state={state} />);
+  expect(container).toHaveTextContent(expected);
+  expect(container).toHaveTextContent("Ciudad de México");
+});
+
 function emptyState(): DraftFormState {
   return initialDraftFormState(createDraftModel());
 }
@@ -23,7 +38,8 @@ function populatedState(): DraftFormState {
   return {
     ...emptyState(),
     title: "Backend Go",
-    location: "Ciudad de México",
+    location: mexicoLocationValue,
+    locationLabel: "Ciudad de México",
     work_mode: "hybrid",
     work_schedule: "full_time",
     contract_type: "indefinite",

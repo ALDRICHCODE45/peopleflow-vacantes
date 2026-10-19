@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { parseGeographyErrors, type GeographyErrors } from "@/features/geo/model";
 
 import { requestJson } from "../../../../lib/api/server";
 import type { RequestJsonError } from "../../../../lib/api/server";
@@ -66,7 +67,7 @@ const draftV2ErrorEnvelopeSchema = z.object({
   error: z.string().min(1),
   code: z.string().min(1),
 });
-export type DraftV2ErrorEnvelope = z.infer<typeof draftV2ErrorEnvelopeSchema> & { missing?: string[] };
+export type DraftV2ErrorEnvelope = z.infer<typeof draftV2ErrorEnvelopeSchema> & { missing?: string[]; geography?: GeographyErrors };
 
 /**
  * Every v2 draft-client failure. Shaped like `RequestJsonError` so read callers
@@ -151,7 +152,15 @@ function decodeReadEnvelopeV2(expectedId: string) {
   };
 }
 
-const decodeErrorEnvelope = (value: unknown): DraftV2ErrorEnvelope => draftV2ErrorEnvelopeSchema.parse(value);
+const decodeErrorEnvelope = (value: unknown): DraftV2ErrorEnvelope => {
+  const envelope = draftV2ErrorEnvelopeSchema.parse(value);
+  if (envelope.code === "invalid_location" || envelope.code === "invalid_remote_scope") {
+    const geography = parseGeographyErrors(422, value);
+    if (!geography) throw new Error("Invalid geography error envelope");
+    return { ...envelope, geography };
+  }
+  return envelope;
+};
 function decodeSaveErrorEnvelope(value: unknown): DraftV2ErrorEnvelope {
   // A missing list is legal only for this code. All other draft error handling
   // keeps its existing stripping behavior, including create and read failures.

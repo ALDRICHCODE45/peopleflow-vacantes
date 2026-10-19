@@ -75,6 +75,7 @@ function fillV2PostFields(fields: z.output<typeof suppliedV2FieldsSchema>): Comp
   return {
     title: fields.title ?? null,
     location: fields.location ?? null,
+    remote_scope: fields.remote_scope ?? null,
     work_mode: fields.work_mode ?? null,
     work_schedule: fields.work_schedule ?? null,
     contract_type: fields.contract_type ?? null,

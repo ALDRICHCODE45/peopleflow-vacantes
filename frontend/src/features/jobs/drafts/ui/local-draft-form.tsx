@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import type { GeographyErrors, LocationValue } from "@/features/geo/model";
+import { DraftGeographyField } from "./draft-geography-field";
 import {
   CheckCircle2Icon,
   InfoIcon,
@@ -134,6 +136,7 @@ const STEP_ERROR_PREFIXES: readonly (readonly string[])[] = [
   [
     "title",
     "location",
+    "remote_scope",
     "work_mode",
     "work_schedule",
     "contract_type",
@@ -491,6 +494,7 @@ export function LocalDraftForm({
     return () => { current = false; };
   }, [savedDraftId]);
   const [errors, setErrors] = React.useState<DraftFormErrors>({});
+  const [geographyErrors, setGeographyErrors] = React.useState<GeographyErrors>();
   const [validated, setValidated] = React.useState<
     DraftModel | LocalDraftV2Snapshot | null
   >(null);
@@ -503,6 +507,29 @@ export function LocalDraftForm({
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const stepHeadingRef = React.useRef<HTMLHeadingElement | null>(null);
   const hasMountedRef = React.useRef(false);
+  const focusTarget = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    function openField(hash: string) {
+      if (hash !== "#draft-location" && hash !== "#draft-remote-scope") return;
+      focusTarget.current = hash;
+      setStep(0);
+      setFocusRevision(revision => revision + 1);
+    }
+    const followAnchor = () => openField(window.location.hash);
+    // Next's same-route Link uses pushState, which does not emit hashchange.
+    function followLink(event: MouseEvent) {
+      if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const link = event.target instanceof Element ? event.target.closest("a") : null;
+      if (link && link.origin === window.location.origin && link.pathname === window.location.pathname && (!link.target || link.target === "_self")) openField(link.hash);
+    }
+    followAnchor();
+    window.addEventListener("hashchange", followAnchor);
+    document.addEventListener("click", followLink);
+    return () => {
+      window.removeEventListener("hashchange", followAnchor);
+      document.removeEventListener("click", followLink);
+    };
+  }, []);
 
   /**
    * Presentation-only candidate projection of the raw v2 buffer. `null` on the
@@ -521,7 +548,10 @@ export function LocalDraftForm({
       hasMountedRef.current = true;
       return;
     }
-    stepHeadingRef.current?.focus();
+    const selector = focusTarget.current;
+    focusTarget.current = null;
+    const target = selector ? document.querySelector<HTMLElement>(selector) : null;
+    (target ?? stepHeadingRef.current)?.focus();
   }, [step, focusRevision]);
 
   function goToStep(next: number) {
@@ -534,6 +564,7 @@ export function LocalDraftForm({
     errorPrefixes: string[],
   ) {
     setState(update);
+    if (errorPrefixes.some(prefix => prefix === "location" || prefix === "remote_scope")) setGeographyErrors(undefined);
     if (isV2) draftSave.edited();
     setValidated(null);
     setErrors((previous) => clearErrors(previous, errorPrefixes));
@@ -574,7 +605,14 @@ export function LocalDraftForm({
         return;
       }
       setErrors({});
-      void draftSave.save(result.model);
+      void draftSave.save(result.model).then(response => {
+        if (response && !response.ok && "geography" in response && response.geography) {
+          setGeographyErrors(response.geography);
+          focusTarget.current = '[data-pf-draft-step="1"] [aria-invalid="true"]';
+          setStep(0);
+          setFocusRevision(revision => revision + 1);
+        }
+      });
       return;
     }
     const result = validateDraftFormState(state, baseModel);
@@ -678,27 +716,6 @@ export function LocalDraftForm({
                   <FieldError id="draft-title-error">{errors.title}</FieldError>
                 </Field>
 
-                <Field data-invalid={errors.location !== undefined}>
-                  <FieldLabel htmlFor="draft-location">Ubicación</FieldLabel>
-                  <Input
-                    id="draft-location"
-                    name="location"
-                    value={state.location}
-                    autoComplete="off"
-                    placeholder="Ej. Ciudad de México"
-                    aria-invalid={errors.location !== undefined}
-                    aria-describedby={
-                      errors.location === undefined ? undefined : "draft-location-error"
-                    }
-                    onChange={(event) =>
-                      applyState((previous) => ({ ...previous, location: event.target.value }), [
-                        "location",
-                      ])
-                    }
-                  />
-                  <FieldError id="draft-location-error">{errors.location}</FieldError>
-                </Field>
-
                 <DraftSelectField
                   id="draft-work-mode"
                   label="Modalidad"
@@ -709,6 +726,15 @@ export function LocalDraftForm({
                   onChange={(value) =>
                     applyState((previous) => ({ ...previous, work_mode: value }), ["work_mode"])
                   }
+                />
+                <DraftGeographyField
+                  state={state}
+                  errors={geographyErrors ?? {
+                    location: Object.keys(errors).filter(key => key.startsWith("location.")).map(key => ({ field: key.split(".")[1] as keyof LocationValue, reason: "unknown" })),
+                    remoteScope: [],
+                  }}
+                  remoteError={Object.entries(errors).find(([key]) => key.startsWith("remote_scope"))?.[1]}
+                  onChange={patch => applyState(previous => ({ ...previous, ...patch }), ["location", "remote_scope"])}
                 />
               </FieldGroup>
 

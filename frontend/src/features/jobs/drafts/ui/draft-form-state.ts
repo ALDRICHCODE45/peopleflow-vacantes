@@ -1,4 +1,5 @@
 import { ZodError, type z } from "zod";
+import { locationErrorMessages, remoteScopeErrorMessages, locationValueToWrite, type LocationValue, type RemoteScopeWrite, type GeoReference } from "@/features/geo/model";
 
 import { BENEFITS } from "../lists";
 import { draftModelToPostBody, type DraftModel } from "../model";
@@ -16,7 +17,6 @@ import {
   LIST_ITEM_DUPLICATE_ERROR,
   LIST_ITEM_EMPTY_ERROR,
   LIST_ITEM_TOO_LONG_ERROR,
-  LOCATION_ERROR,
   MODEL_ERROR,
   REQUESTER_ERROR,
   REQUIREMENTS_ERROR,
@@ -82,7 +82,10 @@ export type DraftCompensationState = {
 /** Complete raw editor state: one control for each writable contract field. */
 export type DraftFormState = {
   title: string;
-  location: string;
+  location: LocationValue;
+  locationLabel: string | null;
+  remote_scope: RemoteScopeWrite;
+  remoteCountries: GeoReference[];
   work_mode: string;
   work_schedule: string;
   contract_type: string;
@@ -126,7 +129,10 @@ export function initialDraftFormState(model: DraftModel): DraftFormState {
   const requester = fields.requester;
   return {
     title: fields.title ?? "",
-    location: fields.location ?? "",
+    location: { country: fields.location?.country ?? null, state: fields.location?.state ?? null, municipality: fields.location?.municipality ?? null, postal_code: fields.location?.postal_code ?? null },
+    locationLabel: model.locationRead?.label ?? null,
+    remote_scope: structuredClone(fields.remote_scope),
+    remoteCountries: model.remoteScopeRead?.kind === "countries" ? model.remoteScopeRead.countries : [],
     work_mode: fields.work_mode ?? "",
     work_schedule: fields.work_schedule ?? "",
     contract_type: fields.contract_type ?? "",
@@ -174,7 +180,8 @@ export function initialDraftFormState(model: DraftModel): DraftFormState {
 export function composeDraftFields(state: DraftFormState): Record<string, unknown> {
   return {
     title: state.title,
-    location: state.location,
+    location: locationValueToWrite(state.location),
+    remote_scope: state.remote_scope,
     work_mode: state.work_mode === "" ? null : state.work_mode,
     work_schedule: state.work_schedule === "" ? null : state.work_schedule,
     contract_type: state.contract_type === "" ? null : state.contract_type,
@@ -247,6 +254,7 @@ export function validateDraftFormState(
     return {
       ok: true,
       model: {
+        ...baseModel,
         fields: body.fields,
         requesterName: candidate.requesterName,
         descriptionPlain: baseModel.descriptionPlain,
@@ -267,7 +275,13 @@ function issueKey(path: readonly PropertyKey[]): string {
 /** One Zod issue → a precise, plain Spanish message for its own key. */
 function issueMessage(key: string, issue: z.ZodIssue): string {
   if (key === "title") return TITLE_ERROR;
-  if (key === "location") return LOCATION_ERROR;
+  if (key === "location" || key.startsWith("location.")) return locationErrorMessages.unknown;
+  if (key.startsWith("remote_scope")) {
+    if (issue.code === "too_small") return remoteScopeErrorMessages.empty;
+    if (issue.code === "too_big") return remoteScopeErrorMessages.too_many;
+    if (issue.message === "duplicate") return remoteScopeErrorMessages.duplicate;
+    return remoteScopeErrorMessages.unknown_country;
+  }
   if (key === "work_mode") return WORK_MODE_ERROR;
   if (
     key === "work_schedule" ||

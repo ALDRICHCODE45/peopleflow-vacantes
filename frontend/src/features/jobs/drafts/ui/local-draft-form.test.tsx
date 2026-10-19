@@ -1,4 +1,6 @@
 import * as React from "react";
+import { mexicoLocationRead, mexicoLocationWrite } from "../geography-fixture";
+vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ countries: { status: "success", data: { items: [{ id: "MX", name: "México" }, { id: "CO", name: "Colombia" }] }, retry: vi.fn() }, states: { status: "success", data: { items: [{ id: "09", name: "Ciudad de México" }] } }, municipalities: { status: "success", data: { items: [] } } }), useGeoPostalCode: () => ({ status: "idle" }) }));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
@@ -111,7 +113,7 @@ const ID = "123e4567-e89b-42d3-a456-426614174000";
 const TS = "2026-10-06T03:00:00.123456Z";
 
 const TITLE_ERROR = "El título supera los 200 caracteres permitidos.";
-const LOCATION_ERROR = "La ubicación supera los 300 caracteres permitidos.";
+const LOCATION_ERROR = "Elige una opción de la lista.";
 const SUCCESS = "Borrador local válido. Recuerda que no se guarda en el servidor.";
 const NOTICE =
   "Este borrador es solo local. Si sales o recargas la página, perderás los cambios.";
@@ -156,7 +158,8 @@ function populatedInitialModel(): DraftModel {
     updated_at: TS,
     fields: {
       title: "Backend Go",
-      location: "Ciudad de México",
+      location: mexicoLocationRead,
+      remote_scope: null,
       work_mode: "hybrid",
       work_schedule: "full_time",
       contract_type: "indefinite",
@@ -208,7 +211,7 @@ const SOURCE = readFileSync(
 );
 
 const titleInput = () => screen.getByRole("textbox", { name: "Título" });
-const locationInput = () => screen.getByRole("textbox", { name: "Ubicación" });
+const locationInput = () => screen.getByRole("combobox", { name: "País" });
 const modeSelect = () => screen.getByRole("combobox", { name: "Modalidad" });
 const validateButton = () =>
   screen.getByRole("button", { name: /^(Validar borrador|Guardar borrador|Guardar cambios)$/ });
@@ -497,7 +500,7 @@ describe("LocalDraftForm five-step wizard", () => {
 
 describe("LocalDraftForm basic group (previous 3-field rules)", () => {
   it("keeps typed spacing verbatim while typing and after blur", () => {
-    render(<LocalDraftForm />);
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
 
     const rawTitle = "  Título   con  espacios  ";
     fireEvent.change(titleInput(), { target: { value: rawTitle } });
@@ -505,17 +508,18 @@ describe("LocalDraftForm basic group (previous 3-field rules)", () => {
     fireEvent.blur(titleInput());
     expect(titleInput()).toHaveValue(rawTitle);
 
-    fireEvent.change(locationInput(), { target: { value: "  CDMX  " } });
-    expect(locationInput()).toHaveValue("  CDMX  ");
-    fireEvent.blur(locationInput());
-    expect(locationInput()).toHaveValue("  CDMX  ");
+    fireEvent.change(locationInput(), { target: { value: "Colombia" } });
+    expect(locationInput()).toHaveValue("Colombia");
+    validateDraft();
+    expect(normalizedFields(0).location).toEqual({ country: "MX" }); // Filtering is not selection.
   });
 
   it("starts the raw controls from the provided initial model", () => {
     render(<LocalDraftForm initialModel={populatedInitialModel()} />);
 
     expect(titleInput()).toHaveValue("Backend Go");
-    expect(locationInput()).toHaveValue("Ciudad de México");
+    expect(locationInput()).toHaveValue("México");
+    expect(screen.getByRole("combobox", { name: "Estado" })).toHaveValue("Ciudad de México");
     expect(modeSelect()).toHaveValue("hybrid");
     expect(screen.getByRole("combobox", { name: "Jornada" })).toHaveValue("full_time");
     expect(screen.getByRole("combobox", { name: "Tipo de contrato" })).toHaveValue(
@@ -559,10 +563,10 @@ describe("LocalDraftForm basic group (previous 3-field rules)", () => {
   });
 
   it("reports every invalid control in one atomic pass and never serializes", () => {
-    render(<LocalDraftForm />);
+    const model = createDraftModel(); model.fields.location = { country: "invalid" };
+    render(<LocalDraftForm initialModel={model} />);
 
     fireEvent.change(titleInput(), { target: { value: "a".repeat(201) } });
-    fireEvent.change(locationInput(), { target: { value: "b".repeat(301) } });
     validateDraft();
 
     expect(screen.getByText(TITLE_ERROR)).toBeVisible();
@@ -587,10 +591,10 @@ describe("LocalDraftForm basic group (previous 3-field rules)", () => {
   });
 
   it("clears the edited control's error while the other error waits for revalidation", () => {
-    render(<LocalDraftForm />);
+    const model = createDraftModel(); model.fields.location = { country: "invalid" };
+    render(<LocalDraftForm initialModel={model} />);
 
     fireEvent.change(titleInput(), { target: { value: "a".repeat(201) } });
-    fireEvent.change(locationInput(), { target: { value: "b".repeat(301) } });
     validateDraft();
     expect(screen.getByText(TITLE_ERROR)).toBeVisible();
     expect(screen.getByText(LOCATION_ERROR)).toBeVisible();
@@ -613,18 +617,17 @@ describe("LocalDraftForm basic group (previous 3-field rules)", () => {
     expect(titleInput()).toHaveValue("Backend Go");
   });
 
-  it("normalizes only at the explicit boundary and leaves the raw inputs untouched", () => {
-    render(<LocalDraftForm initialModel={createDraftModel()} />);
+  it("normalizes only at the explicit boundary and leaves catalog selections untouched", () => {
+    render(<LocalDraftForm initialModel={populatedInitialModel()} />);
 
     fireEvent.change(titleInput(), { target: { value: "  Backend Go  " } });
-    fireEvent.change(locationInput(), { target: { value: "  CDMX  " } });
     validateDraft();
 
     expect(normalizedFields(0).title).toBe("Backend Go");
-    expect(normalizedFields(0).location).toBe("CDMX");
+    expect(normalizedFields(0).location).toEqual(mexicoLocationWrite);
     goToStep(1);
     expect(titleInput()).toHaveValue("  Backend Go  ");
-    expect(locationInput()).toHaveValue("  CDMX  ");
+    expect(locationInput()).toHaveValue("México");
   });
 
   it("submits through the form so the button and Enter share one boundary", () => {
@@ -639,6 +642,14 @@ describe("LocalDraftForm basic group (previous 3-field rules)", () => {
     expect(hoisted.serialized).toHaveLength(1);
     expect(successStatus()).toHaveTextContent(SUCCESS);
   });
+});
+
+it("opens the first step and focuses a Completar geography anchor without relying on hashchange", () => {
+  render(<><LocalDraftForm initialModel={createDraftModel()} /><a href="#draft-location" onClick={event => event.preventDefault()}>Completar ubicación</a></>);
+  goToStep(5);
+  fireEvent.click(screen.getByRole("link", { name: "Completar ubicación" }));
+  expect(currentStep()).toBe(1);
+  expect(document.getElementById("draft-location")).toHaveFocus();
 });
 
 describe("LocalDraftForm no-op losslessness", () => {

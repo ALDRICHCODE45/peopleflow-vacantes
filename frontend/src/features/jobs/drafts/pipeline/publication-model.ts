@@ -1,10 +1,13 @@
 export type MissingGroup = "editor" | "solicitud" | "entrega";
 export type MissingItem = { label: string; group: MissingGroup; href: (draftId: string) => string };
-const editor = (label: string): MissingItem => ({ label, group: "editor", href: id => `/empresa/vacantes/borradores/${id}` });
+const editor = (label: string, anchor = ""): MissingItem => ({ label, group: "editor", href: id => `/empresa/vacantes/borradores/${id}${anchor}` });
 const solicitud = (label: string): MissingItem => ({ label, group: "solicitud", href: id => `/empresa/vacantes/${id}/configuracion/solicitud` });
 const entrega = (label: string): MissingItem => ({ label, group: "entrega", href: id => `/empresa/vacantes/${id}/configuracion/entrega` });
 export const MISSING_ITEMS = {
-  title_missing: editor("Título"), description_missing: editor("Descripción"), location_missing: editor("Ubicación"),
+  title_missing: editor("Título"), description_missing: editor("Descripción"),
+  location_missing: editor("Agrega la ubicación de la vacante.", "#draft-location"),
+  location_incomplete: editor("Completa estado y municipio.", "#draft-location"),
+  remote_scope_missing: editor("Indica desde dónde pueden postular.", "#draft-remote-scope"),
   work_mode_missing: editor("Modalidad"), work_schedule_missing: editor("Jornada"), contract_type_missing: editor("Tipo de contrato"),
   professional_area_missing: editor("Área profesional"), requester_missing: editor("Solicitante"),
   request_date_missing: solicitud("Fecha de solicitud"), hiring_headcount_missing: solicitud("Plazas a cubrir"),
@@ -17,7 +20,8 @@ function missingItem(code: string): MissingItem {
 }
 /** Identical consequence copy for all three published-vacancy save screens. */
 export function formatPublishedSaveMissing(codes: readonly string[]): string {
-  return `No puedes dejarla sin: ${codes.map(code => missingItem(code).label).join(", ")}. Tus cambios siguen aquí.`;
+  const label = (code: string) => code === "location_missing" ? "Ubicación" : code === "location_incomplete" ? "Estado y municipio" : code === "remote_scope_missing" ? "Países desde donde pueden postular" : missingItem(code).label;
+  return `No puedes dejarla sin: ${codes.map(label).join(", ")}. Tus cambios siguen aquí.`;
 }
 /** Groups follow first server occurrence; items within each group keep server order. */
 export function groupMissing(codes: readonly string[]) {

@@ -103,6 +103,16 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("geography value rejection", () => {
+  it.each(["create", "save"])("preserves indexed geography issues for %s without retry", async method => {
+    const fetch = vi.fn().mockResolvedValue(response(422, { error: "unsafe", code: "invalid_remote_scope", details: [{ field: "fields.remote_scope.countries[1]", reason: "unknown_country" }] }));
+    vi.stubGlobal("fetch", fetch);
+    const result = method === "create" ? await createDraftV2({ token: TOKEN, idempotencyKey: IDEMPOTENCY_KEY, body: { fields: {} } }) : await saveDraftV2({ token: TOKEN, id: ID, ifMatch: ETAG, body: { fields: { title: "Draft" } } });
+    expect(result).toEqual({ ok: false, error: { kind: "status", status: 422, retryable: false }, envelope: { error: "unsafe", code: "invalid_remote_scope", geography: { location: [], remoteScope: [{ field: "countries", index: 1, reason: "unknown_country" }] } } });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("published draft PATCH rejection", () => {
   const call = () => saveDraftV2({ token: TOKEN, id: ID, ifMatch: ETAG, body: { fields: { title: null } } });
   it("decodes publication_incomplete missing codes without retry", async () => {

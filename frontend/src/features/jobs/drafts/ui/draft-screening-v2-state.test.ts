@@ -328,8 +328,8 @@ describe("validateLocalDraftV2FormState", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    // 16 non-screening fields plus the v2 questions; no v1 `{ prompt }` list.
-    expect(Object.keys(result.model.fields)).toHaveLength(16);
+    // 17 non-screening fields plus the v2 questions; no v1 `{ prompt }` list.
+    expect(Object.keys(result.model.fields)).toHaveLength(17);
     expect("screening_questions" in result.model.fields).toBe(false);
     expect(result.model.fields.title).toBe("Backend Go");
     expect(result.model.screening_questions[0].type).toBe("single_choice_evaluated");

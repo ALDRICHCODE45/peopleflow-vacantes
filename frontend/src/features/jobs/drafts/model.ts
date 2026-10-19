@@ -1,3 +1,4 @@
+import { locationReadToValue, locationValueToWrite, remoteScopeReadToWrite, type LocationRead, type RemoteScopeRead } from "@/features/geo/model";
 import {
   draftPatchBodySchema,
   draftPostBodySchema,
@@ -45,6 +46,7 @@ type DraftWriteFields = DraftPostBody["fields"];
 const WRITABLE_FIELD_KEYS = [
   "title",
   "location",
+  "remote_scope",
   "work_mode",
   "work_schedule",
   "contract_type",
@@ -68,6 +70,8 @@ const WRITABLE_FIELD_KEYS = [
  */
 export type DraftModel = {
   fields: DraftWriteFields;
+  locationRead?: LocationRead;
+  remoteScopeRead?: RemoteScopeRead;
   /** Server-derived requester catalog name; read-only display, never written. */
   requesterName: string | null;
   /** Server-derived plain description; read-only display, never written. */
@@ -124,11 +128,15 @@ export function hydrateDraftModel(input: unknown): DraftModel {
   const { description_plain, requester, ...writableFields } = envelope.fields;
   const projectedFields = requireAllWritableFields({
     ...writableFields,
+    location: locationValueToWrite(locationReadToValue(writableFields.location)),
+    remote_scope: remoteScopeReadToWrite(writableFields.remote_scope),
     requester: requester === null ? null : { kind: requester.kind, id: requester.id },
   });
   const fields = draftPostBodySchema.parse({ fields: projectedFields }).fields;
   return {
     fields: structuredClone(fields),
+    locationRead: structuredClone(writableFields.location),
+    remoteScopeRead: structuredClone(writableFields.remote_scope),
     requesterName: requester === null ? null : requester.name,
     descriptionPlain: description_plain,
   };

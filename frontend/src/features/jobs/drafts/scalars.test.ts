@@ -101,9 +101,9 @@ describe("draft text trimming and null normalization", () => {
   );
 
   it("treats NBSP, U+3000 and U+0085 as trimmable White_Space", () => {
-    expect(out(draftLocationSchema, "\u00a0a\u00a0")).toBe("a");
-    expect(out(draftLocationSchema, "\u3000a\u3000")).toBe("a");
-    expect(out(draftLocationSchema, "\u0085a\u0085")).toBe("a");
+    expect(out(draftTitleSchema, "\u00a0a\u00a0")).toBe("a");
+    expect(out(draftTitleSchema, "\u3000a\u3000")).toBe("a");
+    expect(out(draftTitleSchema, "\u0085a\u0085")).toBe("a");
   });
 
   it("does not trim U+FEFF, which is not Unicode White_Space", () => {
@@ -123,7 +123,7 @@ describe("draft text trimming and null normalization", () => {
   it("preserves decomposed sequences and never applies NFC", () => {
     expect(out(draftTitleSchema, "e\u0301")).toBe("e\u0301");
     expect(out(draftTitleSchema, "e\u0301")).not.toBe("\u00e9");
-    expect(out(draftLocationSchema, "\u00e1rea")).toBe("\u00e1rea");
+    expect(out(draftTitleSchema, "\u00e1rea")).toBe("\u00e1rea");
   });
 
   it("maps empty and whitespace-only strings to null", () => {
@@ -148,11 +148,10 @@ describe("draft text character limits count codepoints after trimming", () => {
     expect(ok(draftTitleSchema, ASTRAL.repeat(201))).toBe(false);
   });
 
-  it("bounds location at 300 codepoints, including astral input", () => {
-    expect(ok(draftLocationSchema, "a".repeat(300))).toBe(true);
-    expect(ok(draftLocationSchema, "a".repeat(301))).toBe(false);
-    expect(ok(draftLocationSchema, ASTRAL.repeat(300))).toBe(true);
-    expect(ok(draftLocationSchema, ASTRAL.repeat(301))).toBe(false);
+  it("requires structured catalog codes rather than text of any length", () => {
+    expect(ok(draftLocationSchema, { country: "MX", state: "01", municipality: "01001" })).toBe(true);
+    for (const text of ["México", "a".repeat(300), ASTRAL.repeat(300)]) expect(ok(draftLocationSchema, text)).toBe(false);
+    expect(ok(draftLocationSchema, { country: "MX", state: "1" })).toBe(false);
   });
 });
 
@@ -228,6 +227,7 @@ describe("draftScalarFieldSchemas map", () => {
       "location",
       "preferred_requirements",
       "professional_area",
+      "remote_scope",
       "required_requirements",
       "seniority",
       "title",
@@ -264,6 +264,7 @@ describe("draft scalar types", () => {
     expectTypeOf<DraftScalarField>().toEqualTypeOf<
       | "title"
       | "location"
+      | "remote_scope"
       | "work_mode"
       | "work_schedule"
       | "contract_type"

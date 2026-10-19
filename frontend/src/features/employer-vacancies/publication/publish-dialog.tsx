@@ -52,6 +52,7 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
   const alive = useRef(true);
   const heading = useRef<HTMLHeadingElement>(null);
   const initialMode = useRef(true);
+  const completionAnchor = useRef<string | null>(null);
   // The recovery portal mounts after the mode effect; focus when its heading exists.
   // Keep the ref stable so pending/status renders do not steal focus from controls.
   const attachHeading = useCallback((node: HTMLHeadingElement | null) => {
@@ -170,7 +171,7 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
     <PublicationSummary snapshot={snapshot} />
     {notice && <ActionStatus id="publication-status" tone={notice.tone} text={notice.text} />}
   </ConfirmActionDialog>;
-  return <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col sm:max-w-lg" showCloseButton={!pending} initialFocus={heading}>
+  return <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col sm:max-w-lg" showCloseButton={!pending} initialFocus={heading} finalFocus={() => completionAnchor.current ? document.getElementById(completionAnchor.current) ?? false : true}>
     <DialogHeader><DialogTitle ref={attachHeading} tabIndex={-1} className="outline-none">{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
     {/* One native scroll region owns the overflow and its children never shrink (shrinking clipped
         the cards). Not ScrollArea: base-ui needs a fixed height and spilled out of this flexible dialog. */}
@@ -183,7 +184,11 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
           <CardHeader><CardTitle><h3 id={`publication-${group.group}`}>{MISSING_GROUP_LABELS[group.group]}</h3></CardTitle><CardAction><span className="text-sm tabular-nums text-muted-foreground">{group.items.length}</span></CardAction></CardHeader>
           <CardContent><ItemGroup className="gap-0">{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>
             {index > 0 && <ItemSeparator className="my-0" />}
-            <Item size="sm" role="listitem" className="px-0 py-1.5"><ItemMedia variant="icon"><Icon aria-hidden="true" /></ItemMedia><ItemContent><ItemTitle>{item.label}</ItemTitle></ItemContent><ItemActions><Button nativeButton={false} role="link" variant="ghost" className="min-h-10" render={<Link href={item.href(draftId)} />}>Completar<span className="sr-only"> {item.label}</span><ArrowRight aria-hidden="true" data-icon="inline-end" /></Button></ItemActions></Item>
+            <Item size="sm" role="listitem" className="px-0 py-1.5"><ItemMedia variant="icon"><Icon aria-hidden="true" /></ItemMedia><ItemContent><ItemTitle>{item.label}</ItemTitle></ItemContent><ItemActions><Button nativeButton={false} role="link" variant="ghost" className="min-h-10" render={<Link href={item.href(draftId)} onClick={event => {
+              if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+              completionAnchor.current = event.currentTarget.hash.slice(1) || null;
+              onOpenChange(false);
+            }} />}>Completar<span className="sr-only"> {item.label}</span><ArrowRight aria-hidden="true" data-icon="inline-end" /></Button></ItemActions></Item>
           </Fragment>)}</ItemGroup></CardContent>
         </Card>;
       }) : already ? <p className="text-sm text-muted-foreground">{snapshot.publication.publishedAt ? `Publicada el ${formatPublicationDate(snapshot.publication.publishedAt)}` : "El tiempo de entrega ya está en marcha."}</p> : <>

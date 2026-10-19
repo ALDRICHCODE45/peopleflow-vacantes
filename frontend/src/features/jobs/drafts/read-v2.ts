@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { locationReadSchema, remoteScopeReadSchema } from "@/features/geo/model";
 
 import { compensationSchema } from "./compensation";
 import { draftListFieldSchemas } from "./lists";
@@ -45,6 +46,8 @@ const plainSchema = z.string().refine(
  */
 const readFieldsSchemaV2 = z.object({
   ...draftScalarFieldSchemas,
+  location: locationReadSchema,
+  remote_scope: remoteScopeReadSchema,
   ...draftListFieldSchemas,
   screening_questions: screeningQuestionsV2Schema,
   requester: requesterReadSchema,

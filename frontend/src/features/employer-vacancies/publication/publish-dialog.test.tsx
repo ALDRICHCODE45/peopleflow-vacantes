@@ -66,6 +66,17 @@ it("groups checklist links by owner with unknown-code fallback and no publish", 
  expect(screen.getAllByRole("link", { name: /Completar/ }).map(link => link.getAttribute("href"))).toEqual([`/empresa/vacantes/borradores/${draft.id}`, `/empresa/vacantes/borradores/${draft.id}`, `/empresa/vacantes/${draft.id}/configuracion/solicitud`, `/empresa/vacantes/${draft.id}/configuracion/entrega`]);
  expect(screen.queryByRole("button", { name: "Publicar vacante" })).not.toBeInTheDocument();
 });
+it("links geography missing items to their editor fields and closes the checklist", async () => {
+ vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: ["location_missing", "location_incomplete", "remote_scope_missing"] } }); mount();
+ const link = await screen.findByRole("link", { name: "Completar Completa estado y municipio." });
+ expect(link).toHaveAttribute("href", `/empresa/vacantes/borradores/${draft.id}#draft-location`);
+ expect(screen.getByRole("link", { name: "Completar Indica desde dónde pueden postular." })).toHaveAttribute("href", `/empresa/vacantes/borradores/${draft.id}#draft-remote-scope`);
+ // Exercise the real handler; jsdom cannot perform the subsequent navigation.
+ document.addEventListener("click", event => event.preventDefault(), { once: true });
+ fireEvent.click(link);
+ expect(onOpenChange).toHaveBeenCalledWith(false);
+ expect(publishDraftAction).not.toHaveBeenCalled();
+});
 it("shows honest summary and confirms body/key/draft ETag then notifies, closes and updates owner", async () => { mount(); await screen.findByText("Lista para entrevista"); expect(screen.getByText("30 de noviembre de 2026")).toBeVisible(); expect(screen.getByText("5 candidatos")).toBeVisible(); for (const label of ["Columna de corte", "Objetivo de entrega", "Fecha compromiso"]) expect(screen.getByText(label)).toBeVisible(); expect(screen.queryByText(/Columna de entrega|Meta de entrega/)).toBeNull(); expect(screen.getByText("Empieza a contar el tiempo de entrega y la vacante queda activa. No se puede deshacer.")).toBeVisible(); await confirm(); await waitFor(() => expect(onPublished).toHaveBeenCalledWith(date)); expect(publishDraftAction).toHaveBeenCalledExactlyOnceWith({ draftId: draft.id, ifMatch: '"draft-etag"', idempotencyKey: expect.any(String), body: {} }); expect(onOpenChange).toHaveBeenCalledWith(false); expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Vacante publicada" })); });
 it("keeps a long checklist compact and scrollable without clipping any group", async () => {
  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: ["title_missing", "description_missing", "location_missing", "request_date_missing", "commitment_date_past"] } }); mount();

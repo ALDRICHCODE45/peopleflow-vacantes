@@ -1,7 +1,12 @@
 import { expect, it } from "vitest";
 import { formatPublishedSaveMissing, groupMissing, MISSING_ITEMS } from "./publication-model";
-it("maps all fourteen server codes and routes by owning module", () => {
- expect(Object.keys(MISSING_ITEMS)).toHaveLength(14);
+it("maps all sixteen server codes and routes by owning module", () => {
+ expect(Object.keys(MISSING_ITEMS)).toHaveLength(16);
+ expect(MISSING_ITEMS.location_missing.label).toBe("Agrega la ubicación de la vacante.");
+ expect(MISSING_ITEMS.location_incomplete.label).toBe("Completa estado y municipio.");
+ expect(MISSING_ITEMS.remote_scope_missing.label).toBe("Indica desde dónde pueden postular.");
+ expect(MISSING_ITEMS.location_incomplete.href("id")).toBe("/empresa/vacantes/borradores/id#draft-location");
+ expect(MISSING_ITEMS.remote_scope_missing.href("id")).toBe("/empresa/vacantes/borradores/id#draft-remote-scope");
  expect(MISSING_ITEMS.title_missing.label).toBe("Título");
  expect(MISSING_ITEMS.commitment_date_past.label).toBe("La fecha compromiso ya pasó");
  expect(MISSING_ITEMS.title_missing.href("id")).toBe("/empresa/vacantes/borradores/id");

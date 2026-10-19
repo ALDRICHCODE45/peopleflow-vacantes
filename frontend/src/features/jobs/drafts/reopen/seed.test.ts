@@ -1,3 +1,4 @@
+import { mexicoLocationRead } from "../geography-fixture";
 import { describe, expect, it } from "vitest";
 
 import { draftReadEnvelopeV2Schema, type DraftReadEnvelopeV2 } from "../read-v2";
@@ -56,7 +57,8 @@ const questions = [
 
 const fullFields = {
   title: "Desarrollador backend",
-  location: "Ciudad de México",
+  location: mexicoLocationRead,
+  remote_scope: null,
   work_mode: "hybrid",
   work_schedule: "full_time",
   contract_type: "indefinite",
@@ -90,6 +92,7 @@ const fullFields = {
 const emptyFields = {
   title: null,
   location: null,
+  remote_scope: null,
   work_mode: null,
   work_schedule: null,
   contract_type: null,
@@ -135,7 +138,7 @@ function storedWriteFields(read: DraftReadEnvelopeV2) {
   const fields: Record<string, unknown> = { ...read.fields };
   delete fields.description_plain;
   const requester = read.fields.requester;
-  return { ...fields, requester: requester === null ? null : { kind: requester.kind, id: requester.id } };
+  return { ...fields, location: read.fields.location ? { country: read.fields.location.country.id, ...(read.fields.location.state ? { state: read.fields.location.state.id } : {}) } : null, requester: requester === null ? null : { kind: requester.kind, id: requester.id } };
 }
 
 /** The same path the editor takes on "Guardar": form state → validation → PATCH body. */
@@ -252,7 +255,7 @@ describe("draftEditSeedFromRead with unusual stored values", () => {
   const unusual = {
     ...fullFields,
     title: "Líder   de  equipo",
-    location: "Monterrey,  N.L.",
+    location: { ...mexicoLocationRead, state: { id: "19", name: "Nuevo León" }, label: "Nuevo León" },
     skills: ["Ñandú", "C++", "Go"],
     custom_benefits: ["Día libre 🎂", "Comedor"],
     benefits: ["annual_bonus", "health_insurance", "wellness"],

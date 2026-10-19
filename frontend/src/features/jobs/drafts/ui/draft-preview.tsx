@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "cn";
+import { useGeoCatalog } from "@/features/geo/use-geo-catalog";
 import {
   BanknoteIcon,
   CheckCircle2Icon,
@@ -252,6 +253,12 @@ export type DraftPreviewProps = {
 };
 
 export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
+  const catalog = useGeoCatalog(state.location.state, state.location.country === "MX");
+  const country = catalog.countries.data?.items.find(item => item.id === state.location.country)?.name;
+  const region = catalog.states.data?.items.find(item => item.id === state.location.state)?.name;
+  const municipality = catalog.municipalities.data?.items.find(item => item.id === state.location.municipality)?.name;
+  const locationLabel = state.locationLabel ?? (municipality && region ? `${municipality}, ${region}` : region ?? country ?? "");
+  const remoteLabel = state.remote_scope?.kind === "anywhere" ? "Remoto · Desde cualquier lugar" : state.remote_scope?.kind === "countries" && state.remoteCountries.length ? `Remoto · Solo desde ${state.remoteCountries.map(country => country.name).join(", ")}` : "Remoto";
   const description = resolveDraftRichDescription(state.description);
   const skills = listValues(state.skills);
   const customBenefits = listValues(state.custom_benefits);
@@ -273,12 +280,12 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
   const requesterValue = state.requester.name ?? NO_SELECTION;
 
   const basics = [
-    { key: "location", label: "Ubicación", Icon: MapPinIcon, value: state.location },
+    { key: "location", label: "Ubicación", Icon: MapPinIcon, value: locationLabel },
     {
       key: "work_mode",
       label: "Modalidad",
       Icon: GlobeIcon,
-      value: labelOf(WORK_MODE_OPTIONS, state.work_mode) ?? "",
+      value: state.work_mode === "remote" ? remoteLabel : labelOf(WORK_MODE_OPTIONS, state.work_mode) ?? "",
     },
     {
       key: "work_schedule",

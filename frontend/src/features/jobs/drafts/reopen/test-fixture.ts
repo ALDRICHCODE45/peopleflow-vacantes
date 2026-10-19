@@ -1,3 +1,4 @@
+import { mexicoLocationRead, mexicoLocationWrite } from "../geography-fixture";
 import { draftReadEnvelopeV2Schema } from "../read-v2";
 
 /** Filled read response shared by reopen boundary tests, never used by product UI. */
@@ -9,7 +10,7 @@ export function filledDraftRead() {
     schema_version: 2, id, status: "draft", principal_recruiter_id: id,
     version: "7", created_at: "2026-10-06T03:00:00.123456Z", updated_at: "2026-10-06T03:00:00.123456Z",
     fields: {
-      title: "Desarrollador backend", location: "Ciudad de México", work_mode: "hybrid",
+      title: "Desarrollador backend", location: mexicoLocationRead, remote_scope: null, work_mode: "hybrid",
       work_schedule: "full_time", contract_type: "indefinite", seniority: "senior",
       professional_area: "technology_systems", required_requirements: "Cinco años con Go.",
       preferred_requirements: "Experiencia con AWS.", skills: ["Go", "SQL"],
@@ -33,5 +34,5 @@ export function filledDraftRead() {
 export function storedWriteFields(read = filledDraftRead()) {
   const { description_plain: derived, requester, ...fields } = read.fields;
   void derived;
-  return { ...fields, requester: requester && { kind: requester.kind, id: requester.id } };
+  return { ...fields, location: fields.location ? mexicoLocationWrite : null, requester: requester && { kind: requester.kind, id: requester.id } };
 }

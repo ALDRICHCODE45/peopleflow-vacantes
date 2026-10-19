@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { locationWriteSchema, remoteScopeWriteSchema } from "@/features/geo/model";
 import { trimUnicodeWhiteSpace } from "./text";
 
 /**
@@ -87,8 +88,8 @@ export const PROFESSIONAL_AREAS = [
 
 /** `title`: nullable free text, trimmed at ends, ≤200 codepoints. */
 export const draftTitleSchema = nullableTrimmedText({ codepoints: 200 });
-/** `location`: nullable free text, trimmed at ends, ≤300 codepoints. */
-export const draftLocationSchema = nullableTrimmedText({ codepoints: 300 });
+/** Catalog-code geography; drafts may be incomplete. */
+export const draftLocationSchema = locationWriteSchema;
 /** `work_mode`: exact nullable literal, no trimming or coercion. */
 export const draftWorkModeSchema = z.enum(WORK_MODES).nullable();
 /** `work_schedule`: exact nullable literal, no trimming or coercion. */
@@ -111,6 +112,7 @@ export const draftPreferredRequirementsSchema = nullableTrimmedText({ bytes: 163
 export const draftScalarFieldSchemas = {
   title: draftTitleSchema,
   location: draftLocationSchema,
+  remote_scope: remoteScopeWriteSchema,
   work_mode: draftWorkModeSchema,
   work_schedule: draftWorkScheduleSchema,
   contract_type: draftContractTypeSchema,

@@ -1,3 +1,4 @@
+import { mexicoLocationWrite, mexicoLocationValue } from "../geography-fixture";
 import { describe, expect, it } from "vitest";
 
 import { draftPostBodySchema } from "../fields";
@@ -25,7 +26,6 @@ import {
   DESCRIPTION_ERROR,
   LIST_ITEM_DUPLICATE_ERROR,
   LIST_ITEM_EMPTY_ERROR,
-  LOCATION_ERROR,
   REQUESTER_ERROR,
   TITLE_ERROR,
   WORK_MODE_ERROR,
@@ -49,7 +49,7 @@ function populatedModel(): DraftModel {
   const body = draftPostBodySchema.parse({
     fields: {
       title: "Backend Go",
-      location: "CDMX",
+      location: mexicoLocationWrite,
       work_mode: "hybrid",
       work_schedule: "full_time",
       contract_type: "indefinite",
@@ -95,7 +95,7 @@ describe("initialDraftFormState", () => {
     const state = initialDraftFormState(model);
 
     expect(state.title).toBe("Backend Go");
-    expect(state.location).toBe("CDMX");
+    expect(state.location).toEqual(mexicoLocationValue);
     expect(state.work_mode).toBe("hybrid");
     expect(state.work_schedule).toBe("full_time");
     expect(state.contract_type).toBe("indefinite");
@@ -276,7 +276,7 @@ describe("validateDraftFormState", () => {
     const model = populatedModel();
     const state = initialDraftFormState(model);
     state.title = "a".repeat(201);
-    state.location = "b".repeat(301);
+    state.location = { ...mexicoLocationValue, country: "invalid" };
     state.work_mode = "presencial";
 
     const result = validateDraftFormState(state, model);
@@ -284,7 +284,7 @@ describe("validateDraftFormState", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.errors.title).toBe(TITLE_ERROR);
-    expect(result.errors.location).toBe(LOCATION_ERROR);
+    expect(result.errors["location.country"]).toBe("Elige una opción de la lista.");
     expect(result.errors.work_mode).toBe(WORK_MODE_ERROR);
   });
 

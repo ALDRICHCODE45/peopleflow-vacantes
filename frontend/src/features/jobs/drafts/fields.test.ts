@@ -5,6 +5,7 @@ import { draftPatchBodySchema, draftPostBodySchema } from "./fields";
 const defaults = () => ({
   title: null,
   location: null,
+  remote_scope: null,
   work_mode: null,
   work_schedule: null,
   contract_type: null,
@@ -33,7 +34,8 @@ const rich = (value: string) => ({
 // One accepted normalization and one rejection through every composed field.
 const fieldCases: Array<[string, unknown, unknown, unknown]> = [
   ["title", " Backend Go ", "Backend Go", "x".repeat(201)],
-  ["location", " CDMX ", "CDMX", "x".repeat(301)],
+  ["location", { country: "MX", state: "09" }, { country: "MX", state: "09" }, "CDMX"],
+  ["remote_scope", { kind: "anywhere" }, { kind: "anywhere" }, { kind: "countries", countries: [] }],
   ["work_mode", "remote", "remote", " remote "],
   ["work_schedule", "part_time", "part_time", "contract"],
   ["contract_type", "professional_services", "professional_services", "full_time"],
@@ -133,7 +135,7 @@ for (const [method, schema] of schemas) {
 describe("POST defaults versus PATCH omission", () => {
   it("fills exactly all 17 writable fields on empty POST", () => {
     expect(draftPostBodySchema.parse({ fields: {} })).toStrictEqual({ fields: defaults() });
-    expect(Object.keys(defaults())).toHaveLength(17);
+    expect(Object.keys(defaults())).toHaveLength(18);
   });
 
   it("returns independent arrays and compensation defaults for every POST", () => {

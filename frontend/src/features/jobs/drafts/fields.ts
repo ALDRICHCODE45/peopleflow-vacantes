@@ -41,6 +41,7 @@ function fillPostFields(fields: z.output<typeof suppliedFieldsSchema>): Complete
   return {
     title: fields.title ?? null,
     location: fields.location ?? null,
+    remote_scope: fields.remote_scope ?? null,
     work_mode: fields.work_mode ?? null,
     work_schedule: fields.work_schedule ?? null,
     contract_type: fields.contract_type ?? null,

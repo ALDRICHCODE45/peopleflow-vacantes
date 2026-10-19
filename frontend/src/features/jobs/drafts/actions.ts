@@ -1,5 +1,6 @@
 "use server";
 
+import type { GeographyErrors } from "@/features/geo/model";
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { createDraftV2, saveDraftV2, type DraftV2Failure } from "./api/client-v2";
 import { publicationIncompleteFailure, type PublicationIncompleteFailure } from "./pipeline/failure";
@@ -8,7 +9,7 @@ type ExistingDraftSaveReason = "unauthenticated" | "forbidden" | "company_inacti
 export type DraftSaveReason = ExistingDraftSaveReason | "publication_incomplete";
 export type DraftSaveResult =
   | { ok: true; draftId: string; etag: string; version: string; savedAt: string; replayed?: boolean }
-  | { ok: false; reason: ExistingDraftSaveReason; reference: { status?: number; code?: string } }
+  | { ok: false; reason: ExistingDraftSaveReason; geography?: GeographyErrors; reference: { status?: number; code?: string } }
   | PublicationIncompleteFailure;
 export type SaveDraftV2ActionInput = { draftId?: string; etag?: string; idempotencyKey?: string; body: unknown };
 
@@ -45,6 +46,9 @@ export async function saveDraftV2Action(input: SaveDraftV2ActionInput): Promise<
     if (!result.ok) {
       const incomplete = publicationIncompleteFailure(result);
       if (incomplete) return incomplete;
+      if (result.error.kind === "status" && result.error.status === 422 && result.envelope?.geography) {
+        return { ok: false, reason: "invalid_request", geography: result.envelope.geography, reference: { status: 422, code: result.envelope.code } };
+      }
       return { ok: false, reason: failureReason(result), reference: {
         ...("status" in result.error ? { status: result.error.status } : {}),
         ...(result.envelope ? { code: result.envelope.code } : {}),

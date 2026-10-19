@@ -13,6 +13,7 @@ import { filledDraftRead, storedWriteFields } from "../reopen/test-fixture";
 import { loadDraftPublicationAction } from "../pipeline/publication-actions";
 vi.mock("../pipeline/publication-actions", () => ({ loadDraftPublicationAction: vi.fn(), publishDraftAction: vi.fn() }));
 vi.mock("../actions", () => ({ saveDraftV2Action: vi.fn() }));
+vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ countries: { status: "success", data: { items: [{ id: "MX", name: "México" }, { id: "CO", name: "Colombia" }] }, retry: vi.fn() }, states: { status: "success", data: { items: [{ id: "09", name: "Ciudad de México" }] } }, municipalities: { status: "success", data: { items: [] } } }), useGeoPostalCode: () => ({ status: "idle" }) }));
 vi.mock("sileo", () => ({ sileo: { success: vi.fn(() => "draft-success"), error: vi.fn(() => "draft-error"), dismiss: vi.fn() } }));
 const key = "123e4567-e89b-42d3-a456-426614174000";
 const success = {ok:true, draftId:"saved-id", etag:'"v1"', version:"1", savedAt:"2026-10-06T03:00:00Z"} as const;
@@ -77,7 +78,7 @@ it("creates the validated v2 body, guards pending, then PATCHes the same draft w
   expect(screen.getByRole("button", {name:"Guardando…"}).querySelector('[data-slot="spinner"]')).not.toBeNull();
   const input = vi.mocked(saveDraftV2Action).mock.calls[0][0];
   expect(input).toEqual({idempotencyKey:key,body:{fields:expect.objectContaining({title:"Backend",screening_questions:[]})}});
-  expect(Object.keys((input.body as {fields:object}).fields)).toHaveLength(17);
+  expect(Object.keys((input.body as {fields:object}).fields)).toHaveLength(18);
   expect(JSON.stringify(input.body)).not.toMatch(/description_plain|requesterName|schema_version/);
   fireEvent.submit(saveDraftForm());
   expect(saveDraftV2Action).toHaveBeenCalledTimes(1);
@@ -190,6 +191,18 @@ it("keeps published draft edits and reports missing labels without retry or fiel
   for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole("button", { name: "Atrás" }));
   expect(screen.getByRole("textbox", { name: "Título" })).toHaveValue("Mi edición");
   expect(document.querySelector('[data-slot="field-error"]')).toBeNull();
+  expect(saveDraftV2Action).toHaveBeenCalledTimes(1);
+});
+it("routes 422 location errors to the matching level, retains input and focuses it", async () => {
+  vi.mocked(saveDraftV2Action).mockResolvedValue({ ok: false, reason: "invalid_request", geography: { location: [{ field: "country", reason: "unknown" }], remoteScope: [] }, reference: { status: 422, code: "invalid_location" } });
+  render(<LocalDraftForm />);
+  fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Mi borrador" } });
+  review(); fireEvent.click(save());
+  const country = await screen.findByRole("combobox", { name: "País" });
+  await waitFor(() => expect(country).toHaveAttribute("aria-invalid", "true"));
+  expect(screen.getByText("Elige una opción de la lista.")).toHaveAttribute("data-slot", "field-error");
+  expect(country).toHaveFocus();
+  expect(screen.getByRole("textbox", { name: "Título" })).toHaveValue("Mi borrador");
   expect(saveDraftV2Action).toHaveBeenCalledTimes(1);
 });
 it("does not send invalid v2 state",()=>{

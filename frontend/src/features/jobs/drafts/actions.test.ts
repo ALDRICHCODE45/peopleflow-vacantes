@@ -12,6 +12,11 @@ beforeEach(() => {
   vi.mocked(getActionAccessToken).mockResolvedValue("secret-access-token");
 });
 describe("saveDraftV2Action", () => {
+  it("carries safe geography issues to the matching controls for 422", async () => {
+    const geography = { location: [{ field: "municipality", reason: "unknown" }], remoteScope: [] } as const;
+    vi.mocked(saveDraftV2).mockResolvedValue({ ok: false, error: { kind: "status", status: 422, retryable: false }, envelope: { code: "invalid_location", error: "unsafe", geography } } as never);
+    expect(await saveDraftV2Action({ ...input, draftId: "draft", etag: "tag" })).toEqual({ ok: false, reason: "invalid_request", geography, reference: { status: 422, code: "invalid_location" } });
+  });
   it("fails closed with no session and never calls either client", async () => {
     vi.mocked(getActionAccessToken).mockResolvedValue(null);
     expect(await saveDraftV2Action(input)).toEqual({ ok: false, reason: "unauthenticated", reference: {} });

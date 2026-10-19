@@ -1,3 +1,4 @@
+import { locationReadToValue, locationValueToWrite, remoteScopeReadToWrite } from "@/features/geo/model";
 import { draftPostBodySchema } from "../fields";
 import type { DraftModel } from "../model";
 import type { DraftReadEnvelopeV2 } from "../read-v2";
@@ -30,6 +31,8 @@ export function draftEditSeedFromRead(read: DraftReadEnvelopeV2): DraftEditSeed 
   const fields = draftPostBodySchema.parse({
     fields: {
       ...rest,
+      location: locationValueToWrite(locationReadToValue(rest.location)),
+      remote_scope: remoteScopeReadToWrite(rest.remote_scope),
       screening_questions: [],
       requester: requester === null ? null : { kind: requester.kind, id: requester.id },
     },
@@ -37,6 +40,8 @@ export function draftEditSeedFromRead(read: DraftReadEnvelopeV2): DraftEditSeed 
   return {
     model: {
       fields: structuredClone(fields),
+      locationRead: structuredClone(rest.location),
+      remoteScopeRead: structuredClone(rest.remote_scope),
       requesterName: requester === null ? null : requester.name,
       descriptionPlain,
     },

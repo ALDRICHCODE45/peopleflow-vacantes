@@ -19,6 +19,7 @@ const timestamp = "2026-10-06T03:00:00.123456Z";
 const WRITABLE_FIELD_KEYS = [
   "title",
   "location",
+  "remote_scope",
   "work_mode",
   "work_schedule",
   "contract_type",
@@ -89,7 +90,7 @@ const populatedWriteFields = () =>
   draftPostBodySchema.parse({
     fields: {
       title: " Backend Go ",
-      location: " CDMX ",
+      location: { country: "MX", state: "09" },
       work_mode: "hybrid",
       work_schedule: "full_time",
       contract_type: "indefinite",
@@ -122,6 +123,7 @@ const populatedEnvelope = () => ({
   ...envelope(
     {
       ...populatedWriteFields(),
+      location: { country: { id: "MX", name: "México" }, state: { id: "09", name: "Ciudad de México" }, municipality: null, postal_code: null, label: "Ciudad de México" },
       requester: { kind: "client", id: ID, name: "Área No\u0301mada\uFEFF" },
       description_plain: "Server text\n  ",
     },
@@ -147,7 +149,7 @@ describe("createDraftModel", () => {
       requesterName: null,
       descriptionPlain: null,
     });
-    expect(Object.keys(model.fields)).toHaveLength(17);
+    expect(Object.keys(model.fields)).toHaveLength(18);
     expect(Object.keys(model)).toStrictEqual(["fields", "requesterName", "descriptionPlain"]);
   });
 
@@ -183,7 +185,7 @@ describe("createDraftModel", () => {
 describe("hydrateDraftModel", () => {
   it("projects exactly the 17 writable fields and strips server-derived text", () => {
     const model = hydrateDraftModel(populatedEnvelope());
-    expect(Object.keys(model.fields)).toHaveLength(17);
+    expect(Object.keys(model.fields)).toHaveLength(18);
     expect(model.fields).toStrictEqual(populatedWriteFields());
     expect("description_plain" in model.fields).toBe(false);
     expect(model.fields.requester).toStrictEqual({ kind: "client", id: ID });
@@ -309,8 +311,8 @@ describe("draftModelToPostBody / draftModelToPatchBody", () => {
     const patch = draftModelToPatchBody(model);
     expect(post).toStrictEqual(expected);
     expect(patch).toStrictEqual(expected);
-    expect(Object.keys(post.fields)).toHaveLength(17);
-    expect(Object.keys(patch.fields)).toHaveLength(17);
+    expect(Object.keys(post.fields)).toHaveLength(18);
+    expect(Object.keys(patch.fields)).toHaveLength(18);
     expect(draftPostBodySchema.parse(post).fields).toStrictEqual(model.fields);
     expect(draftPatchBodySchema.parse(patch).fields).toStrictEqual(model.fields);
   });
