@@ -1670,6 +1670,12 @@ delivery), PIPE-13 (recovery returns to the previous stage with confirmation).
   (a candidate moves meanwhile) without changing the pipeline version. The pipeline `PUT 200`
   therefore always carries `applied_impact: {not_applicable, recovery_reassigned}` (preview item
   shapes and ordering; empty arrays when nothing was applied). `GET` does not carry it.
+- **New custom stage ids** (amends §3 invariant 7): an id-less custom stage gets a
+  **deterministic** server id = UUIDv5 of (vacancy id, stored pipeline version the request is
+  based on, ordinal of the id-less entry in the request). Preview and `PUT` of the same proposal
+  on the same version therefore name the same new stage, and `applied_impact` matches the
+  preview unless the data changed in between. Ids still come only from the server, are never
+  reused (the version increases on every save) and never collide with retired ids.
 
 ### 17.3 Storage
 
