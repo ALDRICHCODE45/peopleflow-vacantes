@@ -1449,3 +1449,96 @@ catalog sheet disables removing a substate with `in_use: true`.
    `409 substate_requires_in_process` applies to discarded participations too.
 6. The board has no other filters yet; the client implements the substate multi-select and
    keeps the AND rule for future filters. No backend change.
+
+## 16. Delivery fulfillment (proposal)
+
+Status: **proposal under frontend review.** Product answers in §16.5. Branch
+`feat/pipeline-delivery-fulfillment`, stacked on `feat/pipeline-substates-active`.
+
+Rules: DEL-1 (the configured cutoff column is the milestone; fulfillment is automatic when the
+distinct-candidate target is reached), DEL-2 (historical attainment counts; later advance,
+discard or withdrawal never erases it), DEL-3 (each person once), DEL-6/DEL-7 (an edit that
+makes the target reachable fulfills at edit time; cutoff changes use recorded history; preview
+and record the explaining candidates), CFG-2/CFG-3 (editable with audit before fulfillment;
+frozen at fulfillment), CFG-7 (evaluated against the commitment date in force), CFG-8/9/12
+(business days, whole local day, `America/Mexico_City`). Out of scope: pauses and active time
+(lifecycle cut), KPI dashboards (reporting cut).
+
+### 16.1 Model
+
+- **Reached the cutoff:** a participation reached the cutoff stage at the time of its first
+  history entry into that stage (intake into `Nuevos`, a move or a recovery). With no skipping
+  (PIPE-11) and the structure lock (§12.6 S5), passing a stage always leaves such an entry.
+  Discards and moves afterwards keep it (DEL-2). Participations are unique per person and
+  process, so each person counts once (DEL-3).
+- **Delivered count** = participations of the process that reached the current cutoff.
+- **Fulfillment** happens the first time delivered ≥ target, at the time of the event that
+  causes it: a move, recovery or application into the cutoff, or a delivery edit (lower target or
+  different cutoff, DEL-6/DEL-7). It is recorded once, in the same transaction, with a frozen
+  snapshot: target, cutoff stage id and name, commitment date in force, `fulfilled_at`, the
+  explaining candidates (the first `target` participations by reached time, each with its
+  reached time) and the result.
+- **Result** (§16.5 S2): `on_time` when the fulfillment's local date (Mexico City) is on or
+  before the commitment date, else `late`; `business_days_delta` = business days strictly after
+  the earlier date up to and including the later one, positive when early, negative when late,
+  0 on the commitment date; whole local days only (art. 74 calendar, §8.2).
+- **Freeze** (§16.5 S1): after fulfillment, the delivery `PUT` is rejected with `409
+  delivery_fulfilled`; nothing written. Coverage and hiring headcount are unaffected.
+- **Before fulfillment** an edit that would fulfill requires `confirm_fulfillment: true`
+  (§16.5 S3), after a preview.
+
+### 16.2 Contract
+
+Base `/v2/me/company/job-drafts/{vacancyId}/pipeline/delivery`; same gates as cut 3.
+
+- `GET …/delivery/status` → `200`, published vacancies only (draft → `409
+  vacancy_not_published`):
+
+```json
+{
+  "state": "pending",
+  "delivered": 3,
+  "target": 5,
+  "cutoff_stage_id": "…",
+  "commitment_date": "2026-11-30",
+  "business_days_remaining": 12,
+  "fulfillment": null
+}
+```
+
+`state` is `pending | fulfilled`. `business_days_remaining` (pending only; `null` when
+fulfilled) counts business days strictly after today up to the commitment date; negative when
+the date is past. `fulfillment` is `null` or exactly `{ fulfilled_at, result, business_days_delta,
+target, cutoff_stage_id, cutoff_stage_name, commitment_date, candidates: [{participation_id,
+candidate: {id, full_name}, reached_at}] }`; while fulfilled, `delivered`, `target`,
+`cutoff_stage_id` and `commitment_date` are the frozen values.
+
+- `POST …/delivery/preview`, body exactly like the delivery `PUT` (§8.3) → `200` exactly `{
+  would_fulfill, delivered, target, candidates }` computed against the proposed values (same
+  candidate item shape); no writes; same validation codes as the `PUT`; `409
+  delivery_fulfilled` when already fulfilled.
+- Delivery `PUT` (cut 3) gains optional `confirm_fulfillment` (boolean, default false). An edit
+  that would fulfill without it → `409 fulfillment_confirmation_required`, nothing written; with
+  it → saves, records the fulfillment and audits both. After fulfillment → `409
+  delivery_fulfilled`.
+- `GET …/board` (cut 4) gains `delivery: { state, delivered, target }` (`target` null if unset).
+- Audit `VacancyDeliveryFulfilled` with the snapshot.
+
+### 16.3 Storage (backend)
+
+Additive migration `00027`: one fulfillment row per process (frozen snapshot, result, explaining
+candidates), an index on history for (participation, stage, time). No backfill: nothing is merged
+and no production data exists; a review database fulfills on its next qualifying event.
+
+### 16.4 Frontend placement (frontend owns this)
+
+Board header «Entrega 3 de 5 · vence 30/11 (12 días hábiles)» or «Entrega cumplida a tiempo /
+con N días de retraso»; Entrega section read-only once fulfilled, with the frozen result and its
+candidates; preview and confirmation dialog when an edit would fulfill.
+
+### 16.5 Decisions recorded
+
+- **S1 (user):** delivery configuration becomes read-only once fulfilled.
+- **S2 (user):** on time / late plus whole business days before or after (closes the
+  early/late part of §17.2; partial-day rounding is not used).
+- **S3 (user):** an edit that would fulfill shows a preview and needs confirmation.
