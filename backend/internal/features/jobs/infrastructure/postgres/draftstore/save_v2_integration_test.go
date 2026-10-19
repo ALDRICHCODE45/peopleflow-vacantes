@@ -460,8 +460,8 @@ func TestSaveV2_ConcurrentSameTagOneWinner(t *testing.T) {
 	if storedFields["title"] != title {
 		t.Fatalf("stored title: %#v want %q", storedFields["title"], title)
 	}
-	if got := len(storedFields); got != 17 {
-		t.Fatalf("stored fields: want 17 keys, got %d", got)
+	if got := len(storedFields); got != 18 {
+		t.Fatalf("stored fields: want 18 keys (remote_scope added in G2), got %d", got)
 	}
 	if got := auditCount(t, pool, id, entities.EventJobDraftSaved); got != 1 {
 		t.Fatalf("concurrent save must audit exactly once, got %d", got)
