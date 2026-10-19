@@ -74,7 +74,7 @@ func TestMigration00028ExistingKindsShapesAndGuardedDown(t *testing.T) {
 		return raw
 	}
 	before, oldChecks := snapshot(), checks()
-	gooseUpAll(t, db)
+	gooseUpTo(t, db, 28)
 	if before != snapshot() {
 		t.Fatal("up changed old rows")
 	}
