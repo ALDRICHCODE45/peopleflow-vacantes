@@ -1,0 +1,27 @@
+'use client'
+
+import { useState } from 'react'
+import { BriefcaseBusiness, LayoutGrid, UsersRound, Globe2, Settings2, PanelLeft, Plus, Moon, Sun, ChevronDown, GripVertical, CircleHelp, ArrowUpRight } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { PipelineFilters, initialFilters, type Filters } from './pipeline-filters'
+import { PipelineBoard } from './pipeline-board'
+
+export function Pipeline() {
+  const [filters, setFilters] = useState<Filters>(initialFilters)
+  const [dark, setDark] = useState(false)
+  const [compact, setCompact] = useState(false)
+  const visible = Object.entries(filters).every(([key, value]) => initialFilters[key] === value)
+  return <div className={dark ? 'pipeline-app dark' : 'pipeline-app'}>
+    <aside className="sidebar" aria-label="Navegación de referencia"><div className="brand" aria-label="People first">p<span>f</span><i /></div><div className="sidebar-create" title="Vista de demostración"><Plus size={20} /></div><div className="sidebar-icons">{[LayoutGrid, BriefcaseBusiness, UsersRound].map((Icon, i) => <div key={i} className={i === 1 ? 'nav-icon selected' : 'nav-icon'} title={['Inicio', 'Vacantes', 'Candidatos'][i]}><Icon size={19} /></div>)}<div className="nav-separator" />{[UsersRound, Globe2, Settings2].map((Icon, i) => <div className="nav-icon" key={i}><Icon size={19} /></div>)}</div><div className="sidebar-bottom"><CircleHelp size={20} /><div className="user-avatar">N</div></div></aside>
+    <div className="workspace">
+      <header className="topbar"><button className="icon-button" aria-label="Alternar vista compacta" onClick={() => setCompact(!compact)}><PanelLeft size={18} /></button><span className="breadcrumb-divider" /><span className="breadcrumb">Vacantes</span><span className="text-muted-foreground">/</span><span className="job-title">Software Developer</span><Badge variant="secondary"><span className="size-1.5 rounded-full bg-primary" />Activa</Badge><button className="icon-button theme-button" aria-label={dark ? 'Activar tema claro' : 'Activar tema oscuro'} onClick={() => setDark(!dark)}>{dark ? <Sun size={18} /> : <Moon size={18} />}</button></header>
+      <main className={compact ? 'main-content compact' : 'main-content'}>
+        <section className="pipeline-heading"><div><div className="eyebrow">PROCESO DE SELECCIÓN</div><h1>Pipeline</h1><p>Publicada el 17 oct 2026</p></div><div className="metrics"><div className="metric"><span>Cobertura<ArrowUpRight size={14} /></span><p><strong>0</strong> de 1 plazas cubiertas</p><div className="progress-track" /><small>Una oportunidad, el mejor talento.</small></div><div className="metric"><span>Entrega<ArrowUpRight size={14} /></span><p><strong>0</strong> de 5 candidatos</p><div className="progress-track" /><small>Faltan 29 días hábiles</small></div></div></section>
+        <div className="board-overview"><div className="candidate-total"><UsersRound size={18} /><strong>1</strong><span>candidato en el pipeline</span></div><span className="board-help"><GripVertical size={15} />Tu proceso, de un vistazo</span></div>
+        <PipelineFilters filters={filters} onChange={setFilters} count={visible ? 1 : 0} />
+        <PipelineBoard visible={visible} filtered={Object.keys(filters).length > 0} onClear={() => setFilters({})} />
+        <footer className="workspace-footer"><span><span className="size-1.5 rounded-full bg-primary/60" />Software Developer<span className="footer-separator">/</span>Pipeline de selección</span><span>Vista de demostración · Datos de la captura</span></footer>
+      </main>
+    </div>
+  </div>
+}

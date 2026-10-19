@@ -1,0 +1,89 @@
+'use client'
+
+import { useLayoutEffect, useRef, useState } from 'react'
+import { SlidersHorizontal, X, ChevronRight, Columns3, Languages, Code2, MapPin, RotateCcw, Check } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet'
+
+export const filterDefinitions = [
+  { id: 'stage', label: 'Columna', icon: Columns3, question: 'Etapa del proceso de selección', options: ['Screening', 'Nuevos', 'Screening OK', 'En proceso', 'Placement'], initial: 'Screening' },
+  { id: 'english', label: 'Inglés', icon: Languages, question: '¿Cuál es tu nivel de conversación en inglés para reuniones técnicas y de equipo?', options: ['Avanzado (B2/C1)', 'Intermedio (B1)', 'Básico (A1/A2)'], initial: 'Avanzado (B2/C1)', detail: 'Conversación fluida en entornos de trabajo', desirable: true },
+  { id: 'tech', label: 'PostgreSQL y Docker', icon: Code2, question: '¿Tienes experiencia práctica diseñando bases de datos en PostgreSQL y desplegando aplicaciones con Docker?', options: ['Experiencia sólida', 'Experiencia básica', 'Sin experiencia'], initial: 'Experiencia sólida', detail: 'Sí, tengo experiencia sólida con ambas tecnologías.', desirable: true },
+  { id: 'city', label: 'Ciudad', icon: MapPin, question: 'Ciudad de residencia del candidato', options: ['Sin dato', 'Ciudad de México', 'Bogotá', 'Lima'], initial: 'Sin dato' },
+]
+export type Filters = Record<string, string>
+export const initialFilters = Object.fromEntries(filterDefinitions.map(f => [f.id, f.initial]))
+
+export function PipelineFilters({ filters, onChange, count }: { filters: Filters; onChange: (f: Filters) => void; count: number }) {
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState<Filters>(filters)
+  const active = filterDefinitions.filter(f => filters[f.id])
+  const chipsRef = useRef<HTMLDivElement>(null)
+  const measureRef = useRef<HTMLDivElement>(null)
+  const [visibleCount, setVisibleCount] = useState(0)
+  const signature = JSON.stringify(active.map(f => [f.id, filters[f.id]]))
+
+  useLayoutEffect(() => {
+    const container = chipsRef.current
+    const measurement = measureRef.current
+    if (!container || !measurement) return
+    const measure = () => {
+      const chips = Array.from(measurement.querySelectorAll<HTMLElement>('.filter-chip'))
+      const more = measurement.querySelector<HTMLElement>('.more-filters')
+      const gap = parseFloat(getComputedStyle(container).gap) || 0
+      const available = container.clientWidth
+      const widths = chips.map(chip => chip.getBoundingClientRect().width)
+      const total = widths.reduce((sum, width) => sum + width, 0) + Math.max(0, widths.length - 1) * gap
+      if (total <= available) { setVisibleCount(chips.length); return }
+      let used = more?.getBoundingClientRect().width ?? 0
+      let count = 0
+      for (const width of widths) {
+        if (used + gap + width > available) break
+        used += gap + width
+        count++
+      }
+      setVisibleCount(count)
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(container)
+    observer.observe(measurement)
+    measure()
+    return () => observer.disconnect()
+  }, [signature])
+
+  function edit() { setDraft({ ...filters }); setOpen(true) }
+  function remove(id: string) { const next = { ...filters }; delete next[id]; onChange(next) }
+  return <>
+    <section aria-label="Filtros del pipeline" className="filter-toolbar">
+      <button className="filter-trigger" onClick={edit}><SlidersHorizontal size={16} />Filtros{active.length > 0 && <span className="filter-count">{active.length}</span>}</button>
+      <div className="filter-chips" ref={chipsRef}>
+        {active.length === 0 ? <span className="truncate text-sm text-muted-foreground">Todos los candidatos, sin filtros</span> : active.slice(0, visibleCount).map(f => <div key={f.id} className="filter-chip">
+          <button onClick={edit} title={`${f.question}: ${filters[f.id]}`} className="chip-label"><f.icon size={14} /><span className="chip-category">{f.label}:</span><span className="truncate">{filters[f.id]}</span></button>
+          <button className="chip-remove" onClick={() => remove(f.id)} aria-label={`Quitar filtro de ${f.label}`}><X size={13} /></button>
+        </div>)}
+        {active.length > visibleCount && <button className="more-filters" onClick={edit} aria-label={`Ver ${active.length - visibleCount} filtros más. ${active.length} filtros activos`} aria-haspopup="dialog">+{active.length - visibleCount} más</button>}
+      </div>
+      <div className="filter-measure" ref={measureRef} aria-hidden="true" inert>
+        {active.map(f => <div key={f.id} className="filter-chip"><span className="chip-label"><f.icon size={14} /><span className="chip-category">{f.label}:</span><span className="truncate">{filters[f.id]}</span></span><span className="chip-remove"><X size={13} /></span></div>)}
+        <span className="more-filters">+{active.length} más</span>
+      </div>
+      {active.length > 0 && <button className="clear-filters" onClick={() => onChange({})} title="Limpiar todos los filtros"><RotateCcw size={15} /><span>Limpiar</span></button>}
+      <button className="filter-details" onClick={edit} aria-label="Ver detalles de los filtros"><ChevronRight size={18} /></button>
+    </section>
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetContent className="filter-sheet">
+        <SheetHeader><div className="panel-eyebrow"><SlidersHorizontal size={16} /> PERSONALIZA TU VISTA</div><SheetTitle>Filtros del pipeline</SheetTitle><SheetDescription>Encuentra a las personas que mejor encajan. Los criterios se combinan entre sí.</SheetDescription></SheetHeader>
+        <div className="filter-fields">
+          {filterDefinitions.map(f => <div className="filter-field" key={f.id}>
+            <label htmlFor={f.id}><f.icon size={17} />{f.label}{f.desirable && <span className="desirable">Deseable</span>}</label>
+            <p id={`${f.id}-description`}>{f.question}</p>
+            <select id={f.id} aria-describedby={`${f.id}-description`} value={draft[f.id] || ''} onChange={e => { const next = { ...draft }; if (e.target.value) next[f.id] = e.target.value; else delete next[f.id]; setDraft(next) }}><option value="">Sin filtro</option>{f.options.map(o => <option key={o}>{o}</option>)}</select>
+            {draft[f.id] === f.initial && f.detail && <p className="answer-detail">{f.detail}</p>}
+          </div>)}
+        </div>
+        <SheetFooter><Button onClick={() => { onChange(draft); setOpen(false) }}><Check data-icon="inline-start" />Aplicar filtros{Object.keys(draft).length > 0 ? ` (${Object.keys(draft).length})` : ''}</Button><Button variant="ghost" onClick={() => setDraft({})}>Limpiar selección</Button><p className="text-center text-sm text-muted-foreground">Los cambios se aplican al confirmar.</p></SheetFooter>
+      </SheetContent>
+    </Sheet>
+    <div className="results-line" aria-live="polite"><span>{active.length ? <><span className="result-dot" />Vista filtrada<span className="result-divider">·</span></> : null}Mostrando <strong>{count}</strong> de <strong>1</strong> candidato</span>{active.length > 0 && <button onClick={edit}>Editar filtros<ChevronRight size={14} /></button>}</div>
+  </>
+}

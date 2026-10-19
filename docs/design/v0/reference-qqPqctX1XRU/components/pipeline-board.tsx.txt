@@ -1,0 +1,9 @@
+import { CalendarDays, Clock3, FileText, LockKeyhole, ListFilter, ArrowUpRight } from 'lucide-react'
+
+const stages = ['Nuevos', 'Screening', 'Screening OK', 'En proceso', 'Placement']
+export function PipelineBoard({ visible, filtered, onClear }: { visible: boolean; filtered: boolean; onClear: () => void }) {
+  return <section className="kanban" aria-label="Tablero de candidatos">{stages.map((stage, index) => <section key={stage} className={`kanban-column column-${index}`} aria-label={stage}>
+    <header className="column-header"><span className="stage-dot" /><h2>{stage}</h2><span className="stage-count">{index === 1 && visible ? '1' : '0'}<span> de {index === 1 ? '1' : '0'}</span></span>{(index === 0 || index === 4) && <LockKeyhole size={14} className="ml-auto" />}</header>
+    {index === 1 && visible ? <article className="candidate-card"><div className="candidate-heading"><div className="avatar">FV</div><h3>Flores Vazquez<br />Bryan Aldrich</h3></div><div className="candidate-meta"><p><CalendarDays size={14} />Postuló 17 oct</p><p><Clock3 size={14} />En la etapa desde 19 oct</p></div><div className="candidate-footer"><span><FileText size={15} />CV adjunto</span><span className="candidate-status">En revisión</span></div></article> : <div className="empty-column"><div className="empty-icon"><ListFilter size={19} strokeWidth={1.4} /></div><p>{filtered ? 'Sin coincidencias' : 'Sin candidatos todavía'}</p><span>{filtered ? 'Ningún candidato coincide con los filtros en esta etapa.' : 'Los candidatos de esta etapa aparecerán aquí.'}</span>{filtered && index === 1 && <button onClick={onClear}>Limpiar filtros<ArrowUpRight size={14} /></button>}</div>}
+  </section>)}</section>
+}
