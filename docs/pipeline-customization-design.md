@@ -1676,6 +1676,10 @@ delivery), PIPE-13 (recovery returns to the previous stage with confirmation).
   on the same version therefore name the same new stage, and `applied_impact` matches the
   preview unless the data changed in between. Ids still come only from the server, are never
   reused (the version increases on every save) and never collide with retired ids.
+- **Preview stages** (frontend msg 6325942b): the preview `200` also carries `stages: [{id, kind,
+  name}]` — the resulting progression in the proposed order with the deterministic ids of new
+  stages — so the client can label `not_applicable` entries that name a new column. Preview root
+  keys are exactly `{stages, not_applicable, recovery_reassigned, has_impact}`.
 
 ### 17.3 Storage
 
