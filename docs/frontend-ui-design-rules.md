@@ -381,6 +381,14 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
       neto/bruto (sección 16)?
 - [ ] ¿En móvil la pantalla se reorganiza (apila, mueve) en lugar de achicar texto y
       controles (sección 16)?
+- [ ] ¿Se revisó la superficie con el volumen real de datos (todas las opciones de todos
+      los grupos, nombres largos, conteos en 0) y no se convierte en una pared de
+      controles (sección 17)?
+- [ ] ¿Todo texto con cantidad concuerda en número («1 candidato», «2 candidatos»)
+      usando el helper de plural, nunca concatenando una «s» (sección 17)?
+- [ ] ¿Una superficie compuesta nueva (Sheet, Dialog, barra de herramientas) parte de
+      un patrón aprobado de estas reglas o de una referencia visual, y no de una
+      composición improvisada (sección 17)?
 
 ---
 
@@ -923,9 +931,12 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
   filtrado, grupos y chips. Agregar una dimensión es una declaración. Las opciones
   siguen el orden del tablero/catálogo; pueden agruparse visualmente sin cambiar la
   semántica OR. Los conteos por opción describen el tablero completo actual.
-- El Sheet usa `FieldSet`/`FieldLegend` y checkboxes con targets ≥40px, scroll interno
-  y footer en una fila: «Limpiar» ghost y «Ver N candidatos» primario. Los filtros
-  aplican en vivo; el botón primario solo cierra y el foco vuelve a «Filtros».
+- El Sheet sigue la anatomía de la sección 17: encabezado con identidad, secciones por
+  significado y **un control compacto por dimensión** (multiselect con búsqueda,
+  casillas y conteos dentro del desplegable), nunca todas las opciones expandidas como
+  lista de casillas. Pie con el resumen en vivo («N candidatos coinciden» y los filtros
+  activos) y las acciones «Limpiar» y «Ver N candidato(s)». Los filtros aplican en
+  vivo; el botón primario solo cierra y el foco vuelve a «Filtros».
 - Solo con filtros activos aparece una fila de chips removibles (botones, no badges
   interactivos), uno por valor con su dimensión, más «Limpiar filtros» y el anuncio
   cortés «Mostrando X de Y candidatos». El estado vive en el controlador/página local,
@@ -1106,3 +1117,26 @@ pie con compensación y «Ver vacante») y `PublicJobDetailView` (encabezado, «
 un vistazo», navegación por secciones y columna fija con compensación y «Postularme») en
 `src/features/jobs/components/`. Referencia de diseño:
 `docs/design/v0/reference-c6eMqlbQQtD/`.
+
+## 17. Paneles densos (Sheets de filtros, configuración y formularios largos)
+
+Origen: el primer Sheet de «Filtros» del tablero mostraba todas las opciones de todas
+las dimensiones como casillas sueltas, sin secciones; el contenido se deslizaba por
+debajo del encabezado, abundaban conteos en 0, el pie decía «Ver 1 candidatos» y la
+explicación de la lógica estaba en la descripción del encabezado. La referencia
+corregida (v0) resuelve cada punto; estas reglas evitan que se repita.
+
+| Regla | Concreto | Para qué |
+| --- | --- | --- |
+| Un control compacto por dimensión | Cada filtro es un `Field` con etiqueta, un disparador de multiselección (Combobox o Popover del sistema) que muestra «Todas las etapas» o el resumen de lo elegido, y una ayuda de una línea. Las opciones, su búsqueda, las casillas y los conteos viven **dentro** del desplegable. Una lista de casillas expandida solo se admite con una única dimensión de ≤5 opciones. | El panel se recorre de un vistazo, sin importar cuántas opciones tenga cada grupo. |
+| Secciones por significado | Las dimensiones se agrupan en secciones con encabezado de ícono + etiqueta en mayúsculas pequeñas («PROCESO DE SELECCIÓN», «CANDIDATOS DESCARTADOS») y un `Separator` entre ellas; la etiqueta de la sección no compite en peso con la del campo. | Jerarquía clara: sección → campo → opciones. |
+| Anatomía fija del panel | Encabezado: tile con el ícono de la acción, título con verbo («Filtrar candidatos») y una línea de propósito en lenguaje llano. Cuerpo: único contenedor con scroll (sección 13.8: `min-h-0 flex-1 overflow-y-auto`), separado del encabezado y del pie por bordes; el contenido nunca pasa visible por debajo del encabezado. Pie fijo: resumen en vivo + acción secundaria con ícono («Limpiar») + primaria con el resultado («Ver 3 candidatos →»). | Siempre se sabe dónde se está, qué se eligió y qué va a pasar. |
+| La lógica se explica una vez, en llano | La regla de combinación va en una nota informativa (ícono + superficie `muted`) al final del cuerpo: «Las opciones de un mismo filtro se suman. Entre filtros, los candidatos deben cumplir ambas condiciones.» Nunca en la descripción del encabezado ni con jerga («AND/OR», «dimensiones»). | La persona entiende el efecto sin leer documentación. |
+| Conteos que no hacen ruido | Los conteos van alineados a la derecha, `tabular-nums` y en `muted-foreground`; las opciones en 0 siguen siendo elegibles pero con menor contraste. Nunca una columna de ceros con el mismo peso que las etiquetas. | El dato útil se ve; el vacío no grita. |
+| Plural siempre correcto | Todo texto con cantidad pasa por un helper de plural («1 candidato coincide», «3 candidatos coinciden», «Ver 1 candidato»). Prohibido concatenar «s» o dejar un plural fijo. | Un error de concordancia rompe la sensación de producto cuidado. |
+| Probar con el peor caso real | Antes de dar por terminada una superficie densa se revisa con todos los grupos y todas sus opciones, nombres largos, conteos en 0 y en móvil, en claro y oscuro. Un test fija la anatomía (encabezado, secciones, un disparador por dimensión, pie con resumen) y el plural. | Los problemas aparecen con datos reales, no con un caso de ejemplo. |
+| Partir de un patrón o una referencia | Una superficie compuesta nueva parte de un patrón de estas reglas o de una referencia visual aprobada (v0 o una captura del usuario). Si no hay ninguna, se propone primero una referencia (prompt de v0 o boceto) antes de implementar. | Evita componer al tanteo y rehacer después. |
+
+Ejemplo de referencia: el Sheet «Filtrar candidatos» del tablero
+(`src/features/pipeline-movement/board-filters.tsx`), según las capturas de v0 del
+2026-10-19.
