@@ -52,6 +52,10 @@ func TestMigration00024ExistingMovementCatalogAndGuardedDown(t *testing.T) {
 	exec(`INSERT INTO process_participations(id,process_id,candidate_id,stage_id,cv_version_id,questions_snapshot,answers_snapshot,source,version) VALUES($1,$2,$3,$4,$5,'[]','[]','organic',2)`, pid, vacancy, actor, current, cv)
 	exec(`INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,created_at) VALUES($1,$2,$3,$4,now()-interval '1 hour')`, uuid.New(), pid, initial, actor)
 	exec(`INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,from_stage_id,actor_kind) VALUES($1,$2,$3,$4,$5,'recruiter')`, uuid.New(), pid, current, recruiter, initial)
+	// Cut-4 Placement entries already exist when 00024 is deployed. Both
+	// flags must survive the event_kind backfill as ordinary move rows.
+	exec(`INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,from_stage_id,actor_kind,hire,created_at) VALUES($1,$2,$3,$4,$5,'recruiter',true,now()+interval '1 second')`, uuid.New(), pid, current, recruiter, initial)
+	exec(`INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,from_stage_id,actor_kind,departure,created_at) VALUES($1,$2,$3,$4,$5,'recruiter',true,now()+interval '2 seconds')`, uuid.New(), pid, initial, recruiter, current)
 	// Compare original cut-4 columns, not the newly additive fields.
 	oldSnapshot := func() string {
 		t.Helper()
@@ -69,7 +73,7 @@ func TestMigration00024ExistingMovementCatalogAndGuardedDown(t *testing.T) {
 		t.Fatal("up changed cut-4 personal data or movement history")
 	}
 	var kinds string
-	if err := pool.QueryRow(ctx, `SELECT string_agg(event_kind,',' ORDER BY created_at,id) FROM participation_stage_history WHERE participation_id=$1`, pid).Scan(&kinds); err != nil || kinds != "intake,move" {
+	if err := pool.QueryRow(ctx, `SELECT string_agg(event_kind,',' ORDER BY created_at,id) FROM participation_stage_history WHERE participation_id=$1`, pid).Scan(&kinds); err != nil || kinds != "intake,move,move,move" {
 		t.Fatal(kinds, err)
 	}
 	for _, group := range []string{"recruiter", "candidate", "unknown", ""} {

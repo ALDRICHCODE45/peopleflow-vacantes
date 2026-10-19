@@ -67,12 +67,31 @@ func TestMigration00026ExistingRowsShapesAndGuardedDown(t *testing.T) {
 		}
 		return raw
 	}
+	checks := func() string {
+		t.Helper()
+		var raw string
+		if err := pool.QueryRow(ctx, `SELECT jsonb_agg(jsonb_build_array(c.relname,k.conname,pg_get_constraintdef(k.oid)) ORDER BY c.relname,k.conname)::text FROM pg_constraint k JOIN pg_class c ON c.oid=k.conrelid WHERE k.contype='c' AND c.relname IN ('process_participations','participation_stage_history')`).Scan(&raw); err != nil {
+			t.Fatal(err)
+		}
+		return raw
+	}
+	beforeChecks := checks()
+	// Deployment must also accept a participation that is currently discarded,
+	// not merely one whose history contains a past discard.
+	exec(`UPDATE process_participations SET stage_id=$2,previous_stage_id=$3,reason_group='candidate',reason_code='unresponsive',comment='Private',candidate_message='Retained',discarded_at=now() WHERE id=$1`, pid, exit, current)
 	before := oldSnapshot()
 	gooseUpAll(t, db)
 	gooseDownTo(t, db, 26) // Pin this rollback independently of later additive migrations.
 	if before != oldSnapshot() {
 		t.Fatal("migration rewrote personal data or cut-4/5 history")
 	}
+	var emptySubstate bool
+	if err := pool.QueryRow(ctx, `SELECT substate_id IS NULL FROM process_participations WHERE id=$1`, pid).Scan(&emptySubstate); err != nil || !emptySubstate {
+		t.Fatal("existing discard acquired a substate", err)
+	}
+	// Restore active state for the independent substate shape/rollback matrix.
+	exec(`UPDATE process_participations SET stage_id=$2,previous_stage_id=NULL,reason_group=NULL,reason_code=NULL,comment=NULL,candidate_message=NULL,discarded_at=NULL WHERE id=$1`, pid, current)
+	before = oldSnapshot()
 	fullSnapshot := func() string {
 		t.Helper()
 		var raw string
@@ -127,6 +146,9 @@ func TestMigration00026ExistingRowsShapesAndGuardedDown(t *testing.T) {
 		t.Fatal("discarded participation accepted substate")
 	}
 	gooseDownTo(t, db, 25)
+	if got := checks(); got != beforeChecks {
+		t.Fatalf("down did not restore exact CHECK definitions:\nbefore %s\nafter %s", beforeChecks, got)
+	}
 	if before != oldSnapshot() || columnExists(t, pool, "process_participations", "substate_id") || columnExists(t, pool, "participation_stage_history", "to_substate_name") {
 		t.Fatal("down lost cut-4/5 rows or retained columns")
 	}

@@ -32,23 +32,32 @@ Open decisions awaiting the user:
 - Reversal of a mistaken candidate onboarding (support/admin tool or none) — design §11.3.
 - AWS console checks for candidate sign-up — design §11.4 (self sign-up with email
   verification, sign-out URL `http://localhost:3000/candidato/login`).
-- Follow-up tests suggested by the cut-5 verification (L56, not blocking): 00024 migration
-  fixture with existing hire/departure history rows; discard/move/recover race on a
-  participation in Placement. Known flaky test (pre-existing, unrelated):
-  `TestMigration00014UpCreatesDraftListIndexUsedByTheListOrder` under the loaded `-race`
-  integration suite (L52).
-- Follow-up tests suggested by the cut-6 verification (L65, not blocking): catalog removal
-  racing a move/discard; 00026 fixture with an already-discarded participation; restored
-  CHECK equality after down; set-substate owner/non-principal matrix.
-- Follow-up tests suggested by the delivery-fulfillment verification (L69, not blocking):
-  recovery as the sole first attainment; substate-only history fixture; missing-config
-  rollback; fulfillment-crossing mixed apply/move/edit races; status/preview live-gate matrix.
-- Follow-up tests suggested by the cut-7 verification (L78, not blocking): full history
-  immutability after a successful edit; `recovery_reassigned` ordering with several retired
-  stages; exact UUIDs for later id-less ordinals; preview-specific inherited live-gate matrix;
-  non-null active substate kept across edits; `recovery_override:false` audit on ordinary
-  recovery; cutoff removal after fulfillment.
-- Follow-up test suggested by the §19 verification (L80, not blocking): a populated-snapshot
-  regression asserting profile/answers never reach logs or audit metadata.
+- Cut-5 follow-ups (L56): test coverage added — existing hire/departure rows in
+  `TestMigration00024ExistingMovementCatalogAndGuardedDown`; Placement race in
+  `TestDiscardMoveRecoveryPlacementForcedOneWinner`. Planner-flake hardening (L52):
+  `TestMigration00014UpCreatesDraftListIndexUsedByTheListOrder` now disables sequential
+  and bitmap scans transaction-locally, retaining the index/no-sort assertions.
+- Cut-6 follow-ups (L65): test coverage added — catalog removal vs move/discard in
+  `TestSubstateRemovalRacingMoveDiscardBothOrderings`; pre-existing discarded row and exact
+  restored CHECK equality in `TestMigration00026ExistingRowsShapesAndGuardedDown`;
+  authorization in `TestSubstateOwnerPrincipalNonprincipalDBMatrix`.
+- Delivery-fulfillment follow-ups (L69): test coverage added —
+  `TestFulfillmentRecoverySoleFirstAttainment`,
+  `TestFulfillmentSubstateOnlyHistoryNeverCountsAsReached`,
+  `TestFulfillmentMissingConfigRollsBackTrigger`,
+  `TestFulfillmentCrossingMixedApplyMoveEditExactlyOnce`, and
+  `TestFulfillmentStatusPreviewLiveGateDBMatrix`.
+- Cut-7 follow-ups (L78): test coverage added — every prior history row and non-null
+  active substate in `TestColumnsSuccessfulEditsPreserveEveryHistoryRowAndActiveSubstate`;
+  recovery ordering in `TestColumnRecoveryReassignedSeveralRetiredStagesOrderedByPositionThenID`;
+  exact UUIDs in `TestColumnIDsExactLaterAndInterleavedIdlessOrdinals`;
+  preview gates in `TestColumnsPreviewInheritedLiveGateDBMatrix`;
+  ordinary recovery audit in `TestColumnsOrdinaryRecoveryAuditsOverrideFalse`;
+  fulfilled cutoff removal in `TestColumnsCutoffRemovalRejectedAfterFulfillment`.
+- §19 follow-up (L80): test coverage added —
+  `TestFilterDataPopulatedSnapshotsNeverReachRequestLogsOrAuditMetadata` captures real
+  request-completion logs and audit metadata with populated profile/answer snapshots.
+  All DB-backed follow-up coverage above still awaits the parent's isolated-database run;
+  compilation/skips are not evidence of passing database behavior.
 - Note for the morning review: the profile filters read the candidate's own profile at apply
   time; candidates who never completed their profile show «Sin dato».
