@@ -1061,12 +1061,14 @@ Referencia: `docs/design/v0/reference-lqiGtbQJqJc/` y capturas de L5 en
 
 ### 14.6 Reordenar columnas desde el tablero
 
-- Solo sin candidatos (`structure_locked === false`): manija `GripVertical` de 40px
+- Con o sin candidatos (corte 7): manija `GripVertical` de 40px
   «Reordenar {columna}», visible con hover/foco (siempre en móvil), y menú accesible
   «Mover a la izquierda/derecha». Nuevos y Placement mantienen su posición; Descartados
-  nunca es arrastrable ni destino. Con candidatos, explicar el bloqueo en un tooltip
-  alcanzable por teclado. Elevar la columna y marcar la inserción sin animaciones
-  obligatorias. Cada caída guarda con el ETag del pipeline, orden optimista y bloqueo;
+  nunca es arrastrable ni destino. Elevar la columna y marcar la inserción sin animaciones
+  obligatorias. La columna no se mueve hasta confirmar con `ConfirmActionDialog` (§18);
+  con candidatos (`structure_locked === true`) primero se pide la vista previa del impacto
+  y el diálogo lista a quién afecta; el PUT lleva `confirm_impact` y el toast cuenta el
+  impacto realmente aplicado. Cada confirmación guarda con el ETag del pipeline y bloqueo;
   adoptar el nuevo ETag y leer el tablero. Ante conflicto o incertidumbre, leer una vez
   configuración y tablero, sin repetir el PUT; si falla, bloquear el reordenamiento y
   ofrecer solo actualización de lectura. Toast real y estado persistente en el slot

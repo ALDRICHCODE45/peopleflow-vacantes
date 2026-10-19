@@ -15,8 +15,8 @@ Branch `feat/pipeline-column-editing-ui`, stacked on `feat/pipeline-board-filter
 ## Tasks
 
 - T1 [done] S1-S5 | writer A | Column configuration page: unlock reorder/add/remove with candidates, preview → ConfirmActionDialog with impact → PUT confirm_impact, errors, applied_impact toast, retired decode; pipeline client/model. | commit: 6019f35, 59bd060
-- T2 [done] S1-S5 | writer B | Board: retired_stages, history not_applicable, recover with to_stage_id selection, board column reorder with candidates via preview. | commit: -
-- T3 [pending] | parent | Guide step, queue item, full suite. | commit: -
+- T2 [done] S1-S5 | writer B | Board: retired_stages, history not_applicable, recover with to_stage_id selection, board column reorder with candidates via preview. | commit: 681310f, 97ea55a
+- T3 [done] | parent | Guide step 73, queue item 4, rule §14.6 updated, full suite. | commit: this docs commit
 
 ## Log
 

@@ -525,3 +525,15 @@ docker start nest-practice   # si lo habías frenado
 
 Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
 `main`. La rama del backend la integra su propio agente. El push lo hacés vos.
+
+73. **Editar columnas con candidatos (corte 7).** Backend en `feat/pipeline-column-editing`
+    (`make db-migrate` aplica la 00028). En una vacante con candidatos, abrí Configuración →
+    Columnas: agregá una columna propia antes de una columna con candidatos y guardá.
+    **Esperado:** primero «Revisando impacto…», luego una confirmación «¿Guardar los cambios
+    de columnas?» que lista quiénes quedan con «No aplica por cambio de proceso»; al
+    confirmar, toast con el impacto aplicado y nadie cambia de columna. Quitá una columna
+    con candidatos activos: error que la nombra y lleva al tablero. En el tablero, reordená
+    una columna arrastrándola: misma vista previa y confirmación; «Cancelar» la deja en su
+    lugar. En la ficha de un candidato afectado, el historial muestra «No aplica por cambio
+    de proceso». Descartá a alguien, quitá su columna anterior y recuperalo: el diálogo
+    avisa que su columna ya no existe y pide «Columna de regreso» con la sugerida marcada.
