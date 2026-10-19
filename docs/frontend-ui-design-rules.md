@@ -356,6 +356,8 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
       (p. ej. `TabsTrigger`) conservan su variante compacta sin romper foco, teclado ni
       espaciado (sección 2)?
 - [ ] ¿Foco visible y nombre accesible en todos los controles?
+- [ ] ¿Los filtros de tablero/lista comparten un único «Filtros» Sheet, dimensiones
+      multiselección OR/AND y chips removibles con anuncio de resultados (§13.12)?
 - [ ] ¿La pantalla tiene presencia visual: jerarquía, profundidad, iconografía,
       densidad y acento semántico (sección 10)?
 - [ ] ¿Si la vista ofrece dos modos, cada modo tiene una arquitectura distinta y no
@@ -910,11 +912,27 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
   explica quién verá cada uno; el historial conserva sus etiquetas. Los mensajes se
   renderizan como texto de React con `whitespace-pre-wrap` y `break-words`, nunca HTML.
 
-### 13.12 Filtros locales del tablero
+### 13.12 Filtros locales de tableros y listas
 
-- Un filtro multiselección usa `DropdownMenu` con checkbox items, contador de opciones
-  activas y «Limpiar» en la barra del tablero; nunca badges interactivos. Combina OR
-  dentro de su dimensión y AND con las demás. Filtrar no escribe ni vuelve a leer.
+- Los filtros viven en un único `Sheet` flotante a la derecha (§13.3), abierto desde
+  «Filtros» (`Button` outline con contador de **valores** activos). No agregar un
+  botón suelto por filtro. Cada dimensión es multiselección: OR entre sus valores y
+  AND entre dimensiones activas; una dimensión vacía no restringe. «Sin X» es un valor
+  de la dimensión cuando aplica, nunca un interruptor separado.
+- Un solo modelo genérico `{ key, label, options, match(item, selected) }` alimenta
+  filtrado, grupos y chips. Agregar una dimensión es una declaración. Las opciones
+  siguen el orden del tablero/catálogo; pueden agruparse visualmente sin cambiar la
+  semántica OR. Los conteos por opción describen el tablero completo actual.
+- El Sheet usa `FieldSet`/`FieldLegend` y checkboxes con targets ≥40px, scroll interno
+  y footer en una fila: «Limpiar» ghost y «Ver N candidatos» primario. Los filtros
+  aplican en vivo; el botón primario solo cierra y el foco vuelve a «Filtros».
+- Solo con filtros activos aparece una fila de chips removibles (botones, no badges
+  interactivos), uno por valor con su dimensión, más «Limpiar filtros» y el anuncio
+  cortés «Mostrando X de Y candidatos». El estado vive en el controlador/página local,
+  sin URL; filtrar no escribe ni vuelve a leer.
+- Convención futura del servidor: parámetros repetidos por valor, por ejemplo
+  `?substate=a&substate=b&substate=none`, con la misma semántica OR/AND. No cambiar
+  contratos ni emitir requests para implementar la presentación local.
 - Se conserva el tablero completo como fuente: las columnas muestran «X de Y» mientras
   hay filtro y «Ningún candidato coincide con el filtro» si quedan vacías. La cobertura
   no cambia. Si una escritura oculta su tarjeta, sus errores siguen visibles en la barra
