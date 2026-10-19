@@ -14,11 +14,12 @@ Design: `docs/geo-location-design.md` (§20). Branch `feat/geo-location-design` 
 - **S7.** P6 «Estado, municipio, modalidad (Recomendado)» — public search filters.
 - **S8.** «Por eso no te preocupes hermano, todos los datos que se ocupan ahora son datos de prueba, podriamos eliminar toda la base de datos y no importaria, no hay nada real que importe aqui. tu tranquilo.» — no legacy migration/backfill; free-text fields can be replaced.
 - **S9.** Technical assumptions accepted by the user: codes stored, `make geo-import`, public cacheable geo endpoints, §19 snapshot → {country,state,municipality}.
+- **S11.** Q1 «Sí, usarlo así (Recomendado)» — SEPOMEX only to autocomplete state/municipality from one postal code at a time, no bulk listing, no resale. Q2 keep `applicant_country`. Q3 postal code preloads (editable, never locked).
 - **S10.** Vacancy SEO stays last (pipeline-customization S27) and consumes this.
 
 ## Tasks
 
-- [ ] T1 — S1–S10: §20 design, frontend review, Q1 user answer (parent) — in progress
+- [x] T1 — S1–S11: §20 design, frontend review, Q1 user answer (parent) — 3bdee90 + decisions commit
 - [ ] T2 — S1, S4, S9: G1 catalog + importer + geo endpoints, migration 00030 own commit (worker)
 - [ ] T3 — S2, S3, S5, S8: G2 vacancy location + remote scope + projection, migration 00031 own commit (worker)
 - [ ] T4 — S2, S6, S8: G3 candidate profile + company, migration 00032 own commit (worker)
@@ -29,3 +30,4 @@ Design: `docs/geo-location-design.md` (§20). Branch `feat/geo-location-design` 
 
 - **L1.** Frontend relay of the user's feature request and answers (S1–S9, verbatim above); queue rows 10–11 approved and merged (main d3d6671, then the user's logo commit ef75173).
 - **L2.** Code map (explore mvfsgwt6-e-v9iq): drafts store `location`/`work_mode` inside the BYTEA canonical document (draftfields/scalars.go:48–74; readiness.go:26–40 requires location even for remote); projection 00020 `location TEXT NOT NULL`; /v2/jobs `location` substring filter (public_jobs.sql); candidate `/me/profile` city/country text (00006); company city/country (00003, PATCH tri-state); §19 snapshot city (00029); apply tx store.go:41–136 has no country gate; legacy `jobs` table and `/jobs` routes still live; latest migration 00029. SEPOMEX note: «se proporciona en forma gratuita, no estando permitida su comercialización, total o parcial» (correosdemexico.gob.mx).
+- **L3.** Frontend accepted §20; Q1 user answer, Q2/Q3 frontend answers recorded in §20.9 (S11). G1 starts on `feat/geo-catalog`.

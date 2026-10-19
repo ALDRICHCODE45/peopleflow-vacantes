@@ -204,17 +204,17 @@ On `/v2/jobs`:
   publicly, with `location: null`, but any edit must satisfy readiness.
 - The seed `00008` (legacy jobs) is untouched.
 
-## 20.9 Open points
+## 20.9 Decisions (frontend review accepted §20)
 
-- **Q1 (user, legal):** SEPOMEX states that its catalog «se proporciona en forma gratuita, no
-  estando permitida su comercialización, total o parcial».
-  - We only use it to autocomplete state and municipality from a postal code, one at a time, with
-    no bulk listing and no resale.
-  - **Recommendation: use it this way.** The INEGI catalogs have no such restriction.
-- **Q2 (frontend):** `applicant_country` in public search was described in P6's recommended option
-  text, though the option label only names state/municipality/work mode. Keep it in G5, or drop it?
-- **Q3 (frontend):** do you want postal-code autocomplete to fill the state and municipality and
-  lock them, or only prefill them?
+- **Q1 (user):** «Sí, usarlo así (Recomendado)» — SEPOMEX is used only to resolve one postal code at
+  a time into state/municipality; no bulk listing, no resale. INEGI catalogs have no restriction.
+- **Q2:** `applicant_country` stays in G5 — the chosen P6 option described «Más «acepta postulantes
+  desde mi país» para remotas».
+- **Q3:** the postal-code lookup **preloads** state and municipality (editable, never locked); with
+  several matches the user picks one. If the user then picks a state/municipality the postal code
+  does not map to, the UI clears the postal code; the server rule (`mismatch`) stays authoritative.
+- `location_label` keeps the legacy free-text fallback: the legacy `jobs` rows are still served by
+  `/v2/jobs`, and the fallback is one `COALESCE`.
 
 ## 20.10 Cuts
 
