@@ -557,3 +557,19 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     coincidencias» sin botones propios. En los desplegables del Sheet, las opciones al pasar
     el mouse y marcadas se resaltan con bordes redondeados, sin bloques cuadrados. Probalo
     en celular y en los dos temas.
+
+76. **Ubicación estructurada de la vacante (G1 + G2).** Backend en `feat/geo-vacancy`.
+    Desde `backend/`: `make db-migrate` (aplica 00030 y 00031) y después
+    `DATABASE_URL=… make geo-import` (no lee el `.env`: exportá la variable en la misma
+    terminal). Ojo: la 00031 borra la ubicación de los borradores y vacantes de prueba.
+    En el editor de un borrador: la sección «Ubicación» tiene «Código postal», «Estado» y
+    «Municipio». Escribí 44100. **Esperado:** se precargan Jalisco y Guadalajara, editables.
+    Cambiá el municipio a uno de otro código: el código postal se borra con un aviso.
+    Elegí otro país: solo queda el país con «Por ahora solo detallamos ubicaciones en
+    México.». Poné la modalidad en Remoto: aparece «¿Desde dónde pueden postular?» con
+    «Desde cualquier lugar» y «Solo desde estos países» (chips en el orden elegido, sin
+    repetidos) y la ubicación pasa a «(opcional)». Intentá publicar sin completar: la lista
+    de faltantes muestra «Agrega la ubicación de la vacante.», «Completa estado y
+    municipio.» o «Indica desde dónde pueden postular.», cada uno con «Completar». Publicá
+    y mirá la tarjeta y el detalle públicos: «Guadalajara, Jalisco» o «Remoto · Desde
+    cualquier lugar» / «Solo desde México, Colombia y 2 más».

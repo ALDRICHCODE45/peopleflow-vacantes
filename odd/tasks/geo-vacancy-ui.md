@@ -14,10 +14,11 @@ Branch `feat/geo-vacancy-ui`, stacked on `feat/geo-location-field-ui` (shared `L
 
 ## Tasks
 
-- T1 [pending] S1-S4 | writer A | Draft editor write side: decoders/wire for location + remote_scope, LocationField + remote scope control in the editor, 422 mapping, readiness/missing-items copy and links, draft preview. | commit: -
-- T2 [pending] S1-S4 | writer B | Public read side: /v2/jobs list/detail decoders, cards/detail/facts/saved/application summary show `location_label` and remote scope honestly. | commit: -
-- T3 [pending] | parent | Full suite, guide step, queue item paired with backend row 13. | commit: -
+- T1 [done] S1-S4 | writer A | Draft editor write side: decoders/wire for location + remote_scope, LocationField + remote scope control in the editor, 422 mapping, readiness/missing-items copy and links, draft preview. | commit: fb3de14, f2cbb2a
+- T2 [done] S1-S4 | writer B | Public read side: /v2/jobs list/detail decoders, cards/detail/facts/saved/application summary show `location_label` and remote scope honestly. | commit: 6d9cb5f (merged 3893492), c7db7f8 shared decoders
+- T3 [done] | parent | Full suite, guide step 76, queue item 1 paired with backend rows 12–13. | commit: docs commit
 
 ## Log
 
 - L1. Backend G2 committed: 1ec346f (feature + migration 00031), 6c896d3 (test). Local test: `make db-migrate` (00030, 00031), then `DATABASE_URL=… make geo-import`.
+- L2. Parent: T2 ran in an isolated worktree (the parallel-writer guard treats (group) routes as overlapping); merged and switched its local decoders to the shared geo ones (identical shapes). Updated the draft route test (location is a region, not a textbox). Full suite: 5,731 passed; failures only draft-editor timeouts under full-suite load (draft-save-flow 34/34, local-draft-form 59/59, publication 28/28 alone); tsc 0. Risk: editor tests are heavier with LocationField.
