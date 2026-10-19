@@ -88,8 +88,10 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - [x] T52 — S24: contract review with frontend agent; three clarifications agreed (§14.5) — contract commit
 - [x] T53 — §14: backend — migration 00025 with backfill (own commit), projection skills + screening count, public list/detail keys, docs (worker) — 1c35a3a (00025), fd3acf0
 - [x] T54 — parent integration run on isolated DB (L59) + independent verification passed (L60)
-- [ ] T55 — S25: cut-6 design proposal, design §15 (inline) — proposal commit
-- [ ] T56 — S25: cut-6 contract review with frontend agent — pending
+- [x] T55 — S25: cut-6 design proposal, design §15 (inline) — 54c87c6
+- [x] T56 — S25: cut-6 contract review with frontend agent; six clarifications agreed (§15.6) — contract commit
+- [ ] T57 — §15: cut-6 backend — migration 00026 (own commit), set substate, clearing on leaving in_process, history kind substate with name snapshots, board `substates` + item `substate_id`, catalog `in_use` + 409 substate_in_use with details, docs (worker) — commit pending
+- [ ] T58 — parent integration run on isolated DB + independent verification — pending
 
 ## Log
 
@@ -154,3 +156,4 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **L59.** Listing enrichment backend committed by the parent: 1c35a3a migration 00025 (projection `skills` + `screening_questions`, backfilled from the source draft fields with loud failure on undecodable sources, then NOT NULL; down drops only the new columns) with its tests, the 00024 test pinned to its version and the sqlc model; fd3acf0 projection builder/writes, public list/detail enrichment (§14.1/§14.5), docs and review-queue row 7. The parent updated two P2b integration fixtures (scope extension the worker requested) with honest values: no skills and the fixture's real question count. Each commit builds, vets (incl. integration tag) and passes `go test ./...` alone in a detached temporary worktree. Integration with `-race` on an isolated `draft_test` (created and dropped): every listing, projection and migration test passed, 0 data races; skips are legacy tests needing DATABASE_URL. Risk: item 1 (backfill migration), item 3 (public API keys added, requested).
 - **L60.** Independent verify (gentle-ai-verify mvede90s-2-sol2) on f7ca7ea..fd3acf0: PASS, no blocking defect; every §14.1 key for both sources, §14.2–§14.5 covered by code + test; exact applicant count reduced to a range inside SQL before any DTO; private fields excluded; backfill migration safe; P2a ordering/cursor/filters unchanged; P2b fixture edits honest. Native review: assess on f7ca7ea was unassessable — the native tool refuses while the untracked user files `Logos/*.png` are present; they belong to the user and were not touched, so no native review ran for this cut.
 - **L61.** Cut 6 starts on `feat/pipeline-substates-active`, stacked on `feat/public-listing-enrichment`; user answered four questions (S25); proposal in design §15 (client-side filtering over the ≤1,000-item board; substates resource gains `in_use`).
+- **L62.** Frontend agent (msg faa0756f) accepted §15 with six clarifications recorded in §15.6 (board catalog, history name snapshots, 409 details, no-op, nulls outside in_process, client-side filter). Frontend builds `feat/pipeline-substates-active-ui` on `feat/ui-polish`.

@@ -1362,7 +1362,7 @@ the detail extends the list item.
 
 ## 15. Cut 6 — active substate per candidate and filter (proposal)
 
-Status: **proposal under frontend review.** Product answers in §15.5. Branch
+Status: **cut-6 contract agreed** with the frontend agent (msg faa0756f; clarifications in §15.6). Product answers in §15.5. Branch
 `feat/pipeline-substates-active`, stacked on `feat/public-listing-enrichment`.
 
 Rules: SUB-3 (at most one active substate, history of changes), SUB-4 (labels, not
@@ -1432,3 +1432,20 @@ catalog sheet disables removing a substate with `in_use: true`.
 - **S3 (user):** the substate filter combines with other board filters with AND (OR among the
   selected substates).
 - **S4 (user):** owner or principal set substates, like moves; candidates never see them.
+
+### 15.6 Contract clarifications (agreed, frontend msg faa0756f)
+
+1. `GET …/board` gains `substates: [{id, name}]` — the vacancy's current catalog in catalog
+   order — so the client needs no second read for badges and the filter.
+2. Each `substate` history entry also carries `from_substate_name` and `to_substate_name`
+   (string or null), snapshotted at the time of the event; a later rename or removal does not
+   change past entries. Exact keys: `{kind, from_substate_id, from_substate_name,
+   to_substate_id, to_substate_name, actor, at}`.
+3. `409 substate_in_use` on the catalog `PUT` carries `details: [{substate_id}]` (one per
+   blocked substate, catalog order); it is the only other error with details besides
+   `invalid_answers` and `publication_incomplete`.
+4. A no-op set returns `200` with the same item and the same `ETag`, without a history entry.
+5. Items outside `in_process`, discarded ones included, always have `substate_id: null`;
+   `409 substate_requires_in_process` applies to discarded participations too.
+6. The board has no other filters yet; the client implements the substate multi-select and
+   keeps the AND rule for future filters. No backend change.
