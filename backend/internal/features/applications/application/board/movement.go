@@ -58,17 +58,23 @@ type CV struct {
 	ID   uuid.UUID `json:"id"`
 	Name string    `json:"name"`
 }
+type Substate struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 type Item struct {
-	ID        uuid.UUID `json:"id"`
-	StageID   string    `json:"stage_id"`
-	Version   string    `json:"version"`
-	ETag      string    `json:"etag"`
-	Candidate Person    `json:"candidate"`
-	AppliedAt time.Time `json:"applied_at"`
-	Source    string    `json:"source"`
-	CV        CV        `json:"cv"`
-	MovedAt   time.Time `json:"moved_at"`
-	Discard   *Discard  `json:"discard"`
+	SubstateID *string   `json:"substate_id"`
+	ID         uuid.UUID `json:"id"`
+	StageID    string    `json:"stage_id"`
+	Version    string    `json:"version"`
+	ETag       string    `json:"etag"`
+	Candidate  Person    `json:"candidate"`
+	AppliedAt  time.Time `json:"applied_at"`
+	Source     string    `json:"source"`
+	CV         CV        `json:"cv"`
+	MovedAt    time.Time `json:"moved_at"`
+	Discard    *Discard  `json:"discard"`
 }
 type Coverage struct {
 	Covered               int64      `json:"covered"`
@@ -76,10 +82,11 @@ type Coverage struct {
 	FullCoverageReachedAt *time.Time `json:"full_coverage_reached_at"`
 }
 type Board struct {
-	Stages         []Stage  `json:"stages"`
-	Exit           Stage    `json:"exit"`
-	Coverage       Coverage `json:"coverage"`
-	Participations []Item   `json:"participations"`
+	Substates      []Substate `json:"substates"`
+	Stages         []Stage    `json:"stages"`
+	Exit           Stage      `json:"exit"`
+	Coverage       Coverage   `json:"coverage"`
+	Participations []Item     `json:"participations"`
 }
 type Move struct {
 	ToStageID            string
@@ -94,6 +101,10 @@ type Actor struct {
 	Person
 }
 type Entry struct {
+	FromSubstateID   *string   `json:"from_substate_id"`
+	FromSubstateName *string   `json:"from_substate_name"`
+	ToSubstateID     *string   `json:"to_substate_id"`
+	ToSubstateName   *string   `json:"to_substate_name"`
 	Kind             string    `json:"kind"`
 	FromStageID      *string   `json:"from_stage_id"`
 	ToStageID        string    `json:"to_stage_id"`
@@ -131,6 +142,7 @@ type File struct {
 	Reader            io.ReadCloser
 }
 type Store interface {
+	SetSubstate(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, string, bool, []byte) (Moved, error)
 	Board(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (Board, error)
 	Move(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, string, bool, []byte) (Moved, error)
 	Discard(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, uuid.UUID, string, bool, []byte) (Moved, error)

@@ -3,8 +3,9 @@
 `GET` and `PUT /v2/me/company/job-drafts/{draftId}/pipeline/substates` manage the
 ordered catalog for the semantic `in_process` stage. The accepted contract is
 `docs/pipeline-customization-design.md` §7; that document wins over this reference.
-This cut assigns no candidates, changes no application statuses, and touches no
-frontend code. Names need not match or differ from column names.
+Cut 6 extends this resource with live occupancy and protected removal; see
+[pipeline-substates-active.md](pipeline-substates-active.md) and design §15.6.
+Names need not match or differ from column names.
 
 ## Quick path
 
@@ -39,7 +40,9 @@ Identity comes only from session `CompanyContext`, never identity headers.
 ```
 
 Response keys are **exactly** `version`, `substates`, `limits`, `suggestions`.
-Each substate is exactly `{ "id": "<UUID>", "name": "<normalized name>" }`.
+Each substate is exactly `{ "id": "<UUID>", "name": "<normalized name>", "in_use": false }`.
+`in_use` is true while any participation has that ID active, not for historical
+use. It changes without changing the independent catalog version/ETag.
 Limits contain exactly the two positive integers above. Both lists are always
 arrays, never null. Suggestions are the same fixed list on every response,
 including when a suggestion is already saved; the client filters its editor list.
@@ -63,8 +66,11 @@ Clients retain tags rather than constructing or parsing them.
 
 The body contains exactly `substates`. Each entry accepts only `name` and an
 optional existing `id`. Omit IDs for new entries; the server assigns random UUIDs.
-Rename/reorder preserve identity. Omission removes an entry freely in this cut;
-removed IDs cannot be restored by supplying them later. The response preserves
+Rename/reorder preserve identity and are always allowed, even with occupants.
+Omission removes an unused entry; removing an occupied ID returns
+`409 substate_in_use` with `details: [{substate_id}]` in previous catalog order,
+without writing catalog/version/audit. Reassign or clear occupants first.
+Removed IDs cannot be restored by supplying them later. The response preserves
 request order, including generated IDs, without requiring another GET.
 
 ### Invariants (§7.1)
@@ -75,7 +81,7 @@ request order, including generated IDs, without requiring another GET.
 | 2: normalized names | Unchanged `NewRequesterName`: valid UTF-8 → NFC → trim/collapse Unicode whitespace (including NBSP); reject non-whitespace controls, retain format/zero-width characters; 1–40 normalized code points, not bytes |
 | 3: unique names | Full-Unicode casefold of normalized names, accents preserved, no NFKC; `Straße` = `STRASSE`, `Área` = `ÁREA`, `Area` ≠ `Área`; no comparison with stage names |
 | 4: identity | Existing IDs must belong to the current catalog and cannot repeat; new entries get server UUIDs |
-| 5: empty is valid | `{"substates":[]}` removes all entries |
+| 5: empty is valid | `{"substates":[]}` removes all entries unless any is active (cut 6) |
 
 Unknown/duplicate keys (including escaped equivalents), malformed/trailing JSON,
 invalid UTF-8/surrogates and wrong JSON shapes/types are `400 invalid_request`.
@@ -100,7 +106,10 @@ PATCH likewise do not change the catalog version or ETag.
 Migration `00016_create_job_draft_substate_catalogs.sql` adds one optional row per
 draft: primary/FK `draft_id` with delete cascade, positive independent BIGINT
 `version`, and complete encoded `catalog` bytes. No existing data is rewritten.
-Parent draft locking serializes first and subsequent PUTs, so concurrent first
+Parent draft locking serializes catalog reads/writes with participation substate
+assignment/clearing (cut 6). GET holds this lock for consistent catalog/occupancy
+reads but never writes; PUT validates all removed IDs inside the same lock.
+Concurrent first
 PUTs with the version-zero tag have exactly one winner and one `412`.
 
 Every materializing/changing PUT writes one `JobDraftSubstatesConfigured` audit row
@@ -115,7 +124,9 @@ rows or either existing resource. It is not a data-preserving rollback.
 ## Status codes
 
 Errors are exactly `{ "error": string, "code": string }`, with no validation
-details, editor data or ETag. Existing draft/cut-1 error mapping is reused.
+details, editor data or ETag, except `substate_in_use`, which also carries
+`details: [{substate_id}]` (no candidate identities). Existing draft/cut-1 error
+mapping is otherwise reused.
 
 | Status | Code | Case |
 | --- | --- | --- |
@@ -126,6 +137,7 @@ details, editor data or ETag. Existing draft/cut-1 error mapping is reused.
 | 403 | `company_inactive` | Missing/tombstoned company |
 | 404 | `not_found` | Missing/foreign/non-principal draft after general gates |
 | 409 | `company_not_active` | Company not active at the transactional guard |
+| 409 | `substate_in_use` | Removal of active IDs, details in previous catalog order; occupied renaming remains allowed |
 | 412 | `version_conflict` | Stale/foreign strong If-Match |
 | 413 | `payload_too_large` | Raw body exceeds budget |
 | 428 | `precondition_required` | Missing If-Match |

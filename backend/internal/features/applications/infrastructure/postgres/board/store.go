@@ -58,7 +58,7 @@ func (s *Store) begin(ctx context.Context, company, actor, id uuid.UUID) (pgx.Tx
 
 const itemSQL = `SELECT p.id,p.stage_id,p.version,u.id,u.full_name,p.created_at,p.source,l.id,l.name,
  COALESCE((SELECT max(h.created_at) FROM participation_stage_history h WHERE h.participation_id=p.id),p.created_at),
- p.previous_stage_id,p.reason_group,p.reason_code,p.discarded_at
+ p.previous_stage_id,p.reason_group,p.reason_code,p.discarded_at,p.substate_id
  FROM process_participations p JOIN users u ON u.id=p.candidate_id JOIN candidate_cv_library l ON l.version_id=p.cv_version_id `
 
 func readItem(row pgx.Row) (app.Item, int64, error) {
@@ -66,7 +66,7 @@ func readItem(row pgx.Row) (app.Item, int64, error) {
 	var version int64
 	var previous, group, code *string
 	var discardedAt *time.Time
-	err := row.Scan(&i.ID, &i.StageID, &version, &i.Candidate.ID, &i.Candidate.FullName, &i.AppliedAt, &i.Source, &i.CV.ID, &i.CV.Name, &i.MovedAt, &previous, &group, &code, &discardedAt)
+	err := row.Scan(&i.ID, &i.StageID, &version, &i.Candidate.ID, &i.Candidate.FullName, &i.AppliedAt, &i.Source, &i.CV.ID, &i.CV.Name, &i.MovedAt, &previous, &group, &code, &discardedAt, &i.SubstateID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return i, 0, app.ErrNotFound
 	}
@@ -114,6 +114,10 @@ func (s *Store) Board(ctx context.Context, company, actor, id uuid.UUID) (app.Bo
 	}
 	defer tx.Rollback(ctx)
 	out := app.Board{Stages: p.Stages, Exit: p.Exit, Participations: []app.Item{}}
+	out.Substates, err = readSubstates(ctx, tx, id)
+	if err != nil {
+		return out, err
+	}
 	rows, err := tx.Query(ctx, itemSQL+`WHERE p.process_id=$1 ORDER BY p.id LIMIT 1001`, id)
 	if err != nil {
 		return out, err
@@ -195,8 +199,11 @@ func (s *Store) Move(ctx context.Context, company, actor, id, pid uuid.UUID, tag
 	if err != nil {
 		return app.Moved{}, err
 	}
-	at := time.Now().UTC().Truncate(time.Microsecond)
-	if _, err = tx.Exec(ctx, `UPDATE process_participations SET stage_id=$3,version=version+1 WHERE process_id=$1 AND id=$2`, id, pid, request.ToStageID); err != nil {
+	at := nextEventAt(item.MovedAt)
+	if err = s.clearSubstate(ctx, tx, actor, id, &item, at, version+1); err != nil {
+		return app.Moved{}, err
+	}
+	if _, err = tx.Exec(ctx, `UPDATE process_participations SET stage_id=$3,substate_id=NULL,version=version+1 WHERE process_id=$1 AND id=$2`, id, pid, request.ToStageID); err != nil {
 		return app.Moved{}, err
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO participation_stage_history(id,participation_id,stage_id,actor_id,created_at,from_stage_id,hire,departure,actor_kind,event_kind) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'recruiter','move')`, uuid.New(), pid, request.ToStageID, actor, at, item.StageID, hire, departure); err != nil {
@@ -237,7 +244,7 @@ func (s *Store) History(ctx context.Context, company, actor, id, pid uuid.UUID) 
 	if _, _, err = readItem(tx.QueryRow(ctx, itemSQL+`WHERE p.process_id=$1 AND p.id=$2`, id, pid)); err != nil {
 		return app.History{}, err
 	}
-	rows, err := tx.Query(ctx, `SELECT h.from_stage_id,h.stage_id,h.hire,h.departure,h.actor_kind,u.id,u.full_name,h.created_at,h.event_kind,h.reason_group,h.reason_code,h.comment,h.candidate_message FROM participation_stage_history h JOIN users u ON u.id=h.actor_id WHERE h.participation_id=$1 ORDER BY h.created_at,h.id`, pid)
+	rows, err := tx.Query(ctx, `SELECT h.from_stage_id,h.stage_id,h.hire,h.departure,h.actor_kind,u.id,u.full_name,h.created_at,h.event_kind,h.reason_group,h.reason_code,h.comment,h.candidate_message,h.from_substate_id,h.from_substate_name,h.to_substate_id,h.to_substate_name FROM participation_stage_history h JOIN users u ON u.id=h.actor_id WHERE h.participation_id=$1 ORDER BY h.created_at,h.id`, pid)
 	if err != nil {
 		return app.History{}, err
 	}
@@ -246,7 +253,7 @@ func (s *Store) History(ctx context.Context, company, actor, id, pid uuid.UUID) 
 	for rows.Next() {
 		var e app.Entry
 		var group, code *string
-		if err = rows.Scan(&e.FromStageID, &e.ToStageID, &e.Hire, &e.Departure, &e.Actor.Kind, &e.Actor.ID, &e.Actor.FullName, &e.At, &e.Kind, &group, &code, &e.Comment, &e.CandidateMessage); err != nil {
+		if err = rows.Scan(&e.FromStageID, &e.ToStageID, &e.Hire, &e.Departure, &e.Actor.Kind, &e.Actor.ID, &e.Actor.FullName, &e.At, &e.Kind, &group, &code, &e.Comment, &e.CandidateMessage, &e.FromSubstateID, &e.FromSubstateName, &e.ToSubstateID, &e.ToSubstateName); err != nil {
 			return out, err
 		}
 		if group != nil && code != nil {

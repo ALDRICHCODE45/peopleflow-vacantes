@@ -39,6 +39,7 @@ func movementRequest(t *testing.T, m movementFixture, method string, vacancy, pi
 	r.Post("/{id}/participations/{pid}/moves", h.Move)
 	r.Post("/{id}/participations/{pid}/discard", h.Discard)
 	r.Post("/{id}/participations/{pid}/recover", h.Recover)
+	r.Post("/{id}/participations/{pid}/substate", h.SetSubstate)
 	path := "/" + vacancy.String() + "/board"
 	if pid != uuid.Nil {
 		path = "/" + vacancy.String() + "/participations/" + pid.String() + suffix
@@ -83,7 +84,7 @@ func movementKeys(t *testing.T, value any, want ...string) map[string]any {
 }
 func movementItemKeys(t *testing.T, obj map[string]any, extra ...string) {
 	t.Helper()
-	movementKeys(t, obj, append([]string{"id", "stage_id", "version", "etag", "candidate", "applied_at", "source", "cv", "moved_at", "discard"}, extra...)...)
+	movementKeys(t, obj, append([]string{"id", "stage_id", "version", "etag", "candidate", "applied_at", "source", "cv", "moved_at", "discard", "substate_id"}, extra...)...)
 	movementKeys(t, obj["candidate"], "id", "full_name")
 	movementKeys(t, obj["cv"], "id", "name")
 }
@@ -124,7 +125,7 @@ func TestMovementExactWireProjection(t *testing.T) {
 	if rec.Code != 200 || rec.Header().Get("ETag") != "" {
 		t.Fatal(rec.Code, rec.Body.String())
 	}
-	obj := movementKeys(t, movementObject(t, rec.Body.Bytes()), "stages", "exit", "coverage", "participations")
+	obj := movementKeys(t, movementObject(t, rec.Body.Bytes()), "stages", "exit", "coverage", "participations", "substates")
 	for _, stage := range obj["stages"].([]any) {
 		movementKeys(t, stage, "id", "kind", "name", "count")
 	}

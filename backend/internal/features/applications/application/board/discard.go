@@ -35,16 +35,36 @@ type RecoverRequest struct{ ConfirmPlacementReentry bool }
 // MarshalJSON keeps intake/move keys unchanged; recovery uses that same shape.
 // Only discard events carry the retained private text and reason.
 func (e Entry) MarshalJSON() ([]byte, error) {
-	type wire Entry
+	if e.Kind == "substate" {
+		return json.Marshal(struct {
+			Kind     string    `json:"kind"`
+			FromID   *string   `json:"from_substate_id"`
+			FromName *string   `json:"from_substate_name"`
+			ToID     *string   `json:"to_substate_id"`
+			ToName   *string   `json:"to_substate_name"`
+			Actor    Actor     `json:"actor"`
+			At       time.Time `json:"at"`
+		}{e.Kind, e.FromSubstateID, e.FromSubstateName, e.ToSubstateID, e.ToSubstateName, e.Actor, e.At})
+	}
+	type wire struct {
+		Kind        string    `json:"kind"`
+		FromStageID *string   `json:"from_stage_id"`
+		ToStageID   string    `json:"to_stage_id"`
+		Hire        bool      `json:"hire"`
+		Departure   bool      `json:"departure"`
+		Actor       Actor     `json:"actor"`
+		At          time.Time `json:"at"`
+	}
+	base := wire{e.Kind, e.FromStageID, e.ToStageID, e.Hire, e.Departure, e.Actor, e.At}
 	if e.Kind != "discard" {
-		return json.Marshal(wire(e))
+		return json.Marshal(base)
 	}
 	return json.Marshal(struct {
 		wire
 		Reason           *Reason `json:"reason"`
 		Comment          *string `json:"comment"`
 		CandidateMessage *string `json:"candidate_message"`
-	}{wire(e), e.Reason, e.Comment, e.CandidateMessage})
+	}{base, e.Reason, e.Comment, e.CandidateMessage})
 }
 
 func ValidReason(r Reason) bool {

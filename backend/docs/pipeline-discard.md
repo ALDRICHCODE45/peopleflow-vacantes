@@ -6,7 +6,8 @@ frontend are unchanged. No candidate notification is sent.
 
 ## Before running
 
-Apply **00024** with `make db-migrate`. Quiesce participation writes during the
+Apply migrations through **00026** with `make db-migrate` (cut-6 active substates;
+[contract](pipeline-substates-active.md)). Quiesce participation writes during the
 migration/API rollout: the new history event kind is explicit for move writes.
 Keep 00024, its tests, the 00023 rollback-test pin and regenerated
 `internal/db/models.go` in a separate migration review/commit unit. The parent
@@ -81,7 +82,8 @@ Recovery returns to the stored previous stage, **never** performs a forward-skip
 check, and clears all current discard fields. Placement reentry requires the flag:
 hire=true, departure=false, coverage increases. A renewed below-to-full crossing
 records another milestone; the API still reports the first milestone timestamp.
-Non-Placement recovery needs no additional flag. History retains private details
+Non-Placement recovery needs no additional flag. Cut 6: recovery into
+`in_process` always starts with `substate_id:null`, never restores the old label. History retains private details
 of every discard even though current detail and the candidate list no longer do.
 
 ### Atomicity
@@ -94,11 +96,17 @@ records any milestone before commit. Audit contains actor, vacancy/from/to IDs,
 version and hire/departure flags, **never free text**. Any rejection or audit failure
 rolls everything back. Concurrent stale operations cannot overwrite the winner.
 Moves into **or out of** the exit are `400 validation_error`; other move rules stay.
+Cut 6: discarding from `in_process` clears any active substate in this same
+transaction and records a `substate` → null entry **before** the discard entry.
+The clear has its own audit, but shares the discard's single version bump.
 
 ## Exact projections
 
 Both POSTs return 200 with the flattened cut-4 board item **plus `coverage`**, and
 the new tag in both item `etag` and response `ETag`. No idempotency header is added.
+
+Every board/mutation/detail item also has `substate_id` (cut 6), always null
+outside `in_process`, including while discarded.
 
 Every board/mutation item gains `discard`, always present:
 
@@ -120,6 +128,7 @@ History is oldest-first, exactly this discriminated union:
 | --- | --- |
 | `intake`, `move`, `recovery` | `kind, from_stage_id, to_stage_id, hire, departure, actor, at` |
 | `discard` | Same keys plus `reason, comment, candidate_message` (text string or null) |
+| `substate` (cut 6) | `kind, from_substate_id, from_substate_name, to_substate_id, to_substate_name, actor, at` (nullable ID/name pairs; names snapshotted at event time) |
 
 Intake/move keys are unchanged. Discard from=previous stage, to=exit, hire=false.
 Recovery from=exit, to=previous stage, departure=false. Actor is always

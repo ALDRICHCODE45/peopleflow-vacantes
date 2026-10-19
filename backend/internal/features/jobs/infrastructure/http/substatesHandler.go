@@ -1,9 +1,11 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/substatecatalog"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 )
 
 // SubstatesHandler shares draft transport helpers and the cut-1 error catalog.
@@ -57,6 +59,15 @@ func (h *SubstatesHandler) putSubstates(w http.ResponseWriter, r *http.Request) 
 	}
 	result, err := h.store.PutSubstates(r.Context(), cc.CompanyID, cc.UserID, id, tag, present, body)
 	if err != nil {
+		var used *substatecatalog.InUseError
+		if errors.As(err, &used) {
+			details := make([]httpjson.SubstateDetail, len(used.IDs))
+			for i, id := range used.IDs {
+				details[i] = httpjson.SubstateDetail{SubstateID: id}
+			}
+			httpjson.WriteSubstateError(w, httpjson.Resolve(httpjson.CodeSubstateInUse), details)
+			return
+		}
 		writeDraftError(w, err)
 		return
 	}

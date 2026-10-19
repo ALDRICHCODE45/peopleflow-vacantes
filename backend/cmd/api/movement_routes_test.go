@@ -55,6 +55,11 @@ func (s *movementRouteStore) Recover(ctx context.Context, c, a, v, p uuid.UUID, 
 	s.operation = "recover"
 	return out, err
 }
+func (s *movementRouteStore) SetSubstate(ctx context.Context, c, a, v, p uuid.UUID, tag string, present bool, body []byte) (app.Moved, error) {
+	out, err := s.Move(ctx, c, a, v, p, tag, present, body)
+	s.operation = "substate"
+	return out, err
+}
 func (s *movementRouteStore) Detail(_ context.Context, c, a, v, p uuid.UUID) (app.Detail, error) {
 	s.record(c, a, v, p)
 	return app.Detail{Item: app.Item{ID: p, ETag: `"item-tag"`, Version: "1"}, Screening: []app.Screening{}}, s.err
@@ -74,7 +79,7 @@ func TestMovementRoutesGatesErrorsAndSuccess(t *testing.T) {
 	base := "/v2/me/company/job-drafts/" + routeTestDraftID.String()
 	pid := uuid.New()
 	item := base + "/participations/" + pid.String()
-	for _, route := range []struct{ method, path string }{{"GET", base + "/board"}, {"POST", item + "/moves"}, {"POST", item + "/discard"}, {"POST", item + "/recover"}, {"GET", item}, {"GET", item + "/history"}, {"GET", item + "/cv"}} {
+	for _, route := range []struct{ method, path string }{{"GET", base + "/board"}, {"POST", item + "/moves"}, {"POST", item + "/discard"}, {"POST", item + "/recover"}, {"POST", item + "/substate"}, {"GET", item}, {"GET", item + "/history"}, {"GET", item + "/cv"}} {
 		t.Run(route.method+route.path, func(t *testing.T) {
 			for _, tc := range []struct {
 				name    string

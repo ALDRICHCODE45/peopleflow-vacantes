@@ -23,7 +23,7 @@ func TestSubstates_RenderStrictResponseContract(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := renderSubstates(id, tc.c, tc.version)
+			got, err := renderSubstates(id, tc.c, tc.version, nil)
 			if err != nil || got.ETag != substatecatalog.ETag(id, tc.version) {
 				t.Fatalf("result=%+v %v", got, err)
 			}
@@ -47,12 +47,12 @@ func TestSubstates_RenderStrictResponseContract(t *testing.T) {
 			if err := json.Unmarshal(root["suggestions"], &suggestions); err != nil || !reflect.DeepEqual(suggestions, substatecatalog.Suggestions()) {
 				t.Fatalf("suggestions=%s %v", root["suggestions"], err)
 			}
-			var entries []map[string]string
+			var entries []map[string]any
 			if err := json.Unmarshal(root["substates"], &entries); err != nil || len(entries) != len(tc.c.Substates) {
 				t.Fatalf("entries=%s %v", root["substates"], err)
 			}
 			for i, entry := range entries {
-				if !reflect.DeepEqual(entry, map[string]string{"id": tc.c.Substates[i].ID, "name": tc.c.Substates[i].Name}) {
+				if !reflect.DeepEqual(entry, map[string]any{"id": tc.c.Substates[i].ID, "name": tc.c.Substates[i].Name, "in_use": false}) {
 					t.Fatalf("entry=%+v", entry)
 				}
 			}

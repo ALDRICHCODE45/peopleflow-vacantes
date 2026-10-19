@@ -96,6 +96,9 @@ func Resolve(code Code) Definition {
 	case CodeInternalError:
 		return Definition{code, http.StatusInternalServerError, "an internal error occurred"}
 	default:
+		if def, ok := resolveSubstateError(code); ok {
+			return def
+		}
 		if def, ok := resolveDiscardError(code); ok {
 			return def
 		}

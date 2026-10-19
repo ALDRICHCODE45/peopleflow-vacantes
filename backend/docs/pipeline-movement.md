@@ -6,7 +6,7 @@ including the agreed clarifications in §12.7. Legacy applications are unchanged
 
 ## Quick path
 
-1. Apply migrations through **00024** with `make db-migrate` before running this API.
+1. Apply migrations through **00026** with `make db-migrate` before running this API.
    Cut-5 discard/recovery extensions are documented in [pipeline-discard.md](pipeline-discard.md).
 2. Read the board and keep each item's opaque `etag`.
 3. POST a move using that item's tag as `If-Match`; reconcile with GET after an
@@ -21,7 +21,8 @@ Every response, including gate failures, carries `Cache-Control: no-store`.
 
 ## Board and item shapes
 
-`GET …/board` → 200, exactly `{stages, exit, coverage, participations}`.
+`GET …/board` → 200, exactly `{stages, exit, coverage, participations, substates}`.
+`substates` is the ordered current catalog, each exactly `{id,name}` (cut 6).
 
 - `stages`: pipeline order, each exactly `{id, kind, name, count}`. Kinds are
   `new | screening | screening_ok | in_process | placement | custom`.
@@ -40,7 +41,7 @@ An item is exactly:
   "candidate": {"id": "…", "full_name": "Ana Pérez"},
   "applied_at": "2026-10-16T18:00:00Z", "source": "organic",
   "cv": {"id": "…", "name": "CV"}, "moved_at": "2026-10-16T18:00:00Z",
-  "discard": null
+  "discard": null, "substate_id": null
 }
 ```
 
@@ -65,6 +66,9 @@ The transport enforces the existing 1 MiB JSON budget.
   including custom stages. Backward to any earlier stage.
 - Same/unknown stage is invalid. Both moves **into and out of** the exit stage
   return `400 validation_error`; use the cut-5 discard/recover operations instead.
+- Leaving `in_process` forward or backward clears an active substate in the same
+  transaction, with a `substate` → null history event **before** the move. Re-entry
+  starts null. Both events share one participation version bump (cut 6).
 - Entering Placement records a hire. Leaving requires explicit confirmation and
   records a departure, without erasing previous history.
 - 200 is the item shape above **plus `coverage`**, flattened, with the new tag both
@@ -108,6 +112,11 @@ actor, at}` for `intake | move | recovery`. Discard entries additionally carry
 `{kind: "candidate" | "recruiter", id, full_name}`. Intake's actor is the candidate,
 `from_stage_id` is null and both flags are false. Moves have recruiter actors.
 Names of stages come from the current board, not frozen display labels.
+Cut 6 adds a distinct `substate` history member with exactly
+`{kind,from_substate_id,from_substate_name,to_substate_id,to_substate_name,actor,at}`;
+nullable names are immutable snapshots. All other history key sets are unchanged.
+See [active substates](pipeline-substates-active.md) for assignment, automatic
+clearing and catalog occupancy guards.
 
 Screening uses the participation's frozen safe questions and answers, never current
 questionnaire content. Open answers are `{text}`; choice answers are
@@ -125,7 +134,7 @@ unconfigured; an authorized existing participation then receives
 - Candidate list status is `submitted | in_process | closed` as of cut 5;
   `closed` means currently discarded and exposes only the optional candidate-facing
   `message`. Otherwise status depends on whether the semantic stage is `new`.
-  Candidates receive no stage/history data or internal reason/comment.
+  Candidates receive no stage/history/substate data or internal reason/comment.
   See [vacancy-applications.md](vacancy-applications.md). Apply replays remain frozen.
 
 ## Errors

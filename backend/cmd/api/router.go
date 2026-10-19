@@ -194,6 +194,7 @@ func newRouter(d routerDeps) chi.Router {
 		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/moves", d.movementHandler.Move)
 		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/discard", d.movementHandler.Discard)
 		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/recover", d.movementHandler.Recover)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/substate", d.movementHandler.SetSubstate)
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}", d.movementHandler.Detail)
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/history", d.movementHandler.History)
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/cv", d.movementHandler.File)

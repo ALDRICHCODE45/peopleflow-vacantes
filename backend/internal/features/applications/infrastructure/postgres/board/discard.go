@@ -5,7 +5,6 @@ import (
 	"errors"
 	"math"
 	"strconv"
-	"time"
 
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
@@ -95,13 +94,16 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 	if err != nil {
 		return app.Moved{}, err
 	}
-	at := time.Now().UTC().Truncate(time.Microsecond)
+	at := nextEventAt(item.MovedAt)
+	if err = s.clearSubstate(ctx, tx, actor, id, &item, at, version+1); err != nil {
+		return app.Moved{}, err
+	}
 	var group, code *string
 	if recovering {
-		_, err = tx.Exec(ctx, `UPDATE process_participations SET stage_id=$3,version=version+1,previous_stage_id=NULL,reason_group=NULL,reason_code=NULL,comment=NULL,candidate_message=NULL,discarded_at=NULL WHERE process_id=$1 AND id=$2`, id, pid, target)
+		_, err = tx.Exec(ctx, `UPDATE process_participations SET stage_id=$3,substate_id=NULL,version=version+1,previous_stage_id=NULL,reason_group=NULL,reason_code=NULL,comment=NULL,candidate_message=NULL,discarded_at=NULL WHERE process_id=$1 AND id=$2`, id, pid, target)
 	} else {
 		group, code = &req.Reason.Group, &req.Reason.Key
-		_, err = tx.Exec(ctx, `UPDATE process_participations SET stage_id=$3,version=version+1,previous_stage_id=$4,reason_group=$5,reason_code=$6,comment=$7,candidate_message=$8,discarded_at=$9 WHERE process_id=$1 AND id=$2`, id, pid, target, item.StageID, group, code, req.Comment, req.CandidateMessage, at)
+		_, err = tx.Exec(ctx, `UPDATE process_participations SET stage_id=$3,substate_id=NULL,version=version+1,previous_stage_id=$4,reason_group=$5,reason_code=$6,comment=$7,candidate_message=$8,discarded_at=$9 WHERE process_id=$1 AND id=$2`, id, pid, target, item.StageID, group, code, req.Comment, req.CandidateMessage, at)
 	}
 	if err != nil {
 		return app.Moved{}, err

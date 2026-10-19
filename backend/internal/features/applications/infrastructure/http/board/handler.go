@@ -49,6 +49,8 @@ func writeError(w http.ResponseWriter, err error) {
 		code = httpjson.CodeAlreadyDiscarded
 	case errors.Is(err, app.ErrNotDiscarded):
 		code = httpjson.CodeNotDiscarded
+	case errors.Is(err, app.ErrSubstateRequiresInProcess):
+		code = httpjson.CodeSubstateRequiresInProcess
 	case errors.Is(err, app.ErrNotPublished):
 		code = httpjson.CodeVacancyNotPublished
 	case errors.Is(err, app.ErrTooLarge):
@@ -92,9 +94,10 @@ func (h *Handler) Board(w http.ResponseWriter, r *http.Request) {
 	}
 	httpjson.WriteJSON(w, 200, out)
 }
-func (h *Handler) Move(w http.ResponseWriter, r *http.Request)    { h.mutate(w, r, "move") }
-func (h *Handler) Discard(w http.ResponseWriter, r *http.Request) { h.mutate(w, r, "discard") }
-func (h *Handler) Recover(w http.ResponseWriter, r *http.Request) { h.mutate(w, r, "recover") }
+func (h *Handler) SetSubstate(w http.ResponseWriter, r *http.Request) { h.mutate(w, r, "substate") }
+func (h *Handler) Move(w http.ResponseWriter, r *http.Request)        { h.mutate(w, r, "move") }
+func (h *Handler) Discard(w http.ResponseWriter, r *http.Request)     { h.mutate(w, r, "discard") }
+func (h *Handler) Recover(w http.ResponseWriter, r *http.Request)     { h.mutate(w, r, "recover") }
 func (h *Handler) mutate(w http.ResponseWriter, r *http.Request, kind string) {
 	cc, id, pid, ok := h.params(w, r, true)
 	if !ok {
@@ -117,6 +120,8 @@ func (h *Handler) mutate(w http.ResponseWriter, r *http.Request, kind string) {
 		operation = h.store.Discard
 	case "recover":
 		operation = h.store.Recover
+	case "substate":
+		operation = h.store.SetSubstate
 	}
 	out, err := operation(r.Context(), cc.CompanyID, cc.UserID, id, pid, strings.Join(tags, ","), len(tags) > 0, body)
 	if err != nil {
