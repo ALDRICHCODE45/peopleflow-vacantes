@@ -82,5 +82,8 @@ it("uses the default size and a single details slot between header and footer wh
   const details = dialog.querySelector('[data-slot="confirm-action-details"]')!;
   expect(details.previousElementSibling).toHaveAttribute("data-slot", "alert-dialog-header");
   expect(details.nextElementSibling).toHaveAttribute("data-slot", "alert-dialog-footer");
+  // Long details (discard form, candidate lists) scroll inside the dialog; header and footer stay visible.
+  expect(details.className).toContain("overflow-y-auto");
+  expect(details.className).toContain("max-h-");
   expect(dialog.querySelector('[data-slot="alert-dialog-media"]')!.className).toContain("text-destructive");
 });

@@ -188,7 +188,7 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
     icon={CircleCheckBig} title="¿Guardar y cumplir la entrega?" description="Con este cambio la entrega queda cumplida y su configuración se congela."
     confirmLabel="Guardar y cumplir" pendingLabel="Guardando…" pending={pending !== null} onConfirm={() => void persist(true)}>
     {confirmation && <>
-      <div className="max-h-[50dvh] min-h-0 overflow-y-auto">
+      <div className="flex flex-col gap-4">
         <dl className="grid gap-3 sm:grid-cols-2">
           <div><dt className="flex items-center gap-2 text-xs text-muted-foreground"><Target aria-hidden="true" className="size-3.5" />Objetivo de entrega</dt><dd>{confirmation.preview.delivered} de {confirmation.preview.target} candidatos</dd></div>
           <div><dt className="flex items-center gap-2 text-xs text-muted-foreground"><Flag aria-hidden="true" className="size-3.5" />Columna de corte</dt><dd>{stages.find(stage => stage.id === confirmation.snapshot.editor.cutoffStageId)?.name ?? "Sin definir"}</dd></div>

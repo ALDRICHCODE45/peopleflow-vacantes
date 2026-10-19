@@ -58,7 +58,7 @@ export function ConfirmActionDialog({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
-        {children && <div data-slot="confirm-action-details" className="flex min-w-0 flex-col gap-4">{children}</div>}
+        {children && <div data-slot="confirm-action-details" className="-mx-1 flex max-h-[calc(100dvh-16rem)] min-w-0 flex-col gap-4 overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]">{children}</div>}
         <AlertDialogFooter>
           <AlertDialogCancel autoFocus className="min-h-10" disabled={pending}>Cancelar</AlertDialogCancel>
           <AlertDialogAction
