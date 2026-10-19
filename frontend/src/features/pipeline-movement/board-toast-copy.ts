@@ -2,7 +2,7 @@ import { substateName } from "./substates";
 import { discardReasonLabel } from "./discard-text";
 import type { Board, DiscardBody, Move, Participation } from "./model";
 
-export type BoardWrite = { kind: "substate"; substateId: string | null } | { kind: "move"; target: string; confirmed: boolean } | { kind: "discard"; body: DiscardBody } | { kind: "recover"; confirmed: boolean };
+export type BoardWrite = { kind: "substate"; substateId: string | null } | { kind: "move"; target: string; confirmed: boolean } | { kind: "discard"; body: DiscardBody } | { kind: "recover"; confirmed: boolean; target?: string };
 
 function coveredCopy({ covered, required }: Move["coverage"]) {
   return `${covered}${required === null ? "" : ` de ${required}`} cubiertas`;
@@ -26,7 +26,7 @@ export function boardSuccessCopy(board: Board, item: Participation, write: Board
     return { title: `Descartaste a ${name}`, description: `Motivo: ${discardReasonLabel(write.body.reason)}. ${consequence}` };
   }
   if (write.kind === "recover") {
-    const previous = board.stages.find(stage => stage.id === item.discard?.previous_stage_id);
+    const previous = to;
     return { title: `Recuperaste a ${name}`, description: previous?.kind === "placement"
       ? `Volvió a ${previous.name} y ocupa una plaza: ${coverage}.`
       : `Volvió a ${previous?.name ?? "su etapa anterior"}. El descarte queda en su historial.` };

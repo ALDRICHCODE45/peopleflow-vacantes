@@ -47,25 +47,25 @@ it("renders fulfilled delivery read-only with frozen snapshot and explaining can
 });
 it("previews the exact body, confirms candidates, then PUTs with explicit confirmation and ETag", async () => {
   vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: true, preview: fulfillsPreview }); mount(); edit("1"); fireEvent.click(save());
-  const confirm = await screen.findByRole("button", { name: "Confirmar y cumplir" }); expect(screen.getByRole("dialog")).toHaveTextContent("Ana Pérez"); expect(saveDraftDeliveryAction).not.toHaveBeenCalled();
+  const confirm = await screen.findByRole("button", { name: "Guardar y cumplir" }); expect(screen.getByRole("alertdialog")).toHaveTextContent("Ana Pérez"); expect(saveDraftDeliveryAction).not.toHaveBeenCalled();
   fireEvent.click(confirm); await waitFor(() => expect(saveDraftDeliveryAction).toHaveBeenCalledExactlyOnceWith({ draftId, ifMatch: '"delivery-0"', body: { cutoffStageId: null, targetQuantity: 1, commitmentDate: null, confirm_fulfillment: true } }));
   expect(previewDraftDeliveryAction).toHaveBeenCalledExactlyOnceWith({ draftId, body: { cutoffStageId: null, targetQuantity: 1, commitmentDate: null } });
 });
 it("confirmation formats the civil commitment date without shifting the business day", async () => {
   vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: true, preview: fulfillsPreview }); mount({ ...deliveryFixture(), commitmentDate: "2026-10-20" }); edit("1"); fireEvent.click(save());
-  const dialog = await screen.findByRole("dialog"); expect(within(dialog).getByText("20 oct 2026")).toHaveAttribute("datetime", "2026-10-20");
+  const dialog = await screen.findByRole("alertdialog"); expect(within(dialog).getByText("20 oct 2026")).toHaveAttribute("datetime", "2026-10-20");
 });
 it("a confirmed fulfilling save adopts the frozen result, never leaving an editable form", async () => {
   vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: true, preview: fulfillsPreview });
   vi.mocked(saveDraftDeliveryAction).mockResolvedValue({ ok: true, delivery: { ...deliveryFixture(), fulfilled: true, version: "1", targetQuantity: 1 }, etag: '"fulfilled"' });
   vi.mocked(loadDeliveryStatusAction).mockResolvedValue({ ok: true, status: fulfillmentStatus }); mount(); edit("1"); fireEvent.click(save());
-  fireEvent.click(await screen.findByRole("button", { name: "Confirmar y cumplir" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Guardar y cumplir" }));
   expect(await screen.findByText("Corte congelado")).toBeVisible(); expect(screen.queryByRole("textbox")).not.toBeInTheDocument(); expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 it("a confirmed save still preserves If-Match/412 without an automatic reload or PUT retry", async () => {
   vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: true, preview: fulfillsPreview });
   vi.mocked(saveDraftDeliveryAction).mockResolvedValue({ ok: false, reason: "version_conflict", reference: { status: 412, code: "version_conflict" } }); mount(); edit("1"); fireEvent.click(save());
-  fireEvent.click(await screen.findByRole("button", { name: "Confirmar y cumplir" })); await screen.findByRole("button", { name: "Cargar versión actual" });
+  fireEvent.click(await screen.findByRole("button", { name: "Guardar y cumplir" })); await screen.findByRole("button", { name: "Cargar versión actual" });
   expect(target()).toHaveValue("1"); expect(saveDraftDeliveryAction).toHaveBeenCalledTimes(1); expect(loadDraftDeliveryAction).not.toHaveBeenCalled(); expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 it("canceling fulfillment keeps edits and performs no PUT", async () => {
@@ -75,7 +75,7 @@ it("canceling fulfillment keeps edits and performs no PUT", async () => {
 it("409 confirmation race reads fresh preview and waits for another click", async () => {
   vi.mocked(previewDraftDeliveryAction).mockResolvedValueOnce({ ok: true, preview: { ...fulfillsPreview, would_fulfill: false, delivered: 0, candidates: [] } }).mockResolvedValue({ ok: true, preview: fulfillsPreview });
   vi.mocked(saveDraftDeliveryAction).mockResolvedValue({ ok: false, reason: "fulfillment_confirmation_required", reference: { status: 409, code: "fulfillment_confirmation_required" } });
-  mount(); edit("1"); fireEvent.click(save()); expect(await screen.findByRole("button", { name: "Confirmar y cumplir" })).toBeEnabled(); expect(previewDraftDeliveryAction).toHaveBeenCalledTimes(2); expect(saveDraftDeliveryAction).toHaveBeenCalledTimes(1);
+  mount(); edit("1"); fireEvent.click(save()); expect(await screen.findByRole("button", { name: "Guardar y cumplir" })).toBeEnabled(); expect(previewDraftDeliveryAction).toHaveBeenCalledTimes(2); expect(saveDraftDeliveryAction).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole("button", { name: "Cancelar" })); expect(target()).toHaveValue("1");
 });
 it("delivery_fulfilled reloads the read-only result without retrying PUT", async () => {
@@ -105,17 +105,18 @@ it("unpublished draft preview rejection still permits the normal conditional sav
 });
 it("confirmation has an accessible summary, cancel focus, Escape and return focus", async () => {
   const user = userEvent.setup(); vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: true, preview: fulfillsPreview }); mount(); edit("1"); await user.click(save());
-  const dialog = await screen.findByRole("dialog", { name: "Cumplir la entrega ahora" }); expect(dialog).toHaveAccessibleDescription(expect.stringContaining("congela su configuración"));
+  const dialog = await screen.findByRole("alertdialog", { name: "¿Guardar y cumplir la entrega?" }); expect(dialog).toHaveAccessibleDescription("Con este cambio la entrega queda cumplida y su configuración se congela.");
+  expect(within(dialog).getByRole("button", { name: "Guardar y cumplir" })).toBeEnabled();
   expect(within(dialog).getAllByRole("listitem")).toHaveLength(1); expect(dialog).toHaveTextContent("Objetivo de entrega"); expect(dialog).toHaveTextContent("Columna de corte"); expect(dialog).toHaveTextContent("Fecha compromiso");
   await waitFor(() => expect(within(dialog).getByRole("button", { name: "Cancelar" })).toHaveFocus());
-  await user.keyboard("{Escape}"); await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await user.keyboard("{Escape}"); await waitFor(() => expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument());
   await waitFor(() => expect(save()).toHaveFocus()); expect(target()).toHaveValue("1"); expect(saveDraftDeliveryAction).not.toHaveBeenCalled();
 });
 it("pending confirmed save blocks duplicate confirmation and Escape", async () => {
   const user = userEvent.setup(); vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: true, preview: fulfillsPreview });
   let resolve!: (value: DraftDeliveryActionResult) => void; vi.mocked(saveDraftDeliveryAction).mockReturnValue(new Promise(yes => { resolve = yes; }));
-  mount(); edit("1"); fireEvent.click(save()); const confirm = await screen.findByRole("button", { name: "Confirmar y cumplir" }); fireEvent.click(confirm); fireEvent.click(confirm);
-  expect(confirm).toBeDisabled(); expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled(); await user.keyboard("{Escape}"); expect(screen.getByRole("dialog")).toBeVisible();
+  mount(); edit("1"); fireEvent.click(save()); const confirm = await screen.findByRole("button", { name: "Guardar y cumplir" }); fireEvent.click(confirm); fireEvent.click(confirm);
+  expect(confirm).toBeDisabled(); expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled(); await user.keyboard("{Escape}"); expect(screen.getByRole("alertdialog")).toBeVisible();
   await act(async () => resolve(success())); expect(saveDraftDeliveryAction).toHaveBeenCalledTimes(1);
 });
 const draftId = "123e4567-e89b-42d3-a456-426614174000";

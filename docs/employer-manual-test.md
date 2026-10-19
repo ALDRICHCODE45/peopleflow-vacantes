@@ -446,6 +446,36 @@ corepack pnpm dev
     «Cancelar» conserva lo editado; confirmar la cumple. En una vacante ya cumplida, «Entrega»
     es de solo lectura con el resultado congelado y los candidatos.
 
+### Filtros del tablero (rama `feat/pipeline-board-filters-ui`, sin cambios de backend)
+
+70. **Filtros y encabezado.** En el pipeline: cobertura y entrega forman un solo bloque con
+    la misma forma; la barra tiene un único botón «Filtros». Abrilo. **Esperado:** Sheet
+    «Filtrar candidatos» con ícono y descripción; secciones «PROCESO DE SELECCIÓN» («Etapa
+    del pipeline» y, si hay catálogo, «Subestado») y «CANDIDATOS DESCARTADOS» («Motivo de
+    descarte»); cada filtro es un desplegable con buscador, casillas y conteos discretos;
+    una nota final explica cómo se combinan; el pie dice «N candidato(s) coincide(n)», los
+    filtros activos, «Limpiar» y «Ver N candidato(s)» (plural correcto). Marcar aplica al
+    instante; debajo de la barra aparecen chips removibles y «Limpiar filtros»; las
+    columnas dicen «X de Y». El contenido nunca pasa por debajo del encabezado del Sheet.
+
+71. **Confirmación antes de cada acción importante.** En el pipeline: arrastrá una tarjeta a
+    otra columna. **Esperado:** se abre una confirmación con ícono, «¿Mover a {nombre} a
+    {columna}?», la consecuencia y los botones «Cancelar» (con el foco) y «Mover»; la tarjeta
+    sigue en su columna. «Cancelar» la deja donde estaba y no escribe nada. Repetí con
+    «Mover a…» desde la tarjeta y desde la ficha, el cambio de subestado, el reordenar
+    columnas (vacante sin candidatos), sacar y volver a Placement, descartar (motivo y
+    mensaje dentro del mismo diálogo, botón rojo) y recuperar. Fuera del tablero: publicar,
+    borrar un CV (rojo) y «Guardar y cumplir» la entrega. Un doble clic en el botón no
+    ejecuta dos veces; con mucho contenido (descarte, lista de entrega) solo scrollea el
+    medio y el título y los botones quedan visibles.
+
+72. **Subestados sin crear.** En una vacante sin subestados, abrí la configuración de «En
+    proceso». **Esperado:** chip «En proceso», «Configurar subestados» y su descripción;
+    «Empieza con una sugerencia» como lista con «+ Agregar» por fila; «O crea un subestado
+    personalizado» con un campo (Enter agrega) y la ayuda «Hasta 80 caracteres…». No hay
+    sección «Tus subestados» vacía. Al agregar una sugerencia desaparece de la lista de
+    sugerencias y aparece en tus subestados, que se ven igual que antes.
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:
@@ -495,3 +525,25 @@ docker start nest-practice   # si lo habías frenado
 
 Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
 `main`. La rama del backend la integra su propio agente. El push lo hacés vos.
+
+73. **Editar columnas con candidatos (corte 7).** Backend en `feat/pipeline-column-editing`
+    (`make db-migrate` aplica la 00028). En una vacante con candidatos, abrí Configuración →
+    Columnas: agregá una columna propia antes de una columna con candidatos y guardá.
+    **Esperado:** primero «Revisando impacto…», luego una confirmación «¿Guardar los cambios
+    de columnas?» que lista quiénes quedan con «No aplica por cambio de proceso»; al
+    confirmar, toast con el impacto aplicado y nadie cambia de columna. Quitá una columna
+    con candidatos activos: error que la nombra y lleva al tablero. En el tablero, reordená
+    una columna arrastrándola: misma vista previa y confirmación; «Cancelar» la deja en su
+    lugar. En la ficha de un candidato afectado, el historial muestra «No aplica por cambio
+    de proceso». Descartá a alguien, quitá su columna anterior y recuperalo: el diálogo
+    avisa que su columna ya no existe y pide «Columna de regreso» con la sugerida marcada.
+
+74. **Filtros por respuestas y perfil.** Backend en `feat/pipeline-filter-data`
+    (`make db-migrate` aplica la 00029). Postulá a un candidato con perfil completo
+    (ciudad, habilidades, experiencia, estudios) a una vacante con preguntas de opción
+    única. En el tablero abrí «Filtros». **Esperado:** sección «PREGUNTAS DE FILTRO» con un
+    filtro por pregunta (opciones + «Sin respuesta») y sección «PERFIL DEL CANDIDATO» con
+    «Ciudad», «Habilidades», «Años de experiencia» (rangos), «Nivel de estudios», cada uno
+    con «Sin dato». Filtrar aplica al instante con chips. En la ficha, bloque «Perfil» con
+    los datos y «Copiado del perfil al postularse.»; postulaciones anteriores muestran
+    «Sin dato». Mover o descartar al candidato no borra su perfil ni sus respuestas.

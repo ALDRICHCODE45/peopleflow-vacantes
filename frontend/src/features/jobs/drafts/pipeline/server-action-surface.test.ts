@@ -23,7 +23,7 @@ describe("pipeline server action surface", () => {
     expect(Object.keys(await import("./management-actions")).sort()).toEqual(["loadDraftManagementAction", "saveDraftManagementAction"]);
   });
   it("exposes only the pipeline load and save actions", async () => {
-    expect(Object.keys(await import("./actions")).sort()).toEqual(["loadDraftPipelineAction", "saveDraftPipelineAction"]);
+    expect(Object.keys(await import("./actions")).sort()).toEqual(["loadDraftPipelineAction", "previewPipelineAction", "saveDraftPipelineAction"]);
   });
   it("exposes only the substate load and save actions", async () => {
     expect(Object.keys(await import("./substates-actions")).sort()).toEqual(["loadDraftSubstatesAction", "saveDraftSubstatesAction"]);

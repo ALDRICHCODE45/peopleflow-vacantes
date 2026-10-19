@@ -65,18 +65,34 @@ describe("CV dialogs", () => {
   });
   it.each(["rename", "delete"] as const)("reorganizes %s context and actions on mobile without narrowing controls", async mode => {
     show(mode);
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole(mode === "rename" ? "dialog" : "alertdialog");
     expect(dialog.querySelector('[data-pf-cv-dialog-document]')).toHaveClass("flex-wrap");
-    for (const button of dialog.querySelectorAll('[data-slot="dialog-footer"] [data-slot="button"]')) expect(button).toHaveClass("w-full", "sm:w-auto", "min-h-10");
-    expect(dialog.querySelector('[data-slot="dialog-footer"]')).not.toBeNull();
+    const footer = dialog.querySelector(`[data-slot="${mode === "rename" ? "dialog" : "alert-dialog"}-footer"]`);
+    expect(footer).not.toBeNull();
+    for (const button of footer!.querySelectorAll('button')) expect(button).toHaveClass("min-h-10");
   });
   it("confirms deletion with the exact copy and an in-use note, never on opening", async () => {
-    show("delete"); expect(await screen.findByRole("dialog")).toHaveTextContent("Las postulaciones que ya enviaste conservan su copia de este CV.");
+    show("delete"); const dialog = await screen.findByRole("alertdialog", { name: `¿Eliminar ${cv.name}?` });
+    expect(dialog).toHaveAccessibleDescription("Tus postulaciones conservan su copia. No se puede deshacer.");
+    expect(screen.getByRole("button", { name: "Cancelar" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Eliminar CV" }).className).toContain("destructive");
     expect(screen.getByText("En uso")).toHaveAttribute("data-variant", "neutral");
     expect(deleteCvAction).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Eliminar CV" }));
     await waitFor(() => expect(deleteCvAction).toHaveBeenCalledWith(cv.id));
     expect(onSaved).toHaveBeenCalledWith(null); expect(onClose).toHaveBeenCalled();
+  });
+  it("canceling deletion writes nothing and leaves the library untouched", async () => {
+    show("delete"); fireEvent.click(await screen.findByRole("button", { name: "Cancelar" }));
+    expect(onClose).toHaveBeenCalledOnce(); expect(onSaved).not.toHaveBeenCalled(); expect(deleteCvAction).not.toHaveBeenCalled();
+  });
+  it("locks deletion against double confirmation while showing progress", async () => {
+    vi.mocked(deleteCvAction).mockReturnValue(new Promise(() => {}));
+    show("delete"); const confirm = await screen.findByRole("button", { name: "Eliminar CV" });
+    fireEvent.click(confirm); fireEvent.click(confirm);
+    expect(deleteCvAction).toHaveBeenCalledOnce();
+    expect(screen.getByRole("button", { name: "Eliminando…" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled();
   });
   it("retains edited data and shows both notification and ActionStatus on rejection", async () => {
     vi.mocked(renameCvAction).mockResolvedValue({ ok: false, reason: "invalid_request", reference: { status: 400, code: "invalid_request" } });

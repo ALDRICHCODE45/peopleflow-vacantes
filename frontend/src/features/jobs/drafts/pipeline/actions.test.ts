@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
-vi.mock("./client", () => ({ getDraftPipeline: vi.fn(), saveDraftPipeline: vi.fn() }));
+vi.mock("./client", () => ({ getDraftPipeline: vi.fn(), saveDraftPipeline: vi.fn(), previewPipeline: vi.fn() }));
 
 import { getActionAccessToken } from "@/lib/auth/action-session";
 import { getDraftPipeline, saveDraftPipeline } from "./client";
@@ -12,6 +12,7 @@ const etag = '"opaque-tag"';
 const body = { stages: [{ name: "Prueba" }], exit: { id: draftId, name: "Descartados" } };
 const pipeline = {
   version: "0",
+  retired: [],
   structure_locked: false,
   stages: [{ id: draftId, kind: "new" as const, name: "Nuevos" }],
   exit: { id: draftId, kind: "discarded" as const, name: "Descartados" },
@@ -46,7 +47,7 @@ for (const operation of ["load", "save"] as const) {
       [400, "validation_error", "validation_error"],
       [400, "non_business_date", "non_business_date"],
       [409, "cutoff_stage_in_use", "cutoff_stage_in_use"],
-      [409, "stage_change_requires_empty_pipeline", "stage_change_requires_empty_pipeline"],
+      [409, "stage_change_requires_empty_pipeline", "version_conflict"],
       [409, "non_business_date", "unrecognized_response"],
       [400, "cutoff_stage_in_use", "unrecognized_response"],
       [401, "unauthenticated", "unauthenticated"],

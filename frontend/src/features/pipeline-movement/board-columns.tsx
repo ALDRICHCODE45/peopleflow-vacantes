@@ -16,7 +16,7 @@ import type { Board, Participation } from "./model";
 import type { Notice } from "./board-feedback";
 import { MovementDate } from "./board-states";
 import { CandidateMenu } from "./candidate-menu";
-import { isInProcess, matchesSubstateFilter, substateName } from "./substates";
+import { isInProcess, substateName } from "./substates";
 import { filePresentation, Hint, initials, stageClass } from "./pipeline-presentation";
 import { canMoveTo } from "@/features/jobs/drafts/pipeline/editor-model";
 import type { BoardColumnOrder } from "./use-board-column-order";
@@ -26,7 +26,7 @@ type Props = {
   board: Board; pending: Set<string>; locked: boolean; notices: Record<string, Notice>; columnOrder?: BoardColumnOrder;
   onMove: (id: string, target: string) => void; onDetail: (id: string) => void;
   onDisposition: (id: string, kind: "discard" | "recover") => void;
-  onSubstate?: (id: string, substateId: string | null) => void; substateFilter?: string[];
+  onSubstate?: (id: string, substateId: string | null) => void; visibleItems?: Participation[]; filtered?: boolean;
 };
 // Draggable board-card exception (§14.3): compact handle/menu anatomy owns its spacing.
 function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDetail, onDisposition, onSubstate, board, suppressClick }: {
@@ -84,7 +84,7 @@ function Column({ stage, countLabel = String(stage.count), disabled, dragging, c
     </ScrollArea>
   </section>;
 }
-export function BoardColumns({ board, pending, locked, notices, onMove, onDetail, onDisposition, onSubstate, substateFilter = [], columnOrder }: Props) {
+export function BoardColumns({ board, pending, locked, notices, onMove, onDetail, onDisposition, onSubstate, visibleItems = board.participations, filtered = false, columnOrder }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [columnId, setColumnId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -112,20 +112,20 @@ export function BoardColumns({ board, pending, locked, notices, onMove, onDetail
       announcements: {
         onDragStart: ({ active }) => active.data?.current?.type === "column" ? `Tomaste la columna ${board.stages.find(stage => stage.id === active.id)?.name}.` : `Levantaste la tarjeta de ${board.participations.find(item => item.id === active.id)?.candidate.full_name ?? "candidato"}.`,
         onDragOver: ({ over }) => over ? `Sobre ${board.stages.find(stage => stage.id === over.id)?.name ?? "la etapa"}.` : "Fuera de las etapas permitidas.",
-        onDragEnd: ({ active, over }) => active.data?.current?.type === "column" ? "Arrastre terminado. Revisa el resultado del orden de columnas." : over ? "Movimiento solicitado. Espera la confirmación del servidor." : "No se movió la tarjeta.",
+        onDragEnd: ({ active, over }) => over ? active.data?.current?.type === "column" ? "Arrastre terminado. Revisa y confirma el nuevo orden de columnas." : "Arrastre terminado. Revisa y confirma el movimiento del candidato." : "Arrastre cancelado. No se guardaron cambios.",
         onDragCancel: () => "Movimiento cancelado. No cambió la etapa.",
       } }}>
     <ScrollArea role="region" aria-label="Columnas del pipeline" className="pf-board-scroll h-[min(70dvh,640px)] min-h-[448px] min-w-0 md:h-auto md:min-h-0 md:flex-1">
       <div data-pf-board-track="" className="flex h-full min-h-[448px] w-max items-stretch gap-3 px-0.5 pt-0.5 pb-6">
         {[...board.stages, board.exit].map(stage => {
           const allItems = board.participations.filter(item => item.stage_id === stage.id);
-          const items = allItems.filter(item => matchesSubstateFilter(board, item, substateFilter));
-          const countLabel = substateFilter.length ? `${items.length} de ${allItems.length}` : String(stage.count);
+          const items = visibleItems.filter(item => item.stage_id === stage.id);
+          const countLabel = filtered ? `${items.length} de ${allItems.length}` : String(stage.count);
           return <Column key={stage.id} stage={stage} countLabel={countLabel} order={columnOrder} lifted={columnId === stage.id} insertion={overId === stage.id && canDropColumn(stage.id) ? (columnIndex(columnId!) < columnIndex(stage.id) ? "right" : "left") : null} dragging={!!active} disabled={columnId ? !canDropColumn(stage.id) : locked || !targets.some(target => target.id === stage.id)}>
             {items.length ? <ul className="flex flex-col gap-3">{items.map(item => <li key={item.id}>
               <CandidateCard item={item} board={board} onSubstate={onSubstate} targets={allowedMoveTargets(board, item)} disabled={locked || pending.has(item.id)}
                 pending={pending.has(item.id)} notice={notices[item.id]} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} suppressClick={suppressClick} />
-            </li>)}</ul> : <p className="flex h-24 items-center justify-center rounded-lg border border-dashed border-border text-[11px] text-muted-foreground">{substateFilter.length ? "Ningún candidato coincide con el filtro" : "Sin candidatos en esta etapa"}</p>}
+            </li>)}</ul> : <p className="flex h-24 items-center justify-center rounded-lg border border-dashed border-border text-[11px] text-muted-foreground">{filtered ? "Ningún candidato coincide con el filtro" : "Sin candidatos en esta etapa"}</p>}
           </Column>;
         })}
       </div><ScrollBar orientation="horizontal" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState, type ComponentProps } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type ComponentProps } from "react";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, ClipboardList, FileText, Flag, GitBranch, Send, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemSeparator, It
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
+import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { loadDraftForEditAction } from "@/features/jobs/drafts/reopen/load";
 import { loadDraftPipelineAction } from "@/features/jobs/drafts/pipeline/actions";
@@ -51,6 +52,12 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
   const alive = useRef(true);
   const heading = useRef<HTMLHeadingElement>(null);
   const initialMode = useRef(true);
+  // The recovery portal mounts after the mode effect; focus when its heading exists.
+  // Keep the ref stable so pending/status renders do not steal focus from controls.
+  const attachHeading = useCallback((node: HTMLHeadingElement | null) => {
+    heading.current = node;
+    if (node && !initialMode.current) node.focus();
+  }, []);
 
   function report(tone: Notice["tone"], text: string, description: string, reference?: DraftPipelineActionFailure["reference"]) {
     setNotice({ tone, text });
@@ -153,8 +160,18 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
     : missing.length ? `Faltan ${missing.length} ${missing.length === 1 ? "dato" : "datos"} en ${groups.length} ${groups.length === 1 ? "sección" : "secciones"}. Completa cada uno y vuelve a publicar.`
     : "Revisa los requisitos y confirma el inicio del tiempo de entrega.";
   const title = unsavedChanges ? "Guarda los cambios antes de publicar" : missing.length ? "Te falta para publicar" : already ? "Esta vacante ya está publicada" : "Publicar vacante";
-  return <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col sm:max-w-lg" showCloseButton={!pending}>
-    <DialogHeader><DialogTitle ref={heading} tabIndex={-1} className="outline-none">{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
+  if (!unsavedChanges && mode === "loaded" && snapshot && !already && missing.length === 0) return <ConfirmActionDialog
+    open onOpenChange={open => onOpenChange(open)} onConfirm={() => void publish()} icon={Send} title={`¿Publicar ${snapshot.title}?`}
+    description="Empieza a contar el tiempo de entrega y la vacante queda activa. No se puede deshacer."
+    // A failed publish replaces this confirmation with the checklist/recovery view.
+    // Let its heading receive focus instead of restoring the removed loading view.
+    finalFocus={() => heading.current ?? true}
+    confirmLabel="Publicar vacante" pendingLabel="Publicando…" pending={pending}>
+    <PublicationSummary snapshot={snapshot} />
+    {notice && <ActionStatus id="publication-status" tone={notice.tone} text={notice.text} />}
+  </ConfirmActionDialog>;
+  return <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col sm:max-w-lg" showCloseButton={!pending} initialFocus={heading}>
+    <DialogHeader><DialogTitle ref={attachHeading} tabIndex={-1} className="outline-none">{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
     {/* One native scroll region owns the overflow and its children never shrink (shrinking clipped
         the cards). Not ScrollArea: base-ui needs a fixed height and spilled out of this flexible dialog. */}
     <div data-pf-publication-scroll className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pb-1 [scrollbar-width:thin]" aria-busy={!unsavedChanges && mode === "loading"}>
@@ -170,13 +187,7 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
           </Fragment>)}</ItemGroup></CardContent>
         </Card>;
       }) : already ? <p className="text-sm text-muted-foreground">{snapshot.publication.publishedAt ? `Publicada el ${formatPublicationDate(snapshot.publication.publishedAt)}` : "El tiempo de entrega ya está en marcha."}</p> : <>
-        <ItemGroup>{[
-          { icon: FileText, label: "Vacante", value: snapshot.title },
-          { icon: GitBranch, label: "Columna de corte", value: snapshot.cutoff },
-          { icon: Users, label: "Objetivo de entrega", value: snapshot.target === null ? "Sin definir" : `${snapshot.target} candidatos` },
-          { icon: CalendarDays, label: "Fecha compromiso", value: snapshot.commitmentDate ? formatPublicationDate(`${snapshot.commitmentDate}T12:00:00Z`) : "Sin definir" },
-        ].map(row => <Item key={row.label} variant="outline" size="sm" role="listitem"><ItemMedia variant="icon"><row.icon aria-hidden="true" /></ItemMedia><ItemContent><span className="text-xs text-muted-foreground">{row.label}</span><ItemTitle>{row.value}</ItemTitle></ItemContent></Item>)}</ItemGroup>
-        <p className="text-sm text-muted-foreground">Al publicar empieza a contar el tiempo de entrega. Los candidatos todavía no la verán: la publicación en el sitio llega en el siguiente paso.</p>
+        <PublicationSummary snapshot={snapshot} />
       </>)}
     </div>
     <DialogFooter className="flex-row"><ActionBar status={notice ? <ActionStatus id="publication-status" tone={notice.tone} text={notice.text} /> : null}>
@@ -185,9 +196,17 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
       {!unsavedChanges && mode === "load_error" && <Button type="button" className="min-h-10" onClick={() => reload()}>Reintentar</Button>}
       {!unsavedChanges && (mode === "conflict" || mode === "rejected") && <Button type="button" className="min-h-10" onClick={() => reload(mode === "conflict")}>Revisar de nuevo</Button>}
       {!unsavedChanges && mode === "uncertain" && <Button type="button" className="min-h-10" disabled={pending} onClick={() => void reconcile()} aria-describedby="publication-status">{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}Comprobar</Button>}
-      {!unsavedChanges && mode === "loaded" && snapshot && !already && missing.length === 0 && <Button type="button" className="min-h-10" disabled={pending} aria-busy={pending} aria-describedby={notice ? "publication-status" : undefined} onClick={() => void publish()}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending ? "Publicando…" : "Publicar vacante"}</Button>}
     </ActionBar></DialogFooter>
   </DialogContent>;
+}
+
+function PublicationSummary({ snapshot }: { snapshot: Snapshot }) {
+  return <div className="max-h-[50dvh] overflow-y-auto"><ItemGroup>{[
+    { icon: FileText, label: "Vacante", value: snapshot.title },
+    { icon: GitBranch, label: "Columna de corte", value: snapshot.cutoff },
+    { icon: Users, label: "Objetivo de entrega", value: snapshot.target === null ? "Sin definir" : `${snapshot.target} candidatos` },
+    { icon: CalendarDays, label: "Fecha compromiso", value: snapshot.commitmentDate ? formatPublicationDate(`${snapshot.commitmentDate}T12:00:00Z`) : "Sin definir" },
+  ].map(row => <Item key={row.label} variant="outline" size="sm" role="listitem"><ItemMedia variant="icon"><row.icon aria-hidden="true" /></ItemMedia><ItemContent><span className="text-xs text-muted-foreground">{row.label}</span><ItemTitle>{row.value}</ItemTitle></ItemContent></Item>)}</ItemGroup></div>;
 }
 
 // Skeleton exception: use known checklist groups on reload; otherwise mirror the four summary Items.

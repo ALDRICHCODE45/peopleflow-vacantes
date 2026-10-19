@@ -1,8 +1,9 @@
 import type { EditorPipeline } from "@/features/jobs/drafts/pipeline/editor-model";
 
-export function pipelineFixture(): EditorPipeline {
+export function pipelineFixture(): EditorPipeline & { retired: EditorPipeline["stages"] } {
   return {
     version: "0",
+    retired: [],
     structure_locked: false,
     stages: [
       { id: "n", kind: "new", name: "Nuevos" },

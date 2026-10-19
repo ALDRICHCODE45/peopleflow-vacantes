@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { PipelineStageEditor } from "./editor";
 import { pipelineFixture } from "./test-fixture";
@@ -36,7 +36,9 @@ it("opens with the typed normalized name despite unsaved columns, saves independ
   render(<PipelineStageEditor draftId={draftId} pipeline={pipelineFixture()} etag='"pipeline-0"' substates={substatesFixture()} substatesEtag='"substates-0"' />);
   fireEvent.change(column(), { target: { value: "  Entrevistas\u00a0 técnicas  " } });
   expect(boundary.disabled).toBe(false); expect(boundary.open).toBeTypeOf("function"); act(() => boundary.open?.());
-  expect(screen.getByRole("dialog", { name: "Subestados de Entrevistas técnicas" })).toBeVisible();
+  const sheet = screen.getByRole("dialog", { name: "Configurar subestados" });
+  expect(sheet).toBeVisible();
+  expect(within(sheet).getByText("Entrevistas técnicas")).toHaveAttribute("data-slot", "badge");
   fireEvent.click(screen.getByRole("button", { name: "Agregar Primera entrevista" }));
   fireEvent.click(screen.getByRole("button", { name: "Guardar subestados" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -54,9 +56,10 @@ it("discarding Sheet edits preserves column edits, and columns saving never send
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   expect(screen.getByRole("textbox", { name: "Nombre de la columna 2" })).toHaveValue("Filtro"); expect(screen.getByText("Sin subestados")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+  fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Guardar" }));
   await waitFor(() => expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1));
   const payload = vi.mocked(saveDraftPipelineAction).mock.calls[0][0];
-  expect(Object.keys(payload.body as object).sort()).toEqual(["exit", "stages"]); expect(payload.ifMatch).toBe('"pipeline-0"'); expect(saveDraftSubstatesAction).not.toHaveBeenCalled();
+  expect(Object.keys(payload.body as object).sort()).toEqual(["confirm_impact", "exit", "stages"]); expect(payload.ifMatch).toBe('"pipeline-0"'); expect(saveDraftSubstatesAction).not.toHaveBeenCalled();
 });
 it.each(["save", "reload"])("disables opening only during a columns %s", async mode => {
   let resolve!: (value: DraftPipelineActionResult) => void;
@@ -66,6 +69,7 @@ it.each(["save", "reload"])("disables opening only during a columns %s", async m
   render(<PipelineStageEditor draftId={draftId} pipeline={pipelineFixture()} etag='"pipeline-0"' substates={substatesFixture()} substatesEtag='"substates-0"' />);
   fireEvent.change(screen.getByRole("textbox", { name: "Nombre de la columna 2" }), { target: { value: "Filtro" } });
   expect(boundary.disabled).toBe(false); fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+  fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Guardar" }));
   if (mode === "reload") fireEvent.click(await screen.findByRole("button", { name: "Cargar versión actual" }));
   expect(boundary.disabled).toBe(true); act(() => boundary.open?.()); expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   await act(async () => resolve({ ok: true, pipeline: pipelineFixture(), etag: '"pipeline-1"' }));

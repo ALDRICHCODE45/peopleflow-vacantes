@@ -32,11 +32,11 @@ beforeEach(() => { vi.resetAllMocks(); vi.mocked(loadBoardAction).mockResolvedVa
 afterEach(cleanup);
 it.each([[4, "Faltan 4 días hábiles"], [1, "Falta 1 día hábil"], [0, "Vence hoy"], [-2, "Venció hace 2 días hábiles"]])("shows server business-day remainder %s beside progress", (remaining, copy) => {
   render(<BoardDelivery delivery={{ state: "pending", delivered: 3, target: 5 }} status={{ ...pending, delivered: 3, target: 5, business_days_remaining: remaining }} />);
-  expect(screen.getByText("Entrega: 3 de 5")).toBeVisible(); expect(screen.getByText(copy)).toBeVisible(); expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "60");
+  expect(screen.getByText("3 de 5 candidatos")).toBeVisible(); expect(screen.getByText(copy)).toBeVisible(); expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "60");
 });
 it.each([["on_time", 0, "Entregada a tiempo", "text-status-success"], ["on_time", 3, "Entregada 3 días hábiles antes", "text-status-success"], ["late", -2, "Entregada con 2 días hábiles de retraso", "text-status-danger"]] as const)("shows frozen %s/%s with semantic result", (result, delta, copy, tone) => {
   render(<BoardDelivery delivery={{ state: "fulfilled", delivered: 1, target: 1 }} status={{ ...fulfilled, fulfillment: { ...fulfillment, result, business_days_delta: delta } }} />);
-  expect(screen.getByText(copy)).toHaveClass(tone); expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  expect(screen.getByText(copy)).toHaveClass(tone); expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
 });
 it("offers the fulfilled date in a keyboard-reachable tooltip", async () => {
   const user = userEvent.setup(); render(<BoardDelivery delivery={{ state: "fulfilled", delivered: 1, target: 1 }} status={fulfilled} />);
@@ -49,7 +49,7 @@ it("ignores an older status response after a write flips delivery", async () => 
   const board = boardFixture();
   vi.mocked(moveParticipationAction).mockResolvedValue({ ok: true, data: { ...board.participations[0], stage_id: "screen", coverage: board.coverage, delivery: { state: "fulfilled", delivered: 1, target: 1 } } });
   const { result } = renderHook(() => useMovementBoard("vacancy")); await waitFor(() => expect(result.current.board).not.toBeNull());
-  act(() => result.current.requestMove("person", "screen"));
+  act(() => { result.current.requestMove("person", "screen"); result.current.confirmMove(); });
   await waitFor(() => expect(result.current.deliveryStatus?.state).toBe("fulfilled"));
   await act(async () => initial({ ok: true, status: pending }));
   expect(result.current.deliveryStatus?.state).toBe("fulfilled");
@@ -60,7 +60,7 @@ it("reconciliation reloads status once without replaying a conflicted write", as
   vi.mocked(loadDeliveryStatusAction).mockResolvedValueOnce({ ok: true, status: pending }).mockResolvedValue({ ok: true, status: fulfilled });
   vi.mocked(moveParticipationAction).mockResolvedValue({ ok: false, reason: "version_conflict", reference: { status: 412 } });
   const { result } = renderHook(() => useMovementBoard("vacancy")); await waitFor(() => expect(result.current.board).not.toBeNull());
-  act(() => result.current.requestMove("person", "screen"));
+  act(() => { result.current.requestMove("person", "screen"); result.current.confirmMove(); });
   await waitFor(() => expect(result.current.deliveryStatus?.state).toBe("fulfilled"));
   expect(loadDeliveryStatusAction).toHaveBeenCalledTimes(2); expect(moveParticipationAction).toHaveBeenCalledTimes(1);
   expect(vi.mocked(notifyActionResult).mock.calls.filter(([value]) => value.title === "Entrega cumplida")).toHaveLength(0);
@@ -72,7 +72,7 @@ it("an older overlapping pending write cannot erase fulfillment even if final re
   let first!: (value: Result<Move>) => void, second!: (value: Result<Move>) => void;
   vi.mocked(moveParticipationAction).mockReturnValueOnce(new Promise(resolve => { first = resolve; })).mockReturnValueOnce(new Promise(resolve => { second = resolve; }));
   const { result } = renderHook(() => useMovementBoard("vacancy")); await waitFor(() => expect(result.current.board).not.toBeNull());
-  act(() => { result.current.requestMove("person", "screen"); result.current.requestMove("second", "screen"); });
+  act(() => { result.current.requestMove("person", "screen"); result.current.confirmMove(); result.current.requestMove("second", "screen"); result.current.confirmMove(); });
   await act(async () => second({ ok: true, data: { ...board.participations[1], stage_id: "screen", coverage: board.coverage, delivery: { state: "fulfilled", delivered: 1, target: 1 } } }));
   await act(async () => first({ ok: true, data: { ...board.participations[0], stage_id: "screen", coverage: board.coverage, delivery: board.delivery } }));
   expect(result.current.board?.delivery.state).toBe("fulfilled"); expect(result.current.stale).toBe(true);
@@ -81,12 +81,13 @@ it("an older overlapping pending write cannot erase fulfillment even if final re
 });
 it.each(["discard", "recover", "substate"] as const)("%s adopts the delivery write response without another status read for unchanged delivery", async kind => {
   const board = boardFixture(); board.stages[0].kind = "in_process";
-  if (kind === "recover") board.participations[0] = { ...board.participations[0], stage_id: "exit", discard: { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: "new", discarded_at: "2026-10-16T12:00:00Z" } };
+  if (kind === "substate") { board.substates = [{ id: "tech", name: "Técnica" }]; board.participations[0].substate_id = "tech"; }
+  if (kind === "recover") board.participations[0] = { ...board.participations[0], stage_id: "exit", discard: { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: "new", recovery_stage_id: "new", discarded_at: "2026-10-16T12:00:00Z" } };
   vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: board });
   const action = kind === "discard" ? discardParticipationAction : kind === "recover" ? recoverParticipationAction : setParticipationSubstateAction;
   vi.mocked(action).mockResolvedValue({ ok: true, data: { ...board.participations[0], coverage: board.coverage, delivery: board.delivery } });
   const { result } = renderHook(() => useMovementBoard("vacancy")); await waitFor(() => expect(result.current.board).not.toBeNull());
-  act(() => { if (kind === "substate") result.current.setSubstate("person", null); else result.current.requestDisposition("person", kind); });
+  act(() => { if (kind === "substate") { result.current.setSubstate("person", null); result.current.confirmSubstate(); } else result.current.requestDisposition("person", kind); });
   if (kind !== "substate") act(() => result.current.confirmDisposition(kind === "discard" ? { reason: { group: "recruiter", key: "profile_mismatch" } } : undefined));
   await waitFor(() => expect(result.current.pending.size).toBe(0));
   expect(result.current.board?.delivery).toEqual(board.delivery); expect(loadDeliveryStatusAction).toHaveBeenCalledTimes(1);
@@ -97,7 +98,7 @@ it.each([false, true])("applies delivery from write, reads details once and emit
   vi.mocked(moveParticipationAction).mockResolvedValue({ ok: true, data: { ...item, stage_id: "screen", coverage: board.coverage, delivery: { state: "fulfilled", delivered: 1, target: 1 } } });
   vi.mocked(loadDeliveryStatusAction).mockResolvedValueOnce({ ok: true, status: pending }).mockResolvedValue(fail ? { ok: false, reason: "no_response", reference: {} } : { ok: true, status: fulfilled });
   const { result } = renderHook(() => useMovementBoard("vacancy")); await waitFor(() => expect(result.current.board).not.toBeNull());
-  act(() => result.current.requestMove(item.id, "screen"));
+  act(() => { result.current.requestMove(item.id, "screen"); result.current.confirmMove(); });
   await waitFor(() => expect(result.current.board?.delivery.state).toBe("fulfilled"));
   await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ title: "Entrega cumplida", description: fail ? "Se alcanzó el objetivo de entrega." : "1 de 1 candidatos llegaron a «Screening OK» · a tiempo (2 días hábiles antes)" })));
   expect(loadDeliveryStatusAction).toHaveBeenCalledTimes(2); expect(moveParticipationAction).toHaveBeenCalledTimes(1);

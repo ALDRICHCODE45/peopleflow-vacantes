@@ -7,7 +7,7 @@ export const discardReasonSchema = z.discriminatedUnion("group", [
 ]);
 const discardTextSchema = (limit: number) => z.string().transform(value => validateDiscardText(value, limit, true)).refine(result => !result.error).transform(result => result.value);
 export const discardBodySchema = z.object({ reason: discardReasonSchema, comment: discardTextSchema(1000).optional(), candidate_message: discardTextSchema(500).optional(), confirm_placement_exit: z.boolean().optional() }).strict().refine(body => body.reason.key !== "other" || !!body.comment);
-export const recoverBodySchema = z.object({ confirm_placement_reentry: z.boolean().optional() }).strict();
+export const recoverBodySchema = z.object({ confirm_placement_reentry: z.boolean().optional(), to_stage_id: z.string().uuid().optional() }).strict();
 export type DiscardReason = z.infer<typeof discardReasonSchema>;
 export type DiscardBody = z.infer<typeof discardBodySchema>;
 export type RecoverBody = z.infer<typeof recoverBodySchema>;
@@ -17,14 +17,26 @@ const timestamp = z.string().datetime({ offset: true });
 const count = z.number().int().nonnegative().safe();
 export const etagSchema = z.string().regex(/^"[\x21\x23-\x7e\x80-\xff]+"$(?![\s\S])/);
 export const stageKindSchema = z.enum(["new", "screening", "screening_ok", "in_process", "placement", "custom"]);
-const discardSchema = z.object({ reason: discardReasonSchema, discarded_at: timestamp, previous_stage_id: uuidSchema }).strict();
-export const participationSchema = z.object({
+const discardSchema = z.object({ reason: discardReasonSchema, discarded_at: timestamp, previous_stage_id: uuidSchema, recovery_stage_id: uuidSchema }).strict();
+// Writes retain their original allowlist; snapshot fields belong only to reads.
+const mutationParticipationSchema = z.object({
   id: uuidSchema, stage_id: uuidSchema, version: z.string().regex(/^(0|[1-9][0-9]*)$(?![\s\S])/), etag: etagSchema,
   candidate: z.object({ id: uuidSchema, full_name: text }).strict(), applied_at: timestamp, source: z.literal("organic"),
   cv: z.object({ id: uuidSchema, name: text }).strict(), moved_at: timestamp, discard: discardSchema.nullable(), substate_id: uuidSchema.nullable(),
 }).strict();
+export const profileSchema = z.object({
+  city: z.string().nullable(), skills: z.array(z.string()),
+  years_of_experience: count.nullable(),
+  education_level: z.enum(["high_school", "bachelor", "master", "phd"]).nullable(),
+}).strict();
+export const participationSchema = mutationParticipationSchema.extend({
+  profile: profileSchema,
+  screening_answers: z.array(z.object({ question_id: uuidSchema, option_id: uuidSchema }).strict()),
+}).strict();
 export const coverageSchema = z.object({ covered: count, required: z.number().int().positive().safe().nullable(), full_coverage_reached_at: timestamp.nullable() }).strict();
 export const boardSchema = z.object({
+  screening_filters: z.array(z.object({ question_id: uuidSchema, prompt: text, options: z.array(z.object({ id: uuidSchema, label: text }).strict()) }).strict()),
+  retired_stages: z.array(z.object({ id: uuidSchema, kind: stageKindSchema, name: text }).strict()),
   stages: z.array(z.object({ id: uuidSchema, kind: stageKindSchema, name: text, count }).strict()),
   exit: z.object({ id: uuidSchema, kind: z.literal("discarded"), name: text, count }).strict(),
   substates: z.array(z.object({ id: uuidSchema, name: text }).strict()),
@@ -32,12 +44,13 @@ export const boardSchema = z.object({
 }).strict().refine(board => board.participations.every(item => item.discard === null
   ? item.stage_id !== board.exit.id
   : item.stage_id === board.exit.id && Date.parse(item.moved_at) === Date.parse(item.discard.discarded_at)
-    && board.stages.some(stage => stage.id === item.discard!.previous_stage_id)))
+    && [...board.stages, ...board.retired_stages].some(stage => stage.id === item.discard!.previous_stage_id)
+    && board.stages.some(stage => stage.id === item.discard!.recovery_stage_id)))
   .refine(board => board.participations.every(item => item.substate_id === null ||
     (board.stages.some(stage => stage.id === item.stage_id && stage.kind === "in_process") && board.substates.some(substate => substate.id === item.substate_id))));
 export const substateBodySchema = z.object({ substate_id: uuidSchema.nullable() }).strict();
 export const moveBodySchema = z.object({ to_stage_id: uuidSchema, confirm_placement_exit: z.boolean().optional() }).strict();
-export const moveSchema = participationSchema.extend({ coverage: coverageSchema, delivery: deliverySummarySchema }).strict();
+export const moveSchema = mutationParticipationSchema.extend({ coverage: coverageSchema, delivery: deliverySummarySchema }).strict();
 const screeningAnswer = z.discriminatedUnion("type", [
   z.object({ question_id: uuidSchema, prompt: text, type: z.literal("open"), answer: z.object({ text }).strict() }).strict(),
   z.object({ question_id: uuidSchema, prompt: text, type: z.literal("single_choice"), answer: z.object({ option_id: uuidSchema, label: text }).strict() }).strict(),
@@ -48,6 +61,7 @@ const historyBase = {
   actor: z.object({ kind: z.enum(["candidate", "recruiter"]), id: uuidSchema, full_name: text }).strict(), at: timestamp,
 };
 export const historySchema = z.object({ items: z.array(z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("not_applicable"), stage_id: uuidSchema, actor: historyBase.actor, at: timestamp }).strict(),
   z.object({ kind: z.literal("substate"), from_substate_id: uuidSchema.nullable(), from_substate_name: text.nullable(), to_substate_id: uuidSchema.nullable(), to_substate_name: text.nullable(), actor: historyBase.actor, at: timestamp }).strict(),
   z.object({ ...historyBase, kind: z.literal("intake") }).strict(),
   z.object({ ...historyBase, kind: z.literal("move") }).strict(),
@@ -65,5 +79,5 @@ export type History = z.infer<typeof historySchema>;
 export type Result<T> = { ok: true; data: T } | Failure;
 export type FailureReason = "unauthenticated" | "forbidden" | "company_inactive" | "company_not_active" | "board_too_large" |
   "vacancy_not_published" | "not_found" | "stage_skip_not_allowed" | "placement_exit_confirmation_required" | "validation_error" |
-  "substate_requires_in_process" | "already_discarded" | "not_discarded" | "placement_reentry_confirmation_required" | "invalid_request" | "version_conflict" | "precondition_required" | "cv_storage_unavailable" | "no_response" | "uncertain" | "unrecognized_response" | "server_error";
+  "recovery_stage_required" | "substate_requires_in_process" | "already_discarded" | "not_discarded" | "placement_reentry_confirmation_required" | "invalid_request" | "version_conflict" | "precondition_required" | "cv_storage_unavailable" | "no_response" | "uncertain" | "unrecognized_response" | "server_error";
 export type Failure = { ok: false; reason: FailureReason; reference: { status?: number; code?: string } };

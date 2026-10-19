@@ -356,6 +356,8 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
       (p. ej. `TabsTrigger`) conservan su variante compacta sin romper foco, teclado ni
       espaciado (sección 2)?
 - [ ] ¿Foco visible y nombre accesible en todos los controles?
+- [ ] ¿Los filtros de tablero/lista comparten un único «Filtros» Sheet, dimensiones
+      multiselección OR/AND y chips removibles con anuncio de resultados (§13.12)?
 - [ ] ¿La pantalla tiene presencia visual: jerarquía, profundidad, iconografía,
       densidad y acento semántico (sección 10)?
 - [ ] ¿Si la vista ofrece dos modos, cada modo tiene una arquitectura distinta y no
@@ -379,6 +381,17 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
       neto/bruto (sección 16)?
 - [ ] ¿En móvil la pantalla se reorganiza (apila, mueve) en lugar de achicar texto y
       controles (sección 16)?
+- [ ] ¿Se revisó la superficie con el volumen real de datos (todas las opciones de todos
+      los grupos, nombres largos, conteos en 0) y no se convierte en una pared de
+      controles (sección 17)?
+- [ ] ¿Todo texto con cantidad concuerda en número («1 candidato», «2 candidatos»)
+      usando el helper de plural, nunca concatenando una «s» (sección 17)?
+- [ ] ¿Toda acción importante pide confirmación con `ConfirmActionDialog` (sección 18)?
+- [ ] ¿Cada componente de shadcn usado se comparó con el ejemplo y la composición de su
+      documentación oficial (sección 19) y se respetan todas sus partes?
+- [ ] ¿Una superficie compuesta nueva (Sheet, Dialog, barra de herramientas) parte de
+      un patrón aprobado de estas reglas o de una referencia visual, y no de una
+      composición improvisada (sección 17)?
 
 ---
 
@@ -823,10 +836,11 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
 - Un mismo dato se llama igual en todas partes: formulario, resumen, diálogo y
   checklist (por ejemplo «Columna de corte» y «Objetivo de entrega», no «Columna de
   entrega» o «Meta de entrega» en el resumen).
-- Un `Dialog` que confirma una acción importante muestra primero lo que falta (lista
-  agrupada por dónde se completa, con un enlace «Completar» por ítem) o, si está todo,
-  un resumen con ícono + etiqueta + valor y la consecuencia de confirmar. Su
-  `DialogFooter` usa `ActionBar` como cualquier pie de acciones (sección 12).
+- Una acción importante se confirma con `ConfirmActionDialog` (sección 18), con un
+  resumen de ícono + etiqueta + valor dentro del mismo diálogo y la consecuencia de
+  confirmar. Los formularios y las listas de requisitos pendientes siguen usando
+  `Dialog`: lo que falta se agrupa por dónde se completa, con un enlace «Completar»
+  por ítem. Su `DialogFooter` usa `ActionBar` (sección 12); no son confirmaciones.
 - Si el resultado de la acción es incierto (sin respuesta), el diálogo ofrece
   «Comprobar», que solo lee el estado; nunca reintenta solo.
 
@@ -910,11 +924,30 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
   explica quién verá cada uno; el historial conserva sus etiquetas. Los mensajes se
   renderizan como texto de React con `whitespace-pre-wrap` y `break-words`, nunca HTML.
 
-### 13.12 Filtros locales del tablero
+### 13.12 Filtros locales de tableros y listas
 
-- Un filtro multiselección usa `DropdownMenu` con checkbox items, contador de opciones
-  activas y «Limpiar» en la barra del tablero; nunca badges interactivos. Combina OR
-  dentro de su dimensión y AND con las demás. Filtrar no escribe ni vuelve a leer.
+- Los filtros viven en un único `Sheet` flotante a la derecha (§13.3), abierto desde
+  «Filtros» (`Button` outline con contador de **valores** activos). No agregar un
+  botón suelto por filtro. Cada dimensión es multiselección: OR entre sus valores y
+  AND entre dimensiones activas; una dimensión vacía no restringe. «Sin X» es un valor
+  de la dimensión cuando aplica, nunca un interruptor separado.
+- Un solo modelo genérico `{ key, label, options, match(item, selected) }` alimenta
+  filtrado, grupos y chips. Agregar una dimensión es una declaración. Las opciones
+  siguen el orden del tablero/catálogo; pueden agruparse visualmente sin cambiar la
+  semántica OR. Los conteos por opción describen el tablero completo actual.
+- El Sheet sigue la anatomía de la sección 17: encabezado con identidad, secciones por
+  significado y **un control compacto por dimensión** (multiselect con búsqueda,
+  casillas y conteos dentro del desplegable), nunca todas las opciones expandidas como
+  lista de casillas. Pie con el resumen en vivo («N candidatos coinciden» y los filtros
+  activos) y las acciones «Limpiar» y «Ver N candidato(s)». Los filtros aplican en
+  vivo; el botón primario solo cierra y el foco vuelve a «Filtros».
+- Solo con filtros activos aparece una fila de chips removibles (botones, no badges
+  interactivos), uno por valor con su dimensión, más «Limpiar filtros» y el anuncio
+  cortés «Mostrando X de Y candidatos». El estado vive en el controlador/página local,
+  sin URL; filtrar no escribe ni vuelve a leer.
+- Convención futura del servidor: parámetros repetidos por valor, por ejemplo
+  `?substate=a&substate=b&substate=none`, con la misma semántica OR/AND. No cambiar
+  contratos ni emitir requests para implementar la presentación local.
 - Se conserva el tablero completo como fuente: las columnas muestran «X de Y» mientras
   hay filtro y «Ningún candidato coincide con el filtro» si quedan vacías. La cobertura
   no cambia. Si una escritura oculta su tarjeta, sus errores siguen visibles en la barra
@@ -1028,12 +1061,14 @@ Referencia: `docs/design/v0/reference-lqiGtbQJqJc/` y capturas de L5 en
 
 ### 14.6 Reordenar columnas desde el tablero
 
-- Solo sin candidatos (`structure_locked === false`): manija `GripVertical` de 40px
+- Con o sin candidatos (corte 7): manija `GripVertical` de 40px
   «Reordenar {columna}», visible con hover/foco (siempre en móvil), y menú accesible
   «Mover a la izquierda/derecha». Nuevos y Placement mantienen su posición; Descartados
-  nunca es arrastrable ni destino. Con candidatos, explicar el bloqueo en un tooltip
-  alcanzable por teclado. Elevar la columna y marcar la inserción sin animaciones
-  obligatorias. Cada caída guarda con el ETag del pipeline, orden optimista y bloqueo;
+  nunca es arrastrable ni destino. Elevar la columna y marcar la inserción sin animaciones
+  obligatorias. La columna no se mueve hasta confirmar con `ConfirmActionDialog` (§18);
+  con candidatos (`structure_locked === true`) primero se pide la vista previa del impacto
+  y el diálogo lista a quién afecta; el PUT lleva `confirm_impact` y el toast cuenta el
+  impacto realmente aplicado. Cada confirmación guarda con el ETag del pipeline y bloqueo;
   adoptar el nuevo ETag y leer el tablero. Ante conflicto o incertidumbre, leer una vez
   configuración y tablero, sin repetir el PUT; si falla, bloquear el reordenamiento y
   ofrecer solo actualización de lectura. Toast real y estado persistente en el slot
@@ -1088,3 +1123,87 @@ pie con compensación y «Ver vacante») y `PublicJobDetailView` (encabezado, «
 un vistazo», navegación por secciones y columna fija con compensación y «Postularme») en
 `src/features/jobs/components/`. Referencia de diseño:
 `docs/design/v0/reference-c6eMqlbQQtD/`.
+
+## 17. Paneles densos (Sheets de filtros, configuración y formularios largos)
+
+Origen: el primer Sheet de «Filtros» del tablero mostraba todas las opciones de todas
+las dimensiones como casillas sueltas, sin secciones; el contenido se deslizaba por
+debajo del encabezado, abundaban conteos en 0, el pie decía «Ver 1 candidatos» y la
+explicación de la lógica estaba en la descripción del encabezado. La referencia
+corregida (v0) resuelve cada punto; estas reglas evitan que se repita.
+
+| Regla | Concreto | Para qué |
+| --- | --- | --- |
+| Un control compacto por dimensión | Cada filtro es un `Field` con etiqueta, un disparador de multiselección (Combobox o Popover del sistema) que muestra «Todas las etapas» o el resumen de lo elegido, y una ayuda de una línea. Las opciones, su búsqueda, las casillas y los conteos viven **dentro** del desplegable. Una lista de casillas expandida solo se admite con una única dimensión de ≤5 opciones. | El panel se recorre de un vistazo, sin importar cuántas opciones tenga cada grupo. |
+| Secciones por significado | Las dimensiones se agrupan en secciones con encabezado de ícono + etiqueta en mayúsculas pequeñas («PROCESO DE SELECCIÓN», «CANDIDATOS DESCARTADOS») y un `Separator` entre ellas; la etiqueta de la sección no compite en peso con la del campo. | Jerarquía clara: sección → campo → opciones. |
+| Anatomía fija del panel | Encabezado: tile con el ícono de la acción, título con verbo («Filtrar candidatos») y una línea de propósito en lenguaje llano. Cuerpo: único contenedor con scroll (sección 13.8: `min-h-0 flex-1 overflow-y-auto`), separado del encabezado y del pie por bordes; el contenido nunca pasa visible por debajo del encabezado. Pie fijo: resumen en vivo + acción secundaria con ícono («Limpiar») + primaria con el resultado («Ver 3 candidatos →»). | Siempre se sabe dónde se está, qué se eligió y qué va a pasar. |
+| La lógica se explica una vez, en llano | La regla de combinación va en una nota informativa (ícono + superficie `muted`) al final del cuerpo: «Las opciones de un mismo filtro se suman. Entre filtros, los candidatos deben cumplir ambas condiciones.» Nunca en la descripción del encabezado ni con jerga («AND/OR», «dimensiones»). | La persona entiende el efecto sin leer documentación. |
+| Conteos que no hacen ruido | Los conteos van alineados a la derecha, `tabular-nums` y en `muted-foreground`; las opciones en 0 siguen siendo elegibles pero con menor contraste. Nunca una columna de ceros con el mismo peso que las etiquetas. | El dato útil se ve; el vacío no grita. |
+| Plural siempre correcto | Todo texto con cantidad pasa por un helper de plural («1 candidato coincide», «3 candidatos coinciden», «Ver 1 candidato»). Prohibido concatenar «s» o dejar un plural fijo. | Un error de concordancia rompe la sensación de producto cuidado. |
+| Probar con el peor caso real | Antes de dar por terminada una superficie densa se revisa con todos los grupos y todas sus opciones, nombres largos, conteos en 0 y en móvil, en claro y oscuro. Un test fija la anatomía (encabezado, secciones, un disparador por dimensión, pie con resumen) y el plural. | Los problemas aparecen con datos reales, no con un caso de ejemplo. |
+| Partir de un patrón o una referencia | Una superficie compuesta nueva parte de un patrón de estas reglas o de una referencia visual aprobada (v0 o una captura del usuario). Si no hay ninguna, se propone primero una referencia (prompt de v0 o boceto) antes de implementar. | Evita componer al tanteo y rehacer después. |
+
+Ejemplo de referencia: el Sheet «Filtrar candidatos» del tablero
+(`src/features/pipeline-movement/board-filters.tsx`), según las capturas de v0 del
+2026-10-19.
+
+## 18. Confirmación de acciones importantes
+
+Decisión del usuario (2026-10-19): «hay veces que estas haciendo algo y por accidente
+haces un click o incluso dos, y terminas realizando una accion que no querias realizar,
+propongo que salte un alert dialog y en esta y en todas las acciones importantes como
+ultimo paso antes de realmente ejecutar la accion».
+
+- **Qué se confirma:** mover un candidato de etapa (arrastrando o desde «Mover a…», en la
+  tarjeta y en la ficha), cambiar su subestado, reordenar columnas, salir o volver a
+  Placement, descartar, recuperar, publicar una vacante, borrar un CV y cumplir la entrega
+  desde la configuración. Una acción nueva que cambie datos de otra persona, el historial
+  o algo irreversible entra en esta lista.
+- **Con qué:** un único componente, `ConfirmActionDialog`
+  (`src/components/feedback/confirm-action-dialog.tsx`), sobre el `AlertDialog` de shadcn.
+  No se arma otro diálogo de confirmación a mano ni se usa `Dialog` para confirmar.
+- **Estructura oficial obligatoria** (composición de la documentación de shadcn):
+  `AlertDialogContent` → `AlertDialogHeader` con `AlertDialogMedia` (ícono de la acción),
+  `AlertDialogTitle` y `AlertDialogDescription` → `AlertDialogFooter` con
+  `AlertDialogCancel` y `AlertDialogAction`. El ícono es obligatorio (`icon`) y repite el
+  de la acción en el resto de la app (Publicar = `Send`); en tono destructivo el media va
+  en `destructive/10`. Sin detalles se usa `size="sm"`; con detalles, `default` y los
+  detalles van en **un solo** bloque entre encabezado y pie (`confirm-action-details`),
+  nunca dentro del encabezado ni del pie. El diálogo se abre controlado (`open`) porque
+  nace de un arrastre, un menú o un formulario; por eso no hay `AlertDialogTrigger`.
+- **Texto:** el título nombra la acción y a quién afecta («¿Mover a Ana Pérez a
+  Screening?»); la descripción dice la consecuencia sin repetir el título («Pasa de Nuevos
+  a Screening. El cambio queda en su historial.»); el botón usa el verbo de la acción
+  («Mover», «Descartar candidato»), nunca «Aceptar» ni «Sí». Acciones destructivas en tono
+  `destructive`.
+- **Seguridad del clic:** el foco inicial está en «Cancelar», así un Enter o un doble clic
+  accidental no confirma; mientras se ejecuta, los dos botones se bloquean y el principal
+  muestra el progreso («Moviendo…»). Cancelar no escribe nada; en un arrastre, la tarjeta
+  vuelve a su lugar.
+- **Cuando la confirmación ya pide datos** (motivo de descarte, mensaje al candidato), esos
+  campos van dentro del mismo `ConfirmActionDialog`; no se encadenan dos diálogos.
+- **Errores y conflictos** siguen las reglas de cada flujo (recarga sin repetir la acción,
+  toasts de la sección 12); el diálogo se cierra al confirmar con éxito.
+
+## 19. Usar cada componente de shadcn como lo indica su documentación
+
+Origen: el usuario revisó las primeras confirmaciones y notó que «a los alert dialogs les
+falta estructura, según la documentación oficial»: faltaba `AlertDialogMedia`, no se usaba
+`size="sm"` y los detalles quedaban sueltos.
+
+- **Antes de usar un componente por primera vez** (o de crear un componente propio sobre
+  él), leer su página en `ui.shadcn.com/docs/components/base/<componente>` o consultar el
+  MCP de shadcn (`get_item_examples_from_registries`, `view_items_in_registries`) y anotar
+  la sección **Composition** (el árbol de partes), los ejemplos y las props (`size`,
+  `variant`).
+- **Respetar el árbol completo de la composición.** Cada parte va dentro de la que indica
+  el árbol (por ejemplo `AlertDialogMedia` dentro de `AlertDialogHeader`, `CardAction`
+  dentro de `CardHeader`). Si una parte opcional aporta a la decisión del usuario (ícono,
+  descripción, acción), se usa.
+- **Toda desviación se justifica por escrito** en el comentario del componente o en estas
+  reglas (por ejemplo: diálogo controlado sin `Trigger` porque nace de un arrastre). Una
+  desviación sin justificación es un defecto.
+- **Los tests fijan la composición** a través de los `data-slot` oficiales (por ejemplo,
+  media → título dentro del encabezado, y el pie después), además del comportamiento.
+- Un componente propio que envuelve uno de shadcn (como `ConfirmActionDialog`) es el único
+  lugar donde se arma esa composición; las pantallas no la rearman a mano.

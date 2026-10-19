@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, Flag, Target } from "lucide-react";
+import { CalendarDays, Flag, Target, CircleCheckBig } from "lucide-react";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { FulfilledDelivery, FulfillmentCandidates, DeliveryCommitmentDate } from "./fulfillment-view";
 import type { DeliveryPreview } from "@/features/jobs/drafts/pipeline/fulfillment-model";
 import { Input } from "@/components/ui/input";
@@ -37,7 +37,6 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
   const [dateRejected, setDateRejected] = useState(false);
   const targetInput = useRef<HTMLInputElement>(null);
   const saveButton = useRef<HTMLButtonElement>(null);
-  const cancelButton = useRef<HTMLButtonElement>(null);
   const statusLink = useRef<HTMLAnchorElement | null>(null);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const state = session.editor;
@@ -185,10 +184,11 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
       </ActionBar>
     </CardFooter>
   </Card>
-  <Dialog open={!!confirmation} onOpenChange={open => { if (!open && !busy.current) setConfirmation(null); }}>
-    {confirmation && <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col" showCloseButton={pending === null} initialFocus={cancelButton} finalFocus={saveButton}>
-      <DialogHeader><DialogTitle>Cumplir la entrega ahora</DialogTitle><DialogDescription>Esta edición cumple la entrega ahora y congela su configuración. Revisa los candidatos que cuentan antes de confirmar.</DialogDescription></DialogHeader>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+  <ConfirmActionDialog open={!!confirmation} finalFocus={saveButton} onOpenChange={open => { if (!open && !busy.current) setConfirmation(null); }}
+    icon={CircleCheckBig} title="¿Guardar y cumplir la entrega?" description="Con este cambio la entrega queda cumplida y su configuración se congela."
+    confirmLabel="Guardar y cumplir" pendingLabel="Guardando…" pending={pending !== null} onConfirm={() => void persist(true)}>
+    {confirmation && <>
+      <div className="flex flex-col gap-4">
         <dl className="grid gap-3 sm:grid-cols-2">
           <div><dt className="flex items-center gap-2 text-xs text-muted-foreground"><Target aria-hidden="true" className="size-3.5" />Objetivo de entrega</dt><dd>{confirmation.preview.delivered} de {confirmation.preview.target} candidatos</dd></div>
           <div><dt className="flex items-center gap-2 text-xs text-muted-foreground"><Flag aria-hidden="true" className="size-3.5" />Columna de corte</dt><dd>{stages.find(stage => stage.id === confirmation.snapshot.editor.cutoffStageId)?.name ?? "Sin definir"}</dd></div>
@@ -196,10 +196,7 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
         </dl>
         <FulfillmentCandidates candidates={confirmation.preview.candidates} />
       </div>
-      <DialogFooter><ActionBar status={notice && <ActionStatus id="delivery-confirm-status" tone={notice.tone} text={notice.text} />}>
-        <Button ref={cancelButton} className="min-h-10" variant="outline" disabled={pending !== null} onClick={() => setConfirmation(null)}>Cancelar</Button>
-        <Button className="min-h-10" disabled={pending !== null} aria-describedby={notice ? "delivery-confirm-status" : undefined} onClick={() => void persist(true)}>{pending === "save" && <Spinner aria-hidden="true" data-icon="inline-start" />}Confirmar y cumplir</Button>
-      </ActionBar></DialogFooter>
-    </DialogContent>}
-  </Dialog></>;
+      {notice && <ActionStatus id="delivery-confirm-status" tone={notice.tone} text={notice.text} />}
+    </>}
+  </ConfirmActionDialog></>;
 }

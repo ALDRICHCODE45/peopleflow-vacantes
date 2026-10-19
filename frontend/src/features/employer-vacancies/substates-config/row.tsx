@@ -21,7 +21,7 @@ export function substateRowActions(state: SubstatesEditorState, key: string): Ro
   ];
 }
 const icons = { up: ArrowUp, down: ArrowDown, remove: Trash2 };
-function nameError(error: SubstateError | undefined, max: number) {
+export function nameError(error: SubstateError | undefined, max: number) {
   switch (error) {
     case "required": return "Escribe un nombre para el subestado.";
     case "too_long": return `Usa como máximo ${max} caracteres.`;

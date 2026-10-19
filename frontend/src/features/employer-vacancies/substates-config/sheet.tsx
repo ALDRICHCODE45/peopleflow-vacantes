@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Plus, X } from "lucide-react";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Item, ItemActions, ItemContent, ItemGroup, ItemSeparator, ItemTitle } from "@/components/ui/item";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FieldDescription, FieldError } from "@/components/ui/field";
+import { FieldError } from "@/components/ui/field";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { STAGE_KIND_LABELS, normalizeStageName } from "@/features/jobs/drafts/pipeline/editor-model";
@@ -18,6 +20,7 @@ import {
 } from "@/features/jobs/drafts/pipeline/substates-model";
 import { conflictNotice, invalidNotice, recoveryLabels, savedNotice, substatesFailureNotice, type PipelineNotice } from "./feedback";
 import { SubstateRow } from "./row";
+import { CustomSubstateInput } from "./custom-input";
 import { SubstatesReorder } from "./reorder";
 
 type Props = {
@@ -153,29 +156,35 @@ function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenCh
         if (dragging.current && (event.key === "ArrowUp" || event.key === "ArrowDown")) event.preventBaseUIHandler();
       }}>
       <SheetHeader className="border-b pr-16">
-        <SheetTitle>Subestados de {normalizeStageName(inProcessName) || STAGE_KIND_LABELS.in_process}</SheetTitle>
-        <SheetDescription>Úsalos para registrar en qué punto del proceso está cada candidato, por ejemplo cada entrevista. No son pasos obligatorios ni tienen que seguir un orden.</SheetDescription>
+        <Badge variant="secondary" className="mb-3 self-start">{normalizeStageName(inProcessName) || STAGE_KIND_LABELS.in_process}</Badge>
+        <SheetTitle>Configurar subestados</SheetTitle>
+        <SheetDescription>Identifica en qué punto está cada candidato. Son etiquetas flexibles, no pasos obligatorios.</SheetDescription>
         <p className="text-sm tabular-nums text-muted-foreground">{state.entries.length} de {state.limits.maxSubstates} subestados</p>
       </SheetHeader>
       <SheetClose disabled={pending !== null} render={<Button type="button" variant="ghost" size="icon" className="absolute right-4 top-4 size-10" aria-label="Cerrar subestados" />}><X aria-hidden="true" /></SheetClose>
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6">
+      <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
         {suggestions.length > 0 && <section aria-labelledby="substates-suggestions-heading" className="flex flex-col gap-2">
-          <h3 id="substates-suggestions-heading" className="font-heading text-sm font-medium">Sugerencias</h3>
-          <div className="flex flex-wrap justify-start gap-2">{suggestions.map(suggestion => <Button key={suggestion} type="button" variant="outline" size="sm" className="min-h-10 h-auto whitespace-normal text-left" disabled={pending !== null || !canAdd(state)} aria-label={`Agregar ${suggestion}`} onClick={() => addEntry(suggestion)}>
-            <Plus aria-hidden="true" data-icon="inline-start" />{suggestion}
-          </Button>)}</div>
+          <h3 id="substates-suggestions-heading" className="font-heading text-sm font-medium">Empieza con una sugerencia</h3>
+          <p className="text-sm text-muted-foreground">Agrega las que encajen con tu proceso.</p>
+          <ItemGroup className="gap-0 rounded-xl border">{suggestions.map((suggestion, index) => <Fragment key={suggestion}>
+            {index > 0 && <ItemSeparator className="my-0" />}
+            <Item size="xs" className="flex-nowrap">
+              <ItemContent className="min-w-0"><ItemTitle>{suggestion}</ItemTitle></ItemContent>
+              <ItemActions><Button type="button" variant="ghost" size="sm" className="min-h-10" disabled={pending !== null || !canAdd(state)} aria-label={`Agregar ${suggestion}`} onClick={() => addEntry(suggestion)}>
+                <Plus aria-hidden="true" data-icon="inline-start" />Agregar
+              </Button></ItemActions>
+            </Item>
+          </Fragment>)}</ItemGroup>
         </section>}
-        {state.entries.length === 0 ? <p className="text-sm text-muted-foreground">Todavía no hay subestados. Elige una sugerencia o agrega uno.</p> : <SubstatesReorder state={state} disabled={pending !== null} onDragStateChange={active => { dragging.current = active; }} onMove={(key, target) => edit(moveTo(current.current.editor, key, target))}>
+        <CustomSubstateInput state={state} disabled={pending !== null} onAdd={addEntry} />
+        {/* No empty-list placeholder: the suggestions and composer are the empty-state actions. */}
+        {state.entries.length > 0 && <SubstatesReorder state={state} disabled={pending !== null} onDragStateChange={active => { dragging.current = active; }} onMove={(key, target) => edit(moveTo(current.current.editor, key, target))}>
           <ol aria-label="Subestados" className="flex flex-col gap-2">{state.entries.map((entry, index) => <SubstateRow key={entry.key} entry={entry} position={index + 1} state={state} disabled={pending !== null}
             error={attempted || touched.has(entry.key) ? errors[entry.key] : undefined}
             inputRef={node => { if (node) { inputs.current.set(entry.key, node); if (focusOnMount.current === entry.key) { node.focus(); focusOnMount.current = null; } } else inputs.current.delete(entry.key); }}
             onRename={name => edit(rename(current.current.editor, entry.key, name))} onBlur={() => setTouched(previous => new Set(previous).add(entry.key))}
             onMove={direction => edit(move(current.current.editor, entry.key, direction))} onRemove={() => edit(remove(current.current.editor, entry.key))} />)}</ol>
         </SubstatesReorder>}
-        <div className="flex flex-col items-start gap-2">
-          <Button type="button" variant="outline" className="min-h-10" disabled={pending !== null || !canAdd(state)} onClick={() => addEntry()}><Plus aria-hidden="true" data-icon="inline-start" />Agregar subestado</Button>
-          {!canAdd(state) && <FieldDescription>Llegaste al máximo de {state.limits.maxSubstates} subestados.</FieldDescription>}
-        </div>
         {errors.$catalog && <FieldError>No puedes guardar más de {state.limits.maxSubstates} subestados.</FieldError>}
       </div>
       {/* Compact action footer (rules §12): ActionBar keeps the status left of the actions. */}

@@ -7,13 +7,11 @@ import type { BoardColumnOrder } from "./use-board-column-order";
 import type { Board } from "./model";
 import { Hint } from "./pipeline-presentation";
 
-export const COLUMN_LOCK_COPY = "Con candidatos en la vacante, las columnas solo se pueden renombrar.";
 export function ColumnOrderControls({ stage, order, drag }: {
   stage: Board["stages"][number] | Board["exit"]; order: BoardColumnOrder; drag: ReturnType<typeof useDraggable>;
 }) {
   if (stage.kind === "discarded") return null;
   if (stage.kind === "new" || stage.kind === "placement") return <Hint text="Posición fija"><span tabIndex={0} aria-label={`${stage.name}: posición fija`} className="ml-auto flex size-10 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"><LockKeyhole aria-hidden="true" className="size-3.5" /></span></Hint>;
-  if (order.structureLocked) return <Hint text={COLUMN_LOCK_COPY}><Button type="button" variant="ghost" size="icon" className="ml-auto size-10" aria-label={`Columnas bloqueadas: ${stage.name}`} aria-description={COLUMN_LOCK_COPY}><LockKeyhole aria-hidden="true" /></Button></Hint>;
   if (!order.editor) return null;
   const index = order.editor.stages.findIndex(item => item.id === stage.id);
   const describedBy = order.notice ? "column-order-status" : undefined;

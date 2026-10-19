@@ -1,22 +1,20 @@
 "use client";
-import { useRef, useState } from "react";
-import { ListChecks, MessageSquare, NotebookPen, RotateCcw, TriangleAlert, UserRoundX } from "lucide-react";
-import { cn } from "cn";
-import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useMemo, useRef, useState } from "react";
+import { BadgeCheck, ListChecks, MessageSquare, NotebookPen, Undo2, UserX } from "lucide-react";
+import { ActionStatus } from "@/components/feedback/action-status";
+import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { buildDiscardBody, discardCatalog, validateDiscardText } from "./discard-text";
 import type { Notice } from "./board-feedback";
-import type { Board, DiscardBody, DiscardReason } from "./model";
+import type { Board, DiscardBody, DiscardReason, RecoverBody } from "./model";
+import { recoverySelection } from "./recovery";
 import type { Disposition } from "./use-movement-board";
 
 type Props = {
   disposition: Disposition; board: Board; pending: boolean; stale: boolean; reading: boolean; notice?: Notice;
-  onClose: () => void; onConfirm: (body?: DiscardBody) => void; finalFocus: () => HTMLElement | null;
+  onClose: () => void; onConfirm: (body?: DiscardBody | RecoverBody) => void; finalFocus: () => HTMLElement | null;
 };
 const options = discardCatalog.flatMap(group => group.reasons.map(reason => ({ value: `${group.group}:${reason.key}`, label: reason.label, reason: { group: group.group, key: reason.key } as DiscardReason })));
 function textError(error: ReturnType<typeof validateDiscardText>["error"], limit: number) {
@@ -24,6 +22,7 @@ function textError(error: ReturnType<typeof validateDiscardText>["error"], limit
 }
 export function DispositionDialog({ disposition, board, pending, stale, reading, notice, onClose, onConfirm, finalFocus }: Props) {
   const [choice, setChoice] = useState<string | null>(null);
+  const [returnChoice, setReturnChoice] = useState<string | null>(null);
   const [comment, setComment] = useState("");
   const [message, setMessage] = useState("");
   const [attempted, setAttempted] = useState(false);
@@ -36,23 +35,43 @@ export function DispositionDialog({ disposition, board, pending, stale, reading,
   const internalError = attempted ? textError(internal.error, 1000) : null;
   const candidateError = attempted ? textError(candidate.error, 500) : null;
   const discarding = disposition.kind === "discard";
-  const previous = board.stages.find(stage => stage.id === disposition.item.discard?.previous_stage_id);
-  const stage = board.stages.find(stage => stage.id === disposition.item.stage_id);
+  const previous = [...board.stages, ...board.retired_stages].find(stage => stage.id === disposition.item.discard?.previous_stage_id);
+  const recovery = recoverySelection(board, disposition.item, disposition.recoveryRequired);
+  const returnStage = recovery.stages.some(stage => stage.id === returnChoice) ? returnChoice : recovery.defaultId;
+  const defaultId = recovery.defaultId;
+  const returnOptions = useMemo(() => {
+    const index = board.stages.findIndex(stage => stage.id === defaultId);
+    return board.stages.slice(0, index + 1).map(stage => ({ value: stage.id, label: `${stage.name}${stage.id === defaultId ? " (sugerida)" : ""}` }));
+  }, [board.stages, defaultId]);
   const statusId = `disposition-status-${disposition.item.id}`;
   function confirm() {
-    if (!discarding) { onConfirm(); return; }
+    if (!discarding) {
+      if (recovery.required) {
+        if (!returnStage || !recovery.stages.some(stage => stage.id === returnStage)) return;
+        onConfirm({ to_stage_id: returnStage });
+      } else onConfirm();
+      return;
+    }
     setAttempted(true);
     if (!reason) { reasonControl.current?.focus(); return; }
     if (internal.error) { commentControl.current?.focus(); return; }
     if (candidate.error) { messageControl.current?.focus(); return; }
     onConfirm(buildDiscardBody(reason, comment, message));
   }
-  return <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
-    <DialogContent showCloseButton={!pending} finalFocus={finalFocus} className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain sm:max-w-[520px]">
-      <DialogHeader><div className={cn("mb-3 flex size-10 items-center justify-center rounded-xl", discarding ? "bg-status-danger/10 text-status-danger" : "bg-status-info/10 text-status-info")}>{discarding ? <UserRoundX aria-hidden="true" className="size-5" /> : <RotateCcw aria-hidden="true" className="size-5" />}</div><DialogTitle>{discarding ? "Descartar candidato" : "Recuperar candidato"}</DialogTitle><DialogDescription>{discarding ? "Registra el motivo del descarte. El motivo y el comentario interno no se comparten con el candidato." : `Volverá a ${previous?.name ?? "su etapa anterior"}. Se conservará el historial y el mensaje dejará de verse en sus postulaciones.`}</DialogDescription></DialogHeader>
-      <p className="font-medium">{disposition.item.candidate.full_name}</p>
-      {disposition.placementConfirmation && <p className="flex items-start gap-2 text-sm"><TriangleAlert aria-hidden="true" className="size-4 shrink-0" />{discarding ? `Salir de ${stage?.name ?? "Placement"} reduce las plazas cubiertas y registra una salida; conserva el historial de contratación y los hitos de cobertura.` : `Volver a ${previous?.name ?? "Placement"} implica volver a ocupar una plaza y registrar una nueva contratación. Confirma esta consecuencia.`}</p>}
-      {discarding && <FieldGroup>
+  const consequence = discarding
+    ? "Su postulación pasa a Finalizada. El motivo y el comentario interno no se comparten con el candidato."
+    : recovery.required
+      ? `Su columna anterior, «${previous?.name ?? "Columna eliminada"}», ya no existe. Elige dónde regresar; se conserva el historial y el mensaje deja de verse en sus postulaciones.`
+      : `Vuelve a ${previous?.name ?? "su etapa anterior"}. Se conserva el historial y el mensaje deja de verse en sus postulaciones.`;
+  const coverage = !disposition.placementConfirmation ? "" : discarding
+    ? " Las plazas cubiertas disminuyen en una y se conserva el historial de contratación y los hitos de cobertura."
+    : " Vuelve a ocupar una plaza y se registra una nueva contratación.";
+  const feedback = stale ? <ActionStatus id={statusId} tone="info" text={reading ? "Actualizando el tablero. Espera antes de confirmar." : "Cancela y usa Reintentar para actualizar el tablero antes de confirmar."} /> : notice ? <ActionStatus id={statusId} tone={notice.tone} text={notice.text} /> : null;
+  return <ConfirmActionDialog icon={discarding ? UserX : disposition.placementConfirmation ? BadgeCheck : Undo2} open onOpenChange={open => { if (!open) onClose(); }} finalFocus={finalFocus}
+    title={`¿${discarding ? "Descartar" : "Recuperar"} a ${disposition.item.candidate.full_name}?`} description={consequence + coverage}
+    confirmLabel={discarding ? "Descartar candidato" : "Recuperar"} pendingLabel={discarding ? "Descartando…" : "Recuperando…"}
+    tone={discarding ? "destructive" : "default"} pending={pending} confirmDisabled={stale || reading || (!discarding && recovery.required && !recovery.stages.some(stage => stage.id === returnStage))} onConfirm={confirm}>
+      {discarding ? <><FieldGroup>
         <Field data-invalid={attempted && !reason} data-disabled={pending}>
           <FieldLabel htmlFor="discard-reason"><ListChecks aria-hidden="true" className="size-3.5" />Motivo</FieldLabel>
           <Select items={options} value={choice} onValueChange={setChoice} disabled={pending}>
@@ -72,11 +91,15 @@ export function DispositionDialog({ disposition, board, pending, stale, reading,
           <FieldDescription id="discard-message-help">El candidato verá «Finalizada» y este mensaje, nunca el motivo ni el comentario interno. No se enviará una notificación.</FieldDescription>
           <FieldError id="discard-message-error">{candidateError}</FieldError>
         </Field>
-      </FieldGroup>}
-      <DialogFooter className="flex-row bg-transparent"><ActionBar status={pending ? <span role="status" className="text-sm">Guardando…</span> : stale ? <ActionStatus id={statusId} tone="info" text={reading ? "Actualizando el tablero. Espera antes de confirmar." : "Cancela y usa Reintentar para actualizar el tablero antes de confirmar."} /> : notice ? <ActionStatus id={statusId} tone={notice.tone} text={notice.text} /> : null}>
-        <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={onClose}>Cancelar</Button>
-        <Button type="button" variant={discarding ? "destructive" : "default"} className="min-h-10" disabled={pending || stale || reading} aria-busy={pending} aria-describedby={stale || notice ? statusId : undefined} onClick={confirm}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{discarding ? "Confirmar descarte" : "Confirmar recuperación"}</Button>
-      </ActionBar></DialogFooter>
-    </DialogContent>
-  </Dialog>;
+      </FieldGroup>{feedback}</> : recovery.required ? <>
+        <FieldGroup><Field data-disabled={pending}>
+          <FieldLabel htmlFor="recovery-stage">Columna de regreso</FieldLabel>
+          <Select items={returnOptions} value={returnStage} onValueChange={setReturnChoice} disabled={pending} required>
+            <SelectTrigger id="recovery-stage" className="min-h-10 w-full" aria-required="true"><SelectValue placeholder="Elige una columna" /></SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}><SelectGroup>{returnOptions.map(option => <SelectItem key={option.value} value={option.value} className="min-h-10">{option.label}</SelectItem>)}</SelectGroup></SelectContent>
+          </Select>
+        </Field></FieldGroup>
+        {feedback}
+      </> : feedback}
+  </ConfirmActionDialog>;
 }

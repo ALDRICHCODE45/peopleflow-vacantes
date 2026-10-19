@@ -1,3 +1,4 @@
+import "./board-filter-popover-test-double";
 import type { ReactNode, ComponentProps } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
@@ -71,7 +72,40 @@ async function mount(board?: Board) {
   return view;
 }
 function menu() { fireEvent.click(screen.getByRole("button", { name: "Acciones de Ana Pérez" })); return screen.getByRole("menu"); }
-function move(label = "Revisión") { fireEvent.click(within(menu()).getByRole("menuitem", { name: label })); }
+function move(label = "Revisión", confirm = true) {
+  fireEvent.click(within(menu()).getByRole("menuitem", { name: label }));
+  if (confirm && !screen.getByRole("alertdialog").textContent?.includes("disminuyen en una")) fireEvent.click(screen.getByRole("button", { name: "Mover" }));
+}
+
+it.each(["menu", "sheet", "pointer", "keyboard"])("%s move waits for confirmation, cancellation writes nothing, and double confirm writes once", async source => {
+  vi.mocked(moveParticipationAction).mockReturnValue(new Promise(() => {}));
+  await mount();
+  if (source === "sheet") { fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Ana Pérez" })); await screen.findByRole("dialog", { name: "Ana Pérez" }); }
+  const request = () => {
+    if (source === "sheet") {
+      const sheet = screen.getByRole("dialog", { name: "Ana Pérez" });
+      fireEvent.click(within(sheet).getByRole("button", { name: "Mover a…" }));
+      fireEvent.click(within(sheet).getByRole("menuitem", { name: "Revisión" }));
+    }
+    else if (source === "menu") move("Revisión", false);
+    else {
+      act(() => drag.props.onDragStart({ active: { id: "person" }, activatorEvent: { type: source === "keyboard" ? "keydown" : "pointerdown" } }));
+      act(() => drag.props.onDragEnd({ active: { id: "person" }, over: { id: "screen" } }));
+    }
+  };
+  request();
+  const dialog = screen.getByRole("alertdialog", { name: "¿Mover a Ana Pérez a Revisión?" });
+  expect(dialog).toHaveAccessibleDescription("Pasa de Entrada a Revisión. El cambio queda en su historial.");
+  expect(within(dialog).getByRole("button", { name: "Cancelar" })).toHaveFocus();
+  expect(moveParticipationAction).not.toHaveBeenCalled();
+  expect(document.getElementById("candidate-move-person")?.closest('[data-pf-published-column]')).toHaveAttribute("aria-label", "Entrada: 1 candidatos");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+  expect(moveParticipationAction).not.toHaveBeenCalled();
+  request();
+  const confirm = screen.getByRole("button", { name: "Mover" });
+  fireEvent.click(confirm); fireEvent.click(confirm);
+  expect(moveParticipationAction).toHaveBeenCalledTimes(1);
+});
 
 it("menu lists next forward and earlier targets plus discard, never current, skipped or exit as a move", async () => {
   const board = boardFixture(); board.participations[0].stage_id = "interview";
@@ -92,10 +126,10 @@ it("disables non-adjacent forward columns and the exit as drop targets", async (
 it("confirms leaving Placement with reduced coverage and retained history before sending true", async () => {
   const board = boardFixture(); board.participations[0].stage_id = "hire"; board.coverage.covered = 1;
   await mount(board); move();
-  const dialog = await screen.findByRole("dialog", { name: "Salir de Contratación" });
-  expect(dialog).toHaveTextContent("reduce las plazas cubiertas"); expect(dialog).toHaveTextContent("conserva el historial");
+  const dialog = await screen.findByRole("alertdialog", { name: "¿Mover a Ana Pérez a Revisión?" });
+  expect(dialog).toHaveTextContent("Las plazas cubiertas disminuyen en una"); expect(dialog).toHaveTextContent("conserva el historial");
   expect(moveParticipationAction).not.toHaveBeenCalled();
-  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar movimiento" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Mover" }));
   await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Ana Pérez salió de Contratación" })));
   expect(screen.queryByText("Ana Pérez salió de Contratación")).not.toBeInTheDocument();
   expect(moveParticipationAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, participationId: "person", etag: '"opaque-item-tag"', body: { to_stage_id: "screen", confirm_placement_exit: true } });
@@ -103,9 +137,10 @@ it("confirms leaving Placement with reduced coverage and retained history before
 it("also requests explicit Placement confirmation after the server's 409", async () => {
   vi.mocked(moveParticipationAction).mockResolvedValueOnce({ ok: false, reason: "placement_exit_confirmation_required", reference: { status: 409 } });
   await mount(); move();
-  const dialog = await screen.findByRole("dialog");
+  const dialog = await screen.findByRole("alertdialog");
+  await within(dialog).findByText(/Las plazas cubiertas disminuyen en una/);
   expect(moveParticipationAction).toHaveBeenCalledTimes(1);
-  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar movimiento" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Mover" }));
   await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Ana Pérez pasó a Revisión" })));
   expect(moveParticipationAction).toHaveBeenLastCalledWith(expect.objectContaining({ body: { to_stage_id: "screen", confirm_placement_exit: true } }));
 });
@@ -139,7 +174,7 @@ it("sheet movement uses allowed targets and nests the Placement confirmation wit
   const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
   fireEvent.click(within(sheet).getByRole("button", { name: "Mover a…" }));
   fireEvent.click(within(sheet).getByRole("menuitem", { name: "Revisión" }));
-  const confirmation = await screen.findByRole("dialog", { name: "Salir de Contratación" });
+  const confirmation = await screen.findByRole("alertdialog", { name: "¿Mover a Ana Pérez a Revisión?" });
   expect(confirmation).toHaveAttribute("data-nested");
   expect(moveParticipationAction).not.toHaveBeenCalled();
   fireEvent.click(within(confirmation).getByRole("button", { name: "Cancelar" }));
@@ -182,9 +217,9 @@ it("200 applies new stage, counts, etag and server coverage; double submission i
   let resolve!: (value: Result<Move>) => void;
   vi.mocked(moveParticipationAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
   await mount(); move();
-  expect(screen.getByRole("button", { name: "Acciones de Ana Pérez" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeDisabled();
-  fireEvent.click(screen.getByRole("button", { name: "Acciones de Ana Pérez" }));
+  expect(document.getElementById("candidate-move-person")).toBeDisabled();
+  expect(document.getElementById("candidate-drag-person")).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Moviendo…" }));
   expect(moveParticipationAction).toHaveBeenCalledTimes(1);
   await act(async () => resolve({ ok: true, data: { delivery: boardFixture().delivery, ...boardFixture().participations[0], stage_id: "screen", version: "5", etag: '"new-opaque"', coverage: { covered: 1, required: 2, full_coverage_reached_at: null } } }));
   expect(screen.getByRole("region", { name: "Revisión: 1 candidatos" })).toHaveTextContent("Ana Pérez");
@@ -218,47 +253,21 @@ it("restores keyboard focus to the moved card's menu", async () => {
   await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Ana Pérez pasó a Revisión" })));
   await waitFor(() => expect(screen.getByRole("button", { name: "Acciones de Ana Pérez" })).toHaveFocus());
 });
-it("overlapping moves reconcile global coverage once after both responses, without replay", async () => {
+it.each(["success", "uncertain"])("pending confirmation prevents overlapping UI moves and preserves %s reconciliation", async outcome => {
   const board = boardFixture();
   board.participations.push({ ...board.participations[0], id: "second", candidate: { id: "second-candidate", full_name: "Eva Ruiz" } });
-  board.stages[0].count = 2;
-  let first!: (value: Result<Move>) => void, second!: (value: Result<Move>) => void;
-  vi.mocked(moveParticipationAction).mockReturnValueOnce(new Promise(yes => { first = yes; })).mockReturnValueOnce(new Promise(yes => { second = yes; }));
-  await mount(board); move();
-  expect(screen.getByRole("button", { name: "Acciones de Eva Ruiz" })).toBeEnabled();
-  fireEvent.click(screen.getByRole("button", { name: "Acciones de Eva Ruiz" }));
-  const menus = screen.getAllByRole("menu");
-  fireEvent.click(within(menus[menus.length - 1]).getByRole("menuitem", { name: "Revisión" }));
-  const refreshed = { ...board, coverage: { covered: 2, required: 2, full_coverage_reached_at: "2026-10-18T12:00:00Z" } };
-  vi.mocked(loadBoardAction).mockResolvedValueOnce({ ok: true, data: refreshed });
-  await act(async () => second({ ok: true, data: { delivery: board.delivery, ...board.participations[1], stage_id: "screen", coverage: refreshed.coverage } }));
-  expect(loadBoardAction).toHaveBeenCalledTimes(1);
-  await act(async () => first({ ok: true, data: { delivery: board.delivery, ...board.participations[0], stage_id: "screen", coverage: { ...board.coverage, covered: 1 } } }));
-  expect(loadBoardAction).toHaveBeenCalledTimes(2);
-  expect(screen.getByText("Cobertura completa")).toBeVisible();
-  expect(moveParticipationAction).toHaveBeenCalledTimes(2);
-});
-it.each(["success", "uncertain"])("another candidate's %s does not dismiss Placement confirmation; stale confirmation is blocked and cancel never writes", async outcome => {
-  const board = boardFixture();
-  board.participations.push({ ...board.participations[0], id: "second", stage_id: "hire", candidate: { id: "second-candidate", full_name: "Eva Ruiz" } });
   let resolve!: (value: Result<Move>) => void;
   vi.mocked(moveParticipationAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
   await mount(board); move();
-  fireEvent.click(screen.getByRole("button", { name: "Acciones de Eva Ruiz" }));
-  const menus = screen.getAllByRole("menu");
-  fireEvent.click(within(menus[menus.length - 1]).getByRole("menuitem", { name: "Revisión" }));
-  await screen.findByRole("dialog", { name: "Salir de Contratación" });
-  if (outcome === "uncertain") vi.mocked(loadBoardAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
+  expect(document.getElementById("candidate-move-second")).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Moviendo…" })).toBeDisabled();
+  vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: board });
   await act(async () => resolve(outcome === "success" ? { ok: true, data: { delivery: board.delivery, ...board.participations[0], stage_id: "screen", coverage: board.coverage } } : { ok: false, reason: "uncertain", reference: {} }));
-  const dialog = screen.getByRole("dialog", { name: "Salir de Contratación" });
-  expect(dialog).toHaveTextContent("Eva Ruiz");
-  if (outcome === "uncertain") {
-    expect(within(dialog).getByRole("button", { name: "Confirmar movimiento" })).toBeDisabled();
-    expect(dialog).toHaveTextContent("Cancela y usa Reintentar");
-  }
-  fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
   expect(moveParticipationAction).toHaveBeenCalledTimes(1);
-  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(loadBoardAction).toHaveBeenCalledTimes(outcome === "success" ? 1 : 2);
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Acciones de Eva Ruiz" })).toBeEnabled();
 });
 it("sheet has independent loading/error/retry without reloading board or moving", async () => {
   vi.mocked(loadHistoryAction).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: {} });
@@ -285,20 +294,27 @@ it("card radio options follow catalog order, share the write path and update the
   expect(within(actions).getAllByRole("menuitemradio").map(option => option.textContent)).toEqual(["Entrevista técnica", "Oferta", "Sin subestado"]);
   expect(within(actions).getByRole("menuitemradio", { name: "Entrevista técnica" })).toHaveAttribute("aria-checked", "true");
   fireEvent.click(within(actions).getByRole("menuitemradio", { name: "Sin subestado" }));
+  fireEvent.click(screen.getByRole("button", { name: "Cambiar subestado" }));
   await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ title: "Ana Pérez quedó sin subestado", description: "Antes: Entrevista técnica." })));
   expect(setParticipationSubstateAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, participationId: "person", etag: board.participations[0].etag, body: { substate_id: null } });
   expect(document.querySelector('.pf-candidate-card [data-slot="badge"]')).toBeNull();
 });
 it("toolbar filter wires OR selections, excludes other stages and clears without a read", async () => {
   const board = activeSubstateBoard(); board.participations.push({ ...board.participations[0], id: "null", substate_id: null, candidate: { id: "second", full_name: "Eva Ruiz" } }, { ...board.participations[0], id: "outside", stage_id: "new", substate_id: null, candidate: { id: "third", full_name: "Sol Díaz" } });
-  await mount(board); fireEvent.click(screen.getByRole("button", { name: "Subestados" }));
-  const options = screen.getAllByRole("menuitemcheckbox"); expect(options.map(option => option.textContent)).toEqual(["Entrevista técnica", "Oferta", "Sin subestado"]);
-  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Entrevista técnica" }));
-  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Sin subestado" }));
+  vi.stubGlobal("PointerEvent", MouseEvent);
+  await mount(board); fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
+  fireEvent.click(screen.getByRole("button", { name: "Subestado" }));
+  const group = screen.getByRole("dialog", { name: "Filtrar candidatos" });
+  const options = within(group).getAllByRole("checkbox"); expect(options).toHaveLength(3);
+  fireEvent.click(within(group).getByRole("checkbox", { name: "Entrevista técnica 1" }));
+  fireEvent.click(within(group).getByRole("checkbox", { name: "Sin subestado 1" }));
+  fireEvent.click(screen.getByRole("button", { name: "Ver 2 candidatos" }));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtrar candidatos" })).not.toBeInTheDocument());
   expect(screen.getByRole("region", { name: "Entrevista: 2 de 2 candidatos" })).toHaveTextContent("Ana Pérez");
   expect(screen.queryByRole("button", { name: "Ver detalle de Sol Díaz" })).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Subestados (2)" })).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
+  expect(screen.getByRole("button", { name: "Filtros 2" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+  vi.unstubAllGlobals();
   expect(screen.getByRole("button", { name: "Ver detalle de Sol Díaz" })).toBeVisible(); expect(loadBoardAction).toHaveBeenCalledTimes(1);
 });
 it("sheet selector uses confirmed board value and snapshot history survives catalog renames", async () => {
@@ -309,28 +325,55 @@ it("sheet selector uses confirmed board value and snapshot history survives cata
   const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
   expect(within(sheet).getByRole("combobox", { name: "Subestado" })).toHaveTextContent("Entrevista técnica");
   fireEvent.click(within(sheet).getByRole("option", { name: "Oferta" }));
+  fireEvent.click(screen.getByRole("button", { name: "Cambiar subestado" }));
   await waitFor(() => expect(within(sheet).getByRole("combobox", { name: "Subestado" })).toHaveTextContent("Oferta"));
   fireEvent.click(within(sheet).getByRole("tab", { name: "Historial 1" }));
   expect(await within(sheet).findByText("Subestado: Sin subestado → Nombre anterior")).toBeVisible();
 });
 async function openDiscard(board?: Board) {
   await mount(board); fireEvent.click(within(menu()).getByRole("menuitem", { name: "Descartar" }));
-  return screen.findByRole("dialog", { name: "Descartar candidato" });
+  return screen.findByRole("alertdialog", { name: "¿Descartar a Ana Pérez?" });
 }
+it.each(["menu", "sheet"])("%s substate requires confirmation and ignores the current value", async source => {
+  vi.mocked(setParticipationSubstateAction).mockReturnValue(new Promise(() => {}));
+  await mount(activeSubstateBoard());
+  if (source === "sheet") { fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Ana Pérez" })); await screen.findByRole("dialog", { name: "Ana Pérez" }); }
+  const choose = (name: string) => fireEvent.click(source === "menu" ? within(menu()).getByRole("menuitemradio", { name }) : screen.getByRole("option", { name }));
+  choose("Entrevista técnica"); expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  choose("Oferta");
+  const dialog = screen.getByRole("alertdialog", { name: "¿Cambiar el subestado de Ana Pérez?" });
+  expect(dialog).toHaveAccessibleDescription("Pasa de Entrevista técnica a Oferta.");
+  expect(setParticipationSubstateAction).not.toHaveBeenCalled();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+  expect(setParticipationSubstateAction).not.toHaveBeenCalled();
+  await waitFor(() => expect(document.getElementById(source === "sheet" ? "candidate-substate-person" : "candidate-move-person")).toHaveFocus());
+  choose("Oferta"); const confirm = screen.getByRole("button", { name: "Cambiar subestado" }); fireEvent.click(confirm); fireEvent.click(confirm);
+  expect(setParticipationSubstateAction).toHaveBeenCalledTimes(1);
+});
+
+it.each(["discard", "recover"])("%s uses an action-named alert with cancel and destructive tone when needed", async kind => {
+  await mount(kind === "discard" ? boardFixture() : discardedBoard());
+  fireEvent.click(within(menu()).getByRole("menuitem", { name: kind === "discard" ? "Descartar" : "Recuperar" }));
+  const dialog = screen.getByRole("alertdialog", { name: kind === "discard" ? "¿Descartar a Ana Pérez?" : "¿Recuperar a Ana Pérez?" });
+  expect(within(dialog).getByRole("button", { name: kind === "discard" ? "Descartar candidato" : "Recuperar" }).className).toContain(kind === "discard" ? "destructive" : "bg-primary");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+  expect(discardParticipationAction).not.toHaveBeenCalled(); expect(recoverParticipationAction).not.toHaveBeenCalled();
+});
+
 function discardedBoard(previous = "new"): Board {
   const board = boardFixture();
-  board.participations[0] = { ...board.participations[0], stage_id: "exit", discard: { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: previous, discarded_at: "2026-10-18T12:00:00Z" } };
+  board.participations[0] = { ...board.participations[0], stage_id: "exit", discard: { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: previous, recovery_stage_id: previous, discarded_at: "2026-10-18T12:00:00Z" } };
   board.stages[0].count = 0; board.exit.count = 1; return board;
 }
 it("discard form requires a grouped reason and explanation for other, with code-point counters", async () => {
   const dialog = await openDiscard();
-  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Descartar candidato" }));
   expect(await within(dialog).findByText("Elige un motivo.")).toBeVisible();
   fireEvent.click(within(dialog).getByRole("combobox", { name: "Motivo" }));
   expect(await screen.findByText("Decisión de la empresa")).toBeVisible();
   expect(screen.getByText("Decisión del candidato")).toBeVisible();
   fireEvent.click(screen.getAllByRole("option", { name: "Otro" })[0]);
-  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Descartar candidato" }));
   expect(await within(dialog).findByText("Explica el motivo en el comentario.")).toBeVisible();
   expect(discardParticipationAction).not.toHaveBeenCalled();
   fireEvent.change(within(dialog).getByRole("textbox", { name: /Comentario interno/ }), { target: { value: "😀" } });
@@ -341,10 +384,10 @@ it("discard from Placement explicitly confirms departure and reduces coverage wi
   const board = boardFixture(); board.participations[0].stage_id = "hire";
   vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: { delivery: board.delivery, ...discardedBoard("hire").participations[0], coverage: board.coverage } });
   const dialog = await openDiscard(board);
-  expect(dialog).toHaveTextContent("reduce las plazas cubiertas");
+  expect(dialog).toHaveTextContent("Las plazas cubiertas disminuyen en una");
   fireEvent.click(within(dialog).getByRole("combobox", { name: "Motivo" }));
   fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
-  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Descartar candidato" }));
   await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Descartaste a Ana Pérez" })));
   expect(screen.queryByText("Descartaste a Ana Pérez")).not.toBeInTheDocument();
   expect(discardParticipationAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, participationId: "person", etag: '"opaque-item-tag"', body: { reason: { group: "recruiter", key: "requirements_not_met" }, confirm_placement_exit: true } });
@@ -357,11 +400,11 @@ it.each(["new", "hire"])("discarded column shows reason and recover confirms the
   const actions = menu();
   expect(within(actions).getAllByRole("menuitem").map(item => item.textContent)).toEqual(["Recuperar", "Ver ficha"]);
   fireEvent.click(within(actions).getByRole("menuitem", { name: "Recuperar" }));
-  const dialog = await screen.findByRole("dialog", { name: "Recuperar candidato" });
+  const dialog = await screen.findByRole("alertdialog", { name: "¿Recuperar a Ana Pérez?" });
   expect(dialog).toHaveTextContent(previous === "hire" ? "Contratación" : "Entrada");
   if (previous === "hire") expect(dialog).toHaveTextContent("ocupar una plaza");
   expect(recoverParticipationAction).not.toHaveBeenCalled();
-  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar recuperación" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Recuperar" }));
   await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Recuperaste a Ana Pérez" })));
   expect(recoverParticipationAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, participationId: "person", etag: '"opaque-item-tag"', body: previous === "hire" ? { confirm_placement_reentry: true } : {} });
   expect(moveParticipationAction).not.toHaveBeenCalled();
@@ -371,7 +414,7 @@ it.each(["already_discarded", "not_discarded", "version_conflict", "not_found", 
   const dialog = await openDiscard();
   fireEvent.click(within(dialog).getByRole("combobox", { name: "Motivo" }));
   fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
-  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Descartar candidato" }));
   await screen.findByText(/Actualizamos el tablero|Otro usuario/);
   expect(loadBoardAction).toHaveBeenCalledTimes(2); expect(discardParticipationAction).toHaveBeenCalledTimes(1);
 });
@@ -382,7 +425,7 @@ it("validation_error keeps the dialog and user input, without a reload", async (
   fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
   fireEvent.change(within(dialog).getByRole("textbox", { name: /Comentario interno/ }), { target: { value: "Mi comentario" } });
   fireEvent.change(within(dialog).getByRole("textbox", { name: /Mensaje para el candidato/ }), { target: { value: "Gracias" } });
-  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Descartar candidato" }));
   expect(await within(dialog).findByText("No se guardó. Revisa los datos e intenta de nuevo.")).toBeVisible();
   expect(within(dialog).getByRole("textbox", { name: /Comentario interno/ })).toHaveValue("Mi comentario");
   expect(within(dialog).getByRole("textbox", { name: /Mensaje para el candidato/ })).toHaveValue("Gracias");
@@ -394,19 +437,19 @@ it.each(["discard", "recover"] as const)("server 409 %s confirmation requires a 
     const dialog = await openDiscard();
     fireEvent.click(within(dialog).getByRole("combobox", { name: "Motivo" }));
     fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
-    expect(await within(dialog).findByText(/reduce las plazas cubiertas/)).toBeVisible();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Descartar candidato" }));
+    expect(await within(dialog).findByText(/Las plazas cubiertas disminuyen en una/)).toBeVisible();
     expect(discardParticipationAction).toHaveBeenCalledTimes(1);
-    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" })));
+    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Descartar candidato" })));
     expect(discardParticipationAction).toHaveBeenLastCalledWith(expect.objectContaining({ body: expect.objectContaining({ confirm_placement_exit: true }) }));
   } else {
     vi.mocked(recoverParticipationAction).mockResolvedValue({ ok: false, reason: "placement_reentry_confirmation_required", reference: { status: 409 } });
     await mount(discardedBoard()); fireEvent.click(within(menu()).getByRole("menuitem", { name: "Recuperar" }));
-    const dialog = await screen.findByRole("dialog", { name: "Recuperar candidato" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar recuperación" }));
+    const dialog = await screen.findByRole("alertdialog", { name: "¿Recuperar a Ana Pérez?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Recuperar" }));
     expect(await within(dialog).findByText(/ocupar una plaza/)).toBeVisible();
     expect(recoverParticipationAction).toHaveBeenCalledTimes(1);
-    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar recuperación" })));
+    await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Recuperar" })));
     expect(recoverParticipationAction).toHaveBeenLastCalledWith(expect.objectContaining({ body: { confirm_placement_reentry: true } }));
   }
 });
@@ -424,13 +467,13 @@ it("sheet offers discard, shows current discard details and renders discard/reco
   fireEvent.click(within(sheet).getByRole("tab", { name: "Historial 2" }));
   for (const text of ["Cambió de planes", "Mensaje histórico", "Recuperación", "Contratación", "Salida de Placement"]) expect(within(sheet).getByText(text)).toBeVisible();
   fireEvent.click(within(sheet).getByRole("button", { name: "Recuperar" }));
-  expect(await screen.findByRole("dialog", { name: "Recuperar candidato" })).toBeVisible();
+  expect(await screen.findByRole("alertdialog", { name: "¿Recuperar a Ana Pérez?" })).toBeVisible();
 });
 it.each(["not_discarded", "version_conflict", "not_found", "uncertain", "unrecognized_response"] as const)("recovery %s reloads once, never replaying", async reason => {
   vi.mocked(recoverParticipationAction).mockResolvedValue({ ok: false, reason, reference: {} });
   await mount(discardedBoard()); fireEvent.click(within(menu()).getByRole("menuitem", { name: "Recuperar" }));
-  const dialog = await screen.findByRole("dialog", { name: "Recuperar candidato" });
-  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar recuperación" }));
+  const dialog = await screen.findByRole("alertdialog", { name: "¿Recuperar a Ana Pérez?" });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Recuperar" }));
   await screen.findByText(/Actualizamos el tablero|Otro usuario/);
   expect(loadBoardAction).toHaveBeenCalledTimes(2); expect(recoverParticipationAction).toHaveBeenCalledTimes(1);
 });
@@ -444,9 +487,9 @@ it.each(["discard", "recover"] as const)("%s shares the per-card mutex and canno
     fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
   } else {
     await mount(discardedBoard()); fireEvent.click(within(menu()).getByRole("menuitem", { name: "Recuperar" }));
-    dialog = await screen.findByRole("dialog", { name: "Recuperar candidato" });
+    dialog = await screen.findByRole("alertdialog", { name: "¿Recuperar a Ana Pérez?" });
   }
-  const confirm = within(dialog).getByRole("button", { name: operation === "discard" ? "Confirmar descarte" : "Confirmar recuperación" });
+  const confirm = within(dialog).getByRole("button", { name: operation === "discard" ? "Descartar candidato" : "Recuperar" });
   fireEvent.click(confirm); fireEvent.click(confirm);
   expect(confirm).toBeDisabled(); expect(within(dialog).getByRole("button", { name: "Cancelar" })).toBeDisabled();
   expect(action).toHaveBeenCalledTimes(1);
@@ -459,7 +502,7 @@ it("validates controls and both code-point limits in the form, then sends trimme
   fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
   const comment = within(dialog).getByRole("textbox", { name: /Comentario interno/ });
   const message = within(dialog).getByRole("textbox", { name: /Mensaje para el candidato/ });
-  const confirm = within(dialog).getByRole("button", { name: "Confirmar descarte" });
+  const confirm = within(dialog).getByRole("button", { name: "Descartar candidato" });
   fireEvent.change(comment, { target: { value: "😀".repeat(1001) } });
   fireEvent.click(confirm); expect(within(dialog).getByText("Usa como máximo 1000 caracteres.")).toBeVisible(); expect(comment).toHaveFocus();
   fireEvent.change(comment, { target: { value: "\u0085\t" } });
@@ -476,12 +519,12 @@ it("sheet starts discard and refreshes current detail/history after successful d
   await mount(); fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Ana Pérez" }));
   const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
   fireEvent.click(await within(sheet).findByRole("button", { name: "Descartar" }));
-  const dialog = await screen.findByRole("dialog", { name: "Descartar candidato" });
+  const dialog = await screen.findByRole("alertdialog", { name: "¿Descartar a Ana Pérez?" });
   fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
   const discarded = { ...discardedBoard().participations[0], etag: '"discarded"', version: "5" };
   vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: { ...detailFixture(), ...discarded, comment: "Nuevo descarte" } });
   vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: { delivery: boardFixture().delivery, ...discarded, coverage: boardFixture().coverage } });
-  fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar descarte" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Descartar candidato" }));
   expect(await screen.findByText("Nuevo descarte")).toBeVisible();
   expect(loadParticipationAction).toHaveBeenCalledTimes(2); expect(loadHistoryAction).toHaveBeenCalledTimes(2);
   expect(within(screen.getByRole("dialog", { name: "Ana Pérez" })).getByRole("button", { name: "Recuperar" })).toBeEnabled();

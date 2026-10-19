@@ -24,7 +24,7 @@ beforeEach(() => {
  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ok: true, seed: draftEditSeedFromRead(draft), identity: { draftId: draft.id, etag: '"draft-etag"' } });
  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ...ready, publication: { ...ready.publication, missing: [] } });
  vi.mocked(loadDraftDeliveryAction).mockResolvedValue({ ok: true, etag: '"delivery"', delivery: { fulfilled: false, version: "1", cutoffStageId: draft.id, targetQuantity: 5, commitmentDate: "2026-11-30", limits: { maxTargetQuantity: 999 }, calendar: { timeZone: "America/Mexico_City", today: "2026-10-16", minDate: "2026-10-16", maxDate: "2027-10-16", nonBusinessDates: [] } } });
- vi.mocked(loadDraftPipelineAction).mockResolvedValue({ ok: true, etag: '"pipeline"', pipeline: { version: "1", stages: [{ id: draft.id, kind: "screening_ok", name: "Lista para entrevista" }], exit: { id: draft.id, kind: "discarded", name: "Fuera" }, limits: { maxCustomStages: 3, nameMaxLength: 40 }, structure_locked: false } });
+ vi.mocked(loadDraftPipelineAction).mockResolvedValue({ ok: true, etag: '"pipeline"', pipeline: { retired: [], version: "1", stages: [{ id: draft.id, kind: "screening_ok", name: "Lista para entrevista" }], exit: { id: draft.id, kind: "discarded", name: "Fuera" }, limits: { maxCustomStages: 3, nameMaxLength: 40 }, structure_locked: false } });
  vi.mocked(publishDraftAction).mockResolvedValue({ ok: true, publication: { id: draft.id, status: "published", publishedAt: date } });
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
@@ -42,6 +42,16 @@ it("loads all four reads in parallel with structure skeleton and pre-result Acti
  await act(async () => resolve({ ...ready, publication: { ...ready.publication, missing: [] } }));
  expect(slots()).toEqual(loadingSlots);
 });
+it("requires a named alert confirmation with safe initial focus before publishing", async () => {
+ mount();
+ const dialog = await screen.findByRole("alertdialog", { name: `¿Publicar ${draftEditSeedFromRead(draft).model.fields.title}?` });
+ expect(dialog).toHaveAccessibleDescription("Empieza a contar el tiempo de entrega y la vacante queda activa. No se puede deshacer.");
+ expect(screen.getByRole("button", { name: "Cancelar" })).toHaveFocus();
+ expect(publishDraftAction).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+ expect(onOpenChange).toHaveBeenCalledWith(false);
+ expect(publishDraftAction).not.toHaveBeenCalled();
+});
 it("blocks unsaved changes before reads or publish", async () => { mount(true); expect(await screen.findByText("Guarda los cambios antes de publicar")).toBeVisible(); expect(screen.queryByRole("button", { name: "Publicar vacante" })).not.toBeInTheDocument(); expect(loadDraftForEditAction).not.toHaveBeenCalled(); });
 it("groups checklist links by owner with unknown-code fallback and no publish", async () => {
  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: ["title_missing", "request_date_missing", "commitment_date_past", "future"] } }); mount();
@@ -56,7 +66,7 @@ it("groups checklist links by owner with unknown-code fallback and no publish", 
  expect(screen.getAllByRole("link", { name: /Completar/ }).map(link => link.getAttribute("href"))).toEqual([`/empresa/vacantes/borradores/${draft.id}`, `/empresa/vacantes/borradores/${draft.id}`, `/empresa/vacantes/${draft.id}/configuracion/solicitud`, `/empresa/vacantes/${draft.id}/configuracion/entrega`]);
  expect(screen.queryByRole("button", { name: "Publicar vacante" })).not.toBeInTheDocument();
 });
-it("shows honest summary and confirms body/key/draft ETag then notifies, closes and updates owner", async () => { mount(); await screen.findByText("Lista para entrevista"); expect(screen.getByText("30 de noviembre de 2026")).toBeVisible(); expect(screen.getByText("5 candidatos")).toBeVisible(); for (const label of ["Columna de corte", "Objetivo de entrega", "Fecha compromiso"]) expect(screen.getByText(label)).toBeVisible(); expect(screen.queryByText(/Columna de entrega|Meta de entrega/)).toBeNull(); expect(screen.getByText(/Los candidatos todavía no la verán/)).toBeVisible(); await confirm(); await waitFor(() => expect(onPublished).toHaveBeenCalledWith(date)); expect(publishDraftAction).toHaveBeenCalledExactlyOnceWith({ draftId: draft.id, ifMatch: '"draft-etag"', idempotencyKey: expect.any(String), body: {} }); expect(onOpenChange).toHaveBeenCalledWith(false); expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Vacante publicada" })); });
+it("shows honest summary and confirms body/key/draft ETag then notifies, closes and updates owner", async () => { mount(); await screen.findByText("Lista para entrevista"); expect(screen.getByText("30 de noviembre de 2026")).toBeVisible(); expect(screen.getByText("5 candidatos")).toBeVisible(); for (const label of ["Columna de corte", "Objetivo de entrega", "Fecha compromiso"]) expect(screen.getByText(label)).toBeVisible(); expect(screen.queryByText(/Columna de entrega|Meta de entrega/)).toBeNull(); expect(screen.getByText("Empieza a contar el tiempo de entrega y la vacante queda activa. No se puede deshacer.")).toBeVisible(); await confirm(); await waitFor(() => expect(onPublished).toHaveBeenCalledWith(date)); expect(publishDraftAction).toHaveBeenCalledExactlyOnceWith({ draftId: draft.id, ifMatch: '"draft-etag"', idempotencyKey: expect.any(String), body: {} }); expect(onOpenChange).toHaveBeenCalledWith(false); expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Vacante publicada" })); });
 it("keeps a long checklist compact and scrollable without clipping any group", async () => {
  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: ["title_missing", "description_missing", "location_missing", "request_date_missing", "commitment_date_past"] } }); mount();
  await screen.findByRole("heading", { name: "Te falta para publicar" });

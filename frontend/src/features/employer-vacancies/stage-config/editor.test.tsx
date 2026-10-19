@@ -17,6 +17,11 @@ const field = (position: number | "exit") => screen.getByRole("textbox", {
   name: position === "exit" ? "Nombre de la columna de salida" : `Nombre de la columna ${position}`,
 });
 const save = () => screen.getByRole("button", { name: "Guardar cambios" });
+function confirmSave() {
+  fireEvent.click(save());
+  const dialog = screen.queryByRole("alertdialog");
+  if (dialog) fireEvent.click(within(dialog).getByRole("button", { name: "Guardar" }));
+}
 const actionStatus = () => within(document.querySelector("[data-pf-action-status-slot]") as HTMLElement).getByRole("status");
 const edit = (position: number | "exit" = 2, name = "Filtro") => fireEvent.change(field(position), { target: { value: name } });
 function mount(pipeline = pipelineFixture()) {
@@ -284,35 +289,35 @@ it("sends exactly the normalized PUT body/current etag, adopts server ids and th
   const saved = { ...pipeline, version: "1", stages: state.stages.map(({ id, kind, name }) => ({ id: id ?? "server-custom", kind, name: name.trim() })) };
   vi.mocked(saveDraftPipelineAction).mockResolvedValue({ ok: true, pipeline: saved, etag: '"next"' });
   mount(); edit(2, " Filtro "); fireEvent.click(screen.getByRole("button", { name: "Agregar columna" })); edit(5, " Técnica ");
-  fireEvent.click(save());
+  confirmSave();
   await waitFor(() => expect(save()).toBeDisabled());
-  expect(saveDraftPipelineAction).toHaveBeenCalledExactlyOnceWith({ draftId, ifMatch: '"pipeline-0"', body: toPutBody(state) });
+  expect(saveDraftPipelineAction).toHaveBeenCalledExactlyOnceWith({ draftId, ifMatch: '"pipeline-0"', body: { ...toPutBody(state), confirm_impact: true } });
   expect(field(5)).toHaveValue("Técnica"); expect(actionStatus()).toHaveTextContent("Guardado");
   expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ key: "pipeline-save", type: "success", title: "Pipeline guardado", description: "Las columnas de esta vacante quedaron guardadas." }));
-  edit(5, "Entrevista"); fireEvent.click(save());
+  edit(5, "Entrevista"); confirmSave();
   await waitFor(() => expect(saveDraftPipelineAction).toHaveBeenCalledTimes(2));
   expect(vi.mocked(saveDraftPipelineAction).mock.calls[1][0]).toMatchObject({ ifMatch: '"next"', body: { stages: expect.arrayContaining([{ id: "server-custom", name: "Entrevista" }]) } });
 });
 it("shows Spinner while pending, prevents repeated clicks and never retries automatically", async () => {
   let resolve!: (value: DraftPipelineActionResult) => void;
   vi.mocked(saveDraftPipelineAction).mockReturnValue(new Promise(yes => { resolve = yes; }));
-  const { container } = mount(); edit(); fireEvent.click(save());
-  const pending = screen.getByRole("button", { name: "Guardando…" }); expect(pending).toBeDisabled();
+  const { container } = mount(); edit(); confirmSave();
+  const pending = within(screen.getByRole("alertdialog")).getByRole("button", { name: "Guardando…" }); expect(pending).toBeDisabled();
   expect(container.querySelector('[data-slot="spinner"]')).not.toBeNull();
-  expect(screen.getByRole("button", { name: "Arrastrar Filtro" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Arrastrar Filtro", hidden: true })).toBeDisabled();
   fireEvent.click(pending); expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1);
   await act(async () => resolve({ ok: false, reason: "no_response", reference: {} }));
   expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1);
 });
 it("never labels later edits as saved and keeps the status associated below the actions", async () => {
-  mount(); edit(); fireEvent.click(save()); await screen.findByText("Guardado");
+  mount(); edit(); confirmSave(); await screen.findByText("Guardado");
   edit(2, "Otro filtro");
   expect(actionStatus()).toHaveTextContent("Cambios sin guardar");
   expect(save()).toHaveAttribute("aria-describedby", actionStatus().id);
 });
-it("emits info, not success, when the server returns the baseline version", async () => {
-  vi.mocked(saveDraftPipelineAction).mockResolvedValue(response("0")); mount(); edit(); fireEvent.click(save());
-  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "info", title: "No había cambios que guardar" })));
+it("reports a confirmed save even when the server keeps its baseline version", async () => {
+  vi.mocked(saveDraftPipelineAction).mockResolvedValue(response("0")); mount(); edit(); confirmSave();
+  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Pipeline guardado" })));
   expect(save()).toBeDisabled();
 });
 it.each([
@@ -321,23 +326,21 @@ it.each([
   ["exit" as const, "Fuera", "Sigue siendo la salida para descartar candidatos desde cualquier etapa."],
 ])("confirms the critical rename at %s; review, escape and close send nothing", async (position, name, description) => {
   const user = userEvent.setup(); mount(); edit(position, name); fireEvent.click(save());
-  const dialog = await screen.findByRole("dialog", { name: "Confirmar cambio de nombre" });
-  expect(within(dialog).getByText(description)).toBeVisible();
-  expect(within(dialog).getByText(new RegExp(`→ ${name}`))).toBeVisible();
-  fireEvent.click(within(dialog).getByRole("button", { name: "Revisar" }));
+  const dialog = await screen.findByRole("alertdialog", { name: "¿Guardar los cambios de columnas?" });
+  expect(within(dialog).getByText("Ningún candidato cambia de columna. El nuevo orden aplica a los próximos movimientos.")).toBeVisible();
+  expect(description).toBeTruthy();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
   expect(saveDraftPipelineAction).not.toHaveBeenCalled();
   await user.click(save()); await user.keyboard("{Escape}");
   expect(saveDraftPipelineAction).not.toHaveBeenCalled();
-  await user.click(save()); await user.click(screen.getByRole("button", { name: "Cerrar" }));
-  expect(saveDraftPipelineAction).not.toHaveBeenCalled();
   await user.click(save());
-  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Guardar cambios" }));
+  await user.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Guardar" }));
   await waitFor(() => expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1));
 });
 it("keeps conflicting edits until an explicit reload replaces them", async () => {
   vi.mocked(saveDraftPipelineAction).mockResolvedValue({ ok: false, reason: "version_conflict", reference: { status: 412, code: "version_conflict" } });
   vi.mocked(loadDraftPipelineAction).mockResolvedValue(response("2", "Actual"));
-  mount(); edit(); fireEvent.click(save());
+  mount(); edit(); confirmSave();
   const reload = await screen.findByRole("button", { name: "Cargar versión actual" });
   expect(field(2)).toHaveValue("Filtro"); expect(loadDraftPipelineAction).not.toHaveBeenCalled();
   expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ title: "Esto cambió en otro lugar", action: expect.objectContaining({ title: "Cargar versión actual" }), reference: expect.objectContaining({ status: 412, at: expect.any(String) }) }));
@@ -351,7 +354,7 @@ it("keeps conflicting edits until an explicit reload replaces them", async () =>
 });
 it.each(["no_response", "server_error", "unrecognized_response", "precondition_required"] as const)("%s is uncertain: keeps edits, explains safety and offers Comprobar", async reason => {
   vi.mocked(saveDraftPipelineAction).mockResolvedValue({ ok: false, reason, reference: { status: 500 } });
-  mount(); edit(); fireEvent.click(save());
+  mount(); edit(); confirmSave();
   await screen.findByRole("button", { name: "Comprobar" }); expect(field(2)).toHaveValue("Filtro");
   expect(loadDraftPipelineAction).not.toHaveBeenCalled(); expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1);
   expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", description: expect.stringMatching(/No sabemos si.*guard/i), action: expect.objectContaining({ title: "Comprobar" }) }));
@@ -359,13 +362,13 @@ it.each(["no_response", "server_error", "unrecognized_response", "precondition_r
 it.each(["saved", "not_saved", "conflict"] as const)("Comprobar reconciles %s without replaying PUT", async outcome => {
   vi.mocked(saveDraftPipelineAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} }).mockResolvedValue(response());
   vi.mocked(loadDraftPipelineAction).mockResolvedValue(outcome === "saved" ? response() : outcome === "conflict" ? response("2", "Ajeno") : { ok: true, pipeline: pipelineFixture(), etag: '"unexpected-tag"' });
-  mount(); edit(); fireEvent.click(save()); fireEvent.click(await screen.findByRole("button", { name: "Comprobar" }));
+  mount(); edit(); confirmSave(); fireEvent.click(await screen.findByRole("button", { name: "Comprobar" }));
   if (outcome === "saved") {
     await waitFor(() => expect(save()).toBeDisabled()); expect(actionStatus()).toHaveTextContent("Guardado");
   } else if (outcome === "not_saved") {
     await screen.findByText("No se guardó. Puedes guardar de nuevo; es seguro.");
     expect(field(2)).toHaveValue("Filtro"); expect(save()).toBeEnabled();
-    fireEvent.click(save()); await waitFor(() => expect(saveDraftPipelineAction).toHaveBeenCalledTimes(2));
+    confirmSave(); await waitFor(() => expect(saveDraftPipelineAction).toHaveBeenCalledTimes(2));
     expect(vi.mocked(saveDraftPipelineAction).mock.calls[1][0].ifMatch).toBe('"pipeline-0"');
   } else {
     await screen.findByRole("button", { name: "Cargar versión actual" }); expect(field(2)).toHaveValue("Filtro");
@@ -375,7 +378,7 @@ it.each(["saved", "not_saved", "conflict"] as const)("Comprobar reconciles %s wi
 it("retains the form and recovery action if the reconciliation GET fails", async () => {
   vi.mocked(saveDraftPipelineAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
   vi.mocked(loadDraftPipelineAction).mockResolvedValue({ ok: false, reason: "server_error", reference: { status: 500 } });
-  mount(); edit(); fireEvent.click(save()); fireEvent.click(await screen.findByRole("button", { name: "Comprobar" }));
+  mount(); edit(); confirmSave(); fireEvent.click(await screen.findByRole("button", { name: "Comprobar" }));
   await waitFor(() => expect(loadDraftPipelineAction).toHaveBeenCalledTimes(1));
   expect(field(2)).toHaveValue("Filtro"); expect(screen.getByRole("button", { name: "Comprobar" })).toBeEnabled();
 });
@@ -390,7 +393,7 @@ it.each([
   ["payload_too_large", "El pipeline supera el tamaño permitido", undefined],
 ] as const)("%s preserves edits and uses cause-specific feedback/reference", async (reason, title, href) => {
   vi.mocked(saveDraftPipelineAction).mockResolvedValue({ ok: false, reason: reason as DraftPipelineActionFailure["reason"], reference: { status: 400, code: reason } });
-  mount(); edit(); fireEvent.click(save());
+  mount(); edit(); confirmSave();
   await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ key: "pipeline-save", type: "error", title, reference: expect.objectContaining({ status: 400, code: reason, at: expect.any(String) }) })));
   expect(field(2)).toHaveValue("Filtro"); expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1);
   if (href) expect(within(actionStatus()).getByRole("link")).toHaveAttribute("href", href);

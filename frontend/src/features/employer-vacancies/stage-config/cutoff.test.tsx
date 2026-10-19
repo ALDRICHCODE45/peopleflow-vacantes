@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { loadDraftDeliveryAction } from "@/features/jobs/drafts/pipeline/delivery-actions";
 import { saveDraftPipelineAction } from "@/features/jobs/drafts/pipeline/actions";
@@ -17,6 +17,10 @@ vi.mock("./stage-row", async importOriginal => {
   const original = await importOriginal<typeof import("./stage-row")>();
   return { ...original, StageRow: (props: Parameters<typeof StageRow>[0]) => <><original.StageRow {...props} />{props.stage.kind === "custom" && <button onClick={props.onRemove}>Probe quitar {props.stage.name}</button>}</> };
 });
+function confirmSave() {
+  fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+  fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Guardar" }));
+}
 const draftId = "123e4567-e89b-42d3-a456-426614174000";
 function pipeline() { const value = pipelineFixture(); value.stages.splice(4, 0, { id: "custom", kind: "custom", name: "Técnica" }); return value; }
 beforeEach(() => { vi.resetAllMocks(); vi.mocked(saveDraftPipelineAction).mockResolvedValue({ ok: false, reason: "cutoff_stage_in_use", reference: { status: 409, code: "cutoff_stage_in_use" } }); vi.mocked(loadDraftDeliveryAction).mockResolvedValue({ ok: true, delivery: { ...deliveryFixture(), cutoffStageId: "custom" }, etag: '"delivery"' }); });
@@ -36,7 +40,7 @@ it("marks the cutoff with the shared info badge without a lifecycle dot", () => 
 it.each([null, "s"])("refreshes a stale/unknown cutoff %j exactly once on 409 and keeps all edited data", async cutoffStageId => {
   render(<PipelineStageEditor draftId={draftId} pipeline={pipeline()} etag='"pipeline"' cutoffStageId={cutoffStageId} />);
   fireEvent.change(screen.getByRole("textbox", { name: "Nombre de la columna 2" }), { target: { value: "Filtro" } });
-  fireEvent.click(screen.getByRole("button", { name: "Probe quitar Técnica" })); fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+  fireEvent.click(screen.getByRole("button", { name: "Probe quitar Técnica" })); confirmSave();
   await waitFor(() => expect(loadDraftDeliveryAction).toHaveBeenCalledExactlyOnceWith(draftId));
   expect(screen.getByRole("textbox", { name: "Nombre de la columna 2" })).toHaveValue("Filtro"); expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1);
   expect(vi.mocked(saveDraftPipelineAction).mock.calls[0][0].body).toMatchObject({ stages: expect.not.arrayContaining([expect.objectContaining({ id: "custom" })]) });
@@ -47,10 +51,10 @@ it.each([null, "s"])("refreshes a stale/unknown cutoff %j exactly once on 409 an
 it("does not refetch a known cutoff among the removed stages on a subsequent rejection", async () => {
   render(<PipelineStageEditor draftId={draftId} pipeline={pipeline()} etag='"pipeline"' />);
   fireEvent.click(screen.getByRole("button", { name: "Probe quitar Técnica" }));
-  fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+  confirmSave();
   await screen.findByText(/Técnica.*corte de entrega/);
   await waitFor(() => expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeEnabled());
-  fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+  confirmSave();
   await waitFor(() => expect(saveDraftPipelineAction).toHaveBeenCalledTimes(2));
   expect(loadDraftDeliveryAction).toHaveBeenCalledTimes(1);
 });
@@ -58,7 +62,7 @@ it("keeps the 409 guidance and edits even if the cutoff refresh fails", async ()
   vi.mocked(loadDraftDeliveryAction).mockRejectedValue(new Error("unsafe"));
   render(<PipelineStageEditor draftId={draftId} pipeline={pipeline()} etag='"pipeline"' />);
   fireEvent.click(screen.getByRole("button", { name: "Probe quitar Técnica" }));
-  fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+  confirmSave();
   expect(await screen.findByRole("link", { name: "Ir a Entrega" })).toBeVisible();
   await waitFor(() => expect(screen.getByRole("button", { name: "Guardar cambios" })).toBeEnabled());
   expect(loadDraftDeliveryAction).toHaveBeenCalledExactlyOnceWith(draftId); expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1);
@@ -67,6 +71,6 @@ it("keeps the 409 guidance and edits even if the cutoff refresh fails", async ()
 it("badges a refreshed cutoff that is still present, without replacing edited columns", async () => {
   vi.mocked(loadDraftDeliveryAction).mockResolvedValue({ ok: true, delivery: { ...deliveryFixture(), cutoffStageId: "s" }, etag: '"delivery"' });
   render(<PipelineStageEditor draftId={draftId} pipeline={pipeline()} etag='"pipeline"' cutoffStageId={null} />);
-  fireEvent.change(screen.getByRole("textbox", { name: "Nombre de la columna 2" }), { target: { value: "Filtro" } }); fireEvent.click(screen.getByRole("button", { name: "Guardar cambios" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Nombre de la columna 2" }), { target: { value: "Filtro" } }); confirmSave();
   expect(await screen.findByText("Corte de entrega")).toBeVisible(); expect(screen.getByRole("textbox", { name: "Nombre de la columna 2" })).toHaveValue("Filtro"); expect(loadDraftDeliveryAction).toHaveBeenCalledTimes(1);
 });

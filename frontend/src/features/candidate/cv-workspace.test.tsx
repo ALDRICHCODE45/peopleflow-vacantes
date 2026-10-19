@@ -150,7 +150,8 @@ describe("real CV workspace", () => {
     selectFile(new File(["%PDF-"], "cv.pdf", { type: "application/pdf" }));
     await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", description, reference: expect.objectContaining({ status, code }) })));
     expect(screen.getByRole("status")).not.toHaveTextContent("private detail");
-    if (code === "cv_content_mismatch") expect(screen.getByLabelText("Archivo del CV")).toHaveFocus();
+    // Focus moves after the failure is reported; wait for it instead of racing the effect under load.
+    if (code === "cv_content_mismatch") await waitFor(() => expect(screen.getByLabelText("Archivo del CV")).toHaveFocus());
   });
   it.each([[503, "no_response", "No hubo respuesta del servidor"], [502, "unrecognized_response", "No pudimos confirmar el resultado"]])("preserves a sanitized route transport classification %i", async (status, code, title) => {
     await ready(); fetchMock.mockResolvedValue(Response.json({ error: code, code }, { status: Number(status) }));
