@@ -32,3 +32,4 @@ Branch `feat/pipeline-filter-bar-ui` from `main`. Reference: v0 chat `qqPqctX1XR
   portal remain real in tests; content positioning is replaced because jsdom geometry
   caused timeouts. Browser verification of tooltip positioning, mobile scroll and both
   themes remains for review. No packages installed, shared primitives changed or commit made.
+- L3. User (verbatim): «el hover de los filtros ( y tambien cuando estan seleccionados) tienen un efecto ensima que queda mal, muy cuadrado, lo vez?» (/home/aldrich_coder45/Pictures/Screenshots/Screenshot_2026-10-19-16-18-32_5360x2520.png). Cause: FieldLabel's default `has-data-checked:bg-input/30` for choice cards, without its rounded border. Fix test-first (RED → GREEN 266): rounded-lg px-2 rows, hover:bg-muted, checked bg-primary/5, container px-1; rule added to §19.

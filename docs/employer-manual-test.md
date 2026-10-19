@@ -554,4 +554,6 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     «Limpiar» a la derecha. Los chips largos se cortan con «…»; al pasar el mouse o con el
     foco se ve el texto completo. Debajo: «Vista filtrada · Mostrando X de Y candidatos» y
     «Editar filtros», que abre el Sheet. Las columnas sin resultados dicen «Sin
-    coincidencias» sin botones propios. Probalo en celular y en los dos temas.
+    coincidencias» sin botones propios. En los desplegables del Sheet, las opciones al pasar
+    el mouse y marcadas se resaltan con bordes redondeados, sin bloques cuadrados. Probalo
+    en celular y en los dos temas.

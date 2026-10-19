@@ -124,6 +124,10 @@ it("searchable multiselect applies live, keeps quiet zero counts, clears chips a
   expect(screen.queryByRole("checkbox", { name: "Entrevista técnica 1" })).not.toBeInTheDocument();
   const option = screen.getByRole("checkbox", { name: "Oferta 0" });
   expect(option.closest("label")?.querySelector("[data-slot='option-count']")).toHaveClass("text-muted-foreground", "tabular-nums", "opacity-50");
+  // Hover and checked rows are rounded menu-like highlights with inner padding, never the
+  // square edge-to-edge tint FieldLabel applies to checked choices by default.
+  const row = option.closest("label")!;
+  expect(row).toHaveClass("rounded-lg", "px-2", "hover:bg-muted", "has-data-checked:bg-primary/5");
   fireEvent.click(option);
   expect(within(sheet).getByRole("button", { name: "Ver 0 candidatos" })).toBeVisible();
   fireEvent.change(search, { target: { value: "" } });

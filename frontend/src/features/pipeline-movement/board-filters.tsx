@@ -41,15 +41,17 @@ function FilterControl<Item>({ dimension, items, selection, onChange }: Pick<Pro
           <InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon>
           <InputGroupInput ref={searchInput} aria-label="Buscar opciones…" placeholder="Buscar opciones…" value={search} onChange={event => setSearch(event.target.value)} />
         </InputGroup>
-        <div className="min-h-0 max-h-64 flex-1 overflow-y-auto px-2">
+        <div className="min-h-0 max-h-64 flex-1 overflow-y-auto px-1">
           <FieldGroup className="gap-3">
             {[...new Set(options.map(option => option.group))].map(group => <FieldSet key={group ?? "options"} className="gap-2">
-              <FieldLegend variant="label" className="text-muted-foreground">{group ?? "Opciones"}</FieldLegend>
+              <FieldLegend variant="label" className="px-2 text-muted-foreground">{group ?? "Opciones"}</FieldLegend>
               <FieldGroup className="gap-0">
                 {options.filter(option => option.group === group).map(option => {
                   const count = optionCount(items, dimension, option.value);
                   return <Field key={option.value} orientation="horizontal">
-                    <FieldLabel className="min-h-11 w-full" htmlFor={`${id}-${option.value}`}>
+                    {/* Menu-like row: rounded highlight with inner padding on hover and when checked.
+                        Overrides FieldLabel's default square checked tint, meant for choice cards. */}
+                    <FieldLabel className="min-h-11 w-full items-center rounded-lg px-2 transition-colors hover:bg-muted has-data-checked:bg-primary/5" htmlFor={`${id}-${option.value}`}>
                       <Checkbox id={`${id}-${option.value}`} checked={selection[dimension.key]?.has(option.value) ?? false} onCheckedChange={() => onChange(toggleFilter(selection, dimension.key, option.value))} />
                       <span className="min-w-0 flex-1 break-words">{option.label}</span>
                       <span data-slot="option-count" className={cn("text-muted-foreground tabular-nums", count === 0 && "opacity-50")}>{count}</span>

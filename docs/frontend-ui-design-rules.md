@@ -1219,6 +1219,13 @@ falta estructura, según la documentación oficial»: faltaba `AlertDialogMedia`
 - **Toda desviación se justifica por escrito** en el comentario del componente o en estas
   reglas (por ejemplo: diálogo controlado sin `Trigger` porque nace de un arrastre). Una
   desviación sin justificación es un defecto.
+- **Revisar los estados que trae cada parte, no solo su estructura.** Ejemplo: `FieldLabel`
+  pinta un fondo cuadrado cuando su casilla está marcada (`has-data-checked:bg-input/30`)
+  porque está pensado para «tarjetas de opción» con borde redondeado. Usado como fila de
+  una lista (casillas dentro de un desplegable), se ve como un bloque cuadrado pegado al
+  borde. En listas, cada fila es un resaltado tipo menú: `rounded-lg px-2`, `hover:bg-muted`
+  y marcado con `has-data-checked:bg-primary/5`, con aire respecto del borde del contenedor.
+  Revisar hover, foco, marcado y deshabilitado en el navegador antes de cerrar.
 - **Los tests fijan la composición** a través de los `data-slot` oficiales (por ejemplo,
   media → título dentro del encabezado, y el pie después), además del comportamiento.
 - Un componente propio que envuelve uno de shadcn (como `ConfirmActionDialog`) es el único
