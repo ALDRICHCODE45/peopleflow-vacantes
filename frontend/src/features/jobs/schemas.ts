@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { countryCodeSchema, stateCodeSchema, municipalityCodeSchema, postalCodeSchema } from "../geo/model";
+import { locationReadSchema, remoteScopeReadSchema } from "../geo/model";
 import { COMPENSATION_BASES, COMPENSATION_CURRENCIES, COMPENSATION_MONEY_PATTERN, COMPENSATION_PAY_PERIODS, compensationSchema } from "./drafts/compensation";
 import { BENEFITS } from "./drafts/lists";
 import { draftRichDescriptionSchema } from "./drafts/rich/description";
@@ -77,18 +77,9 @@ const emptyBenefitsSchema = z.object({
   predefined: z.array(z.enum(BENEFITS)).max(0), custom: z.array(publicListTextSchema).max(0),
 }).strict();
 // Local read decoders until the shared geo read models are merged.
-const geoReference = (id: z.ZodString) => z.object({ id, name: nonEmptyString }).strict();
-const publicLocationSchema = z.object({
-  country: geoReference(countryCodeSchema),
-  state: geoReference(stateCodeSchema).nullable(),
-  municipality: geoReference(municipalityCodeSchema).nullable(),
-  postal_code: postalCodeSchema.nullable(),
-  label: z.string(),
-}).strict().nullable();
-const publicRemoteScopeSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("anywhere") }).strict(),
-  z.object({ kind: z.literal("countries"), countries: z.array(geoReference(countryCodeSchema)).min(1).max(50).refine(items => new Set(items.map(item => item.id)).size === items.length) }).strict(),
-]).nullable();
+// Shared with the draft editor: one strict geography contract (features/geo/model.ts).
+const publicLocationSchema = locationReadSchema;
+const publicRemoteScopeSchema = remoteScopeReadSchema;
 const publicCommon = {
   location: publicLocationSchema,
   location_label: z.string().nullable(),
