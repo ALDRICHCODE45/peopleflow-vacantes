@@ -25,9 +25,19 @@ describe("single application-facing request path", () => {
       "app/(auth)/empresa/bootstrap-local/bootstrap-local-panel.tsx",
       "features/candidate-cvs/file-client.ts",
       "features/candidate-cvs/upload.ts",
+      "features/geo/use-geo-catalog.ts",
       "features/pipeline-movement/file-client.ts",
       "lib/api/requestJson.ts",
     ]);
+  });
+
+  it("lets the browser read the public geo catalog only through its same-origin routes, without credentials", () => {
+    const hook = source(join(SRC, "features/geo/use-geo-catalog.ts"));
+    expect(hook).toContain("fetch(`/api/geo/${key}`");
+    expect(hook).toContain('credentials: "omit"');
+    expect(hook).not.toMatch(/https?:\/\/|lib\/api\/|lib\/auth|authorization|cookie:/i);
+    const client = source(join(SRC, "features/geo/client.ts"));
+    expect(client).toContain('import "server-only"');
   });
 
   it("lets the temporary bootstrap panel fetch only its same-origin identity routes", () => {
@@ -67,6 +77,7 @@ describe("single application-facing request path", () => {
       "features/candidate-applications/client.ts",
       "features/candidate-cvs/client.ts",
       "features/employer-company/api/company-client.ts",
+      "features/geo/client.ts",
       "features/identity/candidate-account-client.ts",
       "features/identity/me-client.ts",
       "features/jobs/api/getJob.ts",
@@ -93,6 +104,7 @@ describe("single application-facing request path", () => {
       "features/candidate-applications/client.ts",
       "features/candidate-cvs/client.ts",
       "features/employer-company/api/company-client.ts",
+      "features/geo/client.ts",
       "features/identity/candidate-account-client.ts",
       "features/identity/me-client.ts",
       "features/jobs/api/getJob.ts",
@@ -112,7 +124,7 @@ describe("single application-facing request path", () => {
     ]);
   });
 
-  it("allows only identity handlers and the candidate/recruiter CV file boundaries, not client stores", () => {
+  it("allows only identity handlers, the candidate/recruiter CV file boundaries and the public geo catalog, not client stores", () => {
     const handlers = files.filter((file) => file.endsWith("route.ts"));
     expect(handlers.map(rel).sort()).toEqual([
       "app/api/auth/[...nextauth]/route.ts",
@@ -124,6 +136,10 @@ describe("single application-facing request path", () => {
       "app/api/candidate/cvs/[id]/file/route.ts",
       "app/api/candidate/cvs/route.ts",
       "app/api/company/vacancies/[vacancyId]/participations/[participationId]/cv/route.ts",
+      "app/api/geo/countries/mx/postal-codes/[cp]/route.ts",
+      "app/api/geo/countries/mx/states/[state]/municipalities/route.ts",
+      "app/api/geo/countries/mx/states/route.ts",
+      "app/api/geo/countries/route.ts",
     ]);
     for (const handler of handlers) {
       expect(source(handler)).not.toMatch(/lib\/api\/(?:server|requestJson)/);
