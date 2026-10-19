@@ -12,6 +12,7 @@ el backend va en su rama indicada, con `make db-migrate`.
 
 | # | Feature | Rama frontend | Rama backend | Pasos de la guía | Qué mirar especialmente |
 | --- | --- | --- | --- | --- | --- |
+| 1 | Barra de filtros en una sola fila (chips con scroll, recorte con «…» + texto completo al pasar, «Vista filtrada» + «Editar filtros», columnas «Sin coincidencias») según v0 | `feat/pipeline-filter-bar-ui` (sobre `main`) | sin cambios (usar `main`) | 75 | Decisiones a revisar: ancho máximo de los chips; que no haya «Limpiar filtros» dentro de las columnas. |
 
 Cuando el usuario pruebe un ítem, sus comentarios se anotan en el documento de la
 feature (`odd/tasks/…`) y el ítem sale de esta lista al integrarse.

@@ -547,3 +547,11 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     con «Sin dato». Filtrar aplica al instante con chips. En la ficha, bloque «Perfil» con
     los datos y «Copiado del perfil al postularse.»; postulaciones anteriores muestran
     «Sin dato». Mover o descartar al candidato no borra su perfil ni sus respuestas.
+
+75. **Barra de filtros en una sola fila.** En el pipeline, activá varios filtros, incluidas
+    dos preguntas de filtro con texto largo. **Esperado:** una sola barra con «Filtros» y
+    su contador, los chips en una fila con scroll horizontal (nunca bajan el tablero) y
+    «Limpiar» a la derecha. Los chips largos se cortan con «…»; al pasar el mouse o con el
+    foco se ve el texto completo. Debajo: «Vista filtrada · Mostrando X de Y candidatos» y
+    «Editar filtros», que abre el Sheet. Las columnas sin resultados dicen «Sin
+    coincidencias» sin botones propios. Probalo en celular y en los dos temas.

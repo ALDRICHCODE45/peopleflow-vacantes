@@ -14,8 +14,8 @@ Branch `feat/pipeline-filter-bar-ui` from `main`. Reference: v0 chat `qqPqctX1XR
 
 ## Tasks
 
-- T1 [done] S1-S4 | writer | Filter bar + results line + empty column state; update §13.12. | commit: -
-- T2 [pending] | parent | Guide step, queue item. | commit: -
+- T1 [done] S1-S4 | writer | Filter bar + results line + empty column state; update §13.12. | commit: df4ac43
+- T2 [done] | parent | Guide step 75, queue item 1. | commit: docs commit
 
 ## Log
 
