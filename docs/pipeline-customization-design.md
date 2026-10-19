@@ -1359,3 +1359,76 @@ the detail extends the list item.
    most 100 per vacancy); `skills_preview` and `skills` keep the entered order.
    `benefits_preview.predefined` uses the draft benefit catalog codes; custom benefits are
    trimmed, non-empty, ≤200 code points.
+
+## 15. Cut 6 — active substate per candidate and filter (proposal)
+
+Status: **proposal under frontend review.** Product answers in §15.5. Branch
+`feat/pipeline-substates-active`, stacked on `feat/public-listing-enrichment`.
+
+Rules: SUB-3 (at most one active substate, history of changes), SUB-4 (labels, not
+sequential steps), SUB-5 (filter by active substate, multiple selections with OR, including
+«Sin subestado»), PIPE-15 (a used substate is not removed without resolving occupants).
+Open decision §17.9 is closed for the board (§15.5 S3); cross-vacancy reporting stays open.
+
+### 15.1 Model
+
+- A participation has `substate_id` (a substate of the vacancy's catalog) or `null`. It can be
+  non-null only while the participation is in the stage of kind `in_process`.
+- Setting or clearing it is one operation with its own history entry; any order, any substate
+  (SUB-4). Setting the current value again is a no-op (no history, same ETag).
+- Leaving `in_process` by a move or a discard clears it in the same transaction and records a
+  substate history entry to `null` before the move/discard entry (§15.5 S1). Re-entering
+  `in_process` (move or recovery) starts at «Sin subestado».
+- Catalog (cut 2): renaming a substate is always allowed; a `PUT` that removes a substate some
+  participation has active → `409 substate_in_use`, nothing written (§15.5 S2).
+- Authorization, concurrency and transactions as cut 4 (owner or principal, per-item `etag`,
+  draft → process → participation locks). The candidate never sees substates.
+
+### 15.2 Contract
+
+`POST …/participations/{participationId}/substate`, `If-Match` required, body exactly
+`{ "substate_id": "<uuid>" | null }` → `200` with the board item and new `ETag` (same shape
+as a move response, `coverage` included unchanged).
+
+| Status | Code | Case |
+| --- | --- | --- |
+| `409` | `substate_requires_in_process` | Participation not in the `in_process` stage (incl. discarded) |
+| `400` | `validation_error` | Unknown substate id for this vacancy |
+| `400` | `invalid_request`, `412`, `428`, `404`, `409 vacancy_not_published` | As cut 4 |
+
+Board items gain `substate_id: string | null`. Participation detail likewise.
+
+History union gains kind `substate`: exactly `{kind, from_substate_id, to_substate_id, actor,
+at}` (ids nullable; names come from the catalog). Other kinds unchanged.
+
+Substates resource (cut 2) items gain `in_use: boolean` (true while any participation of the
+vacancy has it active), so the editor can disable removal; `PUT` gains `409 substate_in_use`.
+
+**Filtering is client-side** over the board (≤1,000 items, §12.2): selected substates are
+combined with OR, «Sin subestado» matches `in_process` items with `substate_id = null`, and the
+substate filter is combined with AND with every other board filter (§15.5 S3). Items outside
+`in_process` do not match a substate filter.
+
+### 15.3 Storage (backend)
+
+Additive migration `00026`: participation `substate_id`, history `from_substate_id` /
+`to_substate_id` and event kind `substate` (CHECKs extended so existing rows stay valid). Down
+refuses while substate data exists. The catalog keeps stable ids (cut 2), so participations
+reference them by id; no foreign key is possible to the JSON catalog, so integrity is enforced
+in the write transactions (set, catalog PUT) and checked by tests.
+
+### 15.4 Frontend placement (frontend owns this)
+
+Substate selector on the card and in the candidate sheet while in «En proceso»; substate
+badge on the card; multi-select filter with «Sin subestado» on the board; history entries;
+catalog sheet disables removing a substate with `in_use: true`.
+
+### 15.5 Decisions recorded for cut 6
+
+- **S1 (user):** leaving «En proceso» clears the substate; history keeps it; re-entry starts
+  without substate.
+- **S2 (user):** a substate in use cannot be removed from the catalog until reassigned; renaming
+  is allowed.
+- **S3 (user):** the substate filter combines with other board filters with AND (OR among the
+  selected substates).
+- **S4 (user):** owner or principal set substates, like moves; candidates never see them.
