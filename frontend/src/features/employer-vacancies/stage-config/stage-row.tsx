@@ -67,14 +67,13 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
 }) {
   const id = `pipeline-stage-${stage.key}`;
   const message = cutoffError ? "Esta columna es el corte de entrega. Cámbiala en Entrega antes de quitarla." : nameError(error, state.limits.nameMaxLength);
-  const structureLocked = state.baseline.structure_locked;
   const fixed = stage.kind === "new" || stage.kind === "placement";
   const isExit = stage.kind === "discarded";
   const showKind = stage.kind === "custom" || normalizeStageName(stage.name) !== STAGE_KIND_LABELS[stage.kind];
   const { attributes, listeners, setNodeRef: setDragRef, setActivatorNodeRef, isDragging } = useDraggable({
-    id: stage.key, disabled: disabled || structureLocked || fixed || isExit, attributes: { roleDescription: "Columna del pipeline" },
+    id: stage.key, disabled: disabled || fixed || isExit, attributes: { roleDescription: "Columna del pipeline" },
   });
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: stage.key, disabled: disabled || structureLocked || isExit });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: stage.key, disabled: disabled || isExit });
   const actions = stageRowActions(state, stage.key, cutoffStageId);
   const item = (action: StageRowAction) => {
     const Icon = ACTION_ICONS[action.id];
@@ -95,7 +94,7 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
       {fixed || isExit
         ? <span data-pf-stage-handle-slot="" aria-hidden="true" className="size-10 shrink-0" />
         : <Button type="button" variant="ghost" size="icon" ref={setActivatorNodeRef}
-          className="size-10 shrink-0 cursor-grab touch-none active:cursor-grabbing" disabled={disabled || structureLocked}
+          className="size-10 shrink-0 cursor-grab touch-none active:cursor-grabbing" disabled={disabled}
           {...attributes} {...listeners} aria-label={`Arrastrar ${stage.name}`}><GripVertical aria-hidden="true" /></Button>}
       <ItemMedia variant="icon" className={POSITION_MEDALLION} aria-hidden="true">
         {isExit ? <LogOut /> : position}

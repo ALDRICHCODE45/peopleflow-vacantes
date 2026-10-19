@@ -1,3 +1,5 @@
+import { plural } from "@/features/employer-vacancies/pipeline-board";
+import type { PipelineImpact } from "@/features/jobs/drafts/pipeline/client";
 import type { DraftPipelineActionFailure } from "@/features/jobs/drafts/pipeline/actions";
 
 export type PipelineNotice = {
@@ -6,6 +8,7 @@ export type PipelineNotice = {
   description?: string;
   text: string;
   recovery?: "reload" | "check";
+  reviewImpact?: boolean;
   link?: { href: string; title: string };
 };
 export const recoveryLabels = { reload: "Cargar versión actual", check: "Comprobar" } as const;
@@ -35,10 +38,15 @@ const uncertain = (title: string): PipelineNotice => ({
 });
 const failures: Record<DraftPipelineActionFailure["reason"], PipelineNotice> = {
   version_conflict: conflictNotice,
-  stage_change_requires_empty_pipeline: {
-    tone: "error", title: "Solo puedes renombrar las columnas",
-    description: "Esta vacante ya tiene candidatos. No se guardó el cambio de estructura. Tus cambios siguen aquí; conserva el orden y las columnas actuales para guardar los nombres.",
-    text: "No se guardó · solo se permiten renombres",
+  stage_change_requires_empty_pipeline: conflictNotice,
+  stage_occupied: {
+    tone: "error", title: "La columna tiene candidatos",
+    description: "Mueve a los candidatos antes de quitar la columna.", text: "No se guardó · revisa el tablero",
+  },
+  impact_confirmation_required: {
+    tone: "error", title: "Revisa el impacto de nuevo",
+    description: "El proceso cambió. Tus cambios siguen aquí; revisa el impacto antes de confirmar otra vez.",
+    text: "No se guardó · revisa el impacto", reviewImpact: true,
   },
   no_response: uncertain("No hubo respuesta del servidor"),
   server_error: uncertain("El servidor tuvo un problema"),
@@ -71,6 +79,24 @@ const failures: Record<DraftPipelineActionFailure["reason"], PipelineNotice> = {
     description: "No se guardaron las columnas. Reduce el texto antes de volver a guardar; tus cambios siguen aquí.", text: "No se guardó · reduce el texto",
   },
 };
+/** Compare affected participation/stage identities, not totals or candidate display names. */
+function impactKey(impact: PipelineImpact) {
+  return JSON.stringify([
+    impact.not_applicable.map(entry => `${entry.participation_id}:${entry.stage_id}`).sort(),
+    impact.recovery_reassigned.map(entry => `${entry.participation_id}:${entry.retired_stage_id}:${entry.default_stage_id}`).sort(),
+  ]);
+}
+export function appliedImpactNotice(applied: PipelineImpact, preview?: PipelineImpact | null): PipelineNotice {
+  const count = new Set(applied.not_applicable.map(entry => entry.participation_id)).size;
+  const recoveryCount = new Set(applied.recovery_reassigned.map(entry => entry.participation_id)).size;
+  const summary = [
+    count ? `${plural(count, "candidato quedó", "candidatos quedaron")} con "No aplica" en columnas nuevas o movidas.` : "",
+    recoveryCount ? `${plural(recoveryCount, "candidato elegirá", "candidatos elegirán")} columna al recuperarse.` : "",
+  ].filter(Boolean).join(" ");
+  const changed = preview && impactKey(applied) !== impactKey(preview);
+  const description = changed ? `El impacto cambió desde la vista previa: ${summary || "ningún candidato recibió cambios de proceso."}` : summary;
+  return { tone: "success", title: "Columnas guardadas.", text: description || "Guardado", description: description || undefined };
+}
 export function pipelineFailureNotice(reason: DraftPipelineActionFailure["reason"]): PipelineNotice {
   return failures[reason] ?? failures.unrecognized_response;
 }

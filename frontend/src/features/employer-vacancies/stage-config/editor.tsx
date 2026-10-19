@@ -2,7 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Columns3, Plus } from "lucide-react";
+import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
+import type { PipelineImpactPreview } from "@/features/jobs/drafts/pipeline/client";
+import type { DraftPipelineActionFailure } from "@/features/jobs/drafts/pipeline/failure";
+import { ImpactDetails } from "./impact-details";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Badge } from "@/components/ui/badge";
@@ -11,14 +15,13 @@ import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader,
 import { FieldDescription, FieldError } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
-import { loadDraftPipelineAction, saveDraftPipelineAction, type DraftPipelineActionResult } from "@/features/jobs/drafts/pipeline/actions";
+import { loadDraftPipelineAction, saveDraftPipelineAction, previewPipelineAction, type PipelinePreviewActionResult, type DraftPipelineActionResult } from "@/features/jobs/drafts/pipeline/actions";
 import {
-  addCustomStage, adoptSavedPipeline, canAddCustomStage, criticalRenames, editorFromPipeline, isEditorDirty,
+  addCustomStage, adoptSavedPipeline, canAddCustomStage, editorFromPipeline, isEditorDirty,
   moveStage, moveStageTo, reconcileUncertainSave, removeCustomStage, renameStage, toPutBody, validateEditor,
   type EditorPipeline, type PipelineEditorState,
 } from "@/features/jobs/drafts/pipeline/editor-model";
-import { CriticalRenameDialog } from "./critical-rename-dialog";
-import { conflictNotice, invalidNotice, pipelineFailureNotice, recoveryLabels, savedNotice, type PipelineNotice } from "./feedback";
+import { appliedImpactNotice, conflictNotice, invalidNotice, pipelineFailureNotice, recoveryLabels, savedNotice, type PipelineNotice } from "./feedback";
 import { PipelinePreview } from "./preview";
 import { StageRow } from "./stage-row";
 import { StageReorder } from "./reorder";
@@ -39,13 +42,15 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
   const [substatesOpen, setSubstatesOpen] = useState(false);
   const [session, setSession] = useState<Session>(() => ({ editor: editorFromPipeline(pipeline), etag }));
   const current = useRef(session);
-  const [pending, setPending] = useState<"save" | "reload" | "check" | null>(null);
+  const [pending, setPending] = useState<"save" | "preview" | "reload" | "check" | null>(null);
   const busy = useRef(false);
   const mounted = useRef(true);
   const [notice, setNotice] = useState<PipelineNotice | null>(null);
   const [touched, setTouched] = useState<Set<string>>(() => new Set());
   const [attempted, setAttempted] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [impactPreview, setImpactPreview] = useState<PipelineImpactPreview | null>(null);
+  const [requiresPreview, setRequiresPreview] = useState(false);
   const inputs = useRef(new Map<string, HTMLInputElement>());
   const statusLink = useRef<HTMLAnchorElement>(null);
   const focusOnMount = useRef<string | null>(null);
@@ -79,28 +84,50 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
     replace(adoptSavedPipeline(attemptedState, response.pipeline), response.etag);
     setTouched(new Set()); setAttempted(false); setCutoffRejected(false);
   }
-  async function persist() {
-    if (busy.current) return;
-    const snapshot = current.current;
-    busy.current = true; setPending("save"); setConfirming(false); setNotice(null);
-    const result = await saveDraftPipelineAction({ draftId, ifMatch: snapshot.etag, body: toPutBody(snapshot.editor) }).catch(noResponse);
-    if (!mounted.current) return;
-    if (result.ok) {
-      adopt(result, snapshot.editor);
-      report(result.pipeline.version === snapshot.editor.baseline.version
-        ? { tone: "info", title: "No había cambios que guardar", text: "Guardado" }
-        : savedNotice);
+  async function reportFailure(result: DraftPipelineActionFailure, snapshot: Session) {
+    setConfirming(false);
+    if (result.reason === "impact_confirmation_required") {
+      setImpactPreview(null); setRequiresPreview(true);
+    }
+    if (result.reason === "stage_occupied") {
+      const names = result.details?.map(entry => snapshot.editor.baseline.stages.find(stage => stage.id === entry.stage_id)?.name).filter((name): name is string => !!name) ?? [];
+      const description = names.length ? `Mueve a los candidatos de ${names.map(name => `«${name}»`).join(", ")} antes de ${names.length === 1 ? "quitarla" : "quitarlas"}.` : "Mueve a los candidatos de las columnas ocupadas antes de quitarlas.";
+      report({ ...pipelineFailureNotice(result.reason), description, link: { title: "Ir al tablero", href: `/empresa/vacantes/${draftId}` } }, result.reference);
     } else if (result.reason === "cutoff_stage_in_use") {
       setCutoffRejected(true);
       report({ ...pipelineFailureNotice(result.reason), link: { title: "Ir a Entrega", href: `/empresa/vacantes/${draftId}/configuracion/entrega` } }, result.reference);
       const removedIds = snapshot.editor.baseline.stages.filter(stage => !snapshot.editor.stages.some(edited => edited.id === stage.id)).map(stage => stage.id);
       if (cutoffStageId === null || !removedIds.includes(cutoffStageId)) {
-        // The error envelope intentionally carries no stage id. Read once, never retry PUT.
         const delivery = await loadDraftDeliveryAction(draftId).catch((): DraftDeliveryActionResult => ({ ok: false, reason: "no_response", reference: {} }));
-        if (!mounted.current) return;
-        if (delivery.ok) setCutoffStageId(delivery.delivery.cutoffStageId);
+        if (mounted.current && delivery.ok) setCutoffStageId(delivery.delivery.cutoffStageId);
       }
     } else report(pipelineFailureNotice(result.reason), result.reference);
+  }
+  async function reviewImpact() {
+    if (busy.current) return;
+    busy.current = true; setPending("preview"); setNotice(null); setImpactPreview(null);
+    const snapshot = current.current;
+    const result = await previewPipelineAction({ draftId, body: toPutBody(snapshot.editor) }).catch((): PipelinePreviewActionResult => ({ ok: false, reason: "no_response", reference: {} }));
+    if (!mounted.current) return;
+    if (result.ok) { setImpactPreview(result.preview); setConfirming(true); setRequiresPreview(false); }
+    else if (["no_response", "server_error", "unrecognized_response", "precondition_required"].includes(result.reason)) {
+      report({ tone: "error", title: "No pudimos revisar el impacto", text: "No se guardó · revisa el impacto", reviewImpact: true,
+        description: "No pudimos revisar el impacto. No se guardó ningún cambio. Puedes revisar de nuevo; es seguro." }, result.reference);
+    } else await reportFailure(result, snapshot);
+    busy.current = false; setPending(null);
+  }
+  async function persist() {
+    if (busy.current) return;
+    const snapshot = current.current;
+    busy.current = true; setPending("save"); setNotice(null);
+    const result = await saveDraftPipelineAction({ draftId, ifMatch: snapshot.etag, body: { ...toPutBody(snapshot.editor), confirm_impact: true } }).catch(noResponse);
+    if (!mounted.current) return;
+    if (result.ok) {
+      adopt(result, snapshot.editor);
+      setConfirming(false);
+      report(result.pipeline.applied_impact ? appliedImpactNotice(result.pipeline.applied_impact, impactPreview) : savedNotice);
+      setImpactPreview(null);
+    } else await reportFailure(result, snapshot);
     busy.current = false; setPending(null);
   }
   function requestSave() {
@@ -113,8 +140,8 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
       if (first) inputs.current.get(first.key)?.focus();
       return;
     }
-    if (criticalRenames(current.current.editor).length) setConfirming(true);
-    else void persist();
+    if (current.current.editor.baseline.structure_locked || requiresPreview) void reviewImpact();
+    else { setImpactPreview(null); setConfirming(true); }
   }
   async function recover(mode: "reload" | "check") {
     if (busy.current || !mounted.current) return;
@@ -168,7 +195,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
   const removedCutoff = cutoffRejected && cutoffStageId !== null && !state.stages.some(stage => stage.id === cutoffStageId)
     ? state.baseline.stages.find(stage => stage.id === cutoffStageId) : undefined;
   const recovery = notice?.recovery;
-  const statusAction = recovery ? <Button type="button" variant="outline" className="min-h-10" disabled={pending !== null} onClick={() => void recover(recovery)}>
+  const statusAction = notice?.reviewImpact ? <Button type="button" variant="outline" className="min-h-10" disabled={pending !== null} onClick={requestSave}>Revisar impacto de nuevo</Button> : recovery ? <Button type="button" variant="outline" className="min-h-10" disabled={pending !== null} onClick={() => void recover(recovery)}>
     {pending === recovery && <Spinner aria-hidden="true" data-icon="inline-start" />}{recoveryLabels[recovery]}
   </Button> : notice?.link ? <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link ref={statusLink} href={notice.link.href} target="_blank" rel="noopener noreferrer" />}>{notice.link.title}</Button> : undefined;
   return (
@@ -184,8 +211,8 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
             <Badge variant="info">Corte de entrega</Badge>
             <FieldError>{removedCutoff.name} es el corte de entrega. Cámbiala en Entrega antes de quitarla.</FieldError>
           </div>}
-          {state.baseline.structure_locked && <FieldDescription>Esta vacante ya tiene candidatos: solo puedes renombrar las columnas.</FieldDescription>}
-          <StageReorder state={state} disabled={pending !== null || state.baseline.structure_locked}
+          {state.baseline.structure_locked && <FieldDescription>Esta vacante ya tiene candidatos: antes de guardar cambios de estructura verás a quién afecta. Nadie cambia de columna.</FieldDescription>}
+          <StageReorder state={state} disabled={pending !== null}
             onMove={(key, targetIndex) => edit(moveStageTo(current.current.editor, key, targetIndex))}>
             <ol aria-label="Columnas del pipeline" className="flex flex-col gap-3">{state.stages.map((stage, index) => row(stage, index + 1))}</ol>
           </StageReorder>
@@ -193,7 +220,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
             <Button type="button" variant="outline" className="min-h-10" disabled={pending !== null || !canAddCustomStage(state)} onClick={add}>
               <Plus aria-hidden="true" data-icon="inline-start" />Agregar columna
             </Button>
-            {!state.baseline.structure_locked && !canAddCustomStage(state) && <FieldDescription>Llegaste al máximo de {state.limits.maxCustomStages} columnas propias.</FieldDescription>}
+            {!canAddCustomStage(state) && <FieldDescription>Llegaste al máximo de {state.limits.maxCustomStages} columnas propias.</FieldDescription>}
           </div>
           <Separator />
           <section aria-labelledby="pipeline-exit-heading" className="flex flex-col gap-3">
@@ -209,13 +236,17 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
             }}>Descartar cambios</Button>
             <Button type="button" className="min-h-10" disabled={!dirty || pending !== null} aria-busy={pending === "save"}
               aria-describedby={notice ? "pipeline-save-status" : undefined} onClick={requestSave}>
-              {pending === "save" && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending === "save" ? "Guardando…" : "Guardar cambios"}
+              {(pending === "save" || pending === "preview") && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending === "preview" ? "Revisando impacto…" : pending === "save" ? "Guardando…" : "Guardar cambios"}
             </Button>
           </ActionBar>
         </CardFooter>
       </Card>
       <PipelinePreview state={state} />
-      <CriticalRenameDialog open={confirming} onOpenChange={setConfirming} renames={criticalRenames(state)} onConfirm={() => void persist()} />
+      <ConfirmActionDialog open={confirming} onOpenChange={setConfirming} icon={Columns3}
+        title="¿Guardar los cambios de columnas?" description="Ningún candidato cambia de columna. El nuevo orden aplica a los próximos movimientos."
+        confirmLabel="Guardar" pendingLabel="Guardando…" pending={pending === "save"} onConfirm={() => void persist()}>
+        {impactPreview?.has_impact ? <ImpactDetails preview={impactPreview} baseline={state.baseline} /> : undefined}
+      </ConfirmActionDialog>
       {savedSubstates && <SubstatesSheet draftId={draftId} inProcessName={state.stages.find(stage => stage.kind === "in_process")?.name ?? ""}
         catalog={savedSubstates.catalog} etag={savedSubstates.etag} open={substatesOpen} onOpenChange={setSubstatesOpen}
         onSaved={(catalog: SubstatesCatalog, etag: string) => setSavedSubstates({ catalog, etag })} />}
