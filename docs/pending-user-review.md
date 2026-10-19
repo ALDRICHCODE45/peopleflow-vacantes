@@ -7,6 +7,16 @@ Se prueba en orden y se integra de arriba hacia abajo.
 Cómo levantar todo: `docs/employer-manual-test.md` (secciones 1 a 3). En cada ítem,
 el backend va en su rama indicada, con `make db-migrate`.
 
+
+> **Resumen de la noche (2026-10-19).** Las ramas del frontend están apiladas en este orden:
+> `feat/pipeline-board-filters-ui` (ítems 1–3) → `feat/pipeline-column-editing-ui` (ítem 4)
+> → `feat/pipeline-filter-data-ui` (ítem 5). Para probar todo de una vez: frontend en
+> `feat/pipeline-filter-data-ui` y backend en `feat/pipeline-filter-data` (apilada sobre
+> `feat/pipeline-column-editing`), luego `make db-migrate` (aplica 00028 y 00029). Los
+> pasos de la guía son 70–74. El backend agregó `feat/pipeline-followup-tests` (solo tests).
+> Nada se integró a `main`. Pendiente sin tocar por decisión tuya: «Crear cuenta» de
+> candidato hacia el registro de Cognito y el SEO de vacantes.
+
 | # | Feature | Rama frontend | Rama backend | Pasos de la guía | Qué mirar especialmente |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Filtros del tablero en un Sheet («Columna», «Subestado», «Motivo de descarte», todos multi-select) con chips removibles, y cobertura + entrega como un solo bloque en el encabezado | `feat/pipeline-board-filters-ui` (sobre `main`) | sin cambios (usar `main`) | 70 | Decisiones a revisar: anatomía compartida de cobertura y entrega; filtros que se aplican al marcar; cantidades por opción sobre todo el tablero. |
