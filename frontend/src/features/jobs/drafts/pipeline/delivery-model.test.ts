@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { adoptSaved, fromDelivery, isDateStale, isDirty, isSelectableDate, reconcileUncertainSave, setCommitmentDate, setCutoffStageId, setTargetText, toPutBody, validate, type Delivery } from "./delivery-model";
-export const deliveryFixture = (): Delivery => ({ version: "0", cutoffStageId: null, targetQuantity: null, commitmentDate: null, limits: { maxTargetQuantity: 999 }, calendar: { timeZone: "America/Mexico_City", today: "2026-10-16", minDate: "2026-10-16", maxDate: "2027-10-16", nonBusinessDates: ["2026-10-17", "2026-10-18"] } });
+export const deliveryFixture = (): Delivery => ({ fulfilled: false, version: "0", cutoffStageId: null, targetQuantity: null, commitmentDate: null, limits: { maxTargetQuantity: 999 }, calendar: { timeZone: "America/Mexico_City", today: "2026-10-16", minDate: "2026-10-16", maxDate: "2027-10-16", nonBusinessDates: ["2026-10-17", "2026-10-18"] } });
 describe("delivery model", () => {
   it("allows partial/all-null configuration and owns copies", () => {
     const source = deliveryFixture(); const state = fromDelivery(source);

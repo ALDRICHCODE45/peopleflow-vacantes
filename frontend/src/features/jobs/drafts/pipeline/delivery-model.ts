@@ -1,6 +1,7 @@
-export type DeliveryPutBody = { cutoffStageId: string | null; targetQuantity: number | null; commitmentDate: string | null };
+export type DeliveryPutBody = { cutoffStageId: string | null; targetQuantity: number | null; commitmentDate: string | null; confirm_fulfillment?: boolean };
 export type Delivery = DeliveryPutBody & {
   version: string;
+  fulfilled: boolean;
   limits: { maxTargetQuantity: number };
   calendar: { timeZone: string; today: string; minDate: string; maxDate: string; nonBusinessDates: string[] };
 };

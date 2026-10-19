@@ -6,6 +6,7 @@ import { requestJson } from "@/lib/api/server";
 import type { PublicationFailure } from "./publication-client";
 import { publicationErrorEnvelopeSchema } from "./failure";
 import { isCivilDate } from "./delivery-model";
+import { deliveryStatusSchema, deliveryPreviewSchema, type DeliveryStatus, type DeliveryPreview } from "./fulfillment-model";
 
 const uuid = z.string().length(36).refine(isValidJobId);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$(?![\s\S])/).refine(isCivilDate);
@@ -15,10 +16,10 @@ const calendarSchema = z.object({
 }).strict().refine(calendar => calendar.minDate <= calendar.maxDate && calendar.nonBusinessDates.every((day, index, dates) =>
   day >= calendar.minDate && day <= calendar.maxDate && (index === 0 || dates[index - 1] < day)));
 const deliverySchema = z.object({
-  version: z.string().regex(/^(0|[1-9][0-9]*)$(?![\s\S])/), ...fields,
+  fulfilled: z.boolean(), version: z.string().regex(/^(0|[1-9][0-9]*)$(?![\s\S])/), ...fields,
   limits: z.object({ maxTargetQuantity: z.number().int().positive() }).strict(), calendar: calendarSchema,
 }).strict();
-const putBodySchema = z.object(fields).strict();
+const putBodySchema = z.object({ ...fields, confirm_fulfillment: z.boolean().optional() }).strict();
 
 export type DraftDelivery = z.infer<typeof deliverySchema>;
 export type DraftDeliveryResult = { ok: true; data: DraftDelivery; etag: string } | PublicationFailure;
@@ -45,6 +46,26 @@ async function requestDelivery(input: ReadInput, write?: { ifMatch: string; body
   const etag = result.headers?.etag;
   if (etag === undefined || !etag.trim()) return invalid("invalid_response");
   return { ok: true, data: result.data, etag };
+}
+async function readProjection<T>(input: ReadInput, path: string, decoder: (value: unknown) => T, body?: z.infer<typeof putBodySchema>): Promise<{ ok: true; data: T } | PublicationFailure> {
+  const failure = guard(input);
+  if (failure) return failure;
+  const { serverEnv } = await import("@/lib/env/server");
+  const result = await requestJson(new URL(`/v2/me/company/job-drafts/${input.draftId}/pipeline/delivery/${path}`, serverEnv.apiBaseUrl).toString(), {
+    method: body ? "POST" : "GET", headers: { authorization: `Bearer ${input.token.trim()}` }, ...(body ? { body } : {}),
+    redirect: "error", expectedStatus: 200, timeoutMs: serverEnv.apiTimeoutMs, maxErrorBodyBytes: 8192,
+    decoder, errorDecoder: value => publicationErrorEnvelopeSchema.parse(value),
+  });
+  return result.ok ? { ok: true, data: result.data } : { ...result, error: { ...result.error, retryable: false } };
+}
+export function getDeliveryStatus(input: ReadInput): Promise<{ ok: true; data: DeliveryStatus } | PublicationFailure> {
+  return readProjection(input, "status", value => deliveryStatusSchema.parse(value));
+}
+export async function previewDraftDelivery(input: ReadInput & { body: unknown }): Promise<{ ok: true; data: DeliveryPreview } | PublicationFailure> {
+  const failure = guard(input);
+  if (failure) return failure;
+  const body = putBodySchema.safeParse(input.body);
+  return body.success ? readProjection(input, "preview", value => deliveryPreviewSchema.parse(value), body.data) : invalid("invalid_request");
 }
 export async function getDraftDelivery(input: ReadInput): Promise<DraftDeliveryResult> { return guard(input) ?? requestDelivery(input); }
 export async function saveDraftDelivery(input: SaveDraftDeliveryInput): Promise<DraftDeliveryResult> {

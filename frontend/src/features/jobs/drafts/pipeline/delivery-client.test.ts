@@ -6,7 +6,7 @@ vi.mock("@/lib/env/server", () => ({ get serverEnv() { env.reads++; return { api
 import { getDraftDelivery, saveDraftDelivery } from "./delivery-client";
 const draftId = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const etag = '"opaque-delivery+/="';
-const delivery = { version: "0", cutoffStageId: null, targetQuantity: null, commitmentDate: null, limits: { maxTargetQuantity: 999 }, calendar: { timeZone: "America/Mexico_City", today: "2026-10-16", minDate: "2026-10-16", maxDate: "2027-10-16", nonBusinessDates: ["2026-10-17", "2026-10-18"] } };
+const delivery = { fulfilled: false, version: "0", cutoffStageId: null, targetQuantity: null, commitmentDate: null, limits: { maxTargetQuantity: 999 }, calendar: { timeZone: "America/Mexico_City", today: "2026-10-16", minDate: "2026-10-16", maxDate: "2027-10-16", nonBusinessDates: ["2026-10-17", "2026-10-18"] } };
 const body = { cutoffStageId: draftId, targetQuantity: 5, commitmentDate: "2026-10-19" };
 function response(data: unknown, status = 200, tag: string | null = etag) {
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(data), { status, headers: tag === null ? {} : { etag: tag } }));

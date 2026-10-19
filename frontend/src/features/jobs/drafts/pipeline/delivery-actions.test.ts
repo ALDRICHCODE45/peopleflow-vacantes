@@ -7,7 +7,7 @@ import { loadDraftDeliveryAction, saveDraftDeliveryAction } from "./delivery-act
 const draftId = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const etag = '"delivery-opaque"';
 const body = { cutoffStageId: null, targetQuantity: null, commitmentDate: null };
-const delivery = { ...body, version: "0", limits: { maxTargetQuantity: 999 }, calendar: { timeZone: "America/Mexico_City", today: "2026-10-16", minDate: "2026-10-16", maxDate: "2027-10-16", nonBusinessDates: [] } };
+const delivery = { fulfilled: false, ...body, version: "0", limits: { maxTargetQuantity: 999 }, calendar: { timeZone: "America/Mexico_City", today: "2026-10-16", minDate: "2026-10-16", maxDate: "2027-10-16", nonBusinessDates: [] } };
 beforeEach(() => { vi.resetAllMocks(); vi.mocked(getActionAccessToken).mockResolvedValue("secret"); });
 for (const operation of ["load", "save"] as const) describe(operation, () => {
   const client = operation === "load" ? getDraftDelivery : saveDraftDelivery;
