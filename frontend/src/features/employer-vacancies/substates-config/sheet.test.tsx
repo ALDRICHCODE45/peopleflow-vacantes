@@ -35,28 +35,41 @@ function Harness({ initial = substatesFixture(), name = "Entrevistas" }: { initi
     onOpenChange={(value: boolean) => { onClose(value); setOpen(value); }} onSaved={(catalog: SubstatesCatalog, etag: string) => { onSaved(catalog, etag); setSaved({ catalog, etag }); }} /></>;
 }
 const mount = (catalog = substatesFixture(), name?: string) => render(<Harness initial={catalog} name={name} />);
-function add(name = "Entrevista") { fireEvent.click(screen.getByRole("button", { name: "Agregar subestado" })); change(name); }
+const custom = () => screen.getByRole("textbox", { name: "O crea un subestado personalizado" });
+function add(name = "Entrevista") { fireEvent.change(custom(), { target: { value: name } }); fireEvent.click(screen.getByRole("button", { name: "Agregar subestado" })); }
 const status = () => within(document.querySelector("[data-pf-action-status-slot]") as HTMLElement).getByRole("status");
 beforeEach(() => { vi.resetAllMocks(); rowBoundary.clear(); vi.mocked(saveDraftSubstatesAction).mockResolvedValue(success()); vi.mocked(loadDraftSubstatesAction).mockResolvedValue(success()); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
-it("composes an accessible right Sheet with one left-aligned suggestions row and a reserved status below its actions", () => {
+it("composes the reference header, suggestion list and custom input without an empty list section", () => {
   mount();
-  const dialog = screen.getByRole("dialog", { name: "Subestados de Entrevistas" });
-  expect(within(dialog).getByRole("heading", { name: "Subestados de Entrevistas" })).toBeVisible();
+  const dialog = screen.getByRole("dialog", { name: "Configurar subestados" });
+  expect(within(dialog).getByRole("heading", { name: "Configurar subestados" })).toBeVisible();
+  expect(screen.getByText("Entrevistas")).toHaveAttribute("data-slot", "badge");
   expect(dialog).toHaveAttribute("data-side", "right");
   // Floating presentation: inset from every viewport edge and rounded (shared primitive).
   expect(dialog).toHaveAttribute("data-presentation", "floating");
   expect(dialog.className).toContain("data-[side=right]:rounded-2xl");
-  expect(dialog).toHaveAccessibleDescription("Úsalos para registrar en qué punto del proceso está cada candidato, por ejemplo cada entrevista. No son pasos obligatorios ni tienen que seguir un orden.");
+  expect(dialog).toHaveAccessibleDescription("Identifica en qué punto está cada candidato. Son etiquetas flexibles, no pasos obligatorios.");
   expect(screen.getByText("0 de 50 subestados").closest('[data-slot="badge"]')).toBeNull();
-  expect(screen.getByText("Todavía no hay subestados. Elige una sugerencia o agrega uno.")).toBeVisible();
+  expect(screen.queryByText("Tus subestados")).not.toBeInTheDocument();
+  expect(screen.queryByText("Tu lista empieza aquí")).not.toBeInTheDocument();
+  expect(screen.queryByRole("list", { name: "Subestados" })).not.toBeInTheDocument();
+  expect(custom()).toHaveAttribute("placeholder", "Ej. Entrevista técnica");
+  expect(custom()).toHaveAccessibleDescription("Hasta 40 caracteres. Presiona Enter para agregar.");
+  expect(custom().closest('[data-slot="input-group"]')).toContainElement(screen.getByRole("button", { name: "Agregar subestado" }));
   expect(dialog.querySelector('[data-slot="empty"]')).toBeNull();
-  const suggestions = screen.getByRole("region", { name: "Sugerencias" });
+  const suggestions = screen.getByRole("region", { name: "Empieza con una sugerencia" });
+  expect(within(suggestions).getByText("Agrega las que encajen con tu proceso.")).toBeVisible();
   const buttons = within(suggestions).getAllByRole("button");
   expect(buttons).toHaveLength(4);
-  expect(buttons.every(button => button.parentElement === buttons[0].parentElement)).toBe(true);
-  expect(buttons[0].parentElement).toHaveClass("flex", "flex-wrap", "gap-2");
+  expect(suggestions.querySelector('[data-slot="item-group"]')).toHaveClass("gap-0", "border");
+  expect(suggestions.querySelectorAll('[data-slot="item-separator"]')).toHaveLength(3);
+  for (const button of buttons) {
+    expect(button).toHaveTextContent("Agregar");
+    expect(button.closest('[data-slot="item-actions"]')).not.toBeNull();
+    expect(button.closest('[data-slot="item"]')?.querySelector('[data-slot="item-content"] [data-slot="item-title"]')).not.toBeNull();
+  }
   expect(buttons[0]).toHaveClass("min-h-10");
   const slot = dialog.querySelector("[data-pf-action-status-slot]")!;
   expect(slot).toBeEmptyDOMElement(); expect(save().compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy(); expect(save()).toBeDisabled();
@@ -69,7 +82,7 @@ it("composes an accessible right Sheet with one left-aligned suggestions row and
 });
 it.each(["  Entrevistas\u00a0 técnicas  ", "  "])("normalizes the current column title %j, with a semantic fallback", name => {
   mount(substatesFixture(), name);
-  expect(screen.getByRole("dialog", { name: name.trim() ? "Subestados de Entrevistas técnicas" : "Subestados de En proceso" })).toBeVisible();
+  expect(screen.getByText(name.trim() ? "Entrevistas técnicas" : "En proceso")).toHaveAttribute("data-slot", "badge");
 });
 it("filters suggestions against unsaved names and preserves the available suggestions above the list", () => {
   mount(); fireEvent.click(screen.getByRole("button", { name: "Agregar Primera entrevista" }));
@@ -78,14 +91,15 @@ it("filters suggestions against unsaved names and preserves the available sugges
   change(" SEGUNDA\u00a0 entrevista ");
   expect(screen.queryByRole("button", { name: "Agregar Segunda entrevista" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Agregar Primera entrevista" })).toBeVisible();
-  expect(screen.getByRole("region", { name: "Sugerencias" }).compareDocumentPosition(screen.getByRole("list", { name: "Subestados" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(screen.getByRole("region", { name: "Empieza con una sugerencia" }).compareDocumentPosition(screen.getByRole("list", { name: "Subestados" })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(saveDraftSubstatesAction).not.toHaveBeenCalled();
 });
 it("hides suggestions when exhausted and respects dynamic limits", () => {
   mount({ ...substatesFixture(), suggestions: ["Técnica"], limits: { maxSubstates: 1, nameMaxLength: 10 } });
   fireEvent.click(screen.getByRole("button", { name: "Agregar Técnica" }));
-  expect(screen.queryByText("Sugerencias")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Agregar subestado" })).toBeDisabled();
+  expect(screen.queryByText("Empieza con una sugerencia")).not.toBeInTheDocument();
+  add("Otra");
+  expect(screen.getByText("Llegaste al máximo de 1 subestados.")).toHaveAttribute("data-slot", "field-error");
   expect(screen.getByText("Llegaste al máximo de 1 subestados.")).toBeVisible();
 });
 it.each([["", "Escribe un nombre para el subestado."], ["x".repeat(41), "Usa como máximo 40 caracteres."], ["Bad\u0000", "Quita los caracteres no válidos."], [" técnica ", "Ya hay otro subestado con este nombre."]])("validates %j inline and prevents invalid requests", (name, message) => {
@@ -95,9 +109,40 @@ it.each([["", "Escribe un nombre para el subestado."], ["x".repeat(41), "Usa com
   fireEvent.click(save()); expect(saveDraftSubstatesAction).not.toHaveBeenCalled(); expect(field()).toHaveFocus();
   expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ key: "substates-save", title: "Revisa los datos marcados" }));
 });
-it("validates an untouched new entry on save", () => {
-  mount(); fireEvent.click(screen.getByRole("button", { name: "Agregar subestado" })); fireEvent.click(save());
-  expect(screen.getByText("Escribe un nombre para el subestado.")).toBeVisible(); expect(saveDraftSubstatesAction).not.toHaveBeenCalled();
+it.each([["", "Escribe un nombre para el subestado."], ["x".repeat(81), "Usa como máximo 80 caracteres."], [" primera entrevista ", "Ya hay otro subestado con este nombre."]])("validates custom input %j before inserting", (name, message) => {
+  mount({ ...populatedSubstates(), limits: { maxSubstates: 50, nameMaxLength: 80 } });
+  add(name);
+  expect(screen.getByText(message)).toHaveAttribute("data-slot", "field-error");
+  expect(custom()).toHaveAttribute("aria-invalid", "true");
+  expect(custom()).toHaveAccessibleDescription(expect.stringContaining(message));
+  expect(within(screen.getByRole("list", { name: "Subestados" })).getAllByRole("listitem")).toHaveLength(3);
+  expect(saveDraftSubstatesAction).not.toHaveBeenCalled();
+});
+it("adds a custom substate on Enter and clears the composer", () => {
+  mount();
+  fireEvent.change(custom(), { target: { value: "Entrevista técnica" } });
+  fireEvent.keyDown(custom(), { key: "Enter" });
+  expect(field()).toHaveValue("Entrevista técnica");
+  expect(custom()).toHaveValue("");
+  expect(saveDraftSubstatesAction).not.toHaveBeenCalled();
+});
+it("uses the catalog's 80-character helper, ignores composing Enter and accepts the boundary after correcting an error", () => {
+  mount({ ...substatesFixture(), limits: { maxSubstates: 50, nameMaxLength: 80 } });
+  expect(custom()).toHaveAccessibleDescription("Hasta 80 caracteres. Presiona Enter para agregar.");
+  add("x".repeat(81));
+  fireEvent.change(custom(), { target: { value: "x".repeat(80) } });
+  fireEvent.keyDown(custom(), { key: "Enter", isComposing: true });
+  expect(screen.queryByRole("list", { name: "Subestados" })).not.toBeInTheDocument();
+  fireEvent.keyDown(custom(), { key: "Enter" });
+  expect(field()).toHaveValue("x".repeat(80));
+  expect(custom()).toHaveAttribute("aria-invalid", "false");
+});
+it("rejects a 51st custom substate", () => {
+  mount({ ...substatesFixture(), substates: Array.from({ length: 50 }, (_, i) => ({ id: `s${i}`, name: `Subestado ${i}`, in_use: false })) });
+  add("Otro");
+  expect(custom()).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByText("Llegaste al máximo de 50 subestados.")).toHaveAttribute("data-slot", "field-error");
+  expect(within(screen.getByRole("list", { name: "Subestados" })).getAllByRole("listitem")).toHaveLength(50);
 });
 it("sends exactly toPutBody with the current ETag, closes on confirmed save and reopens from the saved catalog", async () => {
   mount(populatedSubstates()); change(" Entrevista ");
@@ -162,7 +207,7 @@ it.each(["Cancelar", "Cerrar subestados", "Escape", "overlay"])("confirms unsave
   fireEvent.click(await screen.findByRole("button", { name: "Descartar" }));
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   expect(onClose).toHaveBeenCalledExactlyOnceWith(false);
-  fireEvent.click(screen.getByRole("button", { name: "Abrir" })); expect(screen.queryByRole("textbox")).not.toBeInTheDocument(); expect(save()).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Abrir" })); expect(screen.queryByRole("list", { name: "Subestados" })).not.toBeInTheDocument(); expect(custom()).toHaveValue(""); expect(save()).toBeDisabled();
   expect(saveDraftSubstatesAction).not.toHaveBeenCalled();
 });
 it("in_use disables removal and explains reassignment while allowing renames", () => {
@@ -194,6 +239,7 @@ it("blocks closing and concurrent mutations while saving", async () => {
   vi.mocked(saveDraftSubstatesAction).mockReturnValue(new Promise(yes => { resolve = yes; }));
   const user = userEvent.setup(); mount(); add(); fireEvent.click(save());
   expect(screen.getByRole("button", { name: "Guardando…" })).toBeDisabled(); expect(field()).toBeDisabled();
+  expect(custom()).toBeDisabled(); expect(screen.getByRole("button", { name: "Agregar subestado" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled(); expect(screen.getByRole("button", { name: "Cerrar subestados" })).toBeDisabled();
   expect(document.querySelector('[data-slot="spinner"]')).not.toBeNull();
   await user.keyboard("[Escape]"); await user.click(document.querySelector('[data-slot="sheet-overlay"]')!);
@@ -209,7 +255,7 @@ it("moves in either direction and removes all entries, allowing an empty catalog
   act(() => rowBoundary.get("one")!.onRemove()); expect(field()).toHaveValue("Técnica");
   expect(screen.getByRole("button", { name: "Agregar Primera entrevista" })).toBeVisible();
   act(() => { rowBoundary.get("two")!.onRemove(); rowBoundary.get("three")!.onRemove(); });
-  expect(screen.queryByRole("textbox")).not.toBeInTheDocument(); expect(save()).toBeEnabled();
+  expect(screen.queryByRole("list", { name: "Subestados" })).not.toBeInTheDocument(); expect(save()).toBeEnabled();
   fireEvent.click(save()); await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   expect(saveDraftSubstatesAction).toHaveBeenCalledExactlyOnceWith({ draftId, ifMatch: '"substates-0"', body: { substates: [] } });
 });
