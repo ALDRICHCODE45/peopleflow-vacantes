@@ -24,7 +24,7 @@ func TestDiscardRecoveryExactWireAndCandidatePrivacy(t *testing.T) {
 		detail := movementObject(t, rec.Body.Bytes())
 		movementItemKeys(t, detail, "screening", "comment", "candidate_message")
 		if discarded {
-			d := movementKeys(t, detail["discard"], "reason", "previous_stage_id", "discarded_at")
+			d := movementKeys(t, detail["discard"], "reason", "previous_stage_id", "discarded_at", "recovery_stage_id")
 			movementKeys(t, d["reason"], "group", "key")
 			if detail["comment"] != "Internal explanation 😀" || detail["candidate_message"] != "Thank you\nfor applying." {
 				t.Fatal(detail)
@@ -68,7 +68,7 @@ func TestDiscardRecoveryExactWireAndCandidatePrivacy(t *testing.T) {
 	movementItemKeys(t, discarded, "coverage", "delivery")
 	movementKeys(t, discarded["delivery"], "state", "delivered", "target")
 	movementKeys(t, discarded["coverage"], "covered", "required", "full_coverage_reached_at")
-	d := movementKeys(t, discarded["discard"], "reason", "previous_stage_id", "discarded_at")
+	d := movementKeys(t, discarded["discard"], "reason", "previous_stage_id", "discarded_at", "recovery_stage_id")
 	movementKeys(t, d["reason"], "group", "key")
 	if rec.Header().Get("ETag") != discarded["etag"] || discarded["stage_id"] != pipelineconfig.Defaults(m.vacancy).Exit.ID || discarded["moved_at"] != d["discarded_at"] || d["previous_stage_id"] != target {
 		t.Fatal(discarded, rec.Header())

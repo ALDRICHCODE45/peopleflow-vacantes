@@ -83,7 +83,7 @@ func TestSubstateSetClearNoOpWireSnapshotsAndCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw, _ := json.Marshal(view)
-	obj := movementKeys(t, movementObject(t, raw), "stages", "exit", "coverage", "participations", "substates", "delivery")
+	obj := movementKeys(t, movementObject(t, raw), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages")
 	entries := obj["substates"].([]any)
 	if len(entries) != 2 {
 		t.Fatal(obj)

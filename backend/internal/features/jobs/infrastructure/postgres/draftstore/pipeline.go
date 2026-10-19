@@ -52,6 +52,9 @@ func (s *Store) PutPipeline(ctx context.Context, companyID, actorID, id uuid.UUI
 	if err := s.authorizePipeline(ctx, tx, companyID, actorID, id, true); err != nil {
 		return drafts.Result{}, err
 	}
+	if _, err := lockDeliveryProcess(ctx, tx, id); err != nil {
+		return drafts.Result{}, err
+	}
 	previous, version, err := readPipeline(ctx, tx, id)
 	if err != nil {
 		return drafts.Result{}, err
@@ -59,7 +62,7 @@ func (s *Store) PutPipeline(ctx context.Context, companyID, actorID, id uuid.UUI
 	if err := pipelineconfig.CheckIfMatch(pipelineconfig.ETag(id, version), ifMatch, present); err != nil {
 		return drafts.Result{}, err
 	}
-	next, err := pipelineconfig.Replace(previous, body)
+	next, err := pipelineconfig.Replace(previous, body, id, version)
 	if err != nil {
 		return drafts.Result{}, err
 	}
@@ -67,29 +70,21 @@ func (s *Store) PutPipeline(ctx context.Context, companyID, actorID, id uuid.UUI
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	if locked && !previous.SameStructure(next) {
-		return drafts.Result{}, pipelineconfig.ErrStructureLocked
-	}
-	delivery, _, err := readDelivery(ctx, tx, id)
+	confirm, err := pipelineconfig.Confirmation(body, false)
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	if delivery.CutoffStageID != nil {
-		retained := false
-		for _, stage := range next.Stages {
-			if stage.ID == *delivery.CutoffStageID {
-				retained = true
-				break
-			}
-		}
-		if !retained {
-			return drafts.Result{}, pipelineconfig.ErrCutoffStageInUse
-		}
+	impact, err := pipelineImpact(ctx, tx, id, previous, next)
+	if err != nil {
+		return drafts.Result{}, err
+	}
+	if impact.HasImpact() && !confirm {
+		return drafts.Result{}, pipelineconfig.ErrImpactConfirmation
 	}
 	// Only a stored configuration can be a stored no-op. The first successful
 	// PUT materializes version 1, even when the caller chooses all defaults.
 	if version > 0 && previous.Equal(next) {
-		return renderPipeline(id, previous, version, locked)
+		return renderPipeline(id, previous, version, locked, &impact)
 	}
 	if version == math.MaxInt64 {
 		return drafts.Result{}, drafts.ErrVersionOverflow
@@ -103,6 +98,9 @@ func (s *Store) PutPipeline(ctx context.Context, companyID, actorID, id uuid.UUI
 		ON CONFLICT (draft_id) DO UPDATE SET version=EXCLUDED.version, configuration=EXCLUDED.configuration`, id, version+1, encoded); err != nil {
 		return drafts.Result{}, fmt.Errorf("write pipeline: %w", err)
 	}
+	if err := s.writePipelineImpact(ctx, tx, actorID, impact); err != nil {
+		return drafts.Result{}, err
+	}
 	previousJSON, err := json.Marshal(previous)
 	if err != nil {
 		return drafts.Result{}, fmt.Errorf("encode previous pipeline: %w", err)
@@ -112,10 +110,15 @@ func (s *Store) PutPipeline(ctx context.Context, companyID, actorID, id uuid.UUI
 	event := newDraftEvent(actorID, pipelineConfiguredEvent, id, version+1)
 	event.Metadata["previous"] = string(previousJSON)
 	event.Metadata["new"] = string(encoded)
+	impactJSON, err := json.Marshal(impact)
+	if err != nil {
+		return drafts.Result{}, err
+	}
+	event.Metadata["applied_impact"] = string(impactJSON)
 	if err := s.audit.Append(ctx, tx, event); err != nil {
 		return drafts.Result{}, fmt.Errorf("co-write pipeline audit: %w", err)
 	}
-	result, err := renderPipeline(id, next, version+1, locked)
+	result, err := renderPipeline(id, next, version+1, locked, &impact)
 	if err != nil {
 		return drafts.Result{}, err
 	}
@@ -154,6 +157,9 @@ func readPipeline(ctx context.Context, tx pgx.Tx, id uuid.UUID) (pipelineconfig.
 	if err := json.Unmarshal(raw, &c); err != nil {
 		return pipelineconfig.Configuration{}, 0, fmt.Errorf("decode stored pipeline: %w", err)
 	}
+	if c.Retired == nil {
+		c.Retired = []pipelineconfig.RetiredStage{}
+	}
 	if err := pipelineconfig.Validate(c); err != nil || version <= 0 {
 		return pipelineconfig.Configuration{}, 0, errors.New("draftstore: invalid stored pipeline")
 	}
@@ -178,8 +184,14 @@ func pipelineStructureLocked(ctx context.Context, tx pgx.Tx, id uuid.UUID) (bool
 	return locked, err
 }
 
-func renderPipeline(id uuid.UUID, c pipelineconfig.Configuration, version int64, locked bool) (drafts.Result, error) {
+func renderPipeline(id uuid.UUID, c pipelineconfig.Configuration, version int64, locked bool, applied ...*pipelineconfig.Impact) (drafts.Result, error) {
+	var impact *pipelineconfig.Impact
+	if len(applied) > 0 {
+		impact = applied[0]
+	}
 	body, err := json.Marshal(struct {
+		AppliedImpact   *pipelineconfig.Impact `json:"applied_impact,omitempty"`
+		Retired         []pipelineconfig.Stage `json:"retired"`
 		Version         string                 `json:"version"`
 		StructureLocked bool                   `json:"structure_locked"`
 		Stages          []pipelineconfig.Stage `json:"stages"`
@@ -189,7 +201,7 @@ func renderPipeline(id uuid.UUID, c pipelineconfig.Configuration, version int64,
 			NameMaxLength   int `json:"nameMaxLength"`
 		} `json:"limits"`
 	}{
-		Version: strconv.FormatInt(version, 10), StructureLocked: locked, Stages: c.Stages, Exit: c.Exit,
+		AppliedImpact: impact, Retired: c.RetiredStages(), Version: strconv.FormatInt(version, 10), StructureLocked: locked, Stages: c.Stages, Exit: c.Exit,
 		Limits: struct {
 			MaxCustomStages int `json:"maxCustomStages"`
 			NameMaxLength   int `json:"nameMaxLength"`

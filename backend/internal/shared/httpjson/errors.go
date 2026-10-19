@@ -96,6 +96,9 @@ func Resolve(code Code) Definition {
 	case CodeInternalError:
 		return Definition{code, http.StatusInternalServerError, "an internal error occurred"}
 	default:
+		if def, ok := resolveColumnError(code); ok {
+			return def
+		}
 		if def, ok := resolveFulfillmentError(code); ok {
 			return def
 		}

@@ -36,6 +36,10 @@ func (m movementContext) Load(ctx context.Context, tx pgx.Tx, company, actor, id
 		}
 	}
 	p := board.Pipeline{Required: required, Exit: board.Stage{ID: c.Exit.ID, Name: c.Exit.Name, Kind: c.Exit.Kind}}
+	p.Retired = make([]board.RetiredStage, len(c.Retired))
+	for i, r := range c.Retired {
+		p.Retired[i] = board.RetiredStage{ID: r.ID, Kind: r.Kind, Name: r.Name, Position: r.Position}
+	}
 	for _, s := range c.Stages {
 		p.Stages = append(p.Stages, board.Stage{ID: s.ID, Kind: s.Kind, Name: s.Name})
 	}

@@ -96,8 +96,6 @@ func TestMovementCrossResourceForcedInterleavings(t *testing.T) {
 				}
 				var want error
 				switch resource {
-				case "pipeline reorder":
-					want = pipelineconfig.ErrStructureLocked
 				case "republish":
 					want = publication.ErrAlreadyPublished
 				case "rejected apply":
@@ -210,14 +208,11 @@ func TestMovementCrossResourceForcedInterleavings(t *testing.T) {
 				if err = json.Unmarshal(pipeline.Body, &persisted); err != nil {
 					t.Fatal(err)
 				}
-				if resource == "pipeline reorder" {
-					c = pipelineconfig.Defaults(m.vacancy)
-				}
 				if !reflect.DeepEqual(persisted, c) {
 					t.Fatal("pipeline order/name drift", persisted, c)
 				}
 				expectedPipelineVersion := "0"
-				if resource == "pipeline rename" {
+				if resource == "pipeline rename" || resource == "pipeline reorder" {
 					expectedPipelineVersion = "1"
 				}
 				if obj["version"] != expectedPipelineVersion {

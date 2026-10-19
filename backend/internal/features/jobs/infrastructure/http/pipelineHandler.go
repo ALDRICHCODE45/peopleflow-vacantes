@@ -1,6 +1,8 @@
 package http
 
 import (
+	"errors"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"net/http"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
@@ -17,12 +19,13 @@ func NewPipelineHandler(store pipelineconfig.Store) *PipelineHandler {
 }
 
 type PipelineHandlers struct {
-	GetPipeline http.HandlerFunc
-	PutPipeline http.HandlerFunc
+	GetPipeline     http.HandlerFunc
+	PutPipeline     http.HandlerFunc
+	PreviewPipeline http.HandlerFunc
 }
 
 func (h *PipelineHandler) PipelineHandlers() PipelineHandlers {
-	return PipelineHandlers{GetPipeline: h.getPipeline, PutPipeline: h.putPipeline}
+	return PipelineHandlers{GetPipeline: h.getPipeline, PutPipeline: h.putPipeline, PreviewPipeline: h.previewPipeline}
 }
 
 func (h *PipelineHandler) getPipeline(w http.ResponseWriter, r *http.Request) {
@@ -42,6 +45,44 @@ func (h *PipelineHandler) getPipeline(w http.ResponseWriter, r *http.Request) {
 	writeDraftResult(w, http.StatusOK, result, nil)
 }
 
+func writePipelineError(w http.ResponseWriter, err error) {
+	var occupied *pipelineconfig.Occupied
+	if errors.As(err, &occupied) {
+		details := make([]httpjson.StageDetail, len(occupied.StageIDs))
+		for i, id := range occupied.StageIDs {
+			details[i] = httpjson.StageDetail{StageID: id}
+		}
+		httpjson.WriteColumnError(w, httpjson.Resolve(httpjson.CodeStageOccupied), details)
+		return
+	}
+	if errors.Is(err, pipelineconfig.ErrImpactConfirmation) {
+		httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeImpactConfirmationRequired))
+		return
+	}
+	writeDraftError(w, err)
+}
+
+func (h *PipelineHandler) previewPipeline(w http.ResponseWriter, r *http.Request) {
+	cc, ok := requireCompanyContext(w, r)
+	if !ok {
+		return
+	}
+	id, ok := draftID(w, r)
+	if !ok {
+		return
+	}
+	body, ok := readDraftBody(w, r)
+	if !ok {
+		return
+	}
+	result, err := h.store.PreviewPipeline(r.Context(), cc.CompanyID, cc.UserID, id, body)
+	if err != nil {
+		writePipelineError(w, err)
+		return
+	}
+	httpjson.WriteJSON(w, http.StatusOK, result)
+}
+
 func (h *PipelineHandler) putPipeline(w http.ResponseWriter, r *http.Request) {
 	cc, ok := requireCompanyContext(w, r)
 	if !ok {
@@ -58,7 +99,7 @@ func (h *PipelineHandler) putPipeline(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := h.store.PutPipeline(r.Context(), cc.CompanyID, cc.UserID, id, tag, present, body)
 	if err != nil {
-		writeDraftError(w, err)
+		writePipelineError(w, err)
 		return
 	}
 	writeDraftResult(w, http.StatusOK, result, nil)

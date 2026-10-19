@@ -57,7 +57,7 @@ func (s *Store) begin(ctx context.Context, company, actor, id uuid.UUID) (pgx.Tx
 }
 
 const itemSQL = `SELECT p.id,p.stage_id,p.version,u.id,u.full_name,p.created_at,p.source,l.id,l.name,
- COALESCE((SELECT max(h.created_at) FROM participation_stage_history h WHERE h.participation_id=p.id),p.created_at),
+ COALESCE((SELECT max(h.created_at) FROM participation_stage_history h WHERE h.participation_id=p.id AND h.event_kind<>'not_applicable'),p.created_at),
  p.previous_stage_id,p.reason_group,p.reason_code,p.discarded_at,p.substate_id
  FROM process_participations p JOIN users u ON u.id=p.candidate_id JOIN candidate_cv_library l ON l.version_id=p.cv_version_id `
 
@@ -113,7 +113,7 @@ func (s *Store) Board(ctx context.Context, company, actor, id uuid.UUID) (app.Bo
 		return app.Board{}, err
 	}
 	defer tx.Rollback(ctx)
-	out := app.Board{Stages: p.Stages, Exit: p.Exit, Participations: []app.Item{}}
+	out := app.Board{RetiredStages: append([]app.RetiredStage{}, p.Retired...), Stages: p.Stages, Exit: p.Exit, Participations: []app.Item{}}
 	out.Substates, err = readSubstates(ctx, tx, id)
 	if err != nil {
 		return out, err
@@ -126,6 +126,9 @@ func (s *Store) Board(ctx context.Context, company, actor, id uuid.UUID) (app.Bo
 	for rows.Next() {
 		item, _, err := readItem(rows)
 		if err != nil {
+			return out, err
+		}
+		if err := setRecoveryStage(&item, p); err != nil {
 			return out, err
 		}
 		out.Participations = append(out.Participations, item)
@@ -276,13 +279,16 @@ func (s *Store) History(ctx context.Context, company, actor, id, pid uuid.UUID) 
 	return out, rows.Err()
 }
 func (s *Store) Detail(ctx context.Context, company, actor, id, pid uuid.UUID) (app.Detail, error) {
-	tx, _, err := s.begin(ctx, company, actor, id)
+	tx, p, err := s.begin(ctx, company, actor, id)
 	if err != nil {
 		return app.Detail{}, err
 	}
 	defer tx.Rollback(ctx)
 	item, _, err := readItem(tx.QueryRow(ctx, itemSQL+`WHERE p.process_id=$1 AND p.id=$2`, id, pid))
 	if err != nil {
+		return app.Detail{}, err
+	}
+	if err := setRecoveryStage(&item, p); err != nil {
 		return app.Detail{}, err
 	}
 	var questions, answers []byte

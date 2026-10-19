@@ -43,6 +43,8 @@ func writeError(w http.ResponseWriter, err error) {
 		code = httpjson.CodeStageSkipNotAllowed
 	case errors.Is(err, app.ErrPlacementExit):
 		code = httpjson.CodePlacementExitConfirmationRequired
+	case errors.Is(err, app.ErrRecoveryStageRequired):
+		code = httpjson.CodeRecoveryStageRequired
 	case errors.Is(err, app.ErrPlacementReentry):
 		code = httpjson.CodePlacementReentryConfirmationRequired
 	case errors.Is(err, app.ErrAlreadyDiscarded):

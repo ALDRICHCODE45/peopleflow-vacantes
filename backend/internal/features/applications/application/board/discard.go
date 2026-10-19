@@ -3,6 +3,7 @@ package board
 import (
 	"encoding/json"
 	"errors"
+	"github.com/google/uuid"
 	"strings"
 	"time"
 	"unicode"
@@ -10,9 +11,10 @@ import (
 )
 
 var (
-	ErrAlreadyDiscarded = errors.New("participation already discarded")
-	ErrNotDiscarded     = errors.New("participation not discarded")
-	ErrPlacementReentry = errors.New("placement reentry confirmation required")
+	ErrRecoveryStageRequired = errors.New("recovery stage required")
+	ErrAlreadyDiscarded      = errors.New("participation already discarded")
+	ErrNotDiscarded          = errors.New("participation not discarded")
+	ErrPlacementReentry      = errors.New("placement reentry confirmation required")
 )
 
 type Reason struct {
@@ -23,6 +25,7 @@ type Discard struct {
 	Reason          Reason    `json:"reason"`
 	DiscardedAt     time.Time `json:"discarded_at"`
 	PreviousStageID string    `json:"previous_stage_id"`
+	RecoveryStageID string    `json:"recovery_stage_id"`
 }
 type DiscardRequest struct {
 	Reason               Reason
@@ -30,11 +33,73 @@ type DiscardRequest struct {
 	CandidateMessage     *string
 	ConfirmPlacementExit bool
 }
-type RecoverRequest struct{ ConfirmPlacementReentry bool }
+type RecoverRequest struct {
+	ConfirmPlacementReentry bool
+	ToStageID               *string
+}
+
+// RecoveryTarget only allows a retired-stage override at or before the default.
+func RecoveryTarget(p Pipeline, previous string, request RecoverRequest) (string, bool, error) {
+	for _, s := range p.Stages {
+		if s.ID == previous {
+			if request.ToStageID != nil {
+				return "", false, ErrValidation
+			}
+			return previous, false, nil
+		}
+	}
+	position := -1
+	for _, s := range p.Retired {
+		if s.ID == previous {
+			position = s.Position
+			break
+		}
+	}
+	if position < 1 {
+		return "", false, errors.New("unknown stored recovery stage")
+	}
+	if request.ToStageID == nil {
+		return "", false, ErrRecoveryStageRequired
+	}
+	for i, s := range p.Stages {
+		if s.ID == *request.ToStageID && i < position {
+			return s.ID, true, nil
+		}
+	}
+	return "", false, ErrValidation
+}
+
+func RecoveryDefault(p Pipeline, previous string) (string, error) {
+	for _, s := range p.Stages {
+		if s.ID == previous {
+			return previous, nil
+		}
+	}
+	for _, r := range p.Retired {
+		if r.ID == previous {
+			index := r.Position - 1
+			if index >= len(p.Stages) {
+				index = len(p.Stages) - 1
+			}
+			if index >= 0 {
+				return p.Stages[index].ID, nil
+			}
+		}
+	}
+	return "", errors.New("unknown stored recovery stage")
+}
 
 // MarshalJSON keeps intake/move keys unchanged; recovery uses that same shape.
 // Only discard events carry the retained private text and reason.
 func (e Entry) MarshalJSON() ([]byte, error) {
+	if e.Kind == "not_applicable" {
+		return json.Marshal(struct {
+			Kind    string    `json:"kind"`
+			StageID string    `json:"stage_id"`
+			Actor   Actor     `json:"actor"`
+			At      time.Time `json:"at"`
+		}{e.Kind, e.ToStageID, e.Actor, e.At})
+	}
 	if e.Kind == "substate" {
 		return json.Marshal(struct {
 			Kind     string    `json:"kind"`
@@ -162,11 +227,23 @@ func DecodeRecover(body []byte, decode JSONDecoder) (RecoverRequest, error) {
 		return RecoverRequest{}, ErrInvalidRequest
 	}
 	for k := range root {
-		if k != "confirm_placement_reentry" {
+		if k != "confirm_placement_reentry" && k != "to_stage_id" {
 			return RecoverRequest{}, ErrInvalidRequest
 		}
 	}
 	req := RecoverRequest{}
+	if value, present := root["to_stage_id"]; present {
+		target, ok := value.(string)
+		if !ok {
+			return RecoverRequest{}, ErrInvalidRequest
+		}
+		id, err := uuid.Parse(target)
+		if err != nil || id == uuid.Nil {
+			return RecoverRequest{}, ErrInvalidRequest
+		}
+		canonical := id.String()
+		req.ToStageID = &canonical
+	}
 	if flag, present := root["confirm_placement_reentry"]; present {
 		req.ConfirmPlacementReentry, ok = flag.(bool)
 		if !ok {

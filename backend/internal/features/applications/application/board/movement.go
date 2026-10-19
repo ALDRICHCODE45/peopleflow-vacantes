@@ -39,7 +39,14 @@ type Stage struct {
 	Name  string `json:"name"`
 	Count int    `json:"count"`
 }
+type RetiredStage struct {
+	ID       string `json:"id"`
+	Kind     string `json:"kind"`
+	Name     string `json:"name"`
+	Position int    `json:"-"`
+}
 type Pipeline struct {
+	Retired  []RetiredStage
 	Stages   []Stage
 	Exit     Stage
 	Required *int64
@@ -89,12 +96,13 @@ type Delivery struct {
 	Target    int64  `json:"target"`
 }
 type Board struct {
-	Delivery       Delivery   `json:"delivery"`
-	Substates      []Substate `json:"substates"`
-	Stages         []Stage    `json:"stages"`
-	Exit           Stage      `json:"exit"`
-	Coverage       Coverage   `json:"coverage"`
-	Participations []Item     `json:"participations"`
+	RetiredStages  []RetiredStage `json:"retired_stages"`
+	Delivery       Delivery       `json:"delivery"`
+	Substates      []Substate     `json:"substates"`
+	Stages         []Stage        `json:"stages"`
+	Exit           Stage          `json:"exit"`
+	Coverage       Coverage       `json:"coverage"`
+	Participations []Item         `json:"participations"`
 }
 type Move struct {
 	ToStageID            string

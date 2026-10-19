@@ -12,6 +12,7 @@ import (
 // Reads never create rows. Writes atomically persist configuration, independent
 // pipeline version and one audit event; normalized no-ops do none of those.
 type Store interface {
+	PreviewPipeline(ctx context.Context, companyID, actorID, draftID uuid.UUID, body []byte) (Preview, error)
 	GetPipeline(ctx context.Context, companyID, actorID, draftID uuid.UUID) (drafts.Result, error)
 	PutPipeline(ctx context.Context, companyID, actorID, draftID uuid.UUID, ifMatch string, present bool, body []byte) (drafts.Result, error)
 }

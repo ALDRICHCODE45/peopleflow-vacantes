@@ -40,6 +40,10 @@ func (m movementContext) Load(ctx context.Context, tx pgx.Tx, company, actor, id
 		return app.Pipeline{}, movementContextError(err)
 	}
 	out := app.Pipeline{Required: required, Stages: make([]app.Stage, len(c.Stages)), Exit: app.Stage{ID: c.Exit.ID, Kind: c.Exit.Kind, Name: c.Exit.Name}}
+	out.Retired = make([]app.RetiredStage, len(c.Retired))
+	for i, r := range c.Retired {
+		out.Retired[i] = app.RetiredStage{ID: r.ID, Kind: r.Kind, Name: r.Name, Position: r.Position}
+	}
 	for i, s := range c.Stages {
 		out.Stages[i] = app.Stage{ID: s.ID, Kind: s.Kind, Name: s.Name}
 	}

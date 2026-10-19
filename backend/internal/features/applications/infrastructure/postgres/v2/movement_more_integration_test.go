@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -226,74 +225,54 @@ func TestMovementAuthorizationDraftAndCVIsolation(t *testing.T) {
 		t.Fatal("wrong participation CV", file.Name)
 	}
 }
-func TestMovementPipelineStructureLocked(t *testing.T) {
-	m := setupMovement(t)
-	ctx := context.Background()
-	// Existing custom column predates intake, as permitted by the earlier cuts.
-	c := pipelineconfig.Defaults(m.vacancy)
-	custom := pipelineconfig.Stage{ID: uuid.NewString(), Kind: "custom", Name: "Custom"}
-	c.Stages = append(c.Stages[:4], custom, c.Stages[4])
-	encoded, _ := json.Marshal(c)
-	if _, err := m.pool.Exec(ctx, `INSERT INTO job_draft_pipeline_configs(draft_id,version,configuration) VALUES($1,1,$2)`, m.vacancy, encoded); err != nil {
-		t.Fatal(err)
-	}
-	got, err := m.drafts.GetPipeline(ctx, m.company, m.recruiter, m.vacancy)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var obj map[string]any
-	if err = json.Unmarshal(got.Body, &obj); err != nil || obj["structure_locked"] != true {
-		t.Fatal(obj, err)
-	}
-	for _, tc := range []struct {
-		name   string
-		mutate func(*pipelineconfig.Configuration)
-	}{
-		{"reorder", func(c *pipelineconfig.Configuration) { c.Stages[1], c.Stages[2] = c.Stages[2], c.Stages[1] }},
-		{"add", func(c *pipelineconfig.Configuration) {
-			last := c.Stages[len(c.Stages)-1]
-			c.Stages = append(c.Stages[:len(c.Stages)-1], pipelineconfig.Stage{Name: "Extra"}, last)
-		}},
-		{"remove", func(c *pipelineconfig.Configuration) { c.Stages = append(c.Stages[:4], c.Stages[5:]...) }},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			next := pipelineconfig.Configuration{Stages: append([]pipelineconfig.Stage{}, c.Stages...), Exit: c.Exit}
-			tc.mutate(&next)
-			before := m.snapshot(t)
-			out, err := m.drafts.PutPipeline(ctx, m.company, m.recruiter, m.vacancy, got.ETag, true, movementPipelineBody(t, next))
-			if !errors.Is(err, pipelineconfig.ErrStructureLocked) || len(out.Body) != 0 || before != m.snapshot(t) {
-				t.Fatal("structure rejection", err)
+func TestMovementPipelineStructureEditableWithCandidates(t *testing.T) {
+	for _, operation := range []string{"reorder", "add", "remove"} {
+		t.Run(operation, func(t *testing.T) {
+			m := setupMovement(t)
+			ctx := context.Background()
+			c := pipelineconfig.Defaults(m.vacancy)
+			custom := pipelineconfig.Stage{ID: uuid.NewString(), Kind: "custom", Name: "Custom"}
+			c.Stages = append(c.Stages[:4:4], custom, c.Stages[4])
+			raw, _ := json.Marshal(c)
+			if _, err := m.pool.Exec(ctx, `INSERT INTO job_draft_pipeline_configs(draft_id,version,configuration) VALUES($1,1,$2)`, m.vacancy, raw); err != nil {
+				t.Fatal(err)
 			}
-			after, err := m.drafts.GetPipeline(ctx, m.company, m.recruiter, m.vacancy)
-			if err != nil || !reflect.DeepEqual(after, got) {
-				t.Fatal("locked write changed pipeline", err)
+			switch operation {
+			case "reorder":
+				c.Stages[1], c.Stages[2] = c.Stages[2], c.Stages[1]
+			case "add":
+				c.Stages = append(c.Stages[:5:5], pipelineconfig.Stage{Name: "Extra"}, c.Stages[5])
+			case "remove":
+				c.Stages = append(c.Stages[:4:4], c.Stages[5])
+			}
+			got, err := m.drafts.PutPipeline(ctx, m.company, m.recruiter, m.vacancy, pipelineconfig.ETag(m.vacancy, 1), true, movementPipelineBody(t, c))
+			if err != nil {
+				t.Fatal(err)
+			}
+			obj := movementObject(t, got.Body)
+			if obj["structure_locked"] != true || obj["version"] != "2" {
+				t.Fatal(obj)
+			}
+			impact := movementKeys(t, obj["applied_impact"], "not_applicable", "recovery_reassigned")
+			if len(impact["not_applicable"].([]any)) != 0 || len(impact["recovery_reassigned"].([]any)) != 0 {
+				t.Fatal(impact)
+			}
+			var saved pipelineconfig.Configuration
+			if err = json.Unmarshal(got.Body, &saved); err != nil {
+				t.Fatal(err)
+			}
+			item := m.item
+			for i := 1; i < len(saved.Stages); i++ {
+				out, err := m.move(t, item, saved.Stages[i].ID, false)
+				if err != nil {
+					t.Fatal("new progression not followed", err)
+				}
+				item = out.Item
+			}
+			if operation == "remove" && (len(saved.Retired) != 1 || saved.Retired[0].ID != custom.ID || saved.Retired[0].Name != "Custom") {
+				t.Fatal(saved)
 			}
 		})
-	}
-	c.Stages[1].Name = "Filter"
-	c.Exit.Name = "Outside"
-	renamed, err := m.drafts.PutPipeline(ctx, m.company, m.recruiter, m.vacancy, got.ETag, true, movementPipelineBody(t, c))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err = json.Unmarshal(renamed.Body, &obj); err != nil || obj["structure_locked"] != true {
-		t.Fatal(obj, err)
-	}
-	// A custom stage really participates in next-stage validation after reordering.
-	item := m.item
-	for i := 1; i < 4; i++ {
-		out, err := m.move(t, item, c.Stages[i].ID, false)
-		if err != nil {
-			t.Fatal(err)
-		}
-		item = out.Item
-	}
-	before := m.snapshot(t)
-	if _, err = m.move(t, item, c.Stages[5].ID, false); !errors.Is(err, board.ErrStageSkip) || before != m.snapshot(t) {
-		t.Fatal("custom stage skipped", err)
-	}
-	if _, err = m.move(t, item, custom.ID, false); err != nil {
-		t.Fatal(err)
 	}
 }
 func TestMovementEmptyPipelineStructureRemainsEditable(t *testing.T) {
