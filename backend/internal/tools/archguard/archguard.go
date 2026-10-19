@@ -41,6 +41,10 @@ var DocumentedExceptions = []string{
 	// Audit co-write types (companies + applications write audit rows).
 	"internal/features/audit_events/domain/entities",
 	"internal/features/audit_events/domain/repositories",
+	// G2 reuses the shared geo value contract and G1 consistency validator.
+	// No sibling infrastructure imports are allowed.
+	"internal/features/geo/domain",
+	"internal/features/geo/application",
 	// Cross-feature domain ports (identity actor/roles, companies entities).
 	"internal/features/identity/domain/entities",
 	"internal/features/identity/domain/repositories",

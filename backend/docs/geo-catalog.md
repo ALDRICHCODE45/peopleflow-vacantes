@@ -3,6 +3,9 @@
 Anonymous reference lookups for the shared LocationField. Countries are worldwide;
 subdivision detail and postal resolution are Mexico-only. G1 adds no location write
 routes and does not change existing vacancy, company, or candidate fields.
+G2 now wires the validator and expands vacancy reads; see
+[Vacancy geography](geo-vacancy.md) for the draft/public contract, migration 00031,
+readiness rules and verification map.
 
 ## Routes
 

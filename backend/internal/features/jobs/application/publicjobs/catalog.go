@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftfields"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancygeo"
 	"github.com/google/uuid"
 )
 
@@ -34,28 +35,30 @@ type LegacySalary struct {
 	Currency string  `json:"currency"`
 }
 type Item struct {
-	ID                   uuid.UUID     `json:"id"`
-	Source               string        `json:"source"`
-	Title                string        `json:"title"`
-	Company              Company       `json:"company"`
-	Location             *string       `json:"location"`
-	WorkMode             string        `json:"work_mode"`
-	WorkSchedule         *string       `json:"work_schedule"`
-	ContractType         *string       `json:"contract_type"`
-	ProfessionalArea     *string       `json:"professional_area"`
-	Seniority            *string       `json:"seniority"`
-	LegacyEmploymentType *string       `json:"legacy_employment_type"`
-	Compensation         *Compensation `json:"compensation"`
-	LegacySalary         *LegacySalary `json:"legacy_salary"`
-	PublishedAt          time.Time     `json:"published_at"`
-	Excerpt              *string       `json:"excerpt"`
-	ExcerptTruncated     bool          `json:"excerpt_truncated"`
-	BenefitsPreview      Benefits      `json:"benefits_preview"`
-	BenefitsTotal        int           `json:"benefits_total"`
-	SkillsPreview        []string      `json:"skills_preview"`
-	SkillsTotal          int           `json:"skills_total"`
-	Applicants           *string       `json:"applicants"`
-	ScreeningQuestions   *int          `json:"screening_questions"`
+	ID                   uuid.UUID                   `json:"id"`
+	Source               string                      `json:"source"`
+	Title                string                      `json:"title"`
+	Company              Company                     `json:"company"`
+	Location             *vacancygeo.ReadLocation    `json:"location"`
+	LocationLabel        *string                     `json:"location_label"`
+	RemoteScope          *vacancygeo.ReadRemoteScope `json:"remote_scope"`
+	WorkMode             string                      `json:"work_mode"`
+	WorkSchedule         *string                     `json:"work_schedule"`
+	ContractType         *string                     `json:"contract_type"`
+	ProfessionalArea     *string                     `json:"professional_area"`
+	Seniority            *string                     `json:"seniority"`
+	LegacyEmploymentType *string                     `json:"legacy_employment_type"`
+	Compensation         *Compensation               `json:"compensation"`
+	LegacySalary         *LegacySalary               `json:"legacy_salary"`
+	PublishedAt          time.Time                   `json:"published_at"`
+	Excerpt              *string                     `json:"excerpt"`
+	ExcerptTruncated     bool                        `json:"excerpt_truncated"`
+	BenefitsPreview      Benefits                    `json:"benefits_preview"`
+	BenefitsTotal        int                         `json:"benefits_total"`
+	SkillsPreview        []string                    `json:"skills_preview"`
+	SkillsTotal          int                         `json:"skills_total"`
+	Applicants           *string                     `json:"applicants"`
+	ScreeningQuestions   *int                        `json:"screening_questions"`
 }
 type Detail struct {
 	Item

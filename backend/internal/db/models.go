@@ -337,7 +337,6 @@ type VacancyPublicProjection struct {
 	Title                 string             `json:"title"`
 	Description           []byte             `json:"description"`
 	DescriptionPlain      string             `json:"description_plain"`
-	Location              string             `json:"location"`
 	WorkMode              string             `json:"work_mode"`
 	WorkSchedule          string             `json:"work_schedule"`
 	ContractType          string             `json:"contract_type"`
@@ -352,4 +351,10 @@ type VacancyPublicProjection struct {
 	SearchVector          interface{}        `json:"search_vector"`
 	Skills                []string           `json:"skills"`
 	ScreeningQuestions    int32              `json:"screening_questions"`
+	CountryCode           pgtype.Text        `json:"country_code"`
+	StateCode             pgtype.Text        `json:"state_code"`
+	MunicipalityCode      pgtype.Text        `json:"municipality_code"`
+	PostalCode            pgtype.Text        `json:"postal_code"`
+	RemoteScopeKind       pgtype.Text        `json:"remote_scope_kind"`
+	RemoteCountries       []string           `json:"remote_countries"`
 }

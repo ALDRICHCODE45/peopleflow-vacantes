@@ -21,7 +21,7 @@ import (
 // projection of an empty v1/v2 create (every omitted group defaulted), and the
 // two roots differ only by the schema marker.
 const (
-	emptyCreateFieldsCanonical = `"fields":{"benefits":[],"compensation":{"amount":null,"basis":null,"currency":"MXN","max":null,"min":null,"mode":null,"pay_period":"monthly","public_visible":false},"contract_type":null,"custom_benefits":[],"description":null,"languages":[],"location":null,"preferred_requirements":null,"professional_area":null,"requester":null,"required_requirements":null,"screening_questions":[],"seniority":null,"skills":[],"title":null,"work_mode":null,"work_schedule":null}`
+	emptyCreateFieldsCanonical = `"fields":{"benefits":[],"compensation":{"amount":null,"basis":null,"currency":"MXN","max":null,"min":null,"mode":null,"pay_period":"monthly","public_visible":false},"contract_type":null,"custom_benefits":[],"description":null,"languages":[],"location":null,"preferred_requirements":null,"professional_area":null,"remote_scope":null,"requester":null,"required_requirements":null,"screening_questions":[],"seniority":null,"skills":[],"title":null,"work_mode":null,"work_schedule":null}`
 
 	v1CreateGolden = `{` + emptyCreateFieldsCanonical + `,"schema_version":1}`
 	v2CreateGolden = `{` + emptyCreateFieldsCanonical + `,"schema_version":2}`
@@ -53,7 +53,7 @@ const createV2ThreeVariants = `[` +
 // createV2AllBody populates all 17 groups with the three screening variants.
 const createV2AllBody = `{"fields":{` +
 	`"title":"Backend Go",` +
-	`"location":"CDMX",` +
+	`"location":{"country":"MX"},` +
 	`"work_mode":"remote",` +
 	`"work_schedule":"full_time",` +
 	`"contract_type":"indefinite",` +
@@ -112,7 +112,7 @@ func TestDecodeCreateV2_CompleteDefaults(t *testing.T) {
 
 	for _, key := range writableKeys {
 		switch key {
-		case "requester", "skills", "languages", "benefits", "custom_benefits", "screening_questions", "compensation", "description":
+		case "location", "remote_scope", "requester", "skills", "languages", "benefits", "custom_benefits", "screening_questions", "compensation", "description":
 			continue
 		}
 		requireNull(t, key, scalarOptionalFor(create.Fields, key))
@@ -208,7 +208,8 @@ func expectedCreateV2AllDocument() map[string]any {
 		"schema_version": int64(2),
 		"fields": map[string]any{
 			"title":                  "Backend Go",
-			"location":               "CDMX",
+			"location":               map[string]any{"country": "MX"},
+			"remote_scope":           nil,
 			"work_mode":              "remote",
 			"work_schedule":          "full_time",
 			"contract_type":          "indefinite",

@@ -15,7 +15,7 @@ Every query key is optional and may appear at most once:
 | Key | Accepted value |
 | --- | --- |
 | `q` | Spanish full-text over title (weight A) and plain description (B) |
-| `location` | Case-insensitive literal substring, not SQL wildcards |
+| `location` | Case-insensitive literal substring of `location_label` (structured label or legacy free text), not SQL wildcards; retained until G5 |
 | `work_mode` | `onsite`, `remote`, `hybrid` |
 | `work_schedule` | `full_time`, `part_time` |
 | `contract_type` | `project`, `indefinite`, `professional_services`, `temporary`, `internship` |
@@ -41,7 +41,7 @@ legacy jobs also require `deleted_at IS NULL`.
 
 ## Exact shared item
 
-List items contain exactly these 22 keys. Detail includes them unchanged:
+List items contain exactly these 24 keys. Detail includes them unchanged:
 
 ```json
 {
@@ -49,7 +49,9 @@ List items contain exactly these 22 keys. Detail includes them unchanged:
   "source": "vacancy",
   "title": "Backend Go",
   "company": {"id": "0192a000-0000-7000-8000-000000000004", "name": "Acme", "logo_url": "https://example.test/logo.png"},
-  "location": "Ciudad de México",
+  "location": {"country":{"id":"MX","name":"México"},"state":{"id":"09","name":"Ciudad de México"},"municipality":{"id":"09002","name":"Azcapotzalco"},"postal_code":null,"label":"Azcapotzalco, Ciudad de México"},
+  "location_label": "Azcapotzalco, Ciudad de México",
+  "remote_scope": null,
   "work_mode": "hybrid",
   "work_schedule": "full_time",
   "contract_type": "indefinite",
@@ -74,7 +76,13 @@ List items contain exactly these 22 keys. Detail includes them unchanged:
 - `company`: exactly `{id,name,logo_url}`. Logo is an absolute `https:` URL
   with a host and no credentials, otherwise null (including relative, `http:`,
   `data:` and malformed values). Both sources use the current company value;
-  sanitization never rewrites company data. Location is nullable for legacy.
+  sanitization never rewrites company data.
+- `location`: expanded catalog object or null; references are `{id,name}`, never
+  writable display names. `location_label`: municipality + state, state, or country
+  name; legacy free text is retained here while legacy `location` is null.
+- `remote_scope`: null unless a remote vacancy; `{kind:"anywhere"}` or
+  `{kind:"countries",countries:[{id,name}]}` in submitted order. Legacy is null.
+  See [geo-vacancy.md](geo-vacancy.md) for G2's exact contract and migration.
 - `seniority`: `intern | junior | mid | senior | lead`, never null for legacy;
   nullable for vacancies (optional at publication).
 - Legacy: `work_schedule`, `contract_type`, `professional_area`, `compensation`
@@ -123,7 +131,7 @@ state, discard reason or answer is serialized.
 
 ## Detail
 
-`GET /v2/jobs/{id}` → `200` with the shared shape plus exactly five keys (27 total):
+`GET /v2/jobs/{id}` → `200` with the shared shape plus exactly five keys (29 total):
 
 | Key | Vacancy | Legacy |
 | --- | --- | --- |
@@ -177,6 +185,12 @@ Only `commitment_date_past` is exempt: clock passage does not undo publication.
 Changing complete values remains allowed; other preconditions/validation stay
 in their existing order. Pipeline/substate editability remains unchanged.
 
+Migration `00031_vacancy_geography.sql` replaces projection free text with catalog
+FKs/postal code and remote scope columns/indexes. Existing published test rows
+remain visible with null geography; edits must satisfy mode-dependent readiness.
+Draft string locations are cleared, remote scope defaults to null, and draft
+versions advance. See [G2 migration and test map](geo-vacancy.md).
+
 ## Test-to-contract map
 
 Paths below are relative to `backend/`.
@@ -185,7 +199,7 @@ Paths below are relative to `backend/`.
 | --- | --- |
 | `application/publicjobs/projection_test.go` | §10.2 VAC-4 allowlist; shared plain derivation; §10.3 fixed/range/hidden/incomplete compensation and canonical decimals; rejects invalid persisted source |
 | `application/publication/published_write_test.go` | §10.2 stable missing-code order, only past-date exemption, input unchanged |
-| `application/publicjobs/catalog_test.go` | §10.3 strict params/default/boundaries; last-visible cursor across sources, exact rank/time, filter binding, limit+1; exact 22/27-key shape and nulls |
+| `application/publicjobs/catalog_test.go` | §10.3 strict params/default/boundaries; last-visible cursor across sources, exact rank/time, filter binding, limit+1; exact 24/29-key shape and nulls |
 | `infrastructure/http/publicJobsHandler_test.go` | §10.3 anonymous 200/400/404/500; exact envelopes; no ETag/no-store; invalid params do not reach reader; no raw internal error |
 | `cmd/api/public_jobs_routes_test.go` | §10.3 real-router anonymous routes, strict error and public headers |
 | `cmd/api/published_write_routes_test.go` | §10.2 existing 422 list envelope reused on all three writes, wrapped error, no success ETag, private no-store retained |

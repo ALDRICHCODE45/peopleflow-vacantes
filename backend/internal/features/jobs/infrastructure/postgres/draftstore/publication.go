@@ -12,6 +12,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftversion"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publication"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancygeo"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancymanagement"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -254,12 +255,23 @@ func publicationRequirements(ctx context.Context, tx pgx.Tx, record draftRecord,
 	}
 	str := func(key string) string { v, _ := fields[key].(string); return v }
 	offer := publication.Offer{
-		Title:            str("title"),
-		Location:         str("location"),
+		Title: str("title"),
+
 		WorkMode:         str("work_mode"),
 		WorkSchedule:     str("work_schedule"),
 		ContractType:     str("contract_type"),
 		ProfessionalArea: str("professional_area"),
+	}
+	offer.Location, err = vacancygeo.ParseLocation(fields["location"])
+	if err != nil {
+		return nil, snapshot, err
+	}
+	offer.RemoteScope, err = vacancygeo.ParseRemoteScope(fields["remote_scope"])
+	if err != nil {
+		return nil, snapshot, err
+	}
+	if err := validateGeography(ctx, tx, record.fields); err != nil {
+		return nil, snapshot, err
 	}
 	offer.DescriptionPlain, _ = plain.(string)
 	_, requesterID, _, err := requesterRef(record.fields)

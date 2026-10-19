@@ -8,6 +8,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftinput"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftrich"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancygeo"
 )
 
 type Compensation struct {
@@ -31,20 +32,21 @@ type Benefits struct {
 // Projection is an allowlist, never a copy of the private fields object.
 // Identity, publication time and source version are supplied by the transaction.
 type Projection struct {
-	Title              string          `json:"title"`
-	Description        json.RawMessage `json:"description"`
-	DescriptionPlain   string          `json:"description_plain"`
-	Location           *string         `json:"location"`
-	WorkMode           *string         `json:"work_mode"`
-	WorkSchedule       *string         `json:"work_schedule"`
-	ContractType       *string         `json:"contract_type"`
-	ProfessionalArea   *string         `json:"professional_area"`
-	Seniority          *string         `json:"seniority"`
-	Requirements       Requirements    `json:"requirements"`
-	Benefits           Benefits        `json:"benefits"`
-	Compensation       *Compensation   `json:"compensation"`
-	Skills             []string        `json:"skills"`
-	ScreeningQuestions int             `json:"screening_questions"`
+	Title              string                  `json:"title"`
+	Description        json.RawMessage         `json:"description"`
+	DescriptionPlain   string                  `json:"description_plain"`
+	Location           *vacancygeo.Location    `json:"location"`
+	RemoteScope        *vacancygeo.RemoteScope `json:"remote_scope"`
+	WorkMode           *string                 `json:"work_mode"`
+	WorkSchedule       *string                 `json:"work_schedule"`
+	ContractType       *string                 `json:"contract_type"`
+	ProfessionalArea   *string                 `json:"professional_area"`
+	Seniority          *string                 `json:"seniority"`
+	Requirements       Requirements            `json:"requirements"`
+	Benefits           Benefits                `json:"benefits"`
+	Compensation       *Compensation           `json:"compensation"`
+	Skills             []string                `json:"skills"`
+	ScreeningQuestions int                     `json:"screening_questions"`
 }
 
 // BuildProjection accepts only a validated complete persisted v2 document.
@@ -60,7 +62,7 @@ func BuildProjection(stored []byte) (Projection, error) {
 	}
 	fields := value.(map[string]any)["fields"].(map[string]any)
 	public := map[string]any{}
-	for _, key := range []string{"title", "description", "location", "work_mode", "work_schedule", "contract_type", "professional_area", "seniority", "compensation", "skills"} {
+	for _, key := range []string{"title", "description", "location", "remote_scope", "work_mode", "work_schedule", "contract_type", "professional_area", "seniority", "compensation", "skills"} {
 		public[key] = fields[key]
 	}
 	rawPublic, err := json.Marshal(public)
@@ -70,6 +72,9 @@ func BuildProjection(stored []byte) (Projection, error) {
 	var out Projection
 	if err := json.Unmarshal(rawPublic, &out); err != nil {
 		return Projection{}, err
+	}
+	if out.WorkMode == nil || *out.WorkMode != "remote" {
+		out.RemoteScope = nil
 	}
 	raw, err := json.Marshal(fields)
 	if err != nil {

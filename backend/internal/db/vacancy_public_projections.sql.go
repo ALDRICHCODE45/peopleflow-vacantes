@@ -14,21 +14,23 @@ import (
 
 const upsertVacancyPublicProjection = `-- name: UpsertVacancyPublicProjection :exec
 INSERT INTO vacancy_public_projections (
- id,company_id,title,description,description_plain,location,work_mode,work_schedule,
+ id,company_id,title,description,description_plain,country_code,state_code,municipality_code,postal_code,remote_scope_kind,remote_countries,work_mode,work_schedule,
  contract_type,professional_area,seniority,required_requirements,preferred_requirements,
  benefits,compensation,published_at,source_draft_version,skills,screening_questions
 ) VALUES (
  $1::uuid,$2::uuid,$3::text,
  $4::jsonb,$5::text,
- $6::text,$7::text,$8::text,
- $9::text,$10::text,
- $11::text,$12::text,
- $13::text,$14::jsonb,
- $15::jsonb,$16::timestamptz,
- $17::bigint,$18::text[],$19::int
+ $6::char(2),$7::char(2),$8::char(5),
+ $9::char(5),$10::text,$11::char(2)[],$12::text,$13::text,
+ $14::text,$15::text,
+ $16::text,$17::text,
+ $18::text,$19::jsonb,
+ $20::jsonb,$21::timestamptz,
+ $22::bigint,$23::text[],$24::int
 ) ON CONFLICT (id) DO UPDATE SET
  title=EXCLUDED.title,description=EXCLUDED.description,description_plain=EXCLUDED.description_plain,
- location=EXCLUDED.location,work_mode=EXCLUDED.work_mode,work_schedule=EXCLUDED.work_schedule,
+ country_code=EXCLUDED.country_code,state_code=EXCLUDED.state_code,municipality_code=EXCLUDED.municipality_code,
+ postal_code=EXCLUDED.postal_code,remote_scope_kind=EXCLUDED.remote_scope_kind,remote_countries=EXCLUDED.remote_countries,work_mode=EXCLUDED.work_mode,work_schedule=EXCLUDED.work_schedule,
  contract_type=EXCLUDED.contract_type,professional_area=EXCLUDED.professional_area,
  seniority=EXCLUDED.seniority,required_requirements=EXCLUDED.required_requirements,
  preferred_requirements=EXCLUDED.preferred_requirements,benefits=EXCLUDED.benefits,
@@ -42,7 +44,12 @@ type UpsertVacancyPublicProjectionParams struct {
 	Title                 string             `json:"title"`
 	Description           []byte             `json:"description"`
 	DescriptionPlain      string             `json:"description_plain"`
-	Location              string             `json:"location"`
+	CountryCode           pgtype.Text        `json:"country_code"`
+	StateCode             pgtype.Text        `json:"state_code"`
+	MunicipalityCode      pgtype.Text        `json:"municipality_code"`
+	PostalCode            pgtype.Text        `json:"postal_code"`
+	RemoteScopeKind       pgtype.Text        `json:"remote_scope_kind"`
+	RemoteCountries       []string           `json:"remote_countries"`
 	WorkMode              string             `json:"work_mode"`
 	WorkSchedule          string             `json:"work_schedule"`
 	ContractType          string             `json:"contract_type"`
@@ -65,7 +72,12 @@ func (q *Queries) UpsertVacancyPublicProjection(ctx context.Context, arg UpsertV
 		arg.Title,
 		arg.Description,
 		arg.DescriptionPlain,
-		arg.Location,
+		arg.CountryCode,
+		arg.StateCode,
+		arg.MunicipalityCode,
+		arg.PostalCode,
+		arg.RemoteScopeKind,
+		arg.RemoteCountries,
 		arg.WorkMode,
 		arg.WorkSchedule,
 		arg.ContractType,

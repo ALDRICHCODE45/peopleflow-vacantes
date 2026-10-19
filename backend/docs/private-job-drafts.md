@@ -60,6 +60,19 @@ The body is always exactly `{ "fields": { ... } }`.
 - Unknown or read-only keys, duplicate JSON keys and invalid UTF-8 are
   `400 invalid_request`. Field-value violations are `400 validation_error`.
 
+## Structured geography (G2)
+
+Both draft codecs now use a nullable structured `location` and nullable
+`remote_scope`; the current editor uses `/v2/me/company/job-drafts` with r2 ETags.
+See [geo-vacancy.md](geo-vacancy.md) for exact write/read shapes, validation,
+publication rules and migration 00031. Both fields default to null and retain the
+same whole-field replacement/no-op/CAS semantics. Locations are code-only in
+storage and expanded to `{id,name}` plus a label on reads. Remote country arrays
+retain submitted order. New `422 invalid_location` and `422 invalid_remote_scope`
+errors carry `details:[{field,reason}]`; location paths start `fields.location.`.
+Unknown nested keys remain `400 invalid_request`. These additive 422 envelopes
+are exceptions to the baseline two-key error envelope below.
+
 ## Request-body budget
 
 The request body limit is **1048576 bytes**, enforced **while reading**, before

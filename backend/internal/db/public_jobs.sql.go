@@ -14,13 +14,13 @@ import (
 
 const searchPublicJobs = `-- name: SearchPublicJobs :many
 WITH catalog AS (
- SELECT j.id, 'legacy'::text AS source, j.published_at, j.location,
+ SELECT j.id, 'legacy'::text AS source, j.published_at, j.location AS location_label,
         j.work_mode, NULL::text AS work_schedule, NULL::text AS contract_type,
         NULL::text AS professional_area, j.search_vector,
         jsonb_build_object(
           'id',j.id,'source','legacy','title',j.title,
           'company',jsonb_build_object('id',c.id,'name',c.name,'logo_url',c.logo_url),
-          'location',j.location,'work_mode',j.work_mode,
+          'location',NULL,'location_label',j.location,'remote_scope',NULL,'work_mode',j.work_mode,
           'work_schedule',NULL,'contract_type',NULL,'professional_area',NULL,
           'seniority',j.seniority,'legacy_employment_type',j.employment_type,
           'compensation',NULL,
@@ -38,12 +38,24 @@ WITH catalog AS (
  WHERE j.status='published' AND j.deleted_at IS NULL AND j.published_at IS NOT NULL
    AND c.status='active' AND c.deleted_at IS NULL
  UNION ALL
- SELECT p.id, 'vacancy'::text AS source, p.published_at, p.location,
+ SELECT p.id, 'vacancy'::text AS source, p.published_at, COALESCE(gm.name || ', ' || gs.name, gs.name, gc.name_es) AS location_label,
         p.work_mode,p.work_schedule,p.contract_type,p.professional_area,p.search_vector,
         jsonb_build_object(
           'id',p.id,'source','vacancy','title',p.title,
           'company',jsonb_build_object('id',c.id,'name',c.name,'logo_url',c.logo_url),
-          'location',p.location,'work_mode',p.work_mode,
+          'location',CASE WHEN gc.code IS NULL THEN NULL ELSE jsonb_build_object(
+            'country',jsonb_build_object('id',gc.code,'name',gc.name_es),
+            'state',CASE WHEN gs.code IS NULL THEN NULL ELSE jsonb_build_object('id',gs.code,'name',gs.name) END,
+            'municipality',CASE WHEN gm.code IS NULL THEN NULL ELSE jsonb_build_object('id',gm.code,'name',gm.name) END,
+            'postal_code',p.postal_code,'label',COALESCE(gm.name || ', ' || gs.name,gs.name,gc.name_es)) END,
+          'location_label',COALESCE(gm.name || ', ' || gs.name,gs.name,gc.name_es),
+          'remote_scope',CASE WHEN p.work_mode<>'remote' OR p.remote_scope_kind IS NULL THEN NULL
+            WHEN p.remote_scope_kind='anywhere' THEN jsonb_build_object('kind','anywhere')
+            ELSE jsonb_build_object('kind','countries','countries',
+              (SELECT COALESCE(jsonb_agg(jsonb_build_object('id',rc.code,'name',rc.name_es) ORDER BY selected.ordinality),'[]'::jsonb)
+               FROM unnest(p.remote_countries) WITH ORDINALITY selected(country,ordinality)
+               JOIN geo_countries rc ON rc.code=selected.country)) END,
+          'work_mode',p.work_mode,
           'work_schedule',p.work_schedule,'contract_type',p.contract_type,
           'professional_area',p.professional_area,'seniority',p.seniority,
           'legacy_employment_type',NULL,'compensation',p.compensation,'legacy_salary',NULL,
@@ -58,14 +70,17 @@ WITH catalog AS (
                         FROM process_participations participation WHERE participation.process_id=p.id)
         ) AS body
  FROM vacancy_public_projections p
+ LEFT JOIN geo_countries gc ON gc.code=p.country_code
+ LEFT JOIN geo_states gs ON gs.country_code=p.country_code AND gs.code=p.state_code
+ LEFT JOIN geo_municipalities gm ON gm.country_code=p.country_code AND gm.code=p.municipality_code
  JOIN vacancy_processes v ON v.id=p.id AND v.company_id=p.company_id
  JOIN companies c ON c.id=p.company_id
  WHERE v.status='published' AND c.status='active' AND c.deleted_at IS NULL
 ), ranked AS (
- SELECT catalog.id, catalog.source, catalog.published_at, catalog.location, catalog.work_mode, catalog.work_schedule, catalog.contract_type, catalog.professional_area, catalog.search_vector, catalog.body, ts_rank(search_vector,websearch_to_tsquery('spanish',$6::text))::float8 AS search_rank
+ SELECT catalog.id, catalog.source, catalog.published_at, catalog.location_label, catalog.work_mode, catalog.work_schedule, catalog.contract_type, catalog.professional_area, catalog.search_vector, catalog.body, ts_rank(search_vector,websearch_to_tsquery('spanish',$6::text))::float8 AS search_rank
  FROM catalog
  WHERE ($6::text='' OR search_vector @@ websearch_to_tsquery('spanish',$6::text))
-   AND ($7::text='' OR strpos(lower(location),lower($7::text))>0)
+   AND ($7::text='' OR strpos(lower(location_label),lower($7::text))>0)
    AND ($8::text='' OR work_mode=$8::text)
    AND ($9::text='' OR work_schedule=$9::text)
    AND ($10::text='' OR contract_type=$10::text)

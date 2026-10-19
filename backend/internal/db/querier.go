@@ -466,6 +466,8 @@ type Querier interface {
 	// UPDATE SET list, so a preexisting reserved value survives every upsert.
 	UpsertCandidateProfile(ctx context.Context, arg UpsertCandidateProfileParams) (CandidateProfile, error)
 	UpsertVacancyPublicProjection(ctx context.Context, arg UpsertVacancyPublicProjectionParams) error
+	VacancyLocationRead(ctx context.Context, arg VacancyLocationReadParams) ([]byte, error)
+	VacancyRemoteCountriesRead(ctx context.Context, countries []string) ([]byte, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -21,6 +21,7 @@ import (
 var writableKeys = []string{
 	"title",
 	"location",
+	"remote_scope",
 	"work_mode",
 	"work_schedule",
 	"contract_type",
@@ -76,6 +77,10 @@ func presentKeys(f Fields) []string {
 // groupPresent reports the Set flag for the non-scalar fields.
 func groupPresent(f Fields, key string) bool {
 	switch key {
+	case "location":
+		return f.Location.Set
+	case "remote_scope":
+		return f.RemoteScope.Set
 	case "requester":
 		return f.Requester.Set
 	case "skills":
@@ -102,8 +107,6 @@ func scalarOptionalFor(f Fields, key string) shared.Optional[string] {
 	switch key {
 	case "title":
 		return f.Title
-	case "location":
-		return f.Location
 	case "work_mode":
 		return f.WorkMode
 	case "work_schedule":
@@ -123,9 +126,9 @@ func scalarOptionalFor(f Fields, key string) shared.Optional[string] {
 	}
 }
 
-func requireNull(t *testing.T, name string, opt shared.Optional[string]) {
+func requireNull[T any](t *testing.T, name string, opt shared.Optional[T]) {
 	t.Helper()
-	if opt != (shared.Optional[string]{Set: true}) {
+	if !opt.Set || opt.Valid {
 		t.Errorf("%s = %+v, want present null", name, opt)
 	}
 }
@@ -152,7 +155,7 @@ func TestDecodeCreate_EmptyFieldsAppliesFullDefaults(t *testing.T) {
 
 	for _, key := range writableKeys {
 		switch key {
-		case "requester", "skills", "languages", "benefits", "custom_benefits", "screening_questions", "compensation", "description":
+		case "location", "remote_scope", "requester", "skills", "languages", "benefits", "custom_benefits", "screening_questions", "compensation", "description":
 			continue
 		}
 		requireNull(t, key, scalarOptionalFor(create.Fields, key))
@@ -225,7 +228,7 @@ func TestDecodeCreate_PartialFields(t *testing.T) {
 func TestDecodeCreate_AllFieldGroups(t *testing.T) {
 	body := `{"fields":{
 		"title":"Backend Go",
-		"location":"CDMX",
+		"location":{"country":"MX","state":"09","municipality":"09002"},
 		"work_mode":"remote",
 		"work_schedule":"full_time",
 		"contract_type":"indefinite",
@@ -248,7 +251,9 @@ func TestDecodeCreate_AllFieldGroups(t *testing.T) {
 	create := mustCreate(t, body)
 
 	requireString(t, "title", create.Title, "Backend Go")
-	requireString(t, "location", create.Location, "CDMX")
+	if create.Location.Value == nil || create.Location.Value.Municipality != "09002" {
+		t.Fatalf("location: %+v", create.Location)
+	}
 	requireString(t, "work_mode", create.WorkMode, "remote")
 	requireString(t, "work_schedule", create.WorkSchedule, "full_time")
 	requireString(t, "contract_type", create.ContractType, "indefinite")
@@ -658,8 +663,8 @@ func TestCreateFingerprint_DeterministicAndSelfDescribing(t *testing.T) {
 		t.Errorf("defaulted vs explicit compensation fingerprints differ:\n%s\n%s", defaulted, explicit)
 	}
 
-	ordered := mustCreate(t, `{"fields":{"title":"Ingeniero","location":"CDMX"}}`).Fingerprint()
-	reordered := mustCreate(t, `{"fields":{"location":"CDMX","title":"Ingeniero"}}`).Fingerprint()
+	ordered := mustCreate(t, `{"fields":{"title":"Ingeniero","location":{"country":"MX"}}}`).Fingerprint()
+	reordered := mustCreate(t, `{"fields":{"location":{"country":"MX"},"title":"Ingeniero"}}`).Fingerprint()
 	if !bytes.Equal(ordered, reordered) {
 		t.Errorf("property order changed the fingerprint:\n%s\n%s", ordered, reordered)
 	}

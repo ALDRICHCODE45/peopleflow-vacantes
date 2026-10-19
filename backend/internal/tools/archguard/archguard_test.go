@@ -90,6 +90,8 @@ func TestGuard_DocumentedExceptionsPass(t *testing.T) {
 		want := []string{
 			"internal/features/audit_events/domain/entities",
 			"internal/features/audit_events/domain/repositories",
+			"internal/features/geo/domain",
+			"internal/features/geo/application",
 			"internal/features/identity/domain/entities",
 			"internal/features/identity/domain/repositories",
 			"internal/features/identity/domain/security",

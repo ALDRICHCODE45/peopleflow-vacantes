@@ -140,6 +140,31 @@ func TestBuildProjectionSkillsAndScreeningCount(t *testing.T) {
 	}
 }
 
+func TestBuildProjectionGeographyCodesAndModeSuppression(t *testing.T) {
+	for _, mode := range []string{"remote", "onsite", "hybrid"} {
+		t.Run(mode, func(t *testing.T) {
+			draft, err := draftinput.DecodeCreateV2([]byte(`{"fields":{"work_mode":"` + mode + `","location":{"country":"MX","state":"14","municipality":"14039","postal_code":"44100"},"remote_scope":{"kind":"countries","countries":["CO","MX"]}}}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := BuildProjection(draft.Fingerprint())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Location == nil || got.Location.Municipality != "14039" || got.Location.PostalCode != "44100" {
+				t.Fatalf("%+v", got)
+			}
+			if mode == "remote" {
+				if got.RemoteScope == nil || !reflect.DeepEqual(got.RemoteScope.Countries, []string{"CO", "MX"}) {
+					t.Fatal(got.RemoteScope)
+				}
+			} else if got.RemoteScope != nil {
+				t.Fatal("non-remote projection leaked scope")
+			}
+		})
+	}
+}
+
 func TestBuildProjectionRejectsInvalidPersistedDocument(t *testing.T) {
 	if _, err := BuildProjection([]byte(`{"schema_version":2,"fields":{}}`)); err == nil {
 		t.Fatal("invalid persisted document accepted")

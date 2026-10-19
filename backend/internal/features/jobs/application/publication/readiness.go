@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/deliveryconfig"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancygeo"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancymanagement"
 )
 
@@ -14,7 +15,8 @@ import (
 type Offer struct {
 	Title            string
 	DescriptionPlain string
-	Location         string
+	Location         *vacancygeo.Location
+	RemoteScope      *vacancygeo.RemoteScope
 	WorkMode         string
 	WorkSchedule     string
 	ContractType     string
@@ -28,7 +30,7 @@ func Evaluate(offer Offer, management vacancymanagement.Configuration, delivery 
 	for _, field := range []struct{ code, value string }{
 		{"title_missing", offer.Title},
 		{"description_missing", offer.DescriptionPlain},
-		{"location_missing", offer.Location},
+
 		{"work_mode_missing", offer.WorkMode},
 		{"work_schedule_missing", offer.WorkSchedule},
 		{"contract_type_missing", offer.ContractType},
@@ -38,6 +40,26 @@ func Evaluate(offer Offer, management vacancymanagement.Configuration, delivery 
 		if strings.TrimSpace(field.value) == "" {
 			missing = append(missing, field.code)
 		}
+	}
+	// Insert geography after description, retaining the established readiness order.
+	var geography string
+	if offer.WorkMode == "remote" {
+		if offer.RemoteScope == nil {
+			geography = "remote_scope_missing"
+		}
+	} else if offer.WorkMode == "onsite" || offer.WorkMode == "hybrid" {
+		if offer.Location == nil || offer.Location.Country == "" {
+			geography = "location_missing"
+		} else if offer.Location.Country == "MX" && (offer.Location.State == "" || offer.Location.Municipality == "") {
+			geography = "location_incomplete"
+		}
+	}
+	if geography != "" {
+		position := 0
+		for position < len(missing) && (missing[position] == "title_missing" || missing[position] == "description_missing") {
+			position++
+		}
+		missing = append(missing[:position], append([]string{geography}, missing[position:]...)...)
 	}
 	if management.RequestDate == nil {
 		missing = append(missing, "request_date_missing")

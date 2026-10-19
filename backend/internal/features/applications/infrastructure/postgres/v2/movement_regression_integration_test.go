@@ -222,7 +222,7 @@ func readyMovementConfiguration(t *testing.T, m movementFixture) {
 			t.Error(err)
 		}
 	})
-	d, err := draftinput.DecodeCreateV2([]byte(`{"fields":{"title":"Engineer","location":"CDMX","work_mode":"remote","work_schedule":"full_time","contract_type":"indefinite","professional_area":"technology_systems","requester":{"kind":"internal_area","id":"` + requester.String() + `"},"description":{"schema_version":1,"document":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Role"}]}]}},"screening_questions":[{"id":"11111111-1111-4111-8111-111111111111","type":"open","prompt":"Why?"}]}}`))
+	d, err := draftinput.DecodeCreateV2([]byte(`{"fields":{"title":"Engineer","location":null,"remote_scope":{"kind":"anywhere"},"work_mode":"remote","work_schedule":"full_time","contract_type":"indefinite","professional_area":"technology_systems","requester":{"kind":"internal_area","id":"` + requester.String() + `"},"description":{"schema_version":1,"document":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Role"}]}]}},"screening_questions":[{"id":"11111111-1111-4111-8111-111111111111","type":"open","prompt":"Why?"}]}}`))
 	if err != nil {
 		t.Fatal(err)
 	}

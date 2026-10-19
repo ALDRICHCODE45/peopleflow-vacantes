@@ -56,7 +56,7 @@ func TestPublicProjectionPublicationSaveGuardAndRollback(t *testing.T) {
 	}{
 		{"draft", `{"fields":{"title":null,"requester":null}}`, s.SaveV2, s.GetV2, []string{"title_missing", "requester_missing"}},
 		{"description", `{"fields":{"description":null}}`, s.SaveV2, s.GetV2, []string{"description_missing"}},
-		{"location", `{"fields":{"location":null}}`, s.SaveV2, s.GetV2, []string{"location_missing"}},
+		{"remote scope", `{"fields":{"remote_scope":null}}`, s.SaveV2, s.GetV2, []string{"remote_scope_missing"}},
 		{"work mode", `{"fields":{"work_mode":null}}`, s.SaveV2, s.GetV2, []string{"work_mode_missing"}},
 		{"schedule", `{"fields":{"work_schedule":null}}`, s.SaveV2, s.GetV2, []string{"work_schedule_missing"}},
 		{"contract", `{"fields":{"contract_type":null}}`, s.SaveV2, s.GetV2, []string{"contract_type_missing"}},

@@ -46,6 +46,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftfields"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftrich"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancygeo"
 	shared "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
 )
 
@@ -89,7 +90,8 @@ var (
 // validators always allocate fresh results.
 type Fields struct {
 	Title                 shared.Optional[string]
-	Location              shared.Optional[string]
+	Location              shared.Optional[*vacancygeo.Location]
+	RemoteScope           shared.Optional[*vacancygeo.RemoteScope]
 	WorkMode              shared.Optional[string]
 	WorkSchedule          shared.Optional[string]
 	ContractType          shared.Optional[string]
@@ -198,6 +200,7 @@ var (
 	writableFieldKeys = []string{
 		"title",
 		"location",
+		"remote_scope",
 		"work_mode",
 		"work_schedule",
 		"contract_type",
@@ -214,7 +217,7 @@ var (
 		"compensation",
 		"description",
 	}
-	scalarFieldKeys            = []string{"title", "location", "work_mode", "work_schedule", "contract_type", "seniority", "professional_area", "required_requirements", "preferred_requirements"}
+	scalarFieldKeys            = []string{"title", "work_mode", "work_schedule", "contract_type", "seniority", "professional_area", "required_requirements", "preferred_requirements"}
 	requesterFieldKeys         = []string{"kind", "id"}
 	languageFieldKeys          = []string{"language", "custom_name", "level"}
 	screeningQuestionFieldKeys = []string{"prompt"}
@@ -295,6 +298,9 @@ func decode(body []byte, patch bool) (Fields, []byte, error) {
 // that is not an object is left to the group validator, which owns the
 // wrong-type classification.
 func firstNestedKeyViolation(fields map[string]any) (string, bool) {
+	if path, bad := geographyKeyViolation(fields); bad {
+		return path, true
+	}
 	if raw, present := fields["requester"]; present {
 		if key, bad := unknownObjectKey(raw, requesterFieldKeys); bad {
 			return "requester." + key, true
@@ -458,7 +464,9 @@ func compose(object map[string]any, patch bool) (Fields, []byte, error) {
 		return Fields{}, nil, validationError(err)
 	}
 	out.Title = scalars.Title
-	out.Location = scalars.Location
+	if err := composeGeography(object, &out); err != nil {
+		return Fields{}, nil, err
+	}
 	out.WorkMode = scalars.WorkMode
 	out.WorkSchedule = scalars.WorkSchedule
 	out.ContractType = scalars.ContractType
@@ -573,6 +581,7 @@ func validationError(err error) error {
 func applyCreateDefaults(fields *Fields) {
 	fields.Title = withNullDefault(fields.Title)
 	fields.Location = withNullDefault(fields.Location)
+	fields.RemoteScope = withNullDefault(fields.RemoteScope)
 	fields.WorkMode = withNullDefault(fields.WorkMode)
 	fields.WorkSchedule = withNullDefault(fields.WorkSchedule)
 	fields.ContractType = withNullDefault(fields.ContractType)
@@ -626,7 +635,12 @@ func canonicalFields(fields Fields, descriptionValue any) map[string]any {
 	out := make(map[string]any, len(writableFieldKeys))
 
 	setNullableScalar(out, "title", fields.Title)
-	setNullableScalar(out, "location", fields.Location)
+	if fields.Location.Set {
+		out["location"] = vacancygeo.LocationValue(fields.Location.Value)
+	}
+	if fields.RemoteScope.Set {
+		out["remote_scope"] = vacancygeo.RemoteValue(fields.RemoteScope.Value)
+	}
 	setNullableScalar(out, "work_mode", fields.WorkMode)
 	setNullableScalar(out, "work_schedule", fields.WorkSchedule)
 	setNullableScalar(out, "contract_type", fields.ContractType)

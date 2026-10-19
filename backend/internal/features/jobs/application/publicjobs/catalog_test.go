@@ -215,7 +215,7 @@ func TestPublicShapesExactKeysAndNullability(t *testing.T) {
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		t.Fatal(err)
 	}
-	expected := []string{"id", "source", "title", "company", "location", "work_mode", "work_schedule", "contract_type", "professional_area", "seniority", "legacy_employment_type", "compensation", "legacy_salary", "published_at", "excerpt", "excerpt_truncated", "benefits_preview", "benefits_total", "skills_preview", "skills_total", "applicants", "screening_questions"}
+	expected := []string{"id", "source", "title", "company", "location", "location_label", "remote_scope", "work_mode", "work_schedule", "contract_type", "professional_area", "seniority", "legacy_employment_type", "compensation", "legacy_salary", "published_at", "excerpt", "excerpt_truncated", "benefits_preview", "benefits_total", "skills_preview", "skills_total", "applicants", "screening_questions"}
 	if len(fields) != len(expected) {
 		t.Fatalf("keys=%s", raw)
 	}

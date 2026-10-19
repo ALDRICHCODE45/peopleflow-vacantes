@@ -40,6 +40,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftinput"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancygeo"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -259,6 +260,19 @@ func writeDraftResult(w http.ResponseWriter, status int, result drafts.Result, r
 // record already carries the request id and the catalog code_class for this
 // response, so the server log gains no second, unbounded copy of the failure.
 func writeDraftError(w http.ResponseWriter, err error) {
+	var geography *vacancygeo.Invalid
+	if errors.As(err, &geography) {
+		code := httpjson.CodeInvalidLocation
+		if geography.Remote {
+			code = httpjson.CodeInvalidRemoteScope
+		}
+		details := make([]httpjson.GeoDetail, 0, len(geography.Details))
+		for _, d := range geography.Details {
+			details = append(details, httpjson.GeoDetail{Field: d.Field, Reason: d.Reason})
+		}
+		httpjson.WriteGeoError(w, httpjson.Resolve(code), details)
+		return
+	}
 	httpjson.WriteCatalogError(w, classifyDraftError(err))
 }
 

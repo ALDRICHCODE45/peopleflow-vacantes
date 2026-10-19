@@ -63,6 +63,9 @@ func (s *Store) CreateV2(ctx context.Context, companyID, actorID uuid.UUID, key 
 		}
 		return drafts.Result{Body: existing.body, ETag: existing.etag, Replayed: true}, nil
 	}
+	if err := validateGeography(ctx, tx, fingerprint); err != nil {
+		return drafts.Result{}, err
+	}
 	name, err := requesterNameForWrite(ctx, tx, companyID, fingerprint)
 	if err != nil {
 		return drafts.Result{}, err
@@ -76,7 +79,7 @@ func (s *Store) CreateV2(ctx context.Context, companyID, actorID uuid.UUID, key 
 	).Scan(&record.createdAt, &record.updatedAt); err != nil {
 		return drafts.Result{}, fmt.Errorf("insert v2 draft: %w", err)
 	}
-	responseBody, err := renderEnvelopeV2(record, name)
+	responseBody, err := renderGeoEnvelopeV2(ctx, tx, record, name)
 	if err != nil {
 		return drafts.Result{}, err
 	}

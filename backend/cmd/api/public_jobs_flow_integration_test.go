@@ -63,9 +63,20 @@ func publicFlowLegacy(t *testing.T, h *draftFlowHarness, company uuid.UUID, titl
 	})
 	return id
 }
+
+// Synthetic catalog display names isolate substring-filter assertions without
+// sending free text through the structured write boundary.
+func publicFlowLocation(t *testing.T, h *draftFlowHarness, label string) map[string]any {
+	t.Helper()
+	if _, err := h.pool.Exec(context.Background(), `INSERT INTO geo_countries(code,name_es,name_en) VALUES('CO',$1,'Colombia') ON CONFLICT(code) DO UPDATE SET name_es=EXCLUDED.name_es`, label); err != nil {
+		t.Fatal(err)
+	}
+	return map[string]any{"country": "CO"}
+}
+
 func publicFlowAssertKeys(t *testing.T, item map[string]any, detail bool) {
 	t.Helper()
-	want := []string{"id", "source", "title", "company", "location", "work_mode", "work_schedule", "contract_type", "professional_area", "seniority", "legacy_employment_type", "compensation", "legacy_salary", "published_at", "excerpt", "excerpt_truncated", "benefits_preview", "benefits_total", "skills_preview", "skills_total", "applicants", "screening_questions"}
+	want := []string{"id", "source", "title", "company", "location", "location_label", "remote_scope", "work_mode", "work_schedule", "contract_type", "professional_area", "seniority", "legacy_employment_type", "compensation", "legacy_salary", "published_at", "excerpt", "excerpt_truncated", "benefits_preview", "benefits_total", "skills_preview", "skills_total", "applicants", "screening_questions"}
 	if detail {
 		want = append(want, "description", "description_plain", "requirements", "benefits", "skills")
 	}
@@ -102,7 +113,7 @@ func TestPublicJobsFlowUnionOrderingPagingFiltersAndPrivacy(t *testing.T) {
 	location := marker + " México"
 	base := draftFlowV2Path + "/" + id
 	// Persist an answer key and a hidden salary to prove the real public boundary excludes both.
-	publicFlowPatch(t, h, id, owner, map[string]any{"title": marker, "location": location, "screening_questions": []any{map[string]any{
+	publicFlowPatch(t, h, id, owner, map[string]any{"title": marker, "location": publicFlowLocation(t, h, location), "screening_questions": []any{map[string]any{
 		"id": uuid.NewString(), "type": "single_choice_evaluated", "prompt": "Private screening prompt", "options": []any{map[string]any{"id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", "label": "Yes"}, map[string]any{"id": "2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e", "label": "No"}}, "correct_option_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
 	}}, "compensation": map[string]any{"mode": "fixed", "amount": "987654321.00", "min": nil, "max": nil, "currency": "MXN", "pay_period": "monthly", "basis": "gross", "public_visible": false}})
 	publicFlowGet(t, h, "/v2/jobs/"+id, 404)
@@ -199,8 +210,11 @@ func TestPublicJobsFlowUnionOrderingPagingFiltersAndPrivacy(t *testing.T) {
 		t.Fatalf("vacancy=%v", vacancy)
 	}
 	legacy := publicFlowGet(t, h, "/v2/jobs/"+legacyA, 200)
+	if legacy["location_label"] != location || vacancy["location_label"] != location {
+		t.Fatal("label/legacy fallback")
+	}
 	publicFlowAssertKeys(t, legacy, true)
-	for _, k := range []string{"work_schedule", "contract_type", "professional_area", "description", "compensation"} {
+	for _, k := range []string{"location", "remote_scope", "work_schedule", "contract_type", "professional_area", "description", "compensation"} {
 		if legacy[k] != nil {
 			t.Fatalf("legacy %s=%v", k, legacy[k])
 		}
@@ -226,7 +240,7 @@ func TestPublicJobsFlowUnionOrderingPagingFiltersAndPrivacy(t *testing.T) {
 		suffix, method, body string
 		missing              []string
 	}{
-		{"", "PATCH", `{"fields":{"title":null,"location":null}}`, []string{"title_missing", "location_missing"}},
+		{"", "PATCH", `{"fields":{"title":null,"remote_scope":null}}`, []string{"title_missing", "remote_scope_missing"}},
 		{"/pipeline/delivery", "PUT", deliveryFlowNull, []string{"delivery_cutoff_missing", "delivery_target_missing", "commitment_date_missing"}},
 		{"/management", "PUT", `{"requestDate":null,"hiringHeadcount":null}`, []string{"request_date_missing", "hiring_headcount_missing"}},
 	} {

@@ -17,7 +17,7 @@ import (
 )
 
 const readV2Document = `{"schema_version":2,"fields":{
-"title":"Backend Go","location":"CDMX","work_mode":"remote","work_schedule":"full_time",
+"title":"Backend Go","location":null,"remote_scope":{"kind":"anywhere"},"work_mode":"remote","work_schedule":"full_time",
 "contract_type":"indefinite","seniority":"senior","professional_area":"technology_systems",
 "requester":null,"skills":["Go"],"languages":[{"language":"es","custom_name":null,"level":"native"}],
 "benefits":["health_insurance"],"custom_benefits":["Travel"],

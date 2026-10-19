@@ -56,7 +56,7 @@ func TestMigration00025BackfillDownAndUndecodableSource(t *testing.T) {
 		return out
 	}
 	before := snapshot()
-	gooseUpAll(t, db)
+	gooseUpTo(t, db, 25)
 	// Pin the backfill/down assertions to this migration, not a later schema.
 	gooseDownTo(t, db, 25)
 	var skills []string
