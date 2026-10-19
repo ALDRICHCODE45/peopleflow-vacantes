@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
+	intake "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
 	"github.com/google/uuid"
@@ -13,6 +14,10 @@ import (
 
 // Composition bridge keeps participation views independent of jobs internals.
 type movementContext struct{ store *draftstore.Store }
+
+func (m movementContext) Screening(fields []byte) (intake.Screening, error) {
+	return (participationRules{}).Screening(fields)
+}
 
 func (m movementContext) RecordDelivery(ctx context.Context, tx pgx.Tx, id, actor, stage uuid.UUID, at time.Time) error {
 	return m.store.RecordDelivery(ctx, tx, id, actor, stage, at)

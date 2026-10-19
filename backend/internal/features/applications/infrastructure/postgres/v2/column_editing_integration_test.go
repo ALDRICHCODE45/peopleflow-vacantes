@@ -415,7 +415,7 @@ func TestColumnsRemoveOccupiedCutoffAndDiscardedRecovery(t *testing.T) {
 				t.Fatal(view, err)
 			}
 			rawBoard, _ := json.Marshal(view)
-			boardWire := movementKeys(t, movementObject(t, rawBoard), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages")
+			boardWire := movementKeys(t, movementObject(t, rawBoard), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages", "screening_filters")
 			movementKeys(t, boardWire["retired_stages"].([]any)[0], "id", "kind", "name")
 			movementKeys(t, boardWire["participations"].([]any)[0].(map[string]any)["discard"], "reason", "discarded_at", "previous_stage_id", "recovery_stage_id")
 			for _, tc := range []struct {

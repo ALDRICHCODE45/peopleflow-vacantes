@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	intake "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -55,6 +56,7 @@ type Pipeline struct {
 // VacancyContext holds the authoring row lock until the surrounding transaction
 // ends, sharing the same authorization and configuration rules as draft saves.
 type VacancyContext interface {
+	Screening([]byte) (intake.Screening, error)
 	DeliverySummary(context.Context, pgx.Tx, uuid.UUID) (string, int64, int64, error)
 	RecordDelivery(context.Context, pgx.Tx, uuid.UUID, uuid.UUID, uuid.UUID, time.Time) error
 	Load(context.Context, pgx.Tx, uuid.UUID, uuid.UUID, uuid.UUID) (Pipeline, error)
@@ -73,17 +75,19 @@ type Substate struct {
 }
 
 type Item struct {
-	SubstateID *string   `json:"substate_id"`
-	ID         uuid.UUID `json:"id"`
-	StageID    string    `json:"stage_id"`
-	Version    string    `json:"version"`
-	ETag       string    `json:"etag"`
-	Candidate  Person    `json:"candidate"`
-	AppliedAt  time.Time `json:"applied_at"`
-	Source     string    `json:"source"`
-	CV         CV        `json:"cv"`
-	MovedAt    time.Time `json:"moved_at"`
-	Discard    *Discard  `json:"discard"`
+	Profile          intake.ProfileSnapshot `json:"profile"`
+	ScreeningAnswers []ScreeningAnswer      `json:"screening_answers"`
+	SubstateID       *string                `json:"substate_id"`
+	ID               uuid.UUID              `json:"id"`
+	StageID          string                 `json:"stage_id"`
+	Version          string                 `json:"version"`
+	ETag             string                 `json:"etag"`
+	Candidate        Person                 `json:"candidate"`
+	AppliedAt        time.Time              `json:"applied_at"`
+	Source           string                 `json:"source"`
+	CV               CV                     `json:"cv"`
+	MovedAt          time.Time              `json:"moved_at"`
+	Discard          *Discard               `json:"discard"`
 }
 type Coverage struct {
 	Covered               int64      `json:"covered"`
@@ -96,13 +100,14 @@ type Delivery struct {
 	Target    int64  `json:"target"`
 }
 type Board struct {
-	RetiredStages  []RetiredStage `json:"retired_stages"`
-	Delivery       Delivery       `json:"delivery"`
-	Substates      []Substate     `json:"substates"`
-	Stages         []Stage        `json:"stages"`
-	Exit           Stage          `json:"exit"`
-	Coverage       Coverage       `json:"coverage"`
-	Participations []Item         `json:"participations"`
+	ScreeningFilters []ScreeningFilter `json:"screening_filters"`
+	RetiredStages    []RetiredStage    `json:"retired_stages"`
+	Delivery         Delivery          `json:"delivery"`
+	Substates        []Substate        `json:"substates"`
+	Stages           []Stage           `json:"stages"`
+	Exit             Stage             `json:"exit"`
+	Coverage         Coverage          `json:"coverage"`
+	Participations   []Item            `json:"participations"`
 }
 type Move struct {
 	ToStageID            string

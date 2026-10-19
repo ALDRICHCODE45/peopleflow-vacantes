@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	board "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
+	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
 	boardstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/board"
 	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
@@ -28,6 +29,28 @@ func (a *failSubstateAudit) Append(ctx context.Context, tx pgx.Tx, e auditentiti
 	return audit.NewAuditEventRepository().Append(ctx, tx, e)
 }
 
+// Board reads include immutable filter data; HTTP mutations deliberately do not.
+// Compare all other Item fields, then independently protect the read-only data.
+func assertBoardMatchesMutationItem(t *testing.T, current, mutation, initial board.Item) {
+	t.Helper()
+	raw, err := json.Marshal(current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	movementItemKeys(t, movementObject(t, raw))
+	if current.Profile.Skills == nil || current.ScreeningAnswers == nil {
+		t.Fatal("board filter arrays must be present, not null")
+	}
+	if !reflect.DeepEqual(current.Profile, initial.Profile) || !reflect.DeepEqual(current.ScreeningAnswers, initial.ScreeningAnswers) {
+		t.Fatal("substate operation changed immutable board filter data")
+	}
+	current.Profile = app.ProfileSnapshot{}
+	current.ScreeningAnswers = nil
+	if !reflect.DeepEqual(current, mutation) {
+		t.Fatal("board and mutation item fields differ")
+	}
+}
+
 func TestSubstateReassignmentAnyOrderAndExactlyOneVersion(t *testing.T) {
 	m, id := activeSubstateFixture(t)
 	ctx := context.Background()
@@ -38,9 +61,10 @@ func TestSubstateReassignmentAnyOrderAndExactlyOneVersion(t *testing.T) {
 	other := movementObject(t, c.Body)["substates"].([]any)[1].(map[string]any)["id"].(string)
 	original := m.item
 	cov, err := m.board.Board(ctx, m.company, m.recruiter, m.vacancy)
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || len(cov.Participations) != 1 {
+		t.Fatal("expected one initial board participation", err)
 	}
+	initial := cov.Participations[0]
 	for _, target := range []string{other, id, other} {
 		previous := m.item
 		m.item = setSubstateHTTP(t, m, target)
@@ -48,9 +72,10 @@ func TestSubstateReassignmentAnyOrderAndExactlyOneVersion(t *testing.T) {
 			t.Fatal("set altered non-substate identity or wrong version", m.item)
 		}
 		view, err := m.board.Board(ctx, m.company, m.recruiter, m.vacancy)
-		if err != nil || !reflect.DeepEqual(view.Coverage, cov.Coverage) || !reflect.DeepEqual(view.Participations[0], m.item) {
-			t.Fatal(view, err)
+		if err != nil || len(view.Participations) != 1 || !reflect.DeepEqual(view.Coverage, cov.Coverage) {
+			t.Fatal("substate operation changed board coverage or population", err)
 		}
+		assertBoardMatchesMutationItem(t, view.Participations[0], m.item, initial)
 	}
 	h, err := m.board.History(ctx, m.company, m.recruiter, m.vacancy, m.item.ID)
 	if err != nil || len(h.Items) != 7 {

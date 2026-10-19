@@ -67,10 +67,16 @@ func TestSubstateSetClearNoOpWireSnapshotsAndCatalog(t *testing.T) {
 	m, id := activeSubstateFixture(t)
 	ctx := context.Background()
 	before := catalogSnapshot(t, m)
+	initial := m.item
 	nullItem := setSubstateHTTP(t, m, nil)
-	if !reflect.DeepEqual(m.item, nullItem) || before != catalogSnapshot(t, m) {
+	if before != catalogSnapshot(t, m) {
 		t.Fatal("clear null no-op wrote effects")
 	}
+	noOpView, err := m.board.Board(ctx, m.company, m.recruiter, m.vacancy)
+	if err != nil || len(noOpView.Participations) != 1 {
+		t.Fatal("expected one board participation after no-op", err)
+	}
+	assertBoardMatchesMutationItem(t, noOpView.Participations[0], nullItem, initial)
 	m.item = setSubstateHTTP(t, m, id)
 	before = catalogSnapshot(t, m)
 	old := m.item
@@ -79,11 +85,12 @@ func TestSubstateSetClearNoOpWireSnapshotsAndCatalog(t *testing.T) {
 		t.Fatal("no-op wrote effects")
 	}
 	view, err := m.board.Board(ctx, m.company, m.recruiter, m.vacancy)
-	if err != nil {
-		t.Fatal(err)
+	if err != nil || len(view.Participations) != 1 {
+		t.Fatal("expected one board participation", err)
 	}
+	assertBoardMatchesMutationItem(t, view.Participations[0], m.item, initial)
 	raw, _ := json.Marshal(view)
-	obj := movementKeys(t, movementObject(t, raw), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages")
+	obj := movementKeys(t, movementObject(t, raw), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages", "screening_filters")
 	entries := obj["substates"].([]any)
 	if len(entries) != 2 {
 		t.Fatal(obj)

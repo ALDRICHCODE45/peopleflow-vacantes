@@ -6,7 +6,7 @@ including the agreed clarifications in §12.7. Legacy applications are unchanged
 
 ## Quick path
 
-1. Apply migrations through **00028** with `make db-migrate` before running this API.
+1. Apply migrations through **00029** with `make db-migrate` before running this API.
    Cut-5 discard/recovery extensions are documented in [pipeline-discard.md](pipeline-discard.md).
 2. Read the board and keep each item's opaque `etag`.
 3. POST a move using that item's tag as `If-Match`; reconcile with GET after an
@@ -21,7 +21,10 @@ Every response, including gate failures, carries `Cache-Control: no-store`.
 
 ## Board and item shapes
 
-`GET …/board` → 200, exactly `{stages, exit, coverage, participations, substates, delivery, retired_stages}`.
+`GET …/board` → 200, exactly `{stages, exit, coverage, participations, substates, delivery, retired_stages, screening_filters}`.
+`screening_filters` is the current questionnaire's single-choice catalog, exactly
+`[{question_id,prompt,options:[{id,label}]}]` in questionnaire order (§19).
+See [board filter data](board-filter-data.md) for normalization, privacy and its test map.
 `retired_stages` is always `[{id,kind,name}]`, supplying retained history labels (cut 7).
 `delivery` is exactly `{state, delivered, target}`: `pending | fulfilled`, a historical
 distinct-candidate count, and a non-null integer target. Fulfilled values are frozen;
@@ -45,7 +48,9 @@ An item is exactly:
   "candidate": {"id": "…", "full_name": "Ana Pérez"},
   "applied_at": "2026-10-16T18:00:00Z", "source": "organic",
   "cv": {"id": "…", "name": "CV"}, "moved_at": "2026-10-16T18:00:00Z",
-  "discard": null, "substate_id": null
+  "discard": null, "substate_id": null,
+  "profile": {"city": null, "skills": [], "years_of_experience": null, "education_level": null},
+  "screening_answers": []
 }
 ```
 
@@ -53,6 +58,12 @@ An item is exactly:
 not a precondition clients construct. Participation tags are strong and
 domain-separated from draft/pipeline/other tags. The board itself has no ETag.
 Default stage IDs remain the deterministic cut-1 UUIDv5 identities.
+`profile` is the immutable application-time four-field snapshot (legacy rows:
+nulls/empty skills). `screening_answers` is exactly `[{question_id,option_id}]`,
+only single-choice answers from the frozen snapshots in stored answer order;
+open text is never returned on the board. Both keys are always present on board items
+and participation detail. Mutation responses retain their existing key sets;
+these private fields never appear there or in candidate/public APIs (§19).
 
 ## Move
 
@@ -75,7 +86,8 @@ The transport enforces the existing 1 MiB JSON budget.
   starts null. Both events share one participation version bump (cut 6).
 - Entering Placement records a hire. Leaving requires explicit confirmation and
   records a departure, without erasing previous history.
-- 200 is the item shape above **plus `coverage` and `delivery`**, flattened, both computed after the write, with the new tag both
+- 200 is the pre-§19 item shape (**without `profile` and `screening_answers`**)
+  plus `coverage` and `delivery`, flattened, both computed after the write, with the new tag both
   in `etag` and the `ETag` response header. No idempotency/replay header is added.
 - Missing `If-Match` → 428. Empty, malformed, weak, wildcard or list (including
   repeated header lines) → 400. Well-formed stale or foreign tag → 412.

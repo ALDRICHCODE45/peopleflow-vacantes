@@ -58,7 +58,7 @@ func (s *Store) begin(ctx context.Context, company, actor, id uuid.UUID) (pgx.Tx
 
 const itemSQL = `SELECT p.id,p.stage_id,p.version,u.id,u.full_name,p.created_at,p.source,l.id,l.name,
  COALESCE((SELECT max(h.created_at) FROM participation_stage_history h WHERE h.participation_id=p.id AND h.event_kind<>'not_applicable'),p.created_at),
- p.previous_stage_id,p.reason_group,p.reason_code,p.discarded_at,p.substate_id
+ p.previous_stage_id,p.reason_group,p.reason_code,p.discarded_at,p.substate_id,p.profile_snapshot,p.questions_snapshot,p.answers_snapshot
  FROM process_participations p JOIN users u ON u.id=p.candidate_id JOIN candidate_cv_library l ON l.version_id=p.cv_version_id `
 
 func readItem(row pgx.Row) (app.Item, int64, error) {
@@ -66,13 +66,29 @@ func readItem(row pgx.Row) (app.Item, int64, error) {
 	var version int64
 	var previous, group, code *string
 	var discardedAt *time.Time
-	err := row.Scan(&i.ID, &i.StageID, &version, &i.Candidate.ID, &i.Candidate.FullName, &i.AppliedAt, &i.Source, &i.CV.ID, &i.CV.Name, &i.MovedAt, &previous, &group, &code, &discardedAt, &i.SubstateID)
+	var profile, questions, answers []byte
+	err := row.Scan(&i.ID, &i.StageID, &version, &i.Candidate.ID, &i.Candidate.FullName, &i.AppliedAt, &i.Source, &i.CV.ID, &i.CV.Name, &i.MovedAt, &previous, &group, &code, &discardedAt, &i.SubstateID, &profile, &questions, &answers)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return i, 0, app.ErrNotFound
 	}
 	if err != nil {
 		return i, 0, err
 	}
+	i.Profile = intake.SnapshotProfile(nil, nil, nil, nil)
+	if profile != nil {
+		if err := json.Unmarshal(profile, &i.Profile); err != nil {
+			return i, 0, err
+		}
+	}
+	var qs []intake.Question
+	var as []intake.Answer
+	if err := json.Unmarshal(questions, &qs); err != nil {
+		return i, 0, err
+	}
+	if err := json.Unmarshal(answers, &as); err != nil {
+		return i, 0, err
+	}
+	i.ScreeningAnswers = app.ChoiceAnswers(qs, as)
 	if version < 1 || i.Source != "organic" {
 		return i, 0, errors.New("invalid stored participation")
 	}
@@ -114,6 +130,15 @@ func (s *Store) Board(ctx context.Context, company, actor, id uuid.UUID) (app.Bo
 	}
 	defer tx.Rollback(ctx)
 	out := app.Board{RetiredStages: append([]app.RetiredStage{}, p.Retired...), Stages: p.Stages, Exit: p.Exit, Participations: []app.Item{}}
+	var fields []byte
+	if err = tx.QueryRow(ctx, `SELECT fields FROM job_drafts WHERE id=$1`, id).Scan(&fields); err != nil {
+		return out, err
+	}
+	form, err := s.vacancy.Screening(fields)
+	if err != nil {
+		return out, err
+	}
+	out.ScreeningFilters = app.ChoiceFilters(form)
 	out.Substates, err = readSubstates(ctx, tx, id)
 	if err != nil {
 		return out, err

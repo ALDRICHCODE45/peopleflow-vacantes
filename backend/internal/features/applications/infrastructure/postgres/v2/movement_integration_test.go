@@ -27,6 +27,10 @@ import (
 
 type movementContext struct{ s *draftstore.Store }
 
+func (m movementContext) Screening(fields []byte) (app.Screening, error) {
+	return (testVacancyRules{}).Screening(fields)
+}
+
 func (m movementContext) Load(ctx context.Context, tx pgx.Tx, company, actor, id uuid.UUID) (board.Pipeline, error) {
 	c, required, err := m.s.MovementContext(ctx, tx, company, actor, id)
 	for _, pair := range [][2]error{{drafts.ErrNotFound, board.ErrNotFound}, {drafts.ErrUnauthenticated, board.ErrUnauthenticated}, {drafts.ErrForbidden, board.ErrForbidden}, {drafts.ErrCompanyInactive, board.ErrCompanyInactive}, {drafts.ErrCompanyNotActive, board.ErrCompanyNotActive}} {
