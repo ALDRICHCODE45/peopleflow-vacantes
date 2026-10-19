@@ -134,9 +134,10 @@ describe("/empresa/vacantes/borradores/nuevo employer route", () => {
     expect(
       screen.getByRole("textbox", { name: "Título" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("textbox", { name: "Ubicación" }),
-    ).toBeInTheDocument();
+    // Location is the shared structured LocationField (catalog codes), not free text.
+    // Its controls appear once the public catalog loads (covered in features/geo and drafts tests).
+    expect(screen.getByRole("region", { name: "Ubicación" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Ubicación" })).not.toBeInTheDocument();
     expect(
       screen.getByRole("combobox", { name: "Modalidad" }),
     ).toBeInTheDocument();
