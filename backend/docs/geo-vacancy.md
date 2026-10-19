@@ -16,8 +16,8 @@ schema adapters. The current editor is `/v2/me/company/job-drafts` (r2 ETags).
 
 | Field | Write | Read |
 | --- | --- | --- |
-| `location` | Null or `{country,state?,municipality?,postal_code?}` with code strings | Null or the six-key object below |
-| `remote_scope` | Null, `{kind:"anywhere"}`, or `{kind:"countries",countries:[codes]}` | Same kind, with countries expanded to `{id,name}` in submitted order |
+| `location` | Null or `{country,state?,municipality?,postal_code?}` with code strings | Null or exactly the five-key object below (`country`, `state`, `municipality`, `postal_code`, `label`; no remote fields) |
+| `remote_scope` | Null, `{kind:"anywhere"}`, or `{kind:"countries",countries:[codes]}` | Null, `{kind:"anywhere"}` (no `countries` key) or `{kind:"countries",countries:[{id,name}]}` in submitted order |
 
 ```json
 {"country":{"id":"MX","name":"México"},"state":{"id":"14","name":"Jalisco"},"municipality":{"id":"14039","name":"Guadalajara"},"postal_code":"44100","label":"Guadalajara, Jalisco"}
