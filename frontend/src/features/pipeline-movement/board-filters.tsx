@@ -99,7 +99,7 @@ export function BoardFilters<Item>({ items, dimensions, selection, onChange, res
           })}
           <div className="flex items-start gap-3 rounded-xl bg-muted p-4 text-sm text-muted-foreground">
             <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-            <p>Las opciones de un mismo filtro se suman. Entre filtros, los candidatos deben cumplir <strong className="font-medium text-foreground">{dimensions.length > 2 ? "todas las condiciones" : "ambas condiciones"}</strong>.</p>
+            <p>Las opciones de un mismo filtro se suman. Entre filtros, los candidatos deben cumplir <strong className="font-medium text-foreground">todas las condiciones</strong>.</p>
           </div>
         </FieldGroup>
       </div>

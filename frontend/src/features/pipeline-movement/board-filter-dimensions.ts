@@ -3,6 +3,7 @@ import type { Board, Participation } from "./model";
 import type { FilterDimension } from "./filters";
 import { discardCatalog } from "./discard-text";
 import { substateDimension } from "./substates";
+import { filterDataDimensions } from "./profile-filter-dimensions";
 
 export type BoardFilterDimension<Item> = FilterDimension<Item> & {
   presentation?: {
@@ -32,5 +33,5 @@ export function boardFilterDimensions(board: Board): BoardFilterDimension<Partic
     presentation: { section: discarded, label: "Motivo de descarte", placeholder: "Todos los motivos", helper: "Agrupados por decisión de la empresa o del candidato.", singular: "motivo", plural: "motivos" },
     options: discardCatalog.flatMap(group => group.reasons.map(reason => ({ value: `${group.group}:${reason.key}`, label: reason.label, group: group.label }))),
     match: (item, selected) => !!item.discard && selected.has(`${item.discard.reason.group}:${item.discard.reason.key}`),
-  }];
+  }, ...filterDataDimensions(board)];
 }

@@ -13,7 +13,11 @@ export function leavesPlacement(board: Board, item: Participation, target: strin
 export const applyMoveToBoard = applyParticipationToBoard;
 /** All four writes return the same server-owned item, coverage and delivery. */
 export function applyParticipationToBoard(board: Board, move: Move): Board {
-  const { coverage, delivery, ...item } = move;
+  const { coverage, delivery, ...updated } = move;
+  const previous = board.participations.find(item => item.id === updated.id);
+  // A write can only update a known item; never invent missing snapshot data.
+  if (!previous) return board;
+  const item: Participation = { ...updated, profile: previous.profile, screening_answers: previous.screening_answers };
   const order = new Map([...board.stages, board.exit].map((stage, index) => [stage.id, index]));
   const participations = [...board.participations.filter(previous => previous.id !== item.id), item].sort((a, b) =>
     (order.get(a.stage_id) ?? Infinity) - (order.get(b.stage_id) ?? Infinity)

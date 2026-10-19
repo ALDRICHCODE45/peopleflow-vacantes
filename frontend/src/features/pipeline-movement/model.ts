@@ -18,13 +18,24 @@ const count = z.number().int().nonnegative().safe();
 export const etagSchema = z.string().regex(/^"[\x21\x23-\x7e\x80-\xff]+"$(?![\s\S])/);
 export const stageKindSchema = z.enum(["new", "screening", "screening_ok", "in_process", "placement", "custom"]);
 const discardSchema = z.object({ reason: discardReasonSchema, discarded_at: timestamp, previous_stage_id: uuidSchema, recovery_stage_id: uuidSchema }).strict();
-export const participationSchema = z.object({
+// Writes retain their original allowlist; snapshot fields belong only to reads.
+const mutationParticipationSchema = z.object({
   id: uuidSchema, stage_id: uuidSchema, version: z.string().regex(/^(0|[1-9][0-9]*)$(?![\s\S])/), etag: etagSchema,
   candidate: z.object({ id: uuidSchema, full_name: text }).strict(), applied_at: timestamp, source: z.literal("organic"),
   cv: z.object({ id: uuidSchema, name: text }).strict(), moved_at: timestamp, discard: discardSchema.nullable(), substate_id: uuidSchema.nullable(),
 }).strict();
+export const profileSchema = z.object({
+  city: z.string().nullable(), skills: z.array(z.string()),
+  years_of_experience: count.nullable(),
+  education_level: z.enum(["high_school", "bachelor", "master", "phd"]).nullable(),
+}).strict();
+export const participationSchema = mutationParticipationSchema.extend({
+  profile: profileSchema,
+  screening_answers: z.array(z.object({ question_id: uuidSchema, option_id: uuidSchema }).strict()),
+}).strict();
 export const coverageSchema = z.object({ covered: count, required: z.number().int().positive().safe().nullable(), full_coverage_reached_at: timestamp.nullable() }).strict();
 export const boardSchema = z.object({
+  screening_filters: z.array(z.object({ question_id: uuidSchema, prompt: text, options: z.array(z.object({ id: uuidSchema, label: text }).strict()) }).strict()),
   retired_stages: z.array(z.object({ id: uuidSchema, kind: stageKindSchema, name: text }).strict()),
   stages: z.array(z.object({ id: uuidSchema, kind: stageKindSchema, name: text, count }).strict()),
   exit: z.object({ id: uuidSchema, kind: z.literal("discarded"), name: text, count }).strict(),
@@ -39,7 +50,7 @@ export const boardSchema = z.object({
     (board.stages.some(stage => stage.id === item.stage_id && stage.kind === "in_process") && board.substates.some(substate => substate.id === item.substate_id))));
 export const substateBodySchema = z.object({ substate_id: uuidSchema.nullable() }).strict();
 export const moveBodySchema = z.object({ to_stage_id: uuidSchema, confirm_placement_exit: z.boolean().optional() }).strict();
-export const moveSchema = participationSchema.extend({ coverage: coverageSchema, delivery: deliverySummarySchema }).strict();
+export const moveSchema = mutationParticipationSchema.extend({ coverage: coverageSchema, delivery: deliverySummarySchema }).strict();
 const screeningAnswer = z.discriminatedUnion("type", [
   z.object({ question_id: uuidSchema, prompt: text, type: z.literal("open"), answer: z.object({ text }).strict() }).strict(),
   z.object({ question_id: uuidSchema, prompt: text, type: z.literal("single_choice"), answer: z.object({ option_id: uuidSchema, label: text }).strict() }).strict(),

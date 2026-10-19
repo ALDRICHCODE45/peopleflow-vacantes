@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowDownToLine, ArrowUpRight, CalendarDays, Check, CircleMinus, Clock3, FileText, FileType2, Globe2, Info, RotateCcw, UserRoundX, X } from "lucide-react";
+import { ArrowDownToLine, ArrowUpRight, CalendarDays, Check, CircleMinus, Clock3, FileText, FileType2, Globe2, GraduationCap, Info, MapPin, Sparkles, BriefcaseBusiness, RotateCcw, UserRoundX, X } from "lucide-react";
 import { cn } from "cn";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
@@ -23,6 +23,8 @@ import { discardGroupLabel, discardReasonLabel } from "./discard-text";
 import { allowedMoveTargets } from "./helpers";
 import { filePresentation, Hint, initials, stageClass } from "./pipeline-presentation";
 import type { Notice } from "./board-feedback";
+import { plural } from "@/features/employer-vacancies/pipeline-board";
+import { educationLabels, normalizedProfileLabel } from "./profile-filter-dimensions";
 import type { Board, Failure, History, Participation, ParticipationDetail } from "./model";
 
 type Props = { vacancyId: string; vacancyTitle?: string; item: Participation; board: Board; onClose: () => void; onSubstate?: (id: string, substateId: string | null) => void; onMove?: (id: string, target: string) => void; onDisposition?: (id: string, kind: "discard" | "recover") => void; locked?: boolean; notice?: Notice; children?: ReactNode };
@@ -114,6 +116,7 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
                   <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Globe2 aria-hidden="true" className="size-4 shrink-0" />Fuente</dt><dd className="text-sm font-medium">Orgánica</dd>
                 </dl>
               </section><Separator />
+              <CandidateProfile profile={loaded.detail.profile} /><Separator />
               <section className="flex flex-col gap-3"><SectionTitle>CV</SectionTitle><Item variant="outline">
                 <ItemMedia><div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground"><FileIcon aria-hidden="true" className="size-5" /></div></ItemMedia>
                 <ItemContent className="min-w-0"><ItemTitle className="max-w-full"><Hint text={detail.cv.name}><span className="truncate">{detail.cv.name}</span></Hint></ItemTitle><ItemDescription>{filePresentation(detail.cv.name) === "pdf" ? "Documento PDF" : "Documento Word"}</ItemDescription></ItemContent>
@@ -158,10 +161,28 @@ export function CandidateDetailSkeleton({ tab, discarded, answerCount = 2, histo
   return <div aria-hidden="true" data-pf-detail-skeleton="summary" className="flex flex-col gap-7">
     <section className="flex flex-col gap-5"><Skeleton className="h-4 w-56 max-w-full" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1, 2, 3].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl></section>
     <Separator />
+    <section className="flex flex-col gap-5"><Skeleton className="h-4 w-16" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1, 2, 3].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl><Skeleton className="h-4 w-56 max-w-full" /></section>
+    <Separator />
     <section className="flex flex-col gap-3"><Skeleton className="h-4 w-6" /><Item variant="outline"><ItemMedia><Skeleton className="size-11 rounded-lg" /></ItemMedia><ItemContent className="min-w-0"><ItemTitle><Skeleton className="h-5 w-32" /></ItemTitle><Skeleton className="h-5 w-28"><ItemDescription className="invisible">&nbsp;</ItemDescription></Skeleton></ItemContent><ItemActions><Skeleton className="size-10" /></ItemActions></Item></section>
     {discarded && <Card size="sm" className="bg-status-danger/10"><CardHeader><CardTitle><Skeleton className="h-4 w-20" /></CardTitle><CardDescription><Skeleton className="h-5 w-44" /><Skeleton className="h-4 w-32" /></CardDescription></CardHeader><CardContent className="flex flex-col gap-4"><Skeleton className="h-4 w-40" /><dl className="flex flex-col gap-4">{[0, 1].map(index => <div key={index} className="flex flex-col gap-1"><dt><Skeleton className="h-4 w-32" /></dt><dd><Skeleton className="h-5 w-full" /></dd></div>)}</dl></CardContent><CardFooter><Skeleton className="h-8 w-full" /></CardFooter></Card>}
     <Skeleton className="h-16 w-full rounded-lg" />
   </div>;
+}
+function CandidateProfile({ profile }: { profile: Participation["profile"] }) {
+  const missing = <span className="text-muted-foreground">Sin dato</span>;
+  const skills = profile.skills.filter(skill => normalizedProfileLabel(skill));
+  const rows = [
+    { label: "Ciudad", icon: MapPin, value: profile.city && normalizedProfileLabel(profile.city) ? profile.city : missing },
+    { label: "Habilidades", icon: Sparkles, value: skills.length ? <div className="flex flex-wrap gap-2">{skills.map((skill, index) => <Badge key={index} variant="outline">{skill}</Badge>)}</div> : missing },
+    { label: "Años de experiencia", icon: BriefcaseBusiness, value: profile.years_of_experience === null ? missing : plural(profile.years_of_experience, "año", "años") },
+    { label: "Nivel de estudios", icon: GraduationCap, value: profile.education_level === null ? missing : educationLabels[profile.education_level] },
+  ];
+  return <section aria-label="Perfil" className="flex flex-col gap-5"><SectionTitle>Perfil</SectionTitle>
+    <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{rows.map(({ label, icon: Icon, value }) => <div key={label} className="contents">
+      <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0" />{label}</dt><dd className="min-w-0 break-words text-sm font-medium">{value}</dd>
+    </div>)}</dl>
+    <p className="text-xs text-muted-foreground">Copiado del perfil al postularse.</p>
+  </section>;
 }
 function SectionTitle({ children }: { children: ReactNode }) {
   return <h3 className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">{children}</h3>;

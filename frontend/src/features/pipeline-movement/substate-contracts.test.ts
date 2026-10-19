@@ -5,7 +5,7 @@ vi.mock("@/lib/env/server", () => ({ serverEnv: { apiBaseUrl: "http://localhost:
 vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: async () => "server-token" }));
 import { boardSchema, detailSchema, historySchema } from "./model";
 import { setParticipationSubstateAction } from "./actions";
-import { board, detail, history, id, item } from "./test-fixtures";
+import { board, detail, history, id, item, mutationItem } from "./test-fixtures";
 const active = { ...item, stage_id: id(4), substate_id: id(40) };
 const catalog = [{ id: id(40), name: "Nombre actual" }];
 const event = { kind: "substate", from_substate_id: null, from_substate_name: null, to_substate_id: id(40), to_substate_name: "Nombre histórico", actor: history.items[0].actor, at: item.applied_at };
@@ -27,7 +27,7 @@ it("decodes exact substate history with name snapshots, not today's catalog", ()
   }
 });
 it.each([id(40), null])("set/clear %s sends exact body and unchanged If-Match, accepting no-op 200", async substate_id => {
-  const data = { ...active, substate_id, coverage: board.coverage, delivery: board.delivery };
+  const data = { ...mutationItem, stage_id: active.stage_id, substate_id, coverage: board.coverage, delivery: board.delivery };
   const fetch = vi.fn().mockResolvedValue(Response.json(data, { headers: { etag: active.etag } })); vi.stubGlobal("fetch", fetch);
   expect(await setParticipationSubstateAction({ vacancyId: id(30), participationId: item.id, etag: item.etag, body: { substate_id } })).toEqual({ ok: true, data });
   expect(fetch).toHaveBeenCalledTimes(1);

@@ -19,6 +19,29 @@ function SheetHarness() {
   const board = boardFixture();
   return open ? <CandidateSheet vacancyId={vacancyId} vacancyTitle="Software Developer" item={board.participations[0]} board={board} onClose={() => setOpen(false)} /> : null;
 }
+it.each([0, 1, 3, null])("profile shows exact years %s and honest missing data", async years => {
+  const detail = detailFixture();
+  detail.profile = { city: null, skills: [], years_of_experience: years, education_level: null };
+  vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detail });
+  render(<SheetHarness />);
+  const profile = await screen.findByRole("region", { name: "Perfil" });
+  expect(within(profile).getByText("Copiado del perfil al postularse.")).toBeVisible();
+  expect(within(profile).getAllByText("Sin dato")).toHaveLength(years === null ? 4 : 3);
+  within(profile).getAllByText("Sin dato").forEach(value => expect(value).toHaveClass("text-muted-foreground"));
+  expect(Array.from(profile.querySelectorAll("dt")).map(dt => dt.textContent)).toEqual(["Ciudad", "Habilidades", "Años de experiencia", "Nivel de estudios"]);
+  expect(profile.querySelectorAll("dt svg")).toHaveLength(4);
+  if (years !== null) expect(within(profile).getByText(`${years} ${years === 1 ? "año" : "años"}`)).toBeVisible();
+});
+it("profile uses actual city, skill badges and education label", async () => {
+  const detail = detailFixture();
+  detail.profile = { city: "Puebla", skills: ["Go", "SQL"], years_of_experience: 5, education_level: "high_school" };
+  vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detail });
+  render(<SheetHarness />);
+  const profile = await screen.findByRole("region", { name: "Perfil" });
+  expect(within(profile).getByText("Puebla")).toBeVisible();
+  expect(within(profile).getByText("Preparatoria")).toBeVisible();
+  expect(Array.from(profile.querySelectorAll('[data-slot="badge"]')).map(badge => badge.textContent)).toEqual(["Go", "SQL"]);
+});
 it("sheet loading is independent, closes with a Spanish button, and ignores the late read", async () => {
   let resolve!: (value: Result<History>) => void;
   vi.mocked(loadHistoryAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));

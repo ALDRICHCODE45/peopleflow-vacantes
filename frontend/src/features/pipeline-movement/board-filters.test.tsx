@@ -29,6 +29,21 @@ async function openBoard(withSubstates = false) {
   await waitFor(() => expect(within(sheet).getByRole("button", { name: "Cerrar filtros" })).toHaveFocus());
   return { trigger, sheet };
 }
+it("screening and profile sections share compact searchable fields and dimension chips", async () => {
+  const board = boardFixture();
+  board.screening_filters = [{ question_id: "q", prompt: "¿Disponible?", options: [{ id: "yes", label: "Sí" }] }];
+  vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: board });
+  render(<MovementBoard vacancyId="vacancy" />);
+  fireEvent.click(await screen.findByRole("button", { name: "Filtros" }));
+  const sheet = await screen.findByRole("dialog", { name: "Filtrar candidatos" });
+  expect(within(sheet).getByRole("region", { name: "PREGUNTAS DE FILTRO" }).querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(1);
+  expect(within(sheet).getByRole("region", { name: "PERFIL DEL CANDIDATO" }).querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(4);
+  fireEvent.click(within(sheet).getByRole("button", { name: "¿Disponible?" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: "Sin respuesta 1" }));
+  fireEvent.click(within(sheet).getByRole("button", { name: "¿Disponible?" }));
+  fireEvent.click(within(sheet).getByRole("button", { name: "Ver 1 candidato" }));
+  expect(await screen.findByRole("button", { name: "Quitar ¿Disponible?: Sin respuesta" })).toBeVisible();
+});
 it("compact reference anatomy hides options until opened and agrees singular counts", async () => {
   const { sheet } = await openBoard();
   expect(within(sheet).getByText("Encuentra los perfiles que necesitas dentro de tu pipeline.")).toBeVisible();
@@ -38,9 +53,11 @@ it("compact reference anatomy hides options until opened and agrees singular cou
   expect(within(sheet).getByRole("button", { name: "Etapa del pipeline" })).toHaveTextContent("Todas las etapas");
   expect(within(sheet).getByRole("button", { name: "Motivo de descarte" })).toHaveTextContent("Todos los motivos");
   expect(within(sheet).queryByRole("button", { name: "Subestado" })).not.toBeInTheDocument();
-  expect(sheet.querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(2);
+  expect(sheet.querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(6);
+  expect(within(sheet).queryByRole("region", { name: "PREGUNTAS DE FILTRO" })).not.toBeInTheDocument();
+  expect(within(sheet).getByRole("region", { name: "PERFIL DEL CANDIDATO" })).toBeVisible();
   expect(within(sheet).queryAllByRole("checkbox")).toHaveLength(0);
-  expect(within(sheet).getByText(/Las opciones de un mismo filtro se suman/)).toHaveTextContent("ambas condiciones");
+  expect(within(sheet).getByText(/Las opciones de un mismo filtro se suman/)).toHaveTextContent("todas las condiciones");
   expect(within(sheet).getByText("1 candidato coincide")).toBeVisible();
   expect(within(sheet).getByText("Sin filtros activos")).toBeVisible();
   expect(within(sheet).getByRole("button", { name: "Limpiar" })).toBeDisabled();
@@ -48,7 +65,7 @@ it("compact reference anatomy hides options until opened and agrees singular cou
 });
 it("searchable multiselect applies live, keeps quiet zero counts, clears chips and returns focus", async () => {
   const { trigger, sheet } = await openBoard(true);
-  expect(sheet.querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(3);
+  expect(sheet.querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(7);
   expect(within(sheet).getByText(/Las opciones de un mismo filtro se suman/)).toHaveTextContent("todas las condiciones");
   fireEvent.click(within(sheet).getByRole("button", { name: "Subestado" }));
   const search = screen.getByRole("textbox", { name: "Buscar opciones…" });
