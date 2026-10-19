@@ -449,12 +449,14 @@ corepack pnpm dev
 ### Filtros del tablero (rama `feat/pipeline-board-filters-ui`, sin cambios de backend)
 
 70. **Filtros y encabezado.** En el pipeline: cobertura y entrega forman un solo bloque con
-    la misma forma; la barra tiene un único botón «Filtros». Abrilo. **Esperado:** Sheet con
-    «Columna», «Subestado» (con «Sin subestado») y «Motivo de descarte» (agrupado por
-    empresa/candidato), cada opción con su cantidad; marcar aplica al instante. Debajo de
-    la barra aparecen chips removibles y «Limpiar filtros»; «Filtros» muestra cuántos hay
-    activos; las columnas dicen «X de Y». Combiná (por ejemplo Columna = Screening y un
-    subestado): se muestran solo los que cumplen todos los grupos.
+    la misma forma; la barra tiene un único botón «Filtros». Abrilo. **Esperado:** Sheet
+    «Filtrar candidatos» con ícono y descripción; secciones «PROCESO DE SELECCIÓN» («Etapa
+    del pipeline» y, si hay catálogo, «Subestado») y «CANDIDATOS DESCARTADOS» («Motivo de
+    descarte»); cada filtro es un desplegable con buscador, casillas y conteos discretos;
+    una nota final explica cómo se combinan; el pie dice «N candidato(s) coincide(n)», los
+    filtros activos, «Limpiar» y «Ver N candidato(s)» (plural correcto). Marcar aplica al
+    instante; debajo de la barra aparecen chips removibles y «Limpiar filtros»; las
+    columnas dicen «X de Y». El contenido nunca pasa por debajo del encabezado del Sheet.
 
 ## 5. Verificación en la base (solo lectura)
 
