@@ -12,10 +12,13 @@ Branch `feat/geo-profiles-ui`, stacked on `feat/geo-vacancy-ui` (shared Location
 - S3. Current frontend: company has NO location UI (create form: name, RFC, industry; read-only details; no edit screen). Scope: optional LocationField in the create form + location label in the details view. Editing: user chose «Sí, editar ubicación (Recomendado)» — «Botón «Editar ubicación» para el dueño en Configuración → Empresa; usa el PATCH que el backend ya tiene (sin cambios de backend).» → owner-only Dialog with LocationField (CP) → PATCH /me/company {location} with the existing CAS semantics.
 - S4. UI rules: docs/frontend-ui-design-rules.md (all; «Ubicaciones», §16–§19).
 
+- S5. User choice (verbatim): «Conectar el perfil real ahora» — description shown: «Agrego el guardado completo del perfil del candidato en este corte (más grande: todos los campos del perfil, errores, conflictos).» The candidate profile frontend was a local prototype without persistence; this cut connects GET/PUT `/me/profile` (full replacement, no CAS; missing profile → 404).
+- S6. Backend follow-up agreed: GET /me/company company gains `location` (five-key | null) and `updated_at` (RFC3339Nano UTC, sent as-is in `If-Unmodified-Since` on PATCH /me/company, owner-only). Vacancy 422 paths are `fields.location.<level>`; profile/company are `location.<level>` (intended).
+
 ## Tasks
 
-- T1 [pending] S1-S4 | writer A | Candidate profile: replace city/country with LocationField (no CP), decoders, 422, application wizard/candidate card shows the label. | commit: -
-- T2 [pending] S1-S4 | writer B | Company: optional LocationField (with CP) in the create form, decoders, 422, label in the details view, owner «Editar ubicación» dialog (PATCH). | commit: -
+- T1 [pending] S1-S5 | writer A | Candidate profile: real GET/PUT persistence + LocationField (no CP), decoders, 422, application wizard/candidate card shows the label. | commit: -
+- T2 [pending] S1-S4, S6 | writer B | Company: optional LocationField (with CP) in the create form, decoders, 422, label in the details view, owner «Editar ubicación» dialog (PATCH). | commit: -
 - T3 [pending] | parent | Full suite, guide step, queue paired with backend row 14. | commit: -
 
 ## Log
