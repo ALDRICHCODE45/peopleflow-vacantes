@@ -43,3 +43,22 @@ it("uses the destructive tone for destructive actions and renders extra details"
   expect(screen.getByRole("button", { name: "Descartar candidato" }).className).toContain("destructive");
   expect(screen.getByText("Motivo: No cumple requisitos")).toBeVisible();
 });
+
+it("can block only the confirm button (e.g. while the board reloads) and keep Cancelar usable", () => {
+  const { onConfirm, onOpenChange } = mount({ confirmDisabled: true });
+  const action = screen.getByRole("button", { name: "Mover" });
+  expect(action).toBeDisabled();
+  fireEvent.click(action);
+  expect(onConfirm).not.toHaveBeenCalled();
+  const cancel = screen.getByRole("button", { name: "Cancelar" });
+  expect(cancel).toBeEnabled();
+  fireEvent.click(cancel);
+  expect(onOpenChange).toHaveBeenCalledWith(false, expect.anything());
+});
+
+it("forwards the element that receives focus when the dialog closes", () => {
+  const target = document.createElement("button");
+  const finalFocus = { current: target };
+  render(<ConfirmActionDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} title="T" description="D" confirmLabel="Mover" finalFocus={finalFocus} />);
+  expect(screen.getByRole("alertdialog")).toBeVisible();
+});

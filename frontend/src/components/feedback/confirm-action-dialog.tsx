@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import {
   AlertDialog,
@@ -26,6 +26,10 @@ type ConfirmActionDialogProps = {
   pendingLabel?: string;
   pending?: boolean;
   tone?: "default" | "destructive";
+  /** Blocks only the confirm button (e.g. while the data reloads); «Cancelar» stays usable. */
+  confirmDisabled?: boolean;
+  /** Element that receives focus when the dialog closes (the card or control that opened it). */
+  finalFocus?: ComponentProps<typeof AlertDialogContent>["finalFocus"];
   /** Optional details or fields the decision needs (summary, reason, message). */
   children?: ReactNode;
 };
@@ -36,11 +40,11 @@ type ConfirmActionDialogProps = {
  * so a stray Enter or double click cannot confirm; both buttons lock while pending.
  */
 export function ConfirmActionDialog({
-  open, onOpenChange, onConfirm, title, description, confirmLabel, pendingLabel, pending = false, tone = "default", children,
+  open, onOpenChange, onConfirm, title, description, confirmLabel, pendingLabel, pending = false, tone = "default", confirmDisabled = false, finalFocus, children,
 }: ConfirmActionDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={(next, details) => { if (!pending) onOpenChange(next, details); }}>
-      <AlertDialogContent>
+      <AlertDialogContent finalFocus={finalFocus}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
@@ -51,9 +55,9 @@ export function ConfirmActionDialog({
           <AlertDialogAction
             className="min-h-10"
             variant={tone === "destructive" ? "destructive" : "default"}
-            disabled={pending}
+            disabled={pending || confirmDisabled}
             aria-busy={pending || undefined}
-            onClick={() => { if (!pending) onConfirm(); }}
+            onClick={() => { if (!pending && !confirmDisabled) onConfirm(); }}
           >
             {pending && <Spinner aria-hidden="true" data-icon="inline-start" />}
             {pending ? (pendingLabel ?? confirmLabel) : confirmLabel}
