@@ -11,8 +11,8 @@ Branch feat/pipeline-delivery-fulfillment-ui stacked on feat/pipeline-substates-
 - S6. Board gains `delivery: {state, delivered, target}` (target never null on published vacancies); 200 responses of move, discard, recover and substate gain the same `delivery`, computed after the write. «Reached the cutoff» = first history entry into the cutoff stage; later moves/discards keep it.
 
 ## Tasks
-- T1 [done] S1-S6 | writer | Contracts, board header delivery indicator + fulfillment toast, Entrega editor read-only with frozen result, preview + confirmation flow; tests. | commit: -
-- T2 [pending] S1-S6 | parent | Commits, guide steps, review queue item 9. | commit: -
+- T1 [done] S1-S6 | writer | Contracts, board header delivery indicator + fulfillment toast, Entrega editor read-only with frozen result, preview + confirmation flow; tests. | commit: f6e745a, eda8055, 2858008
+- T2 [done] S1-S6 | parent | Commits, guide steps, review queue item 9. | commit: -
 
 ## Log
 - L1. Backend proposal c09ddb0 §16; frontend asked for delivery in write responses, a fulfilled flag on GET/PUT delivery, published non-null guarantees, preview validation parity and candidate ordering; backend agreed all in §16.6 (msg 1f8b1b17).
@@ -22,3 +22,4 @@ Branch feat/pipeline-delivery-fulfillment-ui stacked on feat/pipeline-substates-
   - Entrega: frozen result/candidates with no inputs/save; preview of the exact save body; explicit confirmation flag; cancel retains edits; confirmation races re-preview and wait for another click; `delivery_fulfilled` reloads read-only; explicit uncertainty checks also freeze when another edit won. Draft preview `vacancy_not_published` still permits the ordinary conditional configuration save.
   - Verification: real Dialog accessible name/description, cancel focus, Escape/return focus and pending-close/double-submit prevention passed in jsdom. Tooltip portal focus/positioning loops in jsdom (one run timed out at 120s); its boundary is mocked while checking the focusable product trigger/date. Real-browser tooltip, responsive/light/dark presentation and live-backend integration remain for T2 review. Added only the reusable irreversible-milestone/out-of-order-details rule to UI §13.10.
   - Suggested reviewable commit units (each <400 changed lines; parent owns commits): contracts/clients/actions + strict-decoder tests + required fixtures; board indicator/status concurrency/toasts + tests + UI rule; read-only editor/preview confirmation + tests + this log.
+- L3. Parent committed f6e745a (contracts/actions/fixtures), eda8055 (board indicator, response adoption, toast, rule), 2858008 (frozen editor, preview + confirmation). Full suite 5,550 passed (only the known local-draft-form timeout), tsc 0. Guide 67-69, queue item 9. Not browser-verified.

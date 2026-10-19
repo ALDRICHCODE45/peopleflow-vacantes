@@ -433,6 +433,19 @@ corepack pnpm dev
     movimiento. En la configuración de subestados, uno con candidatos tiene «Quitar»
     deshabilitado con la explicación; renombrarlo sí se puede.
 
+### Corte de entrega (rama `feat/pipeline-delivery-fulfillment-ui`, backend `feat/pipeline-delivery-fulfillment`, migración 00027)
+
+67. **Progreso.** En el pipeline de una vacante publicada, junto a la cobertura. **Esperado:**
+    «Entrega: X de Y» con barra y «Faltan N días hábiles» («Vence hoy» / «Venció hace …»).
+68. **Cumplir moviendo.** Llevá candidatos hasta la columna de corte hasta alcanzar el
+    objetivo. **Esperado:** toast «Entrega cumplida» con cuántos llegaron, a qué columna y si
+    fue a tiempo; el indicador pasa a «Entregada a tiempo» / «… antes» / «… de retraso».
+    Descartar o mover después a alguien no cambia el resultado.
+69. **Configuración.** En «Entrega» de otra vacante pendiente, bajá el objetivo a lo ya
+    entregado y guardá. **Esperado:** confirmación con los candidatos que cuentan;
+    «Cancelar» conserva lo editado; confirmar la cumple. En una vacante ya cumplida, «Entrega»
+    es de solo lectura con el resultado congelado y los candidatos.
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:
