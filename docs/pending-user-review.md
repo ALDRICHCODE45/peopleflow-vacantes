@@ -10,9 +10,10 @@ el backend va en su rama indicada, con `make db-migrate`.
 
 > **2026-10-19:** el usuario aprobó los ítems 1–5 («Sí, integrar los 5 ítems a main»): filtros del tablero, confirmaciones, Sheet de subestados, corte 7 y filtros por respuestas y perfil. Integrados al `main` local (fd637db) junto con las filas 10–11 del backend; el push lo hace el usuario.
 
+> **2026-10-19:** el usuario aprobó la barra de filtros en una sola fila («aprovado, me gusta. merge por favor»), integrada al `main` local por fast-forward (fe5c39d).
+
 | # | Feature | Rama frontend | Rama backend | Pasos de la guía | Qué mirar especialmente |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Barra de filtros en una sola fila (chips con scroll, recorte con «…» + texto completo al pasar, «Vista filtrada» + «Editar filtros», columnas «Sin coincidencias») según v0 | `feat/pipeline-filter-bar-ui` (sobre `main`) | sin cambios (usar `main`) | 75 | Decisiones a revisar: ancho máximo de los chips; que no haya «Limpiar filtros» dentro de las columnas. |
 
 Cuando el usuario pruebe un ítem, sus comentarios se anotan en el documento de la
 feature (`odd/tasks/…`) y el ítem sale de esta lista al integrarse.
