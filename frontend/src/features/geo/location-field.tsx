@@ -6,7 +6,7 @@ import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useGeoCatalog, useGeoPostalCode } from "./use-geo-catalog";
-import type { Catalog, GeoReference, LocationValue } from "./model";
+import { locationErrorMessages, type Catalog, type GeoReference, type LocationValue } from "./model";
 
 export type LocationFieldProps = {
   value: LocationValue;
@@ -15,10 +15,10 @@ export type LocationFieldProps = {
   postalCode: boolean;
   required?: readonly (keyof LocationValue)[];
   label?: string;
+  description?: string;
   disabled?: boolean;
   errors?: readonly { field: string; reason: "required" | "unknown" | "mismatch" | "not_allowed" }[];
 };
-const messages = { required: "Selecciona una opción.", unknown: "Selecciona una opción del catálogo.", mismatch: "La ubicación no coincide con los otros datos.", not_allowed: "Este dato no está permitido aquí." };
 const removedPostal = "Quitamos el código postal porque no corresponde al municipio elegido.";
 type CatalogState = { status: string; data?: Catalog; retry: () => void };
 
@@ -46,7 +46,7 @@ function CatalogField({ label, code, catalog, onChange, disabled, required, erro
  * Postal resolution is offered only at municipality depth: a valid CP needs a pair.
  * Catalog labels never become write values; typing filters, it never creates an option.
  */
-export function LocationField({ value, onChange, depth, postalCode, required = [], label = "Ubicación", disabled = false, errors = [] }: LocationFieldProps) {
+export function LocationField({ value, onChange, depth, postalCode, required = [], label = "Ubicación", description, disabled = false, errors = [] }: LocationFieldProps) {
   const cpId = useId();
   const mx = value.country === "MX";
   const detailed = mx && depth !== "country";
@@ -58,7 +58,7 @@ export function LocationField({ value, onChange, depth, postalCode, required = [
   const defaulted = useRef(value.country !== null);
   const error = (field: keyof LocationValue) => {
     const issue = errors.find(issue => issue.field.split(".").at(-1) === field);
-    return issue ? messages[issue.reason] : undefined;
+    return issue ? locationErrorMessages[issue.reason] : undefined;
   };
   useEffect(() => {
     if (!defaulted.current && !value.country && !disabled && catalog.countries.data?.items.some(item => item.id === "MX")) {
@@ -87,6 +87,7 @@ export function LocationField({ value, onChange, depth, postalCode, required = [
   const matches = postal.data?.postal_code === value.postal_code ? postal.data.matches : [];
   return <FieldSet disabled={disabled}>
     <FieldLegend>{label}</FieldLegend>
+    {description && <FieldDescription>{description}</FieldDescription>}
     <FieldGroup>
       <CatalogField label="País" code={value.country} catalog={catalog.countries} disabled={disabled} required={required.includes("country")} error={error("country")}
         onChange={country => { setNote(false); onChange({ country, state: null, municipality: null, postal_code: null }); }} />

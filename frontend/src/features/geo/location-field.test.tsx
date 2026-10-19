@@ -132,7 +132,7 @@ it("honors depth, postal flag, disabled and field-level errors", async () => {
   rerender(<Harness depth="state" postalCode={false} disabled errors={[{ field: "fields.location.state", reason: "required" }]} />);
   const state = await screen.findByRole("combobox", { name: "Estado" });
   expect(state).toBeDisabled(); expect(state).toHaveAttribute("aria-invalid", "true");
-  expect(screen.getByText("Selecciona una opción.")).toHaveAttribute("data-slot", "field-error");
+  expect(screen.getByText("Completa este dato.")).toHaveAttribute("data-slot", "field-error");
   expect(screen.queryByLabelText("Municipio")).not.toBeInTheDocument();
 });
 it("keeps the same field anatomy and responsive row while a catalog loads", async () => {
