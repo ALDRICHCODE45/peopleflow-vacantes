@@ -1,6 +1,7 @@
 "use client";
 
 import type { ComponentProps, ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import {
   AlertDialog,
@@ -10,6 +11,7 @@ import {
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
+  AlertDialogMedia,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
@@ -17,6 +19,8 @@ type ConfirmActionDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean, details?: unknown) => void;
   onConfirm: () => void;
+  /** Icon of the action, shown as the official AlertDialogMedia in the header. */
+  icon: LucideIcon;
   /** Names the action and its subject: «¿Mover a Ana Pérez a Screening?». */
   title: string;
   /** States the consequence in plain language, never repeating the title. */
@@ -30,26 +34,31 @@ type ConfirmActionDialogProps = {
   confirmDisabled?: boolean;
   /** Element that receives focus when the dialog closes (the card or control that opened it). */
   finalFocus?: ComponentProps<typeof AlertDialogContent>["finalFocus"];
-  /** Optional details or fields the decision needs (summary, reason, message). */
+  /** Optional details or fields the decision needs (summary, reason, message), placed in one
+   * details slot between header and footer. Without details the dialog uses size="sm". */
   children?: ReactNode;
 };
 
 /**
- * Last step before an important action (§18): an AlertDialog that names the action,
+ * Last step before an important action (§18), built with the official shadcn composition
+ * (Content → Header[Media, Title, Description] → Footer[Cancel, Action]): an AlertDialog that names the action,
  * states its consequence and requires an explicit confirm. Focus starts on «Cancelar»
  * so a stray Enter or double click cannot confirm; both buttons lock while pending.
  */
 export function ConfirmActionDialog({
-  open, onOpenChange, onConfirm, title, description, confirmLabel, pendingLabel, pending = false, tone = "default", confirmDisabled = false, finalFocus, children,
+  open, onOpenChange, onConfirm, icon: Icon, title, description, confirmLabel, pendingLabel, pending = false, tone = "default", confirmDisabled = false, finalFocus, children,
 }: ConfirmActionDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={(next, details) => { if (!pending) onOpenChange(next, details); }}>
-      <AlertDialogContent finalFocus={finalFocus}>
+      <AlertDialogContent size={children ? "default" : "sm"} finalFocus={finalFocus}>
         <AlertDialogHeader>
+          <AlertDialogMedia className={tone === "destructive" ? "bg-destructive/10 text-destructive dark:bg-destructive/20" : "bg-primary/10 text-primary"}>
+            <Icon aria-hidden="true" />
+          </AlertDialogMedia>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
-        {children}
+        {children && <div data-slot="confirm-action-details" className="flex min-w-0 flex-col gap-4">{children}</div>}
         <AlertDialogFooter>
           <AlertDialogCancel autoFocus className="min-h-10" disabled={pending}>Cancelar</AlertDialogCancel>
           <AlertDialogAction

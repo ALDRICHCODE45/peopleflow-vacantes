@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import { ArrowRightLeft } from "lucide-react";
 import { ConfirmActionDialog } from "./confirm-action-dialog";
 
 afterEach(cleanup);
@@ -8,7 +9,7 @@ afterEach(cleanup);
 function mount(props: Partial<Parameters<typeof ConfirmActionDialog>[0]> = {}) {
   const onConfirm = vi.fn();
   const onOpenChange = vi.fn();
-  render(<ConfirmActionDialog open onOpenChange={onOpenChange} onConfirm={onConfirm} title="¿Mover a Ana Pérez a Screening?" description="Pasa de Nuevos a Screening. El cambio queda en su historial." confirmLabel="Mover" {...props} />);
+  render(<ConfirmActionDialog open onOpenChange={onOpenChange} onConfirm={onConfirm} icon={ArrowRightLeft} title="¿Mover a Ana Pérez a Screening?" description="Pasa de Nuevos a Screening. El cambio queda en su historial." confirmLabel="Mover" {...props} />);
   return { onConfirm, onOpenChange };
 }
 
@@ -59,6 +60,27 @@ it("can block only the confirm button (e.g. while the board reloads) and keep Ca
 it("forwards the element that receives focus when the dialog closes", () => {
   const target = document.createElement("button");
   const finalFocus = { current: target };
-  render(<ConfirmActionDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} title="T" description="D" confirmLabel="Mover" finalFocus={finalFocus} />);
+  render(<ConfirmActionDialog open onOpenChange={vi.fn()} onConfirm={vi.fn()} icon={ArrowRightLeft} title="T" description="D" confirmLabel="Mover" finalFocus={finalFocus} />);
   expect(screen.getByRole("alertdialog")).toBeVisible();
+});
+
+it("follows the official shadcn composition: media, title and description in the header, then the footer", () => {
+  mount();
+  const dialog = screen.getByRole("alertdialog");
+  const header = dialog.querySelector('[data-slot="alert-dialog-header"]')!;
+  const media = header.querySelector('[data-slot="alert-dialog-media"]')!;
+  expect(media.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  expect(media.nextElementSibling).toHaveAttribute("data-slot", "alert-dialog-title");
+  expect(header.nextElementSibling).toHaveAttribute("data-slot", "alert-dialog-footer");
+  expect(dialog).toHaveAttribute("data-size", "sm");
+});
+
+it("uses the default size and a single details slot between header and footer when details exist", () => {
+  mount({ tone: "destructive", children: <p>Motivo: No cumple requisitos</p> });
+  const dialog = screen.getByRole("alertdialog");
+  expect(dialog).toHaveAttribute("data-size", "default");
+  const details = dialog.querySelector('[data-slot="confirm-action-details"]')!;
+  expect(details.previousElementSibling).toHaveAttribute("data-slot", "alert-dialog-header");
+  expect(details.nextElementSibling).toHaveAttribute("data-slot", "alert-dialog-footer");
+  expect(dialog.querySelector('[data-slot="alert-dialog-media"]')!.className).toContain("text-destructive");
 });

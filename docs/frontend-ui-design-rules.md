@@ -387,6 +387,8 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
 - [ ] ¿Todo texto con cantidad concuerda en número («1 candidato», «2 candidatos»)
       usando el helper de plural, nunca concatenando una «s» (sección 17)?
 - [ ] ¿Toda acción importante pide confirmación con `ConfirmActionDialog` (sección 18)?
+- [ ] ¿Cada componente de shadcn usado se comparó con el ejemplo y la composición de su
+      documentación oficial (sección 19) y se respetan todas sus partes?
 - [ ] ¿Una superficie compuesta nueva (Sheet, Dialog, barra de herramientas) parte de
       un patrón aprobado de estas reglas o de una referencia visual, y no de una
       composición improvisada (sección 17)?
@@ -834,10 +836,11 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
 - Un mismo dato se llama igual en todas partes: formulario, resumen, diálogo y
   checklist (por ejemplo «Columna de corte» y «Objetivo de entrega», no «Columna de
   entrega» o «Meta de entrega» en el resumen).
-- Un `Dialog` que confirma una acción importante muestra primero lo que falta (lista
-  agrupada por dónde se completa, con un enlace «Completar» por ítem) o, si está todo,
-  un resumen con ícono + etiqueta + valor y la consecuencia de confirmar. Su
-  `DialogFooter` usa `ActionBar` como cualquier pie de acciones (sección 12).
+- Una acción importante se confirma con `ConfirmActionDialog` (sección 18), con un
+  resumen de ícono + etiqueta + valor dentro del mismo diálogo y la consecuencia de
+  confirmar. Los formularios y las listas de requisitos pendientes siguen usando
+  `Dialog`: lo que falta se agrupa por dónde se completa, con un enlace «Completar»
+  por ítem. Su `DialogFooter` usa `ActionBar` (sección 12); no son confirmaciones.
 - Si el resultado de la acción es incierto (sin respuesta), el diálogo ofrece
   «Comprobar», que solo lee el estado; nunca reintenta solo.
 
@@ -1157,6 +1160,15 @@ ultimo paso antes de realmente ejecutar la accion».
 - **Con qué:** un único componente, `ConfirmActionDialog`
   (`src/components/feedback/confirm-action-dialog.tsx`), sobre el `AlertDialog` de shadcn.
   No se arma otro diálogo de confirmación a mano ni se usa `Dialog` para confirmar.
+- **Estructura oficial obligatoria** (composición de la documentación de shadcn):
+  `AlertDialogContent` → `AlertDialogHeader` con `AlertDialogMedia` (ícono de la acción),
+  `AlertDialogTitle` y `AlertDialogDescription` → `AlertDialogFooter` con
+  `AlertDialogCancel` y `AlertDialogAction`. El ícono es obligatorio (`icon`) y repite el
+  de la acción en el resto de la app (Publicar = `Send`); en tono destructivo el media va
+  en `destructive/10`. Sin detalles se usa `size="sm"`; con detalles, `default` y los
+  detalles van en **un solo** bloque entre encabezado y pie (`confirm-action-details`),
+  nunca dentro del encabezado ni del pie. El diálogo se abre controlado (`open`) porque
+  nace de un arrastre, un menú o un formulario; por eso no hay `AlertDialogTrigger`.
 - **Texto:** el título nombra la acción y a quién afecta («¿Mover a Ana Pérez a
   Screening?»); la descripción dice la consecuencia sin repetir el título («Pasa de Nuevos
   a Screening. El cambio queda en su historial.»); el botón usa el verbo de la acción
@@ -1170,3 +1182,26 @@ ultimo paso antes de realmente ejecutar la accion».
   campos van dentro del mismo `ConfirmActionDialog`; no se encadenan dos diálogos.
 - **Errores y conflictos** siguen las reglas de cada flujo (recarga sin repetir la acción,
   toasts de la sección 12); el diálogo se cierra al confirmar con éxito.
+
+## 19. Usar cada componente de shadcn como lo indica su documentación
+
+Origen: el usuario revisó las primeras confirmaciones y notó que «a los alert dialogs les
+falta estructura, según la documentación oficial»: faltaba `AlertDialogMedia`, no se usaba
+`size="sm"` y los detalles quedaban sueltos.
+
+- **Antes de usar un componente por primera vez** (o de crear un componente propio sobre
+  él), leer su página en `ui.shadcn.com/docs/components/base/<componente>` o consultar el
+  MCP de shadcn (`get_item_examples_from_registries`, `view_items_in_registries`) y anotar
+  la sección **Composition** (el árbol de partes), los ejemplos y las props (`size`,
+  `variant`).
+- **Respetar el árbol completo de la composición.** Cada parte va dentro de la que indica
+  el árbol (por ejemplo `AlertDialogMedia` dentro de `AlertDialogHeader`, `CardAction`
+  dentro de `CardHeader`). Si una parte opcional aporta a la decisión del usuario (ícono,
+  descripción, acción), se usa.
+- **Toda desviación se justifica por escrito** en el comentario del componente o en estas
+  reglas (por ejemplo: diálogo controlado sin `Trigger` porque nace de un arrastre). Una
+  desviación sin justificación es un defecto.
+- **Los tests fijan la composición** a través de los `data-slot` oficiales (por ejemplo,
+  media → título dentro del encabezado, y el pie después), además del comportamiento.
+- Un componente propio que envuelve uno de shadcn (como `ConfirmActionDialog`) es el único
+  lugar donde se arma esa composición; las pantallas no la rearman a mano.
