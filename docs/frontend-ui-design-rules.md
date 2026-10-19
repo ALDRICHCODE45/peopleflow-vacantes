@@ -386,6 +386,7 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
       controles (sección 17)?
 - [ ] ¿Todo texto con cantidad concuerda en número («1 candidato», «2 candidatos»)
       usando el helper de plural, nunca concatenando una «s» (sección 17)?
+- [ ] ¿Toda acción importante pide confirmación con `ConfirmActionDialog` (sección 18)?
 - [ ] ¿Una superficie compuesta nueva (Sheet, Dialog, barra de herramientas) parte de
       un patrón aprobado de estas reglas o de una referencia visual, y no de una
       composición improvisada (sección 17)?
@@ -1140,3 +1141,32 @@ corregida (v0) resuelve cada punto; estas reglas evitan que se repita.
 Ejemplo de referencia: el Sheet «Filtrar candidatos» del tablero
 (`src/features/pipeline-movement/board-filters.tsx`), según las capturas de v0 del
 2026-10-19.
+
+## 18. Confirmación de acciones importantes
+
+Decisión del usuario (2026-10-19): «hay veces que estas haciendo algo y por accidente
+haces un click o incluso dos, y terminas realizando una accion que no querias realizar,
+propongo que salte un alert dialog y en esta y en todas las acciones importantes como
+ultimo paso antes de realmente ejecutar la accion».
+
+- **Qué se confirma:** mover un candidato de etapa (arrastrando o desde «Mover a…», en la
+  tarjeta y en la ficha), cambiar su subestado, reordenar columnas, salir o volver a
+  Placement, descartar, recuperar, publicar una vacante, borrar un CV y cumplir la entrega
+  desde la configuración. Una acción nueva que cambie datos de otra persona, el historial
+  o algo irreversible entra en esta lista.
+- **Con qué:** un único componente, `ConfirmActionDialog`
+  (`src/components/feedback/confirm-action-dialog.tsx`), sobre el `AlertDialog` de shadcn.
+  No se arma otro diálogo de confirmación a mano ni se usa `Dialog` para confirmar.
+- **Texto:** el título nombra la acción y a quién afecta («¿Mover a Ana Pérez a
+  Screening?»); la descripción dice la consecuencia sin repetir el título («Pasa de Nuevos
+  a Screening. El cambio queda en su historial.»); el botón usa el verbo de la acción
+  («Mover», «Descartar candidato»), nunca «Aceptar» ni «Sí». Acciones destructivas en tono
+  `destructive`.
+- **Seguridad del clic:** el foco inicial está en «Cancelar», así un Enter o un doble clic
+  accidental no confirma; mientras se ejecuta, los dos botones se bloquean y el principal
+  muestra el progreso («Moviendo…»). Cancelar no escribe nada; en un arrastre, la tarjeta
+  vuelve a su lugar.
+- **Cuando la confirmación ya pide datos** (motivo de descarte, mensaje al candidato), esos
+  campos van dentro del mismo `ConfirmActionDialog`; no se encadenan dos diálogos.
+- **Errores y conflictos** siguen las reglas de cada flujo (recarga sin repetir la acción,
+  toasts de la sección 12); el diálogo se cierra al confirmar con éxito.
