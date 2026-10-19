@@ -114,6 +114,40 @@ type CompanyMember struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
+type GeoCatalogImport struct {
+	ID         int64              `json:"id"`
+	Source     string             `json:"source"`
+	SourceDate pgtype.Date        `json:"source_date"`
+	Rows       int64              `json:"rows"`
+	ImportedAt pgtype.Timestamptz `json:"imported_at"`
+}
+
+type GeoCountry struct {
+	Code   string `json:"code"`
+	NameEs string `json:"name_es"`
+	NameEn string `json:"name_en"`
+}
+
+type GeoMunicipality struct {
+	CountryCode string `json:"country_code"`
+	StateCode   string `json:"state_code"`
+	Code        string `json:"code"`
+	Name        string `json:"name"`
+}
+
+type GeoPostalCode struct {
+	CountryCode      string `json:"country_code"`
+	PostalCode       string `json:"postal_code"`
+	MunicipalityCode string `json:"municipality_code"`
+}
+
+type GeoState struct {
+	CountryCode  string `json:"country_code"`
+	Code         string `json:"code"`
+	Name         string `json:"name"`
+	Abbreviation string `json:"abbreviation"`
+}
+
 type Industry struct {
 	ID        string             `json:"id"`
 	LabelEs   string             `json:"label_es"`
