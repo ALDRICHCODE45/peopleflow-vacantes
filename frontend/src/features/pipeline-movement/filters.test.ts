@@ -7,11 +7,12 @@ import { discardCatalog } from "./discard-text";
 
 it("column and discard declarations preserve catalog order and combine with substates", () => {
   const board = boardFixture(); board.stages[2].kind = "in_process";
+  board.substates = [{ id: "tech", name: "Técnica" }];
   const item = { ...board.participations[0], stage_id: "interview", substate_id: "tech" };
   const discarded = { ...item, stage_id: board.exit.id, discard: { reason: { group: "candidate" as const, key: "other" as const }, previous_stage_id: "interview", discarded_at: item.moved_at } };
   const dimensions = boardFilterDimensions(board);
-  expect(dimensions.map(d => d.label)).toEqual(["Subestado", "Columna", "Motivo de descarte"]);
-  expect(dimensions[1].options.map(o => o.value)).toEqual([...board.stages, board.exit].map(s => s.id));
+  expect(dimensions.map(d => d.label)).toEqual(["Columna", "Subestado", "Motivo de descarte"]);
+  expect(dimensions[0].options.map(o => o.value)).toEqual([...board.stages, board.exit].map(s => s.id));
   expect(dimensions[2].options.map(o => o.value)).toEqual(discardCatalog.flatMap(g => g.reasons.map(r => `${g.group}:${r.key}`)));
   expect(applyFilters([item, discarded], dimensions, { column: new Set(["screen"]), substate: new Set(["tech"]) })).toEqual([]);
   expect(applyFilters([item, discarded], dimensions, { column: new Set(["screen", "interview"]), substate: new Set(["tech"]) })).toEqual([item]);

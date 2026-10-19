@@ -1,3 +1,4 @@
+import "./board-filter-popover-test-double";
 import type { ReactNode, ComponentProps } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
@@ -293,12 +294,13 @@ it("toolbar filter wires OR selections, excludes other stages and clears without
   const board = activeSubstateBoard(); board.participations.push({ ...board.participations[0], id: "null", substate_id: null, candidate: { id: "second", full_name: "Eva Ruiz" } }, { ...board.participations[0], id: "outside", stage_id: "new", substate_id: null, candidate: { id: "third", full_name: "Sol Díaz" } });
   vi.stubGlobal("PointerEvent", MouseEvent);
   await mount(board); fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
-  const group = screen.getByRole("group", { name: "Subestado" });
+  fireEvent.click(screen.getByRole("button", { name: "Subestado" }));
+  const group = screen.getByRole("dialog", { name: "Filtrar candidatos" });
   const options = within(group).getAllByRole("checkbox"); expect(options).toHaveLength(3);
   fireEvent.click(within(group).getByRole("checkbox", { name: "Entrevista técnica 1" }));
   fireEvent.click(within(group).getByRole("checkbox", { name: "Sin subestado 1" }));
   fireEvent.click(screen.getByRole("button", { name: "Ver 2 candidatos" }));
-  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtros" })).not.toBeInTheDocument());
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtrar candidatos" })).not.toBeInTheDocument());
   expect(screen.getByRole("region", { name: "Entrevista: 2 de 2 candidatos" })).toHaveTextContent("Ana Pérez");
   expect(screen.queryByRole("button", { name: "Ver detalle de Sol Díaz" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Filtros 2" })).toBeVisible();
