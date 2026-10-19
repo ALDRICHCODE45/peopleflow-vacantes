@@ -17,6 +17,7 @@ maps them to a model and a contract and adds only the decisions recorded in §6.
 | 5 | Discard with reason and recovery (PIPE-12, PIPE-13) | yes | medium |
 | 6 | Active substate per candidate and OR filter incl. `Sin subestado` (SUB-3, SUB-5) | yes | medium |
 | 7 | Editing configuration with occupants: impact preview, "not applicable" stages, removing used columns (PIPE-15…PIPE-18) | yes | high — blocked on open decision §17.1 |
+| last | Vacancy SEO and Google for Jobs: `JobPosting` JSON-LD on the public detail, SEO metadata, vacancy sitemap, structured location (city/state/country), Indexing API on publish/close (needs production domain, Search Console and a Google Cloud service account) | no | medium — **lowest priority, after everything else** (user, L72) |
 
 Each cut: ODD task, agreed contract, test-first, real browser test by the user, local
 merge to `main`, user pushes. No PRs.
