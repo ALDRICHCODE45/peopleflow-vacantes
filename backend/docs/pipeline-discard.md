@@ -6,8 +6,9 @@ frontend are unchanged. No candidate notification is sent.
 
 ## Before running
 
-Apply migrations through **00028** with `make db-migrate` (cut-6 active substates;
-[contract](pipeline-substates-active.md)). Quiesce participation writes during the
+Apply migrations through **00028** with `make db-migrate` (00026 cut-6 active substates,
+[contract](pipeline-substates-active.md); 00028 cut-7 column editing,
+[contract](pipeline-column-editing.md)). Quiesce participation writes during the
 migration/API rollout: the new history event kind is explicit for move writes.
 Keep 00024, its tests, the 00023 rollback-test pin and regenerated
 `internal/db/models.go` in a separate migration review/commit unit. The parent
