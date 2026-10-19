@@ -16,6 +16,7 @@ const draftId = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const etag = '"opaque-pipeline-tag+/="';
 const pipeline = {
   version: "0",
+  retired: [],
   structure_locked: false,
   stages: ["new", "screening", "screening_ok", "in_process", "placement", "custom"].map((kind, index) => ({
     id: `0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8${index}`,
@@ -41,13 +42,14 @@ afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); env.reads = 0; });
 
 for (const method of ["GET", "PUT"] as const) {
   describe(method, () => {
+    const wire = (value: typeof pipeline) => method === "PUT" ? { ...value, applied_impact: { not_applicable: [], recovery_reassigned: [] } } : value;
     const call = () => method === "GET"
       ? getDraftPipeline({ token: " secret ", draftId })
       : saveDraftPipeline({ token: " secret ", draftId, ifMatch: etag, body });
 
     it("uses the absolute v2 URL, Bearer only, no-store and redirect error", async () => {
-      const fetch = response(pipeline);
-      expect(await call()).toEqual({ ok: true, data: pipeline, etag });
+      const fetch = response(wire(pipeline));
+      expect(await call()).toEqual({ ok: true, data: wire(pipeline), etag });
       expect(fetch).toHaveBeenCalledTimes(1);
       const [url, init] = fetch.mock.calls[0];
       expect(url).toBe(`http://localhost:8080/v2/me/company/job-drafts/${draftId}/pipeline`);
@@ -62,8 +64,8 @@ for (const method of ["GET", "PUT"] as const) {
     });
 
     it.each([false, true])("decodes the required structure_locked boolean (%s)", async structure_locked => {
-      response({ ...pipeline, structure_locked });
-      expect(await call()).toEqual({ ok: true, data: { ...pipeline, structure_locked }, etag });
+      response(wire({ ...pipeline, structure_locked }));
+      expect(await call()).toEqual({ ok: true, data: wire({ ...pipeline, structure_locked }), etag });
     });
     it.each([undefined, null, "true", 1])("rejects absent or nonboolean structure_locked (%s)", async structure_locked => {
       response({ ...pipeline, structure_locked });
@@ -71,8 +73,8 @@ for (const method of ["GET", "PUT"] as const) {
     });
 
     it.each(["0", "1", "90071992547409931234567890"])("preserves decimal version %s", async version => {
-      response({ ...pipeline, version });
-      expect(await call()).toEqual({ ok: true, data: { ...pipeline, version }, etag });
+      response(wire({ ...pipeline, version }));
+      expect(await call()).toEqual({ ok: true, data: wire({ ...pipeline, version }), etag });
     });
 
     it.each([null, "", "   "])("requires a nonblank ETag (%s)", async tag => {
@@ -200,9 +202,10 @@ it.each(["", "   "])("guards blank If-Match (%s) before env/fetch", async ifMatc
 
 it("validates shape only, leaving business rules and opaque If-Match to their owners", async () => {
   const shapeOnly = { stages: [{ name: "" }, { name: "" }], exit: { id: draftId, name: "" } };
-  const fetch = response({ ...pipeline, stages: [] });
+  const saved = { ...pipeline, stages: [], applied_impact: { not_applicable: [], recovery_reassigned: [] } };
+  const fetch = response(saved);
   expect(await saveDraftPipeline({ token: "x", draftId, ifMatch: "opaque-unparsed", body: shapeOnly })).toEqual({
-    ok: true, data: { ...pipeline, stages: [] }, etag,
+    ok: true, data: saved, etag,
   });
   expect(fetch.mock.calls[0][1].body).toBe(JSON.stringify(shapeOnly));
   expect(new Headers(fetch.mock.calls[0][1].headers).get("if-match")).toBe("opaque-unparsed");

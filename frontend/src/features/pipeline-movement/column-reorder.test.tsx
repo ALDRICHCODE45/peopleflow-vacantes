@@ -36,8 +36,8 @@ vi.mock("@dnd-kit/core", () => ({
   useDroppable: ({ id, disabled }: { id: string; disabled: boolean }) => { dnd.drops.set(id, disabled); return { setNodeRef: () => {} }; },
   useSensors: () => [], useSensor: () => ({}), PointerSensor: {}, KeyboardSensor: {}, pointerWithin: vi.fn(), closestCorners: vi.fn(),
 }));
-function pipeline(): EditorPipeline {
-  return { version: "1", structure_locked: false, stages: [
+function pipeline(): EditorPipeline & { retired: EditorPipeline["stages"] } {
+  return { retired: [], version: "1", structure_locked: false, stages: [
     { id: "new", kind: "new", name: "Nuevos" },
     { id: "screen", kind: "screening", name: "Screening" },
     { id: "ok", kind: "screening_ok", name: "Screening OK" },

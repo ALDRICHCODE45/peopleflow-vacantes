@@ -24,7 +24,7 @@ beforeEach(() => {
  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ok: true, seed: draftEditSeedFromRead(draft), identity: { draftId: draft.id, etag: '"draft-etag"' } });
  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ...ready, publication: { ...ready.publication, missing: [] } });
  vi.mocked(loadDraftDeliveryAction).mockResolvedValue({ ok: true, etag: '"delivery"', delivery: { fulfilled: false, version: "1", cutoffStageId: draft.id, targetQuantity: 5, commitmentDate: "2026-11-30", limits: { maxTargetQuantity: 999 }, calendar: { timeZone: "America/Mexico_City", today: "2026-10-16", minDate: "2026-10-16", maxDate: "2027-10-16", nonBusinessDates: [] } } });
- vi.mocked(loadDraftPipelineAction).mockResolvedValue({ ok: true, etag: '"pipeline"', pipeline: { version: "1", stages: [{ id: draft.id, kind: "screening_ok", name: "Lista para entrevista" }], exit: { id: draft.id, kind: "discarded", name: "Fuera" }, limits: { maxCustomStages: 3, nameMaxLength: 40 }, structure_locked: false } });
+ vi.mocked(loadDraftPipelineAction).mockResolvedValue({ ok: true, etag: '"pipeline"', pipeline: { retired: [], version: "1", stages: [{ id: draft.id, kind: "screening_ok", name: "Lista para entrevista" }], exit: { id: draft.id, kind: "discarded", name: "Fuera" }, limits: { maxCustomStages: 3, nameMaxLength: 40 }, structure_locked: false } });
  vi.mocked(publishDraftAction).mockResolvedValue({ ok: true, publication: { id: draft.id, status: "published", publishedAt: date } });
 });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });

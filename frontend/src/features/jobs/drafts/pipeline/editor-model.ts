@@ -96,7 +96,6 @@ export function renameStage(state: PipelineEditorState, key: string, name: strin
 }
 
 export function canMove(state: PipelineEditorState, key: string, direction: MoveDirection): boolean {
-  if (state.baseline.structure_locked) return false;
   const index = state.stages.findIndex((entry) => entry.key === key);
   const stage = state.stages[index];
   if (!stage || stage.kind === "new" || stage.kind === "placement") return false;
@@ -114,7 +113,6 @@ export function moveStage(state: PipelineEditorState, key: string, direction: Mo
 }
 
 export function canMoveTo(state: PipelineEditorState, key: string, targetIndex: number): boolean {
-  if (state.baseline.structure_locked) return false;
   const index = state.stages.findIndex(entry => entry.key === key);
   const stage = state.stages[index];
   return !!stage && stage.kind !== "new" && stage.kind !== "placement"
@@ -133,7 +131,7 @@ export function moveStageTo(state: PipelineEditorState, key: string, targetIndex
 }
 
 export function canAddCustomStage(state: PipelineEditorState): boolean {
-  return !state.baseline.structure_locked && state.stages.filter((entry) => entry.kind === "custom").length < state.limits.maxCustomStages;
+  return state.stages.filter((entry) => entry.kind === "custom").length < state.limits.maxCustomStages;
 }
 
 export function addCustomStage(state: PipelineEditorState, name = ""): PipelineEditorState {
@@ -152,7 +150,7 @@ export function addCustomStage(state: PipelineEditorState, name = ""): PipelineE
 }
 
 export function canRemoveStage(state: PipelineEditorState, key: string): boolean {
-  return !state.baseline.structure_locked && state.stages.some((entry) => entry.key === key && entry.kind === "custom");
+  return state.stages.some((entry) => entry.key === key && entry.kind === "custom");
 }
 
 export function removeCustomStage(state: PipelineEditorState, key: string): PipelineEditorState {
