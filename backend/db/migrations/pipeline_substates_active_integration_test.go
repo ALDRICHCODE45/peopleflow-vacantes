@@ -69,6 +69,7 @@ func TestMigration00026ExistingRowsShapesAndGuardedDown(t *testing.T) {
 	}
 	before := oldSnapshot()
 	gooseUpAll(t, db)
+	gooseDownTo(t, db, 26) // Pin this rollback independently of later additive migrations.
 	if before != oldSnapshot() {
 		t.Fatal("migration rewrote personal data or cut-4/5 history")
 	}

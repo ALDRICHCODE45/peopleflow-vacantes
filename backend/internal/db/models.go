@@ -244,6 +244,19 @@ type ProcessCoverageMilestone struct {
 	Required  int32              `json:"required"`
 }
 
+type ProcessDeliveryFulfillment struct {
+	ProcessID         uuid.UUID          `json:"process_id"`
+	FulfilledAt       pgtype.Timestamptz `json:"fulfilled_at"`
+	Result            string             `json:"result"`
+	BusinessDaysDelta int32              `json:"business_days_delta"`
+	Target            int32              `json:"target"`
+	Delivered         int32              `json:"delivered"`
+	CutoffStageID     uuid.UUID          `json:"cutoff_stage_id"`
+	CutoffStageName   string             `json:"cutoff_stage_name"`
+	CommitmentDate    pgtype.Date        `json:"commitment_date"`
+	Candidates        []byte             `json:"candidates"`
+}
+
 type ProcessParticipation struct {
 	ID                uuid.UUID          `json:"id"`
 	ProcessID         uuid.UUID          `json:"process_id"`
