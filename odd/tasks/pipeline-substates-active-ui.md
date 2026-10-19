@@ -1,0 +1,19 @@
+# Active substate per candidate, cut 6 (frontend)
+Set and clear each «En proceso» candidate's active substate from the board card and the candidate sheet, filter the board by substates (OR, plus «Sin subestado»), show substate history, and block removing in-use substates in the catalog editor.
+Branch feat/pipeline-substates-active-ui stacked on feat/ui-polish; not merged to main until the user's browser review. Frontend only; backend session 01a1420b-ba06-7632 implements feat/pipeline-substates-active (migration 00026). Contract: `git show feat/pipeline-substates-active:docs/pipeline-customization-design.md` §15 incl. §15.6 — authoritative over this summary.
+
+## Specs
+- S1. Standing instructions: follow docs/frontend-ui-design-rules.md (incl. §9 checklist, §11, §13.10, §14, §15, §16) and shadcn first (never edit components/ui/*, never install packages); test-first; strict decoders; no automatic retries; add learned patterns to the rules.
+- S2. User decisions (§15.5): leaving «En proceso» clears the substate (kept in history); returning enters without substate. A substate in use cannot be removed from the catalog; renaming is allowed. The substate filter is ANDed with other board filters; OR among substates. Owner or principal set it; the candidate never sees it.
+- S3. POST `…/participations/{pid}/substate`, If-Match = item etag, body exactly `{substate_id: uuid|null}` → 200 board item + new ETag (like a move). Same value = no-op: 200, same item, same ETag, no history. Errors: 409 substate_requires_in_process (also for discarded), 400 validation_error (unknown id), the rest as cut 4 (412/404/428/400 invalid_request/uncertain → reload once, never retry).
+- S4. Board items and participation detail gain `substate_id: string|null` (always null outside in_process, incl. discarded). GET board gains `substates: [{id, name}]` (current catalog, catalog order).
+- S5. History gains kind `substate` with exact keys {kind, from_substate_id, from_substate_name, to_substate_id, to_substate_name, actor, at} (names snapshotted at the event). When a move or discard takes a candidate out of in_process, a `substate → null` entry is recorded first.
+- S6. Substate catalog resource (cut 2) items gain `in_use: boolean`; catalog PUT can return 409 substate_in_use with `details: [{substate_id}]` in catalog order. The catalog sheet disables removing in-use substates with an explanation and marks the exact rows on 409.
+- S7. Board filter: client-side multi-select of substates (catalog order) plus «Sin subestado» (in_process with null substate); items outside in_process do not match while the filter is active; ANDed with any other board filter.
+
+## Tasks
+- T1 [pending] S1-S7 | writer | Contracts, set-substate action, card badge + selector, sheet selector + history, board filter, catalog in_use + 409 details; tests. | commit: -
+- T2 [pending] S1-S7 | parent | Commits, guide steps, review queue item 8. | commit: -
+
+## Log
+- L1. Backend proposal 54c87c6 §15; frontend asked for board substate names, history name snapshots, 409 details, no-op and out-of-in_process confirmations; backend agreed all in §15.6 (msg cd49ba24).
