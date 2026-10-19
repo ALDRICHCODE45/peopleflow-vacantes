@@ -537,3 +537,13 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     lugar. En la ficha de un candidato afectado, el historial muestra «No aplica por cambio
     de proceso». Descartá a alguien, quitá su columna anterior y recuperalo: el diálogo
     avisa que su columna ya no existe y pide «Columna de regreso» con la sugerida marcada.
+
+74. **Filtros por respuestas y perfil.** Backend en `feat/pipeline-filter-data`
+    (`make db-migrate` aplica la 00029). Postulá a un candidato con perfil completo
+    (ciudad, habilidades, experiencia, estudios) a una vacante con preguntas de opción
+    única. En el tablero abrí «Filtros». **Esperado:** sección «PREGUNTAS DE FILTRO» con un
+    filtro por pregunta (opciones + «Sin respuesta») y sección «PERFIL DEL CANDIDATO» con
+    «Ciudad», «Habilidades», «Años de experiencia» (rangos), «Nivel de estudios», cada uno
+    con «Sin dato». Filtrar aplica al instante con chips. En la ficha, bloque «Perfil» con
+    los datos y «Copiado del perfil al postularse.»; postulaciones anteriores muestran
+    «Sin dato». Mover o descartar al candidato no borra su perfil ni sus respuestas.
