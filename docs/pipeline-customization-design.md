@@ -1564,3 +1564,43 @@ candidates; preview and confirmation dialog when an edit would fulfill.
 5. Candidate lists are unique per participation and ordered by `reached_at` ascending, then
    `participation_id`. The preview lists every candidate delivered under the proposed values;
    the fulfillment lists the first `target` of them (the explaining candidates).
+
+## 18. Board filters — shared multi-select strategy (agreed)
+
+Requested by the user (relayed by the frontend, msg 90970f58): «propongo un sheet, en el que al
+tocar un boton "filtros" salga y dentro de el, se encuentren los filtros, ojo, todos los filtros
+deben ser multi filtro […] TODOS los filtros de este apartado seran multi filtro, o multi
+select». (§17 is reserved for cut 7.)
+
+### 18.1 Semantics (one rule for every filter)
+
+- Every dimension is multi-select. Values inside one dimension combine with **OR**;
+  dimensions combine with **AND** (generalizes §15.5 S3).
+- «Sin X» is an ordinary value of its dimension when the attribute is optional (e.g.
+  «Sin subestado» = `in_process` with `substate_id: null`).
+- An empty selection means "no filter on that dimension".
+
+### 18.2 Where filtering runs
+
+- **Now: client-side** over the board (≤1,000 items, §12.2), with one generic model per
+  dimension `{key, label, options[{value, label}], match(item, values)}`. No backend change.
+- **Every dimension's options come from the board response**, in catalog order (as
+  `substates` today); no hardcoded catalogs in the client.
+- **Later, server-side** (only when paging or >1,000 items is needed) with a fixed convention
+  so nothing is redesigned: repeated query parameters, one per value
+  (`?substate=a&substate=b&substate=none`), `none` reserved for «Sin X», unknown values →
+  `400 validation_error`, and the board echoes the normalized selection in
+  `filters_applied`. The board's `422 board_too_large` is the trigger to build it.
+
+### 18.3 Dimensions
+
+| Dimension | Data on the board today | Notes |
+| --- | --- | --- |
+| Subestado | `substate_id` + `substates` catalog | incl. «Sin subestado» |
+| Motivo de descarte | `discard.reason {group, key}` | values grouped by «Decisión de la empresa / del candidato»; only discarded items match |
+| Columna | `stage_id` + `stages`/`exit` | useful in list views; on the board it duplicates the columns |
+| Respuesta a una pregunta de filtro (single choice) | **not on the board** | needs answers on board items (backend change, own small cut) |
+| Perfil del candidato (ubicación, estudios, idiomas, experiencia) | **not on the board** | needs profile data on items and privacy review (own cut) |
+
+Every new dimension that needs backend data is a small contract change: the board item gains
+the value(s) and the board root gains the dimension's catalog, both in this same shape.
