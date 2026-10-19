@@ -3,12 +3,12 @@ import * as React from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import { loadDraftDeliveryAction, saveDraftDeliveryAction, type DraftDeliveryActionResult } from "@/features/jobs/drafts/pipeline/delivery-actions";
+import { loadDraftDeliveryAction, saveDraftDeliveryAction, previewDraftDeliveryAction, loadDeliveryStatusAction, type DraftDeliveryActionResult } from "@/features/jobs/drafts/pipeline/delivery-actions";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { DeliveryEditor } from "./editor";
 import { deliveryFixture } from "./test-fixture";
 import { pipelineFixture } from "../stage-config/test-fixture";
-vi.mock("@/features/jobs/drafts/pipeline/delivery-actions", () => ({ loadDraftDeliveryAction: vi.fn(), saveDraftDeliveryAction: vi.fn() }));
+vi.mock("@/features/jobs/drafts/pipeline/delivery-actions", () => ({ loadDraftDeliveryAction: vi.fn(), saveDraftDeliveryAction: vi.fn(), previewDraftDeliveryAction: vi.fn(), loadDeliveryStatusAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
 // Base UI portal focus restoration loops in jsdom (same boundary as the installed
 // DatePickerField tests). Keep the real Calendar, replace only popup boundaries.
@@ -32,13 +32,99 @@ vi.mock("@/components/ui/select", () => {
     SelectItem: ({ value, children }: { value: string; children: React.ReactNode }) => { const context = React.useContext(Context); return <button role="option" aria-selected={context.value === value} onClick={() => context.change(value)}>{children}</button>; },
   };
 });
+const fulfillment = { fulfilled_at: "2026-10-16T12:00:00Z", result: "on_time" as const, business_days_delta: 2, target: 1, cutoff_stage_id: "screen", cutoff_stage_name: "Corte congelado", commitment_date: "2026-10-20", candidates: [{ participation_id: "person", candidate: { id: "candidate", full_name: "Ana Pérez" }, reached_at: "2026-10-15T12:00:00Z" }] };
+const fulfillmentStatus = { state: "fulfilled" as const, delivered: 1, target: 1, cutoff_stage_id: "screen", commitment_date: "2026-10-20", business_days_remaining: null, fulfillment };
+const fulfillsPreview = { would_fulfill: true, delivered: 1, target: 1, candidates: fulfillment.candidates };
+it("renders fulfilled delivery read-only with frozen snapshot and explaining candidates", async () => {
+  vi.mocked(loadDeliveryStatusAction).mockResolvedValue({ ok: true, status: fulfillmentStatus });
+  mount({ ...deliveryFixture(), fulfilled: true });
+  expect(await screen.findByText("Corte congelado")).toBeVisible(); expect(screen.getByText("Ana Pérez")).toBeVisible();
+  expect(screen.getByText("Entregada 2 días hábiles antes")).toHaveAttribute("data-variant", "success");
+  expect(screen.getByText("1 candidatos")).toBeVisible();
+  for (const date of [fulfillment.fulfilled_at, fulfillment.commitment_date, fulfillment.candidates[0].reached_at]) expect(document.querySelector(`time[datetime="${date}"]`)).not.toBeNull();
+  expect(screen.getByText("La entrega ya se cumplió; su configuración no se puede cambiar.")).toBeVisible();
+  expect(screen.queryByRole("textbox")).not.toBeInTheDocument(); expect(screen.queryByRole("button", { name: "Guardar cambios" })).not.toBeInTheDocument();
+});
+it("previews the exact body, confirms candidates, then PUTs with explicit confirmation and ETag", async () => {
+  vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: true, preview: fulfillsPreview }); mount(); edit("1"); fireEvent.click(save());
+  const confirm = await screen.findByRole("button", { name: "Confirmar y cumplir" }); expect(screen.getByRole("dialog")).toHaveTextContent("Ana Pérez"); expect(saveDraftDeliveryAction).not.toHaveBeenCalled();
+  fireEvent.click(confirm); await waitFor(() => expect(saveDraftDeliveryAction).toHaveBeenCalledExactlyOnceWith({ draftId, ifMatch: '"delivery-0"', body: { cutoffStageId: null, targetQuantity: 1, commitmentDate: null, confirm_fulfillment: true } }));
+  expect(previewDraftDeliveryAction).toHaveBeenCalledExactlyOnceWith({ draftId, body: { cutoffStageId: null, targetQuantity: 1, commitmentDate: null } });
+});
+it("confirmation formats the civil commitment date without shifting the business day", async () => {
+  vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: true, preview: fulfillsPreview }); mount({ ...deliveryFixture(), commitmentDate: "2026-10-20" }); edit("1"); fireEvent.click(save());
+  const dialog = await screen.findByRole("dialog"); expect(within(dialog).getByText("20 oct 2026")).toHaveAttribute("datetime", "2026-10-20");
+});
+it("a confirmed fulfilling save adopts the frozen result, never leaving an editable form", async () => {
+  vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: true, preview: fulfillsPreview });
+  vi.mocked(saveDraftDeliveryAction).mockResolvedValue({ ok: true, delivery: { ...deliveryFixture(), fulfilled: true, version: "1", targetQuantity: 1 }, etag: '"fulfilled"' });
+  vi.mocked(loadDeliveryStatusAction).mockResolvedValue({ ok: true, status: fulfillmentStatus }); mount(); edit("1"); fireEvent.click(save());
+  fireEvent.click(await screen.findByRole("button", { name: "Confirmar y cumplir" }));
+  expect(await screen.findByText("Corte congelado")).toBeVisible(); expect(screen.queryByRole("textbox")).not.toBeInTheDocument(); expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+it("a confirmed save still preserves If-Match/412 without an automatic reload or PUT retry", async () => {
+  vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: true, preview: fulfillsPreview });
+  vi.mocked(saveDraftDeliveryAction).mockResolvedValue({ ok: false, reason: "version_conflict", reference: { status: 412, code: "version_conflict" } }); mount(); edit("1"); fireEvent.click(save());
+  fireEvent.click(await screen.findByRole("button", { name: "Confirmar y cumplir" })); await screen.findByRole("button", { name: "Cargar versión actual" });
+  expect(target()).toHaveValue("1"); expect(saveDraftDeliveryAction).toHaveBeenCalledTimes(1); expect(loadDraftDeliveryAction).not.toHaveBeenCalled(); expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+it("canceling fulfillment keeps edits and performs no PUT", async () => {
+  vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: true, preview: fulfillsPreview }); mount(); edit("1"); fireEvent.click(save());
+  fireEvent.click(await screen.findByRole("button", { name: "Cancelar" })); expect(target()).toHaveValue("1"); expect(save()).toBeEnabled(); expect(saveDraftDeliveryAction).not.toHaveBeenCalled();
+});
+it("409 confirmation race reads fresh preview and waits for another click", async () => {
+  vi.mocked(previewDraftDeliveryAction).mockResolvedValueOnce({ ok: true, preview: { ...fulfillsPreview, would_fulfill: false, delivered: 0, candidates: [] } }).mockResolvedValue({ ok: true, preview: fulfillsPreview });
+  vi.mocked(saveDraftDeliveryAction).mockResolvedValue({ ok: false, reason: "fulfillment_confirmation_required", reference: { status: 409, code: "fulfillment_confirmation_required" } });
+  mount(); edit("1"); fireEvent.click(save()); expect(await screen.findByRole("button", { name: "Confirmar y cumplir" })).toBeEnabled(); expect(previewDraftDeliveryAction).toHaveBeenCalledTimes(2); expect(saveDraftDeliveryAction).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole("button", { name: "Cancelar" })); expect(target()).toHaveValue("1");
+});
+it("delivery_fulfilled reloads the read-only result without retrying PUT", async () => {
+  vi.mocked(saveDraftDeliveryAction).mockResolvedValue({ ok: false, reason: "delivery_fulfilled", reference: { status: 409, code: "delivery_fulfilled" } });
+  vi.mocked(loadDraftDeliveryAction).mockResolvedValue({ ok: true, delivery: { ...deliveryFixture(), fulfilled: true }, etag: '"frozen"' });
+  vi.mocked(loadDeliveryStatusAction).mockResolvedValue({ ok: true, status: fulfillmentStatus }); mount(); edit(); fireEvent.click(save());
+  expect(await screen.findByText("Corte congelado")).toBeVisible(); expect(screen.queryByRole("textbox")).not.toBeInTheDocument(); expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ title: "La entrega ya se cumplió" })); expect(saveDraftDeliveryAction).toHaveBeenCalledTimes(1);
+});
+it("an explicit uncertainty check adopts fulfilled even when another edit won", async () => {
+  vi.mocked(saveDraftDeliveryAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
+  vi.mocked(loadDraftDeliveryAction).mockResolvedValue({ ok: true, delivery: { ...deliveryFixture(), fulfilled: true, version: "2", targetQuantity: 7 }, etag: '"frozen"' });
+  vi.mocked(loadDeliveryStatusAction).mockResolvedValue({ ok: true, status: fulfillmentStatus }); mount(); edit(); fireEvent.click(save());
+  fireEvent.click(await screen.findByRole("button", { name: "Comprobar" }));
+  expect(await screen.findByText("Corte congelado")).toBeVisible(); expect(screen.queryByRole("textbox")).not.toBeInTheDocument(); expect(saveDraftDeliveryAction).toHaveBeenCalledTimes(1);
+});
+it("status read failure never re-enables fulfilled configuration and retries only the read", async () => {
+  vi.mocked(loadDeliveryStatusAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} }).mockResolvedValue({ ok: true, status: fulfillmentStatus });
+  mount({ ...deliveryFixture(), fulfilled: true }); fireEvent.click(await screen.findByRole("button", { name: "Reintentar lectura" }));
+  expect(await screen.findByText("Corte congelado")).toBeVisible(); expect(screen.queryByRole("textbox")).not.toBeInTheDocument(); expect(saveDraftDeliveryAction).not.toHaveBeenCalled();
+});
+it("failed preview retains edits, shows safe feedback and never PUTs", async () => {
+  vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} }); mount(); edit(); fireEvent.click(save());
+  await screen.findByRole("status"); expect(target()).toHaveValue("5"); expect(saveDraftDeliveryAction).not.toHaveBeenCalled(); expect(screen.queryByRole("button", { name: "Comprobar" })).not.toBeInTheDocument();
+});
+it("unpublished draft preview rejection still permits the normal conditional save", async () => {
+  vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: false, reason: "vacancy_not_published", reference: { status: 409 } }); mount(); edit(); fireEvent.click(save()); await screen.findByText("Guardado"); expect(saveDraftDeliveryAction).toHaveBeenCalledTimes(1);
+});
+it("confirmation has an accessible summary, cancel focus, Escape and return focus", async () => {
+  const user = userEvent.setup(); vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: true, preview: fulfillsPreview }); mount(); edit("1"); await user.click(save());
+  const dialog = await screen.findByRole("dialog", { name: "Cumplir la entrega ahora" }); expect(dialog).toHaveAccessibleDescription(expect.stringContaining("congela su configuración"));
+  expect(within(dialog).getAllByRole("listitem")).toHaveLength(1); expect(dialog).toHaveTextContent("Objetivo de entrega"); expect(dialog).toHaveTextContent("Columna de corte"); expect(dialog).toHaveTextContent("Fecha compromiso");
+  await waitFor(() => expect(within(dialog).getByRole("button", { name: "Cancelar" })).toHaveFocus());
+  await user.keyboard("{Escape}"); await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  await waitFor(() => expect(save()).toHaveFocus()); expect(target()).toHaveValue("1"); expect(saveDraftDeliveryAction).not.toHaveBeenCalled();
+});
+it("pending confirmed save blocks duplicate confirmation and Escape", async () => {
+  const user = userEvent.setup(); vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: true, preview: fulfillsPreview });
+  let resolve!: (value: DraftDeliveryActionResult) => void; vi.mocked(saveDraftDeliveryAction).mockReturnValue(new Promise(yes => { resolve = yes; }));
+  mount(); edit("1"); fireEvent.click(save()); const confirm = await screen.findByRole("button", { name: "Confirmar y cumplir" }); fireEvent.click(confirm); fireEvent.click(confirm);
+  expect(confirm).toBeDisabled(); expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled(); await user.keyboard("{Escape}"); expect(screen.getByRole("dialog")).toBeVisible();
+  await act(async () => resolve(success())); expect(saveDraftDeliveryAction).toHaveBeenCalledTimes(1);
+});
 const draftId = "123e4567-e89b-42d3-a456-426614174000";
 const save = () => screen.getByRole("button", { name: "Guardar cambios" });
 const target = () => screen.getByRole("textbox", { name: "Objetivo de entrega" });
 const edit = (value = "5") => fireEvent.change(target(), { target: { value } });
 const success = (version = "1", quantity: number | null = 5): DraftDeliveryActionResult => ({ ok: true, delivery: { ...deliveryFixture(), version, targetQuantity: quantity }, etag: '"delivery-next"' });
 function mount(delivery = deliveryFixture()) { return render(<DeliveryEditor draftId={draftId} delivery={delivery} etag={'"delivery-0"'} stages={pipelineFixture().stages} />); }
-beforeEach(() => { vi.resetAllMocks(); vi.mocked(saveDraftDeliveryAction).mockResolvedValue(success()); vi.mocked(loadDraftDeliveryAction).mockResolvedValue(success()); });
+beforeEach(() => { vi.resetAllMocks(); vi.mocked(previewDraftDeliveryAction).mockResolvedValue({ ok: true, preview: { would_fulfill: false, delivered: 0, target: 5, candidates: [] } }); vi.mocked(saveDraftDeliveryAction).mockResolvedValue(success()); vi.mocked(loadDraftDeliveryAction).mockResolvedValue(success()); });
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 it("composes one Entrega card, three icon Fields and an empty status slot below actions", () => {
   const { container } = mount(); expect(screen.getByRole("heading", { level: 3, name: "Entrega" })).toBeVisible();
