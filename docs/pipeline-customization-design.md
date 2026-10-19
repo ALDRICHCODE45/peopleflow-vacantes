@@ -1452,7 +1452,7 @@ catalog sheet disables removing a substate with `in_use: true`.
 
 ## 16. Delivery fulfillment (proposal)
 
-Status: **proposal under frontend review.** Product answers in §16.5. Branch
+Status: **contract agreed** with the frontend agent (msg e965ad0b; clarifications in §16.6). Product answers in §16.5. Branch
 `feat/pipeline-delivery-fulfillment`, stacked on `feat/pipeline-substates-active`.
 
 Rules: DEL-1 (the configured cutoff column is the milestone; fulfillment is automatic when the
@@ -1521,7 +1521,7 @@ candidate: {id, full_name}, reached_at}] }`; while fulfilled, `delivered`, `targ
   that would fulfill without it → `409 fulfillment_confirmation_required`, nothing written; with
   it → saves, records the fulfillment and audits both. After fulfillment → `409
   delivery_fulfilled`.
-- `GET …/board` (cut 4) gains `delivery: { state, delivered, target }` (`target` null if unset).
+- `GET …/board` (cut 4) gains `delivery: { state, delivered, target }`.
 - Audit `VacancyDeliveryFulfilled` with the snapshot.
 
 ### 16.3 Storage (backend)
@@ -1542,3 +1542,21 @@ candidates; preview and confirmation dialog when an edit would fulfill.
 - **S2 (user):** on time / late plus whole business days before or after (closes the
   early/late part of §17.2; partial-day rounding is not used).
 - **S3 (user):** an edit that would fulfill shows a preview and needs confirmation.
+
+### 16.6 Contract clarifications (agreed, frontend msg e965ad0b)
+
+1. The `200` responses of move, discard, recover and substate (cuts 4–6) also carry
+   `delivery: {state, delivered, target}` with the board shape, computed after the write (a
+   write that fulfills returns `state: "fulfilled"`).
+2. `GET`/`PUT …/delivery` (cut 3) gain `fulfilled: boolean`; the editor shows read-only from it,
+   `409 delivery_fulfilled` stays the authority.
+3. On a published vacancy `target`, `cutoff_stage_id` and `commitment_date` are never `null`
+   (publication requires them and the published-write guard of §10.2 keeps them). Board and
+   status exist only for published vacancies, so their `target` is never `null`.
+4. Preview candidates have the fulfillment candidate shape. The preview takes no `If-Match`
+   (no `412`/`428`): same body validation as the `PUT` (`400 invalid_request`, `400
+   validation_error`, `400 non_business_date`), `409 delivery_fulfilled`, `409
+   vacancy_not_published`; no writes.
+5. Candidate lists are unique per participation and ordered by `reached_at` ascending, then
+   `participation_id`. The preview lists every candidate delivered under the proposed values;
+   the fulfillment lists the first `target` of them (the explaining candidates).
