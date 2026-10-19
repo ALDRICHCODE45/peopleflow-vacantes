@@ -458,6 +458,17 @@ corepack pnpm dev
     instante; debajo de la barra aparecen chips removibles y «Limpiar filtros»; las
     columnas dicen «X de Y». El contenido nunca pasa por debajo del encabezado del Sheet.
 
+71. **Confirmación antes de cada acción importante.** En el pipeline: arrastrá una tarjeta a
+    otra columna. **Esperado:** se abre una confirmación con ícono, «¿Mover a {nombre} a
+    {columna}?», la consecuencia y los botones «Cancelar» (con el foco) y «Mover»; la tarjeta
+    sigue en su columna. «Cancelar» la deja donde estaba y no escribe nada. Repetí con
+    «Mover a…» desde la tarjeta y desde la ficha, el cambio de subestado, el reordenar
+    columnas (vacante sin candidatos), sacar y volver a Placement, descartar (motivo y
+    mensaje dentro del mismo diálogo, botón rojo) y recuperar. Fuera del tablero: publicar,
+    borrar un CV (rojo) y «Guardar y cumplir» la entrega. Un doble clic en el botón no
+    ejecuta dos veces; con mucho contenido (descarte, lista de entrega) solo scrollea el
+    medio y el título y los botones quedan visibles.
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:

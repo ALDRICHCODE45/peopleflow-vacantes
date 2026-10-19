@@ -10,6 +10,7 @@ el backend va en su rama indicada, con `make db-migrate`.
 | # | Feature | Rama frontend | Rama backend | Pasos de la guía | Qué mirar especialmente |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Filtros del tablero en un Sheet («Columna», «Subestado», «Motivo de descarte», todos multi-select) con chips removibles, y cobertura + entrega como un solo bloque en el encabezado | `feat/pipeline-board-filters-ui` (sobre `main`) | sin cambios (usar `main`) | 70 | Decisiones a revisar: anatomía compartida de cobertura y entrega; filtros que se aplican al marcar; cantidades por opción sobre todo el tablero. |
+| 2 | Confirmación con AlertDialog (estructura oficial de shadcn: ícono, título, descripción, detalles, Cancelar/acción) antes de mover, cambiar subestado, reordenar columnas, Placement, descartar, recuperar, publicar, borrar CV y cumplir la entrega | `feat/pipeline-board-filters-ui` (misma rama) | sin cambios (usar `main`) | 71 | Decisiones a revisar: el foco inicial en «Cancelar»; la tarjeta arrastrada vuelve si cancelás; textos de cada confirmación. |
 
 Cuando el usuario pruebe un ítem, sus comentarios se anotan en el documento de la
 feature (`odd/tasks/…`) y el ítem sale de esta lista al integrarse.
