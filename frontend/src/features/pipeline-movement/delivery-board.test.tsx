@@ -32,11 +32,11 @@ beforeEach(() => { vi.resetAllMocks(); vi.mocked(loadBoardAction).mockResolvedVa
 afterEach(cleanup);
 it.each([[4, "Faltan 4 días hábiles"], [1, "Falta 1 día hábil"], [0, "Vence hoy"], [-2, "Venció hace 2 días hábiles"]])("shows server business-day remainder %s beside progress", (remaining, copy) => {
   render(<BoardDelivery delivery={{ state: "pending", delivered: 3, target: 5 }} status={{ ...pending, delivered: 3, target: 5, business_days_remaining: remaining }} />);
-  expect(screen.getByText("Entrega: 3 de 5")).toBeVisible(); expect(screen.getByText(copy)).toBeVisible(); expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "60");
+  expect(screen.getByText("3 de 5 candidatos")).toBeVisible(); expect(screen.getByText(copy)).toBeVisible(); expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "60");
 });
 it.each([["on_time", 0, "Entregada a tiempo", "text-status-success"], ["on_time", 3, "Entregada 3 días hábiles antes", "text-status-success"], ["late", -2, "Entregada con 2 días hábiles de retraso", "text-status-danger"]] as const)("shows frozen %s/%s with semantic result", (result, delta, copy, tone) => {
   render(<BoardDelivery delivery={{ state: "fulfilled", delivered: 1, target: 1 }} status={{ ...fulfilled, fulfillment: { ...fulfillment, result, business_days_delta: delta } }} />);
-  expect(screen.getByText(copy)).toHaveClass(tone); expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
+  expect(screen.getByText(copy)).toHaveClass(tone); expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "100");
 });
 it("offers the fulfilled date in a keyboard-reachable tooltip", async () => {
   const user = userEvent.setup(); render(<BoardDelivery delivery={{ state: "fulfilled", delivered: 1, target: 1 }} status={fulfilled} />);

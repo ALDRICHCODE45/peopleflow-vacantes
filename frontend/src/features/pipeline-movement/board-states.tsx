@@ -1,4 +1,4 @@
-import { CheckCheck, CircleAlert } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +6,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Progress } from "@/components/ui/progress";
+import { BoardProgress } from "./board-progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { boardErrorCopy, type Notice } from "./board-feedback";
@@ -60,9 +60,7 @@ export function BoardError({ failure, reading, notice, retry }: { failure: Failu
 }
 export function BoardCoverage({ coverage }: { coverage: Board["coverage"] }) {
   const full = coverage.required !== null && coverage.covered >= coverage.required;
-  return <div aria-label="Cobertura" className="pf-board-coverage flex min-w-40 flex-col gap-2 text-xs">
-    <p className="flex items-center gap-2"><CheckCheck aria-hidden="true" className="size-4 shrink-0 text-status-success" />{full ? <span className="font-medium text-status-success">Cobertura completa</span> : <span><strong className="font-semibold tabular-nums">{coverage.covered}{coverage.required !== null && ` de ${coverage.required}`}</strong> plazas cubiertas</span>}</p>
-    {coverage.required !== null && <Progress aria-label="Cobertura de plazas" value={Math.min(100, coverage.covered / coverage.required * 100)} />}
-    {coverage.full_coverage_reached_at && <p className="text-[11px] text-muted-foreground">{!full && "Se completó el "}<MovementDate value={coverage.full_coverage_reached_at} /></p>}
-  </div>;
+  return <BoardProgress label="Cobertura" value={<>{coverage.covered}{coverage.required !== null && ` de ${coverage.required}`} plazas cubiertas</>} progressLabel="Cobertura de plazas" progress={coverage.required !== null ? Math.min(100, coverage.covered / coverage.required * 100) : null}>
+    <p>{full && <span className="text-status-success">Cobertura completa</span>}{coverage.full_coverage_reached_at && <>{full ? " · " : "Se completó el "}<MovementDate value={coverage.full_coverage_reached_at} /></>}</p>
+  </BoardProgress>;
 }

@@ -291,14 +291,19 @@ it("card radio options follow catalog order, share the write path and update the
 });
 it("toolbar filter wires OR selections, excludes other stages and clears without a read", async () => {
   const board = activeSubstateBoard(); board.participations.push({ ...board.participations[0], id: "null", substate_id: null, candidate: { id: "second", full_name: "Eva Ruiz" } }, { ...board.participations[0], id: "outside", stage_id: "new", substate_id: null, candidate: { id: "third", full_name: "Sol Díaz" } });
-  await mount(board); fireEvent.click(screen.getByRole("button", { name: "Subestados" }));
-  const options = screen.getAllByRole("menuitemcheckbox"); expect(options.map(option => option.textContent)).toEqual(["Entrevista técnica", "Oferta", "Sin subestado"]);
-  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Entrevista técnica" }));
-  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Sin subestado" }));
+  vi.stubGlobal("PointerEvent", MouseEvent);
+  await mount(board); fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
+  const group = screen.getByRole("group", { name: "Subestado" });
+  const options = within(group).getAllByRole("checkbox"); expect(options).toHaveLength(3);
+  fireEvent.click(within(group).getByRole("checkbox", { name: "Entrevista técnica 1" }));
+  fireEvent.click(within(group).getByRole("checkbox", { name: "Sin subestado 1" }));
+  fireEvent.click(screen.getByRole("button", { name: "Ver 2 candidatos" }));
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filtros" })).not.toBeInTheDocument());
   expect(screen.getByRole("region", { name: "Entrevista: 2 de 2 candidatos" })).toHaveTextContent("Ana Pérez");
   expect(screen.queryByRole("button", { name: "Ver detalle de Sol Díaz" })).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Subestados (2)" })).toBeVisible();
-  fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
+  expect(screen.getByRole("button", { name: "Filtros 2" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Limpiar filtros" }));
+  vi.unstubAllGlobals();
   expect(screen.getByRole("button", { name: "Ver detalle de Sol Díaz" })).toBeVisible(); expect(loadBoardAction).toHaveBeenCalledTimes(1);
 });
 it("sheet selector uses confirmed board value and snapshot history survives catalog renames", async () => {
