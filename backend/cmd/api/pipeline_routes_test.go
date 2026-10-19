@@ -12,6 +12,7 @@ import (
 
 	companiesvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
 	"github.com/google/uuid"
 )
@@ -60,6 +61,7 @@ func TestPipelineRoutes_ContractAndNoStoreOnEveryStatus(t *testing.T) {
 		{"bad path", "GET", "/v2/me/company/job-drafts/bad/pipeline", "", auth, nil, 400, "invalid_request", 0},
 		{"invalid request", "PUT", path, `{}`, auth, drafts.ErrInvalidRequest, 400, "invalid_request", 1},
 		{"validation", "PUT", path, `{}`, auth, drafts.ErrValidation, 400, "validation_error", 1},
+		{"structure locked", "PUT", path, `{}`, auth, pipelineconfig.ErrStructureLocked, 409, "stage_change_requires_empty_pipeline", 1},
 		{"live user", "GET", path, "", auth, drafts.ErrUnauthenticated, 401, "unauthenticated", 1},
 		{"membership", "PUT", path, `{}`, auth, drafts.ErrForbidden, 403, "forbidden", 1},
 		{"inactive company", "GET", path, "", auth, drafts.ErrCompanyInactive, 403, "company_inactive", 1},
@@ -72,7 +74,7 @@ func TestPipelineRoutes_ContractAndNoStoreOnEveryStatus(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := drafts.Result{Body: []byte(`{"version":"0","stages":[],"exit":{},"limits":{"maxCustomStages":3,"nameMaxLength":40}}`), ETag: `"pipeline-opaque"`}
+			result := drafts.Result{Body: []byte(`{"version":"0","structure_locked":false,"stages":[],"exit":{},"limits":{"maxCustomStages":3,"nameMaxLength":40}}`), ETag: `"pipeline-opaque"`}
 			s := &pipelineRouteStore{result: result, err: tc.err}
 			r := doRouteRequest(t, pipelineRoutesRouter(s), tc.method, tc.path, tc.body, tc.headers)
 			if r.Code != tc.status {

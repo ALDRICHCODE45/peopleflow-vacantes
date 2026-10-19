@@ -9,8 +9,12 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	applicationshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http"
+	movementhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/board"
+	applicationsv2http "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/v2"
 	candidateshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http"
+	cvshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http/cvs"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
+	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	industrieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/industries/infrastructure/http"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/health"
@@ -23,24 +27,32 @@ import (
 // routerDeps = the composition root's explicit dependencies (gates built in main.go,
 // handlers, health ports); no globals, no init().
 type routerDeps struct {
-	requireAuth        func(http.Handler) http.Handler
-	requireRecruiter   func(http.Handler) http.Handler
-	requireOwner       func(http.Handler) http.Handler
-	companyHandler     *companieshttp.CompanyHandler
-	memberHandler      *companieshttp.MemberHandler
-	candidateHandler   *candidateshttp.CandidateHandler
-	jobHandler         *jobshttp.JobHandler
-	draftHandler       *jobshttp.DraftHandler
-	draftV2Handler     *jobshttp.DraftV2Handler
-	draftListHandler   *jobshttp.DraftListHandler
-	pipelineHandler    *jobshttp.PipelineHandler
-	substatesHandler   *jobshttp.SubstatesHandler
-	deliveryHandler    *jobshttp.DeliveryHandler
-	requesterHandler   *jobshttp.RequesterHandler
-	applicationHandler *applicationshttp.ApplicationHandler
-	queries            *db.Queries
-	pool               health.Pinger
-	readinessTimeout   time.Duration
+	requireAuth          func(http.Handler) http.Handler
+	requireCandidate     func(http.Handler) http.Handler
+	identityHandler      *identityhttp.CandidateIdentityHandler
+	requireRecruiter     func(http.Handler) http.Handler
+	requireOwner         func(http.Handler) http.Handler
+	companyHandler       *companieshttp.CompanyHandler
+	memberHandler        *companieshttp.MemberHandler
+	candidateHandler     *candidateshttp.CandidateHandler
+	publicJobsHandler    *jobshttp.PublicJobsHandler
+	jobHandler           *jobshttp.JobHandler
+	draftHandler         *jobshttp.DraftHandler
+	draftV2Handler       *jobshttp.DraftV2Handler
+	draftListHandler     *jobshttp.DraftListHandler
+	pipelineHandler      *jobshttp.PipelineHandler
+	substatesHandler     *jobshttp.SubstatesHandler
+	deliveryHandler      *jobshttp.DeliveryHandler
+	managementHandler    *jobshttp.ManagementHandler
+	publicationHandler   *jobshttp.PublicationHandler
+	requesterHandler     *jobshttp.RequesterHandler
+	applicationHandler   *applicationshttp.ApplicationHandler
+	cvHandler            *cvshttp.Handler
+	participationHandler *applicationsv2http.Handler
+	movementHandler      *movementhttp.Handler
+	queries              *db.Queries
+	pool                 health.Pinger
+	readinessTimeout     time.Duration
 	// httpMetrics = the no-op HTTP metrics default composed by the
 	// composition root (main.go); RequestObservability also defaults the
 	// completion logger to slog.Default() when nil. No exporter/endpoint.
@@ -57,6 +69,10 @@ type routerDeps struct {
 // newRouter builds the chi router: middleware, health, all feature registrations
 // (exact multiset pinned by TestRouteTopology_ExactRegistrations).
 func newRouter(d routerDeps) chi.Router {
+	// A missing composition dependency fails closed, never grants candidate access.
+	if d.requireCandidate == nil {
+		d.requireCandidate = identityhttp.RequireCandidateRole(nil)
+	}
 	r := chi.NewRouter()
 	// Task 6.3 production wiring (design §8.3): RequestID runs FIRST (the
 	// completion record's request_id is read from the request context, never
@@ -80,6 +96,20 @@ func newRouter(d routerDeps) chi.Router {
 
 	// /jobs is the public-read job board (spec: "GET /jobs is public").
 	r.Mount("/jobs", d.jobHandler.Routes())
+	// Additive anonymous catalog. Deliberately outside private NoStore/auth groups.
+	r.Get("/v2/jobs", d.publicJobsHandler.List)
+	r.Get("/v2/jobs/{id}", d.publicJobsHandler.Get)
+	r.Get("/v2/jobs/{id}/screening", d.publicJobsHandler.Screening)
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireCandidate)
+		r.Get("/v2/me/cvs", d.cvHandler.List)
+		r.Post("/v2/me/cvs", d.cvHandler.Upload)
+		r.Patch("/v2/me/cvs/{id}", d.cvHandler.Rename)
+		r.Delete("/v2/me/cvs/{id}", d.cvHandler.Remove)
+		r.Get("/v2/me/cvs/{id}/file", d.cvHandler.File)
+		r.Post("/v2/jobs/{id}/applications", d.participationHandler.Apply)
+		r.Get("/v2/me/applications", d.participationHandler.List)
+	})
 
 	// Gated writes on the ROOT router (outside the public mount), each with
 	// requireAuth + requireRecruiter (routing-split defense).
@@ -88,23 +118,34 @@ func newRouter(d routerDeps) chi.Router {
 	r.With(d.requireAuth, d.requireRecruiter).Post("/jobs", jobHandlers.CreateJob)
 	r.With(d.requireAuth, d.requireRecruiter).Delete("/jobs/{id}", jobHandlers.SoftDeleteJob)
 
-	// Applications — candidate apply (RequireAuth ONLY) + recruiter pipeline
-	// (requireAuth + requireRecruiter); ROOT router so /jobs mount never serves them.
-	applicationHandlers := d.applicationHandler.ApplicationHandlers()
-	r.With(d.requireAuth).Post("/jobs/{jobId}/applications", applicationHandlers.ApplyToJob)
-	r.With(d.requireAuth, d.requireRecruiter).Route("/jobs/{jobId}/applications", func(r chi.Router) {
-		r.Get("/", applicationHandlers.ListJobApplications)
-		r.Get("/{id}", applicationHandlers.GetApplication)
-		r.Patch("/{id}/transition", applicationHandlers.TransitionApplication)
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth)
+		r.Get("/v2/me", d.identityHandler.Me)
+		r.Post("/v2/me/candidate-account", d.identityHandler.CreateCandidateAccount)
 	})
 
-	// /me/* authenticated slice: RequireAuth rejects invalid tokens pre-handler.
+	// Applications — candidate apply (RequireAuth + live candidate) + recruiter pipeline
+	// (requireAuth + requireRecruiter); ROOT router so /jobs mount never serves them.
+	applicationHandlers := d.applicationHandler.ApplicationHandlers()
+	// One mount with per-method gates: a recruiter-gated mount at this same
+	// path would also intercept the candidate POST before its own middleware.
+	r.Route("/jobs/{jobId}/applications", func(r chi.Router) {
+		r.With(identityhttp.NoStore, d.requireAuth, d.requireCandidate).Post("/", applicationHandlers.ApplyToJob)
+		r.With(d.requireAuth, d.requireRecruiter).Get("/", applicationHandlers.ListJobApplications)
+		r.With(d.requireAuth, d.requireRecruiter).Get("/{id}", applicationHandlers.GetApplication)
+		r.With(d.requireAuth, d.requireRecruiter).Patch("/{id}/transition", applicationHandlers.TransitionApplication)
+	})
+
+	// Candidate self-service: NoStore wraps even authentication failures.
+	r.Group(func(r chi.Router) {
+		r.Use(identityhttp.NoStore, d.requireAuth, d.requireCandidate)
+		r.Mount("/me/profile", d.candidateHandler.Routes())
+		r.Get("/me/applications", applicationHandlers.ListMyApplications)
+	})
+
+	// Company /me routes retain their existing authorization and status codes.
 	r.Route("/me", func(r chi.Router) {
 		r.Use(d.requireAuth)
-		r.Mount("/profile", d.candidateHandler.Routes())
-		// The candidate's own applications; identity resolves candidate_id
-		// from the JWT sub (no IDOR).
-		r.Get("/applications", applicationHandlers.ListMyApplications)
 
 		// Membership gates: GET /company UNGATED by role (spec "non-member gets 404");
 		// reads need recruiter; mutations owner. requireOwner reuses companyRepo as the
@@ -140,6 +181,8 @@ func newRouter(d routerDeps) chi.Router {
 	pipelineHandlers := d.pipelineHandler.PipelineHandlers()
 	substatesHandlers := d.substatesHandler.SubstatesHandlers()
 	deliveryHandlers := d.deliveryHandler.DeliveryHandlers()
+	managementHandlers := d.managementHandler.ManagementHandlers()
+	publicationHandlers := d.publicationHandler.PublicationHandlers()
 	r.Group(func(r chi.Router) {
 		r.Use(jobshttp.NoStore, d.requireAuth, d.requireRecruiter)
 		r.Post("/v2/me/company/job-drafts", draftV2Handlers.CreateDraft)
@@ -147,12 +190,26 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/job-drafts", d.draftListHandler.ListDrafts)
 		r.Get("/v2/me/company/job-drafts/{id}", draftV2Handlers.GetDraft)
 		r.Patch("/v2/me/company/job-drafts/{id}", draftV2Handlers.SaveDraft)
+		r.Get("/v2/me/company/job-drafts/{id}/board", d.movementHandler.Board)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/moves", d.movementHandler.Move)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/discard", d.movementHandler.Discard)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/recover", d.movementHandler.Recover)
+		r.Post("/v2/me/company/job-drafts/{id}/participations/{pid}/substate", d.movementHandler.SetSubstate)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}", d.movementHandler.Detail)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/history", d.movementHandler.History)
+		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/cv", d.movementHandler.File)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline", pipelineHandlers.GetPipeline)
 		r.Put("/v2/me/company/job-drafts/{id}/pipeline", pipelineHandlers.PutPipeline)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline/substates", substatesHandlers.GetSubstates)
 		r.Put("/v2/me/company/job-drafts/{id}/pipeline/substates", substatesHandlers.PutSubstates)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline/delivery", deliveryHandlers.GetDelivery)
 		r.Put("/v2/me/company/job-drafts/{id}/pipeline/delivery", deliveryHandlers.PutDelivery)
+		r.Get("/v2/me/company/job-drafts/{id}/pipeline/delivery/status", deliveryHandlers.Status)
+		r.Post("/v2/me/company/job-drafts/{id}/pipeline/delivery/preview", deliveryHandlers.Preview)
+		r.Get("/v2/me/company/job-drafts/{id}/management", managementHandlers.GetManagement)
+		r.Put("/v2/me/company/job-drafts/{id}/management", managementHandlers.PutManagement)
+		r.Get("/v2/me/company/job-drafts/{id}/publication", publicationHandlers.GetPublication)
+		r.Post("/v2/me/company/job-drafts/{id}/publication", publicationHandlers.Publish)
 	})
 	// Requester catalog (contract §7): private like the drafts, so NoStore runs
 	// before both gates. The store re-checks user, company and membership.

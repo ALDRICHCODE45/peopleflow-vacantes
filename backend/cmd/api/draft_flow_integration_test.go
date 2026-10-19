@@ -45,10 +45,12 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publicjobs"
 	jobsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
 	jobspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres"
 	draftstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
+	publicjobsstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/publicjobs"
 	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -261,23 +263,26 @@ func newDraftFlowHarness(t *testing.T) *draftFlowHarness {
 	requireOwner := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, companyRepo, companiesvalueobjects.OwnerRole)
 
 	router := newRouter(routerDeps{
-		requireAuth:      requireAuth,
-		requireRecruiter: requireRecruiter,
-		requireOwner:     requireOwner,
-		jobHandler:       jobHandler,
-		draftHandler:     draftHandler,
-		draftV2Handler:   draftV2Handler,
-		draftListHandler: jobshttp.NewDraftListHandler(store),
-		pipelineHandler:  jobshttp.NewPipelineHandler(store),
-		substatesHandler: jobshttp.NewSubstatesHandler(store),
-		deliveryHandler:  jobshttp.NewDeliveryHandler(store),
-		requesterHandler: jobshttp.NewRequesterHandler(store),
-		queries:          queries,
-		pool:             pool,
-		readinessTimeout: 2 * time.Second,
-		httpMetrics:      runtimemetrics.Default,
-		readinessLogger:  slog.Default(),
-		readinessMetrics: runtimemetrics.Default,
+		requireAuth:        requireAuth,
+		requireRecruiter:   requireRecruiter,
+		requireOwner:       requireOwner,
+		jobHandler:         jobHandler,
+		draftHandler:       draftHandler,
+		draftV2Handler:     draftV2Handler,
+		draftListHandler:   jobshttp.NewDraftListHandler(store),
+		pipelineHandler:    jobshttp.NewPipelineHandler(store),
+		substatesHandler:   jobshttp.NewSubstatesHandler(store),
+		deliveryHandler:    jobshttp.NewDeliveryHandler(store),
+		managementHandler:  jobshttp.NewManagementHandler(store),
+		publicationHandler: jobshttp.NewPublicationHandler(store),
+		publicJobsHandler:  jobshttp.NewPublicJobsHandler(publicjobs.NewCatalog(publicjobsstore.NewStore(queries))),
+		requesterHandler:   jobshttp.NewRequesterHandler(store),
+		queries:            queries,
+		pool:               pool,
+		readinessTimeout:   2 * time.Second,
+		httpMetrics:        runtimemetrics.Default,
+		readinessLogger:    slog.Default(),
+		readinessMetrics:   runtimemetrics.Default,
 	})
 
 	server := httptest.NewServer(router)

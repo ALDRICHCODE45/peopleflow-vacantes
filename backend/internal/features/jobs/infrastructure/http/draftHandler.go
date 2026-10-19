@@ -283,6 +283,8 @@ func classifyDraftError(err error) httpjson.Definition {
 		return httpjson.Resolve(httpjson.CodeInvalidRequest)
 	case errors.Is(err, deliveryconfig.ErrNonBusinessDate):
 		return httpjson.Resolve(httpjson.CodeNonBusinessDate)
+	case errors.Is(err, pipelineconfig.ErrStructureLocked):
+		return httpjson.Resolve(httpjson.CodeStageChangeRequiresEmptyPipeline)
 	case errors.Is(err, pipelineconfig.ErrCutoffStageInUse):
 		return httpjson.Resolve(httpjson.CodeCutoffStageInUse)
 	case errors.Is(err, drafts.ErrValidation):

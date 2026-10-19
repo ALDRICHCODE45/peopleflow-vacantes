@@ -75,7 +75,7 @@ func TestDeliveryRoutes_ContractAndNoStoreOnEveryStatus(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := drafts.Result{Body: []byte(`{"version":"0","cutoffStageId":null,"targetQuantity":null,"commitmentDate":null,"limits":{"maxTargetQuantity":999},"calendar":{"timeZone":"America/Mexico_City","today":"2026-10-16","minDate":"2026-10-16","maxDate":"2027-10-16","nonBusinessDates":[]}}`), ETag: `"delivery-opaque"`}
+			result := drafts.Result{Body: []byte(`{"fulfilled":false,"version":"0","cutoffStageId":null,"targetQuantity":null,"commitmentDate":null,"limits":{"maxTargetQuantity":999},"calendar":{"timeZone":"America/Mexico_City","today":"2026-10-16","minDate":"2026-10-16","maxDate":"2027-10-16","nonBusinessDates":[]}}`), ETag: `"delivery-opaque"`}
 			s := &deliveryRouteStore{result: result, err: tc.err}
 			r := doRouteRequest(t, deliveryRoutesRouter(s), tc.method, tc.path, tc.body, tc.headers)
 			if r.Code != tc.status {

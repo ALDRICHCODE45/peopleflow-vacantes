@@ -2,7 +2,10 @@
 //
 // The slice exposes five endpoints, mounted via the per-method
 // `ApplicationHandlers()` accessor so the composition root can apply
-// per-route middleware (RequireAuth / RequireCompanyRole):
+// per-route middleware (RequireAuth / RequireCandidateRole / RequireCompanyRole).
+// Candidate POST and self-list require a live candidate (403 account_required /
+// wrong_role; no-store); recruiter routes retain their membership gates.
+// See backend/docs/candidate-identity.md:
 //
 //	POST  /jobs/{jobId}/applications               → ApplyToJob
 //	GET   /me/applications                         → ListMyApplications

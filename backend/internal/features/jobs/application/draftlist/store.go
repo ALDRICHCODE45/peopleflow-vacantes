@@ -31,15 +31,17 @@ type Principal struct {
 // Item is one draft row of the list. Title, WorkMode and Schedule are nil
 // when the draft has none; their values are the draft field codes.
 type Item struct {
-	ID        uuid.UUID
-	Title     *string
-	WorkMode  *string
-	Schedule  *string
-	Requester *Requester
-	Principal Principal
-	Version   int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID          uuid.UUID
+	Title       *string
+	WorkMode    *string
+	Schedule    *string
+	Requester   *Requester
+	Principal   Principal
+	Version     int64
+	Status      string
+	PublishedAt *time.Time
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 // Page is one list page. NextCursor is empty on the last page.

@@ -33,6 +33,23 @@ type AuditEvent struct {
 	Metadata   []byte             `json:"metadata"`
 }
 
+type CandidateCvLibrary struct {
+	ID          uuid.UUID          `json:"id"`
+	CandidateID uuid.UUID          `json:"candidate_id"`
+	VersionID   uuid.UUID          `json:"version_id"`
+	Name        string             `json:"name"`
+	RemovedAt   pgtype.Timestamptz `json:"removed_at"`
+}
+
+type CandidateCvVersion struct {
+	ID          uuid.UUID          `json:"id"`
+	CandidateID uuid.UUID          `json:"candidate_id"`
+	StorageKey  string             `json:"storage_key"`
+	Size        int64              `json:"size"`
+	ContentType string             `json:"content_type"`
+	UploadedAt  pgtype.Timestamptz `json:"uploaded_at"`
+}
+
 type CandidateLanguage struct {
 	UserID   uuid.UUID `json:"user_id"`
 	Language string    `json:"language"`
@@ -160,6 +177,13 @@ type JobDraftIdempotency struct {
 	FingerprintAlgorithm string             `json:"fingerprint_algorithm"`
 }
 
+type JobDraftManagementConfig struct {
+	DraftID         uuid.UUID   `json:"draft_id"`
+	Version         int64       `json:"version"`
+	RequestDate     pgtype.Date `json:"request_date"`
+	HiringHeadcount pgtype.Int4 `json:"hiring_headcount"`
+}
+
 type JobDraftPipelineConfig struct {
 	DraftID       uuid.UUID `json:"draft_id"`
 	Version       int64     `json:"version"`
@@ -182,6 +206,77 @@ type JobDraftSubstateCatalog struct {
 	Catalog []byte    `json:"catalog"`
 }
 
+type ParticipationIdempotency struct {
+	CandidateID          uuid.UUID `json:"candidate_id"`
+	ProcessID            uuid.UUID `json:"process_id"`
+	IdemKey              uuid.UUID `json:"idem_key"`
+	Fingerprint          []byte    `json:"fingerprint"`
+	FingerprintAlgorithm string    `json:"fingerprint_algorithm"`
+	ResponseBody         []byte    `json:"response_body"`
+}
+
+type ParticipationStageHistory struct {
+	ID               uuid.UUID          `json:"id"`
+	ParticipationID  uuid.UUID          `json:"participation_id"`
+	StageID          uuid.UUID          `json:"stage_id"`
+	ActorID          uuid.UUID          `json:"actor_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	FromStageID      pgtype.UUID        `json:"from_stage_id"`
+	Hire             bool               `json:"hire"`
+	Departure        bool               `json:"departure"`
+	ActorKind        string             `json:"actor_kind"`
+	EventKind        string             `json:"event_kind"`
+	ReasonGroup      pgtype.Text        `json:"reason_group"`
+	ReasonCode       pgtype.Text        `json:"reason_code"`
+	Comment          pgtype.Text        `json:"comment"`
+	CandidateMessage pgtype.Text        `json:"candidate_message"`
+	FromSubstateID   pgtype.UUID        `json:"from_substate_id"`
+	FromSubstateName pgtype.Text        `json:"from_substate_name"`
+	ToSubstateID     pgtype.UUID        `json:"to_substate_id"`
+	ToSubstateName   pgtype.Text        `json:"to_substate_name"`
+}
+
+type ProcessCoverageMilestone struct {
+	ID        uuid.UUID          `json:"id"`
+	ProcessID uuid.UUID          `json:"process_id"`
+	ReachedAt pgtype.Timestamptz `json:"reached_at"`
+	Covered   int32              `json:"covered"`
+	Required  int32              `json:"required"`
+}
+
+type ProcessDeliveryFulfillment struct {
+	ProcessID         uuid.UUID          `json:"process_id"`
+	FulfilledAt       pgtype.Timestamptz `json:"fulfilled_at"`
+	Result            string             `json:"result"`
+	BusinessDaysDelta int32              `json:"business_days_delta"`
+	Target            int32              `json:"target"`
+	Delivered         int32              `json:"delivered"`
+	CutoffStageID     uuid.UUID          `json:"cutoff_stage_id"`
+	CutoffStageName   string             `json:"cutoff_stage_name"`
+	CommitmentDate    pgtype.Date        `json:"commitment_date"`
+	Candidates        []byte             `json:"candidates"`
+}
+
+type ProcessParticipation struct {
+	ID                uuid.UUID          `json:"id"`
+	ProcessID         uuid.UUID          `json:"process_id"`
+	CandidateID       uuid.UUID          `json:"candidate_id"`
+	StageID           uuid.UUID          `json:"stage_id"`
+	CvVersionID       uuid.UUID          `json:"cv_version_id"`
+	QuestionsSnapshot []byte             `json:"questions_snapshot"`
+	AnswersSnapshot   []byte             `json:"answers_snapshot"`
+	Source            string             `json:"source"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	Version           int64              `json:"version"`
+	PreviousStageID   pgtype.UUID        `json:"previous_stage_id"`
+	ReasonGroup       pgtype.Text        `json:"reason_group"`
+	ReasonCode        pgtype.Text        `json:"reason_code"`
+	Comment           pgtype.Text        `json:"comment"`
+	CandidateMessage  pgtype.Text        `json:"candidate_message"`
+	DiscardedAt       pgtype.Timestamptz `json:"discarded_at"`
+	SubstateID        pgtype.UUID        `json:"substate_id"`
+}
+
 type User struct {
 	ID         uuid.UUID          `json:"id"`
 	CognitoSub string             `json:"cognito_sub"`
@@ -191,4 +286,35 @@ type User struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 	DeletedAt  pgtype.Timestamptz `json:"deleted_at"`
+}
+
+type VacancyProcess struct {
+	ID          uuid.UUID          `json:"id"`
+	CompanyID   uuid.UUID          `json:"company_id"`
+	Status      string             `json:"status"`
+	PublishedAt pgtype.Timestamptz `json:"published_at"`
+	PublishedBy uuid.UUID          `json:"published_by"`
+}
+
+type VacancyPublicProjection struct {
+	ID                    uuid.UUID          `json:"id"`
+	CompanyID             uuid.UUID          `json:"company_id"`
+	Title                 string             `json:"title"`
+	Description           []byte             `json:"description"`
+	DescriptionPlain      string             `json:"description_plain"`
+	Location              string             `json:"location"`
+	WorkMode              string             `json:"work_mode"`
+	WorkSchedule          string             `json:"work_schedule"`
+	ContractType          string             `json:"contract_type"`
+	ProfessionalArea      string             `json:"professional_area"`
+	Seniority             pgtype.Text        `json:"seniority"`
+	RequiredRequirements  pgtype.Text        `json:"required_requirements"`
+	PreferredRequirements pgtype.Text        `json:"preferred_requirements"`
+	Benefits              []byte             `json:"benefits"`
+	Compensation          []byte             `json:"compensation"`
+	PublishedAt           pgtype.Timestamptz `json:"published_at"`
+	SourceDraftVersion    int64              `json:"source_draft_version"`
+	SearchVector          interface{}        `json:"search_vector"`
+	Skills                []string           `json:"skills"`
+	ScreeningQuestions    int32              `json:"screening_questions"`
 }

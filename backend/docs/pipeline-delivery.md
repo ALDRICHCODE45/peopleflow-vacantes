@@ -4,13 +4,16 @@
 cutoff column, delivery target and commitment date independently of columns,
 substates and draft fields. The accepted contract is
 `docs/pipeline-customization-design.md` §8; that document wins over this reference.
-This cut does not publish drafts, move candidates, evaluate fulfillment or freeze
-configuration. All three values may be null while editing a draft.
+[Delivery fulfillment](delivery-fulfillment.md) (§16) now evaluates historical
+attainment and freezes this configuration after fulfillment. All three values may
+be null while editing a draft, but not after publication.
 
 ## Quick path
 
 1. GET delivery and retain its opaque strong ETag. Read column IDs from GET `…/pipeline`.
-2. PUT exactly the three nullable fields with that delivery ETag in `If-Match`.
+2. Before fulfillment, PUT the three nullable fields with that delivery ETag in
+   `If-Match`. For a published vacancy, preview first; add optional boolean
+   `confirm_fulfillment: true` when the proposed edit would fulfill.
 3. Use the returned version, ETag and calendar. After a timeout, reconcile with GET;
    do not retry automatically. No `Idempotency-Key` or `Idempotency-Replayed` is used.
 
@@ -29,6 +32,7 @@ Malformed path UUIDs return `400 invalid_request` before calling the store.
 ```json
 {
   "version": "0",
+  "fulfilled": false,
   "cutoffStageId": null,
   "targetQuantity": null,
   "commitmentDate": null,
@@ -45,7 +49,7 @@ Malformed path UUIDs return `400 invalid_request` before calling the store.
 
 The exclusion array above is abbreviated for readability; the server returns
 **every** non-business date in the inclusive range, ascending, once each, never
-null. Dates are `YYYY-MM-DD`, not timestamps. Root keys are exactly the six shown;
+null. Dates are `YYYY-MM-DD`, not timestamps. Root keys are exactly the seven shown; `fulfilled` is always boolean;
 `limits` has exactly `maxTargetQuantity`; `calendar` has exactly the five shown.
 Adding a response key is a contract change.
 
@@ -64,8 +68,10 @@ It cannot be used as a draft, pipeline or substate tag, nor vice versa.
 }
 ```
 
-All three keys are required, each individually nullable; any combination may be
-saved. Unknown, missing or duplicate keys (including escaped equivalents), wrong
+All three configuration keys are required, each individually nullable; optional
+`confirm_fulfillment` is boolean (default false, null is invalid). Any combination may be
+saved **while draft**. Once published, missing required values return
+`422 publication_incomplete` with ordered `missing` codes (§10.2). Unknown, missing or duplicate keys (including escaped equivalents), wrong
 JSON types, fractional numbers, invalid UTF-8/surrogates, malformed/trailing JSON
 and malformed date strings return `400 invalid_request`. The shared strict numeric
 decoder accepts mathematically integral JSON spellings, never rounds fractions.
@@ -77,8 +83,10 @@ decoder accepts mathematically integral JSON spellings, never rounds fractions.
 | `commitmentDate` | Null or a business date in `[today, today + 1 year]` when new or changed. Same calendar date next year, clamping 29 February to 28 February. |
 
 A stored date returned **unchanged** is accepted even if it is now past or outside
-the window. Clearing it is valid. The publication cut will enforce CFG-11 and
-required fields. A changed out-of-window date is `400 validation_error`; a changed
+the window. Clearing it is valid only while draft. Initial publication enforces
+CFG-11; published writes exempt `commitment_date_past` but cannot clear any
+required value. A rejected replacement commits no config/version/audit/projection
+change. See [public-jobs-v2.md](public-jobs-v2.md). A changed out-of-window date is `400 validation_error`; a changed
 in-window weekend/holiday is `400 non_business_date`.
 
 ### Calendar (§8.2)
@@ -105,10 +113,20 @@ invalid_request`; a well-formed stale/foreign tag is `412 version_conflict`.
 The raw body budget is 1048576 bytes; over-budget is `413`, never truncation.
 
 The first successful PUT creates version `"1"` and one audit event, **even all-null**.
-Later value-equal PUTs return `200` with the same version and ETag, no write and no
-audit; the calendar is evaluated for the current request. A changing PUT increments
+Before fulfillment, later value-equal PUTs return `200` with the same version and
+ETag, no configuration write or configuration audit; the calendar is evaluated for the current request. A changing PUT increments
 only delivery version. Draft, pipeline, substates and delivery versions/ETags are
 four-way independent. Concurrent first PUTs serialize: one winner, one `412`.
+
+### Fulfillment refinements (§16)
+
+GET/PUT responses include `fulfilled`. After fulfillment every delivery PUT returns
+`409 delivery_fulfilled`, including a no-op; configuration/version/audit remain
+unchanged. A published edit that would reach the target returns
+`409 fulfillment_confirmation_required` without writes unless confirmed. Confirmed
+edits freeze the snapshot at **edit time**, not the historical reached time, and
+co-write both configuration and fulfillment audits. Other configuration resources
+keep their independent versions. See [status/preview and test map](delivery-fulfillment.md).
 
 ## Cutoff deletion guard on the pipeline route
 
@@ -140,7 +158,7 @@ also in [pipeline-config.md](pipeline-config.md).
 
 ## Status codes
 
-Errors contain exactly `{ "error": string, "code": string }`, without details,
+Except `publication_incomplete`, errors contain exactly `{ "error": string, "code": string }`, without details,
 stage IDs, data or ETag. Shared error mapping is reused. The additive pipeline
 codes are registered in `httpjson.Resolve`; `PipelineErrorCodes` enumerates them
 separately so the pinned baseline V1 `ListCodes` and its tests remain unchanged.
@@ -156,8 +174,11 @@ separately so the pinned baseline V1 `ListCodes` and its tests remain unchanged.
 | 404 | `not_found` | Missing/foreign/non-principal draft after general gates |
 | 409 | `company_not_active` | Company not active at transactional guard |
 | 409 | `cutoff_stage_in_use` | On pipeline PUT: omitted custom cutoff column |
+| 409 | `delivery_fulfilled` | Delivery already fulfilled; all PUTs rejected |
+| 409 | `fulfillment_confirmation_required` | Proposed published edit would fulfill without explicit confirmation |
 | 412 | `version_conflict` | Stale/foreign strong tag |
 | 413 | `payload_too_large` | Raw body exceeds budget |
+| 422 | `publication_incomplete` | Published write would leave requirements missing; exactly `{error,code,missing:[codes]}` |
 | 428 | `precondition_required` | Missing If-Match |
 | 500 | `internal_error` | Unexpected failure, corrupt storage or version overflow |
 

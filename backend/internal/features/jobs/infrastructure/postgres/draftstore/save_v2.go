@@ -65,6 +65,12 @@ func (s *Store) SaveV2(ctx context.Context, companyID, actorID, id uuid.UUID, if
 		return drafts.Result{}, err
 	}
 
+	candidate := record
+	candidate.fields = merged
+	if err := s.guardPublishedWrite(ctx, tx, candidate); err != nil {
+		return drafts.Result{}, err
+	}
+
 	if bytes.Equal(merged, record.fields) {
 		name, err := requesterNameForRead(ctx, tx, companyID, record.fields)
 		if err != nil {
@@ -77,6 +83,12 @@ func (s *Store) SaveV2(ctx context.Context, companyID, actorID, id uuid.UUID, if
 		etag, err := draftversion.FormatETagV2(record.id.String(), record.version)
 		if err != nil {
 			return drafts.Result{}, fmt.Errorf("format save v2 no-op etag: %w", err)
+		}
+		if err := refreshPublicProjection(ctx, tx, record); err != nil {
+			return drafts.Result{}, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return drafts.Result{}, fmt.Errorf("commit published no-op save: %w", err)
 		}
 		return drafts.Result{Body: responseBody, ETag: etag}, nil
 	}
@@ -108,6 +120,9 @@ func (s *Store) SaveV2(ctx context.Context, companyID, actorID, id uuid.UUID, if
 	}
 
 	record.fields, record.version, record.updatedAt = merged, newVersion, updatedAt
+	if err := refreshPublicProjection(ctx, tx, record); err != nil {
+		return drafts.Result{}, err
+	}
 
 	responseBody, err := renderEnvelopeV2(record, name)
 	if err != nil {

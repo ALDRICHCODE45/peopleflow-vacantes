@@ -27,14 +27,18 @@ func (s *Store) GetSubstates(ctx context.Context, companyID, actorID, id uuid.UU
 		return drafts.Result{}, fmt.Errorf("begin substates read: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if err := s.authorizePipeline(ctx, tx, companyID, actorID, id, false); err != nil {
+	if err := s.authorizePipeline(ctx, tx, companyID, actorID, id, true); err != nil {
 		return drafts.Result{}, err
 	}
 	c, version, err := readSubstates(ctx, tx, id)
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	return renderSubstates(id, c, version)
+	active, err := activeSubstates(ctx, tx, id)
+	if err != nil {
+		return drafts.Result{}, err
+	}
+	return renderSubstates(id, c, version, active)
 }
 
 // PutSubstates locks the parent draft before reading the optional catalog row,
@@ -59,9 +63,16 @@ func (s *Store) PutSubstates(ctx context.Context, companyID, actorID, id uuid.UU
 	if err != nil {
 		return drafts.Result{}, err
 	}
+	active, err := activeSubstates(ctx, tx, id)
+	if err != nil {
+		return drafts.Result{}, err
+	}
+	if err = substatecatalog.CheckRemoval(previous, next, active); err != nil {
+		return drafts.Result{}, err
+	}
 	// Even an empty first PUT materializes version 1 and its audit event.
 	if version > 0 && previous.Equal(next) {
-		return renderSubstates(id, previous, version)
+		return renderSubstates(id, previous, version, active)
 	}
 	if version == math.MaxInt64 {
 		return drafts.Result{}, drafts.ErrVersionOverflow
@@ -85,7 +96,7 @@ func (s *Store) PutSubstates(ctx context.Context, companyID, actorID, id uuid.UU
 	if err := s.audit.Append(ctx, tx, event); err != nil {
 		return drafts.Result{}, fmt.Errorf("co-write substates audit: %w", err)
 	}
-	result, err := renderSubstates(id, next, version+1)
+	result, err := renderSubstates(id, next, version+1, active)
 	if err != nil {
 		return drafts.Result{}, err
 	}
@@ -115,17 +126,43 @@ func readSubstates(ctx context.Context, tx pgx.Tx, id uuid.UUID) (substatecatalo
 	return c, version, nil
 }
 
-func renderSubstates(id uuid.UUID, c substatecatalog.Catalog, version int64) (drafts.Result, error) {
+func activeSubstates(ctx context.Context, tx pgx.Tx, id uuid.UUID) (map[string]bool, error) {
+	rows, err := tx.Query(ctx, `SELECT DISTINCT substate_id FROM process_participations WHERE process_id=$1 AND substate_id IS NOT NULL`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	active := map[string]bool{}
+	for rows.Next() {
+		var sub string
+		if err = rows.Scan(&sub); err != nil {
+			return nil, err
+		}
+		active[sub] = true
+	}
+	return active, rows.Err()
+}
+
+type substateView struct {
+	substatecatalog.Substate
+	InUse bool `json:"in_use"`
+}
+
+func renderSubstates(id uuid.UUID, c substatecatalog.Catalog, version int64, active map[string]bool) (drafts.Result, error) {
+	entries := make([]substateView, len(c.Substates))
+	for i, s := range c.Substates {
+		entries[i] = substateView{Substate: s, InUse: active[s.ID]}
+	}
 	body, err := json.Marshal(struct {
-		Version   string                     `json:"version"`
-		Substates []substatecatalog.Substate `json:"substates"`
+		Version   string         `json:"version"`
+		Substates []substateView `json:"substates"`
 		Limits    struct {
 			MaxSubstates  int `json:"maxSubstates"`
 			NameMaxLength int `json:"nameMaxLength"`
 		} `json:"limits"`
 		Suggestions []string `json:"suggestions"`
 	}{
-		Version: strconv.FormatInt(version, 10), Substates: c.Substates,
+		Version: strconv.FormatInt(version, 10), Substates: entries,
 		Limits: struct {
 			MaxSubstates  int `json:"maxSubstates"`
 			NameMaxLength int `json:"nameMaxLength"`

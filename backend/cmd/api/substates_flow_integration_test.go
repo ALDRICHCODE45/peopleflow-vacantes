@@ -78,7 +78,7 @@ func assertSubstatesFlowResponse(t *testing.T, response draftFlowResponse, id st
 	c := substatesFlowCatalog(t, response.body)
 	for i, raw := range entries {
 		entry, ok := raw.(map[string]any)
-		if !ok || len(entry) != 2 || entry["id"] != c.Substates[i].ID || entry["name"] != c.Substates[i].Name {
+		if !ok || len(entry) != 3 || entry["id"] != c.Substates[i].ID || entry["name"] != c.Substates[i].Name || entry["in_use"] != false {
 			t.Fatalf("entry=%+v", entry)
 		}
 		if parsed, err := uuid.Parse(c.Substates[i].ID); err != nil || parsed == uuid.Nil {

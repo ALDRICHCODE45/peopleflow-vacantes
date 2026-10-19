@@ -11,26 +11,39 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	applicationsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/usecases"
 	applicationshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http"
+	movementhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/board"
+	applicationsv2http "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/v2"
 	applicationspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres"
+	movementpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/board"
+	applicationsv2postgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/v2"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	candidatesusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/usecases"
 	candidateshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http"
+	cvshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http/cvs"
 	candidatespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/postgres"
+	cvspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/postgres/cvs"
+	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
+	identityusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/userinfo"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publicjobs"
 	jobsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
 	jobspostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres"
 	draftstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
+	publicjobsstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/publicjobs"
 	runtimeconfig "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/config"
 	runtimemetrics "github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/metrics"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/runtime/server"
@@ -67,6 +80,11 @@ func run() error {
 	}
 	slog.Info("identity verifier ready")
 
+	identityConfig, err := runtimeconfig.LoadIdentityConfig(os.Getenv)
+	if err != nil {
+		return err
+	}
+
 	// Root context cancelled on SIGINT/SIGTERM. This is the graceful shutdown trigger.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -74,6 +92,11 @@ func run() error {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		return errors.New("DATABASE_URL is required")
+	}
+
+	cvConfig, err := runtimeconfig.LoadCVConfig(os.Getenv)
+	if err != nil {
+		return err
 	}
 
 	// Connection pool: pgx manages a set of reusable connections, not a single one.
@@ -106,6 +129,11 @@ func run() error {
 	// the applications wiring block); the applications wiring block
 	// below now references the hoisted variable.
 	auditRepo := auditpostgres.NewAuditEventRepository()
+	var identityProvider identityusecases.UserInfoProvider
+	if identityConfig.UserInfoEndpoint != "" {
+		identityProvider = userinfo.NewClient(identityConfig.UserInfoEndpoint, 5*time.Second)
+	}
+	identityHandler := identityhttp.NewCandidateIdentityHandler(identityusecases.NewCandidateIdentity(identitypostgres.NewCandidateAccountStore(pool, auditRepo), identityProvider))
 
 	// Feature wiring: companies (adapter -> use case -> handler).
 	// The bootstrap repository opens the transaction that creates a company
@@ -146,6 +174,20 @@ func run() error {
 	candidateRepo := candidatespostgres.NewCandidateRepository(pool)
 	candidateService := candidatesusecases.NewCandidateService(candidateRepo, identityUserRepo)
 	candidateHandler := candidateshttp.NewCandidateHandler(candidateService)
+	// An absent root disables only CV routes, after their usual identity gates.
+	var cvHandler *cvshttp.Handler
+	var movementStorage movementpostgres.Storage
+	if cvConfig.Root != "" {
+		privateCVStorage, err := cvstorage.NewLocal(cvConfig.Root)
+		if err != nil {
+			return errors.New("initialize private CV storage")
+		}
+		defer privateCVStorage.Close()
+		movementStorage = privateCVStorage
+		cvHandler = cvshttp.NewHandler(cvspostgres.NewLibrary(pool, privateCVStorage), draftjson.Decode)
+	}
+	draftStore := draftstore.NewStore(pool, auditRepo)
+	participationHandler := applicationsv2http.NewHandler(applicationsv2postgres.NewStore(pool, auditRepo, participationRules{}, draftStore), draftjson.Decode)
 
 	// Jobs wiring: jobs repo (sqlc data layer over the same pool)
 	// -> service -> handler. Public read slice — no identity user
@@ -157,19 +199,22 @@ func run() error {
 	jobRepo := jobspostgres.NewJobRepository(queries)
 	jobService := jobsusecases.NewJobService(jobRepo)
 	jobHandler := jobshttp.NewJobHandler(jobService)
+	publicJobsHandler := jobshttp.NewPublicJobsHandler(publicjobs.NewCatalog(publicjobsstore.NewStore(queries)))
 
 	// Private vacancy drafts wiring: the pool-owning draft store opens one
 	// transaction per operation so authorization, the draft write, its audit
 	// event and (for create) the idempotency record commit atomically. The
 	// store owns the owner-or-principal rule and every precondition; the HTTP
 	// adapter is a thin transport over drafts.Store.
-	draftStore := draftstore.NewStore(pool, auditRepo)
+	movementHandler := movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{draftStore}, movementStorage, draftjson.Decode))
 	draftHandler := jobshttp.NewDraftHandler(draftStore)
 	draftV2Handler := jobshttp.NewDraftV2Handler(draftStore, draftStore, draftStore)
 	draftListHandler := jobshttp.NewDraftListHandler(draftStore)
 	pipelineHandler := jobshttp.NewPipelineHandler(draftStore)
 	substatesHandler := jobshttp.NewSubstatesHandler(draftStore)
 	deliveryHandler := jobshttp.NewDeliveryHandler(draftStore)
+	managementHandler := jobshttp.NewManagementHandler(draftStore)
+	publicationHandler := jobshttp.NewPublicationHandler(draftStore)
 	// The requester catalog shares the draft store's transactional gates.
 	requesterHandler := jobshttp.NewRequesterHandler(draftStore)
 
@@ -201,6 +246,7 @@ func run() error {
 	// instance is consumed at both `RequireCompanyRole` call sites
 	// (`requireRecruiter` + `requireOwner`).
 	requireAuth := identityhttp.RequireAuth(verifier)
+	requireCandidate := identityhttp.RequireCandidateRole(identityUserRepo)
 	requireRecruiter := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, companyRepo, valueobjects.RecruiterRole)
 	requireOwner := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, companyRepo, valueobjects.OwnerRole)
 
@@ -228,13 +274,18 @@ func run() error {
 	// WS6B-1b-b: router.go owns the chi router; the composition root passes it.
 	r := newRouter(routerDeps{
 		requireAuth: requireAuth, requireRecruiter: requireRecruiter, requireOwner: requireOwner,
+		requireCandidate: requireCandidate, identityHandler: identityHandler,
+		cvHandler: cvHandler, participationHandler: participationHandler, movementHandler: movementHandler,
 		companyHandler: companyHandler, memberHandler: memberHandler,
 		candidateHandler: candidateHandler, jobHandler: jobHandler, applicationHandler: applicationHandler,
 		draftHandler: draftHandler, draftV2Handler: draftV2Handler, draftListHandler: draftListHandler,
-		pipelineHandler:  pipelineHandler,
-		substatesHandler: substatesHandler,
-		deliveryHandler:  deliveryHandler,
-		requesterHandler: requesterHandler, queries: queries, pool: poolPinger, readinessTimeout: cfg.ReadinessTimeout,
+		pipelineHandler:    pipelineHandler,
+		substatesHandler:   substatesHandler,
+		deliveryHandler:    deliveryHandler,
+		managementHandler:  managementHandler,
+		publicationHandler: publicationHandler,
+		publicJobsHandler:  publicJobsHandler,
+		requesterHandler:   requesterHandler, queries: queries, pool: poolPinger, readinessTimeout: cfg.ReadinessTimeout,
 		// Task 6.3 (design §8.3): compose the no-op HTTP metrics default —
 		// zero-dependency, no exporter, no metrics endpoint in this change.
 		httpMetrics: runtimemetrics.Default,

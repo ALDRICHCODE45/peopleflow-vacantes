@@ -1040,13 +1040,7 @@ func deletePathLiteral(call *ast.CallExpr) (string, bool) {
 	return bl.Value, true
 }
 
-// TestApplicationsApplyRoute_MountedBehindAuth asserts the applications
-// slice candidate-apply wiring: a chi `Post("/jobs/{jobId}/applications",
-// …)` mutation whose inner `With(...)` argument list references
-// `requireAuth` (candidate apply is RequireAuth-ONLY — the candidate's
-// company membership is NOT consulted). The guard fails the moment the
-// apply route is moved out from behind auth (a regression where an
-// unauthenticated candidate can apply).
+// Candidate apply requires auth + a live candidate, never company membership.
 func TestApplicationsApplyRoute_MountedBehindAuth(t *testing.T) {
 	filePath := routerFile
 
@@ -1073,11 +1067,11 @@ func TestApplicationsApplyRoute_MountedBehindAuth(t *testing.T) {
 			return true
 		}
 		path, ok := postPathLiteral(call)
-		if !ok || path != `"/jobs/{jobId}/applications"` {
+		if !ok || path != `"/"` || !referencesIdentifier(call, "ApplyToJob") {
 			return true
 		}
 		postRoutes = append(postRoutes, path)
-		if referencesIdentifier(inner, "requireAuth") {
+		if referencesIdentifier(inner, "requireAuth") && referencesIdentifier(inner, "requireCandidate") && !referencesIdentifier(inner, "requireRecruiter") {
 			properlyGatedPostRoutes = append(properlyGatedPostRoutes, path)
 		}
 		return true
@@ -1092,60 +1086,58 @@ func TestApplicationsApplyRoute_MountedBehindAuth(t *testing.T) {
 		filePath, len(postRoutes), len(properlyGatedPostRoutes))
 }
 
-// TestApplicationsRecruiterRoute_MountedBehindGates asserts the
-// applications slice recruiter-pipeline wiring: a chi
-// `With(requireAuth, requireRecruiter).Route("/jobs/{jobId}/applications",
-// fn)` mutation whose inner `With(...)` argument list references BOTH
-// `requireAuth` AND `requireRecruiter`, and whose callback declares Get
-// and Patch mutations (every recruiter method lives inside the gated
-// subtree). The guard fails the moment a recruiter route is moved out
-// from behind the gates or onto the public /jobs mount.
+// The shared applications mount has no role gate: every method selects its
+// own gate so recruiter middleware cannot intercept candidate POSTs.
 func TestApplicationsRecruiterRoute_MountedBehindGates(t *testing.T) {
-	filePath := routerFile
-
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
-	if err != nil {
-		t.Skipf("cannot parse %s (run with cwd=backend/cmd/api): %v", filePath, err)
-	}
-
-	var gatedRoutes []string
-
+	f := mustParse(t, routerFile)
+	mounts := 0
+	methods := map[string]bool{}
 	ast.Inspect(f, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
 		}
 		sel, ok := call.Fun.(*ast.SelectorExpr)
-		if !ok || sel.Sel.Name != "Route" {
+		if !ok || sel.Sel.Name != "Route" || len(call.Args) != 2 {
 			return true
 		}
-		inner, ok := sel.X.(*ast.CallExpr)
-		if !ok || !isWithCall(inner) {
+		path, ok := chiPathLiteral(call)
+		if !ok || path != `"/jobs/{jobId}/applications"` {
 			return true
 		}
-		if len(call.Args) < 2 {
-			return true
+		if _, ok := sel.X.(*ast.Ident); !ok {
+			t.Fatal("applications mount must not inherit a role gate")
 		}
-		bl, ok := call.Args[0].(*ast.BasicLit)
-		if !ok || bl.Kind != token.STRING || bl.Value != `"/jobs/{jobId}/applications"` {
-			return true
+		mounts++
+		body, ok := call.Args[1].(*ast.FuncLit)
+		if !ok {
+			t.Fatal("missing applications callback")
 		}
-		if !referencesIdentifier(inner, "requireAuth") ||
-			!referencesIdentifier(inner, "requireRecruiter") {
+		ast.Inspect(body, func(n ast.Node) bool {
+			route, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			method, ok := route.Fun.(*ast.SelectorExpr)
+			if !ok || (method.Sel.Name != "Get" && method.Sel.Name != "Patch") {
+				return true
+			}
+			gate, ok := method.X.(*ast.CallExpr)
+			if !ok || !isWithCall(gate) || len(gate.Args) != 2 || !referencesIdentifier(gate, "requireAuth") || !referencesIdentifier(gate, "requireRecruiter") {
+				t.Fatal("recruiter method missing exact auth + recruiter gates")
+			}
+			p, ok := chiPathLiteral(route)
+			if !ok {
+				t.Fatal("missing recruiter path")
+			}
+			methods[method.Sel.Name+" "+strings.Trim(p, `"`)] = true
 			return true
-		}
-		gatedRoutes = append(gatedRoutes, bl.Value)
+		})
 		return true
 	})
-
-	if len(gatedRoutes) < 1 {
-		t.Fatalf("expected at least one `With(requireAuth, requireRecruiter).Route(\"/jobs/{jobId}/applications\", fn)` mutation in main.go; got %d",
-			len(gatedRoutes))
+	if mounts != 1 || !reflect.DeepEqual(methods, map[string]bool{"Get /": true, "Get /{id}": true, "Patch /{id}/transition": true}) {
+		t.Fatalf("applications recruiter topology drift: mounts=%d methods=%v", mounts, methods)
 	}
-
-	t.Logf("parsed %s: %d gated recruiter Route(\"/jobs/{jobId}/applications\") subtrees behind both requireAuth+requireRecruiter",
-		filePath, len(gatedRoutes))
 }
 
 // industryRegistrationMethods is the chi.Router method set that can
@@ -1511,7 +1503,7 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 				return true
 			}
 			if wc, isCall := sel.X.(*ast.CallExpr); isCall && (sel.Sel.Name == "Get" || sel.Sel.Name == "Mount") &&
-				!(sel.Sel.Name == "Get" && strings.Trim(path, `"`) == "/company/members" && referencesIdentifier(wc, "requireRecruiter")) {
+				!(sel.Sel.Name == "Get" && referencesIdentifier(wc, "requireRecruiter") && (strings.Trim(path, `"`) == "/company/members" || (referencesIdentifier(wc, "requireAuth") && (referencesIdentifier(call, "ListJobApplications") || referencesIdentifier(call, "GetApplication"))))) {
 				t.Fatalf("Get/Mount receiver must be the bare router identifier; direct With-wrapping of %s %s evades the pinned gating topology (sole exemption: Get /company/members on a requireRecruiter-wrapped receiver)", sel.Sel.Name, strings.Trim(path, `"`))
 			}
 			if wc, isCall := sel.X.(*ast.CallExpr); sel.Sel.Name == "Get" && strings.Trim(path, `"`) == "/company/members" && (!isCall || !isWithCall(wc) || len(wc.Args) != 1 || !referencesIdentifier(wc, "requireRecruiter")) {
@@ -1524,12 +1516,28 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 	sort.Strings(got)
 
 	want := []string{
+		"Get /v2/me/company/job-drafts/{id}/board",
+		"Get /v2/me/company/job-drafts/{id}/participations/{pid}",
+		"Get /v2/me/company/job-drafts/{id}/participations/{pid}/history",
+		"Get /v2/me/company/job-drafts/{id}/participations/{pid}/cv",
+		"Post /v2/me/company/job-drafts/{id}/participations/{pid}/moves",
+		"Post /v2/me/company/job-drafts/{id}/participations/{pid}/discard",
+		"Post /v2/me/company/job-drafts/{id}/participations/{pid}/recover",
+		"Post /v2/me/company/job-drafts/{id}/participations/{pid}/substate",
+		"Get /v2/jobs/{id}/screening",
+		"Get /v2/me/cvs",
+		"Post /v2/me/cvs",
+		"Patch /v2/me/cvs/{id}",
+		"Delete /v2/me/cvs/{id}",
+		"Get /v2/me/cvs/{id}/file",
+		"Post /v2/jobs/{id}/applications",
+		"Get /v2/me/applications",
 		"Delete /company",
 		"Delete /company/members/{id}",
 		"Delete /jobs/{id}",
 		"Get /",
 		"Get /{id}",
-		"Get /applications",
+		"Get /me/applications",
 		"Get /companies/{id}",
 		"Get /company",
 		"Get /company/members",
@@ -1537,13 +1545,20 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Get /me/company/job-drafts/{id}",
 		"Get /me/company/requesters",
 		"Get /readyz",
+		"Get /v2/jobs",
+		"Get /v2/jobs/{id}",
+		"Get /v2/me",
 		"Get /v2/me/company/job-drafts",
 		"Get /v2/me/company/job-drafts/{id}",
+		"Get /v2/me/company/job-drafts/{id}/management",
+		"Get /v2/me/company/job-drafts/{id}/publication",
 		"Get /v2/me/company/job-drafts/{id}/pipeline",
 		"Get /v2/me/company/job-drafts/{id}/pipeline/substates",
 		"Get /v2/me/company/job-drafts/{id}/pipeline/delivery",
+		"Get /v2/me/company/job-drafts/{id}/pipeline/delivery/status",
+		"Post /v2/me/company/job-drafts/{id}/pipeline/delivery/preview",
 		"Mount /jobs",
-		"Mount /profile",
+		"Mount /me/profile",
 		"Patch /{id}/transition",
 		"Patch /company",
 		"Patch /company/members/{id}",
@@ -1553,10 +1568,13 @@ func TestRouteTopology_ExactRegistrations(t *testing.T) {
 		"Post /companies",
 		"Post /company/members",
 		"Post /jobs",
-		"Post /jobs/{jobId}/applications",
+		"Post /",
 		"Post /me/company/job-drafts",
 		"Post /me/company/requesters",
+		"Post /v2/me/candidate-account",
 		"Post /v2/me/company/job-drafts",
+		"Post /v2/me/company/job-drafts/{id}/publication",
+		"Put /v2/me/company/job-drafts/{id}/management",
 		"Put /v2/me/company/job-drafts/{id}/pipeline",
 		"Put /v2/me/company/job-drafts/{id}/pipeline/substates",
 		"Put /v2/me/company/job-drafts/{id}/pipeline/delivery",
@@ -1645,7 +1663,8 @@ func TestStartupLog_EffectiveNonSecretConfig(t *testing.T) {
 // reaches decode time and omitted the companies member handler (a borrower
 // of the companies constant, not a declarer) — a bounded AST census over ALL
 // production feature .go files pins every production httpjson.DecodeJSON
-// call: exactly the five census files, two calls per file, ten total, exactly
+// call: five legacy census files with two calls each plus candidate identity
+// with one call (eleven total), exactly
 // four arguments, fourth argument the BARE identifier maxJSONBodyBytes.
 // Generation-111 correction (sha256:e090cf62…1bd): parser object ownership
 // binds both identifiers: local maxJSONBodyBytes shadows fail, and a local
@@ -1668,8 +1687,12 @@ func TestBodyLimitBinding_Guarded(t *testing.T) {
 		t.Fatalf("every production feature httpjson.DecodeJSON call must live in the pinned census files; production feature file(s) omitted from the census contain call(s): %v", extra)
 	}
 	for _, p := range decodeJSONCensusFiles {
-		if lines := calls[p]; len(lines) != decodeJSONCallsPerFile {
-			t.Fatalf("%s must contain EXACTLY %d httpjson.DecodeJSON call(s) (full production census is %d); got %d at lines %v", p, decodeJSONCallsPerFile, decodeJSONCallsTotal, len(lines), lines)
+		wantCalls := decodeJSONCallsPerFile
+		if p == "../../internal/features/identity/infrastructure/http/candidate_identity.go" {
+			wantCalls = 1
+		}
+		if lines := calls[p]; len(lines) != wantCalls {
+			t.Fatalf("%s must contain EXACTLY %d httpjson.DecodeJSON call(s) (full production census is %d); got %d at lines %v", p, wantCalls, decodeJSONCallsTotal, len(lines), lines)
 		}
 	}
 	total := 0
@@ -1689,12 +1712,13 @@ func TestBodyLimitBinding_Guarded(t *testing.T) {
 	if _, ok := intConstValue(mf, "maxJSONBodyBytes"); ok {
 		t.Fatalf("%s must BORROW the companies package maxJSONBodyBytes constant (the enforced 1 MiB cap) instead of declaring a second copy; found its own declaration", decodeJSONBorrowerFile)
 	}
-	t.Logf("guarded binding: startupMaxJSONBodyBytes in %s and maxJSONBodyBytes in %d declaring files all equal %d; census: EXACTLY %d production httpjson.DecodeJSON calls, %d per file across %d pinned files (incl. borrower %s), four args each, fourth argument bare maxJSONBodyBytes", compositionFile, len(decodeJSONDeclaringFiles), want, decodeJSONCallsTotal, decodeJSONCallsPerFile, len(decodeJSONCensusFiles), decodeJSONBorrowerFile)
+	t.Logf("guarded binding: startupMaxJSONBodyBytes in %s and maxJSONBodyBytes in %d declaring files all equal %d; census: EXACTLY %d production httpjson.DecodeJSON calls, %d per legacy file plus one onboarding call across %d pinned files (incl. borrower %s), four args each, fourth argument bare maxJSONBodyBytes", compositionFile, len(decodeJSONDeclaringFiles), want, decodeJSONCallsTotal, decodeJSONCallsPerFile, len(decodeJSONCensusFiles), decodeJSONBorrowerFile)
 }
 
 // decodeJSONCensusFiles are the ONLY production feature files allowed to carry
-// httpjson.DecodeJSON calls (two per file).
+// httpjson.DecodeJSON calls (two per legacy file, one for candidate identity).
 var decodeJSONCensusFiles = []string{
+	"../../internal/features/identity/infrastructure/http/candidate_identity.go",
 	"../../internal/features/applications/infrastructure/http/applicationHandler.go",
 	"../../internal/features/candidates/infrastructure/http/handler.go",
 	"../../internal/features/companies/infrastructure/http/handler.go",
@@ -1704,6 +1728,7 @@ var decodeJSONCensusFiles = []string{
 
 // decodeJSONDeclaringFiles own a package-level maxJSONBodyBytes constant.
 var decodeJSONDeclaringFiles = []string{
+	"../../internal/features/identity/infrastructure/http/candidate_identity.go",
 	"../../internal/features/applications/infrastructure/http/applicationHandler.go",
 	"../../internal/features/candidates/infrastructure/http/handler.go",
 	"../../internal/features/companies/infrastructure/http/handler.go",
@@ -1716,7 +1741,7 @@ const decodeJSONBorrowerFile = "../../internal/features/companies/infrastructure
 
 const (
 	decodeJSONCallsPerFile = 2
-	decodeJSONCallsTotal   = 10
+	decodeJSONCallsTotal   = 11
 )
 
 // httpjsonImportPath is the shared decode helper the census resolves per file.
