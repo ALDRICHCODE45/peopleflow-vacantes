@@ -4,18 +4,20 @@ import { z } from "zod";
 import { isValidJobId } from "@/features/jobs/jobId";
 import { requestJson } from "@/lib/api/server";
 import type { DraftPipelineFailure } from "./client";
+import { substateErrorSchema } from "./substates-contract";
 
 const uuid = z.string().length(36).refine(isValidJobId);
 const catalogSchema = z.object({
   version: z.string().regex(/^(0|[1-9][0-9]*)$(?![\s\S])/),
-  substates: z.array(z.object({ id: uuid, name: z.string() }).strict()),
+  substates: z.array(z.object({ id: uuid, name: z.string(), in_use: z.boolean() }).strict()),
   limits: z.object({ maxSubstates: z.number().int().positive(), nameMaxLength: z.number().int().positive() }).strict(),
   suggestions: z.array(z.string()),
 }).strict();
 const putBodySchema = z.object({ substates: z.array(z.object({ id: uuid.optional(), name: z.string() }).strict()) }).strict();
-const envelopeSchema = z.object({ error: z.string().min(1), code: z.string().min(1) }).strict();
+
+export type DraftSubstatesFailure = Omit<DraftPipelineFailure, "envelope"> & { envelope?: z.infer<typeof substateErrorSchema> };
 export type DraftSubstates = z.infer<typeof catalogSchema>;
-export type DraftSubstatesResult = { ok: true; data: DraftSubstates; etag: string } | DraftPipelineFailure;
+export type DraftSubstatesResult = { ok: true; data: DraftSubstates; etag: string } | DraftSubstatesFailure;
 type ReadInput = { token: string; draftId: string };
 export type SaveDraftSubstatesInput = ReadInput & { ifMatch: string; body: unknown };
 function invalid(kind: "missing_token" | "invalid_request" | "invalid_response"): DraftPipelineFailure {
@@ -32,7 +34,7 @@ async function requestSubstates(input: ReadInput, write?: { ifMatch: string; bod
     headers: { authorization: `Bearer ${input.token.trim()}`, ...(write ? { "if-match": write.ifMatch } : {}) },
     ...(write ? { body: write.body } : {}),
     redirect: "error", expectedStatus: 200, captureResponseHeaders: ["etag"], timeoutMs: serverEnv.apiTimeoutMs, maxErrorBodyBytes: 8192,
-    decoder: value => catalogSchema.parse(value), errorDecoder: value => envelopeSchema.parse(value),
+    decoder: value => catalogSchema.parse(value), errorDecoder: value => substateErrorSchema.parse(value),
   });
   // Writes are never retried. The editor reconciles uncertain outcomes with GET.
   if (!result.ok) return { ...result, error: { ...result.error, retryable: false } };

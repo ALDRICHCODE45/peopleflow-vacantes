@@ -13,7 +13,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { STAGE_KIND_LABELS, normalizeStageName } from "@/features/jobs/drafts/pipeline/editor-model";
 import { loadDraftSubstatesAction, saveDraftSubstatesAction, type DraftSubstatesActionResult } from "@/features/jobs/drafts/pipeline/substates-actions";
 import {
-  add, adoptSaved, availableSuggestions, canAdd, fromCatalog, isDirty, move, moveTo, reconcileUncertainSave, remove, rename, toPutBody, validate,
+  add, adoptSaved, availableSuggestions, canAdd, fromCatalog, isDirty, move, moveTo, reconcileUncertainSave, remove, rename, markSubstatesInUse, toPutBody, validate,
   type SubstatesCatalog, type SubstatesEditorState,
 } from "@/features/jobs/drafts/pipeline/substates-model";
 import { conflictNotice, invalidNotice, recoveryLabels, savedNotice, substatesFailureNotice, type PipelineNotice } from "./feedback";
@@ -31,7 +31,7 @@ type Props = {
   onSaved: (catalog: SubstatesCatalog, etag: string) => void;
 };
 type Session = { editor: SubstatesEditorState; etag: string };
-const noResponse = (): DraftSubstatesActionResult => ({ ok: false, reason: "no_response", reference: {} });
+const noResponse = () => ({ ok: false, reason: "no_response", reference: {} } as const);
 
 /** Each opening starts a fresh copy of the saved catalog, not the previous unsaved session. */
 export function SubstatesSheet({ open, ...props }: Props) {
@@ -85,6 +85,9 @@ function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenCh
       adopt(result, snapshot.editor);
       report(result.catalog.version === snapshot.editor.baseline.version ? { tone: "info", title: "No había cambios que guardar", text: "Guardado" } : savedNotice);
       onOpenChange(false);
+    } else if (result.reason === "substate_in_use") {
+      replace(markSubstatesInUse(snapshot.editor, result.details));
+      report({ tone: "error", title: "Hay subestados con candidatos", text: "No se guardó: reasigna los candidatos de los subestados marcados.", description: "Tus cambios siguen aquí. Los subestados marcados tienen candidatos asignados; reasígnalos antes de quitarlos." }, result.reference);
     } else report(substatesFailureNotice(result.reason), result.reference);
     busy.current = false; setPending(null);
   }

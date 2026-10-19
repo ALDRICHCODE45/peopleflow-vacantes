@@ -55,22 +55,22 @@ describe("substate catalog editor", () => {
     expect(availableSuggestions(remove(state, state.entries[0].key))).toEqual(catalog().suggestions);
   });
   it("detects normalized dirtiness, preserves existing ids, and adopts server ids by position", () => {
-    const input = { ...catalog(), substates: [{ id: "saved", name: "Uno" }] };
+    const input = { ...catalog(), substates: [{ id: "saved", name: "Uno", in_use: false }] };
     let state = fromCatalog(input); expect(isDirty(rename(state, "saved", " Uno "))).toBe(false);
     state = add(state, " Dos "); expect(isDirty(state)).toBe(true);
     expect(toPutBody(state)).toEqual({ substates: [{ id: "saved", name: "Uno" }, { name: "Dos" }] });
-    const saved = adoptSaved(state, { ...input, version: "1", substates: [{ id: "saved", name: "Uno" }, { id: "server", name: "Dos" }] });
+    const saved = adoptSaved(state, { ...input, version: "1", substates: [{ id: "saved", name: "Uno", in_use: false }, { id: "server", name: "Dos", in_use: false }] });
     expect(saved.entries.map(e => e.key)).toEqual(state.entries.map(e => e.key)); expect(saved.entries[1].id).toBe("server");
     expect(saved.nextKey).toBe(state.nextKey); expect(isDirty(saved)).toBe(false);
   });
   it("reconciles matching writes (including no-ops and new ids), not_saved and conflict without replay", () => {
     const input = catalog(); const state = add(fromCatalog(input), " Uno ");
-    const matching = { ...input, substates: [{ id: "server", name: "Uno" }] };
+    const matching = { ...input, substates: [{ id: "server", name: "Uno", in_use: false }] };
     expect(reconcileUncertainSave(state, matching)).toBe("saved");
     expect(reconcileUncertainSave(state, input)).toBe("not_saved");
     expect(reconcileUncertainSave(state, { ...input, version: "2" })).toBe("conflict");
     const existing = fromCatalog(matching);
-    expect(reconcileUncertainSave(existing, { ...matching, version: "2", substates: [{ id: "other", name: "Uno" }] })).toBe("conflict");
+    expect(reconcileUncertainSave(existing, { ...matching, version: "2", substates: [{ id: "other", name: "Uno", in_use: false }] })).toBe("conflict");
     expect(reconcileUncertainSave(fromCatalog(input), input)).toBe("saved");
   });
 });

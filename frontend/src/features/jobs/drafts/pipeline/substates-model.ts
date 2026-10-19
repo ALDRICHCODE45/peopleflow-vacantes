@@ -2,13 +2,14 @@ import { normalizeStageName, stageNameError, stageNameKey, type MoveDirection, t
 
 export type SubstatesCatalog = {
   version: string;
-  substates: { id: string; name: string }[];
+  substates: { id: string; name: string; in_use: boolean }[];
   limits: { maxSubstates: number; nameMaxLength: number };
   suggestions: string[];
 };
-export type SubstateEntry = { key: string; id: string | null; name: string };
+export type SubstateEntry = { key: string; id: string | null; name: string; in_use: boolean; blocked?: boolean };
 export type SubstatesEditorState = {
   entries: SubstateEntry[];
+  removedEntries: SubstateEntry[];
   limits: SubstatesCatalog["limits"];
   suggestions: string[];
   baseline: SubstatesCatalog;
@@ -19,7 +20,7 @@ export type SubstatesPutBody = { substates: { id?: string; name: string }[] };
 
 export function fromCatalog(catalog: SubstatesCatalog): SubstatesEditorState {
   return {
-    entries: catalog.substates.map(entry => ({ ...entry, key: entry.id })),
+    entries: catalog.substates.map(entry => ({ ...entry, key: entry.id })), removedEntries: [],
     limits: { ...catalog.limits }, suggestions: [...catalog.suggestions], nextKey: 1,
     baseline: { ...catalog, substates: catalog.substates.map(entry => ({ ...entry })), limits: { ...catalog.limits }, suggestions: [...catalog.suggestions] },
   };
@@ -50,10 +51,21 @@ export function add(state: SubstatesEditorState, name = ""): SubstatesEditorStat
   if (!canAdd(state)) return state;
   let counter = state.nextKey;
   while (state.entries.some(entry => entry.key === `local:substate:${counter}`)) counter++;
-  return { ...state, entries: [...state.entries, { key: `local:substate:${counter}`, id: null, name }], nextKey: counter + 1 };
+  return { ...state, entries: [...state.entries, { key: `local:substate:${counter}`, id: null, name, in_use: false }], nextKey: counter + 1 };
 }
 export function remove(state: SubstatesEditorState, key: string): SubstatesEditorState {
-  return state.entries.some(entry => entry.key === key) ? { ...state, entries: state.entries.filter(entry => entry.key !== key) } : state;
+  return state.entries.some(entry => entry.key === key && !entry.in_use) ? { ...state, entries: state.entries.filter(entry => entry.key !== key), removedEntries: [...state.removedEntries.filter(entry => entry.key !== key), state.entries.find(entry => entry.key === key)!] } : state;
+}
+/** A rejected deletion restores only its occupants, preserving all other draft edits. */
+export function markSubstatesInUse(state: SubstatesEditorState, details: { substate_id: string }[]): SubstatesEditorState {
+  const ids = new Set(details.map(detail => detail.substate_id));
+  const entries = state.entries.map(entry => ({ ...entry, blocked: entry.id !== null && ids.has(entry.id), in_use: entry.in_use || (entry.id !== null && ids.has(entry.id)) }));
+  for (const [index, saved] of state.baseline.substates.entries()) {
+    if (!ids.has(saved.id) || entries.some(entry => entry.id === saved.id)) continue;
+    const draft = state.removedEntries.find(entry => entry.id === saved.id);
+    entries.splice(Math.min(index, entries.length), 0, { ...(draft ?? { ...saved, key: saved.id }), in_use: true, blocked: true });
+  }
+  return { ...state, entries };
 }
 export function validate(state: SubstatesEditorState): { ok: boolean; errors: Record<string, SubstateError> } {
   const errors: Record<string, SubstateError> = {};

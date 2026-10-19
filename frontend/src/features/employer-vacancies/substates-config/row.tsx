@@ -4,7 +4,7 @@ import { cn } from "cn";
 import { ArrowDown, ArrowUp, Ellipsis, GripVertical, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Item, ItemActions, ItemContent, ItemMedia } from "@/components/ui/item";
 import { canMove, type SubstateEntry, type SubstateError, type SubstatesEditorState } from "@/features/jobs/drafts/pipeline/substates-model";
@@ -17,7 +17,7 @@ export function substateRowActions(state: SubstatesEditorState, key: string): Ro
   return [
     { id: "up", label: "Subir", disabled: !canMove(state, key, "up") },
     { id: "down", label: "Bajar", disabled: !canMove(state, key, "down") },
-    { id: "remove", label: "Quitar subestado", disabled: !state.entries.some(entry => entry.key === key) },
+    { id: "remove", label: "Quitar subestado", disabled: !state.entries.some(entry => entry.key === key && !entry.in_use) },
   ];
 }
 const icons = { up: ArrowUp, down: ArrowDown, remove: Trash2 };
@@ -37,6 +37,8 @@ export function SubstateRow({ entry, position, state, error, disabled, inputRef,
 }) {
   const id = `pipeline-substate-${entry.key}`;
   const message = nameError(error, state.limits.nameMaxLength);
+  const inUseCopy = "Tiene candidatos asignados. Reasígnalos para quitarlo.";
+  const invalid = !!message || !!entry.blocked;
   const { attributes, listeners, setNodeRef: setDragRef, setActivatorNodeRef, isDragging } = useDraggable({ id: entry.key, disabled, attributes: { roleDescription: "Subestado" } });
   const { setNodeRef: setDropRef, isOver } = useDroppable({ id: entry.key, disabled });
   const setRowRef = useCallback((node: HTMLElement | null) => { setDragRef(node); setDropRef(node); }, [setDragRef, setDropRef]);
@@ -51,11 +53,12 @@ export function SubstateRow({ entry, position, state, error, disabled, inputRef,
       disabled={disabled} {...attributes} {...listeners} aria-label={`Arrastrar ${entry.name}`}><GripVertical aria-hidden="true" /></Button>
     <ItemMedia variant="icon" className={POSITION_MEDALLION} aria-hidden="true">{position}</ItemMedia>
     <ItemContent className="min-w-0">
-      <FieldGroup><Field data-invalid={!!message} data-disabled={disabled}>
+      <FieldGroup><Field data-invalid={invalid} data-disabled={disabled}>
         <FieldLabel htmlFor={id} className="sr-only">Nombre del subestado {position}</FieldLabel>
         <Input id={id} ref={inputRef} className="min-h-10" value={entry.name} disabled={disabled} onChange={event => onRename(event.target.value)} onBlur={onBlur}
-          aria-invalid={!!message} aria-describedby={message ? `${id}-error` : undefined} />
+          aria-invalid={invalid} aria-describedby={[message && `${id}-error`, entry.in_use && `${id}-in-use`].filter(Boolean).join(" ") || undefined} />
         {message && <FieldError id={`${id}-error`}>{message}</FieldError>}
+        {entry.in_use && (entry.blocked ? <FieldError id={`${id}-in-use`}>{inUseCopy}</FieldError> : <FieldDescription id={`${id}-in-use`}>{inUseCopy}</FieldDescription>)}
       </Field></FieldGroup>
     </ItemContent>
     <ItemActions><DropdownMenu>

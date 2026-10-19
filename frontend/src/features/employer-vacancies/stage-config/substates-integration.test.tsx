@@ -31,7 +31,7 @@ it.each([0, 1, 3])("counts %i saved substates as secondary text on the in_proces
   expect(badge.closest("li")).toContainElement(column());
 });
 it("opens with the typed normalized name despite unsaved columns, saves independently and updates the saved count", async () => {
-  const catalog = { ...substatesFixture(), version: "1", substates: [{ id: "new", name: "Primera entrevista" }] };
+  const catalog = { ...substatesFixture(), version: "1", substates: [{ id: "new", name: "Primera entrevista", in_use: false }] };
   vi.mocked(saveDraftSubstatesAction).mockResolvedValue({ ok: true, catalog, etag: '"substates-1"' });
   render(<PipelineStageEditor draftId={draftId} pipeline={pipelineFixture()} etag='"pipeline-0"' substates={substatesFixture()} substatesEtag='"substates-0"' />);
   fireEvent.change(column(), { target: { value: "  Entrevistas\u00a0 técnicas  " } });

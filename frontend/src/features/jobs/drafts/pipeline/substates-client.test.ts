@@ -6,7 +6,7 @@ vi.mock("@/lib/env/server", () => ({ get serverEnv() { env.reads++; return { api
 import { getDraftSubstates, saveDraftSubstates } from "./substates-client";
 const draftId = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const etag = '"opaque-substates+/="';
-const catalog = { version: "0", substates: [{ id: draftId, name: "Entrevista" }], limits: { maxSubstates: 50, nameMaxLength: 40 }, suggestions: ["Pruebas"] };
+const catalog = { version: "0", substates: [{ id: draftId, name: "Entrevista", in_use: false }], limits: { maxSubstates: 50, nameMaxLength: 40 }, suggestions: ["Pruebas"] };
 const body = { substates: [{ id: draftId, name: "Uno" }, { name: "Dos" }] };
 function response(data: unknown, status = 200, tag: string | null = etag) {
   const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(data), { status, headers: tag === null ? {} : { etag: tag } }));

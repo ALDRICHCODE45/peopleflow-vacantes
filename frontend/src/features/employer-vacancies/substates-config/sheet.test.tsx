@@ -7,12 +7,13 @@ import { loadDraftSubstatesAction, saveDraftSubstatesAction, type DraftSubstates
 import { fromCatalog, rename, toPutBody, type SubstatesCatalog } from "@/features/jobs/drafts/pipeline/substates-model";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { SubstatesSheet } from "./sheet";
+import { substateRowActions } from "./row";
 import { populatedSubstates, substatesFixture } from "./test-fixture";
 
 vi.mock("@/features/jobs/drafts/pipeline/substates-actions", () => ({ loadDraftSubstatesAction: vi.fn(), saveDraftSubstatesAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
 // Exercise the real editor callbacks at the menu portal boundary; rows still render unmocked UI.
-const rowBoundary = vi.hoisted(() => new Map<string, { onMove: (direction: "up" | "down") => void; onRemove: () => void }>());
+const rowBoundary = vi.hoisted(() => new Map<string, { onMove: (direction: "up" | "down") => void; onRemove: () => void; state: ReturnType<typeof fromCatalog> }>());
 vi.mock("./row", async importOriginal => {
   const actual = await importOriginal<typeof import("./row")>();
   return { ...actual, SubstateRow: (props: Parameters<typeof actual.SubstateRow>[0]) => {
@@ -26,7 +27,7 @@ const onClose = vi.fn();
 const field = (n = 1) => screen.getByRole("textbox", { name: `Nombre del subestado ${n}` });
 const save = () => screen.getByRole("button", { name: "Guardar subestados" });
 const change = (name = "Entrevista", n = 1) => fireEvent.change(field(n), { target: { value: name } });
-const success = (version = "1", name = "Entrevista"): DraftSubstatesActionResult => ({ ok: true, catalog: { ...substatesFixture(), version, substates: [{ id: "server", name }] }, etag: `"substates-${version}"` });
+const success = (version = "1", name = "Entrevista"): Extract<DraftSubstatesActionResult, { ok: true }> => ({ ok: true, catalog: { ...substatesFixture(), version, substates: [{ id: "server", name, in_use: false }] }, etag: `"substates-${version}"` });
 function Harness({ initial = substatesFixture(), name = "Entrevistas" }: { initial?: SubstatesCatalog; name?: string }) {
   const [open, setOpen] = useState(true);
   const [saved, setSaved] = useState({ catalog: initial, etag: '"substates-0"' });
@@ -101,7 +102,7 @@ it("validates an untouched new entry on save", () => {
 it("sends exactly toPutBody with the current ETag, closes on confirmed save and reopens from the saved catalog", async () => {
   mount(populatedSubstates()); change(" Entrevista ");
   const expected = toPutBody(rename(fromCatalog(populatedSubstates()), "one", " Entrevista "));
-  const catalog = { ...populatedSubstates(), version: "2", substates: expected.substates as SubstatesCatalog["substates"] };
+  const catalog = { ...populatedSubstates(), version: "2", substates: expected.substates.map(entry => ({ ...entry, id: entry.id!, in_use: false })) };
   vi.mocked(saveDraftSubstatesAction).mockResolvedValue({ ok: true, catalog, etag: '"substates-2"' });
   fireEvent.click(save());
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
@@ -163,6 +164,26 @@ it.each(["Cancelar", "Cerrar subestados", "Escape", "overlay"])("confirms unsave
   expect(onClose).toHaveBeenCalledExactlyOnceWith(false);
   fireEvent.click(screen.getByRole("button", { name: "Abrir" })); expect(screen.queryByRole("textbox")).not.toBeInTheDocument(); expect(save()).toBeDisabled();
   expect(saveDraftSubstatesAction).not.toHaveBeenCalled();
+});
+it("in_use disables removal and explains reassignment while allowing renames", () => {
+  const catalog = populatedSubstates(); catalog.substates[0].in_use = true;
+  mount(catalog);
+  expect(substateRowActions(fromCatalog(catalog), "one").find(action => action.id === "remove")?.disabled).toBe(true);
+  expect(screen.getByText("Tiene candidatos asignados. Reasígnalos para quitarlo.")).toBeVisible();
+  act(() => rowBoundary.get("one")!.onRemove()); expect(field()).toHaveValue("Primera entrevista");
+  change("Renombrada"); expect(field()).toHaveValue("Renombrada");
+});
+it("409 marks exactly blocked rows, restores removed blocked rows and keeps edits without reload", async () => {
+  vi.mocked(saveDraftSubstatesAction).mockResolvedValue({ ok: false, reason: "substate_in_use", details: [{ substate_id: "two" }], reference: { status: 409, code: "substate_in_use" } });
+  mount(populatedSubstates()); change("Mi cambio");
+  act(() => rowBoundary.get("two")!.onRemove()); fireEvent.click(save());
+  await screen.findByText("Tiene candidatos asignados. Reasígnalos para quitarlo.");
+  expect(field()).toHaveValue("Mi cambio");
+  const rows = screen.getAllByRole("textbox");
+  expect(rows.filter(row => row.getAttribute("aria-invalid") === "true").map(row => (row as HTMLInputElement).value)).toEqual(["Técnica"]);
+  expect(substateRowActions(rowBoundary.get("two")!.state, "two").find(action => action.id === "remove")?.disabled).toBe(true);
+  expect(loadDraftSubstatesAction).not.toHaveBeenCalled(); expect(saveDraftSubstatesAction).toHaveBeenCalledTimes(1);
+  expect(status()).toHaveTextContent("No se guardó: reasigna los candidatos de los subestados marcados.");
 });
 it("closes directly without changes", async () => {
   mount(); fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
