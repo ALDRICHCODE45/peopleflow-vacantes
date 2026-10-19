@@ -29,9 +29,9 @@ Write shape, used in every write contract below:
 Read shape: the same keys, expanded with names; `null` stays `null`.
 
 ```json
-{"country": {"code": "MX", "name": "México"},
- "state": {"code": "14", "name": "Jalisco"},
- "municipality": {"code": "14039", "name": "Guadalajara"},
+{"country": {"id": "MX", "name": "México"},
+ "state": {"id": "14", "name": "Jalisco"},
+ "municipality": {"id": "14039", "name": "Guadalajara"},
  "postal_code": "44100",
  "label": "Guadalajara, Jalisco"}
 ```
@@ -95,10 +95,10 @@ ETag derived from the last import, with `304` on `If-None-Match`.
 
 | Route | Response | Errors |
 |---|---|---|
-| `GET /v2/geo/countries` | `{items:[{code,name}]}`, ordered by the Spanish name (collation `es`) | — |
-| `GET /v2/geo/countries/MX/states` | `{items:[{code,name}]}`, ordered by code | unknown or unsupported country → 404 `country_not_found` |
+| `GET /v2/geo/countries` | `{items:[{id,name}]}`, ordered by the Spanish name (collation `es`) | — |
+| `GET /v2/geo/countries/MX/states` | `{items:[{id,name}]}`, ordered by code | unknown or unsupported country → 404 `country_not_found` |
 | `GET /v2/geo/countries/MX/states/{state}/municipalities` | full list, ordered by name (largest state is about 570 rows; the client filters while typing) | unknown state → 404 `state_not_found` |
-| `GET /v2/geo/countries/MX/postal-codes/{cp}` | `{postal_code, matches:[{state:{code,name}, municipality:{code,name}}]}`; usually one match, sometimes more | not 5 digits → 400 `invalid_postal_code`; unknown → 404 `postal_code_not_found` |
+| `GET /v2/geo/countries/MX/postal-codes/{cp}` | `{postal_code, matches:[{state:{id,name}, municipality:{id,name}}]}`; usually one match, sometimes more | not 5 digits → 400 `invalid_postal_code`; unknown → 404 `postal_code_not_found` |
 
 - There is no bulk postal-code listing. Postal codes are only looked up one at a time (see §20.9 Q1).
 - Unknown query params → 400.
@@ -131,7 +131,7 @@ ETag derived from the last import, with `304` on `If-None-Match`.
 **Public `/v2/jobs` item and detail:**
 - `location`: the read shape or `null`.
 - New `location_label`: the label, or the free text for legacy rows.
-- New `remote_scope`: `null` unless `remote`, otherwise `{kind, countries:[{code,name}]}`.
+- New `remote_scope`: `null` unless `remote`, otherwise `{kind, countries:[{id,name}]}`.
 
 This changes the type of `location` (string → object), agreed with the frontend (S8).
 
@@ -213,6 +213,16 @@ On `/v2/jobs`:
 - **Q3:** the postal-code lookup **preloads** state and municipality (editable, never locked); with
   several matches the user picks one. If the user then picks a state/municipality the postal code
   does not map to, the UI clears the postal code; the server rule (`mismatch`) stays authoritative.
+- **Q1b (user risk acceptance):** the downloaded SEPOMEX TXT carries a stricter notice than the
+  web page: «se proporciona en forma gratuita para uso particular, no estando permitida su
+  comercialización, total o parcial, ni su distribución a terceros bajo ningún concepto». Shown
+  that notice and the risk that committing and serving postal codes may count as distribution to
+  third parties, the user chose «Seguir igual, acepto el riesgo» («Se commitean los datos de CP y se
+  sirve la búsqueda por CP.»). Conditions: one-at-a-time lookup, no bulk listing, and the
+  postal-code import kept isolated (own file and skippable step) so it can be dropped later.
+- **Reference key `id`:** catalog references are `{id, name}`, not `{code, name}` — the archguard
+  reserves `"code"` for error envelopes and is never weakened. Applies to every `/v2/geo/*` item and
+  to the read-shape `country`/`state`/`municipality` objects (§20.2). Write shapes are unchanged.
 - `location_label` keeps the legacy free-text fallback: the legacy `jobs` rows are still served by
   `/v2/jobs`, and the fallback is one `COALESCE`.
 
