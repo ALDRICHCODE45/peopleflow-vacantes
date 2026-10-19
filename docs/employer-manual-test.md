@@ -418,6 +418,21 @@ corepack pnpm dev
     periodicidad y neto/bruto debajo (o dice que no se publican); en el celular las zonas
     se apilan sin achicar el texto.
 
+### Corte 6: subestado por candidato (rama `feat/pipeline-substates-active-ui`, backend `feat/pipeline-substates-active`, migración 00026)
+
+64. **Asignar.** Con un candidato en una columna de tipo «En proceso», abrí el menú de la
+    tarjeta → «Subestado» y elegí uno. **Esperado:** badge con el subestado en la tarjeta y
+    toast «… quedó en «…»» con el anterior en la descripción. En la ficha aparece el
+    selector «Subestado» junto a «Mover a…»; en otras etapas no aparece.
+65. **Filtrar.** Usá el filtro sobre el tablero: elegí uno o varios subestados y «Sin
+    subestado». **Esperado:** solo quedan los de «En proceso» que coinciden; las columnas
+    dicen «X de Y»; una columna sin coincidencias muestra «Ningún candidato coincide con el
+    filtro»; «Limpiar» vuelve a mostrar todo.
+66. **Salir, historial y catálogo.** Mové al candidato fuera de «En proceso». **Esperado:**
+    pierde el subestado y el historial muestra el cambio a «Sin subestado» antes del
+    movimiento. En la configuración de subestados, uno con candidatos tiene «Quitar»
+    deshabilitado con la explicación; renombrarlo sí se puede.
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:
