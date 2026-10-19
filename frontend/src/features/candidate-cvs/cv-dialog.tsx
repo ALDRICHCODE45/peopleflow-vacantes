@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { FileText } from "lucide-react";
+import { FileText, Trash2 } from "lucide-react";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
+import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,17 @@ export function CvDialog({ cv, mode, onClose, onSaved, onCheck, onWrongRole }: {
     try { if (await onCheck()) onClose(); } finally { setChecking(false); }
   }
   if (failure?.reason === "wrong_role") return <RoleBlocked kind="recruiter" />;
+  if (!isRename) return <ConfirmActionDialog open onOpenChange={open => { if (!open) close(); }}
+    icon={Trash2} title={`¿Eliminar ${cv.name}?`} description="Tus postulaciones conservan su copia. No se puede deshacer."
+    confirmLabel={isUncertain ? "Comprobar" : "Eliminar CV"} pendingLabel={checking ? "Comprobando…" : "Eliminando…"}
+    tone={isUncertain ? "default" : "destructive"} pending={pending || checking} onConfirm={() => { void (isUncertain ? check() : submit()); }}>
+    <div data-pf-cv-dialog-document className="flex min-w-0 flex-wrap items-center gap-3">
+      <FileText aria-hidden="true" className="size-5 shrink-0" />
+      <div className="min-w-0 flex-1"><p className="text-[12.5px] text-muted-foreground">Documento</p><p className="break-words font-medium">{cv.name}</p></div>
+      {cv.in_use && <Badge variant="neutral">En uso</Badge>}
+    </div>
+    {copy && <ActionStatus id={statusId} tone="error" text={failureStatus(failure!, copy)} action={failure?.reason === "unauthenticated" ? <a href="/candidato/login" className="inline-flex min-h-10 items-center underline">Iniciar sesión</a> : undefined} />}
+  </ConfirmActionDialog>;
   return (
     <Dialog open onOpenChange={open => { if (!open) close(); }}>
       <DialogContent showCloseButton={!pending && !checking}>
