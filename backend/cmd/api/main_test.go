@@ -1480,6 +1480,8 @@ func TestMainComposition_DelegatesRouterConstruction(t *testing.T) {
 // registrations (incl. nested Route closures); any added/removed/renamed/re-gated
 // registration drifts the multiset and fails, proving topology is preserved.
 func TestRouteTopology_ExactRegistrations(t *testing.T) {
+	// Include the public geo registrar in the closure gate's pinned topology.
+	assertGeoRoutesExactPublicRegistration(t)
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, routerFile, nil, parser.ParseComments)
 	if err != nil {

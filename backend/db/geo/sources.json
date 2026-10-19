@@ -1,0 +1,22 @@
+[
+  {
+    "file": "countries.csv",
+    "source": "Unicode CLDR Spanish/English territory names + pycountry ISO 3166-1 codes (retrieved 2026-10-19)",
+    "source_date": "2026-10-19"
+  },
+  {
+    "file": "mx_states.csv",
+    "source": "INEGI AGEEML wscatgeo/v2/mgee (retrieved 2026-10-19)",
+    "source_date": "2026-10-19"
+  },
+  {
+    "file": "mx_municipalities.csv",
+    "source": "INEGI AGEEML wscatgeo/v2/mgem/{01..32} (retrieved 2026-10-19)",
+    "source_date": "2026-10-19"
+  },
+  {
+    "file": "mx_postal_codes.csv",
+    "source": "SEPOMEX national TXT export, source page updated 2026-10-18 (retrieved 2026-10-19)",
+    "source_date": "2026-10-18"
+  }
+]

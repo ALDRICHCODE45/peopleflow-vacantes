@@ -42,13 +42,21 @@ db-status:
 	$(GOOSE) status
 
 db-new:
-	@if [ -z "${NAME}" ]; then \
-		echo "usage: make db-new NAME=add_foo"; exit 1; \
-	fi
+	test -n "${NAME}" || { echo "usage: make db-new NAME=add_foo"; exit 1; }
 	$(GOOSE) create ${NAME} sql
 
 sqlc:
 	$(SQLC) generate
+
+.PHONY: geo-import geo-reduce
+# Explicit environment only: geoimport never loads .env.
+geo-import:
+	go run ./cmd/geoimport $(GEO_ARGS)
+
+# RAW is the directory layout documented in db/geo/README.md.
+geo-reduce:
+	test -n "$(RAW)" || (echo 'usage: make geo-reduce RAW=/path/to/raw'; exit 1)
+	go run ./cmd/geoimport -reduce "$(RAW)" -dir db/geo
 
 run:
 	go run ./cmd/api
@@ -71,6 +79,7 @@ vet:
 # the check's exit status. The RED pass-through stub (gate-stub.sh) is kept as
 # historical RED evidence.
 $(GATES):
+	# shellcheck disable=SC2068
 	$(CLOSURE_STUB) $@
 
 # CE-04: the report driver is a first-class Make target, deliberately NOT part of

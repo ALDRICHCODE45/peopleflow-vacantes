@@ -114,6 +114,14 @@ type Querier interface {
 	// the adapter re-fetches by cognito_sub to return the existing entity.
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) error
+	GeoCountries(ctx context.Context) ([]GeoCountriesRow, error)
+	GeoCountryExists(ctx context.Context, code string) (bool, error)
+	GeoLatestImport(ctx context.Context) (int64, error)
+	GeoMunicipalities(ctx context.Context, arg GeoMunicipalitiesParams) ([]GeoMunicipalitiesRow, error)
+	GeoMunicipalityState(ctx context.Context, arg GeoMunicipalityStateParams) (string, error)
+	GeoPostalMatches(ctx context.Context, arg GeoPostalMatchesParams) ([]GeoPostalMatchesRow, error)
+	GeoStateExists(ctx context.Context, arg GeoStateExistsParams) (bool, error)
+	GeoStates(ctx context.Context, countryCode string) ([]GeoStatesRow, error)
 	// Recruiter detail endpoint (design D5 / spec scenario "recruiter gets
 	// an application's detail"). Scopes by (id, job_id, company_id) and
 	// joins users (full_name) + candidate_profiles (LEFT JOIN — professional
