@@ -101,8 +101,8 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - [x] T61 — §16: backend — migration 00027 (own commit), reached/delivered computation, fulfillment recording on moves/recoveries/applications/delivery edits, status, preview, confirm_fulfillment, freeze, board and write-response `delivery`, `fulfilled` on the delivery resource, docs (worker) — ca94773 (00027), fdc5d44
 - [x] T62 — parent integration run on isolated DB (L68) + independent verification qualified pass (L69) + preview alignment
 - [ ] T63 — S27: vacancy SEO and Google for Jobs (JobPosting JSON-LD, metadata, sitemap, structured location, Indexing API) — LAST, after every other planned cut — pending
-- [ ] T64 — S29: cut 7 design §17 + contract to frontend — contract commit
-- [ ] T65 — §17: cut-7 backend (migration 00028 own commit) (worker) — pending
+- [x] T64 — S29: cut 7 design §17 + contract to frontend — e89d56d, ef3377c, a5037f3, 85592af
+- [x] T65 — §17: cut-7 backend (migration 00028 own commit) (worker) — aad9515 (00028), cfe2e6b
 - [ ] T66 — cut-7 integration + independent verification — pending
 - [ ] T67 — S29: board filter data §19 backend (migration 00029 own commit), stacked on cut 7 (worker) — pending
 - [ ] T68 — §19 integration + independent verification — pending
@@ -185,3 +185,4 @@ Branch `feat/pipeline-config` (from main a39e5ca). Design and cut-1 contract: `d
 - **L74.** Frontend agent (msg f597ac6a) accepted §17 and §19; agreed the pipeline `PUT 200` always echoes `applied_impact` (§17.2) because the impact can change between preview and PUT without a version change. Worker notified.
 - **L75.** Worker (mvezcggm-7-f4ph) stopped on a real contract gap: random new-stage ids differ between preview and PUT. Resolved by the parent (§17.2 amendment, amends §3 invariant 7): deterministic UUIDv5(vacancy, base version, id-less ordinal); no product impact.
 - **L76.** Frontend agent (msg 6325942b): preview root gains `stages` (resulting order with deterministic new ids) so not_applicable entries naming a new column can be labeled (§17.2).
+- **L77.** Cut-7 backend committed by the parent: aad9515 migration 00028 (event kind `not_applicable` added to the history CHECKs with every previous branch kept; down refuses while such entries exist) with its tests; cfe2e6b retired stages, deterministic new-stage ids, impact computation, preview with `stages`, confirm_impact gate, `applied_impact` echo, stage_occupied, recover `to_stage_id`, board `retired_stages` / `recovery_stage_id`, history `not_applicable`, additive codes, docs and review-queue row 10. Each commit builds, vets (incl. integration tag) and passes `go test ./...` alone in a detached temporary worktree. Integration with `-race` on an isolated `draft_test` (created and dropped): all cut-7 and migration tests passed, 0 failures, 0 data races, incl. forced concurrent edit/move/discard/recover/apply and applied impact recomputed after a move between preview and PUT. Risk: item 1 (migration), item 4 (concurrency), item 3 (pipeline and recover contracts extended, requested).
