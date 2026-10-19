@@ -6,7 +6,7 @@ including the agreed clarifications in §12.7. Legacy applications are unchanged
 
 ## Quick path
 
-1. Apply migrations through **00027** with `make db-migrate` before running this API.
+1. Apply migrations through **00029** with `make db-migrate` before running this API.
    Cut-5 discard/recovery extensions are documented in [pipeline-discard.md](pipeline-discard.md).
 2. Read the board and keep each item's opaque `etag`.
 3. POST a move using that item's tag as `If-Match`; reconcile with GET after an
@@ -21,7 +21,11 @@ Every response, including gate failures, carries `Cache-Control: no-store`.
 
 ## Board and item shapes
 
-`GET …/board` → 200, exactly `{stages, exit, coverage, participations, substates, delivery}`.
+`GET …/board` → 200, exactly `{stages, exit, coverage, participations, substates, delivery, retired_stages, screening_filters}`.
+`screening_filters` is the current questionnaire's single-choice catalog, exactly
+`[{question_id,prompt,options:[{id,label}]}]` in questionnaire order (§19).
+See [board filter data](board-filter-data.md) for normalization, privacy and its test map.
+`retired_stages` is always `[{id,kind,name}]`, supplying retained history labels (cut 7).
 `delivery` is exactly `{state, delivered, target}`: `pending | fulfilled`, a historical
 distinct-candidate count, and a non-null integer target. Fulfilled values are frozen;
 see [delivery fulfillment](delivery-fulfillment.md).
@@ -44,7 +48,9 @@ An item is exactly:
   "candidate": {"id": "…", "full_name": "Ana Pérez"},
   "applied_at": "2026-10-16T18:00:00Z", "source": "organic",
   "cv": {"id": "…", "name": "CV"}, "moved_at": "2026-10-16T18:00:00Z",
-  "discard": null, "substate_id": null
+  "discard": null, "substate_id": null,
+  "profile": {"city": null, "skills": [], "years_of_experience": null, "education_level": null},
+  "screening_answers": []
 }
 ```
 
@@ -52,6 +58,12 @@ An item is exactly:
 not a precondition clients construct. Participation tags are strong and
 domain-separated from draft/pipeline/other tags. The board itself has no ETag.
 Default stage IDs remain the deterministic cut-1 UUIDv5 identities.
+`profile` is the immutable application-time four-field snapshot (legacy rows:
+nulls/empty skills). `screening_answers` is exactly `[{question_id,option_id}]`,
+only single-choice answers from the frozen snapshots in stored answer order;
+open text is never returned on the board. Both keys are always present on board items
+and participation detail. Mutation responses retain their existing key sets;
+these private fields never appear there or in candidate/public APIs (§19).
 
 ## Move
 
@@ -74,7 +86,8 @@ The transport enforces the existing 1 MiB JSON budget.
   starts null. Both events share one participation version bump (cut 6).
 - Entering Placement records a hire. Leaving requires explicit confirmation and
   records a departure, without erasing previous history.
-- 200 is the item shape above **plus `coverage` and `delivery`**, flattened, both computed after the write, with the new tag both
+- 200 is the pre-§19 item shape (**without `profile` and `screening_answers`**)
+  plus `coverage` and `delivery`, flattened, both computed after the write, with the new tag both
   in `etag` and the `ETag` response header. No idempotency/replay header is added.
 - Missing `If-Match` → 428. Empty, malformed, weak, wildcard or list (including
   repeated header lines) → 400. Well-formed stale or foreign tag → 412.
@@ -116,10 +129,12 @@ actor, at}` for `intake | move | recovery`. Discard entries additionally carry
 [pipeline-discard.md](pipeline-discard.md). `actor` is always
 `{kind: "candidate" | "recruiter", id, full_name}`. Intake's actor is the candidate,
 `from_stage_id` is null and both flags are false. Moves have recruiter actors.
-Names of stages come from the current board, not frozen display labels.
+Names of stages come from current or retired board stages.
 Cut 6 adds a distinct `substate` history member with exactly
 `{kind,from_substate_id,from_substate_name,to_substate_id,to_substate_name,actor,at}`;
 nullable names are immutable snapshots. All other history key sets are unchanged.
+Cut 7 adds exactly `{kind:"not_applicable",stage_id,actor,at}`. These recruiter
+marks never count as reached or change a candidate's movement time/version.
 See [active substates](pipeline-substates-active.md) for assignment, automatic
 clearing and catalog occupancy guards.
 
@@ -133,10 +148,11 @@ unconfigured; an authorized existing participation then receives
 
 ## Existing resource changes
 
-- Pipeline GET/PUT adds `structure_locked: boolean`. With any participation, only
-  renames are accepted; reorder/add/remove → 409 without writes. See
-  [pipeline-config.md](pipeline-config.md). Substates stay editable; delivery is
-  editable only until fulfillment (§16).
+- Pipeline GET/PUT has `structure_locked: boolean` (any participation). Cut 7
+  replaces its prohibition with preview/impact confirmation for reorder/add/remove,
+  retaining occupied-stage/cutoff guards; see [pipeline-column-editing.md](pipeline-column-editing.md).
+  Candidates stay in their columns; moves follow the resulting order. Substates
+  stay editable; delivery is editable only until fulfillment (§16).
 - Candidate list status is `submitted | in_process | closed` as of cut 5;
   `closed` means currently discarded and exposes only the optional candidate-facing
   `message`. Otherwise status depends on whether the semantic stage is `new`.
@@ -156,7 +172,7 @@ Errors remain exactly `{error,code}` without editor data or ETag.
 | 409 | `stage_skip_not_allowed` | Non-adjacent forward target |
 | 409 | `placement_exit_confirmation_required` | Unconfirmed Placement departure |
 | 409 | `vacancy_not_published` | Authorized draft has no published process |
-| 409 | `stage_change_requires_empty_pipeline` | Pipeline structure change with occupants |
+| 409 | `stage_occupied`, `impact_confirmation_required` | Pipeline editor conflicts; see cut-7 contract |
 | 412 | `version_conflict` | Stale or foreign participation tag |
 | 413 | `payload_too_large` | Raw move body exceeds budget |
 | 422 | `board_too_large` | More than 1,000 participations |
@@ -190,7 +206,7 @@ candidate status; additive catalog and documentation. The parent owns every comm
 | `TestMovementScreeningChoiceSnapshotNoScoring` (DB) | §12.7.6 exact open/choice answer shapes and frozen labels, no private evaluation fields |
 | `TestMovementConcurrentHiresOneMilestonePerReach` (DB) | §12.1 DEL-9, concurrent distinct hires at headcounts 1 and 2, exactly one milestone per reach, retained first timestamp |
 | `TestMovementAuthorizationDraftAndCVIsolation` (DB) | §12.1/§12.7.5 owner/principal access, non-principal/foreign IDs hidden before preconditions, draft 409, exact participation CV, missing storage 503 after isolation |
-| `TestMovementPipelineStructureLocked`, `TestMovementEmptyPipelineStructureRemainsEditable`, `TestSameStructureAllowsOnlyRenames` | §12.1/§12.7.2 rename/reorder/add/remove with and without occupants, live lock key, custom-stage movement |
+| `TestMovementPipelineStructureEditableWithCandidates`, `TestMovementEmptyPipelineStructureRemainsEditable` | §17 replaces §12's lock: rename/reorder/add/remove with and without candidates, live flag, new-order movement |
 | `TestMovementBoardOrderingAndLimit` (DB) | §12.2 stage ordering, ID tie-break, exact 1,000 boundary and 1,001 rejection |
 | `TestCandidateStatusHidesStage` | §12.6 S3 / §12.7.8 closed candidate status projection |
 | `TestMovementErrorExtension` | §12.2/§12.7 additive catalog codes/statuses |

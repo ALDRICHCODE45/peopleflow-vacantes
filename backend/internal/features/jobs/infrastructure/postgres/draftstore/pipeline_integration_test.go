@@ -113,7 +113,7 @@ func TestPipeline_DefaultReadSaveNoOpAuditAndIndependentVersions(t *testing.T) {
 		t.Fatal(err)
 	}
 	afterPatch, err := s.GetPipeline(ctx, p.companyID, p.ownerID, id)
-	if err != nil || !reflect.DeepEqual(afterPatch, saved) {
+	if err != nil || afterPatch.ETag != saved.ETag || !pipelineConfigOf(t, afterPatch.Body).Equal(pipelineConfigOf(t, saved.Body)) {
 		t.Fatalf("draft PATCH changed pipeline: %+v %v", afterPatch, err)
 	}
 	if count := auditCount(t, pool, id, "JobDraftPipelineConfigured"); count != 1 {

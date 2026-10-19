@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
+	intake "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
 	"github.com/google/uuid"
@@ -13,6 +14,10 @@ import (
 
 // Composition bridge keeps participation views independent of jobs internals.
 type movementContext struct{ store *draftstore.Store }
+
+func (m movementContext) Screening(fields []byte) (intake.Screening, error) {
+	return (participationRules{}).Screening(fields)
+}
 
 func (m movementContext) RecordDelivery(ctx context.Context, tx pgx.Tx, id, actor, stage uuid.UUID, at time.Time) error {
 	return m.store.RecordDelivery(ctx, tx, id, actor, stage, at)
@@ -40,6 +45,10 @@ func (m movementContext) Load(ctx context.Context, tx pgx.Tx, company, actor, id
 		return app.Pipeline{}, movementContextError(err)
 	}
 	out := app.Pipeline{Required: required, Stages: make([]app.Stage, len(c.Stages)), Exit: app.Stage{ID: c.Exit.ID, Kind: c.Exit.Kind, Name: c.Exit.Name}}
+	out.Retired = make([]app.RetiredStage, len(c.Retired))
+	for i, r := range c.Retired {
+		out.Retired[i] = app.RetiredStage{ID: r.ID, Kind: r.Kind, Name: r.Name, Position: r.Position}
+	}
 	for i, s := range c.Stages {
 		out.Stages[i] = app.Stage{ID: s.ID, Kind: s.Kind, Name: s.Name}
 	}

@@ -3,6 +3,7 @@
 package pipelineconfig
 
 import (
+	"fmt"
 	"unicode/utf8"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftinput"
@@ -27,8 +28,46 @@ type Stage struct {
 
 // Configuration separates progression order from the one exit stage.
 type Configuration struct {
-	Stages []Stage `json:"stages"`
-	Exit   Stage   `json:"exit"`
+	SchemaVersion int            `json:"schema_version,omitempty"`
+	Stages        []Stage        `json:"stages"`
+	Exit          Stage          `json:"exit"`
+	Retired       []RetiredStage `json:"retired"`
+}
+
+// Position is the zero-based progression index at retirement; wire views omit it.
+type RetiredStage struct {
+	Stage
+	Position int `json:"position"`
+}
+
+func (c Configuration) RetiredStages() []Stage {
+	out := make([]Stage, len(c.Retired))
+	for i, s := range c.Retired {
+		out[i] = s.Stage
+	}
+	return out
+}
+
+// RecoveryStage returns the previous stage if active, otherwise the nearest
+// current progression index strictly before its last recorded position.
+func (c Configuration) RecoveryStage(previous string) (string, bool) {
+	for _, s := range c.Stages {
+		if s.ID == previous {
+			return previous, true
+		}
+	}
+	for _, r := range c.Retired {
+		if r.ID == previous {
+			index := r.Position - 1
+			if index >= len(c.Stages) {
+				index = len(c.Stages) - 1
+			}
+			if index >= 0 {
+				return c.Stages[index].ID, true
+			}
+		}
+	}
+	return "", false
 }
 
 // Defaults uses the draft UUID as the UUIDv5 namespace and the semantic kind
@@ -40,16 +79,21 @@ func Defaults(draftID uuid.UUID) Configuration {
 	for i, kind := range kinds {
 		stages[i] = Stage{ID: uuid.NewSHA1(draftID, []byte(kind)).String(), Kind: kind, Name: names[i]}
 	}
-	return Configuration{Stages: stages[:5:5], Exit: stages[5]}
+	return Configuration{Stages: stages[:5:5], Exit: stages[5], Retired: []RetiredStage{}}
 }
 
 // Equal compares normalized identities, names, kinds and progression order.
 func (c Configuration) Equal(other Configuration) bool {
-	if c.Exit != other.Exit || len(c.Stages) != len(other.Stages) {
+	if c.Exit != other.Exit || len(c.Stages) != len(other.Stages) || len(c.Retired) != len(other.Retired) {
 		return false
 	}
 	for i, stage := range c.Stages {
 		if stage != other.Stages[i] {
+			return false
+		}
+	}
+	for i, stage := range c.Retired {
+		if stage != other.Retired[i] {
 			return false
 		}
 	}
@@ -59,7 +103,7 @@ func (c Configuration) Equal(other Configuration) bool {
 // Replace strictly decodes the full write document, derives kinds only from
 // current IDs, then validates the entire normalized result before returning it.
 // A failure never returns a partial configuration or mutates current.
-func Replace(current Configuration, body []byte) (Configuration, error) {
+func Replace(current Configuration, body []byte, vacancyID uuid.UUID, version int64) (Configuration, error) {
 	if len(body) > MaxBodyBytes {
 		return Configuration{}, drafts.ErrPayloadTooLarge
 	}
@@ -68,8 +112,19 @@ func Replace(current Configuration, body []byte) (Configuration, error) {
 		return Configuration{}, drafts.ErrInvalidRequest
 	}
 	root, ok := value.(map[string]any)
-	if !ok || len(root) != 2 {
+	if !ok {
 		return Configuration{}, drafts.ErrInvalidRequest
+	}
+	for key, value := range root {
+		switch key {
+		case "stages", "exit":
+		case "confirm_impact":
+			if _, ok := value.(bool); !ok {
+				return Configuration{}, drafts.ErrInvalidRequest
+			}
+		default:
+			return Configuration{}, drafts.ErrInvalidRequest
+		}
 	}
 	stages, ok := root["stages"].([]any)
 	if !ok {
@@ -83,16 +138,32 @@ func Replace(current Configuration, body []byte) (Configuration, error) {
 	for _, s := range append(append([]Stage{}, current.Stages...), current.Exit) {
 		known[s.ID] = s
 	}
-	out := Configuration{Stages: make([]Stage, len(stages))}
+	out := Configuration{SchemaVersion: 2, Stages: make([]Stage, len(stages)), Retired: append([]RetiredStage{}, current.Retired...)}
+	ordinal := 0
 	for i, raw := range stages {
-		out.Stages[i], err = decodeStage(raw, known)
+		generated := uuid.NewSHA1(vacancyID, []byte(fmt.Sprintf("pipeline-custom:%d:%d", version, ordinal))).String()
+		if obj, ok := raw.(map[string]any); ok {
+			if _, present := obj["id"]; !present {
+				ordinal++
+			}
+		}
+		out.Stages[i], err = decodeStage(raw, known, generated)
 		if err != nil {
 			return Configuration{}, err
 		}
 	}
-	out.Exit, err = decodeStage(exit, known)
+	out.Exit, err = decodeStage(exit, known, uuid.Nil.String())
 	if err != nil {
 		return Configuration{}, err
+	}
+	active := map[string]bool{}
+	for _, stage := range out.Stages {
+		active[stage.ID] = true
+	}
+	for i, stage := range current.Stages {
+		if stage.Kind == "custom" && !active[stage.ID] {
+			out.Retired = append(out.Retired, RetiredStage{Stage: stage, Position: i})
+		}
 	}
 	if err := Validate(out); err != nil {
 		return Configuration{}, err
@@ -100,7 +171,7 @@ func Replace(current Configuration, body []byte) (Configuration, error) {
 	return out, nil
 }
 
-func decodeStage(raw any, known map[string]Stage) (Stage, error) {
+func decodeStage(raw any, known map[string]Stage, generated string) (Stage, error) {
 	object, ok := raw.(map[string]any)
 	if !ok {
 		return Stage{}, drafts.ErrInvalidRequest
@@ -135,11 +206,7 @@ func decodeStage(raw any, known map[string]Stage) (Stage, error) {
 		stage.Name = normalized.Value()
 		return stage, nil
 	}
-	id, err := uuid.NewRandom()
-	if err != nil {
-		return Stage{}, err
-	}
-	return Stage{ID: id.String(), Kind: "custom", Name: normalized.Value()}, nil
+	return Stage{ID: generated, Kind: "custom", Name: normalized.Value()}, nil
 }
 
 // Validate also protects the persistence read boundary: stored configurations
@@ -176,6 +243,17 @@ func Validate(c Configuration) error {
 		}
 	}
 	if counts["custom"] > MaxCustomStages {
+		return drafts.ErrValidation
+	}
+	for _, retired := range c.Retired {
+		id, err := uuid.Parse(retired.ID)
+		name, nameErr := valueobjects.NewRequesterName(retired.Name)
+		if err != nil || id == uuid.Nil || id.String() != retired.ID || ids[retired.ID] || retired.Kind != "custom" || retired.Position < 1 || retired.Position > 7 || nameErr != nil || name.Value() != retired.Name || utf8.RuneCountInString(retired.Name) > NameMaxLength {
+			return drafts.ErrValidation
+		}
+		ids[retired.ID] = true
+	}
+	if c.SchemaVersion != 0 && c.SchemaVersion != 2 {
 		return drafts.ErrValidation
 	}
 	return nil

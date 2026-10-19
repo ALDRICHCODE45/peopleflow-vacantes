@@ -66,7 +66,7 @@ func TestReplace_StrictDecode(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := pipelineconfig.Replace(c, []byte(tc.body))
+			got, err := pipelineconfig.Replace(c, []byte(tc.body), draftID, 0)
 			if !errors.Is(err, drafts.ErrInvalidRequest) || !reflect.DeepEqual(got, pipelineconfig.Configuration{}) {
 				t.Fatalf("got %+v, %v; want zero and invalid_request", got, err)
 			}
@@ -106,7 +106,7 @@ func TestReplace_Invariants(t *testing.T) {
 			body := replacement(t, c)
 			// Empty id means omitted, as required for new custom stages.
 			body = []byte(strings.ReplaceAll(string(body), `"id":"",`, ""))
-			got, err := pipelineconfig.Replace(base, body)
+			got, err := pipelineconfig.Replace(base, body, draftID, 0)
 			if !errors.Is(err, drafts.ErrValidation) || !reflect.DeepEqual(got, pipelineconfig.Configuration{}) {
 				t.Fatalf("got %+v, %v; want zero and validation_error", got, err)
 			}
@@ -128,7 +128,7 @@ func TestReplace_NormalizationOrderCustomLifecycleAndNoOp(t *testing.T) {
 	body = strings.Replace(body, placement, `{"name":"Uno"},{"name":"Dos"},{"name":"`+strings.Repeat("e\\u0301", 40)+`"},`+placement, 1)
 	// Use a literal 40-codepoint name after NFC, not escaped backslashes.
 	body = strings.Replace(body, strings.Repeat("e\\u0301", 40), strings.Repeat("e\u0301", 40), 1)
-	got, err := pipelineconfig.Replace(base, []byte(body))
+	got, err := pipelineconfig.Replace(base, []byte(body), draftID, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,23 +136,23 @@ func TestReplace_NormalizationOrderCustomLifecycleAndNoOp(t *testing.T) {
 		t.Fatalf("order/normalization = %+v", got)
 	}
 	for _, s := range got.Stages[4:7] {
-		if s.Kind != "custom" || uuid.MustParse(s.ID).Version() != 4 {
+		if s.Kind != "custom" || uuid.MustParse(s.ID).Version() != 5 {
 			t.Fatalf("custom = %+v", s)
 		}
 	}
-	noop, err := pipelineconfig.Replace(got, replacement(t, got))
+	noop, err := pipelineconfig.Replace(got, replacement(t, got), draftID, 1)
 	if err != nil || !got.Equal(noop) {
 		t.Fatalf("no-op = %+v %v", noop, err)
 	}
 	four := strings.Replace(string(replacement(t, got)), placement, `{"name":"Cuatro"},`+placement, 1)
-	if _, err := pipelineconfig.Replace(got, []byte(four)); !errors.Is(err, drafts.ErrValidation) {
+	if _, err := pipelineconfig.Replace(got, []byte(four), draftID, 1); !errors.Is(err, drafts.ErrValidation) {
 		t.Fatalf("four custom = %v", err)
 	}
-	removed, err := pipelineconfig.Replace(got, replacement(t, base))
-	if err != nil || !removed.Equal(base) {
+	removed, err := pipelineconfig.Replace(got, replacement(t, base), draftID, 1)
+	if err != nil || len(removed.Retired) != 3 || removed.Retired[0].Stage != got.Stages[4] || removed.Retired[0].Position != 4 {
 		t.Fatalf("remove custom = %+v %v", removed, err)
 	}
-	if _, err := pipelineconfig.Replace(removed, replacement(t, got)); !errors.Is(err, drafts.ErrValidation) {
+	if _, err := pipelineconfig.Replace(removed, replacement(t, got), draftID, 2); !errors.Is(err, drafts.ErrValidation) {
 		t.Fatalf("removed ids cannot be resurrected: %v", err)
 	}
 	if base.Equal(got) {

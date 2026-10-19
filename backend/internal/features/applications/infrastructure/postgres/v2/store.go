@@ -117,10 +117,23 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	if err != nil {
 		return app.Result{}, err
 	}
+	// Read only the private allowlist, in this transaction and after the replay
+	// branch. A replay must never consult or overwrite the candidate's new profile.
+	var city, education *string
+	var skills []string
+	var years *int
+	err = tx.QueryRow(ctx, `SELECT city,skills,years_of_experience,education_level FROM candidate_profiles WHERE user_id=$1`, candidate).Scan(&city, &skills, &years, &education)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return app.Result{}, err
+	}
+	profile, err := json.Marshal(app.SnapshotProfile(city, skills, years, education))
+	if err != nil {
+		return app.Result{}, err
+	}
 	id := uuid.New()
 	stage := s.rules.InitialStage(vacancy)
 	at := time.Now().UTC().Truncate(time.Microsecond)
-	_, err = tx.Exec(ctx, `INSERT INTO process_participations(id,process_id,candidate_id,stage_id,cv_version_id,questions_snapshot,answers_snapshot,source,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,'organic',$8)`, id, vacancy, candidate, stage, version, questions, answers, at)
+	_, err = tx.Exec(ctx, `INSERT INTO process_participations(id,process_id,candidate_id,stage_id,cv_version_id,questions_snapshot,answers_snapshot,source,created_at,profile_snapshot) VALUES($1,$2,$3,$4,$5,$6,$7,'organic',$8,$9)`, id, vacancy, candidate, stage, version, questions, answers, at, profile)
 	if err != nil {
 		return app.Result{}, err
 	}

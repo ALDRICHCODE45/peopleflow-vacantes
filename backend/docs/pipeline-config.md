@@ -1,9 +1,10 @@
 # Private draft pipeline configuration API (cut 1)
 
 Implementation reference for per-draft stage configuration. The accepted
-contract is `docs/pipeline-customization-design.md` §3–§4 and §12.7; that document
-wins if this reference differs. Cut 4 adds a visible structure lock while vacancy
-participations exist; legacy `applications.status` is unchanged.
+contract is `docs/pipeline-customization-design.md` §3–§4 and §17; that document
+wins if this reference differs. Cut 7 allows structural edits with candidates,
+with preview and impact confirmation; see [pipeline-column-editing.md](pipeline-column-editing.md).
+Legacy `applications.status` is unchanged.
 
 The HTTP adapter is thin transport over `application/pipelineconfig.Store`.
 The PostgreSQL draft store owns live authorization, preconditions, normalization,
@@ -15,6 +16,7 @@ versioning, audit and persistence.
 | --- | --- | --- |
 | `GET` | `/v2/me/company/job-drafts/{draftId}/pipeline` | `200 OK` |
 | `PUT` | `/v2/me/company/job-drafts/{draftId}/pipeline` | `200 OK` |
+| `POST` | `/v2/me/company/job-drafts/{draftId}/pipeline/preview` | `200 OK`, no If-Match, no writes |
 
 `{draftId}` must be a UUID; a malformed value is `400 invalid_request` before
 calling the store. These routes address schema-2 employer drafts, not legacy
@@ -36,6 +38,7 @@ Every response, including middleware `401`/`403` and all handler errors, has
 {
   "version": "0",
   "structure_locked": false,
+  "retired": [],
   "stages": [
     { "id": "…", "kind": "new", "name": "Nuevos" },
     { "id": "…", "kind": "screening", "name": "Screening" },
@@ -50,11 +53,11 @@ Every response, including middleware `401`/`403` and all handler errors, has
 
 `structure_locked` is always present, boolean, on GET and successful PUT. It is
 true whenever the vacancy has at least one participation, regardless of stage.
-Only renames are allowed while true. Reorder/add/remove returns
-`409 stage_change_requires_empty_pipeline`, without configuration/version/audit
-writes. Intake and pipeline writes serialize on the parent draft, so a concurrent
-first application cannot bypass this guard. Substates and delivery remain editable.
-The lock flag is live state, not a separate pipeline version increment.
+It means structural changes need an impact preview, not that they are prohibited.
+Reorder/add/remove are allowed subject to occupied-stage/cutoff guards and impact
+confirmation (§17). Intake, moves and pipeline writes serialize on draft → process
+→ participation locks. The flag is live state, not a pipeline version increment.
+`retired` is always `[{id,kind,name}]` (empty on old configs).
 
 `version` is a decimal **string**. `"0"` means no configuration has ever been
 stored. GET never writes: each default built-in ID is UUIDv5 with the draft UUID
@@ -69,7 +72,7 @@ version or ETag.
 
 ## PUT — full replacement
 
-Body is exactly `stages` and `exit`. Each stage accepts exactly `name` and an
+Body is exactly `stages`, `exit` and optional boolean `confirm_impact`. Each stage accepts exactly `name` and an
 optional `id`; `kind` is never accepted. Use existing IDs from GET; omit `id`
 only when adding a custom stage. Remove a custom stage by omitting it, unless it
 is the stored delivery cutoff (cut 3; see [pipeline-delivery.md](pipeline-delivery.md)).
@@ -88,8 +91,11 @@ is the stored delivery cutoff (cut 3; see [pipeline-delivery.md](pipeline-delive
 }
 ```
 
-The successful response has the GET shape. `stages` preserves request order;
-new custom stages have server-assigned random UUIDs. Rename/reorder preserve
+The successful response has the GET shape plus always-present
+`applied_impact: {not_applicable:[],recovery_reassigned:[]}` with the actual applied
+lists, including empty lists for no-op/empty-vacancy writes. `stages` preserves request
+order; new custom stages get deterministic server-assigned UUIDv5 IDs from vacancy,
+stored pipeline version and id-less ordinal (matching preview). Rename/reorder preserve
 identity and semantic kind. Removed custom IDs cannot be reintroduced by a
 client.
 
@@ -97,7 +103,7 @@ client.
 
 1. Exactly one of each built-in kind; none can be removed.
 2. `new` is always first and `placement` always last. All intervening stages
-   can be reordered freely only while `structure_locked` is false.
+   can be reordered with or without candidates (subject to impact confirmation).
 3. `discarded` exists only in `exit`, never in progression.
 4. At most three custom stages, before placement. A custom stage stored as
    `cutoffStageId` cannot be omitted: `409 cutoff_stage_in_use`, with no config,
@@ -129,7 +135,8 @@ violations are `400 validation_error`.
 
 The first successful PUT stores version `"1"` with the deterministic built-in
 IDs. A subsequent PUT whose normalized configuration equals the stored value
-returns `200` with the **same** version, ETag and body, with no write or audit.
+returns `200` with the **same** version and ETag, with no write or audit;
+its `applied_impact` is empty even if the prior changing response had impact.
 A changing PUT increments only the pipeline version. Concurrent first writes
 with the same version-zero ETag serialize: one commits, the other gets `412`.
 
@@ -147,14 +154,17 @@ audit rows survive. Review data loss before any rollback of stored settings.
 
 Each changing PUT appends exactly one `JobDraftPipelineConfigured` event in the
 same transaction. Actor and draft entity association use the existing audit
-port. Metadata has `version`, `previous` and `new`; the two snapshots are complete
+port. Metadata has `version`, `previous`, `new` and `applied_impact`; snapshots and
+impact lists are complete
 JSON configuration documents encoded as strings by the string-valued audit
-metadata port. Audit failure rolls back configuration and version together.
+metadata port. Audit failure rolls back configuration, version and not-applicable
+history entries together. Retired stages also keep their last position in stored
+schema-version-2 JSON; old configurations read as an empty retired list.
 
 ## Status codes
 
-Error envelope is exactly `{ "error": string, "code": string }`, without DTO,
-`data`, validation details or ETag.
+Error envelope is `{ "error": string, "code": string }`, without DTO, `data` or
+ETag, except `stage_occupied` includes ordered `details: [{stage_id}]`.
 
 | Status | Code | Case |
 | --- | --- | --- |
@@ -166,7 +176,8 @@ Error envelope is exactly `{ "error": string, "code": string }`, without DTO,
 | `404` | `not_found` | Missing/foreign/non-principal draft after general gates |
 | `409` | `company_not_active` | Company inactive at the transactional guard |
 | `409` | `cutoff_stage_in_use` | Omitted custom stage is the stored delivery cutoff; no writes |
-| `409` | `stage_change_requires_empty_pipeline` | Reorder/add/remove while any participation exists; no writes |
+| `409` | `stage_occupied` | Removal of a live occupied custom stage; ordered details, no writes |
+| `409` | `impact_confirmation_required` | Impact exists without confirm_impact; no writes |
 | `412` | `version_conflict` | Stale or foreign strong If-Match |
 | `413` | `payload_too_large` | Raw body over budget |
 | `428` | `precondition_required` | PUT without If-Match |
@@ -177,11 +188,10 @@ weekend/holiday commitment date on the delivery PUT, not the pipeline PUT.
 The `409 cutoff_stage_in_use` envelope contains no stage ID; if the editor did not
 expect that column to be the cutoff, re-read GET `…/pipeline/delivery`.
 
-Cut-4 tests: `TestSameStructureAllowsOnlyRenames`,
-`TestMovementPipelineStructureLocked`, and
-`TestMovementEmptyPipelineStructureRemainsEditable` protect rename/reorder/add/remove
-with and without occupants. The existing cut-1 flow test checks the five-key
-response including `structure_locked: false`.
+Cut-7 tests replace the former lock assertions with
+`TestMovementPipelineStructureEditableWithCandidates`; empty-pipeline editing stays
+covered. GET now has six keys, PUT seven. The full preview/impact/recovery test map
+is in [pipeline-column-editing.md](pipeline-column-editing.md).
 
 ## Validation commands
 

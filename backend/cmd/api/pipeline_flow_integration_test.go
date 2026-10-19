@@ -66,7 +66,7 @@ func TestPipelineFlow_DefaultsReplaceOrderNoOpAndVersionIsolation(t *testing.T) 
 		}
 		obj := draftFlowObject(t, response.body)
 		limits := obj["limits"].(map[string]any)
-		if len(obj) != 5 || obj["structure_locked"] != false || obj["version"] != "0" || limits["maxCustomStages"] != float64(3) || limits["nameMaxLength"] != float64(40) {
+		if len(obj) != 6 || obj["retired"] == nil || obj["applied_impact"] != nil || obj["structure_locked"] != false || obj["version"] != "0" || limits["maxCustomStages"] != float64(3) || limits["nameMaxLength"] != float64(40) {
 			t.Fatalf("envelope: %s", response.body)
 		}
 	}
@@ -86,7 +86,7 @@ func TestPipelineFlow_DefaultsReplaceOrderNoOpAndVersionIsolation(t *testing.T) 
 		t.Fatalf("save=%d %s headers=%v", saved.status, saved.body, saved.header)
 	}
 	got := pipelineFlowConfig(t, saved.body)
-	if len(got.Stages) != 6 || got.Stages[1] != c.Stages[1] || got.Stages[4].Kind != "custom" || got.Stages[4].Name != "Prueba técnica" || got.Exit != c.Exit || uuid.MustParse(got.Stages[4].ID).Version() != 4 {
+	if len(got.Stages) != 6 || got.Stages[1] != c.Stages[1] || got.Stages[4].Kind != "custom" || got.Stages[4].Name != "Prueba técnica" || got.Exit != c.Exit || uuid.MustParse(got.Stages[4].ID).Version() != 5 {
 		t.Fatalf("response order/identity=%+v", got)
 	}
 	draftAfter := h.do(t, "GET", draftFlowV2Path+"/"+id, "", owner.token, nil)
@@ -105,7 +105,7 @@ func TestPipelineFlow_DefaultsReplaceOrderNoOpAndVersionIsolation(t *testing.T) 
 		t.Fatalf("draft PATCH=%d %s", patch.status, patch.body)
 	}
 	afterPatch := h.do(t, "GET", path, "", principal.token, nil)
-	if afterPatch.status != 200 || afterPatch.header.Get("ETag") != saved.header.Get("ETag") || !reflect.DeepEqual(afterPatch.body, saved.body) {
+	if afterPatch.status != 200 || afterPatch.header.Get("ETag") != saved.header.Get("ETag") || !pipelineFlowConfig(t, afterPatch.body).Equal(pipelineFlowConfig(t, saved.body)) {
 		t.Fatal("draft PATCH changed pipeline version")
 	}
 	var count int

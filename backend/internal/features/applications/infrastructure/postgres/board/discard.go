@@ -11,6 +11,17 @@ import (
 	"github.com/google/uuid"
 )
 
+func setRecoveryStage(item *app.Item, p app.Pipeline) error {
+	if item.Discard == nil {
+		return nil
+	}
+	stage, err := app.RecoveryDefault(p, item.Discard.PreviousStageID)
+	if err == nil {
+		item.Discard.RecoveryStageID = stage
+	}
+	return err
+}
+
 func (s *Store) Discard(ctx context.Context, company, actor, id, pid uuid.UUID, tag string, present bool, body []byte) (app.Moved, error) {
 	return s.discardOrRecover(ctx, company, actor, id, pid, tag, present, body, false)
 }
@@ -34,7 +45,7 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 		return app.Moved{}, err
 	}
 	var req app.DiscardRequest
-	var reentry bool
+	var reentry, override bool
 	kind, eventType, target := "discard", "ParticipationDiscarded", p.Exit.ID
 	if recovering {
 		request, err := app.DecodeRecover(body, s.decode)
@@ -48,7 +59,11 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 			return app.Moved{}, errors.New("missing stored discard")
 		}
 		reentry = request.ConfirmPlacementReentry
-		kind, eventType, target = "recovery", "ParticipationRecovered", item.Discard.PreviousStageID
+		kind, eventType = "recovery", "ParticipationRecovered"
+		target, override, err = app.RecoveryTarget(p, item.Discard.PreviousStageID, request)
+		if err != nil {
+			return app.Moved{}, err
+		}
 	} else {
 		req, err = app.DecodeDiscard(body, s.decode)
 		if err != nil {
@@ -69,7 +84,7 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 			break
 		}
 	}
-	// Cut-4 structure lock guarantees the stored previous stage still exists.
+	// Recovery overrides have already been restricted to current progression.
 	if stageKind == "" {
 		return app.Moved{}, errors.New("unknown stored progression stage")
 	}
@@ -125,6 +140,10 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 	}
 	// Private free text stays in the participation/history, never audit metadata.
 	event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &actor, EventType: eventType, EntityType: "process_participation", EntityID: pid, Metadata: map[string]string{"vacancy_id": id.String(), "from_stage_id": item.StageID, "to_stage_id": target, "version": strconv.FormatInt(version+1, 10), "hire": strconv.FormatBool(hire), "departure": strconv.FormatBool(departure)}}
+	if recovering {
+		event.Metadata["recovery_override"] = strconv.FormatBool(override)
+		event.Metadata["previous_stage_id"] = item.Discard.PreviousStageID
+	}
 	if err = s.audit.Append(ctx, tx, event); err != nil {
 		return app.Moved{}, err
 	}
@@ -132,6 +151,9 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 		item.Discard = nil
 	} else {
 		item.Discard = &app.Discard{Reason: req.Reason, PreviousStageID: item.StageID, DiscardedAt: at}
+	}
+	if err = setRecoveryStage(&item, p); err != nil {
+		return app.Moved{}, err
 	}
 	item.StageID, item.Version, item.ETag, item.MovedAt = target, strconv.FormatInt(version+1, 10), app.ETag(pid, version+1), at
 	if recovering {

@@ -17,6 +17,7 @@ maps them to a model and a contract and adds only the decisions recorded in §6.
 | 5 | Discard with reason and recovery (PIPE-12, PIPE-13) | yes | medium |
 | 6 | Active substate per candidate and OR filter incl. `Sin subestado` (SUB-3, SUB-5) | yes | medium |
 | 7 | Editing configuration with occupants: impact preview, "not applicable" stages, removing used columns (PIPE-15…PIPE-18) | yes | high — blocked on open decision §17.1 |
+| last | Vacancy SEO and Google for Jobs: `JobPosting` JSON-LD on the public detail, SEO metadata, vacancy sitemap, structured location (city/state/country), Indexing API on publish/close (needs production domain, Search Console and a Google Cloud service account) | no | medium — **lowest priority, after everything else** (user, L72) |
 
 Each cut: ODD task, agreed contract, test-first, real browser test by the user, local
 merge to `main`, user pushes. No PRs.
@@ -1564,3 +1565,183 @@ candidates; preview and confirmation dialog when an edit would fulfill.
 5. Candidate lists are unique per participation and ordered by `reached_at` ascending, then
    `participation_id`. The preview lists every candidate delivered under the proposed values;
    the fulfillment lists the first `target` of them (the explaining candidates).
+
+## 18. Board filters — shared multi-select strategy (agreed)
+
+Requested by the user (relayed by the frontend, msg 90970f58): «propongo un sheet, en el que al
+tocar un boton "filtros" salga y dentro de el, se encuentren los filtros, ojo, todos los filtros
+deben ser multi filtro […] TODOS los filtros de este apartado seran multi filtro, o multi
+select». (§17 is reserved for cut 7.)
+
+### 18.1 Semantics (one rule for every filter)
+
+- Every dimension is multi-select. Values inside one dimension combine with **OR**;
+  dimensions combine with **AND** (generalizes §15.5 S3).
+- «Sin X» is an ordinary value of its dimension when the attribute is optional (e.g.
+  «Sin subestado» = `in_process` with `substate_id: null`).
+- An empty selection means "no filter on that dimension".
+
+### 18.2 Where filtering runs
+
+- **Now: client-side** over the board (≤1,000 items, §12.2), with one generic model per
+  dimension `{key, label, options[{value, label}], match(item, values)}`. No backend change.
+- **Every dimension's options come from the board response**, in catalog order (as
+  `substates` today); no hardcoded catalogs in the client.
+- **Later, server-side** (only when paging or >1,000 items is needed) with a fixed convention
+  so nothing is redesigned: repeated query parameters, one per value
+  (`?substate=a&substate=b&substate=none`), `none` reserved for «Sin X», unknown values →
+  `400 validation_error`, and the board echoes the normalized selection in
+  `filters_applied`. The board's `422 board_too_large` is the trigger to build it.
+
+### 18.3 Dimensions
+
+| Dimension | Data on the board today | Notes |
+| --- | --- | --- |
+| Subestado | `substate_id` + `substates` catalog | incl. «Sin subestado» |
+| Motivo de descarte | `discard.reason {group, key}` | values grouped by «Decisión de la empresa / del candidato»; only discarded items match |
+| Columna | `stage_id` + `stages`/`exit` | useful in list views; on the board it duplicates the columns |
+| Respuesta a una pregunta de filtro (single choice) | **not on the board** | needs answers on board items (backend change, own small cut) |
+| Perfil del candidato (ubicación, estudios, idiomas, experiencia) | **not on the board** | needs profile data on items and privacy review (own cut) |
+
+Every new dimension that needs backend data is a small contract change: the board item gains
+the value(s) and the board root gains the dimension's catalog, both in this same shape.
+
+## 17. Cut 7 — editing columns with candidates (agreed)
+
+Status: **contract proposed to the frontend; product decisions closed** (user, relayed by the
+frontend msg f5cec425; §17.6). Branch `feat/pipeline-column-editing`, stacked on
+`feat/pipeline-board-filters` (main + §18). Closes open decision §17.1 of the business rules.
+
+Rules: PIPE-15 (resolve occupants before removing a used column; history kept), PIPE-16
+(reordering is a behavior-changing edit with impact preview and audit), PIPE-17 (attained
+milestones are preserved; candidates are never moved silently), PIPE-18 (a stage inserted
+before a candidate is "not applicable due to process change", never completed, never
+delivery), PIPE-13 (recovery returns to the previous stage with confirmation).
+
+### 17.1 Model
+
+- **What becomes possible with candidates** (replaces the cut-4 lock §12.6 S5): rename (as
+  before), reorder progression stages (`Nuevos` first, `Placement` last), add custom stages
+  (≤3), remove custom stages. Built-ins are still never removed.
+- **Candidates never move** (§17.6 S1). Each participation keeps its stage; the new order only
+  changes what the next forward move is. History is never rewritten.
+- **Not applicable** (§17.6 S2): after a change, for every participation (discarded ones
+  positioned at their previous stage) and every progression stage now **before** its stage
+  that it never reached (no intake/move/recovery entry into it) and that is not already marked,
+  a history entry of kind `not_applicable` is appended. It never counts as reached (delivery
+  §16 unchanged) and is never "completed".
+- **Removing a custom stage**: rejected while any live non-discarded participation is in it →
+  `409 stage_occupied` with `details: [{stage_id}]`; rejected while it is the delivery cutoff →
+  `409 cutoff_stage_in_use` (cut 3). Allowed when it is only the previous stage of discarded
+  participations (§17.6 S3).
+- **Retired stages**: a removed stage is kept as `{id, kind, name, position}` in the
+  configuration's `retired` list, so history and recovery can still name it; ids are never
+  reused.
+- **Recovery to a removed stage** (§17.6 S3): if the previous stage was removed, recovery needs
+  `to_stage_id`: any current progression stage at or before the **default** = the nearest
+  current stage before the retired stage's last position (so recovery never skips forward). The
+  history `recovery` entry is the same shape; the audit marks it as an override. Placement
+  re-entry still needs its confirmation.
+- **Impact confirmation**: when a change has impact (not-applicable entries or discarded
+  candidates whose previous stage is removed), `PUT` requires `confirm_impact: true` after a
+  preview.
+
+### 17.2 Contract
+
+- `POST …/pipeline/preview` — body exactly like the pipeline `PUT` (without `confirm_impact`),
+  no `If-Match`, no writes → `200` exactly `{ not_applicable: [{participation_id, candidate:
+  {id, full_name}, stage_id}], recovery_reassigned: [{participation_id, candidate: {id,
+  full_name}, retired_stage_id, default_stage_id}], has_impact }`, ordered by stage order then
+  participation id. Same validation codes as the `PUT`, plus `409 stage_occupied` /
+  `cutoff_stage_in_use`.
+- Pipeline `PUT` gains optional `confirm_impact` (boolean); a change with impact without it →
+  `409 impact_confirmation_required`, nothing written. One transaction: configuration, version,
+  history entries, audit (with the impact lists).
+- `GET`/`PUT …/pipeline` gain `retired: [{id, kind, name}]`. `structure_locked` keeps its key and
+  now means "structure changes need an impact preview" (true while the vacancy has
+  participations); the cut-4 `409 stage_change_requires_empty_pipeline` is no longer returned.
+- Board gains `retired_stages: [{id, kind, name}]`; a discarded board item's `discard` gains
+  `recovery_stage_id` (= `previous_stage_id` when it still exists, else the default).
+- `POST …/recover` gains optional `to_stage_id`: required (`409 recovery_stage_required`) when
+  the previous stage was removed; must be absent otherwise (`400 validation_error`); outside the
+  allowed range → `400 validation_error`.
+- History union gains kind `not_applicable`: exactly `{kind, stage_id, actor, at}`.
+- **Applied impact echo** (frontend msg f597ac6a): the impact can change between preview and `PUT`
+  (a candidate moves meanwhile) without changing the pipeline version. The pipeline `PUT 200`
+  therefore always carries `applied_impact: {not_applicable, recovery_reassigned}` (preview item
+  shapes and ordering; empty arrays when nothing was applied). `GET` does not carry it.
+- **New custom stage ids** (amends §3 invariant 7): an id-less custom stage gets a
+  **deterministic** server id = UUIDv5 of (vacancy id, stored pipeline version the request is
+  based on, ordinal of the id-less entry in the request). Preview and `PUT` of the same proposal
+  on the same version therefore name the same new stage, and `applied_impact` matches the
+  preview unless the data changed in between. Ids still come only from the server, are never
+  reused (the version increases on every save) and never collide with retired ids.
+- **Preview stages** (frontend msg 6325942b): the preview `200` also carries `stages: [{id, kind,
+  name}]` — the resulting progression in the proposed order with the deterministic ids of new
+  stages — so the client can label `not_applicable` entries that name a new column. Preview root
+  keys are exactly `{stages, not_applicable, recovery_reassigned, has_impact}`.
+
+### 17.3 Storage
+
+Additive migration `00028`: event kind `not_applicable` in the history CHECKs (existing rows stay
+valid); down refuses while such entries exist. Retired stages live in the stored configuration
+JSON (schema version bump handled in code; old configurations read as `retired: []`).
+
+### 17.6 Decisions recorded for cut 7
+
+- **S1 (user):** «Cada uno se queda en su columna (Recomendado)».
+- **S2 (user):** «No aplica por cambio de proceso» (Recomendado).
+- **S3 (user):** «Permitir; al recuperar se elige columna (Recomendado)» — default the nearest
+  earlier stage, audited.
+
+## 19. Board filter data — screening answers and profile snapshot (agreed)
+
+Status: **contract proposed to the frontend; product decisions closed** (§19.4). Implemented after
+cut 7, stacked on it. Extends §18 (client-side multi-select filters).
+
+### 19.1 Screening answers
+
+- Board items gain `screening_answers: [{question_id, option_id}]` — single-choice answers from the
+  application snapshot only (open answers excluded; «Sí/No» is a two-option single choice).
+- Board root gains `screening_filters: [{question_id, prompt, options: [{id, label}]}]` — the
+  single-choice questions of the vacancy's **current** questionnaire, in questionnaire order.
+  An answer whose question or option no longer exists matches nothing; a participation without an
+  answer to that question matches the dimension's «Sin respuesta» value (`none`).
+- Multiple-choice questions are a later cut (§19.4 S1).
+
+### 19.2 Profile snapshot
+
+- At application time (P2b apply) the participation stores a copy of the candidate's profile:
+  `city` (trimmed, internal whitespace collapsed; `null` if empty), `skills` (as in the profile,
+  order kept), `years_of_experience` (integer ≥0 or `null`), `education_level`
+  (`high_school | bachelor | master | phd` or `null`). It never changes afterwards.
+- Board items and the participation detail gain `profile: {city, skills, years_of_experience,
+  education_level}`; participations created before this cut have all fields `null`/`[]`
+  («Sin dato»). Visible only to the vacancy's owner/principal (same gates as the board); never
+  in public or candidate APIs.
+- Client-side dimensions: city (value = casefold of the normalized city, label = first seen),
+  skills (same normalization), experience buckets half-open `[0,1)`, `[1,3)`, `[3,5)`, `[5,∞)`,
+  education level; each with «Sin dato» (`none`). Options are derived from the board items.
+
+### 19.2b Where the new fields appear (agreed, frontend reply to the parent)
+
+`profile` and `screening_answers` appear **only** in `GET …/board` items and `GET
+…/participations/{id}`. Move, discard, recover and substate `200` responses **never** carry them
+(their item shape stays as in cuts 4–6, and adding them later would be a contract change); the
+client keeps both from the board item because they are immutable. Candidate (`/v2/me/*`) and
+public (`/v2/jobs*`) responses never carry them either.
+
+### 19.3 Storage
+
+Additive migration `00029`: `profile_snapshot` JSONB on participations (nullable for existing rows,
+CHECKed shape); written in the apply transaction.
+
+### 19.4 Decisions recorded
+
+- **S1 (user):** «Opción única ahora; múltiple después (Recomendado)».
+- **S2 (user):** «Copiar datos del perfil al postular (Recomendado)» — candidate sheet + filters,
+  only the vacancy's recruiters; earlier applications «Sin dato».
+- **S3 (user):** «Filtrar por ciudad ahora (Recomendado)» — state is a later profile cut.
+- From the earlier relay (msg 561c6fbd): screening-answer and profile filters (location,
+  skills, years of experience 0–1 / 1–3 / 3–5 / 5+, highest education level); privacy: only data
+  the company sees in the candidate sheet.

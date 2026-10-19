@@ -6,8 +6,9 @@ frontend are unchanged. No candidate notification is sent.
 
 ## Before running
 
-Apply migrations through **00027** with `make db-migrate` (cut-6 active substates;
-[contract](pipeline-substates-active.md)). Quiesce participation writes during the
+Apply migrations through **00028** with `make db-migrate` (00026 cut-6 active substates,
+[contract](pipeline-substates-active.md); 00028 cut-7 column editing,
+[contract](pipeline-column-editing.md)). Quiesce participation writes during the
 migration/API rollout: the new history event kind is explicit for move writes.
 Keep 00024, its tests, the 00023 rollback-test pin and regenerated
 `internal/db/models.go` in a separate migration review/commit unit. The parent
@@ -18,8 +19,9 @@ plus `event_kind` (`intake | move | discard | recovery`). Existing history kinds
 derived from `from_stage_id`, without changing prior IDs, actors, flags, times,
 versions, CV references or answers. Both tables CHECK the exact group/key catalog
 (stored in SQL `reason_group` / `reason_code`) and coherent nullable shapes;
-text lengths are checked in code points. The previous
-stage remains valid through cut 4's structure lock.
+text lengths are checked in code points. Cut 7 permits retiring the previous
+stage; [column editing](pipeline-column-editing.md) describes retained labels and
+explicit recovery targets.
 
 Down refuses **any** current discard data or retained discard/recovery history,
 including after recovery clears the current fields. Refusal is transactional:
@@ -75,10 +77,15 @@ all milestones stay. Other progression stages need no flag.
 
 ### Recover
 
-`POST …/recover`, body exactly `{}` or `{"confirm_placement_reentry":true}`.
+`POST …/recover`, body exactly `{confirm_placement_reentry?,to_stage_id?}`.
 The optional flag must be boolean. Sending this operation confirms recovery.
+Cut 7: `to_stage_id` is required if the previous stage is retired (409 otherwise),
+and must be absent if it is still current (400 otherwise). A retired-stage target
+must be the default (`discard.recovery_stage_id`) or an earlier current progression
+stage. Unknown/retired/exit/later targets are 400 validation_error.
 
-Recovery returns to the stored previous stage, **never** performs a forward-skip
+Recovery returns to the stored previous stage or the explicitly allowed override,
+**never** performs a forward-skip
 check, and clears all current discard fields. Placement reentry requires the flag:
 hire=true, departure=false, coverage increases. A renewed below-to-full crossing
 records another milestone; the API still reports the first milestone timestamp.
@@ -98,7 +105,8 @@ It checks the locked item's tag before request/state guards. It updates stage,
 version and discard fields, appends history and PII-free audit
 `ParticipationDiscarded` / `ParticipationRecovered`, updates live coverage and
 records any milestone before commit. Audit contains actor, vacancy/from/to IDs,
-version and hire/departure flags, **never free text**. Any rejection or audit failure
+version, hire/departure flags, `recovery_override` and original `previous_stage_id`
+on recovery, **never free text**. Any rejection or audit failure
 rolls everything back. Concurrent stale operations cannot overwrite the winner.
 Moves into **or out of** the exit are `400 validation_error`; other move rules stay.
 Cut 6: discarding from `in_process` clears any active substate in this same
@@ -117,12 +125,14 @@ outside `in_process`, including while discarded.
 Every board/mutation item gains `discard`, always present:
 
 ```json
-{"reason":{"group":"recruiter","key":"other"},"discarded_at":"2026-10-16T18:00:00Z","previous_stage_id":"…"}
+{"reason":{"group":"recruiter","key":"other"},"discarded_at":"2026-10-16T18:00:00Z","previous_stage_id":"…","recovery_stage_id":"…"}
 ```
 
 It is null unless currently discarded. Discarded items use the exit `stage_id`,
-count in `exit.count`, and have `moved_at = discarded_at`. The previous stage is a
-current progression stage. Board items never include either free-text field.
+count in `exit.count`, and have `moved_at = discarded_at`. The previous stage may be
+retired; `recovery_stage_id` is current: previous if retained, otherwise the nearest
+current stage strictly before its last position. Board `retired_stages` supplies the
+retained name. Board items never include either free-text field.
 
 Participation detail adds always-present `comment` and `candidate_message` to its
 item + screening shape. Both are null unless currently discarded (and may still
@@ -134,10 +144,11 @@ History is oldest-first, exactly this discriminated union:
 | --- | --- |
 | `intake`, `move`, `recovery` | `kind, from_stage_id, to_stage_id, hire, departure, actor, at` |
 | `discard` | Same keys plus `reason, comment, candidate_message` (text string or null) |
+| `not_applicable` (cut 7) | `kind, stage_id, actor, at`; never a reached/delivery event |
 | `substate` (cut 6) | `kind, from_substate_id, from_substate_name, to_substate_id, to_substate_name, actor, at` (nullable ID/name pairs; names snapshotted at event time) |
 
 Intake/move keys are unchanged. Discard from=previous stage, to=exit, hire=false.
-Recovery from=exit, to=previous stage, departure=false. Actor is always
+Recovery from=exit, to=previous stage or explicit allowed override, departure=false. Actor is always
 `{kind:"candidate"|"recruiter",id,full_name}`. These recruiter-only history details
 never enter the candidate DTO/query.
 
@@ -160,6 +171,7 @@ Every error is exactly `{error,code}`, no validation details or ETag.
 | 409 | `company_not_active`, `vacancy_not_published` | Existing transactional gates |
 | 409 | `already_discarded` | Discard of current exit occupant |
 | 409 | `not_discarded` | Recovery of progression occupant |
+| 409 | `recovery_stage_required` | Retired previous stage without explicit target |
 | 409 | `placement_exit_confirmation_required` | Unconfirmed Placement departure |
 | 409 | `placement_reentry_confirmation_required` | Unconfirmed Placement reentry |
 | 412 | `version_conflict` | Stale/foreign item tag |
@@ -187,7 +199,7 @@ The three new 409 catalog entries are additive; baseline V1 codes are untouched.
 | `TestMovementRoutesGatesErrorsAndSuccess`, `TestDiscardRecoveryRoutesDispatchErrorsPreconditionsAndBudget` | §13.2 no-store, 401/candidate 403, trusted identity, correct operation dispatch, statuses, flattened 200 + ETag, repeated header forwarding, 413 |
 | `TestDiscardErrorExtension`, `TestCandidateStatusHidesStage` | §13.2 additive codes/statuses and closed status projection |
 | `TestDiscardMigration`, `TestMigration00024ExistingMovementCatalogAndGuardedDown` (latter DB) | §13.3 cut-4 intake/move preservation and kind backfill, exact catalog CHECK in both tables, current/history-only down refusal preserving schema/version/data, successful down preserving cut-4 rows |
-| Existing cut-4 movement/coverage tests | §12 base behavior unchanged, exit-target move guard, structure lock and cross-resource locking |
+| Existing cut-4 movement/coverage tests and cut-7 column tests | §12 base movement/coverage unchanged; §17 replaces structure lock, preserves cross-resource lock order and adds explicit retired-stage recovery |
 
 DB tests require an **existing**, isolated loopback database named `draft_test` via
 `DRAFT_TEST_DATABASE_URL`. This implementation run deliberately unsets that variable

@@ -17,6 +17,8 @@ implements its UI.
 | 7 | `feat/public-listing-enrichment` (stacked on 6) | `feat/ui-polish` (frontend queue item 7) | Public cards: safe company logo, normalized excerpt, benefits/skills previews and totals, applicant ranges (all received, including discarded), screening question count; full detail skills | Backend `make db-migrate` applies 00025 (existing-projection backfill); [public API and test map](public-jobs-v2.md); browse both sources, check long/empty descriptions and logos, full detail benefits/skills, applicant thresholds and published questionnaire edits | Backend verified (L59, L60); approved by the user (L70), merged into local main |
 | 8 | `feat/pipeline-substates-active` (stacked on 7) | `feat/pipeline-substates-active-ui` | Cut 6: active substate in En proceso, clearing on leave, retained name-snapshot history, catalog occupancy/removal guard, client-side filter contract | Backend `make db-migrate` applies 00026; [active-substate API and test map](pipeline-substates-active.md); set/clear/no-op, leave forward/backward/discard and re-enter null, rename occupied labels, block used removal with details, stale tabs, OR labels/Sin subestado and AND with other filters, candidate privacy | Backend verified (L64, L65); approved by the user (L70), merged into local main |
 | 9 | `feat/pipeline-delivery-fulfillment` (stacked on 8) | `feat/pipeline-delivery-fulfillment-ui` | Delivery fulfillment: historical reached counts, exactly-once frozen snapshot, business-day result, status/preview/confirmation, read-only fulfilled configuration and board/write summaries | Backend `make db-migrate` applies 00027; [contract and test map](delivery-fulfillment.md); reach cutoff including Nuevos intake, discard/recover without losing attainment, preview lower target/different cutoff then confirm, check result/candidate order, freeze and stale tabs | Backend verified (L68, L69); approved by the user (L70), merged into local main |
+| 10 | `feat/pipeline-column-editing` (stacked on main via `feat/pipeline-board-filters`) | `feat/pipeline-column-editing-ui` | Cut 7: structural edits with candidates, preview and applied-impact confirmation, retained stages, not-applicable history, explicit retired-stage recovery | Backend `make db-migrate` applies 00028; [contract/rules/test map](pipeline-column-editing.md); add/reorder around candidates, confirm actual impact, block occupied/cutoff removal, retire a discarded candidate's previous column, choose default/earlier recovery, check unchanged delivery and new-order moves | Backend verified (L77, L78); awaiting browser test |
+| 11 | `feat/pipeline-filter-data` (stacked on 10) | `feat/pipeline-filter-data-ui` | §19: single-choice snapshot answers and current questionnaire filter catalog; immutable application-time city/skills/experience/education profile snapshot | Backend `make db-migrate` applies 00029; [contract/privacy/test map](board-filter-data.md); apply with/without a profile, edit profile and replay without changing old snapshot, edit questionnaire without changing old answers, test multi-select filters and legacy Sin dato, verify candidate/public privacy | Backend verified (L79, L80); awaiting browser test |
 
 Per branch, before merging after approval: merge into `main` locally (no PR), keep the
 frontend tree from the frontend merge and the backend tree from the backend branch,
@@ -30,14 +32,32 @@ Open decisions awaiting the user:
 - Reversal of a mistaken candidate onboarding (support/admin tool or none) — design §11.3.
 - AWS console checks for candidate sign-up — design §11.4 (self sign-up with email
   verification, sign-out URL `http://localhost:3000/candidato/login`).
-- Follow-up tests suggested by the cut-5 verification (L56, not blocking): 00024 migration
-  fixture with existing hire/departure history rows; discard/move/recover race on a
-  participation in Placement. Known flaky test (pre-existing, unrelated):
-  `TestMigration00014UpCreatesDraftListIndexUsedByTheListOrder` under the loaded `-race`
-  integration suite (L52).
-- Follow-up tests suggested by the cut-6 verification (L65, not blocking): catalog removal
-  racing a move/discard; 00026 fixture with an already-discarded participation; restored
-  CHECK equality after down; set-substate owner/non-principal matrix.
-- Follow-up tests suggested by the delivery-fulfillment verification (L69, not blocking):
-  recovery as the sole first attainment; substate-only history fixture; missing-config
-  rollback; fulfillment-crossing mixed apply/move/edit races; status/preview live-gate matrix.
+- Cut-5 follow-ups (L56): test coverage added — existing hire/departure rows in
+  `TestMigration00024ExistingMovementCatalogAndGuardedDown`; Placement race in
+  `TestDiscardMoveRecoveryPlacementForcedOneWinner`. Planner-flake hardening (L52):
+  `TestMigration00014UpCreatesDraftListIndexUsedByTheListOrder` now disables sequential
+  and bitmap scans transaction-locally, retaining the index/no-sort assertions.
+- Cut-6 follow-ups (L65): test coverage added — catalog removal vs move/discard in
+  `TestSubstateRemovalRacingMoveDiscardBothOrderings`; pre-existing discarded row and exact
+  restored CHECK equality in `TestMigration00026ExistingRowsShapesAndGuardedDown`;
+  authorization in `TestSubstateOwnerPrincipalNonprincipalDBMatrix`.
+- Delivery-fulfillment follow-ups (L69): test coverage added —
+  `TestFulfillmentRecoverySoleFirstAttainment`,
+  `TestFulfillmentSubstateOnlyHistoryNeverCountsAsReached`,
+  `TestFulfillmentMissingConfigRollsBackTrigger`,
+  `TestFulfillmentCrossingMixedApplyMoveEditExactlyOnce`, and
+  `TestFulfillmentStatusPreviewLiveGateDBMatrix`.
+- Cut-7 follow-ups (L78): test coverage added — every prior history row and non-null
+  active substate in `TestColumnsSuccessfulEditsPreserveEveryHistoryRowAndActiveSubstate`;
+  recovery ordering in `TestColumnRecoveryReassignedSeveralRetiredStagesOrderedByPositionThenID`;
+  exact UUIDs in `TestColumnIDsExactLaterAndInterleavedIdlessOrdinals`;
+  preview gates in `TestColumnsPreviewInheritedLiveGateDBMatrix`;
+  ordinary recovery audit in `TestColumnsOrdinaryRecoveryAuditsOverrideFalse`;
+  fulfilled cutoff removal in `TestColumnsCutoffRemovalRejectedAfterFulfillment`.
+- §19 follow-up (L80): test coverage added —
+  `TestFilterDataPopulatedSnapshotsNeverReachRequestLogsOrAuditMetadata` captures real
+  request-completion logs and audit metadata with populated profile/answer snapshots.
+  All DB-backed follow-up coverage above still awaits the parent's isolated-database run;
+  compilation/skips are not evidence of passing database behavior.
+- Note for the morning review: the profile filters read the candidate's own profile at apply
+  time; candidates who never completed their profile show «Sin dato».

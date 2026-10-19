@@ -200,6 +200,7 @@ func newRouter(d routerDeps) chi.Router {
 		r.Get("/v2/me/company/job-drafts/{id}/participations/{pid}/cv", d.movementHandler.File)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline", pipelineHandlers.GetPipeline)
 		r.Put("/v2/me/company/job-drafts/{id}/pipeline", pipelineHandlers.PutPipeline)
+		r.Post("/v2/me/company/job-drafts/{id}/pipeline/preview", pipelineHandlers.PreviewPipeline)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline/substates", substatesHandlers.GetSubstates)
 		r.Put("/v2/me/company/job-drafts/{id}/pipeline/substates", substatesHandlers.PutSubstates)
 		r.Get("/v2/me/company/job-drafts/{id}/pipeline/delivery", deliveryHandlers.GetDelivery)

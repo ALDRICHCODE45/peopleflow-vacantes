@@ -84,9 +84,25 @@ func movementKeys(t *testing.T, value any, want ...string) map[string]any {
 }
 func movementItemKeys(t *testing.T, obj map[string]any, extra ...string) {
 	t.Helper()
-	movementKeys(t, obj, append([]string{"id", "stage_id", "version", "etag", "candidate", "applied_at", "source", "cv", "moved_at", "discard", "substate_id"}, extra...)...)
+	keys := []string{"id", "stage_id", "version", "etag", "candidate", "applied_at", "source", "cv", "moved_at", "discard", "substate_id"}
+	mutation := false
+	for _, key := range extra {
+		if key == "coverage" {
+			mutation = true
+		}
+	}
+	if !mutation {
+		keys = append(keys, "profile", "screening_answers")
+	}
+	movementKeys(t, obj, append(keys, extra...)...)
 	movementKeys(t, obj["candidate"], "id", "full_name")
 	movementKeys(t, obj["cv"], "id", "name")
+	if !mutation {
+		movementKeys(t, obj["profile"], "city", "skills", "years_of_experience", "education_level")
+		for _, a := range obj["screening_answers"].([]any) {
+			movementKeys(t, a, "question_id", "option_id")
+		}
+	}
 }
 
 func TestMovementRealCrossVacancyIsolation(t *testing.T) {
@@ -125,7 +141,7 @@ func TestMovementExactWireProjection(t *testing.T) {
 	if rec.Code != 200 || rec.Header().Get("ETag") != "" {
 		t.Fatal(rec.Code, rec.Body.String())
 	}
-	obj := movementKeys(t, movementObject(t, rec.Body.Bytes()), "stages", "exit", "coverage", "participations", "substates", "delivery")
+	obj := movementKeys(t, movementObject(t, rec.Body.Bytes()), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages", "screening_filters")
 	for _, stage := range obj["stages"].([]any) {
 		movementKeys(t, stage, "id", "kind", "name", "count")
 	}

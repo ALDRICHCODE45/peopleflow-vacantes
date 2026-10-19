@@ -18,10 +18,17 @@ import (
 )
 
 type pipelineRouteStore struct {
-	result drafts.Result
-	err    error
-	gets   []routeGetCall
-	puts   []routeSaveCall
+	result   drafts.Result
+	err      error
+	gets     []routeGetCall
+	puts     []routeSaveCall
+	previews []routeSaveCall
+	preview  pipelineconfig.Preview
+}
+
+func (s *pipelineRouteStore) PreviewPipeline(_ context.Context, companyID, actorID, id uuid.UUID, body []byte) (pipelineconfig.Preview, error) {
+	s.previews = append(s.previews, routeSaveCall{companyID: companyID, actorID: actorID, id: id, body: body})
+	return s.preview, s.err
 }
 
 func (s *pipelineRouteStore) GetPipeline(_ context.Context, companyID, actorID, id uuid.UUID) (drafts.Result, error) {
@@ -61,7 +68,7 @@ func TestPipelineRoutes_ContractAndNoStoreOnEveryStatus(t *testing.T) {
 		{"bad path", "GET", "/v2/me/company/job-drafts/bad/pipeline", "", auth, nil, 400, "invalid_request", 0},
 		{"invalid request", "PUT", path, `{}`, auth, drafts.ErrInvalidRequest, 400, "invalid_request", 1},
 		{"validation", "PUT", path, `{}`, auth, drafts.ErrValidation, 400, "validation_error", 1},
-		{"structure locked", "PUT", path, `{}`, auth, pipelineconfig.ErrStructureLocked, 409, "stage_change_requires_empty_pipeline", 1},
+		{"impact confirmation", "PUT", path, `{}`, auth, pipelineconfig.ErrImpactConfirmation, 409, "impact_confirmation_required", 1},
 		{"live user", "GET", path, "", auth, drafts.ErrUnauthenticated, 401, "unauthenticated", 1},
 		{"membership", "PUT", path, `{}`, auth, drafts.ErrForbidden, 403, "forbidden", 1},
 		{"inactive company", "GET", path, "", auth, drafts.ErrCompanyInactive, 403, "company_inactive", 1},
@@ -74,7 +81,10 @@ func TestPipelineRoutes_ContractAndNoStoreOnEveryStatus(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := drafts.Result{Body: []byte(`{"version":"0","structure_locked":false,"stages":[],"exit":{},"limits":{"maxCustomStages":3,"nameMaxLength":40}}`), ETag: `"pipeline-opaque"`}
+			result := drafts.Result{Body: []byte(`{"version":"0","structure_locked":false,"retired":[],"stages":[],"exit":{},"limits":{"maxCustomStages":3,"nameMaxLength":40}}`), ETag: `"pipeline-opaque"`}
+			if tc.method == "PUT" {
+				result.Body = []byte(strings.Replace(string(result.Body), `"version":`, `"applied_impact":{"not_applicable":[],"recovery_reassigned":[]},"version":`, 1))
+			}
 			s := &pipelineRouteStore{result: result, err: tc.err}
 			r := doRouteRequest(t, pipelineRoutesRouter(s), tc.method, tc.path, tc.body, tc.headers)
 			if r.Code != tc.status {

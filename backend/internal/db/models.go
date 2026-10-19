@@ -275,6 +275,7 @@ type ProcessParticipation struct {
 	CandidateMessage  pgtype.Text        `json:"candidate_message"`
 	DiscardedAt       pgtype.Timestamptz `json:"discarded_at"`
 	SubstateID        pgtype.UUID        `json:"substate_id"`
+	ProfileSnapshot   []byte             `json:"profile_snapshot"`
 }
 
 type User struct {
