@@ -66,8 +66,6 @@ type CandidateProfile struct {
 	YearsOfExperience    pgtype.Int2        `json:"years_of_experience"`
 	ProfileSummary       pgtype.Text        `json:"profile_summary"`
 	BirthDate            pgtype.Date        `json:"birth_date"`
-	City                 pgtype.Text        `json:"city"`
-	Country              pgtype.Text        `json:"country"`
 	EducationLevel       pgtype.Text        `json:"education_level"`
 	FieldOfStudy         pgtype.Text        `json:"field_of_study"`
 	Skills               []string           `json:"skills"`
@@ -80,29 +78,34 @@ type CandidateProfile struct {
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 	SearchVector         interface{}        `json:"search_vector"`
+	CountryCode          pgtype.Text        `json:"country_code"`
+	StateCode            pgtype.Text        `json:"state_code"`
+	MunicipalityCode     pgtype.Text        `json:"municipality_code"`
 }
 
 type Company struct {
-	ID            uuid.UUID          `json:"id"`
-	Name          string             `json:"name"`
-	Rfc           string             `json:"rfc"`
-	IndustryID    string             `json:"industry_id"`
-	Website       pgtype.Text        `json:"website"`
-	LogoUrl       pgtype.Text        `json:"logo_url"`
-	Status        string             `json:"status"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
-	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
-	Description   pgtype.Text        `json:"description"`
-	Size          pgtype.Text        `json:"size"`
-	FoundedYear   pgtype.Int2        `json:"founded_year"`
-	City          pgtype.Text        `json:"city"`
-	Country       pgtype.Text        `json:"country"`
-	LinkedinUrl   pgtype.Text        `json:"linkedin_url"`
-	InstagramUrl  pgtype.Text        `json:"instagram_url"`
-	FacebookUrl   pgtype.Text        `json:"facebook_url"`
-	TwitterUrl    pgtype.Text        `json:"twitter_url"`
-	CoverImageUrl pgtype.Text        `json:"cover_image_url"`
+	ID               uuid.UUID          `json:"id"`
+	Name             string             `json:"name"`
+	Rfc              string             `json:"rfc"`
+	IndustryID       string             `json:"industry_id"`
+	Website          pgtype.Text        `json:"website"`
+	LogoUrl          pgtype.Text        `json:"logo_url"`
+	Status           string             `json:"status"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt        pgtype.Timestamptz `json:"deleted_at"`
+	Description      pgtype.Text        `json:"description"`
+	Size             pgtype.Text        `json:"size"`
+	FoundedYear      pgtype.Int2        `json:"founded_year"`
+	LinkedinUrl      pgtype.Text        `json:"linkedin_url"`
+	InstagramUrl     pgtype.Text        `json:"instagram_url"`
+	FacebookUrl      pgtype.Text        `json:"facebook_url"`
+	TwitterUrl       pgtype.Text        `json:"twitter_url"`
+	CoverImageUrl    pgtype.Text        `json:"cover_image_url"`
+	CountryCode      pgtype.Text        `json:"country_code"`
+	StateCode        pgtype.Text        `json:"state_code"`
+	MunicipalityCode pgtype.Text        `json:"municipality_code"`
+	PostalCode       pgtype.Text        `json:"postal_code"`
 }
 
 type CompanyMember struct {

@@ -7,11 +7,12 @@ import (
 
 	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 	sharedvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
 	"github.com/google/uuid"
 )
 
-// UpdateCompanyPatch is the 13-field PATCH body the PATCH /me/company
+// UpdateCompanyPatch is the 12-field PATCH body the PATCH /me/company
 // use case translates the wire DTO into (companies-write slice, design
 // D7). Field-by-field semantics:
 //
@@ -20,14 +21,14 @@ import (
 //     not meaningful for it (a present empty string after trim is the
 //     VO rejection signal).
 //
-//   - The twelve profile columns (`Website`, `LogoURL`, `Description`,
-//     `Size`, `FoundedYear`, `City`, `Country`, `LinkedInURL`,
+//   - The eleven profile fields (`Website`, `LogoURL`, `Description`,
+//     `Size`, `FoundedYear`, `Location`, `LinkedInURL`,
 //     `InstagramURL`, `FacebookURL`, `TwitterURL`, `CoverImageURL`)
 //     use the tri-state `Optional[T]` codec (shared D6 / companies-
 //     write D7): absent → column untouched; JSON `null` → clear to SQL
-//     NULL; value → set to the value. The 11 string columns use
-//     `Optional[string]`; `FoundedYear` uses `Optional[int]` (matches
-//     `jobs.SalaryMin` / `jobs.SalaryMax`).
+//     NULL; value → set to the value. Location uses Optional[geo.Value] to
+//     replace or clear all four code columns together. The remaining fields
+//     use Optional[string] or Optional[int].
 //
 // The patch deliberately omits `rfc`, `industry_id`, `status`, `id`,
 // `created_at`, `updated_at`, `deleted_at` — those are immutable on
@@ -41,8 +42,7 @@ type UpdateCompanyPatch struct {
 	Description sharedvalueobjects.Optional[string]
 	Size        sharedvalueobjects.Optional[string]
 	FoundedYear sharedvalueobjects.Optional[int]
-	City        sharedvalueobjects.Optional[string]
-	Country     sharedvalueobjects.Optional[string]
+	Location    sharedvalueobjects.Optional[geo.Value]
 	LinkedInURL sharedvalueobjects.Optional[string]
 
 	InstagramURL  sharedvalueobjects.Optional[string]

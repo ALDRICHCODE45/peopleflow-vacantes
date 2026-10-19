@@ -2,6 +2,7 @@ package entities
 
 import (
 	"errors"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 	"testing"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
@@ -99,8 +100,7 @@ func TestNewCompany_FullProfile(t *testing.T) {
 	year, _ := valueobjects.NewFoundedYear(1999)
 	web := "https://acme.com"
 	logo := "https://acme.com/logo.png"
-	city := "CDMX"
-	country := "MX"
+	location := &geo.Value{Country: "MX", State: "14", Municipality: "14039"}
 	linkedin := "https://linkedin.com/company/acme"
 	instagram := "https://instagram.com/acme"
 	facebook := "https://facebook.com/acme"
@@ -113,8 +113,7 @@ func TestNewCompany_FullProfile(t *testing.T) {
 		Description:   &desc,
 		Size:          &cs,
 		FoundedYear:   &year,
-		City:          &city,
-		Country:       &country,
+		Location:      location,
 		LinkedInURL:   &linkedin,
 		InstagramURL:  &instagram,
 		FacebookURL:   &facebook,
@@ -124,11 +123,8 @@ func TestNewCompany_FullProfile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error for full profile, got: %v", err)
 	}
-	if c.City == nil || *c.City != "CDMX" {
-		t.Errorf("city not set")
-	}
-	if c.Country == nil || *c.Country != "MX" {
-		t.Errorf("country not set")
+	if c.Location == nil || *c.Location != *location {
+		t.Errorf("location not set: %+v", c.Location)
 	}
 	if c.LinkedInURL == nil || *c.LinkedInURL != linkedin {
 		t.Errorf("linkedin url not set")

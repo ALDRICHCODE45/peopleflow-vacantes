@@ -10,6 +10,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -20,26 +21,28 @@ func TestToEntity_FullRow(t *testing.T) {
 	now := time.Now().UTC()
 
 	row := db.Company{
-		ID:            id,
-		Name:          "Acme SA de CV",
-		Rfc:           "AAA010101AAA",
-		IndustryID:    "tech",
-		Website:       pgtype.Text{String: "https://acme.com", Valid: true},
-		LogoUrl:       pgtype.Text{String: "https://acme.com/logo.png", Valid: true},
-		Status:        "active",
-		CreatedAt:     pgtype.Timestamptz{Time: now, Valid: true},
-		UpdatedAt:     pgtype.Timestamptz{Time: now, Valid: true},
-		DeletedAt:     pgtype.Timestamptz{Valid: false},
-		Description:   pgtype.Text{String: "Líder en logística", Valid: true},
-		Size:          pgtype.Text{String: "medium", Valid: true},
-		FoundedYear:   pgtype.Int2{Int16: 2010, Valid: true},
-		City:          pgtype.Text{String: "CDMX", Valid: true},
-		Country:       pgtype.Text{String: "MX", Valid: true},
-		LinkedinUrl:   pgtype.Text{String: "https://linkedin.com/company/acme", Valid: true},
-		InstagramUrl:  pgtype.Text{String: "https://instagram.com/acme", Valid: true},
-		FacebookUrl:   pgtype.Text{String: "https://facebook.com/acme", Valid: true},
-		TwitterUrl:    pgtype.Text{String: "https://twitter.com/acme", Valid: true},
-		CoverImageUrl: pgtype.Text{String: "https://acme.com/cover.jpg", Valid: true},
+		ID:               id,
+		Name:             "Acme SA de CV",
+		Rfc:              "AAA010101AAA",
+		IndustryID:       "tech",
+		Website:          pgtype.Text{String: "https://acme.com", Valid: true},
+		LogoUrl:          pgtype.Text{String: "https://acme.com/logo.png", Valid: true},
+		Status:           "active",
+		CreatedAt:        pgtype.Timestamptz{Time: now, Valid: true},
+		UpdatedAt:        pgtype.Timestamptz{Time: now, Valid: true},
+		DeletedAt:        pgtype.Timestamptz{Valid: false},
+		Description:      pgtype.Text{String: "Líder en logística", Valid: true},
+		Size:             pgtype.Text{String: "medium", Valid: true},
+		FoundedYear:      pgtype.Int2{Int16: 2010, Valid: true},
+		CountryCode:      pgtype.Text{String: "MX", Valid: true},
+		StateCode:        pgtype.Text{String: "14", Valid: true},
+		MunicipalityCode: pgtype.Text{String: "14039", Valid: true},
+		PostalCode:       pgtype.Text{String: "44100", Valid: true},
+		LinkedinUrl:      pgtype.Text{String: "https://linkedin.com/company/acme", Valid: true},
+		InstagramUrl:     pgtype.Text{String: "https://instagram.com/acme", Valid: true},
+		FacebookUrl:      pgtype.Text{String: "https://facebook.com/acme", Valid: true},
+		TwitterUrl:       pgtype.Text{String: "https://twitter.com/acme", Valid: true},
+		CoverImageUrl:    pgtype.Text{String: "https://acme.com/cover.jpg", Valid: true},
 	}
 
 	got, err := toEntity(row)
@@ -65,11 +68,8 @@ func TestToEntity_FullRow(t *testing.T) {
 	if got.FoundedYear == nil || got.FoundedYear.Value() != 2010 {
 		t.Errorf("FoundedYear: want 2010, got %+v", got.FoundedYear)
 	}
-	if got.City == nil || *got.City != "CDMX" {
-		t.Errorf("City: want CDMX, got %v", got.City)
-	}
-	if got.Country == nil || *got.Country != "MX" {
-		t.Errorf("Country: want MX, got %v", got.Country)
+	if got.Location == nil || *got.Location != (geo.Value{Country: "MX", State: "14", Municipality: "14039", PostalCode: "44100"}) {
+		t.Errorf("location: %+v", got.Location)
 	}
 	if got.LinkedInURL == nil || *got.LinkedInURL != "https://linkedin.com/company/acme" {
 		t.Errorf("LinkedInURL: %v", got.LinkedInURL)
@@ -93,26 +93,28 @@ func TestToEntity_NullableFieldsUnset(t *testing.T) {
 	now := time.Now().UTC()
 
 	row := db.Company{
-		ID:            id,
-		Name:          "Minimal SA",
-		Rfc:           "BBB020202BBB",
-		IndustryID:    "tech",
-		Website:       pgtype.Text{Valid: false},
-		LogoUrl:       pgtype.Text{Valid: false},
-		Status:        "pending_verification",
-		CreatedAt:     pgtype.Timestamptz{Time: now, Valid: true},
-		UpdatedAt:     pgtype.Timestamptz{Time: now, Valid: true},
-		DeletedAt:     pgtype.Timestamptz{Valid: false},
-		Description:   pgtype.Text{Valid: false},
-		Size:          pgtype.Text{Valid: false},
-		FoundedYear:   pgtype.Int2{Valid: false},
-		City:          pgtype.Text{Valid: false},
-		Country:       pgtype.Text{Valid: false},
-		LinkedinUrl:   pgtype.Text{Valid: false},
-		InstagramUrl:  pgtype.Text{Valid: false},
-		FacebookUrl:   pgtype.Text{Valid: false},
-		TwitterUrl:    pgtype.Text{Valid: false},
-		CoverImageUrl: pgtype.Text{Valid: false},
+		ID:               id,
+		Name:             "Minimal SA",
+		Rfc:              "BBB020202BBB",
+		IndustryID:       "tech",
+		Website:          pgtype.Text{Valid: false},
+		LogoUrl:          pgtype.Text{Valid: false},
+		Status:           "pending_verification",
+		CreatedAt:        pgtype.Timestamptz{Time: now, Valid: true},
+		UpdatedAt:        pgtype.Timestamptz{Time: now, Valid: true},
+		DeletedAt:        pgtype.Timestamptz{Valid: false},
+		Description:      pgtype.Text{Valid: false},
+		Size:             pgtype.Text{Valid: false},
+		FoundedYear:      pgtype.Int2{Valid: false},
+		CountryCode:      pgtype.Text{},
+		StateCode:        pgtype.Text{},
+		MunicipalityCode: pgtype.Text{},
+		PostalCode:       pgtype.Text{},
+		LinkedinUrl:      pgtype.Text{Valid: false},
+		InstagramUrl:     pgtype.Text{Valid: false},
+		FacebookUrl:      pgtype.Text{Valid: false},
+		TwitterUrl:       pgtype.Text{Valid: false},
+		CoverImageUrl:    pgtype.Text{Valid: false},
 	}
 
 	got, err := toEntity(row)
@@ -135,8 +137,8 @@ func TestToEntity_NullableFieldsUnset(t *testing.T) {
 	if got.FoundedYear != nil {
 		t.Errorf("FoundedYear: want nil, got %+v", got.FoundedYear)
 	}
-	if got.City != nil || got.Country != nil {
-		t.Errorf("City/Country: want nil, got city=%v country=%v", got.City, got.Country)
+	if got.Location != nil {
+		t.Errorf("want null location: %+v", got.Location)
 	}
 	if got.LinkedInURL != nil || got.InstagramURL != nil || got.FacebookURL != nil || got.TwitterURL != nil {
 		t.Errorf("Social URLs: want all nil, got linkedin=%v instagram=%v facebook=%v twitter=%v",
@@ -170,8 +172,7 @@ func TestToEntity_InvalidStatus(t *testing.T) {
 func TestBuildCreateParams_FullEntity(t *testing.T) {
 	web := "https://acme.com"
 	logo := "https://acme.com/logo.png"
-	city := "CDMX"
-	country := "MX"
+	location := &geo.Value{Country: "MX", State: "14", Municipality: "14039", PostalCode: "44100"}
 	linkedin := "https://linkedin.com/company/acme"
 	instagram := "https://instagram.com/acme"
 	facebook := "https://facebook.com/acme"
@@ -192,8 +193,7 @@ func TestBuildCreateParams_FullEntity(t *testing.T) {
 		Description:   &desc,
 		Size:          &size,
 		FoundedYear:   &year,
-		City:          &city,
-		Country:       &country,
+		Location:      location,
 		LinkedInURL:   &linkedin,
 		InstagramURL:  &instagram,
 		FacebookURL:   &facebook,
@@ -232,11 +232,8 @@ func TestBuildCreateParams_FullEntity(t *testing.T) {
 	if !params.FoundedYear.Valid || params.FoundedYear.Int16 != 1999 {
 		t.Errorf("FoundedYear: %+v (want 1999)", params.FoundedYear)
 	}
-	if !params.City.Valid || params.City.String != "CDMX" {
-		t.Errorf("City: %+v", params.City)
-	}
-	if !params.Country.Valid || params.Country.String != "MX" {
-		t.Errorf("Country: %+v", params.Country)
+	if !params.CountryCode.Valid || params.CountryCode.String != "MX" || !params.StateCode.Valid || params.StateCode.String != "14" || !params.MunicipalityCode.Valid || params.MunicipalityCode.String != "14039" || !params.PostalCode.Valid || params.PostalCode.String != "44100" {
+		t.Errorf("location columns: %+v", params)
 	}
 	if !params.LinkedinUrl.Valid {
 		t.Errorf("LinkedinUrl.Valid: false")
@@ -281,8 +278,8 @@ func TestBuildCreateParams_NilProfileFields(t *testing.T) {
 	if params.FoundedYear.Valid {
 		t.Errorf("FoundedYear: want invalid, got %+v", params.FoundedYear)
 	}
-	if params.City.Valid || params.Country.Valid {
-		t.Errorf("City/Country: want invalid, got %+v %+v", params.City, params.Country)
+	if params.CountryCode.Valid || params.StateCode.Valid || params.MunicipalityCode.Valid || params.PostalCode.Valid {
+		t.Error("nil location must produce all NULL columns")
 	}
 	if params.LinkedinUrl.Valid || params.InstagramUrl.Valid || params.FacebookUrl.Valid || params.TwitterUrl.Valid {
 		t.Errorf("Social URLs: want all invalid, got linkedin=%+v instagram=%+v facebook=%+v twitter=%+v",
@@ -317,6 +314,7 @@ func TestMapCompanyCreateError(t *testing.T) {
 		Message:        "insert or update on table \"companies\" violates foreign key constraint \"companies_industry_id_fkey\"",
 		ConstraintName: "companies_industry_id_fkey",
 	}
+	geoFK := &pgconn.PgError{Code: "23503", ConstraintName: "companies_geo_state_fk", Message: "catalog changed after validation"}
 	otherPg := &pgconn.PgError{
 		Code:    "42P01", // undefined_table — should fall through untouched.
 		Message: "relation \"missing\" does not exist",
@@ -348,6 +346,7 @@ func TestMapCompanyCreateError(t *testing.T) {
 			in:   fkSentinel,
 			want: entities.ErrIndustryNotFound,
 		},
+		{name: "geo FK is not an industry error", in: geoFK, want: geoFK},
 		{
 			name:    "unrelated pg code falls back to the original pg error",
 			in:      otherPg,

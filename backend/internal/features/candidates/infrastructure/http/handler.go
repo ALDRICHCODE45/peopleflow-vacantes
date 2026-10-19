@@ -18,6 +18,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
@@ -92,8 +93,7 @@ type upsertProfileRequest struct {
 
 	BirthDate *string `json:"birth_date"` // YYYY-MM-DD; parsed by the use case.
 
-	City    *string `json:"city"`
-	Country *string `json:"country"`
+	Location *geo.LocationInput `json:"location"`
 
 	EducationLevel *string `json:"education_level"`
 	FieldOfStudy   *string `json:"field_of_study"`
@@ -123,9 +123,8 @@ type candidateProfileResponse struct {
 	YearsOfExperience *int    `json:"years_of_experience,omitempty"`
 	ProfileSummary    *string `json:"profile_summary,omitempty"`
 
-	BirthDate *string `json:"birth_date,omitempty"`
-	City      *string `json:"city,omitempty"`
-	Country   *string `json:"country,omitempty"`
+	BirthDate *string           `json:"birth_date,omitempty"`
+	Location  *geo.ReadLocation `json:"location"`
 
 	EducationLevel *string `json:"education_level,omitempty"`
 	FieldOfStudy   *string `json:"field_of_study,omitempty"`
@@ -172,6 +171,10 @@ func (h *CandidateHandler) getMyProfile(w http.ResponseWriter, r *http.Request) 
 	}
 
 	profile, err := h.service.GetMyProfile(r.Context(), sub)
+	var location *geo.ReadLocation
+	if err == nil {
+		location, err = h.service.ReadLocation(r.Context(), profile.Location)
+	}
 	if err != nil {
 		def := classifyCandidateError(err)
 		if def.Code == httpjson.CodeInternalError {
@@ -191,7 +194,7 @@ func (h *CandidateHandler) getMyProfile(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	httpjson.WriteJSON(w, http.StatusOK, toProfileResponse(profile))
+	httpjson.WriteJSON(w, http.StatusOK, toProfileResponse(profile, location))
 }
 
 func (h *CandidateHandler) upsertMyProfile(w http.ResponseWriter, r *http.Request) {
@@ -215,8 +218,7 @@ func (h *CandidateHandler) upsertMyProfile(w http.ResponseWriter, r *http.Reques
 		YearsOfExperience:    req.YearsOfExperience,
 		ProfileSummary:       req.ProfileSummary,
 		BirthDate:            req.BirthDate,
-		City:                 req.City,
-		Country:              req.Country,
+		Location:             req.Location,
 		EducationLevel:       req.EducationLevel,
 		FieldOfStudy:         req.FieldOfStudy,
 		Skills:               req.Skills,
@@ -226,7 +228,20 @@ func (h *CandidateHandler) upsertMyProfile(w http.ResponseWriter, r *http.Reques
 		SalaryCurrency:       req.SalaryCurrency,
 		ExpectedSalaryPeriod: req.ExpectedSalaryPeriod,
 	})
+	var location *geo.ReadLocation
+	if err == nil {
+		location, err = h.service.ReadLocation(r.Context(), profile.Location)
+	}
 	if err != nil {
+		var invalid *geo.InvalidLocation
+		if errors.As(err, &invalid) {
+			details := make([]httpjson.GeoDetail, 0, len(invalid.Details))
+			for _, d := range invalid.Details {
+				details = append(details, httpjson.GeoDetail{Field: d.Field, Reason: d.Reason})
+			}
+			httpjson.WriteGeoError(w, httpjson.Resolve(httpjson.CodeInvalidLocation), details)
+			return
+		}
 		def := classifyCandidateError(err)
 		if def.Code == httpjson.CodeInternalError {
 			// Bounded unexpected-error record (WS6C-7B, mirroring the
@@ -245,7 +260,7 @@ func (h *CandidateHandler) upsertMyProfile(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	httpjson.WriteJSON(w, http.StatusOK, toProfileResponse(profile))
+	httpjson.WriteJSON(w, http.StatusOK, toProfileResponse(profile, location))
 }
 
 func (h *CandidateHandler) listMyLanguages(w http.ResponseWriter, r *http.Request) {
@@ -339,7 +354,7 @@ func (h *CandidateHandler) replaceMyLanguages(w http.ResponseWriter, r *http.Req
 // entity's value objects (EducationLevel, SalaryPeriod) are reduced to
 // their canonical wire form; the optional pointers stay as-is so the
 // JSON encoder drops them with `omitempty`.
-func toProfileResponse(p *entities.CandidateProfile) candidateProfileResponse {
+func toProfileResponse(p *entities.CandidateProfile, location *geo.ReadLocation) candidateProfileResponse {
 	resp := candidateProfileResponse{
 		UserID:             p.UserID,
 		Phone:              p.Phone,
@@ -349,8 +364,7 @@ func toProfileResponse(p *entities.CandidateProfile) candidateProfileResponse {
 		CurrentCompany:     p.CurrentCompany,
 		YearsOfExperience:  p.YearsOfExperience,
 		ProfileSummary:     p.ProfileSummary,
-		City:               p.City,
-		Country:            p.Country,
+		Location:           location,
 		FieldOfStudy:       p.FieldOfStudy,
 		Skills:             p.Skills,
 		CurrentSalaryGross: p.CurrentSalaryGross,

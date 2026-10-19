@@ -8,6 +8,7 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/entities"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 )
 
 // ErrInvalidBirthDate is returned when birth_date does not parse as
@@ -26,6 +27,10 @@ var ErrInvalidBirthDate = errors.New("invalid birth_date")
 func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub string, params dtos.UpsertMyProfileDto) (*entities.CandidateProfile, error) {
 	userID, err := s.resolveUserID(ctx, cognitoSub)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := geo.ValidateLocation(ctx, s.geography, params.Location, false); err != nil {
 		return nil, err
 	}
 
@@ -78,12 +83,7 @@ func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub strin
 		}
 		profile.BirthDate = &parsed
 	}
-	if params.City != nil {
-		profile.City = params.City
-	}
-	if params.Country != nil {
-		profile.Country = params.Country
-	}
+	profile.Location = params.Location.Value()
 	if params.FieldOfStudy != nil {
 		profile.FieldOfStudy = params.FieldOfStudy
 	}

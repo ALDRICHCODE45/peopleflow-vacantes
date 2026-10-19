@@ -21,19 +21,16 @@ import (
 
 func TestFilterDataApplySnapshotNormalizationAndReplay(t *testing.T) {
 	for _, tc := range []struct {
-		name     string
-		profile  bool
-		city     string
-		wantCity any
+		name    string
+		profile bool
 	}{
-		{"missing profile", false, "", nil}, {"empty city", true, "", nil},
-		{"whitespace city", true, " \t\n\u00a0", nil}, {"normalized city", true, " San\u00a0  Luis\nPotosí ", "San Luis Potosí"},
+		{"missing profile", false}, {"profile without legacy city", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := setup(t)
 			ctx := context.Background()
 			if tc.profile {
-				if _, err := f.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,city,skills,years_of_experience,education_level) VALUES($1,$2,ARRAY['Go','SQL','Go'],5,'master')`, f.actor, tc.city); err != nil {
+				if _, err := f.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,skills,years_of_experience,education_level) VALUES($1,ARRAY['Go','SQL','Go'],5,'master')`, f.actor); err != nil {
 					t.Fatal(err)
 				}
 				t.Cleanup(func() {
@@ -85,7 +82,8 @@ func TestFilterDataApplySnapshotNormalizationAndReplay(t *testing.T) {
 			}
 			before := read()
 			obj := movementObject(t, before)
-			want := map[string]any{"city": tc.wantCity, "skills": []any{}, "years_of_experience": nil, "education_level": nil}
+			// G3 intentionally snapshots no city until G4 introduces location.
+			want := map[string]any{"city": nil, "skills": []any{}, "years_of_experience": nil, "education_level": nil}
 			if tc.profile {
 				want["skills"] = []any{"Go", "SQL", "Go"}
 				want["years_of_experience"] = float64(5)
@@ -94,7 +92,7 @@ func TestFilterDataApplySnapshotNormalizationAndReplay(t *testing.T) {
 			if !reflect.DeepEqual(obj, want) {
 				t.Fatal("snapshot does not match normalized allowlist")
 			}
-			if _, err = f.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,city,skills,years_of_experience,education_level) VALUES($1,'Changed',ARRAY['Rust'],1,'phd') ON CONFLICT(user_id) DO UPDATE SET city=EXCLUDED.city,skills=EXCLUDED.skills,years_of_experience=EXCLUDED.years_of_experience,education_level=EXCLUDED.education_level`, f.actor); err != nil {
+			if _, err = f.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,skills,years_of_experience,education_level) VALUES($1,ARRAY['Rust'],1,'phd') ON CONFLICT(user_id) DO UPDATE SET skills=EXCLUDED.skills,years_of_experience=EXCLUDED.years_of_experience,education_level=EXCLUDED.education_level`, f.actor); err != nil {
 				t.Fatal(err)
 			}
 			if !tc.profile {
@@ -202,7 +200,7 @@ func TestFilterDataBoardDetailLegacyCurrentQuestionnaireAndPrivacy(t *testing.T)
 	if err = m.pool.QueryRow(ctx, `SELECT id FROM users WHERE cognito_sub=$1`, m.other).Scan(&otherID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = m.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,city,skills,years_of_experience,education_level) VALUES($1,'  San  Luis ',ARRAY['Go','SQL'],0,'bachelor')`, otherID); err != nil {
+	if _, err = m.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,skills,years_of_experience,education_level) VALUES($1,ARRAY['Go','SQL'],0,'bachelor')`, otherID); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
@@ -237,11 +235,11 @@ func TestFilterDataBoardDetailLegacyCurrentQuestionnaireAndPrivacy(t *testing.T)
 		}
 		return movementKeys(t, movementObject(t, r.Body.Bytes())["profile"], "city", "skills", "years_of_experience", "education_level")
 	}
-	expected := map[string]any{"city": "San Luis", "skills": []any{"Go", "SQL"}, "years_of_experience": float64(0), "education_level": "bachelor"}
+	expected := map[string]any{"city": nil, "skills": []any{"Go", "SQL"}, "years_of_experience": float64(0), "education_level": "bachelor"}
 	if !reflect.DeepEqual(readProfile(), expected) {
 		t.Fatal("detail lost applied profile")
 	}
-	if _, err = m.pool.Exec(ctx, `UPDATE candidate_profiles SET city='Changed',skills=ARRAY['Rust'],years_of_experience=7,education_level='phd' WHERE user_id=$1`, otherID); err != nil {
+	if _, err = m.pool.Exec(ctx, `UPDATE candidate_profiles SET skills=ARRAY['Rust'],years_of_experience=7,education_level='phd' WHERE user_id=$1`, otherID); err != nil {
 		t.Fatal(err)
 	}
 	replay, err := m.store.Apply(ctx, m.other, m.vacancy, key, req)

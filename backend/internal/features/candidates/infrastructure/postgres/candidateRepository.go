@@ -14,6 +14,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/entities"
 	candidaterepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -139,6 +140,12 @@ func buildUpsertParams(p *entities.CandidateProfile) db.UpsertCandidateProfilePa
 	if p.BirthDate != nil {
 		birthDate = pgtype.Date{Time: *p.BirthDate, Valid: true}
 	}
+	var country, state, municipality pgtype.Text
+	if p.Location != nil {
+		country = locationText(p.Location.Country)
+		state = locationText(p.Location.State)
+		municipality = locationText(p.Location.Municipality)
+	}
 	return db.UpsertCandidateProfileParams{
 		UserID:               uuid.MustParse(p.UserID),
 		Phone:                textPtrToPgText(p.Phone),
@@ -149,8 +156,9 @@ func buildUpsertParams(p *entities.CandidateProfile) db.UpsertCandidateProfilePa
 		YearsOfExperience:    intPtrToInt2(p.YearsOfExperience),
 		ProfileSummary:       textPtrToPgText(p.ProfileSummary),
 		BirthDate:            birthDate,
-		City:                 textPtrToPgText(p.City),
-		Country:              textPtrToPgText(p.Country),
+		CountryCode:          country,
+		StateCode:            state,
+		MunicipalityCode:     municipality,
 		EducationLevel:       educationLevelToPgText(p.EducationLevel),
 		FieldOfStudy:         textPtrToPgText(p.FieldOfStudy),
 		Skills:               p.Skills,
@@ -184,6 +192,10 @@ func toEntity(row db.CandidateProfile) (*entities.CandidateProfile, error) {
 		period = &parsed
 	}
 
+	var location *geo.Value
+	if row.CountryCode.Valid {
+		location = &geo.Value{Country: row.CountryCode.String, State: row.StateCode.String, Municipality: row.MunicipalityCode.String}
+	}
 	return &entities.CandidateProfile{
 		UserID:               row.UserID.String(),
 		Phone:                pgTextToTextPtr(row.Phone),
@@ -194,8 +206,7 @@ func toEntity(row db.CandidateProfile) (*entities.CandidateProfile, error) {
 		YearsOfExperience:    int2ToIntPtr(row.YearsOfExperience),
 		ProfileSummary:       pgTextToTextPtr(row.ProfileSummary),
 		BirthDate:            pgDateToTimePtr(row.BirthDate),
-		City:                 pgTextToTextPtr(row.City),
-		Country:              pgTextToTextPtr(row.Country),
+		Location:             location,
 		EducationLevel:       edu,
 		FieldOfStudy:         pgTextToTextPtr(row.FieldOfStudy),
 		Skills:               row.Skills,
@@ -211,6 +222,8 @@ func toEntity(row db.CandidateProfile) (*entities.CandidateProfile, error) {
 }
 
 // --- pgtype ↔ Go pointer helpers ----------------------------------------
+
+func locationText(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }
 
 func textPtrToPgText(s *string) pgtype.Text {
 	if s == nil {

@@ -122,7 +122,8 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	var city, education *string
 	var skills []string
 	var years *int
-	err = tx.QueryRow(ctx, `SELECT city,skills,years_of_experience,education_level FROM candidate_profiles WHERE user_id=$1`, candidate).Scan(&city, &skills, &years, &education)
+	// G3 removes profile free text; G4 replaces the §19 city snapshot.
+	err = tx.QueryRow(ctx, `SELECT NULL::text,skills,years_of_experience,education_level FROM candidate_profiles WHERE user_id=$1`, candidate).Scan(&city, &skills, &years, &education)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return app.Result{}, err
 	}

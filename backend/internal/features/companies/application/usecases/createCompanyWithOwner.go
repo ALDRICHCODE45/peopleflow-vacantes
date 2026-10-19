@@ -7,6 +7,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identityvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/valueobjects"
 )
@@ -40,6 +41,9 @@ func (s *CompanyService) CreateCompanyWithOwner(ctx context.Context, cognitoSub 
 		return nil, entities.ErrCreatorNotEmployer
 	}
 
+	if err := geo.ValidateLocation(ctx, s.geography, params.Location, true); err != nil {
+		return nil, err
+	}
 	company, err := buildCompany(params)
 	if err != nil {
 		return nil, err

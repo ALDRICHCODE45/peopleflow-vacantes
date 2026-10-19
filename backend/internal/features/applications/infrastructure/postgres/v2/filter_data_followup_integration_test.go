@@ -43,7 +43,7 @@ func TestFilterDataPopulatedSnapshotsNeverReachRequestLogsOrAuditMetadata(t *tes
 	if err = m.pool.QueryRow(ctx, `SELECT id FROM users WHERE cognito_sub=$1`, m.other).Scan(&candidate); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = m.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,city,skills,years_of_experience,education_level) VALUES($1,$2,ARRAY[$3]::text[],7,'master')`, candidate, city, skill); err != nil {
+	if _, err = m.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,skills,years_of_experience,education_level) VALUES($1,ARRAY[$2]::text[],7,'master')`, candidate, skill); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
@@ -100,6 +100,11 @@ func TestFilterDataPopulatedSnapshotsNeverReachRequestLogsOrAuditMetadata(t *tes
 	applied := request(http.MethodPost, "/jobs/"+m.vacancy.String()+"/applications", string(reqBody), "", uuid.NewString(), 201)
 	var submitted app.Submitted
 	if err = json.Unmarshal(applied.Body.Bytes(), &submitted); err != nil {
+		t.Fatal(err)
+	}
+	// G3 leaves historical §19 snapshots intact. Simulate an existing city
+	// snapshot to keep the privacy assertion non-vacuous until G4 rewrites it.
+	if _, err = m.pool.Exec(ctx, `UPDATE process_participations SET profile_snapshot=jsonb_set(profile_snapshot,'{city}',to_jsonb($2::text)) WHERE id=$1`, submitted.ID, city); err != nil {
 		t.Fatal(err)
 	}
 	var profile, answers []byte

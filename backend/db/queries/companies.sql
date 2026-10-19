@@ -9,13 +9,13 @@ WITH active_industry AS MATERIALIZED (
 )
 INSERT INTO companies (
     id, name, rfc, industry_id, website, logo_url,
-    description, size, founded_year, city, country,
+    description, size, founded_year, country_code, state_code, municipality_code, postal_code,
     linkedin_url, instagram_url, facebook_url, twitter_url, cover_image_url
 )
 SELECT
     $1, $2, $3, $4, $5, $6,
-    $7, $8, $9, $10, $11,
-    $12, $13, $14, $15, $16
+    $7, $8, $9, $10, $11, $12, $13,
+    $14, $15, $16, $17, $18
 FROM active_industry
 RETURNING *;
 
@@ -94,10 +94,14 @@ WITH upd AS (
                                 THEN sqlc.narg('size')::text ELSE size END,
         founded_year    = CASE WHEN sqlc.arg('set_founded_year')::boolean
                                 THEN sqlc.narg('founded_year')::int2 ELSE founded_year END,
-        city            = CASE WHEN sqlc.arg('set_city')::boolean
-                                THEN sqlc.narg('city')::text ELSE city END,
-        country         = CASE WHEN sqlc.arg('set_country')::boolean
-                                THEN sqlc.narg('country')::text ELSE country END,
+        country_code    = CASE WHEN sqlc.arg('set_location')::boolean
+                                THEN sqlc.narg('country_code')::char(2) ELSE country_code END,
+        state_code      = CASE WHEN sqlc.arg('set_location')::boolean
+                                THEN sqlc.narg('state_code')::text ELSE state_code END,
+        municipality_code = CASE WHEN sqlc.arg('set_location')::boolean
+                                THEN sqlc.narg('municipality_code')::text ELSE municipality_code END,
+        postal_code     = CASE WHEN sqlc.arg('set_location')::boolean
+                                THEN sqlc.narg('postal_code')::text ELSE postal_code END,
         linkedin_url    = CASE WHEN sqlc.arg('set_linkedin_url')::boolean
                                 THEN sqlc.narg('linkedin_url')::text ELSE linkedin_url END,
         instagram_url   = CASE WHEN sqlc.arg('set_instagram_url')::boolean

@@ -437,8 +437,8 @@ func TestUpdateCompany_AbsentFieldsLeavePatchUntouched(t *testing.T) {
 	if gotPatch.FoundedYear.Set {
 		t.Errorf("patch.FoundedYear.Set: want false (absent), got true")
 	}
-	if gotPatch.City.Set || gotPatch.Country.Set {
-		t.Errorf("patch.City/Country.Set: want false, got %v / %v", gotPatch.City.Set, gotPatch.Country.Set)
+	if gotPatch.Location.Set {
+		t.Error("absent location must stay untouched")
 	}
 	if gotPatch.LinkedInURL.Set || gotPatch.InstagramURL.Set ||
 		gotPatch.FacebookURL.Set || gotPatch.TwitterURL.Set {
@@ -591,7 +591,7 @@ func TestCompanyEditorViewDto_OmitsRedactedFields(t *testing.T) {
 		UpdatedAt:  now,
 		DeletedAt:  &now,
 	}
-	view := toCompanyEditorView(stored)
+	view := toCompanyEditorView(stored, nil)
 
 	if view.ID != companyID.String() {
 		t.Errorf("ID: want %v, got %v", companyID, view.ID)

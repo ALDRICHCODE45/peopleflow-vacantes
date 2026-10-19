@@ -9,8 +9,8 @@
 //     for it (a present empty string after trim is the VO rejection
 //     signal `ErrCompanyNameTooShort`). nil → absent; non-nil → value.
 //
-//   - The twelve profile columns (`Website`, `LogoURL`, `Description`,
-//     `Size`, `FoundedYear`, `City`, `Country`, `LinkedInURL`,
+//   - The eleven profile fields (`Website`, `LogoURL`, `Description`,
+//     `Size`, `FoundedYear`, `Location`, `LinkedInURL`,
 //     `InstagramURL`, `FacebookURL`, `TwitterURL`, `CoverImageURL`)
 //     use the tri-state `Optional[T]` codec (shared D6). The
 //     spec is authoritative: "MUST distinguish null from absent for
@@ -30,13 +30,15 @@
 package dtos
 
 import (
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 	sharedvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
 )
 
 // UpdateCompanyDto is the input body for PATCH /me/company (design
-// D7). All 12 profile fields are `Optional[T]` so the wire format
+// D7, G3). All 11 profile fields are `Optional[T]` so the wire format
 // distinguishes JSON absent (`Set=false`) from JSON `null`
 // (`Set=true, Valid=false`) from a real value (`Set=true, Valid=true`).
+// Location is replaced as a whole; its nested keys are strictly decoded.
 type UpdateCompanyDto struct {
 	Name *string `json:"name"`
 
@@ -46,8 +48,7 @@ type UpdateCompanyDto struct {
 	Size        sharedvalueobjects.Optional[string] `json:"size"`
 	FoundedYear sharedvalueobjects.Optional[int]    `json:"founded_year"`
 
-	City    sharedvalueobjects.Optional[string] `json:"city"`
-	Country sharedvalueobjects.Optional[string] `json:"country"`
+	Location sharedvalueobjects.Optional[geo.LocationInput] `json:"location"`
 
 	LinkedInURL  sharedvalueobjects.Optional[string] `json:"linkedin_url"`
 	InstagramURL sharedvalueobjects.Optional[string] `json:"instagram_url"`

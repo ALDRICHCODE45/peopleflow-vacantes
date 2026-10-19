@@ -32,6 +32,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
+	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
 	identityusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
@@ -155,7 +156,8 @@ func run() error {
 	// `auditRepo` variable.
 	companyRepo := postgres.NewCompanyRepository(pool, auditRepo)
 	companyBootstrapRepo := postgres.NewCompanyBootstrapRepository(pool)
-	companyService := usecases.NewCompanyServiceWithBootstrap(companyRepo, identityUserRepo, companyBootstrapRepo)
+	geography := geopostgres.NewReader(queries)
+	companyService := usecases.NewCompanyServiceWithBootstrap(companyRepo, identityUserRepo, companyBootstrapRepo, geography)
 	companyHandler := companieshttp.NewCompanyHandler(companyService)
 
 	// Feature wiring: company_members (adapter -> use case -> handler).
@@ -172,7 +174,7 @@ func run() error {
 	// language-replace tx) -> service (uses identity user repo) ->
 	// handler (reads JWT subject from context).
 	candidateRepo := candidatespostgres.NewCandidateRepository(pool)
-	candidateService := candidatesusecases.NewCandidateService(candidateRepo, identityUserRepo)
+	candidateService := candidatesusecases.NewCandidateService(candidateRepo, identityUserRepo, geography)
 	candidateHandler := candidateshttp.NewCandidateHandler(candidateService)
 	// An absent root disables only CV routes, after their usual identity gates.
 	var cvHandler *cvshttp.Handler

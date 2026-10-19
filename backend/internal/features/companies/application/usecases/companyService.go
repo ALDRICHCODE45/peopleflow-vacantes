@@ -2,7 +2,10 @@
 package usecases
 
 import (
+	"context"
 	"errors"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
+	geodomain "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	identityrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/repositories"
@@ -25,6 +28,7 @@ var ErrMissingActorIdentity = errors.New("missing actor identity")
 
 type CompanyService struct {
 	repository repositories.CompanyRepository
+	geography  geo.Reader
 
 	// Bootstrap collaborators — nil when the service is built with
 	// NewCompanyService (the legacy read/create path); populated by
@@ -36,10 +40,12 @@ type CompanyService struct {
 // NewCompanyService wires only the company repository. It backs the
 // read-oriented and legacy create paths; it does NOT enable
 // CreateCompanyWithOwner (those collaborators are nil here).
-func NewCompanyService(repository repositories.CompanyRepository) *CompanyService {
-	return &CompanyService{
-		repository: repository,
+func NewCompanyService(repository repositories.CompanyRepository, geography ...geo.Reader) *CompanyService {
+	s := &CompanyService{repository: repository}
+	if len(geography) > 0 {
+		s.geography = geography[0]
 	}
+	return s
 }
 
 // NewCompanyServiceWithBootstrap wires the full dependency set for the
@@ -50,10 +56,14 @@ func NewCompanyServiceWithBootstrap(
 	repository repositories.CompanyRepository,
 	userRepo identityrepositories.UserRepository,
 	bootstrapRepo repositories.CompanyBootstrapRepository,
+	geography ...geo.Reader,
 ) *CompanyService {
-	return &CompanyService{
-		repository:    repository,
-		userRepo:      userRepo,
-		bootstrapRepo: bootstrapRepo,
-	}
+	s := NewCompanyService(repository, geography...)
+	s.userRepo = userRepo
+	s.bootstrapRepo = bootstrapRepo
+	return s
+}
+
+func (s *CompanyService) ReadLocation(ctx context.Context, value *geodomain.Value) (*geo.ReadLocation, error) {
+	return geo.ExpandLocation(ctx, s.geography, value)
 }

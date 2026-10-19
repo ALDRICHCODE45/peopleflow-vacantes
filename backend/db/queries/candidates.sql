@@ -9,7 +9,7 @@
 INSERT INTO candidate_profiles (
     user_id, phone, linkedin_url, portfolio_url, professional_title,
     current_company, years_of_experience, profile_summary, birth_date,
-    city, country, education_level, field_of_study, skills,
+    country_code, state_code, municipality_code, education_level, field_of_study, skills,
     current_salary_gross, current_salary_net, expected_salary,
     salary_currency, expected_salary_period,
     created_at, updated_at
@@ -17,9 +17,9 @@ INSERT INTO candidate_profiles (
 VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9,
-    $10, $11, $12, $13, $14,
-    $15, $16, $17,
-    $18, $19,
+    $10, $11, $12, $13, $14, $15,
+    $16, $17, $18,
+    $19, $20,
     now(), now()
 )
 ON CONFLICT (user_id) DO UPDATE SET
@@ -31,8 +31,9 @@ ON CONFLICT (user_id) DO UPDATE SET
     years_of_experience    = EXCLUDED.years_of_experience,
     profile_summary        = EXCLUDED.profile_summary,
     birth_date             = EXCLUDED.birth_date,
-    city                   = EXCLUDED.city,
-    country                = EXCLUDED.country,
+    country_code           = EXCLUDED.country_code,
+    state_code             = EXCLUDED.state_code,
+    municipality_code      = EXCLUDED.municipality_code,
     education_level        = EXCLUDED.education_level,
     field_of_study         = EXCLUDED.field_of_study,
     skills                 = EXCLUDED.skills,

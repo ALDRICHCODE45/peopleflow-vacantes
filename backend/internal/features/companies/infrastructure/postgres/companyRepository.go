@@ -13,6 +13,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 	sharedvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -370,23 +371,26 @@ func buildCreateParams(c *entities.Company) db.CreateCompanyParams {
 		descStr = c.Description.Value()
 	}
 
+	country, state, municipality, postal := locationColumns(c.Location)
 	return db.CreateCompanyParams{
-		ID:            c.ID,
-		Name:          c.Name.Value(),
-		Rfc:           c.Rfc.Value(),
-		IndustryID:    c.IndustryID,
-		Website:       textPtrToPgText(c.Website),
-		LogoUrl:       textPtrToPgText(c.LogoURL),
-		Description:   pgtype.Text{String: descStr, Valid: c.Description != nil},
-		Size:          pgtype.Text{String: sizeStr, Valid: c.Size != nil},
-		FoundedYear:   year,
-		City:          textPtrToPgText(c.City),
-		Country:       textPtrToPgText(c.Country),
-		LinkedinUrl:   textPtrToPgText(c.LinkedInURL),
-		InstagramUrl:  textPtrToPgText(c.InstagramURL),
-		FacebookUrl:   textPtrToPgText(c.FacebookURL),
-		TwitterUrl:    textPtrToPgText(c.TwitterURL),
-		CoverImageUrl: textPtrToPgText(c.CoverImageURL),
+		ID:               c.ID,
+		Name:             c.Name.Value(),
+		Rfc:              c.Rfc.Value(),
+		IndustryID:       c.IndustryID,
+		Website:          textPtrToPgText(c.Website),
+		LogoUrl:          textPtrToPgText(c.LogoURL),
+		Description:      pgtype.Text{String: descStr, Valid: c.Description != nil},
+		Size:             pgtype.Text{String: sizeStr, Valid: c.Size != nil},
+		FoundedYear:      year,
+		CountryCode:      country,
+		StateCode:        state,
+		MunicipalityCode: municipality,
+		PostalCode:       postal,
+		LinkedinUrl:      textPtrToPgText(c.LinkedInURL),
+		InstagramUrl:     textPtrToPgText(c.InstagramURL),
+		FacebookUrl:      textPtrToPgText(c.FacebookURL),
+		TwitterUrl:       textPtrToPgText(c.TwitterURL),
+		CoverImageUrl:    textPtrToPgText(c.CoverImageURL),
 	}
 }
 
@@ -434,6 +438,10 @@ func toEntity(row db.Company) (*entities.Company, error) {
 		foundedYear = &y
 	}
 
+	var location *geo.Value
+	if row.CountryCode.Valid {
+		location = &geo.Value{Country: row.CountryCode.String, State: row.StateCode.String, Municipality: row.MunicipalityCode.String, PostalCode: row.PostalCode.String}
+	}
 	return &entities.Company{
 		ID:            row.ID,
 		Name:          name,
@@ -445,8 +453,7 @@ func toEntity(row db.Company) (*entities.Company, error) {
 		Description:   description,
 		Size:          size,
 		FoundedYear:   foundedYear,
-		City:          pgTextToTextPtr(row.City),
-		Country:       pgTextToTextPtr(row.Country),
+		Location:      location,
 		LinkedInURL:   pgTextToTextPtr(row.LinkedinUrl),
 		InstagramURL:  pgTextToTextPtr(row.InstagramUrl),
 		FacebookURL:   pgTextToTextPtr(row.FacebookUrl),
@@ -459,6 +466,14 @@ func toEntity(row db.Company) (*entities.Company, error) {
 }
 
 // --- nullable column helpers: entity pointers <-> pgtype wrappers ---
+
+func locationColumns(value *geo.Value) (country, state, municipality, postal pgtype.Text) {
+	if value == nil {
+		return
+	}
+	text := func(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }
+	return text(value.Country), text(value.State), text(value.Municipality), text(value.PostalCode)
+}
 
 func textPtrToPgText(s *string) pgtype.Text {
 	if s == nil {
@@ -504,8 +519,12 @@ func mapCompanyCreateError(err error) error {
 		switch pgErr.Code {
 		case "23505": // unique_violation
 			return entities.ErrDuplicateCompany
-		case "23503": // foreign_key_violation
-			return entities.ErrIndustryNotFound
+		case "23503": // Only the industry FK is a client industry error.
+			// Catalog writes were validated; a later catalog FK failure is a
+			// storage race/integrity error, never a misleading industry response.
+			if pgErr.ConstraintName == "companies_industry_id_fkey" {
+				return entities.ErrIndustryNotFound
+			}
 		}
 	}
 	return err
@@ -533,6 +552,11 @@ func mapCompanyCreateError(err error) error {
 // (lowercase for `companies_size_check`), founded_year is the int,
 // name/description are the trimmed raw values.
 func buildUpdateCompanyParams(companyID uuid.UUID, patch repositories.UpdateCompanyPatch, casUpdatedAt time.Time) db.UpdateCompanyParams {
+	var location *geo.Value
+	if patch.Location.Set && patch.Location.Valid {
+		location = &patch.Location.Value
+	}
+	country, state, municipality, postal := locationColumns(location)
 	return db.UpdateCompanyParams{
 		Name:             textPtrToPgText(patch.Name),
 		SetWebsite:       patch.Website.Set,
@@ -545,10 +569,11 @@ func buildUpdateCompanyParams(companyID uuid.UUID, patch repositories.UpdateComp
 		Size:             optionalStringToPgText(patch.Size),
 		SetFoundedYear:   patch.FoundedYear.Set,
 		FoundedYear:      optionalIntToPgInt2(patch.FoundedYear),
-		SetCity:          patch.City.Set,
-		City:             optionalStringToPgText(patch.City),
-		SetCountry:       patch.Country.Set,
-		Country:          optionalStringToPgText(patch.Country),
+		SetLocation:      patch.Location.Set,
+		CountryCode:      country,
+		StateCode:        state,
+		MunicipalityCode: municipality,
+		PostalCode:       postal,
 		SetLinkedinUrl:   patch.LinkedInURL.Set,
 		LinkedinUrl:      optionalStringToPgText(patch.LinkedInURL),
 		SetInstagramUrl:  patch.InstagramURL.Set,

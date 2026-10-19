@@ -11,6 +11,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
 	"github.com/go-chi/chi/v5"
@@ -84,9 +85,8 @@ type createCompanyRequest struct {
 	Size        *string `json:"size"`
 	FoundedYear *int    `json:"founded_year"`
 
-	City        *string `json:"city"`
-	Country     *string `json:"country"`
-	LinkedInURL *string `json:"linkedin_url"`
+	Location    *geo.LocationInput `json:"location"`
+	LinkedInURL *string            `json:"linkedin_url"`
 
 	InstagramURL  *string `json:"instagram_url"`
 	FacebookURL   *string `json:"facebook_url"`
@@ -110,9 +110,8 @@ type companyResponse struct {
 	Size        *string `json:"size,omitempty"`
 	FoundedYear *int    `json:"founded_year,omitempty"`
 
-	City        *string `json:"city,omitempty"`
-	Country     *string `json:"country,omitempty"`
-	LinkedInURL *string `json:"linkedin_url,omitempty"`
+	Location    *geo.ReadLocation `json:"location"`
+	LinkedInURL *string           `json:"linkedin_url,omitempty"`
 
 	InstagramURL  *string `json:"instagram_url,omitempty"`
 	FacebookURL   *string `json:"facebook_url,omitempty"`
@@ -138,9 +137,8 @@ type companyPublicResponse struct {
 	Size        *string `json:"size,omitempty"`
 	FoundedYear *int    `json:"founded_year,omitempty"`
 
-	City        *string `json:"city,omitempty"`
-	Country     *string `json:"country,omitempty"`
-	LinkedInURL *string `json:"linkedin_url,omitempty"`
+	Location    *geo.ReadLocation `json:"location"`
+	LinkedInURL *string           `json:"linkedin_url,omitempty"`
 
 	InstagramURL  *string `json:"instagram_url,omitempty"`
 	FacebookURL   *string `json:"facebook_url,omitempty"`
@@ -177,15 +175,21 @@ func (h *CompanyHandler) createCompany(w http.ResponseWriter, r *http.Request) {
 		Description:   req.Description,
 		Size:          req.Size,
 		FoundedYear:   req.FoundedYear,
-		City:          req.City,
-		Country:       req.Country,
+		Location:      req.Location,
 		LinkedInURL:   req.LinkedInURL,
 		InstagramURL:  req.InstagramURL,
 		FacebookURL:   req.FacebookURL,
 		TwitterURL:    req.TwitterURL,
 		CoverImageURL: req.CoverImageURL,
 	})
+	var location *geo.ReadLocation
+	if err == nil {
+		location, err = h.service.ReadLocation(r.Context(), company.Location)
+	}
 	if err != nil {
+		if writeInvalidLocation(w, err) {
+			return
+		}
 		def := classifyCreateCompanyError(err)
 		if def.Code == httpjson.CodeInternalError {
 			logCompanyInternalError(r, "create company failed")
@@ -194,7 +198,7 @@ func (h *CompanyHandler) createCompany(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpjson.WriteJSON(w, http.StatusCreated, toCompanyResponse(company))
+	httpjson.WriteJSON(w, http.StatusCreated, toCompanyResponse(company, location))
 }
 
 func (h *CompanyHandler) getCompany(w http.ResponseWriter, r *http.Request) {
@@ -205,6 +209,10 @@ func (h *CompanyHandler) getCompany(w http.ResponseWriter, r *http.Request) {
 	}
 
 	company, err := h.service.GetCompanyByID(r.Context(), id)
+	var location *geo.ReadLocation
+	if err == nil {
+		location, err = h.service.ReadLocation(r.Context(), company.Location)
+	}
 	if err != nil {
 		def := classifyGetCompanyError(err)
 		if def.Code == httpjson.CodeInternalError {
@@ -214,24 +222,23 @@ func (h *CompanyHandler) getCompany(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpjson.WriteJSON(w, http.StatusOK, toCompanyPublicResponse(company))
+	httpjson.WriteJSON(w, http.StatusOK, toCompanyPublicResponse(company, location))
 }
 
 // toCompanyResponse maps the domain entity into the create response shape.
-func toCompanyResponse(c *entities.Company) companyResponse {
+func toCompanyResponse(c *entities.Company, location *geo.ReadLocation) companyResponse {
 	return companyResponse{
 		ID:            c.ID.String(),
 		Name:          c.Name.Value(),
 		Rfc:           c.Rfc.Value(),
 		IndustryID:    c.IndustryID,
 		Status:        c.Status.String(),
+		Location:      location,
 		Website:       c.Website,
 		LogoURL:       c.LogoURL,
 		Description:   descriptionToStringPtr(c.Description),
 		Size:          sizeToStringPtr(c.Size),
 		FoundedYear:   foundedYearToIntPtr(c.FoundedYear),
-		City:          c.City,
-		Country:       c.Country,
 		LinkedInURL:   c.LinkedInURL,
 		InstagramURL:  c.InstagramURL,
 		FacebookURL:   c.FacebookURL,
@@ -243,24 +250,36 @@ func toCompanyResponse(c *entities.Company) companyResponse {
 }
 
 // toCompanyPublicResponse maps the domain entity into the redacted public shape.
-func toCompanyPublicResponse(c *entities.Company) companyPublicResponse {
+func toCompanyPublicResponse(c *entities.Company, location *geo.ReadLocation) companyPublicResponse {
 	return companyPublicResponse{
 		ID:            c.ID.String(),
 		Name:          c.Name.Value(),
 		IndustryID:    c.IndustryID,
+		Location:      location,
 		Website:       c.Website,
 		LogoURL:       c.LogoURL,
 		Description:   descriptionToStringPtr(c.Description),
 		Size:          sizeToStringPtr(c.Size),
 		FoundedYear:   foundedYearToIntPtr(c.FoundedYear),
-		City:          c.City,
-		Country:       c.Country,
 		LinkedInURL:   c.LinkedInURL,
 		InstagramURL:  c.InstagramURL,
 		FacebookURL:   c.FacebookURL,
 		TwitterURL:    c.TwitterURL,
 		CoverImageURL: c.CoverImageURL,
 	}
+}
+
+func writeInvalidLocation(w http.ResponseWriter, err error) bool {
+	var invalid *geo.InvalidLocation
+	if !errors.As(err, &invalid) {
+		return false
+	}
+	details := make([]httpjson.GeoDetail, 0, len(invalid.Details))
+	for _, d := range invalid.Details {
+		details = append(details, httpjson.GeoDetail{Field: d.Field, Reason: d.Reason})
+	}
+	httpjson.WriteGeoError(w, httpjson.Resolve(httpjson.CodeInvalidLocation), details)
+	return true
 }
 
 func descriptionToStringPtr(d *valueobjects.CompanyDescription) *string {
@@ -410,6 +429,9 @@ func (h *CompanyHandler) updateCompany(w http.ResponseWriter, r *http.Request) {
 			} else {
 				httpjson.WriteCatalogError(w, httpjson.Resolve(httpjson.CodeConflict))
 			}
+			return
+		}
+		if writeInvalidLocation(w, err) {
 			return
 		}
 		def := classifyUpdateCompanyError(err)

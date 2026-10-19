@@ -157,7 +157,8 @@ func TestEventIntent_ClosedVocabulary_CompanyEvents(t *testing.T) {
 	// application PII field, may appear.
 	forbiddenCompanyKeys := []string{
 		"description", "name", "website", "logo_url", "size",
-		"founded_year", "city", "country",
+		"founded_year", "city", "country", "location",
+		"country_code", "state_code", "municipality_code", "postal_code",
 		"linkedin_url", "instagram_url", "facebook_url", "twitter_url",
 		"cover_image_url", "rfc", "industry_id", "status", "rfc",
 	}

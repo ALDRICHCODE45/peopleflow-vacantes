@@ -32,7 +32,13 @@ See [movement](pipeline-movement.md) for complete root/item keys.
 
 ## Snapshot and normalization
 
-P2b apply reads only city, skills, years and education from `candidate_profiles`
+**G3 interim (00032):** candidate city/country columns have been removed. New
+applications read `NULL::text` for city, so new snapshots contain `city:null`.
+Skills, years and education still snapshot normally; existing snapshots and
+replays are untouched. G4/00033 will replace city with structured location.
+Migration 00029 and its JSON CHECK are unchanged. See [G3](geo-profiles.md).
+
+Before G3, P2b apply read only city, skills, years and education from `candidate_profiles`
 inside the existing apply transaction. A missing profile produces the no-data
 object above. City is trimmed and every run of Unicode whitespace is collapsed
 into one ASCII space; empty becomes null. Skills are copied as stored, including
@@ -73,7 +79,7 @@ question/option matches no current option; a missing answer uses `none`.
 | `TestProfileSnapshotNormalization` | §19.2 Unicode whitespace, empty/missing city, preserved skill order/duplicates, zero years, education, exact keys, independent copy, missing-profile defaults |
 | `TestScreeningFilterDataUsesOnlyChoiceAndKeepsSnapshotOrder` | §19.1 safe identifier-only answers, open exclusion, stored answer order, case-insensitive question identity, current-questionnaire order, exact option/filter keys, empty arrays |
 | `TestBoardFilterDataUsesSafeCurrentScreeningProjector` | §19.1 composition-root reuse of safe current questionnaire projection, evaluated choices without private keys/flags, empty/open-only catalogs |
-| `TestFilterDataApplySnapshotNormalizationAndReplay` (DB) | §19.2–§19.3 actual transactional snapshot, missing profile, empty/whitespace/collapsed city, every field, immutable after profile edits, frozen replay, invalid answers/unavailable CV/stale revision/audit failure leave none, duplicate/conflicting applies preserve the original |
+| `TestFilterDataApplySnapshotNormalizationAndReplay` (DB) | §19.2–§19.3 actual transactional snapshot, missing/present profile with G3 null city, every other field, immutable after profile edits, frozen replay, invalid answers/unavailable CV/stale revision/audit failure leave none, duplicate/conflicting applies preserve the original |
 | `TestFilterDataBoardDetailLegacyCurrentQuestionnaireAndPrivacy` (DB) | §19.1–§19.2 exact root/item/detail/profile keys, legacy defaults, edited questionnaire removes question/option only from filters, open-text exclusion, positive applied profile on board/detail and immutable replay, candidate apply/list, mutation/history and public list/detail/screening privacy, no-question catalog |
 | `TestBoardFilterDataMigration` | §19.3 additive nullable shape CHECK and retention-guarded down definition |
 | `TestMigration00029ExistingRowsShapeAndGuardedDown` (DB) | §19.3 existing-row preservation, complete valid/invalid shape matrix (including nested/non-string skills and fractional/negative years), retained-data down refusal, empty down preserves rows |

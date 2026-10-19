@@ -23,6 +23,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 	"github.com/google/uuid"
 )
 
@@ -78,7 +79,7 @@ func (s *CompanyService) UpdateCompany(
 	//    If-Unmodified-Since returns 409". The 409 body carries the
 	//    latest editor view (spec R3).
 	if !ifUnmodifiedSince.Equal(current.UpdatedAt) {
-		return toCompanyEditorView(current), entities.ErrConcurrencyConflict
+		return s.editorView(ctx, current, entities.ErrConcurrencyConflict)
 	}
 
 	// 3. VO parse + 4. Build the patch (canonicalize size / founded_year;
@@ -90,13 +91,22 @@ func (s *CompanyService) UpdateCompany(
 		Description:   in.Description,
 		Size:          in.Size,
 		FoundedYear:   in.FoundedYear,
-		City:          in.City,
-		Country:       in.Country,
 		LinkedInURL:   in.LinkedInURL,
 		InstagramURL:  in.InstagramURL,
 		FacebookURL:   in.FacebookURL,
 		TwitterURL:    in.TwitterURL,
 		CoverImageURL: in.CoverImageURL,
+	}
+
+	if in.Location.Set {
+		patch.Location.Set = true
+		patch.Location.Valid = in.Location.Valid
+		if in.Location.Valid {
+			if err := geo.ValidateLocation(ctx, s.geography, &in.Location.Value, true); err != nil {
+				return nil, err
+			}
+			patch.Location.Value = *in.Location.Value.Value()
+		}
 	}
 
 	if in.Name != nil {
@@ -173,7 +183,7 @@ func (s *CompanyService) UpdateCompany(
 			// Post-WS2D-B: ANY 0-row adapter result after step-1
 			// observation is a concurrent CAS loss. Re-read removed —
 			// return 409 + pre-race editor view (spec R3 shape).
-			return toCompanyEditorView(current), entities.ErrConcurrencyConflict
+			return s.editorView(ctx, current, entities.ErrConcurrencyConflict)
 		}
 		// 23514 → ErrInvalidCompanyStatusTransition (defense-in-depth;
 		// unreachable via the designed flow — the use case parses
@@ -192,7 +202,15 @@ func (s *CompanyService) UpdateCompany(
 	}
 
 	// 8. Project the editor view and return.
-	return toCompanyEditorView(fresh), nil
+	return s.editorView(ctx, fresh, nil)
+}
+
+func (s *CompanyService) editorView(ctx context.Context, c *entities.Company, result error) (*dtos.CompanyEditorViewDto, error) {
+	location, err := s.ReadLocation(ctx, c.Location)
+	if err != nil {
+		return nil, err
+	}
+	return toCompanyEditorView(c, location), result
 }
 
 // toCompanyEditorView is the single projection from the companies
@@ -201,15 +219,14 @@ func (s *CompanyService) UpdateCompany(
 // compatible (spec requirement: "200 and 409 bodies use the same
 // shape"). It is intentionally a package-private helper — no other
 // layer needs it.
-func toCompanyEditorView(c *entities.Company) *dtos.CompanyEditorViewDto {
+func toCompanyEditorView(c *entities.Company, location *geo.ReadLocation) *dtos.CompanyEditorViewDto {
 	view := &dtos.CompanyEditorViewDto{
 		ID:            c.ID.String(),
 		Name:          c.Name.Value(),
 		UpdatedAt:     c.UpdatedAt,
 		Website:       c.Website,
 		LogoURL:       c.LogoURL,
-		City:          c.City,
-		Country:       c.Country,
+		Location:      location,
 		LinkedInURL:   c.LinkedInURL,
 		InstagramURL:  c.InstagramURL,
 		FacebookURL:   c.FacebookURL,

@@ -6,6 +6,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 )
 
 // CreateCompany parses the optional profile fields into their value objects
@@ -13,6 +14,9 @@ import (
 // errors from any VO constructor are returned unchanged so the HTTP layer can
 // translate them into 4xx responses.
 func (s *CompanyService) CreateCompany(ctx context.Context, params dtos.CreateCompanyDto) (*entities.Company, error) {
+	if err := geo.ValidateLocation(ctx, s.geography, params.Location, true); err != nil {
+		return nil, err
+	}
 	company, err := buildCompany(params)
 	if err != nil {
 		return nil, err
@@ -49,8 +53,7 @@ func buildCompanyProfile(p dtos.CreateCompanyDto) (entities.CompanyProfile, erro
 	profile := entities.CompanyProfile{
 		Website:       p.Website,
 		LogoURL:       p.LogoURL,
-		City:          p.City,
-		Country:       p.Country,
+		Location:      p.Location.Value(),
 		LinkedInURL:   p.LinkedInURL,
 		InstagramURL:  p.InstagramURL,
 		FacebookURL:   p.FacebookURL,

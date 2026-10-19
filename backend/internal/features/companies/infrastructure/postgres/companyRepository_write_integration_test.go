@@ -63,6 +63,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	sharedvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
 	"github.com/google/uuid"
@@ -450,10 +451,11 @@ func TestUpdateCompany_PartialUpdateAndCAS(t *testing.T) {
 	//       patch (city=set, logo_url=null), city becomes the
 	//       value, logo_url stays cleared to NULL, description
 	//       stays NULL (absent).
-	newCity := "CDMX"
+	seedCompanyLocationCatalog(t, ctx, pool)
+	newCity := "MX"
 	if err := repo.UpdateCompany(ctx, writeCoA, repositories.UpdateCompanyPatch{
-		City:    sharedvalueobjects.Optional[string]{Set: true, Valid: true, Value: newCity},
-		LogoURL: sharedvalueobjects.Optional[string]{Set: true, Valid: false}, // explicit null
+		Location: sharedvalueobjects.Optional[geo.Value]{Set: true, Valid: true, Value: geo.Value{Country: "MX"}},
+		LogoURL:  sharedvalueobjects.Optional[string]{Set: true, Valid: false}, // explicit null
 	}, postUpdatedAt, writeAuditEvent(auditentities.EventCompanyUpdated, writeCoA)); err != nil {
 		t.Fatalf("UpdateCompany #2: %v", err)
 	}
@@ -463,7 +465,7 @@ func TestUpdateCompany_PartialUpdateAndCAS(t *testing.T) {
 		descValue    *string
 	)
 	if err := pool.QueryRow(ctx,
-		`SELECT city, logo_url, description FROM companies WHERE id = $1`, writeCoA,
+		`SELECT country_code, logo_url, description FROM companies WHERE id = $1`, writeCoA,
 	).Scan(&cityValue, &logoURLValue, &descValue); err != nil {
 		t.Fatalf("post #2 snapshot: %v", err)
 	}
@@ -1585,6 +1587,7 @@ func TestCompanyRepository_Create_Live(t *testing.T) {
 	desc, _ := valueobjects.NewCompanyDescription("Live company profile.")
 	size, _ := valueobjects.ParseCompanySize("medium")
 	year, _ := valueobjects.NewFoundedYear(2000)
+	seedCompanyLocationCatalog(t, ctx, pool)
 	companyID := uuid.New()
 	rfc := strings.ToUpper(uniqueRFC("LIVE", companyID))
 	company, err := entities.NewCompany("Live Company SA de CV", rfc, writeIndID,
@@ -1599,8 +1602,7 @@ func TestCompanyRepository_Create_Live(t *testing.T) {
 			Description:   &desc,
 			Size:          &size,
 			FoundedYear:   &year,
-			City:          strPtr("CDMX"),
-			Country:       strPtr("MX"),
+			Location:      &geo.Value{Country: "MX", State: "14", Municipality: "14039", PostalCode: "44100"},
 		})
 	if err != nil {
 		t.Fatalf("NewCompany: %v", err)
@@ -1638,11 +1640,8 @@ func TestCompanyRepository_Create_Live(t *testing.T) {
 	if read.FoundedYear == nil || read.FoundedYear.Value() != year.Value() {
 		t.Errorf("FoundedYear: want %v, got %v", year, read.FoundedYear)
 	}
-	if read.City == nil || *read.City != "CDMX" {
-		t.Errorf("City: want %q, got %v", "CDMX", read.City)
-	}
-	if read.Country == nil || *read.Country != "MX" {
-		t.Errorf("Country: want %q, got %v", "MX", read.Country)
+	if read.Location == nil || *read.Location != (geo.Value{Country: "MX", State: "14", Municipality: "14039", PostalCode: "44100"}) {
+		t.Errorf("location: %+v", read.Location)
 	}
 	if read.LinkedInURL == nil || *read.LinkedInURL != linkedin {
 		t.Errorf("LinkedInURL: want %q, got %v", linkedin, read.LinkedInURL)

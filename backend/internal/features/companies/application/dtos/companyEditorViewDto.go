@@ -7,7 +7,7 @@
 // the existing public shape exposes `IndustryID`, contradicting the
 // spec's `MUST NOT include industry_id` requirement for the PATCH
 // wire surface. The new DTO is wire-compatible with `GET /companies/{id}`
-// for every field the spec requires (id, name, 12 profile fields,
+// for every field the spec requires (id, name, 11 profile fields,
 // updated_at) and intentionally omits `rfc`, `industry_id`, `status`,
 // `deleted_at`, and `created_at`.
 //
@@ -16,11 +16,15 @@
 // bodies use the same wire shape").
 //
 // `UpdatedAt` has NO `omitempty` (always echoed as the next CAS
-// token); the 12 profile fields use `omitempty` so absent SQL values
-// stay absent on the wire.
+// token). Location is always present (expanded object or null); the other
+// optional profile fields retain `omitempty`.
 package dtos
 
-import "time"
+import (
+	"time"
+
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
+)
 
 // CompanyEditorViewDto is the redacted public company shape returned
 // by PATCH /me/company on both `200 OK` (success) and `409 Conflict`
@@ -37,8 +41,7 @@ type CompanyEditorViewDto struct {
 	Size        *string `json:"size,omitempty"`
 	FoundedYear *int    `json:"founded_year,omitempty"`
 
-	City    *string `json:"city,omitempty"`
-	Country *string `json:"country,omitempty"`
+	Location *geo.ReadLocation `json:"location"`
 
 	LinkedInURL *string `json:"linkedin_url,omitempty"`
 
