@@ -186,7 +186,8 @@ func run() error {
 		movementStorage = privateCVStorage
 		cvHandler = cvshttp.NewHandler(cvspostgres.NewLibrary(pool, privateCVStorage), draftjson.Decode)
 	}
-	participationHandler := applicationsv2http.NewHandler(applicationsv2postgres.NewStore(pool, auditRepo, participationRules{}), draftjson.Decode)
+	draftStore := draftstore.NewStore(pool, auditRepo)
+	participationHandler := applicationsv2http.NewHandler(applicationsv2postgres.NewStore(pool, auditRepo, participationRules{}, draftStore), draftjson.Decode)
 
 	// Jobs wiring: jobs repo (sqlc data layer over the same pool)
 	// -> service -> handler. Public read slice — no identity user
@@ -205,7 +206,6 @@ func run() error {
 	// event and (for create) the idempotency record commit atomically. The
 	// store owns the owner-or-principal rule and every precondition; the HTTP
 	// adapter is a thin transport over drafts.Store.
-	draftStore := draftstore.NewStore(pool, auditRepo)
 	movementHandler := movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{draftStore}, movementStorage, draftjson.Decode))
 	draftHandler := jobshttp.NewDraftHandler(draftStore)
 	draftV2Handler := jobshttp.NewDraftV2Handler(draftStore, draftStore, draftStore)

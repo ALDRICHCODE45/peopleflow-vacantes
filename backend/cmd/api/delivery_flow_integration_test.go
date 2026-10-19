@@ -49,10 +49,10 @@ func assertDeliveryFlowResponse(t *testing.T, r draftFlowResponse, id string, ve
 		t.Fatalf("response=%d %s %v", r.status, r.body, r.header)
 	}
 	root := draftFlowObject(t, r.body)
-	if len(root) != 6 || root["version"] != fmt.Sprint(version) {
+	if len(root) != 7 || root["fulfilled"] != false || root["version"] != fmt.Sprint(version) {
 		t.Fatalf("root=%s", r.body)
 	}
-	for _, key := range []string{"cutoffStageId", "targetQuantity", "commitmentDate", "limits", "calendar"} {
+	for _, key := range []string{"cutoffStageId", "targetQuantity", "commitmentDate", "limits", "calendar", "fulfilled"} {
 		if _, ok := root[key]; !ok {
 			t.Fatalf("missing %s", key)
 		}

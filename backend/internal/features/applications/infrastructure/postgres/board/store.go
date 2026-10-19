@@ -164,6 +164,10 @@ func (s *Store) Board(ctx context.Context, company, actor, id uuid.UUID) (app.Bo
 		return a.ID.String() < b.ID.String()
 	})
 	out.Coverage, err = coverage(ctx, tx, id, p)
+	if err != nil {
+		return out, err
+	}
+	out.Delivery, err = s.delivery(ctx, tx, id)
 	return out, err
 }
 func (s *Store) Move(ctx context.Context, company, actor, id, pid uuid.UUID, tag string, present bool, body []byte) (app.Moved, error) {
@@ -230,10 +234,17 @@ func (s *Store) Move(ctx context.Context, company, actor, id, pid uuid.UUID, tag
 	item.Version = strconv.FormatInt(version+1, 10)
 	item.ETag = app.ETag(pid, version+1)
 	item.MovedAt = at
+	if err = s.vacancy.RecordDelivery(ctx, tx, id, actor, uuid.MustParse(item.StageID), at); err != nil {
+		return app.Moved{}, err
+	}
+	delivery, err := s.delivery(ctx, tx, id)
+	if err != nil {
+		return app.Moved{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return app.Moved{}, err
 	}
-	return app.Moved{Item: item, Coverage: next}, nil
+	return app.Moved{Item: item, Coverage: next, Delivery: delivery}, nil
 }
 func (s *Store) History(ctx context.Context, company, actor, id, pid uuid.UUID) (app.History, error) {
 	tx, _, err := s.begin(ctx, company, actor, id)

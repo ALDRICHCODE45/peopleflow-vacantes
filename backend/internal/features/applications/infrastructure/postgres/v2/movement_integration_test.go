@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"testing"
+	"time"
 
 	board "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
@@ -39,6 +40,13 @@ func (m movementContext) Load(ctx context.Context, tx pgx.Tx, company, actor, id
 		p.Stages = append(p.Stages, board.Stage{ID: s.ID, Kind: s.Kind, Name: s.Name})
 	}
 	return p, err
+}
+
+func (m movementContext) RecordDelivery(ctx context.Context, tx pgx.Tx, id, actor, stage uuid.UUID, at time.Time) error {
+	return m.s.RecordDelivery(ctx, tx, id, actor, stage, at)
+}
+func (m movementContext) DeliverySummary(ctx context.Context, tx pgx.Tx, id uuid.UUID) (string, int64, int64, error) {
+	return m.s.DeliverySummary(ctx, tx, id)
 }
 
 type movementFixture struct {

@@ -65,7 +65,8 @@ func TestDiscardRecoveryExactWireAndCandidatePrivacy(t *testing.T) {
 		t.Fatal(rec.Code, rec.Body.String())
 	}
 	discarded := movementObject(t, rec.Body.Bytes())
-	movementItemKeys(t, discarded, "coverage")
+	movementItemKeys(t, discarded, "coverage", "delivery")
+	movementKeys(t, discarded["delivery"], "state", "delivered", "target")
 	movementKeys(t, discarded["coverage"], "covered", "required", "full_coverage_reached_at")
 	d := movementKeys(t, discarded["discard"], "reason", "previous_stage_id", "discarded_at")
 	movementKeys(t, d["reason"], "group", "key")
@@ -86,7 +87,8 @@ func TestDiscardRecoveryExactWireAndCandidatePrivacy(t *testing.T) {
 		t.Fatal(rec.Code, rec.Body.String())
 	}
 	recovered := movementObject(t, rec.Body.Bytes())
-	movementItemKeys(t, recovered, "coverage")
+	movementItemKeys(t, recovered, "coverage", "delivery")
+	movementKeys(t, recovered["delivery"], "state", "delivered", "target")
 	if recovered["discard"] != nil || recovered["stage_id"] != target || rec.Header().Get("ETag") != recovered["etag"] {
 		t.Fatal(recovered)
 	}

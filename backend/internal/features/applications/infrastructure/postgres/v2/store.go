@@ -18,13 +18,14 @@ import (
 const fingerprintAlgorithm = "go-json-v1+sha256"
 
 type Store struct {
-	pool  *pgxpool.Pool
-	audit auditport.AuditEventRepository
-	rules app.VacancyRules
+	pool     *pgxpool.Pool
+	audit    auditport.AuditEventRepository
+	rules    app.VacancyRules
+	delivery app.DeliveryRecorder
 }
 
-func NewStore(pool *pgxpool.Pool, audit auditport.AuditEventRepository, rules app.VacancyRules) *Store {
-	return &Store{pool, audit, rules}
+func NewStore(pool *pgxpool.Pool, audit auditport.AuditEventRepository, rules app.VacancyRules, delivery app.DeliveryRecorder) *Store {
+	return &Store{pool, audit, rules, delivery}
 }
 
 var _ app.Store = (*Store)(nil)
@@ -128,6 +129,9 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	}
 	event := audit.AuditEvent{ID: uuid.New(), ActorType: audit.ActorTypeUser, ActorID: &candidate, EventType: "VacancyApplicationSubmitted", EntityType: "process_participation", EntityID: id, Metadata: map[string]string{"vacancy_id": vacancy.String(), "stage_id": stage.String(), "source": "organic"}}
 	if err = s.audit.Append(ctx, tx, event); err != nil {
+		return app.Result{}, err
+	}
+	if err = s.delivery.RecordDelivery(ctx, tx, vacancy, candidate, stage, at); err != nil {
 		return app.Result{}, err
 	}
 	body, err = json.Marshal(app.Submitted{ID: id, VacancyID: vacancy, Status: "submitted", AppliedAt: at})

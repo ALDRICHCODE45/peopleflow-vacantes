@@ -24,6 +24,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftinput"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publicjobs"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
 	publicstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/publicjobs"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -126,7 +127,7 @@ func TestParticipationAuditFailureRollsBackAllEffects(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := f.effects(t)
-	failing := NewStore(f.pool, rejectAudit{}, testVacancyRules{})
+	failing := NewStore(f.pool, rejectAudit{}, testVacancyRules{}, draftstore.NewStore(f.pool, rejectAudit{}))
 	if _, err = failing.Apply(ctx, f.sub, f.vacancy, uuid.New(), f.request(cv.ID)); err == nil {
 		t.Fatal("audit failure ignored")
 	}
@@ -206,7 +207,7 @@ func setup(t *testing.T) fixture {
 	f.storage, _ = storage.NewLocal(t.TempDir())
 	t.Cleanup(func() { f.storage.Close() })
 	f.library = cvstore.NewLibrary(pool, f.storage)
-	f.store = NewStore(pool, audit.NewAuditEventRepository(), testVacancyRules{})
+	f.store = NewStore(pool, audit.NewAuditEventRepository(), testVacancyRules{}, draftstore.NewStore(pool, audit.NewAuditEventRepository()))
 	recruiter := uuid.New()
 	otherID := uuid.New()
 	exec := func(sql string, args ...any) {
@@ -228,6 +229,8 @@ func setup(t *testing.T) fixture {
 			`DELETE FROM participation_stage_history WHERE participation_id IN (SELECT p.id FROM process_participations p JOIN vacancy_processes v ON v.id=p.process_id WHERE v.company_id=$1)`,
 			`DELETE FROM participation_idempotency WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM process_participations WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
+			`DELETE FROM process_delivery_fulfillments WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
+			`DELETE FROM audit_events WHERE event_type='VacancyDeliveryFulfilled' AND entity_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM vacancy_public_projections WHERE company_id=$1`,
 			`DELETE FROM vacancy_processes WHERE company_id=$1`,
 			`DELETE FROM job_drafts WHERE company_id=$1`,
@@ -264,6 +267,7 @@ func setup(t *testing.T) fixture {
 	}
 	exec(`INSERT INTO job_drafts(id,company_id,created_by,principal_recruiter_id,fields) VALUES($1,$2,$3,$3,$4)`, f.vacancy, f.company, recruiter, d.Fingerprint())
 	exec(`INSERT INTO vacancy_processes(id,company_id,status,published_at,published_by) VALUES($1,$2,'published',now(),$3)`, f.vacancy, f.company, recruiter)
+	exec(`INSERT INTO job_draft_delivery_configs(draft_id,version,cutoff_stage_id,target_quantity,commitment_date) VALUES($1,1,$2,999,'2020-01-02')`, f.vacancy, pipelineconfig.Defaults(f.vacancy).Stages[4].ID)
 	exec(`INSERT INTO vacancy_public_projections(id,company_id,title,description_plain,location,work_mode,work_schedule,contract_type,professional_area,benefits,published_at,source_draft_version,skills,screening_questions) VALUES($1,$2,'Engineer','Role','CDMX','remote','full_time','indefinite','technology_systems','{}',now(),1,ARRAY[]::text[],$3)`, f.vacancy, f.company, len(f.form.Questions))
 	return f
 }
@@ -458,6 +462,11 @@ func TestCandidateListPagingAndVacancyScopedKeys(t *testing.T) {
 		if _, err := f.pool.Exec(ctx, sql, second, f.vacancy); err != nil {
 			t.Fatal(err)
 		}
+	}
+	// A published vacancy always has its delivery configuration (§9, §16.6); the
+	// cutoff stage id is deterministic per vacancy, so it is derived, not copied.
+	if _, err := f.pool.Exec(ctx, `INSERT INTO job_draft_delivery_configs(draft_id,version,cutoff_stage_id,target_quantity,commitment_date) SELECT $1,version,$2,target_quantity,commitment_date FROM job_draft_delivery_configs WHERE draft_id=$3`, second, pipelineconfig.Defaults(second).Stages[4].ID, f.vacancy); err != nil {
+		t.Fatal(err)
 	}
 	cv, err := f.library.Upload(ctx, f.sub, "CV", "cv.pdf", []byte("%PDF-1"))
 	if err != nil {

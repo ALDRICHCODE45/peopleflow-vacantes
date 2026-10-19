@@ -44,7 +44,8 @@ func setSubstateHTTP(t *testing.T, m movementFixture, id any) board.Item {
 		t.Fatal(rec.Code, rec.Body.String())
 	}
 	obj := movementObject(t, rec.Body.Bytes())
-	movementItemKeys(t, obj, "coverage")
+	movementItemKeys(t, obj, "coverage", "delivery")
+	movementKeys(t, obj["delivery"], "state", "delivered", "target")
 	if obj["substate_id"] != id || rec.Header().Get("ETag") != obj["etag"] {
 		t.Fatal(obj, rec.Header())
 	}
@@ -82,7 +83,7 @@ func TestSubstateSetClearNoOpWireSnapshotsAndCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	raw, _ := json.Marshal(view)
-	obj := movementKeys(t, movementObject(t, raw), "stages", "exit", "coverage", "participations", "substates")
+	obj := movementKeys(t, movementObject(t, raw), "stages", "exit", "coverage", "participations", "substates", "delivery")
 	entries := obj["substates"].([]any)
 	if len(entries) != 2 {
 		t.Fatal(obj)

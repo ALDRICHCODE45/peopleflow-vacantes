@@ -45,11 +45,20 @@ func Replace(current Configuration, pipeline pipelineconfig.Configuration, body 
 		return Configuration{}, drafts.ErrInvalidRequest
 	}
 	root, ok := value.(map[string]any)
-	if !ok || len(root) != 3 {
+	if !ok || len(root) < 3 || len(root) > 4 {
 		return Configuration{}, drafts.ErrInvalidRequest
 	}
 	for _, key := range []string{"cutoffStageId", "targetQuantity", "commitmentDate"} {
 		if _, exists := root[key]; !exists {
+			return Configuration{}, drafts.ErrInvalidRequest
+		}
+	}
+	for key, raw := range root {
+		if key == "confirm_fulfillment" {
+			if _, ok := raw.(bool); !ok {
+				return Configuration{}, drafts.ErrInvalidRequest
+			}
+		} else if key != "cutoffStageId" && key != "targetQuantity" && key != "commitmentDate" {
 			return Configuration{}, drafts.ErrInvalidRequest
 		}
 	}

@@ -48,6 +48,8 @@ type Pipeline struct {
 // VacancyContext holds the authoring row lock until the surrounding transaction
 // ends, sharing the same authorization and configuration rules as draft saves.
 type VacancyContext interface {
+	DeliverySummary(context.Context, pgx.Tx, uuid.UUID) (string, int64, int64, error)
+	RecordDelivery(context.Context, pgx.Tx, uuid.UUID, uuid.UUID, uuid.UUID, time.Time) error
 	Load(context.Context, pgx.Tx, uuid.UUID, uuid.UUID, uuid.UUID) (Pipeline, error)
 }
 type Person struct {
@@ -81,7 +83,13 @@ type Coverage struct {
 	Required              *int64     `json:"required"`
 	FullCoverageReachedAt *time.Time `json:"full_coverage_reached_at"`
 }
+type Delivery struct {
+	State     string `json:"state"`
+	Delivered int64  `json:"delivered"`
+	Target    int64  `json:"target"`
+}
 type Board struct {
+	Delivery       Delivery   `json:"delivery"`
 	Substates      []Substate `json:"substates"`
 	Stages         []Stage    `json:"stages"`
 	Exit           Stage      `json:"exit"`
@@ -93,6 +101,7 @@ type Move struct {
 	ConfirmPlacementExit bool
 }
 type Moved struct {
+	Delivery Delivery `json:"delivery"`
 	Item
 	Coverage Coverage `json:"coverage"`
 }

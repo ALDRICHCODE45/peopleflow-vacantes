@@ -8,10 +8,18 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"time"
 )
 
 // Composition bridge keeps participation views independent of jobs internals.
 type movementContext struct{ store *draftstore.Store }
+
+func (m movementContext) RecordDelivery(ctx context.Context, tx pgx.Tx, id, actor, stage uuid.UUID, at time.Time) error {
+	return m.store.RecordDelivery(ctx, tx, id, actor, stage, at)
+}
+func (m movementContext) DeliverySummary(ctx context.Context, tx pgx.Tx, id uuid.UUID) (string, int64, int64, error) {
+	return m.store.DeliverySummary(ctx, tx, id)
+}
 
 func movementContextError(err error) error {
 	for _, pair := range [][2]error{

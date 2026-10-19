@@ -134,8 +134,17 @@ func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uu
 		item.Discard = &app.Discard{Reason: req.Reason, PreviousStageID: item.StageID, DiscardedAt: at}
 	}
 	item.StageID, item.Version, item.ETag, item.MovedAt = target, strconv.FormatInt(version+1, 10), app.ETag(pid, version+1), at
+	if recovering {
+		if err = s.vacancy.RecordDelivery(ctx, tx, id, actor, uuid.MustParse(target), at); err != nil {
+			return app.Moved{}, err
+		}
+	}
+	delivery, err := s.delivery(ctx, tx, id)
+	if err != nil {
+		return app.Moved{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return app.Moved{}, err
 	}
-	return app.Moved{Item: item, Coverage: next}, nil
+	return app.Moved{Item: item, Coverage: next, Delivery: delivery}, nil
 }

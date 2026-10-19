@@ -65,7 +65,7 @@ func TestMovementCrossResourceForcedInterleavings(t *testing.T) {
 				a := audit.NewAuditEventRepository()
 				mover := boardstore.NewStore(movePool, a, movementContext{draftstore.NewStore(movePool, a)}, m.storage, draftjson.Decode)
 				author := draftstore.NewStore(resourcePool, a)
-				intake := NewStore(resourcePool, a, testVacancyRules{})
+				intake := NewStore(resourcePool, a, testVacancyRules{}, author)
 				draftTag, err := draftversion.FormatETagV2(m.vacancy.String(), 1)
 				if err != nil {
 					t.Fatal(err)

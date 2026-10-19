@@ -6,7 +6,7 @@ including the agreed clarifications in §12.7. Legacy applications are unchanged
 
 ## Quick path
 
-1. Apply migrations through **00026** with `make db-migrate` before running this API.
+1. Apply migrations through **00027** with `make db-migrate` before running this API.
    Cut-5 discard/recovery extensions are documented in [pipeline-discard.md](pipeline-discard.md).
 2. Read the board and keep each item's opaque `etag`.
 3. POST a move using that item's tag as `If-Match`; reconcile with GET after an
@@ -21,7 +21,10 @@ Every response, including gate failures, carries `Cache-Control: no-store`.
 
 ## Board and item shapes
 
-`GET …/board` → 200, exactly `{stages, exit, coverage, participations, substates}`.
+`GET …/board` → 200, exactly `{stages, exit, coverage, participations, substates, delivery}`.
+`delivery` is exactly `{state, delivered, target}`: `pending | fulfilled`, a historical
+distinct-candidate count, and a non-null integer target. Fulfilled values are frozen;
+see [delivery fulfillment](delivery-fulfillment.md).
 `substates` is the ordered current catalog, each exactly `{id,name}` (cut 6).
 
 - `stages`: pipeline order, each exactly `{id, kind, name, count}`. Kinds are
@@ -71,7 +74,7 @@ The transport enforces the existing 1 MiB JSON budget.
   starts null. Both events share one participation version bump (cut 6).
 - Entering Placement records a hire. Leaving requires explicit confirmation and
   records a departure, without erasing previous history.
-- 200 is the item shape above **plus `coverage`**, flattened, with the new tag both
+- 200 is the item shape above **plus `coverage` and `delivery`**, flattened, both computed after the write, with the new tag both
   in `etag` and the `ETag` response header. No idempotency/replay header is added.
 - Missing `If-Match` → 428. Empty, malformed, weak, wildcard or list (including
   repeated header lines) → 400. Well-formed stale or foreign tag → 412.
@@ -87,7 +90,9 @@ coverage crossing. All guards run before writes.
 One transaction updates stage/version, appends history, appends PII-free audit
 `ParticipationMoved` (actor, vacancy ID, from/to stage IDs, new version, hire and
 departure flags), and inserts any coverage milestone. Audit failure rolls back all
-of these, including coverage/milestone effects.
+of these, including coverage/milestone effects. An entry into the delivery cutoff
+also records any newly reached fulfillment and `VacancyDeliveryFulfilled` snapshot
+in this same transaction (§16); the response summary reflects it.
 
 Coverage counts participations currently in semantic Placement, once per candidate
 (the existing process/candidate uniqueness constraint). The first hire making coverage at least a non-null headcount records a milestone
@@ -130,7 +135,8 @@ unconfigured; an authorized existing participation then receives
 
 - Pipeline GET/PUT adds `structure_locked: boolean`. With any participation, only
   renames are accepted; reorder/add/remove → 409 without writes. See
-  [pipeline-config.md](pipeline-config.md). Substates and delivery stay editable.
+  [pipeline-config.md](pipeline-config.md). Substates stay editable; delivery is
+  editable only until fulfillment (§16).
 - Candidate list status is `submitted | in_process | closed` as of cut 5;
   `closed` means currently discarded and exposes only the optional candidate-facing
   `message`. Otherwise status depends on whether the semantic stage is `new`.

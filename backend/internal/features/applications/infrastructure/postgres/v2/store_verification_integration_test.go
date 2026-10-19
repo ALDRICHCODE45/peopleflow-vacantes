@@ -17,6 +17,7 @@ import (
 	cvstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/postgres/cvs"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftinput"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publicjobs"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -144,7 +145,7 @@ func TestCVRemovalVersusApplyCandidateLock(t *testing.T) {
 			}
 			applyPool, applyPID := operationPool(t, ctx, f.pool)
 			removePool, removePID := operationPool(t, ctx, f.pool)
-			store := NewStore(applyPool, audit.NewAuditEventRepository(), testVacancyRules{})
+			store := NewStore(applyPool, audit.NewAuditEventRepository(), testVacancyRules{}, draftstore.NewStore(applyPool, audit.NewAuditEventRepository()))
 			library := cvstore.NewLibrary(removePool, f.storage)
 			blocker, err := f.pool.Begin(ctx)
 			if err != nil {

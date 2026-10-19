@@ -125,7 +125,7 @@ func TestMovementExactWireProjection(t *testing.T) {
 	if rec.Code != 200 || rec.Header().Get("ETag") != "" {
 		t.Fatal(rec.Code, rec.Body.String())
 	}
-	obj := movementKeys(t, movementObject(t, rec.Body.Bytes()), "stages", "exit", "coverage", "participations", "substates")
+	obj := movementKeys(t, movementObject(t, rec.Body.Bytes()), "stages", "exit", "coverage", "participations", "substates", "delivery")
 	for _, stage := range obj["stages"].([]any) {
 		movementKeys(t, stage, "id", "kind", "name", "count")
 	}
@@ -134,6 +134,7 @@ func TestMovementExactWireProjection(t *testing.T) {
 		t.Fatal(exit)
 	}
 	movementKeys(t, obj["coverage"], "covered", "required", "full_coverage_reached_at")
+	movementKeys(t, obj["delivery"], "state", "delivered", "target")
 	items := obj["participations"].([]any)
 	if len(items) != 1 {
 		t.Fatal(items)
@@ -157,8 +158,9 @@ func TestMovementExactWireProjection(t *testing.T) {
 		t.Fatal(rec.Code, rec.Body.String())
 	}
 	moved := movementObject(t, rec.Body.Bytes())
-	movementItemKeys(t, moved, "coverage")
+	movementItemKeys(t, moved, "coverage", "delivery")
 	movementKeys(t, moved["coverage"], "covered", "required", "full_coverage_reached_at")
+	movementKeys(t, moved["delivery"], "state", "delivered", "target")
 	if moved["etag"] != rec.Header().Get("ETag") || moved["etag"] != board.ETag(m.item.ID, 2) || moved["version"] != "2" || moved["stage_id"] != target || !reflect.DeepEqual(moved["candidate"], item["candidate"]) || !reflect.DeepEqual(moved["cv"], item["cv"]) || moved["source"] != "organic" {
 		t.Fatal(moved, rec.Header())
 	}
@@ -213,7 +215,7 @@ func readyMovementConfiguration(t *testing.T, m movementFixture) {
 	}
 	for _, q := range []string{
 		`INSERT INTO job_draft_management_configs(draft_id,version,request_date,hiring_headcount) VALUES($1,1,'2020-01-01',1)`,
-		`INSERT INTO job_draft_delivery_configs(draft_id,version,cutoff_stage_id,target_quantity,commitment_date) VALUES($1,1,$2,1,'2020-01-02')`,
+		`INSERT INTO job_draft_delivery_configs(draft_id,version,cutoff_stage_id,target_quantity,commitment_date) VALUES($1,1,$2,999,'2020-01-02') ON CONFLICT(draft_id) DO UPDATE SET cutoff_stage_id=EXCLUDED.cutoff_stage_id,target_quantity=EXCLUDED.target_quantity`,
 	} {
 		args := []any{m.vacancy}
 		if strings.Contains(q, "$2") {

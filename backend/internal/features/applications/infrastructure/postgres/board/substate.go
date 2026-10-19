@@ -93,7 +93,11 @@ func (s *Store) SetSubstate(ctx context.Context, company, actor, id, pid uuid.UU
 		return app.Moved{}, err
 	}
 	if sameSubstate(item.SubstateID, target) {
-		return app.Moved{Item: item, Coverage: cov}, nil
+		delivery, err := s.delivery(ctx, tx, id)
+		if err != nil {
+			return app.Moved{}, err
+		}
+		return app.Moved{Item: item, Coverage: cov, Delivery: delivery}, nil
 	}
 	if version == math.MaxInt64 {
 		return app.Moved{}, app.ErrVersionOverflow
@@ -109,10 +113,14 @@ func (s *Store) SetSubstate(ctx context.Context, company, actor, id, pid uuid.UU
 	item.SubstateID = target
 	item.Version = strconv.FormatInt(version+1, 10)
 	item.ETag = app.ETag(pid, version+1)
+	delivery, err := s.delivery(ctx, tx, id)
+	if err != nil {
+		return app.Moved{}, err
+	}
 	if err = tx.Commit(ctx); err != nil {
 		return app.Moved{}, err
 	}
-	return app.Moved{Item: item, Coverage: cov}, nil
+	return app.Moved{Item: item, Coverage: cov, Delivery: delivery}, nil
 }
 
 func (s *Store) substateHistory(ctx context.Context, tx pgx.Tx, actor, id uuid.UUID, item app.Item, target *string, c []app.Substate, at time.Time, version int64) error {

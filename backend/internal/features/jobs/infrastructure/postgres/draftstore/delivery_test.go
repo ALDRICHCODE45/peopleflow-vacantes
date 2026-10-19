@@ -32,7 +32,7 @@ func TestDelivery_RenderStrictResponseContract(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			result, err := renderDelivery(id, tc.c, tc.version, cal)
+			result, err := renderDelivery(id, tc.c, tc.version, cal, false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -43,12 +43,12 @@ func TestDelivery_RenderStrictResponseContract(t *testing.T) {
 			if err := json.Unmarshal(result.Body, &root); err != nil {
 				t.Fatal(err)
 			}
-			for _, key := range []string{"version", "cutoffStageId", "targetQuantity", "commitmentDate", "limits", "calendar"} {
+			for _, key := range []string{"version", "cutoffStageId", "targetQuantity", "commitmentDate", "limits", "calendar", "fulfilled"} {
 				if _, ok := root[key]; !ok {
 					t.Fatalf("missing %s", key)
 				}
 			}
-			if len(root) != 6 || string(root["limits"]) != `{"maxTargetQuantity":999}` {
+			if string(root["fulfilled"]) != "false" || len(root) != 7 || string(root["limits"]) != `{"maxTargetQuantity":999}` {
 				t.Fatalf("root=%s", result.Body)
 			}
 			var c deliveryconfig.Configuration

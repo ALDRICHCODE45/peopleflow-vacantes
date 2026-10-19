@@ -11,6 +11,7 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/deliveryconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/fulfillment"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -28,7 +29,7 @@ func (s *Store) GetDelivery(ctx context.Context, companyID, actorID, id uuid.UUI
 		return drafts.Result{}, fmt.Errorf("begin delivery read: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if err := s.authorizePipeline(ctx, tx, companyID, actorID, id, false); err != nil {
+	if err := s.authorizePipeline(ctx, tx, companyID, actorID, id, true); err != nil {
 		return drafts.Result{}, err
 	}
 	c, version, err := readDelivery(ctx, tx, id)
@@ -39,7 +40,11 @@ func (s *Store) GetDelivery(ctx context.Context, companyID, actorID, id uuid.UUI
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	return renderDelivery(id, c, version, calendar)
+	f, _, err := readFulfillment(ctx, tx, id)
+	if err != nil {
+		return drafts.Result{}, err
+	}
+	return renderDelivery(id, c, version, calendar, f != nil)
 }
 
 // PutDelivery locks the draft before reading both delivery and pipeline. The
@@ -52,6 +57,17 @@ func (s *Store) PutDelivery(ctx context.Context, companyID, actorID, id uuid.UUI
 	defer func() { _ = tx.Rollback(ctx) }()
 	if err := s.authorizePipeline(ctx, tx, companyID, actorID, id, true); err != nil {
 		return drafts.Result{}, err
+	}
+	published, err := lockDeliveryProcess(ctx, tx, id)
+	if err != nil {
+		return drafts.Result{}, err
+	}
+	frozen, _, err := readFulfillment(ctx, tx, id)
+	if err != nil {
+		return drafts.Result{}, err
+	}
+	if frozen != nil {
+		return drafts.Result{}, fulfillment.ErrFulfilled
 	}
 	previous, version, err := readDelivery(ctx, tx, id)
 	if err != nil {
@@ -73,7 +89,20 @@ func (s *Store) PutDelivery(ctx context.Context, companyID, actorID, id uuid.UUI
 		return drafts.Result{}, err
 	}
 	if version > 0 && previous.Equal(next) {
-		return renderDelivery(id, previous, version, calendar)
+		return renderDelivery(id, previous, version, calendar, false)
+	}
+	confirm, err := deliveryconfig.Confirmation(body)
+	if err != nil {
+		return drafts.Result{}, err
+	}
+	if published {
+		preview, err := previewDelivery(ctx, tx, id, next)
+		if err != nil {
+			return drafts.Result{}, err
+		}
+		if preview.WouldFulfill && !confirm {
+			return drafts.Result{}, fulfillment.ErrConfirmationRequired
+		}
 	}
 	if version == math.MaxInt64 {
 		return drafts.Result{}, drafts.ErrVersionOverflow
@@ -115,7 +144,14 @@ func (s *Store) PutDelivery(ctx context.Context, companyID, actorID, id uuid.UUI
 	if err := s.audit.Append(ctx, tx, event); err != nil {
 		return drafts.Result{}, fmt.Errorf("co-write delivery audit: %w", err)
 	}
-	result, err := renderDelivery(id, next, version+1, calendar)
+	fulfilled := false
+	if published {
+		fulfilled, err = s.recordFulfillment(ctx, tx, id, actorID, next, s.clock().UTC().Truncate(time.Microsecond))
+		if err != nil {
+			return drafts.Result{}, err
+		}
+	}
+	result, err := renderDelivery(id, next, version+1, calendar, fulfilled)
 	if err != nil {
 		return drafts.Result{}, err
 	}
@@ -164,15 +200,16 @@ func (s *Store) deliveryCalendar() (deliveryconfig.Calendar, error) {
 	return deliveryconfig.CalendarAt(s.clock(), zone), nil
 }
 
-func renderDelivery(id uuid.UUID, c deliveryconfig.Configuration, version int64, calendar deliveryconfig.Calendar) (drafts.Result, error) {
+func renderDelivery(id uuid.UUID, c deliveryconfig.Configuration, version int64, calendar deliveryconfig.Calendar, fulfilled bool) (drafts.Result, error) {
 	body, err := json.Marshal(struct {
-		Version string `json:"version"`
+		Fulfilled bool   `json:"fulfilled"`
+		Version   string `json:"version"`
 		deliveryconfig.Configuration
 		Limits struct {
 			MaxTargetQuantity int `json:"maxTargetQuantity"`
 		} `json:"limits"`
 		Calendar deliveryconfig.Calendar `json:"calendar"`
-	}{Version: strconv.FormatInt(version, 10), Configuration: c, Limits: struct {
+	}{Fulfilled: fulfilled, Version: strconv.FormatInt(version, 10), Configuration: c, Limits: struct {
 		MaxTargetQuantity int `json:"maxTargetQuantity"`
 	}{deliveryconfig.MaxTargetQuantity}, Calendar: calendar})
 	if err != nil {

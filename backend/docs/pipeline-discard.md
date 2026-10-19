@@ -6,7 +6,7 @@ frontend are unchanged. No candidate notification is sent.
 
 ## Before running
 
-Apply migrations through **00026** with `make db-migrate` (cut-6 active substates;
+Apply migrations through **00027** with `make db-migrate` (cut-6 active substates;
 [contract](pipeline-substates-active.md)). Quiesce participation writes during the
 migration/API rollout: the new history event kind is explicit for move writes.
 Keep 00024, its tests, the 00023 rollback-test pin and regenerated
@@ -86,6 +86,11 @@ Non-Placement recovery needs no additional flag. Cut 6: recovery into
 `in_process` always starts with `substate_id:null`, never restores the old label. History retains private details
 of every discard even though current detail and the candidate list no longer do.
 
+Recovery into the configured cutoff can fulfill delivery in this same transaction;
+`delivery.state` then returns `fulfilled`. Discarding an already-reached candidate
+never reduces delivered count or changes a frozen fulfillment. See
+[delivery fulfillment](delivery-fulfillment.md) (§16).
+
 ### Atomicity
 
 One transaction locks **draft → process → participation**, the same order as cut 4.
@@ -102,7 +107,8 @@ The clear has its own audit, but shares the discard's single version bump.
 
 ## Exact projections
 
-Both POSTs return 200 with the flattened cut-4 board item **plus `coverage`**, and
+Both POSTs return 200 with the flattened cut-4 board item **plus `coverage` and
+`delivery: {state, delivered, target}`**, computed after the write, and
 the new tag in both item `etag` and response `ETag`. No idempotency header is added.
 
 Every board/mutation/detail item also has `substate_id` (cut 6), always null

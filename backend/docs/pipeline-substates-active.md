@@ -8,7 +8,7 @@ Recruiters can assign one tracking label while a participation is in semantic
 
 ## Quick path
 
-1. Apply **00026** with `make db-migrate` before starting this API. Quiesce writes
+1. Apply through **00027** with `make db-migrate` before starting this API. Quiesce writes
    during migration/deployment; ALTER/CHECK validation locks existing personal-data
    tables. Keep the migration, migration tests/version pin and generated sqlc model
    in their own review/commit unit. The parent owns all staging and commits.
@@ -31,8 +31,10 @@ Use `{"substate_id":null}` to clear. The member is required, nullable, and no ot
 members are accepted. Duplicate/unknown keys, invalid JSON/Unicode, wrong types,
 malformed/nil UUIDs → `400 invalid_request`. Raw budget: 1 MiB, as moves.
 
-200 is the flattened board item **plus `coverage`**, unchanged in meaning from a
-move. The new participation tag appears in both `etag` and the `ETag` header.
+200 is the flattened board item **plus `coverage` and `delivery`**, as a move.
+`delivery` is exactly `{state, delivered, target}`, computed after the write (also
+on a no-op). A substate event is not an entry into the cutoff and cannot trigger
+fulfillment; see [delivery fulfillment](delivery-fulfillment.md) (§16). The new participation tag appears in both `etag` and the `ETag` header.
 All board/mutation/detail items gain **always-present** `substate_id: UUID | null`.
 Items outside `in_process`, including discarded ones, always have null.
 A successful change increments the participation version exactly once, without

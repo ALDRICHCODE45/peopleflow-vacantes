@@ -100,7 +100,8 @@ func TestDelivery_PureGetFirstNullPutNoOpAndAudit(t *testing.T) {
 	if err := json.Unmarshal(first.Body, &env); err != nil {
 		t.Fatal(err)
 	}
-	if len(env) != 6 || string(env["version"]) != `"0"` || string(env["cutoffStageId"]) != "null" || string(env["targetQuantity"]) != "null" || string(env["commitmentDate"]) != "null" || string(env["limits"]) != `{"maxTargetQuantity":999}` {
+	// §16.6: the resource also carries `fulfilled`, false until fulfillment.
+	if len(env) != 7 || string(env["fulfilled"]) != "false" || string(env["version"]) != `"0"` || string(env["cutoffStageId"]) != "null" || string(env["targetQuantity"]) != "null" || string(env["commitmentDate"]) != "null" || string(env["limits"]) != `{"maxTargetQuantity":999}` {
 		t.Fatalf("default=%s", first.Body)
 	}
 	var cal deliveryconfig.Calendar
