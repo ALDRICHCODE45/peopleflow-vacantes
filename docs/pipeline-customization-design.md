@@ -1723,6 +1723,14 @@ cut 7, stacked on it. Extends §18 (client-side multi-select filters).
   skills (same normalization), experience buckets half-open `[0,1)`, `[1,3)`, `[3,5)`, `[5,∞)`,
   education level; each with «Sin dato» (`none`). Options are derived from the board items.
 
+### 19.2b Where the new fields appear (agreed, frontend reply to the parent)
+
+`profile` and `screening_answers` appear **only** in `GET …/board` items and `GET
+…/participations/{id}`. Move, discard, recover and substate `200` responses **never** carry them
+(their item shape stays as in cuts 4–6, and adding them later would be a contract change); the
+client keeps both from the board item because they are immutable. Candidate (`/v2/me/*`) and
+public (`/v2/jobs*`) responses never carry them either.
+
 ### 19.3 Storage
 
 Additive migration `00029`: `profile_snapshot` JSONB on participations (nullable for existing rows,
