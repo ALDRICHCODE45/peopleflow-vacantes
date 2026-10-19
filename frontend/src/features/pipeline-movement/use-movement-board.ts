@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { notifyActionResult } from "@/components/feedback/notify";
-import { loadBoardAction, moveParticipationAction, discardParticipationAction, recoverParticipationAction } from "./actions";
+import { loadBoardAction, moveParticipationAction, discardParticipationAction, recoverParticipationAction, setParticipationSubstateAction } from "./actions";
 import { allowedMoveTargets, applyParticipationToBoard, leavesPlacement } from "./helpers";
 import { boardErrorCopy, moveErrorCopy, needsReconciliation, reconciliationCopy, type Notice } from "./board-feedback";
 import type { Board, DiscardBody, Failure, Participation, Result } from "./model";
 import { useBoardColumnOrder } from "./use-board-column-order";
+import { isInProcess } from "./substates";
 import { boardSuccessCopy, type BoardWrite } from "./board-toast-copy";
 export type Disposition = { kind: "discard" | "recover"; item: Participation; placementConfirmation: boolean };
 
@@ -106,6 +107,8 @@ export function useMovementBoard(vacancyId: string) {
       const input = { vacancyId, participationId: item.id, etag: item.etag };
       result = write.kind === "move"
         ? await moveParticipationAction({ ...input, body: { to_stage_id: write.target, ...(write.confirmed ? { confirm_placement_exit: true } : {}) } })
+        : write.kind === "substate"
+          ? await setParticipationSubstateAction({ ...input, body: { substate_id: write.substateId } })
         : write.kind === "discard"
           ? await discardParticipationAction({ ...input, body: write.body })
           : await recoverParticipationAction({ ...input, body: write.confirmed ? { confirm_placement_reentry: true } : {} });
@@ -120,7 +123,7 @@ export function useMovementBoard(vacancyId: string) {
       if (disposing.current?.item.id === item.id) { disposing.current = null; setDisposition(null); }
     } else if (write.kind === "move" && result.reason === "placement_exit_confirmation_required") {
       const next = { item, target: write.target }; confirming.current = next; setConfirmation(next);
-    } else if (write.kind !== "move" && (result.reason === "placement_exit_confirmation_required" || result.reason === "placement_reentry_confirmation_required")) {
+    } else if ((write.kind === "discard" || write.kind === "recover") && (result.reason === "placement_exit_confirmation_required" || result.reason === "placement_reentry_confirmation_required")) {
       // The next write is possible only after another explicit confirmation.
       const next: Disposition = { kind: write.kind, item, placementConfirmation: true };
       disposing.current = next; setDisposition(next);
@@ -132,12 +135,19 @@ export function useMovementBoard(vacancyId: string) {
         mustRead.current = true; setStale(true);
         reconcile.current.set(item.id, result);
       } else {
-        const title = write.kind === "move" ? `No se movió a ${item.candidate.full_name}` : write.kind === "discard" ? `No se descartó a ${item.candidate.full_name}` : `No se recuperó a ${item.candidate.full_name}`;
-        report(item.id, { tone: "error", text: write.kind === "move" ? moveErrorCopy(result.reason) : result.reason === "validation_error" ? "No se guardó. Revisa los datos e intenta de nuevo." : "No se guardó. Revisa tu sesión y los permisos antes de intentar de nuevo." }, title, result.reference);
+        const title = write.kind === "substate" ? `No se guardó el subestado de ${item.candidate.full_name}` : write.kind === "move" ? `No se movió a ${item.candidate.full_name}` : write.kind === "discard" ? `No se descartó a ${item.candidate.full_name}` : `No se recuperó a ${item.candidate.full_name}`;
+        report(item.id, { tone: "error", text: write.kind === "substate" ? result.reason === "validation_error" ? "No se guardó el subestado. Elige una opción del catálogo actual." : "No se guardó el subestado. Revisa tu sesión y los permisos antes de intentar de nuevo." : write.kind === "move" ? moveErrorCopy(result.reason) : result.reason === "validation_error" ? "No se guardó. Revisa los datos e intenta de nuevo." : "No se guardó. Revisa tu sesión y los permisos antes de intentar de nuevo." }, title, result.reference);
       }
     }
     locks.current.delete(item.id); setPending(new Set(locks.current));
     await reconcileOnce();
+  }
+  function setSubstate(id: string, substateId: string | null) {
+    const current = snapshot.current;
+    const item = current?.participations.find(item => item.id === id);
+    if (!current || !item || !isInProcess(current, item) || confirming.current || disposing.current) return;
+    if (substateId !== null && !current.substates.some(substate => substate.id === substateId)) return;
+    void submit(item, { kind: "substate", substateId });
   }
   function requestMove(id: string, target: string) {
     const current = snapshot.current;
@@ -175,5 +185,5 @@ export function useMovementBoard(vacancyId: string) {
     if (current.kind === "discard" && body) void submit(current.item, { kind: "discard", body: { ...body, ...(current.placementConfirmation ? { confirm_placement_exit: true } : {}) } });
     if (current.kind === "recover") void submit(current.item, { kind: "recover", confirmed: current.placementConfirmation });
   }
-  return { board: columns.board, columns, failure, reading, stale, pending, notices, readNotice, confirmation, disposition, retry, requestMove, closeConfirmation, confirmMove, requestDisposition, closeDisposition, confirmDisposition };
+  return { board: columns.board, columns, failure, reading, stale, pending, notices, readNotice, confirmation, disposition, retry, setSubstate, requestMove, closeConfirmation, confirmMove, requestDisposition, closeDisposition, confirmDisposition };
 }

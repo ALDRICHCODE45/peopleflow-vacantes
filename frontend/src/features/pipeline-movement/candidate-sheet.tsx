@@ -18,17 +18,18 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { loadHistoryAction, loadParticipationAction } from "./actions";
 import { MovementDate } from "./board-states";
 import { CandidateMenu } from "./candidate-menu";
+import { SubstateSelect } from "./substate-controls";
 import { discardGroupLabel, discardReasonLabel } from "./discard-text";
 import { allowedMoveTargets } from "./helpers";
 import { filePresentation, Hint, initials, stageClass } from "./pipeline-presentation";
 import type { Notice } from "./board-feedback";
 import type { Board, Failure, History, Participation, ParticipationDetail } from "./model";
 
-type Props = { vacancyId: string; vacancyTitle?: string; item: Participation; board: Board; onClose: () => void; onMove?: (id: string, target: string) => void; onDisposition?: (id: string, kind: "discard" | "recover") => void; locked?: boolean; notice?: Notice; children?: ReactNode };
+type Props = { vacancyId: string; vacancyTitle?: string; item: Participation; board: Board; onClose: () => void; onSubstate?: (id: string, substateId: string | null) => void; onMove?: (id: string, target: string) => void; onDisposition?: (id: string, kind: "discard" | "recover") => void; locked?: boolean; notice?: Notice; children?: ReactNode };
 export function CandidateSheet(props: Props) {
   return <Sheet open onOpenChange={open => { if (!open) props.onClose(); }}><CandidateSession key={props.item.id} {...props} /></Sheet>;
 }
-function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMove, onDisposition, locked, notice: actionNotice, children }: Props) {
+function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMove, onDisposition, onSubstate, locked, notice: actionNotice, children }: Props) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [tab, setTab] = useState("summary");
   const [attempt, setAttempt] = useState(0);
@@ -61,12 +62,13 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
   }, [vacancyId, item.id, item.etag, attempt]);
   const stages = [...board.stages, board.exit];
   const stageName = (id: string) => stages.find(stage => stage.id === id)?.name ?? "Etapa no disponible";
+  // The board's confirmed item owns live state while the detail/history read refreshes.
   const detail = loaded?.detail ?? item;
-  const stage = stages.find(stage => stage.id === detail.stage_id);
+  const stage = stages.find(stage => stage.id === item.stage_id);
   const FileIcon = filePresentation(detail.cv.name) === "pdf" ? FileText : FileType2;
-  const events = loaded ? [...loaded.history.items].sort((a, b) => Date.parse(b.at) - Date.parse(a.at)) : [];
+  const events = loaded ? [...loaded.history.items].reverse().sort((a, b) => Date.parse(b.at) - Date.parse(a.at)) : [];
   const errorNotice = actionNotice?.tone !== "success" ? actionNotice : undefined;
-  return <SheetContent showCloseButton={false} initialFocus={titleRef} className="pf-candidate-sheet gap-0 bg-card data-[side=right]:w-full data-[side=right]:sm:max-w-[560px]" finalFocus={() => document.getElementById(`candidate-detail-${item.id}`)}>
+  return <SheetContent showCloseButton={false} initialFocus={titleRef} className="pf-candidate-sheet gap-0 bg-card data-[side=right]:w-full data-[side=right]:sm:max-w-[560px]" finalFocus={() => document.getElementById(`candidate-detail-${item.id}`) ?? document.getElementById("board-substate-filter")}>
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b px-4 py-3 sm:px-6">
       <span className="flex items-center gap-2 text-xs text-muted-foreground"><span aria-hidden="true" className="size-1.5 rounded-full bg-muted-foreground" />Ficha del candidato</span>
       <Hint text="Cerrar ficha"><Button type="button" variant="ghost" size="icon" className="size-10" aria-label="Cerrar ficha" onClick={onClose}><X aria-hidden="true" /></Button></Hint>
@@ -79,8 +81,9 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
       </div>
       <SheetDescription className="text-xs">Postuló el <MovementDate value={detail.applied_at} /> <span className="px-1">·</span> Fuente: Orgánica</SheetDescription>
       {/* Evaluation context and its action stay together above the scrolling tabs. */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:flex-wrap">
         {onMove && !item.discard && <CandidateMenu item={item} targets={allowedMoveTargets(board, item)} full disabled={locked} onMove={onMove} onDetail={() => {}} onDisposition={onDisposition ?? (() => {})} />}
+        {onSubstate && <SubstateSelect board={board} item={item} onChange={onSubstate} disabled={locked} describedBy={errorNotice ? "detail-action-status" : undefined} />}
         {onDisposition && <Button id={`candidate-disposition-${item.id}`} type="button" variant="outline" className={cn("h-10", !item.discard && "border-destructive/25 text-destructive")} disabled={locked} aria-label={item.discard ? "Recuperar" : "Descartar"} aria-describedby={errorNotice ? "detail-action-status" : undefined} onClick={() => onDisposition(item.id, item.discard ? "recover" : "discard")}>
           {item.discard ? <RotateCcw aria-hidden="true" data-icon="inline-start" /> : <UserRoundX aria-hidden="true" data-icon="inline-start" />}{item.discard ? "Recuperar" : "Descartar"}
         </Button>}
@@ -105,8 +108,8 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
             {tab === "summary" && <div className="flex flex-col gap-7">
               <section className="flex flex-col gap-5"><SectionTitle>Información de la postulación</SectionTitle>
                 <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">
-                  <dt className="flex items-center gap-2 text-xs text-muted-foreground"><ArrowUpRight aria-hidden="true" className="size-4 shrink-0" />Etapa actual</dt><dd className="break-words text-sm font-medium">{stageName(detail.stage_id)}</dd>
-                  <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Clock3 aria-hidden="true" className="size-4 shrink-0" />En la etapa desde</dt><dd className="text-sm font-medium tabular-nums"><MovementDate value={detail.moved_at} /></dd>
+                  <dt className="flex items-center gap-2 text-xs text-muted-foreground"><ArrowUpRight aria-hidden="true" className="size-4 shrink-0" />Etapa actual</dt><dd className="break-words text-sm font-medium">{stageName(item.stage_id)}</dd>
+                  <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Clock3 aria-hidden="true" className="size-4 shrink-0" />En la etapa desde</dt><dd className="text-sm font-medium tabular-nums"><MovementDate value={item.moved_at} /></dd>
                   <dt className="flex items-center gap-2 text-xs text-muted-foreground"><CalendarDays aria-hidden="true" className="size-4 shrink-0" />Postulación</dt><dd className="text-sm font-medium tabular-nums"><MovementDate value={detail.applied_at} /></dd>
                   <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Globe2 aria-hidden="true" className="size-4 shrink-0" />Fuente</dt><dd className="text-sm font-medium">Orgánica</dd>
                 </dl>
@@ -130,11 +133,11 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
               {events.length ? <ol>{events.map((entry, index) => <li key={`${entry.at}-${index}`} className="relative flex gap-4 pb-7 last:pb-0">
                 <div className="flex flex-col items-center"><span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full", entry.kind === "discard" ? "bg-status-danger/10 text-status-danger" : entry.kind === "recovery" ? "bg-status-info/10 text-status-info" : "bg-status-success/10 text-status-success")}>{entry.kind === "recovery" ? <RotateCcw aria-hidden="true" className="size-3" /> : entry.kind === "discard" ? <UserRoundX aria-hidden="true" className="size-3" /> : <Check aria-hidden="true" className="size-3" />}</span>{index < events.length - 1 && <span aria-hidden="true" className="w-px flex-1 bg-border" />}</div>
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <p className="break-words text-sm font-medium">{entry.kind === "intake" ? "Postulación recibida" : entry.kind === "discard" ? "Descarte" : entry.kind === "recovery" ? "Recuperación" : `${entry.from_stage_id ? stageName(entry.from_stage_id) : "Etapa no disponible"} → ${stageName(entry.to_stage_id)}`}</p>
+                  <p className="break-words text-sm font-medium">{entry.kind === "intake" ? "Postulación recibida" : entry.kind === "discard" ? "Descarte" : entry.kind === "recovery" ? "Recuperación" : entry.kind === "substate" ? `Subestado: ${entry.from_substate_name ?? "Sin subestado"} → ${entry.to_substate_name ?? "Sin subestado"}` : `${entry.from_stage_id ? stageName(entry.from_stage_id) : "Etapa no disponible"} → ${stageName(entry.to_stage_id)}`}</p>
                   {(entry.kind === "discard" || entry.kind === "recovery") && <p className="text-xs text-muted-foreground">{stageName(entry.from_stage_id)} → {stageName(entry.to_stage_id)}</p>}
                   {entry.kind === "discard" && <><p className="text-sm">{discardGroupLabel(entry.reason)} · {discardReasonLabel(entry.reason)}</p><DiscardNotes comment={entry.comment} message={entry.candidate_message} /></>}
                   {entry.kind === "intake" && <p className="text-xs text-muted-foreground">Ingreso a {stageName(entry.to_stage_id)}</p>}
-                  {(entry.hire || entry.departure) && <div className="flex flex-wrap gap-2">{entry.hire && <Badge variant="success">Contratación</Badge>}{entry.departure && <Badge variant="review">Salida de Placement</Badge>}</div>}
+                  {entry.kind !== "substate" && (entry.hire || entry.departure) && <div className="flex flex-wrap gap-2">{entry.hire && <Badge variant="success">Contratación</Badge>}{entry.departure && <Badge variant="review">Salida de Placement</Badge>}</div>}
                   <div className="flex items-center gap-2 text-xs text-muted-foreground"><Avatar className="size-5 shrink-0"><AvatarFallback className="text-[9px]">{initials(entry.actor.full_name)}</AvatarFallback></Avatar><span>{entry.actor.full_name} · {entry.actor.kind === "candidate" ? "Candidato" : "Reclutador"}</span></div>
                   <p className="text-xs tabular-nums text-muted-foreground"><MovementDate value={entry.at} withTime /></p>
                 </div>

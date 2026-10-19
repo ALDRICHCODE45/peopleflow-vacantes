@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
-import { boardSchema, detailSchema, historySchema, moveBodySchema, moveSchema, discardBodySchema, recoverBodySchema, errorEnvelopeSchema, uuidSchema, etagSchema, type Board, type History, type Move, type ParticipationDetail } from "./model";
+import { boardSchema, detailSchema, historySchema, moveBodySchema, moveSchema, substateBodySchema, discardBodySchema, recoverBodySchema, errorEnvelopeSchema, uuidSchema, etagSchema, type Board, type History, type Move, type ParticipationDetail } from "./model";
 import { validateDiscardText } from "./discard-text";
 export type ReadInput = { token: string; vacancyId: string };
 export type ParticipationInput = ReadInput & { participationId: string };
@@ -39,6 +39,12 @@ export async function moveParticipation(input: MoveInput): Promise<ClientResult<
   const body = moveBodySchema.safeParse(input.body);
   if (!body.success || !etagSchema.safeParse(input.etag).success) return invalid("invalid_request");
   return request(input, `participations/${input.participationId}/moves`, moveSchema, { etag: input.etag, body: body.data });
+}
+export async function setParticipationSubstate(input: MoveInput): Promise<ClientResult<Move>> {
+  const failure = guard(input); if (failure) return failure;
+  const body = substateBodySchema.safeParse(input.body);
+  if (!body.success || !etagSchema.safeParse(input.etag).success) return invalid("invalid_request");
+  return request(input, `participations/${input.participationId}/substate`, moveSchema, { etag: input.etag, body: body.data });
 }
 /** Strip only blank optional text; invalid nonblank text still fails validation. */
 export async function discardParticipation(input: MoveInput): Promise<ClientResult<Move>> {

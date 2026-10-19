@@ -13,6 +13,8 @@ import { BoardCoverage, BoardError, BoardSkeleton, MovementDate } from "./board-
 import { CandidateSheet } from "./candidate-sheet";
 import { DispositionDialog } from "./disposition-dialog";
 import { useMovementBoard } from "./use-movement-board";
+import { BoardSubstateFilter } from "./substate-controls";
+import { matchesSubstateFilter } from "./substates";
 
 /** A keyed session prevents reads/writes from a previous vacancy reaching this one. */
 type Props = { vacancyId: string; vacancyTitle?: string; publishedAt?: string | null };
@@ -21,6 +23,7 @@ export function MovementBoard(props: Props) {
 }
 function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
   const state = useMovementBoard(vacancyId);
+  const [substateFilter, setSubstateFilter] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const { board, confirmation, pending, stale } = state;
   const restoreFocus = useRef<string | null>(null);
@@ -29,13 +32,17 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
     if (!id || pending.has(id) || stale || confirmation) return;
     // A moved card is remounted under its new column. Restore lost keyboard
     // focus, but never steal it from another control used during the request.
-    if (document.activeElement === document.body) document.getElementById(`candidate-move-${id}`)?.focus();
+    if (document.activeElement === document.body) (document.getElementById(`candidate-move-${id}`) ?? document.getElementById("board-substate-filter"))?.focus();
     restoreFocus.current = null;
   }, [pending, stale, confirmation]);
   function requestMove(id: string, target: string) {
     const focused = document.activeElement;
     if (!focused?.closest('[data-slot="sheet-content"]') && (focused?.id === `candidate-move-${id}` || focused?.id === `candidate-drag-${id}` || focused?.closest('[role="menu"]'))) restoreFocus.current = id;
     state.requestMove(id, target);
+  }
+  function setSubstate(id: string, value: string | null) {
+    if (!document.activeElement?.closest('[data-slot="sheet-content"]')) restoreFocus.current = id;
+    state.setSubstate(id, value);
   }
   const selectedItem = board?.participations.find(item => item.id === selected);
   const from = board?.stages.find(stage => stage.id === confirmation?.item.stage_id)?.name ?? "Placement";
@@ -64,13 +71,14 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
     {board && <>
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <p className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground"><UsersRound aria-hidden="true" className="size-4" /><span><strong className="font-medium text-foreground tabular-nums">{board.participations.length}</strong> candidatos en el pipeline</span></p>
+        <BoardSubstateFilter board={board} value={substateFilter} onChange={setSubstateFilter} />
         <div className="flex min-w-0 items-center gap-3"><ActionStatusSlot>
           {state.columns.busy ? <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Spinner aria-hidden="true" />Guardando y actualizando columnas…</p> : state.columns.notice ? <ActionStatus id="column-order-status" tone={state.columns.notice.tone} text={state.columns.notice.text} /> : state.columns.unavailable ? <p className="text-sm text-muted-foreground">No pudimos cargar el orden de columnas.</p> : (state.columns.structureLocked || !state.columns.locked) && <span className="hidden items-center gap-1.5 text-[11px] text-muted-foreground sm:flex"><GripVertical aria-hidden="true" className="size-3.5" />{state.columns.structureLocked ? "Arrastra una tarjeta para moverla" : "Arrastra una columna para reordenarla"}</span>}
         </ActionStatusSlot>{state.columns.unavailable && <Button type="button" variant="outline" className="min-h-10" disabled={state.columns.busy} onClick={() => void state.columns.refresh()}>Actualizar columnas</Button>}</div>
       </div>
-      <BoardColumns columnOrder={state.columns} board={board} pending={state.pending} locked={state.stale || !!confirmation || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
-      {Object.entries(state.notices).filter(([id]) => !board.participations.some(item => item.id === id)).map(([id, notice]) => <ActionStatusSlot key={id}><ActionStatus id={`move-status-${id}`} tone={notice.tone} text={notice.text} /></ActionStatusSlot>)}
-      {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} onClose={() => setSelected(null)} onMove={requestMove} onDisposition={state.requestDisposition} locked={stale || pending.has(selectedItem.id) || !!confirmation || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}</CandidateSheet>}
+      <BoardColumns substateFilter={substateFilter} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={state.stale || !!confirmation || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
+      {Object.entries(state.notices).filter(([id]) => !board.participations.some(item => item.id === id && matchesSubstateFilter(board, item, substateFilter))).map(([id, notice]) => <ActionStatusSlot key={id}><ActionStatus id={`move-status-${id}`} tone={notice.tone} text={notice.text} /></ActionStatusSlot>)}
+      {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} onClose={() => setSelected(null)} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={stale || pending.has(selectedItem.id) || !!confirmation || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}</CandidateSheet>}
       {!selectedItem && dispositionDialog}
     </>}
     {!selectedItem && placementDialog}

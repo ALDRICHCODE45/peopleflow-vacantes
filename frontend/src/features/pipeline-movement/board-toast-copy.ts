@@ -1,7 +1,8 @@
+import { substateName } from "./substates";
 import { discardReasonLabel } from "./discard-text";
 import type { Board, DiscardBody, Move, Participation } from "./model";
 
-export type BoardWrite = { kind: "move"; target: string; confirmed: boolean } | { kind: "discard"; body: DiscardBody } | { kind: "recover"; confirmed: boolean };
+export type BoardWrite = { kind: "substate"; substateId: string | null } | { kind: "move"; target: string; confirmed: boolean } | { kind: "discard"; body: DiscardBody } | { kind: "recover"; confirmed: boolean };
 
 function coveredCopy({ covered, required }: Move["coverage"]) {
   return `${covered}${required === null ? "" : ` de ${required}`} cubiertas`;
@@ -10,6 +11,10 @@ function coveredCopy({ covered, required }: Move["coverage"]) {
 /** Names come from the board; coverage comes only from the confirmed write. */
 export function boardSuccessCopy(board: Board, item: Participation, write: BoardWrite, result: Move) {
   const name = item.candidate.full_name;
+  if (write.kind === "substate") return {
+    title: result.substate_id === null ? `${name} quedó sin subestado` : `${name} quedó en «${substateName(board, result.substate_id)}»`,
+    description: `Antes: ${substateName(board, item.substate_id)}.`,
+  };
   const from = board.stages.find(stage => stage.id === item.stage_id);
   const to = board.stages.find(stage => stage.id === result.stage_id);
   const coverage = coveredCopy(result.coverage);

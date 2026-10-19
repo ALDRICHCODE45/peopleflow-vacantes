@@ -3,23 +3,30 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { MovementBoard } from "./board";
-import { loadBoardAction, loadHistoryAction, loadParticipationAction, moveParticipationAction, discardParticipationAction, recoverParticipationAction } from "./actions";
+import { loadBoardAction, loadHistoryAction, loadParticipationAction, moveParticipationAction, discardParticipationAction, recoverParticipationAction, setParticipationSubstateAction } from "./actions";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { boardFixture, detailFixture, historyFixture, vacancyId } from "./board-fixture";
 import type { Board, FailureReason, Move, Result } from "./model";
 
-vi.mock("./actions", () => ({ loadBoardAction: vi.fn(), loadHistoryAction: vi.fn(), loadParticipationAction: vi.fn(), moveParticipationAction: vi.fn(), discardParticipationAction: vi.fn(), recoverParticipationAction: vi.fn() }));
+vi.mock("./actions", () => ({ loadBoardAction: vi.fn(), loadHistoryAction: vi.fn(), loadParticipationAction: vi.fn(), moveParticipationAction: vi.fn(), discardParticipationAction: vi.fn(), recoverParticipationAction: vi.fn(), setParticipationSubstateAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
 // Only the portal boundary is replaced: test product menu composition and actions,
 // not Base UI positioning (the real menu/keyboard boundary needs browser review).
 vi.mock("@/components/ui/dropdown-menu", async () => {
   const React = await import("react");
   const Menu = React.createContext(false);
+  const Radio = React.createContext({ value: "", change: (value: string) => { void value; } });
   return {
     DropdownMenu: ({ children }: { children: ReactNode }) => { const [open, setOpen] = React.useState(false); return <Menu.Provider value={open}><div onKeyDown={event => { if (event.key === "Escape") setOpen(false); }} onClick={() => setOpen(true)}>{children}</div></Menu.Provider>; },
     DropdownMenuTrigger: ({ render: trigger, children }: { render: React.ReactElement; children: ReactNode }) => React.cloneElement(trigger, { "aria-haspopup": "menu", children } as ComponentProps<"button">),
     DropdownMenuContent: ({ children }: { children: ReactNode }) => React.useContext(Menu) ? <div role="menu">{children}</div> : null,
     DropdownMenuSeparator: () => <div role="separator" />,
+    DropdownMenuCheckboxItem: ({ checked, onCheckedChange, children }: { checked: boolean; onCheckedChange: (value: boolean) => void; children: ReactNode }) => <button role="menuitemcheckbox" aria-checked={checked} onClick={() => onCheckedChange(!checked)}>{children}</button>,
+    DropdownMenuSub: ({ children }: { children: ReactNode }) => <>{children}</>,
+    DropdownMenuSubTrigger: ({ children, disabled }: ComponentProps<"button">) => <button disabled={disabled}>{children}</button>,
+    DropdownMenuSubContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    DropdownMenuRadioGroup: ({ value, onValueChange, children }: { value: string; onValueChange: (value: string) => void; children: ReactNode }) => <Radio.Provider value={{ value, change: onValueChange }}><div role="group" aria-label="Subestado">{children}</div></Radio.Provider>,
+    DropdownMenuRadioItem: ({ value, children, disabled }: { value: string; children: ReactNode; disabled: boolean }) => { const radio = React.useContext(Radio); return <button role="menuitemradio" aria-checked={value === radio.value} disabled={disabled} onClick={() => radio.change(value)}>{children}</button>; },
     DropdownMenuGroup: ({ children }: { children: ReactNode }) => <div role="group">{children}</div>,
     DropdownMenuLabel: ({ children }: { children: ReactNode }) => <span>{children}</span>,
     DropdownMenuItem: ({ children, onClick, disabled }: ComponentProps<"button">) => <button role="menuitem" disabled={disabled} onClick={onClick}>{children}</button>,
@@ -264,6 +271,48 @@ it("sheet has independent loading/error/retry without reloading board or moving"
   expect(moveParticipationAction).not.toHaveBeenCalled();
 });
 
+function activeSubstateBoard(): Board {
+  const board = boardFixture(); board.stages[2].kind = "in_process";
+  board.substates = [{ id: "tech", name: "Entrevista técnica" }, { id: "offer", name: "Oferta" }];
+  board.participations[0] = { ...board.participations[0], stage_id: "interview", substate_id: "tech" }; board.stages[0].count = 0; board.stages[2].count = 1;
+  return board;
+}
+it("card radio options follow catalog order, share the write path and update the badge", async () => {
+  const board = activeSubstateBoard();
+  vi.mocked(setParticipationSubstateAction).mockResolvedValue({ ok: true, data: { ...board.participations[0], substate_id: null, etag: '"cleared"', coverage: board.coverage } });
+  await mount(board);
+  const actions = menu();
+  expect(within(actions).getAllByRole("menuitemradio").map(option => option.textContent)).toEqual(["Entrevista técnica", "Oferta", "Sin subestado"]);
+  expect(within(actions).getByRole("menuitemradio", { name: "Entrevista técnica" })).toHaveAttribute("aria-checked", "true");
+  fireEvent.click(within(actions).getByRole("menuitemradio", { name: "Sin subestado" }));
+  await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ title: "Ana Pérez quedó sin subestado", description: "Antes: Entrevista técnica." })));
+  expect(setParticipationSubstateAction).toHaveBeenCalledExactlyOnceWith({ vacancyId, participationId: "person", etag: board.participations[0].etag, body: { substate_id: null } });
+  expect(document.querySelector('.pf-candidate-card [data-slot="badge"]')).toBeNull();
+});
+it("toolbar filter wires OR selections, excludes other stages and clears without a read", async () => {
+  const board = activeSubstateBoard(); board.participations.push({ ...board.participations[0], id: "null", substate_id: null, candidate: { id: "second", full_name: "Eva Ruiz" } }, { ...board.participations[0], id: "outside", stage_id: "new", substate_id: null, candidate: { id: "third", full_name: "Sol Díaz" } });
+  await mount(board); fireEvent.click(screen.getByRole("button", { name: "Subestados" }));
+  const options = screen.getAllByRole("menuitemcheckbox"); expect(options.map(option => option.textContent)).toEqual(["Entrevista técnica", "Oferta", "Sin subestado"]);
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Entrevista técnica" }));
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Sin subestado" }));
+  expect(screen.getByRole("region", { name: "Entrevista: 2 de 2 candidatos" })).toHaveTextContent("Ana Pérez");
+  expect(screen.queryByRole("button", { name: "Ver detalle de Sol Díaz" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Subestados (2)" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Limpiar" }));
+  expect(screen.getByRole("button", { name: "Ver detalle de Sol Díaz" })).toBeVisible(); expect(loadBoardAction).toHaveBeenCalledTimes(1);
+});
+it("sheet selector uses confirmed board value and snapshot history survives catalog renames", async () => {
+  const board = activeSubstateBoard();
+  vi.mocked(loadHistoryAction).mockResolvedValue({ ok: true, data: { items: [{ kind: "substate", from_substate_id: null, from_substate_name: null, to_substate_id: "tech", to_substate_name: "Nombre anterior", actor: { kind: "recruiter", id: "actor", full_name: "Luis López" }, at: "2026-10-18T12:00:00Z" }] } });
+  vi.mocked(setParticipationSubstateAction).mockResolvedValue({ ok: true, data: { ...board.participations[0], substate_id: "offer", etag: '"offer"', coverage: board.coverage } });
+  await mount(board); fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Ana Pérez" }));
+  const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
+  expect(within(sheet).getByRole("combobox", { name: "Subestado" })).toHaveTextContent("Entrevista técnica");
+  fireEvent.click(within(sheet).getByRole("option", { name: "Oferta" }));
+  await waitFor(() => expect(within(sheet).getByRole("combobox", { name: "Subestado" })).toHaveTextContent("Oferta"));
+  fireEvent.click(within(sheet).getByRole("tab", { name: "Historial 1" }));
+  expect(await within(sheet).findByText("Subestado: Sin subestado → Nombre anterior")).toBeVisible();
+});
 async function openDiscard(board?: Board) {
   await mount(board); fireEvent.click(within(menu()).getByRole("menuitem", { name: "Descartar" }));
   return screen.findByRole("dialog", { name: "Descartar candidato" });

@@ -1,6 +1,6 @@
 "use server";
 import { getActionAccessToken } from "@/lib/auth/action-session";
-import { getBoard, getHistory, getParticipation, moveParticipation, discardParticipation, recoverParticipation, type ClientResult, type MoveInput } from "./client";
+import { getBoard, getHistory, getParticipation, moveParticipation, discardParticipation, recoverParticipation, setParticipationSubstate, type ClientResult, type MoveInput } from "./client";
 import { movementFailure } from "./failure";
 import type { Board, History, Move, ParticipationDetail, Result } from "./model";
 async function authenticated<T>(call: (token: string) => Promise<ClientResult<T>>, write = false): Promise<Result<T>> {
@@ -23,6 +23,9 @@ export async function loadHistoryAction(vacancyId: string, participationId: stri
 /** Caller reconciles uncertain/unrecognized/412/404 outcomes with a board GET, never a replay. */
 export async function moveParticipationAction(input: Omit<MoveInput, "token">): Promise<Result<Move>> {
   return authenticated(token => moveParticipation({ ...input, token }), true);
+}
+export async function setParticipationSubstateAction(input: Omit<MoveInput, "token">): Promise<Result<Move>> {
+  return authenticated(token => setParticipationSubstate({ ...input, token }), true);
 }
 export async function discardParticipationAction(input: Omit<MoveInput, "token">): Promise<Result<Move>> {
   return authenticated(token => discardParticipation({ ...input, token }), true);

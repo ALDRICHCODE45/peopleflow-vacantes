@@ -905,6 +905,16 @@ configuración del pipeline). Se aplican a cualquier pantalla nueva con el mismo
   explica quién verá cada uno; el historial conserva sus etiquetas. Los mensajes se
   renderizan como texto de React con `whitespace-pre-wrap` y `break-words`, nunca HTML.
 
+### 13.12 Filtros locales del tablero
+
+- Un filtro multiselección usa `DropdownMenu` con checkbox items, contador de opciones
+  activas y «Limpiar» en la barra del tablero; nunca badges interactivos. Combina OR
+  dentro de su dimensión y AND con las demás. Filtrar no escribe ni vuelve a leer.
+- Se conserva el tablero completo como fuente: las columnas muestran «X de Y» mientras
+  hay filtro y «Ningún candidato coincide con el filtro» si quedan vacías. La cobertura
+  no cambia. Si una escritura oculta su tarjeta, sus errores siguen visibles en la barra
+  y el foco puede volver al filtro.
+
 ## 14. Tipografía y pulido de producto (decisiones de la pasada de UI)
 
 ### 14.1 Tipografía de la aplicación

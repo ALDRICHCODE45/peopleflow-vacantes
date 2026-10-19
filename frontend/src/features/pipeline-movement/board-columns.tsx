@@ -16,6 +16,7 @@ import type { Board, Participation } from "./model";
 import type { Notice } from "./board-feedback";
 import { MovementDate } from "./board-states";
 import { CandidateMenu } from "./candidate-menu";
+import { isInProcess, matchesSubstateFilter, substateName } from "./substates";
 import { filePresentation, Hint, initials, stageClass } from "./pipeline-presentation";
 import { canMoveTo } from "@/features/jobs/drafts/pipeline/editor-model";
 import type { BoardColumnOrder } from "./use-board-column-order";
@@ -25,11 +26,12 @@ type Props = {
   board: Board; pending: Set<string>; locked: boolean; notices: Record<string, Notice>; columnOrder?: BoardColumnOrder;
   onMove: (id: string, target: string) => void; onDetail: (id: string) => void;
   onDisposition: (id: string, kind: "discard" | "recover") => void;
+  onSubstate?: (id: string, substateId: string | null) => void; substateFilter?: string[];
 };
 // Draggable board-card exception (§14.3): compact handle/menu anatomy owns its spacing.
-function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDetail, onDisposition, suppressClick }: {
+function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDetail, onDisposition, onSubstate, board, suppressClick }: {
   item: Participation; targets: Board["stages"]; disabled: boolean; pending: boolean; notice?: Notice;
-  onMove: Props["onMove"]; onDetail: Props["onDetail"]; onDisposition: Props["onDisposition"]; suppressClick: RefObject<boolean>;
+  onMove: Props["onMove"]; onDetail: Props["onDetail"]; onDisposition: Props["onDisposition"]; onSubstate: Props["onSubstate"]; board: Board; suppressClick: RefObject<boolean>;
 }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
     id: item.id, disabled: disabled || !!item.discard, attributes: { roleDescription: "Tarjeta de candidato" },
@@ -48,9 +50,10 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
         <CardTitle className="min-w-0 text-sm font-medium"><Hint text={item.candidate.full_name}><Button type="button" variant="ghost" className="h-auto min-h-10 w-full justify-start whitespace-normal p-0 text-left text-sm font-medium hover:bg-transparent"
           id={`candidate-detail-${item.id}`} aria-label={`Ver detalle de ${item.candidate.full_name}`} onClick={() => onDetail(item.id)}><span className="line-clamp-2 break-words leading-5">{item.candidate.full_name}</span></Button></Hint></CardTitle>
       </div>
-      <CardAction className="row-span-1 self-center"><CandidateMenu item={item} targets={targets} disabled={disabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} /></CardAction>
+      <CardAction className="row-span-1 self-center"><CandidateMenu item={item} targets={targets} disabled={disabled} pending={pending} describedBy={statusId} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} onSubstate={isInProcess(board, item) ? onSubstate : undefined} substates={board.substates} /></CardAction>
     </CardHeader>
     <CardContent className="flex flex-col gap-1.5 px-0 text-xs text-muted-foreground">
+      {isInProcess(board, item) && item.substate_id !== null && <Badge variant="secondary" className="max-w-full" title={substateName(board, item.substate_id)}><span className="truncate">{substateName(board, item.substate_id)}</span></Badge>}
       <p className="flex items-center gap-2"><CalendarDays aria-hidden="true" className="size-3.5 shrink-0" /><span>Postuló <MovementDate value={item.applied_at} compact /></span></p>
       <p className="flex items-center gap-2"><Clock3 aria-hidden="true" className="size-3.5 shrink-0" /><span>En la etapa desde <MovementDate value={item.moved_at} compact /></span></p>
     </CardContent>
@@ -65,13 +68,13 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
     {error && <div className="pf-card-error"><ActionStatus id={`move-status-${item.id}`} tone={error.tone} text={error.text} /></div>}
   </Card>;
 }
-function Column({ stage, disabled, dragging, children, order, lifted, insertion }: { stage: Board["stages"][number] | Board["exit"]; disabled: boolean; dragging: boolean; children: React.ReactNode; order?: BoardColumnOrder; lifted: boolean; insertion: "left" | "right" | null }) {
+function Column({ stage, countLabel = String(stage.count), disabled, dragging, children, order, lifted, insertion }: { stage: Board["stages"][number] | Board["exit"]; disabled: boolean; dragging: boolean; children: React.ReactNode; countLabel?: string; order?: BoardColumnOrder; lifted: boolean; insertion: "left" | "right" | null }) {
   const { setNodeRef } = useDroppable({ id: stage.id, disabled });
   const drag = useDraggable({ id: stage.id, disabled: !order || order.locked || stage.kind === "new" || stage.kind === "placement" || stage.kind === "discarded", data: { type: "column" }, attributes: { roleDescription: "Columna del pipeline" } });
-  return <section ref={node => { setNodeRef(node); drag.setNodeRef(node); }} role="region" aria-label={`${stage.name}: ${stage.count} candidatos`} aria-describedby={dragging ? `drop-status-${stage.id}` : undefined}
+  return <section ref={node => { setNodeRef(node); drag.setNodeRef(node); }} role="region" aria-label={`${stage.name}: ${countLabel} candidatos`} aria-describedby={dragging ? `drop-status-${stage.id}` : undefined}
     data-drop-disabled={disabled} data-pf-published-column="" className={cn("stage-column group/column relative flex min-h-[420px] w-[284px] shrink-0 snap-start flex-col rounded-xl p-2 transition-opacity motion-reduce:transition-none", stageClass(stage.kind), dragging && (disabled ? "opacity-35" : "outline outline-1 outline-dashed outline-primary"), lifted && "opacity-55", insertion && "before:absolute before:inset-y-0 before:w-1 before:rounded-full before:bg-primary", insertion === "left" && "before:-left-2", insertion === "right" && "before:-right-2")}>
     {insertion && <span className="sr-only">Insertar {insertion === "left" ? "antes" : "después"} de {stage.name}</span>}
-    <div className="stage-heading mb-3 flex h-10 shrink-0 items-center gap-2 rounded-lg px-2"><span aria-hidden="true" className="stage-dot size-2 shrink-0 rounded-full" /><h3 className="min-w-0 truncate text-[13px] font-semibold" title={stage.name}>{stage.name}</h3><Badge variant="secondary" className="stage-count tabular-nums" aria-label={`${stage.count} candidatos`}>{stage.count}</Badge>
+    <div className="stage-heading mb-3 flex h-10 shrink-0 items-center gap-2 rounded-lg px-2"><span aria-hidden="true" className="stage-dot size-2 shrink-0 rounded-full" /><h3 className="min-w-0 truncate text-[13px] font-semibold" title={stage.name}>{stage.name}</h3><Badge variant="secondary" className="stage-count tabular-nums" aria-label={`${countLabel} candidatos`}>{countLabel}</Badge>
       {order && <ColumnOrderControls stage={stage} order={order} drag={drag} />}
       {stage.kind === "discarded" && <Hint text="Se llega descartando, no moviendo"><span tabIndex={0} aria-label="Se llega descartando, no moviendo" className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"><LockKeyhole aria-hidden="true" className="size-3.5" /></span></Hint>}
     </div>
@@ -81,7 +84,7 @@ function Column({ stage, disabled, dragging, children, order, lifted, insertion 
     </ScrollArea>
   </section>;
 }
-export function BoardColumns({ board, pending, locked, notices, onMove, onDetail, onDisposition, columnOrder }: Props) {
+export function BoardColumns({ board, pending, locked, notices, onMove, onDetail, onDisposition, onSubstate, substateFilter = [], columnOrder }: Props) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [columnId, setColumnId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -115,12 +118,14 @@ export function BoardColumns({ board, pending, locked, notices, onMove, onDetail
     <ScrollArea role="region" aria-label="Columnas del pipeline" className="pf-board-scroll h-[min(70dvh,640px)] min-h-[448px] min-w-0 md:h-auto md:min-h-0 md:flex-1">
       <div data-pf-board-track="" className="flex h-full min-h-[448px] w-max items-stretch gap-3 px-0.5 pt-0.5 pb-6">
         {[...board.stages, board.exit].map(stage => {
-          const items = board.participations.filter(item => item.stage_id === stage.id);
-          return <Column key={stage.id} stage={stage} order={columnOrder} lifted={columnId === stage.id} insertion={overId === stage.id && canDropColumn(stage.id) ? (columnIndex(columnId!) < columnIndex(stage.id) ? "right" : "left") : null} dragging={!!active} disabled={columnId ? !canDropColumn(stage.id) : locked || !targets.some(target => target.id === stage.id)}>
+          const allItems = board.participations.filter(item => item.stage_id === stage.id);
+          const items = allItems.filter(item => matchesSubstateFilter(board, item, substateFilter));
+          const countLabel = substateFilter.length ? `${items.length} de ${allItems.length}` : String(stage.count);
+          return <Column key={stage.id} stage={stage} countLabel={countLabel} order={columnOrder} lifted={columnId === stage.id} insertion={overId === stage.id && canDropColumn(stage.id) ? (columnIndex(columnId!) < columnIndex(stage.id) ? "right" : "left") : null} dragging={!!active} disabled={columnId ? !canDropColumn(stage.id) : locked || !targets.some(target => target.id === stage.id)}>
             {items.length ? <ul className="flex flex-col gap-3">{items.map(item => <li key={item.id}>
-              <CandidateCard item={item} targets={allowedMoveTargets(board, item)} disabled={locked || pending.has(item.id)}
+              <CandidateCard item={item} board={board} onSubstate={onSubstate} targets={allowedMoveTargets(board, item)} disabled={locked || pending.has(item.id)}
                 pending={pending.has(item.id)} notice={notices[item.id]} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} suppressClick={suppressClick} />
-            </li>)}</ul> : <p className="flex h-24 items-center justify-center rounded-lg border border-dashed border-border text-[11px] text-muted-foreground">Sin candidatos en esta etapa</p>}
+            </li>)}</ul> : <p className="flex h-24 items-center justify-center rounded-lg border border-dashed border-border text-[11px] text-muted-foreground">{substateFilter.length ? "Ningún candidato coincide con el filtro" : "Sin candidatos en esta etapa"}</p>}
           </Column>;
         })}
       </div><ScrollBar orientation="horizontal" />
