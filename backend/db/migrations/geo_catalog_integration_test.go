@@ -30,8 +30,8 @@ func TestGeoCatalogMigrationConstraintsAndDown(t *testing.T) {
 	}
 	defer tx.Rollback(ctx)
 	for _, sql := range []string{
-		`INSERT INTO geo_countries VALUES('MX','México','Mexico'),('US','Estados Unidos','United States')`,
-		`INSERT INTO geo_states VALUES('MX','01','Aguascalientes','Ags.'),('MX','02','Baja California','BC')`,
+		`INSERT INTO geo_countries VALUES('MX','México','Mexico'),('US','Estados Unidos','United States'),('BZ','Belice','Belize'),('BE','Bélgica','Belgium')`,
+		`INSERT INTO geo_states VALUES('MX','02','Baja California','BC'),('MX','01','Aguascalientes','Ags.')`,
 		`INSERT INTO geo_municipalities VALUES('MX','01','01001','Árbol'),('MX','01','01002','Zorro'),('MX','01','01003','Álamo')`,
 		`INSERT INTO geo_postal_codes VALUES('MX','01000','01001')`,
 	} {
@@ -63,6 +63,14 @@ func TestGeoCatalogMigrationConstraintsAndDown(t *testing.T) {
 		})
 	}
 	q := db.New(tx)
+	countries, err := q.GeoCountries(ctx)
+	if err != nil || len(countries) != 4 || countries[0].NameEs != "Bélgica" || countries[1].NameEs != "Belice" || countries[2].NameEs != "Estados Unidos" || countries[3].NameEs != "México" {
+		t.Fatal("countries must follow Spanish ordering (accent-insensitive first pass)", countries, err)
+	}
+	states, err := q.GeoStates(ctx, "MX")
+	if err != nil || len(states) != 2 || states[0].Code != "01" || states[1].Code != "02" {
+		t.Fatal("states must follow code ordering", states, err)
+	}
 	items, err := q.GeoMunicipalities(ctx, db.GeoMunicipalitiesParams{CountryCode: "MX", StateCode: "01"})
 	if err != nil || len(items) != 3 || items[0].Name != "Álamo" || items[1].Name != "Árbol" {
 		t.Fatal("Spanish ordering", items, err)
