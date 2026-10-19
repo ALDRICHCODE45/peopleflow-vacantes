@@ -130,7 +130,7 @@ export function legacyApplicationJob(job: Extract<PublicJobDetail, { source: "le
     id: job.id, title: job.title, company: job.company,
     description: job.description_plain, work_mode: job.work_mode,
     employment_type: job.legacy_employment_type, seniority: job.seniority,
-    location: job.location ?? undefined, published_at: job.published_at,
+    location: job.location_label ?? undefined, published_at: job.published_at,
     salary_currency: job.legacy_salary?.currency ?? "MXN",
     salary_min: job.legacy_salary?.min == null ? undefined : Number(job.legacy_salary.min),
     salary_max: job.legacy_salary?.max == null ? undefined : Number(job.legacy_salary.max),

@@ -22,7 +22,7 @@ import { PUBLIC_ACTION_CARD, PUBLIC_COMPANY_FOOTER, PUBLIC_DETAIL_ASIDE, PUBLIC_
 export function PublicJobDetailView({ job }: { job: PublicJobDetail }) {
   const sections = publicDetailSections(job);
   const benefits = publicDetailBenefits(job);
-  const companyContext = [job.location, publicJobHeroFacts(job).find(fact => fact.key === "work_mode")?.value].filter(Boolean).join(" · ");
+  const companyContext = [job.location_label, publicJobHeroFacts(job).find(fact => fact.key === "work_mode")?.value].filter(Boolean).join(" · ");
   return <article className="flex w-full flex-col gap-6">
     <nav aria-label="Ruta de navegación" className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
       <Link href="/vacantes" aria-label="Volver a vacantes" className={cn(buttonVariants({ variant: "ghost" }), "min-h-10")}><ArrowLeftIcon aria-hidden="true" data-icon="inline-start" />Vacantes</Link>

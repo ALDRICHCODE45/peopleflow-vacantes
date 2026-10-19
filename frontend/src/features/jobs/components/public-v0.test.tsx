@@ -66,7 +66,7 @@ it("renders the detail hero, glance facts, data-only anchors and benefits icons"
 });
 
 it("omits unavailable sections and facts for legacy, without inventing payment cadence", () => {
-  const { container } = render(<PublicJobDetailView job={{ ...legacyDetail, location: null, description_plain: "" }} />);
+  const { container } = render(<PublicJobDetailView job={{ ...legacyDetail, location: null, location_label: null, description_plain: "" }} />);
   expect(screen.queryByRole("navigation", { name: "Secciones de la vacante" })).toBeNull();
   expect(screen.queryByRole("heading", { name: "Sobre la vacante" })).toBeNull();
   const glance = screen.getByRole("heading", { name: "La vacante de un vistazo" }).closest('[data-slot="card"]')!;

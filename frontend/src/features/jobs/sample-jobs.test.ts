@@ -16,6 +16,9 @@ describe("sample public v2 reads", () => {
       expect(detail.source).toBe("legacy");
       expect(detail.description_plain).toBe(job.description);
       expect(detail.description).toBeNull();
+      expect(detail.location).toBeNull();
+      expect(detail.location_label).toBe(job.location ?? null);
+      expect(detail.remote_scope).toBeNull();
       expect(detail.title).toBe(job.title);
       expect(detail.company).toEqual({ ...job.company, logo_url: null });
       expect(detail).toMatchObject({
@@ -36,7 +39,7 @@ describe("sample public v2 reads", () => {
     for (const item of page.items) {
       for (const key of ["description", "description_plain", "requirements", "benefits", "skills"]) expect(item).not.toHaveProperty(key);
       expect(item).toMatchObject({ company: { logo_url: null }, skills_preview: [], applicants: null, screening_questions: null });
-      expect(Object.keys(item)).toHaveLength(22);
+      expect(Object.keys(item)).toHaveLength(24);
     }
   });
   it("applies text, location and modality conjunctively", () => {

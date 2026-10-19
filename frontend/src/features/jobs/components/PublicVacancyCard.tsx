@@ -24,7 +24,7 @@ export function PublicVacancyCard({ job }: PublicVacancyCardProps) {
       <PublicVacancyHeader job={job} />
       <CardContent className={PUBLIC_VACANCY_CONTENT}>
         <ul aria-label="Condiciones principales" data-public-job-chips className={PUBLIC_VACANCY_CHIPS}>
-          {publicJobConditions(job).map(({ key, value, Icon }) => <li key={key} data-fact={key} className="flex min-w-0 items-center gap-2"><Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />{value}</li>)}
+          {publicJobConditions(job).map(({ key, value, title, Icon }) => <li key={key} title={title} aria-label={title} data-fact={key} className="flex min-w-0 items-center gap-2"><Icon aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />{value}</li>)}
           {job.applicants !== null && <li><PublicApplicants applicants={job.applicants} /></li>}
         </ul>
         {job.excerpt !== null && <p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">{job.excerpt}{job.excerpt_truncated ? "…" : ""}</p>}

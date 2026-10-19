@@ -192,7 +192,7 @@ function sampleExcerpt(description: string): { excerpt: string | null; excerpt_t
 // publication metadata. This adapter never runs against a real API response.
 const PUBLIC_SAMPLE_DETAILS: readonly PublicJobDetail[] = SAMPLE_JOBS.map((job) => publicJobDetailSchema.parse({
   id: job.id, source: "legacy", title: job.title, company: { ...job.company, logo_url: null },
-  location: job.location ?? null, work_mode: job.work_mode,
+  location: null, location_label: job.location ?? null, remote_scope: null, work_mode: job.work_mode,
   work_schedule: null, contract_type: null, professional_area: null,
   seniority: job.seniority, legacy_employment_type: job.employment_type,
   compensation: null,
@@ -247,7 +247,7 @@ function matchesFilters(job: PublicJobDetail, query: JobsQuery): boolean {
     return false;
   if (
     query.location !== undefined &&
-    !(job.location ?? "").toLowerCase().includes(query.location.toLowerCase())
+    !(job.location_label ?? "").toLowerCase().includes(query.location.toLowerCase())
   )
     return false;
   return true;

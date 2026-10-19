@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { countryCodeSchema, stateCodeSchema, municipalityCodeSchema, postalCodeSchema } from "../geo/model";
 import { COMPENSATION_BASES, COMPENSATION_CURRENCIES, COMPENSATION_MONEY_PATTERN, COMPENSATION_PAY_PERIODS, compensationSchema } from "./drafts/compensation";
 import { BENEFITS } from "./drafts/lists";
 import { draftRichDescriptionSchema } from "./drafts/rich/description";
@@ -75,7 +76,23 @@ const publicBenefitsSchema = z.object({
 const emptyBenefitsSchema = z.object({
   predefined: z.array(z.enum(BENEFITS)).max(0), custom: z.array(publicListTextSchema).max(0),
 }).strict();
+// Local read decoders until the shared geo read models are merged.
+const geoReference = (id: z.ZodString) => z.object({ id, name: nonEmptyString }).strict();
+const publicLocationSchema = z.object({
+  country: geoReference(countryCodeSchema),
+  state: geoReference(stateCodeSchema).nullable(),
+  municipality: geoReference(municipalityCodeSchema).nullable(),
+  postal_code: postalCodeSchema.nullable(),
+  label: z.string(),
+}).strict().nullable();
+const publicRemoteScopeSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("anywhere") }).strict(),
+  z.object({ kind: z.literal("countries"), countries: z.array(geoReference(countryCodeSchema)).min(1).max(50).refine(items => new Set(items.map(item => item.id)).size === items.length) }).strict(),
+]).nullable();
 const publicCommon = {
+  location: publicLocationSchema,
+  location_label: z.string().nullable(),
+  remote_scope: publicRemoteScopeSchema,
   id: uuid,
   title: nonEmptyString,
   company: z.object({ id: uuid, name: nonEmptyString, logo_url: publicLogoSchema }).strict(),
@@ -87,7 +104,8 @@ const publicCommon = {
 const publicLegacy = z.object({
   ...publicCommon,
   source: z.literal("legacy"),
-  location: z.string().nullable(),
+  location: z.null(),
+  remote_scope: z.null(),
   work_schedule: z.null(),
   contract_type: z.null(),
   professional_area: z.null(),
@@ -105,7 +123,6 @@ const publicLegacy = z.object({
 const publicVacancy = z.object({
   ...publicCommon,
   source: z.literal("vacancy"),
-  location: nonEmptyString,
   work_schedule: z.enum(WORK_SCHEDULES),
   contract_type: z.enum(CONTRACT_TYPES),
   professional_area: z.enum(PROFESSIONAL_AREAS),
@@ -120,7 +137,8 @@ const publicVacancy = z.object({
   applicants: z.enum(["under_10", "10_plus", "25_plus", "50_plus"]),
   screening_questions: integer.nonnegative(),
 });
-export const publicJobItemSchema = z.discriminatedUnion("source", [publicLegacy.strict(), publicVacancy.strict()]);
+const publicScopeMatchesMode = (job: { work_mode: string; remote_scope: z.infer<typeof publicRemoteScopeSchema> }) => job.work_mode === "remote" || job.remote_scope === null;
+export const publicJobItemSchema = z.discriminatedUnion("source", [publicLegacy.strict(), publicVacancy.strict()]).refine(publicScopeMatchesMode, { path: ["remote_scope"], message: "remote scope requires remote work" });
 export const publicJobsListSchema = z.object({
   items: z.array(publicJobItemSchema),
   next_cursor: nonEmptyString.nullable(),
@@ -141,4 +159,4 @@ export const publicJobDetailSchema = z.discriminatedUnion("source", [
     benefits: publicBenefitsSchema,
     skills: z.array(publicListTextSchema).max(100),
   }).strict(),
-]);
+]).refine(publicScopeMatchesMode, { path: ["remote_scope"], message: "remote scope requires remote work" });
