@@ -52,7 +52,7 @@ it("set/clear uses the same per-card mutex as moves, applies returned item and a
 });
 it.each(["move", "discard"])("%s leaving in_process trusts the returned cleared substate and re-entry stays empty", operation => {
   const board = fixture(); const item = board.participations[0];
-  const returned: Move = { delivery: board.delivery, ...item, substate_id: null, stage_id: operation === "move" ? "screen" : "exit", discard: operation === "move" ? null : { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: "interview", discarded_at: item.moved_at }, coverage: board.coverage };
+  const returned: Move = { delivery: board.delivery, ...item, substate_id: null, stage_id: operation === "move" ? "screen" : "exit", discard: operation === "move" ? null : { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: "interview", recovery_stage_id: "interview", discarded_at: item.moved_at }, coverage: board.coverage };
   const next = applyParticipationToBoard(board, returned);
   expect(next.participations[0].substate_id).toBeNull();
   const reentry = applyParticipationToBoard(next, { ...returned, discard: null, stage_id: "interview" });

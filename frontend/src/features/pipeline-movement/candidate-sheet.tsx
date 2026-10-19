@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowDownToLine, ArrowUpRight, CalendarDays, Check, Clock3, FileText, FileType2, Globe2, Info, RotateCcw, UserRoundX, X } from "lucide-react";
+import { ArrowDownToLine, ArrowUpRight, CalendarDays, Check, CircleMinus, Clock3, FileText, FileType2, Globe2, Info, RotateCcw, UserRoundX, X } from "lucide-react";
 import { cn } from "cn";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
@@ -60,8 +60,8 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
     }
     void load(); return () => { current = false; };
   }, [vacancyId, item.id, item.etag, attempt]);
-  const stages = [...board.stages, board.exit];
-  const stageName = (id: string) => stages.find(stage => stage.id === id)?.name ?? "Etapa no disponible";
+  const stages = [...board.stages, board.exit, ...board.retired_stages];
+  const stageName = (id: string) => stages.find(stage => stage.id === id)?.name ?? "Columna eliminada";
   // The board's confirmed item owns live state while the detail/history read refreshes.
   const detail = loaded?.detail ?? item;
   const stage = stages.find(stage => stage.id === item.stage_id);
@@ -131,13 +131,13 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
             </section>}
             {tab === "history" && <section className="flex flex-col gap-6"><SectionTitle>Actividad de la postulación</SectionTitle>
               {events.length ? <ol>{events.map((entry, index) => <li key={`${entry.at}-${index}`} className="relative flex gap-4 pb-7 last:pb-0">
-                <div className="flex flex-col items-center"><span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full", entry.kind === "discard" ? "bg-status-danger/10 text-status-danger" : entry.kind === "recovery" ? "bg-status-info/10 text-status-info" : "bg-status-success/10 text-status-success")}>{entry.kind === "recovery" ? <RotateCcw aria-hidden="true" className="size-3" /> : entry.kind === "discard" ? <UserRoundX aria-hidden="true" className="size-3" /> : <Check aria-hidden="true" className="size-3" />}</span>{index < events.length - 1 && <span aria-hidden="true" className="w-px flex-1 bg-border" />}</div>
+                <div className="flex flex-col items-center"><span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full", entry.kind === "not_applicable" ? "bg-muted text-muted-foreground" : entry.kind === "discard" ? "bg-status-danger/10 text-status-danger" : entry.kind === "recovery" ? "bg-status-info/10 text-status-info" : "bg-status-success/10 text-status-success")}>{entry.kind === "not_applicable" ? <CircleMinus aria-hidden="true" className="size-3" /> : entry.kind === "recovery" ? <RotateCcw aria-hidden="true" className="size-3" /> : entry.kind === "discard" ? <UserRoundX aria-hidden="true" className="size-3" /> : <Check aria-hidden="true" className="size-3" />}</span>{index < events.length - 1 && <span aria-hidden="true" className="w-px flex-1 bg-border" />}</div>
                 <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <p className="break-words text-sm font-medium">{entry.kind === "intake" ? "Postulación recibida" : entry.kind === "discard" ? "Descarte" : entry.kind === "recovery" ? "Recuperación" : entry.kind === "substate" ? `Subestado: ${entry.from_substate_name ?? "Sin subestado"} → ${entry.to_substate_name ?? "Sin subestado"}` : `${entry.from_stage_id ? stageName(entry.from_stage_id) : "Etapa no disponible"} → ${stageName(entry.to_stage_id)}`}</p>
+                  <p className="break-words text-sm font-medium">{entry.kind === "not_applicable" ? `No aplica por cambio de proceso · ${stageName(entry.stage_id)}` : entry.kind === "intake" ? "Postulación recibida" : entry.kind === "discard" ? "Descarte" : entry.kind === "recovery" ? "Recuperación" : entry.kind === "substate" ? `Subestado: ${entry.from_substate_name ?? "Sin subestado"} → ${entry.to_substate_name ?? "Sin subestado"}` : `${entry.from_stage_id ? stageName(entry.from_stage_id) : "Etapa no disponible"} → ${stageName(entry.to_stage_id)}`}</p>
                   {(entry.kind === "discard" || entry.kind === "recovery") && <p className="text-xs text-muted-foreground">{stageName(entry.from_stage_id)} → {stageName(entry.to_stage_id)}</p>}
                   {entry.kind === "discard" && <><p className="text-sm">{discardGroupLabel(entry.reason)} · {discardReasonLabel(entry.reason)}</p><DiscardNotes comment={entry.comment} message={entry.candidate_message} /></>}
                   {entry.kind === "intake" && <p className="text-xs text-muted-foreground">Ingreso a {stageName(entry.to_stage_id)}</p>}
-                  {entry.kind !== "substate" && (entry.hire || entry.departure) && <div className="flex flex-wrap gap-2">{entry.hire && <Badge variant="success">Contratación</Badge>}{entry.departure && <Badge variant="review">Salida de Placement</Badge>}</div>}
+                  {entry.kind !== "substate" && entry.kind !== "not_applicable" && (entry.hire || entry.departure) && <div className="flex flex-wrap gap-2">{entry.hire && <Badge variant="success">Contratación</Badge>}{entry.departure && <Badge variant="review">Salida de Placement</Badge>}</div>}
                   <div className="flex items-center gap-2 text-xs text-muted-foreground"><Avatar className="size-5 shrink-0"><AvatarFallback className="text-[9px]">{initials(entry.actor.full_name)}</AvatarFallback></Avatar><span>{entry.actor.full_name} · {entry.actor.kind === "candidate" ? "Candidato" : "Reclutador"}</span></div>
                   <p className="text-xs tabular-nums text-muted-foreground"><MovementDate value={entry.at} withTime /></p>
                 </div>

@@ -362,7 +362,7 @@ it.each(["discard", "recover"])("%s uses an action-named alert with cancel and d
 
 function discardedBoard(previous = "new"): Board {
   const board = boardFixture();
-  board.participations[0] = { ...board.participations[0], stage_id: "exit", discard: { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: previous, discarded_at: "2026-10-18T12:00:00Z" } };
+  board.participations[0] = { ...board.participations[0], stage_id: "exit", discard: { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: previous, recovery_stage_id: previous, discarded_at: "2026-10-18T12:00:00Z" } };
   board.stages[0].count = 0; board.exit.count = 1; return board;
 }
 it("discard form requires a grouped reason and explanation for other, with code-point counters", async () => {

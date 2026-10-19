@@ -42,7 +42,7 @@ it("has one close, counted tabs, real vacancy footer and newest-first activity",
 it("shows honest empty discard notes rather than omitting their private/public meaning", async () => {
   const board = boardFixture();
   board.participations[0].stage_id = "exit";
-  board.participations[0].discard = { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: "new", discarded_at: "2026-10-18T12:00:00Z" };
+  board.participations[0].discard = { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: "new", recovery_stage_id: "new", discarded_at: "2026-10-18T12:00:00Z" };
   vi.mocked(loadParticipationAction).mockResolvedValueOnce({ ok: true, data: { ...detailFixture(), ...board.participations[0] } });
   render(<CandidateSheet vacancyId={vacancyId} vacancyTitle="Software Developer" item={board.participations[0]} board={board} onClose={vi.fn()} />);
   expect(await screen.findByText("Sin comentario interno")).toBeVisible();

@@ -82,7 +82,7 @@ it("an older overlapping pending write cannot erase fulfillment even if final re
 it.each(["discard", "recover", "substate"] as const)("%s adopts the delivery write response without another status read for unchanged delivery", async kind => {
   const board = boardFixture(); board.stages[0].kind = "in_process";
   if (kind === "substate") { board.substates = [{ id: "tech", name: "Técnica" }]; board.participations[0].substate_id = "tech"; }
-  if (kind === "recover") board.participations[0] = { ...board.participations[0], stage_id: "exit", discard: { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: "new", discarded_at: "2026-10-16T12:00:00Z" } };
+  if (kind === "recover") board.participations[0] = { ...board.participations[0], stage_id: "exit", discard: { reason: { group: "recruiter", key: "profile_mismatch" }, previous_stage_id: "new", recovery_stage_id: "new", discarded_at: "2026-10-16T12:00:00Z" } };
   vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: board });
   const action = kind === "discard" ? discardParticipationAction : kind === "recover" ? recoverParticipationAction : setParticipationSubstateAction;
   vi.mocked(action).mockResolvedValue({ ok: true, data: { ...board.participations[0], coverage: board.coverage, delivery: board.delivery } });

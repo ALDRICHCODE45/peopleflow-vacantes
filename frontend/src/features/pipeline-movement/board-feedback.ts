@@ -20,10 +20,11 @@ export function moveErrorCopy(reason: FailureReason) {
   }
 }
 export function needsReconciliation(failure: Failure): boolean {
-  return ["uncertain", "no_response", "unrecognized_response", "version_conflict", "not_found", "server_error", "already_discarded", "not_discarded", "substate_requires_in_process", "precondition_required"].includes(failure.reason);
+  return ["recovery_stage_required", "uncertain", "no_response", "unrecognized_response", "version_conflict", "not_found", "server_error", "already_discarded", "not_discarded", "substate_requires_in_process", "precondition_required"].includes(failure.reason);
 }
 export function reconciliationCopy(reason: FailureReason, refreshed: boolean): string {
   if (!refreshed) return "No pudimos actualizar el tablero. No repetimos el movimiento; vuelve a cargar antes de mover candidatos.";
+  if (reason === "recovery_stage_required") return "La columna anterior ya no existe. Elige una columna de regreso y confirma otra vez. No repetimos la recuperación.";
   if (reason === "substate_requires_in_process") return "La etapa cambió en otro lugar. Actualizamos el tablero; revisa el subestado antes de continuar.";
   return reason === "version_conflict"
     ? "Otro usuario movió a este candidato. Actualizamos el tablero."

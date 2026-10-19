@@ -6,6 +6,7 @@ const codes: Record<string, { status: number; reason: FailureReason }> = {
   stage_skip_not_allowed: { status: 409, reason: "stage_skip_not_allowed" }, placement_exit_confirmation_required: { status: 409, reason: "placement_exit_confirmation_required" },
   already_discarded: { status: 409, reason: "already_discarded" }, not_discarded: { status: 409, reason: "not_discarded" },
   placement_reentry_confirmation_required: { status: 409, reason: "placement_reentry_confirmation_required" },
+  recovery_stage_required: { status: 409, reason: "recovery_stage_required" },
   substate_requires_in_process: { status: 409, reason: "substate_requires_in_process" },
   validation_error: { status: 400, reason: "validation_error" }, invalid_request: { status: 400, reason: "invalid_request" },
   cv_storage_unavailable: { status: 503, reason: "cv_storage_unavailable" }, company_inactive: { status: 403, reason: "company_inactive" },

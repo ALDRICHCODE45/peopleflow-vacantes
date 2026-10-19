@@ -9,7 +9,7 @@ it("column and discard declarations preserve catalog order and combine with subs
   const board = boardFixture(); board.stages[2].kind = "in_process";
   board.substates = [{ id: "tech", name: "Técnica" }];
   const item = { ...board.participations[0], stage_id: "interview", substate_id: "tech" };
-  const discarded = { ...item, stage_id: board.exit.id, discard: { reason: { group: "candidate" as const, key: "other" as const }, previous_stage_id: "interview", discarded_at: item.moved_at } };
+  const discarded = { ...item, stage_id: board.exit.id, discard: { reason: { group: "candidate" as const, key: "other" as const }, previous_stage_id: "interview", recovery_stage_id: "interview", discarded_at: item.moved_at } };
   const dimensions = boardFilterDimensions(board);
   expect(dimensions.map(d => d.label)).toEqual(["Columna", "Subestado", "Motivo de descarte"]);
   expect(dimensions[0].options.map(o => o.value)).toEqual([...board.stages, board.exit].map(s => s.id));
@@ -45,7 +45,7 @@ it("substates preserve catalog order, include none only in process and exclude d
   const item = { ...board.participations[0], stage_id: board.stages[2].id, substate_id: null };
   const dimension = substateDimension(board);
   expect(dimension.options.map(option => option.value)).toEqual(["tech", "none"]);
-  const candidates = [item, { ...item, substate_id: "tech" }, { ...item, stage_id: "new" }, { ...item, discard: { reason: { group: "recruiter" as const, key: "profile_mismatch" as const }, previous_stage_id: item.stage_id, discarded_at: item.moved_at } }];
+  const candidates = [item, { ...item, substate_id: "tech" }, { ...item, stage_id: "new" }, { ...item, discard: { reason: { group: "recruiter" as const, key: "profile_mismatch" as const }, previous_stage_id: item.stage_id, recovery_stage_id: item.stage_id, discarded_at: item.moved_at } }];
   expect(applyFilters(candidates, [dimension], { substate: new Set(["none"]) })).toEqual([item]);
   expect(applyFilters(candidates, [dimension], { substate: new Set(["none", "tech"]) })).toEqual(candidates.slice(0, 2));
   expect(optionCount(candidates, dimension, "none")).toBe(1);

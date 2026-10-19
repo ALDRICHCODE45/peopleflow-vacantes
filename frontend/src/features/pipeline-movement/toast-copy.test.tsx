@@ -20,7 +20,7 @@ afterEach(cleanup);
 async function mount(stage = "new", previous?: string) {
   const board = boardFixture();
   board.participations[0].stage_id = stage;
-  if (previous) board.participations[0].discard = { reason, previous_stage_id: previous, discarded_at: "2026-10-18T12:00:00Z" };
+  if (previous) board.participations[0].discard = { reason, previous_stage_id: previous, recovery_stage_id: previous, discarded_at: "2026-10-18T12:00:00Z" };
   // Deliberately different from write coverage: copy must use the response.
   board.coverage.covered = 7;
   vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: board });
@@ -76,7 +76,7 @@ it.each([
   ["hire", true, "Motivo: No cumple requisitos. Verá el estado Finalizada con tu mensaje; se liberó una plaza: 0 de 2 cubiertas."],
 ] as const)("discard from %s, message %s, names the reason and consequence", async (from, message, description) => {
   const { result, board } = await mount(from);
-  vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: { ...response(board, "exit", 2, 0), discard: { reason, previous_stage_id: from, discarded_at: "2026-10-18T12:00:00Z" } } });
+  vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: { ...response(board, "exit", 2, 0), discard: { reason, previous_stage_id: from, recovery_stage_id: from, discarded_at: "2026-10-18T12:00:00Z" } } });
   act(() => result.current.requestDisposition("person", "discard"));
   const body: DiscardBody = { reason, ...(message ? { candidate_message: "Gracias por participar" } : {}) };
   await act(async () => result.current.confirmDisposition(body));
@@ -106,7 +106,7 @@ it.each([
     act(() => result.current.requestDisposition("person", kind));
     await act(async () => result.current.confirmDisposition(kind === "discard" ? { reason } : undefined));
   }
-  toast(title, kind === "move" ? moveErrorCopy("validation_error") : "No se guardó. Revisa los datos e intenta de nuevo.", "error");
+  toast(title, kind === "move" ? moveErrorCopy("validation_error") : kind === "recover" ? "No se recuperó. Revisa la columna de regreso y elige una opción permitida antes de confirmar otra vez." : "No se guardó. Revisa los datos e intenta de nuevo.", "error");
   expect(notifyActionResult).toHaveBeenLastCalledWith(expect.objectContaining({ reference: { status: 400, code: "validation_error", at: expect.any(String) } }));
 });
 it.each([true, false])("reconciliation (read success %s) preserves the existing explanation", async refreshed => {
@@ -128,7 +128,7 @@ it("copy follows candidate identity, renamed stages and the discard catalog, nev
   vi.mocked(moveParticipationAction).mockResolvedValue({ ok: true, data: response(board, "screen") });
   await act(async () => { result.current.requestMove("person", "screen"); result.current.confirmMove(); });
   toast("Alex Rivera pasó a Screening", "Antes estaba en Nuevos. El cambio queda en su historial.");
-  vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: { ...response(board, "exit"), discard: { reason: { group: "candidate", key: "accepted_other_offer" }, previous_stage_id: "screen", discarded_at: "2026-10-18T12:00:00Z" } } });
+  vi.mocked(discardParticipationAction).mockResolvedValue({ ok: true, data: { ...response(board, "exit"), discard: { reason: { group: "candidate", key: "accepted_other_offer" }, previous_stage_id: "screen", recovery_stage_id: "screen", discarded_at: "2026-10-18T12:00:00Z" } } });
   act(() => result.current.requestDisposition("person", "discard"));
   await act(async () => result.current.confirmDisposition({ reason: { group: "candidate", key: "accepted_other_offer" }, comment: "Solo para la empresa" }));
   toast("Descartaste a Alex Rivera", "Motivo: Aceptó otra oferta. Puedes recuperar su postulación desde Descartados.");

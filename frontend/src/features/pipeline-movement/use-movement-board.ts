@@ -6,11 +6,12 @@ import { notifyActionResult } from "@/components/feedback/notify";
 import { loadBoardAction, moveParticipationAction, discardParticipationAction, recoverParticipationAction, setParticipationSubstateAction } from "./actions";
 import { allowedMoveTargets, applyParticipationToBoard, leavesPlacement } from "./helpers";
 import { boardErrorCopy, moveErrorCopy, needsReconciliation, reconciliationCopy, type Notice } from "./board-feedback";
-import type { Board, DiscardBody, Failure, Participation, Result } from "./model";
+import type { Board, DiscardBody, Failure, Participation, RecoverBody, Result } from "./model";
 import { useBoardColumnOrder } from "./use-board-column-order";
 import { isInProcess } from "./substates";
 import { boardSuccessCopy, type BoardWrite } from "./board-toast-copy";
-export type Disposition = { kind: "discard" | "recover"; item: Participation; placementConfirmation: boolean };
+import { recoverySelection } from "./recovery";
+export type Disposition = { kind: "discard" | "recover"; item: Participation; placementConfirmation: boolean; recoveryRequired?: boolean };
 
 type Confirmation = { item: Participation; target: string; placementExit: boolean };
 const noResponse: Failure = { ok: false, reason: "no_response", reference: {} };
@@ -66,7 +67,14 @@ export function useMovementBoard(vacancyId: string) {
     readBusy.current = false; setReading(false);
     return result.ok;
   }
-  function adopt(value: Board, readStatus = true) { snapshot.current = value; setBoard(value); if (readStatus) void refreshDelivery(); }
+  function adopt(value: Board, readStatus = true) {
+    snapshot.current = value; setBoard(value); if (readStatus) void refreshDelivery();
+    if (disposing.current?.recoveryRequired) {
+      const item = value.participations.find(item => item.id === disposing.current?.item.id);
+      const next = item?.discard ? { ...disposing.current, item } : null;
+      disposing.current = next; setDisposition(next);
+    }
+  }
   function report(id: string, notice: Notice, title: string, reference?: Failure["reference"]) {
     setNotices(previous => ({ ...previous, [id]: notice }));
     notifyActionResult({ key: `pipeline-move-${id}`, type: notice.tone,
@@ -127,7 +135,7 @@ export function useMovementBoard(vacancyId: string) {
           ? await setParticipationSubstateAction({ ...input, body: { substate_id: write.substateId } })
         : write.kind === "discard"
           ? await discardParticipationAction({ ...input, body: write.body })
-          : await recoverParticipationAction({ ...input, body: write.confirmed ? { confirm_placement_reentry: true } : {} });
+          : await recoverParticipationAction({ ...input, body: { ...(write.confirmed ? { confirm_placement_reentry: true } : {}), ...(write.target ? { to_stage_id: write.target } : {}) } });
     }
     catch { result = { ok: false, reason: "uncertain", reference: {} } as const; }
     if (!alive.current) return;
@@ -151,12 +159,15 @@ export function useMovementBoard(vacancyId: string) {
     } else {
       if (confirming.current?.item.id === item.id) { confirming.current = null; setConfirmation(null); }
       if (needsReconciliation(result)) {
-        if (disposing.current?.item.id === item.id) { disposing.current = null; setDisposition(null); }
+        if (disposing.current?.item.id === item.id) {
+          const next = result.reason === "recovery_stage_required" ? { ...disposing.current, recoveryRequired: true } : null;
+          disposing.current = next; setDisposition(next);
+        }
         mustRead.current = true; setStale(true);
         reconcile.current.set(item.id, result);
       } else {
         const title = write.kind === "substate" ? `No se guardó el subestado de ${item.candidate.full_name}` : write.kind === "move" ? `No se movió a ${item.candidate.full_name}` : write.kind === "discard" ? `No se descartó a ${item.candidate.full_name}` : `No se recuperó a ${item.candidate.full_name}`;
-        report(item.id, { tone: "error", text: write.kind === "substate" ? result.reason === "validation_error" ? "No se guardó el subestado. Elige una opción del catálogo actual." : "No se guardó el subestado. Revisa tu sesión y los permisos antes de intentar de nuevo." : write.kind === "move" ? moveErrorCopy(result.reason) : result.reason === "validation_error" ? "No se guardó. Revisa los datos e intenta de nuevo." : "No se guardó. Revisa tu sesión y los permisos antes de intentar de nuevo." }, title, result.reference);
+        report(item.id, { tone: "error", text: write.kind === "substate" ? result.reason === "validation_error" ? "No se guardó el subestado. Elige una opción del catálogo actual." : "No se guardó el subestado. Revisa tu sesión y los permisos antes de intentar de nuevo." : write.kind === "move" ? moveErrorCopy(result.reason) : result.reason === "validation_error" ? write.kind === "recover" ? "No se recuperó. Revisa la columna de regreso y elige una opción permitida antes de confirmar otra vez." : "No se guardó. Revisa los datos e intenta de nuevo." : "No se guardó. Revisa tu sesión y los permisos antes de intentar de nuevo." }, title, result.reference);
       }
     }
     if (substateIntent.current?.item.id === item.id) { substateIntent.current = null; setSubstateConfirmation(null); }
@@ -209,11 +220,16 @@ export function useMovementBoard(vacancyId: string) {
     if (disposing.current && locks.current.has(disposing.current.item.id)) return;
     disposing.current = null; setDisposition(null);
   }
-  function confirmDisposition(body?: DiscardBody) {
+  function confirmDisposition(body?: DiscardBody | RecoverBody) {
     const current = disposing.current;
-    if (!current) return;
-    if (current.kind === "discard" && body) void submit(current.item, { kind: "discard", body: { ...body, ...(current.placementConfirmation ? { confirm_placement_exit: true } : {}) } });
-    if (current.kind === "recover") void submit(current.item, { kind: "recover", confirmed: current.placementConfirmation });
+    if (!current || !snapshot.current) return;
+    if (current.kind === "discard" && body && "reason" in body) void submit(current.item, { kind: "discard", body: { ...body, ...(current.placementConfirmation ? { confirm_placement_exit: true } : {}) } });
+    if (current.kind === "recover") {
+      const recovery = recoverySelection(snapshot.current, current.item, current.recoveryRequired);
+      const target = body && "to_stage_id" in body ? body.to_stage_id : undefined;
+      if (recovery.required && !recovery.stages.some(stage => stage.id === target)) return;
+      void submit(current.item, { kind: "recover", confirmed: current.placementConfirmation, ...(recovery.required ? { target } : {}) });
+    }
   }
   return { board: columns.board, deliveryStatus, columns, failure, reading, stale, pending, notices, readNotice, confirmation, substateConfirmation, closeSubstateConfirmation, confirmSubstate, disposition, retry, setSubstate, requestMove, closeConfirmation, confirmMove, requestDisposition, closeDisposition, confirmDisposition };
 }
