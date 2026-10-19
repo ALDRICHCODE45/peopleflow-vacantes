@@ -42,7 +42,9 @@ db-status:
 	$(GOOSE) status
 
 db-new:
-	test -n "${NAME}" || { echo "usage: make db-new NAME=add_foo"; exit 1; }
+	@if [ -z "${NAME}" ]; then \
+		echo "usage: make db-new NAME=add_foo"; exit 1; \
+	fi
 	$(GOOSE) create ${NAME} sql
 
 sqlc:
@@ -79,7 +81,6 @@ vet:
 # the check's exit status. The RED pass-through stub (gate-stub.sh) is kept as
 # historical RED evidence.
 $(GATES):
-	# shellcheck disable=SC2068
 	$(CLOSURE_STUB) $@
 
 # CE-04: the report driver is a first-class Make target, deliberately NOT part of
