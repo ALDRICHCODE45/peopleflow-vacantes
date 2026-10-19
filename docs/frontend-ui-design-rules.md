@@ -1230,3 +1230,23 @@ falta estructura, según la documentación oficial»: faltaba `AlertDialogMedia`
   media → título dentro del encabezado, y el pie después), además del comportamiento.
 - Un componente propio que envuelve uno de shadcn (como `ConfirmActionDialog`) es el único
   lugar donde se arma esa composición; las pantallas no la rearman a mano.
+
+## 20. Ubicaciones
+
+- Usar siempre `LocationField` (`src/features/geo/location-field.tsx`), nunca ubicación
+  de texto libre. Guardar códigos como strings (con ceros iniciales); mostrar los
+  nombres del catálogo del servidor, no nombres inventados ni códigos como etiquetas.
+- Profundidad por contexto: vacante hasta municipio con CP opcional; empresa hasta
+  municipio con CP; candidato hasta municipio, sin CP. `required` declara los niveles
+  obligatorios del contexto. El CP se ofrece solo con profundidad municipio porque
+  necesita una pareja estado/municipio; fuera de México se muestra solo el país.
+- El CP **precarga, nunca bloquea**. Si resuelve varios municipios, la persona elige
+  uno. Cambiar a una pareja incompatible quita el CP y explica por qué junto al campo.
+- Composición oficial (§19): `FieldSet` + `FieldLegend` + `FieldGroup`; cada selector
+  usa `FieldLabel` y el Combobox simple (`Input`, `Content`, `Empty`, `List`, `Item`).
+  El CP usa `InputGroup` + `InputGroupInput`. Errores con `FieldError` y
+  `aria-invalid`; cargas con skeleton del campo; fallos con «Reintentar» explícito.
+- Referencias oficiales guardadas en `docs/design/shadcn-reference/`: `combobox.md`,
+  `field.md`, `input-group.md`. En Base UI instalado, `itemToStringLabel` muestra el
+  nombre y `itemToStringValue` serializa el código; escribir en el filtro no modifica
+  la ubicación hasta elegir una opción.

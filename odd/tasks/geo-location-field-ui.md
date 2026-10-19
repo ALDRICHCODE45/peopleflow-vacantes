@@ -15,10 +15,11 @@ Branch `feat/geo-location-field-ui` from `main`. No screen adopts the field unti
 
 ## Tasks
 
-- T1 [pending] S1-S5 | writer | Geo client (server + same-origin route handlers with caching) and shared LocationField with depth/postal props; tests; rule section. | commit: -
+- T1 [done] S1-S5 | writer | Geo client (server + same-origin route handlers with caching) and shared LocationField with depth/postal props; tests; rule section. | commit: -
 - T2 [pending] | parent | Commits, queue pairing with backend row 12. | commit: -
 
 ## Log
 
 - L1. Backend G1 committed: 579748a (migration 00030), 5a8bbce (catalog, endpoints, importer, data). Local test: `make db-migrate`, then `DATABASE_URL=… make geo-import` (geo-import does NOT read .env; export DATABASE_URL in the shell).
 - L1b. Backend G1 verified without catalog defects; ordering tests added (countries by Spanish name, states by code); API unchanged.
+- L2. T1 implemented without screen adoption: strict geo schemas, typed failures, anonymous server client, four same-origin GET handlers (parameter/query validation, sanitized errors, daily public success cache), session-memory catalog hook with explicit retry, and controlled `LocationField`. Official references: `docs/design/shadcn-reference/{combobox,field,input-group}.md`; installed Base UI needs `itemToStringLabel` for display and `itemToStringValue` for codes. FieldSet/Legend/Group + Field/Label/Error, simple Combobox, InputGroup/Input, Skeleton and Button; responsive subdivisions and Spanish postal/mismatch/non-MX copy. Added UI rule §20. RED observed missing model/routes/field modules, then behavior failures for displayed labels, compatible postal selection and sanitized no-response mapping; GREEN: 24 tests in 5 files (`corepack pnpm exec vitest run src/features/geo src/app/api/geo --no-file-parallelism`), `corepack pnpm exec tsc --noEmit -p . --incremental false`, and `corepack pnpm exec eslint src/features/geo src/app/api/geo` passed from `frontend/`. UI tests retain real Combobox filtering/selection but replace popup positioning because jsdom loops (two initial runs timed out); browser keyboard/portal, mobile and light/dark visual review remain for the parent. No packages installed, primitives changed, backend edits or commits by the writer.

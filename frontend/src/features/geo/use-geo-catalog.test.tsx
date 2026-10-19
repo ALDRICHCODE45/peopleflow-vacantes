@@ -1,0 +1,21 @@
+import "@testing-library/jest-dom/vitest";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, expect, it, vi } from "vitest";
+import { useGeoCatalog } from "./use-geo-catalog";
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it("deduplicates session loads, retains failures on remount and retries only explicitly", async () => {
+  const fetcher = vi.fn(async (url: string) => url.endsWith("/countries") ? Response.json({ code: "no_response" }, { status: 503 }) : Response.json({ items: [] }));
+  vi.stubGlobal("fetch", fetcher);
+  const first = renderHook(() => useGeoCatalog("01"));
+  const second = renderHook(() => useGeoCatalog("01"));
+  await waitFor(() => expect(first.result.current.countries.status).toBe("error"));
+  expect(fetcher).toHaveBeenCalledTimes(3);
+  first.unmount(); second.unmount();
+  const third = renderHook(() => useGeoCatalog("01"));
+  expect(third.result.current.countries.status).toBe("error");
+  expect(fetcher).toHaveBeenCalledTimes(3);
+  fetcher.mockImplementation(async () => Response.json({ items: [{ id: "MX", name: "México" }] }));
+  act(() => third.result.current.retry());
+  await waitFor(() => expect(third.result.current.countries.status).toBe("success"));
+  expect(fetcher).toHaveBeenCalledTimes(4);
+});
