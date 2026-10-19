@@ -1557,6 +1557,10 @@ candidates; preview and confirmation dialog when an edit would fulfill.
    (no `412`/`428`): same body validation as the `PUT` (`400 invalid_request`, `400
    validation_error`, `400 non_business_date`), `409 delivery_fulfilled`, `409
    vacancy_not_published`; no writes.
+   **Amended (frontend agreement, L69):** like the `PUT`, a preview whose proposal leaves a
+   delivery requirement empty answers `422 publication_incomplete` with `missing`
+   (`delivery_cutoff_missing`, `delivery_target_missing`, `commitment_date_missing`, §9.3
+   order; past dates exempt), so a successful preview never has a null `target`.
 5. Candidate lists are unique per participation and ordered by `reached_at` ascending, then
    `participation_id`. The preview lists every candidate delivered under the proposed values;
    the fulfillment lists the first `target` of them (the explaining candidates).

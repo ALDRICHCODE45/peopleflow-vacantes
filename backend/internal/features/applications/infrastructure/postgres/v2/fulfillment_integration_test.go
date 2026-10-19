@@ -20,6 +20,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/fulfillment"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publication"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/postgres/draftstore"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -401,5 +402,30 @@ func TestFulfillmentAuditFailureRollsBackTriggerAndSnapshot(t *testing.T) {
 				t.Fatal("trigger escaped audit rollback", err)
 			}
 		})
+	}
+}
+
+// §16.6.4 (amended with the frontend, L69): on a published vacancy a preview whose
+// proposal leaves the delivery configuration incomplete answers like the PUT —
+// publication_incomplete with the missing delivery codes in §9.3 order — and writes
+// nothing, so a preview never reports a null target.
+func TestFulfillmentPreviewRejectsIncompletePublishedProposal(t *testing.T) {
+	m := setupMovement(t)
+	readyMovementConfiguration(t, m)
+	ctx := context.Background()
+	before := fulfillmentEffects(t, m)
+	cases := map[string][]string{
+		`{"cutoffStageId":null,"targetQuantity":null,"commitmentDate":null}`:                                    {"delivery_cutoff_missing", "delivery_target_missing", "commitment_date_missing"},
+		strings.Replace(string(deliveryBody(m, 1, 1, false)), `"targetQuantity":1`, `"targetQuantity":null`, 1): {"delivery_target_missing"},
+	}
+	for raw, want := range cases {
+		_, err := m.drafts.PreviewDelivery(ctx, m.company, m.recruiter, m.vacancy, []byte(raw))
+		var incomplete *publication.Incomplete
+		if !errors.As(err, &incomplete) || !reflect.DeepEqual(incomplete.Missing, want) {
+			t.Fatalf("preview %s: err=%v", raw, err)
+		}
+		if before != fulfillmentEffects(t, m) {
+			t.Fatal("preview changed state")
+		}
 	}
 }

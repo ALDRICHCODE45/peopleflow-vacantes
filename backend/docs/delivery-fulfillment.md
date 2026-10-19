@@ -89,6 +89,11 @@ current progression cutoff, changed-date window and art. 74 calendar. An unchang
 stored past date is accepted. Preview takes **no If-Match**, never returns 412/428,
 and writes no configuration, versions, participations, history, idempotency,
 projection, audit or fulfillment. It requires a published, not-yet-fulfilled vacancy.
+Because the vacancy is published, a proposal that would leave a delivery requirement
+empty is rejected exactly like the PUT: `422 publication_incomplete` with `missing`
+listing `delivery_cutoff_missing`, `delivery_target_missing` and/or
+`commitment_date_missing` in §9.3 order (a past commitment date is exempt). A
+successful preview therefore never reports a null `target`.
 
 ### Delivery configuration and write summaries
 
@@ -141,6 +146,7 @@ Errors use exactly `{error,code}` without ETag or private data; the existing
 | 409 | `delivery_fulfilled` | Preview or delivery PUT after fulfillment |
 | 409 | `fulfillment_confirmation_required` | Proposed published delivery PUT would fulfill without confirmation |
 | 412/428 | `version_conflict` / `precondition_required` | Delivery PUT only, not preview/status |
+| 422 | `publication_incomplete` | Preview or delivery PUT whose proposal leaves a published delivery requirement empty; body adds `missing` |
 | 413 | `payload_too_large` | Body exceeds inherited 1 MiB budget |
 | 422 | `publication_incomplete` | PUT would remove published required values |
 | 500 | `internal_error` | Unexpected failure or corrupt stored invariant |
@@ -181,6 +187,7 @@ DB tests below are specifications, **not claims of DB execution**.
 | `TestFulfillmentConcurrentApplicationsExactlyOnce` (DB) | §16.1 two concurrent Nuevos applications reaching target, bounded blocking probe, no deadlock, exactly one row/audit and unique explaining candidates |
 | `TestMigration00027FulfillmentDefinition`, `TestMigration00027ExistingRowsAndGuardedDown` (latter DB) | §16.3 additive schema/index/no backfill, prior history preserved, duplicate row refused, data/schema/version retained on refused down, empty down preserves existing rows |
 | `TestFulfillmentErrorsAreAdditiveAndExact`, route-topology/architecture/closure gates | §16.2 both additive 409 codes and exact envelopes, baseline catalog and architecture preserved |
+| `TestFulfillmentPreviewRejectsIncompletePublishedProposal` (DB) | §16.6.4 amendment: preview of a published vacancy rejects an incomplete proposal with `publication_incomplete` and ordered missing codes; no writes |
 
 ## Validation boundary
 

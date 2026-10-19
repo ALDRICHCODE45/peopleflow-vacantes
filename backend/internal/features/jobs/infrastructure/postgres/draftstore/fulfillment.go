@@ -9,6 +9,7 @@ import (
 	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/deliveryconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/fulfillment"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publication"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -235,5 +236,28 @@ func (s *Store) PreviewDelivery(ctx context.Context, company, actor, id uuid.UUI
 	if err != nil {
 		return fulfillment.Preview{}, err
 	}
+	// The vacancy is published, so a proposal is admissible only if it keeps the
+	// delivery requirements complete, exactly as the PUT guard demands (§16.6.4).
+	// The other publication requirements are unaffected by a delivery proposal.
+	if missing := incompleteDeliveryProposal(next); len(missing) > 0 {
+		return fulfillment.Preview{}, &publication.Incomplete{Missing: missing}
+	}
 	return previewDelivery(ctx, tx, id, next)
+}
+
+// incompleteDeliveryProposal lists the missing delivery requirements of a
+// proposal in §9.3 order. A past commitment date is not reported: published
+// writes are exempt from commitment_date_past (§10.2).
+func incompleteDeliveryProposal(c deliveryconfig.Configuration) []string {
+	var missing []string
+	if c.CutoffStageID == nil {
+		missing = append(missing, "delivery_cutoff_missing")
+	}
+	if c.TargetQuantity == nil {
+		missing = append(missing, "delivery_target_missing")
+	}
+	if c.CommitmentDate == nil {
+		missing = append(missing, "commitment_date_missing")
+	}
+	return missing
 }
