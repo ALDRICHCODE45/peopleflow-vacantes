@@ -446,6 +446,16 @@ corepack pnpm dev
     «Cancelar» conserva lo editado; confirmar la cumple. En una vacante ya cumplida, «Entrega»
     es de solo lectura con el resultado congelado y los candidatos.
 
+### Filtros del tablero (rama `feat/pipeline-board-filters-ui`, sin cambios de backend)
+
+70. **Filtros y encabezado.** En el pipeline: cobertura y entrega forman un solo bloque con
+    la misma forma; la barra tiene un único botón «Filtros». Abrilo. **Esperado:** Sheet con
+    «Columna», «Subestado» (con «Sin subestado») y «Motivo de descarte» (agrupado por
+    empresa/candidato), cada opción con su cantidad; marcar aplica al instante. Debajo de
+    la barra aparecen chips removibles y «Limpiar filtros»; «Filtros» muestra cuántos hay
+    activos; las columnas dicen «X de Y». Combiná (por ejemplo Columna = Screening y un
+    subestado): se muestran solo los que cumplen todos los grupos.
+
 ## 5. Verificación en la base (solo lectura)
 
 Opcional, para confirmar lo que guardó Go:
