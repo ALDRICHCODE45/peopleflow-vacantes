@@ -78,7 +78,7 @@ string verbatim in `If-Unmodified-Since`, preserving fractional seconds. Saving
 with that token succeeds; reusing it after a successful update returns 409 with
 the current token. Public `GET /companies/{id}` deliberately gains no timestamp.
 
-## Migration and temporary §19 behavior
+## Migration and §19 behavior
 
 00032 drops both tables' old city/country columns and the candidate city index.
 New nullable country/state/municipality columns reference G1 catalog keys; company
@@ -87,12 +87,13 @@ CHECKs prevent orphan levels, non-MX subdivisions and municipality/state mismatc
 Down drops structured values and restores **empty nullable** city/country columns
 and the old index. Neither direction preserves the removed data (S8).
 
-**Until G4:** new applications read `NULL::text` instead of the removed profile
-city column. Their unchanged §19 four-key snapshot contains `city:null`, while
-skills, experience and education still snapshot normally. Existing snapshots
-(including old city values), replay and board/detail privacy are unchanged.
-Migration 00029 and the §19 JSON shape are not modified. G4/00033 will replace
-snapshot city with structured location and add the country apply gate.
+**G3-only interim:** applications used `city:null` after the text column removal.
+**With G4/00033:** applications freeze current location codes; old snapshot cities
+become `location:null`. Board/detail expand frozen codes, never the current profile;
+mutations/candidate/public APIs remain private. Remote country-restricted applies
+require an allowed current profile country (after successful replay checks).
+See [G4 contract and tests](geo-apply.md) and [board filter data](board-filter-data.md).
+Migration 00029 itself remains unchanged.
 
 ## Review and test map
 

@@ -6,7 +6,7 @@ including the agreed clarifications in §12.7. Legacy applications are unchanged
 
 ## Quick path
 
-1. Apply migrations through **00029** with `make db-migrate` before running this API.
+1. Apply migrations through **00033** with `make db-migrate` before running this API.
    Cut-5 discard/recovery extensions are documented in [pipeline-discard.md](pipeline-discard.md).
 2. Read the board and keep each item's opaque `etag`.
 3. POST a move using that item's tag as `If-Match`; reconcile with GET after an
@@ -49,7 +49,7 @@ An item is exactly:
   "applied_at": "2026-10-16T18:00:00Z", "source": "organic",
   "cv": {"id": "…", "name": "CV"}, "moved_at": "2026-10-16T18:00:00Z",
   "discard": null, "substate_id": null,
-  "profile": {"city": null, "skills": [], "years_of_experience": null, "education_level": null},
+  "profile": {"location": null, "skills": [], "years_of_experience": null, "education_level": null},
   "screening_answers": []
 }
 ```
@@ -59,7 +59,9 @@ not a precondition clients construct. Participation tags are strong and
 domain-separated from draft/pipeline/other tags. The board itself has no ETag.
 Default stage IDs remain the deterministic cut-1 UUIDv5 identities.
 `profile` is the immutable application-time four-field snapshot (legacy rows:
-nulls/empty skills). `screening_answers` is exactly `[{question_id,option_id}]`,
+nulls/empty skills). Its `location` is null or the expanded five-key geo read shape
+(country/state/municipality `{id,name}`, `postal_code:null`, server label); G4 replaces
+city filtering with state/municipality. See [G4](geo-apply.md). `screening_answers` is exactly `[{question_id,option_id}]`,
 only single-choice answers from the frozen snapshots in stored answer order;
 open text is never returned on the board. Both keys are always present on board items
 and participation detail. Mutation responses retain their existing key sets;

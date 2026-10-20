@@ -3,10 +3,19 @@ package board
 import (
 	"encoding/json"
 	intake "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 	"github.com/google/uuid"
 	"strings"
 	"time"
 )
+
+// Profile is a recruiter-only read projection of the immutable code snapshot.
+type Profile struct {
+	Location          *geo.ReadLocation `json:"location"`
+	Skills            []string          `json:"skills"`
+	YearsOfExperience *int              `json:"years_of_experience"`
+	EducationLevel    *string           `json:"education_level"`
+}
 
 type ScreeningAnswer struct {
 	QuestionID string `json:"question_id"`

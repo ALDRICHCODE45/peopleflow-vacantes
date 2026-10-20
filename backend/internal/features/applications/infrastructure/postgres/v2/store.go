@@ -51,7 +51,10 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	// Lock the same authoring row as employer saves. A process lock alone
 	// would not serialize questionnaire edits, since they lock the draft.
 	var fields []byte
-	err = tx.QueryRow(ctx, `SELECT d.fields FROM job_drafts d JOIN vacancy_processes p ON p.id=d.id JOIN vacancy_public_projections v ON v.id=p.id JOIN companies c ON c.id=p.company_id WHERE p.id=$1 AND p.status='published' AND c.status='active' AND c.deleted_at IS NULL FOR SHARE OF d,c`, vacancy).Scan(&fields)
+	var mode string
+	var scope *string
+	var allowed []string
+	err = tx.QueryRow(ctx, `SELECT d.fields,v.work_mode,v.remote_scope_kind,v.remote_countries FROM job_drafts d JOIN vacancy_processes p ON p.id=d.id JOIN vacancy_public_projections v ON v.id=p.id JOIN companies c ON c.id=p.company_id WHERE p.id=$1 AND p.status='published' AND c.status='active' AND c.deleted_at IS NULL FOR SHARE OF d,c`, vacancy).Scan(&fields, &mode, &scope, &allowed)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return app.Result{}, app.ErrNotFound
 	}
@@ -83,6 +86,22 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return app.Result{}, err
+	}
+	// Read the current profile once, after replay and before screening/CV/duplicate
+	// checks. The same row supplies both the gate and the immutable snapshot.
+	var country, state, municipality, education *string
+	var skills []string
+	var years *int
+	err = tx.QueryRow(ctx, `SELECT country_code,state_code,municipality_code,skills,years_of_experience,education_level FROM candidate_profiles WHERE user_id=$1 FOR SHARE`, candidate).Scan(&country, &state, &municipality, &skills, &years, &education)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return app.Result{}, err
+	}
+	if err = app.CheckApplicantCountry(mode, scope, allowed, country); err != nil {
+		return app.Result{}, err
+	}
+	var location *app.SnapshotLocation
+	if country != nil {
+		location = &app.SnapshotLocation{Country: *country, State: state, Municipality: municipality}
 	}
 	form, err := s.rules.Screening(fields)
 	if err != nil {
@@ -117,17 +136,7 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	if err != nil {
 		return app.Result{}, err
 	}
-	// Read only the private allowlist, in this transaction and after the replay
-	// branch. A replay must never consult or overwrite the candidate's new profile.
-	var city, education *string
-	var skills []string
-	var years *int
-	// G3 removes profile free text; G4 replaces the §19 city snapshot.
-	err = tx.QueryRow(ctx, `SELECT NULL::text,skills,years_of_experience,education_level FROM candidate_profiles WHERE user_id=$1`, candidate).Scan(&city, &skills, &years, &education)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return app.Result{}, err
-	}
-	profile, err := json.Marshal(app.SnapshotProfile(city, skills, years, education))
+	profile, err := json.Marshal(app.SnapshotProfile(location, skills, years, education))
 	if err != nil {
 		return app.Result{}, err
 	}

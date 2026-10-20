@@ -75,19 +75,19 @@ type Substate struct {
 }
 
 type Item struct {
-	Profile          intake.ProfileSnapshot `json:"profile"`
-	ScreeningAnswers []ScreeningAnswer      `json:"screening_answers"`
-	SubstateID       *string                `json:"substate_id"`
-	ID               uuid.UUID              `json:"id"`
-	StageID          string                 `json:"stage_id"`
-	Version          string                 `json:"version"`
-	ETag             string                 `json:"etag"`
-	Candidate        Person                 `json:"candidate"`
-	AppliedAt        time.Time              `json:"applied_at"`
-	Source           string                 `json:"source"`
-	CV               CV                     `json:"cv"`
-	MovedAt          time.Time              `json:"moved_at"`
-	Discard          *Discard               `json:"discard"`
+	Profile          Profile           `json:"profile"`
+	ScreeningAnswers []ScreeningAnswer `json:"screening_answers"`
+	SubstateID       *string           `json:"substate_id"`
+	ID               uuid.UUID         `json:"id"`
+	StageID          string            `json:"stage_id"`
+	Version          string            `json:"version"`
+	ETag             string            `json:"etag"`
+	Candidate        Person            `json:"candidate"`
+	AppliedAt        time.Time         `json:"applied_at"`
+	Source           string            `json:"source"`
+	CV               CV                `json:"cv"`
+	MovedAt          time.Time         `json:"moved_at"`
+	Discard          *Discard          `json:"discard"`
 }
 type Coverage struct {
 	Covered               int64      `json:"covered"`

@@ -75,6 +75,8 @@ func TestApplyTransport(t *testing.T) {
 		{"stale", uuid.NewString(), body, false, app.ErrQuestionnaireChanged, 409, "questionnaire_changed", false},
 		{"duplicate", uuid.NewString(), body, false, app.ErrAlreadyApplied, 409, "already_applied", false},
 		{"cv", uuid.NewString(), body, false, app.ErrCVUnavailable, 422, "cv_unavailable", false},
+		{"country required", uuid.NewString(), body, false, &app.CountryRestriction{Cause: app.ErrApplicantCountryRequired, Allowed: []string{"CO", "MX"}}, 422, "applicant_country_required", false},
+		{"country disallowed", uuid.NewString(), body, false, &app.CountryRestriction{Cause: app.ErrApplicantCountryNotAllowed, Allowed: []string{"CO", "MX"}}, 422, "applicant_country_not_allowed", false},
 		{"answers", uuid.NewString(), body, false, &app.InvalidAnswers{Details: []httpjson.AnswerDetail{{QuestionID: "q", Reason: "required"}}}, 422, "invalid_answers", false},
 		{"conflict", uuid.NewString(), body, false, app.ErrIdempotencyConflict, 409, "idempotency_conflict", false},
 		{"missing", uuid.NewString(), body, false, app.ErrNotFound, 404, "not_found", false},
@@ -104,6 +106,18 @@ func TestApplyTransport(t *testing.T) {
 			if tc.code != "" {
 				if got["code"] != tc.code || strings.Contains(w.Body.String(), "private failure") {
 					t.Fatal(got)
+				}
+				if strings.HasPrefix(tc.code, "applicant_country_") {
+					data, ok := got["data"].(map[string]any)
+					if !ok || len(got) != 3 || len(data) != 1 {
+						t.Fatal(got)
+					}
+					raw, _ := json.Marshal(data)
+					if string(raw) != `{"allowed":["CO","MX"]}` {
+						t.Fatal(got)
+					}
+				} else if _, has := got["data"]; has {
+					t.Fatal("unexpected data", got)
 				}
 				_, details := got["details"]
 				if details != (tc.code == "invalid_answers") {

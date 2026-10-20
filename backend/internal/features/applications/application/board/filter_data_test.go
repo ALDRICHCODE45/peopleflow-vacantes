@@ -7,11 +7,11 @@ import (
 
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	intake "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 )
 
 func TestFilterDataOnlyOnBoardAndDetailNotMutations(t *testing.T) {
-	city := "PRIVATE CITY"
-	item := app.Item{Profile: intake.SnapshotProfile(&city, []string{"PRIVATE SKILL"}, nil, nil), ScreeningAnswers: []app.ScreeningAnswer{{QuestionID: "q", OptionID: "o"}}}
+	item := app.Item{Profile: app.Profile{Location: &geo.ReadLocation{Country: geo.LocationReference{ID: "MX", Name: "México"}, State: &geo.LocationReference{ID: "14", Name: "Jalisco"}, Municipality: &geo.LocationReference{ID: "14039", Name: "Guadalajara"}, Label: "Guadalajara, Jalisco"}, Skills: []string{"PRIVATE SKILL"}}, ScreeningAnswers: []app.ScreeningAnswer{{QuestionID: "q", OptionID: "o"}}}
 	for _, tc := range []struct {
 		name  string
 		value any
@@ -27,6 +27,15 @@ func TestFilterDataOnlyOnBoardAndDetailNotMutations(t *testing.T) {
 			var obj map[string]any
 			if err = json.Unmarshal(raw, &obj); err != nil {
 				t.Fatal(err)
+			}
+			if tc.want {
+				want := map[string]any{
+					"location": map[string]any{"country": map[string]any{"id": "MX", "name": "México"}, "state": map[string]any{"id": "14", "name": "Jalisco"}, "municipality": map[string]any{"id": "14039", "name": "Guadalajara"}, "postal_code": nil, "label": "Guadalajara, Jalisco"},
+					"skills":   []any{"PRIVATE SKILL"}, "years_of_experience": nil, "education_level": nil,
+				}
+				if !reflect.DeepEqual(obj["profile"], want) {
+					t.Fatal(obj["profile"])
+				}
 			}
 			for _, key := range []string{"profile", "screening_answers"} {
 				_, present := obj[key]

@@ -33,7 +33,9 @@ unchanged. PUT does not replace languages or overwrite reserved CV data.
 - Save country only, then MX state, then municipality; reload each depth.
 - Clear location with null and with a PUT that omits it.
 - Reject unknown country/state, missing parent, mismatched municipality and postal.
-- Check new applications show §19 city as null until G4; previous snapshots stay frozen.
+- With G4/00033, check new applications freeze location codes and board/detail expand
+  them; profile edits never update prior snapshots. Country is required only when
+  applying to a remote country-restricted vacancy; see [G4](geo-apply.md).
 
 See [G3 migration, errors and tests](geo-profiles.md) and
 [candidate identity/onboarding](candidate-identity.md).

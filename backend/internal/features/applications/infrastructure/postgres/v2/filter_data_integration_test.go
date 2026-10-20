@@ -24,7 +24,7 @@ func TestFilterDataApplySnapshotNormalizationAndReplay(t *testing.T) {
 		name    string
 		profile bool
 	}{
-		{"missing profile", false}, {"profile without legacy city", true},
+		{"missing profile", false}, {"profile without location", true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			f := setup(t)
@@ -82,8 +82,8 @@ func TestFilterDataApplySnapshotNormalizationAndReplay(t *testing.T) {
 			}
 			before := read()
 			obj := movementObject(t, before)
-			// G3 intentionally snapshots no city until G4 introduces location.
-			want := map[string]any{"city": nil, "skills": []any{}, "years_of_experience": nil, "education_level": nil}
+			// A profile may omit location without losing its other data.
+			want := map[string]any{"location": nil, "skills": []any{}, "years_of_experience": nil, "education_level": nil}
 			if tc.profile {
 				want["skills"] = []any{"Go", "SQL", "Go"}
 				want["years_of_experience"] = float64(5)
@@ -154,8 +154,8 @@ func TestFilterDataBoardDetailLegacyCurrentQuestionnaireAndPrivacy(t *testing.T)
 	root := movementKeys(t, movementObject(t, rec.Body.Bytes()), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages", "screening_filters")
 	item := root["participations"].([]any)[0].(map[string]any)
 	movementItemKeys(t, item)
-	profile := movementKeys(t, item["profile"], "city", "skills", "years_of_experience", "education_level")
-	if profile["city"] != nil || profile["years_of_experience"] != nil || profile["education_level"] != nil || len(profile["skills"].([]any)) != 0 {
+	profile := movementKeys(t, item["profile"], "location", "skills", "years_of_experience", "education_level")
+	if profile["location"] != nil || profile["years_of_experience"] != nil || profile["education_level"] != nil || len(profile["skills"].([]any)) != 0 {
 		t.Fatal("legacy profile must be no-data")
 	}
 	gotAnswers := item["screening_answers"].([]any)
@@ -233,9 +233,9 @@ func TestFilterDataBoardDetailLegacyCurrentQuestionnaireAndPrivacy(t *testing.T)
 		if r.Code != 200 {
 			t.Fatal(r.Code)
 		}
-		return movementKeys(t, movementObject(t, r.Body.Bytes())["profile"], "city", "skills", "years_of_experience", "education_level")
+		return movementKeys(t, movementObject(t, r.Body.Bytes())["profile"], "location", "skills", "years_of_experience", "education_level")
 	}
-	expected := map[string]any{"city": nil, "skills": []any{"Go", "SQL"}, "years_of_experience": float64(0), "education_level": "bachelor"}
+	expected := map[string]any{"location": nil, "skills": []any{"Go", "SQL"}, "years_of_experience": float64(0), "education_level": "bachelor"}
 	if !reflect.DeepEqual(readProfile(), expected) {
 		t.Fatal("detail lost applied profile")
 	}

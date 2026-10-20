@@ -46,7 +46,13 @@ question IDs → `400 invalid_request`. Per-question problems → 422 exactly:
 ```
 
 Reasons: `required`, `unknown_option`, `too_long`, `wrong_type`. Only this error gets
-`details`; all other application errors remain `{error,code}`.
+`details`. G4 adds two country errors with `data`; other errors remain `{error,code}`.
+
+For a published remote vacancy restricted to countries, the current profile country
+is checked before screening/CV/duplicate checks. Missing country → 422
+`applicant_country_required`; outside scope → 422 `applicant_country_not_allowed`.
+Both return exactly `{error,code,data:{allowed:[ISO codes in scope order]}}`.
+Anywhere/onsite/hybrid do not require a country. See [G4](geo-apply.md).
 
 Success is 201 exactly `{id,vacancy_id,status:"submitted",applied_at}`;
 `applied_at` is UTC RFC3339 (microsecond precision).
@@ -58,7 +64,8 @@ create: absent → `400 idempotency_key_required`; empty, repeated or malformed 
 `400 invalid_idempotency_key`. Scope is candidate + vacancy + key. First success
 sets `Idempotency-Replayed: false`. Equivalent canonical payload replays the exact
 original 201 bytes with `Idempotency-Replayed: true`, even after questionnaire edits
-or CV library removal. Different payload → `409 idempotency_conflict`.
+or CV library removal, profile-country edits or published-country-scope changes.
+Existing vacancy/auth gates still run before replay. Different payload → `409 idempotency_conflict`.
 
 Canonical payload normalizes the CV/question UUIDs and trims open answers; answer
 array order is irrelevant. Fingerprints include answer field presence/type markers,
@@ -73,14 +80,17 @@ lock on the draft serializes questionnaire edits; a shared company lock keeps it
 active state stable; the vacancy process is locked for update. Under these locks:
 
 1. Require a published process, public projection and active/live company (404).
-2. Check idempotency replay/conflict before current questionnaire/CV checks.
-3. Compare current revision (`409 questionnaire_changed`), validate answers.
-4. Require the CV in this candidate's live library (`422 cv_unavailable`, including
+2. Check idempotency replay/conflict before current profile/questionnaire/CV checks.
+3. Read current profile allowlist once; enforce the published remote country scope
+   (`422 applicant_country_required` / `422 applicant_country_not_allowed`).
+4. Compare current revision (`409 questionnaire_changed`), validate answers.
+5. Require the CV in this candidate's live library (`422 cv_unavailable`, including
    another candidate's ID).
-5. Reject an existing participation (`409 already_applied`).
-6. Insert participation referencing its immutable CV version, frozen safe questions
-   and answers, source `organic`, deterministic pipeline `new` stage ID.
-7. Insert intake history, append PII-free `VacancyApplicationSubmitted` audit and
+6. Reject an existing participation (`409 already_applied`).
+7. Insert participation referencing its immutable CV version, frozen safe questions
+   and answers, source `organic`, deterministic pipeline `new` stage ID, and private
+   profile snapshot (location codes/null, skills, years, education; migration 00033).
+8. Insert intake history, append PII-free `VacancyApplicationSubmitted` audit and
    persist the original idempotent response; commit together.
 
 Audit metadata is only vacancy ID, stage ID and source, never answer text or CV
@@ -126,7 +136,7 @@ nulls after recovery and absence of internal reason/comment. See
 | `TestPublicScreeningHTTPExactShape`, `TestP2bScreeningIsPublic` | exact public envelope/limits, missing 404, no private headers |
 | `TestDecodeApplyStrictAndCanonical`, `TestValidateAnswers`, `TestSingleChoiceAnswerAndCanonicalOrder` | strict shape, trimming, unknown/duplicate question IDs, all four detail reasons; valid single-choice answer and order-independent canonical fingerprint |
 | `TestFingerprintDoesNotReplayDifferentAnswerShape` | different answer shape never replays as the original payload |
-| `TestApplyTransport` | exact 201 keys/replay headers, key validation, all application codes and details-only error envelope |
+| `TestApplyTransport` | exact 201 keys/replay headers, key validation, all application codes, details-only invalid_answers and ordered country-error data |
 | `TestStrictListQuery`, `TestCandidateListHTTPStrictQueryAndShape` | strict limits, unknown/duplicate parameters, cursor round-trip/rejection, exact list/item envelopes |
 | `TestApplicationErrorExtension`, `TestOnlyInvalidAnswersHasDetails` | additive error statuses; only invalid_answers carries details |
 | `TestParticipationRulesReusePublishedContracts` | production composition reuses safe questions and deterministic default stage identities |
@@ -140,6 +150,7 @@ nulls after recovery and absence of internal reason/comment. See
 | `TestCVRemovalVersusApplyCandidateLock` (integration) | force both candidate-lock orderings; apply retains its version or receives cv_unavailable after removal |
 | `TestMigration00022ParticipationDownRefusesDataAndSucceedsEmpty` (integration) | down refuses participation/history or idempotency-only data transactionally; empty down succeeds |
 | `TestProcessParticipationMigration` | additive table/uniqueness/version-reference definitions, legacy table untouched |
+| G4 country/snapshot/migration tests | See [G4 test map](geo-apply.md) for gate order, no writes, frozen replay, strict 00033 CHECK and expanded board/detail privacy |
 
 Run integration tests only against an existing, isolated loopback database named
 `draft_test`, configured by `DRAFT_TEST_DATABASE_URL`. Missing variable explicitly

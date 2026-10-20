@@ -98,7 +98,18 @@ func movementItemKeys(t *testing.T, obj map[string]any, extra ...string) {
 	movementKeys(t, obj["candidate"], "id", "full_name")
 	movementKeys(t, obj["cv"], "id", "name")
 	if !mutation {
-		movementKeys(t, obj["profile"], "city", "skills", "years_of_experience", "education_level")
+		profile := movementKeys(t, obj["profile"], "location", "skills", "years_of_experience", "education_level")
+		if profile["location"] != nil {
+			location := movementKeys(t, profile["location"], "country", "state", "municipality", "postal_code", "label")
+			if location["postal_code"] != nil {
+				t.Fatal("profile postal code must be null")
+			}
+			for _, key := range []string{"country", "state", "municipality"} {
+				if location[key] != nil {
+					movementKeys(t, location[key], "id", "name")
+				}
+			}
+		}
 		for _, a := range obj["screening_answers"].([]any) {
 			movementKeys(t, a, "question_id", "option_id")
 		}

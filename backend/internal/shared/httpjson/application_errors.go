@@ -3,15 +3,17 @@ package httpjson
 import "net/http"
 
 const (
-	CodeCVStorageUnavailable Code = "cv_storage_unavailable"
-	CodeCVTooLarge           Code = "cv_too_large"
-	CodeCVUnsupportedType    Code = "cv_unsupported_type"
-	CodeCVContentMismatch    Code = "cv_content_mismatch"
-	CodeCVLibraryFull        Code = "cv_library_full"
-	CodeQuestionnaireChanged Code = "questionnaire_changed"
-	CodeAlreadyApplied       Code = "already_applied"
-	CodeInvalidAnswers       Code = "invalid_answers"
-	CodeCVUnavailable        Code = "cv_unavailable"
+	CodeCVStorageUnavailable       Code = "cv_storage_unavailable"
+	CodeCVTooLarge                 Code = "cv_too_large"
+	CodeCVUnsupportedType          Code = "cv_unsupported_type"
+	CodeCVContentMismatch          Code = "cv_content_mismatch"
+	CodeCVLibraryFull              Code = "cv_library_full"
+	CodeQuestionnaireChanged       Code = "questionnaire_changed"
+	CodeAlreadyApplied             Code = "already_applied"
+	CodeInvalidAnswers             Code = "invalid_answers"
+	CodeCVUnavailable              Code = "cv_unavailable"
+	CodeApplicantCountryRequired   Code = "applicant_country_required"
+	CodeApplicantCountryNotAllowed Code = "applicant_country_not_allowed"
 )
 
 type AnswerDetail struct {
@@ -20,7 +22,7 @@ type AnswerDetail struct {
 }
 
 func ApplicationErrorCodes() []Code {
-	return []Code{CodeCVStorageUnavailable, CodeCVTooLarge, CodeCVUnsupportedType, CodeCVContentMismatch, CodeCVLibraryFull, CodeQuestionnaireChanged, CodeAlreadyApplied, CodeInvalidAnswers, CodeCVUnavailable}
+	return []Code{CodeCVStorageUnavailable, CodeCVTooLarge, CodeCVUnsupportedType, CodeCVContentMismatch, CodeCVLibraryFull, CodeQuestionnaireChanged, CodeAlreadyApplied, CodeInvalidAnswers, CodeCVUnavailable, CodeApplicantCountryRequired, CodeApplicantCountryNotAllowed}
 }
 
 // Called by Resolve's additive extension chain.
@@ -42,6 +44,10 @@ func resolveApplicationError(code Code) (Definition, bool) {
 		return Definition{code, 409, "already applied"}, true
 	case CodeInvalidAnswers:
 		return Definition{code, 422, "invalid answers"}, true
+	case CodeApplicantCountryRequired:
+		return Definition{code, 422, "applicant country required"}, true
+	case CodeApplicantCountryNotAllowed:
+		return Definition{code, 422, "applicant country not allowed"}, true
 	case CodeCVUnavailable:
 		return Definition{code, 422, "CV unavailable"}, true
 	default:
