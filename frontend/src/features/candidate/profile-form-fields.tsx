@@ -1,6 +1,8 @@
 "use client";
 
 import { PlusIcon, Trash2Icon } from "lucide-react";
+import { OptionalLocationField } from "@/features/geo/optional-location-field";
+import { locationErrorMessages, type LocationIssue } from "@/features/geo/model";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,13 +16,12 @@ import type { CefrLevel } from "./model";
 import type { CandidateLanguageDraft, CandidateProfileDraft, ProfileDraftIssue } from "./profile-draft";
 
 /**
- * Controlled, presentation-only editor for the 19 editable profile draft fields.
+ * Controlled, presentation-only editor for profile fields and structured location.
  * It renders the received `draft` and the received `issues` and emits a complete
  * new draft through `onChange` on every edit: no state, form, submission,
  * validation, fixture, network, storage, router, timer, or randomness lives here.
- * Only the adjacent validation errors and the necessary accessible labels survive:
- * no helper lines, section intro copy or decorative icons. CDP-07B2 owns the form
- * element, local orchestration and the no-save messaging.
+ * The optional-location helper explains eligibility without making location required.
+ * The workspace owns persistence, pending state and confirmed baselines.
  */
 export const PROFILE_CATEGORIES = ["personal", "experience", "education", "compensation", "languages"] as const;
 export type ProfileCategory = (typeof PROFILE_CATEGORIES)[number];
@@ -30,10 +31,11 @@ export type ProfileFormFieldsProps = Readonly<{
   issues: readonly ProfileDraftIssue[];
   onChange: (next: CandidateProfileDraft) => void;
   category?: ProfileCategory;
+  disabled?: boolean;
 }>;
 
 /** Every draft key a scalar control owns; languages render as indexed rows. */
-type ScalarPath = Exclude<keyof CandidateProfileDraft, "languages">;
+type ScalarPath = Exclude<keyof CandidateProfileDraft, "languages" | "location">;
 /** One selectable option: the exact closed-vocabulary value plus its Spanish label. */
 type Option = Readonly<{ value: string; label: string }>;
 /** One labelled scalar control: native metadata, rhythm and optional unit adornment. */
@@ -69,8 +71,7 @@ const SECTIONS: readonly Section[] = [
   ] },
   { slug: "location", legend: "Ubicación", category: "personal", grid: "grid grid-cols-1 gap-4 sm:grid-cols-2", fields: [
     { path: "birthDate", label: "Fecha de nacimiento", span: "sm:col-span-2" },
-    { path: "city", label: "Ciudad de residencia", maxLength: 120 },
-    { path: "country", label: "País", maxLength: 120 },
+
   ] },
   { slug: "professional", legend: "Perfil profesional", category: "experience", grid: "grid grid-cols-1 gap-4 sm:grid-cols-6", fields: [
     { path: "professionalTitle", label: "Título profesional", maxLength: 120, span: "sm:col-span-6" },
@@ -148,7 +149,7 @@ function ScalarField({ spec, draft, error, onChange }: Readonly<{ spec: ScalarSp
 }
 
 /** One scalar section: a quiet Card whose native header titles the sr-only fieldset legend. */
-function ScalarSection({ section, draft, errorFor, onChange }: Readonly<{ section: Section; draft: CandidateProfileDraft; errorFor: (path: string) => string | null; onChange: (path: ScalarPath, value: string) => void }>) {
+function ScalarSection({ section, draft, errorFor, onChange, location }: Readonly<{ section: Section; draft: CandidateProfileDraft; errorFor: (path: string) => string | null; onChange: (path: ScalarPath, value: string) => void; location?: React.ReactNode }>) {
   return (
     <Card size="sm" data-pf-profile-section-card="" className={SECTION_CARD}>
       <CardHeader className={SECTION_HEADER}>
@@ -161,6 +162,7 @@ function ScalarSection({ section, draft, errorFor, onChange }: Readonly<{ sectio
             {section.fields.map((spec) => (
               <ScalarField key={spec.path} spec={spec} draft={draft} error={errorFor(spec.path)} onChange={(value) => onChange(spec.path, value)} />
             ))}
+            {section.slug === "location" && location}
           </FieldGroup>
         </FieldSet>
       </CardContent>
@@ -169,7 +171,7 @@ function ScalarSection({ section, draft, errorFor, onChange }: Readonly<{ sectio
 }
 
 /** The controlled field editor: every rendered value and message comes from props. */
-export function ProfileFormFields({ draft, issues, onChange, category }: ProfileFormFieldsProps) {
+export function ProfileFormFields({ draft, issues, onChange, category, disabled }: ProfileFormFieldsProps) {
   const byPath = new Map<string, string>();
   for (const issue of issues) if (!byPath.has(issue.path)) byPath.set(issue.path, issue.message);
   const errorFor = (path: string): string | null => byPath.get(path) ?? null;
@@ -244,7 +246,7 @@ export function ProfileFormFields({ draft, issues, onChange, category }: Profile
   return (
     <FieldGroup data-pf-profile-fields="" className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
       {sections.map((section) => (
-        <ScalarSection key={section.slug} section={section} draft={draft} errorFor={errorFor} onChange={updateScalar} />
+        <ScalarSection key={section.slug} section={section} draft={draft} errorFor={errorFor} onChange={updateScalar} location={<div className="sm:col-span-2" data-pf-profile-field="location"><OptionalLocationField value={draft.location} onChange={location => onChange({ ...draft, location })} depth="municipality" postalCode={false} label="Ubicación" description="Opcional. Algunas vacantes solo aceptan postulantes de ciertos países." disabled={disabled} errors={issues.filter(issue => issue.path.startsWith("location.")).map(issue => ({ field: issue.path.slice(9) as LocationIssue["field"], reason: (Object.keys(locationErrorMessages) as LocationIssue["reason"][]).find(reason => locationErrorMessages[reason] === issue.message) ?? "unknown" }))} /></div>} />
       ))}
       {withLanguages ? languagesCard : null}
     </FieldGroup>

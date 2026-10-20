@@ -108,7 +108,7 @@ it("gives the persisted draft preview and questionnaire native headers and descr
 });
 
 it("uses native titles and descriptions in the two application rail cards", () => {
-  render(<><ApplicationCandidateCard draft={{ fullName: "Ana", email: "ana@example.test", phone: "", professionalTitle: "Ingeniera", city: "", country: "" }} skills={[]} avatarSrc="" /><VacancyApplicationSummary job={enrichJob(job)} /></>);
+  render(<><ApplicationCandidateCard draft={{ fullName: "Ana", email: "ana@example.test", phone: "", professionalTitle: "Ingeniera", location: null }} skills={[]} avatarSrc="" /><VacancyApplicationSummary job={enrichJob(job)} /></>);
   for (const name of ["Tu perfil", "Resumen de la vacante"]) expectHeader(screen.getByRole("heading", { name }));
   expect(screen.getByText("Ingeniera").closest('[data-slot="card-description"]')).not.toBeNull();
   expect(screen.getByText("Acme").closest('[data-slot="card-description"]')).not.toBeNull();

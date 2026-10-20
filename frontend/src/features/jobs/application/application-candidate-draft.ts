@@ -1,10 +1,10 @@
-import { candidateIdentitySchema, candidateProfileSchema } from "@/features/candidate/model";
+import { candidateIdentitySchema, candidateProfileSchema, type CandidateProfile } from "@/features/candidate/model";
 
 /**
  * Pure, React-free adapter between the frozen prototype candidate and the flat
- * string draft the public `postular` step 1 edits. It owns the six contactable
- * fields the candidate may correct for one application — name, email, phone,
- * professional title, city, and country — and nothing else: no CV upload, no
+ * string draft the public `postular` step 1 edits. It owns four contact fields
+ * (name, email, phone and professional title) and preserves the expanded read-only
+ * location so summaries can use its server label. It adds no CV upload, no
  * salary, no availability, and no capability the backend does not model.
  *
  * `candidateIdentitySchema` and `candidateProfileSchema` stay the single source
@@ -20,13 +20,11 @@ export const APPLICATION_CANDIDATE_FIELDS = [
   "email",
   "phone",
   "professionalTitle",
-  "city",
-  "country",
 ] as const;
 export type ApplicationCandidateField = (typeof APPLICATION_CANDIDATE_FIELDS)[number];
 
 /** Every editable candidate field as a form-safe string; `""` means "unset". */
-export type ApplicationCandidateDraft = Readonly<Record<ApplicationCandidateField, string>>;
+export type ApplicationCandidateDraft = Readonly<Record<ApplicationCandidateField, string>> & { readonly location: CandidateProfile["location"] };
 
 /** Spanish labels the form and the review share. */
 export const APPLICATION_CANDIDATE_FIELD_LABELS: Readonly<Record<ApplicationCandidateField, string>> =
@@ -35,8 +33,6 @@ export const APPLICATION_CANDIDATE_FIELD_LABELS: Readonly<Record<ApplicationCand
     email: "Correo electrónico",
     phone: "Teléfono",
     professionalTitle: "Título profesional",
-    city: "Ciudad",
-    country: "País",
   });
 
 /** Stable DOM ids, so every label, error, and browser test agrees on one hook. */
@@ -46,8 +42,6 @@ export const APPLICATION_CANDIDATE_FIELD_IDS: Readonly<Record<ApplicationCandida
     email: "application-email",
     phone: "application-phone",
     professionalTitle: "application-professional-title",
-    city: "application-city",
-    country: "application-country",
   });
 
 /** One failing draft field, addressed by its stable field path. */
@@ -64,12 +58,10 @@ export type ApplicationCandidateDraftParseResult =
 /** The two fields `candidateIdentitySchema` already declares mandatory. */
 const REQUIRED_FIELDS: ReadonlySet<ApplicationCandidateField> = new Set(["fullName", "email"]);
 
-/** The four profile fields the model declares nullable; a blank value means "unset". */
+/** The editable scalar profile fields are nullable; blank means unset. */
 const OPTIONAL_FIELDS: ReadonlySet<ApplicationCandidateField> = new Set([
   "phone",
   "professionalTitle",
-  "city",
-  "country",
 ]);
 
 /** Spanish noun phrase per field, composed into every aria-ready message. */
@@ -78,8 +70,6 @@ const NOUNS: Readonly<Record<ApplicationCandidateField, string>> = {
   email: "El correo electrónico",
   phone: "El teléfono",
   professionalTitle: "El título profesional",
-  city: "La ciudad",
-  country: "El país",
 };
 
 /**
@@ -92,8 +82,6 @@ const FIELD_SCHEMAS = {
   email: candidateIdentitySchema.shape.email,
   phone: candidateProfileSchema.shape.phone,
   professionalTitle: candidateProfileSchema.shape.professionalTitle,
-  city: candidateProfileSchema.shape.city,
-  country: candidateProfileSchema.shape.country,
 };
 
 /** The frozen identity fields this draft seeds from. */
@@ -106,8 +94,7 @@ type CandidateIdentitySource = {
 type CandidateProfileSource = {
   readonly phone: string | null;
   readonly professionalTitle: string | null;
-  readonly city: string | null;
-  readonly country: string | null;
+  readonly location: CandidateProfile["location"];
 };
 
 /** Deterministically maps the frozen candidate onto the editable local draft. */
@@ -121,8 +108,7 @@ export function applicationCandidateDraftFromFixture(
     email: identity.email.trim(),
     phone: text(profile.phone),
     professionalTitle: text(profile.professionalTitle),
-    city: text(profile.city),
-    country: text(profile.country),
+    location: profile.location,
   };
 }
 
@@ -194,7 +180,7 @@ export function parseApplicationCandidateDraft(raw: unknown): ApplicationCandida
   }
   const record = raw as Record<string, unknown>;
   const unknownKeys = Object.keys(record).filter(
-    (key) => !(APPLICATION_CANDIDATE_FIELDS as readonly string[]).includes(key),
+    (key) => key !== "location" && !(APPLICATION_CANDIDATE_FIELDS as readonly string[]).includes(key),
   );
   if (unknownKeys.length > 0) {
     return {
@@ -206,6 +192,8 @@ export function parseApplicationCandidateDraft(raw: unknown): ApplicationCandida
     };
   }
 
+  const location = candidateProfileSchema.shape.location.safeParse(record.location);
+  if (!location.success) return { ok: false, issues: [{ path: "location", message: "La ubicación no es válida." }] };
   const issues: ApplicationCandidateDraftIssue[] = [];
   const normalized: Partial<Record<ApplicationCandidateField, string>> = {};
 
@@ -238,8 +226,7 @@ export function parseApplicationCandidateDraft(raw: unknown): ApplicationCandida
       email: normalized.email ?? "",
       phone: normalized.phone ?? "",
       professionalTitle: normalized.professionalTitle ?? "",
-      city: normalized.city ?? "",
-      country: normalized.country ?? "",
+      location: location.data,
     },
   };
 }

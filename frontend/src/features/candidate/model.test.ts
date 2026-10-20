@@ -104,8 +104,8 @@ describe("candidate identity and profile model", () => {
 
   it("mirrors the self-service profile fields without the reserved CV key", () => {
     expect(Object.keys(CANDIDATE_PROFILE).sort()).toEqual([
-      "birthDate", "city", "country", "createdAt", "currentCompany", "currentSalaryGross", "currentSalaryNet",
-      "educationLevel", "expectedSalary", "expectedSalaryPeriod", "fieldOfStudy", "languages", "linkedinUrl",
+      "birthDate", "createdAt", "currentCompany", "currentSalaryGross", "currentSalaryNet",
+      "educationLevel", "expectedSalary", "expectedSalaryPeriod", "fieldOfStudy", "languages", "linkedinUrl", "location",
       "phone", "portfolioUrl", "professionalTitle", "salaryCurrency", "skills", "summary", "updatedAt",
       "yearsOfExperience",
     ]);
@@ -151,14 +151,14 @@ describe("candidate identity and profile model", () => {
     for (const fixture of [CANDIDATE_IDENTITY, CANDIDATE_PROFILE]) {
       for (const object of reachableObjects(fixture)) expect(Object.isFrozen(object)).toBe(true);
     }
-    expect(() => Object.defineProperty(CANDIDATE_PROFILE, "city", { value: "Guadalajara" })).toThrow();
+    expect(() => Object.defineProperty(CANDIDATE_PROFILE, "location", { value: null })).toThrow();
     expect(() => Object.defineProperty(CANDIDATE_PROFILE.skills, "0", { value: "vue" })).toThrow();
     expect(() => Object.defineProperty(CANDIDATE_PROFILE.languages[0], "level", { value: "A1" })).toThrow();
     expect(() => Object.defineProperty(CANDIDATE_IDENTITY, "userType", { value: "recruiter" })).toThrow();
   });
 
   it("stays free of React, browser, transport, and employer coupling", () => {
-    expect(modulesOf(modelSource)).toEqual(["zod"]);
+    expect(modulesOf(modelSource)).toEqual(["zod", "@/features/geo/model"]);
     expect(modulesOf(fixtureSource)).toEqual(["./model"]);
     for (const source of [modelSource, fixtureSource]) {
       expect(source).not.toMatch(/\bfetch\(|XMLHttpRequest|axios|localStorage|sessionStorage/u);

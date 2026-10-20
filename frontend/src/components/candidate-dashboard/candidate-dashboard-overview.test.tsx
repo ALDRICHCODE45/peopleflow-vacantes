@@ -27,7 +27,7 @@ function emptyProfile(): CandidateProfile {
   return candidateProfileSchema.parse({
     ...CANDIDATE_PROFILE,
     phone: null, linkedinUrl: null, portfolioUrl: null, professionalTitle: null, currentCompany: null,
-    yearsOfExperience: null, summary: null, birthDate: null, city: null, country: null, educationLevel: null,
+    yearsOfExperience: null, summary: null, birthDate: null, location: null, educationLevel: null,
     fieldOfStudy: null, skills: [], currentSalaryGross: null, currentSalaryNet: null, expectedSalary: null,
     expectedSalaryPeriod: null, languages: [],
   });
@@ -83,15 +83,15 @@ it("keeps recent identity readable and primary CV facts distinct from controls o
 describe("profile completeness helper", () => {
   it("scores the complete fixture as 100% and stays pure", () => {
     const before = JSON.stringify(CANDIDATE_PROFILE);
-    expect(profileCompleteness(CANDIDATE_PROFILE)).toEqual({ completed: 13, total: 13, percentage: 100, missing: [] });
+    expect(profileCompleteness(CANDIDATE_PROFILE)).toEqual({ completed: 12, total: 12, percentage: 100, missing: [] });
     profileCompleteness(CANDIDATE_PROFILE);
     expect(JSON.stringify(CANDIDATE_PROFILE)).toBe(before);
   });
 
   it("names only the missing checklist labels for a valid incomplete profile", () => {
     const incomplete = profileCompleteness(profileWithout("summary", "languages"));
-    expect(incomplete.completed).toBe(11);
-    expect(incomplete.percentage).toBe(85);
+    expect(incomplete.completed).toBe(10);
+    expect(incomplete.percentage).toBe(83);
     expect(incomplete.missing).toEqual(["Resumen profesional", "Idiomas"]);
   });
   it("returns a bounded zero score for an empty valid profile", () => {
@@ -110,7 +110,7 @@ describe("candidate dashboard overview", () => {
     expect(metric("En proceso")).toHaveTextContent("2");
     expect(metric("En proceso")).toHaveTextContent("Enviadas o en revisión");
     expect(metric("Perfil completo")).toHaveTextContent("100%");
-    expect(metric("Perfil completo")).toHaveTextContent("13 de 13 campos completados");
+    expect(metric("Perfil completo")).toHaveTextContent("12 de 12 campos completados");
     expect(metric("CVs")).toHaveTextContent("2 CVs disponibles");
     for (const [label, value] of [["Postulaciones", "4"], ["En proceso", "2"], ["Perfil completo", "100%"], ["CVs", "2"]] as const) {
       expect(metric(label).querySelector("[data-pf-overview-metric-value]")?.textContent, label).toBe(value);
@@ -175,7 +175,7 @@ describe("candidate dashboard overview", () => {
     cleanup();
     renderOverview({ profile: profileWithout("professionalTitle", "skills", "linkedinUrl") });
     const guidance = section("profile-guidance");
-    expect(guidance).toHaveTextContent("Tu perfil está al 77%");
+    expect(guidance).toHaveTextContent("Tu perfil está al 75%");
     expect(within(guidance).getByText("Título profesional")).toBeInTheDocument();
     expect(within(guidance).getByText("Habilidades")).toBeInTheDocument();
     expect(within(guidance).getByText("LinkedIn")).toBeInTheDocument();
@@ -387,7 +387,7 @@ describe("candidate dashboard overview", () => {
     expect(bar).toHaveAttribute("aria-label", "Perfil completo");
     expect(bar.querySelector('[data-slot="progress-label"]')).not.toBeNull();
     expect(bar.querySelector('[data-slot="progress-value"]')?.textContent).toMatch(/100\s?%/u);
-    expect(section("profile-guidance")).toHaveTextContent("13 de 13 campos completados");
+    expect(section("profile-guidance")).toHaveTextContent("12 de 12 campos completados");
   });
 
   it("spans the overview across the full candidate workspace measure with one padding owner", () => {

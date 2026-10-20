@@ -39,10 +39,9 @@ function declared(value: string): string {
   return trimmed === "" ? UNSPECIFIED : trimmed;
 }
 
-/** City and country as one line, or the neutral placeholder when both are blank. */
+/** The server label is authoritative, never reconstructed from references. */
 function locationOf(draft: ApplicationCandidateDraft): string {
-  const parts = [draft.city, draft.country].map((part) => part.trim()).filter((part) => part !== "");
-  return parts.length === 0 ? UNSPECIFIED : parts.join(", ");
+  return draft.location?.label ?? UNSPECIFIED;
 }
 
 export function ApplicationCandidateCard({

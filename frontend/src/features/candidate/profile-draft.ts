@@ -1,18 +1,21 @@
 import { EDUCATION_LEVELS, SALARY_PERIODS, candidateProfileSchema } from "./model";
+import { locationReadToValue, locationValueToWrite, locationWriteSchema, type LocationValue, type LocationWrite } from "@/features/geo/model";
+const editableProfileSchema = candidateProfileSchema.omit({ location: true }).extend({ location: locationWriteSchema.unwrap().omit({ postal_code: true }).strict().nullable() });
+export type EditedProfile = Omit<CandidateProfile, "location"> & { location: LocationWrite };
 import type { CandidateProfile, CefrLevel, EducationLevel, SalaryPeriod } from "./model";
 
 /**
- * Pure, React-free adapter between a validated `CandidateProfile` and the flat
- * string draft the local `/candidato/perfil` form edits. It imports only `./model`,
- * reaches no network, storage, router, clock, or randomness, never mutates its
+ * Pure adapter between an expanded profile and form strings plus location codes.
+ * Read labels remain display-only; the parsed profile carries a codes-only location.
+ * It reaches no network, storage, router, clock, or randomness, never mutates its
  * arguments, and carries `createdAt`/`updatedAt` over from the validated baseline.
  */
 /** One editable language row; `""` means "no level chosen yet". */
 export interface CandidateLanguageDraft { name: string; level: "" | CefrLevel }
-/** Every editable profile field as a form-safe string; `""` means "unset". */
+/** Scalar fields are form strings; location codes and language rows stay structured. */
 export interface CandidateProfileDraft {
   phone: string; linkedinUrl: string; portfolioUrl: string; professionalTitle: string; currentCompany: string;
-  yearsOfExperience: string; summary: string; birthDate: string; city: string; country: string;
+  yearsOfExperience: string; summary: string; birthDate: string; location: LocationValue;
   educationLevel: "" | EducationLevel; fieldOfStudy: string; skills: string;
   currentSalaryGross: string; currentSalaryNet: string; expectedSalary: string; salaryCurrency: string;
   expectedSalaryPeriod: "" | SalaryPeriod; languages: readonly CandidateLanguageDraft[];
@@ -21,11 +24,11 @@ export interface CandidateProfileDraft {
 export interface ProfileDraftIssue { path: string; message: string }
 /** Discriminated outcome: the schema output, or every field issue found. */
 export type ProfileDraftParseResult =
-  | { ok: true; profile: CandidateProfile }
+  | { ok: true; profile: EditedProfile }
   | { ok: false; issues: readonly ProfileDraftIssue[] };
 
 /** Canonical report order, mirroring the `candidateProfileSchema` shape order. */
-const FIELD_ORDER = ["phone", "linkedinUrl", "portfolioUrl", "professionalTitle", "currentCompany", "yearsOfExperience", "summary", "birthDate", "city", "country", "educationLevel", "fieldOfStudy", "skills", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "salaryCurrency", "expectedSalaryPeriod", "languages"] as const;
+const FIELD_ORDER = ["phone", "linkedinUrl", "portfolioUrl", "professionalTitle", "currentCompany", "yearsOfExperience", "summary", "birthDate", "location", "educationLevel", "fieldOfStudy", "skills", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "salaryCurrency", "expectedSalaryPeriod", "languages"] as const;
 /** Spanish noun phrase and integer verb per field, composed into messages. */
 const FIELDS: Readonly<Record<string, { of: string; verb?: string }>> = {
   phone: { of: "el teléfono" },
@@ -35,8 +38,7 @@ const FIELDS: Readonly<Record<string, { of: string; verb?: string }>> = {
   currentCompany: { of: "la empresa actual" },
   yearsOfExperience: { of: "los años de experiencia", verb: "deben" },
   summary: { of: "el resumen" },
-  city: { of: "la ciudad" },
-  country: { of: "el país" },
+  location: { of: "la ubicación" },
   fieldOfStudy: { of: "el campo de estudio" },
   currentSalaryGross: { of: "el salario bruto actual", verb: "debe" },
   currentSalaryNet: { of: "el salario neto actual", verb: "debe" },
@@ -53,7 +55,7 @@ export function profileToDraft(profile: CandidateProfile): CandidateProfileDraft
     phone: text(profile.phone), linkedinUrl: text(profile.linkedinUrl), portfolioUrl: text(profile.portfolioUrl),
     professionalTitle: text(profile.professionalTitle), currentCompany: text(profile.currentCompany),
     yearsOfExperience: integer(profile.yearsOfExperience), summary: text(profile.summary), birthDate: text(profile.birthDate),
-    city: text(profile.city), country: text(profile.country), educationLevel: profile.educationLevel ?? "",
+    location: locationReadToValue(profile.location), educationLevel: profile.educationLevel ?? "",
     fieldOfStudy: text(profile.fieldOfStudy), skills: profile.skills.join(", "),
     currentSalaryGross: integer(profile.currentSalaryGross), currentSalaryNet: integer(profile.currentSalaryNet),
     expectedSalary: integer(profile.expectedSalary), salaryCurrency: profile.salaryCurrency,
@@ -139,6 +141,7 @@ function schemaIssue(issue: SchemaIssue): ProfileDraftIssue {
     if (issue.message.startsWith("duplicate language: ")) return { path: `languages.${index}.name`, message: `El idioma "${issue.message.replace("duplicate language: ", "")}" ya está registrado.` };
     return { path: `languages.${index}.name`, message: "El nombre del idioma debe tener entre 1 y 60 caracteres." };
   }
+  if (root === "location") return { path: `location.${index || "country"}`, message: "Elige una opción de la lista." };
   if (root === "birthDate") return { path: "birthDate", message: "La fecha de nacimiento no es una fecha válida (usa el formato AAAA-MM-DD)." };
   if (root === "salaryCurrency") return { path: "salaryCurrency", message: "La moneda del salario es obligatoria." };
   if (root === "educationLevel") return { path: root, message: "Selecciona una opción válida para el nivel educativo." };
@@ -175,8 +178,8 @@ export function parseProfileDraft(draft: CandidateProfileDraft, baseline: Candid
     phone: optionalText(draft.phone), linkedinUrl: optionalText(draft.linkedinUrl), portfolioUrl: optionalText(draft.portfolioUrl),
     professionalTitle: optionalText(draft.professionalTitle), currentCompany: optionalText(draft.currentCompany),
     yearsOfExperience: optionalInteger(draft.yearsOfExperience, "yearsOfExperience", add),
-    summary: optionalText(draft.summary), birthDate: optionalText(draft.birthDate), city: optionalText(draft.city),
-    country: optionalText(draft.country), fieldOfStudy: optionalText(draft.fieldOfStudy), skills: splitSkills(draft.skills),
+    summary: optionalText(draft.summary), birthDate: optionalText(draft.birthDate), location: locationValueToWrite(draft.location),
+    fieldOfStudy: optionalText(draft.fieldOfStudy), skills: splitSkills(draft.skills),
     educationLevel: optionalEnum(draft.educationLevel, EDUCATION_LEVELS, "educationLevel", add, enumMessages.educationLevel),
     currentSalaryGross: optionalInteger(draft.currentSalaryGross, "currentSalaryGross", add),
     currentSalaryNet: optionalInteger(draft.currentSalaryNet, "currentSalaryNet", add),
@@ -187,7 +190,7 @@ export function parseProfileDraft(draft: CandidateProfileDraft, baseline: Candid
     createdAt: baseline.createdAt,
     updatedAt: baseline.updatedAt,
   };
-  const parsed = candidateProfileSchema.safeParse(candidate);
+  const parsed = editableProfileSchema.safeParse(candidate);
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
       const mapped = schemaIssue(issue);

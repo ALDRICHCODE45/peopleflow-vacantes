@@ -59,27 +59,30 @@ const messageOf = (
 };
 
 describe("application candidate draft model", () => {
+  it("preserves the server location label and rejects legacy location strings", () => {
+    const location = { ...CANDIDATE_PROFILE.location!, label: "Etiqueta literal del servidor" };
+    const draft = applicationCandidateDraftFromFixture(CANDIDATE_IDENTITY, { ...CANDIDATE_PROFILE, location });
+    expect(draft.location).toEqual(location);
+    expect(parseApplicationCandidateDraft({ ...draft, location: "Ciudad, País" }).ok).toBe(false);
+  });
   it("keeps the exact ordered field vocabulary with Spanish labels and stable ids", () => {
     expect(APPLICATION_CANDIDATE_FIELDS).toEqual([
       "fullName",
       "email",
       "phone",
       "professionalTitle",
-      "city",
-      "country",
     ]);
     expect(APPLICATION_CANDIDATE_FIELD_LABELS).toEqual({
       fullName: "Nombre completo",
       email: "Correo electrónico",
       phone: "Teléfono",
       professionalTitle: "Título profesional",
-      city: "Ciudad",
-      country: "País",
+
     });
     const ids = APPLICATION_CANDIDATE_FIELDS.map((field) => APPLICATION_CANDIDATE_FIELD_IDS[field]);
     expect(ids.every((id) => id.startsWith("application-"))).toBe(true);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(APPLICATION_CANDIDATE_FIELD_IDS.city).toBe("application-city");
+    expect(APPLICATION_CANDIDATE_FIELD_IDS.phone).toBe("application-phone");
   });
 
   it("seeds the six local strings from the frozen identity and profile without inventing values", () => {
@@ -88,17 +91,15 @@ describe("application candidate draft model", () => {
       email: "ximena.barrera@correo.mx",
       phone: "+52 55 4821 7790",
       professionalTitle: "Desarrolladora Frontend Senior",
-      city: "Ciudad de México",
-      country: "México",
+      location: CANDIDATE_PROFILE.location,
     });
     expect(
       applicationCandidateDraftFromFixture(CANDIDATE_IDENTITY, {
         phone: null,
         professionalTitle: null,
-        city: null,
-        country: null,
+        location: null,
       }),
-    ).toEqual({ ...applicationCandidateDraftFromFixture(CANDIDATE_IDENTITY, CANDIDATE_PROFILE), phone: "", professionalTitle: "", city: "", country: "" });
+    ).toEqual({ ...applicationCandidateDraftFromFixture(CANDIDATE_IDENTITY, CANDIDATE_PROFILE), phone: "", professionalTitle: "", location: null });
   });
 
   it("trims every field and lowercases the email on success", () => {
@@ -106,12 +107,12 @@ describe("application candidate draft model", () => {
       fullName: "  Ana López  ",
       email: "  ANA@Correo.MX  ",
       phone: "  +52 55 1111 2222  ",
-      city: "  Guadalajara  ",
+      professionalTitle: "  Engineer  ",
     });
     expect(draft.fullName).toBe("Ana López");
     expect(draft.email).toBe("ana@correo.mx");
     expect(draft.phone).toBe("+52 55 1111 2222");
-    expect(draft.city).toBe("Guadalajara");
+    expect(draft.professionalTitle).toBe("Engineer");
     expectTypeOf(parseApplicationCandidateDraft(input())).toEqualTypeOf<ApplicationCandidateDraftParseResult>();
   });
 
@@ -143,7 +144,7 @@ describe("application candidate draft model", () => {
   });
 
   it("keeps phone, title, city and country optional but bounded like the profile schema", () => {
-    for (const field of ["phone", "professionalTitle", "city", "country"] as const) {
+    for (const field of ["phone", "professionalTitle"] as const) {
       expect(draftOf({ [field]: "" })[field]).toBe("");
       expect(draftOf({ [field]: "   " })[field]).toBe("");
     }
@@ -155,8 +156,8 @@ describe("application candidate draft model", () => {
     expect(messageOf({ professionalTitle: "T".repeat(121) })).toBe(
       "El título profesional debe tener como máximo 120 caracteres.",
     );
-    expect(messageOf({ city: "C".repeat(121) })).toBe("La ciudad debe tener como máximo 120 caracteres.");
-    expect(messageOf({ country: "P".repeat(121) })).toBe("El país debe tener como máximo 120 caracteres.");
+    expect(parseApplicationCandidateDraft({ ...input(), city: "legacy" }).ok).toBe(false);
+    expect(parseApplicationCandidateDraft({ ...input(), country: "legacy" }).ok).toBe(false);
   });
 
   it("rejects a non-string value for any field instead of coercing it to empty", () => {
@@ -165,8 +166,7 @@ describe("application candidate draft model", () => {
       ["email", true, "El correo electrónico debe ser texto."],
       ["phone", 5_548_217_790, "El teléfono debe ser texto."],
       ["professionalTitle", 7, "El título profesional debe ser texto."],
-      ["city", ["Guadalajara"], "La ciudad debe ser texto."],
-      ["country", { name: "México" }, "El país debe ser texto."],
+
     ];
     for (const [field, value, message] of malformed) {
       const raw: Record<string, unknown> = { ...input() };
@@ -178,10 +178,10 @@ describe("application candidate draft model", () => {
   });
 
   it("keeps an explicit null or a missing optional field as the empty-string unset", () => {
-    const result = parseApplicationCandidateDraft({ ...input(), phone: null, city: undefined });
+    const result = parseApplicationCandidateDraft({ ...input(), phone: null, professionalTitle: undefined });
     if (!result.ok) throw new Error(JSON.stringify(result.issues));
     expect(result.draft.phone).toBe("");
-    expect(result.draft.city).toBe("");
+    expect(result.draft.professionalTitle).toBe("");
     expect(parseApplicationCandidateDraft({ ...input(), fullName: null }).ok).toBe(false);
   });
 
@@ -201,24 +201,14 @@ describe("application candidate draft model", () => {
           ...CANDIDATE_PROFILE,
           professionalTitle: value.trim() === "" ? null : value,
         }).success,
-      city: (value: string) =>
-        candidateProfileSchema.safeParse({
-          ...CANDIDATE_PROFILE,
-          city: value.trim() === "" ? null : value,
-        }).success,
-      country: (value: string) =>
-        candidateProfileSchema.safeParse({
-          ...CANDIDATE_PROFILE,
-          country: value.trim() === "" ? null : value,
-        }).success,
+
     };
     const samples: Record<(typeof APPLICATION_CANDIDATE_FIELDS)[number], readonly string[]> = {
       fullName: ["", "X", "Xi", "X".repeat(120), "X".repeat(121)],
       email: ["", "X", "ximena.correo.mx", "ximena@correo.mx", `${"a".repeat(150)}@correo.mx`],
       phone: ["", "1234", "12345", "1".repeat(30), "1".repeat(31)],
       professionalTitle: ["", "T".repeat(120), "T".repeat(121)],
-      city: ["", "C".repeat(120), "C".repeat(121)],
-      country: ["", "P".repeat(120), "P".repeat(121)],
+
     };
     for (const field of APPLICATION_CANDIDATE_FIELDS) {
       for (const value of samples[field]) {

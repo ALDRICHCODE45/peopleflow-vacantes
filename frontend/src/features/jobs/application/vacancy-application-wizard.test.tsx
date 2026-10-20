@@ -21,8 +21,7 @@ const AVATAR_SRC = "/candidate/ximena-barrera.jpg";
 /** The frozen fixture strings this suite asserts; the prototype declares them all. */
 const CANDIDATE_TITLE = CANDIDATE_PROFILE.professionalTitle ?? "";
 const CANDIDATE_PHONE = CANDIDATE_PROFILE.phone ?? "";
-const CANDIDATE_CITY = CANDIDATE_PROFILE.city ?? "";
-const CANDIDATE_COUNTRY = CANDIDATE_PROFILE.country ?? "";
+const CANDIDATE_LOCATION = CANDIDATE_PROFILE.location?.label ?? "";
 const STEP_LABELS = ["Tus datos", "Tu postulación", "Tu CV", "Revisar"] as const;
 const EMPTY_LETTER = "Sin carta de presentación";
 const RAW_COLOR_UTILITY =
@@ -109,10 +108,10 @@ function stubLoadedImage() {
 beforeEach(stubBrowserApis);
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-async function renderWizard() {
+async function renderWizard(profile = CANDIDATE_PROFILE) {
   const Wizard = await loadWizard();
   const user = userEvent.setup();
-  return { user, ...render(<Wizard {...wizardProps} />) };
+  return { user, ...render(<Wizard {...wizardProps} profile={profile} />) };
 }
 
 async function clickContinue(user: WizardUser): Promise<void> {
@@ -274,15 +273,15 @@ describe("VAF-03 step rail, editable candidate data and rail composition", () =>
   it("prefills the six local candidate fields from the frozen identity and profile", async () => {
     expect(CANDIDATE_TITLE).not.toBe("");
     expect(CANDIDATE_PHONE).not.toBe("");
-    expect(CANDIDATE_CITY).not.toBe("");
-    expect(CANDIDATE_COUNTRY).not.toBe("");
+    expect(CANDIDATE_LOCATION).not.toBe("");
     const { container } = await renderWizard();
     expect(screen.getByLabelText("Nombre completo")).toHaveValue(CANDIDATE_IDENTITY.fullName);
     expect(screen.getByLabelText("Correo electrónico")).toHaveValue(CANDIDATE_IDENTITY.email);
     expect(screen.getByLabelText("Teléfono")).toHaveValue(CANDIDATE_PROFILE.phone);
     expect(screen.getByLabelText("Título profesional")).toHaveValue(CANDIDATE_PROFILE.professionalTitle);
-    expect(screen.getByLabelText("Ciudad")).toHaveValue(CANDIDATE_PROFILE.city);
-    expect(screen.getByLabelText("País")).toHaveValue(CANDIDATE_PROFILE.country);
+    expect(screen.queryByLabelText("Ciudad")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("País")).not.toBeInTheDocument();
+    expect(container.querySelector("[data-pf-application-candidate-location]")).toHaveTextContent(CANDIDATE_LOCATION);
     expect(screen.getByLabelText("Nombre completo")).toHaveAttribute("id", "application-full-name");
     expect(screen.getByLabelText("Correo electrónico")).toHaveAttribute("type", "email");
     expect(screen.getByLabelText("Teléfono")).toHaveAttribute("type", "tel");
@@ -310,7 +309,7 @@ describe("VAF-03 step rail, editable candidate data and rail composition", () =>
     expect(card).toHaveTextContent(CANDIDATE_TITLE);
     expect(card).toHaveTextContent(CANDIDATE_IDENTITY.email);
     expect(card).toHaveTextContent(CANDIDATE_PHONE);
-    expect(card).toHaveTextContent(`${CANDIDATE_CITY}, ${CANDIDATE_COUNTRY}`);
+    expect(card).toHaveTextContent(CANDIDATE_LOCATION);
     for (const skill of [...CANDIDATE_PROFILE.skills]) expect(card).toHaveTextContent(skill);
     const image = container.querySelector("[data-slot='avatar-image']") as HTMLImageElement | null;
     expect(image).not.toBeNull();
@@ -344,11 +343,9 @@ describe("VAF-03 step rail, editable candidate data and rail composition", () =>
     expect(portrait()?.getAttribute("alt") ?? "").not.toContain(CANDIDATE_IDENTITY.fullName);
   });
 
-  it("never invents a value for a cleared field", async () => {
-    const { user, container } = await renderWizard();
+  it("never invents a value for an empty location or cleared field", async () => {
+    const { user, container } = await renderWizard({ ...CANDIDATE_PROFILE, location: null });
     const card = container.querySelector("[data-pf-application-candidate]") as HTMLElement;
-    await user.clear(screen.getByLabelText("Ciudad"));
-    await user.clear(screen.getByLabelText("País"));
     expect(card.querySelector("[data-pf-application-candidate-location]")).toHaveTextContent("Sin especificar");
     await user.clear(screen.getByLabelText("Teléfono"));
     expect(card.querySelector("[data-pf-application-candidate-phone]")).toHaveTextContent("Sin especificar");
@@ -357,7 +354,7 @@ describe("VAF-03 step rail, editable candidate data and rail composition", () =>
     const review = container.querySelector('[data-pf-application-step="review"]') as HTMLElement;
     expect(review).toHaveTextContent("Sin especificar");
     expect(review).not.toHaveTextContent(CANDIDATE_PHONE);
-    expect(review).not.toHaveTextContent(CANDIDATE_CITY);
+    expect(review).not.toHaveTextContent(CANDIDATE_LOCATION);
   });
 
   it("blames the edited field, focuses it, and never advances on invalid data", async () => {
@@ -394,7 +391,7 @@ describe("VAF-03 step rail, editable candidate data and rail composition", () =>
     expect(text).toContain("Ana López");
     expect(text).not.toContain("  Ana López  ");
     expect(text).toContain(CANDIDATE_PHONE);
-    expect(text).toContain(CANDIDATE_CITY);
+    expect(text).toContain(CANDIDATE_LOCATION);
     expect(text).not.toMatch(IMPLEMENTATION_STATUS_COPY);
     expect(screen.getByRole("link", { name: /iniciar sesión para enviar/i })).toHaveAttribute("href", "/candidato/login");
     await user.click(screen.getByRole("button", { name: /atrás/i }));

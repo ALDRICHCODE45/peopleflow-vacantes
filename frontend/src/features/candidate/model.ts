@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { locationReadSchema } from "@/features/geo/model";
 
 /**
  * Prototype candidate model for the `/candidato` workspace. It owns the strict
  * identity and self-service profile contracts plus the closed education,
  * salary-period, and CEFR vocabularies the backend enforces. It imports only
- * zod: no React, browser API, transport, storage, auth, route, or employer
+ * zod and shared geo contracts: no React, browser API, transport, storage, auth, route, or employer
  * feature layer is reachable from here, and nothing is fetched or persisted.
  */
 
@@ -128,8 +129,7 @@ export const candidateProfileSchema = z
     yearsOfExperience: z.number().int().nonnegative().max(60).nullable(),
     summary: z.string().trim().min(1).max(MAX_TEXT).nullable(),
     birthDate: z.string().date().nullable(),
-    city: optionalTextSchema,
-    country: optionalTextSchema,
+    location: locationReadSchema,
     educationLevel: educationLevelSchema.nullable(),
     fieldOfStudy: z.string().trim().min(1).max(120).nullable(),
     skills: skillsSchema,

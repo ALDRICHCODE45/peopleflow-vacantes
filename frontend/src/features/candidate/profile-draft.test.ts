@@ -4,19 +4,19 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import type { CandidateProfile, CefrLevel, EducationLevel, SalaryPeriod } from "./model";
 import { CANDIDATE_PROFILE } from "./prototype-candidate";
 import { parseProfileDraft, profileToDraft } from "./profile-draft";
-import type { CandidateLanguageDraft, CandidateProfileDraft, ProfileDraftIssue, ProfileDraftParseResult } from "./profile-draft";
+import type { EditedProfile, CandidateLanguageDraft, CandidateProfileDraft, ProfileDraftIssue, ProfileDraftParseResult } from "./profile-draft";
 
 const SOURCE = readFileSync(join(process.cwd(), "src", "features", "candidate", "profile-draft.ts"), "utf8");
 /** Every editable draft key, sorted: the form fields and nothing else. */
-const DRAFT_KEYS = ["birthDate", "city", "country", "currentCompany", "currentSalaryGross", "currentSalaryNet", "educationLevel", "expectedSalary", "expectedSalaryPeriod", "fieldOfStudy", "languages", "linkedinUrl", "phone", "portfolioUrl", "professionalTitle", "salaryCurrency", "skills", "summary", "yearsOfExperience"].sort();
+const DRAFT_KEYS = ["birthDate", "location", "currentCompany", "currentSalaryGross", "currentSalaryNet", "educationLevel", "expectedSalary", "expectedSalaryPeriod", "fieldOfStudy", "languages", "linkedinUrl", "phone", "portfolioUrl", "professionalTitle", "salaryCurrency", "skills", "summary", "yearsOfExperience"].sort();
 /** The validated profile keys: the draft plus the two server-owned timestamps. */
 const PROFILE_KEYS = [...DRAFT_KEYS, "createdAt", "updatedAt"].sort();
 /** Nullable profile fields a blank draft value must clear. */
-const NULLABLE_KEYS = ["phone", "linkedinUrl", "portfolioUrl", "professionalTitle", "currentCompany", "yearsOfExperience", "summary", "birthDate", "city", "country", "educationLevel", "fieldOfStudy", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "expectedSalaryPeriod"] as const;
+const NULLABLE_KEYS = ["phone", "linkedinUrl", "portfolioUrl", "professionalTitle", "currentCompany", "yearsOfExperience", "summary", "birthDate", "location", "educationLevel", "fieldOfStudy", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "expectedSalaryPeriod"] as const;
 /** A valid profile with every nullable field unset; it also proves baseline timestamp ownership. */
 const EMPTY_PROFILE: CandidateProfile = {
   phone: null, linkedinUrl: null, portfolioUrl: null, professionalTitle: null, currentCompany: null, yearsOfExperience: null,
-  summary: null, birthDate: null, city: null, country: null, educationLevel: null, fieldOfStudy: null, skills: [],
+  summary: null, birthDate: null, location: null, educationLevel: null, fieldOfStudy: null, skills: [],
   currentSalaryGross: null, currentSalaryNet: null, expectedSalary: null, salaryCurrency: "MXN", expectedSalaryPeriod: null,
   languages: [], createdAt: "2020-01-02T03:04:05+00:00", updatedAt: "2021-02-03T04:05:06+00:00",
 };
@@ -36,7 +36,7 @@ function issuesOf(patch: Partial<CandidateProfileDraft>): readonly ProfileDraftI
   return result.issues;
 }
 /** The validated profile produced by a patch that must succeed. */
-function profileOf(patch: Partial<CandidateProfileDraft>, baseline: CandidateProfile = CANDIDATE_PROFILE): CandidateProfile {
+function profileOf(patch: Partial<CandidateProfileDraft>, baseline: CandidateProfile = CANDIDATE_PROFILE): EditedProfile {
   const result = parseProfileDraft(draftWith(patch), baseline);
   if (!result.ok) throw new Error(result.issues.map((issue) => `${issue.path}: ${issue.message}`).join("; "));
   return result.profile;
@@ -48,7 +48,7 @@ describe("candidate profile draft adapter", () => {
     expectTypeOf(draft).toEqualTypeOf<CandidateProfileDraft>();
     const result = parseProfileDraft(draft, CANDIDATE_PROFILE);
     if (!result.ok) throw new Error(result.issues.map((issue) => `${issue.path}: ${issue.message}`).join("; "));
-    expect(result.profile).toEqual(CANDIDATE_PROFILE);
+    expect(result.profile).toEqual({ ...CANDIDATE_PROFILE, location: { country: "MX", state: "09" } });
     expect(result.profile).not.toBe(CANDIDATE_PROFILE);
   });
   it("exposes a discriminated result and form-safe field types", () => {
@@ -64,7 +64,7 @@ describe("candidate profile draft adapter", () => {
   it("maps nulls to empty strings, numbers to decimal strings, and hides timestamps", () => {
     const empty = profileToDraft(EMPTY_PROFILE);
     expect(Object.keys(empty).sort()).toEqual(DRAFT_KEYS);
-    expect(Object.entries(empty).filter(([key]) => key !== "salaryCurrency" && key !== "languages").every(([, value]) => value === "")).toBe(true);
+    expect(Object.entries(empty).filter(([key]) => key !== "salaryCurrency" && key !== "languages" && key !== "location").every(([, value]) => value === "")).toBe(true);
     expect(empty.languages).toEqual([]);
     const fixture = profileToDraft(CANDIDATE_PROFILE);
     expect(fixture.yearsOfExperience).toBe("9");
@@ -87,7 +87,7 @@ describe("candidate profile draft adapter", () => {
   it("clears blank nullable fields to null and never mutates its inputs", () => {
     const blank: Partial<CandidateProfileDraft> = {
       phone: "  ", linkedinUrl: "  ", portfolioUrl: "  ", professionalTitle: "  ", currentCompany: "  ", fieldOfStudy: "  ",
-      yearsOfExperience: "  ", summary: "  ", birthDate: "  ", city: "  ", country: "  ", skills: "   ",
+      yearsOfExperience: "  ", summary: "  ", birthDate: "  ", location: { country: null, state: null, municipality: null, postal_code: null }, skills: "   ",
       currentSalaryGross: "  ", currentSalaryNet: "  ", expectedSalary: "  ", languages: [{ name: "  ", level: "" }],
       educationLevel: "  " as CandidateProfileDraft["educationLevel"],
       expectedSalaryPeriod: "  " as CandidateProfileDraft["expectedSalaryPeriod"],
@@ -176,9 +176,9 @@ describe("candidate profile draft adapter", () => {
     expect(issuesOf({ linkedinUrl: `not a url ${"x".repeat(300)}` }).map((issue) => issue.path)).toEqual(["linkedinUrl"]);
   });
   it("carries only createdAt and updatedAt from the validated baseline", () => {
-    const typed = profileOf({ city: "Guadalajara" }, EMPTY_PROFILE);
+    const typed = profileOf({ location: { country: "MX", state: "14", municipality: "14039", postal_code: null } }, EMPTY_PROFILE);
     expect(Object.keys(typed).sort()).toEqual(PROFILE_KEYS);
-    expect(typed.city).toBe("Guadalajara");
+    expect(typed.location).toEqual({ country: "MX", state: "14", municipality: "14039" });
     expect(typed.skills).toEqual(CANDIDATE_PROFILE.skills);
     expect(typed.createdAt).toBe(EMPTY_PROFILE.createdAt);
     expect(typed.updatedAt).toBe(EMPTY_PROFILE.updatedAt);
@@ -192,7 +192,7 @@ describe("candidate profile draft adapter", () => {
     }
   });
   it("stays free of fixture, React, browser, and side-effect coupling", () => {
-    expect([...new Set([...SOURCE.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]))]).toEqual(["./model"]);
+    expect([...new Set([...SOURCE.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]))]).toEqual(["./model", "@/features/geo/model"]);
     expect(SOURCE).not.toMatch(/prototype-candidate|CANDIDATE_PROFILE/u);
     for (const pattern of [/\bfetch\(|XMLHttpRequest|axios/u, /localStorage|sessionStorage|indexedDB/u, /document\.|window\.|navigator\.|from "react"|"use client"|useRouter/u, /Math\.random|new Date\(|Date\.now|randomUUID/u]) expect(SOURCE).not.toMatch(pattern);
   });

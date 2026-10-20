@@ -11,14 +11,17 @@ import { profileToDraft } from "./profile-draft";
 import type { CandidateProfileDraft, ProfileDraftIssue } from "./profile-draft";
 import { draftValueFromSelect, ProfileFormFields, toSelectItems } from "./profile-form-fields";
 
+const locationSpy = vi.hoisted(() => vi.fn());
+vi.mock("@/features/geo/optional-location-field", () => ({ OptionalLocationField: (props: unknown) => { locationSpy(props); return null; } }));
+
 // Source as text, so the coupling, token and side-effect contracts stay asserted here.
 const SOURCE = readFileSync(join(process.cwd(), "src/features/candidate", "profile-form-fields.tsx"), "utf8");
 const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|color-mix)\(/u;
 /** The 18 scalar draft fields in canonical group order; `languages` is the 19th. */
-const SCALARS = ["professionalTitle", "currentCompany", "yearsOfExperience", "summary", "phone", "linkedinUrl", "portfolioUrl", "birthDate", "city", "country", "educationLevel", "fieldOfStudy", "skills", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "salaryCurrency", "expectedSalaryPeriod"] as const;
+const SCALARS = ["professionalTitle", "currentCompany", "yearsOfExperience", "summary", "phone", "linkedinUrl", "portfolioUrl", "birthDate", "educationLevel", "fieldOfStudy", "skills", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "salaryCurrency", "expectedSalaryPeriod"] as const;
 const LABELS: Readonly<Record<(typeof SCALARS)[number], string>> = {
   professionalTitle: "Título profesional", currentCompany: "Empresa actual o última", yearsOfExperience: "Años de experiencia", summary: "Resumen profesional",
-  phone: "Teléfono", linkedinUrl: "Perfil de LinkedIn", portfolioUrl: "Portafolio o sitio web", birthDate: "Fecha de nacimiento", city: "Ciudad de residencia", country: "País",
+  phone: "Teléfono", linkedinUrl: "Perfil de LinkedIn", portfolioUrl: "Portafolio o sitio web", birthDate: "Fecha de nacimiento",
   educationLevel: "Nivel máximo de estudios", fieldOfStudy: "Campo de estudio", skills: "Habilidades",
   currentSalaryGross: "Salario bruto actual", currentSalaryNet: "Salario neto actual", expectedSalary: "Salario esperado", salaryCurrency: "Moneda", expectedSalaryPeriod: "Periodo del salario esperado",
 };
@@ -70,7 +73,7 @@ describe("profile form fields inventory", () => {
     const groups = Array.from(container.querySelectorAll("[data-pf-profile-group]"));
     expect(groups.map((group) => group.getAttribute("data-pf-profile-group"))).toEqual(GROUPS.map(([slug]) => slug));
     const rendered = Array.from(container.querySelectorAll("[data-pf-profile-field]")).map((node) => node.getAttribute("data-pf-profile-field") as string);
-    expect([...rendered].sort()).toEqual([...SCALARS, "languages"].sort());
+    expect([...rendered].sort()).toEqual([...SCALARS, "languages", "location"].sort());
     const sectionCards = Array.from(container.querySelectorAll("[data-pf-profile-section-card]"));
     expect(sectionCards).toHaveLength(9);
     expect(sectionCards.every((card) => card.getAttribute("data-slot") === "card")).toBe(true);
@@ -149,12 +152,20 @@ describe("profile form fields inventory", () => {
 });
 
 describe("profile form fields emissions", () => {
+  it("uses optional municipality selection without postal and emits a complete draft when cleared", () => {
+    const base = draft(); const { onChange } = renderFields({ draft: base });
+    const props = locationSpy.mock.calls.at(-1)![0];
+    expect(props).toMatchObject({ depth: "municipality", postalCode: false, label: "Ubicación", description: "Opcional. Algunas vacantes solo aceptan postulantes de ciertos países.", value: base.location });
+    const empty = { country: null, state: null, municipality: null, postal_code: null };
+    props.onChange(empty);
+    expect(emitted(onChange)).toEqual({ ...base, location: empty });
+  });
   it("emits one full immutable draft per scalar, number, textarea and select edit", () => {
     const base = draft();
     const before = JSON.stringify(base);
     const { onChange } = renderFields({ draft: base });
-    fireEvent.change(screen.getByLabelText(LABELS.city), { target: { value: `${base.city}!` } });
-    expect(emitted(onChange)).toEqual({ ...base, city: `${base.city}!` });
+    fireEvent.change(screen.getByLabelText(LABELS.phone), { target: { value: `${base.phone}1` } });
+    expect(emitted(onChange)).toEqual({ ...base, phone: `${base.phone}1` });
     expect(emitted(onChange)).not.toBe(base);
     expect(Object.keys(emitted(onChange)).sort()).toEqual(Object.keys(base).sort());
     expect(emitted(onChange).languages).toEqual(base.languages);
@@ -214,8 +225,8 @@ describe("profile form fields error wiring", () => {
     expect(phone.getAttribute("aria-describedby")).toContain("profile-phone-error");
     expect(container.querySelector("#profile-phone-error")).toHaveTextContent(issues[0].message);
     expect(container.querySelector("#profile-phone-error")).not.toHaveTextContent("Mensaje duplicado");
-    expect(input(container, "city")).not.toHaveAttribute("aria-invalid");
-    expect(input(container, "city").getAttribute("aria-describedby")).toBeNull();
+    expect(input(container, "linkedinUrl")).not.toHaveAttribute("aria-invalid");
+    expect(input(container, "linkedinUrl").getAttribute("aria-describedby")).toBeNull();
     expect(container.querySelectorAll('[id$="-error"]')).toHaveLength(5);
     // Without helper lines the adjacent error is the only described-by target.
     const birthDate = container.querySelector("#profile-birthDate") as HTMLElement;
@@ -371,7 +382,7 @@ describe("profile form fields contract", () => {
     expect(container.querySelectorAll('[role="alert"]')).toHaveLength(0);
     expect(container.querySelectorAll('[role="group"]').length).toBeGreaterThan(0);
     expect(container.querySelectorAll('[type="submit"], [type="reset"]')).toHaveLength(0);
-    expect(modulesOf(SOURCE)).toEqual(["./model", "./profile-draft", "@/components/ui/button", "@/components/ui/card", "@/components/ui/date-picker-field", "@/components/ui/field", "@/components/ui/input-group", "@/components/ui/select", "@/components/ui/separator", "lucide-react"]);
+    expect(modulesOf(SOURCE)).toEqual(["./model", "./profile-draft", "@/components/ui/button", "@/components/ui/card", "@/components/ui/date-picker-field", "@/components/ui/field", "@/components/ui/input-group", "@/components/ui/select", "@/components/ui/separator", "@/features/geo/model", "@/features/geo/optional-location-field", "lucide-react"]);
     expect(SOURCE).toMatch(/^"use client";/u);
     for (const forbidden of ["email", "fullName", "userId", "createdAt", "updatedAt", "cv", "auth", "password", "useState", "useReducer", "useEffect", "useRef", "<form", "onSubmit", "submit", "reset", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.", "document.", "window.", "useRouter", "next/navigation", "setTimeout", "setInterval", "Math.random", "Date.now", "prototype-", "profile-draft.test", "parseProfileDraft", "safeParse", "validate"]) {
       expect(SOURCE, `profile-form-fields.tsx must not declare ${forbidden}`).not.toContain(forbidden);

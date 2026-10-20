@@ -127,8 +127,6 @@ const CANDIDATE_AUTOCOMPLETE: Readonly<Record<ApplicationCandidateField, string>
   email: "email",
   phone: "tel",
   professionalTitle: "organization-title",
-  city: "address-level2",
-  country: "country-name",
 };
 
 /** One editable row: the field schema owns the type, the label and the hint come from the draft contract. */
@@ -564,10 +562,7 @@ export function VacancyApplicationWizard({
                     Ubicación
                   </dt>
                   <dd className="text-sm text-foreground">
-                    {[reviewedCandidate.city, reviewedCandidate.country]
-                      .map((part) => part.trim())
-                      .filter((part) => part !== "")
-                      .join(", ") || UNSPECIFIED}
+                    {reviewedCandidate.location?.label ?? UNSPECIFIED}
                   </dd>
                 </div>
                 <div className="flex flex-col gap-1">
