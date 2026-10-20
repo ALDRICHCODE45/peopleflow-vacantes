@@ -45,6 +45,15 @@ it.each([null, { id: "US", name: "Estados Unidos" }])("blocks a known ineligible
   else expect(screen.getByText("Tu perfil indica Estados Unidos. Esta vacante no acepta postulaciones desde ahí.")).toBeVisible();
   expect(submitApplicationAction).not.toHaveBeenCalled();
 });
+it("treats a candidate without a profile yet as having no country", async () => {
+  vi.mocked(loadProfileAction).mockResolvedValue({ ok: true, data: { languages: { languages: [] }, profile: null } });
+  render(<CandidateApplicationWizard job={restrictedJob} />);
+  expect(await screen.findByText("Agrega tu país en tu perfil para postularte.")).toBeVisible();
+  await toSummary();
+  expect(screen.getByRole("button", { name: "Enviar postulación" })).toBeDisabled();
+  expect(screen.getByRole("link", { name: "Completar perfil" })).toHaveAttribute("href", "/candidato/perfil");
+  expect(submitApplicationAction).not.toHaveBeenCalled();
+});
 it("keeps answers and shows the server country rejection without retrying", async () => {
   profileCountry({ id: "MX", name: "México" });
   vi.mocked(submitApplicationAction).mockResolvedValue({ ok: false, reason: "applicant_country_required", allowed: ["CO", "MX"], reference: { status: 422, code: "applicant_country_required" } });

@@ -35,11 +35,36 @@ describe("live candidate profile", () => {
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
     expect(mocks.notify).not.toHaveBeenCalled();
   });
-  it("shows missing-profile state without inventing a saved profile", async () => {
-    mocks.load.mockResolvedValue({ ok: false, reason: "not_found", reference: { status: 404 } });
-    render(<ProfileWorkspace />);
-    expect(await screen.findByText("Todavía no tienes perfil")).toBeInTheDocument();
+  it("opens an empty editor for a missing profile and creates it even with only language changes", async () => {
+    mocks.load.mockResolvedValue({ ok: true, data: { profile: null, languages: { languages: [{ name: "english", level: "B2" }] } } });
+    const empty = Object.fromEntries(Object.keys(profileToWrite(valid.profile)).map(key => [key, key === "skills" ? [] : key === "salary_currency" ? "MXN" : null]));
+    const created = { ...wire, ...empty };
+    mocks.save.mockResolvedValueOnce({ kind: "saved", profile: created, languages: { languages: [{ name: "french", level: "B2" }] } });
+    await ready();
+    expect(screen.getByText("Completa tu perfil para postularte más rápido. Se crea al guardar por primera vez.")).toBeInTheDocument();
+    expect(screen.queryByText("Todavía no tienes perfil")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Teléfono")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeEnabled();
+    tab("Compensación"); expect(screen.getByLabelText("Moneda")).toHaveValue("MXN");
+    tab("Idiomas"); change("Nombre del idioma 1", "French"); save();
+    await screen.findByText("Perfil creado.");
+    expect(mocks.save).toHaveBeenCalledWith({ profile: empty, languages: { languages: [{ name: "french", level: "B2" }] } });
+    expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Perfil creado." }));
+    expect(screen.queryByText(/Se crea al guardar por primera vez/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
+    mocks.save.mockResolvedValueOnce({ kind: "saved", profile: { ...created, phone: "12345678" } });
+    tab("Personal"); change("Teléfono", "12345678"); save();
+    await screen.findByText("Perfil guardado.");
+    expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Perfil guardado." }));
+    expect(mocks.save.mock.calls[1][0]).toEqual({ profile: { ...empty, phone: "12345678" } });
+  });
+  it.each(["unauthenticated", "no_response", "forbidden"])("keeps the error Empty for %s", async reason => {
+    mocks.load.mockResolvedValue({ ok: false, reason, reference: {} });
+    const { container } = render(<ProfileWorkspace />);
+    expect(await screen.findByText("No pudimos cargar tu perfil")).toBeInTheDocument();
+    expect(container.querySelector('[data-slot="empty"]')).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Guardar perfil" })).not.toBeInTheDocument();
+    expect(screen.getByRole(reason === "unauthenticated" ? "link" : "button", { name: reason === "unauthenticated" ? "Iniciar sesión" : "Reintentar" })).toBeInTheDocument();
   });
   it("offers an explicit read retry without writes", async () => {
     mocks.load.mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });

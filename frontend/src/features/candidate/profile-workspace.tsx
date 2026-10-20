@@ -18,12 +18,12 @@ import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { dismissActionResult, notifyActionResult } from "@/components/feedback/notify";
 import { useIdentity } from "@/features/identity/identity-session";
 import { locationErrorMessages } from "@/features/geo/model";
-import type { CandidateIdentity, CandidateProfile } from "./model";
-import { parseProfileDraft, profileToDraft, type ProfileDraftIssue } from "./profile-draft";
+import type { CandidateIdentity } from "./model";
+import { parseProfileDraft, profileToDraft, type ProfileDraftIssue, type ProfileBaseline } from "./profile-draft";
 import { ProfileFormFields, type ProfileCategory } from "./profile-form-fields";
 import { loadProfileAction, saveProfileAction } from "./profile-actions";
 import { profileFromWire, profileToWrite } from "./profile-adapter";
-import type { ProfileFailure } from "./profile-api";
+import type { ProfileFailure, ProfileLanguages, ProfileRead } from "./profile-api";
 import type { ProfileSaveOutcome } from "./profile-save";
 
 const CATEGORIES = [{ value: "personal", label: "Personal" }, { value: "experience", label: "Experiencia" }, { value: "education", label: "Educación" }, { value: "compensation", label: "Compensación" }, { value: "languages", label: "Idiomas" }] as const;
@@ -59,23 +59,35 @@ export function ProfileWorkspace() {
   if (!identity) return <ProfileSkeleton />;
   return <ProfileLoader key={identity.id} identity={{ userId: identity.id, email: identity.email, fullName: identity.full_name, userType: "candidate" }} />;
 }
+function editorBaseline(profile: ProfileRead | null, languages: ProfileLanguages): ProfileBaseline {
+  if (profile) return profileFromWire(profile, languages);
+  return {
+    phone: null, linkedinUrl: null, portfolioUrl: null, professionalTitle: null,
+    currentCompany: null, yearsOfExperience: null, summary: null, birthDate: null,
+    location: null, educationLevel: null, fieldOfStudy: null, skills: [],
+    currentSalaryGross: null, currentSalaryNet: null, expectedSalary: null,
+    salaryCurrency: "MXN", expectedSalaryPeriod: null, languages: languages.languages,
+    createdAt: null, updatedAt: null,
+  };
+}
 function ProfileLoader({ identity }: { identity: CandidateIdentity }) {
-  const [state, setState] = React.useState<CandidateProfile | ProfileFailure | null>(null);
+  const [state, setState] = React.useState<{ baseline: ProfileBaseline; isNew: boolean } | ProfileFailure | null>(null);
   const [attempt, setAttempt] = React.useState(0);
   React.useEffect(() => {
     let active = true;
     loadProfileAction().catch((): ProfileFailure => ({ ok: false, reason: "no_response", reference: {} })).then(result => {
       if (!active) return;
-      setState(result.ok ? profileFromWire(result.data.profile, result.data.languages) : result);
+      setState(result.ok ? { baseline: editorBaseline(result.data.profile, result.data.languages), isNew: result.data.profile === null } : result);
     });
     return () => { active = false; };
   }, [attempt]);
   if (state === null) return <ProfileSkeleton />;
-  if ("ok" in state) return <DashboardPageContent width="screen-2xl"><Empty><EmptyHeader><EmptyTitle>{state.reason === "not_found" ? "Todavía no tienes perfil" : "No pudimos cargar tu perfil"}</EmptyTitle><EmptyDescription>{state.reason === "not_found" ? "Tu cuenta todavía no tiene un perfil registrado. Puedes volver a consultar cuando esté disponible." : "Tus datos no cambiaron. Vuelve a consultar para continuar."}</EmptyDescription></EmptyHeader><EmptyContent>{state.reason === "unauthenticated" ? <Link href="/candidato/login">Iniciar sesión</Link> : <Button variant="outline" onClick={() => { setState(null); setAttempt(value => value + 1); }}>Reintentar</Button>}</EmptyContent></Empty></DashboardPageContent>;
-  return <ProfileEditor identity={identity} initial={state} />;
+  if ("ok" in state) return <DashboardPageContent width="screen-2xl"><Empty><EmptyHeader><EmptyTitle>No pudimos cargar tu perfil</EmptyTitle><EmptyDescription>Tus datos no cambiaron. Vuelve a consultar para continuar.</EmptyDescription></EmptyHeader><EmptyContent>{state.reason === "unauthenticated" ? <Link href="/candidato/login">Iniciar sesión</Link> : <Button variant="outline" onClick={() => { setState(null); setAttempt(value => value + 1); }}>Reintentar</Button>}</EmptyContent></Empty></DashboardPageContent>;
+  return <ProfileEditor identity={identity} initial={state.baseline} initiallyNew={state.isNew} />;
 }
-function ProfileEditor({ identity, initial }: { identity: CandidateIdentity; initial: CandidateProfile }) {
+function ProfileEditor({ identity, initial, initiallyNew }: { identity: CandidateIdentity; initial: ProfileBaseline; initiallyNew: boolean }) {
   const [baseline, setBaseline] = React.useState(initial);
+  const [isNew, setIsNew] = React.useState(initiallyNew);
   const [draft, setDraft] = React.useState(() => profileToDraft(initial));
   const [issues, setIssues] = React.useState<readonly ProfileDraftIssue[]>([]);
   const [activeTab, setActiveTab] = React.useState<ProfileCategory>("personal");
@@ -101,27 +113,28 @@ function ProfileEditor({ identity, initial }: { identity: CandidateIdentity; ini
     const languages = "languages" in outcome && outcome.languages ? outcome.languages.languages : baseline.languages;
     const next = "profile" in outcome && outcome.profile ? profileFromWire(outcome.profile, { languages }) : { ...baseline, languages };
     setBaseline(next);
+    if ("profile" in outcome && outcome.profile) setIsNew(false);
     const canonical = profileToDraft(next);
     // A rejected/uncertain language write must not erase its unsaved rows.
     setDraft(current => ({ ...("profile" in outcome && outcome.profile ? canonical : current), languages: "languages" in outcome && outcome.languages ? canonical.languages : current.languages }));
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (busy.current || uncertain || !dirty) return;
+    if (busy.current || uncertain || (!isNew && !dirty)) return;
     const parsed = parseProfileDraft(draft, baseline);
     if (!parsed.ok) { markIssues(parsed.issues); announce("Revisa los datos marcados", "error"); return; }
     const base = parseProfileDraft(baseDraft, baseline);
     if (!base.ok) { announce("No pudimos preparar el perfil", "error"); return; }
     const profile = profileToWrite(parsed.profile);
     const languages = { languages: parsed.profile.languages };
-    const input = { ...(!equal(profile, profileToWrite(base.profile)) ? { profile } : {}), ...(!equal(languages.languages, baseline.languages) ? { languages } : {}) };
+    const input = { ...(isNew || !equal(profile, profileToWrite(base.profile)) ? { profile } : {}), ...(!equal(languages.languages, baseline.languages) ? { languages } : {}) };
     busy.current = true; setPending(true); setIssues([]); dismissActionResult("candidate-profile");
     let outcome: ProfileSaveOutcome;
     try { outcome = await saveProfileAction(input); }
     catch { outcome = { kind: "uncertain", part: "profile", failure: { ok: false, reason: "no_response", reference: {} } }; }
     busy.current = false; setPending(false);
     adopt(outcome);
-    if (outcome.kind === "saved") announce("Perfil guardado.", "success");
+    if (outcome.kind === "saved") announce(isNew ? "Perfil creado." : "Perfil guardado.", "success");
     else if (outcome.kind === "partial") announce(PARTIAL, "warning", outcome.failure);
     else if (outcome.kind === "uncertain") { setUncertain(true); announce(UNCERTAIN, "error", outcome.failure); }
     else if (outcome.kind === "invalid") { markIssues(outcome.issues); announce("Revisa los datos marcados", "error"); }
@@ -136,7 +149,8 @@ function ProfileEditor({ identity, initial }: { identity: CandidateIdentity; ini
     try {
       const result = await loadProfileAction();
       if (!result.ok) { announce(UNCERTAIN, "error", result); return; }
-      const next = profileFromWire(result.data.profile, result.data.languages);
+      const next = editorBaseline(result.data.profile, result.data.languages);
+      setIsNew(result.data.profile === null);
       // Re-read baselines only. Never discard outstanding user edits or resend.
       setBaseline(next); setUncertain(false); setIssues([]); announce("Perfil comprobado.", "info");
     } catch { announce(UNCERTAIN, "error"); }
@@ -145,12 +159,12 @@ function ProfileEditor({ identity, initial }: { identity: CandidateIdentity; ini
   const signals = [draft.professionalTitle, draft.currentCompany, draft.yearsOfExperience, draft.summary, draft.phone, draft.location.country, draft.educationLevel && draft.fieldOfStudy, draft.skills, draft.expectedSalary, draft.languages.some(row => row.name.trim() && row.level)];
   const done = signals.filter(Boolean).length;
   const initials = identity.fullName.split(/\s+/).slice(0, 2).map(part => part[0]).join("");
-  return <DashboardPageContent data-pf-profile-workspace width="screen-2xl"><form ref={form} noValidate data-pf-profile-form onSubmit={submit} className="flex flex-col gap-5">
+  return <DashboardPageContent data-pf-profile-workspace width="screen-2xl">{isNew && <p className="mb-5 text-sm text-muted-foreground">Completa tu perfil para postularte más rápido. Se crea al guardar por primera vez.</p>}<form ref={form} noValidate data-pf-profile-form onSubmit={submit} className="flex flex-col gap-5">
     <div data-pf-profile-toolbar className="flex flex-wrap items-start justify-between gap-3"><Badge variant={dirty ? "review" : "neutral"} data-pf-profile-dirty>{dirty ? "Cambios pendientes" : "Sin cambios pendientes"}</Badge>
       <ActionBar status={status ? <ActionStatus id="profile-action-status" tone={status.tone} text={status.text} /> : undefined}>
         <Button type="button" variant="outline" className="min-h-10" disabled={!dirty || pending || uncertain} onClick={() => { setDraft(baseDraft); setIssues([]); setStatus(null); }}><Undo2 data-icon="inline-start" aria-hidden="true" />Restaurar cambios</Button>
         {uncertain && <Button type="button" className="min-h-10" disabled={pending} aria-busy={pending} onClick={reconcile}>{pending && <Spinner data-icon="inline-start" aria-hidden="true" />}{pending ? "Comprobando…" : "Comprobar"}</Button>}
-        <Button type="submit" variant={uncertain ? "outline" : "default"} className="min-h-10" disabled={!dirty || pending || uncertain} aria-busy={pending} aria-describedby={status ? "profile-action-status" : undefined}>{pending && !uncertain ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Save data-icon="inline-start" aria-hidden="true" />}{pending && !uncertain ? "Guardando…" : "Guardar perfil"}</Button>
+        <Button type="submit" variant={uncertain ? "outline" : "default"} className="min-h-10" disabled={(!isNew && !dirty) || pending || uncertain} aria-busy={pending} aria-describedby={status ? "profile-action-status" : undefined}>{pending && !uncertain ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Save data-icon="inline-start" aria-hidden="true" />}{pending && !uncertain ? "Guardando…" : "Guardar perfil"}</Button>
       </ActionBar></div>
     <Card data-pf-profile-card><CardHeader data-pf-profile-identity className="border-b">
       <CardTitle className="flex min-w-0 flex-col items-start gap-5 sm:flex-row sm:items-center"><Avatar className="size-24 shrink-0 sm:size-28"><AvatarFallback>{initials}</AvatarFallback></Avatar><h2 className="min-w-0 break-words text-xl font-semibold">{identity.fullName}</h2></CardTitle>

@@ -12,16 +12,16 @@ async function safe<T>(run: () => Promise<ProfileResult<T>>): Promise<ProfileRes
 const unauthenticated: ProfileFailure = { ok: false, reason: "unauthenticated", reference: {} };
 
 /** Loading and Comprobar share this read-only action; neither performs a PUT. */
-export async function loadProfileAction(): Promise<ProfileResult<{ profile: ProfileRead; languages: ProfileLanguages }>> {
+export async function loadProfileAction(): Promise<ProfileResult<{ profile: ProfileRead | null; languages: ProfileLanguages }>> {
   return safe(async () => {
     const token = await getActionAccessToken();
     if (!token) return unauthenticated;
     const [profile, languages] = await Promise.all([
       safe(() => getProfile({ token })), safe(() => getProfileLanguages({ token })),
     ]);
-    if (!profile.ok) return profile;
+    if (!profile.ok && profile.reason !== "not_found") return profile;
     if (!languages.ok) return languages;
-    return { ok: true, data: { profile: profile.data, languages: languages.data } };
+    return { ok: true, data: { profile: profile.ok ? profile.data : null, languages: languages.data } };
   });
 }
 export async function saveProfileAction(raw: unknown): Promise<ProfileSaveOutcome> {

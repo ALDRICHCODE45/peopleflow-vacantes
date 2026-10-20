@@ -1,7 +1,13 @@
 import { EDUCATION_LEVELS, SALARY_PERIODS, candidateProfileSchema } from "./model";
 import { locationReadToValue, locationValueToWrite, locationWriteSchema, type LocationValue, type LocationWrite } from "@/features/geo/model";
-const editableProfileSchema = candidateProfileSchema.omit({ location: true }).extend({ location: locationWriteSchema.unwrap().omit({ postal_code: true }).strict().nullable() });
-export type EditedProfile = Omit<CandidateProfile, "location"> & { location: LocationWrite };
+const editableProfileSchema = candidateProfileSchema.omit({ location: true }).extend({
+  location: locationWriteSchema.unwrap().omit({ postal_code: true }).strict().nullable(),
+  createdAt: candidateProfileSchema.shape.createdAt.nullable(),
+  updatedAt: candidateProfileSchema.shape.updatedAt.nullable(),
+});
+/** Unsaved editor baselines have no server timestamps. */
+export type ProfileBaseline = Omit<CandidateProfile, "createdAt" | "updatedAt"> & { createdAt: string | null; updatedAt: string | null };
+export type EditedProfile = Omit<ProfileBaseline, "location"> & { location: LocationWrite };
 import type { CandidateProfile, CefrLevel, EducationLevel, SalaryPeriod } from "./model";
 
 /**
@@ -48,7 +54,7 @@ const capitalize = (text: string): string => text.charAt(0).toUpperCase() + text
 type AddIssue = (path: string, message: string) => void;
 
 /** Deterministically maps a validated profile onto the editable draft. */
-export function profileToDraft(profile: CandidateProfile): CandidateProfileDraft {
+export function profileToDraft(profile: ProfileBaseline): CandidateProfileDraft {
   const text = (value: string | null): string => value ?? "";
   const integer = (value: number | null): string => (value === null ? "" : String(value));
   return {
@@ -165,7 +171,7 @@ function compareIssues(left: ProfileDraftIssue, right: ProfileDraftIssue): numbe
 }
 
 /** Parses an edited draft into a validated profile; it never throws. */
-export function parseProfileDraft(draft: CandidateProfileDraft, baseline: CandidateProfile): ProfileDraftParseResult {
+export function parseProfileDraft(draft: CandidateProfileDraft, baseline: ProfileBaseline): ProfileDraftParseResult {
   const found = new Map<string, string>();
   const add: AddIssue = (path, message) => {
     if (!found.has(path)) found.set(path, message);

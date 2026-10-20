@@ -20,9 +20,13 @@ describe("profile server actions", () => {
     mocks.languages.mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
     expect(await loadProfileAction()).toEqual({ ok: false, reason: "no_response", reference: {} });
   });
-  it("reports missing profile honestly", async () => {
+  it("opens a new profile on 404 and retains independently saved languages", async () => {
     mocks.get.mockResolvedValue({ ok: false, reason: "not_found", reference: { status: 404 } });
-    expect(await loadProfileAction()).toMatchObject({ ok: false, reason: "not_found" });
+    const languages = { languages: [{ name: "english", level: "B2" }] };
+    mocks.languages.mockResolvedValue({ ok: true, data: languages });
+    expect(await loadProfileAction()).toEqual({ ok: true, data: { profile: null, languages } });
+    mocks.languages.mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
+    expect(await loadProfileAction()).toMatchObject({ ok: false, reason: "no_response" });
   });
   it("guards requests with the session token", async () => {
     mocks.token.mockResolvedValue(null);

@@ -25,7 +25,8 @@ export function useCountryGate(job: CountryScope, candidate: boolean, failure?: 
   const needsCatalog = allowed?.some(code => !scope?.some(country => country.id === code)) ?? false;
   const catalog = useGeoResource(needsCatalog ? "countries" : null, countriesSchema);
   const names = allowed?.map(code => scope?.find(country => country.id === code)?.name ?? catalog.data?.items.find(country => country.id === code)?.name);
-  const country = profile?.ok ? profile.data.profile.location?.country : undefined;
+  // A candidate without a profile yet (null) has no country, exactly like an empty location.
+  const country = profile?.ok ? profile.data.profile?.location?.country : undefined;
   const required = serverGate?.reason === "applicant_country_required" || (!serverGate && !!scope && profile?.ok && !country);
   const excluded = serverGate?.reason === "applicant_country_not_allowed" || (!serverGate && !!scope && !!country && !scope.some(item => item.id === country.id));
   const blocked = !!(required || excluded);
