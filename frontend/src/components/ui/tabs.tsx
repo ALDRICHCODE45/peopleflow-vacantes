@@ -12,6 +12,9 @@ function Tabs({
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
+      // Local fix (user-approved exception, §19): the registry only set data-orientation;
+      // Base UI needs `orientation` for vertical aria-orientation and arrow-key navigation.
+      orientation={orientation}
       data-orientation={orientation}
       className={cn(
         "group/tabs flex gap-2 data-horizontal:flex-col",

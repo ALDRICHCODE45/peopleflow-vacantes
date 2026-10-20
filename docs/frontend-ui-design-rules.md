@@ -1229,6 +1229,10 @@ falta estructura, según la documentación oficial»: faltaba `AlertDialogMedia`
   borde. En listas, cada fila es un resaltado tipo menú: `rounded-lg px-2`, `hover:bg-muted`
   y marcado con `has-data-checked:bg-primary/5`, con aire respecto del borde del contenedor.
   Revisar hover, foco, marcado y deshabilitado en el navegador antes de cerrar.
+- **Excepciones documentadas en `components/ui` (aprobadas por el usuario):** `tabs.tsx` pasa
+  `orientation` a Base UI (el registro solo ponía `data-orientation`, así que las pestañas
+  verticales seguían siendo horizontales para el teclado y los lectores de pantalla), con su test
+  `tabs.test.tsx`. Cualquier otra corrección en `components/ui` necesita la misma aprobación.
 - **Los tests fijan la composición** a través de los `data-slot` oficiales (por ejemplo,
   media → título dentro del encabezado, y el pie después), además del comportamiento.
 - Un componente propio que envuelve uno de shadcn (como `ConfirmActionDialog`) es el único
