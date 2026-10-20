@@ -58,6 +58,7 @@ export function DraftListField({
   multiline = false,
   onChange,
 }: DraftListFieldProps) {
+  // Keep editable raw rows (including blanks/errors), rather than v0's trim-on-add chips.
   const atLimit = rows.length >= max;
   const lowerNoun = rowNoun.toLocaleLowerCase("es");
 
@@ -68,7 +69,7 @@ export function DraftListField({
           Sin elementos por ahora. Puedes agregar hasta {max}.
         </FieldDescription>
       ) : (
-        <div className="flex flex-col gap-3">
+        <FieldGroup className={multiline ? "gap-4" : "grid gap-4 sm:grid-cols-2 [&>*]:min-w-0"}>
           {rows.map((row, index) => {
             const id = `${idPrefix}-${index + 1}`;
             const errorId = `${id}-error`;
@@ -103,6 +104,7 @@ export function DraftListField({
                       value={row.value}
                       placeholder={placeholder}
                       autoComplete="off"
+                      className="min-h-10"
                       aria-invalid={error !== undefined}
                       aria-describedby={error === undefined ? undefined : errorId}
                       onChange={(event) =>
@@ -116,6 +118,7 @@ export function DraftListField({
                   type="button"
                   variant="ghost"
                   size="icon"
+                  className="size-10 shrink-0"
                   aria-label={`Quitar ${lowerNoun} ${index + 1}`}
                   onClick={() => onChange(removeListRow(rows, row.id))}
                 >
@@ -124,7 +127,7 @@ export function DraftListField({
               </div>
             );
           })}
-        </div>
+        </FieldGroup>
       )}
 
       <div className="flex flex-wrap items-center gap-3">
@@ -132,6 +135,7 @@ export function DraftListField({
           type="button"
           variant="outline"
           size="sm"
+          className="min-h-10"
           disabled={atLimit}
           onClick={() => onChange(addListRow(rows, idPrefix))}
         >

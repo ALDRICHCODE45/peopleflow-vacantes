@@ -1,16 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LocalDraftForm } from "../ui/local-draft-form";
 import { DRAFT_SAVE_NOTICE } from "../ui/draft-save-feedback";
 import { DraftEditErrorState } from "./error-state";
 import { loadDraftForEditAction, type DraftEditResult } from "./load";
 
-/** Skeleton exception: mirror LocalDraftForm's first step, including its three field groups. */
+/** Skeleton exception: mirror the first section's three topic Cards. */
 function DraftEditorSkeleton() {
   const fields = (heights: string[]) => heights.map((height, index) => <Field key={index}>
     <FieldLabel><Skeleton className="h-5 w-28" /></FieldLabel>
@@ -29,23 +28,18 @@ function DraftEditorSkeleton() {
             </div>
             <Skeleton className="h-2 w-full" /><Skeleton className="h-16 w-full" />
           </div>
-          <section className="min-w-0">
-            <Card>
-              <CardHeader><CardTitle><Skeleton className="h-7 w-56 max-w-full" /></CardTitle><CardAction><Skeleton className="h-5 w-20" /></CardAction></CardHeader>
-              <CardContent className="flex flex-col gap-6">
-                <FieldGroup className="grid gap-4 sm:grid-cols-2">{fields(["h-8", "h-8", "h-10"])}</FieldGroup>
-                <Separator />
-                <section className="flex min-w-0 flex-col gap-4">
-                  <Skeleton className="h-5 w-40" />
-                  <FieldGroup className="grid gap-4 sm:grid-cols-2">{fields(["h-10", "h-10", "h-10", "h-10"])}</FieldGroup>
-                </section>
-                <Separator />
-                <section className="flex min-w-0 flex-col gap-4">
-                  <Skeleton className="h-5 w-24" />
-                  <FieldGroup className="gap-4">{fields(["h-10", "h-10"])}</FieldGroup>
-                </section>
+          <section className="flex min-w-0 flex-col gap-5">
+            <Skeleton className="h-7 w-56 max-w-full" />
+            {[5, 1, 2].map((count, index) => <Card key={index}>
+              <CardHeader>
+                <CardTitle><Skeleton className="h-7 w-56 max-w-full" /></CardTitle>
+                <CardDescription><Skeleton className="h-5 w-64 max-w-full" /></CardDescription>
+                <CardAction><Skeleton className="h-5 w-20" /></CardAction>
+              </CardHeader>
+              <CardContent>
+                <FieldGroup className="grid gap-6 sm:grid-cols-2">{fields(Array.from({ length: count }, () => "h-10"))}</FieldGroup>
               </CardContent>
-            </Card>
+            </Card>)}
           </section>
           <div className="hidden flex-col gap-4 xl:flex"><Skeleton className="h-5 w-32" /><Skeleton className="h-80 w-full" /></div>
         </div>

@@ -145,24 +145,23 @@ describe("/empresa/vacantes/borradores/nuevo employer route", () => {
       "Al pulsar Guardar borrador, se guardará en tu cuenta. No hay guardado automático",
     );
 
-    // Every approved group is a semantic section of one wide, non-modal surface,
-    // reached through the approved progressive steps.
+    // Topic Cards retain accessible headings and remain reachable in every section.
     const steps = [
       {
         heading: "Paso 1 de 5: Información básica",
-        sections: ["Detalles de la vacante", "Solicitante"],
+        sections: ["El puesto que estás buscando", "¿Dónde trabajará?", "Solicitante"],
       },
       {
         heading: "Paso 2 de 5: Descripción y perfil",
-        sections: ["Requisitos", "Habilidades", "Idiomas", "Descripción"],
+        sections: ["Cuéntales sobre la oportunidad", "Habilidades e idiomas"],
       },
       {
         heading: "Paso 3 de 5: Compensación y beneficios",
-        sections: ["Compensación", "Prestaciones"],
+        sections: ["Una oferta clara desde el inicio", "Más que un sueldo"],
       },
       {
         heading: "Paso 4 de 5: Preguntas de filtro",
-        sections: ["Preguntas de filtro"],
+        sections: ["Conoce mejor a quienes se postulan"],
       },
       {
         heading: "Paso 5 de 5: Revisión y publicación",

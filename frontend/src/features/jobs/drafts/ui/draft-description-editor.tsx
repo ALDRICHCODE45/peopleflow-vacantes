@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { PublicationRequired } from "./publication-required";
 import { Editor } from "@tiptap/core";
 import type { JSONContent } from "@tiptap/core";
 import {
@@ -92,6 +93,7 @@ export type DraftDescriptionEditorProps = {
   onChange: (value: DraftRichDescription) => void;
   /** Present only while invalid, so `aria-invalid` stays truthful. */
   error?: string;
+  publicationRequired?: boolean;
 };
 
 const SIZE_LABELS: Record<FontSizePreset, string> = {
@@ -112,7 +114,7 @@ const SIZE_LABELS: Record<FontSizePreset, string> = {
  * changes.
  */
 const EDITOR_SURFACE_CLASS = [
-  "min-h-40 px-3 py-2 text-sm outline-none",
+  "min-h-48 px-4 py-4 text-sm leading-6 outline-none",
   "[&_span[data-font-size-preset=small]]:text-sm",
   "[&_span[data-font-size-preset=normal]]:text-base",
   "[&_span[data-font-size-preset=large]]:text-lg",
@@ -125,6 +127,7 @@ export function DraftDescriptionEditor({
   value,
   onChange,
   error,
+  publicationRequired = false,
 }: DraftDescriptionEditorProps) {
   const hostRef = React.useRef<HTMLDivElement | null>(null);
   const editorRef = React.useRef<Editor | null>(null);
@@ -154,6 +157,7 @@ export function DraftDescriptionEditor({
       content: initial === null ? undefined : initial.document,
       editorProps: {
         attributes: {
+          id: "draft-description-content",
           "aria-label": "Descripción de la vacante",
           "aria-multiline": "true",
           class: EDITOR_SURFACE_CLASS,
@@ -216,11 +220,13 @@ export function DraftDescriptionEditor({
 
   return (
     <Field data-invalid={invalid} id="draft-description">
-      <div className="flex flex-col gap-3">
+      <FieldLabel htmlFor="draft-description-content">Descripción <PublicationRequired required={publicationRequired} /></FieldLabel>
+      {/* Tiptap needs a contenteditable host; this frame is not a replacement form control. */}
+      <div data-pf-description-frame="" className="overflow-hidden rounded-2xl border border-input focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30">
         <div
           role="toolbar"
           aria-label="Formato de la descripción"
-          className="flex flex-wrap items-center gap-1"
+          className="flex flex-wrap items-center gap-1 border-b bg-muted/40 p-1"
         >
           <Toggle
             pressed={active("bold")}
@@ -231,7 +237,7 @@ export function DraftDescriptionEditor({
             aria-keyshortcuts="Control+B"
           >
             <BoldIcon data-icon="inline-start" />
-            Negrita
+            <span className="sr-only">Negrita</span>
           </Toggle>
           <Toggle
             pressed={active("italic")}
@@ -242,7 +248,7 @@ export function DraftDescriptionEditor({
             aria-keyshortcuts="Control+I"
           >
             <ItalicIcon data-icon="inline-start" />
-            Cursiva
+            <span className="sr-only">Cursiva</span>
           </Toggle>
           <ToggleGroup
             aria-label="Tamaño de letra"
@@ -271,7 +277,7 @@ export function DraftDescriptionEditor({
             className="h-10"
           >
             <ListIcon data-icon="inline-start" />
-            Lista con viñetas
+            <span className="sr-only">Lista con viñetas</span>
           </Toggle>
           <Toggle
             pressed={active("orderedList")}
@@ -281,7 +287,7 @@ export function DraftDescriptionEditor({
             className="h-10"
           >
             <ListOrderedIcon data-icon="inline-start" />
-            Lista numerada
+            <span className="sr-only">Lista numerada</span>
           </Toggle>
           <Button
             type="button"
@@ -293,7 +299,7 @@ export function DraftDescriptionEditor({
             }}
           >
             <LinkIcon data-icon="inline-start" />
-            Agregar enlace
+            <span className="sr-only">Agregar enlace</span>
           </Button>
           <Button
             type="button"
@@ -303,7 +309,7 @@ export function DraftDescriptionEditor({
             onClick={() => run((instance) => instance.chain().focus().unsetLink().run())}
           >
             <UnlinkIcon data-icon="inline-start" />
-            Quitar enlace
+            <span className="sr-only">Quitar enlace</span>
           </Button>
           <Button
             type="button"
@@ -314,7 +320,7 @@ export function DraftDescriptionEditor({
             onClick={() => run((instance) => instance.chain().focus().undo().run())}
           >
             <Undo2Icon data-icon="inline-start" />
-            Deshacer
+            <span className="sr-only">Deshacer</span>
           </Button>
           <Button
             type="button"
@@ -325,7 +331,7 @@ export function DraftDescriptionEditor({
             onClick={() => run((instance) => instance.chain().focus().redo().run())}
           >
             <Redo2Icon data-icon="inline-start" />
-            Rehacer
+            <span className="sr-only">Rehacer</span>
           </Button>
         </div>
 
@@ -356,11 +362,11 @@ export function DraftDescriptionEditor({
 
         <div
           ref={hostRef}
-          className="rounded-2xl border border-transparent bg-input/30 transition-[color,box-shadow] duration-200 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/30 aria-invalid:border-destructive"
+          className="min-w-0"
           aria-invalid={invalid}
         />
-        <FieldError id={editorErrorId}>{error}</FieldError>
       </div>
+      <FieldError id={editorErrorId}>{error}</FieldError>
     </Field>
   );
 }

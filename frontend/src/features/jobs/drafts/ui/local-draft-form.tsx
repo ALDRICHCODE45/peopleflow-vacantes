@@ -6,8 +6,13 @@ import { DraftGeographyField } from "./draft-geography-field";
 import {
   CheckCircle2Icon,
   InfoIcon,
+  BriefcaseBusiness,
+  MapPin,
+  LockKeyhole,
+  Play,
 } from "lucide-react";
-import { cn } from "cn";
+import { Badge } from "@/components/ui/badge";
+import { PublicationRequired } from "./publication-required";
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -17,6 +22,7 @@ import { ActionBar } from "@/components/feedback/action-status";
 import { Card,
   CardAction,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -29,6 +35,9 @@ import {
 } from "@/components/ui/dialog";
 import {
   Field,
+  FieldDescription,
+  FieldSet,
+  FieldLegend,
   FieldError,
   FieldGroup,
   FieldLabel,
@@ -37,7 +46,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { DraftEditorShell, EDITOR_SECTIONS, EDITOR_DESCRIPTIONS } from "./draft-editor-shell";
 import { DraftLeaveGuard } from "./draft-leave-guard";
-import { editorReadiness } from "../pipeline/publication-model";
+import { editorReadiness, editorPublicationRequirements } from "../pipeline/publication-model";
 import {
   Select,
   SelectContent,
@@ -191,6 +200,11 @@ function DraftStepHeading({
   title: string;
   headingRef: React.Ref<HTMLHeadingElement>;
 }) {
+  if (index < LAST_STEP) return <header className="grid grid-cols-[1fr_auto] items-start gap-2">
+    <h2 ref={headingRef} id={`draft-step-heading-${index + 1}`} tabIndex={-1} className="font-heading text-lg font-semibold outline-none"><span className="sr-only">{`Paso ${index + 1} de ${STEP_COUNT}: `}</span>{title}</h2>
+    <span className="text-sm text-muted-foreground">{index + 1} de {STEP_COUNT}</span>
+    <p className="col-span-2 text-sm text-muted-foreground">{EDITOR_DESCRIPTIONS[index]}</p>
+  </header>;
   return (
     <CardHeader>
       <CardTitle><h2
@@ -208,30 +222,23 @@ function DraftStepHeading({
   );
 }
 
-/** One semantic group inside a step card: titled section, never a nested card. */
-function DraftStepSection({
-  id,
-  title,
-  className,
-  children,
-}: {
+/** v0 topic surface using the installed Card's complete header/content anatomy. */
+function DraftStepSection({ id, title, description, action, children }: {
   id: string;
   title: string;
-  className?: string;
+  description: React.ReactNode;
+  action?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const headingId = `${id}-heading`;
-  return (
-    <section
-      aria-labelledby={headingId}
-      className={cn("flex min-w-0 flex-col gap-4", className)}
-    >
-      <h3 id={headingId} className="font-heading text-sm font-medium text-foreground">
-        {title}
-      </h3>
-      {children}
-    </section>
-  );
+  return <Card aria-labelledby={headingId} data-pf-topic-card="" className="[--card-spacing:--spacing(6)]">
+    <CardHeader>
+      <CardTitle><h3 id={headingId}>{title}</h3></CardTitle>
+      <CardDescription>{description}</CardDescription>
+      {action && <CardAction>{action}</CardAction>}
+    </CardHeader>
+    <CardContent>{children}</CardContent>
+  </Card>;
 }
 
 /** One labelled enum select reused by every scalar group. */
@@ -242,11 +249,13 @@ function DraftSelectField({
   options,
   placeholder,
   error,
+  publicationRequired = false,
   onChange,
 }: {
   id: string;
   label: string;
   value: string;
+  publicationRequired?: boolean;
   options: DraftOption[];
   placeholder: string;
   error?: string;
@@ -256,7 +265,7 @@ function DraftSelectField({
   const errorId = `${id}-error`;
   return (
     <Field data-invalid={error !== undefined}>
-      <FieldTitle id={labelId}>{label}</FieldTitle>
+      <FieldTitle id={labelId}>{label} <PublicationRequired required={publicationRequired} /></FieldTitle>
       <Select
         value={value === "" ? null : value}
         items={options}
@@ -310,6 +319,7 @@ function DraftTextAreaField({
         id={id}
         name={id}
         rows={4}
+        className="min-h-28"
         value={value}
         placeholder={placeholder}
         aria-invalid={error !== undefined}
@@ -421,6 +431,7 @@ export function LocalDraftForm({
   const [serverMissing, setServerMissing] = React.useState<readonly string[] | null>(null);
   const [publishNotice, setPublishNotice] = React.useState(false);
   const readiness = editorReadiness(state, serverMissing);
+  const publicationRequired = editorPublicationRequirements(state);
   const savedResultId = draftSave.result?.ok ? draftSave.result.draftId : undefined;
   React.useEffect(() => { if (savedResultId) setSavedDraftId(savedResultId); }, [savedResultId]);
   React.useEffect(() => {
@@ -576,7 +587,7 @@ export function LocalDraftForm({
         <p className="max-w-prose">{isV2 ? DRAFT_SAVE_NOTICE : LOCAL_ONLY_NOTICE}</p>
       </div>
 
-      <form noValidate onSubmit={handleValidate} className="flex flex-col gap-6">
+      <form noValidate aria-describedby="draft-publication-footnote" onSubmit={handleValidate} className="flex flex-col gap-6">
         <DraftEditorShell state={state} published={published} step={step} onStep={goToStep} readiness={readiness}>
 
         <section
@@ -586,22 +597,24 @@ export function LocalDraftForm({
           aria-labelledby="draft-step-heading-1"
           className="min-w-0"
         >
-          <Card data-pf-draft-card="1">
+          <div data-pf-draft-section="1" className="flex flex-col gap-5">
             <DraftStepHeading
               index={0}
               title={STEP_TITLES[0]}
               headingRef={step === 0 ? stepHeadingRef : null}
             />
-            <CardContent className="flex flex-col gap-6">
-              <FieldGroup className="grid gap-4 sm:grid-cols-2">
+            <DraftStepSection id="draft-step-1-vacancy" title="El puesto que estás buscando" description="Empieza por lo esencial para conectar con las personas correctas." action={<BriefcaseBusiness aria-hidden="true" className="size-5 text-muted-foreground" />}>
+              <FieldGroup>
                 <Field data-invalid={errors.title !== undefined}>
-                  <FieldLabel htmlFor="draft-title">Título</FieldLabel>
+                  <FieldLabel htmlFor="draft-title">Título de la vacante <PublicationRequired required={publicationRequired.scalarFields.includes("title")} /></FieldLabel>
                   <Input
                     id="draft-title"
                     name="title"
+                    aria-label="Título"
+                    className="min-h-10"
                     value={state.title}
                     autoComplete="off"
-                    placeholder="Ej. Persona desarrolladora backend"
+                    placeholder="Ej. Diseñador/a de producto"
                     aria-invalid={errors.title !== undefined}
                     aria-describedby={
                       errors.title === undefined ? undefined : "draft-title-error"
@@ -612,11 +625,24 @@ export function LocalDraftForm({
                       ])
                     }
                   />
+                  <FieldDescription>Usa un título claro y fácil de encontrar.</FieldDescription>
                   <FieldError id="draft-title-error">{errors.title}</FieldError>
                 </Field>
-
+                <FieldGroup className="grid gap-6 sm:grid-cols-2 [&>*]:min-w-0">
+                  {([
+                    ["professional_area", "draft-professional-area", "Área profesional", PROFESSIONAL_AREA_OPTIONS, "Elige un área"],
+                    ["seniority", "draft-seniority", "Nivel", SENIORITY_OPTIONS, "Elige un nivel"],
+                    ["work_schedule", "draft-work-schedule", "Jornada", WORK_SCHEDULE_OPTIONS, "Elige una jornada"],
+                    ["contract_type", "draft-contract-type", "Tipo de contrato", CONTRACT_TYPE_OPTIONS, "Elige un tipo de contrato"],
+                  ] as const).map(([key, id, label, options, placeholder]) => <DraftSelectField key={key} id={id} label={label} options={options} placeholder={placeholder} value={state[key]} error={errors[key]} publicationRequired={publicationRequired.scalarFields.some(field => field === key)} onChange={value => applyState(previous => ({ ...previous, [key]: value }), [key])} />)}
+                </FieldGroup>
+              </FieldGroup>
+            </DraftStepSection>
+            <DraftStepSection id="draft-step-1-geography" title="¿Dónde trabajará?" description="Define la modalidad y la ubicación de la vacante." action={<MapPin aria-hidden="true" className="size-5 text-muted-foreground" />}>
+              <FieldGroup>
                 <DraftSelectField
                   id="draft-work-mode"
+                  publicationRequired={publicationRequired.scalarFields.includes("work_mode")}
                   label="Modalidad"
                   placeholder="Elige una modalidad"
                   value={state.work_mode}
@@ -636,79 +662,19 @@ export function LocalDraftForm({
                   onChange={patch => applyState(previous => ({ ...previous, ...patch }), ["location", "remote_scope"])}
                 />
               </FieldGroup>
-
-              <Separator />
-
-              <DraftStepSection id="draft-step-1-vacancy" title="Detalles de la vacante">
-                <FieldGroup className="grid gap-4 sm:grid-cols-2">
-                  <DraftSelectField
-                    id="draft-work-schedule"
-                    label="Jornada"
-                    placeholder="Elige una jornada"
-                    value={state.work_schedule}
-                    options={WORK_SCHEDULE_OPTIONS}
-                    error={errors.work_schedule}
-                    onChange={(value) =>
-                      applyState((previous) => ({ ...previous, work_schedule: value }), [
-                        "work_schedule",
-                      ])
-                    }
-                  />
-                  <DraftSelectField
-                    id="draft-contract-type"
-                    label="Tipo de contrato"
-                    placeholder="Elige un tipo de contrato"
-                    value={state.contract_type}
-                    options={CONTRACT_TYPE_OPTIONS}
-                    error={errors.contract_type}
-                    onChange={(value) =>
-                      applyState((previous) => ({ ...previous, contract_type: value }), [
-                        "contract_type",
-                      ])
-                    }
-                  />
-                  <DraftSelectField
-                    id="draft-seniority"
-                    label="Nivel"
-                    placeholder="Elige un nivel"
-                    value={state.seniority}
-                    options={SENIORITY_OPTIONS}
-                    error={errors.seniority}
-                    onChange={(value) =>
-                      applyState((previous) => ({ ...previous, seniority: value }), ["seniority"])
-                    }
-                  />
-                  <DraftSelectField
-                    id="draft-professional-area"
-                    label="Área profesional"
-                    placeholder="Elige un área"
-                    value={state.professional_area}
-                    options={PROFESSIONAL_AREA_OPTIONS}
-                    error={errors.professional_area}
-                    onChange={(value) =>
-                      applyState((previous) => ({ ...previous, professional_area: value }), [
-                        "professional_area",
-                      ])
-                    }
-                  />
-                </FieldGroup>
-              </DraftStepSection>
-
-              <Separator />
-
-              <DraftStepSection id="draft-step-1-requester" title="Solicitante">
+            </DraftStepSection>
+            <DraftStepSection id="draft-step-1-requester" title="Solicitante" description="¿Quién necesita cubrir esta posición?" action={<Badge variant="secondary"><LockKeyhole aria-hidden="true" />Solo interno</Badge>}>
                 <DraftRequesterField
                   requester={state.requester}
+                  publicationRequired={publicationRequired.requester}
                   error={errors.requester}
                   onSelect={(entry) => applyState((previous) => selectRequester(previous, entry), ["requester"])}
                   onChangeKind={(kind) =>
                     applyState((previous) => changeRequesterKind(previous, kind), ["requester"])
                   }
                 />
-              </DraftStepSection>
-            </CardContent>
-
-          </Card>
+            </DraftStepSection>
+          </div>
         </section>
 
         <section
@@ -718,20 +684,20 @@ export function LocalDraftForm({
           aria-labelledby="draft-step-heading-2"
           className="min-w-0"
         >
-          <Card data-pf-draft-card="2">
+          <div data-pf-draft-section="2" className="flex flex-col gap-5">
             <DraftStepHeading
               index={1}
               title={STEP_TITLES[1]}
               headingRef={step === 1 ? stepHeadingRef : null}
             />
-            <CardContent className="flex flex-col gap-6">
-              <DraftStepSection id="draft-step-2-requirements" title="Requisitos">
-                <FieldGroup className="grid gap-4 sm:grid-cols-2">
+              <DraftStepSection id="draft-step-2-description" title="Cuéntales sobre la oportunidad" description="Una buena descripción ayuda a imaginar cómo será trabajar aquí.">
+                <FieldGroup>
+                  <DraftDescriptionEditor value={state.description} publicationRequired={publicationRequired.description} error={errors.description} onChange={description => applyState(previous => ({ ...previous, description }), ["description"])} />
                   <DraftTextAreaField
                     id="draft-required-requirements"
                     label="Requisitos obligatorios"
                     value={state.required_requirements}
-                    placeholder="Describe lo indispensable para el puesto."
+                    placeholder="Lo indispensable para desempeñar el puesto."
                     error={errors.required_requirements}
                     onChange={(value) =>
                       applyState(
@@ -744,7 +710,7 @@ export function LocalDraftForm({
                     id="draft-preferred-requirements"
                     label="Requisitos deseables"
                     value={state.preferred_requirements}
-                    placeholder="Describe lo que suma, sin ser obligatorio."
+                    placeholder="Lo que suma, sin ser obligatorio."
                     error={errors.preferred_requirements}
                     onChange={(value) =>
                       applyState(
@@ -756,9 +722,9 @@ export function LocalDraftForm({
                 </FieldGroup>
               </DraftStepSection>
 
-              <Separator />
-
-              <DraftStepSection id="draft-step-2-skills" title="Habilidades">
+              <DraftStepSection id="draft-step-2-skills" title="Habilidades e idiomas" description="Define los conocimientos que aportarán al equipo.">
+                <FieldGroup>
+                <FieldSet><FieldLegend>Habilidades</FieldLegend>
                 <DraftListField
                   idPrefix="skill"
                   rowNoun="Habilidad"
@@ -767,16 +733,14 @@ export function LocalDraftForm({
                   max={100}
                   rows={state.skills}
                   errors={errors}
-                  placeholder="Ej. Go"
+                  placeholder="Ej. Diseño de interfaces"
                   onChange={(rows) =>
                     applyState((previous) => ({ ...previous, skills: rows }), ["skills"])
                   }
                 />
-              </DraftStepSection>
-
-              <Separator />
-
-              <DraftStepSection id="draft-step-2-languages" title="Idiomas">
+                </FieldSet>
+                <Separator />
+                <FieldSet><FieldLegend>Idiomas</FieldLegend>
                 <DraftLanguageField
                   rows={state.languages}
                   errors={errors}
@@ -784,21 +748,10 @@ export function LocalDraftForm({
                     applyState((previous) => ({ ...previous, languages: rows }), ["languages"])
                   }
                 />
+                </FieldSet>
+                </FieldGroup>
               </DraftStepSection>
-
-              <Separator />
-
-              <DraftStepSection id="draft-step-2-description" title="Descripción">
-                <DraftDescriptionEditor
-                  value={state.description}
-                  error={errors.description}
-                  onChange={(description) =>
-                    applyState((previous) => ({ ...previous, description }), ["description"])
-                  }
-                />
-              </DraftStepSection>
-            </CardContent>
-          </Card>
+          </div>
         </section>
 
         <section
@@ -808,14 +761,13 @@ export function LocalDraftForm({
           aria-labelledby="draft-step-heading-3"
           className="min-w-0"
         >
-          <Card data-pf-draft-card="3">
+          <div data-pf-draft-section="3" className="flex flex-col gap-5">
             <DraftStepHeading
               index={2}
               title={STEP_TITLES[2]}
               headingRef={step === 2 ? stepHeadingRef : null}
             />
-            <CardContent className="flex flex-col gap-6">
-              <DraftStepSection id="draft-step-3-compensation" title="Compensación">
+              <DraftStepSection id="draft-step-3-compensation" title="Una oferta clara desde el inicio" description="Define la compensación y decide qué compartir públicamente.">
                 <DraftCompensationField
                   value={state.compensation}
                   errors={errors}
@@ -825,9 +777,7 @@ export function LocalDraftForm({
                 />
               </DraftStepSection>
 
-              <Separator />
-
-              <DraftStepSection id="draft-step-3-benefits" title="Prestaciones">
+              <DraftStepSection id="draft-step-3-benefits" title="Más que un sueldo" description="Comparte las prestaciones que hacen diferente esta oportunidad.">
                 <FieldGroup className="gap-6">
                   <DraftBenefitsField
                     selected={state.benefits}
@@ -835,6 +785,8 @@ export function LocalDraftForm({
                       applyState((previous) => ({ ...previous, benefits }), ["benefits"])
                     }
                   />
+                  <Separator />
+                  <FieldSet><FieldLegend>Prestaciones adicionales</FieldLegend>
                   <DraftListField
                     idPrefix="custom-benefit"
                     rowNoun="Prestación adicional"
@@ -843,17 +795,17 @@ export function LocalDraftForm({
                     max={100}
                     rows={state.custom_benefits}
                     errors={errors}
-                    placeholder="Ej. Café gratis"
+                    placeholder="Ej. Viernes con horario reducido"
                     onChange={(rows) =>
                       applyState((previous) => ({ ...previous, custom_benefits: rows }), [
                         "custom_benefits",
                       ])
                     }
                   />
+                  </FieldSet>
                 </FieldGroup>
               </DraftStepSection>
-            </CardContent>
-          </Card>
+          </div>
         </section>
 
         <section
@@ -863,21 +815,26 @@ export function LocalDraftForm({
           aria-labelledby="draft-step-heading-4"
           className="min-w-0"
         >
-          <Card data-pf-draft-card="4">
+          <div data-pf-draft-section="4" className="flex flex-col gap-5">
             <DraftStepHeading
               index={3}
               title={STEP_TITLES[3]}
               headingRef={step === 3 ? stepHeadingRef : null}
             />
-            <CardContent className="flex flex-col gap-6">
-              <DraftStepSection id="draft-step-4-questions" title="Preguntas de filtro">
+              <DraftStepSection id="draft-step-4-questions" title="Conoce mejor a quienes se postulan" description={`Preguntas de filtro opcionales · ${isV2 ? v2Questions.length : state.screening_questions.length} de 100`} action={<Badge variant="secondary">Opcional</Badge>}>
                 {isV2 ? (
+                  <FieldGroup>
                   <DraftScreeningV2Field
                     questions={v2Questions}
                     errors={errors}
                     onChange={(next) => applyV2Questions(() => next)}
                     openFirstInvalidToken={screeningOpenToken}
                   />
+                  {v2Questions.length > 0 && <div className="flex flex-col items-start gap-2">
+                    <Button type="button" variant="outline" className="min-h-10" disabled={!candidateProjection?.ok} aria-describedby={!candidateProjection?.ok ? "draft-questions-preview-help" : undefined} onClick={() => setPreviewOpen(true)}><Play aria-hidden="true" data-icon="inline-start" />{QUESTIONNAIRE_DIALOG_OPEN}</Button>
+                    {!candidateProjection?.ok && <FieldDescription id="draft-questions-preview-help">{SCREENING_V2_PREVIEW_INVALID}</FieldDescription>}
+                  </div>}
+                  </FieldGroup>
                 ) : (
                   <DraftListField
                     idPrefix="screening"
@@ -897,8 +854,7 @@ export function LocalDraftForm({
                   />
                 )}
               </DraftStepSection>
-            </CardContent>
-          </Card>
+          </div>
         </section>
 
         <section
@@ -967,6 +923,7 @@ export function LocalDraftForm({
           <Button type="button" variant="ghost" className="min-h-10" disabled={step === 0} onClick={() => goToStep(step - 1)}>Anterior</Button>
           {step < LAST_STEP && <Button type="button" variant="outline" className="min-h-10" onClick={() => goToStep(step + 1)}>Siguiente sección</Button>}
         </div>
+        <p id="draft-publication-footnote" className="mt-5 text-center text-sm text-muted-foreground"><span className="text-primary">*</span> Necesario para publicar, no para guardar tu borrador.</p>
         </DraftEditorShell>
         <footer data-pf-draft-save-bar="" className="sticky bottom-0 z-20 border-t bg-card px-4 py-4">
           <ActionBar status={<div className="flex flex-col gap-1">

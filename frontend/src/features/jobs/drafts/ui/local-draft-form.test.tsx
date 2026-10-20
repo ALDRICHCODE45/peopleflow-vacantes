@@ -273,19 +273,19 @@ describe("LocalDraftForm presentation", () => {
     const steps = [
       {
         heading: "Paso 1 de 5: Información básica",
-        sections: ["Detalles de la vacante", "Solicitante"],
+        sections: ["El puesto que estás buscando", "¿Dónde trabajará?", "Solicitante"],
       },
       {
         heading: "Paso 2 de 5: Descripción y perfil",
-        sections: ["Requisitos", "Habilidades", "Idiomas", "Descripción"],
+        sections: ["Cuéntales sobre la oportunidad", "Habilidades e idiomas"],
       },
       {
         heading: "Paso 3 de 5: Compensación y beneficios",
-        sections: ["Compensación", "Prestaciones"],
+        sections: ["Una oferta clara desde el inicio", "Más que un sueldo"],
       },
       {
         heading: "Paso 4 de 5: Preguntas de filtro",
-        sections: ["Preguntas de filtro"],
+        sections: ["Conoce mejor a quienes se postulan"],
       },
       {
         heading: "Paso 5 de 5: Revisión y publicación",
@@ -297,7 +297,7 @@ describe("LocalDraftForm presentation", () => {
       const title = screen.getByRole("heading", { name: steps[step - 1].heading });
       expect(title).toBeVisible();
       expect(title.tagName).toBe("H2");
-      expect(title.parentElement).toHaveAttribute("data-slot", "card-title");
+      expect(title.closest("[data-pf-draft-step]")).toHaveAttribute("aria-labelledby", title.id);
       for (const heading of steps[step - 1].sections) {
         expect(screen.getByRole("heading", { name: heading, level: 3 })).toBeVisible();
       }
@@ -310,7 +310,7 @@ describe("LocalDraftForm presentation", () => {
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
   });
 
-  it("presents one primary card per section and a shared sticky save bar", () => {
+  it("presents topic Cards per section and a shared sticky save bar", () => {
     render(<LocalDraftForm />);
 
     // Application-reference composition: a single numbered progress bar and no
@@ -322,8 +322,10 @@ describe("LocalDraftForm presentation", () => {
     // Hidden field panels remain mounted; saving belongs to the shared shell.
     const panels = document.querySelectorAll("[data-pf-draft-step]");
     expect(panels).toHaveLength(5);
-    for (const panel of panels) {
-      expect(panel.querySelectorAll("[data-pf-draft-card]")).toHaveLength(1);
+    for (const [index, panel] of [...panels].entries()) {
+      expect(panel.querySelectorAll("[data-slot='card']")).toHaveLength([3, 2, 2, 1, 2][index]);
+      // Review keeps its existing full-preview Card; T2 changes the first four sections.
+      if (index < 4) expect(panel.querySelector("[data-slot='card'] [data-slot='card']")).toBeNull();
       expect(panel.querySelectorAll("[data-slot='card-footer']")).toHaveLength(0);
     }
     expect(document.querySelectorAll("[data-pf-draft-save-bar]")).toHaveLength(1);

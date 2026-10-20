@@ -325,7 +325,7 @@ describe("DraftScreeningV2Field accordion", () => {
     fireEvent.click(trigger(1));
     fireEvent.click(screen.getByRole("button", { name: "Quitar pregunta 1" }));
 
-    expect(screen.getByText(/sin preguntas por ahora/i)).toBeVisible();
+    expect(screen.getByText("La conversación empieza aquí")).toBeVisible();
     expect(prompt(1)).toBeNull();
   });
 });
@@ -334,8 +334,8 @@ describe("DraftScreeningV2Field content", () => {
   it("starts empty with the add control and no invented question", () => {
     render(<Harness initial={[]} />);
 
-    expect(screen.getByText(/sin preguntas por ahora/i)).toBeVisible();
-    expect(screen.getByText(/sin preguntas por ahora/i)).toHaveClass("text-xl", "font-semibold");
+    expect(screen.getByText("La conversación empieza aquí")).toBeVisible();
+    expect(screen.getByText("La conversación empieza aquí")).toHaveAttribute("data-slot", "empty-title");
     const add = screen.getByRole("button", { name: "Agregar pregunta" });
     expect(add).toBeEnabled();
     expect(add.closest('[data-slot="empty-content"]')).not.toBeNull();

@@ -37,19 +37,32 @@ export function groupMissing(codes: readonly string[]) {
   }
   return groups;
 }
+const REQUIRED_SCALARS = ["title", "work_mode", "work_schedule", "contract_type", "professional_area"] as const;
+/** Same requirements drive completeness and publication-only field markers. */
+export function editorPublicationRequirements(state: Pick<DraftFormState, "work_mode" | "location">) {
+  return {
+    scalarFields: REQUIRED_SCALARS,
+    description: true,
+    requester: true,
+    location: state.work_mode === "remote" ? [] as const : state.location.country === "MX" ? ["country", "state", "municipality"] as const : ["country"] as const,
+    remoteScope: state.work_mode === "remote",
+  } as const;
+}
+
 /** Editor projection of the publication checklist, never a replacement for server authorization.
  * Alternatives occupy one requirement slot; optional compensation/questions earn no invented marks.
  */
 export function editorReadiness(state: DraftFormState, serverMissing: readonly string[] | null) {
   const missing: string[] = [];
-  for (const key of ["title", "work_mode", "work_schedule", "contract_type", "professional_area"] as const) {
+  const required = editorPublicationRequirements(state);
+  for (const key of required.scalarFields) {
     if (!state[key].trim()) missing.push(`${key}_missing`);
   }
   if (!state.requester.id) missing.push("requester_missing");
   let description = "";
   try { description = deriveDraftDescriptionPlain(state.description) ?? ""; } catch { /* Invalid local documents are not complete. */ }
   if (!description.trim()) missing.push("description_missing");
-  if (state.work_mode === "remote") {
+  if (required.remoteScope) {
     if (!state.remote_scope || (state.remote_scope.kind === "countries" && !state.remote_scope.countries.length)) missing.push("remote_scope_missing");
   } else if (!state.location.country) missing.push("location_missing");
   else if (state.location.country === "MX" && (!state.location.state || !state.location.municipality)) missing.push("location_incomplete");

@@ -3,7 +3,7 @@
 import { PlusIcon, XIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Field, FieldDescription, FieldError, FieldGroup, FieldTitle } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldSet, FieldLegend, FieldTitle } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -58,9 +58,10 @@ export function DraftLanguageField({ rows, errors, onChange }: DraftLanguageFiel
             const customNameError = errors[`languages.${index}.custom_name`];
 
             return (
-              <div key={row.id} className="flex flex-col gap-3 rounded-2xl bg-muted/30 p-3">
-                <div className="flex flex-wrap items-end gap-3">
-                  <Field data-invalid={languageError !== undefined} className="min-w-40 flex-1">
+              <FieldSet key={row.id} className="rounded-2xl border p-4">
+                <FieldLegend variant="label">{languageLabel}</FieldLegend>
+                <FieldGroup className="grid grid-cols-[1fr_auto] items-end gap-4 sm:grid-cols-[1fr_1fr_auto] [&>*]:min-w-0">
+                  <Field data-invalid={languageError !== undefined}>
                     <FieldTitle id={`${languageId}-label`}>{languageLabel}</FieldTitle>
                     <Select
                       value={row.language === "" ? null : row.language}
@@ -95,7 +96,7 @@ export function DraftLanguageField({ rows, errors, onChange }: DraftLanguageFiel
                     <FieldError id={`${languageId}-error`}>{languageError}</FieldError>
                   </Field>
 
-                  <Field className="min-w-40 flex-1">
+                  <Field className="col-start-1 sm:col-start-auto">
                     <FieldTitle id={`${levelId}-label`}>Nivel del idioma {position}</FieldTitle>
                     <Select
                       value={row.level === "" ? null : row.level}
@@ -127,12 +128,13 @@ export function DraftLanguageField({ rows, errors, onChange }: DraftLanguageFiel
                     type="button"
                     variant="ghost"
                     size="icon"
+                    className="size-10 shrink-0"
                     aria-label={`Quitar idioma ${position}`}
                     onClick={() => onChange(removeLanguageRow(rows, row.id))}
                   >
                     <XIcon />
                   </Button>
-                </div>
+                </FieldGroup>
 
                 {row.language === "other" ? (
                   <Field data-invalid={customNameError !== undefined}>
@@ -142,6 +144,7 @@ export function DraftLanguageField({ rows, errors, onChange }: DraftLanguageFiel
                     <Input
                       id={customNameId}
                       name={customNameId}
+                      className="min-h-10"
                       value={row.customName}
                       placeholder="Ej. Francés"
                       autoComplete="off"
@@ -159,7 +162,7 @@ export function DraftLanguageField({ rows, errors, onChange }: DraftLanguageFiel
                     <FieldError id={`${customNameId}-error`}>{customNameError}</FieldError>
                   </Field>
                 ) : null}
-              </div>
+              </FieldSet>
             );
           })}
         </div>
@@ -170,6 +173,7 @@ export function DraftLanguageField({ rows, errors, onChange }: DraftLanguageFiel
           type="button"
           variant="outline"
           size="sm"
+          className="min-h-10"
           disabled={atLimit}
           onClick={() => onChange(addLanguageRow(rows))}
         >

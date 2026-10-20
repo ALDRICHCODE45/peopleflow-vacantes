@@ -1,5 +1,6 @@
 "use client";
 
+import { PublicationRequired } from "./publication-required";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldTitle } from "@/components/ui/field";
@@ -18,6 +19,7 @@ import { REQUESTER_KIND_OPTIONS } from "./draft-labels";
 export type DraftRequesterFieldProps = {
   requester: DraftRequesterState;
   error?: string;
+  publicationRequired?: boolean;
   onChangeKind: (kind: DraftRequesterKind) => void;
   onSelect: (entry: Requester | null) => void;
 };
@@ -43,7 +45,7 @@ type Status = {
 };
 
 /** The catalog is independent of the draft. Only explicit selection changes draft state. */
-export function DraftRequesterField({ requester, error, onChangeKind, onSelect }: DraftRequesterFieldProps) {
+export function DraftRequesterField({ requester, error, publicationRequired = false, onChangeKind, onSelect }: DraftRequesterFieldProps) {
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(false);
   const [items, setItems] = useState<Requester[]>([]);
@@ -160,7 +162,7 @@ export function DraftRequesterField({ requester, error, onChangeKind, onSelect }
       : undefined;
 
   return (
-    <FieldGroup className="gap-4">
+    <FieldGroup className="grid gap-6 sm:grid-cols-2 [&>*]:min-w-0">
       <Field>
         <FieldTitle id="draft-requester-kind-label">Tipo de solicitante</FieldTitle>
         <Select
@@ -186,7 +188,7 @@ export function DraftRequesterField({ requester, error, onChangeKind, onSelect }
         </Select>
       </Field>
       <Field data-invalid={nameError !== undefined}>
-        <FieldTitle id="draft-requester-name-label">Área o cliente</FieldTitle>
+        <FieldTitle id="draft-requester-name-label">Área o cliente <PublicationRequired required={publicationRequired} /></FieldTitle>
         <Combobox
           key={kind} value={requester.id} inputValue={query} filter={null}
           onInputValueChange={(value, details) => {
@@ -242,7 +244,7 @@ export function DraftRequesterField({ requester, error, onChangeKind, onSelect }
         )}
         {status && <ActionStatus id="draft-requester-status" tone={status.tone} text={status.text} action={action} />}
       </Field>
-      {requester.notice && <p role="status" data-pf-requester-notice="" className="text-sm text-muted-foreground">{requester.notice}</p>}
+      {requester.notice && <p role="status" data-pf-requester-notice="" className="text-sm text-muted-foreground sm:col-span-2">{requester.notice}</p>}
     </FieldGroup>
   );
 }

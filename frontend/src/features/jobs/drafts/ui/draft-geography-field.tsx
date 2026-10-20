@@ -1,5 +1,8 @@
 "use client";
 
+import { editorPublicationRequirements } from "../pipeline/publication-model";
+import { PublicationRequired } from "./publication-required";
+import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Combobox, ComboboxChip, ComboboxChips, ComboboxChipsInput, ComboboxContent, ComboboxEmpty, ComboboxItem, ComboboxList, ComboboxValue, useComboboxAnchor } from "@/components/ui/combobox";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
@@ -23,17 +26,12 @@ export function DraftGeographyField({ state, onChange, errors, remoteError }: {
   const { countries } = useGeoCatalog(null, false);
   const anchor = useComboboxAnchor();
   const remote = state.work_mode === "remote";
-  const required = state.work_mode === "onsite" || state.work_mode === "hybrid";
+  const required = editorPublicationRequirements(state);
   const issue = errors?.remoteScope[0];
   const message = issue ? remoteScopeErrorMessages[issue.reason] : remoteError;
   return <FieldGroup className="sm:col-span-2">
-    <section id="draft-location" tabIndex={-1} aria-label="Ubicación">
-      <LocationField value={state.location} onChange={location => onChange({ location, locationLabel: null })} depth="municipality" postalCode label={remote ? "Ubicación (opcional)" : "Ubicación"} description={remote ? "Para vacantes remotas la ubicación es opcional." : undefined}
-        required={required ? state.location.country === "MX" ? ["country", "state", "municipality"] : ["country"] : []} errors={errors?.location} />
-      {remote && state.location.country && <Button type="button" variant="ghost" className="min-h-10" onClick={() => onChange({ location: { country: null, state: null, municipality: null, postal_code: null }, locationLabel: null })}>Quitar ubicación</Button>}
-    </section>
     {remote && <FieldSet id="draft-remote-scope" tabIndex={-1}>
-      <FieldLegend id="draft-remote-scope-label">¿Desde dónde pueden postular?</FieldLegend>
+      <FieldLegend id="draft-remote-scope-label">¿Desde dónde pueden postular? <PublicationRequired required={required.remoteScope} /></FieldLegend>
       <FieldDescription id="draft-remote-scope-help">Elige una opción para publicar la vacante.</FieldDescription>
       <FieldGroup>
         <Field data-invalid={!!message}>
@@ -48,7 +46,7 @@ export function DraftGeographyField({ state, onChange, errors, remoteError }: {
           {state.remote_scope?.kind !== "countries" && message && <FieldError>{message}</FieldError>}
         </Field>
         {state.remote_scope?.kind === "countries" && <Field data-invalid={!!message} aria-busy={countries.status === "loading"}>
-          <FieldLabel htmlFor="draft-remote-countries">Países desde donde pueden postular</FieldLabel>
+          <FieldLabel htmlFor="draft-remote-countries">Países desde donde pueden postular <PublicationRequired required={required.remoteScope} /></FieldLabel>
           {countries.status === "loading" || countries.status === "idle" ? <><Skeleton className="h-10 w-full" /><span role="status">Cargando países</span></> : <Combobox multiple items={countries.data?.items ?? []} value={state.remoteCountries} itemToStringLabel={(country: GeoReference) => country.name} itemToStringValue={(country: GeoReference) => country.id} isItemEqualToValue={(a, b) => a.id === b.id} onValueChange={countries => {
             if (countries.length > 50 || new Set(countries.map(country => country.id)).size !== countries.length) return;
             onChange({ remoteCountries: countries, remote_scope: { kind: "countries", countries: countries.map(country => country.id) } });
@@ -62,5 +60,11 @@ export function DraftGeographyField({ state, onChange, errors, remoteError }: {
         </Field>}
       </FieldGroup>
     </FieldSet>}
+    <Separator />
+    <section id="draft-location" tabIndex={-1} aria-label="Ubicación" className="flex flex-col gap-3">
+      <LocationField value={state.location} onChange={location => onChange({ location, locationLabel: null })} depth="municipality" postalCode label={remote ? "Ubicación (opcional)" : "Ubicación"} hideLegend={!remote} layout="grid" requiredIndicator={<PublicationRequired />} description={remote ? "Para vacantes remotas la ubicación es opcional." : undefined}
+        required={required.location} errors={errors?.location} />
+      {remote && state.location.country && <Button type="button" variant="ghost" className="min-h-10 self-start" onClick={() => onChange({ location: { country: null, state: null, municipality: null, postal_code: null }, locationLabel: null })}>Quitar ubicación</Button>}
+    </section>
   </FieldGroup>;
 }

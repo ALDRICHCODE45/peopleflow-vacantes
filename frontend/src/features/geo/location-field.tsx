@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
@@ -16,6 +16,9 @@ export type LocationFieldProps = {
   required?: readonly (keyof LocationValue)[];
   label?: string;
   hideLegend?: boolean;
+  /** Optional presentation for context-specific required markers; no validation change. */
+  requiredIndicator?: ReactNode;
+  layout?: "stack" | "grid";
   defaultCountry?: "MX" | null;
   description?: string;
   disabled?: boolean;
@@ -24,9 +27,9 @@ export type LocationFieldProps = {
 const removedPostal = "Quitamos el código postal porque no corresponde al municipio elegido.";
 type CatalogState = { status: string; data?: Catalog; retry: () => void };
 
-function CatalogField({ label, code, catalog, onChange, disabled, required, error }: {
+function CatalogField({ label, code, catalog, onChange, disabled, required, requiredIndicator, error }: {
   label: string; code: string | null; catalog: CatalogState; onChange: (code: string | null) => void;
-  disabled?: boolean; required?: boolean; error?: string;
+  disabled?: boolean; required?: boolean; requiredIndicator?: ReactNode; error?: string;
 }) {
   const id = useId();
   const loading = catalog.status === "loading" || catalog.status === "idle" && !disabled;
@@ -38,7 +41,7 @@ function CatalogField({ label, code, catalog, onChange, disabled, required, erro
   const shown = selected?.name ?? "";
   useEffect(() => { setText(shown); }, [shown]);
   return <Field data-invalid={!!error} data-disabled={disabled} aria-busy={loading}>
-    <FieldLabel htmlFor={id}>{label}</FieldLabel>
+    <FieldLabel htmlFor={id}>{label}{required && requiredIndicator}</FieldLabel>
     {loading ? <><Skeleton aria-hidden="true" className="h-10 w-full" /><span role="status" className="sr-only">Cargando {label.toLowerCase()}</span></> :
       <Combobox items={items} itemToStringLabel={(item: GeoReference) => item.name} itemToStringValue={(item: GeoReference) => item.id} isItemEqualToValue={(a, b) => a.id === b.id}
         value={selected} onValueChange={item => { if (item) onChange(item.id); }} inputValue={text} onInputValueChange={setText} disabled={disabled} autoHighlight>
@@ -55,7 +58,7 @@ function CatalogField({ label, code, catalog, onChange, disabled, required, erro
  * Postal resolution is offered only at municipality depth: a valid CP needs a pair.
  * Catalog labels never become write values; typing filters, it never creates an option.
  */
-export function LocationField({ value, onChange, depth, postalCode, required = [], label = "Ubicación", hideLegend = false, defaultCountry = "MX", description, disabled = false, errors = [] }: LocationFieldProps) {
+export function LocationField({ value, onChange, depth, postalCode, required = [], label = "Ubicación", hideLegend = false, requiredIndicator, layout = "stack", defaultCountry = "MX", description, disabled = false, errors = [] }: LocationFieldProps) {
   const cpId = useId();
   const mx = value.country === "MX";
   const detailed = mx && depth !== "country";
@@ -97,10 +100,10 @@ export function LocationField({ value, onChange, depth, postalCode, required = [
   return <FieldSet disabled={disabled}>
     <FieldLegend className={hideLegend ? "sr-only" : undefined}>{label}</FieldLegend>
     {description && <FieldDescription>{description}</FieldDescription>}
-    <FieldGroup>
-      <CatalogField label="País" code={value.country} catalog={catalog.countries} disabled={disabled} required={required.includes("country")} error={error("country")}
+    <FieldGroup className={layout === "grid" ? "grid gap-6 sm:grid-cols-2 [&>*]:min-w-0" : undefined}>
+      <CatalogField requiredIndicator={requiredIndicator} label="País" code={value.country} catalog={catalog.countries} disabled={disabled} required={required.includes("country")} error={error("country")}
         onChange={country => { setNote(false); onChange({ country, state: null, municipality: null, postal_code: null }); }} />
-      {value.country && !mx && <FieldDescription>Por ahora solo detallamos ubicaciones en México.</FieldDescription>}
+      {value.country && !mx && <FieldDescription className={layout === "grid" ? "sm:col-span-2" : undefined}>Por ahora solo detallamos ubicaciones en México.</FieldDescription>}
       {showPostal && <Field data-invalid={!!postalError} data-disabled={disabled}>
         <FieldLabel htmlFor={cpId}>Código postal</FieldLabel>
         <InputGroup className="min-h-10"><InputGroupInput id={cpId} inputMode="numeric" autoComplete="postal-code" maxLength={5} pattern="[0-9]{5}" disabled={disabled} required={required.includes("postal_code")} aria-invalid={!!postalError} aria-describedby={postalError ? `${cpId}-error` : `${cpId}-help`} value={value.postal_code ?? ""}
@@ -115,9 +118,9 @@ export function LocationField({ value, onChange, depth, postalCode, required = [
             onChange={code => { const match = matches.find(match => match.municipality.id === code); if (match) onChange({ ...value, state: match.state.id, municipality: match.municipality.id }); }} />
         </>}
       </Field>}
-      {detailed && <FieldGroup className="grid grid-cols-1 gap-6 sm:grid-cols-2 [&>*]:min-w-0">
-        <CatalogField label="Estado" code={value.state} catalog={catalog.states} disabled={disabled} required={required.includes("state")} error={error("state")} onChange={code => subdivision("state", code)} />
-        {depth === "municipality" && <CatalogField label="Municipio" code={value.municipality} catalog={catalog.municipalities} disabled={disabled || !value.state} required={required.includes("municipality")} error={error("municipality")} onChange={code => subdivision("municipality", code)} />}
+      {detailed && <FieldGroup className="grid grid-cols-1 gap-6 sm:col-span-2 sm:grid-cols-2 [&>*]:min-w-0">
+        <CatalogField requiredIndicator={requiredIndicator} label="Estado" code={value.state} catalog={catalog.states} disabled={disabled} required={required.includes("state")} error={error("state")} onChange={code => subdivision("state", code)} />
+        {depth === "municipality" && <CatalogField requiredIndicator={requiredIndicator} label="Municipio" code={value.municipality} catalog={catalog.municipalities} disabled={disabled || !value.state} required={required.includes("municipality")} error={error("municipality")} onChange={code => subdivision("municipality", code)} />}
       </FieldGroup>}
       {note && <FieldDescription role="status">{removedPostal}</FieldDescription>}
     </FieldGroup>

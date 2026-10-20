@@ -1,7 +1,7 @@
 "use client";
 
 import { Checkbox } from "@/components/ui/checkbox";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { BENEFITS } from "../lists";
 import { toggleBenefit } from "./draft-form-state";
 import { benefitLabel } from "./draft-labels";
@@ -18,11 +18,12 @@ export type DraftBenefitsFieldProps = {
 
 export function DraftBenefitsField({ selected, onChange }: DraftBenefitsFieldProps) {
   return (
-    <FieldGroup className="gap-3">
+    <FieldSet><FieldLegend>Prestaciones</FieldLegend>
+    <FieldGroup className="grid gap-4 sm:grid-cols-2 [&>*]:min-w-0">
       {BENEFITS.map((code) => {
         const id = `draft-benefit-${code}`;
         return (
-          <Field key={code} orientation="horizontal">
+          <Field key={code} orientation="horizontal" className="min-h-10">
             <Checkbox
               id={id}
               checked={selected.includes(code)}
@@ -34,6 +35,6 @@ export function DraftBenefitsField({ selected, onChange }: DraftBenefitsFieldPro
           </Field>
         );
       })}
-    </FieldGroup>
+    </FieldGroup></FieldSet>
   );
 }

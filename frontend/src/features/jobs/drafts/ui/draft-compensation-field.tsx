@@ -1,14 +1,17 @@
 "use client";
 
+import type { ComponentProps } from "react";
+import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Field,
+  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
   FieldTitle,
 } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import {
   Select,
   SelectContent,
@@ -24,6 +27,15 @@ import {
   CURRENCY_OPTIONS,
   PAY_PERIOD_OPTIONS,
 } from "./draft-labels";
+
+function MoneyInput(props: ComponentProps<typeof InputGroupInput>) {
+  return (
+    <InputGroup className="min-h-10">
+      <InputGroupInput {...props} />
+      <InputGroupAddon>$</InputGroupAddon>
+    </InputGroup>
+  );
+}
 
 /**
  * Compensation controls.
@@ -75,7 +87,7 @@ export function DraftCompensationField({
       {value.mode === "fixed" ? (
         <Field data-invalid={errors["compensation.amount"] !== undefined}>
           <FieldLabel htmlFor="draft-compensation-amount">Monto</FieldLabel>
-          <Input
+          <MoneyInput
             id="draft-compensation-amount"
             name="draft-compensation-amount"
             value={value.amount}
@@ -97,10 +109,10 @@ export function DraftCompensationField({
       ) : null}
 
       {value.mode === "range" ? (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <FieldGroup className="grid gap-6 sm:grid-cols-2 [&>*]:min-w-0">
           <Field data-invalid={errors["compensation.min"] !== undefined}>
             <FieldLabel htmlFor="draft-compensation-min">Mínimo</FieldLabel>
-            <Input
+            <MoneyInput
               id="draft-compensation-min"
               name="draft-compensation-min"
               value={value.min}
@@ -121,7 +133,7 @@ export function DraftCompensationField({
           </Field>
           <Field data-invalid={errors["compensation.max"] !== undefined}>
             <FieldLabel htmlFor="draft-compensation-max">Máximo</FieldLabel>
-            <Input
+            <MoneyInput
               id="draft-compensation-max"
               name="draft-compensation-max"
               value={value.max}
@@ -140,10 +152,10 @@ export function DraftCompensationField({
               {errors["compensation.max"]}
             </FieldError>
           </Field>
-        </div>
+        </FieldGroup>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <FieldGroup className="grid gap-6 sm:grid-cols-2 [&>*]:min-w-0">
         <Field>
           <FieldTitle id="draft-compensation-currency-label">Moneda</FieldTitle>
           <Select
@@ -221,9 +233,10 @@ export function DraftCompensationField({
             </SelectContent>
           </Select>
         </Field>
-      </div>
+      </FieldGroup>
 
-      <Field orientation="horizontal">
+      <Separator />
+      <Field orientation="horizontal" className="min-h-10">
         <Checkbox
           id="draft-compensation-visible"
           checked={value.public_visible}
@@ -233,6 +246,7 @@ export function DraftCompensationField({
           Mostrar la compensación cuando se publique la vacante
         </FieldLabel>
       </Field>
+      {!value.public_visible && <FieldDescription>Las personas verán «Salario no publicado».</FieldDescription>}
     </FieldGroup>
   );
 }

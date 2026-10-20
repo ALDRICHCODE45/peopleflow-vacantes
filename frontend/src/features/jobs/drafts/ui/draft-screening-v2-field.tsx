@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { PlusIcon, XIcon } from "lucide-react";
+import { MessageSquare, PlusIcon, XIcon } from "lucide-react";
 
 import {
   Accordion,
@@ -10,7 +10,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import {
   Field,
   FieldDescription,
@@ -190,7 +190,7 @@ function ScreeningV2QuestionPanel({
               aria-label={`Pregunta ${n}`}
               rows={3}
               value={question.prompt}
-              placeholder="Ej. ¿Cuántos años de experiencia tienes con Go?"
+              placeholder="Ej. ¿Qué proyecto te enorgullece más?"
               aria-invalid={promptError !== undefined}
               aria-describedby={promptError === undefined ? undefined : promptErrorId}
               onChange={(event) =>
@@ -428,8 +428,9 @@ export function DraftScreeningV2Field({
       {questions.length === 0 ? (
         <Empty>
           <EmptyHeader className="max-w-md">
-            <EmptyTitle className="text-xl font-semibold">Sin preguntas por ahora.</EmptyTitle>
-            <EmptyDescription>Puedes continuar sin preguntas o agregar hasta {SCREENING_QUESTIONS_MAX} para conocer mejor a quienes se postulen.</EmptyDescription>
+            <EmptyMedia variant="icon"><MessageSquare aria-hidden="true" /></EmptyMedia>
+            <EmptyTitle>La conversación empieza aquí</EmptyTitle>
+            <EmptyDescription>Agrega preguntas para conocer la experiencia y las expectativas de cada persona. También puedes continuar sin ellas.</EmptyDescription>
           </EmptyHeader>
           <EmptyContent>{addAction}</EmptyContent>
         </Empty>
