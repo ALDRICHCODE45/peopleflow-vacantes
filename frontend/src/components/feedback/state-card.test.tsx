@@ -40,3 +40,10 @@ it("preserves opt-in announcements and disabled recovery", () => {
   fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
   expect(retry).not.toHaveBeenCalled();
 });
+
+it("uses a level-2 heading by default and lets a route-level page own its h1", () => {
+  const { rerender } = render(<StateCard icon={CircleAlert} tone="error" title="Sección" description="d" />);
+  expect(screen.getByRole("heading", { name: "Sección", level: 2 })).toBeVisible();
+  rerender(<StateCard icon={CircleAlert} tone="error" title="Página" description="d" headingLevel={1} />);
+  expect(screen.getByRole("heading", { name: "Página", level: 1 })).toBeVisible();
+});

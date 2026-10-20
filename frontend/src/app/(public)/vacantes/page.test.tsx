@@ -49,17 +49,17 @@ describe("/vacantes v2 page", () => {
 });
 
 describe("/vacantes synchronous boundaries", () => {
-  it("keeps the client route error with one H1 and a reset action", async () => {
+  it("keeps the client route error with the shared heading and a reset action", async () => {
     const ErrorBoundary = (await import("./error")).default;
     const reset = vi.fn();
     const { container } = render(<ErrorBoundary error={new Error("upstream")} reset={reset} />);
     expect(container.querySelector('[data-slot="empty"]')).not.toBeNull();
-    expect(screen.getByRole("button", { name: /intentar de nuevo/i })).toHaveClass("min-h-10");
+    expect(screen.getByRole("button", { name: "Reintentar" })).toHaveClass("min-h-10");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("alert")).toHaveTextContent("No se pudieron cargar las vacantes");
     expect(screen.getByText("No se mostró ninguna vacante. Vuelve a intentarlo; si el problema sigue, prueba de nuevo en unos minutos.")).toBeVisible();
-    expect(screen.getByRole("button", { name: /intentar de nuevo/i })).toHaveClass("bg-primary");
-    fireEvent.click(screen.getByRole("button", { name: /intentar de nuevo/i }));
+    expect(screen.getByRole("button", { name: "Reintentar" })).toHaveClass("bg-primary");
+    fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     expect(reset).toHaveBeenCalledOnce();
   });
   it.each(["Buscar", "Aplicar filtros"])("announces and isolates pending %s navigation", (label) => {

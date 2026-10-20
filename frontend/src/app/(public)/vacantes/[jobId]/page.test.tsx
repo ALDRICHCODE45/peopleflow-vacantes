@@ -50,31 +50,31 @@ describe("public detail route", () => {
     fetchMock.mockResolvedValue(response({ ...vacancyDetail, seniority: "staff" }));
     await expect(Page({ params: params(vacancyDetail.id) })).rejects.toThrow("La vacante no pudo cargarse");
   });
-  it("keeps one branded not-found H1 and a path back", () => {
+  it("keeps the shared not-found heading and a path back", () => {
     const { container } = render(<NotFound />);
     expect(container.querySelector('[data-slot="empty"]')).not.toBeNull();
-    // The only way out is the main action: explore other vacancies (primary).
+    // Exploring other vacancies remains the primary way out.
     const explore = screen.getByRole("link", { name: "Explorar vacantes" });
     expect(explore).toHaveClass("min-h-10", "bg-primary");
     expect(explore).toHaveAttribute("href", "/vacantes");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Esta vacante no está disponible");
   });
-  it("keeps the error boundary distinct with one H1 and a retry", () => {
+  it("keeps the error boundary distinct with the shared heading and a retry", () => {
     const reset = vi.fn();
     const { container } = render(<ErrorBoundary error={new Error("upstream")} reset={reset} />);
     expect(container.querySelector('[data-slot="empty"]')).not.toBeNull();
-    expect(screen.getByRole("button", { name: /intentar de nuevo/i })).toHaveClass("min-h-10");
+    expect(screen.getByRole("button", { name: "Reintentar" })).toHaveClass("min-h-10");
     expect(screen.getByRole("alert")).toBeVisible();
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("No se pudo cargar la vacante");
-    // Retry is the action; going back is navigation, apart from it and lighter.
-    const retry = screen.getByRole("button", { name: /intentar de nuevo/i });
+    // Recovery and the quieter alternative share EmptyContent.
+    const retry = screen.getByRole("button", { name: "Reintentar" });
     expect(retry).toHaveClass("bg-primary");
-    const back = screen.getByRole("link", { name: "Volver a vacantes" });
+    const back = screen.getByRole("link", { name: "Ver vacantes" });
     expect(back).not.toHaveClass("bg-primary");
-    expect(back.closest('[data-slot="empty-content"]')).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /intentar de nuevo/i }));
+    expect(back.closest('[data-slot="empty-content"]')).not.toBeNull();
+    fireEvent.click(retry);
     expect(reset).toHaveBeenCalledOnce();
     expect(screen.queryByText("Esta vacante no está disponible")).toBeNull();
   });

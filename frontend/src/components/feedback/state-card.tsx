@@ -26,6 +26,8 @@ type StateCardProps = {
   /** Existing composite actions/statuses retain their own feedback and pending behavior. */
   children?: ReactNode;
   role?: "status" | "alert";
+  /** 2 inside a page; 1 when the card IS the page (route error/not-found boundaries). */
+  headingLevel?: 1 | 2;
   className?: string;
 };
 
@@ -42,7 +44,7 @@ function Action({ action, variant = "default" }: { action: StateCardAction; vari
  * Empty owns the title and actions (rather than duplicating them in CardHeader/Footer).
  * Optional CardHeader is reserved for a state badge. No live region is added implicitly.
  */
-export function StateCard({ icon: Icon, tone, title, description, primaryAction, secondaryAction, alternativeLink, header, children, role, className, ...props }: StateCardProps) {
+export function StateCard({ icon: Icon, tone, title, description, primaryAction, secondaryAction, alternativeLink, header, children, role, headingLevel = 2, className, ...props }: StateCardProps) {
   return <Card {...props} role={role} className={cn("mx-auto w-full", className)}>
     {header && <CardHeader className="border-b"><CardTitle>{header}</CardTitle></CardHeader>}
     <CardContent>
@@ -53,7 +55,7 @@ export function StateCard({ icon: Icon, tone, title, description, primaryAction,
             tone === "empty" && "bg-muted",
             tone === "info" && "bg-primary/10",
           )}><Icon aria-hidden="true" /></EmptyMedia>
-          <EmptyTitle role="heading" aria-level={2} className="text-xl font-semibold">{title}</EmptyTitle>
+          <EmptyTitle role="heading" aria-level={headingLevel} className="text-xl font-semibold">{title}</EmptyTitle>
           <EmptyDescription>{description}</EmptyDescription>
         </EmptyHeader>
         {(primaryAction || secondaryAction || children) && <EmptyContent className="max-w-md">

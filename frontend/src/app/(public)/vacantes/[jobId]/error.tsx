@@ -1,20 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { CircleAlertIcon } from "lucide-react";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { cn } from "@/lib/utils";
+import { StateCard } from "@/components/feedback/state-card";
 
 export default function VacanteDetailError({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
-  return <Empty role="alert">
-    <EmptyHeader>
-      <EmptyMedia variant="icon"><CircleAlertIcon aria-hidden="true" /></EmptyMedia>
-      <EmptyTitle><h1>No se pudo cargar la vacante</h1></EmptyTitle>
-      <EmptyDescription>El servicio de vacantes no respondió correctamente. Puedes reintentar la carga.</EmptyDescription>
-    </EmptyHeader>
-    <EmptyContent><Button type="button" onClick={reset} className="min-h-10">Intentar de nuevo</Button></EmptyContent>
-    {/* Navigation, kept apart from the action so leaving never competes with retrying. */}
-    <Link href="/vacantes" className={cn(buttonVariants({ variant: "ghost" }), "min-h-10 text-muted-foreground")}>Volver a vacantes</Link>
-  </Empty>;
+  return <StateCard headingLevel={1} role="alert" icon={CircleAlertIcon} tone="error"
+    title="No se pudo cargar la vacante"
+    description="El servicio de vacantes no respondió correctamente. Puedes reintentar la carga."
+    primaryAction={{ label: "Reintentar", onClick: reset }}
+    secondaryAction={{ label: "Ver vacantes", href: "/vacantes" }} />;
 }
