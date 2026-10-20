@@ -389,6 +389,9 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
 - [ ] ¿Todo texto con cantidad concuerda en número («1 candidato», «2 candidatos»)
       usando el helper de plural, nunca concatenando una «s» (sección 17)?
 - [ ] ¿Toda acción importante pide confirmación con `ConfirmActionDialog` (sección 18)?
+- [ ] ¿Se conservó el diseño validado de las pantallas existentes, comparando con `main` (sección 21)?
+- [ ] ¿Los errores, prohibiciones y vacíos de pantalla completa usan `StateCard` (sección 22)?
+- [ ] ¿Todo `Calendar` usa `captionLayout="dropdown"`?
 - [ ] ¿Cada componente de shadcn usado se comparó con el ejemplo y la composición de su
       documentación oficial (sección 19) y se respetan todas sus partes?
 - [ ] ¿Una superficie compuesta nueva (Sheet, Dialog, barra de herramientas) parte de
@@ -1252,3 +1255,49 @@ falta estructura, según la documentación oficial»: faltaba `AlertDialogMedia`
   `field.md`, `input-group.md`. En Base UI instalado, `itemToStringLabel` muestra el
   nombre y `itemToStringValue` serializa el código; escribir en el filtro no modifica
   la ubicación hasta elegir una opción.
+
+## 21. El diseño validado no se cambia al implementar funcionalidad
+
+Origen (usuario, 2026-10-19): «no se por que te da por cambiar el diseno de la ui cada vez que
+implementamos funcionalidades, la mayoria de lo que esta hecho (ui) no funciona o no esta
+implementado pero el diseno YA ESTA VALIDADO, por favor, no lo cambies». Caso: al conectar el
+perfil del candidato al backend se reescribió su pantalla (barra, pestañas, encabezado).
+
+- **Conectar datos, guardar, validar o migrar un contrato NO autoriza cambiar la UI.** Se
+  conserva la estructura, las clases, los textos, el orden y los componentes de la pantalla tal
+  como están en `main`. Solo cambia lo que la funcionalidad exige de verdad (por ejemplo, un
+  campo de texto que pasa a ser `LocationField` en el mismo lugar y con el mismo ancho).
+- **Antes de tocar una pantalla existente** se compara con `main` (`git diff main -- <archivo>`)
+  y, si hay un cambio visual, se justifica en el commit. Un cambio visual sin pedido del usuario
+  es un defecto.
+- **Rediseñar es una tarea aparte**, que solo existe cuando el usuario la pide (con una
+  referencia o una captura) y se valida en la cola como cualquier otro cambio.
+- Al delegar a un subagente, la tarea lo dice explícitamente: «no cambies el diseño de la
+  pantalla; solo conecta …».
+
+## 22. Estados de pantalla completa en una tarjeta con `Empty`
+
+Origen (usuario, 2026-10-19): el estado «Todavía no tienes perfil» era «un mensaje muy pobre».
+Pedido: usar `Empty` de shadcn dentro de una tarjeta centrada, como el pipeline de una vacante en
+borrador, para errores, prohibiciones y mensajes de ese estilo, con botones en el lugar correcto
+y acciones alternativas cuando hagan falta.
+
+- **Cuándo:** cada vez que una pantalla o sección completa no puede mostrar su contenido: error
+  al cargar, sin permiso, no encontrado, sesión vencida, servicio no disponible y vacíos
+  sin datos todavía. No aplica a errores de un campo (`FieldError`), a resultados de una acción
+  (toast, sección 12) ni a avisos dentro de un formulario.
+- **Con qué:** el componente compartido `StateCard`
+  (`src/components/feedback/state-card.tsx`): una `Card` centrada con la composición oficial de
+  `Empty` según el ejemplo `empty-demo` (`docs/design/shadcn-reference/empty.md`):
+  `EmptyHeader` → `EmptyMedia variant="icon"` (ícono del motivo) + `EmptyTitle` +
+  `EmptyDescription` → `EmptyContent` con la acción principal y, si aplica, una secundaria
+  `outline` en la misma fila → un enlace alternativo discreto debajo (`variant="link"`). Las
+  pantallas no rearman esta composición a mano.
+- **Texto:** el título dice qué pasa en lenguaje llano («No pudimos cargar tu perfil»); la
+  descripción, qué significa para la persona y qué no se perdió («Tus datos no cambiaron.»);
+  nunca jerga técnica ni códigos (el código va solo en la referencia del toast cuando exista).
+- **Acciones:** la principal resuelve el problema (Reintentar, Iniciar sesión, Crear …); la
+  secundaria es el siguiente camino útil (Volver a …, Ir al inicio); el enlace alternativo es
+  opcional (Contactar soporte, Ver ayuda). Reintentar nunca es automático.
+- **Tono del ícono:** error y sin permiso usan `destructive/10`; vacíos y no encontrado usan
+  `muted`; información (en borrador, pendiente) usa `primary/10`.
