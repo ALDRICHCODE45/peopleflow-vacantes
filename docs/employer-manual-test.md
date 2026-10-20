@@ -573,3 +573,16 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     municipio.» o «Indica desde dónde pueden postular.», cada uno con «Completar». Publicá
     y mirá la tarjeta y el detalle públicos: «Guadalajara, Jalisco» o «Remoto · Desde
     cualquier lugar» / «Solo desde México, Colombia y 2 más».
+
+77. **Ubicación del candidato y de la empresa (G3) + perfil real del candidato.** Backend
+    en `feat/geo-profiles` (`make db-migrate` aplica la 00032; el catálogo ya importado).
+    **Candidato** (`/candidato/perfil`): el perfil ahora se carga y se guarda en el
+    backend. «Agregar ubicación» muestra país, estado y municipio (sin código postal);
+    «Quitar ubicación» la borra. Cambiá datos e idiomas y pulsá «Guardar perfil».
+    **Esperado:** «Perfil guardado.» y al recargar sigue igual. Un idioma sin nivel no se
+    puede guardar. En la postulación, la tarjeta «Tu perfil» muestra la ubicación
+    («Guadalajara, Jalisco»). **Empresa** (Configuración → Empresa): al crearla, la
+    ubicación es opcional (con código postal). El dueño ve «Editar ubicación» → diálogo →
+    «Guardar ubicación» → «Ubicación actualizada.». Abrí el mismo diálogo en dos pestañas,
+    guardá en una y después en la otra: aparece «Esto cambió en otro lugar» con los datos
+    actuales, sin guardar solo. Un reclutador ve la ubicación sin el botón.

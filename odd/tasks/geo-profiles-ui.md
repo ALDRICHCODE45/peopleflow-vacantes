@@ -19,10 +19,11 @@ Branch `feat/geo-profiles-ui`, stacked on `feat/geo-vacancy-ui` (shared Location
 
 ## Tasks
 
-- T1 [pending] S1-S5 | writer A | Candidate profile: real GET/PUT persistence + LocationField (no CP), decoders, 422, application wizard/candidate card shows the label. | commit: -
-- T2 [pending] S1-S4, S6 | writer B | Company: optional LocationField (with CP) in the create form, decoders, 422, label in the details view, owner «Editar ubicación» dialog (PATCH). | commit: -
-- T3 [pending] | parent | Full suite, guide step, queue paired with backend row 14. | commit: -
+- T1 [done] S1-S5 | writer A | Candidate profile: real GET/PUT persistence + LocationField (no CP), decoders, 422, application wizard/candidate card shows the label. | commit: 4133349, 608a2d7, dc2d7bb
+- T2 [done] S1-S4, S6 | writer B | Company: optional LocationField (with CP) in the create form, decoders, 422, label in the details view, owner «Editar ubicación» dialog (PATCH). | commit: 77f2d50, 608a2d7
+- T3 [done] | parent | Full suite, guide step 77, queue item 2 paired with backend row 14. | commit: docs commit
 
 ## Log
 
 - L1. Backend G3: 9a3b9af (+ merge of the 00031 NUL fix d4a4477); migration 00032 drops free-text city/country (no backfill). Until G4 the §19 snapshot `city` is null for new applications.
+- L2. Parent: fixed the last out-of-scope fixture (card-composition) and deleted the compatibility re-export; tsc 0. Full suite 5,761 passed, 4 failed only as known draft-editor timeouts under load. Backend follow-up 749b3e0 adds company location + updated_at to GET /me/company; token forwarded as an opaque string.

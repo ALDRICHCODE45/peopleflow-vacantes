@@ -15,6 +15,7 @@ el backend va en su rama indicada, con `make db-migrate`.
 | # | Feature | Rama frontend | Rama backend | Pasos de la guía | Qué mirar especialmente |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Ubicación estructurada: catálogo (países, estados, municipios, CP) + campo compartido + vacante (ubicación, alcance remoto, faltantes para publicar, tarjeta y detalle públicos) | `feat/geo-vacancy-ui` (sobre `main`; incluye `feat/geo-location-field-ui`) | `feat/geo-vacancy` (filas 12–13; `make db-migrate` + `DATABASE_URL=… make geo-import`) | 76 | Decisiones a revisar: CP que precarga sin bloquear; aviso al borrar el CP; textos del alcance remoto. Riesgo: tests del editor más lentos (timeouts solo con la suite completa). |
+| 2 | Ubicación del candidato (perfil real conectado al backend: perfil + idiomas con un solo «Guardar perfil») y de la empresa (opcional al crear + «Editar ubicación» del dueño) | `feat/geo-profiles-ui` (sobre la rama anterior) | `feat/geo-profiles` (fila 14; `make db-migrate`) | 77 | Decisiones a revisar: avisos de guardado parcial del perfil; «Agregar/Quitar ubicación»; el perfil ya no es un prototipo local. |
 
 Cuando el usuario pruebe un ítem, sus comentarios se anotan en el documento de la
 feature (`odd/tasks/…`) y el ítem sale de esta lista al integrarse.
