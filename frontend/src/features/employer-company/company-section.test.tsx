@@ -1,8 +1,13 @@
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import type { ComponentProps, ReactNode } from "react";
+vi.mock("@/components/ui/combobox", async importOriginal => ({
+  ...await importOriginal<typeof import("@/components/ui/combobox")>(),
+  ComboboxContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  ComboboxEmpty: () => null,
+}));
 // Same controlled adapter as settings-workspace.test: jsdom cannot position Base UI's portaled Select.
 vi.mock("@/components/ui/select", async () => {
   const React = await import("react");
@@ -18,7 +23,7 @@ vi.mock("@/components/ui/select", async () => {
 });
 vi.mock("./actions", () => ({ loadCompanyStateAction: vi.fn(), createCompanyAction: vi.fn(), updateCompanyLocationAction: vi.fn() }));
 vi.mock("@/features/geo/use-geo-catalog", () => ({
-  useGeoCatalog: () => ({ countries: { status: "ready", data: { items: [{ id: "MX", name: "México" }] }, retry: vi.fn() }, states: { status: "ready", data: { items: [] }, retry: vi.fn() }, municipalities: { status: "ready", data: { items: [] }, retry: vi.fn() } }),
+  useGeoCatalog: () => ({ countries: { status: "ready", data: { items: [{ id: "MX", name: "México" }] }, retry: vi.fn() }, states: { status: "ready", data: { items: [{ id: "09", name: "Ciudad de México" }] }, retry: vi.fn() }, municipalities: { status: "ready", data: { items: [{ id: "09014", name: "Benito Juárez" }] }, retry: vi.fn() } }),
   useGeoPostalCode: () => ({ status: "idle" }),
 }));
 vi.mock("sileo", () => ({ sileo: { success: vi.fn(() => "company-success"), error: vi.fn(() => "company-error"), dismiss: vi.fn() } }));
@@ -38,7 +43,7 @@ async function fill() {
   await screen.findByLabelText("Nombre de la empresa");
   await user.type(screen.getByLabelText("Nombre de la empresa"), "Empresa nueva");
   await user.type(screen.getByLabelText("RFC"), "abc123456789");
-  const options = screen.getAllByRole("option"); expect(options.slice(1).map(o => o.textContent)).toEqual(["Tecnología", "Agricultura"]);
+  const options = within(screen.getByRole("combobox", { name: "Industria" })).getAllByRole("option"); expect(options.slice(1).map(o => o.textContent)).toEqual(["Tecnología", "Agricultura"]);
   await user.selectOptions(screen.getByRole("combobox", { name: "Industria" }), "i");
   return user;
 }
@@ -181,7 +186,14 @@ it("allows only owners to edit, adopts a conflict, and clears with the new token
   vi.mocked(updateCompanyLocationAction).mockResolvedValueOnce({ kind: "conflict", company: current, reference: { status: 409, code: "conflict" } }).mockResolvedValueOnce({ kind: "updated", company: { ...current, location: null } });
   render(<CompanySection />);
   await userEvent.click(await screen.findByRole("button", { name: "Editar ubicación" }));
-  expect(screen.getByRole("dialog", { name: "Editar ubicación" })).toBeVisible();
+  const dialog = screen.getByRole("dialog", { name: "Ubicación de la empresa" });
+  expect(dialog).toBeVisible();
+  expect(dialog.querySelector('[data-slot="dialog-header"] [data-slot="dialog-title"]')).toHaveTextContent("Ubicación de la empresa");
+  expect(dialog.querySelector('[data-slot="dialog-header"] [data-slot="dialog-description"]')).toHaveTextContent("Elige dónde se encuentra tu empresa. Puedes dejarla sin ubicación.");
+  expect(dialog.querySelector('[data-slot="field-legend"]')).toHaveClass("sr-only");
+  expect(dialog).not.toHaveTextContent("Opcional.");
+  expect(dialog.querySelector('[data-slot="dialog-footer"] [data-slot="dialog-close"]')).toHaveTextContent("Cancelar");
+  expect(dialog.querySelectorAll('[data-slot="dialog-close"]').length).toBe(2);
   await userEvent.click(screen.getByRole("button", { name: "Quitar ubicación" }));
   await userEvent.click(screen.getByRole("button", { name: "Guardar ubicación" }));
   expect(await screen.findByText("La ubicación cambió. Mostramos la versión actual; revísala antes de guardar.")).toBeVisible();
@@ -204,13 +216,33 @@ it("keeps edits and shows shared per-level error copy after 422", async () => {
   vi.mocked(updateCompanyLocationAction).mockResolvedValue({ kind: "invalid", fields: { location: [{ field: "postal_code", reason: "mismatch" }] }, reference: { status: 422, code: "invalid_location" } });
   render(<CompanySection />);
   await userEvent.click(await screen.findByRole("button", { name: "Editar ubicación" }));
-  await userEvent.click(screen.getByRole("button", { name: "Agregar ubicación" }));
+  await userEvent.type(screen.getByRole("combobox", { name: "País" }), "México");
+  await userEvent.click(await screen.findByRole("option", { name: "México" }));
   await userEvent.type(screen.getByLabelText("Código postal"), "01000");
   await userEvent.click(screen.getByRole("button", { name: "Guardar ubicación" }));
   expect(await screen.findByText("El código postal no corresponde al municipio.")).toBeVisible();
   expect(screen.getByLabelText("Código postal")).toHaveValue("01000");
   expect(screen.getByLabelText("Código postal")).toHaveAttribute("aria-invalid", "true");
   expect(screen.getByRole("dialog")).toBeVisible();
+  expect(sileo.error).toHaveBeenCalled();
+  expect(screen.queryByText("No se guardó · ver aviso")).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Código postal"), { target: { value: "02000" } });
+  expect(screen.queryByText("El código postal no corresponde al municipio.")).not.toBeInTheDocument();
+});
+it("clears the rejected municipality on selection and submits its code", async () => {
+  const location = { country: { id: "MX", name: "México" }, state: { id: "09", name: "Ciudad de México" }, municipality: null, postal_code: null, label: "Ciudad de México" };
+  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company: { ...company, location }, role: "owner", industryLabel: "Tecnología" });
+  vi.mocked(updateCompanyLocationAction).mockResolvedValue({ kind: "invalid", fields: { location: [{ field: "municipality", reason: "required" }] }, reference: { status: 422 } });
+  render(<CompanySection />);
+  await userEvent.click(await screen.findByRole("button", { name: "Editar ubicación" }));
+  await userEvent.click(screen.getByRole("button", { name: "Guardar ubicación" }));
+  expect(await screen.findByText("Completa este dato.")).toBeVisible();
+  await userEvent.type(screen.getByRole("combobox", { name: "Municipio" }), "Benito");
+  await userEvent.click(await screen.findByRole("option", { name: "Benito Juárez" }));
+  expect(screen.queryByText("Completa este dato.")).not.toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Municipio" })).toHaveAttribute("aria-invalid", "false");
+  await userEvent.click(screen.getByRole("button", { name: "Guardar ubicación" }));
+  expect(updateCompanyLocationAction).toHaveBeenLastCalledWith({ location: { country: "MX", state: "09", municipality: "09014" }, updatedAt: company.updated_at });
 });
 it("blocks duplicate saves and reads without repeating an uncertain write", async () => {
   vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company, role: "owner", industryLabel: "Tecnología" });

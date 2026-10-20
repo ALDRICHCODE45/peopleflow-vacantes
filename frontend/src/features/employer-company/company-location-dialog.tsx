@@ -4,9 +4,9 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
+import { ActionStatus } from "@/components/feedback/action-status";
 import { dismissActionResult, notifyActionResult } from "@/components/feedback/notify";
 import { locationReadToValue, locationValueToWrite } from "@/features/geo/model";
 import type { Company, CompanyEditor } from "./api/company-client";
@@ -25,6 +25,13 @@ export function CompanyLocationDialog({ company, onAdopt }: { company: Company; 
   const busy = useRef(false);
   const form = useRef<HTMLFormElement>(null);
 
+  function changeLocation(next: typeof value) {
+    setValue(next);
+    setResult(current => current?.kind === "invalid" ? {
+      ...current,
+      fields: { ...current.fields, location: current.fields?.location?.filter(issue => next[issue.field] === value[issue.field]) },
+    } : current);
+  }
   function adopt(current: CompanyEditor) {
     onAdopt(current);
     setValue(locationReadToValue(current.location));
@@ -69,15 +76,18 @@ export function CompanyLocationDialog({ company, onAdopt }: { company: Company; 
       setOpen(next);
     }}>
       <DialogTrigger render={<Button type="button" variant="outline" className="min-h-10 w-fit" />}><MapPin data-icon="inline-start" aria-hidden="true" />Editar ubicación</DialogTrigger>
-      <DialogContent showCloseButton={false} className="flex max-h-[calc(100dvh-2rem)] flex-col">
-        <DialogHeader><DialogTitle>Editar ubicación</DialogTitle><DialogDescription>Actualiza dónde se encuentra tu empresa. Puedes dejarla sin ubicación.</DialogDescription></DialogHeader>
+      <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col sm:max-w-md">
+        <DialogHeader><DialogTitle>Ubicación de la empresa</DialogTitle><DialogDescription>Elige dónde se encuentra tu empresa. Puedes dejarla sin ubicación.</DialogDescription></DialogHeader>
         <form ref={form} id="company-location-edit" onSubmit={submit} className="min-h-0 flex-1 overflow-y-auto" noValidate>
-          <OptionalLocationField depth="municipality" postalCode label="Ubicación" description="Opcional." value={value} onChange={setValue} disabled={pending || uncertain(result?.kind)} errors={result?.kind === "invalid" ? result.fields?.location : undefined} />
+          <OptionalLocationField depth="municipality" postalCode label="Ubicación" hideLegend value={value} onChange={changeLocation} disabled={pending || uncertain(result?.kind)} errors={result?.kind === "invalid" ? result.fields?.location : undefined} />
+          {result?.kind === "conflict" && <ActionStatus id="company-location-status" tone="error" text={conflictMessage} />}
+          {result?.kind === "unauthenticated" && <Link href="/empresa/login" target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "outline", className: "min-h-10" })}>Iniciar sesión</Link>}
         </form>
-        <DialogFooter><ActionBar status={result && result.kind !== "updated" ? <ActionStatus id="company-location-status" tone="error" text={result.kind === "conflict" ? conflictMessage : "No se guardó · ver aviso"} action={result.kind === "unauthenticated" ? <Link href="/empresa/login" target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "outline", className: "min-h-10" })}>Iniciar sesión</Link> : undefined} /> : undefined}>
-          <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={() => setOpen(false)}>Cancelar</Button>
-          {uncertain(result?.kind) ? <Button type="button" className="min-h-10" disabled={pending} onClick={reconcile}>Consultar ubicación</Button> : <Button type="submit" form="company-location-edit" className="min-h-10" disabled={pending} aria-busy={pending} aria-describedby={result ? "company-location-status" : undefined}>{pending && <Spinner data-icon="inline-start" aria-hidden="true" />}{pending ? "Guardando…" : "Guardar ubicación"}</Button>}
-        </ActionBar></DialogFooter>
+        {/* §20: validation belongs to fields and toast, not a footer status line. */}
+        <DialogFooter>
+          <DialogClose render={<Button type="button" variant="outline" className="min-h-10" disabled={pending} />}>Cancelar</DialogClose>
+          {uncertain(result?.kind) ? <Button type="button" className="min-h-10" disabled={pending} onClick={reconcile}>Consultar ubicación</Button> : <Button type="submit" form="company-location-edit" className="min-h-10" disabled={pending} aria-busy={pending} aria-describedby={result?.kind === "conflict" ? "company-location-status" : undefined}>{pending && <Spinner data-icon="inline-start" aria-hidden="true" />}{pending ? "Guardando…" : "Guardar ubicación"}</Button>}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
     {result?.kind === "updated" && <ActionStatus id="company-location-saved" tone="success" text="Ubicación actualizada." />}

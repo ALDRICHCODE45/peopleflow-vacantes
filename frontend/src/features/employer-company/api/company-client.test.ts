@@ -36,6 +36,13 @@ it("patches only location with the exact nanosecond CAS token and decodes confli
   expect(await updateCompanyLocation({ token: "secret", location: null, updatedAt: company.updated_at })).toMatchObject({ ok: false, envelope: { code: "conflict", data: editor } });
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
+it("includes the selected municipality code in the PATCH body", async () => {
+  const location = { country: "MX", state: "09", municipality: "09014" };
+  fetchMock.mockResolvedValue(Response.json({ id: company.id, name: company.name, location: null, updated_at: company.updated_at }));
+  await updateCompanyLocation({ token: "secret", location, updatedAt: company.updated_at });
+  expect(fetchMock.mock.calls[0][1].method).toBe("PATCH");
+  expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ location });
+});
 it.each([undefined, "", "  "])("fails closed before env for token %s", async token => {
   for (const call of [() => getMyCompany({ token: token as string }), () => createCompany({ token: token as string, body: {} })])
     expect(await call()).toEqual({ ok: false, error: { kind: "missing_token", retryable: false } });
