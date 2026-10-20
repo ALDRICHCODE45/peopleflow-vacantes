@@ -3,6 +3,8 @@
 // so the use case owns the parsing and validation against the domain VOs.
 package dtos
 
+import geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
+
 type CreateCompanyDto struct {
 	Name       string
 	Rfc        string
@@ -15,8 +17,7 @@ type CreateCompanyDto struct {
 	Size        *string
 	FoundedYear *int
 
-	City        *string
-	Country     *string
+	Location    *geo.LocationInput
 	LinkedInURL *string
 
 	InstagramURL  *string

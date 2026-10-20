@@ -2,6 +2,9 @@ package publicjobs
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/url"
@@ -13,16 +16,44 @@ import (
 	"github.com/google/uuid"
 )
 
+func TestParseQueryGeographyAndMultiSelect(t *testing.T) {
+	for _, raw := range []string{
+		"state=09&state=14&municipality=09002&municipality=14039&work_mode=remote&work_mode=hybrid&applicant_country=MX",
+		"work_mode=remote", "municipality=14039", "applicant_country=CO",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			if _, err := ParseQuery(raw); err != nil {
+				t.Fatalf("valid geography filter rejected: %v", err)
+			}
+		})
+	}
+	for _, raw := range []string{
+		"state=none", "state=9", "state=090", "state=09&state=09", "state=",
+		"municipality=1403", "municipality=140390", "municipality=14039&municipality=14039",
+		"applicant_country=mx", "applicant_country=MX&applicant_country=CO", "applicant_country=MX%20",
+		"work_mode=remote&work_mode=remote", "work_mode=none", "work_mode=Remote", "work_mode=", "state=%FF", "state=%ZZ", "applicant_country=%00",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			if _, err := ParseQuery(raw); !errors.Is(err, ErrInvalidFilter) {
+				t.Fatalf("want invalid_filter, got %v", err)
+			}
+		})
+	}
+	if _, err := ParseQuery("location=Mexico"); err == nil {
+		t.Fatal("removed location filter accepted")
+	}
+}
+
 func TestParseQueryStrictContract(t *testing.T) {
-	for _, raw := range []string{"unknown=x", "limit=0", "limit=51", "limit=1&limit=2", "limit=", "limit=+1", "limit=1.0", "work_mode=Remote", "work_mode=", "work_schedule=contract", "contract_type=full_time", "professional_area=unknown", "q=a&q=b", "cursor=bad", "q=%ZZ", "location=%FF", "q=%00"} {
+	for _, raw := range []string{"unknown=x", "limit=0", "limit=51", "limit=1&limit=2", "limit=", "limit=+1", "limit=1.0", "work_schedule=contract", "contract_type=full_time", "professional_area=unknown", "q=a&q=b", "cursor=bad", "q=%ZZ", "location=%FF", "q=%00"} {
 		t.Run(raw, func(t *testing.T) {
 			if _, err := ParseQuery(raw); !errors.Is(err, ErrInvalidRequest) {
 				t.Fatalf("accepted %q: %v", raw, err)
 			}
 		})
 	}
-	q, err := ParseQuery("q=Go&location=M%C3%A9xico&work_mode=remote&work_schedule=full_time&contract_type=indefinite&professional_area=technology_systems")
-	if err != nil || q.Limit != 20 || q.Q != "Go" || q.Location != "México" {
+	q, err := ParseQuery("q=Go&state=09&work_mode=remote&work_schedule=full_time&contract_type=indefinite&professional_area=technology_systems")
+	if err != nil || q.Limit != 20 || q.Q != "Go" || !reflect.DeepEqual(q.States, []string{"09"}) {
 		t.Fatalf("query=%+v error=%v", q, err)
 	}
 	for _, n := range []string{"1", "50"} {
@@ -83,6 +114,41 @@ func TestCatalogCursorUsesLastVisibleAcrossSourcesAndBindsFilters(t *testing.T) 
 	empty, err := service.List(context.Background(), q)
 	if err != nil || empty.Items == nil || empty.NextCursor != nil {
 		t.Fatalf("empty=%+v %v", empty, err)
+	}
+}
+
+func TestGeographyCursorCanonicalBindingAndOldVersionRejection(t *testing.T) {
+	q, err := ParseQuery("state=14&state=09&municipality=14039&municipality=09002&work_mode=remote&work_mode=hybrid&applicant_country=MX")
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := Position{ID: uuid.New(), Source: "vacancy", PublishedAt: time.Now().UTC()}
+	token, err := encodeCursor(q, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	permuted := "state=09&state=14&municipality=09002&municipality=14039&work_mode=hybrid&work_mode=remote&applicant_country=MX"
+	if got, err := ParseQuery(permuted + "&cursor=" + token + "&limit=50"); err != nil || got.After == nil || got.After.ID != p.ID {
+		t.Fatalf("permuted binding: %+v %v", got, err)
+	}
+	for _, changed := range []string{
+		strings.Replace(permuted, "state=14", "state=15", 1),
+		strings.Replace(permuted, "municipality=14039", "municipality=14040", 1),
+		strings.Replace(permuted, "work_mode=remote", "work_mode=onsite", 1),
+		strings.Replace(permuted, "applicant_country=MX", "applicant_country=CO", 1),
+	} {
+		if _, err := ParseQuery(changed + "&cursor=" + token); !errors.Is(err, ErrInvalidRequest) {
+			t.Fatalf("changed filters accepted: %s %v", changed, err)
+		}
+	}
+	for _, oldLocation := range []string{"", "Mexico"} {
+		oldFilters, _ := json.Marshal([]string{"", oldLocation, "", "", "", ""})
+		sum := sha256.Sum256(oldFilters)
+		raw, _ := json.Marshal(cursorToken{Version: 1, Filters: hex.EncodeToString(sum[:]), Position: p})
+		oldToken := base64.RawURLEncoding.EncodeToString(raw)
+		if _, err := ParseQuery("cursor=" + oldToken); !errors.Is(err, ErrInvalidRequest) {
+			t.Fatal("pre-G5 cursor accepted", err)
+		}
 	}
 }
 
@@ -215,7 +281,7 @@ func TestPublicShapesExactKeysAndNullability(t *testing.T) {
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		t.Fatal(err)
 	}
-	expected := []string{"id", "source", "title", "company", "location", "work_mode", "work_schedule", "contract_type", "professional_area", "seniority", "legacy_employment_type", "compensation", "legacy_salary", "published_at", "excerpt", "excerpt_truncated", "benefits_preview", "benefits_total", "skills_preview", "skills_total", "applicants", "screening_questions"}
+	expected := []string{"id", "source", "title", "company", "location", "location_label", "remote_scope", "work_mode", "work_schedule", "contract_type", "professional_area", "seniority", "legacy_employment_type", "compensation", "legacy_salary", "published_at", "excerpt", "excerpt_truncated", "benefits_preview", "benefits_total", "skills_preview", "skills_total", "applicants", "screening_questions"}
 	if len(fields) != len(expected) {
 		t.Fatalf("keys=%s", raw)
 	}

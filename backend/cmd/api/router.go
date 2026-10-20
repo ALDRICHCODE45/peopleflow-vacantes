@@ -14,6 +14,8 @@ import (
 	candidateshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http"
 	cvshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http/cvs"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
+	geohttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/http"
+	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	industrieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/industries/infrastructure/http"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
@@ -88,6 +90,8 @@ func newRouter(d routerDeps) chi.Router {
 
 	// The ONLY industries registration (TestIndustriesRoute_SingleCanonicalRegistration).
 	industrieshttp.RegisterRoutes(r, d.queries)
+	// Public reference lookups stay outside authentication and NoStore groups.
+	geohttp.RegisterRoutes(r, geopostgres.NewReader(d.queries))
 
 	// GET /{id} is a public profile; POST behind RequireAuth (creator becomes owner).
 	companyHandlers := d.companyHandler.CompanyHandlers()

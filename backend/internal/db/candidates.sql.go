@@ -23,7 +23,7 @@ func (q *Queries) DeleteCandidateLanguagesByUserID(ctx context.Context, userID u
 }
 
 const getCandidateProfileByUserID = `-- name: GetCandidateProfileByUserID :one
-SELECT user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, birth_date, city, country, education_level, field_of_study, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector FROM candidate_profiles
+SELECT user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, birth_date, education_level, field_of_study, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code FROM candidate_profiles
 WHERE user_id = $1
 `
 
@@ -40,8 +40,6 @@ func (q *Queries) GetCandidateProfileByUserID(ctx context.Context, userID uuid.U
 		&i.YearsOfExperience,
 		&i.ProfileSummary,
 		&i.BirthDate,
-		&i.City,
-		&i.Country,
 		&i.EducationLevel,
 		&i.FieldOfStudy,
 		&i.Skills,
@@ -54,6 +52,9 @@ func (q *Queries) GetCandidateProfileByUserID(ctx context.Context, userID uuid.U
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.CountryCode,
+		&i.StateCode,
+		&i.MunicipalityCode,
 	)
 	return i, err
 }
@@ -107,7 +108,7 @@ const upsertCandidateProfile = `-- name: UpsertCandidateProfile :one
 INSERT INTO candidate_profiles (
     user_id, phone, linkedin_url, portfolio_url, professional_title,
     current_company, years_of_experience, profile_summary, birth_date,
-    city, country, education_level, field_of_study, skills,
+    country_code, state_code, municipality_code, education_level, field_of_study, skills,
     current_salary_gross, current_salary_net, expected_salary,
     salary_currency, expected_salary_period,
     created_at, updated_at
@@ -115,9 +116,9 @@ INSERT INTO candidate_profiles (
 VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9,
-    $10, $11, $12, $13, $14,
-    $15, $16, $17,
-    $18, $19,
+    $10, $11, $12, $13, $14, $15,
+    $16, $17, $18,
+    $19, $20,
     now(), now()
 )
 ON CONFLICT (user_id) DO UPDATE SET
@@ -129,8 +130,9 @@ ON CONFLICT (user_id) DO UPDATE SET
     years_of_experience    = EXCLUDED.years_of_experience,
     profile_summary        = EXCLUDED.profile_summary,
     birth_date             = EXCLUDED.birth_date,
-    city                   = EXCLUDED.city,
-    country                = EXCLUDED.country,
+    country_code           = EXCLUDED.country_code,
+    state_code             = EXCLUDED.state_code,
+    municipality_code      = EXCLUDED.municipality_code,
     education_level        = EXCLUDED.education_level,
     field_of_study         = EXCLUDED.field_of_study,
     skills                 = EXCLUDED.skills,
@@ -140,7 +142,7 @@ ON CONFLICT (user_id) DO UPDATE SET
     salary_currency        = EXCLUDED.salary_currency,
     expected_salary_period = EXCLUDED.expected_salary_period,
     updated_at             = now()
-RETURNING user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, birth_date, city, country, education_level, field_of_study, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector
+RETURNING user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, birth_date, education_level, field_of_study, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code
 `
 
 type UpsertCandidateProfileParams struct {
@@ -153,8 +155,9 @@ type UpsertCandidateProfileParams struct {
 	YearsOfExperience    pgtype.Int2 `json:"years_of_experience"`
 	ProfileSummary       pgtype.Text `json:"profile_summary"`
 	BirthDate            pgtype.Date `json:"birth_date"`
-	City                 pgtype.Text `json:"city"`
-	Country              pgtype.Text `json:"country"`
+	CountryCode          pgtype.Text `json:"country_code"`
+	StateCode            pgtype.Text `json:"state_code"`
+	MunicipalityCode     pgtype.Text `json:"municipality_code"`
 	EducationLevel       pgtype.Text `json:"education_level"`
 	FieldOfStudy         pgtype.Text `json:"field_of_study"`
 	Skills               []string    `json:"skills"`
@@ -183,8 +186,9 @@ func (q *Queries) UpsertCandidateProfile(ctx context.Context, arg UpsertCandidat
 		arg.YearsOfExperience,
 		arg.ProfileSummary,
 		arg.BirthDate,
-		arg.City,
-		arg.Country,
+		arg.CountryCode,
+		arg.StateCode,
+		arg.MunicipalityCode,
 		arg.EducationLevel,
 		arg.FieldOfStudy,
 		arg.Skills,
@@ -205,8 +209,6 @@ func (q *Queries) UpsertCandidateProfile(ctx context.Context, arg UpsertCandidat
 		&i.YearsOfExperience,
 		&i.ProfileSummary,
 		&i.BirthDate,
-		&i.City,
-		&i.Country,
 		&i.EducationLevel,
 		&i.FieldOfStudy,
 		&i.Skills,
@@ -219,6 +221,9 @@ func (q *Queries) UpsertCandidateProfile(ctx context.Context, arg UpsertCandidat
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.SearchVector,
+		&i.CountryCode,
+		&i.StateCode,
+		&i.MunicipalityCode,
 	)
 	return i, err
 }

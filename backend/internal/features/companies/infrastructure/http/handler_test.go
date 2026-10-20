@@ -18,6 +18,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	geodomain "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	identityvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/valueobjects"
@@ -52,6 +53,7 @@ type stubRepo struct {
 
 	updateCalls int
 	updateErr   error
+	updatePatch repositories.UpdateCompanyPatch
 
 	softDeleteCalls int
 	softDeleteErr   error
@@ -94,10 +96,20 @@ func (r *stubRepo) GetCompanyForUpdate(_ context.Context, _ uuid.UUID) (*entitie
 	return nil, entities.ErrCompanyNotFound
 }
 
-func (r *stubRepo) UpdateCompany(_ context.Context, _ uuid.UUID, _ repositories.UpdateCompanyPatch, _ time.Time, _ auditentities.AuditEvent) error {
+func (r *stubRepo) UpdateCompany(_ context.Context, _ uuid.UUID, patch repositories.UpdateCompanyPatch, _ time.Time, _ auditentities.AuditEvent) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.updateCalls++
+	r.updatePatch = patch
+	if r.updateErr == nil && r.getForUpdateOut != nil && patch.Location.Set {
+		fresh := *r.getForUpdateOut
+		fresh.Location = nil
+		if patch.Location.Valid {
+			value := patch.Location.Value
+			fresh.Location = &value
+		}
+		r.getForUpdateOut = &fresh
+	}
 	return r.updateErr
 }
 
@@ -165,7 +177,7 @@ func newTestHandler(repo *stubRepo) *CompanyHandler {
 
 func newTestHandlerWithBootstrap(repo *stubRepo, bootstrap *stubBootstrapRepo) *CompanyHandler {
 	users := &stubUserRepo{resolved: &identityentities.User{ID: uuid.MustParse("11111111-1111-1111-1111-111111111111"), CognitoSub: "test-sub", UserType: identityvalueobjects.UserRecruiter}}
-	svc := usecases.NewCompanyServiceWithBootstrap(repo, users, bootstrap)
+	svc := usecases.NewCompanyServiceWithBootstrap(repo, users, bootstrap, companyCatalog{})
 	return NewCompanyHandler(svc)
 }
 
@@ -208,8 +220,7 @@ func TestCreateCompany_ValidFullBody(t *testing.T) {
         "description": "Líder en logística",
         "size": "medium",
         "founded_year": 2010,
-        "city": "CDMX",
-        "country": "MX",
+        "location": {"country":"MX","state":"14","municipality":"14039","postal_code":"44100"},
         "linkedin_url": "https://linkedin.com/company/acme",
         "instagram_url": "https://instagram.com/acme",
         "facebook_url": "https://facebook.com/acme",
@@ -248,8 +259,8 @@ func TestCreateCompany_ValidFullBody(t *testing.T) {
 	if got.FoundedYear == nil || *got.FoundedYear != 2010 {
 		t.Errorf("FoundedYear: %v", got.FoundedYear)
 	}
-	if got.City == nil || *got.City != "CDMX" {
-		t.Errorf("City: %v", got.City)
+	if got.Location == nil || got.Location.Label != "Guadalajara, Jalisco" {
+		t.Errorf("location: %+v", got.Location)
 	}
 	if got.LinkedInURL == nil || *got.LinkedInURL != "https://linkedin.com/company/acme" {
 		t.Errorf("LinkedInURL: %v", got.LinkedInURL)
@@ -446,7 +457,6 @@ func TestGetCompany_RedactsRFCAndStatus(t *testing.T) {
 	year, _ := valueobjects.NewFoundedYear(2010)
 	web := "https://acme.com"
 	logo := "https://acme.com/logo.png"
-	city := "CDMX"
 	linkedin := "https://linkedin.com/company/acme"
 	cover := "https://acme.com/cover.jpg"
 
@@ -461,7 +471,7 @@ func TestGetCompany_RedactsRFCAndStatus(t *testing.T) {
 		Description:   &desc,
 		Size:          &cs,
 		FoundedYear:   &year,
-		City:          &city,
+		Location:      &geodomain.Value{Country: "MX", State: "14", Municipality: "14039"},
 		LinkedInURL:   &linkedin,
 		CoverImageURL: &cover,
 		CreatedAt:     now,
@@ -500,8 +510,8 @@ func TestGetCompany_RedactsRFCAndStatus(t *testing.T) {
 	if got.FoundedYear == nil || *got.FoundedYear != 2010 {
 		t.Errorf("FoundedYear: %v", got.FoundedYear)
 	}
-	if got.City == nil || *got.City != "CDMX" {
-		t.Errorf("City: %v", got.City)
+	if got.Location == nil || got.Location.Label != "Guadalajara, Jalisco" {
+		t.Errorf("location: %+v", got.Location)
 	}
 	if got.CoverImageURL == nil || *got.CoverImageURL != cover {
 		t.Errorf("CoverImageURL: %v", got.CoverImageURL)

@@ -41,7 +41,8 @@ Readiness codes are returned in this exact order (not alphabetically):
 
 1. `title_missing`
 2. `description_missing`
-3. `location_missing`
+3. Mode-dependent geography: onsite/hybrid `location_missing` or MX
+   `location_incomplete`; remote `remote_scope_missing`; none when work mode is unset
 4. `work_mode_missing`
 5. `work_schedule_missing`
 6. `contract_type_missing`
@@ -53,6 +54,11 @@ Readiness codes are returned in this exact order (not alphabetically):
 12. `delivery_target_missing`
 13. `commitment_date_missing`
 14. `commitment_date_past`
+
+G2 locations/scopes follow [geo-vacancy.md](geo-vacancy.md). Onsite and hybrid
+require a country; MX additionally requires state and municipality. Remote
+requires an explicit scope, with optional location. Scope is ignored for non-remote
+readiness. Published-write protection applies these same rules.
 
 Description is checked using the validated rich document's derived plain text;
 empty/whitespace-only paragraphs do not satisfy it. A requester kind without a
@@ -154,7 +160,7 @@ are part of this backend cut.
 | `draftstore/publication_atomicity_integration_test.go` | Stored pipeline/substate version preservation; renamed cutoff snapshot remains frozen; create/publication key namespaces; cross-draft key conflict; live gate before replay; unknown fingerprint algorithm rollback |
 | `internal/shared/httpjson/publication_errors_test.go` | Canonical 422/409 definitions, list only for incomplete, exact envelope keys, empty array, unknown/forged definitions fail closed |
 | `cmd/api/publication_routes_test.go` | Real-router no-store/gates, every mapped status/code, exact error/list envelope, ETag and true/false replay headers, session identity and all key/If-Match header lines forwarded |
-| `cmd/api/publication_flow_integration_test.go` | Real JWT/gates/store: 13 missing codes on empty draft; exact GET/POST and headers; frozen audit/process; unchanged resources and list ordering; original replay after edits; malformed/unknown/type/budget rejection snapshots; specified precedence before/after publication |
+| `cmd/api/publication_flow_integration_test.go` | Real JWT/gates/store: 12 missing codes on empty draft (no work mode yet); exact GET/POST and headers; frozen audit/process; unchanged resources and list ordering; original replay after edits; malformed/unknown/type/budget rejection snapshots; specified precedence before/after publication |
 | `db/migrations/vacancy_publication*_test.go` | Additive process schema; isolated up/down typed non-null fields, PK/FKs/status check; legacy/draft/management tables survive down |
 | `draftstore/list_publication_integration_test.go`, `http/draftListPublication_test.go` | List's two new keys, null/UTC timestamp, no order/cursor/draft-version change |
 

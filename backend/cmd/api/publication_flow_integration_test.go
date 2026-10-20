@@ -21,7 +21,7 @@ func publicationFlowReady(t *testing.T, h *draftFlowHarness, actor draftFlowActo
 	if _, err := h.pool.Exec(context.Background(), `INSERT INTO job_draft_requesters (id,company_id,kind,name,name_key,normalization_version) SELECT $1,company_id,'internal_area',$2,$3,1 FROM company_members WHERE user_id=$4`, requester, "Engineering "+requester, "engineering "+requester, actor.userID); err != nil {
 		t.Fatal(err)
 	}
-	body := `{"fields":{"title":"Backend Go","location":"CDMX","work_mode":"remote","work_schedule":"full_time","contract_type":"indefinite","professional_area":"technology_systems","requester":{"kind":"internal_area","id":"` + requester + `"},"description":{"schema_version":1,"document":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Build reliable APIs"}]}]}}}}`
+	body := `{"fields":{"title":"Backend Go","location":null,"remote_scope":{"kind":"anywhere"},"work_mode":"remote","work_schedule":"full_time","contract_type":"indefinite","professional_area":"technology_systems","requester":{"kind":"internal_area","id":"` + requester + `"},"description":{"schema_version":1,"document":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Build reliable APIs"}]}]}}}}`
 	id := draftListFlowCreate(t, h, actor, body)
 	base := draftFlowV2Path + "/" + id
 	management := h.do(t, "GET", base+"/management", "", actor.token, nil)
@@ -147,7 +147,7 @@ func TestPublicationFlowRejectionOrderStrictBodiesAndNoEffects(t *testing.T) {
 	tag := draft.header.Get("ETag")
 	key := uuid.NewString()
 	headers := map[string]string{"Idempotency-Key": key, "If-Match": tag}
-	all := []string{"title_missing", "description_missing", "location_missing", "work_mode_missing", "work_schedule_missing", "contract_type_missing", "professional_area_missing", "requester_missing", "request_date_missing", "hiring_headcount_missing", "delivery_cutoff_missing", "delivery_target_missing", "commitment_date_missing"}
+	all := []string{"title_missing", "description_missing", "work_mode_missing", "work_schedule_missing", "contract_type_missing", "professional_area_missing", "requester_missing", "request_date_missing", "hiring_headcount_missing", "delivery_cutoff_missing", "delivery_target_missing", "commitment_date_missing"}
 	before := publicationFlowSnapshot(t, h, id)
 	read := h.do(t, "GET", path, "", owner.token, nil)
 	readObj := draftFlowObject(t, read.body)

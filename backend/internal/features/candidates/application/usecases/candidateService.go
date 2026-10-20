@@ -12,6 +12,8 @@ import (
 	"errors"
 
 	candidatesentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/entities"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
+	geodomain "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identityrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/repositories"
 	"github.com/google/uuid"
@@ -28,6 +30,7 @@ var ErrUnknownSubject = errors.New("unknown JWT subject")
 type CandidateService struct {
 	repository CandidateRepoPort
 	userRepo   identityrepositories.UserRepository
+	geography  geo.Reader
 }
 
 // CandidateRepoPort is the slice of the candidates repository port the
@@ -45,11 +48,16 @@ type CandidateRepoPort interface {
 // The user repository is the identity slice's UserRepository; the service
 // calls GetByCognitoSub at the edge of every use case so the rest of the
 // code never sees the JWT subject.
-func NewCandidateService(repo CandidateRepoPort, userRepo identityrepositories.UserRepository) *CandidateService {
-	return &CandidateService{
-		repository: repo,
-		userRepo:   userRepo,
+func NewCandidateService(repo CandidateRepoPort, userRepo identityrepositories.UserRepository, geography ...geo.Reader) *CandidateService {
+	s := &CandidateService{repository: repo, userRepo: userRepo}
+	if len(geography) > 0 {
+		s.geography = geography[0]
 	}
+	return s
+}
+
+func (s *CandidateService) ReadLocation(ctx context.Context, value *geodomain.Value) (*geo.ReadLocation, error) {
+	return geo.ExpandLocation(ctx, s.geography, value)
 }
 
 // resolveUserID is the IDOR-resistant boundary. Every public use case MUST

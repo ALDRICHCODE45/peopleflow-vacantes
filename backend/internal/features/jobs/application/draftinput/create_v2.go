@@ -150,6 +150,9 @@ func (c CreateV2) Fingerprint() []byte {
 // every value error, exactly as in v1. A non-object or null screening value is
 // left to the value composition as well.
 func firstNestedKeyViolationV2(fields map[string]any) error {
+	if path, bad := geographyKeyViolation(fields); bad {
+		return fmt.Errorf("%w: unknown or read-only key %s", ErrInvalidRequest, path)
+	}
 	if raw, present := fields["requester"]; present {
 		if key, bad := unknownObjectKey(raw, requesterFieldKeys); bad {
 			return fmt.Errorf("%w: unknown or read-only key %s", ErrInvalidRequest, "requester."+key)
@@ -296,7 +299,9 @@ func composeV2(object map[string]any) (CreateV2, error) {
 		return CreateV2{}, validationError(err)
 	}
 	out.Title = scalars.Title
-	out.Location = scalars.Location
+	if err := composeGeography(object, &out.Fields); err != nil {
+		return CreateV2{}, err
+	}
 	out.WorkMode = scalars.WorkMode
 	out.WorkSchedule = scalars.WorkSchedule
 	out.ContractType = scalars.ContractType

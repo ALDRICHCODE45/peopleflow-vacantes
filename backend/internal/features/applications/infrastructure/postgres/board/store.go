@@ -58,8 +58,18 @@ func (s *Store) begin(ctx context.Context, company, actor, id uuid.UUID) (pgx.Tx
 
 const itemSQL = `SELECT p.id,p.stage_id,p.version,u.id,u.full_name,p.created_at,p.source,l.id,l.name,
  COALESCE((SELECT max(h.created_at) FROM participation_stage_history h WHERE h.participation_id=p.id AND h.event_kind<>'not_applicable'),p.created_at),
- p.previous_stage_id,p.reason_group,p.reason_code,p.discarded_at,p.substate_id,p.profile_snapshot,p.questions_snapshot,p.answers_snapshot
- FROM process_participations p JOIN users u ON u.id=p.candidate_id JOIN candidate_cv_library l ON l.version_id=p.cv_version_id `
+ p.previous_stage_id,p.reason_group,p.reason_code,p.discarded_at,p.substate_id,
+ CASE WHEN p.profile_snapshot->'location' IS NULL OR p.profile_snapshot->'location' = 'null'::jsonb THEN p.profile_snapshot
+ ELSE jsonb_set(p.profile_snapshot,'{location}',jsonb_build_object(
+ 'country',jsonb_build_object('id',p.profile_snapshot->'location'->>'country','name',gc.name_es),
+ 'state',CASE WHEN p.profile_snapshot->'location'->>'state' IS NULL THEN NULL ELSE jsonb_build_object('id',p.profile_snapshot->'location'->>'state','name',gs.name) END,
+ 'municipality',CASE WHEN p.profile_snapshot->'location'->>'municipality' IS NULL THEN NULL ELSE jsonb_build_object('id',p.profile_snapshot->'location'->>'municipality','name',gm.name) END,
+ 'postal_code',NULL,'label',CASE WHEN gm.code IS NOT NULL THEN gm.name || ', ' || gs.name WHEN gs.code IS NOT NULL THEN gs.name ELSE gc.name_es END)) END,
+ p.questions_snapshot,p.answers_snapshot
+ FROM process_participations p JOIN users u ON u.id=p.candidate_id JOIN candidate_cv_library l ON l.version_id=p.cv_version_id
+ LEFT JOIN geo_countries gc ON gc.code=p.profile_snapshot->'location'->>'country'
+ LEFT JOIN geo_states gs ON gs.country_code=gc.code AND gs.code=p.profile_snapshot->'location'->>'state'
+ LEFT JOIN geo_municipalities gm ON gm.country_code=gc.code AND gm.state_code=gs.code AND gm.code=p.profile_snapshot->'location'->>'municipality' `
 
 func readItem(row pgx.Row) (app.Item, int64, error) {
 	var i app.Item
@@ -74,10 +84,17 @@ func readItem(row pgx.Row) (app.Item, int64, error) {
 	if err != nil {
 		return i, 0, err
 	}
-	i.Profile = intake.SnapshotProfile(nil, nil, nil, nil)
+	i.Profile = app.Profile{Skills: []string{}}
 	if profile != nil {
 		if err := json.Unmarshal(profile, &i.Profile); err != nil {
 			return i, 0, err
+		}
+	}
+	// A missing catalog row must not silently erase a frozen subdivision or
+	// return an empty display name. Match the shared geo expansion's fail-closed rule.
+	if location := i.Profile.Location; location != nil {
+		if location.Country.Name == "" || (location.State != nil && location.State.Name == "") || (location.Municipality != nil && location.Municipality.Name == "") {
+			return i, 0, errors.New("profile location catalog reference not found")
 		}
 	}
 	var qs []intake.Question

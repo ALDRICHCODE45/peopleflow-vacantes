@@ -192,7 +192,9 @@ func persistedValidateFields(fields map[string]any) error {
 	// whitespace and JSON escapes are accepted.
 	var projected Fields
 	projected.Title = scalars.Title
-	projected.Location = scalars.Location
+	if err := composeGeography(fields, &projected); err != nil {
+		return persistedFieldError("fields.location", err)
+	}
 	projected.WorkMode = scalars.WorkMode
 	projected.WorkSchedule = scalars.WorkSchedule
 	projected.ContractType = scalars.ContractType

@@ -21,6 +21,7 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -46,6 +47,9 @@ func newTestRepo(t *testing.T) (*CandidateRepository, *pgxpool.Pool) {
 		t.Skipf("cannot ping Postgres: %v", err)
 	}
 
+	if _, err := pool.Exec(ctx, `INSERT INTO geo_countries(code,name_es,name_en) VALUES('MX','México','Mexico') ON CONFLICT DO NOTHING`); err != nil {
+		t.Fatal(err)
+	}
 	return NewCandidateRepository(pool), pool
 }
 
@@ -96,7 +100,7 @@ func TestUpsertProfile_CreateThenUpdate(t *testing.T) {
 	}
 	title1 := "Backend Engineer"
 	profile.ProfessionalTitle = &title1
-	profile.City = strPtr("CDMX")
+	profile.Location = &geo.Value{Country: "MX"}
 	profile.YearsOfExperience = intPtr(3)
 
 	got, err := repo.UpsertProfile(ctx, profile)
@@ -165,8 +169,7 @@ func TestGetProfileByUserID_Found(t *testing.T) {
 	}
 	profile.Phone = strPtr("+52 55 1234 5678")
 	profile.ProfileSummary = strPtr("Summary line.")
-	profile.City = strPtr("CDMX")
-	profile.Country = strPtr("MX")
+	profile.Location = &geo.Value{Country: "MX"}
 	if _, err := repo.UpsertProfile(ctx, profile); err != nil {
 		t.Fatalf("seed upsert: %v", err)
 	}
@@ -184,8 +187,8 @@ func TestGetProfileByUserID_Found(t *testing.T) {
 	if got.ProfileSummary == nil || *got.ProfileSummary != "Summary line." {
 		t.Errorf("ProfileSummary: %v", got.ProfileSummary)
 	}
-	if got.City == nil || *got.City != "CDMX" {
-		t.Errorf("City: %v", got.City)
+	if got.Location == nil || got.Location.Country != "MX" {
+		t.Errorf("location: %+v", got.Location)
 	}
 	if got.EducationLevel == nil || *got.EducationLevel != valueobjects.Master {
 		t.Errorf("EducationLevel: want Master, got %v", got.EducationLevel)
@@ -383,7 +386,7 @@ func TestUpsertProfile_FullReplacementPersists(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first profile: %v", err)
 	}
-	first.City = strPtr("CDMX")
+	first.Location = &geo.Value{Country: "MX"}
 	first.FieldOfStudy = strPtr("Computer Science")
 	first.SalaryCurrency = "USD"
 	if _, err := repo.UpsertProfile(ctx, first); err != nil {
@@ -394,11 +397,11 @@ func TestUpsertProfile_FullReplacementPersists(t *testing.T) {
 	var city, fos, currency sql.NullString
 	var skills string
 	if err := pool.QueryRow(ctx,
-		`SELECT city, field_of_study, skills::text, salary_currency FROM candidate_profiles WHERE user_id = $1`, userID,
+		`SELECT country_code, field_of_study, skills::text, salary_currency FROM candidate_profiles WHERE user_id = $1`, userID,
 	).Scan(&city, &fos, &skills, &currency); err != nil {
 		t.Fatalf("read back first row: %v", err)
 	}
-	if !city.Valid || city.String != "CDMX" || !fos.Valid || fos.String != "Computer Science" || currency.String != "USD" {
+	if !city.Valid || city.String != "MX" || !fos.Valid || fos.String != "Computer Science" || currency.String != "USD" {
 		t.Errorf("present fields must persist verbatim, got city=%v field_of_study=%v currency=%v", city, fos, currency)
 	}
 
@@ -412,7 +415,7 @@ func TestUpsertProfile_FullReplacementPersists(t *testing.T) {
 	}
 
 	if err := pool.QueryRow(ctx,
-		`SELECT city, field_of_study, skills::text, salary_currency FROM candidate_profiles WHERE user_id = $1`, userID,
+		`SELECT country_code, field_of_study, skills::text, salary_currency FROM candidate_profiles WHERE user_id = $1`, userID,
 	).Scan(&city, &fos, &skills, &currency); err != nil {
 		t.Fatalf("read back replaced row: %v", err)
 	}
@@ -524,8 +527,7 @@ func mustRebuildProfile(t *testing.T, base *entities.CandidateProfile, mutate fu
 	dup.YearsOfExperience = base.YearsOfExperience
 	dup.ProfileSummary = base.ProfileSummary
 	dup.BirthDate = base.BirthDate
-	dup.City = base.City
-	dup.Country = base.Country
+	dup.Location = base.Location
 	dup.FieldOfStudy = base.FieldOfStudy
 	dup.CurrentSalaryGross = base.CurrentSalaryGross
 	dup.CurrentSalaryNet = base.CurrentSalaryNet

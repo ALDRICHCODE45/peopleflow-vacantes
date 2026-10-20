@@ -25,7 +25,7 @@ import (
 // nullable fields are null, arrays are empty and compensation carries the
 // contract defaults.
 const persistedV2DefaultDoc = `{"schema_version":2,"fields":{` +
-	`"title":null,"location":null,"work_mode":null,"work_schedule":null,"contract_type":null,"seniority":null,"professional_area":null,` +
+	`"title":null,"location":null,"remote_scope":null,"work_mode":null,"work_schedule":null,"contract_type":null,"seniority":null,"professional_area":null,` +
 	`"requester":null,` +
 	`"skills":[],"languages":[],"benefits":[],"custom_benefits":[],` +
 	`"required_requirements":null,"preferred_requirements":null,` +
@@ -37,7 +37,8 @@ const persistedV2DefaultDoc = `{"schema_version":2,"fields":{` +
 // all 17 field groups and all three screening v2 question types.
 const persistedV2PopulatedDoc = `{"schema_version":2,"fields":{
 	"title":"Backend Go",
-	"location":"CDMX",
+	"location":{"country":"MX"},
+	"remote_scope":null,
 	"work_mode":"remote",
 	"work_schedule":"full_time",
 	"contract_type":"indefinite",
@@ -81,6 +82,7 @@ const persistedV2ReorderedDoc = `{
 		"work_schedule" : null ,
 		"work_mode" : null ,
 		"location" : null ,
+		"remote_scope" : null ,
 		"title" : null
 	} ,
 	"schema_version" : 2
@@ -91,6 +93,7 @@ const persistedV2ReorderedDoc = `{
 var persistedV2NullableKeys = []string{
 	"title",
 	"location",
+	"remote_scope",
 	"work_mode",
 	"work_schedule",
 	"contract_type",

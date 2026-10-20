@@ -22,7 +22,17 @@ func NewHandler(store app.Store, decode app.JSONDecoder) *Handler { return &Hand
 func writeError(w http.ResponseWriter, err error) {
 	code := httpjson.CodeInternalError
 	var details *app.InvalidAnswers
+	var restriction *app.CountryRestriction
 	switch {
+	case errors.As(err, &restriction):
+		switch {
+		case errors.Is(err, app.ErrApplicantCountryRequired):
+			code = httpjson.CodeApplicantCountryRequired
+		case errors.Is(err, app.ErrApplicantCountryNotAllowed):
+			code = httpjson.CodeApplicantCountryNotAllowed
+		}
+		httpjson.WriteApplicantCountryError(w, httpjson.Resolve(code), restriction.Allowed)
+		return
 	case errors.Is(err, app.ErrInvalidRequest):
 		code = httpjson.CodeInvalidRequest
 	case errors.Is(err, app.ErrNotFound):

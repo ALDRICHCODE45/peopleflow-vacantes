@@ -3,6 +3,8 @@
 // use case owns parsing and validation through the domain VOs.
 package dtos
 
+import geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
+
 // UpsertMyProfileDto is the PUT /me/profile body. PUT has full-replacement
 // semantics: every client-owned field is optional on the wire, and an
 // omitted or JSON-null nullable field is persisted as SQL NULL. Skills is
@@ -19,8 +21,7 @@ type UpsertMyProfileDto struct {
 
 	BirthDate *string // ISO-8601 (YYYY-MM-DD); parsed by the use case.
 
-	City    *string
-	Country *string
+	Location *geo.LocationInput
 
 	EducationLevel *string // validated by valueobjects.ParseEducationLevel
 	FieldOfStudy   *string

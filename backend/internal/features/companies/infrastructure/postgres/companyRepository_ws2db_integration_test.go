@@ -28,6 +28,7 @@ import (
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 	sharedvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -395,6 +396,7 @@ func TestUpdateCompany_AllFields_PersistsEveryMutableField(t *testing.T) {
 	t.Cleanup(pool.Close)
 	t.Cleanup(func() { cleanupRaceCompany(t, pool, id) })
 	preAudit := auditCount(t, ctx, pool, id)
+	seedCompanyLocationCatalog(t, ctx, pool)
 
 	str := func(v string) sharedvalueobjects.Optional[string] {
 		return sharedvalueobjects.Optional[string]{Set: true, Valid: true, Value: v}
@@ -405,8 +407,8 @@ func TestUpdateCompany_AllFields_PersistsEveryMutableField(t *testing.T) {
 	patch := repositories.UpdateCompanyPatch{
 		Website: str("https://ws2db.example.com"), LogoURL: str("https://cdn.example.com/logo.png"),
 		Description: str("ws2db b description payload"), Size: str("startup"),
-		FoundedYear: sharedvalueobjects.Optional[int]{Set: true, Valid: true, Value: 2024},
-		City:        str("CDMX"), Country: str("MX"),
+		FoundedYear:   sharedvalueobjects.Optional[int]{Set: true, Valid: true, Value: 2024},
+		Location:      sharedvalueobjects.Optional[geo.Value]{Set: true, Valid: true, Value: geo.Value{Country: "MX", State: "14", Municipality: "14039", PostalCode: "44100"}},
 		LinkedInURL:   str("https://linkedin.com/company/ws2db"),
 		InstagramURL:  str("https://instagram.com/ws2db"),
 		FacebookURL:   str("https://facebook.com/ws2db"),
@@ -425,7 +427,7 @@ func TestUpdateCompany_AllFields_PersistsEveryMutableField(t *testing.T) {
 	var fy *int16
 	var updatedAt time.Time
 	if err := pool.QueryRow(ctx,
-		`SELECT website, logo_url, description, size, founded_year, city, country,
+		`SELECT website, logo_url, description, size, founded_year, state_code, country_code,
 		        linkedin_url, instagram_url, facebook_url, twitter_url, cover_image_url, updated_at
 		 FROM companies WHERE id = $1`, id,
 	).Scan(&website, &logo, &desc, &size, &fy, &city, &country, &li, &ig, &fb, &tw, &cover, &updatedAt); err != nil {
@@ -441,8 +443,8 @@ func TestUpdateCompany_AllFields_PersistsEveryMutableField(t *testing.T) {
 		{"logo_url", logo, "https://cdn.example.com/logo.png"},
 		{"description", desc, "ws2db b description payload"},
 		{"size", size, "startup"},
-		{"city", city, "CDMX"},
-		{"country", country, "MX"},
+		{"state_code", city, "14"},
+		{"country_code", country, "MX"},
 		{"linkedin_url", li, "https://linkedin.com/company/ws2db"},
 		{"instagram_url", ig, "https://instagram.com/ws2db"},
 		{"facebook_url", fb, "https://facebook.com/ws2db"},

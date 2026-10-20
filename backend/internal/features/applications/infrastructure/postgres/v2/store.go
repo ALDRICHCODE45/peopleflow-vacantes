@@ -84,6 +84,37 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return app.Result{}, err
 	}
+	// Use a fresh READ COMMITTED statement after the draft lock is held.
+	// SaveV2/Publish lock the draft before writing the projection. A join that
+	// waits for that lock can refresh d via EvalPlanQual but retain stale v
+	// values from its original snapshot. No extra projection lock is needed:
+	// retaining the draft lock excludes those writers for this transaction.
+	var mode string
+	var scope *string
+	var allowed []string
+	err = tx.QueryRow(ctx, `SELECT work_mode,remote_scope_kind,remote_countries FROM vacancy_public_projections WHERE id=$1`, vacancy).Scan(&mode, &scope, &allowed)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return app.Result{}, app.ErrNotFound
+	}
+	if err != nil {
+		return app.Result{}, err
+	}
+	// Read the current profile once, after replay and before screening/CV/duplicate
+	// checks. The same row supplies both the gate and the immutable snapshot.
+	var country, state, municipality, education *string
+	var skills []string
+	var years *int
+	err = tx.QueryRow(ctx, `SELECT country_code,state_code,municipality_code,skills,years_of_experience,education_level FROM candidate_profiles WHERE user_id=$1 FOR SHARE`, candidate).Scan(&country, &state, &municipality, &skills, &years, &education)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return app.Result{}, err
+	}
+	if err = app.CheckApplicantCountry(mode, scope, allowed, country); err != nil {
+		return app.Result{}, err
+	}
+	var location *app.SnapshotLocation
+	if country != nil {
+		location = &app.SnapshotLocation{Country: *country, State: state, Municipality: municipality}
+	}
 	form, err := s.rules.Screening(fields)
 	if err != nil {
 		return app.Result{}, err
@@ -117,16 +148,7 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	if err != nil {
 		return app.Result{}, err
 	}
-	// Read only the private allowlist, in this transaction and after the replay
-	// branch. A replay must never consult or overwrite the candidate's new profile.
-	var city, education *string
-	var skills []string
-	var years *int
-	err = tx.QueryRow(ctx, `SELECT city,skills,years_of_experience,education_level FROM candidate_profiles WHERE user_id=$1`, candidate).Scan(&city, &skills, &years, &education)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return app.Result{}, err
-	}
-	profile, err := json.Marshal(app.SnapshotProfile(city, skills, years, education))
+	profile, err := json.Marshal(app.SnapshotProfile(location, skills, years, education))
 	if err != nil {
 		return app.Result{}, err
 	}

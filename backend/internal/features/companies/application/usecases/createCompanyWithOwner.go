@@ -7,6 +7,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identityvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/valueobjects"
 )
@@ -27,7 +28,7 @@ import (
 // Sub resolution mirrors the identity slice: the service is the only layer
 // that sees the raw cognito_sub; the repositories never do. The owner
 // membership is always valueobjects.OwnerRole.
-func (s *CompanyService) CreateCompanyWithOwner(ctx context.Context, cognitoSub string, params dtos.CreateCompanyDto) (*entities.Company, error) {
+func (s *CompanyService) CreateCompanyWithOwner(ctx context.Context, cognitoSub string, params dtos.CreateCompanyDto) (*CompanyWriteResult, error) {
 	user, err := s.userRepo.GetByCognitoSub(ctx, cognitoSub)
 	if err != nil {
 		if errors.Is(err, identityentities.ErrUserNotFound) {
@@ -40,6 +41,9 @@ func (s *CompanyService) CreateCompanyWithOwner(ctx context.Context, cognitoSub 
 		return nil, entities.ErrCreatorNotEmployer
 	}
 
+	if err := geo.ValidateLocation(ctx, s.geography, params.Location, true); err != nil {
+		return nil, err
+	}
 	company, err := buildCompany(params)
 	if err != nil {
 		return nil, err
@@ -50,9 +54,13 @@ func (s *CompanyService) CreateCompanyWithOwner(ctx context.Context, cognitoSub 
 		return nil, err
 	}
 
+	location, err := s.ReadLocation(ctx, company.Location)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.bootstrapRepo.CreateWithOwner(ctx, company, owner); err != nil {
 		return nil, err
 	}
 
-	return company, nil
+	return &CompanyWriteResult{Company: company, LocationRead: location}, nil
 }

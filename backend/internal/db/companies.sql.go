@@ -21,34 +21,36 @@ WITH active_industry AS MATERIALIZED (
 )
 INSERT INTO companies (
     id, name, rfc, industry_id, website, logo_url,
-    description, size, founded_year, city, country,
+    description, size, founded_year, country_code, state_code, municipality_code, postal_code,
     linkedin_url, instagram_url, facebook_url, twitter_url, cover_image_url
 )
 SELECT
     $1, $2, $3, $4, $5, $6,
-    $7, $8, $9, $10, $11,
-    $12, $13, $14, $15, $16
+    $7, $8, $9, $10, $11, $12, $13,
+    $14, $15, $16, $17, $18
 FROM active_industry
-RETURNING id, name, rfc, industry_id, website, logo_url, status, created_at, updated_at, deleted_at, description, size, founded_year, city, country, linkedin_url, instagram_url, facebook_url, twitter_url, cover_image_url
+RETURNING id, name, rfc, industry_id, website, logo_url, status, created_at, updated_at, deleted_at, description, size, founded_year, linkedin_url, instagram_url, facebook_url, twitter_url, cover_image_url, country_code, state_code, municipality_code, postal_code
 `
 
 type CreateCompanyParams struct {
-	ID            uuid.UUID   `json:"id"`
-	Name          string      `json:"name"`
-	Rfc           string      `json:"rfc"`
-	IndustryID    string      `json:"industry_id"`
-	Website       pgtype.Text `json:"website"`
-	LogoUrl       pgtype.Text `json:"logo_url"`
-	Description   pgtype.Text `json:"description"`
-	Size          pgtype.Text `json:"size"`
-	FoundedYear   pgtype.Int2 `json:"founded_year"`
-	City          pgtype.Text `json:"city"`
-	Country       pgtype.Text `json:"country"`
-	LinkedinUrl   pgtype.Text `json:"linkedin_url"`
-	InstagramUrl  pgtype.Text `json:"instagram_url"`
-	FacebookUrl   pgtype.Text `json:"facebook_url"`
-	TwitterUrl    pgtype.Text `json:"twitter_url"`
-	CoverImageUrl pgtype.Text `json:"cover_image_url"`
+	ID               uuid.UUID   `json:"id"`
+	Name             string      `json:"name"`
+	Rfc              string      `json:"rfc"`
+	IndustryID       string      `json:"industry_id"`
+	Website          pgtype.Text `json:"website"`
+	LogoUrl          pgtype.Text `json:"logo_url"`
+	Description      pgtype.Text `json:"description"`
+	Size             pgtype.Text `json:"size"`
+	FoundedYear      pgtype.Int2 `json:"founded_year"`
+	CountryCode      pgtype.Text `json:"country_code"`
+	StateCode        pgtype.Text `json:"state_code"`
+	MunicipalityCode pgtype.Text `json:"municipality_code"`
+	PostalCode       pgtype.Text `json:"postal_code"`
+	LinkedinUrl      pgtype.Text `json:"linkedin_url"`
+	InstagramUrl     pgtype.Text `json:"instagram_url"`
+	FacebookUrl      pgtype.Text `json:"facebook_url"`
+	TwitterUrl       pgtype.Text `json:"twitter_url"`
+	CoverImageUrl    pgtype.Text `json:"cover_image_url"`
 }
 
 // Locks the active industry before INSERT so creation and deactivation serialize.
@@ -64,8 +66,10 @@ func (q *Queries) CreateCompany(ctx context.Context, arg CreateCompanyParams) (C
 		arg.Description,
 		arg.Size,
 		arg.FoundedYear,
-		arg.City,
-		arg.Country,
+		arg.CountryCode,
+		arg.StateCode,
+		arg.MunicipalityCode,
+		arg.PostalCode,
 		arg.LinkedinUrl,
 		arg.InstagramUrl,
 		arg.FacebookUrl,
@@ -87,19 +91,21 @@ func (q *Queries) CreateCompany(ctx context.Context, arg CreateCompanyParams) (C
 		&i.Description,
 		&i.Size,
 		&i.FoundedYear,
-		&i.City,
-		&i.Country,
 		&i.LinkedinUrl,
 		&i.InstagramUrl,
 		&i.FacebookUrl,
 		&i.TwitterUrl,
 		&i.CoverImageUrl,
+		&i.CountryCode,
+		&i.StateCode,
+		&i.MunicipalityCode,
+		&i.PostalCode,
 	)
 	return i, err
 }
 
 const getCompanyByID = `-- name: GetCompanyByID :one
-SELECT id, name, rfc, industry_id, website, logo_url, status, created_at, updated_at, deleted_at, description, size, founded_year, city, country, linkedin_url, instagram_url, facebook_url, twitter_url, cover_image_url FROM companies
+SELECT id, name, rfc, industry_id, website, logo_url, status, created_at, updated_at, deleted_at, description, size, founded_year, linkedin_url, instagram_url, facebook_url, twitter_url, cover_image_url, country_code, state_code, municipality_code, postal_code FROM companies
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -120,13 +126,15 @@ func (q *Queries) GetCompanyByID(ctx context.Context, id uuid.UUID) (Company, er
 		&i.Description,
 		&i.Size,
 		&i.FoundedYear,
-		&i.City,
-		&i.Country,
 		&i.LinkedinUrl,
 		&i.InstagramUrl,
 		&i.FacebookUrl,
 		&i.TwitterUrl,
 		&i.CoverImageUrl,
+		&i.CountryCode,
+		&i.StateCode,
+		&i.MunicipalityCode,
+		&i.PostalCode,
 	)
 	return i, err
 }
@@ -235,24 +243,28 @@ WITH upd AS (
                                 THEN $9::text ELSE size END,
         founded_year    = CASE WHEN $10::boolean
                                 THEN $11::int2 ELSE founded_year END,
-        city            = CASE WHEN $12::boolean
-                                THEN $13::text ELSE city END,
-        country         = CASE WHEN $14::boolean
-                                THEN $15::text ELSE country END,
-        linkedin_url    = CASE WHEN $16::boolean
-                                THEN $17::text ELSE linkedin_url END,
-        instagram_url   = CASE WHEN $18::boolean
-                                THEN $19::text ELSE instagram_url END,
-        facebook_url    = CASE WHEN $20::boolean
-                                THEN $21::text ELSE facebook_url END,
-        twitter_url     = CASE WHEN $22::boolean
-                                THEN $23::text ELSE twitter_url END,
-        cover_image_url = CASE WHEN $24::boolean
-                                THEN $25::text ELSE cover_image_url END,
+        country_code    = CASE WHEN $12::boolean
+                                THEN $13::char(2) ELSE country_code END,
+        state_code      = CASE WHEN $12::boolean
+                                THEN $14::text ELSE state_code END,
+        municipality_code = CASE WHEN $12::boolean
+                                THEN $15::text ELSE municipality_code END,
+        postal_code     = CASE WHEN $12::boolean
+                                THEN $16::text ELSE postal_code END,
+        linkedin_url    = CASE WHEN $17::boolean
+                                THEN $18::text ELSE linkedin_url END,
+        instagram_url   = CASE WHEN $19::boolean
+                                THEN $20::text ELSE instagram_url END,
+        facebook_url    = CASE WHEN $21::boolean
+                                THEN $22::text ELSE facebook_url END,
+        twitter_url     = CASE WHEN $23::boolean
+                                THEN $24::text ELSE twitter_url END,
+        cover_image_url = CASE WHEN $25::boolean
+                                THEN $26::text ELSE cover_image_url END,
         updated_at      = clock_timestamp()
-    WHERE id         = $26::uuid
+    WHERE id         = $27::uuid
       AND deleted_at IS NULL
-      AND updated_at = $27::timestamptz
+      AND updated_at = $28::timestamptz
     RETURNING id
 )
 SELECT (SELECT count(*) FROM upd) AS updated_count
@@ -270,10 +282,11 @@ type UpdateCompanyParams struct {
 	Size             pgtype.Text        `json:"size"`
 	SetFoundedYear   bool               `json:"set_founded_year"`
 	FoundedYear      pgtype.Int2        `json:"founded_year"`
-	SetCity          bool               `json:"set_city"`
-	City             pgtype.Text        `json:"city"`
-	SetCountry       bool               `json:"set_country"`
-	Country          pgtype.Text        `json:"country"`
+	SetLocation      bool               `json:"set_location"`
+	CountryCode      pgtype.Text        `json:"country_code"`
+	StateCode        pgtype.Text        `json:"state_code"`
+	MunicipalityCode pgtype.Text        `json:"municipality_code"`
+	PostalCode       pgtype.Text        `json:"postal_code"`
 	SetLinkedinUrl   bool               `json:"set_linkedin_url"`
 	LinkedinUrl      pgtype.Text        `json:"linkedin_url"`
 	SetInstagramUrl  bool               `json:"set_instagram_url"`
@@ -330,10 +343,11 @@ func (q *Queries) UpdateCompany(ctx context.Context, arg UpdateCompanyParams) (i
 		arg.Size,
 		arg.SetFoundedYear,
 		arg.FoundedYear,
-		arg.SetCity,
-		arg.City,
-		arg.SetCountry,
-		arg.Country,
+		arg.SetLocation,
+		arg.CountryCode,
+		arg.StateCode,
+		arg.MunicipalityCode,
+		arg.PostalCode,
 		arg.SetLinkedinUrl,
 		arg.LinkedinUrl,
 		arg.SetInstagramUrl,

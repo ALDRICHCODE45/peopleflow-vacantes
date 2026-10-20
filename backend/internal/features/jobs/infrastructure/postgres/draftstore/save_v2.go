@@ -65,6 +65,9 @@ func (s *Store) SaveV2(ctx context.Context, companyID, actorID, id uuid.UUID, if
 		return drafts.Result{}, err
 	}
 
+	if err := validateGeography(ctx, tx, merged); err != nil {
+		return drafts.Result{}, err
+	}
 	candidate := record
 	candidate.fields = merged
 	if err := s.guardPublishedWrite(ctx, tx, candidate); err != nil {
@@ -76,7 +79,7 @@ func (s *Store) SaveV2(ctx context.Context, companyID, actorID, id uuid.UUID, if
 		if err != nil {
 			return drafts.Result{}, err
 		}
-		responseBody, err := renderEnvelopeV2(record, name)
+		responseBody, err := renderGeoEnvelopeV2(ctx, tx, record, name)
 		if err != nil {
 			return drafts.Result{}, err
 		}
@@ -124,7 +127,7 @@ func (s *Store) SaveV2(ctx context.Context, companyID, actorID, id uuid.UUID, if
 		return drafts.Result{}, err
 	}
 
-	responseBody, err := renderEnvelopeV2(record, name)
+	responseBody, err := renderGeoEnvelopeV2(ctx, tx, record, name)
 	if err != nil {
 		return drafts.Result{}, err
 	}

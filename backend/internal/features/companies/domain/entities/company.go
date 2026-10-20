@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 	"github.com/google/uuid"
 )
 
@@ -28,8 +29,7 @@ type CompanyProfile struct {
 	Size        *valueobjects.CompanySize
 	FoundedYear *valueobjects.FoundedYear
 
-	City        *string
-	Country     *string
+	Location    *geo.Value
 	LinkedInURL *string
 
 	InstagramURL  *string
@@ -56,8 +56,7 @@ type Company struct {
 	Size        *valueobjects.CompanySize
 	FoundedYear *valueobjects.FoundedYear
 
-	City        *string
-	Country     *string
+	Location    *geo.Value
 	LinkedInURL *string
 
 	InstagramURL  *string
@@ -113,8 +112,7 @@ func NewCompany(name, rfc, industryID string, p CompanyProfile) (*Company, error
 		Description:   p.Description,
 		Size:          p.Size,
 		FoundedYear:   p.FoundedYear,
-		City:          p.City,
-		Country:       p.Country,
+		Location:      p.Location,
 		LinkedInURL:   p.LinkedInURL,
 		InstagramURL:  p.InstagramURL,
 		FacebookURL:   p.FacebookURL,

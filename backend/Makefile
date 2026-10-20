@@ -50,6 +50,16 @@ db-new:
 sqlc:
 	$(SQLC) generate
 
+.PHONY: geo-import geo-reduce
+# Explicit environment only: geoimport never loads .env.
+geo-import:
+	go run ./cmd/geoimport $(GEO_ARGS)
+
+# RAW is the directory layout documented in db/geo/README.md.
+geo-reduce:
+	test -n "$(RAW)" || (echo 'usage: make geo-reduce RAW=/path/to/raw'; exit 1)
+	go run ./cmd/geoimport -reduce "$(RAW)" -dir db/geo
+
 run:
 	go run ./cmd/api
 

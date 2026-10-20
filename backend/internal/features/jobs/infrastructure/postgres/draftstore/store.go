@@ -36,6 +36,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftrich"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftversion"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancygeo"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -157,6 +158,9 @@ func (s *Store) Create(ctx context.Context, companyID, actorID uuid.UUID, key st
 		return drafts.Result{Body: existing.body, ETag: existing.etag, Replayed: true}, nil
 	}
 
+	if err := validateGeography(ctx, tx, fingerprint); err != nil {
+		return drafts.Result{}, err
+	}
 	name, err := requesterNameForWrite(ctx, tx, companyID, fingerprint)
 	if err != nil {
 		return drafts.Result{}, err
@@ -181,7 +185,7 @@ func (s *Store) Create(ctx context.Context, companyID, actorID uuid.UUID, key st
 		return drafts.Result{}, fmt.Errorf("insert draft: %w", err)
 	}
 
-	responseBody, err := renderEnvelope(record, name)
+	responseBody, err := renderGeoEnvelope(ctx, tx, record, name)
 	if err != nil {
 		return drafts.Result{}, err
 	}
@@ -241,7 +245,7 @@ func (s *Store) Get(ctx context.Context, companyID, actorID, id uuid.UUID) (draf
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	responseBody, err := renderEnvelope(record, name)
+	responseBody, err := renderGeoEnvelope(ctx, tx, record, name)
 	if err != nil {
 		return drafts.Result{}, err
 	}
@@ -303,12 +307,15 @@ func (s *Store) Save(ctx context.Context, companyID, actorID, id uuid.UUID, ifMa
 		return drafts.Result{}, err
 	}
 
+	if err := validateGeography(ctx, tx, merged); err != nil {
+		return drafts.Result{}, err
+	}
 	if bytes.Equal(merged, record.fields) {
 		name, err := requesterNameForRead(ctx, tx, companyID, record.fields)
 		if err != nil {
 			return drafts.Result{}, err
 		}
-		responseBody, err := renderEnvelope(record, name)
+		responseBody, err := renderGeoEnvelope(ctx, tx, record, name)
 		if err != nil {
 			return drafts.Result{}, err
 		}
@@ -349,7 +356,7 @@ func (s *Store) Save(ctx context.Context, companyID, actorID, id uuid.UUID, ifMa
 	record.version = newVersion
 	record.updatedAt = updatedAt
 
-	responseBody, err := renderEnvelope(record, name)
+	responseBody, err := renderGeoEnvelope(ctx, tx, record, name)
 	if err != nil {
 		return drafts.Result{}, err
 	}
@@ -537,6 +544,10 @@ func newDraftEvent(actorID uuid.UUID, eventType string, draftID uuid.UUID, versi
 
 // mapInputError projects a draftinput composition failure onto the port errors.
 func mapInputError(err error) error {
+	var geography *vacancygeo.Invalid
+	if errors.As(err, &geography) {
+		return geography
+	}
 	switch {
 	case errors.Is(err, draftinput.ErrPayloadTooLarge):
 		return drafts.ErrPayloadTooLarge

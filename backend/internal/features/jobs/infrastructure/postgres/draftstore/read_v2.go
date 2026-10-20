@@ -42,7 +42,7 @@ func (s *Store) GetV2(ctx context.Context, companyID, actorID, id uuid.UUID) (dr
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	body, err := renderEnvelopeV2(record, name)
+	body, err := renderGeoEnvelopeV2(ctx, tx, record, name)
 	if err != nil {
 		return drafts.Result{}, err
 	}

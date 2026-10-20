@@ -28,6 +28,7 @@ import (
 func TestFilterDataPopulatedSnapshotsNeverReachRequestLogsOrAuditMetadata(t *testing.T) {
 	m := setupMovement(t)
 	ctx := context.Background()
+	seedApplyGeo(t, m.fixture)
 	const city = "PRIVATE_CITY_SENTINEL"
 	const skill = "PRIVATE_SKILL_SENTINEL"
 	const answer = "PRIVATE_OPEN_ANSWER_SENTINEL"
@@ -43,7 +44,7 @@ func TestFilterDataPopulatedSnapshotsNeverReachRequestLogsOrAuditMetadata(t *tes
 	if err = m.pool.QueryRow(ctx, `SELECT id FROM users WHERE cognito_sub=$1`, m.other).Scan(&candidate); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = m.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,city,skills,years_of_experience,education_level) VALUES($1,$2,ARRAY[$3]::text[],7,'master')`, candidate, city, skill); err != nil {
+	if _, err = m.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,country_code,state_code,municipality_code,skills,years_of_experience,education_level) VALUES($1,'MX','14','14039',ARRAY[$2]::text[],7,'master')`, candidate, skill); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
@@ -106,13 +107,13 @@ func TestFilterDataPopulatedSnapshotsNeverReachRequestLogsOrAuditMetadata(t *tes
 	if err = m.pool.QueryRow(ctx, `SELECT profile_snapshot,answers_snapshot FROM process_participations WHERE id=$1`, submitted.ID).Scan(&profile, &answers); err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(profile, []byte(city)) || !bytes.Contains(profile, []byte(skill)) || !bytes.Contains(answers, []byte(answer)) || !bytes.Contains(answers, []byte(option)) {
+	if !bytes.Contains(profile, []byte("14039")) || !bytes.Contains(profile, []byte(skill)) || !bytes.Contains(answers, []byte(answer)) || !bytes.Contains(answers, []byte(option)) {
 		t.Fatal("privacy fixture is not populated")
 	}
 	request(http.MethodGet, "/vacancies/"+m.vacancy.String()+"/board", "", "", "", 200)
 	path := "/vacancies/" + m.vacancy.String() + "/participations/" + submitted.ID.String()
 	detail := request(http.MethodGet, path, "", "", "", 200)
-	if !bytes.Contains(detail.Body.Bytes(), []byte(city)) || !bytes.Contains(detail.Body.Bytes(), []byte(answer)) {
+	if !bytes.Contains(detail.Body.Bytes(), []byte("14039")) || !bytes.Contains(detail.Body.Bytes(), []byte(answer)) {
 		t.Fatal("private data never reached the authorized response")
 	}
 	tag := movementObject(t, detail.Body.Bytes())["etag"].(string)
@@ -146,7 +147,7 @@ func TestFilterDataPopulatedSnapshotsNeverReachRequestLogsOrAuditMetadata(t *tes
 		name string
 		raw  []byte
 	}{{"request logs", logs.Bytes()}, {"audit metadata", metadata}} {
-		for _, forbidden := range []string{city, skill, answer, q, option, `"profile"`, `"profile_snapshot"`, `"answers"`, `"answers_snapshot"`, `"screening_answers"`, `"skills"`, `"city"`, `"years_of_experience"`, `"education_level"`} {
+		for _, forbidden := range []string{city, "14039", skill, answer, q, option, `"location"`, `"country"`, `"state"`, `"municipality"`, `"profile"`, `"profile_snapshot"`, `"answers"`, `"answers_snapshot"`, `"screening_answers"`, `"skills"`, `"city"`, `"years_of_experience"`, `"education_level"`} {
 			if bytes.Contains(surface.raw, []byte(forbidden)) {
 				t.Fatalf("private profile/screening data leaked to %s (%s)", surface.name, forbidden)
 			}

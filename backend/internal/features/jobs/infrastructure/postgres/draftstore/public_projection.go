@@ -71,9 +71,19 @@ func writePublicProjection(ctx context.Context, tx pgx.Tx, record draftRecord, a
 		}
 		return pgtype.Text{String: *p, Valid: true}
 	}
+	optional := func(value string) pgtype.Text { return pgtype.Text{String: value, Valid: value != ""} }
+	var country, state, municipality, postal, scope string
+	var countries []string
+	if p.Location != nil {
+		country, state, municipality, postal = p.Location.Country, p.Location.State, p.Location.Municipality, p.Location.PostalCode
+	}
+	if p.RemoteScope != nil {
+		scope, countries = p.RemoteScope.Kind, p.RemoteScope.Countries
+	}
 	err = db.New(tx).UpsertVacancyPublicProjection(ctx, db.UpsertVacancyPublicProjectionParams{
 		ID: record.id, CompanyID: record.companyID, Title: p.Title, Description: p.Description, DescriptionPlain: p.DescriptionPlain,
-		Location: *p.Location, WorkMode: *p.WorkMode, WorkSchedule: *p.WorkSchedule, ContractType: *p.ContractType, ProfessionalArea: *p.ProfessionalArea,
+		CountryCode: optional(country), StateCode: optional(state), MunicipalityCode: optional(municipality), PostalCode: optional(postal), RemoteScopeKind: optional(scope), RemoteCountries: countries,
+		WorkMode: *p.WorkMode, WorkSchedule: *p.WorkSchedule, ContractType: *p.ContractType, ProfessionalArea: *p.ProfessionalArea,
 		Seniority: text(p.Seniority), RequiredRequirements: text(p.Requirements.Required), PreferredRequirements: text(p.Requirements.Preferred),
 		Skills: p.Skills, ScreeningQuestions: int32(p.ScreeningQuestions),
 		Benefits: benefits, Compensation: compensation, PublishedAt: pgtype.Timestamptz{Time: at, Valid: true}, SourceDraftVersion: record.version,

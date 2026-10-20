@@ -29,13 +29,13 @@ func TestPublicListingEnrichmentPublicationSaveAndAllApplicants(t *testing.T) {
 	marker := "enrichment" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	skills := []string{"SQL", "Go", "e\u0301", "界", "TypeScript", "PostgreSQL", "Docker"}
 	questions := []any{map[string]any{"id": uuid.NewString(), "type": "open", "prompt": "private-question-sentinel"}, map[string]any{"id": uuid.NewString(), "type": "open", "prompt": "second-question-sentinel"}}
-	publicFlowPatch(t, h, id, owner, map[string]any{"title": marker, "location": marker, "skills": skills, "benefits": []string{"wellness", "health_insurance"}, "custom_benefits": []string{"Café", "Gym"}, "screening_questions": questions})
+	publicFlowPatch(t, h, id, owner, map[string]any{"title": marker, "location": publicFlowLocation(t, h, marker), "skills": skills, "benefits": []string{"wellness", "health_insurance"}, "custom_benefits": []string{"Café", "Gym"}, "screening_questions": questions})
 	at := publicFlowPublish(t, h, id, owner)
 	legacy := publicFlowLegacy(t, h, company.companyID, marker, " \n\u00a0Detalle\t seguro  ", marker, at, nil)
 	exec(`UPDATE companies SET logo_url='https://example.test/logo.png' WHERE id=$1`, company.companyID)
 	check := func(wantRange string, wantScreening int) {
 		t.Helper()
-		list := publicFlowGet(t, h, "/v2/jobs?location="+url.QueryEscape(marker), 200)["items"].([]any)
+		list := publicFlowGet(t, h, "/v2/jobs?q="+url.QueryEscape(marker), 200)["items"].([]any)
 		if len(list) != 2 {
 			t.Fatalf("list=%v", list)
 		}

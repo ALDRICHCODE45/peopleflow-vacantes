@@ -63,11 +63,8 @@ func TestBuildUpdateCompanyParams_NameOnly(t *testing.T) {
 	if params.SetFoundedYear || params.FoundedYear.Valid {
 		t.Errorf("FoundedYear: want Set=false Valid=false, got set=%v valid=%v", params.SetFoundedYear, params.FoundedYear.Valid)
 	}
-	if params.SetCity || params.City.Valid {
-		t.Errorf("City: want Set=false Valid=false, got set=%v valid=%v", params.SetCity, params.City.Valid)
-	}
-	if params.SetCountry || params.Country.Valid {
-		t.Errorf("Country: want Set=false Valid=false, got set=%v valid=%v", params.SetCountry, params.Country.Valid)
+	if params.SetLocation || params.CountryCode.Valid || params.StateCode.Valid || params.MunicipalityCode.Valid || params.PostalCode.Valid {
+		t.Error("absent location must not set any columns")
 	}
 	if params.SetLinkedinUrl || params.LinkedinUrl.Valid {
 		t.Errorf("LinkedinUrl: want Set=false Valid=false, got set=%v valid=%v", params.SetLinkedinUrl, params.LinkedinUrl.Valid)
@@ -171,8 +168,7 @@ func TestBuildUpdateCompanyParams_ArgOrderMatchesSqlc(t *testing.T) {
 		"SetDescription", "Description",
 		"SetSize", "Size",
 		"SetFoundedYear", "FoundedYear",
-		"SetCity", "City",
-		"SetCountry", "Country",
+		"SetLocation", "CountryCode", "StateCode", "MunicipalityCode", "PostalCode",
 		"SetLinkedinUrl", "LinkedinUrl",
 		"SetInstagramUrl", "InstagramUrl",
 		"SetFacebookUrl", "FacebookUrl",

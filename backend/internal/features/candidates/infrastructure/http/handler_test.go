@@ -767,8 +767,8 @@ func TestUpsertProfile_FullReplacementContract(t *testing.T) {
 		if p == nil {
 			t.Fatal("expected profile to reach the repository")
 		}
-		if p.Phone != nil || p.LinkedInURL != nil || p.City != nil || p.Country != nil || p.FieldOfStudy != nil {
-			t.Errorf("omitted nullable fields must persist NULL, got phone=%v linkedin_url=%v city=%v country=%v field_of_study=%v", p.Phone, p.LinkedInURL, p.City, p.Country, p.FieldOfStudy)
+		if p.Phone != nil || p.LinkedInURL != nil || p.Location != nil || p.FieldOfStudy != nil {
+			t.Errorf("omitted nullable fields must persist NULL: %+v", p)
 		}
 		if p.Skills == nil || len(p.Skills) != 0 {
 			t.Errorf("omitted skills must become an empty list, got %v", p.Skills)
@@ -817,7 +817,7 @@ func TestUpsertProfile_FullReplacementContract(t *testing.T) {
 	t.Run("server-managed fields are ignored", func(t *testing.T) {
 		cRepo := &stubCandidateRepo{}
 		router := newTestRouter(newTestHandler(cRepo, uRepo))
-		body := `{"user_id": "` + uuid.New().String() + `", "created_at": "1999-01-01T00:00:00Z", "updated_at": "1999-01-01T00:00:00Z", "city": "CDMX"}`
+		body := `{"user_id": "` + uuid.New().String() + `", "created_at": "1999-01-01T00:00:00Z", "updated_at": "1999-01-01T00:00:00Z", "phone": "555"}`
 		rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", body, "sub-abc"))
 		if rec.Code != http.StatusOK {
 			t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
@@ -829,8 +829,8 @@ func TestUpsertProfile_FullReplacementContract(t *testing.T) {
 		if got.UserID != userID.String() {
 			t.Errorf("user_id is server-managed: want %s, got %s", userID, got.UserID)
 		}
-		if cRepo.upserted.City == nil || *cRepo.upserted.City != "CDMX" {
-			t.Errorf("client-owned fields must still bind, got %v", cRepo.upserted.City)
+		if cRepo.upserted.Phone == nil || *cRepo.upserted.Phone != "555" {
+			t.Error("client-owned fields must still bind")
 		}
 	})
 }

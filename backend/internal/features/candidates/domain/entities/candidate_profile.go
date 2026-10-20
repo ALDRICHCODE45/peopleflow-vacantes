@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 )
 
 // Sentinel errors. Each maps to exactly one HTTP status in the HTTP layer's
@@ -78,8 +79,7 @@ type CandidateProfile struct {
 
 	// Personal. BirthDate is intentionally nullable per §1.9.
 	BirthDate *time.Time
-	City      *string
-	Country   *string
+	Location  *geo.Value
 
 	// Education.
 	EducationLevel *valueobjects.EducationLevel

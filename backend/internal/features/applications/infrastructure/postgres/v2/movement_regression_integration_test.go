@@ -98,7 +98,18 @@ func movementItemKeys(t *testing.T, obj map[string]any, extra ...string) {
 	movementKeys(t, obj["candidate"], "id", "full_name")
 	movementKeys(t, obj["cv"], "id", "name")
 	if !mutation {
-		movementKeys(t, obj["profile"], "city", "skills", "years_of_experience", "education_level")
+		profile := movementKeys(t, obj["profile"], "location", "skills", "years_of_experience", "education_level")
+		if profile["location"] != nil {
+			location := movementKeys(t, profile["location"], "country", "state", "municipality", "postal_code", "label")
+			if location["postal_code"] != nil {
+				t.Fatal("profile postal code must be null")
+			}
+			for _, key := range []string{"country", "state", "municipality"} {
+				if location[key] != nil {
+					movementKeys(t, location[key], "id", "name")
+				}
+			}
+		}
 		for _, a := range obj["screening_answers"].([]any) {
 			movementKeys(t, a, "question_id", "option_id")
 		}
@@ -222,7 +233,7 @@ func readyMovementConfiguration(t *testing.T, m movementFixture) {
 			t.Error(err)
 		}
 	})
-	d, err := draftinput.DecodeCreateV2([]byte(`{"fields":{"title":"Engineer","location":"CDMX","work_mode":"remote","work_schedule":"full_time","contract_type":"indefinite","professional_area":"technology_systems","requester":{"kind":"internal_area","id":"` + requester.String() + `"},"description":{"schema_version":1,"document":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Role"}]}]}},"screening_questions":[{"id":"11111111-1111-4111-8111-111111111111","type":"open","prompt":"Why?"}]}}`))
+	d, err := draftinput.DecodeCreateV2([]byte(`{"fields":{"title":"Engineer","location":null,"remote_scope":{"kind":"anywhere"},"work_mode":"remote","work_schedule":"full_time","contract_type":"indefinite","professional_area":"technology_systems","requester":{"kind":"internal_area","id":"` + requester.String() + `"},"description":{"schema_version":1,"document":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"Role"}]}]}},"screening_questions":[{"id":"11111111-1111-4111-8111-111111111111","type":"open","prompt":"Why?"}]}}`))
 	if err != nil {
 		t.Fatal(err)
 	}

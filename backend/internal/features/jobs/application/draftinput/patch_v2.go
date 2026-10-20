@@ -76,7 +76,9 @@ func composePatchV2(object map[string]any) (PatchV2, error) {
 		return PatchV2{}, validationError(err)
 	}
 	out.Title = scalars.Title
-	out.Location = scalars.Location
+	if err := composeGeography(object, &out.Fields); err != nil {
+		return PatchV2{}, err
+	}
 	out.WorkMode = scalars.WorkMode
 	out.WorkSchedule = scalars.WorkSchedule
 	out.ContractType = scalars.ContractType

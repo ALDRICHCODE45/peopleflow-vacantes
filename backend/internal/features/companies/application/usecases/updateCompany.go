@@ -7,7 +7,7 @@
 //  3. VO parse → 400 sentinel.        4. Build the patch.
 //  5. Update (0 rows after step 1 = CAS loss, even if DELETE tombstoned).
 //  6. On 0 rows → (pre-race view, ErrConcurrencyConflict).
-//  7. On success → re-read for post-write UpdatedAt, project.
+//  7. On success → project the exact row captured in the write transaction.
 //
 // Return contract: success → (view, nil); ErrConcurrencyConflict →
 // (pre-race view, err); ErrCompanyNotFound / VO 4xx / 500-class → (nil, err).
@@ -23,6 +23,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 	"github.com/google/uuid"
 )
 
@@ -78,7 +79,7 @@ func (s *CompanyService) UpdateCompany(
 	//    If-Unmodified-Since returns 409". The 409 body carries the
 	//    latest editor view (spec R3).
 	if !ifUnmodifiedSince.Equal(current.UpdatedAt) {
-		return toCompanyEditorView(current), entities.ErrConcurrencyConflict
+		return s.editorView(ctx, current, entities.ErrConcurrencyConflict)
 	}
 
 	// 3. VO parse + 4. Build the patch (canonicalize size / founded_year;
@@ -90,13 +91,22 @@ func (s *CompanyService) UpdateCompany(
 		Description:   in.Description,
 		Size:          in.Size,
 		FoundedYear:   in.FoundedYear,
-		City:          in.City,
-		Country:       in.Country,
 		LinkedInURL:   in.LinkedInURL,
 		InstagramURL:  in.InstagramURL,
 		FacebookURL:   in.FacebookURL,
 		TwitterURL:    in.TwitterURL,
 		CoverImageURL: in.CoverImageURL,
+	}
+
+	if in.Location.Set {
+		patch.Location.Set = true
+		patch.Location.Valid = in.Location.Valid
+		if in.Location.Valid {
+			if err := geo.ValidateLocation(ctx, s.geography, &in.Location.Value, true); err != nil {
+				return nil, err
+			}
+			patch.Location.Value = *in.Location.Value.Value()
+		}
 	}
 
 	if in.Name != nil {
@@ -156,6 +166,26 @@ func (s *CompanyService) UpdateCompany(
 		patch.FoundedYear.Value = v
 	}
 
+	// Prepare both success and lost-race editor locations before any write.
+	// Even a catalog error on the conflict shape must leave storage unchanged.
+	currentView, err := s.editorView(ctx, current, nil)
+	if err != nil {
+		return nil, err
+	}
+	location := currentView.Location
+	if in.Location.Set {
+		value := current.Location
+		if in.Location.Valid {
+			value = &patch.Location.Value
+		} else {
+			value = nil
+		}
+		location, err = s.ReadLocation(ctx, value)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// 5. Build the audit event the adapter will append in the same
 	//    `pgx.Tx` after the SQL UPDATE and before `tx.Commit` (D7 /
 	//    D9). The event ID is a fresh UUIDv7; the adapter does NOT
@@ -166,14 +196,20 @@ func (s *CompanyService) UpdateCompany(
 	eventID, _ := uuid.NewV7()
 	event := newCompanyUpdatedEvent(eventID, companyID, userID)
 
-	// 6. Update — adapter returns ErrCompanyNotFound on 0 rows AND
-	//    appends the event inside the SAME tx (fail-closed co-write).
-	if err := s.repository.UpdateCompany(ctx, companyID, patch, current.UpdatedAt, event); err != nil {
+	// 6. The editor requires an atomic written-row result. Never fall back to
+	// the error-only write followed by a post-commit read: a later PATCH could
+	// supply a newer CAS token while location still comes from this request.
+	writer, ok := s.repository.(repositories.CompanyEditorUpdater)
+	if !ok {
+		return nil, errors.New("company editor writer not configured")
+	}
+	fresh, err := writer.UpdateCompanyReturning(ctx, companyID, patch, current.UpdatedAt, event)
+	if err != nil {
 		if errors.Is(err, entities.ErrCompanyNotFound) {
 			// Post-WS2D-B: ANY 0-row adapter result after step-1
 			// observation is a concurrent CAS loss. Re-read removed —
 			// return 409 + pre-race editor view (spec R3 shape).
-			return toCompanyEditorView(current), entities.ErrConcurrencyConflict
+			return currentView, entities.ErrConcurrencyConflict
 		}
 		// 23514 → ErrInvalidCompanyStatusTransition (defense-in-depth;
 		// unreachable via the designed flow — the use case parses
@@ -182,17 +218,19 @@ func (s *CompanyService) UpdateCompany(
 		return nil, err
 	}
 
-	// 7. On 1 row success → re-read for the authoritative post-write
-	//    UpdatedAt (the SQL UPDATE used clock_timestamp(); the use
-	//    case re-reads for the exact value the client echoes as the
-	//    next CAS token).
-	fresh, err := s.repository.GetCompanyForUpdate(ctx, companyID)
+	// 7. CAS ensures the pre-expanded location (current + patch) is the location
+	// of this exact written row. Catalog failures were handled before the write;
+	// no catalog or company reads occur after commit.
+	// 8. Project the editor view and return.
+	return toCompanyEditorView(fresh, location), nil
+}
+
+func (s *CompanyService) editorView(ctx context.Context, c *entities.Company, result error) (*dtos.CompanyEditorViewDto, error) {
+	location, err := s.ReadLocation(ctx, c.Location)
 	if err != nil {
 		return nil, err
 	}
-
-	// 8. Project the editor view and return.
-	return toCompanyEditorView(fresh), nil
+	return toCompanyEditorView(c, location), result
 }
 
 // toCompanyEditorView is the single projection from the companies
@@ -201,15 +239,14 @@ func (s *CompanyService) UpdateCompany(
 // compatible (spec requirement: "200 and 409 bodies use the same
 // shape"). It is intentionally a package-private helper — no other
 // layer needs it.
-func toCompanyEditorView(c *entities.Company) *dtos.CompanyEditorViewDto {
+func toCompanyEditorView(c *entities.Company, location *geo.ReadLocation) *dtos.CompanyEditorViewDto {
 	view := &dtos.CompanyEditorViewDto{
 		ID:            c.ID.String(),
 		Name:          c.Name.Value(),
-		UpdatedAt:     c.UpdatedAt,
+		UpdatedAt:     c.UpdatedAt.UTC(),
 		Website:       c.Website,
 		LogoURL:       c.LogoURL,
-		City:          c.City,
-		Country:       c.Country,
+		Location:      location,
 		LinkedInURL:   c.LinkedInURL,
 		InstagramURL:  c.InstagramURL,
 		FacebookURL:   c.FacebookURL,

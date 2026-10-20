@@ -13,6 +13,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 	sharedvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/valueobjects"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -199,6 +200,8 @@ func (r *CompanyRepository) GetCompanyForUpdate(ctx context.Context, companyID u
 // inside the SAME `pgx.Tx` (companies-audit design D9 — fail-closed
 // co-write, mirror of the applications slice).
 //
+// UpdateCompany preserves the error-only persistence port for non-editor callers;
+// the same transaction also captures the written row for CompanyEditorUpdater.
 // Operation order (D9):
 //  1. pool.Begin
 //  2. defer tx.Rollback (canonical; covers every error path below)
@@ -211,10 +214,8 @@ func (r *CompanyRepository) GetCompanyForUpdate(ctx context.Context, companyID u
 //     and aborts the tx via the deferred Rollback
 //  7. tx.Commit — both writes become visible atomically
 //
-// The D3 SQL sets `updated_at = clock_timestamp()` on a successful
-// update, so the authoritative post-write value is the next
-// `GetCompanyForUpdate`'s result (the use case re-reads to obtain it
-// — design D12 step 7).
+// The D3 SQL sets updated_at = clock_timestamp(). Capture that value and all
+// fields in the same transaction while UPDATE still holds the row lock.
 //
 // Returns:
 //
@@ -225,28 +226,45 @@ func (r *CompanyRepository) GetCompanyForUpdate(ctx context.Context, companyID u
 //	                                     soft-delete race — NO append)
 //	other error                          propagated unchanged (HTTP 500)
 func (r *CompanyRepository) UpdateCompany(ctx context.Context, companyID uuid.UUID, patch repositories.UpdateCompanyPatch, casUpdatedAt time.Time, event auditentities.AuditEvent) error {
+	_, err := r.UpdateCompanyReturning(ctx, companyID, patch, casUpdatedAt, event)
+	return err
+}
+
+var _ repositories.CompanyEditorUpdater = (*CompanyRepository)(nil)
+
+// UpdateCompanyReturning captures the exact updated row before releasing the
+// UPDATE lock. A concurrent PATCH after commit cannot change this response.
+func (r *CompanyRepository) UpdateCompanyReturning(ctx context.Context, companyID uuid.UUID, patch repositories.UpdateCompanyPatch, casUpdatedAt time.Time, event auditentities.AuditEvent) (*entities.Company, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer tx.Rollback(ctx)
-
-	updated, err := db.New(tx).UpdateCompany(ctx, buildUpdateCompanyParams(companyID, patch, casUpdatedAt))
+	queries := db.New(tx)
+	updated, err := queries.UpdateCompany(ctx, buildUpdateCompanyParams(companyID, patch, casUpdatedAt))
 	if err != nil {
-		return mapUpdateCompanyError(err)
+		return nil, mapUpdateCompanyError(err)
 	}
 	if updated == 0 {
-		return entities.ErrCompanyNotFound
+		return nil, entities.ErrCompanyNotFound
 	}
-
-	// Fail-closed: an audit INSERT failure aborts the whole transaction
-	// (the deferred Rollback restores pre-state; no company mutation
-	// is visible).
-	if err := r.audit.Append(ctx, tx, event); err != nil {
-		return fmt.Errorf("co-write audit: %w", err)
+	row, err := queries.GetCompanyByID(ctx, companyID)
+	if err != nil {
+		return nil, err
 	}
-
-	return tx.Commit(ctx)
+	written, err := toEntity(row)
+	if err != nil {
+		return nil, err
+	}
+	// Fail closed on audit/read/hydration/commit errors: never return a success
+	// row for a transaction that did not commit both the company and its audit.
+	if err = r.audit.Append(ctx, tx, event); err != nil {
+		return nil, fmt.Errorf("co-write audit: %w", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return written, nil
 }
 
 // SoftDeleteCompany tombstones the row (`deleted_at = now()`,
@@ -370,23 +388,26 @@ func buildCreateParams(c *entities.Company) db.CreateCompanyParams {
 		descStr = c.Description.Value()
 	}
 
+	country, state, municipality, postal := locationColumns(c.Location)
 	return db.CreateCompanyParams{
-		ID:            c.ID,
-		Name:          c.Name.Value(),
-		Rfc:           c.Rfc.Value(),
-		IndustryID:    c.IndustryID,
-		Website:       textPtrToPgText(c.Website),
-		LogoUrl:       textPtrToPgText(c.LogoURL),
-		Description:   pgtype.Text{String: descStr, Valid: c.Description != nil},
-		Size:          pgtype.Text{String: sizeStr, Valid: c.Size != nil},
-		FoundedYear:   year,
-		City:          textPtrToPgText(c.City),
-		Country:       textPtrToPgText(c.Country),
-		LinkedinUrl:   textPtrToPgText(c.LinkedInURL),
-		InstagramUrl:  textPtrToPgText(c.InstagramURL),
-		FacebookUrl:   textPtrToPgText(c.FacebookURL),
-		TwitterUrl:    textPtrToPgText(c.TwitterURL),
-		CoverImageUrl: textPtrToPgText(c.CoverImageURL),
+		ID:               c.ID,
+		Name:             c.Name.Value(),
+		Rfc:              c.Rfc.Value(),
+		IndustryID:       c.IndustryID,
+		Website:          textPtrToPgText(c.Website),
+		LogoUrl:          textPtrToPgText(c.LogoURL),
+		Description:      pgtype.Text{String: descStr, Valid: c.Description != nil},
+		Size:             pgtype.Text{String: sizeStr, Valid: c.Size != nil},
+		FoundedYear:      year,
+		CountryCode:      country,
+		StateCode:        state,
+		MunicipalityCode: municipality,
+		PostalCode:       postal,
+		LinkedinUrl:      textPtrToPgText(c.LinkedInURL),
+		InstagramUrl:     textPtrToPgText(c.InstagramURL),
+		FacebookUrl:      textPtrToPgText(c.FacebookURL),
+		TwitterUrl:       textPtrToPgText(c.TwitterURL),
+		CoverImageUrl:    textPtrToPgText(c.CoverImageURL),
 	}
 }
 
@@ -434,6 +455,10 @@ func toEntity(row db.Company) (*entities.Company, error) {
 		foundedYear = &y
 	}
 
+	var location *geo.Value
+	if row.CountryCode.Valid {
+		location = &geo.Value{Country: row.CountryCode.String, State: row.StateCode.String, Municipality: row.MunicipalityCode.String, PostalCode: row.PostalCode.String}
+	}
 	return &entities.Company{
 		ID:            row.ID,
 		Name:          name,
@@ -445,8 +470,7 @@ func toEntity(row db.Company) (*entities.Company, error) {
 		Description:   description,
 		Size:          size,
 		FoundedYear:   foundedYear,
-		City:          pgTextToTextPtr(row.City),
-		Country:       pgTextToTextPtr(row.Country),
+		Location:      location,
 		LinkedInURL:   pgTextToTextPtr(row.LinkedinUrl),
 		InstagramURL:  pgTextToTextPtr(row.InstagramUrl),
 		FacebookURL:   pgTextToTextPtr(row.FacebookUrl),
@@ -459,6 +483,14 @@ func toEntity(row db.Company) (*entities.Company, error) {
 }
 
 // --- nullable column helpers: entity pointers <-> pgtype wrappers ---
+
+func locationColumns(value *geo.Value) (country, state, municipality, postal pgtype.Text) {
+	if value == nil {
+		return
+	}
+	text := func(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }
+	return text(value.Country), text(value.State), text(value.Municipality), text(value.PostalCode)
+}
 
 func textPtrToPgText(s *string) pgtype.Text {
 	if s == nil {
@@ -504,8 +536,12 @@ func mapCompanyCreateError(err error) error {
 		switch pgErr.Code {
 		case "23505": // unique_violation
 			return entities.ErrDuplicateCompany
-		case "23503": // foreign_key_violation
-			return entities.ErrIndustryNotFound
+		case "23503": // Only the industry FK is a client industry error.
+			// Catalog writes were validated; a later catalog FK failure is a
+			// storage race/integrity error, never a misleading industry response.
+			if pgErr.ConstraintName == "companies_industry_id_fkey" {
+				return entities.ErrIndustryNotFound
+			}
 		}
 	}
 	return err
@@ -533,6 +569,11 @@ func mapCompanyCreateError(err error) error {
 // (lowercase for `companies_size_check`), founded_year is the int,
 // name/description are the trimmed raw values.
 func buildUpdateCompanyParams(companyID uuid.UUID, patch repositories.UpdateCompanyPatch, casUpdatedAt time.Time) db.UpdateCompanyParams {
+	var location *geo.Value
+	if patch.Location.Set && patch.Location.Valid {
+		location = &patch.Location.Value
+	}
+	country, state, municipality, postal := locationColumns(location)
 	return db.UpdateCompanyParams{
 		Name:             textPtrToPgText(patch.Name),
 		SetWebsite:       patch.Website.Set,
@@ -545,10 +586,11 @@ func buildUpdateCompanyParams(companyID uuid.UUID, patch repositories.UpdateComp
 		Size:             optionalStringToPgText(patch.Size),
 		SetFoundedYear:   patch.FoundedYear.Set,
 		FoundedYear:      optionalIntToPgInt2(patch.FoundedYear),
-		SetCity:          patch.City.Set,
-		City:             optionalStringToPgText(patch.City),
-		SetCountry:       patch.Country.Set,
-		Country:          optionalStringToPgText(patch.Country),
+		SetLocation:      patch.Location.Set,
+		CountryCode:      country,
+		StateCode:        state,
+		MunicipalityCode: municipality,
+		PostalCode:       postal,
 		SetLinkedinUrl:   patch.LinkedInURL.Set,
 		LinkedinUrl:      optionalStringToPgText(patch.LinkedInURL),
 		SetInstagramUrl:  patch.InstagramURL.Set,

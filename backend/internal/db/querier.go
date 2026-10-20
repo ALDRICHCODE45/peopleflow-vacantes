@@ -114,6 +114,14 @@ type Querier interface {
 	// the adapter re-fetches by cognito_sub to return the existing entity.
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) error
+	GeoCountries(ctx context.Context) ([]GeoCountriesRow, error)
+	GeoCountryExists(ctx context.Context, code string) (bool, error)
+	GeoLatestImport(ctx context.Context) (int64, error)
+	GeoMunicipalities(ctx context.Context, arg GeoMunicipalitiesParams) ([]GeoMunicipalitiesRow, error)
+	GeoMunicipalityState(ctx context.Context, arg GeoMunicipalityStateParams) (string, error)
+	GeoPostalMatches(ctx context.Context, arg GeoPostalMatchesParams) ([]GeoPostalMatchesRow, error)
+	GeoStateExists(ctx context.Context, arg GeoStateExistsParams) (bool, error)
+	GeoStates(ctx context.Context, countryCode string) ([]GeoStatesRow, error)
 	// Recruiter detail endpoint (design D5 / spec scenario "recruiter gets
 	// an application's detail"). Scopes by (id, job_id, company_id) and
 	// joins users (full_name) + candidate_profiles (LEFT JOIN — professional
@@ -458,6 +466,8 @@ type Querier interface {
 	// UPDATE SET list, so a preexisting reserved value survives every upsert.
 	UpsertCandidateProfile(ctx context.Context, arg UpsertCandidateProfileParams) (CandidateProfile, error)
 	UpsertVacancyPublicProjection(ctx context.Context, arg UpsertVacancyPublicProjectionParams) error
+	VacancyLocationRead(ctx context.Context, arg VacancyLocationReadParams) ([]byte, error)
+	VacancyRemoteCountriesRead(ctx context.Context, countries []string) ([]byte, error)
 }
 
 var _ Querier = (*Queries)(nil)

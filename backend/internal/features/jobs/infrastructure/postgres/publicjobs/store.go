@@ -4,11 +4,13 @@ package publicjobs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	catalog "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publicjobs"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -19,7 +21,10 @@ func NewStore(queries *db.Queries) *Store { return &Store{queries: queries} }
 var _ catalog.Reader = (*Store)(nil)
 
 func (s *Store) Search(ctx context.Context, q catalog.Query) ([]catalog.Row, error) {
-	p := db.SearchPublicJobsParams{Q: q.Q, Location: q.Location, WorkMode: q.WorkMode, WorkSchedule: q.WorkSchedule, ContractType: q.ContractType, ProfessionalArea: q.ProfessionalArea, PageLimit: int32(q.Limit)}
+	if err := catalog.ValidateFilters(ctx, s, q); err != nil {
+		return nil, fmt.Errorf("validate public filters: %w", err)
+	}
+	p := db.SearchPublicJobsParams{Q: q.Q, States: q.States, Municipalities: q.Municipalities, WorkModes: q.WorkModes, ApplicantCountry: q.ApplicantCountry, WorkSchedule: q.WorkSchedule, ContractType: q.ContractType, ProfessionalArea: q.ProfessionalArea, PageLimit: int32(q.Limit)}
 	if q.After != nil {
 		p.CursorRank = q.After.Rank
 		p.CursorTs = pgtype.Timestamptz{Time: q.After.PublishedAt, Valid: true}
@@ -27,6 +32,19 @@ func (s *Store) Search(ctx context.Context, q catalog.Query) ([]catalog.Row, err
 		p.CursorID = q.After.ID
 	}
 	return s.search(ctx, p)
+}
+func (s *Store) CountryExists(ctx context.Context, country string) (bool, error) {
+	return s.queries.GeoCountryExists(ctx, country)
+}
+func (s *Store) StateExists(ctx context.Context, country, state string) (bool, error) {
+	return s.queries.GeoStateExists(ctx, db.GeoStateExistsParams{CountryCode: country, Code: state})
+}
+func (s *Store) MunicipalityState(ctx context.Context, country, municipality string) (string, error) {
+	state, err := s.queries.GeoMunicipalityState(ctx, db.GeoMunicipalityStateParams{CountryCode: country, Code: municipality})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return state, err
 }
 func (s *Store) Get(ctx context.Context, id uuid.UUID) (catalog.Detail, error) {
 	rows, err := s.search(ctx, db.SearchPublicJobsParams{DetailID: pgtype.UUID{Bytes: id, Valid: true}, PageLimit: 1})

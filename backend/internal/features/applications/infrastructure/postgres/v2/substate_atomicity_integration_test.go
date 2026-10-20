@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	board "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
-	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
 	boardstore "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/board"
 	auditentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
@@ -44,7 +43,7 @@ func assertBoardMatchesMutationItem(t *testing.T, current, mutation, initial boa
 	if !reflect.DeepEqual(current.Profile, initial.Profile) || !reflect.DeepEqual(current.ScreeningAnswers, initial.ScreeningAnswers) {
 		t.Fatal("substate operation changed immutable board filter data")
 	}
-	current.Profile = app.ProfileSnapshot{}
+	current.Profile = board.Profile{}
 	current.ScreeningAnswers = nil
 	if !reflect.DeepEqual(current, mutation) {
 		t.Fatal("board and mutation item fields differ")

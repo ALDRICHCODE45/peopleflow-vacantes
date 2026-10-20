@@ -1,95 +1,90 @@
-# Board filter data (§19)
+# Board filter data (§19, G4 geography)
 
-Apply migration **00029** with `make db-migrate` before running this API.
-Branch `feat/pipeline-filter-data` is stacked on cut 7 (review queue row 10).
-Authority: `docs/pipeline-customization-design.md` §19; filtering semantics: §18.
+Apply migrations through **00033** before running this API. G4 (`feat/geo-apply`)
+replaces the city snapshot/filter with structured geography. Authority:
+`docs/geo-location-design.md` §20.2/§20.6 and pipeline design §19/§18.
 
-## Contract
+## Contract and privacy
 
-All keys are always present. Existing board/detail authorization and
-`Cache-Control: no-store` remain unchanged: vacancy owner or principal recruiter only.
+Existing owner/principal authorization and `Cache-Control: no-store` are unchanged.
+All routes start at `/v2/me/company/job-drafts/{vacancyId}`.
 
-- `GET …/board` gains `screening_filters: [{question_id, prompt, options: [{id,label}]}]`.
-  These are the **current** questionnaire's single-choice questions, in questionnaire
-  order, with options in entered order. No questions/only open questions → `[]`.
-  The composition root reuses the safe screening projector: no answer keys,
-  evaluation flags, scores or correctness are exposed.
-- Every board item gains `screening_answers: [{question_id,option_id}]`: only
-  single-choice answers, in stored **answers_snapshot** order, classified using
-  **questions_snapshot**, never the current questionnaire. Removed questions/options
-  remain in answers but disappear from the current filter catalog. Open text is absent.
-- Every board item and participation detail gain
-  `profile: {city, skills, years_of_experience, education_level}`. The detail extends
-  the board item (including `screening_answers`) and retains its existing complete
-  frozen `screening` projection. Move/discard/recover/substate
-  responses keep their previous key sets: these new fields are read-only board/detail data.
-- Legacy participations with SQL NULL snapshots return
-  `{"city":null,"skills":[],"years_of_experience":null,"education_level":null}`.
+- `GET …/board` includes `screening_filters: [{question_id,prompt,options:[{id,label}]}]`:
+  current single-choice questions/options in entered order, using the safe projector.
+  No choices → `[]`; never evaluation flags, answer keys, scores or correctness.
+- Board items and `GET …/participations/{id}` include `screening_answers:
+  [{question_id,option_id}]`: single-choice identifiers only, in frozen answer order,
+  classified by frozen questions (not the current questionnaire). Open text stays
+  confined to the authorized detail's existing `screening` projection.
+- Both reads include `profile: {location,skills,years_of_experience,education_level}`.
+  `location` is null or exactly the five-key read shape:
 
-All paths above are under `/v2/me/company/job-drafts/{vacancyId}`;
-participation detail is `/participations/{participationId}`.
-See [movement](pipeline-movement.md) for complete root/item keys.
+```json
+{"country":{"id":"MX","name":"México"},"state":{"id":"14","name":"Jalisco"},"municipality":{"id":"14039","name":"Guadalajara"},"postal_code":null,"label":"Guadalajara, Jalisco"}
+```
 
-## Snapshot and normalization
+Country-only and state-only locations have null lower subdivisions. Labels use
+municipality + state, otherwise state, otherwise country. Names come from catalogs
+for the **frozen codes**, never the candidate's current profile. `postal_code` is
+always null. References are exactly `{id,name}`.
 
-P2b apply reads only city, skills, years and education from `candidate_profiles`
-inside the existing apply transaction. A missing profile produces the no-data
-object above. City is trimmed and every run of Unicode whitespace is collapsed
-into one ASCII space; empty becomes null. Skills are copied as stored, including
-order and duplicates; years and education are copied unchanged. Zero years is data,
-not null. Education is `high_school | bachelor | master | phd | null`.
+Move/discard/recover/substate responses **never** include `profile` or
+`screening_answers` (§19.2b). Candidate apply/list, public APIs, history, CV metadata,
+audit metadata and request logs do not gain profile data. No phone, email, birth
+date, salary or other profile fields are selected by snapshot creation.
 
-Snapshot creation is atomic with participation, intake history, audit, delivery
-and idempotency. Candidate profile edits never update old participations. Replay
-returns the original response before reading the profile, without re-snapshotting.
-Rejected/rolled-back applications leave no snapshot. Profile values are not added
-to audit metadata or the candidate apply response.
+SQL NULL snapshots and missing profiles read as:
 
-Migration 00029 adds a nullable JSONB column with an exact four-key shape CHECK:
-city string/null, skills string array, years non-negative integer/null, education
-from the enum/null. No default or backfill. Down refuses while any non-null snapshot
-exists, including an all-no-data snapshot; retention/removal needs an explicit
-separate decision. Empty-of-snapshots down preserves legacy participations.
-Migration 00028's rollback test is pinned to its own version.
+```json
+{"location":null,"skills":[],"years_of_experience":null,"education_level":null}
+```
 
-## Privacy and client filtering
+## Immutable storage
 
-No new data appears in candidate `/v2/me/*`, anonymous `/v2/jobs*`, mutation responses, history, CV
-metadata or other APIs. No phone, email, birth date, salary, country or other profile
-fields are read by snapshot creation. Open screening answers remain confined to
-the existing authorized participation detail, never the board.
+Apply reads current country/state/municipality codes, skills, years and education
+inside its transaction, **after replay** and before the country gate. It stores
+`location: {country,state,municipality}` (codes, each subdivision nullable), or null.
+Skills retain order/duplicates; zero years is data. Snapshot, participation, intake,
+audit, delivery and idempotency commit together. Rejections write none. Profile
+edits and replays never update snapshots. See [apply gate](geo-apply.md).
 
-The ≤1,000-item board is still filtered client-side: OR within each multi-select
-dimension, AND across dimensions, empty selection = no filter. Profile options
-are derived from board items. City/skills values use casefolded normalized labels;
-experience buckets are `[0,1)`, `[1,3)`, `[3,5)`, `[5,∞)`, with `none` for no data.
-There are no server-side filter parameters in this cut. An answer with a removed
-question/option matches no current option; a missing answer uses `none`.
+00033 rewrites existing non-null JSONB snapshots: remove `city`, add `location:null`,
+preserve other values. SQL NULL stays SQL NULL. Its CHECK allows exactly the four
+root keys, with exact three-key location or null, uppercase two-letter country,
+MX-only two-digit state, five-digit municipality prefixed by its required state,
+strict string-array skills, nonnegative integer/null years, enum/null education.
+Down removes `location`, restores `city:null` and the exact 00029 CHECK, preserving
+other data. A later 00029 down still refuses retained snapshots.
 
-## Test map
+## Frontend filter change
 
-| Tests | §19 rules protected |
-| --- | --- |
-| `TestProfileSnapshotNormalization` | §19.2 Unicode whitespace, empty/missing city, preserved skill order/duplicates, zero years, education, exact keys, independent copy, missing-profile defaults |
-| `TestScreeningFilterDataUsesOnlyChoiceAndKeepsSnapshotOrder` | §19.1 safe identifier-only answers, open exclusion, stored answer order, case-insensitive question identity, current-questionnaire order, exact option/filter keys, empty arrays |
-| `TestBoardFilterDataUsesSafeCurrentScreeningProjector` | §19.1 composition-root reuse of safe current questionnaire projection, evaluated choices without private keys/flags, empty/open-only catalogs |
-| `TestFilterDataApplySnapshotNormalizationAndReplay` (DB) | §19.2–§19.3 actual transactional snapshot, missing profile, empty/whitespace/collapsed city, every field, immutable after profile edits, frozen replay, invalid answers/unavailable CV/stale revision/audit failure leave none, duplicate/conflicting applies preserve the original |
-| `TestFilterDataBoardDetailLegacyCurrentQuestionnaireAndPrivacy` (DB) | §19.1–§19.2 exact root/item/detail/profile keys, legacy defaults, edited questionnaire removes question/option only from filters, open-text exclusion, positive applied profile on board/detail and immutable replay, candidate apply/list, mutation/history and public list/detail/screening privacy, no-question catalog |
-| `TestBoardFilterDataMigration` | §19.3 additive nullable shape CHECK and retention-guarded down definition |
-| `TestMigration00029ExistingRowsShapeAndGuardedDown` (DB) | §19.3 existing-row preservation, complete valid/invalid shape matrix (including nested/non-string skills and fractional/negative years), retained-data down refusal, empty down preserves rows |
-| `TestFilterDataOnlyOnBoardAndDetailNotMutations` | §19.2 privacy allowlist: board/detail contain the new fields; mutation responses do not |
-| Updated movement/substate/column-editing exact-wire tests | §19 additive root/item/detail changes; existing mutation key sets preserved |
-| Existing owner/principal, cross-vacancy and real-router gate tests | §19.2 authorization and no-store remain in force |
-| Existing `TestParticipationAuditFailureRollsBackAllEffects` | §19.3 same-transaction rollback after snapshot insertion |
+Replace **city** with two multi-select dimensions: **state** and **municipality**.
+Use reference `id` as value and `name` as label; derive available options from board
+items' `profile.location` (not live profiles). Null location/subdivision maps to
+`none` («Sin dato»). Do not casefold catalog identifiers. Skills retain casefolded
+normalized-label filtering; experience buckets remain `[0,1)`, `[1,3)`, `[3,5)`,
+`[5,∞)`; education is unchanged. OR within each dimension, AND across dimensions,
+empty selection = no filter. Filtering remains **client-side** on the ≤1,000 board;
+there are no new server-side board filter parameters. Removed screening identities
+match no current option; missing answers use `none`.
 
-## Validation
+## Tests and validation boundary
 
-From `backend/`: `go tool sqlc generate`, `gofmt -w` on changed Go files,
-focused tests, `go test ./... -count=1`, `go vet ./...`, and
-`go vet -tags=integration ./...`.
+- `TestProfileSnapshotNormalization`, `TestGeoSnapshotMissingProfileWire`: exact
+  storage allowlist, codes/null, independent copies, skills order/duplicates, zero years.
+- `TestFilterDataOnlyOnBoardAndDetailNotMutations`: read-only privacy allowlist.
+- Existing screening-filter tests: safe identifiers, snapshot/current ordering, open exclusion.
+- `TestGeoSnapshotCurrentCodesAndExpandedBoardDetailWire` (DB): exact five-key locations,
+  exact `{id,name}` references, country/state/municipality labels, null postal,
+  current-at-apply values, immutable after edits/replay, board/detail parity.
+- Updated filter-data/movement exact-wire and privacy tests (DB): legacy defaults,
+  immutable snapshots, mutation/candidate/public/history/audit/log exclusion.
+- `TestGeoApplyMigrationShapeAndRewrites` and
+  `TestMigration00033SnapshotRewriteConstraintsAndDown` (DB): rewrites, SQL NULL,
+  valid/invalid nested/root shapes, strict skills, exact down constraint restoration.
 
-DB tests compile but execution is deferred to the parent on an existing isolated
-loopback database named `draft_test`, with `DRAFT_TEST_DATABASE_URL`. No database
-is created by the implementation run. Run migration rollback tests separately
-from application tests sharing that database. Compilation/skips do not prove SQL
-constraints, transaction behavior or database privacy projections.
+From `backend/`: `go tool sqlc generate`, gofmt on changed files, focused tests,
+`go test ./... -count=1`, `go vet ./...`, `go vet -tags=integration ./...`.
+The parent runs DB tests on an existing isolated loopback `draft_test` via
+`DRAFT_TEST_DATABASE_URL`; run migration rollback tests separately. Compilation
+and skips do not prove SQL, atomicity or DB privacy behavior. No DB is created here.
