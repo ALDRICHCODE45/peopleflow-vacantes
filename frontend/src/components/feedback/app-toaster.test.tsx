@@ -32,7 +32,7 @@ describe("application notifications", () => {
     expect(await screen.findByText("Cambios confirmados")).toBeInTheDocument();
     expect(screen.getByText("Resultado de prueba.")).toBeInTheDocument();
     expect(container.querySelector('[data-sileo-pill]')).toHaveAttribute("fill", "var(--popover)");
-    expect(container.querySelector('[data-sileo-viewport]')).toHaveAttribute("data-position", "top-right");
+    expect(container.querySelector('[data-sileo-viewport]')).toHaveAttribute("data-position", "bottom-right");
     expect(container.querySelectorAll('[aria-live="polite"]')).toHaveLength(1);
   });
 });

@@ -14,7 +14,7 @@ const options: Partial<SileoOptions> = {
 export function AppToaster() {
   return (
     <div data-pf-toaster="">
-      <Toaster position="top-right" theme="light" options={options} />
+      <Toaster position="bottom-right" theme="light" options={options} />
     </div>
   );
 }

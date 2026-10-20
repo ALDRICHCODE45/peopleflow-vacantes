@@ -660,7 +660,7 @@ puede hacer la persona ahora.** Un párrafo rojo suelto, largo o con jerga técn
 
 | Qué | Patrón | Pieza |
 | --- | --- | --- |
-| Resultado de una acción (guardar, crear, cargar) | Toast de Sileo arriba a la derecha | `notifyActionResult` (`@/components/feedback/notify`) |
+| Resultado de una acción (guardar, crear, cargar) | Toast de Sileo abajo a la derecha (no tapa el botón de tema del encabezado) | `notifyActionResult` (`@/components/feedback/notify`) |
 | Estado persistente de esa acción | Una línea breve junto al botón, con ícono | `ActionStatus` en un `ActionBar` (`@/components/feedback/action-status`) |
 | Un campo inválido | Mensaje corto junto al campo, `aria-invalid` en el control | `Field` + `FieldError` |
 | Una página o sección sin datos que mostrar | Estado vacío con acción | `Empty` |
