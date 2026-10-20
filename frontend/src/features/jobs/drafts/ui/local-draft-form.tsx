@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { DraftEditorShell, EDITOR_SECTIONS, EDITOR_DESCRIPTIONS } from "./draft-editor-shell";
-import { DraftLeaveGuard } from "./draft-leave-guard";
+import { DraftLeaveGuard, type DraftLeaveGuardHandle } from "./draft-leave-guard";
 import { editorReadiness, editorPublicationRequirements } from "../pipeline/publication-model";
 import {
   Select,
@@ -411,7 +411,8 @@ export function LocalDraftForm({
   const [v2Questions, setV2Questions] = React.useState<DraftScreeningV2State>(() =>
     toDraftScreeningV2State(initialScreeningQuestionsV2 ?? []),
   );
-  const draftSave = useDraftSave(initialIdentity);
+  const leaveGuard = React.useRef<DraftLeaveGuardHandle>(null);
+  const draftSave = useDraftSave(initialIdentity, leaveGuard);
   const [savedDraftId, setSavedDraftId] = React.useState(initialIdentity?.draftId);
   const [published, setPublished] = React.useState<boolean | null>(initialIdentity ? null : false);
   const [serverMissing, setServerMissing] = React.useState<readonly string[] | null>(null);
@@ -934,7 +935,7 @@ export function LocalDraftForm({
           </Card>
         </footer>
       </form>
-      <DraftLeaveGuard dirty={draftSave.dirty} />
+      <DraftLeaveGuard ref={leaveGuard} dirty={draftSave.dirty} />
 
       {isV2 && candidateProjection !== null ? (
         <DraftQuestionnaireDialog

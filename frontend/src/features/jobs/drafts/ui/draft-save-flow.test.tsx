@@ -68,6 +68,42 @@ it("reopens all stored fields and PATCHes unchanged with the GET identity, not t
   expect(crypto.randomUUID).not.toHaveBeenCalled();
   expect(replace).not.toHaveBeenCalled();
 });
+it("releases the create sentinel before replacing nuevo, then rearms after another edit", async () => {
+  history.pushState({ __NA: true }, "", "/previous");
+  history.pushState({ __NA: true }, "", "/empresa/vacantes/borradores/nuevo");
+  render(<LocalDraftForm />);
+  fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Backend" } });
+  fireEvent.click(save());
+  await waitFor(() => expect(location.pathname).toBe("/empresa/vacantes/borradores/saved-id"));
+  await waitFor(() => expect(save()).not.toBeDisabled());
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  expect(history.state).not.toHaveProperty("__draftLeaveGuard");
+  // Assert the first create independently: /nuevo cannot remain behind the saved URL.
+  history.back();
+  await waitFor(() => expect(location.pathname).toBe("/previous"));
+  history.forward();
+  await waitFor(() => expect(location.pathname).toBe("/empresa/vacantes/borradores/saved-id"));
+  fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Updated" } });
+  expect(history.state).toHaveProperty("__draftLeaveGuard");
+  fireEvent.click(save());
+  await waitFor(() => expect(save()).not.toBeDisabled());
+  expect(history.state).not.toHaveProperty("__draftLeaveGuard");
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  history.back();
+  await waitFor(() => expect(location.pathname).toBe("/previous"));
+});
+it("releases an existing draft sentinel so one Back leaves after updating", async () => {
+  history.pushState({ __NA: true }, "", "/previous-update");
+  history.pushState({ __NA: true }, "", "/empresa/vacantes/borradores/saved-id");
+  render(<LocalDraftForm initialIdentity={{ draftId: "saved-id", etag: '\"v1\"' }} />);
+  fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Updated" } });
+  fireEvent.click(save());
+  await waitFor(() => expect(save()).not.toBeDisabled());
+  expect(history.state).not.toHaveProperty("__draftLeaveGuard");
+  expect(screen.queryByRole("alertdialog")).toBeNull();
+  history.back();
+  await waitFor(() => expect(location.pathname).toBe("/previous-update"));
+});
 it("creates the validated v2 body, guards pending, then PATCHes the same draft with returned ETag", async () => {
   const replace = vi.spyOn(window.history, "replaceState");
   let resolve!: (result: DraftSaveResult) => void;
@@ -88,16 +124,18 @@ it("creates the validated v2 body, guards pending, then PATCHes the same draft w
   fireEvent.submit(saveDraftForm());
   expect(saveDraftV2Action).toHaveBeenCalledTimes(1);
   await act(async () => resolve(success));
-  expect(screen.getByRole("status")).toHaveTextContent("Guardado · versión 1");
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Guardado · versión 1"));
   expect(sileo.success).toHaveBeenLastCalledWith(expect.objectContaining({title:"Borrador guardado",description:expect.stringContaining("versión 1")}));
-  expect(save()).toHaveTextContent("Guardar cambios");
-  expect(replace).toHaveBeenCalledExactlyOnceWith(window.history.state, "", "/empresa/vacantes/borradores/saved-id");
+  await waitFor(() => expect(save()).toHaveTextContent("Guardar cambios"));
+  // Mark the dirty sentinel, then replace the original entry after its release.
+  expect(replace).toHaveBeenCalledTimes(2);
+  expect(replace).toHaveBeenLastCalledWith(window.history.state, "", "/empresa/vacantes/borradores/saved-id");
   expect(sileo.success).toHaveBeenCalledTimes(1);
   fireEvent.click(save());
   await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledTimes(2));
   expect(vi.mocked(saveDraftV2Action).mock.calls[1][0]).toEqual({draftId:"saved-id",etag:'"v1"',body:input.body});
   await waitFor(() => expect(sileo.success).toHaveBeenLastCalledWith(expect.objectContaining({title:"Cambios guardados"})));
-  expect(replace).toHaveBeenCalledTimes(1);
+  expect(replace).toHaveBeenCalledTimes(2);
 });
 it("requires a saved draft before publication; unsaved edits block the publish dialog", async () => {
   render(<LocalDraftForm />); review();
@@ -221,11 +259,14 @@ it("keeps edits made during an in-flight save dirty and sends them only on the n
   vi.mocked(saveDraftV2Action).mockReturnValueOnce(new Promise(r => {resolve=r;}));
   const replace = vi.spyOn(window.history, "replaceState");
   render(<LocalDraftForm />); review(); fireEvent.click(save());
-  expect(replace).not.toHaveBeenCalled();
+  // The editor's initial normalization is dirty: only its sentinel is marked.
+  expect(replace).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole("tab", { name: "Información básica" }));
   fireEvent.change(screen.getByRole("textbox",{name:"Título"}),{target:{value:"Edición posterior"}});
   await act(async () => resolve(success));
-  expect(replace).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(save()).not.toBeDisabled());
+  // Initial marker, confirmed-create URL, then a new marker for in-flight edits.
+  expect(replace).toHaveBeenCalledTimes(3);
   expect(screen.getByRole("textbox", {name:"Título"})).toHaveValue("Edición posterior");
   review();
   expect(screen.getByRole("status")).toHaveTextContent("Cambios sin guardar · última versión guardada: 1");

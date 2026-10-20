@@ -10,10 +10,13 @@ import {
 } from "../screening-v2/wire";
 import type { LocalDraftV2Snapshot } from "./draft-screening-v2-state";
 
+import type { DraftLeaveGuardHandle } from "./draft-leave-guard";
+
 export type DraftIdentity = { draftId: string; etag: string };
 
 /** In-memory identity/key only: no autosave, automatic retries or browser credentials. */
-export function useDraftSave(initialIdentity?: DraftIdentity) {
+export function useDraftSave(initialIdentity?: DraftIdentity, leaveGuard?: React.RefObject<DraftLeaveGuardHandle | null>) {
+  const pendingUrl = React.useRef<string | null>(null);
   const identity = React.useRef<DraftIdentity | null>(initialIdentity ?? null);
   const createKey = React.useRef<string | null>(null);
   const inFlight = React.useRef(false);
@@ -49,20 +52,28 @@ export function useDraftSave(initialIdentity?: DraftIdentity) {
           ? { ...identity.current, body }
           : { idempotencyKey: createKey.current!, body },
       );
-      setResult(response);
-      notifyDraftSaveResult(response, identity.current !== null, attemptedAt);
+      const updated = identity.current !== null;
       if (response.ok) {
         const created = identity.current === null;
         identity.current = { draftId: response.draftId, etag: response.etag };
-        if (created) {
-          // Preserve Next's history state and this mounted editor, including edits
-          // made while awaiting the create. Never navigate/remount through router.replace.
-          window.history.replaceState(window.history.state, "", `/empresa/vacantes/borradores/${response.draftId}`);
+        if (created) pendingUrl.current = `/empresa/vacantes/borradores/${response.draftId}`;
+        // Collapse the duplicate editor entry BEFORE replacing /nuevo. Await the
+        // guard's own popstate, not a timer guessing when history.go completed.
+        const released = await (leaveGuard?.current?.releaseSentinel() ?? Promise.resolve(true));
+        if (released && pendingUrl.current) {
+          // Preserve Next's state and the mounted editor, including in-flight edits.
+          window.history.replaceState(window.history.state, "", pendingUrl.current);
+          pendingUrl.current = null;
         }
         createKey.current = null;
-        // The user may have navigated back and edited while this write waited.
-        setDirty(revision.current !== savingRevision);
+        // Edits during the write or history traversal still need protection, now
+        // on the saved URL. dirty may already be true, so rearm explicitly.
+        const stillDirty = revision.current !== savingRevision;
+        if (stillDirty) leaveGuard?.current?.protect();
+        setDirty(stillDirty);
       }
+      setResult(response);
+      notifyDraftSaveResult(response, updated, attemptedAt);
       return revision.current === savingRevision ? response : undefined;
     } catch {
       // A rejected Server Action may have completed its write before disconnecting.
