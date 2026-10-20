@@ -10,7 +10,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { LocationField, type LocationFieldProps } from "./location-field";
-import type { LocationValue } from "./model";
+import { locationValueToWrite, type LocationValue } from "./model";
+import { OptionalLocationField } from "./optional-location-field";
 const empty: LocationValue = { country: null, state: null, municipality: null, postal_code: null };
 const states = [{ id: "01", name: "Aguascalientes" }, { id: "02", name: "Baja California" }];
 const towns = [{ id: "01001", name: "Aguascalientes" }, { id: "01002", name: "Asientos" }];
@@ -33,6 +34,28 @@ function Harness(props: Partial<LocationFieldProps> & { initial?: LocationValue 
   const [value, setValue] = useState(props.initial ?? empty);
   return <><LocationField depth="municipality" postalCode label="Ubicación" {...props} value={value} onChange={setValue} /><output data-testid="value">{JSON.stringify(value)}</output></>;
 }
+function OptionalHarness() {
+  const [value, setValue] = useState(empty);
+  return <><OptionalLocationField depth="municipality" postalCode value={value} onChange={setValue} /><output data-testid="value">{JSON.stringify(locationValueToWrite(value))}</output></>;
+}
+it("offers an enabled empty country without opt-in, and clears explicitly to null", async () => {
+  render(<OptionalHarness />);
+  const country = await screen.findByRole("combobox", { name: "País" });
+  expect(country).toBeEnabled();
+  expect(country).toHaveAttribute("placeholder", "Elige un país");
+  expect(country).toHaveValue("");
+  expect(value()).toBeNull();
+  expect(screen.queryByRole("button", { name: "Agregar ubicación" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Quitar ubicación" })).not.toBeInTheDocument();
+  await select("País", "México");
+  expect(await screen.findByLabelText("Código postal")).toBeVisible();
+  expect(await screen.findByRole("combobox", { name: "Estado" })).toBeEnabled();
+  expect(screen.getByRole("button", { name: "Quitar ubicación" })).not.toHaveClass("border-border", "bg-primary");
+  await userEvent.click(screen.getByRole("button", { name: "Quitar ubicación" }));
+  expect(value()).toBeNull();
+  expect(screen.getByRole("combobox", { name: "País" })).toBeEnabled();
+  expect(screen.queryByRole("button", { name: "Quitar ubicación" })).not.toBeInTheDocument();
+});
 const value = () => JSON.parse(screen.getByTestId("value").textContent!);
 async function select(label: string, option: string) {
   const user = userEvent.setup();

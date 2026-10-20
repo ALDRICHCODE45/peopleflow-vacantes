@@ -15,6 +15,8 @@ export type LocationFieldProps = {
   postalCode: boolean;
   required?: readonly (keyof LocationValue)[];
   label?: string;
+  hideLegend?: boolean;
+  defaultCountry?: "MX" | null;
   description?: string;
   disabled?: boolean;
   errors?: readonly { field: string; reason: "required" | "unknown" | "mismatch" | "not_allowed" }[];
@@ -41,7 +43,7 @@ function CatalogField({ label, code, catalog, onChange, disabled, required, erro
       <Combobox items={items} itemToStringLabel={(item: GeoReference) => item.name} itemToStringValue={(item: GeoReference) => item.id} isItemEqualToValue={(a, b) => a.id === b.id}
         value={selected} onValueChange={item => { if (item) onChange(item.id); }} inputValue={text} onInputValueChange={setText} disabled={disabled} autoHighlight>
         {/* Selecting the shown name on focus lets typing replace it instead of appending to it. */}
-        <ComboboxInput id={id} className="min-h-10" onFocus={event => event.currentTarget.select()} disabled={disabled} aria-invalid={!!error} aria-required={required} aria-describedby={error ? `${id}-error` : undefined} triggerLabel={`Mostrar ${label.toLowerCase()}`} />
+        <ComboboxInput id={id} placeholder={label === "País" ? "Elige un país" : `Elige ${label.toLowerCase()}`} className="min-h-10" onFocus={event => event.currentTarget.select()} disabled={disabled} aria-invalid={!!error} aria-required={required} aria-describedby={error ? `${id}-error` : undefined} triggerLabel={`Mostrar ${label.toLowerCase()}`} />
         <ComboboxContent><ComboboxEmpty>Sin coincidencias.</ComboboxEmpty><ComboboxList>{(item: GeoReference) => <ComboboxItem key={item.id} value={item}>{item.name}</ComboboxItem>}</ComboboxList></ComboboxContent>
       </Combobox>}
     {catalog.status === "error" && <><FieldError>No pudimos cargar {label.toLowerCase()}.</FieldError><Button type="button" variant="outline" className="min-h-10" disabled={disabled} onClick={catalog.retry}>Reintentar</Button></>}
@@ -53,7 +55,7 @@ function CatalogField({ label, code, catalog, onChange, disabled, required, erro
  * Postal resolution is offered only at municipality depth: a valid CP needs a pair.
  * Catalog labels never become write values; typing filters, it never creates an option.
  */
-export function LocationField({ value, onChange, depth, postalCode, required = [], label = "Ubicación", description, disabled = false, errors = [] }: LocationFieldProps) {
+export function LocationField({ value, onChange, depth, postalCode, required = [], label = "Ubicación", hideLegend = false, defaultCountry = "MX", description, disabled = false, errors = [] }: LocationFieldProps) {
   const cpId = useId();
   const mx = value.country === "MX";
   const detailed = mx && depth !== "country";
@@ -68,11 +70,11 @@ export function LocationField({ value, onChange, depth, postalCode, required = [
     return issue ? locationErrorMessages[issue.reason] : undefined;
   };
   useEffect(() => {
-    if (!defaulted.current && !value.country && !disabled && catalog.countries.data?.items.some(item => item.id === "MX")) {
+    if (defaultCountry && !defaulted.current && !value.country && !disabled && catalog.countries.data?.items.some(item => item.id === "MX")) {
       defaulted.current = true;
       onChange({ country: "MX", state: null, municipality: null, postal_code: null });
     }
-  }, [value.country, disabled, catalog.countries.data, onChange]);
+  }, [value.country, disabled, defaultCountry, catalog.countries.data, onChange]);
   useEffect(() => {
     if (!showPostal || !value.postal_code) { applied.current = null; return; }
     if (disabled || postal.data?.postal_code !== value.postal_code || applied.current === value.postal_code) return;
@@ -93,7 +95,7 @@ export function LocationField({ value, onChange, depth, postalCode, required = [
   const postalError = error("postal_code") ?? (postal.error === "postal_code_not_found" ? "No encontramos ese código postal." : postal.error ? "No pudimos consultar el código postal." : undefined);
   const matches = postal.data?.postal_code === value.postal_code ? postal.data.matches : [];
   return <FieldSet disabled={disabled}>
-    <FieldLegend>{label}</FieldLegend>
+    <FieldLegend className={hideLegend ? "sr-only" : undefined}>{label}</FieldLegend>
     {description && <FieldDescription>{description}</FieldDescription>}
     <FieldGroup>
       <CatalogField label="País" code={value.country} catalog={catalog.countries} disabled={disabled} required={required.includes("country")} error={error("country")}
