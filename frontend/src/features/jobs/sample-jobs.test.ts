@@ -42,8 +42,8 @@ describe("sample public v2 reads", () => {
       expect(Object.keys(item)).toHaveLength(24);
     }
   });
-  it("applies text, location and modality conjunctively", () => {
-    expect(listSampleJobs({ q: "analista datos", work_mode: "remote", location: "ciudad de méxico" }).items.map((job) => job.title).sort()).toEqual(["Analista de Datos", "Analista de Datos Senior"]);
+  it("applies text and modality conjunctively", () => {
+    expect(listSampleJobs({ q: "analista datos", work_mode: ["remote"] }).items.map((job) => job.title).sort()).toEqual(["Analista de Datos", "Analista de Datos Senior"]);
     expect(listSampleJobs({ q: "analista datos", work_mode: "onsite" }).items).toEqual([]);
     expect(ids(listSampleJobs({ q: "KUBERNETES postgresql" }).items)).toEqual([idOf("Ingeniero DevOps")]);
     expect(listSampleJobs({ q: "kubernetes ruby" }).items).toEqual([]);

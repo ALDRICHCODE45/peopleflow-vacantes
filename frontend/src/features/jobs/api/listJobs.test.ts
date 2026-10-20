@@ -8,7 +8,7 @@ import type { RequestJsonResult } from "../../../lib/api/server";
 import { listSampleJobs } from "../sample-jobs";
 import type { PublicJobsList } from "../types";
 import { legacyDetail, listItem, vacancyDetail } from "./public-fixtures";
-import { listJobs, listJobsQueryOptions } from "./listJobs";
+import { listJobs, listJobsQueryOptions, type ListJobsError } from "./listJobs";
 
 const env = serverEnv as { sampleJobs: boolean };
 const payload = { items: [listItem(legacyDetail), listItem(vacancyDetail)], next_cursor: null };
@@ -20,7 +20,7 @@ describe("v2 list query", () => {
     const a = listJobsQueryOptions({ q: " Go ", work_mode: "remote", work_schedule: "full_time" });
     const b = listJobsQueryOptions({ work_schedule: "full_time", work_mode: "remote", q: "Go" });
     expect(a.queryKey).toEqual(b.queryKey);
-    expect(a.queryKey).toEqual(["jobs", "list", { q: "Go", work_mode: "remote", work_schedule: "full_time" }]);
+    expect(a.queryKey).toEqual(["jobs", "list", { q: "Go", work_mode: ["remote"], work_schedule: "full_time" }]);
     expect(JSON.parse(JSON.stringify(a.queryKey))).toEqual(a.queryKey);
     expect(listJobsQueryOptions({ work_mode: "bad", contract_type: "bad", professional_area: "bad", cursor: "" }).queryKey).toEqual(["jobs", "list", {}]);
   });
@@ -36,9 +36,9 @@ describe("v2 list query", () => {
   it("sends only the canonical URL parameters, each once and in fixed order", async () => {
     const fetchMock = vi.fn().mockResolvedValue(response(payload));
     vi.stubGlobal("fetch", fetchMock);
-    expect(await listJobs({ cursor: "opaque a+b/c=", professional_area: "technology_systems", contract_type: "indefinite", work_schedule: "full_time", work_mode: "hybrid", location: " CDMX ", q: " Go " })).toEqual({ ok: true, data: payload });
+    expect(await listJobs({ cursor: "opaque a+b/c=", professional_area: "technology_systems", contract_type: "indefinite", work_schedule: "full_time", work_mode: "hybrid", state: ["09"], q: " Go " })).toEqual({ ok: true, data: payload });
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("http://127.0.0.1:8080/v2/jobs?q=Go&location=CDMX&work_mode=hybrid&work_schedule=full_time&contract_type=indefinite&professional_area=technology_systems&cursor=opaque+a%2Bb%2Fc%3D");
+    expect(url).toBe("http://127.0.0.1:8080/v2/jobs?q=Go&state=09&work_mode=hybrid&work_schedule=full_time&contract_type=indefinite&professional_area=technology_systems&cursor=opaque+a%2Bb%2Fc%3D");
     expect(init.method ?? "GET").toBe("GET");
     expect(new Headers(init.headers).get("accept")).toBe("application/json");
     expect([...new Headers(init.headers).keys()]).toEqual(["accept"]);
@@ -51,7 +51,7 @@ describe("v2 list query", () => {
   });
   it.each([[400, false], [404, false], [503, true]])("preserves status %i without detail not-found mapping", async (status, retryable) => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ error: "failure", code: "invalid_request" }, status)));
-    expect(await listJobs({})).toEqual({ ok: false, error: { kind: "status", retryable, status } });
+    expect(await listJobs({})).toEqual({ ok: false, error: { kind: "status", retryable, status }, envelope: { code: "invalid_request" } });
   });
   it("rejects a v1 or malformed successful response without leaking payload text", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ items: [{ id: "nope" }] })));
@@ -68,6 +68,6 @@ describe("v2 list query", () => {
     const source = readFileSync(join(process.cwd(), "src/features/jobs/api/listJobs.ts"), "utf8");
     expect(source).toMatch(/lib\/api\/server"/);
     expect(source).not.toMatch(/lib\/api\/requestJson/);
-    expectTypeOf(listJobs({})).toEqualTypeOf<Promise<RequestJsonResult<PublicJobsList>>>();
+    expectTypeOf(listJobs({})).toEqualTypeOf<Promise<RequestJsonResult<PublicJobsList, ListJobsError>>>();
   });
 });

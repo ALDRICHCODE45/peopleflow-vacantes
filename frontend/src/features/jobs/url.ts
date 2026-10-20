@@ -1,145 +1,65 @@
-/**
- * Canonical `/vacantes` query state.
- *
- * The URL is the only durable list state. Supported keys are exactly
- * `q`, `location`, `work_mode`, `work_schedule`, `contract_type`, `professional_area`,
- * and the opaque forward `cursor`. Every key is scalar; unknown, empty,
- * invalid, and repeated values are omitted rather than given hidden
- * multi-value semantics. Cursors are transported untouched: never decoded,
- * normalized, logged, or interpreted.
- */
-
+/** URL-owned public search. Codes are exact; catalog membership is server-owned. */
+import { countryCodeSchema, municipalityCodeSchema, stateCodeSchema } from "../geo/model";
 import { CONTRACT_TYPES, PROFESSIONAL_AREAS, WORK_MODES, WORK_SCHEDULES } from "./drafts/scalars";
 
-const FILTER_KEYS = [
-  "q",
-  "location",
-  "work_mode",
-  "work_schedule",
-  "contract_type",
-  "professional_area",
-] as const;
-
-const CURSOR_KEY = "cursor";
-
-const ALL_KEYS = [...FILTER_KEYS, CURSOR_KEY] as const;
-
-type FilterKey = (typeof FILTER_KEYS)[number];
-
-export type JobsQueryKey = (typeof ALL_KEYS)[number];
-
-/** Scalar canonical query model; absent keys are simply not present. */
-export type JobsQuery = Partial<Record<JobsQueryKey, string>>;
-
-/** Exact backend wire values; no case or spelling tolerance. */
-const ENUM_VALUES = {
-  work_mode: WORK_MODES,
-  work_schedule: WORK_SCHEDULES,
-  contract_type: CONTRACT_TYPES,
-  professional_area: PROFESSIONAL_AREAS,
-} as const satisfies Record<
-  Exclude<FilterKey, "q" | "location">,
-  readonly string[]
->;
-
-/** Canonical serialization order: the six filters first, then the cursor. */
-const SERIALIZATION_ORDER: readonly JobsQueryKey[] = ALL_KEYS;
-
-function queryOf(url: string): string {
-  const questionMark = url.indexOf("?");
-  return questionMark === -1 ? "" : url.slice(questionMark + 1);
+export const MULTI_KEYS = ["state", "municipality", "work_mode"] as const;
+type MultiKey = (typeof MULTI_KEYS)[number];
+const SINGLE_KEYS = ["q", "applicant_country", "work_schedule", "contract_type", "professional_area", "cursor"] as const;
+type SingleKey = (typeof SINGLE_KEYS)[number];
+export type JobsQueryKey = MultiKey | SingleKey;
+// Scalar inputs remain accepted for existing single-value links and callers.
+export type JobsQuery = Partial<Record<SingleKey, string> & Record<MultiKey, string | readonly string[]>>;
+export type JobsFilterPatch = Omit<JobsQuery, "cursor">;
+const ORDER: readonly JobsQueryKey[] = ["q", ...MULTI_KEYS, "applicant_country", "work_schedule", "contract_type", "professional_area", "cursor"];
+const ENUMS = { work_mode: WORK_MODES, work_schedule: WORK_SCHEDULES, contract_type: CONTRACT_TYPES, professional_area: PROFESSIONAL_AREAS };
+export function selectedValues(value: string | readonly string[] | undefined): readonly string[] {
+  return value === undefined ? [] : typeof value === "string" ? [value] : value;
 }
-
-/** Validates one raw value or returns `undefined` when the key must be omitted. */
+function validState(value: string) { return stateCodeSchema.safeParse(value).success && Number(value) >= 1 && Number(value) <= 32; }
 function canonicalValue(key: JobsQueryKey, value: string): string | undefined {
-  if (key === "q" || key === "location") {
-    const trimmed = value.trim();
-    return trimmed === "" ? undefined : trimmed;
-  }
-  if (key === CURSOR_KEY) {
-    return value === "" ? undefined : value;
-  }
-  return (ENUM_VALUES[key] as readonly string[]).includes(value)
-    ? value
-    : undefined;
+  if (key === "q") return value.trim() || undefined;
+  if (key === "cursor") return value || undefined;
+  if (key === "state") return validState(value) ? value : undefined;
+  if (key === "municipality") return municipalityCodeSchema.safeParse(value).success && validState(value.slice(0, 2)) && Number(value.slice(2)) > 0 ? value : undefined;
+  if (key === "applicant_country") return countryCodeSchema.safeParse(value).success ? value : undefined;
+  return (ENUMS[key] as readonly string[]).includes(value) ? value : undefined;
 }
-
-/** Counts occurrences of supported keys so repeated values can be dropped. */
-function supportedKeyCounts(query: string): Map<JobsQueryKey, number> {
-  const counts = new Map<JobsQueryKey, number>(ALL_KEYS.map((key) => [key, 0]));
-  for (const key of new URLSearchParams(query).keys()) {
-    const count = counts.get(key as JobsQueryKey);
-    if (count !== undefined) counts.set(key as JobsQueryKey, count + 1);
-  }
-  return counts;
-}
-
-/** Parses raw `/vacantes` query text into the canonical scalar model. */
 export function parseJobsQuery(query: string): JobsQuery {
-  const parsed: JobsQuery = {};
-  const counts = supportedKeyCounts(query);
   const params = new URLSearchParams(query);
-  for (const key of SERIALIZATION_ORDER) {
-    if (counts.get(key) !== 1) continue;
-    const value = canonicalValue(key, params.get(key)!);
+  const parsed: JobsQuery = {};
+  for (const key of MULTI_KEYS) {
+    const values = [...new Set(params.getAll(key).filter(value => canonicalValue(key, value) !== undefined))];
+    if (values.length) parsed[key] = values;
+  }
+  for (const key of SINGLE_KEYS) {
+    const values = params.getAll(key);
+    if (values.length !== 1) continue;
+    const value = canonicalValue(key, values[0]);
     if (value !== undefined) parsed[key] = value;
   }
   return parsed;
 }
-
-/** Serializes the canonical model into a shareable `/vacantes` URL. */
 export function buildJobsUrl(query: JobsQuery): string {
   const params = new URLSearchParams();
-  for (const key of SERIALIZATION_ORDER) {
-    const value = query[key];
-    if (value === undefined) continue;
-    const canonical = canonicalValue(key, value);
-    if (canonical !== undefined) params.append(key, canonical);
-  }
-  const serialized = params.toString();
-  return serialized === "" ? "/vacantes" : `/vacantes?${serialized}`;
-}
-
-/** Whether the raw query already equals its canonical supported state. */
-export function isCanonicalJobsQuery(query: string): boolean {
-  const seen = new Set<JobsQueryKey>();
-  for (const [key, value] of new URLSearchParams(query)) {
-    if (!ALL_KEYS.includes(key as JobsQueryKey)) return false;
-    if (seen.has(key as JobsQueryKey)) return false;
-    seen.add(key as JobsQueryKey);
-    if (canonicalValue(key as JobsQueryKey, value) !== value) return false;
-  }
-  return true;
-}
-
-/**
- * Serializes a search/filter commit: the six filter values with any patch
- * applied, and the cursor always omitted — every filter add, change, or
- * clear starts a fresh, unpaginated result set.
- */
-export function buildFilterCommitUrl(
-  currentUrl: string,
-  patch: Partial<Record<FilterKey, string>>,
-): string {
-  const parsed = parseJobsQuery(queryOf(currentUrl));
-  const filters: JobsQuery = {};
-  for (const key of FILTER_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(patch, key)) {
-      const value = canonicalValue(key, patch[key]!);
-      if (value !== undefined) filters[key] = value;
-    } else if (parsed[key] !== undefined) {
-      filters[key] = parsed[key]!;
+  for (const key of ORDER) {
+    const values = selectedValues(query[key]);
+    if ((SINGLE_KEYS as readonly string[]).includes(key) && values.length !== 1) continue;
+    for (const value of new Set(values)) {
+      const canonical = canonicalValue(key, value);
+      if (canonical !== undefined) params.append(key, canonical);
     }
   }
-  return buildJobsUrl(filters);
+  return params.size ? `/vacantes?${params}` : "/vacantes";
 }
-
-/**
- * Builds the next-results destination: the current canonical filters with
- * the backend `next_cursor` appended unchanged as an opaque cursor value.
- */
+export function isCanonicalJobsQuery(query: string): boolean {
+  const raw = new URLSearchParams(query);
+  const canonical = new URLSearchParams(buildJobsUrl(parseJobsQuery(query)).split("?")[1]);
+  return raw.size === canonical.size && [...raw.keys()].every(key => JSON.stringify(raw.getAll(key)) === JSON.stringify(canonical.getAll(key)));
+}
+export function buildFilterCommitUrl(currentUrl: string, patch: JobsFilterPatch): string {
+  const parsed = parseJobsQuery(currentUrl.split("?")[1] ?? "");
+  return buildJobsUrl({ ...parsed, ...patch, cursor: undefined });
+}
 export function buildNextJobsUrl(currentUrl: string, cursor: string): string {
-  const parsed = parseJobsQuery(queryOf(currentUrl));
-  const nextCursor = canonicalValue(CURSOR_KEY, cursor);
-  return buildJobsUrl({ ...parsed, cursor: nextCursor });
+  return buildJobsUrl({ ...parseJobsQuery(currentUrl.split("?")[1] ?? ""), cursor });
 }

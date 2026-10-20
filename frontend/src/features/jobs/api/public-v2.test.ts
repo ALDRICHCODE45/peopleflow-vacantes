@@ -62,7 +62,7 @@ describe("public v2 contract", () => {
     const raw = "q=Go&location=CDMX&work_mode=remote&work_schedule=full_time&contract_type=indefinite&professional_area=technology_systems&cursor=opaque&currency=MXN&salary_min=1&language=en&seniority=senior&employment_type=contract&limit=900";
     const query = parseJobsQuery(raw);
     const url = buildJobsUrl(query);
-    expect(url).toBe("/vacantes?q=Go&location=CDMX&work_mode=remote&work_schedule=full_time&contract_type=indefinite&professional_area=technology_systems&cursor=opaque");
+    expect(url).toBe("/vacantes?q=Go&work_mode=remote&work_schedule=full_time&contract_type=indefinite&professional_area=technology_systems&cursor=opaque");
     expect(parseJobsQuery("work_mode=bad&contract_type=bad&professional_area=bad&work_schedule=full_time&work_schedule=part_time")).toEqual({});
     const fetchMock = vi.fn().mockResolvedValue(response({ items: [listItem(vacancyDetail)], next_cursor: null }));
     vi.stubGlobal("fetch", fetchMock);
@@ -75,7 +75,7 @@ describe("public v2 contract", () => {
     expect(await getJob(vacancyDetail.id)).toEqual({ ok: true, data: vacancyDetail });
     expect(fetchMock.mock.calls[0][0]).toBe(`http://127.0.0.1:8080/v2/jobs/${vacancyDetail.id}`);
     fetchMock.mockResolvedValue(response({ error: "Invalid request", code: "invalid_request" }, 400));
-    expect(await listJobs({})).toEqual({ ok: false, error: { kind: "status", status: 400, retryable: false } });
+    expect(await listJobs({})).toEqual({ ok: false, error: { kind: "status", status: 400, retryable: false }, envelope: { code: "invalid_request" } });
     fetchMock.mockResolvedValue(response({ error: "Not found", code: "not_found" }, 404));
     expect(await getJob(vacancyDetail.id)).toEqual({ ok: false, error: { kind: "not_found", status: 404, retryable: false } });
   });

@@ -1,6 +1,6 @@
 import { publicJobDetailSchema, publicJobsListSchema } from "./schemas";
 import type { JobItem, PublicJobDetail, PublicJobItem, PublicJobsList } from "./types";
-import { parseJobsQuery } from "./url";
+import { buildJobsUrl, parseJobsQuery, selectedValues } from "./url";
 import type { JobsQuery } from "./url";
 
 /**
@@ -216,11 +216,7 @@ function sampleItem(detail: PublicJobDetail): PublicJobItem {
 
 /** Canonicalizes the input exactly like the URL model, so direct calls are safe. */
 function canonicalQuery(query: JobsQuery): JobsQuery {
-  const raw = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined) raw.append(key, value);
-  }
-  return parseJobsQuery(raw.toString());
+  return parseJobsQuery(buildJobsUrl(query).split("?")[1] ?? "");
 }
 
 /** Splits a search term into lowercased word tokens. */
@@ -243,13 +239,13 @@ function matchesFilters(job: PublicJobDetail, query: JobsQuery): boolean {
   for (const key of ["work_schedule", "contract_type", "professional_area"] as const) {
     if (query[key] !== undefined && job[key] !== query[key]) return false;
   }
-  if (query.work_mode !== undefined && job.work_mode !== query.work_mode)
-    return false;
-  if (
-    query.location !== undefined &&
-    !(job.location_label ?? "").toLowerCase().includes(query.location.toLowerCase())
-  )
-    return false;
+  if (query.work_mode !== undefined && !selectedValues(query.work_mode).includes(job.work_mode)) return false;
+  if (query.state !== undefined && (!job.location?.state || !selectedValues(query.state).includes(job.location.state.id))) return false;
+  if (query.municipality !== undefined && (!job.location?.municipality || !selectedValues(query.municipality).includes(job.location.municipality.id))) return false;
+  if (query.applicant_country !== undefined && job.work_mode === "remote") {
+    const scope = job.remote_scope;
+    if (!scope || (scope.kind === "countries" && !scope.countries.some(country => country.id === query.applicant_country))) return false;
+  }
   return true;
 }
 

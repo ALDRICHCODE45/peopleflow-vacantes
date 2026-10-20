@@ -1,4 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
+import { z } from "zod";
+const listErrorSchema = z.object({ code: z.enum(["invalid_filter", "invalid_request"]), error: z.string() }).strict().transform(({ code }) => ({ code }));
+export type ListJobsError = z.output<typeof listErrorSchema>;
 
 import { requestJson } from "../../../lib/api/server";
 import type { RequestJsonResult } from "../../../lib/api/server";
@@ -13,14 +16,12 @@ function canonicalSearch(query: JobsQuery): string {
  return buildJobsUrl(query).slice("/vacantes".length);
 }
 
-/** One canonical, frozen snapshot: trims `q`/`location`, drops invalid
- * enum and empty cursor values, and drops unknown keys. */
+/** One canonical, frozen snapshot: trims text, deduplicates repeated dimensions,
+ * and drops malformed values, empty selections and unknown keys. */
 function canonicalSnapshot(query: JobsQuery): JobsQuery {
- const raw = new URLSearchParams();
- for (const [key, value] of Object.entries(query)) {
-  if (value !== undefined) raw.append(key, value);
- }
- return Object.freeze(parseJobsQuery(raw.toString()));
+ const snapshot = parseJobsQuery(canonicalSearch(query));
+ for (const value of Object.values(snapshot)) if (Array.isArray(value)) Object.freeze(value);
+ return Object.freeze(snapshot);
 }
 
 /** Feature-owned TanStack Query options for the public v2 list read. */
@@ -29,10 +30,11 @@ export function listJobsQueryOptions(query: JobsQuery) {
  // `queryFn`: later mutation of the caller-owned input can never change the
  // request issued under an old key, and no re-canonicalization pass is needed
  // because `canonicalSnapshot` already emits canonical values in canonical
- // serialization order. No retry semantics are configured here.
+ // serialization order. Retries require an explicit user action.
  const snapshot = canonicalSnapshot(query);
  return queryOptions({
   queryKey: ["jobs", "list", snapshot],
+  retry: false,
   queryFn: () => listJobs(snapshot),
  });
 }
@@ -45,7 +47,7 @@ export function listJobsQueryOptions(query: JobsQuery) {
  */
 export async function listJobs(
  query: JobsQuery,
-): Promise<RequestJsonResult<PublicJobsList>> {
+): Promise<RequestJsonResult<PublicJobsList, ListJobsError>> {
  // Loaded lazily so canonicalization and key building never trigger the
  // eager environment validation or the server-only import resolution.
  const { serverEnv } = await import("../../../lib/env/server");
@@ -62,6 +64,7 @@ export async function listJobs(
 
  return requestJson(url.toString(), {
   decoder: (payload: unknown) => publicJobsListSchema.parse(payload),
+  errorDecoder: (payload: unknown) => listErrorSchema.parse(payload),
   timeoutMs: serverEnv.apiTimeoutMs,
  });
 }
