@@ -29,6 +29,8 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/repositories"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
+	geodomain "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identityrepositories "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/repositories"
 	identityvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/valueobjects"
@@ -45,6 +47,7 @@ type CompanyMemberService struct {
 	memberRepo  repositories.CompanyMemberRepository
 	userRepo    identityrepositories.UserRepository
 	companyRepo repositories.CompanyRepository
+	geography   geo.Reader
 }
 
 // NewCompanyMemberService wires the use cases around the three repository
@@ -61,12 +64,17 @@ func NewCompanyMemberService(
 	memberRepo repositories.CompanyMemberRepository,
 	userRepo identityrepositories.UserRepository,
 	companyRepo repositories.CompanyRepository,
+	geography ...geo.Reader,
 ) *CompanyMemberService {
-	return &CompanyMemberService{
-		memberRepo:  memberRepo,
-		userRepo:    userRepo,
-		companyRepo: companyRepo,
+	s := &CompanyMemberService{memberRepo: memberRepo, userRepo: userRepo, companyRepo: companyRepo}
+	if len(geography) > 0 {
+		s.geography = geography[0]
 	}
+	return s
+}
+
+func (s *CompanyMemberService) ReadLocation(ctx context.Context, value *geodomain.Value) (*geo.ReadLocation, error) {
+	return geo.ExpandLocation(ctx, s.geography, value)
 }
 
 // resolveMember is the IDOR-resistant boundary (design D6) for the UNGATED

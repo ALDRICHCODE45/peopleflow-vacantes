@@ -31,11 +31,13 @@ package http
 import (
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/dtos"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/application/usecases"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 	identityentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/entities"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
@@ -160,11 +162,13 @@ type memberResponse struct {
 // avoid the name collision with the full-record response shape in
 // handler.go.)
 type companySummaryResponse struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	Rfc        string `json:"rfc"`
-	IndustryID string `json:"industry_id"`
-	Status     string `json:"status"`
+	ID         string            `json:"id"`
+	Name       string            `json:"name"`
+	Rfc        string            `json:"rfc"`
+	IndustryID string            `json:"industry_id"`
+	Status     string            `json:"status"`
+	Location   *geo.ReadLocation `json:"location"`
+	UpdatedAt  string            `json:"updated_at"`
 }
 
 // myMembershipResponse is the wire shape for GET /me/company. It is the
@@ -217,6 +221,10 @@ func (h *MemberHandler) getMyMembership(w http.ResponseWriter, r *http.Request) 
 	}
 
 	member, company, err := h.service.GetMyMembership(r.Context(), sub)
+	var location *geo.ReadLocation
+	if err == nil {
+		location, err = h.service.ReadLocation(r.Context(), company.Location)
+	}
 	if err != nil {
 		def := classifyMemberError(err)
 		if def.Code == httpjson.CodeInternalError {
@@ -226,7 +234,7 @@ func (h *MemberHandler) getMyMembership(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	httpjson.WriteJSON(w, http.StatusOK, toMyMembershipResponse(member, company))
+	httpjson.WriteJSON(w, http.StatusOK, toMyMembershipResponse(member, company, location))
 }
 
 // listMembers implements GET /me/company/members. The production
@@ -371,11 +379,11 @@ func (h *MemberHandler) removeMember(w http.ResponseWriter, r *http.Request) {
 
 // toMyMembershipResponse maps (member, company) into the wire shape for
 // GET /me/company.
-func toMyMembershipResponse(m *entities.CompanyMember, c *entities.Company) myMembershipResponse {
+func toMyMembershipResponse(m *entities.CompanyMember, c *entities.Company, location *geo.ReadLocation) myMembershipResponse {
 	return myMembershipResponse{
 		CompanyID: m.CompanyID.String(),
 		Role:      m.Role.String(),
-		Company:   toCompanySummaryResponse(c),
+		Company:   toCompanySummaryResponse(c, location),
 	}
 }
 
@@ -385,13 +393,15 @@ func toMyMembershipResponse(m *entities.CompanyMember, c *entities.Company) myMe
 // re-export it — the two helpers are for different surfaces and may
 // diverge (e.g. one day the public profile gets a logo, the embedded
 // form does not).
-func toCompanySummaryResponse(c *entities.Company) companySummaryResponse {
+func toCompanySummaryResponse(c *entities.Company, location *geo.ReadLocation) companySummaryResponse {
 	return companySummaryResponse{
 		ID:         c.ID.String(),
 		Name:       c.Name.Value(),
 		Rfc:        c.Rfc.Value(),
 		IndustryID: c.IndustryID,
 		Status:     c.Status.String(),
+		Location:   location,
+		UpdatedAt:  c.UpdatedAt.UTC().Format(time.RFC3339Nano),
 	}
 }
 

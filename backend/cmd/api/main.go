@@ -167,7 +167,7 @@ func run() error {
 	// existing one above; the member handler's GetMyMembership fetches
 	// the company record through it.
 	memberRepo := postgres.NewCompanyMemberRepository(queries)
-	memberService := usecases.NewCompanyMemberService(memberRepo, identityUserRepo, companyRepo)
+	memberService := usecases.NewCompanyMemberService(memberRepo, identityUserRepo, companyRepo, geography)
 	memberHandler := companieshttp.NewMemberHandler(memberService)
 
 	// Candidates wiring: candidates repo (pgxpool for the atomic

@@ -9,11 +9,18 @@ import (
 	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 )
 
+// CompanyWriteResult keeps catalog expansion outside the committed write.
+// HTTP mappers consume LocationRead without any post-write catalog reads.
+type CompanyWriteResult struct {
+	*entities.Company
+	LocationRead *geo.ReadLocation
+}
+
 // CreateCompany parses the optional profile fields into their value objects
 // and delegates aggregate construction to entities.NewCompany. Validation
 // errors from any VO constructor are returned unchanged so the HTTP layer can
 // translate them into 4xx responses.
-func (s *CompanyService) CreateCompany(ctx context.Context, params dtos.CreateCompanyDto) (*entities.Company, error) {
+func (s *CompanyService) CreateCompany(ctx context.Context, params dtos.CreateCompanyDto) (*CompanyWriteResult, error) {
 	if err := geo.ValidateLocation(ctx, s.geography, params.Location, true); err != nil {
 		return nil, err
 	}
@@ -22,11 +29,15 @@ func (s *CompanyService) CreateCompany(ctx context.Context, params dtos.CreateCo
 		return nil, err
 	}
 
+	location, err := s.ReadLocation(ctx, company.Location)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.repository.Create(ctx, company); err != nil {
 		return nil, err
 	}
 
-	return company, nil
+	return &CompanyWriteResult{Company: company, LocationRead: location}, nil
 }
 
 // buildCompany parses the DTO into a Company aggregate without persisting it.

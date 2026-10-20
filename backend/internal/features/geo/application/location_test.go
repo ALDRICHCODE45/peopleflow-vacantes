@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
@@ -43,6 +44,52 @@ func TestCandidatePostalPresenceNotAllowed(t *testing.T) {
 				t.Fatalf("got %#v", err)
 			}
 		})
+	}
+}
+
+type locationReaderStub struct {
+	Reader
+	level string
+	err   error
+}
+
+func (r locationReaderStub) Countries(context.Context) ([]domain.Item, error) {
+	if r.level == "country" {
+		return nil, r.err
+	}
+	return []domain.Item{{Code: "MX", Name: "México"}}, nil
+}
+func (r locationReaderStub) States(context.Context, string) ([]domain.Item, error) {
+	if r.level == "state" {
+		return nil, r.err
+	}
+	return []domain.Item{{Code: "14", Name: "Jalisco"}}, nil
+}
+func (r locationReaderStub) Municipalities(context.Context, string, string) ([]domain.Item, error) {
+	if r.level == "municipality" {
+		return nil, r.err
+	}
+	return []domain.Item{{Code: "14039", Name: "Guadalajara"}}, nil
+}
+
+func TestExpandLocationMissingRowsAndReaderErrorsFailClosed(t *testing.T) {
+	sentinel := errors.New("catalog unavailable")
+	for _, level := range []string{"country", "state", "municipality"} {
+		for _, failure := range []struct {
+			name string
+			err  error
+		}{{"missing row", nil}, {"reader error", sentinel}} {
+			t.Run(level+"/"+failure.name, func(t *testing.T) {
+				value := &domain.Value{Country: "MX", State: "14", Municipality: "14039", PostalCode: "44100"}
+				result, err := ExpandLocation(context.Background(), locationReaderStub{level: level, err: failure.err}, value)
+				if err == nil || result != nil {
+					t.Fatalf("must not return partial location: %+v %v", result, err)
+				}
+				if failure.err != nil && !errors.Is(err, sentinel) {
+					t.Fatalf("lost reader error: %v", err)
+				}
+			})
+		}
 	}
 }
 

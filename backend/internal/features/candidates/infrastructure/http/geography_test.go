@@ -3,7 +3,10 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -39,6 +42,99 @@ func (profileCatalog) Municipalities(context.Context, string, string) ([]domain.
 	return []domain.Item{{Code: "14039", Name: "Guadalajara"}}, nil
 }
 
+type failingProfileCatalog struct {
+	profileCatalog
+	level      string
+	afterWrite func() bool
+}
+
+func (c failingProfileCatalog) fails(level string) bool {
+	return c.level == level || (c.afterWrite != nil && c.afterWrite())
+}
+func (c failingProfileCatalog) Countries(ctx context.Context) ([]domain.Item, error) {
+	if c.fails("country") {
+		return nil, errors.New("catalog read failed")
+	}
+	return c.profileCatalog.Countries(ctx)
+}
+func (c failingProfileCatalog) States(ctx context.Context, country string) ([]domain.Item, error) {
+	if c.fails("state") {
+		return nil, errors.New("catalog read failed")
+	}
+	return c.profileCatalog.States(ctx, country)
+}
+func (c failingProfileCatalog) Municipalities(ctx context.Context, country, state string) ([]domain.Item, error) {
+	if c.fails("municipality") {
+		return nil, errors.New("catalog read failed")
+	}
+	return c.profileCatalog.Municipalities(ctx, country, state)
+}
+
+func TestProfileCatalogFailureDoesNotWrite(t *testing.T) {
+	for _, level := range []string{"country", "state", "municipality"} {
+		t.Run(level, func(t *testing.T) {
+			repo := &stubCandidateRepo{}
+			users := &stubUserRepo{resolved: &identity.User{ID: uuid.New()}}
+			router := newTestRouter(NewCandidateHandler(candidates.NewCandidateService(repo, users, failingProfileCatalog{level: level})))
+			rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", `{"location":{"country":"MX","state":"14","municipality":"14039"}}`, "sub"))
+			assertCatalogEnvelope(t, rec, 500, httpjson.CodeInternalError)
+			if repo.upsertCalls != 0 || repo.upserted != nil {
+				t.Fatal("catalog failure committed a profile")
+			}
+			if strings.Contains(rec.Body.String(), "catalog read failed") {
+				t.Fatal("catalog error leaked")
+			}
+		})
+	}
+}
+
+func TestProfileResponseUsesPreWriteCatalogSnapshot(t *testing.T) {
+	repo := &stubCandidateRepo{}
+	users := &stubUserRepo{resolved: &identity.User{ID: uuid.New()}}
+	catalog := failingProfileCatalog{afterWrite: func() bool { return repo.upsertCalls > 0 }}
+	router := newTestRouter(NewCandidateHandler(candidates.NewCandidateService(repo, users, catalog)))
+	rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", `{"location":{"country":"MX","state":"14","municipality":"14039"}}`, "sub"))
+	if rec.Code != 200 || repo.upsertCalls != 1 {
+		t.Fatalf("post-write catalog read: %d %s", rec.Code, rec.Body.String())
+	}
+	assertProfileLocationKeys(t, rec.Body.Bytes())
+}
+
+func assertProfileLocationKeys(t *testing.T, raw []byte) {
+	t.Helper()
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &root); err != nil {
+		t.Fatal(err)
+	}
+	var location map[string]json.RawMessage
+	if err := json.Unmarshal(root["location"], &location); err != nil {
+		t.Fatal(err)
+	}
+	keys := func(obj map[string]json.RawMessage) []string {
+		out := make([]string, 0, len(obj))
+		for k := range obj {
+			out = append(out, k)
+		}
+		sort.Strings(out)
+		return out
+	}
+	if !reflect.DeepEqual(keys(location), []string{"country", "label", "municipality", "postal_code", "state"}) {
+		t.Fatalf("location keys: %v", keys(location))
+	}
+	for _, key := range []string{"country", "state", "municipality"} {
+		if string(location[key]) == "null" {
+			continue
+		}
+		var reference map[string]json.RawMessage
+		if err := json.Unmarshal(location[key], &reference); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(keys(reference), []string{"id", "name"}) {
+			t.Fatalf("%s keys: %v", key, keys(reference))
+		}
+	}
+}
+
 func TestProfileLocationRoundTripAndReplacement(t *testing.T) {
 	for _, tc := range []struct{ name, location, label string }{
 		{"country", `{"country":"US"}`, "Estados Unidos"},
@@ -53,6 +149,7 @@ func TestProfileLocationRoundTripAndReplacement(t *testing.T) {
 			if rec.Code != 200 {
 				t.Fatalf("PUT: %d %s", rec.Code, rec.Body.String())
 			}
+			assertProfileLocationKeys(t, rec.Body.Bytes())
 			var response candidateProfileResponse
 			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 				t.Fatal(err)
@@ -68,6 +165,7 @@ func TestProfileLocationRoundTripAndReplacement(t *testing.T) {
 			if got.Code != 200 || got.Body.String() != rec.Body.String() {
 				t.Fatalf("GET: %d %s", got.Code, got.Body.String())
 			}
+			assertProfileLocationKeys(t, got.Body.Bytes())
 			for _, body := range []string{`{}`, `{"location":null}`} {
 				cleared := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", body, "sub"))
 				if cleared.Code != 200 || repo.upserted.Location != nil || !strings.Contains(cleared.Body.String(), `"location":null`) {

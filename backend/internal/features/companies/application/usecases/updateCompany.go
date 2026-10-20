@@ -166,6 +166,26 @@ func (s *CompanyService) UpdateCompany(
 		patch.FoundedYear.Value = v
 	}
 
+	// Prepare both success and lost-race editor locations before any write.
+	// Even a catalog error on the conflict shape must leave storage unchanged.
+	currentView, err := s.editorView(ctx, current, nil)
+	if err != nil {
+		return nil, err
+	}
+	location := currentView.Location
+	if in.Location.Set {
+		value := current.Location
+		if in.Location.Valid {
+			value = &patch.Location.Value
+		} else {
+			value = nil
+		}
+		location, err = s.ReadLocation(ctx, value)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	// 5. Build the audit event the adapter will append in the same
 	//    `pgx.Tx` after the SQL UPDATE and before `tx.Commit` (D7 /
 	//    D9). The event ID is a fresh UUIDv7; the adapter does NOT
@@ -183,7 +203,7 @@ func (s *CompanyService) UpdateCompany(
 			// Post-WS2D-B: ANY 0-row adapter result after step-1
 			// observation is a concurrent CAS loss. Re-read removed —
 			// return 409 + pre-race editor view (spec R3 shape).
-			return s.editorView(ctx, current, entities.ErrConcurrencyConflict)
+			return currentView, entities.ErrConcurrencyConflict
 		}
 		// 23514 → ErrInvalidCompanyStatusTransition (defense-in-depth;
 		// unreachable via the designed flow — the use case parses
@@ -202,7 +222,7 @@ func (s *CompanyService) UpdateCompany(
 	}
 
 	// 8. Project the editor view and return.
-	return s.editorView(ctx, fresh, nil)
+	return toCompanyEditorView(fresh, location), nil
 }
 
 func (s *CompanyService) editorView(ctx context.Context, c *entities.Company, result error) (*dtos.CompanyEditorViewDto, error) {
@@ -223,7 +243,7 @@ func toCompanyEditorView(c *entities.Company, location *geo.ReadLocation) *dtos.
 	view := &dtos.CompanyEditorViewDto{
 		ID:            c.ID.String(),
 		Name:          c.Name.Value(),
-		UpdatedAt:     c.UpdatedAt,
+		UpdatedAt:     c.UpdatedAt.UTC(),
 		Website:       c.Website,
 		LogoURL:       c.LogoURL,
 		Location:      location,

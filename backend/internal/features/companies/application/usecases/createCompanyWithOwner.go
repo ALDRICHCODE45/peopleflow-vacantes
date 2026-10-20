@@ -28,7 +28,7 @@ import (
 // Sub resolution mirrors the identity slice: the service is the only layer
 // that sees the raw cognito_sub; the repositories never do. The owner
 // membership is always valueobjects.OwnerRole.
-func (s *CompanyService) CreateCompanyWithOwner(ctx context.Context, cognitoSub string, params dtos.CreateCompanyDto) (*entities.Company, error) {
+func (s *CompanyService) CreateCompanyWithOwner(ctx context.Context, cognitoSub string, params dtos.CreateCompanyDto) (*CompanyWriteResult, error) {
 	user, err := s.userRepo.GetByCognitoSub(ctx, cognitoSub)
 	if err != nil {
 		if errors.Is(err, identityentities.ErrUserNotFound) {
@@ -54,9 +54,13 @@ func (s *CompanyService) CreateCompanyWithOwner(ctx context.Context, cognitoSub 
 		return nil, err
 	}
 
+	location, err := s.ReadLocation(ctx, company.Location)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.bootstrapRepo.CreateWithOwner(ctx, company, owner); err != nil {
 		return nil, err
 	}
 
-	return company, nil
+	return &CompanyWriteResult{Company: company, LocationRead: location}, nil
 }

@@ -182,10 +182,6 @@ func (h *CompanyHandler) createCompany(w http.ResponseWriter, r *http.Request) {
 		TwitterURL:    req.TwitterURL,
 		CoverImageURL: req.CoverImageURL,
 	})
-	var location *geo.ReadLocation
-	if err == nil {
-		location, err = h.service.ReadLocation(r.Context(), company.Location)
-	}
 	if err != nil {
 		if writeInvalidLocation(w, err) {
 			return
@@ -198,7 +194,7 @@ func (h *CompanyHandler) createCompany(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpjson.WriteJSON(w, http.StatusCreated, toCompanyResponse(company, location))
+	httpjson.WriteJSON(w, http.StatusCreated, toCompanyResponse(company.Company, company.LocationRead))
 }
 
 func (h *CompanyHandler) getCompany(w http.ResponseWriter, r *http.Request) {

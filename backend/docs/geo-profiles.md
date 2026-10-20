@@ -23,6 +23,8 @@ Postal code is **company-only**. Candidate writes stop at municipality.
 }}
 ```
 
+Every non-null read location has **exactly** `country`, `state`, `municipality`,
+`postal_code`, `label`; each non-null reference has **exactly** `id`, `name`.
 All read-location keys are present; missing state, municipality and postal code
 are `null`. Missing location is `"location":null`, never an omitted key.
 References are `{id,name}`. Labels are municipality + state, otherwise state,
@@ -33,7 +35,8 @@ otherwise Spanish country name. Names come from the catalog, never client input.
 | [Candidate GET/PUT `/me/profile`](candidate-profile.md) | Optional; PUT omitted/null clears; postal key forbidden, including empty/null |
 | [Company POST `/companies`](company-profile.md) | Optional; omitted/null starts without a location; MX postal optional |
 | Company owner PATCH `/me/company` | Absent keeps; null clears all codes; object replaces all levels, never merges |
-| Company public GET `/companies/{id}` | Expanded read shape; existing visibility/redaction rules unchanged |
+| Company public GET `/companies/{id}` | Expanded read shape; existing visibility/redaction rules unchanged; no `updated_at` |
+| Member GET `/me/company` | Adds `company.location` (read shape/null) and `company.updated_at`, visible to all members |
 | Company PATCH 200 and 409 editor data | Same expanded location shape; existing CAS token and conflict envelope unchanged |
 
 ## Validation
@@ -55,8 +58,25 @@ Consistency failures → `422 invalid_location`, through the shared error writer
 Reasons are `required`, `unknown`, `mismatch`, `not_allowed`. Validation precedes
 persistence. Company CAS still precedes consistency validation, so stale writes
 return 409 with the current editor data, without applying the submitted location.
-Catalog failures remain generic 500s, not validation failures, with existing
-bounded/redacted logging. Routes, role gates and logging census are unchanged.
+JSON decoding precedes CAS: even a stale token does not suppress a 400 for unknown
+nested keys or wrong types. For well-formed input, stale token + unknown country
+returns 409 with current editor data; with a current token it returns 422.
+
+Catalog validation **and name expansion** for candidate PUT and company
+POST/PATCH happen before persistence, including preparation of the PATCH
+lost-race conflict shape. A missing catalog row or reader error fails closed
+with generic 500 and no write. Write responses reuse the prepared shape, never
+performing another catalog read after commit. Existing bounded/redacted logging,
+routes, role gates and logging census are unchanged.
+
+### Membership editor token
+
+`GET /me/company` now returns `location` and `updated_at` inside `company` for
+owners and recruiters alike; PATCH remains owner-only. The timestamp is UTC
+RFC3339Nano, exactly the value represented by the PATCH editor view. Echo the
+string verbatim in `If-Unmodified-Since`, preserving fractional seconds. Saving
+with that token succeeds; reusing it after a successful update returns 409 with
+the current token. Public `GET /companies/{id}` deliberately gains no timestamp.
 
 ## Migration and temporary §19 behavior
 
@@ -83,6 +103,15 @@ snapshot city with structured location and add the country apply gate.
 - `TestCompanyLocationCreateErrors`, `TestCompanyLocationOptionalCreateAndPublicNull`,
   `TestCompanyLocationPatchConflictAndClear`: company postal, nulls, nested keys,
   whole-object replacement and unchanged conflict/editor semantics.
+- `TestProfileCatalogFailureDoesNotWrite`, `TestCompanyCatalogFailureDoesNotWrite`,
+  `TestProfileResponseUsesPreWriteCatalogSnapshot`: fault injection at each read
+  level, 500/no-write and successful writes with post-write reads forbidden.
+- `TestExpandLocationMissingRowsAndReaderErrorsFailClosed`: missing country/state/
+  municipality and each reader error return no partial shape and preserve errors.
+- `TestMembershipCompanyLocationAndTokenAllMembers`: exact additive summary and
+  location/reference key sets for both roles, nulls and UTC nanosecond precision.
+- `TestMembershipTokenRoundTripsIntoOwnerPatch`: GET token → PATCH success, matching
+  refreshed membership/editor tokens, stale token → 409 without a second write.
 - `TestGeoProfilesMigration`: migration definition; integration test
   `TestGeoProfilesMigrationConstraintsAndEmptyDown`: physical FK/CHECK matrix,
   discarded free text, dropped index and empty downgrade.

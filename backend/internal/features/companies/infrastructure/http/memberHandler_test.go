@@ -242,7 +242,7 @@ func newMemberHandlerService(
 	uRepo *stubUserRepositoryForHandler,
 	cRepo *stubMemberCompanyRepositoryForHandler,
 ) *usecases.CompanyMemberService {
-	return usecases.NewCompanyMemberService(mRepo, uRepo, cRepo)
+	return usecases.NewCompanyMemberService(mRepo, uRepo, cRepo, companyCatalog{})
 }
 
 // newMemberRouter mounts MemberHandler.Routes() at /me/company with a

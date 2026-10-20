@@ -228,10 +228,6 @@ func (h *CandidateHandler) upsertMyProfile(w http.ResponseWriter, r *http.Reques
 		SalaryCurrency:       req.SalaryCurrency,
 		ExpectedSalaryPeriod: req.ExpectedSalaryPeriod,
 	})
-	var location *geo.ReadLocation
-	if err == nil {
-		location, err = h.service.ReadLocation(r.Context(), profile.Location)
-	}
 	if err != nil {
 		var invalid *geo.InvalidLocation
 		if errors.As(err, &invalid) {
@@ -260,7 +256,7 @@ func (h *CandidateHandler) upsertMyProfile(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	httpjson.WriteJSON(w, http.StatusOK, toProfileResponse(profile, location))
+	httpjson.WriteJSON(w, http.StatusOK, toProfileResponse(profile.CandidateProfile, profile.LocationRead))
 }
 
 func (h *CandidateHandler) listMyLanguages(w http.ResponseWriter, r *http.Request) {

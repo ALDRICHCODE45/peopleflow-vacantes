@@ -16,6 +16,14 @@ import (
 // 400 with a readable validation message instead of a 500.
 var ErrInvalidBirthDate = errors.New("invalid birth_date")
 
+// ProfileWriteResult carries the persisted profile and the location expanded
+// before persistence. Transports must use this prepared shape, not re-read the
+// catalog after the write has committed.
+type ProfileWriteResult struct {
+	*entities.CandidateProfile
+	LocationRead *geo.ReadLocation
+}
+
 // UpsertMyProfile creates or replaces the caller's profile. PUT has
 // full-replacement semantics: a fresh profile entity is built from the
 // DTO, so an omitted or JSON-null optional field persists as SQL NULL
@@ -24,7 +32,7 @@ var ErrInvalidBirthDate = errors.New("invalid birth_date")
 // and the entity re-validates before persistence. On any validation
 // failure the repository is never invoked (defense-in-depth: the HTTP
 // layer maps the error to 400 with a clean message).
-func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub string, params dtos.UpsertMyProfileDto) (*entities.CandidateProfile, error) {
+func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub string, params dtos.UpsertMyProfileDto) (*ProfileWriteResult, error) {
 	userID, err := s.resolveUserID(ctx, cognitoSub)
 	if err != nil {
 		return nil, err
@@ -107,7 +115,15 @@ func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub strin
 	// candidate-API write path, so a preexisting reserved value can never
 	// be overwritten through the upsert.
 
-	return s.repository.UpsertProfile(ctx, profile)
+	location, err := s.ReadLocation(ctx, profile.Location)
+	if err != nil {
+		return nil, err
+	}
+	persisted, err := s.repository.UpsertProfile(ctx, profile)
+	if err != nil {
+		return nil, err
+	}
+	return &ProfileWriteResult{CandidateProfile: persisted, LocationRead: location}, nil
 }
 
 // emptyAsBlank turns a non-nil pointer whose value is "" into the empty
