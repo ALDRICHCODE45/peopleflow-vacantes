@@ -11,6 +11,7 @@ import { useGeoCatalog, useGeoResource } from "../../geo/use-geo-catalog";
 import { municipalitiesSchema, type Catalog, type GeoReference } from "../../geo/model";
 import { selectedValues, type JobsFilterPatch, type JobsQuery } from "../url";
 import { CONTRACT_TYPE_OPTIONS, PROFESSIONAL_AREA_OPTIONS, WORK_MODE_OPTIONS, WORK_SCHEDULE_OPTIONS } from "../drafts/ui/draft-labels";
+import { ignoreEscapeClear } from "@/features/geo/escape-clear";
 
 type Resource = { status: string; data?: Catalog; retry: () => void };
 const MODES = WORK_MODE_OPTIONS.map(item => ({ id: item.value, name: item.label }));
@@ -51,7 +52,7 @@ function MultiFilter({ id, label, options, value, onChange, disabled = false, he
   const selected = options.filter(item => value.includes(item.id));
   return <Field data-disabled={disabled}>
     <FieldLabel htmlFor={id}>{label}</FieldLabel>
-    <Combobox multiple items={options} value={selected} onValueChange={items => onChange(items.map(item => item.id))} itemToStringLabel={item => item.name} itemToStringValue={item => item.id} isItemEqualToValue={(a, b) => a.id === b.id} disabled={disabled}>
+    <Combobox multiple items={options} value={selected} onValueChange={ignoreEscapeClear((items: GeoReference[]) => onChange(items.map(item => item.id)))} itemToStringLabel={item => item.name} itemToStringValue={item => item.id} isItemEqualToValue={(a, b) => a.id === b.id} disabled={disabled}>
       <ComboboxTrigger id={id} aria-label={label} aria-describedby={helper ? `${id}-help` : undefined} render={<Button type="button" variant="outline" className="min-h-10 w-full justify-between" />}>
         <span className="min-w-0 truncate">{selected.length ? selected.map(item => item.name).join(", ") : "Todas las opciones"}</span>
       </ComboboxTrigger>
@@ -71,7 +72,7 @@ export function JobsGeoFields({ idPrefix, query, onChange, geo }: { idPrefix: st
     {states.map(state => <MunicipalityFeedback key={state} state={state} name={geo.states.data?.items.find(item => item.id === state)?.name ?? "los estados seleccionados"} />)}
     <MultiFilter id={`${idPrefix}work_mode`} label="Modalidad" options={MODES} value={selectedValues(query.work_mode)} onChange={work_mode => onChange({ work_mode })} />
     <Field><FieldLabel htmlFor={`${idPrefix}country`}>Postulo desde</FieldLabel>
-      <Combobox items={countries} value={countries.find(item => item.id === query.applicant_country) ?? null} onValueChange={item => onChange({ applicant_country: item?.id ?? "" })} itemToStringLabel={(item: GeoReference) => item.name} itemToStringValue={(item: GeoReference) => item.id} isItemEqualToValue={(a, b) => a.id === b.id}>
+      <Combobox items={countries} value={countries.find(item => item.id === query.applicant_country) ?? null} onValueChange={ignoreEscapeClear((item: GeoReference | null) => onChange({ applicant_country: item?.id ?? "" }))} itemToStringLabel={(item: GeoReference) => item.name} itemToStringValue={(item: GeoReference) => item.id} isItemEqualToValue={(a, b) => a.id === b.id}>
         <ComboboxInput id={`${idPrefix}country`} className="min-h-10" showClear aria-describedby={`${idPrefix}country-help`} />
         <ComboboxContent><ComboboxEmpty>Sin coincidencias.</ComboboxEmpty><ComboboxList>{(item: GeoReference) => <ComboboxItem key={item.id} value={item}>{item.name}</ComboboxItem>}</ComboboxList></ComboboxContent>
       </Combobox>
