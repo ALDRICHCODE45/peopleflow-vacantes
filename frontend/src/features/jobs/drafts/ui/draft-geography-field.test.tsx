@@ -43,7 +43,7 @@ it("renders optional remote location and the official chips composition with nam
  state.remote_scope = { kind: "countries", countries: ["CO"] };
  state.remoteCountries = [{ id: "CO", name: "Colombia" }];
  const { container } = render(<DraftGeographyField state={state} onChange={vi.fn()} />);
- expect(screen.getByText("Ubicación (opcional)")).toBeInTheDocument();
+ expect(screen.getByRole("group", { name: "Ubicación (opcional)" })).toBeInTheDocument();
  expect(screen.getByText("Para vacantes remotas la ubicación es opcional.")).toBeInTheDocument();
  expect(screen.getByText("¿Desde dónde pueden postular?")).toBeInTheDocument();
  expect(screen.getByRole("button", { name: "Quitar Colombia" })).toBeInTheDocument();
@@ -70,4 +70,15 @@ it("places the two remote scope choices side by side (stacked only on small scre
   const group = screen.getByRole("button", { name: "Desde cualquier lugar" }).closest('[data-slot="toggle-group"]')!;
   expect(group).toHaveAttribute("data-orientation", "horizontal");
   expect(group).toHaveClass("grid", "sm:grid-cols-2");
+});
+
+it("remounts the location field when the work mode switches remote ↔ onsite", () => {
+  // Chromium did not lay out the location grid after switching to Remoto (fields at 0px; a fresh
+  // mount rendered fine). Remounting on the mode change keeps the controlled value and lays it out.
+  render(<Harness />);
+  const remoteGroup = screen.getByRole("group", { name: "Ubicación (opcional)" });
+  fireEvent.click(screen.getByRole("button", { name: "Cambiar modalidad" }));
+  const onsiteGroup = screen.getByRole("group", { name: "Ubicación" });
+  expect(onsiteGroup).not.toBe(remoteGroup);
+  expect(remoteGroup.isConnected).toBe(false);
 });
