@@ -35,10 +35,11 @@ it("shows editor-shaped Skeletons with one accessible status while loading", asy
   expect(screen.getByRole("status").closest('[aria-busy="true"]')).not.toBeNull();
   const skeletons = container.querySelectorAll('[data-slot="skeleton"]');
   expect(skeletons.length).toBeGreaterThan(5);
-  expect(container.querySelector('[data-slot="skeleton"].max-w-prose')).not.toBeNull();
+  expect(container).not.toHaveTextContent("Al pulsar Guardar borrador");
   skeletons.forEach(item => expect(item.closest('[aria-hidden="true"]')).not.toBeNull());
   expect(screen.queryByRole("textbox",{name:"Título"})).not.toBeInTheDocument();
-  const skeletonCards = [...container.querySelectorAll('[data-slot="card"]')];
+  const skeletonCards = [...container.querySelectorAll('[data-pf-draft-skeleton-topics] [data-slot="card"]')];
+  expect(container.querySelector('[data-pf-draft-save-bar] [data-slot="card"] [data-slot="card-content"]')).not.toBeNull();
   const slots = (node: Element) => [...node.querySelectorAll('[data-slot]')].map(part => part.getAttribute("data-slot")).filter(slot => slot?.startsWith("card-"));
   const skeletonSlots = skeletonCards.map(slots);
   expect(skeletonCards).toHaveLength(3);
@@ -51,7 +52,7 @@ it("shows editor-shaped Skeletons with one accessible status while loading", asy
 it("loads the real seeded editor and first saves every stored field by PATCH with the GET ETag", async () => {
   render(<DraftEditLoader draftId={read.id} />);
   expect(await screen.findByRole("textbox",{name:"Título"})).toHaveValue(read.fields.title);
-  fireEvent.click(screen.getByRole("button", { name: "Revisión y publicación" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Revisión y publicación" }));
   fireEvent.click(screen.getByRole("button",{name:"Guardar cambios"}));
   await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledExactlyOnceWith({draftId:read.id,etag:'"get-etag"',body:{fields:storedWriteFields(read)}}));
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Guardado · versión 8"));

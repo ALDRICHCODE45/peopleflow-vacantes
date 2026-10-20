@@ -5,7 +5,6 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LocalDraftForm } from "../ui/local-draft-form";
-import { DRAFT_SAVE_NOTICE } from "../ui/draft-save-feedback";
 import { DraftEditErrorState } from "./error-state";
 import { loadDraftForEditAction, type DraftEditResult } from "./load";
 
@@ -19,16 +18,15 @@ function DraftEditorSkeleton() {
     <section aria-busy="true" aria-label="Editor de borrador" className="flex flex-col gap-5">
       <span role="status" className="sr-only">Cargando borrador</span>
       <div aria-hidden="true" className="flex flex-col gap-5">
-        <div className="flex gap-2 rounded-2xl bg-muted/50 px-3 py-2"><Skeleton className="mt-0.5 size-4 shrink-0" /><Skeleton className="w-full max-w-prose text-sm"><span className="invisible">{DRAFT_SAVE_NOTICE}</span></Skeleton></div>
         <div className="flex flex-wrap items-center justify-between gap-5"><div className="flex flex-col gap-2"><Skeleton className="h-7 w-72 max-w-full" /><Skeleton className="h-5 w-64 max-w-full" /></div><Skeleton className="h-10 w-32" /></div>
-        <div className="grid min-w-0 grid-cols-1 items-start gap-7 lg:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(0,1fr)_300px]">
+        <div className="grid min-w-0 grid-cols-1 items-start gap-7 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_300px]">
           <div className="flex flex-col gap-3">
             <div className="flex gap-2 overflow-hidden lg:flex-col">
               {[0, 1, 2, 3, 4].map(step => <Skeleton key={step} className="h-12 w-44 shrink-0" />)}
             </div>
             <Skeleton className="h-2 w-full" /><Skeleton className="h-16 w-full" />
           </div>
-          <section className="flex min-w-0 flex-col gap-5">
+          <section data-pf-draft-skeleton-topics="" className="flex min-w-0 flex-col gap-5">
             <Skeleton className="h-7 w-56 max-w-full" />
             {[5, 1, 2].map((count, index) => <Card key={index}>
               <CardHeader>
@@ -43,7 +41,7 @@ function DraftEditorSkeleton() {
           </section>
           <div className="hidden flex-col gap-4 xl:flex"><Skeleton className="h-5 w-32" /><Skeleton className="h-80 w-full" /></div>
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"><Skeleton className="h-10 w-48" /><Skeleton className="h-10 w-64" /></div>
+        <footer data-pf-draft-save-bar="" className="sticky bottom-4 w-full pb-[env(safe-area-inset-bottom)]"><Card size="sm" className="rounded-xl bg-card/95 backdrop-blur ring-1 ring-foreground/10 shadow-sm"><CardContent className="flex flex-wrap items-center justify-between gap-3"><Skeleton className="h-10 w-48 max-w-full" /><Skeleton className="h-10 w-64 max-w-full" /></CardContent></Card></footer>
       </div>
     </section>
   );

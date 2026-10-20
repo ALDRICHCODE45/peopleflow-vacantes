@@ -383,7 +383,7 @@ describe("LocalDraftForm five-step wizard", () => {
   it("shows current step semantics in the progress indicator", () => {
     render(<LocalDraftForm />);
 
-    expect(screen.getByRole("navigation", { name: "Secciones de la vacante" })).toBeVisible();
+    expect(screen.getByRole("tablist", { name: "Secciones de la vacante" })).toBeVisible();
     expect(currentStep()).toBe(1);
     goToStep(2);
     expect(currentStep()).toBe(2);

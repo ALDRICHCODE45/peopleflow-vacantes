@@ -19,7 +19,7 @@ const sections = [
 
 it.each(sections)("composes %s as topic Cards, not nested section cards", (section, titles) => {
   render(<LocalDraftForm />);
-  fireEvent.click(within(screen.getByRole("navigation", { name: "Secciones de la vacante" })).getByRole("button", { name: section }));
+  fireEvent.click(within(screen.getByRole("tablist", { name: "Secciones de la vacante" })).getByRole("tab", { name: section }));
   const panel = document.querySelector('[data-pf-draft-step]:not([hidden])')!;
   expect(panel.querySelectorAll('[data-slot="card"]')).toHaveLength(titles.length);
   for (const title of titles) {
@@ -61,7 +61,7 @@ it.each(["onsite", "remote"] as const)("shows only the appropriate geography req
 
 it("uses the v0 questionnaire empty anatomy and preserves adding a question", () => {
   render(<LocalDraftForm />);
-  fireEvent.click(screen.getByRole("button", { name: "Preguntas de filtro" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Preguntas de filtro" }));
   const empty = screen.getByText("La conversación empieza aquí").closest('[data-slot="empty"]')!;
   expect(empty.querySelector('[data-slot="empty-header"] [data-slot="empty-icon"]')).not.toBeNull();
   fireEvent.click(within(empty as HTMLElement).getByRole("button", { name: "Agregar pregunta" }));
@@ -77,7 +77,7 @@ it("orders the basic fields and puts the rich editor before requirements", () =>
   render(<LocalDraftForm />);
   const position = screen.getByRole("heading", { name: "El puesto que estás buscando" }).closest('[data-slot="card"]')!;
   expect([...position.querySelectorAll('input:not([aria-hidden]), [data-slot="select-trigger"]')].filter(node => node.id.startsWith("draft-")).map(node => node.id)).toEqual(["draft-title", "draft-professional-area", "draft-seniority", "draft-work-schedule", "draft-contract-type"]);
-  fireEvent.click(screen.getByRole("button", { name: "Descripción y perfil" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Descripción y perfil" }));
   expect(document.getElementById("draft-description")!.compareDocumentPosition(document.getElementById("draft-required-requirements")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(document.querySelector('[data-pf-description-frame] [role="toolbar"]')).not.toBeNull();
 });

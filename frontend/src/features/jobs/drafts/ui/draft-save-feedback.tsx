@@ -5,9 +5,6 @@ import { buttonVariants } from "@/components/ui/button";
 import type { DraftSaveReason, DraftSaveResult } from "../actions";
 import { formatPublishedSaveMissing } from "../pipeline/publication-model";
 
-export const DRAFT_SAVE_NOTICE =
-  "Al pulsar Guardar borrador, se guardará en tu cuenta. No hay guardado automático: los cambios sin guardar se pierden al salir o recargar.";
-
 const messages: Record<Exclude<DraftSaveReason, "publication_incomplete">, { title: string; description: string }> = {
   unauthenticated: { title: "Tu sesión expiró", description: "Inicia sesión en otra pestaña para guardar. Tus cambios siguen en este formulario." },
   forbidden: { title: "No tienes permiso para esta acción", description: "Solo una cuenta de reclutador con permisos puede guardar borradores. Tus cambios siguen aquí." },

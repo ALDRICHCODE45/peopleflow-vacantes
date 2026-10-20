@@ -141,9 +141,8 @@ describe("/empresa/vacantes/borradores/nuevo employer route", () => {
     expect(
       screen.getByRole("combobox", { name: "Modalidad" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("note")).toHaveTextContent(
-      "Al pulsar Guardar borrador, se guardará en tu cuenta. No hay guardado automático",
-    );
+    expect(screen.queryByText(/Al pulsar Guardar borrador/)).not.toBeInTheDocument();
+    expect(document.querySelector('[data-pf-draft-save-bar]')).toHaveTextContent("Sin guardado automático");
 
     // Topic Cards retain accessible headings and remain reachable in every section.
     const steps = [
@@ -187,7 +186,7 @@ describe("/empresa/vacantes/borradores/nuevo employer route", () => {
     const content = document.querySelector("[data-pf-draft-vacante-content]");
     expect(content).not.toBeNull();
     expect(content!.className).toContain("mx-auto");
-    expect(content!.className).toContain("max-w-[88rem]");
+    expect(content!.className).toContain("max-w-[94rem]");
     expect(content!.className).toContain("px-4");
     expect(content!.className).toContain("py-4");
     expect(content!.className).toContain("md:py-6");

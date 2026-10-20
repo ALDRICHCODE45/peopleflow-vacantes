@@ -17,8 +17,9 @@ import { PublicationRequired } from "./publication-required";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useDraftSave, type DraftIdentity } from "./draft-save-state";
-import { DRAFT_SAVE_NOTICE, DraftSaveFeedback } from "./draft-save-feedback";
+import { DraftSaveFeedback } from "./draft-save-feedback";
 import { ActionBar } from "@/components/feedback/action-status";
+import { TabsContent } from "@/components/ui/tabs";
 import { Card,
   CardAction,
   CardContent,
@@ -487,6 +488,8 @@ export function LocalDraftForm({
     }
     const selector = focusTarget.current;
     focusTarget.current = null;
+    // Tabs own roving keyboard focus; explicit error routing still focuses its field.
+    if (!selector && document.activeElement?.getAttribute("role") === "tab") return;
     const target = selector ? document.querySelector<HTMLElement>(selector) : null;
     (target ?? document.querySelector<HTMLElement>(`[data-pf-draft-step="${step + 1}"] [aria-invalid="true"]`) ?? stepHeadingRef.current)?.focus();
   }, [step, focusRevision]);
@@ -578,19 +581,19 @@ export function LocalDraftForm({
 
   return (
     <div data-pf-local-draft-form="" className="flex flex-col gap-5">
-      <div
+      {!isV2 && <div
         role="note"
         data-pf-local-draft-notice=""
         className="flex gap-2 rounded-2xl bg-muted/50 px-3 py-2 text-sm text-muted-foreground"
       >
         <InfoIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-        <p className="max-w-prose">{isV2 ? DRAFT_SAVE_NOTICE : LOCAL_ONLY_NOTICE}</p>
-      </div>
+        <p className="max-w-prose">{LOCAL_ONLY_NOTICE}</p>
+      </div>}
 
       <form noValidate aria-describedby="draft-publication-footnote" onSubmit={handleValidate} className="flex flex-col gap-6">
         <DraftEditorShell state={state} published={published} step={step} onStep={goToStep} readiness={readiness}>
 
-        <section
+        <TabsContent value={0} keepMounted
           data-pf-draft-step="1"
           hidden={step !== 0}
           style={{ display: step === 0 ? undefined : "none" }}
@@ -675,9 +678,9 @@ export function LocalDraftForm({
                 />
             </DraftStepSection>
           </div>
-        </section>
+        </TabsContent>
 
-        <section
+        <TabsContent value={1} keepMounted
           data-pf-draft-step="2"
           hidden={step !== 1}
           style={{ display: step === 1 ? undefined : "none" }}
@@ -752,9 +755,9 @@ export function LocalDraftForm({
                 </FieldGroup>
               </DraftStepSection>
           </div>
-        </section>
+        </TabsContent>
 
-        <section
+        <TabsContent value={2} keepMounted
           data-pf-draft-step="3"
           hidden={step !== 2}
           style={{ display: step === 2 ? undefined : "none" }}
@@ -806,9 +809,9 @@ export function LocalDraftForm({
                 </FieldGroup>
               </DraftStepSection>
           </div>
-        </section>
+        </TabsContent>
 
-        <section
+        <TabsContent value={3} keepMounted
           data-pf-draft-step="4"
           hidden={step !== 3}
           style={{ display: step === 3 ? undefined : "none" }}
@@ -855,9 +858,9 @@ export function LocalDraftForm({
                 )}
               </DraftStepSection>
           </div>
-        </section>
+        </TabsContent>
 
-        <section
+        <TabsContent value={4} keepMounted
           data-pf-draft-step="5"
           hidden={step !== LAST_STEP}
           style={{ display: step === LAST_STEP ? undefined : "none" }}
@@ -899,7 +902,7 @@ export function LocalDraftForm({
               ) : <Button type="button" variant="link" className="min-h-10" onClick={() => goToStep(3)}>Revisar preguntas</Button>}
             </>} />
           </div>
-        </section>
+        </TabsContent>
         <div className="mt-6 flex items-center justify-between gap-3">
           <Button type="button" variant="ghost" className="min-h-10" disabled={step === 0} onClick={() => goToStep(step - 1)}>Anterior</Button>
           {step < LAST_STEP && <Button type="button" variant="outline" className="min-h-10" onClick={() => goToStep(step + 1)}>Siguiente sección</Button>}
@@ -907,7 +910,10 @@ export function LocalDraftForm({
         </div>
         <p id="draft-publication-footnote" className="mt-5 text-center text-sm text-muted-foreground"><span className="text-primary">*</span> Necesario para publicar, no para guardar tu borrador.</p>
         </DraftEditorShell>
-        <footer data-pf-draft-save-bar="" className="sticky bottom-0 z-20 border-t bg-card px-4 py-4">
+        <footer data-pf-draft-save-bar="" className="sticky bottom-4 z-20 w-full pb-[env(safe-area-inset-bottom)]">
+          {/* A standalone action surface, like the toolbar Card in §13.12: no redundant heading or footer. */}
+          <Card size="sm" className="rounded-xl bg-card/95 backdrop-blur ring-1 ring-foreground/10 shadow-sm">
+          <CardContent className="[&>[data-pf-action-bar]]:flex-wrap [&_[data-pf-action-bar-actions]]:w-full sm:[&_[data-pf-action-bar-actions]]:w-auto">
           <ActionBar status={<div className="flex flex-col gap-1">
             {isV2 ? <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} /> : null}
             {!draftSave.result && <p className="text-sm text-muted-foreground">{draftSave.dirty ? "Cambios sin guardar" : draftSave.saved ? "Sin cambios pendientes" : "Borrador sin guardar"}</p>}
@@ -916,7 +922,7 @@ export function LocalDraftForm({
           </div>}>
             <FieldError id="draft-model-error">{errors.model}</FieldError>
             {validated !== null && <p role="status" className="flex items-center gap-2 text-sm text-status-success"><CheckCircle2Icon aria-hidden="true" className="size-4" />{VALIDATION_SUCCESS}</p>}
-            <div className="flex flex-wrap gap-2">
+            <div data-pf-draft-save-actions="" className="flex w-full flex-col gap-2 sm:flex-row">
               {isV2 ? <Button type="submit" variant="outline" className="min-h-10" disabled={draftSave.pending} aria-busy={draftSave.pending} aria-describedby={draftSave.result ? "draft-save-status" : undefined}>
                 {draftSave.pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
                 {draftSave.pending ? "Guardando…" : draftSave.saved ? "Guardar cambios" : "Guardar borrador"}
@@ -924,6 +930,8 @@ export function LocalDraftForm({
               {isV2 && (savedDraftId && !published ? <PublishButton draftId={savedDraftId} label="Publicar vacante" variant="default" unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={() => setPublished(true)} /> : <Button type="button" className="min-h-10" disabled={published === true} onClick={() => setPublishNotice(true)}>{published ? "Activa" : "Publicar vacante"}</Button>)}
             </div>
           </ActionBar>
+          </CardContent>
+          </Card>
         </footer>
       </form>
       <DraftLeaveGuard dirty={draftSave.dirty} />

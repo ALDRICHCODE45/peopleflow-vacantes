@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { ArrowRight, ArrowUpRight, Banknote, BriefcaseBusiness, Check, ClipboardCheck, Eye, FileText, Info, LockKeyhole, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import type { editorReadiness } from "../pipeline/publication-model";
 import type { DraftFormState } from "./draft-form-state";
@@ -17,11 +18,21 @@ export const EDITOR_DESCRIPTIONS = ["Los detalles que dan forma a tu próxima co
 const icons = [BriefcaseBusiness, FileText, Banknote, MessageSquare, ClipboardCheck];
 function pendingCopy(count: number) { return count === 1 ? "1 detalle pendiente. Puedes completarlo a tu ritmo." : `${count} detalles pendientes. Puedes completarlos a tu ritmo.`; }
 
+const desktopQuery = "(min-width: 1024px)";
+function subscribeDesktop(onChange: () => void) {
+  const media = window.matchMedia?.(desktopQuery);
+  media?.addEventListener("change", onChange);
+  return () => media?.removeEventListener("change", onChange);
+}
+const desktopSnapshot = () => window.matchMedia?.(desktopQuery).matches ?? false;
+const serverSnapshot = () => false;
+
 export function DraftEditorShell({ state, published, step, onStep, readiness, children }: {
   state: DraftFormState; published: boolean | null; step: number; onStep: (step: number) => void;
   readiness: ReturnType<typeof editorReadiness>; children: ReactNode;
 }) {
   const [preview, setPreview] = useState(false);
+  const desktop = useSyncExternalStore(subscribeDesktop, desktopSnapshot, serverSnapshot);
   return <Sheet open={preview} onOpenChange={setPreview}>
     <header className="flex flex-wrap items-start justify-between gap-5">
       <div className="flex flex-col gap-2">
@@ -33,20 +44,20 @@ export function DraftEditorShell({ state, published, step, onStep, readiness, ch
       </div>
       <SheetTrigger render={<Button type="button" variant="outline" className="min-h-10" />}><Eye aria-hidden="true" data-icon="inline-start" />Vista previa</SheetTrigger>
     </header>
-    <div className="grid min-w-0 grid-cols-1 items-start gap-7 lg:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(0,1fr)_300px]">
+    <Tabs value={step} onValueChange={value => { if (typeof value === "number") onStep(value); }} orientation={desktop ? "vertical" : "horizontal"} className="grid min-w-0 grid-cols-1 items-start gap-7 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_300px]">
       <aside className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-6">
-        <nav aria-label="Secciones de la vacante" className="flex gap-1 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible">
+        <div className="overflow-x-auto p-1 lg:overflow-visible">
+        <TabsList activateOnFocus aria-label="Secciones de la vacante" className="lg:w-full">
           {EDITOR_SECTIONS.map((title, index) => {
             const Icon = icons[index]; const complete = readiness.sectionComplete[index];
-            return <Button key={title} type="button" variant={step === index ? "secondary" : "ghost"} onClick={() => onStep(index)}
-              aria-label={title} aria-current={step === index ? "step" : undefined} data-complete={complete === true}
-              className="min-h-12 shrink-0 justify-start lg:h-auto lg:whitespace-normal lg:text-left">
-              <Icon aria-hidden="true" data-icon="inline-start" /><span className="flex-1">{title}</span>
+            return <TabsTrigger key={title} value={index} aria-label={title} data-complete={complete === true}>
+              <Icon aria-hidden="true" /><span className="flex-1 whitespace-nowrap text-left">{title}</span>
               {complete && <Check aria-label="Requisitos completos" data-icon="inline-end" />}
               {index === 4 && readiness.pending > 0 && <Badge variant="secondary">{readiness.pending}</Badge>}
-            </Button>;
+            </TabsTrigger>;
           })}
-        </nav>
+        </TabsList>
+        </div>
         <Separator />
         <div className="flex flex-col gap-3">
           <Progress value={readiness.percent} aria-label="Lista para publicar"><ProgressLabel>Lista para publicar</ProgressLabel><ProgressValue /></Progress>
@@ -63,7 +74,7 @@ export function DraftEditorShell({ state, published, step, onStep, readiness, ch
         <Button type="button" variant="link" className="min-h-10 w-full" onClick={() => setPreview(true)}>Ver vacante completa<ArrowUpRight aria-hidden="true" data-icon="inline-end" /></Button>
         <p className="flex items-start gap-2 text-sm leading-6 text-muted-foreground"><LockKeyhole aria-hidden="true" className="mt-1 size-4 shrink-0" />{published === null ? "El estado de publicación está por confirmar." : published ? "Esta vacante está activa. Los cambios se publican al guardar." : "Solo tú puedes ver esta vista previa. Aún no está publicada."}</p>
       </aside>
-    </div>
+    </Tabs>
     <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
       <SheetHeader className="border-b"><SheetTitle>Vista previa pública</SheetTitle><SheetDescription>Así verán esta oportunidad las personas candidatas.</SheetDescription></SheetHeader>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4"><DraftPreview state={state} publicOnly /></div>

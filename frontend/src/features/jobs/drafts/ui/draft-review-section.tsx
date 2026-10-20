@@ -4,10 +4,10 @@ import { Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Banknote, Check, Eye, LockKeyhole, MessageSquare, Settings2, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Item, ItemActions, ItemContent, ItemGroup, ItemTitle } from "@/components/ui/item";
-import { Separator } from "@/components/ui/separator";
+import { Item, ItemActions, ItemContent, ItemGroup, ItemSeparator, ItemTitle } from "@/components/ui/item";
 import { SheetTrigger } from "@/components/ui/sheet";
 import { groupMissing, type editorReadiness } from "../pipeline/publication-model";
 import type { DraftFormState } from "./draft-form-state";
@@ -37,12 +37,12 @@ export function DraftReviewSection({ state, readiness, draftId, published, quest
             <h4 id={`draft-review-${key}`} className="text-sm font-medium">{label}</h4>
             {!known ? <p className="text-sm text-muted-foreground">Pendiente de comprobar</p> : items.length === 0 ? <Badge variant="success"><Check aria-hidden="true" />Completa</Badge> :
               <ItemGroup className="gap-0">{items.map((item, index) => <Fragment key={item.code}>
-                {index > 0 && <Separator />}
+                {index > 0 && <ItemSeparator className="my-0" />}
                 <Item size="sm" role="listitem" className="px-0 py-1.5">
                   <ItemContent className="min-w-0"><ItemTitle className="line-clamp-none">{item.label}</ItemTitle></ItemContent>
                   <ItemActions>{key === "editor" ?
                     <Button type="button" variant="link" className="min-h-10" onClick={() => onComplete(item.code)}>Completar<span className="sr-only"> {item.label}</span><ArrowUpRight aria-hidden="true" data-icon="inline-end" /></Button> :
-                    draftId && <Button nativeButton={false} role="link" variant="link" className="min-h-10" render={<Link href={item.href(draftId)} />}>Completar<span className="sr-only"> {item.label}</span><ArrowUpRight aria-hidden="true" data-icon="inline-end" /></Button>}
+                    draftId && <Link className={cn(buttonVariants({ variant: "link" }), "min-h-10")} href={item.href(draftId)}>Completar<span className="sr-only"> {item.label}</span><ArrowUpRight aria-hidden="true" data-icon="inline-end" /></Link>}
                   </ItemActions>
                 </Item>
               </Fragment>)}</ItemGroup>}
@@ -51,7 +51,7 @@ export function DraftReviewSection({ state, readiness, draftId, published, quest
         {!readiness.serverKnown && <p id="draft-review-unknown" className="text-sm text-muted-foreground">{draftId ? "Aún no pudimos comprobar solicitud y entrega. Revisa la configuración o vuelve a preparar la publicación." : "La lista de solicitud y entrega aparece después del primer guardado."}</p>}
       </CardContent>
       <CardFooter>{draftId ?
-        <Button nativeButton={false} role="link" variant="outline" className="min-h-10 whitespace-normal" render={<Link href={`/empresa/vacantes/${draftId}/configuracion/solicitud`} />}><Settings2 aria-hidden="true" data-icon="inline-start" />Configurar solicitud y entrega</Button> :
+        <Link className={cn(buttonVariants({ variant: "outline" }), "min-h-10 whitespace-normal")} href={`/empresa/vacantes/${draftId}/configuracion/solicitud`}><Settings2 aria-hidden="true" data-icon="inline-start" />Configurar solicitud y entrega</Link> :
         <Button type="button" variant="outline" className="min-h-10 whitespace-normal" disabled aria-describedby="draft-review-unknown"><Settings2 aria-hidden="true" data-icon="inline-start" />Configurar solicitud y entrega</Button>}
       </CardFooter>
     </Card>

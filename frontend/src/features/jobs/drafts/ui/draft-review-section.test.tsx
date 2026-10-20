@@ -11,7 +11,7 @@ vi.mock("../pipeline/publication-actions", () => ({ loadDraftPublicationAction: 
 vi.mock("../requesters/actions", () => ({ searchRequestersAction: vi.fn(async () => ({ ok: true, items: [], nextCursor: null })), createRequesterAction: vi.fn() }));
 vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ countries: { status: "success", data: { items: [] } }, states: { status: "success", data: { items: [] } }, municipalities: { status: "success", data: { items: [] } } }), useGeoPostalCode: () => ({ status: "idle" }) }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
-function review() { fireEvent.click(screen.getByRole("button", { name: "Revisión y publicación" })); }
+function review() { fireEvent.click(screen.getByRole("tab", { name: "Revisión y publicación" })); }
 
 it.each(["Modalidad", "Jornada", "Tipo de contrato", "Área profesional", "Solicitante"])("focuses the %s control from its pending row", (label) => {
   render(<LocalDraftForm />); review();
@@ -44,6 +44,7 @@ it("shows unknown configuration honestly before the first save and routes title/
   expect(screen.queryByText("Completa")).toBeNull();
   const title = screen.getByRole("button", { name: "Completar Título" });
   expect(title.closest('[data-slot="item-actions"]')?.closest('[data-slot="item-group"]')).not.toBeNull();
+  expect(title.closest('[data-slot="item-group"]')?.querySelector('[data-slot="item-separator"]')).not.toBeNull();
   fireEvent.click(title);
   expect(screen.getByRole("textbox", { name: "Título" })).toHaveFocus();
   review(); fireEvent.click(screen.getByRole("button", { name: "Completar Descripción" }));
@@ -56,6 +57,10 @@ it("renders known completed groups and pending configuration links without inven
   expect(await within(request).findByText("Completa")).toBeVisible();
   expect(screen.getByRole("link", { name: "Completar Objetivo de entrega" })).toHaveAttribute("href", "/empresa/vacantes/draft-id/configuracion/entrega");
   expect(screen.getByRole("link", { name: "Configurar solicitud y entrega" })).toHaveAttribute("href", "/empresa/vacantes/draft-id/configuracion/solicitud");
+  for (const name of ["Completar Objetivo de entrega", "Configurar solicitud y entrega"]) {
+    expect(screen.getByRole("link", { name })).not.toHaveAttribute("role");
+    expect(screen.getByRole("link", { name }).tagName).toBe("A");
+  }
 });
 
 it("reviews internal values, opens safe public preview, and reuses simulation", () => {

@@ -24,7 +24,7 @@ const key = "123e4567-e89b-42d3-a456-426614174000";
 const success = {ok:true, draftId:"saved-id", etag:'"v1"', version:"1", savedAt:"2026-10-06T03:00:00Z"} as const;
 const save = () => screen.getByRole("button", {name:/^Guardar borrador$|^Guardar cambios$/});
 function review() {
-  fireEvent.click(screen.getByRole("button", { name: "Revisión y publicación" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Revisión y publicación" }));
 }
 beforeEach(() => {
   vi.resetAllMocks();
@@ -105,7 +105,7 @@ it("requires a saved draft before publication; unsaved edits block the publish d
   expect(screen.getByText("Guarda los cambios antes de publicar")).toBeVisible();
   fireEvent.click(save()); await waitFor(() => expect(save()).toHaveTextContent("Guardar cambios"));
   expect(screen.getByRole("button", { name: "Publicar vacante" })).toHaveAttribute("aria-haspopup", "dialog");
-  fireEvent.click(screen.getByRole("button", { name: "Información básica" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Información básica" }));
   fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Cambio" } }); review();
   fireEvent.click(screen.getByRole("button", { name: "Publicar vacante" }));
   expect(await screen.findByRole("heading", { name: "Guarda los cambios antes de publicar" })).toBeVisible();
@@ -148,7 +148,7 @@ it("keeps the create key after uncertainty, even after an edit and explicit retr
   render(<LocalDraftForm />); review(); fireEvent.click(save());
   expect(await screen.findByRole("status")).toHaveTextContent("Resultado sin confirmar · ver aviso");
   expect(save()).toBeEnabled();
-  fireEvent.click(screen.getByRole("button", { name: "Información básica" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Información básica" }));
   fireEvent.change(screen.getByRole("textbox", {name:"Título"}),{target:{value:"Cambio"}});
   review(); fireEvent.click(save());
   await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledTimes(2));
@@ -172,7 +172,7 @@ it.each([
   if(href) expect(screen.getByRole("link")).toHaveAttribute("href",href);
   expect(screen.getByRole("status")).toBeVisible();
   expect(sileo.success).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Información básica" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Información básica" }));
   expect(screen.getByRole("textbox",{name:"Título"})).toHaveValue("Mi borrador");
 });
 it("keeps published draft edits and reports missing labels without retry or field errors", async () => {
@@ -192,7 +192,7 @@ it("keeps published draft edits and reports missing labels without retry or fiel
   expect(toast.button).toBeUndefined();
   expect(screen.queryByRole("button", { name: /Reintentar|Comprobar/ })).not.toBeInTheDocument();
   expect(sileo.success).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Información básica" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Información básica" }));
   expect(screen.getByRole("textbox", { name: "Título" })).toHaveValue("Mi edición");
   expect(document.querySelector('[data-slot="field-error"]')).toBeNull();
   expect(saveDraftV2Action).toHaveBeenCalledTimes(1);
@@ -222,7 +222,7 @@ it("keeps edits made during an in-flight save dirty and sends them only on the n
   const replace = vi.spyOn(window.history, "replaceState");
   render(<LocalDraftForm />); review(); fireEvent.click(save());
   expect(replace).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "Información básica" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Información básica" }));
   fireEvent.change(screen.getByRole("textbox",{name:"Título"}),{target:{value:"Edición posterior"}});
   await act(async () => resolve(success));
   expect(replace).toHaveBeenCalledTimes(1);
@@ -306,6 +306,6 @@ it("keeps the result and actions in a shared sticky ActionBar, separate from nav
   expect(bar).not.toBeNull();
   expect(bar).toContainElement(save());
   const footer = save().closest('[data-pf-draft-save-bar]')!;
-  expect(footer).toHaveClass("sticky", "bottom-0");
+  expect(footer).toHaveClass("sticky", "bottom-4");
   expect(footer).not.toContainElement(screen.getByRole("button", {name:"Anterior"}));
 });

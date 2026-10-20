@@ -1,6 +1,6 @@
 import * as React from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { LocalDraftForm } from "./local-draft-form";
 import { saveDraftV2Action } from "../actions";
@@ -11,13 +11,14 @@ vi.mock("../pipeline/publication-actions", () => ({ loadDraftPublicationAction: 
 vi.mock("../requesters/actions", () => ({ searchRequestersAction: vi.fn(async () => ({ ok: true, items: [], nextCursor: null })), createRequesterAction: vi.fn() }));
 vi.mock("sileo", () => ({ sileo: { success: vi.fn(), error: vi.fn(), dismiss: vi.fn() } }));
 vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ countries: { status: "success", data: { items: [] } }, states: { status: "success", data: { items: [] } }, municipalities: { status: "success", data: { items: [] } } }), useGeoPostalCode: () => ({ status: "idle" }) }));
-const nav = (name: string) => within(screen.getByRole("navigation", { name: "Secciones de la vacante" })).getByRole("button", { name });
+const nav = (name: string) => within(screen.getByRole("tablist", { name: "Secciones de la vacante" })).getByRole("tab", { name });
 const save = () => screen.getByRole("button", { name: /^Guardar (borrador|cambios)$/ });
 beforeEach(() => {
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
   vi.mocked(saveDraftV2Action).mockResolvedValue({ ok: true, draftId: "saved", etag: '"v1"', version: "1", savedAt: "2026-10-06T03:00:00Z" });
   vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: [] } });
 });
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); vi.clearAllMocks(); vi.unstubAllGlobals(); });
 it("freely navigates while keeping the same mounted input and its value", () => {
   render(<LocalDraftForm />);
   const title = screen.getByRole("textbox", { name: "Título" });
@@ -28,6 +29,46 @@ it("freely navigates while keeping the same mounted input and its value", () => 
   fireEvent.click(nav("Información básica"));
   expect(screen.getByRole("textbox", { name: "Título" })).toBe(title);
   expect(title).toHaveValue("Mi oportunidad");
+});
+it("keeps all navigation labels on one line with room for icons and indicators", () => {
+  render(<LocalDraftForm />);
+  const navigation = screen.getByRole("tablist", { name: "Secciones de la vacante" });
+  expect(navigation).toHaveAttribute("data-slot", "tabs-list");
+  expect(navigation).toHaveAttribute("aria-orientation", "vertical");
+  expect(navigation.parentElement).toHaveClass("overflow-x-auto");
+  expect(navigation.closest('[data-slot="tabs"]')).toHaveClass("lg:grid-cols-[320px_minmax(0,1fr)]", "xl:grid-cols-[320px_minmax(0,1fr)_300px]");
+  for (const button of within(navigation).getAllByRole("tab")) {
+    expect(button).toHaveAttribute("data-slot", "tabs-trigger");
+    expect(button).toHaveClass("whitespace-nowrap");
+    expect(button).not.toHaveClass("lg:whitespace-normal");
+    expect(button.querySelector("span")).toHaveClass("whitespace-nowrap");
+  }
+  expect(nav("Revisión y publicación").querySelector('[data-slot="badge"]')).toHaveTextContent("8");
+});
+it("uses horizontal scrolling tabs on mobile without remounting inputs", () => {
+  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
+  const { container } = render(<LocalDraftForm />);
+  const list = screen.getByRole("tablist", { name: "Secciones de la vacante" });
+  // Horizontal is the implicit ARIA default; Base UI omits the attribute.
+  expect(list).not.toHaveAttribute("aria-orientation", "vertical");
+  expect(list).toHaveAttribute("data-orientation", "horizontal");
+  expect(list.parentElement).toHaveClass("overflow-x-auto");
+  expect(container.querySelectorAll('[data-slot="tabs-content"]')).toHaveLength(5);
+  const input = screen.getByRole("textbox", { name: "Título" });
+  fireEvent.click(nav("Revisión y publicación"));
+  expect(input).toBeInTheDocument();
+  expect(input).not.toBeVisible();
+  expect(nav("Revisión y publicación")).toHaveAttribute("aria-selected", "true");
+});
+it("keeps vertical arrow navigation focus in the tabs and connects each panel", async () => {
+  render(<LocalDraftForm />);
+  const first = nav("Información básica");
+  const second = nav("Descripción y perfil");
+  act(() => first.focus());
+  fireEvent.keyDown(first, { key: "ArrowDown" });
+  await waitFor(() => expect(second).toHaveFocus());
+  expect(second).toHaveAttribute("aria-selected", "true");
+  expect(document.getElementById(second.getAttribute("aria-controls")!)).toHaveAttribute("data-slot", "tabs-content");
 });
 it("counts readiness rather than visited sections and discloses unknown server requirements", () => {
   render(<LocalDraftForm />);
@@ -56,7 +97,13 @@ it("saves from any section and routes invalid values to the first field", async 
 it("keeps explicit save status and publish controls in the sticky bar", async () => {
   const { container } = render(<LocalDraftForm />);
   const footer = container.querySelector('[data-pf-draft-save-bar]')!;
-  expect(footer).toHaveClass("sticky", "bottom-0");
+  expect(footer).toHaveClass("sticky", "bottom-4", "w-full", "pb-[env(safe-area-inset-bottom)]");
+  expect(footer).not.toHaveClass("border-t");
+  const card = footer.querySelector('[data-slot="card"]')!;
+  expect(card).toHaveClass("rounded-xl", "bg-card/95", "backdrop-blur", "ring-1", "ring-foreground/10", "shadow-sm");
+  expect(card.querySelector('[data-slot="card-content"] [data-pf-action-bar]')).not.toBeNull();
+  expect(footer.querySelector('[data-pf-draft-save-actions]')).toHaveClass("flex-col", "sm:flex-row", "w-full");
+  expect(container.querySelector('[data-pf-local-draft-notice]')).toBeNull();
   expect(footer).toHaveTextContent("Sin guardado automático");
   fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Backend" } });
   expect(footer).toHaveTextContent("Cambios sin guardar");
