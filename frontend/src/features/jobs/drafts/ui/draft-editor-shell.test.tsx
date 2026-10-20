@@ -136,14 +136,15 @@ it("confirms ordinary in-app links without intercepting same-page anchors or new
   fireEvent.click(screen.getByRole("link", { name: "Otra pestaña" }));
   expect(screen.queryByRole("alertdialog")).toBeNull();
   fireEvent.click(screen.getByRole("link", { name: "Volver" }));
-  const dialog = await screen.findByRole("alertdialog", { name: "¿Salir sin guardar?" });
-  expect(dialog).toHaveTextContent("Perderás los cambios que no guardaste.");
-  expect(within(dialog).getByRole("button", { name: "Salir sin guardar" })).toHaveClass("text-destructive");
-  fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+  // User: «salga un dialog advirtiendo que tiene datos sin guardar y dos acciones de continuar, o salir de todos modos».
+  const dialog = await screen.findByRole("alertdialog", { name: "Tienes cambios sin guardar" });
+  expect(dialog).toHaveTextContent("Si sales ahora, perderás los cambios que no guardaste.");
+  expect(within(dialog).getByRole("button", { name: "Salir de todos modos" })).toHaveClass("text-destructive");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Continuar editando" }));
   expect(screen.getByRole("textbox", { name: "Título" })).toHaveValue("Backend");
   expect(follow).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("link", { name: "Volver" }));
-  fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Salir sin guardar" }));
+  fireEvent.click(within(await screen.findByRole("alertdialog")).getByRole("button", { name: "Salir de todos modos" }));
   expect(follow).toHaveBeenCalledOnce();
 });
 it("blocks unload only with unsaved edits and removes the guard after saving", async () => {

@@ -28,8 +28,8 @@ export function DraftLeaveGuard({ dirty }: { dirty: boolean }) {
     return () => { window.removeEventListener("beforeunload", unload); document.removeEventListener("click", follow, true); };
   }, [dirty]);
   return <ConfirmActionDialog open={destination !== null && dirty} onOpenChange={open => { if (!open) setDestination(null); }}
-    icon={LogOut} title="¿Salir sin guardar?" description="Perderás los cambios que no guardaste."
-    confirmLabel="Salir sin guardar" tone="destructive" finalFocus={() => destination}
+    icon={LogOut} title="Tienes cambios sin guardar" description="Si sales ahora, perderás los cambios que no guardaste."
+    cancelLabel="Continuar editando" confirmLabel="Salir de todos modos" tone="destructive" finalFocus={() => destination}
     onConfirm={() => {
       const link = destination; setDestination(null);
       permitted.current = true;

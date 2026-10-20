@@ -27,6 +27,8 @@ type ConfirmActionDialogProps = {
   description: string;
   /** Verb of the action: «Mover», «Descartar candidato». Never «Aceptar» or «Sí». */
   confirmLabel: string;
+  /** Cancel wording when «Cancelar» does not name the safe choice (e.g. «Continuar editando»). */
+  cancelLabel?: string;
   pendingLabel?: string;
   pending?: boolean;
   tone?: "default" | "destructive";
@@ -46,7 +48,7 @@ type ConfirmActionDialogProps = {
  * so a stray Enter or double click cannot confirm; both buttons lock while pending.
  */
 export function ConfirmActionDialog({
-  open, onOpenChange, onConfirm, icon: Icon, title, description, confirmLabel, pendingLabel, pending = false, tone = "default", confirmDisabled = false, finalFocus, children,
+  open, onOpenChange, onConfirm, icon: Icon, title, cancelLabel = "Cancelar", description, confirmLabel, pendingLabel, pending = false, tone = "default", confirmDisabled = false, finalFocus, children,
 }: ConfirmActionDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={(next, details) => { if (!pending) onOpenChange(next, details); }}>
@@ -60,7 +62,7 @@ export function ConfirmActionDialog({
         </AlertDialogHeader>
         {children && <div data-slot="confirm-action-details" className="-mx-1 flex max-h-[calc(100dvh-16rem)] min-w-0 flex-col gap-4 overflow-y-auto overscroll-contain px-1 [scrollbar-width:thin]">{children}</div>}
         <AlertDialogFooter>
-          <AlertDialogCancel autoFocus className="min-h-10" disabled={pending}>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel autoFocus className="min-h-10" disabled={pending}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
             className="min-h-10"
             variant={tone === "destructive" ? "destructive" : "default"}

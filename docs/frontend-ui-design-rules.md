@@ -1195,6 +1195,11 @@ ultimo paso antes de realmente ejecutar la accion».
   a Screening. El cambio queda en su historial.»); el botón usa el verbo de la acción
   («Mover», «Descartar candidato»), nunca «Aceptar» ni «Sí». Acciones destructivas en tono
   `destructive`.
+- **Salir con cambios sin guardar** (editor de vacantes): «Tienes cambios sin guardar» / «Si sales
+  ahora, perderás los cambios que no guardaste.» / «Continuar editando» (cancelar, con el foco) y
+  «Salir de todos modos» (destructivo). `cancelLabel` cambia «Cancelar» solo cuando esa palabra no
+  nombra la opción segura. Cerrar o recargar la pestaña muestra el aviso nativo del navegador (no se
+  puede personalizar).
 - **Seguridad del clic:** el foco inicial está en «Cancelar», así un Enter o un doble clic
   accidental no confirma; mientras se ejecuta, los dos botones se bloquean y el principal
   muestra el progreso («Moviendo…»). Cancelar no escribe nada; en un arrastre, la tarjeta

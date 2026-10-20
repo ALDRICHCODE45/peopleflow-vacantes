@@ -87,3 +87,12 @@ it("uses the default size and a single details slot between header and footer wh
   expect(details.className).toContain("max-h-");
   expect(dialog.querySelector('[data-slot="alert-dialog-media"]')!.className).toContain("text-destructive");
 });
+
+it("lets the cancel action carry the decision when «Cancelar» is not the right word", () => {
+  const { onOpenChange, onConfirm } = mount({ cancelLabel: "Continuar editando", confirmLabel: "Salir de todos modos" });
+  const keep = screen.getByRole("button", { name: "Continuar editando" });
+  expect(keep).toHaveFocus();
+  fireEvent.click(keep);
+  expect(onOpenChange).toHaveBeenCalledWith(false, expect.anything());
+  expect(onConfirm).not.toHaveBeenCalled();
+});
