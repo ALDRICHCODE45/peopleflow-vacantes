@@ -1,3 +1,6 @@
+import type { DraftFormState } from "../ui/draft-form-state";
+import { deriveDraftDescriptionPlain } from "../rich/plain";
+
 export type MissingGroup = "editor" | "solicitud" | "entrega";
 export type MissingItem = { label: string; group: MissingGroup; href: (draftId: string) => string };
 const editor = (label: string, anchor = ""): MissingItem => ({ label, group: "editor", href: id => `/empresa/vacantes/borradores/${id}${anchor}` });
@@ -34,4 +37,32 @@ export function groupMissing(codes: readonly string[]) {
   }
   return groups;
 }
+/** Editor projection of the publication checklist, never a replacement for server authorization.
+ * Alternatives occupy one requirement slot; optional compensation/questions earn no invented marks.
+ */
+export function editorReadiness(state: DraftFormState, serverMissing: readonly string[] | null) {
+  const missing: string[] = [];
+  for (const key of ["title", "work_mode", "work_schedule", "contract_type", "professional_area"] as const) {
+    if (!state[key].trim()) missing.push(`${key}_missing`);
+  }
+  if (!state.requester.id) missing.push("requester_missing");
+  let description = "";
+  try { description = deriveDraftDescriptionPlain(state.description) ?? ""; } catch { /* Invalid local documents are not complete. */ }
+  if (!description.trim()) missing.push("description_missing");
+  if (state.work_mode === "remote") {
+    if (!state.remote_scope || (state.remote_scope.kind === "countries" && !state.remote_scope.countries.length)) missing.push("remote_scope_missing");
+  } else if (!state.location.country) missing.push("location_missing");
+  else if (state.location.country === "MX" && (!state.location.state || !state.location.municipality)) missing.push("location_incomplete");
+  const editorMissing = [...missing];
+  // The server reports missing requirements, not values. An empty loaded list is known;
+  // null means not loaded, and must not silently award five completed requirements.
+  const external = serverMissing === null ? [] : [...new Set(serverMissing)].filter(code => !Object.hasOwn(MISSING_ITEMS, code) || MISSING_ITEMS[code as keyof typeof MISSING_ITEMS].group !== "editor");
+  missing.push(...external);
+  const unknown = external.filter(code => !Object.hasOwn(MISSING_ITEMS, code)).length;
+  const total = 8 + (serverMissing === null ? 0 : 5 + unknown);
+  const pending = missing.length - (missing.includes("commitment_date_missing") && missing.includes("commitment_date_past") ? 1 : 0);
+  return { missing, pending, total, percent: Math.round((total - pending) / total * 100), serverKnown: serverMissing !== null,
+    sectionComplete: [!editorMissing.some(code => code !== "description_missing"), !editorMissing.includes("description_missing"), null, null, serverMissing !== null && pending === 0] as const };
+}
+
 export function formatPublicationDate(value: string) { return new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "UTC" }).format(new Date(value)); }
