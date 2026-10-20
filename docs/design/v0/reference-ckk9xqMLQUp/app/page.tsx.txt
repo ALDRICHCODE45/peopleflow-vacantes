@@ -1,0 +1,5 @@
+import VacancyWorkspace from '@/components/vacancy/workspace'
+
+export default function Page() {
+  return <VacancyWorkspace />
+}

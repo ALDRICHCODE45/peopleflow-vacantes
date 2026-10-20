@@ -1,0 +1,16 @@
+'use client'
+import {useState} from 'react'
+import {useEditor,EditorContent} from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import {TextStyle,FontSize} from '@tiptap/extension-text-style'
+import { Bold, Italic, List, ListOrdered, Link2, Unlink, Undo2, Redo2 } from 'lucide-react'
+import {Button} from '@/components/ui/button'
+import {Dialog,DialogContent,DialogHeader,DialogTitle,DialogDescription,DialogFooter,DialogClose} from '@/components/ui/dialog'
+import {FormField} from './fields'
+export function RichEditor({value,onChange,error}:{value:string;onChange:(v:string)=>void;error?:string}){
+ const [open,setOpen]=useState(false),[url,setUrl]=useState(''),[linkError,setLinkError]=useState('');
+ const editor=useEditor({extensions:[StarterKit.configure({heading:false,codeBlock:false,code:false,horizontalRule:false,blockquote:false,link:{openOnClick:false,protocols:['http','https']}}),TextStyle,FontSize],content:value,immediatelyRender:false,onUpdate:({editor})=>onChange(editor.getHTML()),editorProps:{attributes:{id:'description',role:'textbox','aria-label':'Descripción','aria-multiline':'true','aria-invalid':String(!!error)}}});
+ if(!editor)return <div className="h-64 rounded-lg bg-muted"/>;
+ const actions=[{label:'Negrita',icon:Bold,run:()=>editor.chain().focus().toggleBold().run()},{label:'Cursiva',icon:Italic,run:()=>editor.chain().focus().toggleItalic().run()},{label:'Lista con viñetas',icon:List,run:()=>editor.chain().focus().toggleBulletList().run()},{label:'Lista numerada',icon:ListOrdered,run:()=>editor.chain().focus().toggleOrderedList().run()},{label:'Agregar enlace',icon:Link2,run:()=>{setUrl(editor.getAttributes('link').href||'');setOpen(true)}},{label:'Quitar enlace',icon:Unlink,run:()=>editor.chain().focus().unsetLink().run()},{label:'Deshacer',icon:Undo2,run:()=>editor.chain().focus().undo().run()},{label:'Rehacer',icon:Redo2,run:()=>editor.chain().focus().redo().run()}];
+ return <><div className="editor overflow-hidden rounded-lg border border-input"><div className="flex flex-wrap items-center border-b bg-muted/40 p-1">{actions.map(a=><Button key={a.label} variant="ghost" size="icon" title={a.label} aria-label={a.label} onClick={a.run}><a.icon/></Button>)}<select aria-label="Tamaño de texto" className="h-10 bg-transparent px-2 text-sm" defaultValue="14px" onChange={e=>editor.chain().focus().setFontSize(e.target.value).run()}><option value="14px">Pequeño</option><option value="16px">Normal</option><option value="20px">Grande</option></select></div><EditorContent editor={editor}/></div><Dialog open={open} onOpenChange={setOpen}><DialogContent><DialogHeader><DialogTitle>Agregar enlace</DialogTitle><DialogDescription>Usa una dirección que comience con http o https.</DialogDescription></DialogHeader><FormField id="link-url" label="Dirección del enlace" value={url} onChange={v=>{setUrl(v);setLinkError('')}} error={linkError}/><DialogFooter><DialogClose render={<Button variant="outline"/>}>Cancelar</DialogClose><Button onClick={()=>{try{const u=new URL(url);if(!['http:','https:'].includes(u.protocol))throw Error();editor.chain().focus().extendMarkRange('link').setLink({href:u.href}).run();setOpen(false)}catch{setLinkError('Ingresa una dirección http o https válida.')}}}>Aplicar enlace</Button></DialogFooter></DialogContent></Dialog></>
+}

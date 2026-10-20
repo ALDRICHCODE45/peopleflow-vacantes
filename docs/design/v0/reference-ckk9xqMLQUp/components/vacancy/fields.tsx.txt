@@ -1,0 +1,26 @@
+'use client'
+import { useState } from 'react'
+import { Plus, X, ArrowUp, ArrowDown } from 'lucide-react'
+import { toast } from 'sonner'
+import { Field, FieldLabel, FieldDescription, FieldError, FieldGroup } from '@/components/ui/field'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectGroup, SelectItem } from '@/components/ui/select'
+import { Combobox, ComboboxInput, ComboboxContent, ComboboxEmpty, ComboboxList, ComboboxItem } from '@/components/ui/combobox'
+import { InputGroup, InputGroupInput, InputGroupAddon } from '@/components/ui/input-group'
+
+type Props = {id:string;label:string;value:string;onChange:(v:string)=>void;error?:string;hint?:string;placeholder?:string;required?:boolean;disabled?:boolean;options?:string[];search?:boolean;maxLength?:number;type?:string;multiline?:boolean;money?:boolean;onBlur?:()=>void};
+export function FormField({id,label,value,onChange,error,hint,placeholder,required,disabled,options,search,maxLength,type,multiline,money,onBlur}:Props){
+ return <Field data-invalid={!!error} data-disabled={disabled}>
+  <FieldLabel htmlFor={id}>{label}{required&&<span className="text-primary" aria-label="necesario para publicar">*</span>}</FieldLabel>
+  {options ? search ? <Combobox items={options} value={value||null} onValueChange={v=>onChange(v||'')} disabled={disabled}><ComboboxInput id={id} placeholder={placeholder||'Buscar y seleccionar…'} aria-invalid={!!error} disabled={disabled}/><ComboboxContent><ComboboxEmpty>Sin resultados.</ComboboxEmpty><ComboboxList>{(item:string)=><ComboboxItem key={item} value={item}>{item}</ComboboxItem>}</ComboboxList></ComboboxContent></Combobox> : <Select value={value||null} onValueChange={v=>onChange(v||'')} disabled={disabled} items={options.map(o=>({label:o,value:o}))}><SelectTrigger id={id} aria-invalid={!!error}><SelectValue placeholder={placeholder||'Selecciona una opción'}/></SelectTrigger><SelectContent><SelectGroup>{options.map(o=><SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectGroup></SelectContent></Select> : multiline ? <Textarea id={id} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} aria-invalid={!!error} maxLength={maxLength} className="min-h-28"/> : money ? <InputGroup><InputGroupInput id={id} value={value} onChange={e=>onChange(e.target.value)} inputMode="decimal" placeholder="0.00" aria-invalid={!!error}/><InputGroupAddon>$</InputGroupAddon></InputGroup> : <Input id={id} value={value} onChange={e=>onChange(e.target.value)} onBlur={onBlur} placeholder={placeholder} maxLength={maxLength} type={type||'text'} disabled={disabled} aria-invalid={!!error} inputMode={id==='postal'?'numeric':undefined}/>}
+  {hint&&<FieldDescription>{hint}</FieldDescription>}{error&&<FieldError>{error}</FieldError>}
+ </Field>
+}
+export function EntryList({label,items,onChange,placeholder}:{label:string;items:string[];onChange:(items:string[])=>void;placeholder:string}){
+ const [text,setText]=useState(''); const add=()=>{const t=text.trim();if(!t)return;if(items.some(i=>i.toLocaleLowerCase()===t.toLocaleLowerCase())){toast.error('Este elemento ya está en la lista.');return;}if(t.length>200||items.length>=100)return;onChange([...items,t]);setText('');};
+ return <FieldGroup><Field><FieldLabel>{label}<span className="text-muted-foreground font-normal">{items.length} de 100</span></FieldLabel><div className="flex flex-wrap gap-2">{items.map((item,i)=><Badge variant="secondary" key={item} className="min-h-10 gap-1 pl-3 text-sm">{item}<Button variant="ghost" size="icon" aria-label={`Subir ${item}`} onClick={()=>{if(i){const a=[...items];[a[i-1],a[i]]=[a[i],a[i-1]];onChange(a)}}} disabled={!i}><ArrowUp/></Button><Button variant="ghost" size="icon" aria-label={`Quitar ${item}`} onClick={()=>onChange(items.filter((_,j)=>i!==j))}><X/></Button></Badge>)}</div><div className="flex gap-2"><Input aria-label={`Agregar ${label.toLowerCase()}`} value={text} maxLength={200} placeholder={placeholder} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.nativeEvent.isComposing&&e.keyCode!==229){e.preventDefault();add()}}}/><Button variant="outline" onClick={add} disabled={!text.trim()||items.length>=100}><Plus/><span className="sr-only sm:not-sr-only">Agregar</span></Button></div></Field></FieldGroup>
+}
+export function Reorder({index,total,onMove}:{index:number;total:number;onMove:(direction:number)=>void}){return <div className="flex"><Button variant="ghost" size="icon" aria-label="Mover arriba" disabled={!index} onClick={()=>onMove(-1)}><ArrowUp/></Button><Button variant="ghost" size="icon" aria-label="Mover abajo" disabled={index===total-1} onClick={()=>onMove(1)}><ArrowDown/></Button></div>}

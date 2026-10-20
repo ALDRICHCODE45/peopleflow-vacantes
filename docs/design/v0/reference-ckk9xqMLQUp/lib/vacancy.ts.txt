@@ -1,0 +1,48 @@
+export type Question = { id: string; text: string; type: string; options: string[]; correct: number };
+export type Language = { id: string; name: string; other: string; level: string };
+export type Vacancy = {
+ title: string; modality: string; schedule: string; contract: string; level: string; area: string;
+ country: string; state: string; city: string; postal: string; scope: string; countries: string[];
+ requesterType: string; requester: string; description: string; required: string; desired: string;
+ skills: string[]; languages: Language[]; compensation: string; minimum: string; maximum: string;
+ currency: string; period: string; basis: string; showSalary: boolean; benefits: string[]; extraBenefits: string[];
+ questions: Question[]; requestDate: string; positions: string; cutoff: string; target: string; deadline: string;
+};
+export const areas = ['Tecnología y sistemas','Ingeniería','Producto','Diseño y creatividad','Ventas y desarrollo de negocio','Marketing y comunicación','Administración y finanzas','Recursos humanos','Operaciones y producción','Logística y transporte','Atención a clientes','Salud','Educación y formación','Legal','Construcción y mantenimiento','Turismo y gastronomía'];
+export const benefits = ['Seguro de gastos médicos','Equipo de cómputo','Horario flexible','Apoyo para trabajo remoto','Presupuesto de capacitación','Días libres adicionales','Bienestar','Bono anual'];
+const codes = 'AF AL DZ AS AD AO AI AQ AG AR AM AW AU AT AZ BS BH BD BB BY BE BZ BJ BM BT BO BA BW BR BN BG BF BI KH CM CA CV KY CF TD CL CN CO KM CG CD CR CI HR CU CY CZ DK DJ DM DO EC EG SV GQ ER EE ET FK FO FJ FI FR GF PF GA GM GE DE GH GI GR GL GD GP GU GT GN GW GY HT HN HK HU IS IN ID IR IQ IE IL IT JM JP JO KZ KE KI KP KR KW KG LA LV LB LS LR LY LI LT LU MO MK MG MW MY MV ML MT MH MQ MR MU YT MX FM MD MC MN ME MS MA MZ MM NA NR NP NL NC NZ NI NE NG NU NF NO OM PK PW PS PA PG PY PE PH PL PT PR QA RE RO RU RW KN LC VC WS SM ST SA SN RS SC SL SG SK SI SB SO ZA ES LK SD SR SZ SE CH SY TW TJ TZ TH TL TG TO TT TN TR TM TC TV UG UA AE GB US UY UZ VU VA VE VN VG VI YE ZM ZW'.split(' ');
+const regionNames = new Intl.DisplayNames(['es-MX'], {type:'region'});
+export const countries = codes.map(c => regionNames.of(c) || c).sort((a,b)=>a.localeCompare(b,'es'));
+export const locations: Record<string,string[]> = {'Ciudad de México':['Cuauhtémoc','Miguel Hidalgo','Benito Juárez','Coyoacán','Álvaro Obregón'],Jalisco:['Guadalajara','Zapopan','Tlaquepaque'],'Nuevo León':['Monterrey','San Pedro Garza García'],'Estado de México':['Naucalpan','Tlalnepantla'],Querétaro:['Querétaro','Corregidora'],Yucatán:['Mérida'],Puebla:['Puebla','San Andrés Cholula'],Aguascalientes:['Aguascalientes','Jesús María'],'Baja California':['Tijuana','Mexicali','Ensenada'],'Baja California Sur':['La Paz','Los Cabos'],Campeche:['Campeche','Carmen'],Chiapas:['Tuxtla Gutiérrez','San Cristóbal de las Casas'],Chihuahua:['Chihuahua','Juárez'],Coahuila:['Saltillo','Torreón'],Colima:['Colima','Manzanillo'],Durango:['Durango','Gómez Palacio'],Guanajuato:['León','Guanajuato','Irapuato'],Guerrero:['Acapulco','Chilpancingo'],Hidalgo:['Pachuca','Tulancingo'],Michoacán:['Morelia','Uruapan'],Morelos:['Cuernavaca','Jiutepec'],Nayarit:['Tepic','Bahía de Banderas'],Oaxaca:['Oaxaca de Juárez','Salina Cruz'],'Quintana Roo':['Benito Juárez','Solidaridad'],'San Luis Potosí':['San Luis Potosí','Soledad de Graciano Sánchez'],Sinaloa:['Culiacán','Mazatlán'],Sonora:['Hermosillo','Cajeme'],Tabasco:['Centro','Cárdenas'],Tamaulipas:['Tampico','Reynosa','Victoria'],Tlaxcala:['Tlaxcala','Apizaco'],Veracruz:['Veracruz','Xalapa'],Zacatecas:['Zacatecas','Guadalupe']};
+export const postalPlaces: Record<string,{state:string; cities:string[]}> = {'06700':{state:'Ciudad de México',cities:['Cuauhtémoc']},'11560':{state:'Ciudad de México',cities:['Miguel Hidalgo']},'44100':{state:'Jalisco',cities:['Guadalajara']},'54000':{state:'Estado de México',cities:['Tlalnepantla','Naucalpan']}};
+export const blank: Vacancy = {title:'',modality:'',schedule:'',contract:'',level:'',area:'',country:'México',state:'',city:'',postal:'',scope:'',countries:[],requesterType:'Área interna',requester:'',description:'',required:'',desired:'',skills:[],languages:[],compensation:'',minimum:'',maximum:'',currency:'Peso mexicano (MXN)',period:'Mensual',basis:'',showSalary:false,benefits:[],extraBenefits:[],questions:[],requestDate:'',positions:'',cutoff:'',target:'',deadline:''};
+export const example: Vacancy = {...blank,title:'Diseñador/a de producto',modality:'Híbrido',schedule:'Tiempo completo',contract:'Indefinido',level:'Intermedio',area:'Diseño y creatividad',state:'Ciudad de México',city:'Cuauhtémoc',postal:'06700',requester:'Producto',description:'<p>Buscamos una persona curiosa y creativa que nos ayude a diseñar experiencias digitales que hagan más simple el trabajo de las personas.</p><p>Trabajarás de la mano con producto e ingeniería, desde la primera idea hasta el último detalle.</p>',skills:['Diseño de interfaces','Figma','Investigación de usuarios'],compensation:'Rango',minimum:'35000',maximum:'45000',basis:'Bruto',benefits:['Equipo de cómputo','Horario flexible'],requestDate:'2026-10-20',positions:'1'};
+export const sections = ['Información básica','Descripción y perfil','Compensación y beneficios','Preguntas de filtro','Revisión y publicación'];
+export const plainText = (s:string) => s.replace(/<[^>]*>/g,'').replace(/&nbsp;/g,' ').trim();
+export type Missing = {key: keyof Vacancy; label:string; section:number; group:string};
+export function missingFields(v:Vacancy):Missing[] {
+ const m:Missing[]=[]; const add=(key:keyof Vacancy,label:string,section=0,group='Información de la vacante')=>m.push({key,label,section,group});
+ for(const [k,l] of [['title','Título'],['modality','Modalidad'],['schedule','Jornada'],['contract','Tipo de contrato'],['area','Área profesional'],['requester','Solicitante']] as const) if(!v[k].trim())add(k,l);
+ if(!plainText(v.description))add('description','Descripción',1);
+ if(v.modality==='Remoto'){if(!v.scope || (v.scope==='Solo desde estos países'&&!v.countries.length))add('scope','Indica desde dónde pueden postular.');}
+ else if(v.modality){if(!v.country)add('country','Agrega la ubicación de la vacante.');else if(v.country==='México'&&(!v.state||!v.city))add(!v.state?'state':'city','Completa estado y municipio.');}
+ for(const [k,l] of [['requestDate','Fecha de solicitud'],['positions','Plazas a cubrir']] as const)if(!v[k])add(k,l,4,'Configuración de solicitud');
+ for(const [k,l] of [['cutoff','Columna de corte'],['target','Objetivo de entrega'],['deadline','Fecha compromiso']] as const)if(!v[k])add(k,l,4,'Configuración de entrega');
+ if(v.deadline&&v.deadline<new Date().toISOString().slice(0,10))add('deadline','La fecha compromiso ya pasó.',4,'Configuración de entrega');return m;
+}
+export function validate(v:Vacancy):Record<string,string>{
+ const e:Record<string,string>={};
+ if(v.title.length>200)e.title='Usa hasta 200 caracteres.';
+ if(v.postal&&!/^\d{5}$/.test(v.postal))e.postal='Escribe exactamente 5 dígitos.';
+ else if(v.postal&&!postalPlaces[v.postal])e.postal='No encontramos ese código postal.';
+ if(v.state&&!locations[v.state])e.state='Selecciona un estado del catálogo.';
+ if(v.city&&!locations[v.state]?.includes(v.city))e.city='Selecciona un municipio de este estado.';
+ if(v.countries.length>50)e.countries='Selecciona hasta 50 países.';
+ for(const k of ['minimum','maximum'] as const) if(v[k]&&(!/^\d+(\.\d{1,2})?$/.test(v[k])||Number(v[k])>999999999999.99))e[k]='Ingresa un monto válido con hasta 2 decimales.';
+ if(v.compensation==='Rango'&&v.maximum&&v.minimum&&Number(v.maximum)<Number(v.minimum))e.maximum='El máximo debe ser igual o mayor que el mínimo.';
+ for(const k of ['positions','target'] as const)if(v[k]&&(!/^\d+$/.test(v[k])||Number(v[k])<1))e[k]='Escribe un número entero mayor que cero.';
+ v.languages.forEach((l,i)=>{if(!l.name||(l.name==='Otro'&&!l.other.trim()))e[`language-${i}`]='Selecciona o escribe el idioma.';});
+ v.questions.forEach((q,i)=>{if(!q.text.trim()||q.text.length>2000)e[`question-${i}`]='Escribe un enunciado de hasta 2,000 caracteres.';else if(q.type!=='Abierta (respuesta libre)'&&(q.options.length<2||q.options.length>8||q.options.some(o=>!o.trim())||new Set(q.options.map(o=>o.trim().toLowerCase())).size!==q.options.length))e[`question-${i}`]='Agrega entre 2 y 8 opciones distintas, sin dejar opciones vacías.';else if(q.type==='Opción única (con respuesta correcta)'&&(q.correct<0||q.correct>=q.options.length))e[`question-${i}`]='Selecciona una respuesta correcta.';});
+ return e;
+}
+export function locationLabel(v:Vacancy){if(v.modality==='Remoto'&&(!v.scope||(v.scope==='Solo desde estos países'&&!v.countries.length)))return 'Remoto · Alcance sin definir';if(v.modality==='Remoto')return v.scope==='Solo desde estos países'?`Remoto · Solo desde ${v.countries.slice(0,2).join(', ')}${v.countries.length>2?` y ${v.countries.length-2} más`:''}`:'Remoto · Desde cualquier lugar';return [v.city,v.state,v.country].filter(Boolean).join(', ')||'Ubicación sin definir';}
