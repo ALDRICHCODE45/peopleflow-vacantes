@@ -76,6 +76,7 @@ describe("single application-facing request path", () => {
     expect(importers.map(rel).sort()).toEqual([
       "features/candidate-applications/client.ts",
       "features/candidate-cvs/client.ts",
+      "features/candidate/profile-client.ts",
       "features/employer-company/api/company-client.ts",
       "features/geo/client.ts",
       "features/identity/candidate-account-client.ts",
@@ -103,6 +104,7 @@ describe("single application-facing request path", () => {
     expect(transportImporters.map(rel).sort()).toEqual([
       "features/candidate-applications/client.ts",
       "features/candidate-cvs/client.ts",
+      "features/candidate/profile-client.ts",
       "features/employer-company/api/company-client.ts",
       "features/geo/client.ts",
       "features/identity/candidate-account-client.ts",
