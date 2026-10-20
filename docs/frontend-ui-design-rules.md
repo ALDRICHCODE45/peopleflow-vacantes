@@ -1236,7 +1236,6 @@ falta estructura, según la documentación oficial»: faltaba `AlertDialogMedia`
 
 ## 20. Ubicaciones
 
-- Las ubicaciones opcionales usan `OptionalLocationField`: agregar y quitar son acciones explícitas; nunca se guarda silenciosamente el país predeterminado.
 
 - Usar siempre `LocationField` (`src/features/geo/location-field.tsx`), nunca ubicación
   de texto libre. Guardar códigos como strings (con ceros iniciales); mostrar los
@@ -1255,6 +1254,17 @@ falta estructura, según la documentación oficial»: faltaba `AlertDialogMedia`
   `field.md`, `input-group.md`. En Base UI instalado, `itemToStringLabel` muestra el
   nombre y `itemToStringValue` serializa el código; escribir en el filtro no modifica
   la ubicación hasta elegir una opción.
+- **Ubicación opcional** (`OptionalLocationField`, rechazado el patrón «Agregar ubicación» con el
+  select bloqueado — usuario, 2026-10-20): el campo País se muestra habilitado y vacío con el
+  placeholder «Elige un país», sin México por defecto, así nunca se guarda un país que nadie
+  eligió; al elegir México aparecen código postal (si aplica), estado y municipio. Sin país, se
+  guarda `null`. Para borrar una ubicación ya guardada hay una acción «Quitar ubicación» discreta
+  (botón `ghost`), solo cuando hay un país elegido. Nunca un botón para «habilitar» el campo.
+- **Ubicación dentro de un diálogo** (editar la ubicación de la empresa): composición oficial de
+  `Dialog` (`docs/design/shadcn-reference/dialog.md`, ejemplo `dialog-demo`): `DialogHeader` con
+  `DialogTitle` y `DialogDescription`, el campo como cuerpo sin repetir el título como leyenda,
+  `DialogFooter` con `DialogClose` «Cancelar» (outline) y la acción principal; botón de cerrar
+  visible. Los errores van en su campo y en el toast (sección 12), nunca un texto suelto en el pie.
 
 ## 21. El diseño validado no se cambia al implementar funcionalidad
 
