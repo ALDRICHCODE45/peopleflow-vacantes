@@ -40,7 +40,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { StateCard } from "@/components/feedback/state-card"
-import { Users } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -66,6 +65,7 @@ import {
   IconChevronsLeft,
   IconChevronsRight,
   IconLayoutColumns,
+  IconUsers,
 } from "@tabler/icons-react"
 
 /**
@@ -538,7 +538,7 @@ export function DataTable({ data: initialData }: { data: ApplicantRow[] }) {
                     colSpan={table.getAllColumns().length}
                     className="p-0"
                   >
-                    <StateCard icon={Users} tone="empty" title="Sin candidatos"
+                    <StateCard icon={IconUsers} tone="empty" title="Sin candidatos"
                       description={applicants.length === 0 ? "Aquí puedes revisar las postulaciones y su estado. Mientras tanto, consulta tus vacantes." : "No hay postulantes en este estado. Limpia el filtro para ver los demás candidatos."}
                       primaryAction={statusTab !== "all" && applicants.length > 0 ? { label: "Limpiar filtros", onClick: () => selectStatus("all") } : { href: "/empresa/vacantes", label: "Ver vacantes" }} />
                   </TableCell>

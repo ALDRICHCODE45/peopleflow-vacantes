@@ -1,5 +1,4 @@
-import type { ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
+import type { ComponentType, ReactNode, SVGProps } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +14,8 @@ export type StateCardAction = {
 };
 
 type StateCardProps = {
-  icon: LucideIcon;
+  /** Any icon component (lucide, or Tabler inside the company dashboard block). */
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
   tone: "error" | "forbidden" | "empty" | "info";
   title: ReactNode;
   description: ReactNode;
