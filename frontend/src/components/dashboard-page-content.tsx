@@ -20,12 +20,15 @@ export const DASHBOARD_PAGE_PADDING = "px-4 py-4 md:py-6 lg:px-6"
  * - `screen-2xl`: the candidate canonical measure, declared once on the root and
  *   never reintroduced by a narrower inner wrapper.
  * - `7xl`: the enriched employer form canvas that still needs the dossier rail.
+ * - `editor`: the three-column vacancy editor (sections, form, live preview): ~10% wider than
+ *   `7xl` (88rem) and 104rem from 1920px so ultrawide screens are used without overlong lines.
  */
-export type DashboardPageWidth = "full" | "screen-2xl" | "7xl"
+export type DashboardPageWidth = "full" | "screen-2xl" | "7xl" | "editor"
 
 const WIDTH_CLASS: Readonly<Record<Exclude<DashboardPageWidth, "full">, string>> = {
   "screen-2xl": "mx-auto w-full max-w-screen-2xl",
   "7xl": "mx-auto w-full max-w-7xl",
+  editor: "mx-auto w-full max-w-[88rem] min-[1920px]:max-w-[104rem]",
 }
 
 export type DashboardPageContentProps = React.ComponentProps<"div"> & {

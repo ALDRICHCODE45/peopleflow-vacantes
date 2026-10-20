@@ -187,7 +187,7 @@ describe("/empresa/vacantes/borradores/nuevo employer route", () => {
     const content = document.querySelector("[data-pf-draft-vacante-content]");
     expect(content).not.toBeNull();
     expect(content!.className).toContain("mx-auto");
-    expect(content!.className).toContain("max-w-7xl");
+    expect(content!.className).toContain("max-w-[88rem]");
     expect(content!.className).toContain("px-4");
     expect(content!.className).toContain("py-4");
     expect(content!.className).toContain("md:py-6");

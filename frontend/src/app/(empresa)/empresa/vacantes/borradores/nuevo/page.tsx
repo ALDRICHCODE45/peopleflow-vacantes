@@ -27,7 +27,7 @@ export default function Page() {
       <div className="@container/main flex flex-1 flex-col">
         <DashboardPageContent
           data-pf-draft-vacante-content=""
-          width="7xl"
+          width="editor"
           className="gap-5 md:gap-6"
         >
           <LocalDraftForm />

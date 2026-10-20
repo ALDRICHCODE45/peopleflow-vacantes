@@ -83,6 +83,13 @@ describe("DashboardPageContent canonical page padding", () => {
     ]);
   });
 
+  it("gives the three-column vacancy editor about 10% more room and more on ultrawide screens", () => {
+    // User: «le daria mas espacio … le aumentaria un 10 por ciento mas … en monitores ultrawide la diferencia es aun mayor».
+    const { container } = render(<DashboardPageContent data-pf-test-content="" width="editor" />);
+    const tokens = (container.querySelector("[data-pf-test-content]") as HTMLElement).className.split(/\s+/u);
+    for (const token of ["mx-auto", "w-full", "max-w-[88rem]", "min-[1920px]:max-w-[104rem]"]) expect(tokens, token).toContain(token);
+  });
+
   it("bounds the enriched employer form at 7xl", () => {
     const { container } = render(
       <DashboardPageContent data-pf-test-content="" width="7xl" />,
