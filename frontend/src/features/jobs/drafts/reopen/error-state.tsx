@@ -1,7 +1,5 @@
-import Link from "next/link";
-import { ArrowLeft, CircleAlert, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { CircleAlert } from "lucide-react";
+import { StateCard } from "@/components/feedback/state-card";
 import type { DraftEditFailureReason } from "./load";
 
 const back = {href:"/empresa/vacantes",label:"Volver a Vacantes"};
@@ -31,28 +29,10 @@ const messages = {
 export function DraftEditErrorState({reason,onRetry}:{reason:DraftEditFailureReason;onRetry?:()=>void}) {
   const {title,description,action} = messages[reason];
   const isBack = action.href === back.href;
-  return (
-    <div className="flex flex-col gap-4">
-      <Empty>
-        <EmptyHeader className="max-w-md">
-          <EmptyMedia variant="icon"><CircleAlert aria-hidden="true" /></EmptyMedia>
-          <EmptyTitle role="heading" aria-level={2} className="text-xl font-semibold">{title}</EmptyTitle>
-          <EmptyDescription>{description}</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <div className="flex w-full flex-col justify-center gap-2 sm:flex-row">
-            {onRetry && <Button type="button" className="min-h-10 w-full sm:w-auto" onClick={onRetry}>
-              <RefreshCw aria-hidden="true" data-icon="inline-start" />Reintentar
-            </Button>}
-            {!isBack && <Button nativeButton={false} role="link" variant={onRetry ? "outline" : "default"} render={<Link href={action.href} />} className="min-h-10 w-full sm:w-auto">
-              {action.label}
-            </Button>}
-          </div>
-        </EmptyContent>
-      </Empty>
-      {isBack && <Button nativeButton={false} role="link" variant="ghost" render={<Link href={action.href} />} className="min-h-10 self-start">
-        <ArrowLeft aria-hidden="true" data-icon="inline-start" />{action.label}
-      </Button>}
-    </div>
-  );
+  const retryFirst = onRetry && isBack && reason !== "forbidden";
+  return <StateCard icon={CircleAlert}
+    tone={reason === "forbidden" ? "forbidden" : reason === "not_found" || reason === "invalid_id" ? "empty" : "error"}
+    title={title} description={description}
+    primaryAction={retryFirst ? { label: "Reintentar", onClick: onRetry } : action}
+    secondaryAction={retryFirst ? back : onRetry ? { label: "Reintentar", onClick: onRetry } : !isBack ? back : undefined} />;
 }

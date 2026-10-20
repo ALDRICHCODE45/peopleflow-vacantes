@@ -36,7 +36,8 @@ it("gives the careers vacancy empty state a readable title and one real recovery
   const link = screen.getByRole("link", { name: "Ver vacantes publicadas" });
   expect(link).toHaveClass("bg-primary", "w-full", "sm:w-auto");
   expect(link).toHaveAttribute("href", "/vacantes");
-  expect(container.querySelector('[data-slot="empty-content"]')).toHaveClass("flex-col", "sm:flex-row");
+  expect(link.parentElement).toHaveClass("flex-col", "sm:flex-row");
+  expect(container.querySelector('[data-slot="card"] [data-slot="empty"]')).not.toBeNull();
 });
 
 describe("CompanyCareersView wire text safety", () => {

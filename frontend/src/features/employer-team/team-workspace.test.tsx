@@ -28,9 +28,10 @@ it("keeps empty-team guidance honest without duplicating the page invitation", (
   const { container } = renderTeam([]);
   const empty = container.querySelector('[data-pf-team-empty]')!;
   expect(empty.querySelector('[data-slot="empty-title"]')).toHaveClass("text-xl", "font-semibold");
-  expect(empty.querySelector('[data-slot="empty-description"]')).toHaveClass("max-w-md");
+  expect(empty).toHaveAttribute("data-slot", "card");
+  expect(empty.querySelector('[data-slot="empty-header"]')).toHaveClass("max-w-md");
   expect(empty).not.toHaveClass("bg-card/40");
-  expect(empty).toHaveTextContent("Puedes revisar la búsqueda y los filtros mientras tanto.");
+  expect(empty).toHaveTextContent("Aquí se muestran los miembros y su carga de trabajo cuando haya personas en tu equipo.");
 });
 
 it("wraps member identity instead of reducing or clipping it on narrow screens", () => {
@@ -245,7 +246,7 @@ describe("TeamWorkspace interaction and source contract", () => {
   it("stays a read-only client surface that never imports the Nexo fixture", () => {
     expect(source).toMatch(/^\s*["']use client["']/mu);
     expect(source).toContain("./model");
-    for (const primitive of ["@/components/ui/badge", "@/components/ui/avatar", "@/components/ui/input", "@/components/ui/button", "@/components/ui/empty"]) {
+    for (const primitive of ["@/components/ui/badge", "@/components/ui/avatar", "@/components/ui/input", "@/components/ui/button", "@/components/feedback/state-card"]) {
       expect(source, `team-workspace.tsx must reuse ${primitive}`).toContain(primitive);
     }
     for (const forbidden of ["./prototype-team", "NEXO_TEAM_MEMBERS", "features/employer-vacancies", "prototype-vacancies", "next/link", "href", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.clipboard", "useRouter", "next/navigation", "onDrag", "onDrop", "draggable", ".css"]) {

@@ -14,7 +14,7 @@ import {
 
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { StateCard } from "@/components/feedback/state-card";
 import { employmentTypeLabel, formatPublishedDate, formatSalary, seniorityLabel, workModeLabel } from "../jobs/formatters";
 import type { JobItem } from "../jobs/types";
 import { companySiteHeadings, type CompanySiteContent, type CompanySiteHeadingLevel } from "./company-site-content";
@@ -219,23 +219,9 @@ export function CompanyCareersView({
           Vacantes
         </SectionTag>
         {jobs.length === 0 ? (
-          <Empty className="mt-6 border border-border bg-card">
-            <EmptyHeader className="max-w-md">
-              <EmptyMedia variant="icon">
-                <BriefcaseIcon aria-hidden="true" />
-              </EmptyMedia>
-              <EmptyTitle className="text-xl font-semibold">Sin vacantes por ahora</EmptyTitle>
-              <EmptyDescription>
-                {content.name} todavía no lista sus vacantes aquí. Mientras tanto, puedes revisar
-                las vacantes publicadas en PeopleFlow.
-              </EmptyDescription>
-            </EmptyHeader>
-            <EmptyContent className="flex-col sm:flex-row sm:justify-center">
-              <Link href="/vacantes" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>
-                Ver vacantes publicadas
-              </Link>
-            </EmptyContent>
-          </Empty>
+          <StateCard className="mt-6" icon={BriefcaseIcon} tone="empty" title="Sin vacantes por ahora"
+            description={`${content.name} todavía no lista sus vacantes aquí. Mientras tanto, puedes revisar las vacantes publicadas en PeopleFlow.`}
+            primaryAction={{ href: "/vacantes", label: "Ver vacantes publicadas" }} />
         ) : (
           <ul aria-label={`Vacantes en ${content.name}`} className="mt-6 flex flex-col gap-3">
             {jobs.map((job) => {

@@ -7,7 +7,7 @@ import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { StateCard } from "@/components/feedback/state-card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
@@ -166,10 +166,10 @@ export function VacancyPortfolio({ vacancies }: { vacancies: readonly EmployerVa
               </div>}
               {loadingDraftRows && <DraftSkeletonRows />}
               {drafts.capped && <p className={cn(META, "px-5 py-3")}>Se muestran hasta 500 borradores. El listado puede estar incompleto; los más recientes aparecen primero.</p>}
-              {results.length === 0 ? (status === "draft" && (loadingDraftRows || failure)) ? null : <Empty data-pf-vacancy-empty>
-                <EmptyHeader className="max-w-md"><EmptyMedia variant="icon">{status === "draft" ? <FilePenLine aria-hidden="true" /> : <SearchIcon aria-hidden="true" />}</EmptyMedia><EmptyTitle className="text-xl font-semibold">{combined.length === 0 ? "Todavía no hay vacantes" : emptyDrafts ? "No hay borradores que mostrar" : "Sin resultados"}</EmptyTitle><EmptyDescription>{emptyDescription}</EmptyDescription></EmptyHeader>
-                {filtersActive && <EmptyContent className="flex-col gap-2 sm:flex-row sm:justify-center"><Button type="button" data-pf-vacancy-clear onClick={clearFilters} className="min-h-10 w-full sm:w-auto">Limpiar filtros</Button></EmptyContent>}
-              </Empty> : <ul className="divide-y divide-border">{results.map(vacancy => <VacancyRow key={vacancy.id} vacancy={vacancy} onPublished={drafts.published} />)}</ul>}
+              {results.length === 0 ? (status === "draft" && (loadingDraftRows || failure)) ? null : <StateCard data-pf-vacancy-empty icon={status === "draft" ? FilePenLine : SearchIcon} tone="empty"
+                title={combined.length === 0 ? "Todavía no hay vacantes" : emptyDrafts ? "No hay borradores que mostrar" : "Sin resultados"} description={emptyDescription}>
+                {filtersActive && <Button type="button" data-pf-vacancy-clear onClick={clearFilters} className="min-h-10 w-full sm:w-auto">Limpiar filtros</Button>}
+              </StateCard> : <ul className="divide-y divide-border">{results.map(vacancy => <VacancyRow key={vacancy.id} vacancy={vacancy} onPublished={drafts.published} />)}</ul>}
               {!failure && drafts.retried && <div className="px-5"><ActionStatusSlot>{!drafts.pending && <ActionStatus id="portfolio-drafts-status" tone="success" text="Borradores cargados" />}</ActionStatusSlot></div>}
             </CardContent>
           </Card>

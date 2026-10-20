@@ -3,7 +3,8 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { StateCard } from "@/components/feedback/state-card";
+import { BriefcaseBusiness } from "lucide-react";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item";
 import {
   EMPLOYER_VACANCY_STATE_LABELS,
@@ -67,15 +68,10 @@ export function ActiveVacancies({ vacancies }: { vacancies: readonly EmployerVac
       </CardHeader>
       <CardContent>
       {active.length === 0 ? (
-        <Empty data-pf-active-vacancies-empty="">
-          <EmptyHeader className="max-w-md">
-            <EmptyTitle className="text-xl font-semibold">No hay vacantes activas</EmptyTitle>
-            <EmptyDescription className="max-w-md">Aquí verás los procesos de tus vacantes activas. Mientras tanto, revisa tus vacantes y prepara la siguiente publicación.</EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent className="flex-col sm:flex-row sm:justify-center">
-            <Link href="/empresa/vacantes" data-pf-active-vacancies-portfolio="" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Ver todas</Link>
-          </EmptyContent>
-        </Empty>
+        <StateCard data-pf-active-vacancies-empty="" icon={BriefcaseBusiness} tone="empty" title="No hay vacantes activas"
+          description="Aquí verás los procesos de tus vacantes activas. Mientras tanto, revisa tus vacantes y prepara la siguiente publicación.">
+          <Link href="/empresa/vacantes" data-pf-active-vacancies-portfolio="" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Ver todas</Link>
+        </StateCard>
       ) : (
         <ul className="flex flex-col divide-y divide-border">
           {active.map((vacancy) => {

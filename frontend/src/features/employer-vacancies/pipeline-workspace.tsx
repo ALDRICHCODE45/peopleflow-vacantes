@@ -7,13 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Item, ItemContent, ItemDescription, ItemTitle } from "@/components/ui/item";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { StateCard } from "@/components/feedback/state-card";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import {
   Table,
@@ -234,9 +228,7 @@ function CandidateList({
     <Card data-pf-pipeline-list role="region" aria-label={label} tabIndex={0} className="overflow-x-auto focus-visible:ring-3 focus-visible:ring-ring/30 focus-visible:outline-none">
       <CardContent className="-mx-(--card-spacing) [&>[data-slot=table-container]]:contents">
       {candidates.length === 0 ? (
-        <Empty data-pf-pipeline-list-empty className="border border-dashed border-border p-6">
-          <EmptyDescription className="text-[12.5px]">{emptyCopy}</EmptyDescription>
-        </Empty>
+        <StateCard data-pf-pipeline-list-empty icon={SearchIcon} tone="empty" title="Sin candidatos" description={emptyCopy} />
       ) : (
         <Table className="min-w-[64rem]">
           <TableCaption className="sr-only">{label}</TableCaption>
@@ -435,15 +427,9 @@ function PipelineVacancySession({
         />
       )}
       {hasActive && filtered.length === 0 ? (
-        <Empty data-pf-pipeline-recovery className="border border-dashed border-border p-6">
-          <EmptyHeader className="max-w-md">
-            <EmptyTitle className="text-xl font-semibold">Sin resultados</EmptyTitle>
-            <EmptyDescription>{pipelineNoResultsCopy(filters)}</EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent className="flex-col sm:flex-row sm:justify-center">
-            <Button type="button" data-pf-pipeline-clear onClick={() => setFilters(createEmptyPipelineFilters())} className="h-10 w-full sm:w-auto">Limpiar filtros</Button>
-          </EmptyContent>
-        </Empty>
+        <StateCard data-pf-pipeline-recovery icon={SearchIcon} tone="empty" title="Sin resultados" description={pipelineNoResultsCopy(filters)}>
+          <Button type="button" data-pf-pipeline-clear onClick={() => setFilters(createEmptyPipelineFilters())} className="h-10 w-full sm:w-auto">Limpiar filtros</Button>
+        </StateCard>
       ) : null}
       {moveIntent !== null && pendingCandidate !== null ? (
         <PipelineMoveDialog

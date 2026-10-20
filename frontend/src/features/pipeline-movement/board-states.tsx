@@ -1,11 +1,10 @@
 import { CircleAlert } from "lucide-react";
 import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
-import { Button } from "@/components/ui/button";
+import { StateCard } from "@/components/feedback/state-card";
 import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { BoardProgress } from "./board-progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
@@ -48,15 +47,12 @@ export function BoardSkeleton({ columnCount = 6 }: { columnCount?: number }) {
 export function BoardError({ failure, reading, notice, retry }: { failure: Failure; reading: boolean; notice: Notice | null; retry: () => void }) {
   const copy = boardErrorCopy(failure.reason);
   const needsSignIn = failure.reason === "unauthenticated";
-  return <Empty><EmptyHeader className="max-w-md"><EmptyMedia variant="icon"><CircleAlert aria-hidden="true" /></EmptyMedia><EmptyTitle role="heading" aria-level={3} className="text-xl font-semibold">{copy.title}</EmptyTitle><EmptyDescription className="max-w-md">{copy.description}</EmptyDescription></EmptyHeader>
-    <EmptyContent>
-      <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
-        {needsSignIn && <Button nativeButton={false} role="link" className="min-h-10 w-full sm:w-auto" render={<a href="/empresa/login" />}>Iniciar sesión</Button>}
-        <Button type="button" variant={needsSignIn ? "outline" : "default"} className="min-h-10 w-full sm:w-auto" disabled={reading} aria-describedby={notice ? "board-read-status" : undefined} onClick={retry}>{reading && <Spinner aria-hidden="true" data-icon="inline-start" />}Reintentar</Button>
-      </div>
-      <ActionStatusSlot>{notice && <ActionStatus id="board-read-status" tone={notice.tone} text={notice.text} />}</ActionStatusSlot>
-    </EmptyContent>
-  </Empty>;
+  const retryAction = { label: <>{reading && <Spinner aria-hidden="true" data-icon="inline-start" />}Reintentar</>, onClick: retry, disabled: reading, "aria-describedby": notice ? "board-read-status" : undefined };
+  return <StateCard icon={CircleAlert} tone={failure.reason === "forbidden" ? "forbidden" : "error"} title={copy.title} description={copy.description}
+    primaryAction={needsSignIn ? { href: "/empresa/login", label: "Iniciar sesión" } : retryAction}
+    secondaryAction={needsSignIn ? retryAction : { href: "/empresa/vacantes", label: "Volver a Vacantes" }}>
+    <ActionStatusSlot>{notice && <ActionStatus id="board-read-status" tone={notice.tone} text={notice.text} />}</ActionStatusSlot>
+  </StateCard>;
 }
 export function BoardCoverage({ coverage }: { coverage: Board["coverage"] }) {
   const full = coverage.required !== null && coverage.covered >= coverage.required;

@@ -10,7 +10,8 @@ it("makes retry the primary recovery for a failed board read", () => {
   const button = screen.getByRole("button", { name: "Reintentar" });
   expect(button).toHaveClass("bg-primary", "w-full", "sm:w-auto");
   expect(container.querySelector('[data-slot="empty-title"]')).toHaveClass("text-xl", "font-semibold");
-  expect(container.querySelector('[data-slot="empty-description"]')).toHaveClass("max-w-md");
+  expect(container.querySelector('[data-slot="empty-header"]')).toHaveClass("max-w-md");
+  expect(button.closest('[data-slot="card"]')).not.toBeNull();
   fireEvent.click(button);
   expect(retry).toHaveBeenCalledOnce();
 });

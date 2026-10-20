@@ -7,7 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { StateCard } from "@/components/feedback/state-card";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -149,18 +149,11 @@ export function TeamWorkspace({ members }: { members: readonly TeamMember[] }) {
         </div>
         {results.length === 0 ? (
           <div className="p-4">
-            <Empty data-pf-team-empty>
-              <EmptyHeader>
-                <EmptyMedia variant="icon"><SearchIcon aria-hidden="true" /></EmptyMedia>
-                <EmptyTitle className="text-xl font-semibold">{members.length === 0 ? "Todavía no hay miembros del equipo" : "Sin resultados"}</EmptyTitle>
-                <EmptyDescription className="max-w-md">{members.length === 0 ? "Aquí se muestran los miembros y su carga de trabajo. Puedes revisar la búsqueda y los filtros mientras tanto." : "No hay miembros que coincidan con la búsqueda y el estado seleccionados. Limpia los filtros para volver a ver tu equipo."}</EmptyDescription>
-              </EmptyHeader>
-              {filtersActive && members.length > 0 && (
-                <EmptyContent className="flex-col sm:flex-row sm:justify-center">
-                  <Button type="button" variant="outline" data-pf-team-clear onClick={clearFilters} className="min-h-10 w-full sm:w-auto">Limpiar filtros</Button>
-                </EmptyContent>
-              )}
-            </Empty>
+            <StateCard data-pf-team-empty icon={SearchIcon} tone="empty"
+              title={members.length === 0 ? "Todavía no hay miembros del equipo" : "Sin resultados"}
+              description={members.length === 0 ? "Aquí se muestran los miembros y su carga de trabajo cuando haya personas en tu equipo." : "No hay miembros que coincidan con la búsqueda y el estado seleccionados. Limpia los filtros para volver a ver tu equipo."}>
+              {filtersActive && members.length > 0 && <Button type="button" data-pf-team-clear onClick={clearFilters} className="min-h-10 w-full sm:w-auto">Limpiar filtros</Button>}
+            </StateCard>
           </div>
         ) : (
           <ul data-pf-team-list className="divide-y divide-border">

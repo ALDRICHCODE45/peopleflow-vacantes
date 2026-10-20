@@ -1,10 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { CalendarDays, Clock, Flag, Target } from "lucide-react";
-import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
+import { ActionStatus } from "@/components/feedback/action-status";
+import { StateCard } from "@/components/feedback/state-card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { Skeleton } from "@/components/ui/skeleton";
 import { loadDeliveryStatusAction } from "@/features/jobs/drafts/pipeline/delivery-actions";
@@ -46,12 +46,15 @@ export function FulfilledDelivery({ draftId, message }: { draftId: string; messa
           <div><dt className="flex items-center gap-2 text-xs text-muted-foreground"><CalendarDays aria-hidden="true" className="size-3.5" />Fecha compromiso</dt><dd><DeliveryCommitmentDate value={frozen.commitment_date} /></dd></div>
         </dl>
         <FulfillmentCandidates candidates={frozen.candidates} />
-      </> : loaded?.failed ? <p>No pudimos cargar el resultado de la entrega. La configuración sigue bloqueada.</p> : <>
+      </> : loaded?.failed ? <StateCard icon={Flag} tone="error" title="No pudimos cargar el resultado de la entrega"
+        description="La configuración sigue bloqueada. Puedes volver a consultar el resultado sin cambiar la entrega."
+        primaryAction={{ label: "Reintentar lectura", "aria-describedby": "delivery-result-error", onClick: () => { setLoaded(null); setAttempt(value => value + 1); } }}>
+        <ActionStatus tone="error" id="delivery-result-error" text="Resultado no disponible" />
+      </StateCard> : <>
         <span role="status" className="sr-only">Cargando resultado de entrega</span>
         <div aria-hidden="true" className="grid gap-4 sm:grid-cols-2">{Array.from({ length: 4 }, (_, index) => <div key={index} className="flex flex-col gap-2"><Skeleton className="h-4 w-32" /><Skeleton className="h-5 w-44" /></div>)}</div>
         <ItemGroup aria-hidden="true"><Item size="sm"><ItemContent><ItemTitle><Skeleton className="h-5 w-32" /></ItemTitle><Skeleton className="h-4 w-44" /></ItemContent></Item></ItemGroup>
       </>}
     </CardContent>
-    {loaded?.failed && <CardFooter className="border-t"><ActionBar status={<ActionStatus tone="error" id="delivery-result-error" text="Resultado no disponible" />}><Button className="min-h-10" variant="outline" aria-describedby="delivery-result-error" onClick={() => { setLoaded(null); setAttempt(value => value + 1); }}>Reintentar lectura</Button></ActionBar></CardFooter>}
   </Card>;
 }

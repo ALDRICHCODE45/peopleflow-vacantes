@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
-import { Briefcase, Building2, FileText, ListChecks, UserRound } from "lucide-react";
+import { Briefcase, Building2, CircleAlert, FileText, Info, ListChecks, UserRound } from "lucide-react";
 import { RoleBlocked } from "@/features/identity/identity-states";
 import { CvStorageUnavailable } from "@/features/candidate-cvs/storage-unavailable";
 import { failureCopy as cvFailureCopy, failureStatus as cvFailureStatus } from "@/features/candidate-cvs/feedback";
@@ -13,7 +13,7 @@ import type { CvFailure, CvLibrary } from "@/features/candidate-cvs/model";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { StateCard } from "@/components/feedback/state-card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
@@ -58,13 +58,10 @@ function Loading({ step = "Datos", questions = [] }: { step?: Step; questions?: 
   </section>;
 }
 function ResultCard({ title, description, state, tone = "neutral", children }: { title: string; description: string; state: string; tone?: BadgeVariant; children?: React.ReactNode }) {
-  return <Card>
-    <CardHeader className="border-b"><CardTitle><Badge variant={tone}>{state}</Badge></CardTitle></CardHeader>
-    <CardContent><Empty className="px-4 py-8 sm:py-10">
-      <EmptyHeader className="max-w-md"><EmptyTitle className="text-xl font-semibold"><h2>{title}</h2></EmptyTitle><EmptyDescription>{description}</EmptyDescription></EmptyHeader>
-      {children && <EmptyContent className="max-w-md flex-col sm:flex-row sm:justify-center [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink [&_[data-pf-action-bar-actions]]:max-sm:flex-1">{children}</EmptyContent>}
-    </Empty></CardContent>
-  </Card>;
+  return <StateCard icon={tone === "danger" ? CircleAlert : Info} tone={tone === "danger" ? "error" : tone === "neutral" ? "empty" : "info"}
+    header={<Badge variant={tone}>{state}</Badge>} title={title} description={description}>
+    {children}
+  </StateCard>;
 }
 export function CandidateApplicationWizard({ job }: { job: Job }) {
   const [identity, setIdentity] = useState<IdentityResult>();

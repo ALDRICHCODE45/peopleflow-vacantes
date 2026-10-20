@@ -765,8 +765,9 @@ describe("PipelineWorkspace shadcn empty states", () => {
     const empty = (recovery.matches("[data-slot='empty']") ? recovery : recovery.querySelector("[data-slot='empty']")) as HTMLElement;
     expect(empty, "recovery uses shadcn Empty").not.toBeNull();
     for (const part of ["empty-header", "empty-title", "empty-description", "empty-content"]) expect(slot(empty, part), part).not.toBeNull();
-    expect(empty.className).toMatch(/(?:^|\s)p-\d/u);
-    expect(empty.className).not.toContain("p-12");
+    expect(recovery).toHaveAttribute("data-slot", "card");
+    expect(empty).toHaveClass("py-10");
+    expect(slot(empty, "empty-icon")).not.toBeNull();
   });
 });
 
@@ -794,7 +795,7 @@ describe("PipelineWorkspace surface contract", () => {
     expect(modules).toEqual([
       "./model", "./pipeline-model", "./pipeline-filter-model", "./pipeline-filters",
       "./pipeline-board", "./pipeline-move-dialog", "./pipeline-move-model",
-      "@/components/ui/badge", "@/components/ui/button", "@/components/ui/card", "@/components/ui/empty",
+      "@/components/ui/badge", "@/components/ui/button", "@/components/ui/card", "@/components/feedback/state-card",
       "@/components/ui/input-group", "@/components/ui/item", "@/components/ui/table", "@/components/ui/toggle-group",
       "@/features/employer-talent/talent-detail-sheet",
       "lucide-react", "react",

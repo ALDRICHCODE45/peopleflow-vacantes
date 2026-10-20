@@ -38,7 +38,6 @@ import {
   IconLayoutColumns,
   IconMapPin,
   IconPin,
-  IconUserSearch,
 } from "@tabler/icons-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -54,14 +53,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { StateCard } from "@/components/feedback/state-card";
+import { UserSearch } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -928,28 +921,10 @@ export function TalentTable({
                   colSpan={table.getVisibleLeafColumns().length}
                   className="p-0"
                 >
-                  <Empty data-pf-talento-empty="">
-                    <EmptyHeader>
-                      <EmptyMedia variant="icon">
-                        <IconUserSearch aria-hidden="true" />
-                      </EmptyMedia>
-                      <EmptyTitle className="text-xl font-semibold">{emptyBase ? "Todavía no hay personas en tu base de talento" : "Sin resultados"}</EmptyTitle>
-                      <EmptyDescription className="max-w-md">
-                        {emptyBase ? "Aquí puedes consultar los perfiles y sus postulaciones cuando haya personas en la base de talento." : "Ajusta la búsqueda o quita filtros para volver a ver las personas de tu base de talento."}
-                      </EmptyDescription>
-                    </EmptyHeader>
-                    {onClearFilters && !emptyBase ? (
-                      <EmptyContent className="flex-col sm:flex-row sm:justify-center">
-                        <Button
-                          type="button"
-                          className="min-h-10 w-full sm:w-auto"
-                          onClick={onClearFilters}
-                        >
-                          Limpiar filtros
-                        </Button>
-                      </EmptyContent>
-                    ) : null}
-                  </Empty>
+                  <StateCard data-pf-talento-empty="" icon={UserSearch} tone="empty"
+                    title={emptyBase ? "Todavía no hay personas en tu base de talento" : "Sin resultados"}
+                    description={emptyBase ? "Aquí puedes consultar los perfiles y sus postulaciones cuando haya personas en la base de talento." : "Ajusta la búsqueda o quita filtros para volver a ver las personas de tu base de talento."}
+                    primaryAction={onClearFilters && !emptyBase ? { label: "Limpiar filtros", onClick: onClearFilters } : undefined} />
                 </TableCell>
               </TableRow>
             )}

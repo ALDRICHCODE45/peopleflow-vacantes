@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import Link from "next/link"
 import {
   columnFilteringFeature,
   columnVisibilityFeature,
@@ -40,13 +39,8 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyTitle,
-} from "@/components/ui/empty"
+import { StateCard } from "@/components/feedback/state-card"
+import { Users } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import {
   Select,
@@ -544,21 +538,9 @@ export function DataTable({ data: initialData }: { data: ApplicantRow[] }) {
                     colSpan={table.getAllColumns().length}
                     className="p-0"
                   >
-                    <Empty>
-                      <EmptyHeader>
-                        <EmptyTitle className="text-xl font-semibold">Sin candidatos</EmptyTitle>
-                        <EmptyDescription className="max-w-md">
-                          {applicants.length === 0 ? "Aquí puedes revisar las postulaciones y su estado. Mientras tanto, consulta tus vacantes." : "No hay postulantes en este estado. Limpia el filtro para ver los demás candidatos."}
-                        </EmptyDescription>
-                      </EmptyHeader>
-                      <EmptyContent className="flex-col sm:flex-row sm:justify-center">
-                        {statusTab !== "all" && applicants.length > 0 ? (
-                          <Button type="button" className="min-h-10 w-full sm:w-auto" onClick={() => selectStatus("all")}>Limpiar filtros</Button>
-                        ) : (
-                          <Button nativeButton={false} role="link" className="min-h-10 w-full sm:w-auto" render={<Link href="/empresa/vacantes" />}>Ver vacantes</Button>
-                        )}
-                      </EmptyContent>
-                    </Empty>
+                    <StateCard icon={Users} tone="empty" title="Sin candidatos"
+                      description={applicants.length === 0 ? "Aquí puedes revisar las postulaciones y su estado. Mientras tanto, consulta tus vacantes." : "No hay postulantes en este estado. Limpia el filtro para ver los demás candidatos."}
+                      primaryAction={statusTab !== "all" && applicants.length > 0 ? { label: "Limpiar filtros", onClick: () => selectStatus("all") } : { href: "/empresa/vacantes", label: "Ver vacantes" }} />
                   </TableCell>
                 </TableRow>
               )}

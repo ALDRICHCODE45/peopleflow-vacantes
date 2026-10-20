@@ -65,7 +65,8 @@ it("gives the site readiness badge a header action and confirmation a footer", (
 
 it("uses the Empty primitive for the dashboard's empty list", () => {
   const { container } = render(<ActiveVacancies vacancies={[]} />);
-  expect(container.querySelector('[data-pf-active-vacancies-empty]')).toHaveAttribute("data-slot", "empty");
+  expect(container.querySelector('[data-pf-active-vacancies-empty]')).toHaveAttribute("data-slot", "card");
+  expect(container.querySelector('[data-pf-active-vacancies-empty] [data-slot="empty"]')).not.toBeNull();
 });
 
 it("replicates the draggable card title, menu, date rows and footer slots", async () => {

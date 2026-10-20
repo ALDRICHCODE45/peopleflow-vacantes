@@ -4,15 +4,16 @@ import "@testing-library/jest-dom/vitest";
 import { DraftEditErrorState } from "./error-state";
 
 afterEach(cleanup);
-it("prioritizes retry and separates the ghost return navigation", () => {
+it("prioritizes retry and places outline navigation in the same card", () => {
   let attempts = 0;
   render(<DraftEditErrorState reason="server_error" onRetry={() => { attempts++; }} />);
   const retry = screen.getByRole("button", { name: "Reintentar" });
   const back = screen.getByRole("link", { name: "Volver a Vacantes" });
   expect(retry).toHaveClass("bg-primary");
   expect(back).not.toHaveClass("bg-primary");
-  expect(back.closest('[data-slot="empty"]')).toBeNull();
-  expect(back.closest('[data-slot="card"]')).toBeNull();
+  expect(back.parentElement).toBe(retry.parentElement);
+  expect(back).toHaveClass("border-border", "bg-background");
+  expect(back.closest('[data-slot="card"]')).not.toBeNull();
   fireEvent.click(retry);
   expect(attempts).toBe(1);
 });
@@ -30,7 +31,8 @@ it.each([
   const {container} = render(<DraftEditErrorState reason={reason} />);
   expect(screen.getByRole("heading",{name:title,level:2})).toBeVisible();
   expect(container.querySelector('[data-slot="empty"]')).not.toBeNull();
-  expect(screen.getByRole("link")).toHaveAttribute("href",href);
-  expect(screen.getByRole("link")).toHaveClass("min-h-10");
+  const primary = screen.getAllByRole("link")[0];
+  expect(primary).toHaveAttribute("href",href);
+  expect(primary).toHaveClass("min-h-10", "bg-primary");
   expect(container).not.toHaveTextContent(/token|cookie|internal_error|invalid_id/);
 });

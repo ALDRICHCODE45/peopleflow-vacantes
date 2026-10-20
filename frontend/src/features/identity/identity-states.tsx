@@ -3,12 +3,12 @@
 import * as React from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { IconShieldLock } from "@tabler/icons-react";
+import { CircleAlert, ShieldLock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyContent, EmptyMedia } from "@/components/ui/empty";
+import { StateCard } from "@/components/feedback/state-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
@@ -64,16 +64,17 @@ export function RoleBlocked({ kind, area = "candidate" }: { kind: "recruiter" | 
   const title = kind === "recruiter" ? "Esta cuenta es de empresa" : kind === "account-exists" ? "Esta cuenta ya es de empresa" : kind === "candidate" ? "Esta cuenta es de candidato" : "Esta cuenta todavía no tiene acceso a empresa";
   const href = kind === "candidate" ? "/candidato/dashboard" : kind === "no-company" ? "/candidato/login" : "/empresa/login";
   const label = kind === "candidate" ? "Ir a mi área de candidato" : kind === "no-company" ? "Ir a candidatos" : "Ir a empresa";
-  return <Empty className="px-4 py-8 sm:p-12">
-    <EmptyHeader className="max-w-md"><EmptyMedia variant="icon"><IconShieldLock aria-hidden="true" /></EmptyMedia><EmptyTitle className="text-xl font-semibold"><h2>{title}</h2></EmptyTitle>
-      <EmptyDescription>Una cuenta tiene un solo rol. Para usar otra área necesitas una cuenta con otro email.</EmptyDescription></EmptyHeader>
-    <EmptyContent className="max-w-md flex-col gap-2 sm:flex-row sm:justify-center [&>[data-pf-action-bar]]:w-full sm:[&>[data-pf-action-bar]]:w-auto [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink [&_[data-pf-action-bar-actions]]:max-sm:flex-1"><Button nativeButton={false} role="link" className="h-auto min-h-10 w-full max-w-full whitespace-normal sm:w-auto" render={<Link href={href} />}>{label}</Button><LogoutButton area={area} /></EmptyContent>
-  </Empty>;
+  return <StateCard icon={ShieldLock} tone="forbidden" title={title}
+    description="Una cuenta tiene un solo rol. Tu cuenta no cambió; para usar otra área necesitas una cuenta con otro email.">
+    <div className="flex w-full flex-col justify-center gap-2 sm:flex-row [&>[data-pf-action-bar]]:w-full sm:[&>[data-pf-action-bar]]:w-auto [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink [&_[data-pf-action-bar-actions]]:max-sm:flex-1"><Button nativeButton={false} role="link" className="h-auto min-h-10 w-full max-w-full whitespace-normal sm:w-auto" render={<Link href={href} />}>{label}</Button><LogoutButton area={area} /></div>
+  </StateCard>;
 }
 
 export function IdentityError({ retry }: { retry: () => void }) {
   const statusId = React.useId();
-  return <Empty className="px-4 py-8 sm:p-12"><EmptyHeader className="max-w-md"><EmptyTitle className="text-xl font-semibold"><h2>No pudimos cargar tu cuenta</h2></EmptyTitle><EmptyDescription>Puedes volver a comprobar tu acceso sin crear una cuenta.</EmptyDescription></EmptyHeader><EmptyContent className="max-w-md [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink [&_[data-pf-action-bar-actions]]:max-sm:flex-1">
-    <ActionBar status={<ActionStatus id={statusId} tone="error" text="No confirmamos tu acceso." />}><Button type="button" className="min-h-10 w-full sm:w-auto" aria-describedby={statusId} onClick={retry}>Reintentar</Button></ActionBar>
-  </EmptyContent></Empty>;
+  return <StateCard icon={CircleAlert} tone="error" title="No pudimos cargar tu cuenta"
+    description="Puedes volver a comprobar tu acceso sin crear una cuenta. Tu cuenta no cambió."
+    primaryAction={{ label: "Reintentar", onClick: retry, "aria-describedby": statusId }}>
+    <ActionStatus id={statusId} tone="error" text="No confirmamos tu acceso." />
+  </StateCard>;
 }

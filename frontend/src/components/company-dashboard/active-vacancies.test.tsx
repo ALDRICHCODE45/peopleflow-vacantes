@@ -222,7 +222,8 @@ describe("ActiveVacancies honest empty state", () => {
     expect(screen.getByText("No hay vacantes activas")).toBeInTheDocument();
     const empty = panel().querySelector('[data-pf-active-vacancies-empty]')!;
     expect(empty.querySelector('[data-slot="empty-title"]')).toHaveClass("text-xl", "font-semibold");
-    expect(empty.querySelector('[data-slot="empty-description"]')).toHaveClass("max-w-md");
+    expect(empty).toHaveAttribute("data-slot", "card");
+    expect(empty.querySelector('[data-slot="empty-header"]')).toHaveClass("max-w-md");
     const portfolio = screen.getByRole("link", { name: "Ver todas" });
     expect(portfolio.closest('[data-slot="empty-content"]')).not.toBeNull();
     expect(portfolio).toHaveClass("bg-primary");

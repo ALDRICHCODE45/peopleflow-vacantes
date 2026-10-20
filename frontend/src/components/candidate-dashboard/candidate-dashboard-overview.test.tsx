@@ -240,10 +240,10 @@ describe("candidate dashboard overview", () => {
     }
     expect(modules()).toEqual([
       "@/components/dashboard-page-content",
+      "@/components/feedback/state-card",
       "@/components/ui/badge",
       "@/components/ui/button",
       "@/components/ui/card",
-      "@/components/ui/empty",
       "@/components/ui/item",
       "@/components/ui/progress",
       "@/features/candidate/application-message",

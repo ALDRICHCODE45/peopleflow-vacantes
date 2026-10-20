@@ -6,7 +6,7 @@ import { DashboardPageContent } from "@/components/dashboard-page-content"
 import { Badge, type BadgeVariant } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty"
+import { StateCard } from "@/components/feedback/state-card"
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from "@/components/ui/item"
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress"
 
@@ -224,16 +224,9 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
               </CardHeader>
               <CardContent>
                 {recent.length === 0 ? (
-                  <Empty className="px-4 py-8">
-                    <EmptyHeader className="max-w-md">
-                      <EmptyMedia variant="icon"><BriefcaseBusiness aria-hidden="true" /></EmptyMedia>
-                      <EmptyTitle className="text-xl font-semibold">Sin postulaciones</EmptyTitle>
-                      <EmptyDescription>Todavía no tienes postulaciones. Aquí verás tus envíos recientes; explora vacantes para encontrar tu siguiente oportunidad.</EmptyDescription>
-                    </EmptyHeader>
-                    <EmptyContent className="flex-col sm:flex-row sm:justify-center">
-                      <Link href="/vacantes" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Explorar vacantes</Link>
-                    </EmptyContent>
-                  </Empty>
+                  <StateCard icon={BriefcaseBusiness} tone="empty" title="Sin postulaciones"
+                    description="Todavía no tienes postulaciones. Aquí verás tus envíos recientes; explora vacantes para encontrar tu siguiente oportunidad."
+                    primaryAction={{ href: "/vacantes", label: "Explorar vacantes" }} />
                 ) : (
                   <ul className="flex flex-col divide-y divide-border">
                     {recent.map((application) => (<RecentApplicationRow key={application.id} application={application} messages={messages} />))}
@@ -317,16 +310,9 @@ export function CandidateDashboardOverview({ identity, profile, applications, cv
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
                 {cvTotal === 0 ? (
-                  <Empty className="px-4 py-8">
-                    <EmptyHeader className="max-w-md">
-                      <EmptyMedia variant="icon"><Files aria-hidden="true" /></EmptyMedia>
-                      <EmptyTitle className="text-xl font-semibold">Sin CVs</EmptyTitle>
-                      <EmptyDescription>Cuando agregues un CV, vas a ver aquí su información. Puedes subirlo desde tu biblioteca.</EmptyDescription>
-                    </EmptyHeader>
-                    <EmptyContent className="flex-col sm:flex-row sm:justify-center">
-                      <Link href="/candidato/cvs" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Ver mis CVs</Link>
-                    </EmptyContent>
-                  </Empty>
+                  <StateCard icon={Files} tone="empty" title="Sin CVs"
+                    description="Cuando agregues un CV, vas a ver aquí su información. Puedes subirlo desde tu biblioteca."
+                    primaryAction={{ href: "/candidato/cvs", label: "Ver mis CVs" }} />
                 ) : primary === undefined ? (
                   <p className="text-sm text-muted-foreground">Tienes {countLabel(cvTotal, "CV", "CVs")}, pero ninguno está marcado como principal.</p>
                 ) : (
