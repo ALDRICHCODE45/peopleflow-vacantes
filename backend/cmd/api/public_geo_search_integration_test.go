@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -56,6 +57,11 @@ func TestPublicGeoSearchFilters(t *testing.T) {
 	legacyOnsite := publicFlowLegacy(t, h, company.companyID, marker, "Legacy onsite", "Guadalajara, Jalisco", time.Now().UTC(), nil)
 	exec(`UPDATE jobs SET work_mode='onsite' WHERE id=$1`, legacyOnsite)
 	all := []string{onsite, hybrid, remoteAnywhere, remoteMX, remoteCO, migratedRemote, migratedOnsite, legacyRemote, legacyOnsite}
+	// Equal title rank and publication timestamps deliberately exercise the
+	// source/UUID tie-breakers, including the vacancy-to-legacy page boundary.
+	publishedAt := time.Date(2026, 10, 16, 18, 0, 0, 123456000, time.UTC)
+	exec(`UPDATE vacancy_public_projections SET published_at=$2 WHERE id=ANY($1::uuid[])`, all[:7], publishedAt)
+	exec(`UPDATE jobs SET published_at=$2 WHERE id=ANY($1::uuid[])`, all[7:], publishedAt)
 	for _, tc := range []struct {
 		name, filter string
 		want         []string
@@ -94,15 +100,77 @@ func TestPublicGeoSearchFilters(t *testing.T) {
 			}
 		})
 	}
-	first := publicFlowGet(t, h, "/v2/jobs?q="+marker+"&state=14&state=09&work_mode=remote&work_mode=hybrid&limit=1", 200)
-	token := first["next_cursor"].(string)
-	continuation := publicFlowGet(t, h, "/v2/jobs?q="+marker+"&state=09&state=14&work_mode=hybrid&work_mode=remote&limit=50&cursor="+url.QueryEscape(token), 200)
-	if len(continuation["items"].([]any)) != 2 {
-		t.Fatal(continuation)
-	}
-	bad := publicFlowGet(t, h, "/v2/jobs?q="+marker+"&state=14&cursor="+url.QueryEscape(token), 400)
-	if bad["code"] != "invalid_request" {
-		t.Fatal(bad)
+	for _, tc := range []struct {
+		name, first, continuation, changed string
+		limit                              int
+		ids                                []string
+	}{
+		{"state", "state=14&state=09&work_mode=remote&work_mode=hybrid", "state=09&state=14&work_mode=hybrid&work_mode=remote", "state=14", 1, []string{hybrid, remoteMX, remoteCO}},
+		{"municipality", "municipality=14039&municipality=09002", "municipality=09002&municipality=14039", "municipality=14039", 2, []string{onsite, hybrid, remoteMX, remoteCO}},
+		{"applicant_country", "applicant_country=MX", "applicant_country=MX", "applicant_country=CO", 2, []string{onsite, hybrid, remoteAnywhere, remoteMX, migratedOnsite, legacyOnsite}},
+	} {
+		t.Run("paging "+tc.name, func(t *testing.T) {
+			// Derive expected order from known fixtures, not another API read.
+			want := append([]string{}, tc.ids...)
+			sort.Slice(want, func(i, j int) bool {
+				iLegacy := want[i] == legacyRemote || want[i] == legacyOnsite
+				jLegacy := want[j] == legacyRemote || want[j] == legacyOnsite
+				if iLegacy != jLegacy {
+					return !iLegacy
+				} // source DESC: vacancy, legacy
+				return want[i] > want[j] // canonical UUID strings preserve UUID order
+			})
+			seen := []string{}
+			seenIDs := map[string]bool{}
+			seenCursors := map[string]bool{}
+			cursor := ""
+			for offset := 0; offset < len(want); offset += tc.limit {
+				filter := tc.first
+				if offset > 0 {
+					filter = tc.continuation
+				}
+				path := "/v2/jobs?q=" + marker + "&" + filter + "&limit=" + strconv.Itoa(tc.limit)
+				if cursor != "" {
+					path += "&cursor=" + url.QueryEscape(cursor)
+				}
+				page := publicFlowGet(t, h, path, 200)
+				got := []string{}
+				for _, item := range page["items"].([]any) {
+					id := item.(map[string]any)["id"].(string)
+					if seenIDs[id] {
+						t.Fatalf("repeated id across pages: %s", id)
+					}
+					seenIDs[id] = true
+					got = append(got, id)
+				}
+				end := min(offset+tc.limit, len(want))
+				if !reflect.DeepEqual(got, want[offset:end]) {
+					t.Fatalf("page at %d: got %v want %v", offset, got, want[offset:end])
+				}
+				seen = append(seen, got...)
+				if end == len(want) {
+					if page["next_cursor"] != nil {
+						t.Fatalf("last page has continuation: %v", page)
+					}
+					continue
+				}
+				next, ok := page["next_cursor"].(string)
+				if !ok || next == "" || seenCursors[next] {
+					t.Fatalf("missing/repeated cursor before last page: %v", page)
+				}
+				seenCursors[next] = true
+				cursor = next
+				if offset == 0 {
+					bad := publicFlowGet(t, h, "/v2/jobs?q="+marker+"&"+tc.changed+"&cursor="+url.QueryEscape(cursor), 400)
+					if bad["code"] != "invalid_request" {
+						t.Fatal(bad)
+					}
+				}
+			}
+			if !reflect.DeepEqual(seen, want) {
+				t.Fatalf("all pages: got %v want %v", seen, want)
+			}
+		})
 	}
 }
 

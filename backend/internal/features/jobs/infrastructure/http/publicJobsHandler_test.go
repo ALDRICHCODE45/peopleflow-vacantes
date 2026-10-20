@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -74,6 +75,53 @@ func TestPublicScreeningHTTPExactShape(t *testing.T) {
 	r.ServeHTTP(w, httptest.NewRequest("GET", "/v2/jobs/"+uuid.NewString()+"/screening", nil))
 	if w.Code != 404 {
 		t.Fatal(w.Code)
+	}
+}
+
+func TestPublicJobsHTTPCursorRejectsChangedScalarFilters(t *testing.T) {
+	for _, tc := range []struct {
+		key, original, changed string
+	}{
+		{"work_schedule", "full_time", "part_time"},
+		{"contract_type", "indefinite", "project"},
+		{"professional_area", "technology_systems", "legal"},
+	} {
+		t.Run(tc.key, func(t *testing.T) {
+			at := time.Date(2026, 10, 16, 18, 0, 0, 0, time.UTC)
+			stub := &publicReaderStub{rows: []publicjobs.Row{
+				{Detail: publicjobs.Detail{Item: publicjobs.Item{ID: uuid.New(), Source: "vacancy", PublishedAt: at}}},
+				{Detail: publicjobs.Detail{Item: publicjobs.Item{ID: uuid.New(), Source: "vacancy", PublishedAt: at}}},
+			}}
+			r := chi.NewRouter()
+			r.Get("/v2/jobs", NewPublicJobsHandler(publicjobs.NewCatalog(stub)).List)
+			get := func(query string) *httptest.ResponseRecorder {
+				t.Helper()
+				w := httptest.NewRecorder()
+				r.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/v2/jobs?"+query, nil))
+				return w
+			}
+			first := get(tc.key + "=" + tc.original + "&limit=1")
+			var page publicjobs.Page
+			if err := json.Unmarshal(first.Body.Bytes(), &page); err != nil {
+				t.Fatal(err)
+			}
+			if first.Code != http.StatusOK || page.NextCursor == nil {
+				t.Fatalf("cursor issuance: %d %s", first.Code, first.Body.String())
+			}
+			cursor := "&cursor=" + url.QueryEscape(*page.NextCursor)
+			// Positive control: the issued cursor is valid with its original filter.
+			if same := get(tc.key + "=" + tc.original + cursor); same.Code != http.StatusOK {
+				t.Fatalf("unchanged filter: %d %s", same.Code, same.Body.String())
+			}
+			before := stub.calls
+			changed := get(tc.key + "=" + tc.changed + cursor)
+			if changed.Code != http.StatusBadRequest || changed.Body.String() != "{\"error\":\"invalid request\",\"code\":\"invalid_request\"}\n" {
+				t.Fatalf("changed filter: %d %s", changed.Code, changed.Body.String())
+			}
+			if stub.calls != before {
+				t.Fatal("changed-filter cursor reached reader")
+			}
+		})
 	}
 }
 
