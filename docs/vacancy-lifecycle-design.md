@@ -47,7 +47,7 @@ Rejected on purpose:
 - Any transition back to Draft.
 
 Each of these returns **409 `lifecycle_transition_invalid`** with
-`data: {"action":"…","publication":"…","process":"…"}` describing the current state.
+`data: {"action":"…","lifecycle":{…}}`, where `lifecycle` is the current view (§21.4).
 
 There is **no automatic close** (S5): every transition is manual.
 
@@ -96,6 +96,7 @@ Details:
 ```
 
 - `allowed_actions` follows §21.2, so the UI does not hardcode the transition table.
+- The same view is embedded, additively, as root key `lifecycle` in `GET …/board`, `GET …/pipeline` and the v2 draft editor `GET …/job-drafts/{id}`. The board header then knows the state without a second call (frontend review).
 - The `*_at` fields carry the time of the latest such transition, or `null`.
 
 ## 21.5 Effects by state
@@ -128,7 +129,7 @@ Details:
 
 | Request | Process `active` (any publication) | Process `finished` |
 |---|---|---|
-| move / discard / recover / substate | allowed (today they require `published`; they now require an active process) | 409 `process_finished` |
+| move / discard / recover / substate | allowed (today they require `published`; they now require an active process) | 409 `process_finished` with `data: {"lifecycle":{…}}` (current view) |
 | pipeline PUT and preview, substates PUT, delivery PUT, management PUT | allowed | 409 `process_finished` |
 | GET board / detail / history / CV, lifecycle GET | allowed | allowed (read-only) |
 | content PATCH (texts, location, …) | allowed | allowed |
@@ -143,6 +144,10 @@ Content PATCH stays open when finished so a closed vacancy can be fixed before `
 - The application `status` (`submitted` / `in_process` / `closed` = discarded) is unchanged.
 - Ordering and the rest of the item shape are unchanged.
 
+### Saved vacancies
+
+The backend has no saved/bookmarked vacancies today, so nothing changes there.
+
 ### Company list (`GET /v2/me/company/job-drafts`)
 
 - `status` becomes `draft | published | paused | closed`; today it can only be `draft | published`.
@@ -154,13 +159,13 @@ Content PATCH stays open when finished so a closed vacancy can be fixed before `
 | Draft | Borrador | Publicar |
 | Published | Publicada | Pausar, Cerrar |
 | Paused | Pausada | Reanudar, Cerrar |
-| Closed, process ongoing | Cerrada · en proceso | Finalizar proceso, Reabrir |
+| Closed, process ongoing | Cerrada · proceso en curso | Finalizar proceso, Reabrir |
 | Closed, process finished | Cerrada · proceso finalizado | Reabrir |
 
 ## 21.6 Readiness on `resume` and `reopen`
 
 Both run the **published-write guard**: every readiness rule except `commitment_date_past`, the same rule as editing a published vacancy.
-- Failure → 422 `publication_incomplete` with `missing`.
+- Failure → 422 `publication_incomplete`, written by the same writer as publish: exactly `{"error","code","missing":[…]}` with the same `missing` keys, so the UI reuses «Te falta para publicar».
 - This prevents re-exposing a vacancy that was edited into an incomplete state while hidden.
 
 ## 21.7 «Finalizar proceso» vs delivery fulfillment (frontend asked)
@@ -182,7 +187,7 @@ Instead:
 - It is exposed by `GET …/lifecycle/history` → `{items:[…]}`, newest first.
 - Audit events: `VacancyPaused`, `VacancyResumed`, `VacancyClosed`, `VacancyProcessFinished`, `VacancyReopened`.
 
-**Open for frontend:** whether the board shows this history (for example in a vacancy sheet).
+The board does not show this history in this cut (frontend review): the badge plus the latest `*_at` of the view («Cerrada el 20 de octubre») is enough. The endpoint stays for a later view.
 
 ## 21.9 Storage
 
