@@ -609,3 +609,14 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     híbridas y remotas que aceptan Argentina o cualquier lugar. Las vacantes viejas sin
     ubicación nunca aparecen al filtrar por estado o municipio. Cambiar un filtro vuelve
     a la primera página. Un enlace viejo con `?location=…` se ignora.
+
+80. **Perfil con su diseño validado, tarjetas de estado, país y calendarios.**
+    (a) `/candidato/perfil` se ve como en `main` (barra con «Sin cambios pendientes» y
+    «Restaurar copia original», encabezado con avance, pestañas de línea); guarda de verdad.
+    (b) En una ubicación, el campo «País» muestra «México» y al escribir «Arg» aparece
+    Argentina (el texto se reemplaza al hacer foco). (c) Todo calendario (fecha de nacimiento,
+    filtros de fechas, fecha de solicitud y fecha compromiso) tiene selectores de mes y año.
+    (d) Errores, prohibiciones y vacíos de pantalla completa se ven en una tarjeta centrada
+    como la del pipeline en borrador: ícono, título claro, descripción y botones (ej.:
+    detener el backend y abrir `/candidato/postulaciones`, `/vacantes` o un detalle de
+    vacante; entrar con una cuenta del otro tipo; un panel sin datos).
