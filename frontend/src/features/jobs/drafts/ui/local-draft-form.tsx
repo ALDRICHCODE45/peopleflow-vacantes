@@ -81,7 +81,7 @@ import {
   type DraftOption,
 } from "./draft-labels";
 import { LOCAL_ONLY_NOTICE, QUESTIONNAIRE_DIALOG_DESCRIPTION, QUESTIONNAIRE_DIALOG_OPEN, QUESTIONNAIRE_DIALOG_TITLE, SCREENING_V2_PREVIEW_INVALID, VALIDATION_SUCCESS } from "./draft-messages";
-import { DraftPreview } from "./draft-preview";
+import { DraftReviewSection } from "./draft-review-section";
 import { DraftQuestionnairePreview } from "./draft-questionnaire-preview";
 import { DraftRequesterField } from "./draft-requester-field";
 import { DraftScreeningV2Field } from "./draft-screening-v2-field";
@@ -200,26 +200,11 @@ function DraftStepHeading({
   title: string;
   headingRef: React.Ref<HTMLHeadingElement>;
 }) {
-  if (index < LAST_STEP) return <header className="grid grid-cols-[1fr_auto] items-start gap-2">
+  return <header className="grid grid-cols-[1fr_auto] items-start gap-2">
     <h2 ref={headingRef} id={`draft-step-heading-${index + 1}`} tabIndex={-1} className="font-heading text-lg font-semibold outline-none"><span className="sr-only">{`Paso ${index + 1} de ${STEP_COUNT}: `}</span>{title}</h2>
     <span className="text-sm text-muted-foreground">{index + 1} de {STEP_COUNT}</span>
     <p className="col-span-2 text-sm text-muted-foreground">{EDITOR_DESCRIPTIONS[index]}</p>
   </header>;
-  return (
-    <CardHeader>
-      <CardTitle><h2
-        ref={headingRef}
-        id={`draft-step-heading-${index + 1}`}
-        tabIndex={-1}
-        className="text-lg outline-none"
-      >
-        <span className="sr-only">{`Paso ${index + 1} de ${STEP_COUNT}: `}</span>
-        {title}
-      </h2></CardTitle>
-      <CardAction><span className="text-sm text-muted-foreground">{index + 1} de {STEP_COUNT}</span></CardAction>
-      <p className="text-sm text-muted-foreground">{EDITOR_DESCRIPTIONS[index]}</p>
-    </CardHeader>
-  );
 }
 
 /** v0 topic surface using the installed Card's complete header/content anatomy. */
@@ -505,6 +490,21 @@ export function LocalDraftForm({
     const target = selector ? document.querySelector<HTMLElement>(selector) : null;
     (target ?? document.querySelector<HTMLElement>(`[data-pf-draft-step="${step + 1}"] [aria-invalid="true"]`) ?? stepHeadingRef.current)?.focus();
   }, [step, focusRevision]);
+
+  function completeReviewItem(code: string) {
+    const targets: Record<string, string> = {
+      title_missing: "#draft-title", description_missing: "#draft-description-content",
+      work_mode_missing: "#draft-work-mode", work_schedule_missing: "#draft-work-schedule",
+      contract_type_missing: "#draft-contract-type", professional_area_missing: "#draft-professional-area",
+      requester_missing: '[aria-labelledby="draft-requester-name-label"]',
+      location_missing: '#draft-location input[role="combobox"]',
+      location_incomplete: `#draft-location [data-slot="field-group"] [data-slot="field-group"] > [data-slot="field"]:nth-child(${state.location.state ? 2 : 1}) input[role="combobox"]`,
+      remote_scope_missing: state.remote_scope?.kind === "countries" ? "#draft-remote-countries" : '#draft-remote-scope button',
+    };
+    focusTarget.current = Object.hasOwn(targets, code) ? targets[code] : "#draft-step-heading-5";
+    setStep(code === "description_missing" ? 1 : Object.hasOwn(targets, code) ? 0 : LAST_STEP);
+    setFocusRevision(revision => revision + 1);
+  }
 
   function goToStep(next: number) {
     setStep(Math.min(Math.max(next, 0), LAST_STEP));
@@ -864,31 +864,13 @@ export function LocalDraftForm({
           aria-labelledby="draft-step-heading-5"
           className="min-w-0"
         >
-          <Card data-pf-draft-card="5">
+          <div className="flex flex-col gap-5">
             <DraftStepHeading
               index={4}
               title={STEP_TITLES[LAST_STEP]}
               headingRef={step === LAST_STEP ? stepHeadingRef : null}
             />
-            <CardContent className="flex flex-col gap-6">
-              <div className="flex flex-col gap-4">
-                <p className="max-w-prose text-sm text-muted-foreground">
-                  {isV2
-                    ? "Revisa lo que llevas capturado. Puedes guardar el borrador aunque falten campos. Solo se guarda cuando pulsas el botón."
-                    : "Revisa lo que llevas capturado. Puedes validar el borrador aunque falten campos: los campos vacíos se validan como vacíos."}
-                </p>
-                <DraftPreview
-                  state={state}
-                  renderedQuestions={
-                    isV2
-                      ? v2Questions.map((question) => ({
-                          id: question.id,
-                          prompt: question.prompt,
-                        }))
-                      : undefined
-                  }
-                />
-              </div>
+            <DraftReviewSection state={state} readiness={readiness} draftId={savedDraftId} published={published} questionCount={isV2 ? v2Questions.length : state.screening_questions.length} onComplete={completeReviewItem} questionnaireAction={<>
               {isV2 && candidateProjection !== null && !candidateProjection.ok ? (
                 <p
                   role="status"
@@ -902,8 +884,8 @@ export function LocalDraftForm({
               {isV2 ? (
                 <Button
                   type="button"
-                  variant="outline"
-                  className="min-h-10 w-full self-start sm:w-auto"
+                  variant="link"
+                  className="min-h-10"
                   disabled={candidateProjection !== null && !candidateProjection.ok}
                   aria-describedby={
                     candidateProjection !== null && !candidateProjection.ok
@@ -912,16 +894,16 @@ export function LocalDraftForm({
                   }
                   onClick={() => setPreviewOpen(true)}
                 >
-                  {QUESTIONNAIRE_DIALOG_OPEN}
+                  Revisar y probar
                 </Button>
-              ) : null}
-            </CardContent>
-
-          </Card>
+              ) : <Button type="button" variant="link" className="min-h-10" onClick={() => goToStep(3)}>Revisar preguntas</Button>}
+            </>} />
+          </div>
         </section>
         <div className="mt-6 flex items-center justify-between gap-3">
           <Button type="button" variant="ghost" className="min-h-10" disabled={step === 0} onClick={() => goToStep(step - 1)}>Anterior</Button>
           {step < LAST_STEP && <Button type="button" variant="outline" className="min-h-10" onClick={() => goToStep(step + 1)}>Siguiente sección</Button>}
+          {step === LAST_STEP && isV2 && (savedDraftId && !published ? <PublishButton draftId={savedDraftId} label="Revisar y publicar" variant="default" unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={() => setPublished(true)} /> : <Button type="button" className="min-h-10" disabled={published === true} onClick={() => setPublishNotice(true)}>{published ? "Vacante activa" : "Revisar y publicar"}</Button>)}
         </div>
         <p id="draft-publication-footnote" className="mt-5 text-center text-sm text-muted-foreground"><span className="text-primary">*</span> Necesario para publicar, no para guardar tu borrador.</p>
         </DraftEditorShell>

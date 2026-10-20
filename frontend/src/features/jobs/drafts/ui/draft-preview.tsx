@@ -197,6 +197,26 @@ function compensationView(state: DraftCompensationState): CompensationView {
   return { kind: "valid", amount: parts ? `${prefix}${parts.amount} ${parts.currency}` : null, meta: parts?.cadence ?? meta };
 }
 
+/** Internal-only exact money: show known bounds even when other draft metadata is missing.
+ * Never feed this projection to a public preview, or invent currency/cadence/basis.
+ */
+export function internalCompensationView(state: DraftCompensationState) {
+  const parsed = compensationSchema.safeParse(composeCompensation(state));
+  if (!parsed.success) return null;
+  const { mode, amount, min, max, currency } = parsed.data;
+  const money = (value: string) => {
+    const [whole, fraction] = value.split(".");
+    return `$${whole.replace(/\B(?=(\d{3})+(?!\d))/gu, ",")}${!fraction || fraction === "00" ? "" : `.${fraction}`}`;
+  };
+  const value = mode === "fixed" ? amount === null ? null : money(amount)
+    : mode === "range" ? min !== null && max !== null ? `${money(min)} – ${money(max)}`
+      : min !== null ? `Desde ${money(min)}` : max !== null ? `Hasta ${money(max)}` : null : null;
+  return {
+    amount: value === null ? "Sin definir" : `${value}${currency ? ` ${currency}` : " · Moneda sin definir"}`,
+    meta: [labelOf(PAY_PERIOD_OPTIONS, state.pay_period) ?? "Periodicidad sin definir", labelOf(BASIS_OPTIONS, state.basis) ?? "Neto/bruto sin definir"].join(" · "),
+  };
+}
+
 /** One labelled data row with its contextual decorative icon. */
 function PreviewMetaRow({
   icon: Icon,

@@ -113,7 +113,7 @@ it("requires a saved draft before publication; unsaved edits block the publish d
 });
 it("offers a real way out of an empty questionnaire simulation without saving", async () => {
   render(<LocalDraftForm />); review();
-  fireEvent.click(screen.getByRole("button", { name: "Probar cuestionario" }));
+  fireEvent.click(screen.getByRole("button", { name: "Revisar y probar" }));
   const edit = await screen.findByRole("button", { name: "Editar preguntas" });
   expect(edit.closest('[data-slot="empty-content"]')).not.toBeNull();
   fireEvent.click(edit);
@@ -296,8 +296,8 @@ it("keeps the save button in place: the status slot exists below it before and a
 it("keeps the result and actions in a shared sticky ActionBar, separate from navigation", () => {
   render(<LocalDraftForm />); review();
   const actions = save().parentElement!;
-  expect(actions).not.toContainElement(screen.getByRole("button", {name:"Probar cuestionario"}));
-  expect(screen.getByRole("button", {name:"Probar cuestionario"}).closest('[data-slot="card-content"]')).not.toBeNull();
+  expect(actions).not.toContainElement(screen.getByRole("button", {name:"Revisar y probar"}));
+  expect(screen.getByRole("button", {name:"Revisar y probar"}).closest('[data-slot="card-content"]')).not.toBeNull();
   const slot = document.querySelector("[data-pf-action-status-slot]")!;
   expect(actions).not.toContainElement(slot as HTMLElement);
   expect(actions.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

@@ -326,7 +326,7 @@ describe("LocalDraftForm presentation", () => {
       expect(panel.querySelectorAll("[data-slot='card']")).toHaveLength([3, 2, 2, 1, 2][index]);
       // Review keeps its existing full-preview Card; T2 changes the first four sections.
       if (index < 4) expect(panel.querySelector("[data-slot='card'] [data-slot='card']")).toBeNull();
-      expect(panel.querySelectorAll("[data-slot='card-footer']")).toHaveLength(0);
+      expect(panel.querySelectorAll("[data-slot='card-footer']")).toHaveLength(index === 4 ? 1 : 0);
     }
     expect(document.querySelectorAll("[data-pf-draft-save-bar]")).toHaveLength(1);
   });
@@ -477,10 +477,10 @@ describe("LocalDraftForm five-step wizard", () => {
       name: "Paso 5 de 5: Revisión y publicación",
     });
     expect(reviewHeading).toBeVisible();
-    const reviewCard = reviewHeading.closest("[data-pf-draft-card]") as HTMLElement;
-    expect(within(reviewCard).getByText("Backend Go")).toBeVisible();
-    expect(within(reviewCard).getByText("Cliente Ejemplo")).toBeVisible();
-    expect(within(reviewCard).queryByText(/guardado|completado|enviado/i)).toBeNull();
+    const internal = screen.getByRole("region", { name: "Revisión interna" });
+    expect(within(internal).getByText("Cliente Ejemplo")).toBeVisible();
+    expect(within(internal).queryByText(/guardado|completado|enviado/i)).toBeNull();
+    expect(within(document.querySelector("[data-pf-draft-public]") as HTMLElement).getByText("Backend Go")).toBeVisible();
     expect(screen.queryByRole("button", { name: /guardar/i })).toBeNull();
   });
 
@@ -1007,7 +1007,7 @@ describe("LocalDraftForm preview integration", () => {
   const publicRegion = () =>
     document.querySelector("[data-pf-draft-public]") as HTMLElement;
   const internalRegion = () =>
-    document.querySelector("[data-pf-draft-internal]") as HTMLElement;
+    screen.getByRole("region", { name: "Revisión interna" });
 
   it("shows the updated raw content in the public preview after a back edit", () => {
     render(<LocalDraftForm />);
@@ -1117,7 +1117,7 @@ describe("LocalDraftForm fresh local v2 screening", () => {
     expect(candidatePreview()).toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Probar cuestionario" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revisar y probar" }));
 
     const dialog = screen.getByRole("dialog");
     expect(
@@ -1144,7 +1144,7 @@ describe("LocalDraftForm fresh local v2 screening", () => {
       target: { value: "¿Cuál es tu experiencia?" },
     });
     goToStep(5);
-    fireEvent.click(screen.getByRole("button", { name: "Probar cuestionario" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revisar y probar" }));
 
     const innerForm = candidatePreview()?.querySelector("form");
     expect(innerForm).not.toBeNull();
@@ -1162,7 +1162,7 @@ describe("LocalDraftForm fresh local v2 screening", () => {
       target: { value: "¿Cuál es tu experiencia?" },
     });
     goToStep(5);
-    const openButton = screen.getByRole("button", { name: "Probar cuestionario" });
+    const openButton = screen.getByRole("button", { name: "Revisar y probar" });
     // jsdom's fireEvent.click does not move focus, so mirror the browser and
     // focus the opener before it records the focus-restore target.
     openButton.focus();
@@ -1181,7 +1181,7 @@ describe("LocalDraftForm fresh local v2 screening", () => {
     fireEvent.click(screen.getByRole("button", { name: "Agregar pregunta" }));
     goToStep(5);
 
-    const openButton = screen.getByRole("button", { name: "Probar cuestionario" });
+    const openButton = screen.getByRole("button", { name: "Revisar y probar" });
     expect(openButton).toBeDisabled();
     expect(candidateNotice()).toBeVisible();
 
@@ -1190,10 +1190,10 @@ describe("LocalDraftForm fresh local v2 screening", () => {
       target: { value: "¿Cuál es tu experiencia?" },
     });
     goToStep(5);
-    expect(screen.getByRole("button", { name: "Probar cuestionario" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Revisar y probar" })).toBeEnabled();
     expect(candidateNotice()).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Probar cuestionario" }));
+    fireEvent.click(screen.getByRole("button", { name: "Revisar y probar" }));
     expect(
       within(screen.getByRole("dialog")).getByRole("heading", {
         name: "Simular cuestionario",
