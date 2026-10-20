@@ -108,6 +108,11 @@ import { draftPostBodySchema } from "@/features/jobs/drafts/fields";
 
 import { LocalDraftForm } from "./local-draft-form";
 
+// Integration tests that mount the full five-step draft editor per case. Alone each case takes
+// ~1–3 s; under the full parallel suite some exceeded vitest's 5 s default and failed by timeout,
+// not by assertion. The budget reflects that load; correctness assertions are unchanged.
+vi.setConfig({ testTimeout: 30_000 });
+
 
 const ID = "123e4567-e89b-42d3-a456-426614174000";
 const TS = "2026-10-06T03:00:00.123456Z";

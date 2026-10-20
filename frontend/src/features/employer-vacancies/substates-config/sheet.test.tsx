@@ -143,7 +143,8 @@ it("rejects a 51st custom substate", () => {
   expect(custom()).toHaveAttribute("aria-invalid", "true");
   expect(screen.getByText("Llegaste al máximo de 50 subestados.")).toHaveAttribute("data-slot", "field-error");
   expect(within(screen.getByRole("list", { name: "Subestados" })).getAllByRole("listitem")).toHaveLength(50);
-});
+  // Renders 50 sortable rows: ~2-3 s alone, beyond the 5 s default only under the full parallel suite.
+}, 30_000);
 it("sends exactly toPutBody with the current ETag, closes on confirmed save and reopens from the saved catalog", async () => {
   mount(populatedSubstates()); change(" Entrevista ");
   const expected = toPutBody(rename(fromCatalog(populatedSubstates()), "one", " Entrevista "));

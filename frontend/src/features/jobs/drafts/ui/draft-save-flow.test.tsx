@@ -11,6 +11,11 @@ import { draftEditSeedFromRead } from "../reopen/seed";
 import { filledDraftRead, storedWriteFields } from "../reopen/test-fixture";
 
 import { loadDraftPublicationAction } from "../pipeline/publication-actions";
+
+// Integration tests that mount the full five-step draft editor per case. Alone each case takes
+// ~1–3 s; under the full parallel suite some exceeded vitest's 5 s default and failed by timeout,
+// not by assertion. The budget reflects that load; correctness assertions are unchanged.
+vi.setConfig({ testTimeout: 30_000 });
 vi.mock("../pipeline/publication-actions", () => ({ loadDraftPublicationAction: vi.fn(), publishDraftAction: vi.fn() }));
 vi.mock("../actions", () => ({ saveDraftV2Action: vi.fn() }));
 vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ countries: { status: "success", data: { items: [{ id: "MX", name: "México" }, { id: "CO", name: "Colombia" }] }, retry: vi.fn() }, states: { status: "success", data: { items: [{ id: "09", name: "Ciudad de México" }] } }, municipalities: { status: "success", data: { items: [] } } }), useGeoPostalCode: () => ({ status: "idle" }) }));
