@@ -393,6 +393,9 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
 - [ ] ¿Los errores, prohibiciones y vacíos de pantalla completa usan `StateCard` (sección 22)?
 - [ ] ¿Todo `Calendar` usa `captionLayout="dropdown"`?
 - [ ] ¿Cada diálogo abierto muestra su fondo oscurecido y ninguna raíz modal envuelve la pantalla (sección 23)?
+- [ ] ¿Ningún texto de navegación o botón se parte en dos renglones y ningún componente tiene su geometría pisada (secciones 19 y 24)?
+- [ ] ¿Cada test de una corrección falló con el código anterior y cubre todos los puntos de entrada (sección 25)?
+- [ ] ¿Se revisó la pantalla abierta contra la referencia (diálogos, vacíos, errores, celular, modo oscuro) o se informó como pendiente (sección 25)?
 - [ ] ¿Cada componente de shadcn usado se comparó con el ejemplo y la composición de su
       documentación oficial (sección 19) y se respetan todas sus partes?
 - [ ] ¿Una superficie compuesta nueva (Sheet, Dialog, barra de herramientas) parte de
@@ -1241,6 +1244,18 @@ falta estructura, según la documentación oficial»: faltaba `AlertDialogMedia`
   `orientation` a Base UI (el registro solo ponía `data-orientation`, así que las pestañas
   verticales seguían siendo horizontales para el teclado y los lectores de pantalla), con su test
   `tabs.test.tsx`. Cualquier otra corrección en `components/ui` necesita la misma aprobación.
+- **Biblioteca local de referencias:** `docs/design/shadcn-reference/<componente>.md` guarda la
+  página oficial (uso, composición, API y ejemplo del registro) de cada componente que usamos. Antes
+  de usar un componente nuevo se agrega su archivo; los subagentes leen esa carpeta (no tienen
+  acceso a la web) y se frenan si falta un componente.
+- **Elegir el ejemplo que corresponde al caso y copiar su forma**, no solo sus partes: el primer
+  ejemplo («Basic» / `*-demo`) es la forma por defecto. Una variante (`size="sm"`, `orientation`,
+  `variant`) solo se usa si su propósito coincide con el caso (por ejemplo, `size="sm"` en
+  AlertDialog es para textos muy cortos).
+- **No pisar la geometría de los componentes:** nada de `px-0`, `py-1.5`, alturas o radios
+  propios sobre `Item`, `Card`, `TabsTrigger` o `Button` para «hacerlos entrar»; se usa su
+  `size`/`variant` o se cambia la composición. Los conteos van en `Badge`, nunca en un `<span>`
+  suelto. Una `Card` no va dentro de un `Dialog` ni de otra `Card`: el diálogo ya es la superficie.
 - **Los tests fijan la composición** a través de los `data-slot` oficiales (por ejemplo,
   media → título dentro del encabezado, y el pie después), además del comportamiento.
 - Un componente propio que envuelve uno de shadcn (como `ConfirmActionDialog`) es el único
@@ -1339,3 +1354,57 @@ y Base UI no dibuja el fondo (`Backdrop`) de un diálogo que considera anidado.
   `alert-dialog-overlay`) existe y la página de atrás queda oscurecida y desenfocada.
 - Un diálogo con contenido variable tiene alto máximo, encabezado y pie fijos y una sola zona con
   scroll (sección 13.8); se revisa con el peor caso real (sección 17).
+
+## 24. Formularios largos por secciones (editor de vacantes, rediseño v0)
+
+Origen: rediseño del formulario de vacantes con v0 (`docs/design/v0/reference-ckk9xqMLQUp/`) y la
+revisión del usuario en el navegador (2026-10-20). Es el patrón aprobado para cualquier formulario
+largo que se construye en varias sesiones.
+
+- **Lienzo:** tres columnas (secciones, formulario, vista previa) con
+  `DashboardPageContent width="editor"` (94rem; 112rem desde 1920 px). Más de dos columnas nunca
+  usan `7xl`.
+- **Navegación de secciones:** `Tabs orientation="vertical"` (en celular, `TabsList` horizontal con
+  scroll). Cada pestaña es una fila de ≥44 px con ícono, título **en un solo renglón**, marca de
+  completa y `Badge` de pendientes; la activa usa `bg-primary/10 text-primary`. La columna se
+  ensancha para que ningún título se parta; nunca se resuelve achicando el texto.
+- **Navegación libre:** cualquier sección se abre en cualquier momento; los paneles quedan
+  montados (`keepMounted`) para no perder lo escrito. «Anterior/Siguiente» al pie de cada sección.
+- **Barra de acciones fija:** una tarjeta flotante redondeada (`Card`), separada de los bordes, con
+  el estado del guardado a la izquierda y «Guardar»/«Publicar» a la derecha; nunca un bloque
+  cuadrado pegado al borde. Disponible desde todas las secciones.
+- **Progreso honesto:** las marcas de completa, los pendientes y el porcentaje «Lista para
+  publicar» salen del mismo modelo de requisitos que la lista de faltantes; lo que todavía no se
+  sabe (datos del servidor antes de guardar) se dice y no se cuenta.
+- **Requisitos:** `*` en lo necesario para publicar, con la nota «* Necesario para publicar, no para
+  guardar tu borrador.». Guardar un borrador nunca exige esos campos.
+- **Vista previa en vivo:** muestra solo lo que verá el público (sin solicitante ni salario
+  oculto) y reutiliza el mismo renderizado que la vista pública.
+- **Elecciones cortas:** dos o tres opciones excluyentes con textos cortos van **una al lado de la
+  otra** (`ToggleGroup` en grilla, apiladas solo en celular); en columna solo si son largas o más
+  de tres.
+- **Salir con cambios sin guardar:** diálogo de la sección 18 para enlaces internos y el botón
+  «Atrás» del navegador; cerrar o recargar la pestaña muestra el aviso nativo.
+
+## 25. Verificar antes de entregar UI
+
+Origen: en la revisión del 2026-10-20 el usuario encontró, uno por uno, defectos que los tests no
+mostraban (textos cortados, fondo de diálogos ausente, barras «cuadradas», componentes mal
+compuestos). Ninguno se habría entregado con estas comprobaciones.
+
+- **Un test de regresión tiene que fallar con el código anterior.** Al corregir un defecto se
+  corre el test nuevo contra la versión previa (por ejemplo `git show HEAD:<archivo>` en una copia
+  temporal) y se confirma el RED; un test que ya pasaba antes no prueba la corrección. Se prueban
+  **todos** los puntos de entrada (por ejemplo, el mismo diálogo abierto desde la barra y desde la
+  sección).
+- **Los tests de jsdom no ven el diseño:** no calculan anchos, cortes de texto, desenfoques ni
+  superposiciones. Antes de dar por cerrada una pantalla nueva o rediseñada se compara contra la
+  referencia (captura de v0 o del usuario) y se revisa abierta: cada diálogo, cada estado vacío y
+  de error, textos largos, celular y modo oscuro. Lo que no se pudo ver se informa como pendiente,
+  nunca como hecho.
+- **Auditoría de shadcn al cerrar una pantalla:** tabla de elementos (componente usado, ejemplo
+  oficial seguido, desviaciones justificadas). Un elemento armado a mano cuando existe un
+  componente es un defecto.
+- **Los subagentes reciben** la referencia visual, la ruta de `docs/design/shadcn-reference/` y la
+  instrucción de no cambiar nada fuera de su alcance; al terminar, el padre revisa sus diferencias
+  contra la referencia antes de commitear.
