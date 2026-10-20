@@ -33,7 +33,7 @@ export function DeliveryDateField({ state, error, disabled, onChange }: {
           <span className="min-w-0 flex-1 truncate text-left">{selected ? selected.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" }) : "Elige una fecha"}</span>
         </Button>} />
         <PopoverContent align="start" className="w-auto p-0">
-          {open && <Calendar className="[--cell-size:--spacing(10)]" mode="single" locale={es} selected={selected} today={localDate(state.calendar.today)} defaultMonth={localDate(defaultDate)}
+          {open && <Calendar captionLayout="dropdown" className="[--cell-size:--spacing(10)]" mode="single" locale={es} selected={selected} today={localDate(state.calendar.today)} defaultMonth={localDate(defaultDate)}
             startMonth={localDate(state.calendar.minDate)} endMonth={localDate(state.calendar.maxDate)}
             disabled={date => !isSelectableDate(state, civilDate(date))}
             onSelect={date => { if (date && isSelectableDate(state, civilDate(date))) { onChange(civilDate(date)); setOpen(false); } }} />}

@@ -33,7 +33,7 @@ export function ManagementDateField({ state, error, disabled, onChange }: {
           <span className="min-w-0 flex-1 truncate text-left">{selected ? selected.toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" }) : "Elige una fecha"}</span>
         </Button>} />
         <PopoverContent align="start" className="w-auto p-0">
-          {open && <Calendar className="[--cell-size:--spacing(10)]" mode="single" locale={es} selected={selected} today={localDate(state.today)} defaultMonth={localDate(defaultDate)}
+          {open && <Calendar captionLayout="dropdown" className="[--cell-size:--spacing(10)]" mode="single" locale={es} selected={selected} today={localDate(state.today)} defaultMonth={localDate(defaultDate)}
             endMonth={localDate(state.today)} disabled={date => !isSelectableRequestDate(state, civilDate(date))}
             onSelect={date => { if (date && isSelectableRequestDate(state, civilDate(date))) { onChange(civilDate(date)); setOpen(false); } }} />}
         </PopoverContent>

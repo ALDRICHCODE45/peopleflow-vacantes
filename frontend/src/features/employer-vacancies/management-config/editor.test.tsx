@@ -54,7 +54,9 @@ it("uses server today even when the browser differs, allows past weekends, disab
 });
 it("displays a stored future date, but opens at the server's month", async () => {
   mount({ ...managementFixture(), requestDate: "2028-01-01" }); expect(dateField()).toHaveTextContent("1 de enero de 2028");
-  fireEvent.click(dateField()); expect(document.querySelector('[data-slot="calendar"] .rdp-caption_label')).toHaveTextContent("octubre 2026");
+  fireEvent.click(dateField()); // Month/year dropdowns (captionLayout="dropdown"): the opened month is read from their values.
+  expect(document.querySelector<HTMLSelectElement>('[data-slot="calendar"] select.rdp-months_dropdown')?.value).toBe("9");
+  expect(document.querySelector<HTMLSelectElement>('[data-slot="calendar"] select.rdp-years_dropdown')?.value).toBe("2026");
   edit(); fireEvent.click(save()); await waitFor(() => expect(saveDraftManagementAction).toHaveBeenCalledWith(expect.objectContaining({ body: { requestDate: "2028-01-01", hiringHeadcount: 5 } })));
 });
 it("can clear a date and discard raw edits", async () => {

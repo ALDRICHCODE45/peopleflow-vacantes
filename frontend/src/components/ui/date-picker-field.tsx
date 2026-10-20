@@ -116,6 +116,10 @@ export function DatePickerField({
         <PopoverContent align="start" className="w-auto p-0">
           {open ? (
             <Calendar
+              captionLayout="dropdown"
+              // Year dropdowns default to the last 100 years only; future-only pickers need a forward range.
+              startMonth={allowPast ? undefined : today}
+              endMonth={allowPast ? undefined : new Date(today.getFullYear() + 10, 11, 31)}
               mode="single"
               locale={es}
               selected={selected}
