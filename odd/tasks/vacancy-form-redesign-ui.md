@@ -17,7 +17,7 @@ Screenshot_2026-10-20-01-53-18 … 01-54-06 (9 files). Prompt sent to v0: docs/d
 - T1 [done] S1-S4 | writer | Shell: header (title, status badge, «Vista previa»), left section nav + «Lista para publicar» + «A tu ritmo», main section frame («N de 5»), right live preview, sticky bottom bar, free navigation, leave guard; mobile layout (preview in a Sheet). | commit: -
 - T2 [done] S1-S4 | writer | Sections content per v0 cards (Información básica … Preguntas de filtro), keeping all fields/behaviors. | commit: -
 - T3 [done] S1-S4 | writer | «Revisión y publicación» section: inline checklist with «Completar», «Configurar solicitud y entrega», «Revisión interna», «Revisar y publicar» → existing publish flow. | commit: -
-- T4 [pending] | parent | Full suite, guide step, queue. | commit: -
+- T4 [done] | parent | Full suite 5,869 passed (1 outdated badge assertion fixed in fd93ffd, file green), tsc 0; guide step 81, queue item 6. | commit: docs commit
 
 ## Log
 

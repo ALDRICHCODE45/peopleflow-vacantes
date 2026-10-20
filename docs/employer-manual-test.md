@@ -622,3 +622,18 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     como la del pipeline en borrador: ícono, título claro, descripción y botones (ej.:
     detener el backend y abrir `/candidato/postulaciones`, `/vacantes` o un detalle de
     vacante; entrar con una cuenta del otro tipo; un panel sin datos).
+
+81. **Formulario de vacante rediseñado (v0).** Frontend en `feat/vacancy-form-redesign-ui`
+    (backend igual que en el paso 79). Abrí «Nuevo borrador» y un borrador existente.
+    **Esperado:** «Construye tu próxima oportunidad» con el estado (Borrador/Activa); a la
+    izquierda las 5 secciones (se puede ir a cualquiera; lo escrito se conserva), con marca de
+    completa, «Lista para publicar» con su porcentaje y «Ver qué falta»; al centro la sección
+    en tarjetas por tema con «*» en lo necesario para publicar y «* Necesario para publicar, no
+    para guardar tu borrador.»; a la derecha «Así la verán» (vista previa en vivo, sin
+    solicitante ni salario oculto); abajo una barra fija con el estado del guardado, «Sin
+    guardado automático», «Guardar» y «Publicar vacante» desde cualquier sección. Con cambios
+    sin guardar, salir por un enlace pide «¿Salir sin guardar?» y cerrar la pestaña también
+    avisa. En «Revisión y publicación»: faltantes agrupados con «Completar» (lleva al campo),
+    «Configurar solicitud y entrega», «Revisión interna», «Revisar vista previa pública» y
+    «Revisar y publicar» (mismo flujo de publicación). En celular: una columna, la vista
+    previa con el botón «Vista previa».
