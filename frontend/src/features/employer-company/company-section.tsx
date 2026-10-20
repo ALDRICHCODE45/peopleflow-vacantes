@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Building2, Factory, Fingerprint, ShieldCheck, UsersRound } from "lucide-react";
+import { Building2, Factory, Fingerprint, MapPin, ShieldCheck, UsersRound } from "lucide-react";
 import { dismissActionResult, notifyActionResult } from "@/components/feedback/notify";
 import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +17,9 @@ import { createCompanyAction, loadCompanyStateAction } from "./actions";
 import type { CompanyState, CreateCompanyState } from "./actions";
 import { validateCompany } from "./validation";
 import type { CompanyFieldErrors } from "./validation";
+import { locationReadToValue, locationValueToWrite } from "@/features/geo/model";
+import { CompanyLocationField } from "./company-location-field";
+import { CompanyLocationDialog } from "./company-location-dialog";
 
 const STATUS = {
   active: { label: "Activa", variant: "success" },
@@ -61,11 +64,16 @@ function notifyCompanyFailure(failure: CompanyFailure, loading: boolean, at: str
 export function CompanySection() {
   const [state, setState] = useState<CompanyState | { kind: "loading" }>({ kind: "loading" });
   const [input, setInput] = useState({ name: "", rfc: "", industryId: "" });
+  const [location, setLocation] = useState(() => locationReadToValue(null));
   const [fields, setFields] = useState<CompanyFieldErrors>({});
   const [result, setResult] = useState<CreateCompanyState | null>(null);
   const [pending, setPending] = useState(false);
   const [reloading, setReloading] = useState(false);
   const submitting = useRef(false);
+  const form = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (Object.keys(fields).length) form.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  }, [fields]);
   const industries = state.kind === "none" ? state.industries : undefined;
   const industryItems = useMemo(() => industries?.map(item => ({ value: item.id, label: item.label_es })) ?? [], [industries]);
 
@@ -107,7 +115,7 @@ export function CompanySection() {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting.current || reloading || needsReload(result?.kind)) return;
-    const validation = validateCompany(input);
+    const validation = validateCompany({ ...input, location: locationValueToWrite(location) });
     setFields(validation.fields);
     setResult(null);
     if (Object.keys(validation.fields).length) return;
@@ -144,7 +152,7 @@ export function CompanySection() {
           {state.kind === "exists" && <CardAction><Badge variant={STATUS[state.company.status].variant} dot>{STATUS[state.company.status].label}</Badge></CardAction>}
         </CardHeader>
         <CardContent>
-          {state.kind === "loading" && <div aria-busy="true"><span role="status" className="sr-only">Cargando empresa</span><FieldGroup aria-hidden="true">{[0, 1, 2].map(key => <Field key={key}><FieldLabel><Skeleton className="h-5 w-36" /></FieldLabel><Skeleton className="h-10 w-full" /></Field>)}</FieldGroup></div>}
+          {state.kind === "loading" && <div aria-busy="true"><span role="status" className="sr-only">Cargando empresa</span><FieldGroup aria-hidden="true">{[0, 1, 2].map(key => <Field key={key}><FieldLabel><Skeleton className="h-5 w-36" /></FieldLabel><Skeleton className="h-10 w-full" /></Field>)}<FieldGroup><FieldSet><FieldLegend><Skeleton className="h-5 w-36" /></FieldLegend><FieldDescription>Opcional.</FieldDescription><FieldGroup><Field><FieldLabel><Skeleton className="h-5 w-20" /></FieldLabel><Skeleton className="h-10 w-full" /></Field></FieldGroup></FieldSet><Skeleton className="h-10 w-40" /></FieldGroup></FieldGroup></div>}
           {state.kind === "unauthenticated" && <ActionStatus id="company-action-status" tone="error" text="No se cargó · ver aviso" action={login} />}
           {(state.kind === "server_error" || state.kind === "no_response" || state.kind === "unrecognized_response") && <ActionStatus id="company-action-status" tone="error" text="No se cargó · ver aviso" action={retry} />}
           {state.kind === "exists" && <div className="flex flex-col gap-5">
@@ -153,10 +161,12 @@ export function CompanySection() {
             <dl className="grid gap-5 sm:grid-cols-3">
               <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><Fingerprint aria-hidden="true" className="size-3.5" />RFC</dt><dd>{state.company.rfc}</dd></div>
               <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><Factory aria-hidden="true" className="size-3.5" />Industria</dt><dd>{state.industryLabel}</dd></div>
+              <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><MapPin aria-hidden="true" className="size-3.5" />Ubicación</dt><dd className={state.company.location ? undefined : "text-muted-foreground"}>{state.company.location?.label ?? "Sin ubicación"}</dd></div>
               <div className="flex flex-col gap-1"><dt className="flex items-center gap-1 text-[12.5px] text-muted-foreground"><UsersRound aria-hidden="true" className="size-3.5" />Tu rol</dt><dd>{state.role === "owner" ? "Propietario" : "Reclutador"}</dd></div>
             </dl>
+            {state.role === "owner" && <CompanyLocationDialog company={state.company} onAdopt={company => setState(current => current.kind === "exists" ? { ...current, company: { ...current.company, ...company } } : current)} />}
           </div>}
-          {state.kind === "none" && <form id="company-create" onSubmit={submit} noValidate>
+          {state.kind === "none" && <form ref={form} id="company-create" onSubmit={submit} noValidate>
             <FieldGroup>
               <Field data-invalid={!!fields.name}>
                 <FieldLabel htmlFor="company-name"><Building2 aria-hidden="true" className="size-3.5" />Nombre de la empresa</FieldLabel>
@@ -176,6 +186,7 @@ export function CompanySection() {
                 </Select>
                 <FieldError id="company-industry-error">{fields.industryId}</FieldError>
               </Field>
+              <CompanyLocationField value={location} onChange={setLocation} disabled={pending} errors={fields.location} />
             </FieldGroup>
           </form>}
         </CardContent>

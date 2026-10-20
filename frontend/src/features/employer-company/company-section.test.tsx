@@ -16,15 +16,19 @@ vi.mock("@/components/ui/select", async () => {
   const Empty = () => null;
   return { Select, SelectTrigger, SelectValue: Empty, SelectContent: Empty, SelectGroup: Empty, SelectItem: Empty };
 });
-vi.mock("./actions", () => ({ loadCompanyStateAction: vi.fn(), createCompanyAction: vi.fn() }));
+vi.mock("./actions", () => ({ loadCompanyStateAction: vi.fn(), createCompanyAction: vi.fn(), updateCompanyLocationAction: vi.fn() }));
+vi.mock("@/features/geo/use-geo-catalog", () => ({
+  useGeoCatalog: () => ({ countries: { status: "ready", data: { items: [{ id: "MX", name: "México" }] }, retry: vi.fn() }, states: { status: "ready", data: { items: [] }, retry: vi.fn() }, municipalities: { status: "ready", data: { items: [] }, retry: vi.fn() } }),
+  useGeoPostalCode: () => ({ status: "idle" }),
+}));
 vi.mock("sileo", () => ({ sileo: { success: vi.fn(() => "company-success"), error: vi.fn(() => "company-error"), dismiss: vi.fn() } }));
 import { sileo } from "sileo";
-import { createCompanyAction, loadCompanyStateAction } from "./actions";
+import { createCompanyAction, loadCompanyStateAction, updateCompanyLocationAction } from "./actions";
 import type { CompanyState, CreateCompanyState } from "./actions";
 import { CompanySection } from "./company-section";
 
 // Exercise the feature boundary while keeping upstream transport mocked.
-const company = { id: "c", name: "Empresa confirmada", rfc: "ABC123456789", industry_id: "i", status: "pending_verification" as const };
+const company = { id: "c", name: "Empresa confirmada", rfc: "ABC123456789", industry_id: "i", status: "pending_verification" as const, location: null, updated_at: "2026-10-20T12:00:00.123456789Z" };
 const none: CompanyState = { kind: "none", industries: [{ id: "i", label_es: "Tecnología", label_en: "Technology", sort_order: 2 }, { id: "j", label_es: "Agricultura", label_en: "Agriculture", sort_order: 1 }] };
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(r => { resolve = r; }); return { promise, resolve }; }
 beforeEach(() => { vi.resetAllMocks(); vi.mocked(loadCompanyStateAction).mockResolvedValue(none); });
@@ -61,7 +65,8 @@ it("keeps context and accessible skeleton while initial load waits", async () =>
   expect(container.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   const cardSlots = () => [...container.querySelectorAll('[data-slot^="card"]')].map(node => node.getAttribute("data-slot"));
   const loadingSlots = cardSlots();
-  expect(container.querySelectorAll('[data-slot="field"]')).toHaveLength(3);
+  expect(container.querySelectorAll('[data-slot="field"]')).toHaveLength(4);
+  expect(container.querySelectorAll('[data-slot="field-set"]')).toHaveLength(1);
   expect(container.querySelector('[data-slot="card-footer"] [data-slot="skeleton"]')).toHaveClass("h-10");
   await act(async () => pending.resolve(none)); expect(await screen.findByLabelText("RFC")).toBeInTheDocument(); expect(sileo.success).not.toHaveBeenCalled();
   expect(cardSlots()).toEqual(loadingSlots);
@@ -79,6 +84,7 @@ it("shows persistent local field validation without calling create", async () =>
   expect(await screen.findByText("Selecciona una industria.")).toBeInTheDocument();
   expect(screen.getByLabelText("RFC")).toHaveAttribute("aria-invalid", "true");
   expect(screen.getByLabelText("Nombre de la empresa")).toHaveAttribute("aria-invalid", "true");
+  await waitFor(() => expect(screen.getByLabelText("Nombre de la empresa")).toHaveFocus());
   expect(createCompanyAction).not.toHaveBeenCalled();
 });
 it("disables pending submit, prevents duplicates, toasts only confirmation and shows summary", async () => {
@@ -159,6 +165,70 @@ it.each([["active", "Activa", "success"], ["pending_verification", "En verificac
   vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company: { ...company, status }, role: "recruiter", industryLabel: "Tecnología" });
   render(<CompanySection />); const badge = await screen.findByText(label); expect(badge).toHaveAttribute("data-variant", variant);
   expect(screen.getByText("Reclutador")).toBeInTheDocument(); expect(screen.queryByRole("button", { name: "Crear empresa" })).not.toBeInTheDocument();
+});
+it("shows optional location after industry and does not silently select Mexico", async () => {
+  vi.mocked(createCompanyAction).mockResolvedValue({ kind: "created", company });
+  render(<CompanySection />); const user = await fill();
+  expect(screen.getByText("Ubicación")).toBeVisible();
+  expect(screen.getByText("Opcional.")).toBeVisible();
+  await user.click(screen.getByRole("button", { name: "Crear empresa" }));
+  expect(createCompanyAction).toHaveBeenCalledWith({ name: "Empresa nueva", rfc: "ABC123456789", industryId: "i", location: null });
+});
+it("allows only owners to edit, adopts a conflict, and clears with the new token on explicit save", async () => {
+  const location = { country: { id: "MX", name: "México" }, state: null, municipality: null, postal_code: null, label: "México" };
+  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company: { ...company, location }, role: "owner", industryLabel: "Tecnología" });
+  const current = { id: company.id, name: company.name, location, updated_at: "2026-10-20T13:00:00.987654321Z" };
+  vi.mocked(updateCompanyLocationAction).mockResolvedValueOnce({ kind: "conflict", company: current, reference: { status: 409, code: "conflict" } }).mockResolvedValueOnce({ kind: "updated", company: { ...current, location: null } });
+  render(<CompanySection />);
+  await userEvent.click(await screen.findByRole("button", { name: "Editar ubicación" }));
+  expect(screen.getByRole("dialog", { name: "Editar ubicación" })).toBeVisible();
+  await userEvent.click(screen.getByRole("button", { name: "Quitar ubicación" }));
+  await userEvent.click(screen.getByRole("button", { name: "Guardar ubicación" }));
+  expect(await screen.findByText("La ubicación cambió. Mostramos la versión actual; revísala antes de guardar.")).toBeVisible();
+  expect(updateCompanyLocationAction).toHaveBeenCalledTimes(1);
+  await userEvent.click(screen.getByRole("button", { name: "Quitar ubicación" }));
+  await userEvent.click(screen.getByRole("button", { name: "Guardar ubicación" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  expect(updateCompanyLocationAction).toHaveBeenLastCalledWith({ location: null, updatedAt: current.updated_at });
+  expect(screen.getByText("Sin ubicación")).toHaveClass("text-muted-foreground");
+  expect(sileo.success).toHaveBeenLastCalledWith(expect.objectContaining({ title: "Ubicación actualizada." }));
+});
+it("shows a recruiter the location without an edit button", async () => {
+  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company, role: "recruiter", industryLabel: "Tecnología" });
+  render(<CompanySection />);
+  expect(await screen.findByText("Sin ubicación")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Editar ubicación" })).not.toBeInTheDocument();
+});
+it("keeps edits and shows shared per-level error copy after 422", async () => {
+  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company, role: "owner", industryLabel: "Tecnología" });
+  vi.mocked(updateCompanyLocationAction).mockResolvedValue({ kind: "invalid", fields: { location: [{ field: "postal_code", reason: "mismatch" }] }, reference: { status: 422, code: "invalid_location" } });
+  render(<CompanySection />);
+  await userEvent.click(await screen.findByRole("button", { name: "Editar ubicación" }));
+  await userEvent.click(screen.getByRole("button", { name: "Agregar ubicación" }));
+  await userEvent.type(screen.getByLabelText("Código postal"), "01000");
+  await userEvent.click(screen.getByRole("button", { name: "Guardar ubicación" }));
+  expect(await screen.findByText("El código postal no corresponde al municipio.")).toBeVisible();
+  expect(screen.getByLabelText("Código postal")).toHaveValue("01000");
+  expect(screen.getByLabelText("Código postal")).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByRole("dialog")).toBeVisible();
+});
+it("blocks duplicate saves and reads without repeating an uncertain write", async () => {
+  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "exists", company, role: "owner", industryLabel: "Tecnología" });
+  const pending = deferred<Awaited<ReturnType<typeof updateCompanyLocationAction>>>();
+  vi.mocked(updateCompanyLocationAction).mockReturnValue(pending.promise);
+  render(<CompanySection />);
+  await userEvent.click(await screen.findByRole("button", { name: "Editar ubicación" }));
+  await userEvent.click(screen.getByRole("button", { name: "Guardar ubicación" }));
+  expect(screen.getByRole("button", { name: "Guardando…" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Cancelar" })).toBeDisabled();
+  fireEvent.submit(document.getElementById("company-location-edit")!);
+  expect(updateCompanyLocationAction).toHaveBeenCalledTimes(1);
+  await act(async () => pending.resolve({ kind: "no_response", reference: {} }));
+  expect(screen.queryByRole("button", { name: "Guardar ubicación" })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: "Consultar ubicación" }));
+  expect(await screen.findByRole("button", { name: "Guardar ubicación" })).toBeEnabled();
+  expect(loadCompanyStateAction).toHaveBeenCalledTimes(2);
+  expect(updateCompanyLocationAction).toHaveBeenCalledTimes(1);
 });
 it("reserves the result line below the create button instead of pushing it", async () => {
   vi.mocked(createCompanyAction).mockResolvedValue({ kind: "already_exists", reference: { status: 409, code: "already_exists" } });

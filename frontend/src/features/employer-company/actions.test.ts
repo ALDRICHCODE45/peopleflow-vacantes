@@ -1,11 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/auth/action-session", () => ({ getActionAccessToken: vi.fn() }));
-vi.mock("./api/company-client", () => ({ getMyCompany: vi.fn(), listIndustries: vi.fn(), createCompany: vi.fn() }));
+vi.mock("./api/company-client", async importOriginal => ({ ...await importOriginal<typeof import("./api/company-client")>(), getMyCompany: vi.fn(), listIndustries: vi.fn(), createCompany: vi.fn(), updateCompanyLocation: vi.fn() }));
 import { getActionAccessToken } from "@/lib/auth/action-session";
-import { createCompany, getMyCompany, listIndustries } from "./api/company-client";
-import { createCompanyAction, loadCompanyStateAction } from "./actions";
-const company = { id: "c", name: "Empresa", rfc: "ABC123456789", industry_id: "i", status: "active" as const };
+import { createCompany, getMyCompany, listIndustries, updateCompanyLocation } from "./api/company-client";
+import { createCompanyAction, loadCompanyStateAction, updateCompanyLocationAction } from "./actions";
+const company = { id: "c", name: "Empresa", rfc: "ABC123456789", industry_id: "i", status: "active" as const, location: null, updated_at: "2026-10-20T12:00:00.123456789Z" };
 const industries = [{ id: "i", label_es: "Tecnología", label_en: "Technology", sort_order: 1 }];
 const valid = { name: " Empresa ", rfc: " abc123456789 ", industryId: " i " };
 const fail = (status: number, code: string, error = "upstream") => ({ ok: false as const, error: { kind: "status" as const, status, retryable: false as const }, envelope: { error, code } });
@@ -39,6 +39,47 @@ it("keeps existing summary when industry lookup fails", async () => {
   vi.mocked(getMyCompany).mockResolvedValue({ ok: true, data: { company_id: "c", role: "owner", company } });
   vi.mocked(listIndustries).mockRejectedValue(new Error("private"));
   expect(await loadCompanyStateAction()).toMatchObject({ kind: "exists", industryLabel: "No disponible" });
+});
+it.each([null, { country: "MX", state: "01", municipality: "01001", postal_code: "01000" }])("posts optional location codes %j", async location => {
+  vi.mocked(createCompany).mockResolvedValue({ ok: true, data: company });
+  await createCompanyAction({ ...valid, location });
+  expect(createCompany).toHaveBeenCalledWith({ token: "secret", body: { name: "Empresa", rfc: "ABC123456789", industry_id: "i", location } });
+});
+it.each(["country", "state", "municipality", "postal_code"])("maps location.%s validation to the matching field", async field => {
+  vi.mocked(createCompany).mockResolvedValue({ ...fail(422, "invalid_location"), envelope: { error: "invalid location", code: "invalid_location", details: [{ field: `location.${field}`, reason: "unknown" }] } });
+  expect(await createCompanyAction(valid)).toMatchObject({ kind: "invalid", fields: { location: [{ field, reason: "unknown" }] }, reference: { status: 422, code: "invalid_location" } });
+});
+it("returns current editor data on conflict without retrying the update", async () => {
+  const editor = { id: company.id, name: company.name, location: null, updated_at: company.updated_at };
+  vi.mocked(updateCompanyLocation).mockResolvedValue({ ...fail(409, "conflict"), envelope: { error: "conflict", code: "conflict", data: editor } });
+  expect(await updateCompanyLocationAction({ location: null, updatedAt: company.updated_at })).toEqual({ kind: "conflict", company: editor, reference: { status: 409, code: "conflict" } });
+  expect(updateCompanyLocation).toHaveBeenCalledExactlyOnceWith({ token: "secret", location: null, updatedAt: company.updated_at });
+});
+it("rejects malformed location writes before create or update", async () => {
+  const location = { country: { id: "MX", name: "México" } } as unknown as import("@/features/geo/model").LocationWrite;
+  expect(await createCompanyAction({ ...valid, location })).toMatchObject({ kind: "invalid" });
+  expect(await updateCompanyLocationAction({ location, updatedAt: company.updated_at })).toMatchObject({ kind: "invalid" });
+  expect(createCompany).not.toHaveBeenCalled(); expect(updateCompanyLocation).not.toHaveBeenCalled();
+});
+it.each(["required", "unknown", "mismatch", "not_allowed"])("maps update location validation reason %s", async reason => {
+  vi.mocked(updateCompanyLocation).mockResolvedValue({ ...fail(422, "invalid_location"), envelope: { error: "invalid location", code: "invalid_location", details: [{ field: "location.postal_code", reason }] } });
+  expect(await updateCompanyLocationAction({ location: null, updatedAt: company.updated_at })).toMatchObject({ kind: "invalid", fields: { location: [{ field: "postal_code", reason }] } });
+});
+it("fails closed on unknown geography reasons and conflict without editor data", async () => {
+  for (const failure of [{ ...fail(422, "invalid_location"), envelope: { error: "invalid location", code: "invalid_location", details: [{ field: "location.country", reason: "invented" }] } }, fail(409, "conflict")]) {
+    vi.mocked(updateCompanyLocation).mockResolvedValue(failure);
+    expect(await updateCompanyLocationAction({ location: null, updatedAt: company.updated_at })).toMatchObject({ kind: "unrecognized_response" });
+  }
+});
+it.each([401, 403, 500])("maps update HTTP %s", async status => {
+  vi.mocked(updateCompanyLocation).mockResolvedValue(fail(status, "failure"));
+  expect(await updateCompanyLocationAction({ location: null, updatedAt: company.updated_at })).toMatchObject({ kind: status === 401 ? "unauthenticated" : status === 403 ? "forbidden" : "server_error" });
+});
+it("does not update without session or a valid CAS token", async () => {
+  expect(await updateCompanyLocationAction({ location: null, updatedAt: "invalid" })).toMatchObject({ kind: "unrecognized_response" });
+  vi.mocked(getActionAccessToken).mockResolvedValue(null);
+  expect(await updateCompanyLocationAction({ location: null, updatedAt: company.updated_at })).toMatchObject({ kind: "unauthenticated" });
+  expect(updateCompanyLocation).not.toHaveBeenCalled();
 });
 it("normalizes strings then posts once and returns only the confirmed company", async () => {
   vi.mocked(createCompany).mockResolvedValue({ ok: true, data: company });
