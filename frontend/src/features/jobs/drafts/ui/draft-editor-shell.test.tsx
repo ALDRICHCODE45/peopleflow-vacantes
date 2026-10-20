@@ -42,7 +42,10 @@ it("keeps all navigation labels on one line with room for icons and indicators",
     expect(button).toHaveClass("whitespace-nowrap");
     expect(button).not.toHaveClass("lg:whitespace-normal");
     expect(button.querySelector("span")).toHaveClass("whitespace-nowrap");
+    // User: «se ve muy pequeno … las tabs para cambiar de seccion»: comfortable rows like v0.
+    expect(button).toHaveClass("min-h-11", "justify-start", "data-active:bg-primary/10", "data-active:text-primary");
   }
+  expect(navigation).toHaveClass("bg-transparent", "h-auto");
   expect(nav("Revisión y publicación").querySelector('[data-slot="badge"]')).toHaveTextContent("8");
 });
 it("uses horizontal scrolling tabs on mobile without remounting inputs", () => {

@@ -47,10 +47,10 @@ export function DraftEditorShell({ state, published, step, onStep, readiness, ch
     <Tabs value={step} onValueChange={value => { if (typeof value === "number") onStep(value); }} orientation={desktop ? "vertical" : "horizontal"} className="grid min-w-0 grid-cols-1 items-start gap-7 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_300px]">
       <aside className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-6">
         <div className="overflow-x-auto p-1 lg:overflow-visible">
-        <TabsList activateOnFocus aria-label="Secciones de la vacante" className="lg:w-full">
+        <TabsList activateOnFocus aria-label="Secciones de la vacante" className="h-auto gap-1 bg-transparent p-0 lg:w-full lg:items-stretch">
           {EDITOR_SECTIONS.map((title, index) => {
             const Icon = icons[index]; const complete = readiness.sectionComplete[index];
-            return <TabsTrigger key={title} value={index} aria-label={title} data-complete={complete === true}>
+            return <TabsTrigger key={title} value={index} aria-label={title} data-complete={complete === true} className="min-h-11 justify-start gap-2.5 whitespace-nowrap rounded-lg px-3 text-sm font-normal text-muted-foreground hover:bg-muted hover:text-foreground data-active:bg-primary/10 data-active:font-medium data-active:text-primary data-active:shadow-none">
               <Icon aria-hidden="true" /><span className="flex-1 whitespace-nowrap text-left">{title}</span>
               {complete && <Check aria-label="Requisitos completos" data-icon="inline-end" />}
               {index === 4 && readiness.pending > 0 && <Badge variant="secondary">{readiness.pending}</Badge>}

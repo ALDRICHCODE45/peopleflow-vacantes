@@ -63,3 +63,11 @@ it("hides scope onsite and marks MX levels required", () => {
  expect(screen.queryByText("¿Desde dónde pueden postular?")).not.toBeInTheDocument();
  expect(screen.getByRole("combobox", { name: "Estado" })).toHaveAttribute("aria-required", "true");
 });
+
+it("places the two remote scope choices side by side (stacked only on small screens)", () => {
+  // User: «los dos botones de "Desde cualquier lugar" y "Solo desde estos paises" ocupan espacio innecesario … uno al lado del otro».
+  render(<Harness />);
+  const group = screen.getByRole("button", { name: "Desde cualquier lugar" }).closest('[data-slot="toggle-group"]')!;
+  expect(group).toHaveAttribute("data-orientation", "horizontal");
+  expect(group).toHaveClass("grid", "sm:grid-cols-2");
+});

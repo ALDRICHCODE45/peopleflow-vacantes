@@ -35,13 +35,13 @@ export function DraftGeographyField({ state, onChange, errors, remoteError }: {
       <FieldDescription id="draft-remote-scope-help">Elige una opción para publicar la vacante.</FieldDescription>
       <FieldGroup>
         <Field data-invalid={!!message}>
-          <ToggleGroup aria-labelledby="draft-remote-scope-label" aria-describedby="draft-remote-scope-help" variant="outline" orientation="vertical" value={state.remote_scope ? [state.remote_scope.kind] : []} onValueChange={values => {
+          <ToggleGroup aria-labelledby="draft-remote-scope-label" aria-describedby="draft-remote-scope-help" variant="outline" className="grid w-full grid-cols-1 sm:grid-cols-2" value={state.remote_scope ? [state.remote_scope.kind] : []} onValueChange={values => {
             const kind = values[0];
             if (kind === "anywhere") onChange({ remote_scope: { kind } });
             if (kind === "countries") onChange({ remote_scope: { kind, countries: state.remoteCountries.map(country => country.id) } });
           }}>
-            <ToggleGroupItem className="min-h-10" value="anywhere">Desde cualquier lugar</ToggleGroupItem>
-            <ToggleGroupItem className="min-h-10" value="countries">Solo desde estos países</ToggleGroupItem>
+            <ToggleGroupItem className="min-h-10 w-full" value="anywhere">Desde cualquier lugar</ToggleGroupItem>
+            <ToggleGroupItem className="min-h-10 w-full" value="countries">Solo desde estos países</ToggleGroupItem>
           </ToggleGroup>
           {state.remote_scope?.kind !== "countries" && message && <FieldError>{message}</FieldError>}
         </Field>
