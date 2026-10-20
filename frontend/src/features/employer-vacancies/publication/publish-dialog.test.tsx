@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: vi.fn() }));
 vi.mock("@/features/jobs/drafts/pipeline/publication-actions", () => ({ loadDraftPublicationAction: vi.fn(), publishDraftAction: vi.fn() }));
@@ -52,6 +52,13 @@ it("requires a named alert confirmation with safe initial focus before publishin
  expect(onOpenChange).toHaveBeenCalledWith(false);
  expect(publishDraftAction).not.toHaveBeenCalled();
 });
+it("uses ItemDescription for summary labels", async () => {
+ mount(); await screen.findByText("Lista para entrevista");
+ for (const label of ["Vacante", "Columna de corte", "Objetivo de entrega", "Fecha compromiso"]) {
+  expect(screen.getByText(label)).toHaveAttribute("data-slot", "item-description");
+  expect(screen.getByText(label).parentElement).toHaveAttribute("data-slot", "item-content");
+ }
+});
 it("blocks unsaved changes before reads or publish", async () => { mount(true); expect(await screen.findByText("Guarda los cambios antes de publicar")).toBeVisible(); expect(screen.queryByRole("button", { name: "Publicar vacante" })).not.toBeInTheDocument(); expect(loadDraftForEditAction).not.toHaveBeenCalled(); });
 it("groups checklist links by owner with unknown-code fallback and no publish", async () => {
  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: ["title_missing", "request_date_missing", "commitment_date_past", "future"] } }); mount();
@@ -59,8 +66,8 @@ it("groups checklist links by owner with unknown-code fallback and no publish", 
  for (const name of ["Editor de la vacante", "Solicitud", "Entrega"]) {
   const heading = screen.getByRole("heading", { name });
   expect(heading).toBeVisible();
-  expect(heading.closest('[data-slot="card-title"]')?.parentElement).toHaveAttribute("data-slot", "card-header");
-  expect(heading.closest('[data-slot="card"]')?.querySelector('[data-slot="card-content"] [data-slot="item-group"]')).not.toBeNull();
+  expect(heading.closest('section')).not.toBeNull();
+  expect(heading.closest('section')?.querySelector('[data-slot="item-group"]')).not.toBeNull();
  }
  expect(screen.getByText("Otro requisito pendiente", { selector: '[data-slot="item-title"]' })).toBeVisible(); expect(screen.getByText("La fecha compromiso ya pasó", { selector: '[data-slot="item-title"]' })).toBeVisible();
  expect(screen.getAllByRole("link", { name: /Completar/ }).map(link => link.getAttribute("href"))).toEqual([`/empresa/vacantes/borradores/${draft.id}`, `/empresa/vacantes/borradores/${draft.id}`, `/empresa/vacantes/${draft.id}/configuracion/solicitud`, `/empresa/vacantes/${draft.id}/configuracion/entrega`]);
@@ -82,7 +89,13 @@ it("keeps a long checklist compact and scrollable without clipping any group", a
  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: ["title_missing", "description_missing", "location_missing", "request_date_missing", "commitment_date_past"] } }); mount();
  await screen.findByRole("heading", { name: "Te falta para publicar" });
  expect(screen.getByText("Faltan 5 datos en 3 secciones. Completa cada uno y vuelve a publicar.")).toBeVisible();
- const cards = [...document.querySelectorAll('[data-slot="card"]')];
+ expect(document.querySelector('[data-pf-publication-scroll] [data-slot="card"]')).toBeNull();
+ expect(document.querySelector('[data-pf-publication-scroll] [data-slot="item-media"]')).toBeNull();
+ const close = within(document.querySelector('[data-slot="dialog-footer"]') as HTMLElement).getByRole("button", { name: "Cerrar" });
+ expect(close.closest('[data-slot="dialog-footer"]')).not.toBeNull();
+ fireEvent.click(close);
+ expect(onOpenChange).toHaveBeenCalledWith(false, expect.objectContaining({ reason: "close-press" }));
+ const cards = [...document.querySelectorAll('[data-pf-publication-scroll] section')];
  expect(cards).toHaveLength(3);
  // One scroll region owns the overflow; groups never shrink (shrinking clipped their rows).
  for (const card of cards) {
@@ -94,12 +107,15 @@ it("keeps a long checklist compact and scrollable without clipping any group", a
  // Compact rows: no outlined box per item, separators between rows, a count per group.
  expect(document.querySelectorAll('[data-slot="item"][data-variant="outline"]')).toHaveLength(0);
  expect(cards[0].querySelectorAll('[data-slot="item-separator"]')).toHaveLength(2);
- // Rows are 40px controls plus 6px insets: the group adds no gap on top of separators.
+ // Native small Items own their insets; no added gap around separators.
  for (const group of document.querySelectorAll('[data-slot="item-group"]')) expect(group).toHaveClass("gap-0");
  for (const separator of document.querySelectorAll('[data-slot="item-separator"]')) expect(separator).toHaveClass("my-0");
- for (const row of document.querySelectorAll('[data-slot="item"]')) expect(row).toHaveClass("px-0", "py-1.5");
- expect(cards.map(card => card.querySelector('[data-slot="card-action"]')?.textContent)).toEqual(["3", "1", "1"]);
- for (const card of cards) expect(card.querySelector('[data-slot="card-action"] [data-slot="badge"]')).toBeNull();
+ for (const row of document.querySelectorAll('[data-slot="item"]')) {
+  expect(row).toHaveAttribute("data-size", "sm");
+  expect(row).not.toHaveClass("px-0", "py-1.5");
+ }
+ expect(cards.map(card => card.querySelector('[data-slot="badge"]')?.textContent)).toEqual(["3", "1", "1"]);
+ for (const card of cards) expect(card.querySelector('[data-slot="badge"]')).toHaveAttribute("data-variant", "secondary");
 });
 it("422 switches to server checklist", async () => { vi.mocked(publishDraftAction).mockResolvedValue({ ok: false, reason: "publication_incomplete", missing: ["description_missing"], reference: { status: 422 } }); mount(); await confirm(); expect(await screen.findByRole("heading", { name: "Te falta para publicar" })).toBeVisible(); expect(screen.getByText("Descripción", { selector: '[data-slot="item-title"]' })).toBeVisible(); });
 it("409 already published reloads readiness and treats confirmed state as informational success", async () => { vi.mocked(publishDraftAction).mockResolvedValue({ ok: false, reason: "already_published", reference: { status: 409 } }); vi.mocked(loadDraftPublicationAction).mockResolvedValueOnce({ ...ready, publication: { ...ready.publication, missing: [] } }).mockResolvedValueOnce({ ok: true, publication: { status: "published", publishedAt: date, missing: [] } }); mount(); await confirm(); await waitFor(() => expect(onPublished).toHaveBeenCalledWith(date)); expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "info", title: "Esta vacante ya está publicada" })); });

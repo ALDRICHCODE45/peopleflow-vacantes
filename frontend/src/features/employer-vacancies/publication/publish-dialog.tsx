@@ -4,9 +4,9 @@ import { Fragment, useCallback, useEffect, useRef, useState, type ComponentProps
 import Link from "next/link";
 import { ArrowRight, CalendarDays, ClipboardList, FileText, Flag, GitBranch, Send, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Item, ItemActions, ItemContent, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "@/components/ui/item";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemSeparator, ItemTitle } from "@/components/ui/item";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
@@ -173,30 +173,29 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
   </ConfirmActionDialog>;
   return <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col sm:max-w-lg" showCloseButton={!pending} initialFocus={heading} finalFocus={() => completionAnchor.current ? document.getElementById(completionAnchor.current) ?? false : true}>
     <DialogHeader><DialogTitle ref={attachHeading} tabIndex={-1} className="outline-none">{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
-    {/* One native scroll region owns the overflow and its children never shrink (shrinking clipped
-        the cards). Not ScrollArea: base-ui needs a fixed height and spilled out of this flexible dialog. */}
+    {/* One native scroll region owns overflow; sections never shrink. ScrollArea needs a fixed height. */}
     <div data-pf-publication-scroll className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pb-1 [scrollbar-width:thin]" aria-busy={!unsavedChanges && mode === "loading"}>
       {!unsavedChanges && mode === "loading" ? <><span role="status" className="sr-only">Cargando publicación</span><PublicationSkeleton missing={snapshot?.publication.missing ?? []} /></> : null}
       {!unsavedChanges && mode === "load_error" && <p className="text-sm text-muted-foreground">No se modificó la vacante. Puedes volver a cargar los datos.</p>}
       {!unsavedChanges && snapshot && mode !== "loading" && mode !== "load_error" && (missing.length ? groups.map(group => {
         const Icon = GROUP_ICONS[group.group];
-        return <Card key={group.group} size="sm" role="region" aria-labelledby={`publication-${group.group}`} className="shrink-0">
-          <CardHeader><CardTitle><h3 id={`publication-${group.group}`}>{MISSING_GROUP_LABELS[group.group]}</h3></CardTitle><CardAction><span className="text-sm tabular-nums text-muted-foreground">{group.items.length}</span></CardAction></CardHeader>
-          <CardContent><ItemGroup className="gap-0">{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>
+        return <section key={group.group} aria-labelledby={`publication-${group.group}`} className="flex shrink-0 flex-col gap-2">
+          <div className="flex items-center gap-2"><Icon aria-hidden="true" className="size-4" /><h3 id={`publication-${group.group}`} className="flex-1 text-sm font-medium">{MISSING_GROUP_LABELS[group.group]}</h3><Badge variant="secondary">{group.items.length}</Badge></div>
+          <ItemGroup className="gap-0">{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>
             {index > 0 && <ItemSeparator className="my-0" />}
-            <Item size="sm" role="listitem" className="px-0 py-1.5"><ItemMedia variant="icon"><Icon aria-hidden="true" /></ItemMedia><ItemContent><ItemTitle>{item.label}</ItemTitle></ItemContent><ItemActions><Button nativeButton={false} role="link" variant="ghost" className="min-h-10" render={<Link href={item.href(draftId)} onClick={event => {
+            <Item size="sm" role="listitem"><ItemContent><ItemTitle>{item.label}</ItemTitle></ItemContent><ItemActions><Button nativeButton={false} role="link" variant="ghost" className="min-h-10" render={<Link href={item.href(draftId)} onClick={event => {
               if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
               completionAnchor.current = event.currentTarget.hash.slice(1) || null;
               onOpenChange(false);
             }} />}>Completar<span className="sr-only"> {item.label}</span><ArrowRight aria-hidden="true" data-icon="inline-end" /></Button></ItemActions></Item>
-          </Fragment>)}</ItemGroup></CardContent>
-        </Card>;
+          </Fragment>)}</ItemGroup>
+        </section>;
       }) : already ? <p className="text-sm text-muted-foreground">{snapshot.publication.publishedAt ? `Publicada el ${formatPublicationDate(snapshot.publication.publishedAt)}` : "El tiempo de entrega ya está en marcha."}</p> : <>
         <PublicationSummary snapshot={snapshot} />
       </>)}
     </div>
     <DialogFooter className="flex-row"><ActionBar status={notice ? <ActionStatus id="publication-status" tone={notice.tone} text={notice.text} /> : null}>
-      <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={() => onOpenChange(false)}>Cancelar</Button>
+      <DialogClose disabled={pending} render={<Button type="button" variant="outline" className="min-h-10" />}>Cerrar</DialogClose>
       {!unsavedChanges && mode === "loading" && <Skeleton aria-hidden="true" className="h-10 w-40" />}
       {!unsavedChanges && mode === "load_error" && <Button type="button" className="min-h-10" onClick={() => reload()}>Reintentar</Button>}
       {!unsavedChanges && (mode === "conflict" || mode === "rejected") && <Button type="button" className="min-h-10" onClick={() => reload(mode === "conflict")}>Revisar de nuevo</Button>}
@@ -211,11 +210,11 @@ function PublicationSummary({ snapshot }: { snapshot: Snapshot }) {
     { icon: GitBranch, label: "Columna de corte", value: snapshot.cutoff },
     { icon: Users, label: "Objetivo de entrega", value: snapshot.target === null ? "Sin definir" : `${snapshot.target} candidatos` },
     { icon: CalendarDays, label: "Fecha compromiso", value: snapshot.commitmentDate ? formatPublicationDate(`${snapshot.commitmentDate}T12:00:00Z`) : "Sin definir" },
-  ].map(row => <Item key={row.label} variant="outline" size="sm" role="listitem"><ItemMedia variant="icon"><row.icon aria-hidden="true" /></ItemMedia><ItemContent><span className="text-xs text-muted-foreground">{row.label}</span><ItemTitle>{row.value}</ItemTitle></ItemContent></Item>)}</ItemGroup></div>;
+  ].map(row => <Item key={row.label} variant="outline" size="sm" role="listitem"><ItemMedia variant="icon"><row.icon aria-hidden="true" /></ItemMedia><ItemContent><ItemDescription>{row.label}</ItemDescription><ItemTitle>{row.value}</ItemTitle></ItemContent></Item>)}</ItemGroup></div>;
 }
 
 // Skeleton exception: use known checklist groups on reload; otherwise mirror the four summary Items.
 function PublicationSkeleton({ missing }: { missing: readonly string[] }) {
-  if (missing.length) return <div aria-hidden="true" className="flex flex-col gap-4">{groupMissing([...missing]).map(group => <Card key={group.group} size="sm" className="shrink-0"><CardHeader><CardTitle><Skeleton className="h-6 w-40" /></CardTitle><CardAction><Skeleton className="h-5 w-6" /></CardAction></CardHeader><CardContent><ItemGroup className="gap-0">{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>{index > 0 && <ItemSeparator className="my-0" />}<Item size="sm" className="px-0 py-1.5"><ItemMedia variant="icon"><Skeleton className="size-4" /></ItemMedia><ItemContent><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent><ItemActions><Skeleton className="h-10 w-28" /></ItemActions></Item></Fragment>)}</ItemGroup></CardContent></Card>)}</div>;
-  return <div aria-hidden="true" className="flex flex-col gap-5"><ItemGroup>{[0, 1, 2, 3].map(index => <Item key={index} variant="outline" size="sm"><ItemMedia variant="icon"><Skeleton className="size-4" /></ItemMedia><ItemContent><span><Skeleton className="h-4 w-28" /></span><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent></Item>)}</ItemGroup><Skeleton className="h-10 w-full" /></div>;
+  if (missing.length) return <div aria-hidden="true" className="flex flex-col gap-4">{groupMissing([...missing]).map(group => <section key={group.group} className="flex shrink-0 flex-col gap-2"><div className="flex items-center gap-2"><Skeleton className="size-4" /><h3 className="flex-1 text-sm font-medium"><Skeleton className="h-5 w-40" /></h3><Badge variant="secondary"><Skeleton className="h-4 w-3" /></Badge></div><ItemGroup className="gap-0">{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>{index > 0 && <ItemSeparator className="my-0" />}<Item size="sm"><ItemContent><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent><ItemActions><Skeleton className="h-10 w-28" /></ItemActions></Item></Fragment>)}</ItemGroup></section>)}</div>;
+  return <div aria-hidden="true" className="flex flex-col gap-5"><ItemGroup>{[0, 1, 2, 3].map(index => <Item key={index} variant="outline" size="sm"><ItemMedia variant="icon"><Skeleton className="size-4" /></ItemMedia><ItemContent><Skeleton className="h-4 w-28"><ItemDescription>&nbsp;</ItemDescription></Skeleton><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent></Item>)}</ItemGroup><Skeleton className="h-10 w-full" /></div>;
 }
