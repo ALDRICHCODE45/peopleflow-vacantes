@@ -577,7 +577,9 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
 77. **Ubicación del candidato y de la empresa (G3) + perfil real del candidato.** Backend
     en `feat/geo-profiles` (`make db-migrate` aplica la 00032; el catálogo ya importado).
     **Candidato** (`/candidato/perfil`): el perfil ahora se carga y se guarda en el
-    backend. «Agregar ubicación» muestra país, estado y municipio (sin código postal);
+    backend. Si la cuenta todavía no tiene perfil, se abre el formulario vacío con «Completa tu
+    perfil para postularte más rápido. Se crea al guardar por primera vez.» y el primer guardado
+    muestra «Perfil creado.». «Agregar ubicación» muestra país, estado y municipio (sin código postal);
     «Quitar ubicación» la borra. Cambiá datos e idiomas y pulsá «Guardar perfil».
     **Esperado:** «Perfil guardado.» y al recargar sigue igual. Un idioma sin nivel no se
     puede guardar. En la postulación, la tarjeta «Tu perfil» muestra la ubicación
