@@ -6,6 +6,8 @@ import { LocalDraftForm } from "./local-draft-form";
 import { saveDraftV2Action } from "../actions";
 import { loadDraftPublicationAction } from "../pipeline/publication-actions";
 import { createDraftModel } from "../model";
+import { loadCompanyStateAction, type CompanyState } from "@/features/employer-company/actions";
+vi.mock("@/features/employer-company/actions", () => ({ loadCompanyStateAction: vi.fn() }));
 vi.mock("../actions", () => ({ saveDraftV2Action: vi.fn() }));
 vi.mock("../pipeline/publication-actions", () => ({ loadDraftPublicationAction: vi.fn(), publishDraftAction: vi.fn() }));
 vi.mock("../requesters/actions", () => ({ searchRequestersAction: vi.fn(async () => ({ ok: true, items: [], nextCursor: null })), createRequesterAction: vi.fn() }));
@@ -14,6 +16,7 @@ vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ count
 const nav = (name: string) => within(screen.getByRole("tablist", { name: "Secciones de la vacante" })).getByRole("tab", { name });
 const save = () => screen.getByRole("button", { name: /^Guardar (borrador|cambios)$/ });
 beforeEach(() => {
+  vi.mocked(loadCompanyStateAction).mockResolvedValue({ kind: "no_response", reference: {} });
   vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
   vi.mocked(saveDraftV2Action).mockResolvedValue({ ok: true, draftId: "saved", etag: '"v1"', version: "1", savedAt: "2026-10-06T03:00:00Z" });
   vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: [] } });
@@ -36,7 +39,7 @@ it("keeps all navigation labels on one line with room for icons and indicators",
   expect(navigation).toHaveAttribute("data-slot", "tabs-list");
   expect(navigation).toHaveAttribute("aria-orientation", "vertical");
   expect(navigation.parentElement).toHaveClass("overflow-x-auto");
-  expect(navigation.closest('[data-slot="tabs"]')).toHaveClass("lg:grid-cols-[320px_minmax(0,1fr)]", "xl:grid-cols-[320px_minmax(0,1fr)_300px]");
+  expect(navigation.closest('[data-slot="tabs"]')).toHaveClass("lg:grid-cols-[320px_minmax(0,1fr)]");
   for (const button of within(navigation).getAllByRole("tab")) {
     expect(button).toHaveAttribute("data-slot", "tabs-trigger");
     expect(button).toHaveClass("whitespace-nowrap");
@@ -115,22 +118,70 @@ it("keeps explicit save status and publish controls in the sticky bar", async ()
   fireEvent.click(save());
   await waitFor(() => expect(footer).toHaveTextContent("Guardado · versión 1"));
 });
-it.each(["Vista previa", "Ver vacante completa"])("opens %s in a composed Sheet and restores focus", async opener => {
+it.each(["Vista previa", "Revisar vista previa pública"])("opens %s in the shared public detail dialog and restores focus", async opener => {
   const model = createDraftModel(); model.requesterName = "Cliente secreto";
   model.fields.compensation = { mode: "fixed", amount: "987654.32", min: null, max: null, currency: "MXN", pay_period: "monthly", basis: "gross", public_visible: false };
   const { container } = render(<LocalDraftForm initialModel={model} initialScreeningQuestionsV2={[]} />);
-  expect(container.querySelector('[data-pf-live-preview]')).toHaveClass("hidden", "xl:block");
+  expect(container.querySelector('[data-pf-live-preview]')).toBeNull();
+  expect(screen.queryByText("Así la verán")).toBeNull();
+  expect(screen.queryByText("Ver vacante completa")).toBeNull();
+  if (opener === "Revisar vista previa pública") fireEvent.click(nav("Revisión y publicación"));
   const trigger = screen.getByRole("button", { name: opener });
   trigger.focus();
   fireEvent.click(trigger);
   const dialog = await screen.findByRole("dialog", { name: "Vista previa pública" });
-  expect(dialog).toHaveAttribute("data-slot", "sheet-content");
-  expect(dialog.querySelector('[data-slot="sheet-header"] [data-slot="sheet-title"]')).not.toBeNull();
+  expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  expect(document.querySelector('[data-slot="dialog-overlay"]')).toBeInTheDocument();
+  expect(dialog).toHaveAttribute("data-slot", "dialog-content");
+  expect(dialog).toHaveClass("h-dvh", "max-w-full", "sm:max-w-[min(64rem,calc(100vw-2rem))]");
+  expect(dialog.querySelectorAll(".overflow-y-auto")).toHaveLength(1);
+  expect(dialog.querySelector('[data-slot="draft-preview-body"]')).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
+  expect(dialog.querySelector('[data-slot="dialog-header"] [data-slot="dialog-title"]')).not.toBeNull();
+  expect(within(dialog).getAllByText("Vista previa pública")).toHaveLength(1);
+  expect(dialog.querySelector('[data-slot="card"]')).toBeNull();
+  expect(dialog.querySelector('[data-slot="public-job-detail"]')).toBeInTheDocument();
+  expect(within(dialog).getByRole("heading", { name: "La vacante de un vistazo" })).toBeVisible();
+  expect(within(dialog).getByRole("button", { name: "Disponible al publicar" })).toBeDisabled();
+  expect(dialog.querySelector('[data-slot="dialog-footer"]')).toHaveTextContent("Solo tú puedes ver esta vista previa. Aún no está publicada.");
+  expect(dialog.querySelector('[data-slot="dialog-footer"] svg')).toHaveAttribute("aria-hidden", "true");
   expect(dialog).toHaveTextContent("Salario no publicado");
   expect(dialog).not.toHaveTextContent("Cliente secreto"); expect(dialog).not.toHaveTextContent("987654");
   expect(dialog.querySelector('[data-pf-draft-internal]')).toBeNull();
-  fireEvent.click(within(dialog).getByRole("button", { name: "Cerrar vista previa" }));
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cerrar" }));
   await waitFor(() => expect(trigger).toHaveFocus());
+});
+it("loads the real company once on opening, with skeletons then real-name initials in the public detail", async () => {
+  let resolve!: (value: CompanyState) => void;
+  vi.mocked(loadCompanyStateAction).mockReturnValue(new Promise(done => { resolve = done; }));
+  render(<LocalDraftForm />);
+  expect(loadCompanyStateAction).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Vista previa" }));
+  const dialog = await screen.findByRole("dialog", { name: "Vista previa pública" });
+  expect(loadCompanyStateAction).toHaveBeenCalledTimes(1);
+  expect(within(dialog).getByRole("status")).toHaveTextContent("Cargando empresa");
+  expect(dialog.querySelector('[data-slot="skeleton"]')).toBeInTheDocument();
+  expect(dialog.querySelector('[data-slot="avatar-fallback"]')).toBeNull();
+  expect(dialog).not.toHaveTextContent("Empresa no disponible");
+  await act(async () => resolve({ kind: "exists", company: { id: "company", name: "Acme Talento", rfc: "RFC", industry_id: "tech", status: "active", location: null, updated_at: "2026-10-20T00:00:00Z" }, role: "owner", industryLabel: "Tecnología" }));
+  expect(within(dialog).getAllByText(/Acme Talento/)).toHaveLength(3);
+  expect(dialog.querySelector('[data-slot="avatar-fallback"]')).toHaveTextContent("AT");
+  expect(dialog.querySelector('[data-slot="skeleton"]')).toBeNull();
+  expect(dialog).not.toHaveTextContent("Empresa no disponible");
+  fireEvent.focus(window);
+  expect(loadCompanyStateAction).toHaveBeenCalledTimes(1);
+});
+it.each(["unavailable", "rejected"])("omits company-dependent lines after a %s company read without automatic retry", async failure => {
+  if (failure === "rejected") vi.mocked(loadCompanyStateAction).mockRejectedValue(new Error("offline"));
+  render(<LocalDraftForm />);
+  fireEvent.click(screen.getByRole("button", { name: "Vista previa" }));
+  const dialog = await screen.findByRole("dialog", { name: "Vista previa pública" });
+  await waitFor(() => expect(dialog.querySelector('[data-slot="skeleton"]')).toBeNull());
+  expect(dialog).not.toHaveTextContent("Empresa no disponible");
+  expect(dialog).not.toHaveTextContent("Da el siguiente paso en tu carrera con");
+  expect(dialog.querySelector('[data-slot="avatar"]')).toBeNull();
+  expect(dialog.querySelector('[data-public-company-footer]')).toBeNull();
+  expect(within(dialog).getByRole("heading", { name: "La vacante de un vistazo" })).toBeVisible();
+  expect(loadCompanyStateAction).toHaveBeenCalledTimes(1);
 });
 it("opens publication from the editor with its own backdrop", async () => {
   render(<LocalDraftForm initialIdentity={{ draftId: "saved", etag: '"v1"' }} />);

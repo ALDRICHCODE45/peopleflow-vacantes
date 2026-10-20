@@ -1,15 +1,17 @@
-import { Fragment } from "react";
+import { Fragment, type ComponentProps } from "react";
 import Link from "next/link";
 import { ArrowLeftIcon, ArrowRightIcon, BanknoteIcon, Building2Icon, CalendarDaysIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card as SurfaceCard, CardContent as SurfaceContent, CardDescription as SurfaceDescription, CardFooter as SurfaceFooter, CardHeader as SurfaceHeader, CardTitle as SurfaceTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { DraftRichDescriptionContent } from "../drafts/ui/draft-rich-description";
 import { vacancyApplicationHref } from "../application/application-draft";
 import { formatPublishedDate } from "../formatters";
 import type { PublicJobDetail } from "../types";
+import type { DraftPublicDetail } from "./public-detail-presentation";
 import { PublicCompanyAvatar } from "./PublicCompanyAvatar";
 import { PublicApplicants, PublicScreeningInfo } from "./public-application-info";
 import { PublicJobFacts, publicJobHeroFacts } from "./public-job-facts";
@@ -18,24 +20,42 @@ import { PublicSalary } from "./public-salary";
 import { PublicShareButton } from "./public-share-button";
 import { PUBLIC_ACTION_CARD, PUBLIC_COMPANY_FOOTER, PUBLIC_DETAIL_ASIDE, PUBLIC_DETAIL_BENEFITS, PUBLIC_DETAIL_BODY, PUBLIC_DETAIL_CARD, PUBLIC_DETAIL_GRID, PUBLIC_DETAIL_HEADER, PUBLIC_DETAIL_HERO, PUBLIC_DETAIL_SECTION } from "./public-vacancy-layout";
 
-/** Public contract only; the existing shell and application routes remain authoritative. */
-export function PublicJobDetailView({ job }: { job: PublicJobDetail }) {
+/** The modal owns the surface in previews: semantic groups, not nested Cards. */
+function PreviewSection({ children }: ComponentProps<"div">) { return <section className="flex min-w-0 flex-col gap-5 [overflow-wrap:anywhere]">{children}</section>; }
+function PreviewHeader({ children, className }: ComponentProps<"div">) { return <header className={cn("grid auto-rows-min items-start gap-2", className)}>{children}</header>; }
+function PreviewContent({ children, className }: ComponentProps<"div">) { return <div className={cn("flex min-w-0 flex-col gap-6", className)}>{children}</div>; }
+function PreviewFooter({ children }: ComponentProps<"div">) { return <footer className="flex items-center gap-3">{children}</footer>; }
+function PreviewText({ children, className }: ComponentProps<"div">) { return <div className={className}>{children}</div>; }
+
+type Props = { job: PublicJobDetail; preview?: false; companyLoading?: never } | { job: DraftPublicDetail; preview: true; companyLoading?: boolean };
+
+/** Shared content; only modal surfaces and unavailable live actions differ. */
+export function PublicJobDetailView({ job, preview = false, companyLoading = false }: Props) {
+  const company = job.company;
+  const hasCompanySlot = company !== null || companyLoading;
+  const Card = preview ? PreviewSection : SurfaceCard;
+  const CardHeader = preview ? PreviewHeader : SurfaceHeader;
+  const CardContent = preview ? PreviewContent : SurfaceContent;
+  const CardFooter = preview ? PreviewFooter : SurfaceFooter;
+  const CardTitle = preview ? PreviewText : SurfaceTitle;
+  const CardDescription = preview ? PreviewText : SurfaceDescription;
   const sections = publicDetailSections(job);
   const benefits = publicDetailBenefits(job);
   const companyContext = [job.location_label, publicJobHeroFacts(job).find(fact => fact.key === "work_mode")?.value].filter(Boolean).join(" · ");
-  return <article className="flex w-full flex-col gap-6">
-    <nav aria-label="Ruta de navegación" className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+  return <article data-slot="public-job-detail" className="flex w-full flex-col gap-6">
+    {companyLoading && <span role="status" className="sr-only">Cargando empresa</span>}
+    {!preview && <nav aria-label="Ruta de navegación" className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
       <Link href="/vacantes" aria-label="Volver a vacantes" className={cn(buttonVariants({ variant: "ghost" }), "min-h-10")}><ArrowLeftIcon aria-hidden="true" data-icon="inline-start" />Vacantes</Link>
       <span aria-hidden="true">/</span><span aria-current="page" className="text-foreground">Detalle de la vacante</span>
-    </nav>
+    </nav>}
     <Card className={PUBLIC_DETAIL_HERO}>
-      <CardHeader className={PUBLIC_DETAIL_HEADER}>
-        <div className="col-start-1 row-span-3 row-start-1"><PublicCompanyAvatar company={job.company} detail /></div>
-        <CardDescription className="col-start-2 row-start-1">{job.company.name}</CardDescription>
-        <CardTitle className="col-start-2 row-start-2 min-w-0"><h1 className="font-heading text-2xl font-semibold tracking-tight text-balance break-words sm:text-4xl">{job.title}</h1></CardTitle>
-        <div className="col-start-2 row-start-3 flex min-w-0 flex-wrap gap-2">{publicJobHeroFacts(job).map(({ key, value, Icon }) => <Badge key={key} variant="secondary">{key === "work_mode" && <Icon aria-hidden="true" />}{value}</Badge>)}</div>
+      <CardHeader className={hasCompanySlot ? PUBLIC_DETAIL_HEADER : undefined}>
+        {hasCompanySlot && <div className="col-start-1 row-span-3 row-start-1">{companyLoading ? <Skeleton aria-hidden="true" className="size-16 rounded-2xl" /> : company && <PublicCompanyAvatar company={company} detail />}</div>}
+        {hasCompanySlot && <CardDescription className="col-start-2 row-start-1">{companyLoading ? <Skeleton aria-hidden="true" className="h-5 w-36 max-w-full" /> : company?.name}</CardDescription>}
+        <CardTitle className={cn("min-w-0", hasCompanySlot && "col-start-2 row-start-2")}><h1 className="font-heading text-2xl font-semibold tracking-tight text-balance break-words sm:text-4xl">{job.title}</h1></CardTitle>
+        <div className={cn("flex min-w-0 flex-wrap gap-2", hasCompanySlot && "col-start-2 row-start-3")}>{publicJobHeroFacts(job).map(({ key, value, Icon }) => <Badge key={key} variant="secondary">{key === "work_mode" && <Icon aria-hidden="true" />}{value}</Badge>)}</div>
       </CardHeader>
-      <CardContent><p className="flex items-center gap-2 text-sm text-muted-foreground"><CalendarDaysIcon aria-hidden="true" className="size-4 shrink-0" /><span>Publicada el <time dateTime={job.published_at}>{formatPublishedDate(job.published_at)}</time></span></p></CardContent>
+      {!preview && job.published_at && <CardContent><p className="flex items-center gap-2 text-sm text-muted-foreground"><CalendarDaysIcon aria-hidden="true" className="size-4 shrink-0" /><span>Publicada el <time dateTime={job.published_at}>{formatPublishedDate(job.published_at)}</time></span></p></CardContent>}
     </Card>
     <div className={PUBLIC_DETAIL_GRID}>
       <div className="flex min-w-0 flex-col gap-6">
@@ -83,15 +103,15 @@ export function PublicJobDetailView({ job }: { job: PublicJobDetail }) {
           <CardContent className="flex flex-col gap-6">
             <PublicSalary job={job} detail />
             <Separator />
-            <div className="flex flex-col gap-3"><h3 className="font-semibold">¿Te ves en este equipo?</h3><p className="text-sm leading-relaxed text-muted-foreground">Da el siguiente paso en tu carrera con {job.company.name}.</p></div>
+            {companyLoading ? <div className="flex flex-col gap-3"><Skeleton aria-hidden="true" className="h-5 w-48 max-w-full" /><Skeleton aria-hidden="true" className="h-10 w-full" /></div> : company && <div className="flex flex-col gap-3"><h3 className="font-semibold">¿Te ves en este equipo?</h3><p className="text-sm leading-relaxed text-muted-foreground">Da el siguiente paso en tu carrera con {company.name}.</p></div>}
             <div className="flex flex-col gap-2">
-              <Link href={vacancyApplicationHref(job.id)} className={cn(buttonVariants(), "h-12 w-full")}>Postularme<ArrowRightIcon aria-hidden="true" data-icon="inline-end" /></Link>
-              <PublicShareButton />
+              {preview ? <Button type="button" disabled className="h-12 w-full">Disponible al publicar</Button> : <Link href={vacancyApplicationHref(job.id)} className={cn(buttonVariants(), "h-12 w-full")}>Postularme<ArrowRightIcon aria-hidden="true" data-icon="inline-end" /></Link>}
+              {!preview && <PublicShareButton />}
               <PublicApplicants applicants={job.applicants} />
               <PublicScreeningInfo count={job.screening_questions} />
             </div>
           </CardContent>
-          <CardFooter className={PUBLIC_COMPANY_FOOTER}><Building2Icon aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" /><div className="flex min-w-0 flex-col gap-1"><p className="text-sm font-medium break-words">{job.company.name}</p>{companyContext && <p className="text-sm text-muted-foreground">{companyContext}</p>}</div></CardFooter>
+          {hasCompanySlot && <CardFooter className={PUBLIC_COMPANY_FOOTER}>{companyLoading ? <><Skeleton aria-hidden="true" className="size-5 shrink-0" /><div className="flex min-w-0 flex-col gap-1"><Skeleton aria-hidden="true" className="h-5 w-36 max-w-full" /><Skeleton aria-hidden="true" className="h-5 w-44 max-w-full" /></div></> : company && <><Building2Icon aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" /><div data-public-company-footer="" className="flex min-w-0 flex-col gap-1"><p className="text-sm font-medium break-words">{company.name}</p>{companyContext && <p className="text-sm text-muted-foreground">{companyContext}</p>}</div></>}</CardFooter>}
         </Card>
       </aside>
     </div>

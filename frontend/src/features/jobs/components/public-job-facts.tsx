@@ -1,15 +1,15 @@
 import { BriefcaseIcon, Clock3Icon, FileTextIcon, Globe2Icon, LayersIcon, MapPinIcon, TrendingUpIcon, type LucideIcon } from "lucide-react";
-import type { PublicJobItem } from "../types";
+import type { PublicItemPresentation } from "./public-detail-presentation";
 import { CONTRACT_TYPE_OPTIONS, PROFESSIONAL_AREA_OPTIONS, SENIORITY_OPTIONS, WORK_MODE_OPTIONS, WORK_SCHEDULE_OPTIONS, type DraftOption } from "../drafts/ui/draft-labels";
 import { employmentTypeLabel } from "../formatters";
 import { PUBLIC_DETAIL_FACTS } from "./public-vacancy-layout";
 
-const label = (options: DraftOption[], value: string) => options.find((option) => option.value === value)!.label;
+const label = (options: DraftOption[], value: string | null) => options.find((option) => option.value === value)?.label ?? "Sin definir";
 type Fact = { key: string; label: string; value: string; title?: string; Icon: LucideIcon };
 
 const joinNames = (names: string[]) => names.length < 2 ? names.join("") : `${names.slice(0, -1).join(", ")} y ${names.at(-1)}`;
 
-function remoteScopeFact(job: PublicJobItem): Fact[] {
+function remoteScopeFact(job: PublicItemPresentation): Fact[] {
   if (job.work_mode !== "remote" || job.remote_scope === null) return [];
   const scope = job.remote_scope;
   if (scope.kind === "anywhere") return [{ key: "remote_scope", label: "Alcance remoto", value: "Desde cualquier lugar", Icon: Globe2Icon }];
@@ -21,7 +21,7 @@ function remoteScopeFact(job: PublicJobItem): Fact[] {
 }
 
 /** Shared public metadata, without inferred legacy dimensions or prototype data. */
-export function publicJobFacts(job: PublicJobItem): Fact[] {
+export function publicJobFacts(job: PublicItemPresentation): Fact[] {
   const facts: Fact[] = [];
   if (job.location_label !== null) facts.push({ key: "location", label: "Ubicación", value: job.location_label, Icon: MapPinIcon });
   facts.push(...remoteScopeFact(job));
@@ -39,22 +39,22 @@ export function publicJobFacts(job: PublicJobItem): Fact[] {
   return facts;
 }
 
-export function publicJobConditions(job: PublicJobItem): Fact[] {
+export function publicJobConditions(job: PublicItemPresentation): Fact[] {
   const facts = publicJobFacts(job);
   const keys = ["work_mode", "remote_scope", "location", "work_schedule", "legacy_employment_type"];
   return keys.flatMap(key => facts.filter(fact => fact.key === key));
 }
 
-export function publicJobSecondaryFacts(job: PublicJobItem): Fact[] {
+export function publicJobSecondaryFacts(job: PublicItemPresentation): Fact[] {
   const facts = publicJobFacts(job);
   return ["contract_type", "seniority", "professional_area"].flatMap(key => facts.filter(fact => fact.key === key));
 }
 
-export function publicJobHeroFacts(job: PublicJobItem): Fact[] {
+export function publicJobHeroFacts(job: PublicItemPresentation): Fact[] {
   return publicJobFacts(job).filter(fact => ["work_mode", "work_schedule", "legacy_employment_type", "professional_area"].includes(fact.key));
 }
 
-export function PublicJobFacts({ job }: { job: PublicJobItem }) {
+export function PublicJobFacts({ job }: { job: PublicItemPresentation }) {
   return <dl className={PUBLIC_DETAIL_FACTS}>
     {publicJobFacts(job).map(({ key, label, value, title, Icon }) => <div key={key} data-fact={key} className="flex min-w-0 flex-col gap-2">
       <dt className="flex items-center gap-2 text-sm text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0" />{label}</dt>

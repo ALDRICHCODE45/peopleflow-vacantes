@@ -480,8 +480,9 @@ describe("LocalDraftForm five-step wizard", () => {
     const internal = screen.getByRole("region", { name: "Revisión interna" });
     expect(within(internal).getByText("Cliente Ejemplo")).toBeVisible();
     expect(within(internal).queryByText(/guardado|completado|enviado/i)).toBeNull();
-    expect(within(document.querySelector("[data-pf-draft-public]") as HTMLElement).getByText("Backend Go")).toBeVisible();
     expect(screen.queryByRole("button", { name: /guardar/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Revisar vista previa pública" }));
+    expect(within(screen.getByRole("dialog", { name: "Vista previa pública" })).getByRole("heading", { name: "Backend Go" })).toBeVisible();
   });
 
   it("validates an incomplete draft without demanding fields the schema does not require", () => {
@@ -1004,22 +1005,25 @@ describe("LocalDraftForm description", () => {
 });
 
 describe("LocalDraftForm preview integration", () => {
-  const publicRegion = () =>
-    document.querySelector("[data-pf-draft-public]") as HTMLElement;
+  const publicRegion = () => screen.getByRole("dialog", { name: "Vista previa pública" });
+  const openPreview = () => fireEvent.click(screen.getByRole("button", { name: "Revisar vista previa pública" }));
   const internalRegion = () =>
     screen.getByRole("region", { name: "Revisión interna" });
 
-  it("shows the updated raw content in the public preview after a back edit", () => {
+  it("shows the updated raw content in the public preview after a back edit", async () => {
     render(<LocalDraftForm />);
 
     fireEvent.change(titleInput(), { target: { value: "Backend Go" } });
     goToStep(5);
+    openPreview();
     expect(within(publicRegion()).getByText("Backend Go")).toBeVisible();
+    fireEvent.click(within(publicRegion()).getByRole("button", { name: "Cerrar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Vista previa pública" })).toBeNull());
 
     goToStep(1);
     fireEvent.change(titleInput(), { target: { value: "Backend Rust" } });
     goToStep(5);
-
+    openPreview();
     expect(within(publicRegion()).getByText("Backend Rust")).toBeVisible();
     expect(within(publicRegion()).queryByText("Backend Go")).toBeNull();
   });
@@ -1028,8 +1032,9 @@ describe("LocalDraftForm preview integration", () => {
     render(<LocalDraftForm initialModel={populatedInitialModel()} />);
     goToStep(5);
 
-    expect(within(publicRegion()).queryByText("Cliente Ejemplo")).toBeNull();
     expect(within(internalRegion()).getByText("Cliente Ejemplo")).toBeVisible();
+    openPreview();
+    expect(within(publicRegion()).queryByText("Cliente Ejemplo")).toBeNull();
   });
 });
 

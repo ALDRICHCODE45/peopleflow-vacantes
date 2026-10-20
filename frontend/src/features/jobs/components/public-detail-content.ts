@@ -1,8 +1,8 @@
 import { Clock3, Gift, GraduationCap, Heart, House, Laptop, ShieldPlus, Sun, type LucideIcon } from "lucide-react";
-import type { PublicJobDetail } from "../types";
+import type { PublicDetailPresentation } from "./public-detail-presentation";
 import { benefitLabel } from "../drafts/ui/draft-labels";
 
-type BenefitCode = PublicJobDetail["benefits"]["predefined"][number];
+type BenefitCode = PublicDetailPresentation["benefits"]["predefined"][number];
 const BENEFIT_ICONS = {
   health_insurance: ShieldPlus,
   computer_equipment: Laptop,
@@ -14,7 +14,7 @@ const BENEFIT_ICONS = {
   annual_bonus: Gift,
 } satisfies Record<BenefitCode, LucideIcon>;
 
-export function publicDetailBenefits(job: PublicJobDetail) {
+export function publicDetailBenefits(job: PublicDetailPresentation) {
   return [
     ...job.benefits.predefined.map(code => ({ label: benefitLabel(code), Icon: BENEFIT_ICONS[code] })),
     ...job.benefits.custom.map(label => ({ label, Icon: Gift })),
@@ -22,7 +22,7 @@ export function publicDetailBenefits(job: PublicJobDetail) {
 }
 
 /** Navigation and loading share exactly the same data-presence decisions. */
-export function publicDetailSections(job?: PublicJobDetail) {
+export function publicDetailSections(job?: PublicDetailPresentation) {
   return [
     { id: "descripcion", label: "Descripción", present: job === undefined || job.description_plain.trim() !== "" },
     { id: "requisitos", label: "Requisitos", present: job === undefined || Boolean(job.requirements.required?.trim() || job.requirements.preferred?.trim()) },

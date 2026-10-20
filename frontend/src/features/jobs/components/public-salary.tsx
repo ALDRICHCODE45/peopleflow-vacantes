@@ -1,9 +1,9 @@
 import { cn } from "@/lib/utils";
-import { formatPublicSalaryParts } from "../formatters";
-import type { PublicJobItem } from "../types";
+import { previewSalaryParts } from "../create/form/preview-salary";
+import type { PublicItemPresentation } from "./public-detail-presentation";
 
-export function PublicSalary({ job, detail = false }: { job: PublicJobItem; detail?: boolean }) {
-  const salary = formatPublicSalaryParts(job);
+export function PublicSalary({ job, detail = false }: { job: PublicItemPresentation; detail?: boolean }) {
+  const salary = previewSalaryParts(job);
   if (salary === null) return <p className="text-sm text-muted-foreground">Salario no publicado</p>;
   return <div className="flex min-w-0 flex-col gap-1">
     <p data-public-salary className="flex flex-wrap items-baseline gap-x-1.5">

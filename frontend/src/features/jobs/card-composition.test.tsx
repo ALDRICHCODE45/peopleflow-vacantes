@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { legacyDetail, vacancyDetail, listItem } from "./api/public-fixtures";
 import { PublicVacancyCard } from "./components/PublicVacancyCard";
@@ -10,7 +10,8 @@ import { PublicJobCardSkeleton, PublicJobDetailSkeleton } from "./components/Pub
 import { JobsNavigationIsland } from "./components/JobsNavigationIsland";
 import { VacancyPreview } from "./create/VacancyPreview";
 import { INITIAL_PROTOTYPE_VALUES } from "./create/form/prototype-model";
-import { DraftPreview } from "./drafts/ui/draft-preview";
+import { DraftEditorShell } from "./drafts/ui/draft-editor-shell";
+import { editorReadiness } from "./drafts/pipeline/publication-model";
 import { DraftQuestionnairePreview } from "./drafts/ui/draft-questionnaire-preview";
 import { initialDraftFormState } from "./drafts/ui/draft-form-state";
 import { createDraftModel } from "./drafts/model";
@@ -98,13 +99,18 @@ it("composes both preview cards and the complementary dossier instead of hand-ma
   expect(screen.getByText(/Vista previa de borrador:/).closest('[data-slot="card-footer"]')).not.toBeNull();
 });
 
-it("gives the persisted draft preview and questionnaire native headers and descriptions", () => {
-  render(<><DraftPreview state={initialDraftFormState(createDraftModel())} /><DraftQuestionnairePreview questions={[]} /></>);
-  for (const name of ["Vista previa pública", "Simular cuestionario"]) {
-    const header = expectHeader(screen.getByRole("heading", { name }));
-    expect(header.querySelector(':scope > [data-slot="card-description"]')).not.toBeNull();
-  }
-  expect(screen.getByText("Pública").closest('[data-slot="card-action"]')).not.toBeNull();
+it("gives the draft preview a native dialog header and the shared detail without nested cards", async () => {
+  const state = initialDraftFormState(createDraftModel());
+  render(<><DraftEditorShell state={state} published={false} step={0} onStep={() => undefined} readiness={editorReadiness(state, null)}>{null}</DraftEditorShell><DraftQuestionnairePreview questions={[]} /></>);
+  const questionnaireHeader = expectHeader(screen.getByRole("heading", { name: "Simular cuestionario" }));
+  expect(questionnaireHeader.querySelector(':scope > [data-slot="card-description"]')).not.toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Vista previa" }));
+  const dialog = await screen.findByRole("dialog", { name: "Vista previa pública" });
+  expect(within(dialog).getAllByText("Vista previa pública")).toHaveLength(1);
+  expect(dialog.querySelector('[data-slot="dialog-header"] [data-slot="dialog-title"]')).toHaveTextContent("Vista previa pública");
+  const body = dialog.querySelector('[data-slot="draft-preview-body"]')!;
+  expect(body.querySelector('[data-slot="card"]')).toBeNull();
+  expect(body.querySelector('[data-slot="public-job-detail"]')).toBeInTheDocument();
 });
 
 it("uses native titles and descriptions in the two application rail cards", () => {

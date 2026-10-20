@@ -1361,9 +1361,9 @@ Origen: rediseño del formulario de vacantes con v0 (`docs/design/v0/reference-c
 revisión del usuario en el navegador (2026-10-20). Es el patrón aprobado para cualquier formulario
 largo que se construye en varias sesiones.
 
-- **Lienzo:** tres columnas (secciones, formulario, vista previa) con
-  `DashboardPageContent width="editor"` (94rem; 112rem desde 1920 px). Más de dos columnas nunca
-  usan `7xl`.
+- **Lienzo:** dos columnas (secciones y formulario) con
+  `DashboardPageContent width="editor"` (94rem; 112rem desde 1920 px). El formulario ocupa el
+  espacio restante; no hay una tercera columna fija de vista previa.
 - **Navegación de secciones:** `Tabs orientation="vertical"` (en celular, `TabsList` horizontal con
   scroll). Cada pestaña es una fila de ≥44 px con ícono, título **en un solo renglón**, marca de
   completa y `Badge` de pendientes; la activa usa `bg-primary/10 text-primary`. La columna se
@@ -1378,8 +1378,16 @@ largo que se construye en varias sesiones.
   sabe (datos del servidor antes de guardar) se dice y no se cuenta.
 - **Requisitos:** `*` en lo necesario para publicar, con la nota «* Necesario para publicar, no para
   guardar tu borrador.». Guardar un borrador nunca exige esos campos.
-- **Vista previa en vivo:** muestra solo lo que verá el público (sin solicitante ni salario
-  oculto) y reutiliza el mismo renderizado que la vista pública.
+- **Vista previa pública bajo demanda:** «Vista previa» en el encabezado y «Revisar vista
+  previa pública» en revisión abren un único `Dialog` amplio (hasta 64rem; pantalla completa
+  en celular), separado de la raíz del editor. Sigue `dialog-demo`: encabezado con un solo
+  título «Vista previa pública» y descripción, un cuerpo con scroll y pie con «Cerrar» y
+  nota privada con candado («Solo tú puedes ver esta vista previa. Aún no está publicada.»
+  para borradores; estado honesto si ya está publicada o no se conoce). Reutiliza
+  `PublicJobDetailView` con datos públicos adaptados del formulario, sin Cards dentro del
+  diálogo, sin solicitante ni salario oculto. Datos ausentes no se inventan; postulación
+  deshabilitada («Disponible al publicar»). La información interna queda en «Revisión
+  interna». Al cerrar, el foco vuelve al punto de entrada usado.
 - **Elecciones cortas:** dos o tres opciones excluyentes con textos cortos van **una al lado de la
   otra** (`ToggleGroup` en grilla, apiladas solo en celular); en columna solo si son largas o más
   de tres.

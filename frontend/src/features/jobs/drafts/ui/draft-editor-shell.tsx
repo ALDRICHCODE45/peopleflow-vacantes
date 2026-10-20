@@ -1,17 +1,19 @@
 "use client";
 
-import { createContext, useRef, useState, useSyncExternalStore, type MouseEventHandler, type ReactNode } from "react";
-import { ArrowRight, ArrowUpRight, Banknote, BriefcaseBusiness, Check, ClipboardCheck, Eye, FileText, Info, LockKeyhole, MessageSquare } from "lucide-react";
+import { createContext, useEffect, useRef, useState, useSyncExternalStore, type MouseEventHandler, type ReactNode } from "react";
+import { ArrowRight, Banknote, BriefcaseBusiness, Check, ClipboardCheck, Eye, FileText, Info, LockKeyhole, MessageSquare } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress, ProgressLabel, ProgressValue } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { editorReadiness } from "../pipeline/publication-model";
 import type { DraftFormState } from "./draft-form-state";
-import { DraftPreview } from "./draft-preview";
+import { DraftPublicDetail } from "./draft-public-detail";
+import { loadCompanyStateAction } from "@/features/employer-company/actions";
+import type { PublicJobDetail } from "../../types";
 
 export const DraftPreviewContext = createContext<MouseEventHandler<HTMLButtonElement> | undefined>(undefined);
 
@@ -34,10 +36,36 @@ export function DraftEditorShell({ state, published, step, onStep, readiness, ch
   readiness: ReturnType<typeof editorReadiness>; children: ReactNode;
 }) {
   const [preview, setPreview] = useState(false);
+  const [company, setCompany] = useState<PublicJobDetail["company"] | null>(null);
+  const [companyLoading, setCompanyLoading] = useState(false);
+  const companyRequest = useRef(0);
+  const previewActive = useRef(false);
   const previewOpener = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => () => { companyRequest.current += 1; }, []);
+  function changePreview(open: boolean) {
+    previewActive.current = open;
+    setPreview(open);
+    if (!open) companyRequest.current += 1;
+  }
   function openPreview(event: React.MouseEvent<HTMLButtonElement>) {
+    if (previewActive.current) return;
     previewOpener.current = event.currentTarget;
-    setPreview(true);
+    changePreview(true);
+    setCompany(null);
+    setCompanyLoading(true);
+    const request = ++companyRequest.current;
+    // One read per explicit opening, never on render, focus, reconnect or automatic retry.
+    void loadCompanyStateAction().then(result => {
+      if (request !== companyRequest.current) return;
+      // The /me/company decoder currently exposes no logo. Use the real name's avatar fallback.
+      setCompany(result.kind === "exists" && result.company.name.trim()
+        ? { id: result.company.id, name: result.company.name, logo_url: null } : null);
+      setCompanyLoading(false);
+    }).catch(() => {
+      if (request !== companyRequest.current) return;
+      setCompany(null);
+      setCompanyLoading(false);
+    });
   }
   const desktop = useSyncExternalStore(subscribeDesktop, desktopSnapshot, serverSnapshot);
   return <>
@@ -51,7 +79,7 @@ export function DraftEditorShell({ state, published, step, onStep, readiness, ch
       </div>
       <Button type="button" variant="outline" className="min-h-10" onClick={openPreview} aria-haspopup="dialog"><Eye aria-hidden="true" data-icon="inline-start" />Vista previa</Button>
     </header>
-    <Tabs value={step} onValueChange={value => { if (typeof value === "number") onStep(value); }} orientation={desktop ? "vertical" : "horizontal"} className="grid min-w-0 grid-cols-1 items-start gap-7 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_300px]">
+    <Tabs value={step} onValueChange={value => { if (typeof value === "number") onStep(value); }} orientation={desktop ? "vertical" : "horizontal"} className="grid min-w-0 grid-cols-1 items-start gap-7 lg:grid-cols-[320px_minmax(0,1fr)]">
       <aside className="flex min-w-0 flex-col gap-6 lg:sticky lg:top-6">
         <div className="overflow-x-auto p-1 lg:overflow-visible">
         <TabsList activateOnFocus aria-label="Secciones de la vacante" className="h-auto gap-1 bg-transparent p-0 lg:w-full lg:items-stretch">
@@ -75,20 +103,17 @@ export function DraftEditorShell({ state, published, step, onStep, readiness, ch
         <Card size="sm" className="hidden lg:flex"><CardHeader><CardTitle><h2 className="flex items-center gap-2"><Info aria-hidden="true" className="size-4" />A tu ritmo</h2></CardTitle><CardDescription>{published === null ? "El estado de publicación está por confirmar. Recuerda guardar tus cambios." : published ? "Esta vacante está activa. Los cambios se publican al guardar." : "Guarda tu progreso, incluso si aún faltan detalles. Solo será pública cuando la publiques."}</CardDescription></CardHeader></Card>
       </aside>
       <div className="min-w-0"><DraftPreviewContext value={openPreview}>{children}</DraftPreviewContext></div>
-      <aside data-pf-live-preview="" className="hidden min-w-0 xl:block xl:sticky xl:top-6">
-        <div className="mb-5 flex flex-col gap-1"><h2 className="flex items-center gap-2 text-sm font-semibold"><Eye aria-hidden="true" className="size-4" />Así la verán</h2><p className="text-sm text-muted-foreground">Vista previa en tiempo real</p></div>
-        <DraftPreview state={state} publicOnly />
-        <Button type="button" variant="link" className="min-h-10 w-full" onClick={openPreview} aria-haspopup="dialog">Ver vacante completa<ArrowUpRight aria-hidden="true" data-icon="inline-end" /></Button>
-        <p className="flex items-start gap-2 text-sm leading-6 text-muted-foreground"><LockKeyhole aria-hidden="true" className="mt-1 size-4 shrink-0" />{published === null ? "El estado de publicación está por confirmar." : published ? "Esta vacante está activa. Los cambios se publican al guardar." : "Solo tú puedes ver esta vista previa. Aún no está publicada."}</p>
-      </aside>
     </Tabs>
-    {/* Keep the preview root separate: wrapping the editor makes its other dialogs nested. */}
-    <Sheet open={preview} onOpenChange={setPreview}>
-    <SheetContent finalFocus={previewOpener} className="data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
-      <SheetHeader className="border-b"><SheetTitle>Vista previa pública</SheetTitle><SheetDescription>Así verán esta oportunidad las personas candidatas.</SheetDescription></SheetHeader>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4"><DraftPreview state={state} publicOnly /></div>
-      <SheetFooter className="border-t"><SheetClose render={<Button type="button" variant="outline" className="min-h-10" />}>Cerrar vista previa</SheetClose></SheetFooter>
-    </SheetContent>
-    </Sheet>
+    {/* Official dialog-demo composition, controlled for two openers; never wrap the editor in its modal root. */}
+    <Dialog open={preview} onOpenChange={changePreview}>
+      <DialogContent finalFocus={previewOpener} showCloseButton={false} className="flex h-dvh max-h-dvh max-w-full flex-col rounded-none sm:h-auto sm:max-h-[calc(100dvh-2rem)] sm:max-w-[min(64rem,calc(100vw-2rem))] sm:rounded-2xl">
+        <DialogHeader><DialogTitle>Vista previa pública</DialogTitle><DialogDescription>Así verán esta oportunidad las personas candidatas.</DialogDescription></DialogHeader>
+        <div data-slot="draft-preview-body" className="min-h-0 flex-1 overflow-y-auto"><DraftPublicDetail state={state} company={company} companyLoading={companyLoading} /></div>
+        <DialogFooter>
+          <p className="flex flex-1 items-start gap-2 text-sm text-muted-foreground"><LockKeyhole aria-hidden="true" className="mt-0.5 size-4 shrink-0" />{published === null ? "Solo tú puedes ver esta vista previa. El estado de publicación está por confirmar." : published ? "Solo tú puedes ver esta vista previa. Esta vacante ya está publicada." : "Solo tú puedes ver esta vista previa. Aún no está publicada."}</p>
+          <DialogClose render={<Button type="button" variant="outline" className="min-h-10" />}>Cerrar</DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </>;
 }
