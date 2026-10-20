@@ -61,8 +61,10 @@ export function useDraftSave(initialIdentity?: DraftIdentity, leaveGuard?: React
         // guard's own popstate, not a timer guessing when history.go completed.
         const released = await (leaveGuard?.current?.releaseSentinel() ?? Promise.resolve(true));
         if (released && pendingUrl.current) {
-          // Preserve Next's state and the mounted editor, including in-flight edits.
-          window.history.replaceState(window.history.state, "", pendingUrl.current);
+          // `null` state on purpose: Next.js 15 syncs its router with native replaceState
+          // only when the state is not its own (__NA). Copying history.state made Next
+          // ignore the change and restore /nuevo on its next commit. The editor stays mounted.
+          window.history.replaceState(null, "", pendingUrl.current);
           pendingUrl.current = null;
         }
         createKey.current = null;

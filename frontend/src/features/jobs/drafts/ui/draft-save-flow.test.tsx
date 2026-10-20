@@ -77,7 +77,7 @@ it("releases the create sentinel before replacing nuevo, then rearms after anoth
   await waitFor(() => expect(location.pathname).toBe("/empresa/vacantes/borradores/saved-id"));
   await waitFor(() => expect(save()).not.toBeDisabled());
   expect(screen.queryByRole("alertdialog")).toBeNull();
-  expect(history.state).not.toHaveProperty("__draftLeaveGuard");
+  expect(history.state?.__draftLeaveGuard).toBeUndefined();
   // Assert the first create independently: /nuevo cannot remain behind the saved URL.
   history.back();
   await waitFor(() => expect(location.pathname).toBe("/previous"));
@@ -87,7 +87,7 @@ it("releases the create sentinel before replacing nuevo, then rearms after anoth
   expect(history.state).toHaveProperty("__draftLeaveGuard");
   fireEvent.click(save());
   await waitFor(() => expect(save()).not.toBeDisabled());
-  expect(history.state).not.toHaveProperty("__draftLeaveGuard");
+  expect(history.state?.__draftLeaveGuard).toBeUndefined();
   expect(screen.queryByRole("alertdialog")).toBeNull();
   history.back();
   await waitFor(() => expect(location.pathname).toBe("/previous"));
@@ -129,7 +129,9 @@ it("creates the validated v2 body, guards pending, then PATCHes the same draft w
   await waitFor(() => expect(save()).toHaveTextContent("Guardar cambios"));
   // Mark the dirty sentinel, then replace the original entry after its release.
   expect(replace).toHaveBeenCalledTimes(2);
-  expect(replace).toHaveBeenLastCalledWith(window.history.state, "", "/empresa/vacantes/borradores/saved-id");
+  // Next.js 15 only syncs its router with replaceState when the state is not its own (__NA);
+  // passing history.state made Next revert the URL to /nuevo on its next commit (seen in Chromium).
+  expect(replace).toHaveBeenLastCalledWith(null, "", "/empresa/vacantes/borradores/saved-id");
   expect(sileo.success).toHaveBeenCalledTimes(1);
   fireEvent.click(save());
   await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledTimes(2));
