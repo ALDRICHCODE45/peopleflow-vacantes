@@ -584,8 +584,10 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     **Esperado:** «Perfil guardado.» y al recargar sigue igual. Un idioma sin nivel no se
     puede guardar. En la postulación, la tarjeta «Tu perfil» muestra la ubicación
     («Guadalajara, Jalisco»). **Empresa** (Configuración → Empresa): al crearla, la
-    ubicación es opcional (con código postal). El dueño ve «Editar ubicación» → diálogo →
-    «Guardar ubicación» → «Ubicación actualizada.». Abrí el mismo diálogo en dos pestañas,
+    ubicación es opcional (con código postal): «País» aparece vacío con «Elige un país» y
+    «Quitar ubicación» solo cuando hay uno elegido. El dueño ve «Editar ubicación» → diálogo
+    «Ubicación de la empresa» (con X para cerrar, «Cancelar» y «Guardar ubicación») →
+    «Ubicación actualizada.». Un error se borra apenas corregís ese dato. Abrí el mismo diálogo en dos pestañas,
     guardá en una y después en la otra: aparece «Esto cambió en otro lugar» con los datos
     actuales, sin guardar solo. Un reclutador ve la ubicación sin el botón.
 
