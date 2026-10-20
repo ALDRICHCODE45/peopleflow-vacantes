@@ -29,12 +29,19 @@ function CatalogField({ label, code, catalog, onChange, disabled, required, erro
   const id = useId();
   const loading = catalog.status === "loading" || catalog.status === "idle" && !disabled;
   const items = catalog.data?.items ?? [];
+  const selected = items.find(item => item.id === code) ?? null;
+  // Controlled text: the Combobox only derives its input from the value on mount, so a value set
+  // later (the MX default, a postal-code preload) left the field visually empty. Keep them in sync.
+  const [text, setText] = useState(selected?.name ?? "");
+  const shown = selected?.name ?? "";
+  useEffect(() => { setText(shown); }, [shown]);
   return <Field data-invalid={!!error} data-disabled={disabled} aria-busy={loading}>
     <FieldLabel htmlFor={id}>{label}</FieldLabel>
     {loading ? <><Skeleton aria-hidden="true" className="h-10 w-full" /><span role="status" className="sr-only">Cargando {label.toLowerCase()}</span></> :
       <Combobox items={items} itemToStringLabel={(item: GeoReference) => item.name} itemToStringValue={(item: GeoReference) => item.id} isItemEqualToValue={(a, b) => a.id === b.id}
-        value={items.find(item => item.id === code) ?? null} onValueChange={item => { if (item) onChange(item.id); }} disabled={disabled} autoHighlight>
-        <ComboboxInput id={id} className="min-h-10" disabled={disabled} aria-invalid={!!error} aria-required={required} aria-describedby={error ? `${id}-error` : undefined} triggerLabel={`Mostrar ${label.toLowerCase()}`} />
+        value={selected} onValueChange={item => { if (item) onChange(item.id); }} inputValue={text} onInputValueChange={setText} disabled={disabled} autoHighlight>
+        {/* Selecting the shown name on focus lets typing replace it instead of appending to it. */}
+        <ComboboxInput id={id} className="min-h-10" onFocus={event => event.currentTarget.select()} disabled={disabled} aria-invalid={!!error} aria-required={required} aria-describedby={error ? `${id}-error` : undefined} triggerLabel={`Mostrar ${label.toLowerCase()}`} />
         <ComboboxContent><ComboboxEmpty>Sin coincidencias.</ComboboxEmpty><ComboboxList>{(item: GeoReference) => <ComboboxItem key={item.id} value={item}>{item.name}</ComboboxItem>}</ComboboxList></ComboboxContent>
       </Combobox>}
     {catalog.status === "error" && <><FieldError>No pudimos cargar {label.toLowerCase()}.</FieldError><Button type="button" variant="outline" className="min-h-10" disabled={disabled} onClick={catalog.retry}>Reintentar</Button></>}

@@ -147,3 +147,24 @@ it("keeps the same field anatomy and responsive row while a catalog loads", asyn
   expect(anatomy()).toEqual(before);
   expect(screen.getByRole("combobox", { name: "Municipio" })).not.toBeDisabled();
 });
+
+it("filters countries by name while MX is the defaulted selection", async () => {
+  // User report: «en pais, no me aparece nada, sea lo que sea que escriba, me dice "sin coincidencias"».
+  render(<Harness />);
+  const input = await screen.findByRole("combobox", { name: "País" });
+  await waitFor(() => expect(value().country).toBe("MX"));
+  const user = userEvent.setup();
+  await user.click(input); await user.clear(input); await user.type(input, "Esta");
+  expect(await screen.findByRole("option", { name: "Estados Unidos" })).toBeVisible();
+  expect(screen.queryByText("Sin coincidencias.")).not.toBeInTheDocument();
+});
+
+it("replaces the shown selection when typing into a filled catalog field", async () => {
+  render(<Harness />);
+  const input = await screen.findByRole("combobox", { name: "País" });
+  await waitFor(() => expect(input).toHaveValue("México"));
+  const user = userEvent.setup();
+  await user.click(input); await user.keyboard("Esta");
+  expect(input).toHaveValue("Esta");
+  expect(await screen.findByRole("option", { name: "Estados Unidos" })).toBeVisible();
+});
