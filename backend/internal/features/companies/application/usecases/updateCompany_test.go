@@ -9,7 +9,7 @@
 //  4. Build the patch (UpdateCompanyPatch with tri-state profile fields)
 //  5. Update (adapter returns ErrCompanyNotFound on 0 rows)
 //  6. On 0 rows, re-read for the latest view (or 404 if the row is gone)
-//  7. On success, re-read for the authoritative post-write UpdatedAt
+//  7. On success, use the atomic written row and its UpdatedAt
 //  8. Project to the editor view (CompanyEditorViewDto) and return
 //
 // Each test pins one step (or one boundary) so a regression in any
@@ -97,6 +97,13 @@ func (s *stubUpdateRepo) UpdateCompany(_ context.Context, id uuid.UUID, patch re
 	return s.updateErr
 }
 
+func (s *stubUpdateRepo) UpdateCompanyReturning(ctx context.Context, id uuid.UUID, patch repositories.UpdateCompanyPatch, cas time.Time, event auditentities.AuditEvent) (*entities.Company, error) {
+	if err := s.UpdateCompany(ctx, id, patch, cas, event); err != nil {
+		return nil, err
+	}
+	return s.GetCompanyForUpdate(ctx, id)
+}
+
 // Legacy methods (kept so the stub still satisfies the port for legacy
 // callers; not exercised by these tests).
 func (s *stubUpdateRepo) Create(_ context.Context, _ *entities.Company) error { return nil }
@@ -125,6 +132,19 @@ func makeStoredCompany(t *testing.T, id uuid.UUID, updatedAt time.Time) *entitie
 		IndustryID: "tech",
 		UpdatedAt:  updatedAt,
 		CreatedAt:  updatedAt.Add(-24 * time.Hour),
+	}
+}
+
+// Read-only/legacy repositories may still implement the original port, but
+// PATCH must fail closed rather than fall back to an unsafe post-commit read.
+func TestUpdateCompanyRequiresWrittenRowPort(t *testing.T) {
+	id := uuid.New()
+	token := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	repo := &stubUpdateRepo{getForUpdateOut: makeStoredCompany(t, id, token)}
+	legacy := struct{ repositories.CompanyRepository }{repo}
+	view, err := NewCompanyService(legacy).UpdateCompany(context.Background(), id, uuid.New(), dtos.UpdateCompanyDto{}, token)
+	if err == nil || view != nil || repo.updateCalls != 0 {
+		t.Fatalf("unsafe legacy writer fallback: view=%v error=%v writes=%d", view, err, repo.updateCalls)
 	}
 }
 
@@ -491,6 +511,13 @@ func (s *sequentialSuccessRepo) UpdateCompany(_ context.Context, id uuid.UUID, p
 	return nil
 }
 
+func (s *sequentialSuccessRepo) UpdateCompanyReturning(ctx context.Context, id uuid.UUID, patch repositories.UpdateCompanyPatch, cas time.Time, event auditentities.AuditEvent) (*entities.Company, error) {
+	if err := s.UpdateCompany(ctx, id, patch, cas, event); err != nil {
+		return nil, err
+	}
+	return s.GetCompanyForUpdate(ctx, id)
+}
+
 // capturedPatch returns the patch the use case forwarded. Safe to call
 // concurrently because it locks the stub's mutex; reads the field via
 // the pointer indirection so the captured value is a fresh copy on
@@ -527,12 +554,11 @@ var _ repositories.CompanyRepository = (*sequentialSuccessRepo)(nil)
 
 // --- 10. success: view carries fresh updated_at and the patch was forwarded ---
 
-// TestUpdateCompany_SuccessRereadsAndProjects pins the success path:
-// matching CAS, valid VO, repo returns nil (1 row), use case
-// re-reads for the authoritative post-write updated_at, projects
-// the view. The captured patch proves the (id, cas) pair was
+// TestUpdateCompany_SuccessProjectsWrittenRow pins the success path:
+// matching CAS, valid VO, the editor writer returns its authoritative written
+// row, and the use case projects that row without a post-commit read. The captured patch proves the (id, cas) pair was
 // forwarded.
-func TestUpdateCompany_SuccessRereadsAndProjects(t *testing.T) {
+func TestUpdateCompany_SuccessProjectsWrittenRow(t *testing.T) {
 	companyID := uuid.New()
 	rowUpdatedAt := time.Date(2026, 2, 1, 10, 0, 0, 0, time.UTC)
 	stored := makeStoredCompany(t, companyID, rowUpdatedAt)

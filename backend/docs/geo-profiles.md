@@ -78,6 +78,20 @@ string verbatim in `If-Unmodified-Since`, preserving fractional seconds. Saving
 with that token succeeds; reusing it after a successful update returns 409 with
 the current token. Public `GET /companies/{id}` deliberately gains no timestamp.
 
+PATCH captures its exact written company row (including `updated_at`) **inside the
+CAS/audit transaction**, while UPDATE still holds the row lock, and returns it
+only after commit succeeds. It never fetches a potentially newer company row after
+commit. Location expansion still occurs before any write; the successful CAS pins
+those current-plus-patch codes to the captured written row. A later PATCH cannot
+mix its token with an earlier response's location. Using that earlier response's
+token after the later PATCH returns 409.
+
+The additive `CompanyEditorUpdater` port supplies this atomic row result without
+changing the legacy error-only repository contract. PATCH requires this port and
+never falls back to write-then-read. The production adapter implements both with
+one transaction; catalog/read/hydration/audit failures cannot commit a write-only
+success.
+
 ## Migration and §19 behavior
 
 00032 drops both tables' old city/country columns and the candidate city index.
@@ -113,6 +127,14 @@ Migration 00029 itself remains unchanged.
   location/reference key sets for both roles, nulls and UTC nanosecond precision.
 - `TestMembershipTokenRoundTripsIntoOwnerPatch`: GET token → PATCH success, matching
   refreshed membership/editor tokens, stale token → 409 without a second write.
+- `TestCompanyPatchResponseKeepsWrittenLocationAndToken`: two interleaved HTTP
+  PATCHes, exact response row/location/token consistency and stale-token 409. The
+  old path returned the second token with the first location and allowed a third
+  write; the fixed unit regression passes without a DB.
+- `TestCompanyEditorWriteReturnsOwnRowAndRollsBackErrors` (DB): adapter returns its
+  written codes/token; later writes leave prior results unchanged; stale CAS and
+  audit failure return no row and preserve company/audit state. Parent DB run pending.
+- `TestUpdateCompanyRequiresWrittenRowPort`: no unsafe legacy-writer fallback.
 - `TestGeoProfilesMigration`: migration definition; integration test
   `TestGeoProfilesMigrationConstraintsAndEmptyDown`: physical FK/CHECK matrix,
   discarded free text, dropped index and empty downgrade.

@@ -12,6 +12,13 @@ read the candidate's **current** profile. Only the **published public projection
 `work_mode=remote` + `remote_scope_kind=countries` enables the gate. Mutable draft
 fields never substitute for the scope the candidate saw.
 
+The scope is read in a **fresh statement after the draft lock is held**, and after
+replay. SaveV2/publication lock the draft before writing the projection; holding
+that lock excludes further projection saves. Reading scope in the lock-acquiring
+join is unsafe under READ COMMITTED: after waiting, EvalPlanQual can refresh the
+locked draft while retaining the unlocked projection's old values. No additional
+projection lock or change to the writer's lock order is introduced.
+
 Before questionnaire revision, screening answers, CV availability and duplicate
 checks:
 
@@ -30,7 +37,8 @@ conflicting payloads remain 409. Existing vacancy/auth gates still precede repla
 
 The profile read supplies the immutable snapshot too: country/state/municipality
 codes or null, plus the existing skills/years/education allowlist. Rejected applies
-create no participation, snapshot, intake, idempotency or audit. No country/profile
+create no participation, snapshot, intake, idempotency or audit, and leave delivery
+and coverage counters, fulfillment snapshots and coverage milestones unchanged. No country/profile
 data enters candidate/public responses or audit metadata. Board/detail expose
 expanded frozen locations only; mutations never do. See
 [board filters and frontend migration](board-filter-data.md) and
@@ -57,6 +65,14 @@ expanded frozen locations only; mutations never do. See
   source, gate precedence over revision/answers/CV and zero effects on rejection.
 - DB: `TestGeoApplyReplayBeforeCurrentCountryGateAndDuplicate`: replay before changed
   country/scope, conflict before gate, gate before duplicate, snapshot/effects unchanged.
+- DB: `TestGeoApplyCountryScopeAfterWaitingForDraftSave`: forced draft-lock wait,
+  tightening anywhere/MX → CO and relaxing CO → anywhere/MX, committed-scope
+  decisions and allowed lists, no effects on rejection. Parent observed all four
+  failing against the old implementation; post-fix DB GREEN remains parent-owned.
+- DB: `TestGeoApplyCountryRejectionPreservesPopulatedDeliveryAndCoverage`: rejected
+  applies preserve computed counters and full existing fulfillment/milestone rows
+  (including a nonzero fulfilled/covered fixture). Existing G4 no-write/replay tests
+  also compare these expanded effects.
 - DB: `TestGeoSnapshotCurrentCodesAndExpandedBoardDetailWire`: immutable code snapshot,
   exact expanded wire, labels, null postal, board/detail parity and replay.
 - Migration tests cover 00033 up/down, SQL NULL and strict shape rejection.

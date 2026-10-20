@@ -51,10 +51,7 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	// Lock the same authoring row as employer saves. A process lock alone
 	// would not serialize questionnaire edits, since they lock the draft.
 	var fields []byte
-	var mode string
-	var scope *string
-	var allowed []string
-	err = tx.QueryRow(ctx, `SELECT d.fields,v.work_mode,v.remote_scope_kind,v.remote_countries FROM job_drafts d JOIN vacancy_processes p ON p.id=d.id JOIN vacancy_public_projections v ON v.id=p.id JOIN companies c ON c.id=p.company_id WHERE p.id=$1 AND p.status='published' AND c.status='active' AND c.deleted_at IS NULL FOR SHARE OF d,c`, vacancy).Scan(&fields, &mode, &scope, &allowed)
+	err = tx.QueryRow(ctx, `SELECT d.fields FROM job_drafts d JOIN vacancy_processes p ON p.id=d.id JOIN vacancy_public_projections v ON v.id=p.id JOIN companies c ON c.id=p.company_id WHERE p.id=$1 AND p.status='published' AND c.status='active' AND c.deleted_at IS NULL FOR SHARE OF d,c`, vacancy).Scan(&fields)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return app.Result{}, app.ErrNotFound
 	}
@@ -85,6 +82,21 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 		return app.Result{Body: body, Replayed: true}, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
+		return app.Result{}, err
+	}
+	// Use a fresh READ COMMITTED statement after the draft lock is held.
+	// SaveV2/Publish lock the draft before writing the projection. A join that
+	// waits for that lock can refresh d via EvalPlanQual but retain stale v
+	// values from its original snapshot. No extra projection lock is needed:
+	// retaining the draft lock excludes those writers for this transaction.
+	var mode string
+	var scope *string
+	var allowed []string
+	err = tx.QueryRow(ctx, `SELECT work_mode,remote_scope_kind,remote_countries FROM vacancy_public_projections WHERE id=$1`, vacancy).Scan(&mode, &scope, &allowed)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return app.Result{}, app.ErrNotFound
+	}
+	if err != nil {
 		return app.Result{}, err
 	}
 	// Read the current profile once, after replay and before screening/CV/duplicate

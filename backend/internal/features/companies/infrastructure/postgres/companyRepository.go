@@ -200,6 +200,8 @@ func (r *CompanyRepository) GetCompanyForUpdate(ctx context.Context, companyID u
 // inside the SAME `pgx.Tx` (companies-audit design D9 — fail-closed
 // co-write, mirror of the applications slice).
 //
+// UpdateCompany preserves the error-only persistence port for non-editor callers;
+// the same transaction also captures the written row for CompanyEditorUpdater.
 // Operation order (D9):
 //  1. pool.Begin
 //  2. defer tx.Rollback (canonical; covers every error path below)
@@ -212,10 +214,8 @@ func (r *CompanyRepository) GetCompanyForUpdate(ctx context.Context, companyID u
 //     and aborts the tx via the deferred Rollback
 //  7. tx.Commit — both writes become visible atomically
 //
-// The D3 SQL sets `updated_at = clock_timestamp()` on a successful
-// update, so the authoritative post-write value is the next
-// `GetCompanyForUpdate`'s result (the use case re-reads to obtain it
-// — design D12 step 7).
+// The D3 SQL sets updated_at = clock_timestamp(). Capture that value and all
+// fields in the same transaction while UPDATE still holds the row lock.
 //
 // Returns:
 //
@@ -226,28 +226,45 @@ func (r *CompanyRepository) GetCompanyForUpdate(ctx context.Context, companyID u
 //	                                     soft-delete race — NO append)
 //	other error                          propagated unchanged (HTTP 500)
 func (r *CompanyRepository) UpdateCompany(ctx context.Context, companyID uuid.UUID, patch repositories.UpdateCompanyPatch, casUpdatedAt time.Time, event auditentities.AuditEvent) error {
+	_, err := r.UpdateCompanyReturning(ctx, companyID, patch, casUpdatedAt, event)
+	return err
+}
+
+var _ repositories.CompanyEditorUpdater = (*CompanyRepository)(nil)
+
+// UpdateCompanyReturning captures the exact updated row before releasing the
+// UPDATE lock. A concurrent PATCH after commit cannot change this response.
+func (r *CompanyRepository) UpdateCompanyReturning(ctx context.Context, companyID uuid.UUID, patch repositories.UpdateCompanyPatch, casUpdatedAt time.Time, event auditentities.AuditEvent) (*entities.Company, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer tx.Rollback(ctx)
-
-	updated, err := db.New(tx).UpdateCompany(ctx, buildUpdateCompanyParams(companyID, patch, casUpdatedAt))
+	queries := db.New(tx)
+	updated, err := queries.UpdateCompany(ctx, buildUpdateCompanyParams(companyID, patch, casUpdatedAt))
 	if err != nil {
-		return mapUpdateCompanyError(err)
+		return nil, mapUpdateCompanyError(err)
 	}
 	if updated == 0 {
-		return entities.ErrCompanyNotFound
+		return nil, entities.ErrCompanyNotFound
 	}
-
-	// Fail-closed: an audit INSERT failure aborts the whole transaction
-	// (the deferred Rollback restores pre-state; no company mutation
-	// is visible).
-	if err := r.audit.Append(ctx, tx, event); err != nil {
-		return fmt.Errorf("co-write audit: %w", err)
+	row, err := queries.GetCompanyByID(ctx, companyID)
+	if err != nil {
+		return nil, err
 	}
-
-	return tx.Commit(ctx)
+	written, err := toEntity(row)
+	if err != nil {
+		return nil, err
+	}
+	// Fail closed on audit/read/hydration/commit errors: never return a success
+	// row for a transaction that did not commit both the company and its audit.
+	if err = r.audit.Append(ctx, tx, event); err != nil {
+		return nil, fmt.Errorf("co-write audit: %w", err)
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return written, nil
 }
 
 // SoftDeleteCompany tombstones the row (`deleted_at = now()`,
