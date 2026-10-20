@@ -22,7 +22,7 @@ import {
   WrenchIcon,
   type LucideIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -242,6 +242,7 @@ function PreviewGroupTitle({
 export type DraftPreviewProps = {
   /** Raw local editor state; read only, never mutated. */
   state: DraftFormState;
+  publicOnly?: boolean;
   /**
    * Presentation-only override of the internal screening prompts. When the
    * caller edits the local v2 authoring buffer, it supplies the raw (possibly
@@ -252,7 +253,9 @@ export type DraftPreviewProps = {
   renderedQuestions?: readonly { id: string; prompt: string }[];
 };
 
-export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
+export function DraftPreview({ state, renderedQuestions, publicOnly = false }: DraftPreviewProps) {
+  const instanceId = useId();
+  const publicHeadingId = publicOnly ? `${instanceId}-public` : "draft-preview-public-heading";
   const catalog = useGeoCatalog(state.location.state, state.location.country === "MX");
   const country = catalog.countries.data?.items.find(item => item.id === state.location.country)?.name;
   const region = catalog.states.data?.items.find(item => item.id === state.location.state)?.name;
@@ -315,14 +318,14 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
 
   return (
     <div className="flex flex-col gap-6" data-pf-draft-preview="">
-      <Card aria-labelledby="draft-preview-public-heading" data-pf-draft-public="">
+      <Card aria-labelledby={publicHeadingId} data-pf-draft-public="">
         <CardHeader>
-          <CardTitle><h4 id="draft-preview-public-heading" className="flex items-center gap-2 font-heading text-sm font-semibold">
+          <CardTitle><h4 id={publicHeadingId} className="flex items-center gap-2 font-heading text-sm font-semibold">
             <EyeIcon aria-hidden="true" className="size-4 text-muted-foreground" />
             Vista previa pública
           </h4></CardTitle>
           <CardDescription>Así se verá tu vacante cuando se publique. El solicitante no aparece aquí.</CardDescription>
-          <CardAction><Badge variant="secondary">Borrador</Badge></CardAction>
+          <CardAction><Badge variant="secondary">Pública</Badge></CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
         <p
@@ -345,7 +348,7 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
         )}
 
         <div className="flex flex-col gap-2">
-          <PreviewGroupTitle id="draft-preview-compensation" icon={BanknoteIcon}>Compensación</PreviewGroupTitle>
+          <PreviewGroupTitle id={`${instanceId}-compensation`} icon={BanknoteIcon}>Compensación</PreviewGroupTitle>
           {compensation.kind === "hidden" ? <p className="text-sm text-muted-foreground">Salario no publicado</p>
             : compensation.kind === "invalid" ? <>
               <Badge variant="danger">Revisar compensación</Badge>
@@ -357,7 +360,7 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
         </div>
 
         <div className="flex flex-col gap-2">
-          <PreviewGroupTitle id="draft-preview-description" icon={FileTextIcon}>
+          <PreviewGroupTitle id={`${instanceId}-description`} icon={FileTextIcon}>
             Descripción
           </PreviewGroupTitle>
           {description.kind === "invalid" ? (
@@ -372,7 +375,7 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
         {(state.required_requirements.trim() !== "" ||
           state.preferred_requirements.trim() !== "") && (
           <div className="flex flex-col gap-2">
-            <PreviewGroupTitle id="draft-preview-requirements" icon={ListChecksIcon}>
+            <PreviewGroupTitle id={`${instanceId}-requirements`} icon={ListChecksIcon}>
               Requisitos
             </PreviewGroupTitle>
             <dl className="flex flex-col gap-2 text-sm">
@@ -404,7 +407,7 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
 
         {skills.length > 0 && (
           <div className="flex flex-col gap-2">
-            <PreviewGroupTitle id="draft-preview-skills" icon={WrenchIcon}>
+            <PreviewGroupTitle id={`${instanceId}-skills`} icon={WrenchIcon}>
               Habilidades
             </PreviewGroupTitle>
             <ul className="flex flex-wrap gap-2">
@@ -421,7 +424,7 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
 
         {languages.length > 0 && (
           <div className="flex flex-col gap-2">
-            <PreviewGroupTitle id="draft-preview-languages" icon={LanguagesIcon}>
+            <PreviewGroupTitle id={`${instanceId}-languages`} icon={LanguagesIcon}>
               Idiomas
             </PreviewGroupTitle>
             <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
@@ -432,7 +435,7 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
 
         {benefitLabels.length > 0 && (
           <div className="flex flex-col gap-2">
-            <PreviewGroupTitle id="draft-preview-benefits" icon={GiftIcon}>
+            <PreviewGroupTitle id={`${instanceId}-benefits`} icon={GiftIcon}>
               Prestaciones
             </PreviewGroupTitle>
             <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
@@ -444,7 +447,7 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
         </CardContent>
       </Card>
 
-      <section
+      {!publicOnly && <section
         aria-labelledby="draft-preview-internal-heading"
         data-pf-draft-internal=""
         className="flex flex-col gap-4 border-t border-border pt-6"
@@ -500,7 +503,7 @@ export function DraftPreview({ state, renderedQuestions }: DraftPreviewProps) {
             )}
           </div>
         </div>
-      </section>
+      </section>}
     </div>
   );
 }

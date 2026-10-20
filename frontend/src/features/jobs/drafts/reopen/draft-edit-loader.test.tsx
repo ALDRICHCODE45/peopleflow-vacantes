@@ -51,7 +51,7 @@ it("shows editor-shaped Skeletons with one accessible status while loading", asy
 it("loads the real seeded editor and first saves every stored field by PATCH with the GET ETag", async () => {
   render(<DraftEditLoader draftId={read.id} />);
   expect(await screen.findByRole("textbox",{name:"Título"})).toHaveValue(read.fields.title);
-  for (let step=0;step<4;step++) fireEvent.click(screen.getByRole("button",{name:"Continuar"}));
+  fireEvent.click(screen.getByRole("button", { name: "Revisión y publicación" }));
   fireEvent.click(screen.getByRole("button",{name:"Guardar cambios"}));
   await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledExactlyOnceWith({draftId:read.id,etag:'"get-etag"',body:{fields:storedWriteFields(read)}}));
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Guardado · versión 8"));

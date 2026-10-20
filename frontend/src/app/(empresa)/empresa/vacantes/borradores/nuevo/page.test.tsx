@@ -18,14 +18,14 @@ function Page() {
   );
 }
 
-const continueButton = () => screen.getByRole("button", { name: "Continuar" });
-const backButton = () => screen.getByRole("button", { name: "Atrás" });
+const continueButton = () => screen.getByRole("button", { name: "Siguiente sección" });
+const backButton = () => screen.getByRole("button", { name: "Anterior" });
 /** Number of the step currently exposed, read from the progress indicator. */
 function currentStep(): number {
   const item = document.querySelector(
-    "[data-pf-draft-progress] [aria-current='step']",
+    "[data-pf-draft-step]:not([hidden])",
   );
-  const value = item?.getAttribute("data-step");
+  const value = item?.getAttribute("data-pf-draft-step");
   if (!value) throw new Error("No exposed wizard step");
   return Number(value);
 }
@@ -161,11 +161,11 @@ describe("/empresa/vacantes/borradores/nuevo employer route", () => {
         sections: ["Compensación", "Prestaciones"],
       },
       {
-        heading: "Paso 4 de 5: Preguntas",
+        heading: "Paso 4 de 5: Preguntas de filtro",
         sections: ["Preguntas de filtro"],
       },
       {
-        heading: "Paso 5 de 5: Revisión final",
+        heading: "Paso 5 de 5: Revisión y publicación",
         sections: [],
       },
     ];
@@ -175,7 +175,7 @@ describe("/empresa/vacantes/borradores/nuevo employer route", () => {
         screen.getByRole("heading", { name: steps[step - 1].heading }),
       ).toBeVisible();
       for (const heading of steps[step - 1].sections) {
-        expect(screen.getByRole("heading", { name: heading })).toBeVisible();
+        expect(screen.getByRole("heading", { name: heading, level: 3 })).toBeVisible();
       }
     }
 

@@ -24,7 +24,7 @@ const key = "123e4567-e89b-42d3-a456-426614174000";
 const success = {ok:true, draftId:"saved-id", etag:'"v1"', version:"1", savedAt:"2026-10-06T03:00:00Z"} as const;
 const save = () => screen.getByRole("button", {name:/^Guardar borrador$|^Guardar cambios$/});
 function review() {
-  for (let i=0; i<4; i++) fireEvent.click(screen.getByRole("button", {name:"Continuar"}));
+  fireEvent.click(screen.getByRole("button", { name: "Revisión y publicación" }));
 }
 beforeEach(() => {
   vi.resetAllMocks();
@@ -99,16 +99,17 @@ it("creates the validated v2 body, guards pending, then PATCHes the same draft w
   await waitFor(() => expect(sileo.success).toHaveBeenLastCalledWith(expect.objectContaining({title:"Cambios guardados"})));
   expect(replace).toHaveBeenCalledTimes(1);
 });
-it("only saved draft review offers Publicar; unsaved edits block before loading dialog data", async () => {
+it("requires a saved draft before publication; unsaved edits block the publish dialog", async () => {
   render(<LocalDraftForm />); review();
-  expect(screen.queryByRole("button", { name: "Publicar" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Publicar vacante" }));
+  expect(screen.getByText("Guarda los cambios antes de publicar")).toBeVisible();
   fireEvent.click(save()); await waitFor(() => expect(save()).toHaveTextContent("Guardar cambios"));
-  expect(await screen.findByRole("button", { name: "Publicar" })).toHaveAttribute("aria-haspopup", "dialog");
-  for (let i=0;i<4;i++) fireEvent.click(screen.getByRole("button", { name: "Atrás" }));
+  expect(screen.getByRole("button", { name: "Publicar vacante" })).toHaveAttribute("aria-haspopup", "dialog");
+  fireEvent.click(screen.getByRole("button", { name: "Información básica" }));
   fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Cambio" } }); review();
-  fireEvent.click(screen.getByRole("button", { name: "Publicar" }));
+  fireEvent.click(screen.getByRole("button", { name: "Publicar vacante" }));
   expect(await screen.findByRole("heading", { name: "Guarda los cambios antes de publicar" })).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Publicar vacante" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Confirmar publicación" })).not.toBeInTheDocument();
 });
 it("offers a real way out of an empty questionnaire simulation without saving", async () => {
   render(<LocalDraftForm />); review();
@@ -117,21 +118,19 @@ it("offers a real way out of an empty questionnaire simulation without saving", 
   expect(edit.closest('[data-slot="empty-content"]')).not.toBeNull();
   fireEvent.click(edit);
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
-  expect(screen.getByRole("heading", { name: "Paso 4 de 5: Preguntas" })).toBeVisible();
+  expect(screen.getByRole("heading", { name: "Paso 4 de 5: Preguntas de filtro" })).toBeVisible();
   expect(saveDraftV2Action).not.toHaveBeenCalled();
 });
-it("makes saving the sole primary review action and keeps the state in the header", async () => {
+it("makes publication the primary shell action and keeps state in the header", async () => {
   render(<LocalDraftForm initialIdentity={{ draftId: key, etag: '"draft"' }} />); review();
-  expect(save()).toHaveClass("bg-primary");
-  expect(await screen.findByRole("button", { name: "Publicar" })).not.toHaveClass("bg-primary");
-  expect(screen.getByRole("button", { name: "Publicar" }).parentElement).toHaveClass("flex-col", "sm:flex-row");
-  const card = save().closest('[data-slot="card"]')!;
-  expect(card.querySelector('[data-slot="card-header"] [data-slot="badge"]')).toHaveTextContent("Borrador");
+  expect(save()).not.toHaveClass("bg-primary");
+  expect(screen.getByRole("button", { name: "Publicar vacante" })).toHaveClass("bg-primary");
+  await waitFor(() => expect(document.querySelector('header [data-slot="badge"]')).toHaveTextContent("Borrador"));
 });
 it("does not label a reopened vacancy as draft before its publication state is known", () => {
   vi.mocked(loadDraftPublicationAction).mockReturnValue(new Promise(() => {}));
   render(<LocalDraftForm initialIdentity={{ draftId: key, etag: '"draft"' }} />);
-  const header = screen.getByRole("heading", { name: "Paso 1 de 5: Información básica" }).closest('[data-slot="card-header"]')!;
+  const header = screen.getByRole("heading", { name: "Construye tu próxima oportunidad" }).closest('header')!;
   expect(header.querySelector('[data-slot="badge"]')).toHaveTextContent("Estado por confirmar");
 });
 it("already published editor keeps saving content but hides Publicar", async () => {
@@ -140,7 +139,8 @@ it("already published editor keeps saving content but hides Publicar", async () 
   await waitFor(() => expect(loadDraftPublicationAction).toHaveBeenCalled());
   await waitFor(() => expect(screen.queryByRole("button", { name: "Publicar" })).not.toBeInTheDocument());
   expect(save()).toBeEnabled();
-  expect(save().closest('[data-slot="card"]')!.querySelector('[data-slot="card-header"] [data-slot="badge"]')).toHaveTextContent("Activa");
+  await waitFor(() => expect(document.querySelector('header [data-slot="badge"]')).toHaveTextContent("Activa"));
+  expect(screen.getByRole("button", { name: "Activa" })).toBeDisabled();
 });
 function saveDraftForm() {return document.querySelector("[data-pf-local-draft-form] form")!;}
 it("keeps the create key after uncertainty, even after an edit and explicit retry", async () => {
@@ -148,8 +148,7 @@ it("keeps the create key after uncertainty, even after an edit and explicit retr
   render(<LocalDraftForm />); review(); fireEvent.click(save());
   expect(await screen.findByRole("status")).toHaveTextContent("Resultado sin confirmar · ver aviso");
   expect(save()).toBeEnabled();
-  fireEvent.click(screen.getByRole("button",{name:"Atrás"}));
-  for(let i=0;i<3;i++) fireEvent.click(screen.getByRole("button",{name:"Atrás"}));
+  fireEvent.click(screen.getByRole("button", { name: "Información básica" }));
   fireEvent.change(screen.getByRole("textbox", {name:"Título"}),{target:{value:"Cambio"}});
   review(); fireEvent.click(save());
   await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledTimes(2));
@@ -173,7 +172,7 @@ it.each([
   if(href) expect(screen.getByRole("link")).toHaveAttribute("href",href);
   expect(screen.getByRole("status")).toBeVisible();
   expect(sileo.success).not.toHaveBeenCalled();
-  for(let i=0;i<4;i++) fireEvent.click(screen.getByRole("button",{name:"Atrás"}));
+  fireEvent.click(screen.getByRole("button", { name: "Información básica" }));
   expect(screen.getByRole("textbox",{name:"Título"})).toHaveValue("Mi borrador");
 });
 it("keeps published draft edits and reports missing labels without retry or field errors", async () => {
@@ -193,7 +192,7 @@ it("keeps published draft edits and reports missing labels without retry or fiel
   expect(toast.button).toBeUndefined();
   expect(screen.queryByRole("button", { name: /Reintentar|Comprobar/ })).not.toBeInTheDocument();
   expect(sileo.success).not.toHaveBeenCalled();
-  for (let i = 0; i < 4; i++) fireEvent.click(screen.getByRole("button", { name: "Atrás" }));
+  fireEvent.click(screen.getByRole("button", { name: "Información básica" }));
   expect(screen.getByRole("textbox", { name: "Título" })).toHaveValue("Mi edición");
   expect(document.querySelector('[data-slot="field-error"]')).toBeNull();
   expect(saveDraftV2Action).toHaveBeenCalledTimes(1);
@@ -223,7 +222,7 @@ it("keeps edits made during an in-flight save dirty and sends them only on the n
   const replace = vi.spyOn(window.history, "replaceState");
   render(<LocalDraftForm />); review(); fireEvent.click(save());
   expect(replace).not.toHaveBeenCalled();
-  for (let i=0;i<4;i++) fireEvent.click(screen.getByRole("button",{name:"Atrás"}));
+  fireEvent.click(screen.getByRole("button", { name: "Información básica" }));
   fireEvent.change(screen.getByRole("textbox",{name:"Título"}),{target:{value:"Edición posterior"}});
   await act(async () => resolve(success));
   expect(replace).toHaveBeenCalledTimes(1);
@@ -287,14 +286,14 @@ it("keeps the save button in place: the status slot exists below it before and a
   const button = save();
   const slot = document.querySelector("[data-pf-action-status-slot]");
   expect(slot).toBeInTheDocument();
-  expect(slot).toBeEmptyDOMElement();
+  expect(slot).toHaveTextContent("Sin guardado automático");
   expect(button.compareDocumentPosition(slot!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   fireEvent.click(button);
   await waitFor(() => expect(slot).toHaveTextContent("Guardado · versión 1"));
   expect(save().compareDocumentPosition(screen.getByRole("status")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   expect(screen.getByRole("status").closest("[data-pf-action-status-slot]")).toBe(slot);
 });
-it("keeps Atrás, the result line and the actions in one compact ActionBar row (rules §12)", () => {
+it("keeps the result and actions in a shared sticky ActionBar, separate from navigation", () => {
   render(<LocalDraftForm />); review();
   const actions = save().parentElement!;
   expect(actions).not.toContainElement(screen.getByRole("button", {name:"Probar cuestionario"}));
@@ -306,7 +305,7 @@ it("keeps Atrás, the result line and the actions in one compact ActionBar row (
   const bar = slot.closest("[data-pf-action-bar]")!;
   expect(bar).not.toBeNull();
   expect(bar).toContainElement(save());
-  const footer = save().closest('[data-slot="card-footer"]')!;
-  expect(footer).not.toHaveClass("flex-col");
-  expect(footer).toContainElement(screen.getByRole("button", {name:"Atrás"}));
+  const footer = save().closest('[data-pf-draft-save-bar]')!;
+  expect(footer).toHaveClass("sticky", "bottom-0");
+  expect(footer).not.toContainElement(screen.getByRole("button", {name:"Anterior"}));
 });

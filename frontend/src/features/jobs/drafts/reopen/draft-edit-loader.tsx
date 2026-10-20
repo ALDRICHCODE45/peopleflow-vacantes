@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import { Progress, ProgressLabel } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LocalDraftForm } from "../ui/local-draft-form";
@@ -22,12 +21,13 @@ function DraftEditorSkeleton() {
       <span role="status" className="sr-only">Cargando borrador</span>
       <div aria-hidden="true" className="flex flex-col gap-5">
         <div className="flex gap-2 rounded-2xl bg-muted/50 px-3 py-2"><Skeleton className="mt-0.5 size-4 shrink-0" /><Skeleton className="w-full max-w-prose text-sm"><span className="invisible">{DRAFT_SAVE_NOTICE}</span></Skeleton></div>
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-wrap items-center justify-between gap-5"><div className="flex flex-col gap-2"><Skeleton className="h-7 w-72 max-w-full" /><Skeleton className="h-5 w-64 max-w-full" /></div><Skeleton className="h-10 w-32" /></div>
+        <div className="grid min-w-0 grid-cols-1 items-start gap-7 lg:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(0,1fr)_300px]">
           <div className="flex flex-col gap-3">
-            <ol className="grid grid-cols-2 gap-2 sm:grid-cols-5">
-              {[0, 1, 2, 3, 4].map(step => <li key={step} className="flex min-w-0 items-center gap-2"><Skeleton className="size-6 shrink-0 rounded-full" /><Skeleton className="h-4 w-28 max-w-full" /></li>)}
-            </ol>
-            <Progress value={1} max={5}><ProgressLabel className="text-xs"><Skeleton className="h-4 w-24" /></ProgressLabel></Progress>
+            <div className="flex gap-2 overflow-hidden lg:flex-col">
+              {[0, 1, 2, 3, 4].map(step => <Skeleton key={step} className="h-12 w-44 shrink-0" />)}
+            </div>
+            <Skeleton className="h-2 w-full" /><Skeleton className="h-16 w-full" />
           </div>
           <section className="min-w-0">
             <Card>
@@ -45,12 +45,11 @@ function DraftEditorSkeleton() {
                   <FieldGroup className="gap-4">{fields(["h-10", "h-10"])}</FieldGroup>
                 </section>
               </CardContent>
-              <CardFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between [&_button]:min-h-10">
-                <Skeleton className="h-10 w-full sm:w-16" /><div className="flex flex-col gap-3 sm:flex-row sm:items-center"><Skeleton className="h-10 w-full sm:w-24" /></div>
-              </CardFooter>
             </Card>
           </section>
+          <div className="hidden flex-col gap-4 xl:flex"><Skeleton className="h-5 w-32" /><Skeleton className="h-80 w-full" /></div>
         </div>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4"><Skeleton className="h-10 w-48" /><Skeleton className="h-10 w-64" /></div>
       </div>
     </section>
   );

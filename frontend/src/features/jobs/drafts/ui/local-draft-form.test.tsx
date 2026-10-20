@@ -220,16 +220,14 @@ const locationInput = () => screen.getByRole("combobox", { name: "País" });
 const modeSelect = () => screen.getByRole("combobox", { name: "Modalidad" });
 const validateButton = () =>
   screen.getByRole("button", { name: /^(Validar borrador|Guardar borrador|Guardar cambios)$/ });
-const continueButton = () => screen.getByRole("button", { name: "Continuar" });
-const backButton = () => screen.getByRole("button", { name: "Atrás" });
+const continueButton = () => screen.getByRole("button", { name: "Siguiente sección" });
+const backButton = () => screen.getByRole("button", { name: "Anterior" });
 const successStatus = () => screen.queryByRole("status");
-/** Number of the step currently exposed, read from the progress indicator. */
+/** Only the selected section is exposed; all field panels remain mounted. */
 function currentStep(): number {
-  const item = document.querySelector(
-    "[data-pf-draft-progress] [aria-current='step']",
-  );
-  const value = item?.getAttribute("data-step");
-  if (!value) throw new Error("No exposed wizard step");
+  const panel = document.querySelector("[data-pf-draft-step]:not([hidden])");
+  const value = panel?.getAttribute("data-pf-draft-step");
+  if (!value) throw new Error("No exposed editor section");
   return Number(value);
 }
 /** Explicit step navigation; hidden controls are never queried by role. */
@@ -286,11 +284,11 @@ describe("LocalDraftForm presentation", () => {
         sections: ["Compensación", "Prestaciones"],
       },
       {
-        heading: "Paso 4 de 5: Preguntas",
+        heading: "Paso 4 de 5: Preguntas de filtro",
         sections: ["Preguntas de filtro"],
       },
       {
-        heading: "Paso 5 de 5: Revisión final",
+        heading: "Paso 5 de 5: Revisión y publicación",
         sections: [],
       },
     ];
@@ -301,22 +299,18 @@ describe("LocalDraftForm presentation", () => {
       expect(title.tagName).toBe("H2");
       expect(title.parentElement).toHaveAttribute("data-slot", "card-title");
       for (const heading of steps[step - 1].sections) {
-        expect(screen.getByRole("heading", { name: heading })).toBeVisible();
+        expect(screen.getByRole("heading", { name: heading, level: 3 })).toBeVisible();
       }
     }
 
     expect(validateButton()).toBeEnabled();
 
-    // No save affordance. The determinate step progress is real navigation
-    // feedback, not loading theater.
+    // Legacy v1 remains validation-only; readiness never counts visits.
     expect(screen.queryByRole("button", { name: /guardar/i })).toBeNull();
-    expect(screen.getByRole("progressbar")).toHaveAttribute(
-      "aria-valuetext",
-      "Paso 5 de 5",
-    );
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
   });
 
-  it("presents one primary card with one footer and the numbered progress for every step", () => {
+  it("presents one primary card per section and a shared sticky save bar", () => {
     render(<LocalDraftForm />);
 
     // Application-reference composition: a single numbered progress bar and no
@@ -325,14 +319,14 @@ describe("LocalDraftForm presentation", () => {
     expect(document.querySelectorAll("[data-slot='progress']")).toHaveLength(1);
     expect(document.querySelectorAll("[data-pf-section-card]")).toHaveLength(0);
 
-    // Each hidden, still-mounted step panel owns exactly one primary card, and
-    // that card owns exactly one consistent footer.
+    // Hidden field panels remain mounted; saving belongs to the shared shell.
     const panels = document.querySelectorAll("[data-pf-draft-step]");
     expect(panels).toHaveLength(5);
     for (const panel of panels) {
       expect(panel.querySelectorAll("[data-pf-draft-card]")).toHaveLength(1);
-      expect(panel.querySelectorAll("[data-slot='card-footer']")).toHaveLength(1);
+      expect(panel.querySelectorAll("[data-slot='card-footer']")).toHaveLength(0);
     }
+    expect(document.querySelectorAll("[data-pf-draft-save-bar]")).toHaveLength(1);
   });
 
   it("declares no transport, storage, navigation or session concern in source", () => {
@@ -387,7 +381,7 @@ describe("LocalDraftForm five-step wizard", () => {
   it("shows current step semantics in the progress indicator", () => {
     render(<LocalDraftForm />);
 
-    expect(screen.getByRole("list", { name: "Pasos del borrador" })).toBeVisible();
+    expect(screen.getByRole("navigation", { name: "Secciones de la vacante" })).toBeVisible();
     expect(currentStep()).toBe(1);
     goToStep(2);
     expect(currentStep()).toBe(2);
@@ -420,17 +414,17 @@ describe("LocalDraftForm five-step wizard", () => {
     ).toHaveValue("fixed");
   });
 
-  it("does not validate or claim success when Enter submits before the last step", () => {
-    render(<LocalDraftForm />);
+  it("validates through Enter from the first section without advancing", () => {
+    render(<LocalDraftForm initialModel={createDraftModel()} />);
 
     fireEvent.change(titleInput(), { target: { value: "Backend" } });
     const form = titleInput().closest("form");
     expect(form).not.toBeNull();
     fireEvent.submit(form!);
 
-    expect(hoisted.serialized).toHaveLength(0);
-    expect(successStatus()).toBeNull();
-    expect(currentStep()).toBe(2);
+    expect(hoisted.serialized).toHaveLength(1);
+    expect(successStatus()).toHaveTextContent(SUCCESS);
+    expect(currentStep()).toBe(1);
   });
 
   it("keeps the step navigation buttons out of the submit path", () => {
@@ -441,7 +435,7 @@ describe("LocalDraftForm five-step wizard", () => {
     expect(backButton()).toHaveAttribute("type", "button");
   });
 
-  it("routes the first invalid field back to its step and focuses the step heading", () => {
+  it("routes the first invalid field back to its section and focuses the field", () => {
     render(<LocalDraftForm />);
 
     fireEvent.change(titleInput(), { target: { value: "a".repeat(201) } });
@@ -453,10 +447,7 @@ describe("LocalDraftForm five-step wizard", () => {
     expect(currentStep()).toBe(1);
     expect(screen.getByText(TITLE_ERROR)).toBeVisible();
     expect(hoisted.serialized).toHaveLength(0);
-    const heading = screen.getByRole("heading", {
-      name: "Paso 1 de 5: Información básica",
-    });
-    expect(document.activeElement).toBe(heading);
+    expect(titleInput()).toHaveFocus();
   });
 
   it("routes an indexed screening error to the questions step with reachable feedback", () => {
@@ -472,9 +463,7 @@ describe("LocalDraftForm five-step wizard", () => {
     expect(currentStep()).toBe(4);
     const input = screen.getByRole("textbox", { name: "Pregunta 1" });
     expect(input).toHaveAttribute("aria-invalid", "true");
-    expect(
-      document.activeElement,
-    ).toBe(screen.getByRole("heading", { name: "Paso 4 de 5: Preguntas" }));
+    expect(input).toHaveFocus();
     expect(hoisted.serialized).toHaveLength(0);
   });
 
@@ -483,13 +472,13 @@ describe("LocalDraftForm five-step wizard", () => {
     goToStep(5);
 
     const reviewHeading = screen.getByRole("heading", {
-      name: "Paso 5 de 5: Revisión final",
+      name: "Paso 5 de 5: Revisión y publicación",
     });
     expect(reviewHeading).toBeVisible();
     const reviewCard = reviewHeading.closest("[data-pf-draft-card]") as HTMLElement;
     expect(within(reviewCard).getByText("Backend Go")).toBeVisible();
     expect(within(reviewCard).getByText("Cliente Ejemplo")).toBeVisible();
-    expect(screen.queryByText(/guardado|completado|enviado/i)).toBeNull();
+    expect(within(reviewCard).queryByText(/guardado|completado|enviado/i)).toBeNull();
     expect(screen.queryByRole("button", { name: /guardar/i })).toBeNull();
   });
 

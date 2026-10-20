@@ -10,7 +10,6 @@ import {
 import { cn } from "cn";
 
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { useDraftSave, type DraftIdentity } from "./draft-save-state";
 import { DRAFT_SAVE_NOTICE, DraftSaveFeedback } from "./draft-save-feedback";
@@ -18,7 +17,6 @@ import { ActionBar } from "@/components/feedback/action-status";
 import { Card,
   CardAction,
   CardContent,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -37,7 +35,9 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Progress, ProgressLabel } from "@/components/ui/progress";
+import { DraftEditorShell, EDITOR_SECTIONS, EDITOR_DESCRIPTIONS } from "./draft-editor-shell";
+import { DraftLeaveGuard } from "./draft-leave-guard";
+import { editorReadiness } from "../pipeline/publication-model";
 import {
   Select,
   SelectContent,
@@ -121,13 +121,7 @@ export type LocalDraftFormProps = {
 };
 
 /** Approved step order and visible titles. */
-const STEP_TITLES = [
-  "Información básica",
-  "Descripción y perfil",
-  "Compensación y beneficios",
-  "Preguntas",
-  "Revisión final",
-] as const;
+const STEP_TITLES = EDITOR_SECTIONS;
 const STEP_COUNT = STEP_TITLES.length;
 const LAST_STEP = STEP_COUNT - 1;
 
@@ -149,26 +143,6 @@ const STEP_ERROR_PREFIXES: readonly (readonly string[])[] = [
   ["screening_questions"],
   [],
 ];
-
-/**
- * Token-only numbered marker of the step rail: one baseline, semantic colors
- * only, mirroring the approved application-wizard reference.
- */
-const RAIL_BASE =
-  "inline-flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-semibold tabular-nums";
-const RAIL_STATE = {
-  complete: "border-primary text-foreground",
-  current: "border-primary bg-primary text-primary-foreground",
-  upcoming: "border-border text-muted-foreground",
-} as const;
-
-type StepState = keyof typeof RAIL_STATE;
-
-function stepStateOf(index: number, step: number): StepState {
-  if (index < step) return "complete";
-  if (index === step) return "current";
-  return "upcoming";
-}
 
 /** Removes one field key and every indexed child of an indexed list key. */
 function clearErrors(previous: DraftFormErrors, prefixes: string[]): DraftFormErrors {
@@ -206,18 +180,16 @@ function firstErrorStep(errors: DraftFormErrors): number {
 /**
  * One step card header. The visible copy is just the step title; the numbered
  * prefix stays in the accessible name so assistive tech still announces the
- * step while the progress bar owns the visible "Paso N de M" copy.
+ * section alongside the visible "N de M" counter. Readiness is independent.
  */
 function DraftStepHeading({
   index,
   title,
   headingRef,
-  published = false,
 }: {
   index: number;
   title: string;
   headingRef: React.Ref<HTMLHeadingElement>;
-  published?: boolean | null;
 }) {
   return (
     <CardHeader>
@@ -230,7 +202,8 @@ function DraftStepHeading({
         <span className="sr-only">{`Paso ${index + 1} de ${STEP_COUNT}: `}</span>
         {title}
       </h2></CardTitle>
-      <CardAction><Badge variant={published === null ? "neutral" : published ? "accent" : "info"} dot={published !== null}>{published === null ? "Estado por confirmar" : published ? "Activa" : "Borrador"}</Badge></CardAction>
+      <CardAction><span className="text-sm text-muted-foreground">{index + 1} de {STEP_COUNT}</span></CardAction>
+      <p className="text-sm text-muted-foreground">{EDITOR_DESCRIPTIONS[index]}</p>
     </CardHeader>
   );
 }
@@ -258,44 +231,6 @@ function DraftStepSection({
       </h3>
       {children}
     </section>
-  );
-}
-
-/**
- * One consistent step footer: Atrás left, primary navigation right. With a result
- * line, the actions use the compact ActionBar row (rules §12): Atrás, then the reserved
- * status, then the actions, top-aligned so a result never moves the buttons.
- */
-function DraftStepFooter({
-  onBack,
-  backDisabled,
-  children,
-  status,
-}: {
-  onBack: () => void;
-  backDisabled?: boolean;
-  children: React.ReactNode;
-  /** Result line content; `null` still reserves the slot, `undefined` omits it. */
-  status?: React.ReactNode;
-}) {
-  const back = (
-    <Button type="button" variant="outline" className="min-h-10" disabled={backDisabled} onClick={onBack}>
-      Atrás
-    </Button>
-  );
-  if (status === undefined) {
-    return (
-      <CardFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between [&_button]:min-h-10">
-        {back}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">{children}</div>
-      </CardFooter>
-    );
-  }
-  return (
-    <CardFooter className="items-start gap-3">
-      <div className="shrink-0">{back}</div>
-      <div className="min-w-0 flex-1"><ActionBar status={status}><div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">{children}</div></ActionBar></div>
-    </CardFooter>
   );
 }
 
@@ -483,13 +418,19 @@ export function LocalDraftForm({
   const draftSave = useDraftSave(initialIdentity);
   const [savedDraftId, setSavedDraftId] = React.useState(initialIdentity?.draftId);
   const [published, setPublished] = React.useState<boolean | null>(initialIdentity ? null : false);
+  const [serverMissing, setServerMissing] = React.useState<readonly string[] | null>(null);
+  const [publishNotice, setPublishNotice] = React.useState(false);
+  const readiness = editorReadiness(state, serverMissing);
   const savedResultId = draftSave.result?.ok ? draftSave.result.draftId : undefined;
   React.useEffect(() => { if (savedResultId) setSavedDraftId(savedResultId); }, [savedResultId]);
   React.useEffect(() => {
     if (!savedDraftId) return;
     let current = true;
     void loadDraftPublicationAction(savedDraftId).then(result => {
-      if (current && result.ok) setPublished(result.publication.status === "published");
+      if (current && result.ok) {
+        setPublished(result.publication.status === "published");
+        setServerMissing(result.publication.missing);
+      }
     }).catch(() => { /* The dialog will expose an explicit retry if the read remains unavailable. */ });
     return () => { current = false; };
   }, [savedDraftId]);
@@ -551,7 +492,7 @@ export function LocalDraftForm({
     const selector = focusTarget.current;
     focusTarget.current = null;
     const target = selector ? document.querySelector<HTMLElement>(selector) : null;
-    (target ?? stepHeadingRef.current)?.focus();
+    (target ?? document.querySelector<HTMLElement>(`[data-pf-draft-step="${step + 1}"] [aria-invalid="true"]`) ?? stepHeadingRef.current)?.focus();
   }, [step, focusRevision]);
 
   function goToStep(next: number) {
@@ -565,7 +506,7 @@ export function LocalDraftForm({
   ) {
     setState(update);
     if (errorPrefixes.some(prefix => prefix === "location" || prefix === "remote_scope")) setGeographyErrors(undefined);
-    if (isV2) draftSave.edited();
+    draftSave.edited();
     setValidated(null);
     setErrors((previous) => clearErrors(previous, errorPrefixes));
   }
@@ -589,10 +530,6 @@ export function LocalDraftForm({
    */
   function handleValidate(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (step < LAST_STEP) {
-      goToStep(step + 1);
-      return;
-    }
     if (isV2) {
       if (draftSave.pending) return;
       const result = validateLocalDraftV2FormState(state, baseModel, v2Questions);
@@ -640,44 +577,7 @@ export function LocalDraftForm({
       </div>
 
       <form noValidate onSubmit={handleValidate} className="flex flex-col gap-6">
-        <div className="flex flex-col gap-3">
-          <ol
-            data-pf-draft-progress=""
-            aria-label="Pasos del borrador"
-            className="grid grid-cols-2 gap-2 sm:grid-cols-5"
-          >
-            {STEP_TITLES.map((title, index) => {
-              const active = index === step;
-              return (
-                <li
-                  key={title}
-                  data-step={index + 1}
-                  aria-current={active ? "step" : undefined}
-                  className="flex min-w-0 items-center gap-2"
-                >
-                  <span
-                    aria-hidden="true"
-                    className={cn(RAIL_BASE, RAIL_STATE[stepStateOf(index, step)])}
-                  >
-                    {index + 1}
-                  </span>
-                  <span className="min-w-0 text-sm font-medium leading-tight text-foreground">
-                    {title}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
-          <Progress
-            value={step + 1}
-            max={STEP_COUNT}
-            aria-valuetext={`Paso ${step + 1} de ${STEP_COUNT}`}
-          >
-            <ProgressLabel className="text-xs text-muted-foreground">
-              Paso {step + 1} de {STEP_COUNT}
-            </ProgressLabel>
-          </Progress>
-        </div>
+        <DraftEditorShell state={state} published={published} step={step} onStep={goToStep} readiness={readiness}>
 
         <section
           data-pf-draft-step="1"
@@ -689,7 +589,6 @@ export function LocalDraftForm({
           <Card data-pf-draft-card="1">
             <DraftStepHeading
               index={0}
-              published={published}
               title={STEP_TITLES[0]}
               headingRef={step === 0 ? stepHeadingRef : null}
             />
@@ -808,14 +707,7 @@ export function LocalDraftForm({
                 />
               </DraftStepSection>
             </CardContent>
-            <DraftStepFooter
-              onBack={() => goToStep(step - 1)}
-              backDisabled
-            >
-              <Button type="button" onClick={() => goToStep(step + 1)}>
-                Continuar
-              </Button>
-            </DraftStepFooter>
+
           </Card>
         </section>
 
@@ -829,7 +721,6 @@ export function LocalDraftForm({
           <Card data-pf-draft-card="2">
             <DraftStepHeading
               index={1}
-              published={published}
               title={STEP_TITLES[1]}
               headingRef={step === 1 ? stepHeadingRef : null}
             />
@@ -907,11 +798,6 @@ export function LocalDraftForm({
                 />
               </DraftStepSection>
             </CardContent>
-            <DraftStepFooter onBack={() => goToStep(step - 1)}>
-              <Button type="button" onClick={() => goToStep(step + 1)}>
-                Continuar
-              </Button>
-            </DraftStepFooter>
           </Card>
         </section>
 
@@ -925,7 +811,6 @@ export function LocalDraftForm({
           <Card data-pf-draft-card="3">
             <DraftStepHeading
               index={2}
-              published={published}
               title={STEP_TITLES[2]}
               headingRef={step === 2 ? stepHeadingRef : null}
             />
@@ -968,11 +853,6 @@ export function LocalDraftForm({
                 </FieldGroup>
               </DraftStepSection>
             </CardContent>
-            <DraftStepFooter onBack={() => goToStep(step - 1)}>
-              <Button type="button" onClick={() => goToStep(step + 1)}>
-                Continuar
-              </Button>
-            </DraftStepFooter>
           </Card>
         </section>
 
@@ -986,7 +866,6 @@ export function LocalDraftForm({
           <Card data-pf-draft-card="4">
             <DraftStepHeading
               index={3}
-              published={published}
               title={STEP_TITLES[3]}
               headingRef={step === 3 ? stepHeadingRef : null}
             />
@@ -1019,11 +898,6 @@ export function LocalDraftForm({
                 )}
               </DraftStepSection>
             </CardContent>
-            <DraftStepFooter onBack={() => goToStep(step - 1)}>
-              <Button type="button" onClick={() => goToStep(step + 1)}>
-                Continuar
-              </Button>
-            </DraftStepFooter>
           </Card>
         </section>
 
@@ -1037,7 +911,6 @@ export function LocalDraftForm({
           <Card data-pf-draft-card="5">
             <DraftStepHeading
               index={4}
-              published={published}
               title={STEP_TITLES[LAST_STEP]}
               headingRef={step === LAST_STEP ? stepHeadingRef : null}
             />
@@ -1087,39 +960,34 @@ export function LocalDraftForm({
                 </Button>
               ) : null}
             </CardContent>
-            <DraftStepFooter
-              onBack={() => goToStep(step - 1)}
-              status={
-                isV2 ? <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} /> : undefined
-              }
-            >
-              <FieldError id="draft-model-error">{errors.model}</FieldError>
-              {isV2 && savedDraftId && !published && <PublishButton draftId={savedDraftId} variant="outline" unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={() => setPublished(true)} />}
-              {validated === null ? null : (
-                <p
-                  role="status"
-                  className="flex items-center gap-2 text-sm text-status-success"
-                >
-                  <CheckCircle2Icon aria-hidden="true" className="size-4" />
-                  {VALIDATION_SUCCESS}
-                </p>
-              )}
-              {isV2 ? (
-                <Button
-                  type="submit"
-                  className="min-h-10 w-full min-w-40 sm:w-auto"
-                  disabled={draftSave.pending}
-                  aria-busy={draftSave.pending}
-                  aria-describedby={draftSave.result ? "draft-save-status" : undefined}
-                >
-                  {draftSave.pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
-                  {draftSave.pending ? "Guardando…" : draftSave.saved ? "Guardar cambios" : "Guardar borrador"}
-                </Button>
-              ) : <Button type="submit">Validar borrador</Button>}
-            </DraftStepFooter>
+
           </Card>
         </section>
+        <div className="mt-6 flex items-center justify-between gap-3">
+          <Button type="button" variant="ghost" className="min-h-10" disabled={step === 0} onClick={() => goToStep(step - 1)}>Anterior</Button>
+          {step < LAST_STEP && <Button type="button" variant="outline" className="min-h-10" onClick={() => goToStep(step + 1)}>Siguiente sección</Button>}
+        </div>
+        </DraftEditorShell>
+        <footer data-pf-draft-save-bar="" className="sticky bottom-0 z-20 border-t bg-card px-4 py-4">
+          <ActionBar status={<div className="flex flex-col gap-1">
+            {isV2 ? <DraftSaveFeedback result={draftSave.result} dirty={draftSave.dirty} /> : null}
+            {!draftSave.result && <p className="text-sm text-muted-foreground">{draftSave.dirty ? "Cambios sin guardar" : draftSave.saved ? "Sin cambios pendientes" : "Borrador sin guardar"}</p>}
+            <p className="text-xs text-muted-foreground">Sin guardado automático</p>
+            {publishNotice && (!savedDraftId || draftSave.dirty) && <p className="text-sm text-muted-foreground">Guarda los cambios antes de publicar</p>}
+          </div>}>
+            <FieldError id="draft-model-error">{errors.model}</FieldError>
+            {validated !== null && <p role="status" className="flex items-center gap-2 text-sm text-status-success"><CheckCircle2Icon aria-hidden="true" className="size-4" />{VALIDATION_SUCCESS}</p>}
+            <div className="flex flex-wrap gap-2">
+              {isV2 ? <Button type="submit" variant="outline" className="min-h-10" disabled={draftSave.pending} aria-busy={draftSave.pending} aria-describedby={draftSave.result ? "draft-save-status" : undefined}>
+                {draftSave.pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
+                {draftSave.pending ? "Guardando…" : draftSave.saved ? "Guardar cambios" : "Guardar borrador"}
+              </Button> : <Button type="submit" variant="outline" className="min-h-10">Validar borrador</Button>}
+              {isV2 && (savedDraftId && !published ? <PublishButton draftId={savedDraftId} label="Publicar vacante" variant="default" unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={() => setPublished(true)} /> : <Button type="button" className="min-h-10" disabled={published === true} onClick={() => setPublishNotice(true)}>{published ? "Activa" : "Publicar vacante"}</Button>)}
+            </div>
+          </ActionBar>
+        </footer>
       </form>
+      <DraftLeaveGuard dirty={draftSave.dirty} />
 
       {isV2 && candidateProjection !== null ? (
         <DraftQuestionnaireDialog
