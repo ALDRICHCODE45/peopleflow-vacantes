@@ -2,6 +2,8 @@ import type { Failure } from "./model";
 export function uncertain(failure: Failure) { return ["no_response", "server_error", "unrecognized_response"].includes(failure.reason); }
 export function failureCopy(failure: Failure) {
   const reason = failure.reason;
+  if (reason === "applicant_country_required") return { title: "Completa tu país de residencia", description: "No se envió la postulación. Conservamos tus datos; agrega tu país en tu perfil." };
+  if (reason === "applicant_country_not_allowed") return { title: "Tu país no está permitido", description: "No se envió la postulación. Conservamos tus datos; revisa los países aceptados por esta vacante." };
   if (reason === "unauthenticated") return { title: "Tu sesión expiró", description: "Tus datos siguen aquí. Ingresa como candidato para continuar." };
   if (reason === "wrong_role") return { title: "Esta cuenta es de empresa", description: "Una cuenta tiene un solo rol. Para usar otra área necesitas una cuenta con otro email." };
   if (reason === "forbidden") return { title: "No tienes permiso para esta acción", description: "Para postularte necesitas una cuenta de candidato." };

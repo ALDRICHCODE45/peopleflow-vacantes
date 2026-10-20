@@ -1,6 +1,6 @@
 import { CODES, type ErrorEnvelope, type Failure } from "./model";
 export type ClientFailure = { ok: false; error: { kind: string; status?: number }; envelope?: ErrorEnvelope };
-const statuses: Record<string, readonly number[]> = { already_applied: [409], questionnaire_changed: [409], invalid_answers: [422], cv_unavailable: [422], invalid_request: [400], idempotency_conflict: [409], invalid_idempotency_key: [400], idempotency_key_required: [400], precondition_required: [428] };
+const statuses: Record<string, readonly number[]> = { applicant_country_required: [422], applicant_country_not_allowed: [422], already_applied: [409], questionnaire_changed: [409], invalid_answers: [422], cv_unavailable: [422], invalid_request: [400], idempotency_conflict: [409], invalid_idempotency_key: [400], idempotency_key_required: [400], precondition_required: [428] };
 export function applicationFailure({ error, envelope }: ClientFailure): Failure {
   const status = error.status;
   const code = envelope && (CODES as readonly string[]).includes(envelope.code) ? envelope.code : undefined;
@@ -12,5 +12,5 @@ export function applicationFailure({ error, envelope }: ClientFailure): Failure 
   else if (status === 404) reason = "not_found";
   else if (status !== undefined && status >= 500) reason = "server_error";
   else if (code && status !== undefined && statuses[code]?.includes(status)) reason = code as Failure["reason"];
-  return { ok: false, reason, reference: { ...(status === undefined ? {} : { status }), ...(code ? { code } : {}) }, ...(reason === "invalid_answers" && envelope && "details" in envelope ? { details: envelope.details } : {}) };
+  return { ok: false, reason, ...((reason === "applicant_country_required" || reason === "applicant_country_not_allowed") && envelope && "data" in envelope ? { allowed: envelope.data.allowed } : {}), reference: { ...(status === undefined ? {} : { status }), ...(code ? { code } : {}) }, ...(reason === "invalid_answers" && envelope && "details" in envelope ? { details: envelope.details } : {}) };
 }

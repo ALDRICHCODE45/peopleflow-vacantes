@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { countryCodeSchema } from "@/features/geo/model";
 const uuid = z.string().uuid();
 const text = z.string().refine(value => value.trim().length > 0);
 const timestamp = z.string().datetime({ offset: true });
@@ -22,12 +23,13 @@ export const applicationsSchema = z.object({ items: z.array(z.object({ id: uuid,
 export const querySchema = z.object({ cursor: z.string().min(1).optional(), limit: z.number().int().min(1).max(50).optional() }).strict();
 export const detailSchema = z.object({ question_id: uuid, reason: z.enum(["required", "unknown_option", "too_long", "wrong_type"]) }).strict();
 export const errorSchema = z.union([
+  z.object({ error: text, code: z.enum(["applicant_country_required", "applicant_country_not_allowed"]), data: z.object({ allowed: z.array(countryCodeSchema).min(1).refine(codes => new Set(codes).size === codes.length) }).strict() }).strict(),
   z.object({ error: text, code: z.literal("invalid_answers"), details: z.array(detailSchema).min(1) }).strict(),
-  z.object({ error: text, code: text.refine(code => code !== "invalid_answers") }).strict(),
+  z.object({ error: text, code: text.refine(code => !["invalid_answers", "applicant_country_required", "applicant_country_not_allowed"].includes(code)) }).strict(),
 ]);
-export const CODES = ["not_found", "already_applied", "questionnaire_changed", "invalid_answers", "cv_unavailable", "invalid_request", "idempotency_conflict", "invalid_idempotency_key", "idempotency_key_required", "precondition_required", "unauthenticated", "forbidden", "wrong_role", "internal_error"] as const;
+export const CODES = ["applicant_country_required", "applicant_country_not_allowed", "not_found", "already_applied", "questionnaire_changed", "invalid_answers", "cv_unavailable", "invalid_request", "idempotency_conflict", "invalid_idempotency_key", "idempotency_key_required", "precondition_required", "unauthenticated", "forbidden", "wrong_role", "internal_error"] as const;
 export type Reason = Exclude<typeof CODES[number], "internal_error"> | "no_response" | "server_error" | "unrecognized_response";
-export type Failure = { ok: false; reason: Reason; reference: { status?: number; code?: string }; details?: z.infer<typeof detailSchema>[] };
+export type Failure = { ok: false; reason: Reason; reference: { status?: number; code?: string }; allowed?: string[]; details?: z.infer<typeof detailSchema>[] };
 export type Result<T> = { ok: true; data: T } | Failure;
 export type Screening = z.infer<typeof screeningSchema>;
 export type ApplicationBody = z.infer<typeof applicationBodySchema>;

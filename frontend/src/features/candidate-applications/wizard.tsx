@@ -28,7 +28,9 @@ import { CvPicker } from "./cv-picker";
 import { failureCopy, uncertain } from "./feedback";
 import type { ApplicationBody, Failure, Result, Screening } from "./model";
 
-type Job = { id: string; title: string; company: { name: string } };
+import { useCountryGate, type CountryScope } from "./country-gate";
+
+type Job = { id: string; title: string; company: { name: string } } & CountryScope;
 type Step = "Datos" | "CV" | "Preguntas" | "Resumen";
 const noResponse = { ok: false, reason: "no_response", reference: {} } as const;
 function libraryFailure(result: CvFailure): Failure {
@@ -106,6 +108,7 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
     }).catch(() => { if (active) setFailure(noResponse); });
     return () => { active = false; };
   }, [candidate, job.id]);
+  const countryGate = useCountryGate(job, !!candidate, failure);
   const steps: Step[] = screening?.questions.length === 0 ? ["Datos", "CV", "Resumen"] : ["Datos", "CV", "Preguntas", "Resumen"];
   const copy = failure ? failureCopy(failure) : undefined;
   const isUncertain = !!failure && uncertain(failure) && snapshot.current !== null;
@@ -174,7 +177,7 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
     }
   }
   async function submit() {
-    if (locked.current || !screening || !selected) return;
+    if (locked.current || !screening || !selected || (!isUncertain && countryGate.blocked)) return;
     locked.current = true; setPending(true);
     const body: ApplicationBody = isUncertain && snapshot.current ? snapshot.current : { cv_id: selected, questionnaire_revision: screening.questionnaire_revision, answers: screening.questions.map(question => question.type === "open" ? { question_id: question.id, text: (answers[question.id] ?? "").trim() } : { question_id: question.id, option_id: answers[question.id] ?? "" }) };
     key.current ??= crypto.randomUUID(); snapshot.current = body; setFailure(undefined); setNotice(undefined);
@@ -213,12 +216,13 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
   }
   const cv = library.items.find(item => item.id === selected);
   const busy = pending || uploading || loading;
-  const forwardAction = <Button disabled={busy} aria-busy={pending} aria-describedby={copy ? "application-status" : undefined} className="min-h-10 w-full sm:w-auto" onClick={() => step === "Resumen" ? void submit() : next()}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending ? "Enviando…" : step === "Resumen" ? isUncertain ? "Reintentar" : "Enviar postulación" : "Continuar"}</Button>;
+  const forwardAction = <Button disabled={busy || (step === "Resumen" && !isUncertain && countryGate.blocked)} aria-busy={pending} aria-describedby={copy ? "application-status" : undefined} className="min-h-10 w-full sm:w-auto" onClick={() => step === "Resumen" ? void submit() : next()}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending ? "Enviando…" : step === "Resumen" ? isUncertain ? "Reintentar" : "Enviar postulación" : "Continuar"}</Button>;
   return <div ref={root} className="flex min-w-0 flex-col gap-6">
     <Progress value={steps.indexOf(step) + 1} max={steps.length} aria-valuetext={`Paso ${steps.indexOf(step) + 1} de ${steps.length}`}><ProgressLabel>{steps.join(" → ")}</ProgressLabel></Progress>
     <Card>
       <CardHeader className="border-b"><CardTitle><h2 ref={heading} tabIndex={-1} className="font-heading text-xl font-semibold">{step}</h2></CardTitle><CardDescription className="max-w-prose">{step === "Datos" ? "Estos datos vienen de tu cuenta de candidato." : step === "CV" ? "Selecciona el CV que recibirá el equipo." : step === "Preguntas" ? "Todas las preguntas son obligatorias." : "Revisa la vacante, tu CV y tus respuestas antes de enviar."}</CardDescription></CardHeader>
       <CardContent className="flex flex-col gap-6">
+        {countryGate.notice}
         {notice && <ActionStatus id="application-notice" tone="warning" text={notice} />}
         {step === "Datos" && <FieldGroup><Field><FieldLabel htmlFor="apply-name">Nombre completo</FieldLabel><Input id="apply-name" readOnly value={candidate.full_name} className="min-h-10" /></Field><Field><FieldLabel htmlFor="apply-email">Correo electrónico</FieldLabel><Input id="apply-email" readOnly value={candidate.email} className="min-h-10" /></Field></FieldGroup>}
         {step === "CV" && <CvPicker library={library} selected={selected} onSelect={value => { setSelected(value); setCvError(undefined); }} onLibrary={setLibrary} error={cvError} onBusy={setUploading} onWrongRole={setLibraryError} />}

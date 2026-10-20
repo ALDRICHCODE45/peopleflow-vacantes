@@ -2,10 +2,14 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
+vi.mock("@/features/candidate/profile-actions", () => ({ loadProfileAction: vi.fn() }));
+import { loadProfileAction } from "@/features/candidate/profile-actions";
 vi.mock("@/features/identity/actions", () => ({ loadMeAction: vi.fn() }));
 vi.mock("@/features/candidate-cvs/actions", () => ({ loadCvsAction: vi.fn() }));
 vi.mock("@/features/candidate-cvs/upload", () => ({ uploadCv: vi.fn() }));
 vi.mock("./actions", () => ({ loadScreeningAction: vi.fn(), submitApplicationAction: vi.fn() }));
+vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoResource: vi.fn(() => ({ status: "success", data: { items: [{ id: "CA", name: "Canadá" }] }, retry: vi.fn() })) }));
+import { useGeoResource } from "@/features/geo/use-geo-catalog";
 vi.mock("next-auth/react", () => ({ signIn: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
 import { signIn } from "next-auth/react";
@@ -20,12 +24,65 @@ import { id, key, screening, submitted, questionId, optionId } from "./test-fixt
 const user = () => userEvent.setup();
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(loadProfileAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
   vi.mocked(loadMeAction).mockResolvedValue({ ok: true, data: { role: "candidate", user: { id, full_name: "Ana Pérez", email: "ana@example.test" } } });
   vi.mocked(loadCvsAction).mockResolvedValue({ ok: true, data: library });
   vi.mocked(loadScreeningAction).mockResolvedValue({ ok: true, data: screening });
   vi.mocked(submitApplicationAction).mockResolvedValue({ ok: true, data: submitted });
 });
 afterEach(cleanup);
+const restrictedJob = { id, title: "Backend Go", company: { name: "Acme" }, work_mode: "remote", remote_scope: { kind: "countries" as const, countries: [{ id: "MX", name: "México" }, { id: "CO", name: "Colombia" }] } };
+function profileCountry(country: { id: string; name: string } | null) {
+  vi.mocked(loadProfileAction).mockResolvedValue({ ok: true, data: { languages: { languages: [] }, profile: { user_id: id, salary_currency: "MXN", created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", location: country ? { country, state: null, municipality: null, postal_code: null, label: country.name } : null } } });
+}
+it.each([null, { id: "US", name: "Estados Unidos" }])("blocks a known ineligible country before writing %j", async country => {
+  profileCountry(country);
+  render(<CandidateApplicationWizard job={restrictedJob} />);
+  expect(await screen.findByText("Esta vacante solo acepta postulantes de: México y Colombia.")).toBeVisible();
+  await toSummary();
+  expect(screen.getByRole("button", { name: "Enviar postulación" })).toBeDisabled();
+  if (!country) expect(screen.getByRole("link", { name: "Completar perfil" })).toHaveAttribute("href", "/candidato/perfil");
+  else expect(screen.getByText("Tu perfil indica Estados Unidos. Esta vacante no acepta postulaciones desde ahí.")).toBeVisible();
+  expect(submitApplicationAction).not.toHaveBeenCalled();
+});
+it("keeps answers and shows the server country rejection without retrying", async () => {
+  profileCountry({ id: "MX", name: "México" });
+  vi.mocked(submitApplicationAction).mockResolvedValue({ ok: false, reason: "applicant_country_required", allowed: ["CO", "MX"], reference: { status: 422, code: "applicant_country_required" } });
+  render(<CandidateApplicationWizard job={restrictedJob} />); await toSummary();
+  await user().click(screen.getByRole("button", { name: "Enviar postulación" }));
+  expect(await screen.findByText("Agrega tu país en tu perfil para postularte.")).toBeVisible();
+  expect(screen.getByText("Experiencia Go")).toBeVisible();
+  expect(screen.getByText("Esta vacante solo acepta postulantes de: Colombia y México.")).toBeVisible();
+  expect(submitApplicationAction).toHaveBeenCalledTimes(1);
+  expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error", reference: expect.objectContaining({ status: 422, code: "applicant_country_required" }) }));
+});
+it("resolves new server countries from the shared catalog, preserving order", async () => {
+  profileCountry({ id: "MX", name: "México" });
+  vi.mocked(submitApplicationAction).mockResolvedValue({ ok: false, reason: "applicant_country_not_allowed", allowed: ["CA", "CO"], reference: { status: 422, code: "applicant_country_not_allowed" } });
+  render(<CandidateApplicationWizard job={restrictedJob} />); await toSummary();
+  await user().click(screen.getByRole("button", { name: "Enviar postulación" }));
+  expect(await screen.findByText("Esta vacante solo acepta postulantes de: Canadá y Colombia.")).toBeVisible();
+  expect(screen.getByText("Tu perfil indica México. Esta vacante no acepta postulaciones desde ahí.")).toBeVisible();
+  expect(useGeoResource).toHaveBeenCalledWith("countries", expect.anything());
+  expect(screen.getByText("Experiencia Go")).toBeVisible();
+  expect(submitApplicationAction).toHaveBeenCalledTimes(1);
+});
+it("lets the server decide after a failed profile read and retries that read only explicitly", async () => {
+  render(<CandidateApplicationWizard job={restrictedJob} />); await toSummary();
+  expect(screen.getByRole("button", { name: "Enviar postulación" })).toBeEnabled();
+  expect(screen.queryByText("Agrega tu país en tu perfil para postularte.")).not.toBeInTheDocument();
+  expect(loadProfileAction).toHaveBeenCalledTimes(1);
+  profileCountry({ id: "MX", name: "México" });
+  await user().click(screen.getByRole("button", { name: "Reintentar" }));
+  await waitFor(() => expect(loadProfileAction).toHaveBeenCalledTimes(2));
+  expect(screen.getByText("Experiencia Go")).toBeVisible();
+});
+it.each(["onsite", "hybrid"])("does not gate %s vacancies", async work_mode => {
+  profileCountry(null);
+  render(<CandidateApplicationWizard job={{ ...restrictedJob, work_mode }} />); await toSummary();
+  expect(screen.getByRole("button", { name: "Enviar postulación" })).toBeEnabled();
+  expect(screen.queryByRole("region", { name: "Países de postulación" })).not.toBeInTheDocument();
+});
 const mount = () => render(<CandidateApplicationWizard job={{ id, title: "Backend Go", company: { name: "Acme" } }} />);
 async function toCv() { await screen.findByDisplayValue("Ana Pérez"); await user().click(screen.getByRole("button", { name: "Continuar" })); await screen.findByRole("button", { name: cv.name }); }
 async function toQuestions() { await toCv(); await user().click(screen.getByRole("button", { name: cv.name })); await user().click(screen.getByRole("button", { name: "Continuar" })); }
