@@ -6,6 +6,7 @@ import { InputGroup, InputGroupInput } from "@/components/ui/input-group";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useGeoCatalog, useGeoPostalCode } from "./use-geo-catalog";
+import { ignoreEscapeClear } from "./escape-clear";
 import { locationErrorMessages, type Catalog, type GeoReference, type LocationValue } from "./model";
 
 export type LocationFieldProps = {
@@ -44,7 +45,7 @@ function CatalogField({ label, code, catalog, onChange, disabled, required, requ
     <FieldLabel htmlFor={id}>{label}{required && requiredIndicator}</FieldLabel>
     {loading ? <><Skeleton aria-hidden="true" className="h-10 w-full" /><span role="status" className="sr-only">Cargando {label.toLowerCase()}</span></> :
       <Combobox items={items} itemToStringLabel={(item: GeoReference) => item.name} itemToStringValue={(item: GeoReference) => item.id} isItemEqualToValue={(a, b) => a.id === b.id}
-        value={selected} onValueChange={item => { if (item) onChange(item.id); }} inputValue={text} onInputValueChange={setText} disabled={disabled} autoHighlight>
+        value={selected} onValueChange={item => { if (item) onChange(item.id); }} inputValue={text} onInputValueChange={ignoreEscapeClear(setText)} disabled={disabled} autoHighlight>
         {/* Selecting the shown name on focus lets typing replace it instead of appending to it. */}
         <ComboboxInput id={id} placeholder={label === "País" ? "Elige un país" : `Elige ${label.toLowerCase()}`} className="min-h-10" onFocus={event => event.currentTarget.select()} disabled={disabled} aria-invalid={!!error} aria-required={required} aria-describedby={error ? `${id}-error` : undefined} triggerLabel={`Mostrar ${label.toLowerCase()}`} />
         <ComboboxContent><ComboboxEmpty>Sin coincidencias.</ComboboxEmpty><ComboboxList>{(item: GeoReference) => <ComboboxItem key={item.id} value={item}>{item.name}</ComboboxItem>}</ComboboxList></ComboboxContent>

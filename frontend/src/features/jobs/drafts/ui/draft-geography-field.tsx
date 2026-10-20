@@ -9,9 +9,12 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegen
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { LocationField } from "@/features/geo/location-field";
+import { ignoreEscapeClear } from "@/features/geo/escape-clear";
 import { remoteScopeErrorMessages, type GeographyErrors, type GeoReference } from "@/features/geo/model";
 import { useGeoCatalog } from "@/features/geo/use-geo-catalog";
 import type { DraftFormState } from "./draft-form-state";
+
+export { ignoreEscapeClear };
 
 /** Official FieldSet and “With chips” composition. ToggleGroup is the installed
  * two-choice primitive; RadioGroup is not installed. Values stay in the parent
@@ -47,10 +50,10 @@ export function DraftGeographyField({ state, onChange, errors, remoteError }: {
         </Field>
         {state.remote_scope?.kind === "countries" && <Field data-invalid={!!message} aria-busy={countries.status === "loading"}>
           <FieldLabel htmlFor="draft-remote-countries">Países desde donde pueden postular <PublicationRequired required={required.remoteScope} /></FieldLabel>
-          {countries.status === "loading" || countries.status === "idle" ? <><Skeleton className="h-10 w-full" /><span role="status">Cargando países</span></> : <Combobox multiple items={countries.data?.items ?? []} value={state.remoteCountries} itemToStringLabel={(country: GeoReference) => country.name} itemToStringValue={(country: GeoReference) => country.id} isItemEqualToValue={(a, b) => a.id === b.id} onValueChange={countries => {
+          {countries.status === "loading" || countries.status === "idle" ? <><Skeleton className="h-10 w-full" /><span role="status">Cargando países</span></> : <Combobox multiple items={countries.data?.items ?? []} value={state.remoteCountries} itemToStringLabel={(country: GeoReference) => country.name} itemToStringValue={(country: GeoReference) => country.id} isItemEqualToValue={(a, b) => a.id === b.id} onValueChange={ignoreEscapeClear((countries: GeoReference[]) => {
             if (countries.length > 50 || new Set(countries.map(country => country.id)).size !== countries.length) return;
             onChange({ remoteCountries: countries, remote_scope: { kind: "countries", countries: countries.map(country => country.id) } });
-          }}>
+          })}>
             <ComboboxChips ref={anchor} className="min-h-10"><ComboboxValue>{state.remoteCountries.map(country => <ComboboxChip key={country.id}>{country.name}</ComboboxChip>)}</ComboboxValue><ComboboxChipsInput id="draft-remote-countries" aria-required aria-invalid={!!message} aria-describedby={message ? "draft-remote-countries-error" : "draft-remote-countries-help"} /></ComboboxChips>
             <ComboboxContent anchor={anchor}><ComboboxEmpty>Sin coincidencias.</ComboboxEmpty><ComboboxList>{(country: GeoReference) => <ComboboxItem key={country.id} value={country} disabled={state.remoteCountries.length >= 50 && !state.remoteCountries.some(selected => selected.id === country.id)}>{country.name}</ComboboxItem>}</ComboboxList></ComboboxContent>
           </Combobox>}

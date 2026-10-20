@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import userEvent from "@testing-library/user-event";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
-import { DraftGeographyField } from "./draft-geography-field";
+import { DraftGeographyField, ignoreEscapeClear } from "./draft-geography-field";
 import { createDraftModel } from "../model";
 import { initialDraftFormState } from "./draft-form-state";
 vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ countries: { status: "success", data: { items: [{ id: "MX", name: "México" }, { id: "CO", name: "Colombia" }] }, retry: vi.fn() }, states: { status: "success", data: { items: [] } }, municipalities: { status: "success", data: { items: [] } } }), useGeoPostalCode: () => ({ status: "idle" }) }));
@@ -81,4 +81,16 @@ it("remounts the location field when the work mode switches remote ↔ onsite", 
   const onsiteGroup = screen.getByRole("group", { name: "Ubicación" });
   expect(onsiteGroup).not.toBe(remoteGroup);
   expect(remoteGroup.isConnected).toBe(false);
+});
+
+it("ignores Base UI's clear-on-Escape value changes for the countries chips", () => {
+  // Seen in Chromium: with the list closed, Base UI clears the combobox on Escape (reason
+  // "escape-key"); with chips that wiped every chosen country. jsdom keeps the popup mounted,
+  // so the guard is tested directly and the behavior was verified in the browser.
+  const apply = vi.fn();
+  const handler = ignoreEscapeClear(apply);
+  handler([], { reason: "escape-key" });
+  expect(apply).not.toHaveBeenCalled();
+  handler([{ id: "CO", name: "Colombia" }], { reason: "item-press" });
+  expect(apply).toHaveBeenCalledWith([{ id: "CO", name: "Colombia" }]);
 });
