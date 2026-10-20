@@ -597,3 +597,13 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     tablero de esa vacante, «Filtros» → «PERFIL DEL CANDIDATO» tiene «Estado» y
     «Municipio» (el municipio dice también su estado) con «Sin dato»; la ficha muestra
     «Ubicación». Las postulaciones viejas aparecen como «Sin dato».
+
+79. **Búsqueda pública por ubicación (G5).** Backend en `feat/geo-search` (sin migración
+    nueva). En `/vacantes`, los filtros tienen «Estado» y «Modalidad» (varias opciones),
+    «Municipio» (se habilita al elegir estados; dice «Elige uno o más estados primero.»)
+    y «Postulo desde» (un país). **Esperado:** dentro de un filtro las opciones se suman y
+    entre filtros se cumplen todos; los chips muestran nombres, no códigos; quitar un
+    estado quita sus municipios. Elegí «Postulo desde» Argentina: aparecen presenciales,
+    híbridas y remotas que aceptan Argentina o cualquier lugar. Las vacantes viejas sin
+    ubicación nunca aparecen al filtrar por estado o municipio. Cambiar un filtro vuelve
+    a la primera página. Un enlace viejo con `?location=…` se ignora.

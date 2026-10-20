@@ -12,8 +12,8 @@ Frontend of backend G5 (`backend/docs/geo-search.md`, `public-jobs-v2.md#browses
 
 ## Tasks
 
-- T1 [pending] S1-S3 | writer | URL model + list client params, public filter UI (Estado, Municipio, Modalidad multi; «Postulo desde» country), chips, cursor reset, invalid_filter handling. | commit: -
-- T2 [pending] | parent | Full suite, guide step, queue paired with backend row 16. | commit: -
+- T1 [done] S1-S3 | writer | URL model + list client params, public filter UI (Estado, Municipio, Modalidad multi; «Postulo desde» country), chips, cursor reset, invalid_filter handling. | commit: 3b7a102, 8fac6b2
+- T2 [done] | parent | Full suite (5,794 passed, 0 failed; tsc 0), guide step 79, queue item 4 paired with backend row 16. | commit: docs commit
 
 ## Log
 

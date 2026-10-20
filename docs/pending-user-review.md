@@ -12,11 +12,14 @@ el backend va en su rama indicada, con `make db-migrate`.
 
 > **2026-10-19:** el usuario aprobó la barra de filtros en una sola fila («aprovado, me gusta. merge por favor»), integrada al `main` local por fast-forward (fe5c39d).
 
+> **Stack de geografía (ítems 1–4):** para probar todo junto, frontend en `feat/geo-search-ui` y backend en `feat/geo-search`; desde `backend/`: `make db-migrate` (00030–00033) y `DATABASE_URL=<la de backend/.env> make geo-import` (el importador no lee el `.env`). Las ubicaciones de texto de los datos de prueba desaparecen: las vacantes publicadas quedan sin ubicación hasta editarlas y las postulaciones viejas muestran «Sin dato». Pasos de la guía 76–79.
+
 | # | Feature | Rama frontend | Rama backend | Pasos de la guía | Qué mirar especialmente |
 | --- | --- | --- | --- | --- | --- |
 | 1 | Ubicación estructurada: catálogo (países, estados, municipios, CP) + campo compartido + vacante (ubicación, alcance remoto, faltantes para publicar, tarjeta y detalle públicos) | `feat/geo-vacancy-ui` (sobre `main`; incluye `feat/geo-location-field-ui`) | `feat/geo-vacancy` (filas 12–13; `make db-migrate` + `DATABASE_URL=… make geo-import`) | 76 | Decisiones a revisar: CP que precarga sin bloquear; aviso al borrar el CP; textos del alcance remoto. Riesgo: tests del editor más lentos (timeouts solo con la suite completa). |
 | 2 | Ubicación del candidato (perfil real conectado al backend: perfil + idiomas con un solo «Guardar perfil») y de la empresa (opcional al crear + «Editar ubicación» del dueño) | `feat/geo-profiles-ui` (sobre la rama anterior) | `feat/geo-profiles` (fila 14; `make db-migrate`) | 77 | Decisiones a revisar: avisos de guardado parcial del perfil; «Agregar/Quitar ubicación»; el perfil ya no es un prototipo local. |
 | 3 | Bloqueo de postulación por país (aviso previo + error del servidor) y filtros del tablero por «Estado»/«Municipio» | `feat/geo-apply-ui` (sobre la rama anterior) | `feat/geo-apply` (fila 15; `make db-migrate`) | 78 | Decisiones a revisar: aviso antes de enviar y botón deshabilitado; municipio con su estado en el filtro. Nota: el asistente prototipo de postulación sigue accesible para vacantes legacy. |
+| 4 | Búsqueda pública por «Estado», «Municipio», «Modalidad» y «Postulo desde» (reemplaza el texto «ubicación») | `feat/geo-search-ui` (sobre la rama anterior; es la punta del stack geo) | `feat/geo-search` (fila 16; punta del stack backend) | 79 | Decisiones a revisar: municipio que depende de los estados elegidos; ayuda de «Postulo desde». |
 
 Cuando el usuario pruebe un ítem, sus comentarios se anotan en el documento de la
 feature (`odd/tasks/…`) y el ítem sale de esta lista al integrarse.
