@@ -131,7 +131,10 @@ it("keeps a long checklist compact and scrollable without clipping any group", a
  for (const group of document.querySelectorAll('[data-slot="item-group"]')) expect(group).toHaveClass("gap-0");
  for (const separator of document.querySelectorAll('[data-slot="item-separator"]')) expect(separator).toHaveClass("my-0");
  for (const row of document.querySelectorAll('[data-slot="item"]')) {
-  expect(row).toHaveAttribute("data-size", "sm");
+  // Dense list rows (user: long checklists must stay compact); the «Completar» target keeps ≥40px.
+  expect(row).toHaveAttribute("data-size", "xs");
+  // Separators already divide rows: the group must not add the xs gap around each one (seen in Chromium).
+  expect(row.closest('[data-slot="item-group"]')).toHaveClass("has-data-[size=xs]:gap-0");
   expect(row).not.toHaveClass("px-0", "py-1.5");
  }
  expect(cards.map(card => card.querySelector('[data-slot="badge"]')?.textContent)).toEqual(["3", "1", "1"]);
