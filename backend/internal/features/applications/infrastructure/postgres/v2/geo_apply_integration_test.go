@@ -79,7 +79,7 @@ func TestGeoApplyPublishedCountryGateAndNoWrites(t *testing.T) {
 				t.Fatal(err)
 			}
 			req := f.request(cv.ID)
-			before := f.effects(t)
+			before := f.geoApplyEffects(t)
 			if tc.want != nil {
 				for _, variant := range []string{"valid", "stale", "answers", "cv"} {
 					bad := req
@@ -96,8 +96,8 @@ func TestGeoApplyPublishedCountryGateAndNoWrites(t *testing.T) {
 					if !errors.Is(err, tc.want) || !errors.As(err, &restriction) || !reflect.DeepEqual(restriction.Allowed, []string{"CO", "MX"}) {
 						t.Fatalf("%s: %#v", variant, err)
 					}
-					if before != f.effects(t) {
-						t.Fatal("country rejection wrote participation/snapshot/history/audit/idempotency")
+					if before != f.geoApplyEffects(t) {
+						t.Fatal("country rejection changed participation/snapshot/history/audit/idempotency/delivery/coverage")
 					}
 				}
 				return
@@ -133,7 +133,7 @@ func TestGeoApplyReplayBeforeCurrentCountryGateAndDuplicate(t *testing.T) {
 	}
 	for _, country := range []any{"US", nil} {
 		applyProfileCountry(t, f, country)
-		before := f.effects(t)
+		before := f.geoApplyEffects(t)
 		replay, err := f.store.Apply(ctx, f.sub, f.vacancy, key, req)
 		if err != nil || !replay.Replayed || !bytes.Equal(original.Body, replay.Body) {
 			t.Fatal("gate invalidated success", err)
@@ -152,7 +152,7 @@ func TestGeoApplyReplayBeforeCurrentCountryGateAndDuplicate(t *testing.T) {
 			t.Fatal(err)
 		}
 		var after []byte
-		if err = f.pool.QueryRow(ctx, `SELECT profile_snapshot FROM process_participations WHERE process_id=$1`, f.vacancy).Scan(&after); err != nil || !bytes.Equal(snapshot, after) || before != f.effects(t) {
+		if err = f.pool.QueryRow(ctx, `SELECT profile_snapshot FROM process_participations WHERE process_id=$1`, f.vacancy).Scan(&after); err != nil || !bytes.Equal(snapshot, after) || before != f.geoApplyEffects(t) {
 			t.Fatal("replay/rejection changed snapshot or effects", err)
 		}
 	}

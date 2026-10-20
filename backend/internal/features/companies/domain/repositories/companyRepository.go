@@ -93,6 +93,15 @@ type CompanyRepository interface {
 	SoftDeleteCompany(ctx context.Context, companyID uuid.UUID, casUpdatedAt time.Time, event auditentities.AuditEvent) error
 }
 
+// CompanyEditorUpdater returns the exact row written by PATCH, captured inside
+// the CAS/audit transaction and returned only after commit succeeds. It must not
+// use a post-commit read, which could observe a later PATCH's row and CAS token.
+// The separate port preserves the error-only CompanyRepository write contract
+// for callers that do not render an editor response.
+type CompanyEditorUpdater interface {
+	UpdateCompanyReturning(ctx context.Context, companyID uuid.UUID, patch UpdateCompanyPatch, casUpdatedAt time.Time, event auditentities.AuditEvent) (*entities.Company, error)
+}
+
 // CompanyLivenessRepository is the NARROW persistence port for liveness
 // probes against the `companies` aggregate
 // (require-company-role-tombstone-gate slice). It is intentionally

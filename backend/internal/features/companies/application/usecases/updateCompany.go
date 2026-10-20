@@ -7,7 +7,7 @@
 //  3. VO parse → 400 sentinel.        4. Build the patch.
 //  5. Update (0 rows after step 1 = CAS loss, even if DELETE tombstoned).
 //  6. On 0 rows → (pre-race view, ErrConcurrencyConflict).
-//  7. On success → re-read for post-write UpdatedAt, project.
+//  7. On success → project the exact row captured in the write transaction.
 //
 // Return contract: success → (view, nil); ErrConcurrencyConflict →
 // (pre-race view, err); ErrCompanyNotFound / VO 4xx / 500-class → (nil, err).
@@ -196,9 +196,15 @@ func (s *CompanyService) UpdateCompany(
 	eventID, _ := uuid.NewV7()
 	event := newCompanyUpdatedEvent(eventID, companyID, userID)
 
-	// 6. Update — adapter returns ErrCompanyNotFound on 0 rows AND
-	//    appends the event inside the SAME tx (fail-closed co-write).
-	if err := s.repository.UpdateCompany(ctx, companyID, patch, current.UpdatedAt, event); err != nil {
+	// 6. The editor requires an atomic written-row result. Never fall back to
+	// the error-only write followed by a post-commit read: a later PATCH could
+	// supply a newer CAS token while location still comes from this request.
+	writer, ok := s.repository.(repositories.CompanyEditorUpdater)
+	if !ok {
+		return nil, errors.New("company editor writer not configured")
+	}
+	fresh, err := writer.UpdateCompanyReturning(ctx, companyID, patch, current.UpdatedAt, event)
+	if err != nil {
 		if errors.Is(err, entities.ErrCompanyNotFound) {
 			// Post-WS2D-B: ANY 0-row adapter result after step-1
 			// observation is a concurrent CAS loss. Re-read removed —
@@ -212,15 +218,9 @@ func (s *CompanyService) UpdateCompany(
 		return nil, err
 	}
 
-	// 7. On 1 row success → re-read for the authoritative post-write
-	//    UpdatedAt (the SQL UPDATE used clock_timestamp(); the use
-	//    case re-reads for the exact value the client echoes as the
-	//    next CAS token).
-	fresh, err := s.repository.GetCompanyForUpdate(ctx, companyID)
-	if err != nil {
-		return nil, err
-	}
-
+	// 7. CAS ensures the pre-expanded location (current + patch) is the location
+	// of this exact written row. Catalog failures were handled before the write;
+	// no catalog or company reads occur after commit.
 	// 8. Project the editor view and return.
 	return toCompanyEditorView(fresh, location), nil
 }
