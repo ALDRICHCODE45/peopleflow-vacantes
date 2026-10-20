@@ -21,20 +21,20 @@ function SheetHarness() {
 }
 it.each([0, 1, 3, null])("profile shows exact years %s and honest missing data", async years => {
   const detail = detailFixture();
-  detail.profile = { city: null, skills: [], years_of_experience: years, education_level: null };
+  detail.profile = { location: null, skills: [], years_of_experience: years, education_level: null };
   vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detail });
   render(<SheetHarness />);
   const profile = await screen.findByRole("region", { name: "Perfil" });
   expect(within(profile).getByText("Copiado del perfil al postularse.")).toBeVisible();
   expect(within(profile).getAllByText("Sin dato")).toHaveLength(years === null ? 4 : 3);
   within(profile).getAllByText("Sin dato").forEach(value => expect(value).toHaveClass("text-muted-foreground"));
-  expect(Array.from(profile.querySelectorAll("dt")).map(dt => dt.textContent)).toEqual(["Ciudad", "Habilidades", "Años de experiencia", "Nivel de estudios"]);
+  expect(Array.from(profile.querySelectorAll("dt")).map(dt => dt.textContent)).toEqual(["Ubicación", "Habilidades", "Años de experiencia", "Nivel de estudios"]);
   expect(profile.querySelectorAll("dt svg")).toHaveLength(4);
   if (years !== null) expect(within(profile).getByText(`${years} ${years === 1 ? "año" : "años"}`)).toBeVisible();
 });
-it("profile uses actual city, skill badges and education label", async () => {
+it("profile uses actual location, skill badges and education label", async () => {
   const detail = detailFixture();
-  detail.profile = { city: "Puebla", skills: ["Go", "SQL"], years_of_experience: 5, education_level: "high_school" };
+  detail.profile = { location: { country: { id: "MX", name: "México" }, state: { id: "21", name: "Puebla" }, municipality: null, postal_code: null, label: "Puebla" }, skills: ["Go", "SQL"], years_of_experience: 5, education_level: "high_school" };
   vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detail });
   render(<SheetHarness />);
   const profile = await screen.findByRole("region", { name: "Perfil" });

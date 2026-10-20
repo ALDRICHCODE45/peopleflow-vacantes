@@ -6,7 +6,8 @@ import { boardFilterDimensions } from "./board-filter-dimensions";
 import { applyFilters, filterChips, optionCount } from "./filters";
 import { applyParticipationToBoard } from "./helpers";
 
-const profile = { city: "Ciudad de México", skills: ["Go", "Go"], years_of_experience: 0, education_level: "bachelor" as const };
+const location = { country: { id: "MX", name: "México" }, state: { id: "14", name: "Jalisco" }, municipality: { id: "14039", name: "Guadalajara" }, postal_code: null, label: "Guadalajara, Jalisco" };
+const profile = { location, skills: ["Go", "Go"], years_of_experience: 0, education_level: "bachelor" as const };
 const screening_answers = [{ question_id: id(23), option_id: id(24) }, { question_id: id(21), option_id: id(22) }];
 const screening_filters = [{ question_id: id(21), prompt: "¿Disponible?", options: [{ id: id(25), label: "No" }, { id: id(22), label: "Sí" }] }, { question_id: id(23), prompt: "¿Viajar?", options: [{ id: id(24), label: "Sí" }] }];
 const wireItem = { ...item, profile, screening_answers };
@@ -23,13 +24,26 @@ it("strict board/detail decoders require filter data and preserve catalog/snapsh
   expect(boardSchema.safeParse({ ...board, screening_filters: undefined }).success).toBe(false);
   for (const invalid of [
     { ...wireItem, extra: true }, { ...wireItem, screening_answers: [{ ...screening_answers[0], label: "Sí" }] },
-    ...[{ ...profile, extra: true }, { ...profile, skills: [3] }, { ...profile, years_of_experience: -1 }, { ...profile, years_of_experience: 0.5 }, { ...profile, education_level: "other" }, { ...profile, city: undefined }].map(profile => ({ ...wireItem, profile })),
+    ...[{ ...profile, extra: true }, { ...profile, skills: [3] }, { ...profile, years_of_experience: -1 }, { ...profile, years_of_experience: 0.5 }, { ...profile, education_level: "other" }, { ...profile, location: undefined }, { ...profile, city: null }, ...[{ ...location, postal_code: "44100" }, { ...location, label: undefined }, { ...location, country: { ...location.country, extra: true } }, { ...location, extra: true }].map(location => ({ ...profile, location }))].map(profile => ({ ...wireItem, profile })),
   ]) expect(participationSchema.safeParse(invalid).success).toBe(false);
   for (const invalid of [
     [{ ...screening_filters[0], score: 2 }],
     [{ ...screening_filters[0], options: [{ ...screening_filters[0].options[0], correct: true }] }],
   ]) expect(boardSchema.safeParse({ ...board, screening_filters: invalid, participations: [wireItem] }).success).toBe(false);
-  expect(participationSchema.safeParse({ ...wireItem, profile: { city: null, skills: [], years_of_experience: null, education_level: null }, screening_answers: [] }).success).toBe(true);
+  expect(participationSchema.safeParse({ ...wireItem, profile: { location: null, skills: [], years_of_experience: null, education_level: null }, screening_answers: [] }).success).toBe(true);
+});
+it("country-only and state-only reads retain exact locations and missing subdivisions filter as none", () => {
+  const locations = [null, { ...location, state: null, municipality: null, label: "México" }, { ...location, municipality: null, label: "Jalisco" }, location];
+  const current = boardFixture();
+  current.participations = locations.map((location, index) => ({ ...current.participations[0], id: String(index), profile: { ...profile, location } }));
+  for (const location of locations) {
+    expect(detailSchema.parse({ ...detail, profile: { ...profile, location } }).profile.location).toEqual(location);
+    expect(boardSchema.parse({ ...board, participations: [{ ...wireItem, profile: { ...profile, location } }] }).participations[0].profile.location).toEqual(location);
+  }
+  const dimensions = boardFilterDimensions(current);
+  expect(applyFilters(current.participations, dimensions, { state: new Set(["none"]) }).map(p => p.id)).toEqual(["0", "1"]);
+  expect(applyFilters(current.participations, dimensions, { municipality: new Set(["none"]) }).map(p => p.id)).toEqual(["0", "1", "2"]);
+  expect(filterChips(dimensions, { municipality: new Set(["14039"]) })[0].label).toBe("Municipio: Guadalajara, Jalisco");
 });
 it("all mutation decoders exclude read-only fields and applying a result preserves them", () => {
   const mutation = moveSchema.parse(moved);
@@ -45,40 +59,42 @@ function filterBoard() {
   const board = boardFixture();
   board.screening_filters = [{ question_id: "q", prompt: "¿Disponible?", options: [{ id: "yes", label: "Sí" }, { id: "no", label: "No" }] }];
   board.participations = [0, 1, 3, 5, null].map((years, index) => ({ ...board.participations[0], id: String(index),
-    profile: { city: index === 4 ? null : index === 0 ? "  MÉXICO   centro " : "méxico centro", skills: index === 4 ? [] : index === 0 ? [" Go ", " SQL "] : ["go"], years_of_experience: years, education_level: index === 4 ? null : "bachelor" },
+    profile: { location: index === 4 ? null : location, skills: index === 4 ? [] : index === 0 ? [" Go ", " SQL "] : ["go"], years_of_experience: years, education_level: index === 4 ? null : "bachelor" },
     screening_answers: index === 4 ? [] : [{ question_id: "q", option_id: index === 3 ? "removed" : index === 0 ? "no" : "yes" }],
   }));
   return board;
 }
 it("profile options normalize, deduplicate, sort and retain first labels; buckets are half-open", () => {
   const board = filterBoard();
-  board.participations[1].profile.city = "Álamo";
+  board.participations[1].profile.location = { ...location, state: { id: "01", name: "Aguascalientes" }, municipality: { id: "01001", name: "Guadalajara" } };
   const dimensions = boardFilterDimensions(board);
   const dimension = (key: string) => dimensions.find(d => d.key === key)!;
-  expect(dimension("city").options).toEqual([{ value: "álamo", label: "Álamo" }, { value: "méxico centro", label: "MÉXICO centro" }, { value: "none", label: "Sin dato" }]);
+  expect(dimension("state").options).toEqual([{ value: "01", label: "Aguascalientes" }, { value: "14", label: "Jalisco" }, { value: "none", label: "Sin dato" }]);
+  expect(dimension("municipality").options).toEqual([{ value: "01001", label: "Guadalajara, Aguascalientes" }, { value: "14039", label: "Guadalajara, Jalisco" }, { value: "none", label: "Sin dato" }]);
+  expect(dimensions.some(d => d.key === "city")).toBe(false);
   expect(dimension("skills").options).toEqual([{ value: "go", label: "Go" }, { value: "sql", label: "SQL" }, { value: "none", label: "Sin dato" }]);
   expect(dimension("experience").options.map(o => o.label)).toEqual(["Menos de 1 año", "1 a 3 años", "3 a 5 años", "5 años o más", "Sin dato"]);
   for (const [index, option] of dimension("experience").options.entries()) expect(board.participations.filter(p => dimension("experience").match(p, new Set([option.value]))).map(p => p.id)).toEqual([String(index)]);
   expect(dimension("education").options).toEqual([{ value: "bachelor", label: "Licenciatura" }, { value: "none", label: "Sin dato" }]);
   expect(optionCount(board.participations, dimension("skills"), "go")).toBe(4);
   expect(filterChips(dimensions, { skills: new Set(["sql"]) })[0].label).toBe("Habilidades: SQL");
-  expect(applyFilters(board.participations, dimensions, { skills: new Set(["sql", "go"]), city: new Set(["álamo"]) }).map(p => p.id)).toEqual(["1"]);
-  for (const key of ["city", "skills", "education", "experience"]) expect(applyFilters(board.participations, dimensions, { [key]: new Set(["none"]) }).map(p => p.id)).toEqual(["4"]);
+  expect(applyFilters(board.participations, dimensions, { skills: new Set(["sql", "go"]), state: new Set(["01", "14"]), municipality: new Set(["01001"]) }).map(p => p.id)).toEqual(["1"]);
+  for (const key of ["state", "municipality", "skills", "education", "experience"]) expect(applyFilters(board.participations, dimensions, { [key]: new Set(["none"]) }).map(p => p.id)).toEqual(["4"]);
 });
 it("casefolds Unicode labels without changing first-seen spelling", () => {
   const board = boardFixture();
-  board.participations = ["Straße", "STRASSE", "Σ", "ς"].map(city => ({ ...board.participations[0], profile: { ...board.participations[0].profile, city } }));
-  const city = boardFilterDimensions(board).find(d => d.key === "city")!;
-  expect(city.options).toEqual([{ value: "strasse", label: "Straße" }, { value: "σ", label: "Σ" }, { value: "none", label: "Sin dato" }]);
-  expect(optionCount(board.participations, city, "strasse")).toBe(2);
-  expect(optionCount(board.participations, city, "σ")).toBe(2);
+  board.participations = ["Straße", "STRASSE", "Σ", "ς"].map(skill => ({ ...board.participations[0], profile: { ...board.participations[0].profile, skills: [skill] } }));
+  const skills = boardFilterDimensions(board).find(d => d.key === "skills")!;
+  expect(skills.options).toEqual([{ value: "strasse", label: "Straße" }, { value: "σ", label: "Σ" }, { value: "none", label: "Sin dato" }]);
+  expect(optionCount(board.participations, skills, "strasse")).toBe(2);
+  expect(optionCount(board.participations, skills, "σ")).toBe(2);
 });
 it("empty profile values use none and education follows its canonical order", () => {
   const board = boardFixture();
-  board.participations = (["phd", "master", "bachelor", "high_school"] as const).map(education_level => ({ ...board.participations[0], profile: { city: "\u0085  ", skills: ["\t", " "], years_of_experience: null, education_level } }));
+  board.participations = (["phd", "master", "bachelor", "high_school"] as const).map(education_level => ({ ...board.participations[0], profile: { location: null, skills: ["\t", " "], years_of_experience: null, education_level } }));
   const dimensions = boardFilterDimensions(board);
   expect(dimensions.find(d => d.key === "education")?.options.map(o => o.label)).toEqual(["Preparatoria", "Licenciatura", "Maestría", "Doctorado", "Sin dato"]);
-  for (const key of ["city", "skills", "experience"]) {
+  for (const key of ["state", "municipality", "skills", "experience"]) {
     const dimension = dimensions.find(d => d.key === key)!;
     expect(dimension.options).toEqual([{ value: "none", label: "Sin dato" }]);
     expect(optionCount(board.participations, dimension, "none")).toBe(4);

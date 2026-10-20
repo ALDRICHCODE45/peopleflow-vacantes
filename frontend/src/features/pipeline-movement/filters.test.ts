@@ -11,7 +11,7 @@ it("column and discard declarations preserve catalog order and combine with subs
   const item = { ...board.participations[0], stage_id: "interview", substate_id: "tech" };
   const discarded = { ...item, stage_id: board.exit.id, discard: { reason: { group: "candidate" as const, key: "other" as const }, previous_stage_id: "interview", recovery_stage_id: "interview", discarded_at: item.moved_at } };
   const dimensions = boardFilterDimensions(board);
-  expect(dimensions.map(d => d.label)).toEqual(["Columna", "Subestado", "Motivo de descarte", "Ciudad", "Habilidades", "Años de experiencia", "Nivel de estudios"]);
+  expect(dimensions.map(d => d.label)).toEqual(["Columna", "Subestado", "Motivo de descarte", "Estado", "Municipio", "Habilidades", "Años de experiencia", "Nivel de estudios"]);
   expect(dimensions[0].options.map(o => o.value)).toEqual([...board.stages, board.exit].map(s => s.id));
   expect(dimensions[2].options.map(o => o.value)).toEqual(discardCatalog.flatMap(g => g.reasons.map(r => `${g.group}:${r.key}`)));
   expect(applyFilters([item, discarded], dimensions, { column: new Set(["screen"]), substate: new Set(["tech"]) })).toEqual([]);

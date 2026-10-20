@@ -14,7 +14,7 @@ export function boardFixture(): Board {
     ],
     exit: { id: "exit", kind: "discarded", name: "Descartados", count: 0 },
     coverage: { covered: 0, required: 2, full_coverage_reached_at: null },
-    participations: [{ profile: { city: null, skills: [], years_of_experience: null, education_level: null }, screening_answers: [], substate_id: null, discard: null, id: "person", stage_id: "new", version: "4", etag: '"opaque-item-tag"', candidate: { id: "candidate", full_name: "Ana Pérez" }, applied_at: "2026-10-16T12:00:00Z", source: "organic", cv: { id: "cv", name: "CV Ana.pdf" }, moved_at: "2026-10-16T12:00:00Z" }],
+    participations: [{ profile: { location: null, skills: [], years_of_experience: null, education_level: null }, screening_answers: [], substate_id: null, discard: null, id: "person", stage_id: "new", version: "4", etag: '"opaque-item-tag"', candidate: { id: "candidate", full_name: "Ana Pérez" }, applied_at: "2026-10-16T12:00:00Z", source: "organic", cv: { id: "cv", name: "CV Ana.pdf" }, moved_at: "2026-10-16T12:00:00Z" }],
   };
 }
 export function detailFixture(): ParticipationDetail {

@@ -39,6 +39,17 @@ function profileDimension(key: string, label: string, options: BoardFilterDimens
     },
   };
 }
+function locationOptions(items: Participation[], key: "state" | "municipality") {
+  const labels = new Map<string, string>();
+  for (const item of items) {
+    const location = item.profile.location;
+    const reference = location?.[key];
+    if (reference && !labels.has(reference.id)) {
+      labels.set(reference.id, key === "municipality" && location?.state ? `${reference.name}, ${location.state.name}` : reference.name);
+    }
+  }
+  return [...labels].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label, "es"));
+}
 export function filterDataDimensions(board: Board): BoardFilterDimension<Participation>[] {
   const items = board.participations;
   return [
@@ -53,7 +64,8 @@ export function filterDataDimensions(board: Board): BoardFilterDimension<Partici
         return !!option && selected.has(option.id);
       },
     })),
-    profileDimension("city", "Ciudad", textOptions(items.flatMap(item => item.profile.city === null ? [] : [item.profile.city])), item => item.profile.city === null ? [] : [valueKey(item.profile.city)]),
+    profileDimension("state", "Estado", locationOptions(items, "state"), item => [item.profile.location?.state?.id ?? "none"]),
+    profileDimension("municipality", "Municipio", locationOptions(items, "municipality"), item => [item.profile.location?.municipality?.id ?? "none"]),
     profileDimension("skills", "Habilidades", textOptions(items.flatMap(item => item.profile.skills)), item => item.profile.skills.map(valueKey)),
     profileDimension("experience", "Años de experiencia", experienceOptions.filter(option => items.some(item => experienceValue(item.profile.years_of_experience) === option.value)), item => [experienceValue(item.profile.years_of_experience)]),
     profileDimension("education", "Nivel de estudios", Object.entries(educationLabels).filter(([value]) => items.some(item => item.profile.education_level === value)).map(([value, label]) => ({ value, label })), item => item.profile.education_level === null ? [] : [item.profile.education_level]),

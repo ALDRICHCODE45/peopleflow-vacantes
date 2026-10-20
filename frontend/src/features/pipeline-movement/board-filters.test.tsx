@@ -43,7 +43,10 @@ it("screening and profile sections share compact searchable fields and dimension
   fireEvent.click(await screen.findByRole("button", { name: "Filtros" }));
   const sheet = await screen.findByRole("dialog", { name: "Filtrar candidatos" });
   expect(within(sheet).getByRole("region", { name: "PREGUNTAS DE FILTRO" }).querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(1);
-  expect(within(sheet).getByRole("region", { name: "PERFIL DEL CANDIDATO" }).querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(4);
+  expect(within(sheet).getByRole("region", { name: "PERFIL DEL CANDIDATO" }).querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(5);
+  expect(within(sheet).getByRole("button", { name: "Estado" })).toBeVisible();
+  expect(within(sheet).getByRole("button", { name: "Municipio" })).toBeVisible();
+  expect(within(sheet).queryByRole("button", { name: "Ciudad" })).not.toBeInTheDocument();
   fireEvent.click(within(sheet).getByRole("button", { name: "¿Disponible?" }));
   fireEvent.click(screen.getByRole("checkbox", { name: "Sin respuesta 1" }));
   fireEvent.click(within(sheet).getByRole("button", { name: "¿Disponible?" }));
@@ -104,7 +107,7 @@ it("compact reference anatomy hides options until opened and agrees singular cou
   expect(within(sheet).getByRole("button", { name: "Etapa del pipeline" })).toHaveTextContent("Todas las etapas");
   expect(within(sheet).getByRole("button", { name: "Motivo de descarte" })).toHaveTextContent("Todos los motivos");
   expect(within(sheet).queryByRole("button", { name: "Subestado" })).not.toBeInTheDocument();
-  expect(sheet.querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(6);
+  expect(sheet.querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(7);
   expect(within(sheet).queryByRole("region", { name: "PREGUNTAS DE FILTRO" })).not.toBeInTheDocument();
   expect(within(sheet).getByRole("region", { name: "PERFIL DEL CANDIDATO" })).toBeVisible();
   expect(within(sheet).queryAllByRole("checkbox")).toHaveLength(0);
@@ -116,7 +119,7 @@ it("compact reference anatomy hides options until opened and agrees singular cou
 });
 it("searchable multiselect applies live, keeps quiet zero counts, clears chips and returns focus", async () => {
   const { trigger, sheet } = await openBoard(true);
-  expect(sheet.querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(7);
+  expect(sheet.querySelectorAll('[data-slot="popover-trigger"]')).toHaveLength(8);
   expect(within(sheet).getByText(/Las opciones de un mismo filtro se suman/)).toHaveTextContent("todas las condiciones");
   fireEvent.click(within(sheet).getByRole("button", { name: "Subestado" }));
   const search = screen.getByRole("textbox", { name: "Buscar opciones…" });

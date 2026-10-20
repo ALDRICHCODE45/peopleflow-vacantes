@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { locationReadSchema } from "@/features/geo/model";
 import { deliverySummarySchema } from "@/features/jobs/drafts/pipeline/fulfillment-model";
 import { validateDiscardText } from "./discard-text";
 export const discardReasonSchema = z.discriminatedUnion("group", [
@@ -25,7 +26,7 @@ const mutationParticipationSchema = z.object({
   cv: z.object({ id: uuidSchema, name: text }).strict(), moved_at: timestamp, discard: discardSchema.nullable(), substate_id: uuidSchema.nullable(),
 }).strict();
 export const profileSchema = z.object({
-  city: z.string().nullable(), skills: z.array(z.string()),
+  location: locationReadSchema.refine(location => location === null || location.postal_code === null), skills: z.array(z.string()),
   years_of_experience: count.nullable(),
   education_level: z.enum(["high_school", "bachelor", "master", "phd"]).nullable(),
 }).strict();

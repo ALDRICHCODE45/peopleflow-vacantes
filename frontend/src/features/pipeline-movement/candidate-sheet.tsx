@@ -172,7 +172,7 @@ function CandidateProfile({ profile }: { profile: Participation["profile"] }) {
   const missing = <span className="text-muted-foreground">Sin dato</span>;
   const skills = profile.skills.filter(skill => normalizedProfileLabel(skill));
   const rows = [
-    { label: "Ciudad", icon: MapPin, value: profile.city && normalizedProfileLabel(profile.city) ? profile.city : missing },
+    { label: "Ubicación", icon: MapPin, value: profile.location?.label ?? missing },
     { label: "Habilidades", icon: Sparkles, value: skills.length ? <div className="flex flex-wrap gap-2">{skills.map((skill, index) => <Badge key={index} variant="outline">{skill}</Badge>)}</div> : missing },
     { label: "Años de experiencia", icon: BriefcaseBusiness, value: profile.years_of_experience === null ? missing : plural(profile.years_of_experience, "año", "años") },
     { label: "Nivel de estudios", icon: GraduationCap, value: profile.education_level === null ? missing : educationLabels[profile.education_level] },

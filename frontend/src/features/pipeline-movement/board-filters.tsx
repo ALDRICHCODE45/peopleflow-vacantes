@@ -135,7 +135,7 @@ export function BoardFilters<Item>({ items, dimensions, selection, onChange, res
     </SheetContent>
   </Sheet>;
 }
-const chipIcons = { column: Columns3, substate: Tags, discard: UserX, city: MapPin, skills: Sparkles, experience: Briefcase, education: GraduationCap };
+const chipIcons = { column: Columns3, substate: Tags, discard: UserX, state: MapPin, municipality: MapPin, skills: Sparkles, experience: Briefcase, education: GraduationCap };
 
 function BoardFilterChips<Item>({ dimensions, selection, onChange, onEdit }: Pick<Props<Item>, "dimensions" | "selection" | "onChange"> & { onEdit: () => void }) {
   return <TooltipProvider><div className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-x-auto p-1 [scrollbar-width:thin]" aria-label="Filtros activos">
