@@ -66,10 +66,13 @@ satisfy the new readiness rules.
 
 Public list/detail use the same expanded location and scope shapes. Both new keys
 are always present. Legacy rows have `location:null`, `remote_scope:null`, and
-`location_label` contains their original free text (or null). Until G5, **all query
-parameters remain unchanged**: the case-insensitive literal `location` substring
-filter now searches `location_label`, covering both structured labels and legacy
-free text. Cursor bindings are unchanged.
+`location_label` contains their original free text (or null). G2 initially retained
+the substring filter; G5 now replaces `location` with repeatable MX `state` and
+`municipality`, repeatable `work_mode`, and one `applicant_country`. Duplicate
+selections are rejected, and cursors advance to version 2. See
+[public search contract](public-jobs-v2.md) and [G5 checks](geo-search.md).
+Legacy rows never match state/municipality; only non-remote legacy rows match
+applicant-country searches (legacy remote eligibility is unknown).
 
 ## Migration and architecture review
 
@@ -161,5 +164,5 @@ is not passing database evidence.
 - [ ] Save/reload; check leading zeros, labels, clear and whole-field replacement.
 - [ ] Remote: require anywhere/countries; retain country order and reject duplicates.
 - [ ] Switch onsite/hybrid: require complete MX location; remote scope survives in editor only.
-- [ ] Publish/edit; check public list/detail parity and legacy label fallback/filter.
+- [ ] Publish/edit; check public list/detail parity and legacy label fallback; G5 searches use catalog codes, not the label substring.
 - [ ] Migrate an old test draft: stale tab gets 412; re-edit location/scope before publication.

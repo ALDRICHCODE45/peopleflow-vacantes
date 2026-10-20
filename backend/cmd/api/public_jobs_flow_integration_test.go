@@ -64,8 +64,8 @@ func publicFlowLegacy(t *testing.T, h *draftFlowHarness, company uuid.UUID, titl
 	return id
 }
 
-// Synthetic catalog display names isolate substring-filter assertions without
-// sending free text through the structured write boundary.
+// Synthetic catalog display names exercise labels without sending free text
+// through the structured write boundary; search isolation uses the title marker.
 func publicFlowLocation(t *testing.T, h *draftFlowHarness, label string) map[string]any {
 	t.Helper()
 	if _, err := h.pool.Exec(context.Background(), `INSERT INTO geo_countries(code,name_es,name_en) VALUES('CO',$1,'Colombia') ON CONFLICT(code) DO UPDATE SET name_es=EXCLUDED.name_es`, label); err != nil {
@@ -124,8 +124,9 @@ func TestPublicJobsFlowUnionOrderingPagingFiltersAndPrivacy(t *testing.T) {
 	newer := publicFlowLegacy(t, h, company.companyID, "Otra oferta", marker, location, at.Add(time.Hour), nil)
 	legacyOrder := []string{legacyA, legacyB}
 	sort.Sort(sort.Reverse(sort.StringSlice(legacyOrder)))
-	want := append([]string{newer, id}, legacyOrder...)
-	path := "/v2/jobs?location=" + url.QueryEscape(strings.ToUpper(location)) + "&limit=1"
+	want := append(append([]string{id}, legacyOrder...), newer)
+	path := "/v2/jobs?q=" + marker + "&limit=1"
+	inserted := ""
 	seen := []string{}
 	cursor := ""
 	for page := 0; page < 10; page++ {
@@ -148,7 +149,7 @@ func TestPublicJobsFlowUnionOrderingPagingFiltersAndPrivacy(t *testing.T) {
 		}
 		cursor = body["next_cursor"].(string)
 		if page == 0 { // A newer insertion must not disturb continuation from the anchored page.
-			publicFlowLegacy(t, h, company.companyID, "New insertion", "not a search match", location, at.Add(2*time.Hour), nil)
+			inserted = publicFlowLegacy(t, h, company.companyID, marker, "New insertion", location, at.Add(2*time.Hour), nil)
 		}
 	}
 	if !reflect.DeepEqual(seen, want) {
@@ -160,7 +161,7 @@ func TestPublicJobsFlowUnionOrderingPagingFiltersAndPrivacy(t *testing.T) {
 	for _, v := range ranked {
 		rankedIDs = append(rankedIDs, v.(map[string]any)["id"].(string))
 	}
-	if !reflect.DeepEqual(rankedIDs, append(append([]string{id}, legacyOrder...), newer)) {
+	if !reflect.DeepEqual(rankedIDs, append([]string{inserted}, want...)) {
 		t.Fatalf("ranked=%v", rankedIDs)
 	}
 	searchSeen := []string{}
@@ -184,12 +185,12 @@ func TestPublicJobsFlowUnionOrderingPagingFiltersAndPrivacy(t *testing.T) {
 	}
 	// Each vacancy-only dimension excludes legacy; employment_type='contract' is never mapped.
 	for _, filter := range []string{"work_schedule=full_time", "contract_type=indefinite", "professional_area=technology_systems"} {
-		items := publicFlowGet(t, h, "/v2/jobs?location="+url.QueryEscape(location)+"&"+filter, 200)["items"].([]any)
+		items := publicFlowGet(t, h, "/v2/jobs?q="+marker+"&"+filter, 200)["items"].([]any)
 		if len(items) != 1 || items[0].(map[string]any)["id"] != id {
 			t.Fatalf("%s=%v", filter, items)
 		}
 	}
-	for _, filter := range []string{"work_mode=onsite", "contract_type=project", "work_schedule=part_time", "professional_area=legal", "location=%25"} {
+	for _, filter := range []string{"work_mode=onsite", "contract_type=project", "work_schedule=part_time", "professional_area=legal"} {
 		items := publicFlowGet(t, h, "/v2/jobs?q="+marker+"&"+filter, 200)["items"].([]any)
 		if len(items) != 0 {
 			t.Fatalf("%s=%v", filter, items)
@@ -275,7 +276,7 @@ func TestPublicJobsFlowUnionOrderingPagingFiltersAndPrivacy(t *testing.T) {
 		}
 		publicFlowGet(t, h, "/v2/jobs/"+id, 404)
 		publicFlowGet(t, h, "/v2/jobs/"+legacyA, 404)
-		items := publicFlowGet(t, h, "/v2/jobs?location="+url.QueryEscape(location), 200)["items"].([]any)
+		items := publicFlowGet(t, h, "/v2/jobs?q="+marker, 200)["items"].([]any)
 		if len(items) != 0 {
 			t.Fatal("inactive company listed")
 		}

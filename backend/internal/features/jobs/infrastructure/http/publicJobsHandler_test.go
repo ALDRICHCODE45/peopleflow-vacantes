@@ -90,10 +90,16 @@ func TestPublicJobsHTTPStrictAnonymousAndCacheHeaders(t *testing.T) {
 		code       string
 	}{
 		{"list", "/v2/jobs", 200, ""}, {"detail", "/v2/jobs/" + id.String(), 200, ""},
+		{"repeated filters", "/v2/jobs?state=09&state=14&municipality=14039&work_mode=remote&work_mode=hybrid&applicant_country=MX", 200, ""},
 		{"unknown param", "/v2/jobs?seniority=senior", 400, "invalid_request"},
 		{"duplicate", "/v2/jobs?limit=1&limit=2", 400, "invalid_request"},
 		{"invalid enum", "/v2/jobs?contract_type=contract", 400, "invalid_request"},
 		{"bad cursor", "/v2/jobs?cursor=bad", 400, "invalid_request"},
+		{"removed location", "/v2/jobs?location=Mexico", 400, "invalid_request"},
+		{"malformed state", "/v2/jobs?state=9", 400, "invalid_filter"},
+		{"reserved none", "/v2/jobs?municipality=none", 400, "invalid_filter"},
+		{"duplicate value", "/v2/jobs?work_mode=remote&work_mode=remote", 400, "invalid_filter"},
+		{"repeated country", "/v2/jobs?applicant_country=MX&applicant_country=CO", 400, "invalid_filter"},
 		{"missing", "/v2/jobs/" + uuid.NewString(), 404, "not_found"},
 		{"malformed id", "/v2/jobs/bad", 404, "not_found"},
 	} {
@@ -131,8 +137,14 @@ func TestPublicJobsHTTPStrictAnonymousAndCacheHeaders(t *testing.T) {
 			}
 		})
 	}
-	stub.err = errors.New("database failure with sensitive context")
+	stub.err = errors.Join(errors.New("wrapped"), publicjobs.ErrInvalidFilter)
 	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/v2/jobs?state=99", nil))
+	if w.Code != 400 || w.Body.String() != "{\"error\":\"invalid filter\",\"code\":\"invalid_filter\"}\n" {
+		t.Fatalf("catalog validation envelope: %d %s", w.Code, w.Body.String())
+	}
+	stub.err = errors.New("database failure with sensitive context")
+	w = httptest.NewRecorder()
 	r.ServeHTTP(w, httptest.NewRequest("GET", "/v2/jobs", nil))
 	if w.Code != 500 || w.Body.String() == stub.err.Error() {
 		t.Fatal("internal error leaked")

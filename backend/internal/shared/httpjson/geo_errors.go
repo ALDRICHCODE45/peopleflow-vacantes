@@ -3,6 +3,7 @@ package httpjson
 import "net/http"
 
 const (
+	CodeInvalidFilter      Code = "invalid_filter"
 	CodeCountryNotFound    Code = "country_not_found"
 	CodeStateNotFound      Code = "state_not_found"
 	CodeInvalidPostalCode  Code = "invalid_postal_code"
@@ -12,7 +13,7 @@ const (
 )
 
 func GeoErrorCodes() []Code {
-	return []Code{CodeCountryNotFound, CodeStateNotFound, CodeInvalidPostalCode, CodePostalCodeNotFound, CodeInvalidLocation, CodeInvalidRemoteScope}
+	return []Code{CodeCountryNotFound, CodeStateNotFound, CodeInvalidPostalCode, CodePostalCodeNotFound, CodeInvalidLocation, CodeInvalidRemoteScope, CodeInvalidFilter}
 }
 
 type GeoDetail struct {
@@ -39,6 +40,8 @@ func WriteGeoError(w http.ResponseWriter, def Definition, details []GeoDetail) {
 
 func resolveGeoError(code Code) (Definition, bool) {
 	switch code {
+	case CodeInvalidFilter:
+		return Definition{code, 400, "invalid filter"}, true
 	case CodeCountryNotFound:
 		return Definition{code, 404, "country not found"}, true
 	case CodeStateNotFound:

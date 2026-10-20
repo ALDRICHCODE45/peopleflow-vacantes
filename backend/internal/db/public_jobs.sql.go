@@ -37,6 +37,10 @@ WITH catalog AS (
  FROM jobs j JOIN companies c ON c.id=j.company_id
  WHERE j.status='published' AND j.deleted_at IS NULL AND j.published_at IS NOT NULL
    AND c.status='active' AND c.deleted_at IS NULL
+   -- Legacy has no structured geography or declared remote scope.
+   AND COALESCE(cardinality($6::text[]),0)=0
+   AND COALESCE(cardinality($7::text[]),0)=0
+   AND ($8::text='' OR j.work_mode<>'remote')
  UNION ALL
  SELECT p.id, 'vacancy'::text AS source, p.published_at, COALESCE(gm.name || ', ' || gs.name, gs.name, gc.name_es) AS location_label,
         p.work_mode,p.work_schedule,p.contract_type,p.professional_area,p.search_vector,
@@ -76,16 +80,23 @@ WITH catalog AS (
  JOIN vacancy_processes v ON v.id=p.id AND v.company_id=p.company_id
  JOIN companies c ON c.id=p.company_id
  WHERE v.status='published' AND c.status='active' AND c.deleted_at IS NULL
+   -- Cast parameters, not indexed columns. Codes are validated before search.
+   AND (COALESCE(cardinality($6::text[]),0)=0 OR
+        (p.country_code='MX' AND p.state_code=ANY($6::text[]::char(2)[])))
+   AND (COALESCE(cardinality($7::text[]),0)=0 OR
+        (p.country_code='MX' AND p.municipality_code=ANY($7::text[]::char(5)[])))
+   AND ($8::text='' OR p.work_mode<>'remote' OR
+        p.remote_scope_kind='anywhere' OR
+        (p.remote_scope_kind='countries' AND p.remote_countries @> ARRAY[$8::text::char(2)]))
 ), ranked AS (
- SELECT catalog.id, catalog.source, catalog.published_at, catalog.location_label, catalog.work_mode, catalog.work_schedule, catalog.contract_type, catalog.professional_area, catalog.search_vector, catalog.body, ts_rank(search_vector,websearch_to_tsquery('spanish',$6::text))::float8 AS search_rank
+ SELECT catalog.id, catalog.source, catalog.published_at, catalog.location_label, catalog.work_mode, catalog.work_schedule, catalog.contract_type, catalog.professional_area, catalog.search_vector, catalog.body, ts_rank(search_vector,websearch_to_tsquery('spanish',$9::text))::float8 AS search_rank
  FROM catalog
- WHERE ($6::text='' OR search_vector @@ websearch_to_tsquery('spanish',$6::text))
-   AND ($7::text='' OR strpos(lower(location_label),lower($7::text))>0)
-   AND ($8::text='' OR work_mode=$8::text)
-   AND ($9::text='' OR work_schedule=$9::text)
-   AND ($10::text='' OR contract_type=$10::text)
-   AND ($11::text='' OR professional_area=$11::text)
-   AND ($12::uuid IS NULL OR id=$12::uuid)
+ WHERE ($9::text='' OR search_vector @@ websearch_to_tsquery('spanish',$9::text))
+   AND (COALESCE(cardinality($10::text[]),0)=0 OR work_mode=ANY($10::text[]))
+   AND ($11::text='' OR work_schedule=$11::text)
+   AND ($12::text='' OR contract_type=$12::text)
+   AND ($13::text='' OR professional_area=$13::text)
+   AND ($14::uuid IS NULL OR id=$14::uuid)
 )
 SELECT body,search_rank FROM ranked
 WHERE ($1::timestamptz IS NULL OR
@@ -102,9 +113,11 @@ type SearchPublicJobsParams struct {
 	CursorSource     string             `json:"cursor_source"`
 	CursorID         uuid.UUID          `json:"cursor_id"`
 	PageLimit        int32              `json:"page_limit"`
+	States           []string           `json:"states"`
+	Municipalities   []string           `json:"municipalities"`
+	ApplicantCountry string             `json:"applicant_country"`
 	Q                string             `json:"q"`
-	Location         string             `json:"location"`
-	WorkMode         string             `json:"work_mode"`
+	WorkModes        []string           `json:"work_modes"`
 	WorkSchedule     string             `json:"work_schedule"`
 	ContractType     string             `json:"contract_type"`
 	ProfessionalArea string             `json:"professional_area"`
@@ -126,9 +139,11 @@ func (q *Queries) SearchPublicJobs(ctx context.Context, arg SearchPublicJobsPara
 		arg.CursorSource,
 		arg.CursorID,
 		arg.PageLimit,
+		arg.States,
+		arg.Municipalities,
+		arg.ApplicantCountry,
 		arg.Q,
-		arg.Location,
-		arg.WorkMode,
+		arg.WorkModes,
 		arg.WorkSchedule,
 		arg.ContractType,
 		arg.ProfessionalArea,

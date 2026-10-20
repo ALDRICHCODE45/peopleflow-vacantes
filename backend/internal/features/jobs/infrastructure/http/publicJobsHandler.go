@@ -62,6 +62,8 @@ func (h *PublicJobsHandler) Screening(w http.ResponseWriter, r *http.Request) {
 func writePublicJobsError(w http.ResponseWriter, err error) {
 	code := httpjson.CodeInternalError
 	switch {
+	case errors.Is(err, publicjobs.ErrInvalidFilter):
+		code = httpjson.CodeInvalidFilter
 	case errors.Is(err, publicjobs.ErrInvalidRequest):
 		code = httpjson.CodeInvalidRequest
 	case errors.Is(err, publicjobs.ErrNotFound):

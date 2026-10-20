@@ -36,7 +36,7 @@ func TestGeoErrors(t *testing.T) {
 		code   Code
 		status int
 	}{
-		{CodeCountryNotFound, 404}, {CodeStateNotFound, 404}, {CodeInvalidPostalCode, 400}, {CodePostalCodeNotFound, 404}, {CodeInvalidLocation, 422}, {CodeInvalidRemoteScope, 422},
+		{CodeInvalidFilter, 400}, {CodeCountryNotFound, 404}, {CodeStateNotFound, 404}, {CodeInvalidPostalCode, 400}, {CodePostalCodeNotFound, 404}, {CodeInvalidLocation, 422}, {CodeInvalidRemoteScope, 422},
 	} {
 		t.Run(string(tc.code), func(t *testing.T) {
 			w := httptest.NewRecorder()

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"math"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -21,6 +22,7 @@ import (
 
 var (
 	ErrInvalidRequest = errors.New("invalid public jobs request")
+	ErrInvalidFilter  = errors.New("invalid public jobs filter")
 	ErrNotFound       = errors.New("public job not found")
 )
 
@@ -79,9 +81,10 @@ type Position struct {
 	ID          uuid.UUID `json:"id"`
 }
 type Query struct {
-	Q, Location, WorkMode, WorkSchedule, ContractType, ProfessionalArea string
-	Limit                                                               int
-	After                                                               *Position
+	Q, WorkSchedule, ContractType, ProfessionalArea, ApplicantCountry string
+	States, Municipalities, WorkModes                                 []string
+	Limit                                                             int
+	After                                                             *Position
 }
 type Row struct {
 	Detail Detail
@@ -131,15 +134,31 @@ func (c *Catalog) Get(ctx context.Context, id uuid.UUID) (Detail, error) {
 	return enrich(detail), nil
 }
 
-// ParseQuery rejects unknown/duplicate keys and invalid URL encoding, and
-// reuses the exact draft scalar catalogs rather than inventing public enums.
+// ParseQuery permits repeated state, municipality and work_mode keys only.
+// Selected values are distinct, exact and sorted for canonical cursor binding.
+// Membership in the imported geography catalog is validated before SQL search.
 func ParseQuery(raw string) (Query, error) {
 	values, err := url.ParseQuery(raw)
 	if err != nil {
+		for _, pair := range strings.Split(raw, "&") {
+			key, value, _ := strings.Cut(pair, "=")
+			key, _ = url.QueryUnescape(key)
+			if isGeoFilter(key) {
+				if _, err := url.QueryUnescape(value); err != nil || strings.Contains(pair, ";") {
+					return Query{}, ErrInvalidFilter
+				}
+			}
+		}
 		return Query{}, ErrInvalidRequest
 	}
 	q := Query{Limit: 20}
 	for key, vs := range values {
+		if isGeoFilter(key) {
+			if err := parseFilter(&q, key, vs); err != nil {
+				return Query{}, err
+			}
+			continue
+		}
 		if len(vs) != 1 || !utf8.ValidString(vs[0]) || strings.ContainsRune(vs[0], 0) {
 			return Query{}, ErrInvalidRequest
 		}
@@ -147,9 +166,7 @@ func ParseQuery(raw string) (Query, error) {
 		switch key {
 		case "q":
 			q.Q = strings.TrimSpace(v)
-		case "location":
-			q.Location = strings.TrimSpace(v)
-		case "work_mode", "work_schedule", "contract_type", "professional_area":
+		case "work_schedule", "contract_type", "professional_area":
 			if v == "" {
 				return Query{}, ErrInvalidRequest
 			}
@@ -157,8 +174,6 @@ func ParseQuery(raw string) (Query, error) {
 				return Query{}, ErrInvalidRequest
 			}
 			switch key {
-			case "work_mode":
-				q.WorkMode = v
 			case "work_schedule":
 				q.WorkSchedule = v
 			case "contract_type":
@@ -187,6 +202,58 @@ func ParseQuery(raw string) (Query, error) {
 	return q, nil
 }
 
+func isGeoFilter(key string) bool {
+	return key == "state" || key == "municipality" || key == "work_mode" || key == "applicant_country"
+}
+
+func parseFilter(q *Query, key string, values []string) error {
+	if key == "applicant_country" && len(values) != 1 {
+		return ErrInvalidFilter
+	}
+	selected := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" || slices.Contains(selected, value) {
+			return ErrInvalidFilter
+		}
+		switch key {
+		case "state", "municipality":
+			size := 2
+			if key == "municipality" {
+				size = 5
+			}
+			if len(value) != size {
+				return ErrInvalidFilter
+			}
+			for _, c := range value {
+				if c < '0' || c > '9' {
+					return ErrInvalidFilter
+				}
+			}
+		case "applicant_country":
+			if len(value) != 2 || value[0] < 'A' || value[0] > 'Z' || value[1] < 'A' || value[1] > 'Z' {
+				return ErrInvalidFilter
+			}
+		case "work_mode":
+			if _, err := draftfields.ValidateScalars(map[string]any{key: value}); err != nil {
+				return ErrInvalidFilter
+			}
+		}
+		selected = append(selected, value)
+	}
+	slices.Sort(selected)
+	switch key {
+	case "state":
+		q.States = selected
+	case "municipality":
+		q.Municipalities = selected
+	case "work_mode":
+		q.WorkModes = selected
+	case "applicant_country":
+		q.ApplicantCountry = selected[0]
+	}
+	return nil
+}
+
 type cursorToken struct {
 	Version  int      `json:"v"`
 	Filters  string   `json:"filters"`
@@ -194,12 +261,19 @@ type cursorToken struct {
 }
 
 func filterHash(q Query) string {
-	raw, _ := json.Marshal([]string{q.Q, q.Location, q.WorkMode, q.WorkSchedule, q.ContractType, q.ProfessionalArea})
+	// Sort copies as well: callers constructing Query directly must not affect
+	// binding order, and hashing must not mutate their slices.
+	canonical := func(values []string) []string {
+		out := append([]string{}, values...)
+		slices.Sort(out)
+		return out
+	}
+	raw, _ := json.Marshal([]any{q.Q, canonical(q.States), canonical(q.Municipalities), canonical(q.WorkModes), q.ApplicantCountry, q.WorkSchedule, q.ContractType, q.ProfessionalArea})
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }
 func encodeCursor(q Query, p Position) (string, error) {
-	raw, err := json.Marshal(cursorToken{Version: 1, Filters: filterHash(q), Position: p})
+	raw, err := json.Marshal(cursorToken{Version: 2, Filters: filterHash(q), Position: p})
 	if err != nil {
 		return "", err
 	}
@@ -220,7 +294,7 @@ func decodeCursor(q Query, raw string) (Position, error) {
 	// Canonical round-trip rejects unknown/duplicate/missing keys and alternate
 	// encodings; this token is opaque, versioned, and bound to its filter set.
 	canonical, err := encodeCursor(q, token.Position)
-	if err != nil || canonical != raw || token.Version != 1 || token.Filters != filterHash(q) {
+	if err != nil || canonical != raw || token.Version != 2 || token.Filters != filterHash(q) {
 		return Position{}, ErrInvalidRequest
 	}
 	p := token.Position

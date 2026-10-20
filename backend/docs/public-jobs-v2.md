@@ -10,23 +10,50 @@ legacy applications remain unchanged. Applying to a vacancy is P2b, not this cut
 `GET /v2/jobs` → `200 {"items": [...], "next_cursor": string | null}`.
 Both keys are always present; empty items is `[]`, never null.
 
-Every query key is optional and may appear at most once:
+Every query key is optional. Only `state`, `municipality`, and `work_mode` may
+repeat (one exact value per parameter, not comma-separated):
 
 | Key | Accepted value |
 | --- | --- |
 | `q` | Spanish full-text over title (weight A) and plain description (B) |
-| `location` | Case-insensitive literal substring of `location_label` (structured label or legacy free text), not SQL wildcards; retained until G5 |
-| `work_mode` | `onsite`, `remote`, `hybrid` |
+| `state` | Repeatable known MX state codes, e.g. `09`, `14` |
+| `municipality` | Repeatable known MX municipality codes, e.g. `09002`, `14039`; state selection is not required |
+| `work_mode` | Repeatable `onsite`, `remote`, `hybrid`; existing single-value requests still work |
+| `applicant_country` | Exactly one known uppercase ISO country code, e.g. `MX`: “I can apply from here” |
 | `work_schedule` | `full_time`, `part_time` |
 | `contract_type` | `project`, `indefinite`, `professional_services`, `temporary`, `internship` |
 | `professional_area` | One of the same 16 exact draft catalog codes |
 | `limit` | Decimal integer 1–50, default 20 |
 | `cursor` | Opaque `next_cursor` from the previous page |
 
-Unknown/duplicate keys, invalid URL/UTF-8 encoding, invalid enums/limits/cursors
-return `400 invalid_request`. Enums are exact, not case-folded. Blank `q` and
-`location` mean no filter. Cursors are versioned and bound to the normalized
-filters; changing filters requires starting without a cursor. Limit may change.
+The old `location` substring parameter is removed (now `400 invalid_request`).
+Unknown keys, repeated single-valued keys (except `applicant_country`), invalid
+`q`/enum/limit/cursor encoding or values return `400 invalid_request`. Invalid
+`state`, `municipality`, `work_mode`, or `applicant_country` values/encoding return
+`400 invalid_filter`, including unknown catalog codes, blanks, duplicate selected
+values, and repeated `applicant_country` (even identical). Codes/enums are exact:
+no whitespace trimming, case folding, comma splitting or coercion. `none` is
+reserved by §18 and is not an offered public-search option (400). Blank `q` means
+no text filter; omit an unselected dimension rather than sending a blank value.
+Catalog lookup failures return generic 500, never `invalid_filter` or empty 200.
+
+Repeated values combine with **OR** within each dimension; dimensions combine with
+**AND**. A municipality outside the selected states is valid but produces no
+matches, not a hierarchy validation error. Geographic values must exist in the
+imported G1 catalog, even if no jobs match. `state`/`municipality` exclude legacy
+rows and vacancies with no location. `applicant_country` includes non-remote
+vacancies (with or without location), remote `anywhere`, and remote `countries`
+containing that country. It does not filter by the vacancy's location country.
+Legacy onsite/hybrid rows match; legacy remote rows and migrated remote vacancies
+without a scope conservatively do **not** match, because eligibility is unknown.
+This is discovery only; the transactional apply gate remains authoritative.
+
+Cursors are version 2 and SHA256-bound to normalized filters, with repeated values
+sorted independently per dimension (parameter/value order does not matter).
+Changing any filter requires starting without a cursor; limit may change. Every
+pre-G5 version-1 cursor is rejected with `400 invalid_request`, including those
+with the removed `location` filter. Ordering and keyset anchors are unchanged.
+See [G5 test/plan checklist](geo-search.md).
 
 With `q`, order is rank descending; ties (and browse mode) use `published_at`
 descending, source descending in C collation, then UUID descending. The keyset
@@ -148,7 +175,7 @@ question content, answer keys or hidden salary enters either public response.
 Only the screening question count is added to these routes; the separate safe
 `/screening` endpoint is unchanged.
 
-Public errors have exactly `{error,code}`: `400 invalid_request`,
+Public errors have exactly `{error,code}`: `400 invalid_request` / `invalid_filter`,
 `404 not_found`, or unexpected `500 internal_error`. No public response has
 an ETag or `Cache-Control: no-store`; no new caching policy is introduced.
 
@@ -201,6 +228,8 @@ Paths below are relative to `backend/`.
 | `application/publication/published_write_test.go` | §10.2 stable missing-code order, only past-date exemption, input unchanged |
 | `application/publicjobs/catalog_test.go` | §10.3 strict params/default/boundaries; last-visible cursor across sources, exact rank/time, filter binding, limit+1; exact 24/29-key shape and nulls |
 | `infrastructure/http/publicJobsHandler_test.go` | §10.3 anonymous 200/400/404/500; exact envelopes; no ETag/no-store; invalid params do not reach reader; no raw internal error |
+| `application/publicjobs/filters_test.go` | G5 imported-catalog membership, independent dimensions, fail-closed catalog outages |
+| `cmd/api/public_geo_search_integration_test.go` | G5 state/municipality/work-mode OR and dimension AND, applicant-country eligibility and conservative legacy/migrated behavior, invalid filters on empty results, canonical cursor continuation, actual generated SQL state/municipality index capability and GIN containment-arm capability |
 | `cmd/api/public_jobs_routes_test.go` | §10.3 real-router anonymous routes, strict error and public headers |
 | `cmd/api/published_write_routes_test.go` | §10.2 existing 422 list envelope reused on all three writes, wrapped error, no success ETag, private no-store retained |
 | `draftstore/public_projection_integration_test.go` | §10.2 projection absent before publication; publish creation; source-version refresh; guard rejection snapshots of all resources/audit/projection; past-date exemption; audit failure rolls back both draft and projection; P1 no-op materialization without version/audit change |

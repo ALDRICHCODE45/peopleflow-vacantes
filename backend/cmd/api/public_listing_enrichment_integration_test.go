@@ -35,7 +35,7 @@ func TestPublicListingEnrichmentPublicationSaveAndAllApplicants(t *testing.T) {
 	exec(`UPDATE companies SET logo_url='https://example.test/logo.png' WHERE id=$1`, company.companyID)
 	check := func(wantRange string, wantScreening int) {
 		t.Helper()
-		list := publicFlowGet(t, h, "/v2/jobs?location="+url.QueryEscape(marker), 200)["items"].([]any)
+		list := publicFlowGet(t, h, "/v2/jobs?q="+url.QueryEscape(marker), 200)["items"].([]any)
 		if len(list) != 2 {
 			t.Fatalf("list=%v", list)
 		}

@@ -26,6 +26,10 @@ WITH catalog AS (
  FROM jobs j JOIN companies c ON c.id=j.company_id
  WHERE j.status='published' AND j.deleted_at IS NULL AND j.published_at IS NOT NULL
    AND c.status='active' AND c.deleted_at IS NULL
+   -- Legacy has no structured geography or declared remote scope.
+   AND COALESCE(cardinality(sqlc.arg('states')::text[]),0)=0
+   AND COALESCE(cardinality(sqlc.arg('municipalities')::text[]),0)=0
+   AND (sqlc.arg('applicant_country')::text='' OR j.work_mode<>'remote')
  UNION ALL
  SELECT p.id, 'vacancy'::text AS source, p.published_at, COALESCE(gm.name || ', ' || gs.name, gs.name, gc.name_es) AS location_label,
         p.work_mode,p.work_schedule,p.contract_type,p.professional_area,p.search_vector,
@@ -65,12 +69,19 @@ WITH catalog AS (
  JOIN vacancy_processes v ON v.id=p.id AND v.company_id=p.company_id
  JOIN companies c ON c.id=p.company_id
  WHERE v.status='published' AND c.status='active' AND c.deleted_at IS NULL
+   -- Cast parameters, not indexed columns. Codes are validated before search.
+   AND (COALESCE(cardinality(sqlc.arg('states')::text[]),0)=0 OR
+        (p.country_code='MX' AND p.state_code=ANY(sqlc.arg('states')::text[]::char(2)[])))
+   AND (COALESCE(cardinality(sqlc.arg('municipalities')::text[]),0)=0 OR
+        (p.country_code='MX' AND p.municipality_code=ANY(sqlc.arg('municipalities')::text[]::char(5)[])))
+   AND (sqlc.arg('applicant_country')::text='' OR p.work_mode<>'remote' OR
+        p.remote_scope_kind='anywhere' OR
+        (p.remote_scope_kind='countries' AND p.remote_countries @> ARRAY[sqlc.arg('applicant_country')::text::char(2)]))
 ), ranked AS (
  SELECT catalog.*, ts_rank(search_vector,websearch_to_tsquery('spanish',sqlc.arg('q')::text))::float8 AS search_rank
  FROM catalog
  WHERE (sqlc.arg('q')::text='' OR search_vector @@ websearch_to_tsquery('spanish',sqlc.arg('q')::text))
-   AND (sqlc.arg('location')::text='' OR strpos(lower(location_label),lower(sqlc.arg('location')::text))>0)
-   AND (sqlc.arg('work_mode')::text='' OR work_mode=sqlc.arg('work_mode')::text)
+   AND (COALESCE(cardinality(sqlc.arg('work_modes')::text[]),0)=0 OR work_mode=ANY(sqlc.arg('work_modes')::text[]))
    AND (sqlc.arg('work_schedule')::text='' OR work_schedule=sqlc.arg('work_schedule')::text)
    AND (sqlc.arg('contract_type')::text='' OR contract_type=sqlc.arg('contract_type')::text)
    AND (sqlc.arg('professional_area')::text='' OR professional_area=sqlc.arg('professional_area')::text)
