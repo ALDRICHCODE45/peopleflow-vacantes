@@ -21,7 +21,7 @@ Design: `docs/geo-location-design.md` (§20). Branch `feat/geo-location-design` 
 
 - [x] T1 — S1–S11: §20 design, frontend review, Q1 user answer (parent) — 3bdee90 + decisions commit
 - [x] T2 — S1, S4, S9: G1 catalog + importer + geo endpoints, migration 00030 own commit (worker) — 579748a (00030), 5a8bbce, 021ca88; verified (L7)
-- [ ] T3 — S2, S3, S5, S8: G2 vacancy location + remote scope + projection, migration 00031 (worker) — 1ec346f, 6c896d3, 44239be; re-verification pending
+- [x] T3 — S2, S3, S5, S8: G2 vacancy location + remote scope + projection, migration 00031 (worker) — 1ec346f, 6c896d3, 44239be; verified (L10)
 - [x] T4 — S2, S6, S8: G3 candidate profile + company, migration 00032 (worker) — 9a3b9af, 749b3e0; verified (L11)
 - [x] T5 — S3, S6, S9: G4 apply country gate + §19 snapshot/board, migration 00033 own commit (worker) — bdffc03 (00033), 01f9e68, f4e5cef; verified (L16)
 - [x] T6 — S7: G5 public search filters (worker) — 236c95e, d47b177; verified (L17)
