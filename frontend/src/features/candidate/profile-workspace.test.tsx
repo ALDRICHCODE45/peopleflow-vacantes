@@ -29,8 +29,13 @@ describe("live candidate profile", () => {
     const { container } = render(<ProfileWorkspace />);
     expect(screen.getByRole("status")).toHaveTextContent("Cargando perfil");
     expect(container.querySelectorAll('[data-slot="card"]')).toHaveLength(3);
+    const cardSlots = () => Array.from(container.querySelectorAll('[data-slot^="card"]')).map(node => node.getAttribute("data-slot"));
+    const loadingSlots = cardSlots();
+    const loadingHero = container.querySelector('[data-pf-profile-identity]')!.className;
     expect(screen.queryByText(CANDIDATE_IDENTITY.fullName)).not.toBeInTheDocument();
     await act(async () => resolve(loaded));
+    expect(cardSlots()).toEqual(loadingSlots);
+    expect(container.querySelector('[data-pf-profile-identity]')).toHaveClass(loadingHero);
     expect(screen.getByLabelText("Teléfono")).toHaveValue(CANDIDATE_PROFILE.phone);
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
     expect(mocks.notify).not.toHaveBeenCalled();
@@ -85,6 +90,31 @@ describe("live candidate profile", () => {
     expect(screen.queryByLabelText("Ciudad de residencia")).not.toBeInTheDocument();
     expect(container.querySelector('[data-pf-profile-card] > [data-slot="card-header"] > [data-slot="card-action"]')).not.toBeNull();
   });
+  it("preserves main's toolbar, hero tokens and line tabs", async () => {
+    const { container } = await ready();
+    const toolbar = container.querySelector('[data-pf-profile-toolbar]')!;
+    expect(toolbar).toHaveClass("sm:flex-row", "sm:justify-between", "px-1");
+    expect(Array.from(toolbar.querySelectorAll("button")).map(node => node.textContent)).toEqual(["Guardar perfil", "Restaurar copia original"]);
+    expect(container.querySelector('[data-pf-profile-status]')).toHaveTextContent("Sin cambios pendientes");
+    expect(container.querySelector('[data-pf-profile-card]')).toHaveClass("border-border/70", "ring-border/60");
+    expect(container.querySelector('[data-pf-profile-identity]')).toHaveClass("border-border/60");
+    expect(container.querySelector('[data-slot="avatar"]')).toHaveClass("ring-primary/25", "ring-offset-2");
+    expect(screen.getByRole("heading", { name: CANDIDATE_IDENTITY.fullName })).toHaveClass("font-heading", "text-foreground");
+    expect(container.querySelector('[data-slot="tabs-list"]')).toHaveAttribute("data-variant", "line");
+    expect(container.querySelector('[data-pf-profile-completeness-value]')).toHaveTextContent("10 de 10 datos clave");
+    const expected = [
+      ["Personal", ["phone", "linkedinUrl", "portfolioUrl", "birthDate", "location"]],
+      ["Experiencia", ["professionalTitle", "currentCompany", "yearsOfExperience", "summary"]],
+      ["Educación", ["educationLevel", "fieldOfStudy", "skills"]],
+      ["Compensación", ["currentSalaryGross", "currentSalaryNet", "salaryCurrency", "expectedSalary", "expectedSalaryPeriod"]],
+      ["Idiomas", ["languages"]],
+    ] as const;
+    for (const [name, fields] of expected) {
+      tab(name);
+      expect(Array.from(container.querySelectorAll('[data-pf-profile-field]')).map(node => node.getAttribute("data-pf-profile-field"))).toEqual(fields);
+      expect(container.querySelectorAll('[data-pf-profile-section-card]')).toHaveLength(name === "Idiomas" ? 1 : 2);
+    }
+  });
   it("sends a complete replacement for one changed field, not a patch, and confirms the new baseline", async () => {
     await ready(); change("Teléfono", "12345678"); save();
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
@@ -101,7 +131,8 @@ describe("live candidate profile", () => {
   it("retains edits across tabs and reset restores the confirmed baseline", async () => {
     await ready(); change("Teléfono", "12345678"); tab("Experiencia"); change("Título profesional", "Nuevo título"); tab("Personal");
     expect(screen.getByLabelText("Teléfono")).toHaveValue("12345678");
-    fireEvent.click(screen.getByRole("button", { name: "Restaurar cambios" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restaurar copia original" }));
+    expect(screen.getByText("Restauramos la copia original en esta vista.")).toBeInTheDocument();
     expect(screen.getByLabelText("Teléfono")).toHaveValue(CANDIDATE_PROFILE.phone);
     tab("Experiencia"); expect(screen.getByLabelText("Título profesional")).toHaveValue(CANDIDATE_PROFILE.professionalTitle);
     expect(mocks.save).not.toHaveBeenCalled();
@@ -150,7 +181,7 @@ describe("live candidate profile", () => {
     await screen.findByText("No se guardó el perfil");
     expect(screen.getByLabelText("Nombre del idioma 2")).toHaveValue("english");
     tab("Personal"); expect(screen.getByLabelText("Teléfono")).toHaveValue("12345678");
-    fireEvent.click(screen.getByRole("button", { name: "Restaurar cambios" }));
+    fireEvent.click(screen.getByRole("button", { name: "Restaurar copia original" }));
     expect(screen.getByLabelText("Teléfono")).toHaveValue(CANDIDATE_PROFILE.phone);
     tab("Idiomas"); expect(screen.getByLabelText("Nombre del idioma 2")).toHaveValue("inglés");
     expect(mocks.save).toHaveBeenCalledTimes(1);

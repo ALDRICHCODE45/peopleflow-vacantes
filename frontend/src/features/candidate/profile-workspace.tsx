@@ -14,7 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
+import { ActionStatus } from "@/components/feedback/action-status";
 import { dismissActionResult, notifyActionResult } from "@/components/feedback/notify";
 import { useIdentity } from "@/features/identity/identity-session";
 import { locationErrorMessages } from "@/features/geo/model";
@@ -28,6 +28,29 @@ import type { ProfileSaveOutcome } from "./profile-save";
 
 const CATEGORIES = [{ value: "personal", label: "Personal" }, { value: "experience", label: "Experiencia" }, { value: "education", label: "Educación" }, { value: "compensation", label: "Compensación" }, { value: "languages", label: "Idiomas" }] as const;
 const TAB_LIST = "max-w-full justify-start overflow-auto focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+// Preserve the validated main layout while the editor loads and saves real data.
+const HERO = "border-b border-border/60";
+const AVATAR = "size-24 shrink-0 ring-2 ring-primary/25 ring-offset-2 ring-offset-background sm:size-28";
+const META = "flex min-w-0 max-w-prose flex-col gap-1.5";
+const HEADLINE = "max-w-full break-words text-sm font-medium";
+const NAME = "min-w-0 break-words font-heading text-xl font-semibold text-foreground";
+const EMAIL = "break-words text-sm text-muted-foreground";
+const CONTEXT = "flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground";
+const CONTEXT_ITEM = "inline-flex min-w-0 items-center";
+const COMPLETION_ACTION = "flex w-full flex-col gap-4 max-md:col-span-2 max-md:col-start-1 max-md:row-span-1 max-md:row-start-3 md:w-72";
+const COMPLETION = "flex flex-col gap-2.5";
+const COMPLETION_HEAD = "flex items-baseline justify-between gap-3";
+const COMPLETION_TITLE = "font-heading text-sm font-semibold text-foreground";
+const COMPLETION_PERCENT = "font-heading text-2xl font-semibold text-primary";
+const COMPLETION_BAR = "w-full gap-0";
+const COMPLETION_COUNT = "text-sm text-muted-foreground";
+const TOOLBAR = "flex flex-col gap-3 px-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between";
+const TOOLBAR_COPY = "flex min-w-0 flex-1 flex-col gap-1";
+const STATUS = "max-w-prose text-sm text-muted-foreground";
+const ACTIONS = "flex flex-col gap-3 sm:flex-row sm:flex-wrap";
+const ACTION = "min-h-10 transition-colors duration-200 motion-reduce:transition-none";
+const CARD = "border border-border/70 ring-border/60";
+const CARD_CONTENT = "flex flex-col gap-4";
 const PARTIAL = "Guardamos tu perfil, pero no los idiomas. Revisa y vuelve a guardar.";
 const UNCERTAIN = "No pudimos confirmar si se guardó";
 const equal = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -46,9 +69,32 @@ function focusSelector(path: string) {
 }
 export function ProfileSkeleton() {
   return <DashboardPageContent data-pf-profile-workspace width="screen-2xl"><div aria-busy="true" className="flex flex-col gap-5"><span role="status" className="sr-only">Cargando perfil</span>
-    <div aria-hidden="true" className="flex flex-wrap justify-between gap-3"><Skeleton className="h-6 w-40" /><Skeleton className="h-10 w-72" /></div>
-    <Card aria-hidden="true"><CardHeader className="border-b"><CardTitle><Skeleton className="h-24 w-64" /></CardTitle><CardDescription><Skeleton className="h-10 w-56" /></CardDescription><CardAction><Skeleton className="h-24 w-64" /></CardAction></CardHeader>
-      <CardContent><div className="flex flex-col gap-4"><Skeleton className="h-10 w-full" /><FieldGroup className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">{["Contacto", "Ubicación"].map(title => <Card size="sm" key={title} className="shadow-none ring-border/70"><CardHeader className="border-b"><CardTitle><Skeleton className="h-5 w-36" /></CardTitle></CardHeader><CardContent className="flex flex-col gap-4"><FieldSet><FieldLegend className="sr-only">{title}</FieldLegend><FieldGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2">{[0, 1, 2].map(index => <Field key={index} className={index === 2 ? "sm:col-span-2" : undefined}><FieldLabel><Skeleton className="h-5 w-28" /></FieldLabel><Skeleton className="h-10 w-full" /></Field>)}</FieldGroup></FieldSet></CardContent></Card>)}</FieldGroup></div></CardContent>
+    <div aria-hidden="true" data-pf-profile-toolbar className={TOOLBAR}>
+      <div className={TOOLBAR_COPY}><Skeleton className="h-5 w-40" /></div>
+      <div className={ACTIONS}><Skeleton className="h-10 w-36" /><Skeleton className="h-10 w-52" /></div>
+    </div>
+    <Card aria-hidden="true" data-pf-profile-card className={CARD}>
+      <CardHeader data-pf-profile-identity className={HERO}>
+        <CardTitle className="flex min-w-0 flex-col items-start gap-5 sm:flex-row sm:items-center"><Skeleton className={`${AVATAR} rounded-full`} /><Skeleton className="h-7 w-48" /></CardTitle>
+        <CardDescription className={META}><Skeleton className="h-5 w-56" /><Skeleton className="h-4 w-64" /></CardDescription>
+        <CardAction className={COMPLETION_ACTION}>
+          <Skeleton className="h-5 w-48" />
+          <div className={COMPLETION}><div className={COMPLETION_HEAD}><Skeleton className="h-5 w-32" /><Skeleton className="h-8 w-12" /></div><Skeleton className="h-1 w-full" /><Skeleton className="h-5 w-40" /></div>
+        </CardAction>
+      </CardHeader>
+      <CardContent><div className={CARD_CONTENT}>
+        <div className="flex h-8 max-w-full gap-3 overflow-hidden">{CATEGORIES.map(item => <Skeleton key={item.value} className="h-8 w-24 shrink-0" />)}</div>
+        <FieldGroup className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
+          {["Contacto", "Ubicación"].map(title => <Card size="sm" key={title} className="shadow-none ring-border/70">
+            <CardHeader className="border-b"><CardTitle><Skeleton className="h-5 w-36" /></CardTitle></CardHeader>
+            <CardContent className="flex flex-col gap-4"><FieldSet className="gap-4"><FieldLegend className="sr-only">{title}</FieldLegend>
+              <FieldGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {(title === "Contacto" ? [false, false, true] : [true, true]).map((wide, index) => <Field key={index} className={wide ? "sm:col-span-2" : undefined}><FieldLabel><Skeleton className="h-5 w-28" /></FieldLabel><Skeleton className="h-10 w-full" /></Field>)}
+              </FieldGroup>
+            </FieldSet></CardContent>
+          </Card>)}
+        </FieldGroup>
+      </div></CardContent>
     </Card></div></DashboardPageContent>;
 }
 
@@ -160,16 +206,55 @@ function ProfileEditor({ identity, initial, initiallyNew }: { identity: Candidat
   const done = signals.filter(Boolean).length;
   const initials = identity.fullName.split(/\s+/).slice(0, 2).map(part => part[0]).join("");
   return <DashboardPageContent data-pf-profile-workspace width="screen-2xl">{isNew && <p className="mb-5 text-sm text-muted-foreground">Completa tu perfil para postularte más rápido. Se crea al guardar por primera vez.</p>}<form ref={form} noValidate data-pf-profile-form onSubmit={submit} className="flex flex-col gap-5">
-    <div data-pf-profile-toolbar className="flex flex-wrap items-start justify-between gap-3"><Badge variant={dirty ? "review" : "neutral"} data-pf-profile-dirty>{dirty ? "Cambios pendientes" : "Sin cambios pendientes"}</Badge>
-      <ActionBar status={status ? <ActionStatus id="profile-action-status" tone={status.tone} text={status.text} /> : undefined}>
-        <Button type="button" variant="outline" className="min-h-10" disabled={!dirty || pending || uncertain} onClick={() => { setDraft(baseDraft); setIssues([]); setStatus(null); }}><Undo2 data-icon="inline-start" aria-hidden="true" />Restaurar cambios</Button>
-        {uncertain && <Button type="button" className="min-h-10" disabled={pending} aria-busy={pending} onClick={reconcile}>{pending && <Spinner data-icon="inline-start" aria-hidden="true" />}{pending ? "Comprobando…" : "Comprobar"}</Button>}
-        <Button type="submit" variant={uncertain ? "outline" : "default"} className="min-h-10" disabled={(!isNew && !dirty) || pending || uncertain} aria-busy={pending} aria-describedby={status ? "profile-action-status" : undefined}>{pending && !uncertain ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Save data-icon="inline-start" aria-hidden="true" />}{pending && !uncertain ? "Guardando…" : "Guardar perfil"}</Button>
-      </ActionBar></div>
-    <Card data-pf-profile-card><CardHeader data-pf-profile-identity className="border-b">
-      <CardTitle className="flex min-w-0 flex-col items-start gap-5 sm:flex-row sm:items-center"><Avatar className="size-24 shrink-0 sm:size-28"><AvatarFallback>{initials}</AvatarFallback></Avatar><h2 className="min-w-0 break-words text-xl font-semibold">{identity.fullName}</h2></CardTitle>
-      <CardDescription className="flex min-w-0 max-w-prose flex-col gap-1.5"><p>{identity.email}</p><p data-pf-profile-context>{baseline.location?.label ?? "Ubicación sin definir"} · {draft.currentCompany.trim() || "Empresa sin definir"}</p></CardDescription>
-      <CardAction className="flex w-full flex-col gap-4 max-md:col-span-2 max-md:col-start-1 max-md:row-start-3 md:w-72"><p data-pf-profile-headline className="break-words text-sm font-medium">{draft.professionalTitle.trim() || "Título profesional sin definir"}</p><div className="flex flex-col gap-2.5"><div className="flex items-baseline justify-between gap-3"><h3 id="profile-completion" className="text-sm font-semibold">Avance del perfil</h3><span className="text-2xl font-semibold">{done * 10}%</span></div><Progress aria-labelledby="profile-completion" value={done} max={10} /><p className="text-sm text-muted-foreground">{done} de 10 datos clave</p></div></CardAction>
-    </CardHeader><CardContent><Tabs value={activeTab} onValueChange={value => setActiveTab(value as ProfileCategory)} className="flex flex-col gap-4"><TabsList aria-label="Secciones del perfil" tabIndex={0} className={TAB_LIST}>{CATEGORIES.map(item => <TabsTrigger key={item.value} value={item.value}>{item.label}</TabsTrigger>)}</TabsList><TabsContent value={activeTab}><fieldset disabled={pending || uncertain} className="min-w-0"><ProfileFormFields draft={draft} issues={issues} onChange={next => { if (!busy.current && !uncertain) { setDraft(next); setIssues([]); setStatus(null); } }} category={activeTab} disabled={pending || uncertain} /></fieldset></TabsContent></Tabs></CardContent></Card>
+    <div data-pf-profile-toolbar className={TOOLBAR}>
+      <div className={TOOLBAR_COPY}>
+        <p role="status" aria-live="polite" data-pf-profile-status className={STATUS}>
+          <Badge variant={dirty ? "review" : "neutral"} data-pf-profile-dirty>{dirty ? "Cambios pendientes" : "Sin cambios pendientes"}</Badge>
+        </p>
+        {status && <ActionStatus id="profile-action-status" tone={status.tone} text={status.text} />}
+      </div>
+      <div className={ACTIONS}>
+        <Button type="submit" data-pf-profile-review variant={uncertain ? "outline" : "default"} className={ACTION} disabled={(!isNew && !dirty) || pending || uncertain} aria-busy={pending} aria-describedby={status ? "profile-action-status" : undefined}>{pending && !uncertain ? <Spinner data-icon="inline-start" aria-hidden="true" /> : <Save data-icon="inline-start" aria-hidden="true" />}{pending && !uncertain ? "Guardando…" : "Guardar perfil"}</Button>
+        <Button type="button" variant="outline" data-pf-profile-reset className={ACTION} disabled={!dirty || pending || uncertain} onClick={() => { setDraft(baseDraft); setIssues([]); setFocus(null); setStatus({ text: "Restauramos la copia original en esta vista.", tone: "info" }); }}><Undo2 data-icon="inline-start" aria-hidden="true" />Restaurar copia original</Button>
+        {uncertain && <Button type="button" className={ACTION} disabled={pending} aria-busy={pending} onClick={reconcile}>{pending && <Spinner data-icon="inline-start" aria-hidden="true" />}{pending ? "Comprobando…" : "Comprobar"}</Button>}
+      </div>
+    </div>
+    <Card data-pf-profile-card className={CARD}>
+      <CardHeader data-pf-profile-identity className={HERO}>
+        <CardTitle className="flex min-w-0 flex-col items-start gap-5 sm:flex-row sm:items-center">
+          <Avatar className={AVATAR}><AvatarFallback>{initials}</AvatarFallback></Avatar>
+          <h2 id="pf-profile-identity-heading" className={NAME}>{identity.fullName}</h2>
+        </CardTitle>
+        <CardDescription className={META}>
+          <p className={EMAIL}><span data-pf-profile-email>{identity.email}</span></p>
+          <p data-pf-profile-context className={CONTEXT}>
+            <span className={CONTEXT_ITEM}>{baseline.location?.label ?? "Ubicación sin definir"}</span>
+            <span aria-hidden="true">·</span>
+            <span className={CONTEXT_ITEM}>{draft.currentCompany.trim() || "Empresa sin definir"}</span>
+          </p>
+        </CardDescription>
+        <CardAction className={COMPLETION_ACTION}>
+          <p data-pf-profile-headline className={HEADLINE}>{draft.professionalTitle.trim() || "Título profesional sin definir"}</p>
+          <div data-pf-profile-completeness className={COMPLETION}>
+            <div className={COMPLETION_HEAD}>
+              <h3 id="pf-profile-completion-heading" className={COMPLETION_TITLE}>Avance del perfil</h3>
+              <span className={COMPLETION_PERCENT}>{done * 10}%</span>
+            </div>
+            <Progress aria-labelledby="pf-profile-completion-heading" value={done} max={10} className={COMPLETION_BAR} />
+            <p data-pf-profile-completeness-value className={COMPLETION_COUNT}>{done} de 10 datos clave</p>
+          </div>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <Tabs value={activeTab} onValueChange={value => setActiveTab(value as ProfileCategory)} className={CARD_CONTENT}>
+          <TabsList variant="line" aria-label="Secciones del perfil" tabIndex={0} className={TAB_LIST}>{CATEGORIES.map(item => <TabsTrigger key={item.value} value={item.value}>{item.label}</TabsTrigger>)}</TabsList>
+          <TabsContent value={activeTab}>
+            <fieldset disabled={pending || uncertain} className="min-w-0">
+              <ProfileFormFields draft={draft} issues={issues} onChange={next => { if (!busy.current && !uncertain) { setDraft(next); setIssues([]); setStatus(null); } }} category={activeTab} disabled={pending || uncertain} />
+            </fieldset>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
   </form></DashboardPageContent>;
 }
