@@ -226,3 +226,19 @@ describe("live candidate profile", () => {
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
 });
+
+it("lets the section tabs scroll sideways only (no 1px vertical scrollbar next to «Idiomas»)", async () => {
+  // Seen in Chromium: overflow-auto plus a 33px row in a 32px list drew a vertical scroll control.
+  await ready();
+  const list = screen.getByRole("tablist");
+  expect(list).toHaveClass("overflow-x-auto", "overflow-y-hidden");
+  expect(list).not.toHaveClass("overflow-auto");
+});
+
+it("does not repeat the «Ubicación» card title as a visible location legend", async () => {
+  // Seen in Chromium: the card «Ubicación» showed a second visible «Ubicación» heading inside.
+  await ready();
+  const legends = screen.getAllByRole("group", { name: "Ubicación" }).map(group => group.querySelector(":scope > legend"));
+  expect(legends.length).toBeGreaterThan(1);
+  for (const legend of legends) expect(legend).toHaveClass("sr-only");
+});

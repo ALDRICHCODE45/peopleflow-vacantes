@@ -26,7 +26,7 @@ import type { ProfileFailure, ProfileLanguages, ProfileRead } from "./profile-ap
 import type { ProfileSaveOutcome } from "./profile-save";
 
 const CATEGORIES = [{ value: "personal", label: "Personal" }, { value: "experience", label: "Experiencia" }, { value: "education", label: "Educación" }, { value: "compensation", label: "Compensación" }, { value: "languages", label: "Idiomas" }] as const;
-const TAB_LIST = "max-w-full justify-start overflow-auto focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+const TAB_LIST = "max-w-full justify-start overflow-x-auto overflow-y-hidden focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 // Preserve the validated main layout while the editor loads and saves real data.
 const HERO = "border-b border-border/60";
 const AVATAR = "size-24 shrink-0 ring-2 ring-primary/25 ring-offset-2 ring-offset-background sm:size-28";
