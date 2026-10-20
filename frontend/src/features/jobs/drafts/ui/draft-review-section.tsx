@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, type ReactNode } from "react";
+import { Fragment, useContext, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowUpRight, Banknote, Check, Eye, LockKeyhole, MessageSquare, Settings2, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Item, ItemActions, ItemContent, ItemGroup, ItemSeparator, ItemTitle } from "@/components/ui/item";
-import { SheetTrigger } from "@/components/ui/sheet";
+import { DraftPreviewContext } from "./draft-editor-shell";
 import { groupMissing, type editorReadiness } from "../pipeline/publication-model";
 import type { DraftFormState } from "./draft-form-state";
 import { internalCompensationView } from "./draft-preview";
@@ -23,6 +23,7 @@ export function DraftReviewSection({ state, readiness, draftId, published, quest
   questionnaireAction: ReactNode;
   onComplete: (code: string) => void;
 }) {
+  const openPreview = useContext(DraftPreviewContext);
   const groups = groupMissing(readiness.missing);
   const salary = internalCompensationView(state.compensation);
   const title = published ? "Tu vacante está activa" : readiness.pending ? "Cada detalle cuenta" : readiness.serverKnown ? "Todo listo para publicar" : "Revisa tu vacante";
@@ -64,6 +65,6 @@ export function DraftReviewSection({ state, readiness, draftId, published, quest
         <div><dt className="flex items-center gap-2 text-sm text-muted-foreground"><Banknote aria-hidden="true" className="size-4" />Monto interno</dt><dd className="mt-1 break-words text-sm">{salary ? <>{salary.amount}<p className="text-xs text-muted-foreground">{salary.meta}</p></> : "Compensación por revisar"}</dd></div>
       </dl></CardContent>
     </Card>
-    <SheetTrigger render={<Button type="button" variant="outline" className="min-h-10 w-full" />}><Eye aria-hidden="true" data-icon="inline-start" />Revisar vista previa pública</SheetTrigger>
+    <Button type="button" variant="outline" className="min-h-10 w-full" onClick={openPreview} aria-haspopup="dialog"><Eye aria-hidden="true" data-icon="inline-start" />Revisar vista previa pública</Button>
   </div>;
 }

@@ -115,18 +115,38 @@ it("keeps explicit save status and publish controls in the sticky bar", async ()
   fireEvent.click(save());
   await waitFor(() => expect(footer).toHaveTextContent("Guardado · versión 1"));
 });
-it("opens the mobile public preview in a composed Sheet without private data", async () => {
+it.each(["Vista previa", "Ver vacante completa"])("opens %s in a composed Sheet and restores focus", async opener => {
   const model = createDraftModel(); model.requesterName = "Cliente secreto";
   model.fields.compensation = { mode: "fixed", amount: "987654.32", min: null, max: null, currency: "MXN", pay_period: "monthly", basis: "gross", public_visible: false };
   const { container } = render(<LocalDraftForm initialModel={model} initialScreeningQuestionsV2={[]} />);
   expect(container.querySelector('[data-pf-live-preview]')).toHaveClass("hidden", "xl:block");
-  fireEvent.click(screen.getByRole("button", { name: "Vista previa" }));
+  const trigger = screen.getByRole("button", { name: opener });
+  trigger.focus();
+  fireEvent.click(trigger);
   const dialog = await screen.findByRole("dialog", { name: "Vista previa pública" });
   expect(dialog).toHaveAttribute("data-slot", "sheet-content");
   expect(dialog.querySelector('[data-slot="sheet-header"] [data-slot="sheet-title"]')).not.toBeNull();
   expect(dialog).toHaveTextContent("Salario no publicado");
   expect(dialog).not.toHaveTextContent("Cliente secreto"); expect(dialog).not.toHaveTextContent("987654");
   expect(dialog.querySelector('[data-pf-draft-internal]')).toBeNull();
+  fireEvent.click(within(dialog).getByRole("button", { name: "Cerrar vista previa" }));
+  await waitFor(() => expect(trigger).toHaveFocus());
+});
+it("opens publication from the editor with its own backdrop", async () => {
+  render(<LocalDraftForm initialIdentity={{ draftId: "saved", etag: '"v1"' }} />);
+  fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Backend" } });
+  fireEvent.click(screen.getByRole("button", { name: "Publicar vacante" }));
+  await screen.findByRole("dialog", { name: "Guarda los cambios antes de publicar" });
+  expect(document.querySelector('[data-slot="dialog-overlay"]')).toBeInTheDocument();
+});
+it("opens publication from the review section with its own backdrop (not nested in the preview Sheet)", async () => {
+  // Base UI skips the Backdrop of a dialog with any parent dialog root (open or closed).
+  render(<LocalDraftForm initialIdentity={{ draftId: "saved", etag: '"v1"' }} />);
+  fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Backend" } });
+  fireEvent.click(screen.getByRole("tab", { name: "Revisión y publicación" }));
+  fireEvent.click(screen.getByRole("button", { name: "Revisar y publicar" }));
+  await screen.findByRole("dialog", { name: "Guarda los cambios antes de publicar" });
+  expect(document.querySelector('[data-slot="dialog-overlay"]')).toBeInTheDocument();
 });
 it("confirms ordinary in-app links without intercepting same-page anchors or new tabs", async () => {
   const follow = vi.fn();
@@ -138,6 +158,7 @@ it("confirms ordinary in-app links without intercepting same-page anchors or new
   fireEvent.click(screen.getByRole("link", { name: "Volver" }));
   // User: «salga un dialog advirtiendo que tiene datos sin guardar y dos acciones de continuar, o salir de todos modos».
   const dialog = await screen.findByRole("alertdialog", { name: "Tienes cambios sin guardar" });
+  expect(document.querySelector('[data-slot="alert-dialog-overlay"]')).toBeInTheDocument();
   expect(dialog).toHaveTextContent("Si sales ahora, perderás los cambios que no guardaste.");
   expect(within(dialog).getByRole("button", { name: "Salir de todos modos" })).toHaveClass("text-destructive");
   fireEvent.click(within(dialog).getByRole("button", { name: "Continuar editando" }));

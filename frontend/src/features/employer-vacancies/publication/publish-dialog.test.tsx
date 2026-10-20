@@ -60,6 +60,26 @@ it("uses ItemDescription for summary labels", async () => {
  }
 });
 it("blocks unsaved changes before reads or publish", async () => { mount(true); expect(await screen.findByText("Guarda los cambios antes de publicar")).toBeVisible(); expect(screen.queryByRole("button", { name: "Publicar vacante" })).not.toBeInTheDocument(); expect(loadDraftForEditAction).not.toHaveBeenCalled(); });
+it("fits the unsaved warning without an empty scroll body", () => {
+ mount(true);
+ const dialog = screen.getByRole("dialog", { name: "Guarda los cambios antes de publicar" });
+ expect(dialog.querySelector('[data-pf-publication-scroll]')).toBeNull();
+});
+it("bounds a checklist of sixteen requirements with fixed header and footer", async () => {
+ vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: Array.from({ length: 16 }, (_, index) => `future_${index}`) } });
+ mount();
+ const dialog = await screen.findByRole("dialog", { name: "Te falta para publicar" });
+ expect(dialog).toHaveClass("max-h-[min(44rem,calc(100dvh-2rem))]");
+ const body = dialog.querySelector('[data-pf-publication-scroll]')!;
+ expect(body).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
+ expect(body.querySelectorAll('[data-slot="item"]')).toHaveLength(16);
+ for (const slot of ["dialog-header", "dialog-footer"]) {
+  const part = dialog.querySelector(`[data-slot="${slot}"]`)!;
+  expect(body.contains(part)).toBe(false);
+  expect(part).toHaveClass("shrink-0");
+ }
+ expect(within(dialog.querySelector('[data-slot="dialog-footer"]') as HTMLElement).getByRole("button", { name: "Cerrar" })).toBeVisible();
+});
 it("groups checklist links by owner with unknown-code fallback and no publish", async () => {
  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "draft", publishedAt: null, missing: ["title_missing", "request_date_missing", "commitment_date_past", "future"] } }); mount();
  await screen.findByRole("heading", { name: "Te falta para publicar" });

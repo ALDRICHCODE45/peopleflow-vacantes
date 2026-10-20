@@ -172,16 +172,16 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
     {notice && <ActionStatus id="publication-status" tone={notice.tone} text={notice.text} />}
   </ConfirmActionDialog>;
   return <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col sm:max-w-lg" showCloseButton={!pending} initialFocus={heading} finalFocus={() => completionAnchor.current ? document.getElementById(completionAnchor.current) ?? false : true}>
-    <DialogHeader><DialogTitle ref={attachHeading} tabIndex={-1} className="outline-none">{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
+    <DialogHeader className="shrink-0"><DialogTitle ref={attachHeading} tabIndex={-1} className="outline-none">{title}</DialogTitle><DialogDescription>{description}</DialogDescription></DialogHeader>
     {/* One native scroll region owns overflow; sections never shrink. ScrollArea needs a fixed height. */}
-    <div data-pf-publication-scroll className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pb-1 [scrollbar-width:thin]" aria-busy={!unsavedChanges && mode === "loading"}>
+    {!unsavedChanges && <div data-pf-publication-scroll className="-mx-1 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1 pb-1 [scrollbar-width:thin]" aria-busy={!unsavedChanges && mode === "loading"}>
       {!unsavedChanges && mode === "loading" ? <><span role="status" className="sr-only">Cargando publicación</span><PublicationSkeleton missing={snapshot?.publication.missing ?? []} /></> : null}
       {!unsavedChanges && mode === "load_error" && <p className="text-sm text-muted-foreground">No se modificó la vacante. Puedes volver a cargar los datos.</p>}
       {!unsavedChanges && snapshot && mode !== "loading" && mode !== "load_error" && (missing.length ? groups.map(group => {
         const Icon = GROUP_ICONS[group.group];
         return <section key={group.group} aria-labelledby={`publication-${group.group}`} className="flex shrink-0 flex-col gap-2">
           <div className="flex items-center gap-2"><Icon aria-hidden="true" className="size-4" /><h3 id={`publication-${group.group}`} className="flex-1 text-sm font-medium">{MISSING_GROUP_LABELS[group.group]}</h3><Badge variant="secondary">{group.items.length}</Badge></div>
-          <ItemGroup className="gap-0">{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>
+          <ItemGroup className="gap-0 has-data-[size=sm]:gap-0">{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>
             {index > 0 && <ItemSeparator className="my-0" />}
             <Item size="sm" role="listitem"><ItemContent><ItemTitle>{item.label}</ItemTitle></ItemContent><ItemActions><Button nativeButton={false} role="link" variant="ghost" className="min-h-10" render={<Link href={item.href(draftId)} onClick={event => {
               if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -193,8 +193,8 @@ function PublicationSession({ draftId, onOpenChange, onPublished, unsavedChanges
       }) : already ? <p className="text-sm text-muted-foreground">{snapshot.publication.publishedAt ? `Publicada el ${formatPublicationDate(snapshot.publication.publishedAt)}` : "El tiempo de entrega ya está en marcha."}</p> : <>
         <PublicationSummary snapshot={snapshot} />
       </>)}
-    </div>
-    <DialogFooter className="flex-row"><ActionBar status={notice ? <ActionStatus id="publication-status" tone={notice.tone} text={notice.text} /> : null}>
+    </div>}
+    <DialogFooter className="shrink-0 flex-row"><ActionBar status={notice ? <ActionStatus id="publication-status" tone={notice.tone} text={notice.text} /> : null}>
       <DialogClose disabled={pending} render={<Button type="button" variant="outline" className="min-h-10" />}>Cerrar</DialogClose>
       {!unsavedChanges && mode === "loading" && <Skeleton aria-hidden="true" className="h-10 w-40" />}
       {!unsavedChanges && mode === "load_error" && <Button type="button" className="min-h-10" onClick={() => reload()}>Reintentar</Button>}
@@ -215,6 +215,6 @@ function PublicationSummary({ snapshot }: { snapshot: Snapshot }) {
 
 // Skeleton exception: use known checklist groups on reload; otherwise mirror the four summary Items.
 function PublicationSkeleton({ missing }: { missing: readonly string[] }) {
-  if (missing.length) return <div aria-hidden="true" className="flex flex-col gap-4">{groupMissing([...missing]).map(group => <section key={group.group} className="flex shrink-0 flex-col gap-2"><div className="flex items-center gap-2"><Skeleton className="size-4" /><h3 className="flex-1 text-sm font-medium"><Skeleton className="h-5 w-40" /></h3><Badge variant="secondary"><Skeleton className="h-4 w-3" /></Badge></div><ItemGroup className="gap-0">{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>{index > 0 && <ItemSeparator className="my-0" />}<Item size="sm"><ItemContent><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent><ItemActions><Skeleton className="h-10 w-28" /></ItemActions></Item></Fragment>)}</ItemGroup></section>)}</div>;
+  if (missing.length) return <div aria-hidden="true" className="flex flex-col gap-4">{groupMissing([...missing]).map(group => <section key={group.group} className="flex shrink-0 flex-col gap-2"><div className="flex items-center gap-2"><Skeleton className="size-4" /><h3 className="flex-1 text-sm font-medium"><Skeleton className="h-5 w-40" /></h3><Badge variant="secondary"><Skeleton className="h-4 w-3" /></Badge></div><ItemGroup className="gap-0 has-data-[size=sm]:gap-0">{group.items.map((item, index) => <Fragment key={`${item.code}-${index}`}>{index > 0 && <ItemSeparator className="my-0" />}<Item size="sm"><ItemContent><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent><ItemActions><Skeleton className="h-10 w-28" /></ItemActions></Item></Fragment>)}</ItemGroup></section>)}</div>;
   return <div aria-hidden="true" className="flex flex-col gap-5"><ItemGroup>{[0, 1, 2, 3].map(index => <Item key={index} variant="outline" size="sm"><ItemMedia variant="icon"><Skeleton className="size-4" /></ItemMedia><ItemContent><Skeleton className="h-4 w-28"><ItemDescription>&nbsp;</ItemDescription></Skeleton><ItemTitle><Skeleton className="h-5 w-40" /></ItemTitle></ItemContent></Item>)}</ItemGroup><Skeleton className="h-10 w-full" /></div>;
 }
