@@ -39,7 +39,7 @@ export function useCountryGate(job: CountryScope, candidate: boolean, failure?: 
     {profile && !profile.ok && <><ActionStatus id="application-profile-read" tone="warning" text="No pudimos consultar tu país. El servidor comprobará si puedes postularte al enviar." /><Button variant="outline" className="min-h-10 self-start" onClick={retryProfile}>Reintentar</Button></>}
     {required && <ActionStatus id="application-country-verdict" tone="warning" text="Agrega tu país en tu perfil para postularte." />}
     {excluded && <ActionStatus id="application-country-verdict" tone="warning" text={country ? `Tu perfil indica ${country.name}. Esta vacante no acepta postulaciones desde ahí.` : "Esta vacante no acepta postulaciones desde el país de tu perfil."} />}
-    {blocked && <Link href="/candidato/perfil" className={buttonVariants({ variant: "outline", className: "min-h-10 self-start" })}>Completar perfil</Link>}
+    {blocked && <Link href="/candidato/perfil" className={buttonVariants({ variant: "outline", className: "min-h-10 self-start" })}>{excluded ? "Cambiar ubicación" : "Completar perfil"}</Link>}
   </section> : null;
   return { blocked, notice };
 }

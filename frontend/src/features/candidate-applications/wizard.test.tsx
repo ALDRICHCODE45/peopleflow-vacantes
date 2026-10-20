@@ -42,7 +42,12 @@ it.each([null, { id: "US", name: "Estados Unidos" }])("blocks a known ineligible
   await toSummary();
   expect(screen.getByRole("button", { name: "Enviar postulación" })).toBeDisabled();
   if (!country) expect(screen.getByRole("link", { name: "Completar perfil" })).toHaveAttribute("href", "/candidato/perfil");
-  else expect(screen.getByText("Tu perfil indica Estados Unidos. Esta vacante no acepta postulaciones desde ahí.")).toBeVisible();
+  else {
+    expect(screen.getByText("Tu perfil indica Estados Unidos. Esta vacante no acepta postulaciones desde ahí.")).toBeVisible();
+    // The profile is complete; the fix is changing the location, not completing it.
+    expect(screen.getByRole("link", { name: "Cambiar ubicación" })).toHaveAttribute("href", "/candidato/perfil");
+    expect(screen.queryByRole("link", { name: "Completar perfil" })).toBeNull();
+  }
   expect(submitApplicationAction).not.toHaveBeenCalled();
 });
 it("treats a candidate without a profile yet as having no country", async () => {
