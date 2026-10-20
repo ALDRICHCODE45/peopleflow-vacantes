@@ -13,10 +13,11 @@ Branch `feat/geo-apply-ui`, stacked on `feat/geo-profiles-ui`.
 
 ## Tasks
 
-- T1 [pending] S1-S4 | writer A | Apply flow: early honest notice from vacancy scope + profile country, 422 mapping with «Completar perfil» path, allowed country names. | commit: -
-- T2 [pending] S1-S4 | writer B | Board: decoders profile.location, Estado/Municipio filter dimensions replace Ciudad, candidate sheet profile block shows the label. | commit: -
-- T3 [pending] | parent | Full suite, guide step, queue paired with backend row 15. | commit: -
+- T1 [done] S1-S4 | writer A | Apply flow: early honest notice from vacancy scope + profile country, 422 mapping with «Completar perfil» path, allowed country names. | commit: 1e1d534
+- T2 [done] S1-S4 | writer B | Board: decoders profile.location, Estado/Municipio filter dimensions replace Ciudad, candidate sheet profile block shows the label. | commit: 7c1c957
+- T3 [done] | parent | Full suite, guide step 78, queue item 3 paired with backend row 15; load-aware timeouts (6d1d0bf). | commit: docs commit
 
 ## Log
 
 - L1. Backend G4: bdffc03 (migration 00033), 01f9e68 (feature). `make db-migrate` applies 00033.
+- L2. The live wizard did not load the real profile; T1 reads it with the G3 read action (no guessing when unreadable). The prototype wizard stays reachable for legacy jobs (unchanged). Full suite: editor/50-row tests timed out only under parallel load (local-draft-form 152 s for 59 cases); gave them a 30 s budget with an explanatory comment (6d1d0bf). Final run 5,778 passed + that one test passing alone and after the fix; tsc 0.

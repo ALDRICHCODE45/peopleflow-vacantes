@@ -586,3 +586,14 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     «Guardar ubicación» → «Ubicación actualizada.». Abrí el mismo diálogo en dos pestañas,
     guardá en una y después en la otra: aparece «Esto cambió en otro lugar» con los datos
     actuales, sin guardar solo. Un reclutador ve la ubicación sin el botón.
+
+78. **Postulación por país y filtros por estado/municipio (G4).** Backend en `feat/geo-apply`
+    (`make db-migrate` aplica la 00033). Publicá una vacante remota «Solo desde estos
+    países» con México y Colombia. Como candidato **sin país** en el perfil, abrí
+    «Postular». **Esperado:** «Esta vacante solo acepta postulantes de: México y
+    Colombia.» y «Agrega tu país en tu perfil para postularte.» con «Completar perfil».
+    Con país Argentina: «Tu perfil indica Argentina. Esta vacante no acepta postulaciones
+    desde ahí.» y «Enviar postulación» deshabilitado. Con México: postulás normal. En el
+    tablero de esa vacante, «Filtros» → «PERFIL DEL CANDIDATO» tiene «Estado» y
+    «Municipio» (el municipio dice también su estado) con «Sin dato»; la ficha muestra
+    «Ubicación». Las postulaciones viejas aparecen como «Sin dato».
