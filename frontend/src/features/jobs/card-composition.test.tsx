@@ -104,7 +104,7 @@ it("gives the persisted draft preview and questionnaire native headers and descr
     const header = expectHeader(screen.getByRole("heading", { name }));
     expect(header.querySelector(':scope > [data-slot="card-description"]')).not.toBeNull();
   }
-  expect(screen.getByText("Borrador").closest('[data-slot="card-action"]')).not.toBeNull();
+  expect(screen.getByText("Pública").closest('[data-slot="card-action"]')).not.toBeNull();
 });
 
 it("uses native titles and descriptions in the two application rail cards", () => {
