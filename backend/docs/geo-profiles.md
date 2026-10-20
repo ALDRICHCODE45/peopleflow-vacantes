@@ -133,7 +133,7 @@ Migration 00029 itself remains unchanged.
   write; the fixed unit regression passes without a DB.
 - `TestCompanyEditorWriteReturnsOwnRowAndRollsBackErrors` (DB): adapter returns its
   written codes/token; later writes leave prior results unchanged; stale CAS and
-  audit failure return no row and preserve company/audit state. Parent DB run pending.
+  audit failure return no row and preserve company/audit state. Passed in the parent DB run (L14).
 - `TestUpdateCompanyRequiresWrittenRowPort`: no unsafe legacy-writer fallback.
 - `TestGeoProfilesMigration`: migration definition; integration test
   `TestGeoProfilesMigrationConstraintsAndEmptyDown`: physical FK/CHECK matrix,
