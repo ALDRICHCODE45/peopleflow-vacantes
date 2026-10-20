@@ -7,6 +7,12 @@ import "@testing-library/jest-dom/vitest";
 
 import { IngresarMenu } from "@/components/navigation/IngresarMenu";
 
+const identity = vi.hoisted(() => ({ useIdentity: vi.fn() }));
+vi.mock("@/features/identity/identity-session", () => ({
+  useIdentity: identity.useIdentity,
+  IdentitySessionProvider: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 // The Base UI menu popup mounts through a floating-ui portal that jsdom cannot
 // drive, so open/Escape/focus behavior is verified in the CCP-R7E browser
 // contracts. This suite pins the closed trigger contract plus the primitive
@@ -47,7 +53,10 @@ function trigger() {
   return screen.getByRole("button", { name: /^ingresar$/i });
 }
 
-beforeEach(stubBrowserApis);
+beforeEach(() => {
+  stubBrowserApis();
+  identity.useIdentity.mockReturnValue({ status: "unauthenticated" });
+});
 
 afterEach(() => {
   cleanup();
@@ -83,6 +92,39 @@ describe("IngresarMenu closed trigger", () => {
     render(<IngresarMenu className="h-11 px-5" />);
 
     expect(trigger()).toHaveClass("h-11", "px-5");
+  });
+});
+
+describe("IngresarMenu identity entry", () => {
+  it.each([
+    ["candidate", "/candidato/dashboard"],
+    ["recruiter", "/empresa/dashboard"],
+  ])("links %s to their own dashboard instead of login", (role, href) => {
+    identity.useIdentity.mockReturnValue({ status: "ready", result: { ok: true, data: { role } } });
+    render(<IngresarMenu className="h-11 px-5" />);
+
+    const link = screen.getByRole("link", { name: "Mi cuenta" });
+    expect(link).toHaveAttribute("href", href);
+    expect(link).toHaveClass("hover:bg-muted", "hover:text-foreground");
+    expect(link).toHaveClass("min-h-10", "max-sm:min-w-10", "h-11", "px-5");
+    expect(screen.getByText("Mi cuenta")).toHaveClass("max-sm:sr-only");
+    expect(link.querySelectorAll("svg")).toHaveLength(1);
+    expect(link.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(link).not.toHaveAttribute("aria-haspopup");
+    expect(screen.queryByRole("button", { name: "Ingresar" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { status: "loading" },
+    { status: "ready" },
+    { status: "ready", result: { ok: false, reason: "no_response", reference: {} } },
+    { status: "ready", result: { ok: true, data: { role: null } } },
+  ])("keeps login when identity is unresolved: %j", (state) => {
+    identity.useIdentity.mockReturnValue(state);
+    render(<IngresarMenu />);
+
+    expect(trigger()).toHaveAttribute("aria-haspopup", "menu");
+    expect(screen.queryByRole("link", { name: "Mi cuenta" })).not.toBeInTheDocument();
   });
 });
 

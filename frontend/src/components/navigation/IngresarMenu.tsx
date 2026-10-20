@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, UserRoundIcon } from "lucide-react";
+import { IdentitySessionProvider, useIdentity } from "@/features/identity/identity-session";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +32,35 @@ export type IngresarMenuProps = {
  * parts throw outside a group.
  */
 export function IngresarMenu({ className }: IngresarMenuProps) {
+  return (
+    <IdentitySessionProvider>
+      <IdentityMenu className={className} />
+    </IdentitySessionProvider>
+  );
+}
+
+function IdentityMenu({ className }: IngresarMenuProps) {
+  const { status, result } = useIdentity();
+  const role = status === "ready" && result?.ok ? result.data.role : null;
+  const href = role === "candidate" ? "/candidato/dashboard"
+    : role === "recruiter" ? "/empresa/dashboard" : null;
+
+  if (href) {
+    // Match CandidateAuthControls: explicitly retain link semantics on Base UI's Button.
+    return (
+      <Button
+        nativeButton={false}
+        role="link"
+        variant="ghost"
+        render={<Link href={href} />}
+        className={cn("min-h-10 gap-1.5 px-3 max-sm:min-w-10 max-sm:px-0", className)}
+      >
+        <span className="max-sm:sr-only">Mi cuenta</span>
+        <UserRoundIcon aria-hidden="true" className="opacity-60" />
+      </Button>
+    );
+  }
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger

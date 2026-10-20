@@ -7,6 +7,14 @@ import { join } from "node:path";
 
 import MarketingPage from "./page";
 
+// The navbar's «Ingresar» entry reads the same-origin NextAuth session in the browser
+// (covered in IngresarMenu.test.tsx); this page itself must still make no API call.
+vi.mock("@/features/identity/identity-session", () => ({
+  useIdentity: () => ({ status: "unauthenticated", email: null, retry() {}, update() {} }),
+  IdentitySessionProvider: ({ children }: { children: unknown }) => children,
+}));
+
+
 const pageSource = readFileSync(
   join(process.cwd(), "src/app/(marketing)/page.tsx"),
   "utf8",

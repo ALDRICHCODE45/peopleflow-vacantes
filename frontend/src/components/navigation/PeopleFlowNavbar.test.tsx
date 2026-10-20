@@ -7,6 +7,13 @@ import "@testing-library/jest-dom/vitest";
 
 import { PeopleFlowNavbar } from "@/components/navigation/PeopleFlowNavbar";
 
+// The header asks the session for the visitor's role; these tests cover anonymous visitors.
+vi.mock("@/features/identity/identity-session", () => ({
+  useIdentity: () => ({ status: "unauthenticated", email: null, retry() {}, update() {} }),
+  IdentitySessionProvider: ({ children }: { children: unknown }) => children,
+}));
+
+
 // The marketing header composes the shared login menu instead of owning a
 // placeholder anchor. Source-level because the Base UI menu popup lives in a
 // jsdom-unreachable portal, matching the IngresarMenu/PublicShell precedents.

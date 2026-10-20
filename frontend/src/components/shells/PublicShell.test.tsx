@@ -7,6 +7,13 @@ import "@testing-library/jest-dom/vitest";
 
 import { PublicShell } from "./PublicShell";
 
+// The header asks the session for the visitor's role; these tests cover anonymous visitors.
+vi.mock("@/features/identity/identity-session", () => ({
+  useIdentity: () => ({ status: "unauthenticated", email: null, retry() {}, update() {} }),
+  IdentitySessionProvider: ({ children }: { children: unknown }) => children,
+}));
+
+
 // The shell consumes the shared menu, so it must not re-own a candidate-login
 // anchor. Source-level because the popup lives in a jsdom-unreachable portal.
 const source = readFileSync(
