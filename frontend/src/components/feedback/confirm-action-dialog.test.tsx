@@ -72,7 +72,9 @@ it("follows the official shadcn composition: media, title and description in the
   expect(media.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   expect(media.nextElementSibling).toHaveAttribute("data-slot", "alert-dialog-title");
   expect(header.nextElementSibling).toHaveAttribute("data-slot", "alert-dialog-footer");
-  expect(dialog).toHaveAttribute("data-size", "sm");
+  // Official «Basic» example: default size, so real Spanish labels never get squeezed into the
+  // two equal columns of size="sm" (user: «revisa el primer ejemplo para que veas como se hace»).
+  expect(dialog).toHaveAttribute("data-size", "default");
 });
 
 it("uses the default size and a single details slot between header and footer when details exist", () => {

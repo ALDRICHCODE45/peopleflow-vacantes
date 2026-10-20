@@ -392,6 +392,7 @@ que descargue, agregue o instale requiere autorización apropiada y revisión de
 - [ ] ¿Se conservó el diseño validado de las pantallas existentes, comparando con `main` (sección 21)?
 - [ ] ¿Los errores, prohibiciones y vacíos de pantalla completa usan `StateCard` (sección 22)?
 - [ ] ¿Todo `Calendar` usa `captionLayout="dropdown"`?
+- [ ] ¿Cada diálogo abierto muestra su fondo oscurecido y ninguna raíz modal envuelve la pantalla (sección 23)?
 - [ ] ¿Cada componente de shadcn usado se comparó con el ejemplo y la composición de su
       documentación oficial (sección 19) y se respetan todas sus partes?
 - [ ] ¿Una superficie compuesta nueva (Sheet, Dialog, barra de herramientas) parte de
@@ -1186,7 +1187,9 @@ ultimo paso antes de realmente ejecutar la accion».
   `AlertDialogTitle` y `AlertDialogDescription` → `AlertDialogFooter` con
   `AlertDialogCancel` y `AlertDialogAction`. El ícono es obligatorio (`icon`) y repite el
   de la acción en el resto de la app (Publicar = `Send`); en tono destructivo el media va
-  en `destructive/10`. Sin detalles se usa `size="sm"`; con detalles, `default` y los
+  en `destructive/10`. Siempre `size="default"`, como el ejemplo «Basic» de la documentación:
+  `size="sm"` reparte los botones en dos columnas de 320 px y corta textos reales en español (usuario,
+  2026-10-20). Con detalles, los
   detalles van en **un solo** bloque entre encabezado y pie (`confirm-action-details`),
   nunca dentro del encabezado ni del pie. El diálogo se abre controlado (`open`) porque
   nace de un arrastre, un menú o un formulario; por eso no hay `AlertDialogTrigger`.
@@ -1323,3 +1326,16 @@ y acciones alternativas cuando hagan falta.
   opcional (Contactar soporte, Ver ayuda). Reintentar nunca es automático.
 - **Tono del ícono:** error y sin permiso usan `destructive/10`; vacíos y no encontrado usan
   `muted`; información (en borrador, pendiente) usa `primary/10`.
+
+## 23. Diálogos dentro de otras superficies modales
+
+Origen (usuario, 2026-10-20): «no hay ese fondo blurreado que pone shadcn en este tipo de
+componentes». Causa: el editor de vacantes quedó envuelto por la raíz del `Sheet` de la vista previa
+y Base UI no dibuja el fondo (`Backdrop`) de un diálogo que considera anidado.
+
+- La raíz de un `Sheet`, `Dialog` o `AlertDialog` envuelve solo su disparador y su contenido; nunca
+  una pantalla entera ni otras superficies modales.
+- Todo diálogo nuevo se prueba abierto: su overlay (`data-slot="dialog-overlay"` o
+  `alert-dialog-overlay`) existe y la página de atrás queda oscurecida y desenfocada.
+- Un diálogo con contenido variable tiene alto máximo, encabezado y pie fijos y una sola zona con
+  scroll (sección 13.8); se revisa con el peor caso real (sección 17).

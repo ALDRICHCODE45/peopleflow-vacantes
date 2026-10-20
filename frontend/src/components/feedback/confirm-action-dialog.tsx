@@ -52,7 +52,7 @@ export function ConfirmActionDialog({
 }: ConfirmActionDialogProps) {
   return (
     <AlertDialog open={open} onOpenChange={(next, details) => { if (!pending) onOpenChange(next, details); }}>
-      <AlertDialogContent size={children ? "default" : "sm"} finalFocus={finalFocus}>
+      <AlertDialogContent finalFocus={finalFocus}>
         <AlertDialogHeader>
           <AlertDialogMedia className={tone === "destructive" ? "bg-destructive/10 text-destructive dark:bg-destructive/20" : "bg-primary/10 text-primary"}>
             <Icon aria-hidden="true" />
