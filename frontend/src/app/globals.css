@@ -480,9 +480,16 @@ html[data-pf-theme-vt="active"]::view-transition-new(root) {
   --sileo-state-loading: var(--muted-foreground);
   --sileo-state-action: var(--foreground);
   --sileo-width: min(350px, calc(100vw - 3rem));
-  top: env(safe-area-inset-top, 0px);
+  /* Bottom edge only: Sileo already sets the edge for its position; pinning `top` too
+     stretched the viewport to full height and stacked toasts at the top. */
+  bottom: env(safe-area-inset-bottom, 0px);
   right: env(safe-area-inset-right, 0px);
   font-family: var(--font-sans), sans-serif;
+}
+
+/* Keep toasts above the vacancy editor's floating save bar (never cover «Publicar»). */
+body:has([data-pf-draft-save-bar]) [data-pf-toaster] [data-sileo-viewport] {
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 6.5rem);
 }
 
 [data-pf-toaster] [data-sileo-viewport][data-theme] [data-sileo-description] {

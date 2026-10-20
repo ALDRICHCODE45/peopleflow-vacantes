@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import * as React from "react";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
@@ -34,5 +36,20 @@ describe("application notifications", () => {
     expect(container.querySelector('[data-sileo-pill]')).toHaveAttribute("fill", "var(--popover)");
     expect(container.querySelector('[data-sileo-viewport]')).toHaveAttribute("data-position", "bottom-right");
     expect(container.querySelectorAll('[aria-live="polite"]')).toHaveLength(1);
+  });
+});
+
+describe("toast placement styles", () => {
+  // User: toasts covered the theme toggle at the top right. The viewport must be pinned to the
+  // bottom (pinning `top` as well stretched it to full height and stacked toasts at the top),
+  // and lifted above the vacancy editor's floating save bar so they never cover «Publicar».
+  const css = readFileSync(join(process.cwd(), "src/app/globals.css"), "utf8");
+  const block = css.slice(css.indexOf("[data-pf-toaster] [data-sileo-viewport] {"), css.indexOf("}", css.indexOf("[data-pf-toaster] [data-sileo-viewport] {")));
+  it("anchors the viewport to the bottom edge only", () => {
+    expect(block).toContain("bottom: env(safe-area-inset-bottom, 0px)");
+    expect(block).not.toMatch(/\btop:/);
+  });
+  it("lifts toasts above the editor's floating save bar", () => {
+    expect(css).toMatch(/body:has\(\[data-pf-draft-save-bar\]\) \[data-pf-toaster\] \[data-sileo-viewport\] \{[^}]*bottom:/);
   });
 });
