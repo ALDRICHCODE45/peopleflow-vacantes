@@ -78,7 +78,7 @@ export function CompanyLocationDialog({ company, onAdopt }: { company: Company; 
       <DialogTrigger render={<Button type="button" variant="outline" className="min-h-10 w-fit" />}><MapPin data-icon="inline-start" aria-hidden="true" />Editar ubicación</DialogTrigger>
       <DialogContent className="flex max-h-[min(44rem,calc(100dvh-2rem))] flex-col sm:max-w-md">
         <DialogHeader><DialogTitle>Ubicación de la empresa</DialogTitle><DialogDescription>Elige dónde se encuentra tu empresa. Puedes dejarla sin ubicación.</DialogDescription></DialogHeader>
-        <form ref={form} id="company-location-edit" onSubmit={submit} className="min-h-0 flex-1 overflow-y-auto" noValidate>
+        <form ref={form} id="company-location-edit" onSubmit={submit} className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-1 [scrollbar-width:thin]" noValidate>
           <OptionalLocationField depth="municipality" postalCode label="Ubicación" hideLegend value={value} onChange={changeLocation} disabled={pending || uncertain(result?.kind)} errors={result?.kind === "invalid" ? result.fields?.location : undefined} />
           {result?.kind === "conflict" && <ActionStatus id="company-location-status" tone="error" text={conflictMessage} />}
           {result?.kind === "unauthenticated" && <Link href="/empresa/login" target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "outline", className: "min-h-10" })}>Iniciar sesión</Link>}

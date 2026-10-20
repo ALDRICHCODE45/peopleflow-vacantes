@@ -115,7 +115,7 @@ export function LocationField({ value, onChange, depth, postalCode, required = [
             onChange={code => { const match = matches.find(match => match.municipality.id === code); if (match) onChange({ ...value, state: match.state.id, municipality: match.municipality.id }); }} />
         </>}
       </Field>}
-      {detailed && <FieldGroup className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+      {detailed && <FieldGroup className="grid grid-cols-1 gap-6 sm:grid-cols-2 [&>*]:min-w-0">
         <CatalogField label="Estado" code={value.state} catalog={catalog.states} disabled={disabled} required={required.includes("state")} error={error("state")} onChange={code => subdivision("state", code)} />
         {depth === "municipality" && <CatalogField label="Municipio" code={value.municipality} catalog={catalog.municipalities} disabled={disabled || !value.state} required={required.includes("municipality")} error={error("municipality")} onChange={code => subdivision("municipality", code)} />}
       </FieldGroup>}

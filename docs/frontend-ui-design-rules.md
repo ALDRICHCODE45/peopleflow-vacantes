@@ -1265,6 +1265,9 @@ falta estructura, según la documentación oficial»: faltaba `AlertDialogMedia`
   `DialogTitle` y `DialogDescription`, el campo como cuerpo sin repetir el título como leyenda,
   `DialogFooter` con `DialogClose` «Cancelar» (outline) y la acción principal; botón de cerrar
   visible. Los errores van en su campo y en el toast (sección 12), nunca un texto suelto en el pie.
+- **Sin scroll horizontal:** las columnas de una grilla con campos (estado/municipio) llevan
+  `[&>*]:min-w-0` para poder achicarse; un contenedor con `overflow-y-auto` usa `-mx-1 px-1`
+  para que el anillo de foco no lo desborde. Revisar los diálogos angostos (`sm:max-w-md`).
 
 ## 21. El diseño validado no se cambia al implementar funcionalidad
 

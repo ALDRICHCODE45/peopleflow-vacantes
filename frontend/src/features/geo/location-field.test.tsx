@@ -191,3 +191,11 @@ it("replaces the shown selection when typing into a filled catalog field", async
   expect(input).toHaveValue("Esta");
   expect(await screen.findByRole("option", { name: "Estados Unidos" })).toBeVisible();
 });
+
+it("lets the state/municipality columns shrink so narrow containers never scroll sideways", async () => {
+  // User report: «hay un scroll horizontal dentro de la card … solo dentro del formulario».
+  render(<Harness initial={{ country: "MX", state: null, municipality: null, postal_code: null }} />);
+  const state = await screen.findByRole("combobox", { name: "Estado" });
+  const grid = state.closest('[data-slot="field-group"]')!;
+  expect(grid).toHaveClass("[&>*]:min-w-0");
+});
