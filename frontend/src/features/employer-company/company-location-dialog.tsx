@@ -11,7 +11,7 @@ import { dismissActionResult, notifyActionResult } from "@/components/feedback/n
 import { locationReadToValue, locationValueToWrite } from "@/features/geo/model";
 import type { Company, CompanyEditor } from "./api/company-client";
 import { loadCompanyStateAction, updateCompanyLocationAction, type UpdateCompanyLocationState } from "./actions";
-import { CompanyLocationField } from "./company-location-field";
+import { OptionalLocationField } from "@/features/geo/optional-location-field";
 
 const conflictMessage = "La ubicación cambió. Mostramos la versión actual; revísala antes de guardar.";
 const uncertain = (kind?: string) => kind === "server_error" || kind === "no_response" || kind === "unrecognized_response";
@@ -72,7 +72,7 @@ export function CompanyLocationDialog({ company, onAdopt }: { company: Company; 
       <DialogContent showCloseButton={false} className="flex max-h-[calc(100dvh-2rem)] flex-col">
         <DialogHeader><DialogTitle>Editar ubicación</DialogTitle><DialogDescription>Actualiza dónde se encuentra tu empresa. Puedes dejarla sin ubicación.</DialogDescription></DialogHeader>
         <form ref={form} id="company-location-edit" onSubmit={submit} className="min-h-0 flex-1 overflow-y-auto" noValidate>
-          <CompanyLocationField value={value} onChange={setValue} disabled={pending || uncertain(result?.kind)} errors={result?.kind === "invalid" ? result.fields?.location : undefined} />
+          <OptionalLocationField depth="municipality" postalCode label="Ubicación" description="Opcional." value={value} onChange={setValue} disabled={pending || uncertain(result?.kind)} errors={result?.kind === "invalid" ? result.fields?.location : undefined} />
         </form>
         <DialogFooter><ActionBar status={result && result.kind !== "updated" ? <ActionStatus id="company-location-status" tone="error" text={result.kind === "conflict" ? conflictMessage : "No se guardó · ver aviso"} action={result.kind === "unauthenticated" ? <Link href="/empresa/login" target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: "outline", className: "min-h-10" })}>Iniciar sesión</Link> : undefined} /> : undefined}>
           <Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={() => setOpen(false)}>Cancelar</Button>

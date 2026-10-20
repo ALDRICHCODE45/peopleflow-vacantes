@@ -18,7 +18,7 @@ import type { CompanyState, CreateCompanyState } from "./actions";
 import { validateCompany } from "./validation";
 import type { CompanyFieldErrors } from "./validation";
 import { locationReadToValue, locationValueToWrite } from "@/features/geo/model";
-import { CompanyLocationField } from "./company-location-field";
+import { OptionalLocationField } from "@/features/geo/optional-location-field";
 import { CompanyLocationDialog } from "./company-location-dialog";
 
 const STATUS = {
@@ -186,7 +186,7 @@ export function CompanySection() {
                 </Select>
                 <FieldError id="company-industry-error">{fields.industryId}</FieldError>
               </Field>
-              <CompanyLocationField value={location} onChange={setLocation} disabled={pending} errors={fields.location} />
+              <OptionalLocationField depth="municipality" postalCode label="Ubicación" description="Opcional." value={location} onChange={setLocation} disabled={pending} errors={fields.location} />
             </FieldGroup>
           </form>}
         </CardContent>

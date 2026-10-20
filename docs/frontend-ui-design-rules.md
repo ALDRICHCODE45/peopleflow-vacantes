@@ -1233,6 +1233,8 @@ falta estructura, según la documentación oficial»: faltaba `AlertDialogMedia`
 
 ## 20. Ubicaciones
 
+- Las ubicaciones opcionales usan `OptionalLocationField`: agregar y quitar son acciones explícitas; nunca se guarda silenciosamente el país predeterminado.
+
 - Usar siempre `LocationField` (`src/features/geo/location-field.tsx`), nunca ubicación
   de texto libre. Guardar códigos como strings (con ceros iniciales); mostrar los
   nombres del catálogo del servidor, no nombres inventados ni códigos como etiquetas.
