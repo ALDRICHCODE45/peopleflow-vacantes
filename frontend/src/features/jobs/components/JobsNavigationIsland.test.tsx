@@ -25,10 +25,12 @@ describe("JobsNavigationIsland boundaries", () => {
     expect(source.match(/md:-mx-\[7px\]/gu)).toHaveLength(1);
   });
   it("keeps the mobile Sheet title, fixed footer and shrinking scroll body", () => {
-    expect(source).toContain("<SheetTitle>Filtros</SheetTitle>");
+    expect(source).toContain("<SheetTitle>Filtrar vacantes</SheetTitle>");
+    expect(source).toContain('<SheetFooter className="border-t">');
+    expect(source).toContain('form="mobile-job-filters"');
     expect(source).toMatch(/className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto[^"]*"[\s\S]{0,240}?data-nav-intent="mobile-filters"/u);
-    expect(source).toContain('idPrefix="desktop-"');
-    expect(source).toContain('idPrefix="mobile-"');
+    expect(source).toContain('filterFields("desktop-")');
+    expect(source).toContain('filterFields("mobile-")');
     expect(source).not.toContain("JobsVisualPreferences");
   });
   it("resets all filters and cursor through Todas", () => {

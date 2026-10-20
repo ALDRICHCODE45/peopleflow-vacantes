@@ -84,7 +84,7 @@ describe("v2 filters", () => {
     }
     for (const label of [/Sueldo mínimo/, /Idioma de trabajo/, /Senioridad/, /Moneda/, /Tipo de empleo/]) expect(screen.queryByLabelText(label)).toBeNull();
     const form = container.querySelector<HTMLFormElement>('form[data-nav-intent="filters"]')!;
-    expect(Object.fromEntries(new FormData(form))).toMatchObject({ work_mode: "hybrid", work_schedule: "full_time", contract_type: "indefinite", professional_area: "technology_systems" });
+    expect(Object.fromEntries(new FormData(form))).toMatchObject({ work_schedule: "full_time", contract_type: "indefinite", professional_area: "technology_systems" });
     fireEvent.submit(form);
     expect(push).toHaveBeenCalledWith("/vacantes?work_mode=hybrid&work_schedule=full_time&contract_type=indefinite&professional_area=technology_systems");
   });
@@ -96,10 +96,10 @@ describe("v2 filters", () => {
     expect(note.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
     expect(container.querySelectorAll('[role="note"]')).toHaveLength(1);
   });
-  it("does not show the exclusion note for text, location or work mode only", () => {
-    render(<JobsNavigationIsland routeKey="/vacantes" query={{ q: "Go", location: "CDMX", work_mode: "remote" }}><p>resultados</p></JobsNavigationIsland>);
+  it("does not show the exclusion note for text or work mode only", () => {
+    render(<JobsNavigationIsland routeKey="/vacantes" query={{ q: "Go", work_mode: "remote" }}><p>resultados</p></JobsNavigationIsland>);
     expect(screen.queryByRole("note")).toBeNull();
     const form = screen.getByRole("form", { name: "Filtros" });
-    expect(within(form).getAllByRole("combobox")).toHaveLength(4);
+    expect(within(form).getAllByRole("combobox")).toHaveLength(7);
   });
 });

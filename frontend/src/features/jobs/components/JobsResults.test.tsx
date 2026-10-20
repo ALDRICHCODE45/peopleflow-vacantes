@@ -37,10 +37,10 @@ describe("JobsResults v2 composition", () => {
     expect(screen.queryByRole("list", { name: "Listado de vacantes" })).toBeNull();
   });
   it("preserves every active filter and opaque cursor on the next link only", () => {
-    const query = { q: "Go", location: "CDMX", work_mode: "hybrid", work_schedule: "full_time", contract_type: "indefinite", professional_area: "technology_systems" };
+    const query = { q: "Go", state: ["09", "14"], work_mode: "hybrid", work_schedule: "full_time", contract_type: "indefinite", professional_area: "technology_systems" };
     const { rerender } = render(<JobsResults result={{ ok: true, data: { items: [listItem(vacancyDetail)], next_cursor: "opaque a+b/c=" } }} query={query} />);
     const link = screen.getByRole("link", { name: "Ver más vacantes" });
-    expect(link).toHaveAttribute("href", "/vacantes?q=Go&location=CDMX&work_mode=hybrid&work_schedule=full_time&contract_type=indefinite&professional_area=technology_systems&cursor=opaque+a%2Bb%2Fc%3D");
+    expect(link).toHaveAttribute("href", "/vacantes?q=Go&state=09&state=14&work_mode=hybrid&work_schedule=full_time&contract_type=indefinite&professional_area=technology_systems&cursor=opaque+a%2Bb%2Fc%3D");
     expect(link).toHaveAttribute("data-jobs-next-link", "true");
     rerender(<JobsResults result={listOf([listItem(vacancyDetail)])} query={query} />);
     expect(screen.queryByRole("link", { name: "Ver más vacantes" })).toBeNull();
