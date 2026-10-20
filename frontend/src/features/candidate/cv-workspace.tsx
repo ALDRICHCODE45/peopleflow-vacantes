@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { CalendarClock, Download, Ellipsis, FileText, Pencil, Trash2, Upload } from "lucide-react";
+import { CalendarClock, CircleAlert, Download, Ellipsis, FileText, Pencil, Trash2, Upload } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { StateCard } from "@/components/feedback/state-card";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -166,8 +166,10 @@ export function CvWorkspace() {
     <header className="flex flex-col gap-1.5"><h2 className="font-heading text-2xl font-semibold tracking-tight">Tus CVs</h2><p className="max-w-prose text-sm text-muted-foreground">Guarda tus documentos y elige cuál usar en cada postulación.</p></header>
     {loading ? <LoadingCvs /> : <>
       {library ? <>
-        {library.items.length ? <>{uploadForm}<ul data-pf-cv-list className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">{library.items.map(cv => <CvCard key={cv.id} cv={cv} onEdit={mode => setEditing({ cv, mode })} />)}</ul></> : <Empty className="bg-card px-4 py-8 sm:p-12"><EmptyHeader className="max-w-md"><EmptyMedia variant="icon"><FileText aria-hidden="true" /></EmptyMedia><EmptyTitle className="text-xl font-semibold">Sin CVs</EmptyTitle><EmptyDescription>Sube tu primer CV: aparecerá en esta biblioteca y podrás elegirlo al postularte.</EmptyDescription></EmptyHeader><EmptyContent className="max-w-md">{uploadForm}</EmptyContent></Empty>}
-      </> : status?.failure?.reason === "storage_unavailable" ? <CvStorageUnavailable retry={() => void refresh()} pending={refreshing} status={resultStatus} statusId="cv-library-status" /> : <ActionBar status={resultStatus}><Button type="button" className="min-h-10" disabled={refreshing} aria-describedby={status ? "cv-library-status" : undefined} onClick={() => void refresh()}>{refreshing && <Spinner aria-hidden="true" data-icon="inline-start" />}Reintentar</Button></ActionBar>}
+        {library.items.length ? <>{uploadForm}<ul data-pf-cv-list className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">{library.items.map(cv => <CvCard key={cv.id} cv={cv} onEdit={mode => setEditing({ cv, mode })} />)}</ul></> : <StateCard icon={FileText} tone="empty" title="Sin CVs" description="Sube tu primer CV: aparecerá en esta biblioteca y podrás elegirlo al postularte.">{uploadForm}</StateCard>}
+      </> : status?.failure?.reason === "storage_unavailable" ? <CvStorageUnavailable retry={() => void refresh()} pending={refreshing} status={resultStatus} statusId="cv-library-status" /> : <StateCard icon={CircleAlert} tone="error" title="No pudimos cargar tus CVs" description="Tus documentos no cambiaron. Vuelve a consultar para verlos."
+        primaryAction={status?.failure?.reason === "unauthenticated" ? { label: "Iniciar sesión", href: "/candidato/login" } : { label: refreshing ? "Cargando…" : "Reintentar", disabled: refreshing, onClick: () => void refresh() }}
+        secondaryAction={{ label: "Ir al panel", href: "/candidato" }} />}
     </>}
     {editing && <CvDialog key={`${editing.cv.id}-${editing.mode}`} {...editing} onClose={() => setEditing(undefined)} onCheck={refresh} onWrongRole={failure => setStatus({ tone: "error", text: failureCopy(failure).title, failure })} onSaved={updated => {
       setLibrary(current => current ? { ...current, items: updated ? current.items.map(cv => cv.id === updated.id ? updated : cv) : current.items.filter(cv => cv.id !== editing.cv.id) } : current);

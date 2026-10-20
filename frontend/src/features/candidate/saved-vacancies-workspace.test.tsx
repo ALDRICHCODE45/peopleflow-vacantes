@@ -216,13 +216,15 @@ describe("saved vacancies empty state", () => {
     const { container } = renderWorkspace([]);
     const marker = container.querySelector("[data-pf-saved-vacancies-empty]") as HTMLElement;
     expect(marker).not.toBeNull();
+    expect(marker).toHaveAttribute("data-slot", "card");
+    expect(marker.querySelector('[data-slot="empty-icon"]')).not.toBeNull();
     const empty = (marker.matches("[data-slot='empty']") ? marker : marker.querySelector("[data-slot='empty']")) as HTMLElement;
     expect(empty).not.toBeNull();
     for (const part of ["empty-header", "empty-title", "empty-description"]) expect(slot(empty, part), part).not.toBeNull();
     expect(empty).toHaveTextContent("Todavía no tienes vacantes guardadas");
     expect(empty).toHaveTextContent("Cuando guardes una vacante, va a aparecer en este listado.");
     expect(empty.className).toMatch(/(?:^|\s)(?:p|py|px)-\d/u);
-    expect(empty.className).not.toContain("p-12");
+    expect(empty).toHaveClass("py-10");
     expect(cards(container)).toHaveLength(0);
     expect(container.querySelectorAll("a")).toHaveLength(1);
     const explore = screen.getByRole("link", { name: "Explorar vacantes" });
@@ -270,9 +272,9 @@ describe("saved vacancies read-only contract", () => {
     const modules = [...new Set([...SOURCE.matchAll(/from "([^"]+)"/gu)].map((match) => match[1]))].sort();
     expect(modules).toEqual([
       "@/components/dashboard-page-content",
+      "@/components/feedback/state-card",
       "@/components/ui/button",
       "@/components/ui/card",
-      "@/components/ui/empty",
       "@/features/jobs/enrich",
       "@/features/jobs/formatters",
       "lucide-react",

@@ -5,7 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { StateCard } from "@/components/feedback/state-card";
 import type { PrototypeJobView } from "@/features/jobs/enrich";
 import { employmentTypeLabel, formatSalary, seniorityLabel, workModeLabel } from "@/features/jobs/formatters";
 
@@ -126,15 +126,10 @@ export function SavedVacanciesWorkspace({ savedVacancies }: SavedVacanciesWorksp
         <p className="max-w-prose text-sm text-muted-foreground">Las vacantes que guardaste para revisarlas con calma.</p>
       </header>
       {savedVacancies.length === 0 ? (
-        <Empty data-pf-saved-vacancies-empty className="border border-dashed border-border bg-card p-6">
-          <EmptyHeader className="max-w-md">
-            <EmptyTitle className="text-xl font-semibold">Todavía no tienes vacantes guardadas</EmptyTitle>
-            <EmptyDescription>Cuando guardes una vacante, va a aparecer en este listado.</EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent className="flex-col sm:flex-row sm:justify-center">
-            <Link href="/vacantes" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Explorar vacantes</Link>
-          </EmptyContent>
-        </Empty>
+        <StateCard data-pf-saved-vacancies-empty icon={Bookmark} tone="empty"
+          title="Todavía no tienes vacantes guardadas"
+          description="Cuando guardes una vacante, va a aparecer en este listado."
+          primaryAction={{ label: "Explorar vacantes", href: "/vacantes" }} />
       ) : (
         <div data-pf-saved-vacancies-grid className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
           {savedVacancies.map((job) => (<SavedVacancyCard key={job.id} job={job} />))}

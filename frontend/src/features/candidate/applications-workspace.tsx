@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Briefcase, Building2, CalendarDays, CircleDot, MessageSquare, Search } from "lucide-react";
+import { ArrowUpRight, Briefcase, Building2, CalendarDays, CircleAlert, CircleDot, MessageSquare, Search } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
+import { StateCard } from "@/components/feedback/state-card";
 import { notifyActionResult } from "@/components/feedback/notify";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -108,7 +109,10 @@ export function ApplicationsWorkspace() {
   return <DashboardPageContent data-pf-applications-workspace width="screen-2xl" className="gap-5">
     <header className="flex flex-col gap-2"><h2 className="font-heading text-2xl font-semibold">Postulaciones</h2><p className="max-w-prose text-sm text-muted-foreground">Consulta las vacantes a las que te postulaste.</p></header>
     {!data && !failure ? <ApplicationsSkeleton /> : <>
-      {data?.items.length === 0 && !failure && <Empty><EmptyHeader className="max-w-md"><EmptyTitle className="text-xl font-semibold">Todavía no te postulaste a ninguna vacante</EmptyTitle><EmptyDescription>Tus postulaciones aparecerán aquí cuando envíes una. Mientras tanto, explora las vacantes disponibles.</EmptyDescription></EmptyHeader><EmptyContent className="flex-col sm:flex-row sm:justify-center"><Link href="/vacantes" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Explorar vacantes</Link></EmptyContent></Empty>}
+      {data?.items.length === 0 && !failure && <StateCard icon={Briefcase} tone="empty" title="Todavía no te postulaste a ninguna vacante" description="Tus postulaciones aparecerán aquí cuando envíes una. Mientras tanto, explora las vacantes disponibles." primaryAction={{ label: "Explorar vacantes", href: "/vacantes" }} />}
+      {!data && failure && <StateCard icon={CircleAlert} tone="error" title="No pudimos cargar las postulaciones" description="Tus postulaciones no cambiaron. Vuelve a consultar para verlas."
+        primaryAction={failure.reason === "unauthenticated" ? { label: "Iniciar sesión", href: "/candidato/ingresar" } : { label: pending ? "Cargando…" : "Reintentar", onClick: () => void loadMore(), disabled: pending }}
+        secondaryAction={{ label: "Ir al panel", href: "/candidato" }} />}
       {!!data?.items.length && <div className="flex flex-col gap-2">
         <label htmlFor="applications-search" className="text-[12.5px] font-medium text-foreground">Buscar por puesto o empresa</label>
         <InputGroup className="h-11 w-full lg:w-72"><InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon><InputGroupInput id="applications-search" type="search" value={query} onChange={event => setQuery(event.target.value)} /></InputGroup>
@@ -116,7 +120,7 @@ export function ApplicationsWorkspace() {
       </div>}
       {!!data?.items.length && visible.length === 0 && <Empty><EmptyHeader className="max-w-md"><EmptyTitle className="text-xl font-semibold">Ninguna postulación coincide con «{query.trim()}».</EmptyTitle><EmptyDescription>Prueba con otro puesto o empresa, o limpia la búsqueda para ver tus postulaciones cargadas.</EmptyDescription></EmptyHeader><EmptyContent className="flex-col sm:flex-row sm:justify-center"><Button className="min-h-10 w-full sm:w-auto" onClick={() => setQuery("")}>Limpiar búsqueda</Button></EmptyContent></Empty>}
       {visible.length > 0 && <ul className={APPLICATION_GRID}>{visible.map(item => <li key={item.id} className="min-w-0"><ApplicationCard item={item} /></li>)}</ul>}
-      {(failure || loaded || data?.next_cursor) && <ActionBar status={failure ? <ActionStatus id="applications-status" tone="error" text="No pudimos cargar las postulaciones" action={failure.reason === "unauthenticated" ? <Link href="/candidato/ingresar" className="inline-flex min-h-10 items-center underline">Ingresar como candidato</Link> : undefined} /> : loaded ? <ActionStatus id="applications-status" tone="success" text="Postulaciones cargadas" /> : null}>
+      {data && (failure || loaded || data.next_cursor) && <ActionBar status={failure ? <ActionStatus id="applications-status" tone="error" text="No pudimos cargar las postulaciones" action={failure.reason === "unauthenticated" ? <Link href="/candidato/ingresar" className="inline-flex min-h-10 items-center underline">Ingresar como candidato</Link> : undefined} /> : loaded ? <ActionStatus id="applications-status" tone="success" text="Postulaciones cargadas" /> : null}>
         {(failure || data?.next_cursor) && <Button variant="outline" className="min-h-10" disabled={pending} aria-busy={pending} aria-describedby={failure || loaded ? "applications-status" : undefined} onClick={() => void loadMore()}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{failure ? "Reintentar" : "Cargar más"}</Button>}
       </ActionBar>}
     </>}

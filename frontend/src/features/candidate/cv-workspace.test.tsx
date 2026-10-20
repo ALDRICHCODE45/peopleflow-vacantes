@@ -21,6 +21,22 @@ function selectFile(file: File) { fireEvent.change(screen.getByLabelText("Archiv
 const unavailableTitle = "Los CVs no están disponibles en este momento";
 const unavailableDescription = "Puedes intentarlo más tarde; lo que ya escribiste se conserva.";
 describe("real CV workspace", () => {
+  it.each(["no_response", "unauthenticated"] as const)("shows a recovery card for initial %s", async reason => {
+    vi.mocked(loadCvsAction).mockResolvedValue({ ok: false, reason, reference: {} });
+    render(<CvWorkspace />);
+    const title = await screen.findByRole("heading", { name: "No pudimos cargar tus CVs" });
+    expect(title.closest('[data-slot="card"]')?.querySelector('[data-slot="empty-icon"]')).not.toBeNull();
+    expect(screen.getByRole(reason === "unauthenticated" ? "link" : "button", { name: reason === "unauthenticated" ? "Iniciar sesión" : "Reintentar" })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Ir al panel" })).toHaveAttribute("href", "/candidato");
+    expect(loadCvsAction).toHaveBeenCalledTimes(1);
+  });
+  it("wraps the empty library and its existing uploader in a card", async () => {
+    vi.mocked(loadCvsAction).mockResolvedValue({ ok: true, data: { ...library, items: [] } });
+    render(<CvWorkspace />);
+    const title = await screen.findByRole("heading", { name: "Sin CVs" });
+    expect(title.closest('[data-slot="card"]')).not.toBeNull();
+    expect(screen.getByLabelText("Archivo del CV")).toBeEnabled();
+  });
   it("shows storage unavailable with explicit retry and no automatic requests", async () => {
     vi.mocked(loadCvsAction).mockResolvedValueOnce({ ok: false, reason: "storage_unavailable", reference: { status: 503, code: "cv_storage_unavailable" } });
     render(<CvWorkspace />);
@@ -115,9 +131,8 @@ describe("real CV workspace", () => {
     expect(screen.queryByText("En uso")).toBeNull(); expect(screen.queryByText("Principal")).toBeNull();
   });
   it("keeps errors persistent, and allows explicit load retry", async () => {
-    vi.mocked(loadCvsAction).mockResolvedValueOnce({ ok: false, reason: "unauthenticated", reference: { status: 401 } });
-    render(<CvWorkspace />); expect(await screen.findByText("Tu sesión expiró")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Iniciar sesión" })).toBeInTheDocument();
+    vi.mocked(loadCvsAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} });
+    render(<CvWorkspace />); expect(await screen.findByRole("heading", { name: "No pudimos cargar tus CVs" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Reintentar" }));
     expect(await screen.findByRole("heading", { name: cv.name })).toBeInTheDocument();
   });

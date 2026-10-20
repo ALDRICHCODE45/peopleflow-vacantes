@@ -70,6 +70,7 @@ it("makes the empty state's next step prominent, readable and mobile-width", asy
   render(<ApplicationsWorkspace />);
   const title = await screen.findByText("Todavía no te postulaste a ninguna vacante");
   expect(title).toHaveClass("text-xl", "font-semibold");
+  expect(title.closest('[data-slot="card"]')?.querySelector('[data-slot="empty-icon"]')).not.toBeNull();
   expect(title.closest('[data-slot="empty-header"]')).toHaveClass("max-w-md");
   const action = screen.getByRole("link", { name: "Explorar vacantes" });
   expect(action).toHaveClass("bg-primary", "w-full", "sm:w-auto");
@@ -78,6 +79,14 @@ it("makes the empty state's next step prominent, readable and mobile-width", asy
 it("shows the empty state with a vacancy link", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { items: [], next_cursor: null } }); render(<ApplicationsWorkspace />);
   expect(await screen.findByText("Todavía no te postulaste a ninguna vacante")).toBeVisible(); expect(screen.getByRole("link", { name: "Explorar vacantes" })).toHaveAttribute("href", "/vacantes");
+});
+it("shows initial failures in a recovery card", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
+  render(<ApplicationsWorkspace />);
+  const title = await screen.findByRole("heading", { name: "No pudimos cargar las postulaciones" });
+  expect(title.closest('[data-slot="card"]')).not.toBeNull();
+  expect(screen.getByRole("link", { name: "Ir al panel" })).toHaveAttribute("href", "/candidato");
+  expect(loadApplicationsAction).toHaveBeenCalledTimes(1);
 });
 it("retains an error and retries only explicitly", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValueOnce({ ok: false, reason: "no_response", reference: {} }).mockResolvedValueOnce({ ok: true, data: page }); render(<ApplicationsWorkspace />);

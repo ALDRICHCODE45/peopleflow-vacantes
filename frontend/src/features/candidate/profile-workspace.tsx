@@ -1,14 +1,13 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { Save, Undo2 } from "lucide-react";
+import { CircleAlert, Save, Undo2 } from "lucide-react";
 import { DashboardPageContent } from "@/components/dashboard-page-content";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { StateCard } from "@/components/feedback/state-card";
 import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
@@ -128,7 +127,9 @@ function ProfileLoader({ identity }: { identity: CandidateIdentity }) {
     return () => { active = false; };
   }, [attempt]);
   if (state === null) return <ProfileSkeleton />;
-  if ("ok" in state) return <DashboardPageContent width="screen-2xl"><Empty><EmptyHeader><EmptyTitle>No pudimos cargar tu perfil</EmptyTitle><EmptyDescription>Tus datos no cambiaron. Vuelve a consultar para continuar.</EmptyDescription></EmptyHeader><EmptyContent>{state.reason === "unauthenticated" ? <Link href="/candidato/login">Iniciar sesión</Link> : <Button variant="outline" onClick={() => { setState(null); setAttempt(value => value + 1); }}>Reintentar</Button>}</EmptyContent></Empty></DashboardPageContent>;
+  if ("ok" in state) return <DashboardPageContent width="screen-2xl"><StateCard icon={CircleAlert} tone="error" title="No pudimos cargar tu perfil" description="Tus datos no cambiaron."
+    primaryAction={state.reason === "unauthenticated" ? { label: "Iniciar sesión", href: "/candidato/login" } : { label: "Reintentar", onClick: () => { setState(null); setAttempt(value => value + 1); } }}
+    secondaryAction={{ label: "Ir al panel", href: "/candidato" }} /></DashboardPageContent>;
   return <ProfileEditor identity={identity} initial={state.baseline} initiallyNew={state.isNew} />;
 }
 function ProfileEditor({ identity, initial, initiallyNew }: { identity: CandidateIdentity; initial: ProfileBaseline; initiallyNew: boolean }) {

@@ -67,7 +67,9 @@ describe("live candidate profile", () => {
     mocks.load.mockResolvedValue({ ok: false, reason, reference: {} });
     const { container } = render(<ProfileWorkspace />);
     expect(await screen.findByText("No pudimos cargar tu perfil")).toBeInTheDocument();
-    expect(container.querySelector('[data-slot="empty"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="card"] [data-slot="empty-header"] [data-slot="empty-icon"]')).not.toBeNull();
+    expect(screen.getByText("Tus datos no cambiaron.")).toBeVisible();
+    if (reason !== "unauthenticated") expect(screen.getByRole("link", { name: "Ir al panel" })).toHaveAttribute("href", "/candidato");
     expect(screen.queryByRole("button", { name: "Guardar perfil" })).not.toBeInTheDocument();
     expect(screen.getByRole(reason === "unauthenticated" ? "link" : "button", { name: reason === "unauthenticated" ? "Iniciar sesión" : "Reintentar" })).toBeInTheDocument();
   });
