@@ -6,6 +6,10 @@ export async function geoResponse<T>(request: Request, load: () => Promise<GeoRe
   try {
     if (new URL(request.url).search) return routeError("invalid_request");
     const result = await load();
-    return result.ok ? Response.json(result.data, { headers: { "cache-control": "public, max-age=86400" } }) : routeError(result.error);
+    if (!result.ok) return routeError(result.error);
+    // An empty catalog list only exists before `make geo-import`; caching it for a day hid the
+    // imported data until a hard reload. Real catalogs are never empty, so only they are cached.
+    const empty = typeof result.data === "object" && result.data !== null && "items" in result.data && Array.isArray(result.data.items) && result.data.items.length === 0;
+    return Response.json(result.data, { headers: { "cache-control": empty ? "no-store" : "public, max-age=86400" } });
   } catch { return routeError("no_response"); }
 }

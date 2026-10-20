@@ -35,3 +35,12 @@ it("rejects unsupported queries without calling the backend", async () => {
   expect((await countries(new Request("http://localhost/api/geo/countries?secret=x"))).status).toBe(400);
   expect(client.getCountries).not.toHaveBeenCalled();
 });
+
+it("never caches an empty catalog list, so a later import shows up without a hard reload", async () => {
+  // User report: «GET /api/geo/countries con este response: {"items":[]}» kept for 24 h after importing.
+  vi.mocked(client.getCountries).mockResolvedValue({ ok: true, data: { items: [] } });
+  const response = await countries(request());
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ items: [] });
+  expect(response.headers.get("cache-control")).toBe("no-store");
+});
