@@ -3,7 +3,9 @@
 Status: B1 storage, B2 reads, and B3a duplicates-check are implemented.
 B3b multipart creation is not implemented. Its request-envelope and
 stage-validation helpers are tested but are not wired to HTTP; the create
-sections below remain the target contract.
+sections below remain the target contract. B3b-1 adds unwired field-validation and
+fingerprinting helpers plus company-owned CV retention in shared reconciliation;
+it does not implement the create route.
 
 ## Routes and privacy
 
@@ -86,7 +88,10 @@ coherent five-digit CP; other countries prohibit subdivisions.
 Optional profile fields: professional_title, current_company, field_of_study
 (short text ≤120), experience_years (integer 0–60), summary (≤2000), skills
 (≤30 entries, each ≤60), languages (≤10 entries, CEFR A1–C2), linkedin_url and
-portfolio_url (HTTPS, ≤2048). Reuse education, CEFR, and skills value objects.
+portfolio_url (HTTPS, ≤2048). Intake-local education, CEFR, and skills rules match
+the candidate profile vocabulary without crossing the candidate domain boundary:
+education trims/lowercases, CEFR is exact, and accepted skills trim/lowercase while
+preserving order. Empty/duplicate skills remain intake field errors.
 No birth date, salary, or CV/LinkedIn/OCC extraction belongs in this cut (S8).
 
 ## Ordering and effects
@@ -116,7 +121,11 @@ file if the database transaction fails, following candidate CV upload behavior.
 The transaction creates company_candidates and languages only for new identities.
 CV ownership is always the company: company_candidate_cvs.company_id is required;
 company_candidate_id is null when reusing an organic account. Such a CV must never
-appear in that account's candidate CV library. Participation identity is XOR
+appear in that account's candidate CV library. Shared reconciliation retains all
+files referenced by `company_candidate_cvs.storage_key`, including rows with null
+`company_candidate_id`, under the existing exclusive advisory transaction lock.
+Manual file-first writes must use the matching shared advisory lock.
+Participation identity is XOR
 candidate_id/company_candidate_id, source is manual, added_by is the recruiter,
 version is 1, and profile snapshot comes from the selected record. Intake history
 has the recruiter actor and null from-stage. Record delivery using the existing
@@ -150,6 +159,14 @@ B3a isolated integration coverage (integration tag; database execution by parent
 - `TestManualDuplicatesLatestCompanyParticipationAndAbsentContacts`
 - `TestManualDuplicatesReusedOrganicAndFinishedProcess`
 - `TestManualDuplicatesAuthorizationAndErrorBodies`
+
+B3b-1 helper coverage: `TestManualFingerprint`, `TestManualCandidateValidation`,
+`TestManualValidationCollectsFieldsAndNormalizes`, `TestManualCandidateUnknownAndDuplicateKeys`,
+`TestManualValidationCatalogFailure`, `TestManualProfileVocabularies`, and
+`TestManualSkillsNormalizeAndPreserveOrder`.
+Reconciliation unit coverage: `TestReconcileRetainsCompanyCVAndRemovesOrphan` and
+`TestReconcileLookupFailureKeepsFiles`. The integration-tag
+`TestReconcileRetainsCompanyOwnedManualCV` requires parent-run database execution.
 
 Still required before shipping B3b: create HTTP wiring and multipart limits;
 complete candidate/geo validation boundaries; confirmed-distinct and existing
