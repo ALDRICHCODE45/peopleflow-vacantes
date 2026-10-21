@@ -46,6 +46,12 @@ function VacancyRow({ vacancy, onPublished, onLifecycleChanged }: { vacancy: Por
   const [publishOpen, setPublishOpen] = React.useState(false);
   const draft = "draft" in vacancy ? vacancy.draft : null;
   const prototype = "draft" in vacancy ? null : vacancy;
+  const candidates = draft?.candidates;
+  const transition = draft?.status === "paused" ? { label: "Pausada el", at: draft.paused_at }
+    : draft?.status === "closed" ? draft.process === "finished"
+      ? { label: "Proceso finalizado el", at: draft.process_finished_at }
+      : { label: "Cerrada el", at: draft.closed_at }
+    : { label: "Publicada el", at: draft?.published_at };
   const meta = draft
     ? [draft.work_mode ? EMPLOYER_WORK_MODE_LABELS[draft.work_mode] : "Modalidad sin definir", draft.work_schedule ? EMPLOYER_EMPLOYMENT_TYPE_LABELS[draft.work_schedule] : null].filter(Boolean).join(" · ")
     : prototype ? `${EMPLOYER_WORK_MODE_LABELS[prototype.workMode]} · ${EMPLOYER_EMPLOYMENT_TYPE_LABELS[prototype.employmentType]}` : "";
@@ -64,15 +70,19 @@ function VacancyRow({ vacancy, onPublished, onLifecycleChanged }: { vacancy: Por
         <p className={META}>{meta}</p>
       </div>
       <div data-pf-vacancy-zone="complement" className="flex min-w-0 flex-col gap-2">
+        {candidates && <p className={cn(META, "tabular-nums")}>{`${candidates.total} candidatos · ${candidates.in_process} en proceso`}</p>}
         {prototype && <p className={cn(META, "tabular-nums")}>{`${vacancyCandidateTotal(prototype.candidateCounts)} candidatos · ${vacancyInProcessCount(prototype.candidateCounts)} en proceso`}</p>}
         <div className="flex flex-col gap-1">
           <div aria-hidden="true" className="flex items-center gap-1">
-            {VACANCY_PIPELINE_STAGES.map(stage => <span key={stage} className={cn("h-1.5 w-6 rounded-full", draft ? "bg-muted" : PIPELINE_BAR[stage])} />)}
+            {candidates ? <>
+              {candidates.by_stage.map(stage => <span key={stage.id} className={cn("h-1.5 w-6 rounded-full", stage.kind === "new" ? PIPELINE_BAR.submitted : stage.kind === "placement" ? PIPELINE_BAR.hired : PIPELINE_BAR.in_review)} />)}
+              <span className={cn("h-1.5 w-6 rounded-full", PIPELINE_BAR.rejected)} />
+            </> : VACANCY_PIPELINE_STAGES.map(stage => <span key={stage} className={cn("h-1.5 w-6 rounded-full", draft ? "bg-muted" : PIPELINE_BAR[stage])} />)}
           </div>
-          <p className={META}>{vacancy.state === "draft" ? "Sin pipeline · en borrador" : prototype ? VACANCY_PIPELINE_STAGES.map(stage => `${STAGE_LABELS[stage]}: ${prototype.candidateCounts[stage]}`).join(" · ") : null}</p>
+          <p className={META}>{vacancy.state === "draft" ? "Sin pipeline · en borrador" : prototype ? VACANCY_PIPELINE_STAGES.map(stage => `${STAGE_LABELS[stage]}: ${prototype.candidateCounts[stage]}`).join(" · ") : candidates ? candidates.total === 0 ? "Sin candidatos todavía" : [...candidates.by_stage.map(stage => `${stage.name}: ${stage.count}`), `Descartados: ${candidates.discarded}`].join(" · ") : null}</p>
         </div>
         <div className={META}>
-          {draft ? draft.status === "draft" ? <div className="flex flex-col gap-1"><span>Sin publicar</span><time dateTime={draft.updated_at}>Editado {formatDate(draft.updated_at)}</time></div> : draft.published_at ? <time dateTime={draft.published_at}>Publicada el {formatDate(draft.published_at)}</time> : "Fecha no disponible" : prototype && <time dateTime={prototype.publishedAt}><span className="sr-only">Publicada el </span>{formatDate(prototype.publishedAt)}</time>}
+          {draft ? draft.status === "draft" ? <div className="flex flex-col gap-1"><span>Sin publicar</span><time dateTime={draft.updated_at}>Editado {formatDate(draft.updated_at)}</time></div> : transition.at ? <time dateTime={transition.at}>{transition.label} {formatDate(transition.at)}</time> : "Fecha no disponible" : prototype && <time dateTime={prototype.publishedAt}><span className="sr-only">Publicada el </span>{formatDate(prototype.publishedAt)}</time>}
         </div>
       </div>
       <div data-pf-vacancy-zone="action" className="flex items-center gap-1 [&>a]:w-full [&>a]:lg:w-auto [&>button]:w-full [&>button]:lg:w-auto">

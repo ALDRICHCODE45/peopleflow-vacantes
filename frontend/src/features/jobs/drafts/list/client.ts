@@ -10,12 +10,27 @@ const requesterSchema = z.object({
   id: uuid.nullable(),
   name: z.string().nullable(),
 }).strict().refine((value) => value.id === null || typeof value.name === "string");
+const candidatesSchema = z.object({
+  total: z.number().int().nonnegative(),
+  in_process: z.number().int().nonnegative(),
+  discarded: z.number().int().nonnegative(),
+  by_stage: z.array(z.object({
+    id: uuid,
+    kind: z.enum(["new", "screening", "screening_ok", "custom", "in_process", "placement"]),
+    name: z.string(),
+    count: z.number().int().nonnegative(),
+  }).strict()),
+}).strict();
 const rowSchema = z.object({
   id: uuid,
   title: z.string().nullable(),
   status: z.enum(["draft", "published", "paused", "closed"]),
   process: z.enum(["active", "finished"]).nullable(),
   published_at: timestamp.nullable(),
+  paused_at: timestamp.nullable(),
+  closed_at: timestamp.nullable(),
+  process_finished_at: timestamp.nullable(),
+  candidates: candidatesSchema.nullable(),
   work_mode: z.enum(["onsite", "remote", "hybrid"]).nullable(),
   work_schedule: z.enum(["full_time", "part_time"]).nullable(),
   requester: requesterSchema.nullable(),
@@ -24,7 +39,8 @@ const rowSchema = z.object({
   created_at: timestamp,
   updated_at: timestamp,
 }).strict().refine(row => row.status === "draft" ? row.process === null :
-  row.process === "active" || (row.status === "closed" && row.process === "finished"));
+  row.process === "active" || (row.status === "closed" && row.process === "finished"))
+  .refine(row => (row.status === "draft") === (row.candidates === null));
 const listSchema = z.object({
   items: z.array(rowSchema).max(50),
   next_cursor: z.string().nullable(),

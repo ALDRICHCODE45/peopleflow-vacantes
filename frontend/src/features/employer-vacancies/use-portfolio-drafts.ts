@@ -61,6 +61,6 @@ export function usePortfolioDrafts() {
     return () => { current = false; };
   }, [attempt]);
   const published = (id: string, publishedAt: string) => setState(previous => ({ ...previous, items: previous.items.map(item => item.id === id ? { ...item, status: "published", process: "active", published_at: publishedAt } : item) }));
-  const lifecycleChanged = (id: string, view: Lifecycle) => setState(previous => ({ ...previous, items: previous.items.map(item => item.id === id ? { ...item, status: view.publication ?? "draft", process: view.process, published_at: view.published_at } : item) }));
+  const lifecycleChanged = (id: string, view: Lifecycle) => setState(previous => ({ ...previous, items: previous.items.map(item => item.id === id ? { ...item, status: view.publication ?? "draft", process: view.process, published_at: view.published_at, paused_at: view.paused_at, closed_at: view.closed_at, process_finished_at: view.process_finished_at } : item) }));
   return { ...state, retry, published, lifecycleChanged, retried: attempt > 0 };
 }
