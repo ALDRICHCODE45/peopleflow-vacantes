@@ -687,3 +687,19 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     Configuración → Reclutamiento ya no existe «Permitir postulaciones sin CV». Probá el
     diálogo en celular (entra completo en la pantalla, solo el centro hace scroll) y en
     modo oscuro (el motivo elegido se ve resaltado).
+
+85. **Ingreso manual de candidatos (sin postulación ni cuenta).** Frontend en
+    `feat/manual-intake-ui`, backend en `feat/manual-intake` (migraciones 00036–00038;
+    `make db-migrate`; el CV usa el mismo almacenamiento privado que los CVs de candidato).
+    En el tablero de una vacante publicada, «Agregar candidato». **Esperado:** panel lateral
+    con «* Obligatorio», «Etapa de ingreso» (primera etapa por defecto; sin Placement ni
+    Descartados), datos de contacto (correo o teléfono; México +52 y 10 dígitos), residencia
+    (en México estado y municipio), nivel de estudios, «Perfil profesional (opcional)»
+    plegado y el CV con «Elegir archivo». Sin datos, «Agregar candidato» marca cada campo y
+    el pie dice «Revisa N datos marcados.». Completo, pide confirmación («¿Agregar a …?
+    Entrará a … No recibe ningún aviso.») y la tarjeta aparece en la etapa elegida con
+    «Ingreso manual» y «Agregado …»; su ficha dice «Agregado por … el …». Escribí el mismo
+    correo otra vez: bajo el contacto aparece «Posibles coincidencias» con el contacto
+    enmascarado y la última vacante; en la misma vacante dice «Ya está en este proceso». En
+    otra vacante, «Usar el existente» deja solo etapa y CV y reutiliza a la persona. Cerrar
+    el panel con datos pide «Tienes cambios sin guardar». Probalo en celular y en oscuro.

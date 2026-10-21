@@ -25,7 +25,7 @@ Backend counterpart: session 01a15cf9-39e8. Nothing merges to main without the u
 - [x] T3 — S3, S4: close reason in the close dialog, list and history; resume keeps the publication date — route: inline/worker — commit: —
 - [x] T4 — S5–S9: agree the manual-intake contract with the backend — route: intercom — commit: —
 - [x] T5 — S5–S8: «Agregar candidato» form (Sheet), duplicate check, origin badge — route: worker — commit: —
-- [ ] T6 — S10: browser QA (function + design), docs, review queue — route: inline — commit: —
+- [x] T6 — S10: browser QA (function + design), docs, review queue — route: inline — commit: —
 
 ## Log
 
