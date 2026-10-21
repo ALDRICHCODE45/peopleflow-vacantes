@@ -33,11 +33,16 @@ renamed before it ever reaches main).
 strong ETag, 304 on `If-None-Match`.
 
 ```json
-{"items":[{"code":"de","name":"Alemán"},{"code":"es","name":"Español"},{"code":"nah","name":"Náhuatl"},{"code":"yua","name":"Maya yucateco"}]}
+{"items":[{"code":"de","name":"Alemán"},{"code":"es","name":"Español"},{"code":"nah","name":"Náhuatl"},{"code":"zap","name":"Zapoteco"},{"code":"yua","name":"Maya yucateco"}]}
 ```
 
-- `code`: ISO 639-1 when it exists, otherwise ISO 639-3 (macrolanguage code where one
-  exists, e.g. `nah`, `zap`, `mix`). Lowercase ASCII, 2–3 letters. Unique.
+- `code` policy, in order: ISO 639-1 when it exists; otherwise ISO 639-3 (individual
+  or macrolanguage, e.g. `zap` Zapoteco); otherwise an ISO 639-2/639-5 collective code
+  (e.g. `nah` Náhuatl); otherwise, for an INALI language grouping with no ISO code at
+  all (e.g. Mixteco, which ISO splits into individual varieties only), a code from the
+  ISO 639-2 local-use range `qaa`–`qtz`, documented in the catalog source. Codes are
+  opaque identifiers for clients: never derive meaning from them. Lowercase ASCII,
+  2–3 letters. Unique.
 - `name`: Spanish, NFC. Sorted by Spanish collation of `name`, then `code`.
 - About 180 entries, including the Mexican Indigenous languages with INALI-recognized
   families (Náhuatl, Maya yucateco, Tseltal, Tsotsil, Mixteco, Zapoteco, Otomí,
