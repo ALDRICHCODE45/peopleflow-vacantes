@@ -30,7 +30,7 @@ export function decodeLifecycleEtag(value: unknown, draftId: string, version?: s
 export function lifecycleLabel(view: Pick<Lifecycle, "publication" | "process">): string {
   switch (view.publication) {
     case null: return "Borrador";
-    case "published": return "Publicada";
+    case "published": return "Activa"; // Same label as the header bar, the filter and the metric.
     case "paused": return "Pausada";
     case "closed": return view.process === "finished" ? "Cerrada · proceso finalizado" : "Cerrada · proceso en curso";
   }

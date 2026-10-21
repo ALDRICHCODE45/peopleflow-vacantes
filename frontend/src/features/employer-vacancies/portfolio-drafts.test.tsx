@@ -26,13 +26,13 @@ it("published private rows leave draft counts and enter active counts with real 
  expect(screen.getByRole("tab", { name: "Borradores 1" })).toBeVisible();
  expect(screen.getByRole("tab", { name: "Activas 4" })).toBeVisible();
  const active = container.querySelector(`[data-pf-vacancy-row="${unnamed.id}"]`) as HTMLElement;
- expect(active).toHaveTextContent("Publicada"); expect(active).toHaveTextContent("Publicada el 16 de octubre de 2026");
+ expect(active).toHaveTextContent("Activa"); expect(active).toHaveTextContent("Publicada el 16 de octubre de 2026");
  expect(active.querySelector('[data-slot="badge"]')).toHaveAttribute("data-variant", "accent");
  expect(within(active).getByRole("button", { name: "Acciones de Sin título" })).toBeVisible();
  fireEvent.click(screen.getByRole("tab", { name: "Borradores 1" })); expect(screen.queryByText("Sin título")).not.toBeInTheDocument();
 });
 it.each([
- ["draft", null, "Borrador", "Borradores"], ["published", "active", "Publicada", "Activas"],
+ ["draft", null, "Borrador", "Borradores"], ["published", "active", "Activa", "Activas"],
  ["paused", "active", "Pausada", "Pausadas"], ["closed", "active", "Cerrada · proceso en curso", "Cerradas"],
  ["closed", "finished", "Cerrada · proceso finalizado", "Cerradas"],
 ] as const)("maps real %s/%s badge and filter", async (status, process, label, filter) => {
@@ -223,4 +223,20 @@ it("does not follow another cursor after unmount", async () => {
  const { unmount } = renderPortfolio(); unmount();
  await act(async () => resolve({ ok: true, items: [row], nextCursor: "next" }));
  expect(listDraftsAction).toHaveBeenCalledTimes(1);
+});
+
+it("reads like the validated rows: singular count, no zero counts, «Activa» and real in-process candidates in the metric", async () => {
+  // Seen in Chromium: «1 candidatos», «0 candidatos · 0 en proceso» next to «Sin candidatos todavía», «Publicada» vs «Activa».
+  const one = { total: 1, in_process: 1, discarded: 0, by_stage: [{ id, kind: "screening" as const, name: "Screening", count: 1 }] };
+  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [
+    { ...row, status: "published", process: "active", published_at: "2026-10-16T12:00:00Z", candidates: one },
+    { ...row, id: "923e4567-e89b-42d3-a456-426614174000", title: "Vacía", status: "published", process: "active", published_at: "2026-10-16T12:00:00Z", candidates: { total: 0, in_process: 0, discarded: 0, by_stage: [] } },
+  ], nextCursor: null });
+  render(<VacancyPortfolio vacancies={[]} />);
+  expect(await screen.findByText("1 candidato · 1 en proceso")).toBeVisible();
+  expect(screen.queryByText(/^0 candidatos/)).toBeNull();
+  expect(screen.getByText("Sin candidatos todavía")).toBeVisible();
+  expect(screen.queryByText("Publicada", { selector: '[data-slot="badge"]' })).toBeNull();
+  expect(screen.getAllByText("Activa", { selector: '[data-slot="badge"]' })).toHaveLength(2);
+  expect(screen.getByText("Candidatos en proceso").closest("[data-slot=card]")).toHaveTextContent("1");
 });

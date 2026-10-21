@@ -18,7 +18,7 @@ function respond(data: unknown = view, status = 200, headers = { etag, "idempote
 
 describe("lifecycle contract", () => {
   it.each([
-    [null, null, "Borrador"], ["published", "active", "Publicada"], ["paused", "active", "Pausada"],
+    [null, null, "Borrador"], ["published", "active", "Activa"], ["paused", "active", "Pausada"],
     ["closed", "active", "Cerrada · proceso en curso"], ["closed", "finished", "Cerrada · proceso finalizado"],
   ])("accepts %s/%s", (publication, process, label) => {
     const parsed = lifecycleSchema.parse({ ...view, publication, process, allowed_actions: [] });

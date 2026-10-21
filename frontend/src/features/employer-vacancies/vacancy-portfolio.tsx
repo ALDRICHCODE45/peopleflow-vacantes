@@ -42,6 +42,8 @@ const dateFormat = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZon
 const formatDate = (value: string) => dateFormat.format(new Date(value));
 
 /** Shared row composition, with draft facts rather than invented publication or candidate data. */
+const candidateSummary = (total: number, inProcess: number) => `${total} ${total === 1 ? "candidato" : "candidatos"} · ${inProcess} en proceso`;
+
 function VacancyRow({ vacancy, onPublished, onLifecycleChanged }: { vacancy: PortfolioVacancy; onPublished: (id: string, publishedAt: string) => void; onLifecycleChanged: (id: string, view: Lifecycle) => void }) {
   const [publishOpen, setPublishOpen] = React.useState(false);
   const draft = "draft" in vacancy ? vacancy.draft : null;
@@ -70,8 +72,8 @@ function VacancyRow({ vacancy, onPublished, onLifecycleChanged }: { vacancy: Por
         <p className={META}>{meta}</p>
       </div>
       <div data-pf-vacancy-zone="complement" className="flex min-w-0 flex-col gap-2">
-        {candidates && <p className={cn(META, "tabular-nums")}>{`${candidates.total} candidatos · ${candidates.in_process} en proceso`}</p>}
-        {prototype && <p className={cn(META, "tabular-nums")}>{`${vacancyCandidateTotal(prototype.candidateCounts)} candidatos · ${vacancyInProcessCount(prototype.candidateCounts)} en proceso`}</p>}
+        {candidates && candidates.total > 0 && <p className={cn(META, "tabular-nums")}>{candidateSummary(candidates.total, candidates.in_process)}</p>}
+        {prototype && <p className={cn(META, "tabular-nums")}>{candidateSummary(vacancyCandidateTotal(prototype.candidateCounts), vacancyInProcessCount(prototype.candidateCounts))}</p>}
         <div className="flex flex-col gap-1">
           <div aria-hidden="true" className="flex items-center gap-1">
             {candidates ? <>
@@ -126,7 +128,7 @@ export function VacancyPortfolio({ vacancies }: { vacancies: readonly EmployerVa
     { key: "active", label: "Activas", value: activeCount, icon: BriefcaseBusiness },
     { key: "draft", label: "Borradores", value: draftCount, icon: FilePenLine },
     { key: "paused", label: "Pausadas", value: counts.paused, icon: CirclePause },
-    { key: "in-process", label: "Candidatos en proceso", value: summary.inProcessCandidates, icon: Users },
+    { key: "in-process", label: "Candidatos en proceso", value: summary.inProcessCandidates + drafts.items.reduce((sum, item) => sum + (item.candidates?.in_process ?? 0), 0), icon: Users },
     { key: "closed", label: "Cerradas", value: counts.closed, icon: CircleCheck },
   ] as const;
   const combined: PortfolioVacancy[] = [...drafts.items.map(draft => ({ id: draft.id, title: draft.title || "Sin título", state: draft.status === "published" ? "active" as const : draft.status, draft })), ...vacancies];
