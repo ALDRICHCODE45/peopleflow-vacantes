@@ -161,15 +161,24 @@ func readPipeline(ctx context.Context, tx pgx.Tx, id uuid.UUID) (pipelineconfig.
 	if err != nil {
 		return pipelineconfig.Configuration{}, 0, fmt.Errorf("read pipeline: %w", err)
 	}
+	c, err := decodeStoredPipeline(id, raw, version)
+	if err != nil {
+		return pipelineconfig.Configuration{}, 0, err
+	}
+	return c, version, nil
+}
+
+// decodeStoredPipeline is shared by individual reads and the page projection.
+func decodeStoredPipeline(id uuid.UUID, raw []byte, version int64) (pipelineconfig.Configuration, error) {
 	var c pipelineconfig.Configuration
 	if err := json.Unmarshal(raw, &c); err != nil {
-		return pipelineconfig.Configuration{}, 0, fmt.Errorf("decode stored pipeline: %w", err)
+		return pipelineconfig.Configuration{}, fmt.Errorf("decode stored pipeline: %w", err)
 	}
 	if c.Retired == nil {
 		c.Retired = []pipelineconfig.RetiredStage{}
 	}
 	if err := pipelineconfig.Validate(c); err != nil || version <= 0 {
-		return pipelineconfig.Configuration{}, 0, errors.New("draftstore: invalid stored pipeline")
+		return pipelineconfig.Configuration{}, errors.New("draftstore: invalid stored pipeline")
 	}
 	// Built-in identity is anchored to the draft even when a stored document
 	// is corrupt. Client input can never redefine its semantic function.
@@ -180,10 +189,10 @@ func readPipeline(ctx context.Context, tx pgx.Tx, id uuid.UUID) (pipelineconfig.
 	}
 	for _, stage := range append(append([]pipelineconfig.Stage{}, c.Stages...), c.Exit) {
 		if want, builtin := builtins[stage.Kind]; builtin && stage.ID != want {
-			return pipelineconfig.Configuration{}, 0, errors.New("draftstore: invalid stored pipeline identity")
+			return pipelineconfig.Configuration{}, errors.New("draftstore: invalid stored pipeline identity")
 		}
 	}
-	return c, version, nil
+	return c, nil
 }
 
 func pipelineStructureLocked(ctx context.Context, tx pgx.Tx, id uuid.UUID) (bool, error) {

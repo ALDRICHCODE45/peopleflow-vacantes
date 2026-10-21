@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -105,9 +106,9 @@ func TestListDrafts_Success(t *testing.T) {
 		t.Fatalf("Content-Type = %q", got)
 	}
 	want := `{"items":[` +
-		`{"id":"55555555-5555-5555-5555-555555555555","title":"Backend Go","work_mode":"remote","work_schedule":"full_time","requester":{"kind":"client","id":"44444444-4444-4444-4444-444444444444","name":"Acme"},"principal_recruiter":{"id":"66666666-6666-6666-6666-666666666666","name":"Ana Pérez"},"version":"7","process":null,"status":"draft","published_at":null,"created_at":"2026-10-01T09:00:00.000001Z","updated_at":"2026-10-15T12:30:45.123456Z"},` +
-		`{"id":"44444444-4444-4444-4444-444444444444","title":null,"work_mode":null,"work_schedule":null,"requester":{"kind":"internal_area","id":null,"name":null},"principal_recruiter":{"id":"66666666-6666-6666-6666-666666666666","name":null},"version":"1","process":null,"status":"draft","published_at":null,"created_at":"2026-10-01T09:00:00.000001Z","updated_at":"2026-10-01T09:00:00.000001Z"},` +
-		`{"id":"33333333-3333-3333-3333-333333333333","title":null,"work_mode":null,"work_schedule":null,"requester":null,"principal_recruiter":{"id":"66666666-6666-6666-6666-666666666666","name":null},"version":"2","process":null,"status":"draft","published_at":null,"created_at":"2026-10-01T09:00:00.000001Z","updated_at":"2026-10-01T09:00:00.000001Z"}` +
+		`{"id":"55555555-5555-5555-5555-555555555555","title":"Backend Go","work_mode":"remote","work_schedule":"full_time","requester":{"kind":"client","id":"44444444-4444-4444-4444-444444444444","name":"Acme"},"principal_recruiter":{"id":"66666666-6666-6666-6666-666666666666","name":"Ana Pérez"},"version":"7","process":null,"status":"draft","published_at":null,"candidates":null,"created_at":"2026-10-01T09:00:00.000001Z","updated_at":"2026-10-15T12:30:45.123456Z"},` +
+		`{"id":"44444444-4444-4444-4444-444444444444","title":null,"work_mode":null,"work_schedule":null,"requester":{"kind":"internal_area","id":null,"name":null},"principal_recruiter":{"id":"66666666-6666-6666-6666-666666666666","name":null},"version":"1","process":null,"status":"draft","published_at":null,"candidates":null,"created_at":"2026-10-01T09:00:00.000001Z","updated_at":"2026-10-01T09:00:00.000001Z"},` +
+		`{"id":"33333333-3333-3333-3333-333333333333","title":null,"work_mode":null,"work_schedule":null,"requester":null,"principal_recruiter":{"id":"66666666-6666-6666-6666-666666666666","name":null},"version":"2","process":null,"status":"draft","published_at":null,"candidates":null,"created_at":"2026-10-01T09:00:00.000001Z","updated_at":"2026-10-01T09:00:00.000001Z"}` +
 		`],"next_cursor":"next-token"}` + "\n"
 	if rec.Body.String() != want {
 		t.Fatalf("body =\n%s\nwant\n%s", rec.Body.String(), want)
@@ -117,6 +118,38 @@ func TestListDrafts_Success(t *testing.T) {
 	}
 	if store.req.Limit != draftlist.DefaultLimit || store.req.After != nil {
 		t.Fatalf("request = %+v, want default limit and no cursor", store.req)
+	}
+}
+
+func TestListDrafts_CandidatesExactWire(t *testing.T) {
+	for _, tc := range []struct {
+		name, process, status                 string
+		total, inProcess, discarded, newCount int64
+	}{
+		{"published empty", "active", "published", 0, 0, 0, 0},
+		{"finished live counts", "finished", "closed", 5, 2, 1, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			at := time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC)
+			store := &fakeDraftLister{page: draftlist.Page{Items: []draftlist.Item{{
+				ID: listDraftID, Principal: draftlist.Principal{ID: listPrincipalID}, Version: 1,
+				Process: strPtr(tc.process), Status: tc.status, PublishedAt: &at, CreatedAt: at, UpdatedAt: at,
+				Candidates: &draftlist.Candidates{Total: tc.total, InProcess: tc.inProcess, Discarded: tc.discarded, ByStage: []draftlist.CandidateStage{
+					{ID: reqEntryID.String(), Kind: "new", Name: "Nuevos", Count: tc.newCount},
+					{ID: reqUserID.String(), Kind: "custom", Name: "Prueba técnica", Count: tc.inProcess},
+					{ID: listPrincipalID.String(), Kind: "placement", Name: "Placement", Count: 0},
+				}},
+			}}}}
+			rec := doDraft(t, draftListRouter(store, true), http.MethodGet, draftListPath, nil, nil)
+			want := fmt.Sprintf(`{"items":[{"id":"55555555-5555-5555-5555-555555555555","title":null,"work_mode":null,"work_schedule":null,"requester":null,"principal_recruiter":{"id":"66666666-6666-6666-6666-666666666666","name":null},"version":"1","process":"%s","status":"%s","published_at":"2026-10-01T09:00:00.000000Z","candidates":{"total":%d,"in_process":%d,"discarded":%d,"by_stage":[{"id":"44444444-4444-4444-4444-444444444444","kind":"new","name":"Nuevos","count":%d},{"id":"33333333-3333-3333-3333-333333333333","kind":"custom","name":"Prueba técnica","count":%d},{"id":"66666666-6666-6666-6666-666666666666","kind":"placement","name":"Placement","count":0}]},"created_at":"2026-10-01T09:00:00.000000Z","updated_at":"2026-10-01T09:00:00.000000Z"}],"next_cursor":null}`+"\n", tc.process, tc.status, tc.total, tc.inProcess, tc.discarded, tc.newCount, tc.inProcess)
+			if rec.Code != http.StatusOK || rec.Body.String() != want {
+				t.Fatalf("status=%d body=%s want=%s", rec.Code, rec.Body.String(), want)
+			}
+			assertNoStore(t, rec)
+			if store.calls != 1 {
+				t.Fatalf("ListV2 calls=%d", store.calls)
+			}
+		})
 	}
 }
 

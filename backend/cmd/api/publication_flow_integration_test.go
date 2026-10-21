@@ -105,6 +105,11 @@ func TestPublicationFlowReadyPublishReplayVersionsAuditAndList(t *testing.T) {
 	items[0].(map[string]any)["status"] = "published"
 	items[0].(map[string]any)["process"] = "active"
 	items[0].(map[string]any)["published_at"] = obj["publishedAt"]
+	stages := []any{}
+	for _, stage := range pipelineconfig.Defaults(uuid.MustParse(id)).Stages {
+		stages = append(stages, map[string]any{"id": stage.ID, "kind": stage.Kind, "name": stage.Name, "count": float64(0)})
+	}
+	items[0].(map[string]any)["candidates"] = map[string]any{"total": float64(0), "in_process": float64(0), "discarded": float64(0), "by_stage": stages}
 	if listAfter.status != 200 || !reflect.DeepEqual(pageBefore, pageAfter) {
 		t.Fatalf("list changed beyond lifecycle list keys: %s", listAfter.body)
 	}
