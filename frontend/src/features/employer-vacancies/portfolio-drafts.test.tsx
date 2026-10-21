@@ -10,7 +10,7 @@ import { notifyActionResult } from "@/components/feedback/notify";
 vi.mock("@/features/jobs/drafts/list/actions", () => ({ listDraftsAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn(), dismissActionResult: vi.fn() }));
 const id = "123e4567-e89b-42d3-a456-426614174000";
-const row = { id, status: "draft" as const, published_at: null, title: "Diseñador de producto", work_mode: "remote" as const, work_schedule: "full_time" as const, requester: { kind: "client" as const, id, name: "Acme" }, principal_recruiter: { id, name: "Ana" }, version: "1", created_at: "2026-10-14T12:00:00Z", updated_at: "2026-10-15T12:00:00Z" };
+const row = { id, status: "draft" as const, process: null, published_at: null, title: "Diseñador de producto", work_mode: "remote" as const, work_schedule: "full_time" as const, requester: { kind: "client" as const, id, name: "Acme" }, principal_recruiter: { id, name: "Ana" }, version: "1", created_at: "2026-10-14T12:00:00Z", updated_at: "2026-10-15T12:00:00Z" };
 const unnamed = { ...row, id: "223e4567-e89b-42d3-a456-426614174000", title: null, work_mode: null, work_schedule: null, requester: null, principal_recruiter: { id, name: null }, updated_at: "2026-10-16T12:00:00Z" };
 beforeEach(() => {
  vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
@@ -19,15 +19,25 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 const renderPortfolio = () => render(<VacancyPortfolio vacancies={NEXO_VACANCIES} />);
 it("published private rows leave draft counts and enter active counts with real publication metadata", async () => {
- vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [row, { ...unnamed, status: "published", published_at: "2026-10-16T12:00:00Z" }], nextCursor: null });
+ vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [row, { ...unnamed, status: "published", process: "active", published_at: "2026-10-16T12:00:00Z" }], nextCursor: null });
  const { container } = renderPortfolio(); await screen.findByText(row.title);
  expect(screen.getByRole("tab", { name: "Borradores 1" })).toBeVisible();
  expect(screen.getByRole("tab", { name: "Activas 4" })).toBeVisible();
  const active = container.querySelector(`[data-pf-vacancy-row="${unnamed.id}"]`) as HTMLElement;
- expect(active).toHaveTextContent("Activa"); expect(active).toHaveTextContent("Publicada el 16 de octubre de 2026");
+ expect(active).toHaveTextContent("Publicada"); expect(active).toHaveTextContent("Publicada el 16 de octubre de 2026");
  expect(active.querySelector('[data-slot="badge"]')).toHaveAttribute("data-variant", "accent");
- expect(within(active).getByRole("link", { name: /Ver pipeline/ })).toHaveAttribute("href", `/empresa/vacantes/${unnamed.id}/pipeline`);
+ expect(within(active).getByRole("button", { name: "Acciones de Sin título" })).toBeVisible();
  fireEvent.click(screen.getByRole("tab", { name: "Borradores 1" })); expect(screen.queryByText("Sin título")).not.toBeInTheDocument();
+});
+it.each([
+ ["draft", null, "Borrador", "Borradores"], ["published", "active", "Publicada", "Activas"],
+ ["paused", "active", "Pausada", "Pausadas"], ["closed", "active", "Cerrada · proceso en curso", "Cerradas"],
+ ["closed", "finished", "Cerrada · proceso finalizado", "Cerradas"],
+] as const)("maps real %s/%s badge and filter", async (status, process, label, filter) => {
+ vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, status, process }], nextCursor: null });
+ render(<VacancyPortfolio vacancies={[]} />); await screen.findByText(row.title);
+ expect(screen.getByText(label)).toBeVisible();
+ fireEvent.click(screen.getByRole("tab", { name: `${filter} 1` })); expect(screen.getByText(row.title)).toBeVisible();
 });
 it("composes honest draft rows before prototypes, newest first, with both real actions", async () => {
  const { container } = renderPortfolio();

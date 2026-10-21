@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { listDraftsAction, type DraftListActionFailure } from "@/features/jobs/drafts/list/actions";
+import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
 import type { DraftListRow } from "@/features/jobs/drafts/list/client";
 import { dismissActionResult, notifyActionResult } from "@/components/feedback/notify";
 
@@ -59,6 +60,7 @@ export function usePortfolioDrafts() {
     void load();
     return () => { current = false; };
   }, [attempt]);
-  const published = (id: string, publishedAt: string) => setState(previous => ({ ...previous, items: previous.items.map(item => item.id === id ? { ...item, status: "published", published_at: publishedAt } : item) }));
-  return { ...state, retry, published, retried: attempt > 0 };
+  const published = (id: string, publishedAt: string) => setState(previous => ({ ...previous, items: previous.items.map(item => item.id === id ? { ...item, status: "published", process: "active", published_at: publishedAt } : item) }));
+  const lifecycleChanged = (id: string, view: Lifecycle) => setState(previous => ({ ...previous, items: previous.items.map(item => item.id === id ? { ...item, status: view.publication ?? "draft", process: view.process, published_at: view.published_at } : item) }));
+  return { ...state, retry, published, lifecycleChanged, retried: attempt > 0 };
 }

@@ -4,11 +4,11 @@ vi.mock("@/lib/api/server", async () => await import("@/lib/api/requestJson"));
 const env = vi.hoisted(() => ({ reads: 0 }));
 vi.mock("@/lib/env/server", () => ({ get serverEnv() { env.reads++; return { apiBaseUrl: "http://localhost:8080/api/v1/", apiTimeoutMs: 8000 }; } }));
 const id = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
-const row = { id, status: "draft", published_at: null, title: "Analista", work_mode: null, work_schedule: null, requester: { kind: "client", id, name: "Acme" }, principal_recruiter: { id, name: "Ana" }, version: "9007199254740993", created_at: "2026-10-15T12:00:00Z", updated_at: "2026-10-15T06:30:00-06:00" };
+const row = { id, status: "draft", process: null, published_at: null, title: "Analista", work_mode: null, work_schedule: null, requester: { kind: "client", id, name: "Acme" }, principal_recruiter: { id, name: "Ana" }, version: "9007199254740993", created_at: "2026-10-15T12:00:00Z", updated_at: "2026-10-15T06:30:00-06:00" };
 function response(body: unknown, status = 200) { const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status })); vi.stubGlobal("fetch", fetch); return fetch; }
 afterEach(() => { vi.unstubAllGlobals(); env.reads = 0; });
 it.each([
- row, { ...row, status: "published", published_at: "2026-10-16T12:00:00Z" }, ...["onsite", "remote", "hybrid"].map(work_mode => ({ ...row, work_mode })),
+ row, { ...row, status: "paused", process: "active" }, { ...row, status: "closed", process: "active" }, { ...row, status: "closed", process: "finished" }, { ...row, status: "published", process: "active", published_at: "2026-10-16T12:00:00Z" }, ...["onsite", "remote", "hybrid"].map(work_mode => ({ ...row, work_mode })),
  ...["full_time", "part_time"].map(work_schedule => ({ ...row, work_schedule })), { ...row, title: null }, { ...row, requester: null },
  { ...row, requester: { kind: "internal_area", id: null, name: null } },
  { ...row, principal_recruiter: { id, name: null } },
@@ -18,7 +18,9 @@ it.each([
  expect(await listDrafts({ token: "secret" })).toEqual({ ok: true, data: { items: [item], next_cursor: null } });
 });
 it.each([
- { ...row, status: undefined }, { ...row, status: "paused" }, { ...row, published_at: undefined }, { ...row, published_at: "bad" },
+ { ...row, status: undefined }, { ...row, status: "paused" },
+ { ...row, process: undefined }, { ...row, process: "active" }, { ...row, status: "published", process: "finished" },
+ { ...row, status: "paused", process: "finished" }, { ...row, status: "closed", process: null }, { ...row, published_at: undefined }, { ...row, published_at: "bad" },
  { ...row, requester: { kind: "client", id, name: null } },
  { ...row, work_mode: undefined }, { ...row, work_schedule: undefined },
  { ...row, work_mode: "elsewhere" }, { ...row, work_schedule: "contract" },

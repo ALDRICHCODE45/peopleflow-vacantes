@@ -27,7 +27,7 @@ export function decodeLifecycleEtag(value: unknown, draftId: string, version?: s
   return value;
 }
 
-export function lifecycleLabel(view: Lifecycle): string {
+export function lifecycleLabel(view: Pick<Lifecycle, "publication" | "process">): string {
   switch (view.publication) {
     case null: return "Borrador";
     case "published": return "Publicada";

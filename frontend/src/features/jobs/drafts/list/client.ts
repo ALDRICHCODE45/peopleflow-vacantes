@@ -13,7 +13,8 @@ const requesterSchema = z.object({
 const rowSchema = z.object({
   id: uuid,
   title: z.string().nullable(),
-  status: z.enum(["draft", "published"]),
+  status: z.enum(["draft", "published", "paused", "closed"]),
+  process: z.enum(["active", "finished"]).nullable(),
   published_at: timestamp.nullable(),
   work_mode: z.enum(["onsite", "remote", "hybrid"]).nullable(),
   work_schedule: z.enum(["full_time", "part_time"]).nullable(),
@@ -22,7 +23,8 @@ const rowSchema = z.object({
   version: z.string().regex(/^[1-9][0-9]*$/),
   created_at: timestamp,
   updated_at: timestamp,
-}).strict();
+}).strict().refine(row => row.status === "draft" ? row.process === null :
+  row.process === "active" || (row.status === "closed" && row.process === "finished"));
 const listSchema = z.object({
   items: z.array(rowSchema).max(50),
   next_cursor: z.string().nullable(),

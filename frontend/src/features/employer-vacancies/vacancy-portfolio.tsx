@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BriefcaseBusiness, ChevronDown, CirclePause, FilePenLine, SearchIcon, SquareKanban, Users, CircleCheck, Send } from "lucide-react";
+import { BriefcaseBusiness, CirclePause, FilePenLine, SearchIcon, SquareKanban, Users, CircleCheck } from "lucide-react";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenuGroup, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { StateCard } from "@/components/feedback/state-card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,12 +17,14 @@ import type { DraftListRow } from "@/features/jobs/drafts/list/client";
 import { cn } from "@/lib/utils";
 import { EMPLOYER_EMPLOYMENT_TYPE_LABELS, EMPLOYER_VACANCY_STATE_LABELS, EMPLOYER_WORK_MODE_LABELS, VACANCY_PIPELINE_STAGES, summarizeEmployerVacancies, vacancyCandidateTotal, vacancyInProcessCount, vacancyPipelineHref } from "./model";
 import type { EmployerVacancy, EmployerVacancyState, VacancyPipelineStage } from "./model";
+import { lifecycleLabel, type Lifecycle } from "@/features/vacancy-lifecycle/model";
+import { LifecycleActionsMenu } from "@/features/vacancy-lifecycle/ui/lifecycle-actions-menu";
 import { PublishDialog } from "./publication/publish-dialog";
 import { portfolioRowActions } from "./model";
 import { DRAFT_LIST_MESSAGES, usePortfolioDrafts } from "./use-portfolio-drafts";
 
 type StatusFilter = "all" | "draft" | EmployerVacancyState;
-type PortfolioDraft = { id: string; title: string; state: "draft" | "active"; draft: DraftListRow };
+type PortfolioDraft = { id: string; title: string; state: "draft" | EmployerVacancyState; draft: DraftListRow };
 type PortfolioVacancy = EmployerVacancy | PortfolioDraft;
 const STATUS_FILTERS: ReadonlyArray<{ value: StatusFilter; label: string }> = [
   { value: "all", label: "Todas" }, { value: "draft", label: "Borradores" }, { value: "active", label: "Activas" }, { value: "paused", label: "Pausadas" }, { value: "closed", label: "Cerradas" },
@@ -40,7 +42,7 @@ const dateFormat = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZon
 const formatDate = (value: string) => dateFormat.format(new Date(value));
 
 /** Shared row composition, with draft facts rather than invented publication or candidate data. */
-function VacancyRow({ vacancy, onPublished }: { vacancy: PortfolioVacancy; onPublished: (id: string, publishedAt: string) => void }) {
+function VacancyRow({ vacancy, onPublished, onLifecycleChanged }: { vacancy: PortfolioVacancy; onPublished: (id: string, publishedAt: string) => void; onLifecycleChanged: (id: string, view: Lifecycle) => void }) {
   const [publishOpen, setPublishOpen] = React.useState(false);
   const draft = "draft" in vacancy ? vacancy.draft : null;
   const prototype = "draft" in vacancy ? null : vacancy;
@@ -58,7 +60,7 @@ function VacancyRow({ vacancy, onPublished }: { vacancy: PortfolioVacancy; onPub
         </div>
       </div>
       <div data-pf-vacancy-zone="conditions" className="flex flex-col items-start gap-2">
-        <Badge variant={vacancy.state === "draft" ? "info" : STATUS_VARIANT[vacancy.state]} dot>{vacancy.state === "draft" ? "Borrador" : EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]}</Badge>
+        <Badge variant={vacancy.state === "draft" ? "info" : STATUS_VARIANT[vacancy.state]} dot>{draft ? lifecycleLabel({ publication: draft.status === "draft" ? null : draft.status, process: draft.process }) : vacancy.state === "draft" ? "Borrador" : EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]}</Badge>
         <p className={META}>{meta}</p>
       </div>
       <div data-pf-vacancy-zone="complement" className="flex min-w-0 flex-col gap-2">
@@ -74,19 +76,15 @@ function VacancyRow({ vacancy, onPublished }: { vacancy: PortfolioVacancy; onPub
         </div>
       </div>
       <div data-pf-vacancy-zone="action" className="flex items-center gap-1 [&>a]:w-full [&>a]:lg:w-auto [&>button]:w-full [&>button]:lg:w-auto">
-        {draft?.status === "draft" ? (
-          // Peer actions live in one menu (rules §6).
-          <DropdownMenu>
-            <DropdownMenuTrigger render={<Button type="button" variant="outline" size="sm" className="h-10 gap-1.5 px-3.5" aria-label={`Acciones de ${vacancy.title}`} />}>Acciones<ChevronDown aria-hidden="true" data-icon="inline-end" /></DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-52">
-              <DropdownMenuGroup>
-                {portfolioRowActions(vacancy.id, draft.status).map(action => {
-                  const Icon = action.kind === "pipeline" ? SquareKanban : action.kind === "edit" ? FilePenLine : Send;
-                  return action.kind === "publish" ? <DropdownMenuItem key={action.kind} className="min-h-10" onClick={() => setPublishOpen(true)}><Icon aria-hidden="true" />{action.label}</DropdownMenuItem> : <DropdownMenuItem key={action.kind} className="min-h-10" render={<Link href={action.href!} />}><Icon aria-hidden="true" />{action.label}</DropdownMenuItem>;
-                })}
-              </DropdownMenuGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+        {draft ? (
+          <LifecycleActionsMenu draftId={draft.id} title={vacancy.title} onChanged={view => onLifecycleChanged(draft.id, view)} onPublish={draft.status === "draft" ? () => setPublishOpen(true) : undefined}>
+            <DropdownMenuGroup>
+              {portfolioRowActions(vacancy.id, draft.status === "draft" ? "draft" : "published").filter(action => action.kind !== "publish").map(action => {
+                const Icon = action.kind === "pipeline" ? SquareKanban : FilePenLine;
+                return <DropdownMenuItem key={action.kind} className="min-h-10" render={<Link href={action.href!} />}><Icon aria-hidden="true" />{action.label}</DropdownMenuItem>;
+              })}
+            </DropdownMenuGroup>
+          </LifecycleActionsMenu>
         ) : (
           <Link href={vacancyPipelineHref(vacancy.id)} data-pf-vacancy-pipeline={vacancy.id} aria-label={`Ver pipeline de ${vacancy.title}`} className={cn(buttonVariants({ variant: "outline", size: "sm" }), "h-10 w-full gap-1.5 px-3.5 transition-colors duration-200 lg:w-auto")}>Ver pipeline</Link>
         )}
@@ -113,15 +111,15 @@ export function VacancyPortfolio({ vacancies }: { vacancies: readonly EmployerVa
   const summary = summarizeEmployerVacancies(vacancies);
   const draftCount = drafts.items.filter(item => item.status === "draft").length;
   const activeCount = summary.active + drafts.items.filter(item => item.status === "published").length;
-  const counts: Readonly<Record<StatusFilter, number>> = { all: summary.total + drafts.items.length, draft: draftCount, active: activeCount, paused: summary.paused, closed: summary.closed };
+  const counts: Readonly<Record<StatusFilter, number>> = { all: summary.total + drafts.items.length, draft: draftCount, active: activeCount, paused: summary.paused + drafts.items.filter(item => item.status === "paused").length, closed: summary.closed + drafts.items.filter(item => item.status === "closed").length };
   const cards = [
     { key: "active", label: "Activas", value: activeCount, icon: BriefcaseBusiness },
     { key: "draft", label: "Borradores", value: draftCount, icon: FilePenLine },
-    { key: "paused", label: "Pausadas", value: summary.paused, icon: CirclePause },
+    { key: "paused", label: "Pausadas", value: counts.paused, icon: CirclePause },
     { key: "in-process", label: "Candidatos en proceso", value: summary.inProcessCandidates, icon: Users },
-    { key: "closed", label: "Cerradas", value: summary.closed, icon: CircleCheck },
+    { key: "closed", label: "Cerradas", value: counts.closed, icon: CircleCheck },
   ] as const;
-  const combined: PortfolioVacancy[] = [...drafts.items.map(draft => ({ id: draft.id, title: draft.title || "Sin título", state: draft.status === "published" ? "active" as const : "draft" as const, draft })), ...vacancies];
+  const combined: PortfolioVacancy[] = [...drafts.items.map(draft => ({ id: draft.id, title: draft.title || "Sin título", state: draft.status === "published" ? "active" as const : draft.status, draft })), ...vacancies];
   const needle = normalize(query);
   const results = combined.filter(vacancy => (status === "all" || vacancy.state === status) && (!needle || normalize(vacancy.title).includes(needle)));
   const filtersActive = query.trim() !== "" || status !== "all";
@@ -169,7 +167,7 @@ export function VacancyPortfolio({ vacancies }: { vacancies: readonly EmployerVa
               {results.length === 0 ? (status === "draft" && (loadingDraftRows || failure)) ? null : <StateCard data-pf-vacancy-empty icon={status === "draft" ? FilePenLine : SearchIcon} tone="empty"
                 title={combined.length === 0 ? "Todavía no hay vacantes" : emptyDrafts ? "No hay borradores que mostrar" : "Sin resultados"} description={emptyDescription}>
                 {filtersActive && <Button type="button" data-pf-vacancy-clear onClick={clearFilters} className="min-h-10 w-full sm:w-auto">Limpiar filtros</Button>}
-              </StateCard> : <ul className="divide-y divide-border">{results.map(vacancy => <VacancyRow key={vacancy.id} vacancy={vacancy} onPublished={drafts.published} />)}</ul>}
+              </StateCard> : <ul className="divide-y divide-border">{results.map(vacancy => <VacancyRow key={vacancy.id} vacancy={vacancy} onPublished={drafts.published} onLifecycleChanged={drafts.lifecycleChanged} />)}</ul>}
               {!failure && drafts.retried && <div className="px-5"><ActionStatusSlot>{!drafts.pending && <ActionStatus id="portfolio-drafts-status" tone="success" text="Borradores cargados" />}</ActionStatusSlot></div>}
             </CardContent>
           </Card>
