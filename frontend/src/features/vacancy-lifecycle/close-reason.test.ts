@@ -17,7 +17,8 @@ it("requires nullable close fields on lifecycle reads", () => {
   for (const patch of [{ close_reason: 1 }, { close_reason: "bad" }, { close_reason_note: 1 }]) expect(lifecycleSchema.safeParse({ ...view, close_reason: null, close_reason_note: null, ...patch }).success).toBe(false);
 });
 it("explains coverage and labels historical closures", () => {
-  expect(closeCoverageMessage({ covered: 1, required: 2 })).toBe("Cubiertas 1 de 2 posiciones.");
+  expect(closeCoverageMessage({ covered: 1, required: 2 })).toBe("Hay 1 de 2 posiciones cubiertas.");
+  expect(closeCoverageMessage({ covered: 0, required: 1 })).toBe("Hay 0 de 1 posición cubierta.");
   expect(closeCoverageMessage({ covered: 1, required: null })).toBe("Esta vacante no tiene un objetivo de posiciones.");
   expect(closeReasonLabel(null)).toBe("Sin motivo registrado");
   expect(closeReasonLabel("filled")).toBe("Cubierta");

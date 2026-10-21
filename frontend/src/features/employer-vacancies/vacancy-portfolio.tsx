@@ -72,7 +72,7 @@ function VacancyRow({ vacancy, onPublished, onLifecycleChanged }: { vacancy: Por
           {draft?.requester?.name && <p className={cn(META, "mt-0.5")}>Solicitante: {draft.requester.name}</p>}
         </div>
       </div>
-      <div data-pf-vacancy-zone="conditions" className="flex flex-col items-start gap-2">
+      <div data-pf-vacancy-zone="conditions" className="flex min-w-0 flex-col items-start gap-2">
         <Badge variant={vacancy.state === "draft" ? "info" : STATUS_VARIANT[vacancy.state]} dot>{draft ? draft.status === "closed" ? `Cerrada · ${closeReasonLabel(draft.close_reason)}` : lifecycleLabel({ publication: draft.status === "draft" ? null : draft.status, process: draft.process }) : vacancy.state === "draft" ? "Borrador" : EMPLOYER_VACANCY_STATE_LABELS[vacancy.state]}</Badge>
         {draft?.status === "closed" && <>
           <p className={META}>{draft.process === "finished" ? "Proceso finalizado" : "Proceso en curso"}</p>

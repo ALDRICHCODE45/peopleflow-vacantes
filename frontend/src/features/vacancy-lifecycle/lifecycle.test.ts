@@ -19,7 +19,7 @@ function respond(data: unknown = view, status = 200, headers = { etag, "idempote
 describe("lifecycle contract", () => {
   it.each([2, null])("maps close coverage rejection with target %s", async required => {
     respond({ error: "private", code: "close_reason_not_covered", data: { covered: 1, required } }, 422);
-    expect(await transitionLifecycleAction({ ...input, action: "close", body: { process: "continue", reason: "filled", reason_note: null } })).toMatchObject({ ok: false, reason: "close_reason_not_covered", reload: true, coverage: { covered: 1, required }, message: required === null ? "Esta vacante no tiene un objetivo de posiciones." : "Cubiertas 1 de 2 posiciones." });
+    expect(await transitionLifecycleAction({ ...input, action: "close", body: { process: "continue", reason: "filled", reason_note: null } })).toMatchObject({ ok: false, reason: "close_reason_not_covered", reload: true, coverage: { covered: 1, required }, message: required === null ? "Esta vacante no tiene un objetivo de posiciones." : "Hay 1 de 2 posiciones cubiertas." });
   });
   it.each([
     [null, null, "Borrador"], ["published", "active", "Activa"], ["paused", "active", "Pausada"],

@@ -105,7 +105,6 @@ function ActionSession({ draftId, title, action, snapshot, coverage, onOpenChang
           setRejectedCoverage(result.coverage);
           setFieldError({ field: "reason", message: result.message });
           setReason(null); intent.current = null;
-          notifyActionResult({ key: `lifecycle-${draftId}`, type: "error", title: "No se cerró la vacante", description: result.message, reference: { ...result.reference, at: new Date().toISOString() } });
         } else report(result);
         if (result.lifecycle) onChanged(result.lifecycle);
         if (result.reload) {
@@ -130,15 +129,15 @@ function ActionSession({ draftId, title, action, snapshot, coverage, onOpenChang
   </Dialog>;
   return <ConfirmActionDialog open onOpenChange={onOpenChange} onConfirm={() => void confirm()} icon={ui.icon} title={action === "finish_process" ? `¿Finalizar el proceso de ${title}?` : `¿${ui.label} ${title}?`} description={ui.description} confirmLabel={action === "close" ? "Cerrar vacante" : ui.label} pendingLabel="Aplicando…" pending={pending} confirmDisabled={!currentSnapshot.data.allowed_actions.includes(action)} finalFocus={() => heading.current ?? true} tone={action === "finish_process" || (action === "close" && process === "finish") ? "destructive" : "default"}>
     {action === "close" && <FieldGroup>
-      <FieldSet><FieldLegend>Motivo de cierre</FieldLegend><Field data-invalid={fieldError?.field === "reason" || undefined}>
+      <FieldSet><FieldLegend>Motivo de cierre</FieldLegend><Field>
         <ToggleGroup ref={reasonGroup} aria-label="Motivo de cierre" aria-required="true" aria-invalid={fieldError?.field === "reason" || undefined} aria-describedby={fieldError?.field === "reason" ? "close-reason-error" : filledDisabled ? "close-coverage" : undefined} variant="outline" className="grid w-full grid-cols-1 sm:grid-cols-3" value={reason ? [reason] : []} disabled={pending} onValueChange={values => { const value = values[0]; if (value === "filled" || value === "cancelled" || value === "other") { setReason(value); setFieldError(null); } }}>
-          {(["filled", "cancelled", "other"] as const).map(value => <ToggleGroupItem key={value} value={value} disabled={pending || (value === "filled" && filledDisabled)} className="min-h-10">{closeReasonLabel(value)}</ToggleGroupItem>)}
+          {(["filled", "cancelled", "other"] as const).map(value => <ToggleGroupItem key={value} value={value} disabled={pending || (value === "filled" && filledDisabled)} className="min-h-10 aria-pressed:border-primary aria-pressed:bg-primary/10 aria-pressed:text-foreground">{closeReasonLabel(value)}</ToggleGroupItem>)}
         </ToggleGroup>
         {fieldError?.field === "reason" ? <FieldError id="close-reason-error">{fieldError.message}</FieldError> : filledDisabled && currentCoverage && <FieldDescription id="close-coverage">{closeCoverageMessage(currentCoverage)}</FieldDescription>}
       </Field></FieldSet>
       {reason === "other" && <Field data-invalid={fieldError?.field === "note" || undefined}>
         <FieldLabel htmlFor="close-note">Motivo</FieldLabel>
-        <Textarea ref={noteInput} id="close-note" required value={note} disabled={pending} aria-invalid={fieldError?.field === "note" || undefined} aria-describedby={fieldError?.field === "note" ? "close-note-error close-note-count" : "close-note-count"} onChange={event => { setNote(event.target.value); setFieldError(null); }} />
+        <Textarea ref={noteInput} id="close-note" className="min-h-24" required value={note} disabled={pending} aria-invalid={fieldError?.field === "note" || undefined} aria-describedby={fieldError?.field === "note" ? "close-note-error close-note-count" : "close-note-count"} onChange={event => { setNote(event.target.value); setFieldError(null); }} />
         <FieldDescription id="close-note-count">{closeNoteLength(note)} / 200 caracteres</FieldDescription>
         {fieldError?.field === "note" && <FieldError id="close-note-error">{fieldError.message}</FieldError>}
       </Field>}

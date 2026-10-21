@@ -46,14 +46,19 @@ it.each(["   ", "a".repeat(201)])("rejects invalid other note", note => {
 it.each([2, null])("disables filled with insufficient target %s", required => {
  render(<LifecycleActionDialog draftId="id" title="Analista" action="close" coverage={{ covered: 1, required }} snapshot={snapshot} open onOpenChange={vi.fn()} onChanged={changed} />);
  expect(screen.getByRole("button", { name: "Cubierta" })).toBeDisabled();
- expect(screen.getByText(required === null ? "Esta vacante no tiene un objetivo de posiciones." : "Cubiertas 1 de 2 posiciones.")).toBeVisible();
+ expect(screen.getByText(required === null ? "Esta vacante no tiene un objetivo de posiciones." : "Hay 1 de 2 posiciones cubiertas.")).toBeVisible();
 });
 it("keeps the form and refreshes lifecycle after coverage rejection", async () => {
- vi.mocked(transitionLifecycleAction).mockResolvedValue({ ok: false, reason: "close_reason_not_covered", reload: true, coverage: { covered: 1, required: 2 }, message: "Cubiertas 1 de 2 posiciones.", reference: { status: 422 } });
+ vi.mocked(transitionLifecycleAction).mockResolvedValue({ ok: false, reason: "close_reason_not_covered", reload: true, coverage: { covered: 1, required: 2 }, message: "Hay 1 de 2 posiciones cubiertas.", reference: { status: 422 } });
  mount(); fireEvent.click(screen.getByRole("button", { name: "Cubierta" })); fireEvent.click(screen.getByRole("button", { name: "Cerrar vacante" }));
  await waitFor(() => expect(getLifecycleAction).toHaveBeenCalledWith("id"));
- expect(screen.getByRole("alertdialog")).toBeVisible(); expect(screen.getByText("Cubiertas 1 de 2 posiciones.")).toBeVisible();
+ expect(screen.getByRole("alertdialog")).toBeVisible(); expect(screen.getByText("Hay 1 de 2 posiciones cubiertas.")).toBeVisible();
  expect(screen.getByRole("button", { name: "Cubierta" })).toBeDisabled(); expect(transitionLifecycleAction).toHaveBeenCalledTimes(1);
+
+ // The explanation sits in the dialog; a toast would repeat it (and land under the backdrop).
+ expect(notifyActionResult).not.toHaveBeenCalled();
+ // Only the error text is red: the remaining choices keep their normal look.
+ expect(screen.getByRole("button", { name: "Cancelada" }).closest("[data-invalid]")).toBeNull();
 });
 it("counts trimmed Unicode notes and clears them from non-other bodies", async () => {
  mount(); fireEvent.click(screen.getByRole("button", { name: "Otro" }));
@@ -65,7 +70,7 @@ it("counts trimmed Unicode notes and clears them from non-other bodies", async (
  await waitFor(() => expect(transitionLifecycleAction).toHaveBeenCalledWith(expect.objectContaining({ body: { process: "continue", reason: "cancelled", reason_note: null } })));
 });
 it("uses a fresh intent only after the user corrects a rejected reason", async () => {
- vi.mocked(transitionLifecycleAction).mockResolvedValueOnce({ ok: false, reason: "close_reason_not_covered", reload: true, coverage: { covered: 1, required: 2 }, message: "Cubiertas 1 de 2 posiciones.", reference: { status: 422 } });
+ vi.mocked(transitionLifecycleAction).mockResolvedValueOnce({ ok: false, reason: "close_reason_not_covered", reload: true, coverage: { covered: 1, required: 2 }, message: "Hay 1 de 2 posiciones cubiertas.", reference: { status: 422 } });
  vi.mocked(getLifecycleAction).mockResolvedValue({ ...snapshot, etag: "fresh-tag" });
  mount(); fireEvent.click(screen.getByRole("button", { name: "Cubierta" })); fireEvent.click(screen.getByRole("button", { name: "Cerrar vacante" }));
  await waitFor(() => expect(screen.getByRole("button", { name: "Cancelada" })).toBeEnabled());
@@ -153,4 +158,11 @@ it("marks the chosen close option visibly and left-aligns both options (seen in 
   fireEvent.click(finish);
   expect(finish.querySelector('[data-pf-close-choice-check]')).not.toBeNull();
   expect(keep.querySelector('[data-pf-close-choice-check]')).toBeNull();
+});
+it("marks the chosen close reason with the primary accent, readable in dark mode too", () => {
+ mount(); const other = screen.getByRole("button", { name: "Otro" });
+ expect(other.className).toContain("aria-pressed:border-primary");
+ expect(other.className).toContain("aria-pressed:bg-primary/10");
+ // §13.1: primary text on a dark primary tint is hard to read; the label keeps the foreground color.
+ expect(other.className).toContain("aria-pressed:text-foreground");
 });

@@ -16,7 +16,9 @@ export type CloseBody = z.infer<typeof closeBodySchema>;
 export const closeReasonLabel = (reason: CloseReason | null) => reason === null ? "Sin motivo registrado" : ({ filled: "Cubierta", cancelled: "Cancelada", other: "Otro" })[reason];
 export const closeCoverageMessage = (coverage: CloseCoverage) => coverage.required === null
   ? "Esta vacante no tiene un objetivo de posiciones."
-  : `Cubiertas ${coverage.covered} de ${coverage.required} posiciones.`;
+  : coverage.required === 1
+    ? `Hay ${coverage.covered} de 1 posición cubierta.`
+    : `Hay ${coverage.covered} de ${coverage.required} posiciones cubiertas.`;
 
 export const lifecycleActionSchema = z.enum(["publish", "pause", "resume", "close", "finish_process", "reopen"]);
 export const lifecycleSchema = z.object({
