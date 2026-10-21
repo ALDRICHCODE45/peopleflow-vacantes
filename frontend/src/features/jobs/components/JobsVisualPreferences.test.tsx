@@ -51,14 +51,8 @@ describe("JobsVisualPreferences", () => {
       />,
     );
 
-    expect(screen.getByLabelText("Sueldo mínimo mensual")).toHaveAttribute(
-      "type",
-      "number",
-    );
-    expect(screen.getByLabelText("Sueldo máximo mensual")).toHaveAttribute(
-      "type",
-      "number",
-    );
+    expect(screen.queryByLabelText("Sueldo mínimo mensual")).toBeNull();
+    expect(screen.queryByLabelText("Sueldo máximo mensual")).toBeNull();
     expect(screen.getByText("Idioma de trabajo")).toBeVisible();
     expect(screen.getByText("Sin preferencia")).toBeVisible();
     for (const label of ["Seguro médico", "Horario flexible", "Formación"]) {
@@ -76,7 +70,7 @@ describe("JobsVisualPreferences", () => {
     ).toBeNull();
   });
 
-  it("reports monthly range, language and benefit changes to its owner", () => {
+  it("reports benefit changes to its local owner", () => {
     const onChange = vi.fn();
     render(
       <JobsVisualPreferences
@@ -84,20 +78,6 @@ describe("JobsVisualPreferences", () => {
         value={EMPTY_JOBS_VISUAL_PREFERENCES}
         onChange={onChange}
       />,
-    );
-
-    fireEvent.change(screen.getByLabelText("Sueldo mínimo mensual"), {
-      target: { value: "25000" },
-    });
-    expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ monthlyMin: "25000" }),
-    );
-
-    fireEvent.change(screen.getByLabelText("Sueldo máximo mensual"), {
-      target: { value: "60000" },
-    });
-    expect(onChange).toHaveBeenLastCalledWith(
-      expect.objectContaining({ monthlyMax: "60000" }),
     );
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Formación" }));
@@ -110,19 +90,6 @@ describe("JobsVisualPreferences", () => {
 
   it("shares one local state across the desktop and mobile surfaces with unique ids", () => {
     render(<SharedSurfaces />);
-
-    const desktopMin = document.getElementById(
-      "desktop-pref-monthly-min",
-    ) as HTMLInputElement | null;
-    const mobileMin = document.getElementById(
-      "mobile-pref-monthly-min",
-    ) as HTMLInputElement | null;
-    expect(desktopMin).not.toBeNull();
-    expect(mobileMin).not.toBeNull();
-    expect(desktopMin).not.toBe(mobileMin);
-
-    fireEvent.change(desktopMin!, { target: { value: "18000" } });
-    expect(mobileMin!.value).toBe("18000");
 
     const desktopBenefitInput = document.getElementById(
       "desktop-pref-benefit-medical_insurance",

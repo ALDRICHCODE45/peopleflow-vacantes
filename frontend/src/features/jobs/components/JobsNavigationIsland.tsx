@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { CONTRACT_TYPE_OPTIONS, PROFESSIONAL_AREA_OPTIONS, WORK_SCHEDULE_OPTIONS } from "../drafts/ui/draft-labels";
 import { buildFilterCommitUrl, selectedValues, type JobsQuery, type JobsFilterPatch } from "../url";
 import { JobsGeoFields, JobsFilterChips, useJobsGeo } from "./JobsGeoFilters";
+import { CLEAR_SALARY_FILTER, hasSalaryFilter, JobsSalaryFilter, JobsSalaryFilterChip, validateSalaryFilter, type SalaryErrors } from "./JobsSalaryFilter";
 
 /** URL-owned navigation; server-rendered results remain mounted during navigation. */
 export function JobsNavigationIsland({ children, routeKey, query }: { children: React.ReactNode; routeKey: string; query?: JobsQuery }) {
@@ -24,6 +25,13 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
   const [pending, setPending] = React.useState<{ routeKey: string; submitter: HTMLButtonElement | null; link: HTMLAnchorElement | null } | null>(null);
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<JobsQuery>(query ?? {});
+  const [draftRoute, setDraftRoute] = React.useState(routeKey);
+  const [salaryErrors, setSalaryErrors] = React.useState<SalaryErrors>({});
+  if (draftRoute !== routeKey) {
+    setDraftRoute(routeKey);
+    setDraft(query ?? {});
+    setSalaryErrors({});
+  }
   const geo = useJobsGeo(query ?? {}, draft);
   const updateDraft = (patch: JobsFilterPatch) => setDraft(old => ({ ...old, ...patch }));
 
@@ -51,6 +59,15 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
     for (const [key, value] of new FormData(form).entries()) {
       if (typeof value === "string" && key !== "cursor") patch[key as keyof JobsFilterPatch] = value;
     }
+    if (form.dataset.navIntent !== "search") {
+      const errors = validateSalaryFilter(patch);
+      setSalaryErrors(errors);
+      const firstInvalidKey = Object.keys(errors)[0];
+      if (firstInvalidKey) {
+        form.querySelector<HTMLInputElement>(`[name="${firstInvalidKey}"]`)?.focus();
+        return;
+      }
+    }
     startNavigation(buildFilterCommitUrl(routeKey, patch), submitterOf(event), null);
     if (form.dataset.navIntent === "mobile-filters") setFiltersOpen(false);
   }
@@ -72,13 +89,15 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
   const status = <p role="status" aria-live="polite" className="min-h-6 text-sm text-muted-foreground">{pending ? "Cargando…" : ""}</p>;
   if (query === undefined) return <div onSubmitCapture={handleRootSubmitCapture} onClickCapture={handleRootClickCapture}>{status}{children}</div>;
 
-  const excludesLegacy = Boolean(query.work_schedule || query.contract_type || query.professional_area || selectedValues(query.state).length || selectedValues(query.municipality).length);
-  const activeCount = Object.entries(query).filter(([key]) => key !== "cursor").reduce((total, [, value]) => total + selectedValues(value).length, 0);
-  const draftCount = Object.entries(draft).filter(([key]) => key !== "cursor" && key !== "q").reduce((total, [, value]) => total + selectedValues(value).filter(Boolean).length, 0);
+  const excludesLegacy = Boolean(query.work_schedule || query.contract_type || query.professional_area || selectedValues(query.state).length || selectedValues(query.municipality).length || hasSalaryFilter(query));
+  const activeCount = Object.entries(query).filter(([key]) => key !== "cursor" && !key.startsWith("salary_")).reduce((total, [, value]) => total + selectedValues(value).length, 0) + Number(hasSalaryFilter(query));
+  const draftCount = Object.entries(draft).filter(([key]) => key !== "cursor" && key !== "q" && !key.startsWith("salary_")).reduce((total, [, value]) => total + selectedValues(value).filter(Boolean).length, 0) + Number(hasSalaryFilter(draft));
   const filterFields = (idPrefix: string) => <FieldGroup className="gap-4">
     <FieldSet><FieldLegend variant="label"><MapPinIcon aria-hidden="true" className="inline size-4" /> Ubicación y modalidad</FieldLegend><FieldGroup><JobsGeoFields idPrefix={idPrefix} query={draft} onChange={updateDraft} geo={geo} /></FieldGroup></FieldSet>
     <Separator />
     <FieldSet><FieldLegend variant="label"><BriefcaseBusinessIcon aria-hidden="true" className="inline size-4" /> Condiciones</FieldLegend><FieldGroup><FilterFields idPrefix={idPrefix} query={draft} onChange={updateDraft} /></FieldGroup></FieldSet>
+    <Separator />
+    <JobsSalaryFilter idPrefix={idPrefix} query={draft} onChange={updateDraft} errors={salaryErrors} />
     <p className="text-sm text-muted-foreground">Las opciones de un mismo filtro se suman. Entre filtros, las vacantes deben cumplir ambas condiciones.</p>
   </FieldGroup>;
   return <div data-jobs-navigation-island onSubmitCapture={handleRootSubmitCapture} onClickCapture={handleRootClickCapture} className="flex flex-col gap-6 md:-mx-[7px]">
@@ -97,7 +116,10 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
       <ToggleGroup multiple value={QUICK_FILTERS.filter((item) => item.isActive(query)).map((item) => item.label)} variant="outline" aria-label="Filtros rápidos" className="max-w-full flex-wrap">
         {QUICK_FILTERS.map((item) => <ToggleGroupItem key={item.label} value={item.label} className="min-h-10" onClick={(event) => startNavigation(buildFilterCommitUrl(routeKey, item.patch), event.currentTarget, null)}>{item.label}</ToggleGroupItem>)}
       </ToggleGroup>
-      <JobsFilterChips query={query} geo={geo} onRemove={patch => startNavigation(buildFilterCommitUrl(routeKey, patch), null, null)} />
+      <div className="flex min-w-0 gap-2 overflow-x-auto">
+        <JobsFilterChips query={query} geo={geo} onRemove={patch => startNavigation(buildFilterCommitUrl(routeKey, patch), null, null)} />
+        <JobsSalaryFilterChip query={query} onRemove={patch => startNavigation(buildFilterCommitUrl(routeKey, patch), null, null)} />
+      </div>
       {geo.loaders}
       <div className="flex flex-col gap-6 md:flex-row md:items-start">
         <div className="hidden w-full shrink-0 md:sticky md:top-24 md:block md:w-60">
@@ -147,7 +169,7 @@ function ComposedSearchField({ icon: Icon, id, label, name, defaultValue, placeh
 }
 
 const QUICK_FILTERS = [
-  { label: "Todas", patch: { q: "", state: [], municipality: [], applicant_country: "", work_mode: [], work_schedule: "", contract_type: "", professional_area: "" }, isActive: (query: JobsQuery) => Object.keys(query).length === 0 },
+  { label: "Todas", patch: { ...CLEAR_SALARY_FILTER, q: "", state: [], municipality: [], applicant_country: "", work_mode: [], work_schedule: "", contract_type: "", professional_area: "" }, isActive: (query: JobsQuery) => Object.keys(query).length === 0 },
   { label: "Remoto", patch: { work_mode: "remote" }, isActive: (query: JobsQuery) => selectedValues(query.work_mode).includes("remote") },
   { label: "Híbrido", patch: { work_mode: "hybrid" }, isActive: (query: JobsQuery) => selectedValues(query.work_mode).includes("hybrid") },
   { label: "Tiempo completo", patch: { work_schedule: "full_time" }, isActive: (query: JobsQuery) => query.work_schedule === "full_time" },

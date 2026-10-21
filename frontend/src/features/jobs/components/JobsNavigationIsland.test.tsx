@@ -3,11 +3,113 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+// Base UI popup positioning does not complete in jsdom; retain its controlled contract.
+vi.mock("@/components/ui/select", async () => {
+  const React = await import("react");
+  type State = { items: { value: string | null; label: string }[]; value: string | null; onValueChange: (value: string) => void; name?: string };
+  const Context = React.createContext<State | null>(null);
+  return {
+    Select: ({ children, ...props }: State & { children: React.ReactNode }) => <Context.Provider value={props}>{children}</Context.Provider>,
+    SelectTrigger: (props: React.ComponentProps<"select">) => {
+      const state = React.useContext(Context)!;
+      return <select {...props} name={state.name} value={state.value ?? ""} onChange={event => state.onValueChange(event.target.value)}>{state.items.map(item => <option key={item.label} value={item.value ?? ""}>{item.label}</option>)}</select>;
+    },
+    SelectValue: () => null, SelectContent: () => null, SelectGroup: () => null, SelectItem: () => null,
+  };
+});
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 import { JobsNavigationIsland } from "./JobsNavigationIsland";
+import { buildJobsUrl, type JobsQuery } from "../url";
 const source = readFileSync(join(process.cwd(), "src/features/jobs/components/JobsNavigationIsland.tsx"), "utf8");
 afterEach(() => { cleanup(); push.mockReset(); });
+
+describe("salary filter commits", () => {
+  function setup(query: JobsQuery = {}) {
+    return render(<JobsNavigationIsland routeKey={buildJobsUrl({ ...query, cursor: "old" })} query={query}><p>resultados</p></JobsNavigationIsland>);
+  }
+  function amount(label: string, value: string) {
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+  }
+  function apply() { fireEvent.submit(screen.getByRole("form", { name: "Filtros" })); }
+  it.each([
+    ["30000", ""], ["", "40000"], ["30000.50", "40000"], ["40000", "40000"], ["0", ""],
+  ])("commits inclusive bounds %s / %s with default units", (min, max) => {
+    setup({ work_mode: "remote" });
+    amount("Salario desde", min);
+    amount("Salario hasta", max);
+    apply();
+    expect(push).toHaveBeenCalledWith(buildJobsUrl({ work_mode: "remote", salary_min: min, salary_max: max }));
+  });
+  it("initializes amounts and units from the URL and clears the whole group", () => {
+    setup({ salary_min: "100", salary_max: "200", salary_currency: "USD", salary_period: "semimonthly", salary_basis: "net" });
+    expect(screen.getByLabelText("Salario desde")).toHaveValue("100");
+    expect(screen.getByLabelText("Salario hasta")).toHaveValue("200");
+    expect(screen.getByRole("combobox", { name: "Moneda" })).toHaveValue("USD");
+    expect(screen.getByRole("combobox", { name: "Periodo de pago" })).toHaveValue("semimonthly");
+    expect(screen.getByRole("combobox", { name: "Base salarial" })).toHaveValue("net");
+    amount("Salario desde", ""); amount("Salario hasta", ""); apply();
+    expect(push).toHaveBeenCalledWith("/vacantes");
+  });
+  it("commits changed units", () => {
+    setup(); amount("Salario desde", "30000");
+    for (const [label, value] of [["Moneda", "USD"], ["Periodo de pago", "semimonthly"], ["Base salarial", "net"]]) {
+      fireEvent.change(screen.getByRole("combobox", { name: label }), { target: { value } });
+    }
+    apply();
+    expect(push).toHaveBeenCalledWith("/vacantes?salary_min=30000&salary_currency=USD&salary_period=semimonthly&salary_basis=net");
+  });
+  it.each(["1,000", "-1", "+1", "1e3", "1.234", " 100 "])("rejects invalid amount %s without navigation", value => {
+    setup(); amount("Salario desde", value); apply();
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Salario desde")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByText("Escribe un monto sin comas ni signos, con hasta dos decimales.")).toBeVisible();
+  });
+  it("rejects reversed bounds and focuses the maximum", () => {
+    setup(); amount("Salario desde", "40000"); amount("Salario hasta", "30000"); apply();
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.getByText("El salario hasta debe ser mayor o igual al salario desde.")).toBeVisible();
+    expect(screen.getByLabelText("Salario hasta")).toHaveFocus();
+  });
+  it("counts salary once and clears it with its chip", () => {
+    setup({ salary_min: "30000", salary_max: "40000", salary_currency: "MXN", salary_period: "monthly", salary_basis: "gross" });
+    expect(screen.getByRole("button", { name: "Filtros (1)" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Quitar filtro Salario:.*30,000.*40,000.*MXN.*mensual.*bruto/ }));
+    expect(push).toHaveBeenCalledWith("/vacantes");
+  });
+  it("clears salary through Todas", () => {
+    setup({ salary_min: "30000" });
+    fireEvent.click(screen.getByRole("button", { name: "Todas" }));
+    expect(push).toHaveBeenCalledWith("/vacantes");
+  });
+  it("adopts the next URL after navigation without retaining old amounts", () => {
+    const view = setup({ salary_min: "30000" });
+    view.rerender(<JobsNavigationIsland routeKey="/vacantes?salary_max=40000" query={{ salary_max: "40000" }}><p>resultados</p></JobsNavigationIsland>);
+    expect(screen.getByLabelText("Salario desde")).toHaveValue("");
+    expect(screen.getByLabelText("Salario hasta")).toHaveValue("40000");
+  });
+  it("keeps invalid mobile bounds open and does not navigate", async () => {
+    setup();
+    fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(dialog.querySelector("#mobile-salary_min")!, { target: { value: "40000" } });
+    fireEvent.change(dialog.querySelector("#mobile-salary_max")!, { target: { value: "30000" } });
+    fireEvent.submit(dialog.querySelector("form")!);
+    expect(push).not.toHaveBeenCalled();
+    expect(dialog).toBeVisible();
+    expect(dialog.querySelector("#mobile-salary_max")).toHaveAttribute("aria-invalid", "true");
+  });
+  it("shares the draft with the mobile Sheet and commits there", async () => {
+    setup(); amount("Salario desde", "30000");
+    fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
+    const dialog = await screen.findByRole("dialog");
+    const mobile = dialog.querySelector<HTMLInputElement>("#mobile-salary_max")!;
+    expect(dialog.querySelector("#mobile-salary_min")).toHaveValue("30000");
+    fireEvent.change(mobile, { target: { value: "40000" } });
+    fireEvent.submit(dialog.querySelector("form")!);
+    expect(push).toHaveBeenCalledWith(buildJobsUrl({ salary_min: "30000", salary_max: "40000" }));
+  });
+});
 
 describe("JobsNavigationIsland boundaries", () => {
   it("keeps one stable island and the desktop-only outward margin", () => {

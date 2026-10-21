@@ -10,7 +10,6 @@ import {
   FieldLegend,
   FieldSet,
 } from "../../../components/ui/field";
-import { Input } from "../../../components/ui/input";
 import {
   Select,
   SelectContent,
@@ -35,15 +34,11 @@ export type JobsBenefitKey =
   | "training";
 
 export type JobsVisualPreferencesValue = {
-  monthlyMin: string;
-  monthlyMax: string;
   language: JobsWorkLanguage | null;
   benefits: Record<JobsBenefitKey, boolean>;
 };
 
 export const EMPTY_JOBS_VISUAL_PREFERENCES: JobsVisualPreferencesValue = {
-  monthlyMin: "",
-  monthlyMax: "",
   language: null,
   benefits: {
     medical_insurance: false,
@@ -83,41 +78,6 @@ export function JobsVisualPreferences({
         Preferencias
       </FieldLegend>
       <FieldGroup className="gap-4">
-        <div className="grid grid-cols-2 gap-3">
-          <Field>
-            <FieldLabel htmlFor={`${idPrefix}pref-monthly-min`}>
-              Sueldo mínimo mensual
-            </FieldLabel>
-            <Input
-              id={`${idPrefix}pref-monthly-min`}
-              type="number"
-              inputMode="numeric"
-              min={0}
-              value={value.monthlyMin}
-              placeholder="MXN"
-              onChange={(event) =>
-                onChange({ ...value, monthlyMin: event.target.value })
-              }
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor={`${idPrefix}pref-monthly-max`}>
-              Sueldo máximo mensual
-            </FieldLabel>
-            <Input
-              id={`${idPrefix}pref-monthly-max`}
-              type="number"
-              inputMode="numeric"
-              min={0}
-              value={value.monthlyMax}
-              placeholder="MXN"
-              onChange={(event) =>
-                onChange({ ...value, monthlyMax: event.target.value })
-              }
-            />
-          </Field>
-        </div>
-
         <Field>
           <FieldLabel htmlFor={`${idPrefix}pref-language`}>
             Idioma de trabajo

@@ -82,7 +82,7 @@ describe("v2 filters", () => {
     for (const [name, value] of [["Modalidad", "Híbrido"], ["Jornada", "Tiempo completo"], ["Tipo de contrato", "Indefinido"], ["Área profesional", "Tecnología y sistemas"]]) {
       expect(screen.getByRole("combobox", { name })).toHaveTextContent(value);
     }
-    for (const label of [/Sueldo mínimo/, /Idioma de trabajo/, /Senioridad/, /Moneda/, /Tipo de empleo/]) expect(screen.queryByLabelText(label)).toBeNull();
+    for (const label of [/Sueldo mínimo/, /Idioma de trabajo/, /Senioridad/, /Tipo de empleo/]) expect(screen.queryByLabelText(label)).toBeNull();
     const form = container.querySelector<HTMLFormElement>('form[data-nav-intent="filters"]')!;
     expect(Object.fromEntries(new FormData(form))).toMatchObject({ work_schedule: "full_time", contract_type: "indefinite", professional_area: "technology_systems" });
     fireEvent.submit(form);
@@ -96,10 +96,14 @@ describe("v2 filters", () => {
     expect(note.querySelector('svg[aria-hidden="true"]')).not.toBeNull();
     expect(container.querySelectorAll('[role="note"]')).toHaveLength(1);
   });
+  it("explains catalog exclusions for the salary filter", () => {
+    render(<JobsNavigationIsland routeKey="/vacantes" query={{ salary_min: "30000", salary_currency: "MXN", salary_period: "monthly", salary_basis: "gross" }}><p>resultados</p></JobsNavigationIsland>);
+    expect(screen.getByRole("note")).toHaveTextContent("Algunas vacantes del catálogo anterior no tienen este dato y no aparecen con este filtro.");
+  });
   it("does not show the exclusion note for text or work mode only", () => {
     render(<JobsNavigationIsland routeKey="/vacantes" query={{ q: "Go", work_mode: "remote" }}><p>resultados</p></JobsNavigationIsland>);
     expect(screen.queryByRole("note")).toBeNull();
     const form = screen.getByRole("form", { name: "Filtros" });
-    expect(within(form).getAllByRole("combobox")).toHaveLength(7);
+    expect(within(form).getAllByRole("combobox")).toHaveLength(10);
   });
 });
