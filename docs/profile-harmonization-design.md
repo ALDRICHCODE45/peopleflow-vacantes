@@ -71,9 +71,10 @@ strong ETag, 304 on `If-None-Match`.
 
 Education record: exactly `{level, institution, field, status, start_year, end_year}`;
 `institution`/`field` trimmed, 1–120 code points or null; years integers 1950–2100 or
-null; when both present `start_year <= end_year`; `status: "completed"` may omit
-`end_year`; `in_progress` must have `end_year: null`. Duplicates allowed (two
-bachelor's degrees are legitimate).
+null; when both present `start_year <= end_year`; `end_year: null` is valid for any
+status (unknown), and `in_progress` must have `end_year: null`. All six keys are always
+present: a missing key is a field error `education[i].<key>` `required`, an unknown key
+is `400 invalid_request`. Duplicates allowed (two bachelor's degrees are legitimate).
 
 `GET/PUT /me/profile/languages/` changes shape:
 
