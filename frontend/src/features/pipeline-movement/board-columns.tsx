@@ -3,6 +3,7 @@ import { useRef, useState, type RefObject } from "react";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCorners, pointerWithin, useDraggable, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent } from "@dnd-kit/core";
 import { CalendarDays, Clock3, FileText, FileType2, GripVertical, ListFilter, LockKeyhole } from "lucide-react";
 import { cn } from "cn";
+import { plural } from "@/features/employer-vacancies/pipeline-board";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -62,21 +63,22 @@ function CandidateCard({ item, targets, disabled, pending, notice, onMove, onDet
     <CardFooter className="min-h-6 gap-2 px-0">
       {item.discard ? <div className="flex min-w-0 flex-col items-start gap-2"><Badge variant="danger" className="h-auto whitespace-normal">{discardReasonLabel(item.discard.reason)}</Badge><p className="text-xs text-muted-foreground">{discardGroupLabel(item.discard.reason)}</p></div> : <>
         <Hint text={item.cv.name}><span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"><FileIcon aria-hidden="true" className="size-3.5 shrink-0" /><span className="truncate">{item.cv.name}</span></span></Hint>
-        <Button type="button" variant="ghost" size="icon" className="-my-2 ml-auto size-10 shrink-0 cursor-grab touch-none text-muted-foreground opacity-100 active:cursor-grabbing sm:opacity-0 sm:group-hover/candidate:opacity-100 sm:group-focus-within/candidate:opacity-100 focus-visible:opacity-100"
-          ref={setActivatorNodeRef} {...attributes} {...listeners} disabled={disabled} id={`candidate-drag-${item.id}`} aria-label={`Arrastrar ${item.candidate.full_name}`} aria-describedby={statusId}><GripVertical aria-hidden="true" /></Button>
+        {board.lifecycle.process !== "finished" && <Button type="button" variant="ghost" size="icon" className="-my-2 ml-auto size-10 shrink-0 cursor-grab touch-none text-muted-foreground opacity-100 active:cursor-grabbing sm:opacity-0 sm:group-hover/candidate:opacity-100 sm:group-focus-within/candidate:opacity-100 focus-visible:opacity-100"
+          ref={setActivatorNodeRef} {...attributes} {...listeners} disabled={disabled} id={`candidate-drag-${item.id}`} aria-label={`Arrastrar ${item.candidate.full_name}`} aria-describedby={statusId}><GripVertical aria-hidden="true" /></Button>}
       </>}
     </CardFooter>
     {error && <div className="pf-card-error"><ActionStatus id={`move-status-${item.id}`} tone={error.tone} text={error.text} /></div>}
   </Card>;
 }
-function Column({ stage, countLabel = String(stage.count), disabled, dragging, children, order, lifted, insertion }: { stage: Board["stages"][number] | Board["exit"]; disabled: boolean; dragging: boolean; children: React.ReactNode; countLabel?: string; order?: BoardColumnOrder; lifted: boolean; insertion: "left" | "right" | null }) {
+function Column({ stage, countLabel = String(stage.count), disabled, dragging, children, order, lifted, insertion, finished }:  { stage: Board["stages"][number] | Board["exit"]; disabled: boolean; dragging: boolean; children: React.ReactNode; finished: boolean; countLabel?: string; order?: BoardColumnOrder; lifted: boolean; insertion: "left" | "right" | null }) {
   const { setNodeRef } = useDroppable({ id: stage.id, disabled });
   const drag = useDraggable({ id: stage.id, disabled: !order || order.locked || stage.kind === "new" || stage.kind === "placement" || stage.kind === "discarded", data: { type: "column" }, attributes: { roleDescription: "Columna del pipeline" } });
-  return <section ref={node => { setNodeRef(node); drag.setNodeRef(node); }} role="region" aria-label={`${stage.name}: ${countLabel} candidatos`} aria-describedby={dragging ? `drop-status-${stage.id}` : undefined}
+  const candidateLabel = countLabel.includes(" de ") ? `${countLabel.split(" de ")[0]} de ${plural(Number(countLabel.split(" de ")[1]), "candidato", "candidatos")}` : plural(Number(countLabel), "candidato", "candidatos");
+  return <section ref={node => { setNodeRef(node); drag.setNodeRef(node); }} role="region" aria-label={`${stage.name}: ${candidateLabel}`}  aria-describedby={dragging ? `drop-status-${stage.id}` : undefined}
     data-drop-disabled={disabled} data-pf-published-column="" className={cn("stage-column group/column relative flex min-h-[420px] w-[284px] shrink-0 snap-start flex-col rounded-xl p-2 transition-opacity motion-reduce:transition-none", stageClass(stage.kind), dragging && (disabled ? "opacity-35" : "outline outline-1 outline-dashed outline-primary"), lifted && "opacity-55", insertion && "before:absolute before:inset-y-0 before:w-1 before:rounded-full before:bg-primary", insertion === "left" && "before:-left-2", insertion === "right" && "before:-right-2")}>
     {insertion && <span className="sr-only">Insertar {insertion === "left" ? "antes" : "después"} de {stage.name}</span>}
-    <div className="stage-heading mb-3 flex h-10 shrink-0 items-center gap-2 rounded-lg px-2"><span aria-hidden="true" className="stage-dot size-2 shrink-0 rounded-full" /><h3 className="min-w-0 truncate text-[13px] font-semibold" title={stage.name}>{stage.name}</h3><Badge variant="secondary" className="stage-count tabular-nums" aria-label={`${countLabel} candidatos`}>{countLabel}</Badge>
-      {order && <ColumnOrderControls stage={stage} order={order} drag={drag} />}
+    <div className="stage-heading mb-3 flex h-10 shrink-0 items-center gap-2 rounded-lg px-2"><span aria-hidden="true" className="stage-dot size-2 shrink-0 rounded-full" /><h3 className="min-w-0 truncate text-[13px] font-semibold" title={stage.name}>{stage.name}</h3><Badge variant="secondary" className="stage-count tabular-nums" aria-label={candidateLabel}>{countLabel}</Badge>
+      {order && <ColumnOrderControls stage={stage} order={order} drag={drag} finished={finished} />}
       {stage.kind === "discarded" && <Hint text="Se llega descartando, no moviendo"><span tabIndex={0} aria-label="Se llega descartando, no moviendo" className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring"><LockKeyhole aria-hidden="true" className="size-3.5" /></span></Hint>}
     </div>
     {dragging && <p id={`drop-status-${stage.id}`} className="sr-only">{disabled ? "Destino no permitido para este movimiento." : "Suelta aquí para solicitar el movimiento."}</p>}
@@ -122,7 +124,7 @@ export function BoardColumns({ board, pending, locked, notices, onMove, onDetail
           const allItems = board.participations.filter(item => item.stage_id === stage.id);
           const items = visibleItems.filter(item => item.stage_id === stage.id);
           const countLabel = filtered ? `${items.length} de ${allItems.length}` : String(stage.count);
-          return <Column key={stage.id} stage={stage} countLabel={countLabel} order={columnOrder} lifted={columnId === stage.id} insertion={overId === stage.id && canDropColumn(stage.id) ? (columnIndex(columnId!) < columnIndex(stage.id) ? "right" : "left") : null} dragging={!!active} disabled={columnId ? !canDropColumn(stage.id) : locked || !targets.some(target => target.id === stage.id)}>
+          return <Column key={stage.id} stage={stage} countLabel={countLabel} order={columnOrder} finished={board.lifecycle.process === "finished"} lifted={columnId === stage.id} insertion={overId === stage.id && canDropColumn(stage.id) ? (columnIndex(columnId!) < columnIndex(stage.id) ? "right" : "left") : null} dragging={!!active} disabled={columnId ? !canDropColumn(stage.id) : locked || !targets.some(target => target.id === stage.id)}>
             {items.length ? <ul className="flex flex-col gap-3">{items.map(item => <li key={item.id}>
               <CandidateCard item={item} board={board} onSubstate={onSubstate} targets={allowedMoveTargets(board, item)} disabled={locked || pending.has(item.id)}
                 pending={pending.has(item.id)} notice={notices[item.id]} onMove={onMove} onDetail={onDetail} onDisposition={onDisposition} suppressClick={suppressClick} />

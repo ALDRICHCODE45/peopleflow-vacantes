@@ -90,6 +90,23 @@ it.each([
   expect(screen.queryByRole("button", { name: "Acciones de la vacante" })).not.toBeInTheDocument();
   if (process === "active") expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeEnabled();
 });
+it("E2 uses singular candidate counts", async () => {
+ await mount();
+ expect(screen.getByText(/candidato en el pipeline/)).toHaveTextContent("1 candidato en el pipeline");
+ expect(screen.getByRole("region", { name: "Entrada: 1 candidato" })).toBeVisible();
+});
+it("E4 hides finished card and column handles", async () => {
+ const board = boardFixture(); board.lifecycle = finishedLifecycle;
+ await mount(board);
+ expect(screen.queryByRole("button", { name: /^Arrastrar / })).not.toBeInTheDocument();
+ expect(screen.queryByRole("button", { name: /^Reordenar / })).not.toBeInTheDocument();
+ expect(screen.getByRole("button", { name: "Ver detalle de Ana Pérez" })).toBeEnabled();
+});
+it("E5 hides pending delivery deadline on a finished board", async () => {
+ const board = boardFixture(); board.lifecycle = finishedLifecycle;
+ await mount(board);
+ expect(screen.queryByText("Plazo de entrega no disponible")).not.toBeInTheDocument();
+});
 it("sends the authoritative board lifecycle to the header owner", async () => {
   const onLifecycleChange = vi.fn();
   render(<MovementBoard vacancyId={vacancyId} onLifecycleChange={onLifecycleChange} />);
@@ -106,7 +123,7 @@ it("keeps finished boards readable but disables card, sheet and drag writes", as
   await mount(board);
   expect(screen.getByText(readOnlyNotice)).toBeVisible();
   expect(screen.getByText(readOnlyNotice).closest('[role="status"]')).toHaveTextContent(readOnlyNotice);
-  expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Arrastrar Ana Pérez" })).not.toBeInTheDocument();
   for (const target of within(menu()).getAllByRole("menuitem").filter(item => item.textContent !== "Ver ficha")) expect(target).toBeDisabled();
   act(() => drag.props.onDragEnd({ active: { id: "person" }, over: { id: "screen" } }));
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
@@ -122,7 +139,7 @@ it("adopts a process_finished move conflict without reload or retry", async () =
   vi.mocked(moveParticipationAction).mockResolvedValue({ ok: false, reason: "process_finished", lifecycle: finishedLifecycle, reference: { status: 409 } });
   await mount(); move();
   expect(await screen.findByText(readOnlyNotice)).toBeVisible();
-  expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Arrastrar Ana Pérez" })).not.toBeInTheDocument();
   expect(loadBoardAction).toHaveBeenCalledTimes(1); expect(moveParticipationAction).toHaveBeenCalledTimes(1);
 });
 it("wires lifecycle actions and adopts their response without reloading candidates", async () => {
@@ -208,7 +225,7 @@ it.each(["menu", "sheet", "pointer", "keyboard"])("%s move waits for confirmatio
   expect(dialog).toHaveAccessibleDescription("Pasa de Entrada a Revisión. El cambio queda en su historial.");
   expect(within(dialog).getByRole("button", { name: "Cancelar" })).toHaveFocus();
   expect(moveParticipationAction).not.toHaveBeenCalled();
-  expect(document.getElementById("candidate-move-person")?.closest('[data-pf-published-column]')).toHaveAttribute("aria-label", "Entrada: 1 candidatos");
+  expect(document.getElementById("candidate-move-person")?.closest('[data-pf-published-column]')).toHaveAttribute("aria-label", "Entrada: 1 candidato");
   fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
   expect(moveParticipationAction).not.toHaveBeenCalled();
   request();
@@ -306,7 +323,7 @@ it("sheet displays screening, stage names, timeline badges/actors/dates and a pr
 it.each([2, null])("coverage copy with required %s; milestone remains visible after departures", async required => {
   const board = boardFixture(); board.coverage = { covered: 1, required, full_coverage_reached_at: "2026-10-16T12:00:00Z" };
   await mount(board);
-  expect(screen.getByLabelText("Cobertura")).toHaveTextContent(required === null ? "1 plazas cubiertas" : "1 de 2 plazas cubiertas");
+  expect(screen.getByLabelText("Cobertura")).toHaveTextContent(required === null ? "1 plaza cubierta" : "1 de 2 plazas cubiertas");
   expect(screen.getByText(/Se completó el/)).toBeVisible();
   expect(screen.queryByText("Cobertura completa")).not.toBeInTheDocument();
   if (required !== null) expect(screen.getByRole("progressbar", { name: "Cobertura de plazas" })).toHaveAttribute("aria-valuenow", "50");
@@ -332,7 +349,7 @@ it("200 applies new stage, counts, etag and server coverage; double submission i
   fireEvent.click(screen.getByRole("button", { name: "Moviendo…" }));
   expect(moveParticipationAction).toHaveBeenCalledTimes(1);
   await act(async () => resolve({ ok: true, data: { delivery: boardFixture().delivery, ...boardFixture().participations[0], stage_id: "screen", version: "5", etag: '"new-opaque"', coverage: { covered: 1, required: 2, full_coverage_reached_at: null } } }));
-  expect(screen.getByRole("region", { name: "Revisión: 1 candidatos" })).toHaveTextContent("Ana Pérez");
+  expect(screen.getByRole("region", { name: "Revisión: 1 candidato" })).toHaveTextContent("Ana Pérez");
   expect(screen.getByRole("region", { name: "Entrada: 0 candidatos" })).not.toHaveTextContent("Ana Pérez");
   expect(screen.getByLabelText("Cobertura")).toHaveTextContent("1 de 2 plazas cubiertas");
   move("Entrada"); await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Ana Pérez pasó a Entrada" })));
@@ -343,7 +360,7 @@ it.each(["stage_skip_not_allowed", "validation_error", "vacancy_not_published"] 
   vi.mocked(moveParticipationAction).mockResolvedValueOnce({ ok: false, reason, reference: { status: 409 } });
   await mount(); move();
   await screen.findByRole("status");
-  expect(screen.getByRole("region", { name: "Entrada: 1 candidatos" })).toHaveTextContent("Ana Pérez");
+  expect(screen.getByRole("region", { name: "Entrada: 1 candidato" })).toHaveTextContent("Ana Pérez");
   expect(loadBoardAction).toHaveBeenCalledTimes(1);
   expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "error" }));
 });
@@ -507,7 +524,7 @@ it.each(["new", "hire"])("discarded column shows reason and recover confirms the
   const board = discardedBoard(previous);
   vi.mocked(recoverParticipationAction).mockResolvedValue({ ok: true, data: { delivery: board.delivery, ...boardFixture().participations[0], stage_id: previous, coverage: board.coverage } });
   await mount(board);
-  expect(screen.getByRole("region", { name: "Descartados: 1 candidatos" })).toHaveTextContent("Perfil no adecuado");
+  expect(screen.getByRole("region", { name: "Descartados: 1 candidato" })).toHaveTextContent("Perfil no adecuado");
   const actions = menu();
   expect(within(actions).getAllByRole("menuitem").map(item => item.textContent)).toEqual(["Recuperar", "Ver ficha"]);
   fireEvent.click(within(actions).getByRole("menuitem", { name: "Recuperar" }));

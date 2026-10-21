@@ -74,9 +74,9 @@ async function confirm() {
 it.each([false, true])("finished process disables column menu and pointer/keyboard ordering (keyboard=%s)", async keyboard => {
   const current = board(); current.lifecycle = { ...current.lifecycle, publication: "closed", process: "finished" };
   vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: current });
-  await mount();
-  expect(screen.getByRole("button", { name: "Reordenar Screening" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Orden de Screening" })).toBeDisabled();
+  render(<MovementBoard vacancyId={vacancyId} />);
+  expect(await screen.findByRole("button", { name: "Orden de Screening" })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Reordenar Screening" })).not.toBeInTheDocument();
   expect(dnd.drags.get("screen")).toBe(true);
   drop("screen", "ok", keyboard);
   expect(previewPipelineAction).not.toHaveBeenCalled(); expect(saveDraftPipelineAction).not.toHaveBeenCalled();

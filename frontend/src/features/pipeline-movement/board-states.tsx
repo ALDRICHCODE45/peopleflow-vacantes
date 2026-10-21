@@ -1,3 +1,4 @@
+import { plural } from "@/features/employer-vacancies/pipeline-board";
 import { CircleAlert } from "lucide-react";
 import { ActionStatus, ActionStatusSlot } from "@/components/feedback/action-status";
 import { StateCard } from "@/components/feedback/state-card";
@@ -56,7 +57,7 @@ export function BoardError({ failure, reading, notice, retry }: { failure: Failu
 }
 export function BoardCoverage({ coverage }: { coverage: Board["coverage"] }) {
   const full = coverage.required !== null && coverage.covered >= coverage.required;
-  return <BoardProgress label="Cobertura" value={<>{coverage.covered}{coverage.required !== null && ` de ${coverage.required}`} plazas cubiertas</>} progressLabel="Cobertura de plazas" progress={coverage.required !== null ? Math.min(100, coverage.covered / coverage.required * 100) : null}>
+  return <BoardProgress label="Cobertura" value={<>{coverage.required !== null ? `${coverage.covered} de ${plural(coverage.required, "plaza cubierta", "plazas cubiertas")}` : plural(coverage.covered, "plaza cubierta", "plazas cubiertas")}</>} progressLabel="Cobertura de plazas" progress={coverage.required !== null ? Math.min(100, coverage.covered / coverage.required * 100) : null}>
     <p>{full && <span className="text-status-success">Cobertura completa</span>}{coverage.full_coverage_reached_at && <>{full ? " · " : "Se completó el "}<MovementDate value={coverage.full_coverage_reached_at} /></>}</p>
   </BoardProgress>;
 }

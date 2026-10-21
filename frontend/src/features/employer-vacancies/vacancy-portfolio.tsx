@@ -38,11 +38,15 @@ const GRID = "grid grid-cols-1 gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1.
 const HEADER = "hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.6fr)_11rem] items-center gap-4 border-b border-border px-5 py-3 text-[12px] font-semibold tracking-wide text-muted-foreground uppercase lg:grid";
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLowerCase().trim();
 const initials = (title: string) => title.split(/\s+/u).slice(0, 2).map(word => word.charAt(0)).join("").toUpperCase();
-const dateFormat = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "UTC" });
+const dateFormat = new Intl.DateTimeFormat("es-MX", { dateStyle: "long", timeZone: "America/Mexico_City" });
 const formatDate = (value: string) => dateFormat.format(new Date(value));
 
 /** Shared row composition, with draft facts rather than invented publication or candidate data. */
-const candidateSummary = (total: number, inProcess: number) => `${total} ${total === 1 ? "candidato" : "candidatos"} · ${inProcess} en proceso`;
+const candidateSummary = (total: number, inProcess: number, finished = false) => `${total} ${total === 1 ? "candidato" : "candidatos"}${finished ? "" : ` · ${inProcess} en proceso`}`;
+
+function StageBreakdown({ pairs }: { pairs: string[] }) {
+  return pairs.map((pair, index) => <React.Fragment key={index}>{index > 0 && " · "}<span className="inline-block whitespace-nowrap">{pair}</span></React.Fragment>);
+}
 
 function VacancyRow({ vacancy, onPublished, onLifecycleChanged }: { vacancy: PortfolioVacancy; onPublished: (id: string, publishedAt: string) => void; onLifecycleChanged: (id: string, view: Lifecycle) => void }) {
   const [publishOpen, setPublishOpen] = React.useState(false);
@@ -72,7 +76,7 @@ function VacancyRow({ vacancy, onPublished, onLifecycleChanged }: { vacancy: Por
         <p className={META}>{meta}</p>
       </div>
       <div data-pf-vacancy-zone="complement" className="flex min-w-0 flex-col gap-2">
-        {candidates && candidates.total > 0 && <p className={cn(META, "tabular-nums")}>{candidateSummary(candidates.total, candidates.in_process)}</p>}
+        {candidates && candidates.total > 0 && <p className={cn(META, "tabular-nums")}>{candidateSummary(candidates.total, candidates.in_process, draft?.process === "finished")}</p>}
         {prototype && <p className={cn(META, "tabular-nums")}>{candidateSummary(vacancyCandidateTotal(prototype.candidateCounts), vacancyInProcessCount(prototype.candidateCounts))}</p>}
         <div className="flex flex-col gap-1">
           <div aria-hidden="true" className="flex items-center gap-1">
@@ -81,7 +85,7 @@ function VacancyRow({ vacancy, onPublished, onLifecycleChanged }: { vacancy: Por
               <span className={cn("h-1.5 w-6 rounded-full", PIPELINE_BAR.rejected)} />
             </> : VACANCY_PIPELINE_STAGES.map(stage => <span key={stage} className={cn("h-1.5 w-6 rounded-full", draft ? "bg-muted" : PIPELINE_BAR[stage])} />)}
           </div>
-          <p className={META}>{vacancy.state === "draft" ? "Sin pipeline · en borrador" : prototype ? VACANCY_PIPELINE_STAGES.map(stage => `${STAGE_LABELS[stage]}: ${prototype.candidateCounts[stage]}`).join(" · ") : candidates ? candidates.total === 0 ? "Sin candidatos todavía" : [...candidates.by_stage.map(stage => `${stage.name}: ${stage.count}`), `Descartados: ${candidates.discarded}`].join(" · ") : null}</p>
+          <p className={META}>{vacancy.state === "draft" ? "Sin pipeline · en borrador" : prototype ? <StageBreakdown pairs={VACANCY_PIPELINE_STAGES.map(stage => `${STAGE_LABELS[stage]}: ${prototype.candidateCounts[stage]}`)} /> : candidates ? candidates.total === 0 ? "Sin candidatos todavía" : <StageBreakdown pairs={[...candidates.by_stage.map(stage => `${stage.name}: ${stage.count}`), `Descartados: ${candidates.discarded}`]} /> : null}</p>
         </div>
         <div className={META}>
           {draft ? draft.status === "draft" ? <div className="flex flex-col gap-1"><span>Sin publicar</span><time dateTime={draft.updated_at}>Editado {formatDate(draft.updated_at)}</time></div> : transition.at ? <time dateTime={transition.at}>{transition.label} {formatDate(transition.at)}</time> : "Fecha no disponible" : prototype && <time dateTime={prototype.publishedAt}><span className="sr-only">Publicada el </span>{formatDate(prototype.publishedAt)}</time>}
@@ -128,7 +132,7 @@ export function VacancyPortfolio({ vacancies }: { vacancies: readonly EmployerVa
     { key: "active", label: "Activas", value: activeCount, icon: BriefcaseBusiness },
     { key: "draft", label: "Borradores", value: draftCount, icon: FilePenLine },
     { key: "paused", label: "Pausadas", value: counts.paused, icon: CirclePause },
-    { key: "in-process", label: "Candidatos en proceso", value: summary.inProcessCandidates + drafts.items.reduce((sum, item) => sum + (item.candidates?.in_process ?? 0), 0), icon: Users },
+    { key: "in-process", label: "Candidatos en proceso", value: summary.inProcessCandidates + drafts.items.reduce((sum, item) => sum + (item.process === "finished" ? 0 : item.candidates?.in_process ?? 0), 0), icon: Users },
     { key: "closed", label: "Cerradas", value: counts.closed, icon: CircleCheck },
   ] as const;
   const combined: PortfolioVacancy[] = [...drafts.items.map(draft => ({ id: draft.id, title: draft.title || "Sin título", state: draft.status === "published" ? "active" as const : draft.status, draft })), ...vacancies];

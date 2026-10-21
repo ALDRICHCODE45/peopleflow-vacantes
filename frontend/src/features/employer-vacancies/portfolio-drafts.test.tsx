@@ -52,9 +52,35 @@ it.each([
  render(<VacancyPortfolio vacancies={[]} />);
  await screen.findByText(row.title);
  expect(screen.getByText(`${date} de octubre de 2026`)).toBeVisible();
- expect(screen.getByText("4 candidatos · 2 en proceso")).toBeVisible();
- expect(screen.getByText("Prueba técnica: 2 · Nuevos: 1 · Revisión: 0 · Descartados: 1")).toBeVisible();
+ expect(screen.getByText(process === "finished" ? "4 candidatos" : "4 candidatos · 2 en proceso")).toBeVisible();
+ expect(screen.getByText("Prueba técnica: 2").parentElement).toHaveTextContent("Prueba técnica: 2 · Nuevos: 1 · Revisión: 0 · Descartados: 1");
  expect(screen.queryByText("Sin candidatos todavía")).not.toBeInTheDocument();
+});
+it.each([
+ ["draft", null, "Editado"], ["published", "active", "Publicada el"], ["paused", "active", "Pausada el"], ["closed", "active", "Cerrada el"], ["closed", "finished", "Proceso finalizado el"],
+] as const)("E1 uses Mexico City dates for %s/%s", async (status, process, prefix) => {
+ const at = "2026-10-21T03:30:00Z";
+ vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, status, process, updated_at: at, published_at: at, paused_at: at, closed_at: at, process_finished_at: at }], nextCursor: null });
+ render(<VacancyPortfolio vacancies={[]} />);
+ expect(await screen.findByText(`${prefix} 20 de octubre de 2026`)).toBeVisible();
+});
+it.each([1, 4])("E3 excludes finished candidates from active summaries (%s)", async total => {
+ vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, status: "closed", process: "finished", candidates: { ...candidates, total } }, { ...unnamed, status: "paused", process: "active", candidates }], nextCursor: null });
+ const { container } = render(<VacancyPortfolio vacancies={[]} />);
+ await screen.findByText(row.title);
+ const finished = container.querySelector(`[data-pf-vacancy-row="${id}"]`)!;
+ expect(finished).toHaveTextContent(`${total} ${total === 1 ? "candidato" : "candidatos"}`);
+ expect(finished).not.toHaveTextContent(/\d en proceso/);
+ expect(container.querySelector('[data-pf-vacancy-metric="in-process"] h3')).toHaveTextContent(/^2$/);
+});
+it("E6 keeps real and prototype stage pairs unbroken", async () => {
+ vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, status: "published", process: "active", candidates }], nextCursor: null });
+ const { container } = renderPortfolio(); await screen.findByText(row.title);
+ expect(screen.getByText("Prueba técnica: 2")).toHaveClass("whitespace-nowrap");
+ for (const prototype of NEXO_VACANCIES) {
+   const element = container.querySelector(`[data-pf-vacancy-row="${prototype.id}"]`)!;
+   expect(within(element as HTMLElement).getByText(`En revisión: ${prototype.candidateCounts.in_review}`)).toHaveClass("whitespace-nowrap");
+ }
 });
 it("shows the empty candidate message only for a zero total", async () => {
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, status: "published", process: "active", candidates: { total: 0, in_process: 0, discarded: 0, by_stage: [] } }], nextCursor: null });
@@ -66,7 +92,7 @@ it("does not mistake discarded-only candidates for an empty pipeline or use an o
  render(<VacancyPortfolio vacancies={[]} />);
  await screen.findByText(row.title);
  expect(screen.getByText("2 candidatos · 0 en proceso")).toBeVisible();
- expect(screen.getByText("Prueba técnica: 0 · Nuevos: 0 · Revisión: 0 · Descartados: 2")).toBeVisible();
+ expect(screen.getByText("Prueba técnica: 0").parentElement).toHaveTextContent("Prueba técnica: 0 · Nuevos: 0 · Revisión: 0 · Descartados: 2");
  expect(screen.queryByText("Sin candidatos todavía")).not.toBeInTheDocument();
  expect(screen.getByText("Fecha no disponible")).toBeVisible();
  expect(screen.queryByText(/Publicada el/)).not.toBeInTheDocument();

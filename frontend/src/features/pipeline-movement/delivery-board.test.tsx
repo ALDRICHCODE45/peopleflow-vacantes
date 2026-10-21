@@ -30,6 +30,14 @@ const fulfillment = { fulfilled_at: "2026-10-16T12:00:00Z", result: "on_time" as
 const fulfilled = { ...pending, state: "fulfilled" as const, delivered: 1, business_days_remaining: null, fulfillment };
 beforeEach(() => { vi.resetAllMocks(); vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: boardFixture() }); vi.mocked(loadDeliveryStatusAction).mockResolvedValue({ ok: true, status: pending }); });
 afterEach(cleanup);
+it.each([4, 1, 0, -2, null])("E5 hides finished deadlines (%s) and retains delivery figures", remaining => {
+ const { rerender } = render(<BoardDelivery delivery={{ state: "pending", delivered: 0, target: 1 }} status={{ ...pending, business_days_remaining: remaining }} finished />);
+ expect(screen.getByLabelText("Entrega")).toHaveTextContent("0 de 1 candidato");
+ expect(screen.getByLabelText("Entrega").querySelector('[data-slot="metric-detail"]')).toBeEmptyDOMElement();
+ rerender(<BoardDelivery delivery={{ state: "fulfilled", delivered: 1, target: 1 }} status={fulfilled} finished />);
+ expect(screen.getByText("Entregada 2 días hábiles antes")).toBeVisible();
+ expect(screen.getByText("1 de 1 candidato")).toBeVisible();
+});
 it.each([[4, "Faltan 4 días hábiles"], [1, "Falta 1 día hábil"], [0, "Vence hoy"], [-2, "Venció hace 2 días hábiles"]])("shows server business-day remainder %s beside progress", (remaining, copy) => {
   render(<BoardDelivery delivery={{ state: "pending", delivered: 3, target: 5 }} status={{ ...pending, delivered: 3, target: 5, business_days_remaining: remaining }} />);
   expect(screen.getByText("3 de 5 candidatos")).toBeVisible(); expect(screen.getByText(copy)).toBeVisible(); expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "60");

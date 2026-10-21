@@ -22,7 +22,7 @@ it("distinguishes current coverage from a historical milestone and omits unknown
   rerender(<BoardCoverage coverage={{ ...coverage, covered: 2 }} />);
   expect(screen.getByText("Cobertura completa")).toBeVisible();
   rerender(<BoardCoverage coverage={{ ...coverage, required: null }} />);
-  expect(screen.getByLabelText("Cobertura")).toHaveTextContent("1 plazas cubiertas");
+  expect(screen.getByLabelText("Cobertura")).toHaveTextContent("1 plaza cubierta");
   expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
 });
 it("keeps compact empty columns, exit guidance and card actions, without persistent success", async () => {
@@ -42,7 +42,7 @@ it("stretches every drop surface and scrolls only its cards below a fixed headin
   const track = region.querySelector('[data-pf-board-track]');
   expect(track).toHaveClass("h-full", "items-stretch", "min-h-[448px]");
   for (const stage of [...board.stages, board.exit]) {
-    const column = screen.getByRole("region", { name: `${stage.name}: ${stage.count} candidatos` });
+    const column = screen.getByRole("region", { name: `${stage.name}: ${stage.count} ${stage.count === 1 ? "candidato" : "candidatos"}` });
     expect(column).toHaveAttribute("data-pf-published-column");
     expect(column).toHaveClass("flex", "flex-col", "min-h-[420px]");
     expect(column).not.toHaveClass("self-start");

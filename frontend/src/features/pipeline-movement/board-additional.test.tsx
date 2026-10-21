@@ -26,7 +26,7 @@ it("real drag handle is independent of detail and menu; drop restrictions do not
   const open = await screen.findByRole("button", { name: "Ver detalle de Ana Pérez" });
   expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toHaveAttribute("aria-roledescription", "Tarjeta de candidato");
   expect(screen.getByRole("button", { name: "Acciones de Ana Pérez" })).toHaveAttribute("aria-haspopup", "menu");
-  expect(screen.getByRole("region", { name: "Entrada: 1 candidatos" })).not.toHaveAttribute("aria-disabled");
+  expect(screen.getByRole("region", { name: "Entrada: 1 candidato" })).not.toHaveAttribute("aria-disabled");
   expect(open.closest("button")?.parentElement?.closest("button")).toBeNull();
   fireEvent.click(screen.getByText("CV Ana.pdf"));
   expect(await screen.findByRole("dialog", { name: "Ana Pérez" })).toBeVisible();
