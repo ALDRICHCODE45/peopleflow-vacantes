@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowDownToLine, ArrowUpRight, CalendarDays, Check, CircleMinus, Clock3, FileText, FileType2, Globe2, GraduationCap, Info, MapPin, Sparkles, BriefcaseBusiness, RotateCcw, UserRoundX, X } from "lucide-react";
+import { ArrowDownToLine, ArrowUpRight, CalendarDays, Check, CircleMinus, Clock3, FileText, FileType2, Globe2, GraduationCap, Info, Mail, MapPin, Phone, Sparkles, BriefcaseBusiness, RotateCcw, UserRoundX, X } from "lucide-react";
 import { cn } from "cn";
 import { ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
@@ -116,6 +116,7 @@ function CandidateSession({ vacancyId, vacancyTitle, item, board, onClose, onMov
                   <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Globe2 aria-hidden="true" className="size-4 shrink-0" />Fuente</dt><dd className="text-sm font-medium">{manual ? "Ingreso manual" : "Orgánica"}</dd>
                 </dl>
               </section><Separator />
+              <CandidateContact contact={loaded.detail.contact} /><Separator />
               <CandidateProfile profile={loaded.detail.profile} manual={manual} /><Separator />
               <section className="flex flex-col gap-3"><SectionTitle>CV</SectionTitle><Item variant="outline">
                 <ItemMedia><div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground"><FileIcon aria-hidden="true" className="size-5" /></div></ItemMedia>
@@ -161,6 +162,8 @@ export function CandidateDetailSkeleton({ tab, discarded, answerCount = 2, histo
   return <div aria-hidden="true" data-pf-detail-skeleton="summary" className="flex flex-col gap-7">
     <section className="flex flex-col gap-5"><Skeleton className="h-4 w-56 max-w-full" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1, 2, 3].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl></section>
     <Separator />
+    <section className="flex flex-col gap-5"><Skeleton className="h-4 w-16" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl><Skeleton className="h-4 w-56 max-w-full" /></section>
+    <Separator />
     <section className="flex flex-col gap-5"><Skeleton className="h-4 w-16" /><dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{[0, 1, 2, 3].map(index => <div key={index} className="contents"><dt className="flex items-center gap-2"><Skeleton className="size-4 shrink-0" /><Skeleton className="h-4 w-24 max-w-full" /></dt><dd><Skeleton className="h-5 w-28 max-w-full" /></dd></div>)}</dl><Skeleton className="h-4 w-56 max-w-full" /></section>
     <Separator />
     <section className="flex flex-col gap-3"><Skeleton className="h-4 w-6" /><Item variant="outline"><ItemMedia><Skeleton className="size-11 rounded-lg" /></ItemMedia><ItemContent className="min-w-0"><ItemTitle><Skeleton className="h-5 w-32" /></ItemTitle><Skeleton className="h-5 w-28"><ItemDescription className="invisible">&nbsp;</ItemDescription></Skeleton></ItemContent><ItemActions><Skeleton className="size-10" /></ItemActions></Item></section>
@@ -182,6 +185,23 @@ function CandidateProfile({ profile, manual }: { profile: Participation["profile
       <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0" />{label}</dt><dd className="min-w-0 break-words text-sm font-medium">{value}</dd>
     </div>)}</dl>
     <p className="text-xs text-muted-foreground">{manual ? "Registrado al agregar al candidato." : "Copiado del perfil al postularse."}</p>
+  </section>;
+}
+/** E.164 for display: «+52 55 1234 5678» for Mexico; other countries stay as entered. */
+function displayPhone(phone: string) {
+  const mx = /^\+52(\d{2})(\d{4})(\d{4})$/.exec(phone);
+  return mx ? `+52 ${mx[1]} ${mx[2]} ${mx[3]}` : phone;
+}
+function CandidateContact({ contact }: { contact: ParticipationDetail["contact"] }) {
+  const missing = <span className="text-muted-foreground">Sin dato</span>;
+  const rows = [
+    { label: "Correo", icon: Mail, value: contact.email ? <a className="underline-offset-4 hover:underline" href={`mailto:${contact.email}`}>{contact.email}</a> : missing },
+    { label: "Teléfono", icon: Phone, value: contact.phone ? <a className="tabular-nums underline-offset-4 hover:underline" href={`tel:${contact.phone}`}>{displayPhone(contact.phone)}</a> : missing },
+  ];
+  return <section aria-label="Contacto" className="flex flex-col gap-5"><SectionTitle>Contacto</SectionTitle>
+    <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{rows.map(({ label, icon: Icon, value }) => <div key={label} className="contents">
+      <dt className="flex items-center gap-2 text-xs text-muted-foreground"><Icon aria-hidden="true" className="size-4 shrink-0" />{label}</dt><dd className="min-w-0 break-words text-sm font-medium">{value}</dd>
+    </div>)}</dl>
   </section>;
 }
 function SectionTitle({ children }: { children: ReactNode }) {

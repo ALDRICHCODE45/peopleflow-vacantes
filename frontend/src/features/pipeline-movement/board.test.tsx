@@ -134,7 +134,7 @@ it("adds a manual card in place, focuses it and shows its origin in the sheet", 
   await waitFor(() => expect(card.closest('[data-slot="card"]')).toHaveFocus());
   expect(screen.getByText("Ingreso manual")).toBeVisible(); expect(loadBoardAction).toHaveBeenCalledOnce();
   expect(screen.getByRole("region", { name: "Entrada: 2 candidatos" })).toContainElement(card);
-  vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: { ...added, screening: [], comment: null, candidate_message: null } });
+  vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: { ...added, contact: { email: "ana@example.com", phone: null }, screening: [], comment: null, candidate_message: null } });
   fireEvent.click(card); const sheet = await screen.findByRole("dialog", { name: "María Nueva" });
   await waitFor(() => expect(within(sheet).queryByText("Cargando detalle e historial")).not.toBeInTheDocument());
   expect(within(sheet).getByText(/Agregado por Luis López el/)).toBeVisible();

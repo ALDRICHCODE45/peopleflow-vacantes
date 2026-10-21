@@ -69,3 +69,20 @@ it("a rejected detail load offers retry; screening/history display no invented s
   expect(sheet).not.toHaveTextContent(/Compatibilidad|Puntuación|Correcta|Experiencia/);
   expect(loadParticipationAction).toHaveBeenCalledTimes(2);
 });
+it("shows the candidate's available contact as mail and phone links (user decision L18)", async () => {
+  const detail = { ...detailFixture(), contact: { email: "ana.perez@ejemplo.com", phone: "+525512345678" } };
+  vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detail });
+  render(<SheetHarness />);
+  const contact = await screen.findByRole("region", { name: "Contacto" });
+  expect(within(contact).getByRole("link", { name: "ana.perez@ejemplo.com" })).toHaveAttribute("href", "mailto:ana.perez@ejemplo.com");
+  expect(within(contact).getByRole("link", { name: "+52 55 1234 5678" })).toHaveAttribute("href", "tel:+525512345678");
+  expect(Array.from(contact.querySelectorAll("dt")).map(dt => dt.textContent)).toEqual(["Correo", "Teléfono"]);
+});
+it("says honestly when a contact channel is missing", async () => {
+  const detail = { ...detailFixture(), contact: { email: null, phone: "+14155550123" } };
+  vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detail });
+  render(<SheetHarness />);
+  const contact = await screen.findByRole("region", { name: "Contacto" });
+  expect(within(contact).getByText("Sin dato")).toHaveClass("text-muted-foreground");
+  expect(within(contact).getByRole("link", { name: "+14155550123" })).toHaveAttribute("href", "tel:+14155550123");
+});

@@ -59,7 +59,9 @@ const screeningAnswer = z.discriminatedUnion("type", [
   z.object({ question_id: uuidSchema, prompt: text, type: z.literal("open"), answer: z.object({ text }).strict() }).strict(),
   z.object({ question_id: uuidSchema, prompt: text, type: z.literal("single_choice"), answer: z.object({ option_id: uuidSchema, label: text }).strict() }).strict(),
 ]);
-export const detailSchema = participationSchema.extend({ screening: z.array(screeningAnswer), comment: discardTextSchema(1000).nullable(), candidate_message: discardTextSchema(500).nullable() }).strict().refine(item => item.discard !== null || (item.comment === null && item.candidate_message === null));
+// Contact appears only in the detail read (user decision, 2026-10-21): manual → company record; organic → account email + profile phone.
+export const contactSchema = z.object({ email: z.string().nullable(), phone: z.string().nullable() }).strict();
+export const detailSchema = participationSchema.extend({ contact: contactSchema, screening: z.array(screeningAnswer), comment: discardTextSchema(1000).nullable(), candidate_message: discardTextSchema(500).nullable() }).strict().refine(item => item.discard !== null || (item.comment === null && item.candidate_message === null));
 const historyBase = {
   from_stage_id: uuidSchema.nullable(), to_stage_id: uuidSchema, hire: z.boolean(), departure: z.boolean(),
   actor: z.object({ kind: z.enum(["candidate", "recruiter"]), id: uuidSchema, full_name: text }).strict(), at: timestamp,

@@ -35,8 +35,8 @@ it("mirrors each sheet tab while waiting, then keeps the CV Item slots when load
   render(<CandidateSheet vacancyId={vacancyId} item={board.participations[0]} board={board} onClose={vi.fn()} />);
   const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
   const summary = sheet.querySelector('[data-pf-detail-skeleton="summary"]')!;
-  expect(summary.querySelectorAll('dl dt')).toHaveLength(8);
-  expect(summary.querySelectorAll('section')).toHaveLength(3);
+  expect(summary.querySelectorAll('dl dt')).toHaveLength(10);
+  expect(summary.querySelectorAll('section')).toHaveLength(4);
   const cvSlots = slots(summary, '[data-slot^="item"]');
   await act(async () => { fireEvent.click(within(sheet).getByRole("tab", { name: /Respuestas/ })); });
   expect(sheet.querySelectorAll('[data-pf-detail-skeleton="answers"] dl dt')).toHaveLength(2);
@@ -45,7 +45,7 @@ it("mirrors each sheet tab while waiting, then keeps the CV Item slots when load
   await act(async () => resolve({ ok: true, data: historyFixture() }));
   await act(async () => { fireEvent.click(within(sheet).getByRole("tab", { name: "Resumen" })); });
   expect(sheet.querySelector('[data-pf-detail-skeleton]')).toBeNull();
-  expect(sheet.querySelectorAll('dl dt')).toHaveLength(8);
+  expect(sheet.querySelectorAll('dl dt')).toHaveLength(10);
   expect(slots(sheet, '[data-slot^="item"]')).toEqual(cvSlots);
   expect(within(sheet).getByRole("link", { name: "Descargar CV" }).closest('[data-slot="item-actions"]')).not.toBeNull();
 });

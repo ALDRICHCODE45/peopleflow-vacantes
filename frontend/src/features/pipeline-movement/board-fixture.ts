@@ -19,7 +19,7 @@ export function boardFixture(): Board {
   };
 }
 export function detailFixture(): ParticipationDetail {
-  return { ...boardFixture().participations[0], comment: null, candidate_message: null, screening: [
+  return { ...boardFixture().participations[0], contact: { email: "ana@example.com" as string | null, phone: null as string | null }, comment: null, candidate_message: null, screening: [
     { question_id: "q1", prompt: "¿Disponibilidad?", type: "single_choice", answer: { option_id: "o1", label: "Inmediata" } },
     { question_id: "q2", prompt: "¿Por qué te interesa?", type: "open", answer: { text: "Quiero aportar al equipo." } },
   ] };
