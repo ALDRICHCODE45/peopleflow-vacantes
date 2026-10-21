@@ -286,7 +286,7 @@ This is the default list, not a requirement to pass through `Descartados` as a n
 - **SAL-5.** Public salary filters must never compare against hidden internal compensation. Vacancies with hidden salary remain eligible for searches **without** salary criteria but are excluded whenever a public amount/range filter is active.
 - **SAL-6.** Public salary filters let users select currency, pay period and gross/net basis. Compare published salaries only when all three match, without implicit conversions.
 - **SAL-7.** Match ranges when the published offer overlaps the requested range at least partially. A fixed amount matches when it falls within the requested range. Example: a `30–40k` search matches a `35–45k` offer and a fixed `38k` offer, provided currency, pay period and gross/net basis match.
-- **SAL-8.** Boundary inclusion and one-sided filter input details are open. Do not extend this fixed/range choice to candidate salaries without confirmation.
+- **SAL-8.** Decided 2026-10-20: bounds are inclusive; one end alone is allowed ("from X" matches offers whose maximum or fixed amount is at least X; "up to Y" matches offers starting at Y or less); filter units default to `MXN` · `mensual` · gross, editable, required only when an amount is entered. Do not extend this fixed/range choice to candidate salaries without confirmation.
 
 ### 12.2 Vacancy content and catalogs
 

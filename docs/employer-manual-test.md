@@ -658,3 +658,17 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
       publicar» con «Completar».
     - Reabrir: vuelve a «Activa» con pipeline, candidatos e historial intactos.
     - Abrir el editor de una vacante guardada no marca «Cambios sin guardar» sin tocar nada.
+83. **Filtro de salario en la búsqueda pública (SAL-5…SAL-8).** Frontend en
+    `feat/public-salary-filters-ui`, backend en `feat/public-salary-filters` (sin migración).
+    Publicá tres vacantes de prueba con salario visible en MXN · mensual · bruto: un rango
+    35,000–45,000, un monto fijo de 40,000 y un rango 41,000–50,000; otra con el salario
+    oculto y otra en USD. En `/vacantes`, la sección «Salario» tiene «Salario desde»,
+    «Salario hasta», «Moneda», «Periodo de pago» y «Base salarial» (MXN · Mensual · Bruto de
+    entrada). **Esperado:** 30,000–40,000 trae el rango 35–45k y el fijo de 40k (los límites
+    cuentan), no el 41–50k, el oculto ni el de USD. Solo «Salario desde» 45,000 trae las que
+    llegan a 45k o más; solo «Salario hasta» 40,000, las que arrancan en 40k o menos. Con
+    «desde» mayor que «hasta», o un monto con comas, sale el error en el campo y no se aplica.
+    Se ve un solo chip («Salario: $30,000–$40,000 MXN mensual bruto») que al quitarlo borra
+    todo el filtro; el contador de «Filtros» lo cuenta una vez y aparece el aviso de que las
+    vacantes del catálogo anterior no aparecen con este filtro. Sin monto, el salario no
+    filtra nada. Probalo también en el Sheet de celular.
