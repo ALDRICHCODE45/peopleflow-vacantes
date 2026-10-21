@@ -172,6 +172,7 @@ type Querier interface {
 	// ErrNotAMember.
 	GetMembershipByUserID(ctx context.Context, userID uuid.UUID) (CompanyMember, error)
 	GetPublishedScreeningSource(ctx context.Context, id uuid.UUID) ([]byte, error)
+	GetUnavailableVacancy(ctx context.Context, id uuid.UUID) (GetUnavailableVacancyRow, error)
 	GetUserByCognitoSub(ctx context.Context, cognitoSub string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	// Append-only INSERT (the audit_events slice has NO read / update / delete

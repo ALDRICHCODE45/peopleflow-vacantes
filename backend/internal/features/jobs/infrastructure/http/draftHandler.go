@@ -39,6 +39,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/deliveryconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftinput"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/drafts"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/lifecycle"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/vacancygeo"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
@@ -260,6 +261,11 @@ func writeDraftResult(w http.ResponseWriter, status int, result drafts.Result, r
 // record already carries the request id and the catalog code_class for this
 // response, so the server log gains no second, unbounded copy of the failure.
 func writeDraftError(w http.ResponseWriter, err error) {
+	var finished *lifecycle.ProcessFinished
+	if errors.As(err, &finished) {
+		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeProcessFinished), finished)
+		return
+	}
 	var geography *vacancygeo.Invalid
 	if errors.As(err, &geography) {
 		code := httpjson.CodeInvalidLocation

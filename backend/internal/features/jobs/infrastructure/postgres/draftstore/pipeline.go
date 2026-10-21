@@ -37,7 +37,12 @@ func (s *Store) GetPipeline(ctx context.Context, companyID, actorID, id uuid.UUI
 	if err != nil {
 		return drafts.Result{}, err
 	}
-	return renderPipeline(id, c, version, locked)
+	result, err := renderPipeline(id, c, version, locked)
+	if err != nil {
+		return drafts.Result{}, err
+	}
+	result.Body, err = embedLifecycle(ctx, tx, id, result.Body)
+	return result, err
 }
 
 // PutPipeline locks the parent draft, not just the optional configuration row.
@@ -50,6 +55,9 @@ func (s *Store) PutPipeline(ctx context.Context, companyID, actorID, id uuid.UUI
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	if err := s.authorizePipeline(ctx, tx, companyID, actorID, id, true); err != nil {
+		return drafts.Result{}, err
+	}
+	if err := requireActiveProcess(ctx, tx, id); err != nil {
 		return drafts.Result{}, err
 	}
 	if _, err := lockDeliveryProcess(ctx, tx, id); err != nil {

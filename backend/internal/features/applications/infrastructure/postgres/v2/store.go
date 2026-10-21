@@ -51,7 +51,7 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	// Lock the same authoring row as employer saves. A process lock alone
 	// would not serialize questionnaire edits, since they lock the draft.
 	var fields []byte
-	err = tx.QueryRow(ctx, `SELECT d.fields FROM job_drafts d JOIN vacancy_processes p ON p.id=d.id JOIN vacancy_public_projections v ON v.id=p.id JOIN companies c ON c.id=p.company_id WHERE p.id=$1 AND p.status='published' AND c.status='active' AND c.deleted_at IS NULL FOR SHARE OF d,c`, vacancy).Scan(&fields)
+	err = tx.QueryRow(ctx, `SELECT d.fields FROM job_drafts d JOIN vacancy_processes p ON p.id=d.id JOIN vacancy_public_projections v ON v.id=p.id JOIN companies c ON c.id=p.company_id WHERE p.id=$1 AND c.status='active' AND c.deleted_at IS NULL FOR SHARE OF d,c`, vacancy).Scan(&fields)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return app.Result{}, app.ErrNotFound
 	}
@@ -59,7 +59,7 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 		return app.Result{}, err
 	}
 	var locked uuid.UUID
-	if err = tx.QueryRow(ctx, `SELECT id FROM vacancy_processes WHERE id=$1 AND status='published' FOR UPDATE`, vacancy).Scan(&locked); err != nil {
+	if err = tx.QueryRow(ctx, `SELECT id FROM vacancy_processes WHERE id=$1 FOR UPDATE`, vacancy).Scan(&locked); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return app.Result{}, app.ErrNotFound
 		}
@@ -83,6 +83,15 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
 		return app.Result{}, err
+	}
+	// Lifecycle writers also lock the draft first. Read availability in a fresh
+	// statement, never from the join that may have waited on that draft lock.
+	var availability string
+	if err = tx.QueryRow(ctx, `SELECT status FROM vacancy_processes WHERE id=$1`, vacancy).Scan(&availability); err != nil {
+		return app.Result{}, err
+	}
+	if availability != "published" {
+		return app.Result{}, &app.NotAcceptingApplications{Availability: availability}
 	}
 	// Use a fresh READ COMMITTED statement after the draft lock is held.
 	// SaveV2/Publish lock the draft before writing the projection. A join that
@@ -200,7 +209,7 @@ func (s *Store) List(ctx context.Context, sub string, q app.Query) (app.Page, er
 		at = q.After.At
 		id = q.After.ID
 	}
-	rows, err := tx.Query(ctx, `SELECT p.id,p.process_id,v.title,c.id,c.name,p.created_at,p.stage_id,p.discarded_at IS NOT NULL,CASE WHEN p.discarded_at IS NOT NULL THEN p.candidate_message ELSE NULL END FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id JOIN vacancy_public_projections v ON v.id=vp.id JOIN companies c ON c.id=vp.company_id WHERE p.candidate_id=$1 AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2::timestamptz,$3::uuid)) ORDER BY p.created_at DESC,p.id DESC LIMIT $4`, candidate, at, id, q.Limit+1)
+	rows, err := tx.Query(ctx, `SELECT p.id,p.process_id,v.title,CASE WHEN vp.process_status='finished' THEN 'closed' ELSE 'open' END,c.id,c.name,p.created_at,p.stage_id,p.discarded_at IS NOT NULL,CASE WHEN p.discarded_at IS NOT NULL THEN p.candidate_message ELSE NULL END FROM process_participations p JOIN vacancy_processes vp ON vp.id=p.process_id JOIN vacancy_public_projections v ON v.id=vp.id JOIN companies c ON c.id=vp.company_id WHERE p.candidate_id=$1 AND ($2::timestamptz IS NULL OR (p.created_at,p.id)<($2::timestamptz,$3::uuid)) ORDER BY p.created_at DESC,p.id DESC LIMIT $4`, candidate, at, id, q.Limit+1)
 	if err != nil {
 		return app.Page{}, err
 	}
@@ -210,7 +219,7 @@ func (s *Store) List(ctx context.Context, sub string, q app.Query) (app.Page, er
 		var item app.Item
 		var stage uuid.UUID
 		var discarded bool
-		if err = rows.Scan(&item.ID, &item.Vacancy.ID, &item.Vacancy.Title, &item.Company.ID, &item.Company.Name, &item.AppliedAt, &stage, &discarded, &item.Message); err != nil {
+		if err = rows.Scan(&item.ID, &item.Vacancy.ID, &item.Vacancy.Title, &item.Vacancy.State, &item.Company.ID, &item.Company.Name, &item.AppliedAt, &stage, &discarded, &item.Message); err != nil {
 			return app.Page{}, err
 		}
 		item.Status = app.CandidateStatus(stage, s.rules.InitialStage(item.Vacancy.ID), discarded)

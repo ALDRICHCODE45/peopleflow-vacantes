@@ -152,7 +152,7 @@ func TestMovementExactWireProjection(t *testing.T) {
 	if rec.Code != 200 || rec.Header().Get("ETag") != "" {
 		t.Fatal(rec.Code, rec.Body.String())
 	}
-	obj := movementKeys(t, movementObject(t, rec.Body.Bytes()), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages", "screening_filters")
+	obj := movementKeys(t, movementObject(t, rec.Body.Bytes()), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages", "screening_filters", "lifecycle")
 	for _, stage := range obj["stages"].([]any) {
 		movementKeys(t, stage, "id", "kind", "name", "count")
 	}

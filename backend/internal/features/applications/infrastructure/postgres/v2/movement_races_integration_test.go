@@ -22,6 +22,108 @@ import (
 	"github.com/google/uuid"
 )
 
+// Exercise the real L1 transition, not just an equivalent SQL process update.
+func TestLifecycleMoveVersusFinishProcessBothLockOrders(t *testing.T) {
+	for _, first := range []string{"finish", "move"} {
+		t.Run(first+" first", func(t *testing.T) {
+			m := setupMovement(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			if _, err := m.pool.Exec(ctx, `UPDATE vacancy_processes SET status='closed' WHERE id=$1`, m.vacancy); err != nil {
+				t.Fatal(err)
+			}
+			current, err := m.drafts.GetLifecycle(ctx, m.company, m.recruiter, m.vacancy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			movePool, movePID := operationPool(t, ctx, m.pool)
+			finishPool, finishPID := operationPool(t, ctx, m.pool)
+			a := audit.NewAuditEventRepository()
+			author := draftstore.NewStore(finishPool, a)
+			mover := boardstore.NewStore(movePool, a, movementContext{draftstore.NewStore(movePool, a)}, m.storage, draftjson.Decode)
+			blocker, err := m.pool.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer blocker.Rollback(context.Background())
+			var blockerPID int
+			if err = blocker.QueryRow(ctx, `SELECT pg_backend_pid() FROM job_drafts WHERE id=$1 FOR UPDATE`, m.vacancy).Scan(&blockerPID); err != nil {
+				t.Fatal(err)
+			}
+			moveDone, finishDone := make(chan error, 1), make(chan error, 1)
+			startMove := func() {
+				go func() {
+					_, err := mover.Move(ctx, m.company, m.recruiter, m.vacancy, m.item.ID, m.item.ETag, true, []byte(`{"to_stage_id":"`+pipelineconfig.Defaults(m.vacancy).Stages[1].ID+`"}`))
+					moveDone <- err
+				}()
+			}
+			startFinish := func() {
+				go func() {
+					_, err := author.TransitionLifecycle(ctx, m.company, m.recruiter, m.vacancy, "finish_process", uuid.NewString(), true, current.ETag, true, []byte(`{}`))
+					finishDone <- err
+				}()
+			}
+			if first == "finish" {
+				startFinish()
+				waitBlockedBy(t, ctx, m.pool, finishPID, blockerPID)
+				startMove()
+				waitBlockedBy(t, ctx, m.pool, movePID, finishPID)
+			} else {
+				startMove()
+				waitBlockedBy(t, ctx, m.pool, movePID, blockerPID)
+				startFinish()
+				waitBlockedBy(t, ctx, m.pool, finishPID, movePID)
+			}
+			if err = blocker.Commit(ctx); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case err = <-finishDone:
+				if err != nil {
+					t.Fatal("finish_process", err)
+				}
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			select {
+			case err = <-moveDone:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			var finished *board.ProcessFinished
+			if first == "finish" {
+				if !errors.As(err, &finished) {
+					t.Fatal("move missed finish_process", err)
+				}
+			} else if err != nil {
+				t.Fatal("move before finish failed", err)
+			}
+			detail, err := m.board.Detail(ctx, m.company, m.recruiter, m.vacancy, m.item.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			history, err := m.board.History(ctx, m.company, m.recruiter, m.vacancy, m.item.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantVersion, wantHistory := "1", 1
+			if first == "move" {
+				wantVersion, wantHistory = "2", 2
+			}
+			if detail.Version != wantVersion || len(history.Items) != wantHistory {
+				t.Fatal("unexpected participation effects", detail.Version, len(history.Items))
+			}
+			if first == "finish" && !reflect.DeepEqual(detail.Item, m.item) {
+				t.Fatal("rejected move altered participation")
+			}
+			var moveAudits int
+			if err = m.pool.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE entity_id=$1 AND event_type='ParticipationMoved'`, m.item.ID).Scan(&moveAudits); err != nil || moveAudits != wantHistory-1 {
+				t.Fatal("unexpected movement audit", moveAudits, err)
+			}
+		})
+	}
+}
+
 // Excludes only participation effects: a rejected authoring transaction must
 // leave its resources, projection, audit and idempotency exactly unchanged.
 func movementAuthoringSnapshot(t *testing.T, m movementFixture) string {

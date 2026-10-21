@@ -314,6 +314,12 @@ func assertMigration00031DraftLifecycle(t *testing.T, retainedNUL bool) {
 	if err := draftinput.ValidatePersistedDraftV2(stored); err != nil {
 		t.Fatal(err)
 	}
+	// The exact 00031 rewrite was asserted above. Exercise current application
+	// reads against the current schema: editor GET now needs 00034's lifecycle
+	// columns. Later migrations must not be bypassed by an old migration test.
+	if err := goose.UpContext(ctx, sqlDB, "."); err != nil {
+		t.Fatal(err)
+	}
 	read, err := s.GetV2(ctx, p.companyID, p.ownerID, id)
 	if err != nil {
 		t.Fatal(err)

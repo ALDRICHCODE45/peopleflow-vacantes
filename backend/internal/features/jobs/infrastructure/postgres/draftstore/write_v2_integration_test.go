@@ -67,7 +67,7 @@ func TestCreateV2_PersistsAndIsolates(t *testing.T) {
 	}
 	before := readV2Snapshot(t, pool, p)
 	read, err := s.GetV2(context.Background(), p.companyID, p.ownerID, id)
-	if err != nil || !bytes.Equal(read.Body, got.Body) || read.ETag != got.ETag {
+	if err != nil || !bytes.Equal(withoutLifecycle(t, read.Body), got.Body) || read.ETag != got.ETag {
 		t.Fatalf("GetV2: %+v %v", read, err)
 	}
 	hidden, err := s.Get(context.Background(), p.companyID, p.ownerID, id)

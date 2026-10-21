@@ -6,7 +6,7 @@ including the agreed clarifications in §12.7. Legacy applications are unchanged
 
 ## Quick path
 
-1. Apply migrations through **00033** with `make db-migrate` before running this API.
+1. Apply migrations through **00034** with `make db-migrate` before running this API.
    Cut-5 discard/recovery extensions are documented in [pipeline-discard.md](pipeline-discard.md).
 2. Read the board and keep each item's opaque `etag`.
 3. POST a move using that item's tag as `If-Match`; reconcile with GET after an
@@ -21,7 +21,9 @@ Every response, including gate failures, carries `Cache-Control: no-store`.
 
 ## Board and item shapes
 
-`GET …/board` → 200, exactly `{stages, exit, coverage, participations, substates, delivery, retired_stages, screening_filters}`.
+`GET …/board` → 200, exactly `{stages, exit, coverage, participations, substates, delivery, retired_stages, screening_filters, lifecycle}`.
+`lifecycle` is the eight-key [lifecycle view](vacancy-lifecycle.md), also embedded
+in editor and pipeline GETs. Board/detail/history/CV remain readable when finished.
 `screening_filters` is the current questionnaire's single-choice catalog, exactly
 `[{question_id,prompt,options:[{id,label}]}]` in questionnaire order (§19).
 See [board filter data](board-filter-data.md) for normalization, privacy and its test map.
@@ -100,7 +102,12 @@ The operation takes the live authorization locks, locks the parent draft, then
 locks the process and participation. The parent lock also serializes questionnaire,
 pipeline and headcount saves and intake; no authoring version is changed by a move.
 Process serialization prevents two concurrent hires from both claiming the same
-coverage crossing. All guards run before writes.
+coverage crossing. Move/discard/recover/substate require process `active`, regardless
+of publication (`published|paused|closed`). After acquiring the draft and process
+locks, a fresh process read rejects finished with 409 `process_finished` and
+`data:{lifecycle:<current view>}` before touching participation state. This matches
+L1's draft-first transition lock order, including a concurrent finish-process.
+All guards run before writes.
 
 One transaction updates stage/version, appends history, appends PII-free audit
 `ParticipationMoved` (actor, vacancy ID, from/to stage IDs, new version, hire and
@@ -163,7 +170,8 @@ unconfigured; an authorized existing participation then receives
 
 ## Errors
 
-Errors remain exactly `{error,code}` without editor data or ETag.
+Errors remain exactly `{error,code}` without editor data or ETag, except
+`process_finished` adds exactly `data:{lifecycle:<current view>}`.
 
 | Status | Code | Cause |
 | --- | --- | --- |
@@ -173,7 +181,8 @@ Errors remain exactly `{error,code}` without editor data or ETag.
 | 409 | `company_not_active` | Transactional active-company gate |
 | 409 | `stage_skip_not_allowed` | Non-adjacent forward target |
 | 409 | `placement_exit_confirmation_required` | Unconfirmed Placement departure |
-| 409 | `vacancy_not_published` | Authorized draft has no published process |
+| 409 | `vacancy_not_published` | Authorized draft was never published (no process) |
+| 409 | `process_finished` | Board mutation on a finished process; current lifecycle data, no writes |
 | 409 | `stage_occupied`, `impact_confirmation_required` | Pipeline editor conflicts; see cut-7 contract |
 | 412 | `version_conflict` | Stale or foreign participation tag |
 | 413 | `payload_too_large` | Raw move body exceeds budget |

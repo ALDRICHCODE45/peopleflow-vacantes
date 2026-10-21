@@ -206,14 +206,25 @@ func registerCompanyCleanup(t *testing.T, pool *pgxpool.Pool, companyID uuid.UUI
 	t.Helper()
 	t.Cleanup(func() {
 		ctx := context.Background()
-		_, _ = pool.Exec(ctx, `DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM job_drafts WHERE company_id = $1)`, companyID)
-		_, _ = pool.Exec(ctx, `DELETE FROM job_draft_idempotency WHERE company_id = $1`, companyID)
-		_, _ = pool.Exec(ctx, `DELETE FROM job_drafts WHERE company_id = $1`, companyID)
-		_, _ = pool.Exec(ctx, `DELETE FROM job_draft_requesters WHERE company_id = $1`, companyID)
-		_, _ = pool.Exec(ctx, `DELETE FROM company_members WHERE company_id = $1`, companyID)
-		_, _ = pool.Exec(ctx, `DELETE FROM companies WHERE id = $1`, companyID)
+		// Lifecycle events reference actors independently of membership. Remove
+		// owned history before the draft/process and any fixture users.
+		for step, query := range []string{
+			`DELETE FROM vacancy_lifecycle_events WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
+			`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM job_drafts WHERE company_id = $1)`,
+			`DELETE FROM job_draft_idempotency WHERE company_id = $1`,
+			`DELETE FROM job_drafts WHERE company_id = $1`,
+			`DELETE FROM job_draft_requesters WHERE company_id = $1`,
+			`DELETE FROM company_members WHERE company_id = $1`,
+			`DELETE FROM companies WHERE id = $1`,
+		} {
+			if _, err := pool.Exec(ctx, query, companyID); err != nil {
+				t.Errorf("company fixture cleanup step %d failed: %v", step, err)
+			}
+		}
 		for _, userID := range extras {
-			_, _ = pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, userID)
+			if _, err := pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, userID); err != nil {
+				t.Errorf("company fixture user cleanup failed: %v", err)
+			}
 		}
 	})
 }

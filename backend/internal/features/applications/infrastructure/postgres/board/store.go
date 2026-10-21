@@ -44,9 +44,32 @@ func (s *Store) begin(ctx context.Context, company, actor, id uuid.UUID) (pgx.Tx
 	p, err := s.vacancy.Load(ctx, tx, company, actor, id)
 	if err == nil {
 		var process uuid.UUID
-		err = tx.QueryRow(ctx, `SELECT id FROM vacancy_processes WHERE id=$1 AND company_id=$2 AND status='published' FOR UPDATE`, id, company).Scan(&process)
+		err = tx.QueryRow(ctx, `SELECT id FROM vacancy_processes WHERE id=$1 AND company_id=$2 FOR UPDATE`, id, company).Scan(&process)
 		if errors.Is(err, pgx.ErrNoRows) {
 			err = app.ErrNotPublished
+		}
+	}
+	if err != nil {
+		_ = tx.Rollback(ctx)
+		return nil, app.Pipeline{}, err
+	}
+	return tx, p, nil
+}
+
+// beginMutation reads process state only after Load acquired the draft lock
+// and begin acquired the process lock. L1 finish/reopen cannot race this read.
+func (s *Store) beginMutation(ctx context.Context, company, actor, id uuid.UUID) (pgx.Tx, app.Pipeline, error) {
+	tx, p, err := s.begin(ctx, company, actor, id)
+	if err != nil {
+		return nil, p, err
+	}
+	var state string
+	err = tx.QueryRow(ctx, `SELECT process_status FROM vacancy_processes WHERE id=$1`, id).Scan(&state)
+	if err == nil && state == "finished" {
+		var view json.RawMessage
+		view, err = s.vacancy.Lifecycle(ctx, tx, id)
+		if err == nil {
+			err = &app.ProcessFinished{Lifecycle: view}
 		}
 	}
 	if err != nil {
@@ -147,6 +170,10 @@ func (s *Store) Board(ctx context.Context, company, actor, id uuid.UUID) (app.Bo
 	}
 	defer tx.Rollback(ctx)
 	out := app.Board{RetiredStages: append([]app.RetiredStage{}, p.Retired...), Stages: p.Stages, Exit: p.Exit, Participations: []app.Item{}}
+	out.Lifecycle, err = s.vacancy.Lifecycle(ctx, tx, id)
+	if err != nil {
+		return out, err
+	}
 	var fields []byte
 	if err = tx.QueryRow(ctx, `SELECT fields FROM job_drafts WHERE id=$1`, id).Scan(&fields); err != nil {
 		return out, err
@@ -216,7 +243,7 @@ func (s *Store) Board(ctx context.Context, company, actor, id uuid.UUID) (app.Bo
 	return out, err
 }
 func (s *Store) Move(ctx context.Context, company, actor, id, pid uuid.UUID, tag string, present bool, body []byte) (app.Moved, error) {
-	tx, p, err := s.begin(ctx, company, actor, id)
+	tx, p, err := s.beginMutation(ctx, company, actor, id)
 	if err != nil {
 		return app.Moved{}, err
 	}

@@ -47,6 +47,37 @@ func (s *publicReaderStub) Screening(context.Context, uuid.UUID) (publicjobs.Scr
 	}
 	return *s.form, nil
 }
+func TestPublicUnavailableExactTombstone(t *testing.T) {
+	for _, state := range []string{"paused", "closed"} {
+		for _, suffix := range []string{"", "/screening"} {
+			t.Run(state+suffix, func(t *testing.T) {
+				id := uuid.MustParse("11111111-1111-4111-8111-111111111111")
+				unavailable := &publicjobs.Unavailable{ID: id, Title: "Role", Availability: state}
+				unavailable.Company.ID = id
+				unavailable.Company.Name = "Acme"
+				h := NewPublicJobsHandler(publicjobs.NewCatalog(&publicReaderStub{err: unavailable}))
+				r := chi.NewRouter()
+				r.Get("/v2/jobs/{id}", h.Get)
+				r.Get("/v2/jobs/{id}/screening", h.Screening)
+				w := httptest.NewRecorder()
+				r.ServeHTTP(w, httptest.NewRequest("GET", "/v2/jobs/"+id.String()+suffix, nil))
+				var got map[string]any
+				if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+					t.Fatal(err)
+				}
+				data, ok := got["data"].(map[string]any)
+				if w.Code != 410 || len(got) != 3 || got["code"] != "vacancy_unavailable" || !ok || len(data) != 4 {
+					t.Fatal(w.Code, w.Body.String())
+				}
+				raw, _ := json.Marshal(data)
+				if string(raw) != `{"availability":"`+state+`","company":{"id":"`+id.String()+`","name":"Acme"},"id":"`+id.String()+`","title":"Role"}` {
+					t.Fatal(string(raw))
+				}
+			})
+		}
+	}
+}
+
 func TestPublicScreeningHTTPExactShape(t *testing.T) {
 	form := publicjobs.Screening{Revision: "opaque", Questions: []publicjobs.ScreeningQuestion{{ID: uuid.NewString(), Prompt: "Why?", Type: "open", Options: nil}}, Limits: publicjobs.ScreeningLimits{OpenAnswerMaxLength: 2000}}
 	stub := &publicReaderStub{form: &form}

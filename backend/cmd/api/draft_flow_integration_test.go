@@ -38,6 +38,8 @@ import (
 
 	"github.com/aldrichcode45/peopleflow-vacantes/db/migrations"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
+	movementhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/board"
+	movementpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/board"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
 	companiesvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
@@ -45,6 +47,7 @@ import (
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
 	identityhttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/http"
 	identitypostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/postgres"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/publicjobs"
 	jobsusecases "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/usecases"
 	jobshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/infrastructure/http"
@@ -276,14 +279,17 @@ func newDraftFlowHarness(t *testing.T) *draftFlowHarness {
 		managementHandler:  jobshttp.NewManagementHandler(store),
 		publicationHandler: jobshttp.NewPublicationHandler(store),
 		lifecycleHandler:   jobshttp.NewLifecycleHandler(store),
-		publicJobsHandler:  jobshttp.NewPublicJobsHandler(publicjobs.NewCatalog(publicjobsstore.NewStore(queries))),
-		requesterHandler:   jobshttp.NewRequesterHandler(store),
-		queries:            queries,
-		pool:               pool,
-		readinessTimeout:   2 * time.Second,
-		httpMetrics:        runtimemetrics.Default,
-		readinessLogger:    slog.Default(),
-		readinessMetrics:   runtimemetrics.Default,
+		// Match main.go's production composition. No CV storage is necessary for
+		// board reads, but a missing movement handler returns 500 before any DB read.
+		movementHandler:   movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{store}, nil, draftjson.Decode)),
+		publicJobsHandler: jobshttp.NewPublicJobsHandler(publicjobs.NewCatalog(publicjobsstore.NewStore(queries))),
+		requesterHandler:  jobshttp.NewRequesterHandler(store),
+		queries:           queries,
+		pool:              pool,
+		readinessTimeout:  2 * time.Second,
+		httpMetrics:       runtimemetrics.Default,
+		readinessLogger:   slog.Default(),
+		readinessMetrics:  runtimemetrics.Default,
 	})
 
 	server := httptest.NewServer(router)
@@ -307,6 +313,7 @@ func (h *draftFlowHarness) actor(t *testing.T, userID uuid.UUID, sub string) dra
 // draftFlowCompany owns one company plus its users; a single cleanup deletes
 // every row the fixture created in FK-safe order.
 type draftFlowCompany struct {
+	t         *testing.T
 	pool      *pgxpool.Pool
 	companyID uuid.UUID
 	userIDs   []uuid.UUID
@@ -314,21 +321,30 @@ type draftFlowCompany struct {
 
 func draftFlowNewCompany(t *testing.T, pool *pgxpool.Pool, status string) *draftFlowCompany {
 	t.Helper()
-	c := &draftFlowCompany{pool: pool, companyID: draftFlowInsertCompany(t, pool, status)}
+	c := &draftFlowCompany{t: t, pool: pool, companyID: draftFlowInsertCompany(t, pool, status)}
 	t.Cleanup(c.cleanup)
 	return c
 }
 
 func (c *draftFlowCompany) cleanup() {
 	ctx := context.Background()
-	_, _ = c.pool.Exec(ctx, `DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM job_drafts WHERE company_id = $1)`, c.companyID)
-	_, _ = c.pool.Exec(ctx, `DELETE FROM job_draft_idempotency WHERE company_id = $1`, c.companyID)
-	_, _ = c.pool.Exec(ctx, `DELETE FROM job_drafts WHERE company_id = $1`, c.companyID)
-	_, _ = c.pool.Exec(ctx, `DELETE FROM job_draft_requesters WHERE company_id = $1`, c.companyID)
-	_, _ = c.pool.Exec(ctx, `DELETE FROM company_members WHERE company_id = $1`, c.companyID)
-	_, _ = c.pool.Exec(ctx, `DELETE FROM companies WHERE id = $1`, c.companyID)
+	for step, query := range []string{
+		`DELETE FROM vacancy_lifecycle_events WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
+		`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM job_drafts WHERE company_id = $1)`,
+		`DELETE FROM job_draft_idempotency WHERE company_id = $1`,
+		`DELETE FROM job_drafts WHERE company_id = $1`,
+		`DELETE FROM job_draft_requesters WHERE company_id = $1`,
+		`DELETE FROM company_members WHERE company_id = $1`,
+		`DELETE FROM companies WHERE id = $1`,
+	} {
+		if _, err := c.pool.Exec(ctx, query, c.companyID); err != nil {
+			c.t.Errorf("HTTP company fixture cleanup step %d failed: %v", step, err)
+		}
+	}
 	for _, id := range c.userIDs {
-		_, _ = c.pool.Exec(ctx, `DELETE FROM users WHERE id = $1`, id)
+		if _, err := c.pool.Exec(ctx, `DELETE FROM users WHERE id=$1`, id); err != nil {
+			c.t.Errorf("HTTP fixture user cleanup failed: %v", err)
+		}
 	}
 }
 

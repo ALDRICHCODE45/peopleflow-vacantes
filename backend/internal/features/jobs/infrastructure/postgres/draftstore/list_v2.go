@@ -26,7 +26,7 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 	}
 
 	query := `SELECT d.id, d.fields, d.principal_recruiter_id, u.full_name,
- d.version, d.created_at, d.updated_at, COALESCE(p.status,'draft'), p.published_at
+ d.version, d.created_at, d.updated_at, COALESCE(p.status,'draft'), p.process_status, p.published_at
  FROM job_drafts d
  LEFT JOIN users u ON u.id = d.principal_recruiter_id AND u.deleted_at IS NULL
  LEFT JOIN vacancy_processes p ON p.id = d.id AND p.company_id = d.company_id
@@ -49,7 +49,7 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 	for rows.Next() {
 		var item draftlist.Item
 		var fields []byte
-		if err := rows.Scan(&item.ID, &fields, &item.Principal.ID, &item.Principal.Name, &item.Version, &item.CreatedAt, &item.UpdatedAt, &item.Status, &item.PublishedAt); err != nil {
+		if err := rows.Scan(&item.ID, &fields, &item.Principal.ID, &item.Principal.Name, &item.Version, &item.CreatedAt, &item.UpdatedAt, &item.Status, &item.Process, &item.PublishedAt); err != nil {
 			rows.Close()
 			return draftlist.Page{}, fmt.Errorf("scan list v2 draft: %w", err)
 		}

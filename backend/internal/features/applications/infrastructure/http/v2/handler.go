@@ -23,7 +23,11 @@ func writeError(w http.ResponseWriter, err error) {
 	code := httpjson.CodeInternalError
 	var details *app.InvalidAnswers
 	var restriction *app.CountryRestriction
+	var unavailable *app.NotAcceptingApplications
 	switch {
+	case errors.As(err, &unavailable):
+		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeVacancyNotAcceptingApplications), unavailable)
+		return
 	case errors.As(err, &restriction):
 		switch {
 		case errors.Is(err, app.ErrApplicantCountryRequired):

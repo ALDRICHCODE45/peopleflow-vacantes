@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"io"
 	"strconv"
@@ -46,6 +47,14 @@ type RetiredStage struct {
 	Name     string `json:"name"`
 	Position int    `json:"-"`
 }
+
+// ProcessFinished carries the jobs-owned view without importing that feature.
+type ProcessFinished struct {
+	Lifecycle json.RawMessage `json:"lifecycle"`
+}
+
+func (e *ProcessFinished) Error() string { return "process finished" }
+
 type Pipeline struct {
 	Retired  []RetiredStage
 	Stages   []Stage
@@ -56,6 +65,7 @@ type Pipeline struct {
 // VacancyContext holds the authoring row lock until the surrounding transaction
 // ends, sharing the same authorization and configuration rules as draft saves.
 type VacancyContext interface {
+	Lifecycle(context.Context, pgx.Tx, uuid.UUID) (json.RawMessage, error)
 	Screening([]byte) (intake.Screening, error)
 	DeliverySummary(context.Context, pgx.Tx, uuid.UUID) (string, int64, int64, error)
 	RecordDelivery(context.Context, pgx.Tx, uuid.UUID, uuid.UUID, uuid.UUID, time.Time) error
@@ -100,6 +110,7 @@ type Delivery struct {
 	Target    int64  `json:"target"`
 }
 type Board struct {
+	Lifecycle        json.RawMessage   `json:"lifecycle"`
 	ScreeningFilters []ScreeningFilter `json:"screening_filters"`
 	RetiredStages    []RetiredStage    `json:"retired_stages"`
 	Delivery         Delivery          `json:"delivery"`

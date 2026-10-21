@@ -58,6 +58,9 @@ func (s *Store) PutDelivery(ctx context.Context, companyID, actorID, id uuid.UUI
 	if err := s.authorizePipeline(ctx, tx, companyID, actorID, id, true); err != nil {
 		return drafts.Result{}, err
 	}
+	if err := requireActiveProcess(ctx, tx, id); err != nil {
+		return drafts.Result{}, err
+	}
 	published, err := lockDeliveryProcess(ctx, tx, id)
 	if err != nil {
 		return drafts.Result{}, err

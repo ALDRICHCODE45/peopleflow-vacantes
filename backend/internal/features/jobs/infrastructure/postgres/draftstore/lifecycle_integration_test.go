@@ -330,7 +330,7 @@ func TestLifecycleDBHistoryActorSnapshotAndPreservedAuthoring(t *testing.T) {
 		t.Fatal(view)
 	}
 	after, err := s.GetV2(ctx, p.companyID, p.ownerID, id)
-	if err != nil || !bytes.Equal(after.Body, authoring.Body) || after.ETag != authoring.ETag {
+	if err != nil || !bytes.Equal(withoutLifecycle(t, after.Body), withoutLifecycle(t, authoring.Body)) || after.ETag != authoring.ETag {
 		t.Fatal("lifecycle changed authoring", err)
 	}
 }

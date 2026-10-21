@@ -2,12 +2,26 @@ package httpjson
 
 import "net/http"
 
-const CodeLifecycleTransitionInvalid Code = "lifecycle_transition_invalid"
+const (
+	CodeLifecycleTransitionInvalid      Code = "lifecycle_transition_invalid"
+	CodeVacancyUnavailable              Code = "vacancy_unavailable"
+	CodeVacancyNotAcceptingApplications Code = "vacancy_not_accepting_applications"
+	CodeProcessFinished                 Code = "process_finished"
+)
 
-func LifecycleErrorCodes() []Code { return []Code{CodeLifecycleTransitionInvalid} }
+func LifecycleErrorCodes() []Code {
+	return []Code{CodeLifecycleTransitionInvalid, CodeVacancyUnavailable, CodeVacancyNotAcceptingApplications, CodeProcessFinished}
+}
 func resolveLifecycleError(code Code) (Definition, bool) {
-	if code == CodeLifecycleTransitionInvalid {
+	switch code {
+	case CodeLifecycleTransitionInvalid:
 		return Definition{code, 409, "lifecycle transition invalid"}, true
+	case CodeVacancyUnavailable:
+		return Definition{code, 410, "vacancy unavailable"}, true
+	case CodeVacancyNotAcceptingApplications:
+		return Definition{code, 409, "vacancy not accepting applications"}, true
+	case CodeProcessFinished:
+		return Definition{code, 409, "process finished"}, true
 	}
 	return Definition{}, false
 }
@@ -16,7 +30,7 @@ func resolveLifecycleError(code Code) (Definition, bool) {
 // Other catalog codes cannot acquire lifecycle data through this seam.
 func WriteLifecycleError(w http.ResponseWriter, def Definition, data any) {
 	def = normalizeDefinition(def)
-	if def.Code != CodeLifecycleTransitionInvalid {
+	if _, ok := resolveLifecycleError(def.Code); !ok {
 		WriteCatalogError(w, def)
 		return
 	}

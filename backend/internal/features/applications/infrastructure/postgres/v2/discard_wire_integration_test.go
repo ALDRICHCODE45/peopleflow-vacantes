@@ -45,7 +45,10 @@ func TestDiscardRecoveryExactWireAndCandidatePrivacy(t *testing.T) {
 		}
 		obj := movementKeys(t, movementObject(t, raw), "items", "next_cursor")
 		item := movementKeys(t, obj["items"].([]any)[0], "id", "vacancy", "company", "applied_at", "status", "message")
-		movementKeys(t, item["vacancy"], "id", "title")
+		vacancy := movementKeys(t, item["vacancy"], "id", "title", "state")
+		if vacancy["state"] != "open" {
+			t.Fatal(vacancy)
+		}
 		movementKeys(t, item["company"], "id", "name")
 		if item["status"] != status || item["message"] != message || strings.Contains(string(raw), "Internal explanation") || strings.Contains(string(raw), "recruiter") {
 			t.Fatal(string(raw))

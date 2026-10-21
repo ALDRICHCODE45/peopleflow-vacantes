@@ -25,3 +25,33 @@ func (q *Queries) GetPublishedScreeningSource(ctx context.Context, id uuid.UUID)
 	err := row.Scan(&fields)
 	return fields, err
 }
+
+const getUnavailableVacancy = `-- name: GetUnavailableVacancy :one
+SELECT p.id, v.title, c.id AS company_id, c.name AS company_name, p.status AS availability
+FROM vacancy_processes p
+JOIN vacancy_public_projections v ON v.id = p.id
+JOIN companies c ON c.id = p.company_id
+WHERE p.id = $1 AND p.status IN ('paused', 'closed')
+AND c.status = 'active' AND c.deleted_at IS NULL
+`
+
+type GetUnavailableVacancyRow struct {
+	ID           uuid.UUID `json:"id"`
+	Title        string    `json:"title"`
+	CompanyID    uuid.UUID `json:"company_id"`
+	CompanyName  string    `json:"company_name"`
+	Availability string    `json:"availability"`
+}
+
+func (q *Queries) GetUnavailableVacancy(ctx context.Context, id uuid.UUID) (GetUnavailableVacancyRow, error) {
+	row := q.db.QueryRow(ctx, getUnavailableVacancy, id)
+	var i GetUnavailableVacancyRow
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.CompanyID,
+		&i.CompanyName,
+		&i.Availability,
+	)
+	return i, err
+}

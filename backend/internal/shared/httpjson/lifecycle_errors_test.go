@@ -8,7 +8,7 @@ import (
 )
 
 func TestLifecycleCatalogAndConflictData(t *testing.T) {
-	if !reflect.DeepEqual(LifecycleErrorCodes(), []Code{CodeLifecycleTransitionInvalid}) {
+	if !reflect.DeepEqual(LifecycleErrorCodes(), []Code{CodeLifecycleTransitionInvalid, CodeVacancyUnavailable, CodeVacancyNotAcceptingApplications, CodeProcessFinished}) {
 		t.Fatal(LifecycleErrorCodes())
 	}
 	for _, tc := range []struct {

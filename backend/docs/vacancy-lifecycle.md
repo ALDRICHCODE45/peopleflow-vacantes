@@ -1,7 +1,7 @@
-# Vacancy lifecycle — L1 API
+# Vacancy lifecycle — L1 API and L2 effects
 
-L1 adds manual lifecycle transitions, private reads, history and audit. It does
-**not** implement the L2 availability/board effects. Frontend pairing:
+L1 adds manual lifecycle transitions, private reads, history and audit. L2 applies
+publication availability and process editability across existing endpoints. Frontend pairing:
 `feat/vacancy-lifecycle-ui`; design: [§21](../../docs/vacancy-lifecycle-design.md).
 
 ## Quick path
@@ -137,7 +137,7 @@ Audit failure rolls back all transition writes.
 Reopen retains pipeline, candidates, participation history, coverage and frozen
 delivery fulfillment; finishing does not manufacture a fulfillment snapshot.
 
-## Storage and L2 boundary
+## Storage
 
 Migration **00034** widens publication status, adds process status/version and
 four timestamp fields (the existing `published_at` plus three new columns),
@@ -147,19 +147,33 @@ become published / active / v1 without changing their publication data.
 Down refuses any non-published/active row **or any lifecycle history**, locking
 the affected tables before checking. It does not silently erase lifecycle data.
 
-Intentionally unchanged until **L2**:
+## L2 — effects on existing endpoints
 
-- Public list/detail, screening and apply retain existing `status='published'`
-  gates. Paused/closed vacancies are hidden/404, **not yet 410**; apply replay
-  ordering is unchanged.
-- Board mutations still require published and return the existing 409
-  `vacancy_not_published` while hidden; no `process_finished` gate yet.
-- No lifecycle embedding in editor/board/pipeline GETs. Use lifecycle GET.
-- No candidate `vacancy.state`, new company-list `process`, or list contract
-  expansion. The existing list SQL already reflects the stored publication
-  status; L2 formalizes the expanded list contract.
-- Existing content/configuration readiness guards and public-projection refresh
-  remain active for ever-published vacancies, including paused/closed ones.
+| Surface | Contract |
+| --- | --- |
+| Public list/search | Unchanged: only published, live-company vacancies |
+| Public detail and screening | Paused/closed → 410 `vacancy_unavailable`, exactly `data: {id,title,company:{id,name},availability:"paused"|"closed"}`; no content, compensation or screening. Draft/unknown/malformed/inactive-company → existing 404 |
+| Apply | Locks → idempotency replay/conflict → availability → G4 country → screening/CV/duplicate. Paused/closed → 409 `vacancy_not_accepting_applications`, exactly `data:{availability}`. Earlier successes still replay after pause/close; rejections write nothing |
+| Move/discard/recover/substate | Any publication with active process is editable; finished → 409 `process_finished`, exactly `data:{lifecycle:<current view>}` |
+| Pipeline PUT/preview, substates PUT, delivery PUT, management PUT | Same finished-process conflict, before configuration validation/preconditions; no writes |
+| Board/detail/history/CV, lifecycle and configuration GETs | Remain readable when finished |
+| Content PATCH | Remains allowed, retaining existing readiness/projection guards; hidden projection stays hidden |
+| Candidate list | Adds `vacancy.state:"open"|"closed"`; closed **only** for finished process. Application status/message semantics are unchanged |
+| Company draft list | `status: draft|published|paused|closed`; new always-present `process:null|"active"|"finished"`. Paging/order unchanged |
+
+Editor `GET /v2/me/company/job-drafts/{id}`, board GET and pipeline GET embed the
+same eight-key view as root `lifecycle`. Their existing ETags (or absence for the
+board) are unchanged; use lifecycle GET for the lifecycle precondition tag.
+Create/PATCH and pipeline PUT response/replay shapes stay unchanged.
+
+Availability is read in a **fresh statement after the draft lock**, not from the
+join that may have waited on that lock (the G4 snapshot-race fix pattern).
+Board writes lock draft → process → participation, and check process state after
+those first two locks. Configuration guards likewise read the process only after
+the parent draft lock shared with L1 transitions. Concurrent finish cannot be
+missed through a pre-wait process snapshot. Finishing remains distinct from
+fulfillment: reopening unfreezes the process but never unfreezes its delivery
+snapshot.
 
 ## Verification map
 
@@ -169,7 +183,10 @@ Intentionally unchanged until **L2**:
 | `internal/features/jobs/application/lifecycle/*_test.go` | Complete state/action matrix, ETags, precision and retained timestamps |
 | `internal/features/jobs/infrastructure/postgres/draftstore/lifecycle*_test.go` | Strict bodies/fingerprints; DB transitions/rejections, replay, races, authorization/live gates, readiness, history/actor/audit, rollback and preservation |
 | `cmd/api/lifecycle*_test.go` | All seven routes, NoStore/headers, error envelopes, candidate denial and real DB-backed HTTP flow |
-| `internal/shared/httpjson/lifecycle_errors_test.go` | Additive catalog and fail-closed conflict writer |
+| `internal/shared/httpjson/lifecycle*_test.go` | Additive catalog, exact effect data and fail-closed writer |
+| `cmd/api/lifecycle_effects_integration_test.go` | Exact public tombstones, live-company/404 gates, list exclusion, embedded views, company list and finished-configuration conflicts; no-write snapshots |
+| `applications/infrastructure/postgres/v2/lifecycle_apply_integration_test.go` | Replay/availability precedence, no-write rejections, forced pause/close/resume while apply waits on draft lock |
+| `applications/infrastructure/postgres/v2/lifecycle_board_integration_test.go` | Active-any-publication moves/discard/recovery/substate, finished read-only/CV/candidate state, forced move vs finish-process lock ordering |
 
 DB tests use the existing integration build tag and isolated-DB harness. They
 must be run by the parent on its isolated DB; compiling them is not evidence of

@@ -45,8 +45,11 @@ are `{id,name}`; new custom entries are `{name}`. Client `kind`, retired IDs,
 unknown/duplicate keys and wrong types are rejected as before. The 1 MiB budget
 and pipeline-only ETags are unchanged; preview ignores If-Match and emits no ETag.
 
-GET 200 has exactly `{version, structure_locked, stages, exit, limits, retired}`.
-PUT 200 has those keys **plus** `applied_impact`, always present, including no-op
+GET 200 has exactly `{version, structure_locked, stages, exit, limits, retired, lifecycle}`.
+L2 adds the root [lifecycle view](vacancy-lifecycle.md); GET remains allowed when
+finished. PUT/preview then return 409 `process_finished` with `data:{lifecycle}`
+and no writes, while active processes remain editable in any publication state.
+PUT 200 has the six configuration keys (no lifecycle) **plus** `applied_impact`, always present, including no-op
 PUTs and drafts without participations:
 
 ```json

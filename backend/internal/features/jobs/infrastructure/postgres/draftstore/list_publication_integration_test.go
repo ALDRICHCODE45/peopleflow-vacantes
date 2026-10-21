@@ -42,7 +42,7 @@ func TestListPublicationStatusKeepsOrderCursorAndDraftTimestamps(t *testing.T) {
 		t.Fatalf("published page=%+v %v", page, err)
 	}
 	got, err := s.GetV2(ctx, p.companyID, p.ownerID, id)
-	if err != nil || !reflect.DeepEqual(got, draft) {
+	if err != nil || !reflect.DeepEqual(withoutLifecycleResult(t, got), draft) {
 		t.Fatal("publication changed draft sort timestamps/version")
 	}
 }

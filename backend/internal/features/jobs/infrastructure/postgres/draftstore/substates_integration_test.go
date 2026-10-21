@@ -140,7 +140,7 @@ func TestSubstates_ChangesNoOpAuditAndIndependentVersions(t *testing.T) {
 		t.Fatalf("normalized no-op=%+v %v", noop, err)
 	}
 	draft, err := s.GetV2(ctx, p.companyID, p.ownerID, id)
-	if err != nil || !reflect.DeepEqual(draft, created) {
+	if err != nil || !reflect.DeepEqual(withoutLifecycleResult(t, draft), created) {
 		t.Fatalf("substates changed draft=%+v %v", draft, err)
 	}
 	pipelineAfter, err := s.GetPipeline(ctx, p.companyID, p.ownerID, id)

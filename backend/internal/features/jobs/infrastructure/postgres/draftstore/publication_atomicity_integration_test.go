@@ -44,9 +44,10 @@ func TestPublicationStoredPipelineAndSubstatesRetainVersionsAndFrozenNames(t *te
 	}
 	for i, read := range reads {
 		after, err := read(ctx, p.companyID, p.ownerID, id)
-		if err != nil || !reflect.DeepEqual(after, before[i]) {
-			t.Fatalf("resource %d changed on publication", i)
+		if err != nil {
+			t.Fatalf("read resource %d after publication: %v", i, err)
 		}
+		assertPublicationResourceUnchanged(t, before[i], after, i < 2)
 	}
 	var raw []byte
 	if err := pool.QueryRow(ctx, `SELECT metadata FROM audit_events WHERE entity_id=$1 AND event_type='VacancyPublished'`, id).Scan(&raw); err != nil {

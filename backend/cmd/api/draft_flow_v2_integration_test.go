@@ -79,7 +79,7 @@ func TestDraftFlowV2_CreateReadSaveAndFrozenReplay(t *testing.T) {
 	path := draftFlowV2Path + "/" + id
 	read := h.do(t, http.MethodGet, path, "", actor.token, nil)
 	draftFlowAssertNoStore(t, read)
-	if read.status != 200 || !bytes.Equal(read.body, created) || read.header.Get("ETag") != tag || read.header.Get("Idempotency-Replayed") != "" {
+	if read.status != 200 || !bytes.Equal(lifecycleFlowWithoutView(t, read.body), created) || read.header.Get("ETag") != tag || read.header.Get("Idempotency-Replayed") != "" {
 		t.Fatalf("get differs: %d %v %s", read.status, read.header, read.body)
 	}
 	save := h.do(t, http.MethodPatch, path, `{"fields":{"title":"Backend Rust"}}`, actor.token, map[string]string{"If-Match": tag})
@@ -103,7 +103,7 @@ func TestDraftFlowV2_CreateReadSaveAndFrozenReplay(t *testing.T) {
 	}
 	read = h.do(t, http.MethodGet, path, "", actor.token, nil)
 	draftFlowAssertNoStore(t, read)
-	if read.status != 200 || !bytes.Equal(read.body, save.body) || read.header.Get("ETag") != save.header.Get("ETag") {
+	if read.status != 200 || !bytes.Equal(lifecycleFlowWithoutView(t, read.body), save.body) || read.header.Get("ETag") != save.header.Get("ETag") {
 		t.Fatal("replay changed current read")
 	}
 	draftFlowV2Reject(t, h, company.companyID, id, http.MethodPatch, path, `{"fields":{"title":"stale"}}`, actor.token, map[string]string{"If-Match": tag}, 412, "version_conflict")

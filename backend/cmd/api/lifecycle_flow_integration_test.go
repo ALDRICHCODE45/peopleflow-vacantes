@@ -97,15 +97,15 @@ func TestLifecycleFlowAuthorizationOrderReplayAndL1Effects(t *testing.T) {
 	if invalid.status != 409 || draftFlowObject(t, invalid.body)["code"] != "lifecycle_transition_invalid" || draftFlowObject(t, invalid.body)["data"].(map[string]any)["action"] != "reopen" {
 		t.Fatalf("invalid=%d %s", invalid.status, invalid.body)
 	}
-	// L1 intentionally retains the existing public/screening 404 (L2 adds 410).
+	// L2 exposes only the safe public tombstone while paused.
 	for _, suffix := range []string{"", "/screening"} {
 		got := h.do(t, "GET", "/v2/jobs/"+id+suffix, "", "", nil)
-		if got.status != 404 {
-			t.Fatalf("L1 availability=%d %s", got.status, got.body)
+		if got.status != 410 {
+			t.Fatalf("L2 availability=%d %s", got.status, got.body)
 		}
 	}
-	// Existing editor/publication reads and saves must not assume status is
-	// always published; no L2 lifecycle embedding is introduced here.
+	// Content saves remain allowed while hidden; their frozen response contract
+	// stays independent from the additive lifecycle view on editor GET.
 	changed := h.do(t, "PATCH", base, `{"fields":{"title":"Hidden vacancy edit"}}`, owner.token, map[string]string{"If-Match": draft.header.Get("ETag")})
 	if changed.status != 200 {
 		t.Fatalf("hidden edit=%d %s", changed.status, changed.body)

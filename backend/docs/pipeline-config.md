@@ -37,6 +37,7 @@ Every response, including middleware `401`/`403` and all handler errors, has
 ```json
 {
   "version": "0",
+  "lifecycle": {"publication":null,"process":null,"version":"0","published_at":null,"paused_at":null,"closed_at":null,"process_finished_at":null,"allowed_actions":["publish"]},
   "structure_locked": false,
   "retired": [],
   "stages": [
@@ -91,7 +92,8 @@ is the stored delivery cutoff (cut 3; see [pipeline-delivery.md](pipeline-delive
 }
 ```
 
-The successful response has the GET shape plus always-present
+The successful PUT response has the configuration GET shape **without `lifecycle`**,
+plus always-present
 `applied_impact: {not_applicable:[],recovery_reassigned:[]}` with the actual applied
 lists, including empty lists for no-op/empty-vacancy writes. `stages` preserves request
 order; new custom stages get deterministic server-assigned UUIDv5 IDs from vacancy,
@@ -163,8 +165,13 @@ schema-version-2 JSON; old configurations read as an empty retired list.
 
 ## Status codes
 
-Error envelope is `{ "error": string, "code": string }`, without DTO, `data` or
-ETag, except `stage_occupied` includes ordered `details: [{stage_id}]`.
+Error envelope is `{ "error": string, "code": string }`, without DTO or ETag,
+except `stage_occupied` includes ordered `details: [{stage_id}]`, and
+`process_finished` includes exactly `data:{lifecycle:<current eight-key view>}`.
+L2 blocks pipeline PUT/preview, substates PUT, delivery PUT and management
+PUT when finished, before resource validation/preconditions. GETs and content PATCH
+remain available. Active processes are editable in any publication state; existing
+fulfillment/readiness guards still apply. See [lifecycle](vacancy-lifecycle.md).
 
 | Status | Code | Case |
 | --- | --- | --- |
@@ -190,7 +197,9 @@ expect that column to be the cutoff, re-read GET `…/pipeline/delivery`.
 
 Cut-7 tests replace the former lock assertions with
 `TestMovementPipelineStructureEditableWithCandidates`; empty-pipeline editing stays
-covered. GET now has six keys, PUT seven. The full preview/impact/recovery test map
+covered. L2 GET has seven keys (additive root `lifecycle`), PUT stays at seven
+(configuration plus `applied_impact`, no lifecycle key). Lifecycle changes never
+bump the pipeline version/ETag; obtain transition preconditions from lifecycle GET. The full preview/impact/recovery test map
 is in [pipeline-column-editing.md](pipeline-column-editing.md).
 
 ## Validation commands

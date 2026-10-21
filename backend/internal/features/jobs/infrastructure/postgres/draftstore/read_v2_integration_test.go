@@ -101,6 +101,7 @@ func TestGetV2_CompleteEnvelopeAndNoMutation(t *testing.T) {
 				requester["name"] = name
 			}
 			want["fields"] = fields
+			want["lifecycle"] = map[string]any{"publication": nil, "process": nil, "version": "0", "published_at": nil, "paused_at": nil, "closed_at": nil, "process_finished_at": nil, "allowed_actions": []any{"publish"}}
 			wantBody := mustCanonical(t, want)
 			wantTag := `"jd-r2-` + id.String() + `-v1"`
 			var reader drafts.V2Reader = store

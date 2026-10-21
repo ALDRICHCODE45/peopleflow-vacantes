@@ -38,6 +38,7 @@ type Item struct {
 	Requester   *Requester
 	Principal   Principal
 	Version     int64
+	Process     *string
 	Status      string
 	PublishedAt *time.Time
 	CreatedAt   time.Time

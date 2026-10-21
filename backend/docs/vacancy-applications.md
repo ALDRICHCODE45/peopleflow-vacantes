@@ -16,7 +16,10 @@ Uses the existing safe projector: never publishes evaluation flags or answer key
 Revision hashes canonical **candidate-visible** questions, preserving question and
 option order; it never hashes private answer keys (which have a small guessable
 space). Public text/options edits change the revision; evaluation-only edits do not.
-Legacy, unpublished, unknown or inactive-company IDs return `404 not_found`.
+Legacy, never-published, unknown or inactive-company IDs return `404 not_found`.
+Paused/closed vacancies return 410 `vacancy_unavailable` with exactly
+`data:{id,title,company:{id,name},availability:"paused"|"closed"}`, matching public
+detail. No screening/content is returned.
 This route is anonymous like detail, without private no-store headers or ETag.
 
 ## Apply (private)
@@ -46,7 +49,8 @@ question IDs → `400 invalid_request`. Per-question problems → 422 exactly:
 ```
 
 Reasons: `required`, `unknown_option`, `too_long`, `wrong_type`. Only this error gets
-`details`. G4 adds two country errors with `data`; other errors remain `{error,code}`.
+`details`. G4 country errors and the L2 availability conflict carry `data`;
+other apply errors remain `{error,code}`.
 
 For a published remote vacancy restricted to countries, the current profile country
 is checked before screening/CV/duplicate checks. Missing country → 422
@@ -64,8 +68,9 @@ create: absent → `400 idempotency_key_required`; empty, repeated or malformed 
 `400 invalid_idempotency_key`. Scope is candidate + vacancy + key. First success
 sets `Idempotency-Replayed: false`. Equivalent canonical payload replays the exact
 original 201 bytes with `Idempotency-Replayed: true`, even after questionnaire edits
-or CV library removal, profile-country edits or published-country-scope changes.
-Existing vacancy/auth gates still run before replay. Different payload → `409 idempotency_conflict`.
+or CV library removal, profile-country edits, published-country-scope changes,
+or pause/close (even with finished process). Live candidate/company and existing
+vacancy/projection gates still run before replay; availability runs **after** replay. Different payload → `409 idempotency_conflict`.
 
 Canonical payload normalizes the CV/question UUIDs and trims open answers; answer
 array order is irrelevant. Fingerprints include answer field presence/type markers,
@@ -79,19 +84,25 @@ Candidate-row locking serializes candidate library changes and applies; a shared
 lock on the draft serializes questionnaire edits; a shared company lock keeps its
 active state stable; the vacancy process is locked for update. Under these locks:
 
-1. Require a published process, public projection and active/live company (404).
-2. Check idempotency replay/conflict before current profile/questionnaire/CV checks.
-3. Read current profile allowlist once; enforce the published remote country scope
+1. Lock candidate → draft/company → process. Require an existing process, public
+   projection and active/live company (404 for drafts/unknown/inactive company).
+2. Check idempotency replay/conflict before all current-state checks.
+3. Read availability in a fresh statement **after the draft lock**. Paused/closed
+   → 409 `vacancy_not_accepting_applications`, exactly `data:{availability:"paused"|"closed"}`.
+4. Read the current profile allowlist once; enforce G4 remote country scope
    (`422 applicant_country_required` / `422 applicant_country_not_allowed`).
-4. Compare current revision (`409 questionnaire_changed`), validate answers.
-5. Require the CV in this candidate's live library (`422 cv_unavailable`, including
-   another candidate's ID).
-6. Reject an existing participation (`409 already_applied`).
+5. Compare current revision (`409 questionnaire_changed`), validate answers.
+6. Require the CV in this candidate's live library (`422 cv_unavailable`, including
+   another candidate's ID), then reject an existing participation (`409 already_applied`).
 7. Insert participation referencing its immutable CV version, frozen safe questions
    and answers, source `organic`, deterministic pipeline `new` stage ID, and private
    profile snapshot (location codes/null, skills, years, education; migration 00033).
 8. Insert intake history, append PII-free `VacancyApplicationSubmitted` audit and
    persist the original idempotent response; commit together.
+
+Availability and country-scope reads must not reuse values from the statement that
+waited on the draft lock: READ COMMITTED can retain stale joined rows. Rejections
+write no participation, snapshots, history, audit, coverage, delivery or idempotency.
 
 Audit metadata is only vacancy ID, stage ID and source, never answer text or CV
 content. There is no scoring, automatic rejection or automatic movement. Legacy
@@ -104,7 +115,10 @@ candidate ownership. Down refuses while participation/idempotency data exists.
 ## Candidate list (private)
 
 `GET /v2/me/applications?cursor&limit` →
-`{items:[{id,vacancy:{id,title},company:{id,name},applied_at,status,message}],next_cursor}`.
+`{items:[{id,vacancy:{id,title,state},company:{id,name},applied_at,status,message}],next_cursor}`.
+`vacancy.state` is always `open|closed`: **closed only when the internal process is
+finished**, independent from application `status`. Paused and closed-but-active
+vacancies stay open for applicants. No pipeline identity or lifecycle view leaks.
 As of cut 5, `status` is the closed enum `submitted | in_process | closed`:
 `closed` while currently discarded, otherwise `submitted` in the deterministic
 semantic `new` stage and `in_process` in every other progression stage.

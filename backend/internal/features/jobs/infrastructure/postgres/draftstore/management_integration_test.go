@@ -64,7 +64,7 @@ func TestManagementPureGetFirstPutNoOpAuditAndIsolation(t *testing.T) {
 		t.Fatalf("audit=%s", raw)
 	}
 	draft, err := s.GetV2(ctx, p.companyID, p.ownerID, id)
-	if err != nil || !reflect.DeepEqual(draft, created) {
+	if err != nil || !reflect.DeepEqual(withoutLifecycleResult(t, draft), created) {
 		t.Fatal("management changed draft")
 	}
 	before = publicationSnapshot(t, pool, id)

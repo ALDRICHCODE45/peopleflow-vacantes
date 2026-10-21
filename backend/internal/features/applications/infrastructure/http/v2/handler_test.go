@@ -27,7 +27,7 @@ func (f *fakeStore) Apply(context.Context, string, uuid.UUID, uuid.UUID, app.Req
 }
 func (f *fakeStore) List(context.Context, string, app.Query) (app.Page, error) {
 	f.calls++
-	return app.Page{Items: []app.Item{{ID: uuid.New(), Vacancy: app.Vacancy{ID: uuid.New(), Title: "Role"}, Company: app.Company{ID: uuid.New(), Name: "Acme"}, Status: "submitted"}}}, f.err
+	return app.Page{Items: []app.Item{{ID: uuid.New(), Vacancy: app.Vacancy{ID: uuid.New(), Title: "Role", State: "open"}, Company: app.Company{ID: uuid.New(), Name: "Acme"}, Status: "submitted"}}}, f.err
 }
 func TestCandidateListHTTPStrictQueryAndShape(t *testing.T) {
 	for _, query := range []string{"", "?limit=0", "?limit=1&limit=2", "?unknown=1", "?cursor=bad"} {
@@ -50,12 +50,29 @@ func TestCandidateListHTTPStrictQueryAndShape(t *testing.T) {
 				t.Fatal(w.Code, body)
 			}
 			item := body["items"].([]any)[0].(map[string]any)
-			if len(item) != 6 || item["message"] != nil || item["status"] != "submitted" || len(item["vacancy"].(map[string]any)) != 2 || len(item["company"].(map[string]any)) != 2 {
+			if len(item) != 6 || item["message"] != nil || item["status"] != "submitted" || len(item["vacancy"].(map[string]any)) != 3 || item["vacancy"].(map[string]any)["state"] != "open" || len(item["company"].(map[string]any)) != 2 {
 				t.Fatal(item)
 			}
 		})
 	}
 }
+func TestApplyUnavailableExactWire(t *testing.T) {
+	for _, state := range []string{"paused", "closed"} {
+		t.Run(state, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			writeError(w, &app.NotAcceptingApplications{Availability: state})
+			var got map[string]any
+			if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+				t.Fatal(err)
+			}
+			data, ok := got["data"].(map[string]any)
+			if w.Code != 409 || len(got) != 3 || got["code"] != "vacancy_not_accepting_applications" || !ok || len(data) != 1 || data["availability"] != state {
+				t.Fatal(w.Code, w.Body.String())
+			}
+		})
+	}
+}
+
 func TestApplyTransport(t *testing.T) {
 	body := `{"cv_id":"` + uuid.NewString() + `","questionnaire_revision":"r","answers":[]}`
 	for _, tc := range []struct {
