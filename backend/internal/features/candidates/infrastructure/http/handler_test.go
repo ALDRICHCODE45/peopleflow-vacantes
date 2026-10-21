@@ -200,6 +200,7 @@ func TestGetProfile_Ok(t *testing.T) {
 	}
 	title := "Senior Backend Engineer"
 	stored.ProfessionalTitle = &title
+	stored.Education = []entities.Education{{Level: "bachelor", Status: "completed"}}
 
 	cRepo := &stubCandidateRepo{getByIDOut: stored}
 	uRepo := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-abc"}}
@@ -220,8 +221,8 @@ func TestGetProfile_Ok(t *testing.T) {
 	if got.ProfessionalTitle == nil || *got.ProfessionalTitle != title {
 		t.Errorf("ProfessionalTitle: want %q, got %v", title, got.ProfessionalTitle)
 	}
-	if got.EducationLevel == nil || *got.EducationLevel != "bachelor" {
-		t.Errorf("EducationLevel: want bachelor, got %v", got.EducationLevel)
+	if len(got.Education) != 1 || got.Education[0].Level != "bachelor" {
+		t.Errorf("Education: %v", got.Education)
 	}
 	if len(got.Skills) != 2 || got.Skills[0] != "go" || got.Skills[1] != "aws" {
 		t.Errorf("Skills: %v", got.Skills)
@@ -264,7 +265,7 @@ func TestUpsertProfile_Ok(t *testing.T) {
 
 	body := `{
         "professional_title": "Backend Engineer",
-        "education_level": "bachelor",
+        "education": [{"level":"bachelor","institution":null,"field":null,"status":"completed","start_year":null,"end_year":null}],
         "expected_salary_period": "monthly",
         "skills": ["Go", "AWS"]
     }`
@@ -283,8 +284,8 @@ func TestUpsertProfile_Ok(t *testing.T) {
 	if got.ProfessionalTitle == nil || *got.ProfessionalTitle != "Backend Engineer" {
 		t.Errorf("ProfessionalTitle: %v", got.ProfessionalTitle)
 	}
-	if got.EducationLevel == nil || *got.EducationLevel != "bachelor" {
-		t.Errorf("EducationLevel: %v", got.EducationLevel)
+	if len(got.Education) != 1 || got.Education[0].Level != "bachelor" {
+		t.Errorf("Education: %v", got.Education)
 	}
 	// Skills are normalized to lowercase before write.
 	if len(got.Skills) != 2 || got.Skills[0] != "go" || got.Skills[1] != "aws" {
@@ -305,8 +306,8 @@ func TestUpsertProfile_InvalidEducationLevel(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "education") {
-		t.Errorf("expected error mentioning education, got: %s", rec.Body.String())
+	if cRepo.upsertCalls != 0 {
+		t.Fatal("removed field reached persistence")
 	}
 	assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 }
@@ -427,7 +428,7 @@ func TestReplaceLanguages_Ok(t *testing.T) {
 	uRepo := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-abc"}}
 	router := newTestRouter(newTestHandler(cRepo, uRepo))
 
-	body := `{"languages":[{"name":"english","level":"C1"},{"name":"french","level":"A2"}]}`
+	body := `{"languages":[{"code":"en","level":"C1"},{"code":"fr","level":"A2"}]}`
 	rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/languages/", body, "sub-abc"))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
@@ -447,17 +448,16 @@ func TestReplaceLanguages_DuplicateIsRejected(t *testing.T) {
 	router := newTestRouter(newTestHandler(cRepo, uRepo))
 
 	body := `{"languages":[
-        {"name":"english","level":"B2"},
-        {"name":"english","level":"C1"}
+        {"code":"en","level":"B2"},
+        {"code":"en","level":"C1"}
     ]}`
 	rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/languages/", body, "sub-abc"))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "duplicate") {
-		t.Errorf("expected error mentioning duplicate, got: %s", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), `"code":"duplicate"`) || !strings.Contains(rec.Body.String(), `"code":"validation_error"`) {
+		t.Errorf("expected duplicate field error: %s", rec.Body.String())
 	}
-	assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 }
 
 // TestReplaceLanguages_InvalidCefrIsRejected covers the spec scenario
@@ -468,15 +468,14 @@ func TestReplaceLanguages_InvalidCefrIsRejected(t *testing.T) {
 	uRepo := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-abc"}}
 	router := newTestRouter(newTestHandler(cRepo, uRepo))
 
-	body := `{"languages":[{"name":"english","level":"native"}]}`
+	body := `{"languages":[{"code":"en","level":"fluent"}]}`
 	rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/languages/", body, "sub-abc"))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("want 400, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "CEFR") && !strings.Contains(rec.Body.String(), "cefr") {
-		t.Errorf("expected error mentioning CEFR, got: %s", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), `"field":"languages[0].level"`) || !strings.Contains(rec.Body.String(), `"code":"validation_error"`) {
+		t.Errorf("expected level field error: %s", rec.Body.String())
 	}
-	assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
 }
 
 // TestCandidateHandlers_DecodeBoundary pins the Wave-B decode boundary on
@@ -663,8 +662,15 @@ func handlerSource(t *testing.T) string {
 // crosses the candidate HTTP boundary.
 func TestProfileWireContract_StaticScan(t *testing.T) {
 	src := handlerSource(t)
-	if got := strings.Count(src, "field_of_study"); got < 2 {
-		t.Errorf("request AND response structs must both carry the exact wire name field_of_study, found %d occurrences", got)
+	for _, removed := range []string{`json:"field_of_study`, `json:"education_level`} {
+		if strings.Contains(src, removed) {
+			t.Errorf("removed wire field: %s", removed)
+		}
+	}
+	for _, field := range []string{"education", "seniority", "years_of_experience"} {
+		if strings.Count(src, `json:"`+field+`"`) < 2 {
+			t.Errorf("missing request/response field %s", field)
+		}
 	}
 	if strings.Contains(src, "field_of study") {
 		t.Error("defective request tag `field_of study` must not exist; it silently drops client input")
@@ -689,24 +695,15 @@ func TestUpsertProfile_CvS3KeyNotClientWritable(t *testing.T) {
 
 	body := `{"professional_title": "Backend Engineer", "cv_s3_key": "resumes/fake.pdf"}`
 	rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", body, "sub-abc"))
-	if rec.Code != http.StatusOK {
-		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-	if strings.Contains(rec.Body.String(), "cv_s3_key") {
-		t.Errorf("PUT response must not expose reserved cv_s3_key, got: %s", rec.Body.String())
-	}
-	if cRepo.upserted == nil {
-		t.Fatal("expected profile to reach the repository")
-	}
-	if cRepo.upserted.CVS3Key != nil {
-		t.Errorf("client-supplied cv_s3_key must be ignored, got %q", *cRepo.upserted.CVS3Key)
+	assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
+	if cRepo.upsertCalls != 0 {
+		t.Fatal("unknown field reached persistence")
 	}
 
 	// A preexisting reserved value on the stored entity must also stay off
 	// the wire (GET /me/profile).
 	reserved := "resumes/reserved.pdf"
-	cRepo.upserted.CVS3Key = &reserved
-	cRepo.getByIDOut = cRepo.upserted
+	cRepo.getByIDOut = &entities.CandidateProfile{UserID: userID.String(), CVS3Key: &reserved}
 	getRec := doRequest(t, router, authedRequest(t, http.MethodGet, "/me/profile/", "", "sub-abc"))
 	if getRec.Code != http.StatusOK || strings.Contains(getRec.Body.String(), "cv_s3_key") {
 		t.Fatalf("GET must be 200 without reserved cv_s3_key, got %d: %s", getRec.Code, getRec.Body.String())
@@ -722,7 +719,7 @@ func TestFieldOfStudy_RoundTrip(t *testing.T) {
 	uRepo := &stubUserRepo{resolved: &identityentities.User{ID: userID, CognitoSub: "sub-abc"}}
 	router := newTestRouter(newTestHandler(cRepo, uRepo))
 
-	body := `{"field_of_study": "Computer Science"}`
+	body := `{"education":[{"level":"bachelor","institution":null,"field":"Computer Science","status":"completed","start_year":null,"end_year":null}]}`
 	rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", body, "sub-abc"))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
@@ -731,8 +728,8 @@ func TestFieldOfStudy_RoundTrip(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &putResp); err != nil {
 		t.Fatalf("decode PUT response: %v", err)
 	}
-	if putResp.FieldOfStudy == nil || *putResp.FieldOfStudy != "Computer Science" {
-		t.Errorf("PUT response field_of_study: want %q, got %v", "Computer Science", putResp.FieldOfStudy)
+	if len(putResp.Education) != 1 || putResp.Education[0].Field == nil || *putResp.Education[0].Field != "Computer Science" {
+		t.Errorf("PUT education: %v", putResp.Education)
 	}
 
 	// GET reads back the persisted row.
@@ -742,8 +739,8 @@ func TestFieldOfStudy_RoundTrip(t *testing.T) {
 	if err := json.Unmarshal(getRec.Body.Bytes(), &getResp); err != nil {
 		t.Fatalf("decode GET response: %v", err)
 	}
-	if getResp.FieldOfStudy == nil || *getResp.FieldOfStudy != "Computer Science" {
-		t.Errorf("GET response field_of_study must round-trip unchanged, got %v", getResp.FieldOfStudy)
+	if len(getResp.Education) != 1 || getResp.Education[0].Field == nil || *getResp.Education[0].Field != "Computer Science" {
+		t.Errorf("GET education: %v", getResp.Education)
 	}
 }
 
@@ -814,23 +811,14 @@ func TestUpsertProfile_FullReplacementContract(t *testing.T) {
 		}
 	})
 
-	t.Run("server-managed fields are ignored", func(t *testing.T) {
+	t.Run("server-managed fields are rejected", func(t *testing.T) {
 		cRepo := &stubCandidateRepo{}
 		router := newTestRouter(newTestHandler(cRepo, uRepo))
 		body := `{"user_id": "` + uuid.New().String() + `", "created_at": "1999-01-01T00:00:00Z", "updated_at": "1999-01-01T00:00:00Z", "phone": "555"}`
 		rec := doRequest(t, router, authedRequest(t, http.MethodPut, "/me/profile/", body, "sub-abc"))
-		if rec.Code != http.StatusOK {
-			t.Fatalf("want 200, got %d: %s", rec.Code, rec.Body.String())
-		}
-		var got candidateProfileResponse
-		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
-			t.Fatalf("decode: %v", err)
-		}
-		if got.UserID != userID.String() {
-			t.Errorf("user_id is server-managed: want %s, got %s", userID, got.UserID)
-		}
-		if cRepo.upserted.Phone == nil || *cRepo.upserted.Phone != "555" {
-			t.Error("client-owned fields must still bind")
+		assertCatalogEnvelope(t, rec, http.StatusBadRequest, httpjson.CodeInvalidRequest)
+		if cRepo.upsertCalls != 0 {
+			t.Fatal("server-managed field reached persistence")
 		}
 	})
 }
@@ -1490,7 +1478,7 @@ func runReplaceLanguagesUnexpectedErrorScenario(t *testing.T, postWriteFail, use
 	router.Use(middleware.RequestObservability(nil, nil))
 	router.Mount("/me/profile", newTestHandler(cRepo, uRepo).Routes())
 
-	req := authedRequest(t, http.MethodPut, "/me/profile/languages/", `{"languages":[{"name":" English ","level":"B2"}]}`, "sub-abc")
+	req := authedRequest(t, http.MethodPut, "/me/profile/languages/", `{"languages":[{"code":"en","level":"B2"}]}`, "sub-abc")
 	if requestIDHeader != "" {
 		req.Header.Set("X-Request-Id", requestIDHeader)
 	}
@@ -1655,13 +1643,13 @@ func TestReplaceLanguages_UnexpectedErrorLogCorrelationAndRedaction(t *testing.T
 
 			// Branch-specific repository echo: the pre-write failure never
 			// writes; the post-write failure stored the normalized list
-			// (lowercased + trimmed) before the read failed.
+			// (validated catalog codes) before the read failed.
 			if !tt.postWriteFail {
 				if len(cRepo.replacedWith) != 0 {
 					t.Errorf("pre-write failure must not write, got %v", cRepo.replacedWith)
 				}
 			} else {
-				if len(cRepo.replacedWith) != 1 || cRepo.replacedWith[0].Name != "english" || cRepo.replacedWith[0].Level != valueobjects.B2 {
+				if len(cRepo.replacedWith) != 1 || cRepo.replacedWith[0].Name != "en" || cRepo.replacedWith[0].Level != valueobjects.B2 {
 					t.Errorf("post-write failure must have stored the normalized list, got %v", cRepo.replacedWith)
 				}
 			}

@@ -17,6 +17,7 @@ func TestCefrLevel_String(t *testing.T) {
 		{"B2", B2, "B2"},
 		{"C1", C1, "C1"},
 		{"C2", C2, "C2"},
+		{"native", Native, "native"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -31,7 +32,7 @@ func TestCefrLevel_ParseValid(t *testing.T) {
 	// Spec invariant: CEFR levels are case-sensitive uppercase codes. The DB
 	// CHECK matches that exact spelling, so we deliberately do NOT lowercase
 	// or trim. Mixed-case inputs are rejected as invalid.
-	for _, raw := range []string{"A1", "A2", "B1", "B2", "C1", "C2"} {
+	for _, raw := range []string{"A1", "A2", "B1", "B2", "C1", "C2", "native"} {
 		t.Run(raw, func(t *testing.T) {
 			got, err := ParseCefrLevel(raw)
 			if err != nil {
@@ -45,9 +46,9 @@ func TestCefrLevel_ParseValid(t *testing.T) {
 }
 
 func TestCefrLevel_ParseUnknown(t *testing.T) {
-	_, err := ParseCefrLevel("native")
+	_, err := ParseCefrLevel("fluent")
 	if err == nil {
-		t.Fatal("expected ErrInvalidCefrLevel for 'native', got nil")
+		t.Fatal("expected ErrInvalidCefrLevel for 'fluent', got nil")
 	}
 	if !errors.Is(err, ErrInvalidCefrLevel) {
 		t.Errorf("expected ErrInvalidCefrLevel, got: %v", err)

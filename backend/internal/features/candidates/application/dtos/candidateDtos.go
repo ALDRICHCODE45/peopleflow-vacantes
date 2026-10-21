@@ -3,7 +3,10 @@
 // use case owns parsing and validation through the domain VOs.
 package dtos
 
-import geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
+import (
+	"encoding/json"
+	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
+)
 
 // UpsertMyProfileDto is the PUT /me/profile body. PUT has full-replacement
 // semantics: every client-owned field is optional on the wire, and an
@@ -16,15 +19,14 @@ type UpsertMyProfileDto struct {
 	PortfolioURL      *string
 	ProfessionalTitle *string
 	CurrentCompany    *string
-	YearsOfExperience *int
+	YearsOfExperience json.RawMessage
+	Seniority         json.RawMessage
+	Education         json.RawMessage
 	ProfileSummary    *string
 
 	BirthDate *string // ISO-8601 (YYYY-MM-DD); parsed by the use case.
 
 	Location *geo.LocationInput
-
-	EducationLevel *string // validated by valueobjects.ParseEducationLevel
-	FieldOfStudy   *string
 
 	Skills []string
 
@@ -46,5 +48,6 @@ type LanguageDto struct {
 // list replaces the stored rows atomically; an empty Languages slice
 // clears the user's languages.
 type ReplaceMyLanguagesDto struct {
-	Languages []LanguageDto
+	Languages    []LanguageDto
+	RawLanguages json.RawMessage
 }

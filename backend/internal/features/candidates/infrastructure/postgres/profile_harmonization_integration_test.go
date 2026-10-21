@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestProfileHarmonizationLegacyProjection(t *testing.T) {
+func TestProfileHarmonizationStoredEducation(t *testing.T) {
 	if testing.Short() {
 		t.Skip("database test")
 	}
@@ -24,14 +24,14 @@ func TestProfileHarmonizationLegacyProjection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.YearsOfExperience == nil || *got.YearsOfExperience != 7 || got.EducationLevel == nil || got.EducationLevel.String() != "master" || got.FieldOfStudy == nil || *got.FieldOfStudy != "Masters" {
-		t.Fatalf("legacy projection: %+v", got)
+	if got.YearsOfExperience == nil || *got.YearsOfExperience != "7.9" || len(got.Education) != 4 || got.Education[2].Status != "in_progress" || got.Education[3].Level != "specialty" {
+		t.Fatalf("full projection: %+v", got)
 	}
 	if _, err := pool.Exec(ctx, `UPDATE candidate_educations SET status='paused' WHERE user_id=$1 AND status='completed'`, user); err != nil {
 		t.Fatal(err)
 	}
 	got, err = repo.GetProfileByUserID(ctx, user)
-	if err != nil || got.EducationLevel != nil || got.FieldOfStudy != nil {
-		t.Fatalf("no completed qualification: %+v %v", got, err)
+	if err != nil || len(got.Education) != 4 || got.Education[0].Status != "paused" {
+		t.Fatalf("paused records preserved: %+v %v", got, err)
 	}
 }

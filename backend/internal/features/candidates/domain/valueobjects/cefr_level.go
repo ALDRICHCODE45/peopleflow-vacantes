@@ -23,6 +23,7 @@ const (
 	B2
 	C1
 	C2
+	Native
 )
 
 // String returns the canonical uppercase wire value for the level.
@@ -40,6 +41,8 @@ func (l CefrLevel) String() string {
 		return "C1"
 	case C2:
 		return "C2"
+	case Native:
+		return "native"
 	default:
 		return "unknown_cefr"
 	}
@@ -63,6 +66,8 @@ func ParseCefrLevel(raw string) (CefrLevel, error) {
 		return C1, nil
 	case "C2":
 		return C2, nil
+	case "native":
+		return Native, nil
 	default:
 		return UnknownCefrLevel, ErrInvalidCefrLevel
 	}

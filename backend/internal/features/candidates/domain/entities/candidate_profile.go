@@ -74,7 +74,9 @@ type CandidateProfile struct {
 	PortfolioURL      *string
 	ProfessionalTitle *string
 	CurrentCompany    *string
-	YearsOfExperience *int
+	YearsOfExperience *string
+	Seniority         *string
+	Education         []Education
 	ProfileSummary    *string
 
 	// Personal. BirthDate is intentionally nullable per §1.9.

@@ -30,15 +30,6 @@ func (q *Queries) DeleteCandidateLanguagesByUserID(ctx context.Context, userID u
 	return err
 }
 
-const deleteLegacyCandidateLanguageNames = `-- name: DeleteLegacyCandidateLanguageNames :exec
-DELETE FROM candidate_language_0039_backup WHERE user_id=$1
-`
-
-func (q *Queries) DeleteLegacyCandidateLanguageNames(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, deleteLegacyCandidateLanguageNames, userID)
-	return err
-}
-
 const getCandidateProfileByUserID = `-- name: GetCandidateProfileByUserID :one
 SELECT user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, birth_date, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code, seniority FROM candidate_profiles WHERE user_id=$1
 `
@@ -93,6 +84,35 @@ func (q *Queries) GetLegacyCandidateEducation(ctx context.Context, userID uuid.U
 	return i, err
 }
 
+const insertCandidateEducation = `-- name: InsertCandidateEducation :exec
+INSERT INTO candidate_educations(user_id,position,level,institution,field,status,start_year,end_year) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+`
+
+type InsertCandidateEducationParams struct {
+	UserID      uuid.UUID   `json:"user_id"`
+	Position    int16       `json:"position"`
+	Level       string      `json:"level"`
+	Institution pgtype.Text `json:"institution"`
+	Field       pgtype.Text `json:"field"`
+	Status      string      `json:"status"`
+	StartYear   pgtype.Int2 `json:"start_year"`
+	EndYear     pgtype.Int2 `json:"end_year"`
+}
+
+func (q *Queries) InsertCandidateEducation(ctx context.Context, arg InsertCandidateEducationParams) error {
+	_, err := q.db.Exec(ctx, insertCandidateEducation,
+		arg.UserID,
+		arg.Position,
+		arg.Level,
+		arg.Institution,
+		arg.Field,
+		arg.Status,
+		arg.StartYear,
+		arg.EndYear,
+	)
+	return err
+}
+
 const insertCandidateLanguage = `-- name: InsertCandidateLanguage :exec
 INSERT INTO candidate_languages(user_id,code,level) VALUES($1,$2,$3)
 `
@@ -123,54 +143,35 @@ func (q *Queries) InsertLegacyCandidateEducation(ctx context.Context, arg Insert
 	return err
 }
 
-const insertLegacyCandidateLanguageName = `-- name: InsertLegacyCandidateLanguageName :exec
-INSERT INTO candidate_language_0039_backup(user_id,language,level,code) VALUES($1,$2,$3,$4)
+const listCandidateEducations = `-- name: ListCandidateEducations :many
+SELECT level,institution,field,status,start_year,end_year FROM candidate_educations WHERE user_id=$1 ORDER BY position,id
 `
 
-type InsertLegacyCandidateLanguageNameParams struct {
-	UserID   uuid.UUID   `json:"user_id"`
-	Language string      `json:"language"`
-	Level    string      `json:"level"`
-	Code     pgtype.Text `json:"code"`
+type ListCandidateEducationsRow struct {
+	Level       string      `json:"level"`
+	Institution pgtype.Text `json:"institution"`
+	Field       pgtype.Text `json:"field"`
+	Status      string      `json:"status"`
+	StartYear   pgtype.Int2 `json:"start_year"`
+	EndYear     pgtype.Int2 `json:"end_year"`
 }
 
-func (q *Queries) InsertLegacyCandidateLanguageName(ctx context.Context, arg InsertLegacyCandidateLanguageNameParams) error {
-	_, err := q.db.Exec(ctx, insertLegacyCandidateLanguageName,
-		arg.UserID,
-		arg.Language,
-		arg.Level,
-		arg.Code,
-	)
-	return err
-}
-
-const listCandidateLanguagesByUserID = `-- name: ListCandidateLanguagesByUserID :many
-SELECT l.user_id,l.code,l.level,
- coalesce((SELECT b.language FROM candidate_language_0039_backup b WHERE b.user_id=l.user_id AND b.code=l.code ORDER BY b.level DESC,b.language LIMIT 1),'')::text AS legacy_name
-FROM candidate_languages l WHERE l.user_id=$1 ORDER BY legacy_name,l.code
-`
-
-type ListCandidateLanguagesByUserIDRow struct {
-	UserID     uuid.UUID `json:"user_id"`
-	Code       string    `json:"code"`
-	Level      string    `json:"level"`
-	LegacyName string    `json:"legacy_name"`
-}
-
-func (q *Queries) ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]ListCandidateLanguagesByUserIDRow, error) {
-	rows, err := q.db.Query(ctx, listCandidateLanguagesByUserID, userID)
+func (q *Queries) ListCandidateEducations(ctx context.Context, userID uuid.UUID) ([]ListCandidateEducationsRow, error) {
+	rows, err := q.db.Query(ctx, listCandidateEducations, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListCandidateLanguagesByUserIDRow
+	var items []ListCandidateEducationsRow
 	for rows.Next() {
-		var i ListCandidateLanguagesByUserIDRow
+		var i ListCandidateEducationsRow
 		if err := rows.Scan(
-			&i.UserID,
-			&i.Code,
 			&i.Level,
-			&i.LegacyName,
+			&i.Institution,
+			&i.Field,
+			&i.Status,
+			&i.StartYear,
+			&i.EndYear,
 		); err != nil {
 			return nil, err
 		}
@@ -180,6 +181,44 @@ func (q *Queries) ListCandidateLanguagesByUserID(ctx context.Context, userID uui
 		return nil, err
 	}
 	return items, nil
+}
+
+const listCandidateLanguagesByUserID = `-- name: ListCandidateLanguagesByUserID :many
+SELECT user_id,code,level FROM candidate_languages WHERE user_id=$1 ORDER BY code
+`
+
+func (q *Queries) ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error) {
+	rows, err := q.db.Query(ctx, listCandidateLanguagesByUserID, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CandidateLanguage
+	for rows.Next() {
+		var i CandidateLanguage
+		if err := rows.Scan(&i.UserID, &i.Code, &i.Level); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setCandidateSeniority = `-- name: SetCandidateSeniority :exec
+UPDATE candidate_profiles SET seniority=$2 WHERE user_id=$1
+`
+
+type SetCandidateSeniorityParams struct {
+	UserID    uuid.UUID   `json:"user_id"`
+	Seniority pgtype.Text `json:"seniority"`
+}
+
+func (q *Queries) SetCandidateSeniority(ctx context.Context, arg SetCandidateSeniorityParams) error {
+	_, err := q.db.Exec(ctx, setCandidateSeniority, arg.UserID, arg.Seniority)
+	return err
 }
 
 const upsertCandidateProfile = `-- name: UpsertCandidateProfile :one

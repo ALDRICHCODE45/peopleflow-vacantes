@@ -2,62 +2,84 @@ package usecases
 
 import (
 	"context"
-	"strings"
+	"encoding/json"
+	"fmt"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/application/dtos"
-	candidatesentities "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/entities"
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/valueobjects"
+	catalog "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/languages"
 )
 
-// ReplaceMyLanguages atomically replaces the caller's full language list.
-// The use case owns VO parsing (CEFR level) and duplicate detection so
-// the HTTP layer maps a single sentinel to 400 and the repository is
-// never invoked on validation failure.
-//
-// The atomicity guarantee (delete-then-insert in one tx) lives in the
-// postgres adapter; this layer only forwards the canonical list.
-func (s *CandidateService) ReplaceMyLanguages(ctx context.Context, cognitoSub string, params dtos.ReplaceMyLanguagesDto) error {
-	userID, err := s.resolveUserID(ctx, cognitoSub)
+func (s *CandidateService) ReplaceMyLanguages(ctx context.Context, sub string, params dtos.ReplaceMyLanguagesDto) error {
+	userID, err := s.resolveUserID(ctx, sub)
 	if err != nil {
 		return err
 	}
-
-	languages, err := buildLanguages(params.Languages)
+	var out []entities.Language
+	if params.RawLanguages != nil {
+		out, err = validateLanguages(params.RawLanguages)
+	} else {
+		out, err = buildLanguages(params.Languages)
+	}
 	if err != nil {
 		return err
 	}
-
-	return s.repository.ReplaceLanguagesByUserID(ctx, userID, languages)
+	return s.repository.ReplaceLanguagesByUserID(ctx, userID, out)
 }
 
-// buildLanguages parses each DTO entry through the CEFR VO and enforces
-// the spec invariant "the pair (user_id, language) SHALL be unique" at
-// the use-case edge — duplicates must reject with entities.ErrDuplicateLanguage
-// so the HTTP layer maps to 400.
-//
-// Empty input returns an empty (non-nil) slice so the adapter issues
-// "delete all, insert none" and the stored list is cleared.
-func buildLanguages(in []dtos.LanguageDto) ([]candidatesentities.Language, error) {
-	if len(in) == 0 {
-		return []candidatesentities.Language{}, nil
+func buildLanguages(in []dtos.LanguageDto) ([]entities.Language, error) {
+	records := make([]map[string]string, 0, len(in))
+	for _, entry := range in {
+		records = append(records, map[string]string{catalog.CodeField: entry.Name, "level": entry.Level})
 	}
+	raw, err := json.Marshal(records)
+	if err != nil {
+		return nil, err
+	}
+	return validateLanguages(raw)
+}
 
-	seen := make(map[string]struct{}, len(in))
-	out := make([]candidatesentities.Language, 0, len(in))
-	for _, dto := range in {
-		level, err := valueobjects.ParseCefrLevel(dto.Level)
-		if err != nil {
-			return nil, err
+func validateLanguages(raw json.RawMessage) ([]entities.Language, error) {
+	errs := &ValidationError{}
+	var records []json.RawMessage
+	if nullable(raw) || json.Unmarshal(raw, &records) != nil {
+		errs.add("languages", "invalid")
+		return nil, errs
+	}
+	if len(records) > 10 {
+		errs.add("languages", "too_long")
+		return nil, errs
+	}
+	out := make([]entities.Language, 0, len(records))
+	seen := map[string]bool{}
+	for i, record := range records {
+		prefix := fmt.Sprintf("languages[%d]", i)
+		var fields map[string]json.RawMessage
+		if json.Unmarshal(record, &fields) != nil || fields == nil {
+			errs.add(prefix, "invalid")
+			continue
 		}
-		name := strings.ToLower(strings.TrimSpace(dto.Name))
-		if name == "" {
-			return nil, valueobjects.ErrInvalidCefrLevel
+		for key := range fields {
+			if key != catalog.CodeField && key != "level" {
+				return nil, ErrUnknownField
+			}
 		}
-		if _, dup := seen[name]; dup {
-			return nil, candidatesentities.ErrDuplicateLanguage
+		code := stringField(fields[catalog.CodeField], prefix+".code", true, func(s string) bool { _, ok := catalog.Lookup(s); return ok }, errs)
+		level := stringField(fields["level"], prefix+".level", true, catalog.ValidLanguageLevel, errs)
+		if code != nil {
+			if seen[*code] {
+				errs.add(prefix+".code", "duplicate")
+			}
+			seen[*code] = true
 		}
-		seen[name] = struct{}{}
-		out = append(out, candidatesentities.Language{Name: name, Level: level})
+		if code != nil && level != nil {
+			parsed, _ := valueobjects.ParseCefrLevel(*level)
+			out = append(out, entities.Language{Name: *code, Level: parsed})
+		}
+	}
+	if len(errs.Fields) > 0 {
+		return nil, errs
 	}
 	return out, nil
 }

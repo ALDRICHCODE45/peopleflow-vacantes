@@ -115,7 +115,6 @@ type Querier interface {
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteCandidateEducations(ctx context.Context, userID uuid.UUID) error
 	DeleteCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) error
-	DeleteLegacyCandidateLanguageNames(ctx context.Context, userID uuid.UUID) error
 	GeoCountries(ctx context.Context) ([]GeoCountriesRow, error)
 	GeoCountryExists(ctx context.Context, code string) (bool, error)
 	GeoLatestImport(ctx context.Context) (int64, error)
@@ -185,9 +184,9 @@ type Querier interface {
 	// actor_id is sqlc.narg (nullable): 'user' events carry the actor's
 	// users.id; 'system' events (not emitted this slice) carry SQL NULL.
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
+	InsertCandidateEducation(ctx context.Context, arg InsertCandidateEducationParams) error
 	InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error
 	InsertLegacyCandidateEducation(ctx context.Context, arg InsertLegacyCandidateEducationParams) error
-	InsertLegacyCandidateLanguageName(ctx context.Context, arg InsertLegacyCandidateLanguageNameParams) error
 	// Atomic liveness probe for the RequireCompanyRole middleware
 	// (require-company-role-tombstone-gate slice). Returns `deleted_at IS NULL`
 	// for the exact company id WITHOUT filtering away tombstones:
@@ -226,7 +225,8 @@ type Querier interface {
 	// row. Ordered by created_at for stable rendering; backed by
 	// `company_members_company_id_idx` B-tree.
 	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]ListByCompanyIDRow, error)
-	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]ListCandidateLanguagesByUserIDRow, error)
+	ListCandidateEducations(ctx context.Context, userID uuid.UUID) ([]ListCandidateEducationsRow, error)
+	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error)
 	// Candidate's GET /me/applications list. Joins jobs (title) + companies
 	// (id, name) to render the embedded job summary. NOT redacted by
 	// jobs.deleted_at on purpose: the candidate's own history persists
@@ -283,6 +283,7 @@ type Querier interface {
 	// employment_type is not a schedule or contract type. Rank is float8 on both
 	// sides of the keyset comparison so cursor round-trips lose no precision.
 	SearchPublicJobs(ctx context.Context, arg SearchPublicJobsParams) ([]SearchPublicJobsRow, error)
+	SetCandidateSeniority(ctx context.Context, arg SetCandidateSeniorityParams) error
 	// Atomic soft-delete + CAS for DELETE /me/company (companies-write
 	// slice, design D4). Minimal SET list: ONLY deleted_at = now() and
 	// updated_at = clock_timestamp(). rfc / industry_id / status /

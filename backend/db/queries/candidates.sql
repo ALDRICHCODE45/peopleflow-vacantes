@@ -37,9 +37,7 @@ DELETE FROM candidate_educations WHERE user_id=$1;
 INSERT INTO candidate_educations(user_id,position,level,field,status) VALUES($1,0,$2,$3,'completed');
 
 -- name: ListCandidateLanguagesByUserID :many
-SELECT l.user_id,l.code,l.level,
- coalesce((SELECT b.language FROM candidate_language_0039_backup b WHERE b.user_id=l.user_id AND b.code=l.code ORDER BY b.level DESC,b.language LIMIT 1),'')::text AS legacy_name
-FROM candidate_languages l WHERE l.user_id=$1 ORDER BY legacy_name,l.code;
+SELECT user_id,code,level FROM candidate_languages WHERE user_id=$1 ORDER BY code;
 
 -- name: DeleteCandidateLanguagesByUserID :exec
 DELETE FROM candidate_languages WHERE user_id=$1;
@@ -47,8 +45,11 @@ DELETE FROM candidate_languages WHERE user_id=$1;
 -- name: InsertCandidateLanguage :exec
 INSERT INTO candidate_languages(user_id,code,level) VALUES($1,$2,$3);
 
--- name: DeleteLegacyCandidateLanguageNames :exec
-DELETE FROM candidate_language_0039_backup WHERE user_id=$1;
+-- name: SetCandidateSeniority :exec
+UPDATE candidate_profiles SET seniority=$2 WHERE user_id=$1;
 
--- name: InsertLegacyCandidateLanguageName :exec
-INSERT INTO candidate_language_0039_backup(user_id,language,level,code) VALUES($1,$2,$3,$4);
+-- name: ListCandidateEducations :many
+SELECT level,institution,field,status,start_year,end_year FROM candidate_educations WHERE user_id=$1 ORDER BY position,id;
+
+-- name: InsertCandidateEducation :exec
+INSERT INTO candidate_educations(user_id,position,level,institution,field,status,start_year,end_year) VALUES($1,$2,$3,$4,$5,$6,$7,$8);

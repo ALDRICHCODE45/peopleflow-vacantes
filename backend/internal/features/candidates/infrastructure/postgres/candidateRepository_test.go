@@ -101,7 +101,7 @@ func TestUpsertProfile_CreateThenUpdate(t *testing.T) {
 	title1 := "Backend Engineer"
 	profile.ProfessionalTitle = &title1
 	profile.Location = &geo.Value{Country: "MX"}
-	profile.YearsOfExperience = intPtr(3)
+	profile.YearsOfExperience = strPtr("3")
 
 	got, err := repo.UpsertProfile(ctx, profile)
 	if err != nil {
@@ -122,7 +122,7 @@ func TestUpsertProfile_CreateThenUpdate(t *testing.T) {
 	title2 := "Senior Backend Engineer"
 	got2, err := repo.UpsertProfile(ctx, mustRebuildProfile(t, profile, func(p *entities.CandidateProfile) {
 		p.ProfessionalTitle = &title2
-		p.YearsOfExperience = intPtr(7)
+		p.YearsOfExperience = strPtr("7")
 		p.Skills = []string{"go", "aws", "kubernetes"}
 	}))
 	if err != nil {
@@ -131,7 +131,7 @@ func TestUpsertProfile_CreateThenUpdate(t *testing.T) {
 	if got2.ProfessionalTitle == nil || *got2.ProfessionalTitle != title2 {
 		t.Errorf("ProfessionalTitle after update: want %q, got %v", title2, got2.ProfessionalTitle)
 	}
-	if got2.YearsOfExperience == nil || *got2.YearsOfExperience != 7 {
+	if got2.YearsOfExperience == nil || *got2.YearsOfExperience != "7" {
 		t.Errorf("YearsOfExperience after update: want 7, got %v", got2.YearsOfExperience)
 	}
 	if len(got2.Skills) != 3 {
@@ -169,6 +169,7 @@ func TestGetProfileByUserID_Found(t *testing.T) {
 	}
 	profile.Phone = strPtr("+52 55 1234 5678")
 	profile.ProfileSummary = strPtr("Summary line.")
+	profile.Education = []entities.Education{{Level: "master", Status: "completed"}}
 	profile.Location = &geo.Value{Country: "MX"}
 	if _, err := repo.UpsertProfile(ctx, profile); err != nil {
 		t.Fatalf("seed upsert: %v", err)
@@ -190,8 +191,8 @@ func TestGetProfileByUserID_Found(t *testing.T) {
 	if got.Location == nil || got.Location.Country != "MX" {
 		t.Errorf("location: %+v", got.Location)
 	}
-	if got.EducationLevel == nil || *got.EducationLevel != valueobjects.Master {
-		t.Errorf("EducationLevel: want Master, got %v", got.EducationLevel)
+	if len(got.Education) != 1 || got.Education[0].Level != "master" {
+		t.Errorf("education: %+v", got.Education)
 	}
 	if got.ExpectedSalaryPeriod == nil || *got.ExpectedSalaryPeriod != valueobjects.MonthlySalary {
 		t.Errorf("ExpectedSalaryPeriod: want MonthlySalary, got %v", got.ExpectedSalaryPeriod)
@@ -248,18 +249,18 @@ func TestReplaceLanguagesByUserID_Atomic(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Seed: [english=B2, spanish=C1]
+	// Seed: [en=B2, es=C1]
 	if err := repo.ReplaceLanguagesByUserID(ctx, userID, []entities.Language{
-		{Name: "english", Level: valueobjects.B2},
-		{Name: "spanish", Level: valueobjects.C1},
+		{Name: "en", Level: valueobjects.B2},
+		{Name: "es", Level: valueobjects.C1},
 	}); err != nil {
 		t.Fatalf("seed replace: %v", err)
 	}
 
 	// Replace with [english=C1, french=A2]; spanish should be gone.
 	if err := repo.ReplaceLanguagesByUserID(ctx, userID, []entities.Language{
-		{Name: "english", Level: valueobjects.C1},
-		{Name: "french", Level: valueobjects.A2},
+		{Name: "en", Level: valueobjects.C1},
+		{Name: "fr", Level: valueobjects.A2},
 	}); err != nil {
 		t.Fatalf("replace: %v", err)
 	}
@@ -273,8 +274,8 @@ func TestReplaceLanguagesByUserID_Atomic(t *testing.T) {
 	}
 	// Rows are ordered by language name.
 	want := map[string]valueobjects.CefrLevel{
-		"english": valueobjects.C1,
-		"french":  valueobjects.A2,
+		"en": valueobjects.C1,
+		"fr": valueobjects.A2,
 	}
 	for _, l := range got {
 		w, ok := want[l.Name]
@@ -288,7 +289,7 @@ func TestReplaceLanguagesByUserID_Atomic(t *testing.T) {
 	}
 	// Explicitly assert spanish is gone.
 	for _, l := range got {
-		if l.Name == "spanish" {
+		if l.Name == "es" {
 			t.Errorf("spanish should be removed, but found %+v", l)
 		}
 	}
@@ -307,9 +308,9 @@ func TestReplaceLanguagesByUserID_RollsBackOnDuplicate(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Seed: [english=B2]
+	// Seed: [en=B2]
 	if err := repo.ReplaceLanguagesByUserID(ctx, userID, []entities.Language{
-		{Name: "english", Level: valueobjects.B2},
+		{Name: "en", Level: valueobjects.B2},
 	}); err != nil {
 		t.Fatalf("seed replace: %v", err)
 	}
@@ -318,8 +319,8 @@ func TestReplaceLanguagesByUserID_RollsBackOnDuplicate(t *testing.T) {
 	// this, but the adapter must defensively roll back so a future race
 	// or bypassed validation never silently corrupts the list.
 	err := repo.ReplaceLanguagesByUserID(ctx, userID, []entities.Language{
-		{Name: "english", Level: valueobjects.C1},
-		{Name: "english", Level: valueobjects.A2},
+		{Name: "en", Level: valueobjects.C1},
+		{Name: "en", Level: valueobjects.A2},
 	})
 	if err == nil {
 		t.Fatal("expected ErrDuplicateLanguage, got nil")
@@ -336,7 +337,7 @@ func TestReplaceLanguagesByUserID_RollsBackOnDuplicate(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("expected 1 language after rollback, got %d: %+v", len(got), got)
 	}
-	if got[0].Name != "english" || got[0].Level != valueobjects.B2 {
+	if got[0].Name != "en" || got[0].Level != valueobjects.B2 {
 		t.Errorf("language after rollback: want [english=B2], got %+v", got[0])
 	}
 }
@@ -351,8 +352,8 @@ func TestReplaceLanguagesByUserID_EmptyClearsList(t *testing.T) {
 	defer cancel()
 
 	if err := repo.ReplaceLanguagesByUserID(ctx, userID, []entities.Language{
-		{Name: "english", Level: valueobjects.B2},
-		{Name: "spanish", Level: valueobjects.C1},
+		{Name: "en", Level: valueobjects.B2},
+		{Name: "es", Level: valueobjects.C1},
 	}); err != nil {
 		t.Fatalf("seed replace: %v", err)
 	}
@@ -387,7 +388,7 @@ func TestUpsertProfile_FullReplacementPersists(t *testing.T) {
 		t.Fatalf("first profile: %v", err)
 	}
 	first.Location = &geo.Value{Country: "MX"}
-	first.FieldOfStudy = strPtr("Computer Science")
+	first.Education = []entities.Education{{Level: "bachelor", Status: "completed", Field: strPtr("Computer Science")}}
 	first.SalaryCurrency = "USD"
 	if _, err := repo.UpsertProfile(ctx, first); err != nil {
 		t.Fatalf("first upsert: %v", err)
@@ -528,7 +529,8 @@ func mustRebuildProfile(t *testing.T, base *entities.CandidateProfile, mutate fu
 	dup.ProfileSummary = base.ProfileSummary
 	dup.BirthDate = base.BirthDate
 	dup.Location = base.Location
-	dup.FieldOfStudy = base.FieldOfStudy
+	dup.Education = append([]entities.Education(nil), base.Education...)
+	dup.Seniority = base.Seniority
 	dup.CurrentSalaryGross = base.CurrentSalaryGross
 	dup.CurrentSalaryNet = base.CurrentSalaryNet
 	dup.ExpectedSalary = base.ExpectedSalary

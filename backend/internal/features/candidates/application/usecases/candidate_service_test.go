@@ -218,12 +218,12 @@ func TestUpsertMyProfile_CreatesProfile(t *testing.T) {
 
 	phone := "+52 55 1234 5678"
 	title := "Senior Backend Engineer"
-	edu := "bachelor"
+	edu := []byte(`[{"level":"bachelor","institution":null,"field":null,"status":"completed","start_year":null,"end_year":null}]`)
 	period := "monthly"
 	dto := dtos.UpsertMyProfileDto{
 		Phone:                &phone,
 		ProfessionalTitle:    &title,
-		EducationLevel:       &edu,
+		Education:            edu,
 		ExpectedSalaryPeriod: &period,
 		Skills:               []string{"Go", "AWS"},
 	}
@@ -246,8 +246,8 @@ func TestUpsertMyProfile_CreatesProfile(t *testing.T) {
 	if strings.Join(cRepo.upserted.Skills, ",") != strings.Join(wantSkills, ",") {
 		t.Errorf("Skills: want %v, got %v", wantSkills, cRepo.upserted.Skills)
 	}
-	if cRepo.upserted.EducationLevel == nil || *cRepo.upserted.EducationLevel != valueobjects.Bachelor {
-		t.Errorf("EducationLevel: want Bachelor, got %v", cRepo.upserted.EducationLevel)
+	if len(cRepo.upserted.Education) != 1 || cRepo.upserted.Education[0].Level != "bachelor" {
+		t.Errorf("education: %+v", cRepo.upserted.Education)
 	}
 	if cRepo.upserted.ExpectedSalaryPeriod == nil || *cRepo.upserted.ExpectedSalaryPeriod != valueobjects.MonthlySalary {
 		t.Errorf("ExpectedSalaryPeriod: want MonthlySalary, got %v", cRepo.upserted.ExpectedSalaryPeriod)
@@ -263,12 +263,13 @@ func TestUpsertMyProfile_InvalidEducationReturns400(t *testing.T) {
 	uRepo := &stubUserRepository{resolved: makeUser(userID, "sub-abc")}
 	svc := newSvc(cRepo, uRepo)
 
-	badEdu := "vocational"
+	badEdu := []byte(`[{"level":"vocational","institution":null,"field":null,"status":"completed","start_year":null,"end_year":null}]`)
 	_, err := svc.UpsertMyProfile(context.Background(), "sub-abc", dtos.UpsertMyProfileDto{
-		EducationLevel: &badEdu,
+		Education: badEdu,
 	})
-	if !errors.Is(err, valueobjects.ErrInvalidEducationLevel) {
-		t.Errorf("expected ErrInvalidEducationLevel, got: %v", err)
+	var invalid *ValidationError
+	if !errors.As(err, &invalid) || len(invalid.Fields) != 1 || invalid.Fields[0] != (FieldError{"education[0].level", "invalid"}) {
+		t.Errorf("expected education field error, got: %v", err)
 	}
 	if cRepo.upsertCalls != 0 {
 		t.Errorf("repository must not be invoked on validation failure, got %d calls", cRepo.upsertCalls)
@@ -334,10 +335,10 @@ func TestUpsertMyProfile_IsIdempotent(t *testing.T) {
 	// Second PUT with new payload must be accepted; the use case forwards
 	// the latest body to the repository, and the persisted row reflects it.
 	secondTitle := "Second Title"
-	secondEdu := "master"
+	secondEdu := []byte(`[{"level":"master","institution":null,"field":null,"status":"completed","start_year":null,"end_year":null}]`)
 	got, err := svc.UpsertMyProfile(context.Background(), "sub-abc", dtos.UpsertMyProfileDto{
 		ProfessionalTitle: &secondTitle,
-		EducationLevel:    &secondEdu,
+		Education:         secondEdu,
 	})
 	if err != nil {
 		t.Fatalf("second upsert: %v", err)
@@ -350,8 +351,8 @@ func TestUpsertMyProfile_IsIdempotent(t *testing.T) {
 		*cRepo.upserted.ProfessionalTitle != secondTitle {
 		t.Errorf("repo saw title: want %q, got %v", secondTitle, cRepo.upserted.ProfessionalTitle)
 	}
-	if cRepo.upserted.EducationLevel == nil || *cRepo.upserted.EducationLevel != valueobjects.Master {
-		t.Errorf("repo saw EducationLevel: want Master, got %v", cRepo.upserted.EducationLevel)
+	if len(cRepo.upserted.Education) != 1 || cRepo.upserted.Education[0].Level != "master" {
+		t.Errorf("education: %+v", cRepo.upserted.Education)
 	}
 	if got == nil || got.ProfessionalTitle == nil || *got.ProfessionalTitle != secondTitle {
 		t.Errorf("returned profile must reflect the latest title, got %v", got)
@@ -369,8 +370,8 @@ func TestReplaceMyLanguages_ReplacesAtomic(t *testing.T) {
 
 	dto := dtos.ReplaceMyLanguagesDto{
 		Languages: []dtos.LanguageDto{
-			{Name: "English", Level: "C1"},
-			{Name: "French", Level: "A2"},
+			{Name: "en", Level: "C1"},
+			{Name: "fr", Level: "A2"},
 		},
 	}
 
@@ -388,7 +389,7 @@ func TestReplaceMyLanguages_ReplacesAtomic(t *testing.T) {
 		t.Fatalf("expected 2 languages, got %d", len(cRepo.replacedWith))
 	}
 	// Names are lowercased on write (canonical form).
-	wantNames := map[string]bool{"english": true, "french": true}
+	wantNames := map[string]bool{"en": true, "fr": true}
 	for _, l := range cRepo.replacedWith {
 		if !wantNames[l.Name] {
 			t.Errorf("unexpected language name %q", l.Name)
@@ -407,14 +408,15 @@ func TestReplaceMyLanguages_DuplicateIsRejected(t *testing.T) {
 
 	dto := dtos.ReplaceMyLanguagesDto{
 		Languages: []dtos.LanguageDto{
-			{Name: "english", Level: "B2"},
-			{Name: "english", Level: "C1"},
+			{Name: "en", Level: "B2"},
+			{Name: "en", Level: "C1"},
 		},
 	}
 
 	err := svc.ReplaceMyLanguages(context.Background(), "sub-abc", dto)
-	if !errors.Is(err, entities.ErrDuplicateLanguage) {
-		t.Errorf("expected ErrDuplicateLanguage, got: %v", err)
+	var invalid *ValidationError
+	if !errors.As(err, &invalid) || len(invalid.Fields) != 1 || invalid.Fields[0] != (FieldError{"languages[1].code", "duplicate"}) {
+		t.Errorf("expected duplicate field error, got: %v", err)
 	}
 	if cRepo.replaceCalls != 0 {
 		t.Errorf("repository must not be invoked on duplicate, got %d calls", cRepo.replaceCalls)
@@ -432,13 +434,14 @@ func TestReplaceMyLanguages_InvalidCefrIsRejected(t *testing.T) {
 
 	dto := dtos.ReplaceMyLanguagesDto{
 		Languages: []dtos.LanguageDto{
-			{Name: "english", Level: "native"},
+			{Name: "en", Level: "fluent"},
 		},
 	}
 
 	err := svc.ReplaceMyLanguages(context.Background(), "sub-abc", dto)
-	if !errors.Is(err, valueobjects.ErrInvalidCefrLevel) {
-		t.Errorf("expected ErrInvalidCefrLevel, got: %v", err)
+	var invalid *ValidationError
+	if !errors.As(err, &invalid) || len(invalid.Fields) != 1 || invalid.Fields[0] != (FieldError{"languages[0].level", "invalid"}) {
+		t.Errorf("expected level field error, got: %v", err)
 	}
 	if cRepo.replaceCalls != 0 {
 		t.Errorf("repository must not be invoked on invalid CEFR, got %d calls", cRepo.replaceCalls)

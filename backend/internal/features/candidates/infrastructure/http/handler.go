@@ -9,6 +9,7 @@
 package http
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 	identitysecurity "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/security"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
+	catalog "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/languages"
 	"github.com/go-chi/chi/v5"
 	chimw "github.com/go-chi/chi/v5/middleware"
 )
@@ -83,20 +85,19 @@ func (h *CandidateHandler) Routes() chi.Router {
 // trimmed, deduped) inside the use case. The reserved cv_s3_key column
 // has no request field: a client-supplied value is ignored.
 type upsertProfileRequest struct {
-	Phone             *string `json:"phone"`
-	LinkedInURL       *string `json:"linkedin_url"`
-	PortfolioURL      *string `json:"portfolio_url"`
-	ProfessionalTitle *string `json:"professional_title"`
-	CurrentCompany    *string `json:"current_company"`
-	YearsOfExperience *int    `json:"years_of_experience"`
-	ProfileSummary    *string `json:"profile_summary"`
+	Phone             *string         `json:"phone"`
+	LinkedInURL       *string         `json:"linkedin_url"`
+	PortfolioURL      *string         `json:"portfolio_url"`
+	ProfessionalTitle *string         `json:"professional_title"`
+	CurrentCompany    *string         `json:"current_company"`
+	YearsOfExperience json.RawMessage `json:"years_of_experience"`
+	Seniority         json.RawMessage `json:"seniority"`
+	Education         json.RawMessage `json:"education"`
+	ProfileSummary    *string         `json:"profile_summary"`
 
 	BirthDate *string `json:"birth_date"` // YYYY-MM-DD; parsed by the use case.
 
 	Location *geo.LocationInput `json:"location"`
-
-	EducationLevel *string `json:"education_level"`
-	FieldOfStudy   *string `json:"field_of_study"`
 
 	Skills []string `json:"skills"`
 
@@ -115,19 +116,18 @@ type upsertProfileRequest struct {
 type candidateProfileResponse struct {
 	UserID string `json:"user_id"`
 
-	Phone             *string `json:"phone,omitempty"`
-	LinkedInURL       *string `json:"linkedin_url,omitempty"`
-	PortfolioURL      *string `json:"portfolio_url,omitempty"`
-	ProfessionalTitle *string `json:"professional_title,omitempty"`
-	CurrentCompany    *string `json:"current_company,omitempty"`
-	YearsOfExperience *int    `json:"years_of_experience,omitempty"`
-	ProfileSummary    *string `json:"profile_summary,omitempty"`
+	Phone             *string              `json:"phone,omitempty"`
+	LinkedInURL       *string              `json:"linkedin_url,omitempty"`
+	PortfolioURL      *string              `json:"portfolio_url,omitempty"`
+	ProfessionalTitle *string              `json:"professional_title,omitempty"`
+	CurrentCompany    *string              `json:"current_company,omitempty"`
+	YearsOfExperience *string              `json:"years_of_experience"`
+	Seniority         *string              `json:"seniority"`
+	Education         []entities.Education `json:"education"`
+	ProfileSummary    *string              `json:"profile_summary,omitempty"`
 
 	BirthDate *string           `json:"birth_date,omitempty"`
 	Location  *geo.ReadLocation `json:"location"`
-
-	EducationLevel *string `json:"education_level,omitempty"`
-	FieldOfStudy   *string `json:"field_of_study,omitempty"`
 
 	Skills []string `json:"skills,omitempty"`
 
@@ -142,10 +142,7 @@ type candidateProfileResponse struct {
 }
 
 // languageEntry is one item on the languages list response.
-type languageEntry struct {
-	Name  string `json:"name"`
-	Level string `json:"level"`
-}
+type languageEntry = catalog.Proficiency
 
 // languagesResponse is the wire shape for /me/profile/languages. The
 // slice is always non-nil so the JSON encoder produces "[]" not
@@ -156,10 +153,7 @@ type languagesResponse struct {
 
 // replaceLanguagesRequest is the body for PUT /me/profile/languages.
 type replaceLanguagesRequest struct {
-	Languages []struct {
-		Name  string `json:"name"`
-		Level string `json:"level"`
-	} `json:"languages"`
+	Languages json.RawMessage `json:"languages"`
 }
 
 // --- handlers --------------------------------------------------------------
@@ -219,8 +213,8 @@ func (h *CandidateHandler) upsertMyProfile(w http.ResponseWriter, r *http.Reques
 		ProfileSummary:       req.ProfileSummary,
 		BirthDate:            req.BirthDate,
 		Location:             req.Location,
-		EducationLevel:       req.EducationLevel,
-		FieldOfStudy:         req.FieldOfStudy,
+		Seniority:            req.Seniority,
+		Education:            req.Education,
 		Skills:               req.Skills,
 		CurrentSalaryGross:   req.CurrentSalaryGross,
 		CurrentSalaryNet:     req.CurrentSalaryNet,
@@ -229,6 +223,9 @@ func (h *CandidateHandler) upsertMyProfile(w http.ResponseWriter, r *http.Reques
 		ExpectedSalaryPeriod: req.ExpectedSalaryPeriod,
 	})
 	if err != nil {
+		if writeFieldError(w, err) {
+			return
+		}
 		var invalid *geo.InvalidLocation
 		if errors.As(err, &invalid) {
 			details := make([]httpjson.GeoDetail, 0, len(invalid.Details))
@@ -300,14 +297,15 @@ func (h *CandidateHandler) replaceMyLanguages(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	dto := dtos.ReplaceMyLanguagesDto{
-		Languages: make([]dtos.LanguageDto, 0, len(req.Languages)),
-	}
-	for _, l := range req.Languages {
-		dto.Languages = append(dto.Languages, dtos.LanguageDto{Name: l.Name, Level: l.Level})
+	dto := dtos.ReplaceMyLanguagesDto{RawLanguages: req.Languages}
+	if len(req.Languages) == 0 {
+		dto.RawLanguages = json.RawMessage("[]")
 	}
 
 	if err := h.service.ReplaceMyLanguages(r.Context(), sub, dto); err != nil {
+		if writeFieldError(w, err) {
+			return
+		}
 		def := classifyCandidateError(err)
 		if def.Code == httpjson.CodeInternalError {
 			// Bounded unexpected-error record (WS6C-7E, mirroring the
@@ -361,7 +359,8 @@ func toProfileResponse(p *entities.CandidateProfile, location *geo.ReadLocation)
 		YearsOfExperience:  p.YearsOfExperience,
 		ProfileSummary:     p.ProfileSummary,
 		Location:           location,
-		FieldOfStudy:       p.FieldOfStudy,
+		Seniority:          p.Seniority,
+		Education:          p.Education,
 		Skills:             p.Skills,
 		CurrentSalaryGross: p.CurrentSalaryGross,
 		CurrentSalaryNet:   p.CurrentSalaryNet,
@@ -370,9 +369,8 @@ func toProfileResponse(p *entities.CandidateProfile, location *geo.ReadLocation)
 		CreatedAt:          p.CreatedAt,
 		UpdatedAt:          p.UpdatedAt,
 	}
-	if p.EducationLevel != nil {
-		s := p.EducationLevel.String()
-		resp.EducationLevel = &s
+	if resp.Education == nil {
+		resp.Education = []entities.Education{}
 	}
 	if p.ExpectedSalaryPeriod != nil {
 		s := p.ExpectedSalaryPeriod.String()
@@ -389,7 +387,7 @@ func toLanguagesResponse(in []entities.Language) languagesResponse {
 	out := languagesResponse{Languages: make([]languageEntry, 0, len(in))}
 	for _, l := range in {
 		out.Languages = append(out.Languages, languageEntry{
-			Name:  l.Name,
+			Code:  l.Name,
 			Level: l.Level.String(),
 		})
 	}

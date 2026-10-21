@@ -38,6 +38,10 @@ func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub strin
 		return nil, err
 	}
 
+	years, seniority, education, err := ValidateProfileFields(params.YearsOfExperience, params.Seniority, params.Education)
+	if err != nil {
+		return nil, err
+	}
 	if err := geo.ValidateLocation(ctx, s.geography, params.Location, false); err != nil {
 		return nil, err
 	}
@@ -50,7 +54,6 @@ func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub strin
 	// Parse typed optional inputs through their VOs. Empty string is the
 	// "leave NULL" signal — distinct from a non-nil pointer.
 	input := entities.CandidateProfileInput{
-		EducationLevel:       emptyAsBlank(params.EducationLevel),
 		ExpectedSalaryPeriod: emptyAsBlank(params.ExpectedSalaryPeriod),
 		Skills:               skills,
 	}
@@ -77,10 +80,9 @@ func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub strin
 	if params.CurrentCompany != nil {
 		profile.CurrentCompany = params.CurrentCompany
 	}
-	if params.YearsOfExperience != nil {
-		y := *params.YearsOfExperience
-		profile.YearsOfExperience = &y
-	}
+	profile.YearsOfExperience = years
+	profile.Seniority = seniority
+	profile.Education = education
 	if params.ProfileSummary != nil {
 		profile.ProfileSummary = params.ProfileSummary
 	}
@@ -92,9 +94,6 @@ func (s *CandidateService) UpsertMyProfile(ctx context.Context, cognitoSub strin
 		profile.BirthDate = &parsed
 	}
 	profile.Location = params.Location.Value()
-	if params.FieldOfStudy != nil {
-		profile.FieldOfStudy = params.FieldOfStudy
-	}
 	if params.CurrentSalaryGross != nil {
 		v := *params.CurrentSalaryGross
 		profile.CurrentSalaryGross = &v
