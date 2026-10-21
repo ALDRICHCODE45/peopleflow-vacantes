@@ -8,6 +8,17 @@ import { loadBoardAction, loadHistoryAction, loadParticipationAction, movePartic
 import { notifyActionResult } from "@/components/feedback/notify";
 import { boardFixture, detailFixture, historyFixture, vacancyId } from "./board-fixture";
 import type { Board, FailureReason, Move, Result } from "./model";
+import { checkDuplicatesAction } from "@/features/manual-intake/actions";
+import { submitManualCandidate } from "@/features/manual-intake/upload";
+vi.mock("@/features/manual-intake/actions", () => ({ checkDuplicatesAction: vi.fn() }));
+vi.mock("@/features/manual-intake/upload", () => ({ submitManualCandidate: vi.fn() }));
+// Only the combobox portal boundary is irrelevant to this board integration test.
+vi.mock("@/components/ui/combobox", () => ({
+  Combobox: ({ children }: { children: ReactNode }) => <>{children}</>,
+  ComboboxInput: ({ id }: { id: string }) => <input id={id} />,
+  ComboboxContent: () => null, ComboboxEmpty: () => null, ComboboxList: () => null, ComboboxItem: () => null,
+}));
+vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ countries: { status: "success", data: { items: [] } }, states: { status: "success", data: { items: [] } }, municipalities: { status: "success", data: { items: [] } } }), useGeoPostalCode: () => ({ status: "idle" }) }));
 import { getLifecycleAction, transitionLifecycleAction } from "@/features/vacancy-lifecycle/actions";
 vi.mock("@/features/vacancy-lifecycle/actions", () => ({ getLifecycleAction: vi.fn(), transitionLifecycleAction: vi.fn() }));
 
@@ -89,6 +100,45 @@ it.each([
   expect(screen.getByText(new RegExp(prefix))).toHaveTextContent(/20 oct 2026/);
   expect(screen.queryByRole("button", { name: "Acciones de la vacante" })).not.toBeInTheDocument();
   if (process === "active") expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeEnabled();
+});
+it("offers manual intake only for a published, active process", async () => {
+  await mount();
+  expect(screen.getByRole("button", { name: "Agregar candidato" })).toBeEnabled();
+});
+it.each(["draft", "finished"])("hides manual intake for %s", async condition => {
+  const board = boardFixture();
+  if (condition === "finished") board.lifecycle.process = "finished";
+  else board.lifecycle.publication = null;
+  await mount(board);
+  expect(screen.queryByRole("button", { name: "Agregar candidato" })).not.toBeInTheDocument();
+});
+it("labels manual cards without claiming an application", async () => {
+  const board = boardFixture();
+  Object.assign(board.participations[0], { source: "manual", added_by: { id: "recruiter", name: "Luis" } });
+  await mount(board);
+  expect(screen.getByText("Ingreso manual")).toHaveAttribute("data-slot", "badge");
+  expect(screen.queryByText(/Postuló/)).not.toBeInTheDocument();
+});
+it("adds a manual card in place, focuses it and shows its origin in the sheet", async () => {
+  const board = boardFixture();
+  const added = { ...board.participations[0], id: "added", source: "manual" as const, added_by: { id: "recruiter", name: "Luis López" }, candidate: { id: "new-person", kind: "manual" as const, full_name: "María Nueva" }, coverage: board.coverage, delivery: board.delivery };
+  vi.mocked(checkDuplicatesAction).mockResolvedValue({ ok: true, data: { matches: [{ kind: "manual", id: "new-person", full_name: "María Nueva", email_masked: "m***@test.com", phone_masked: null, last_vacancy: "Ventas", last_added_at: added.applied_at, in_this_process: false }] } });
+  vi.mocked(submitManualCandidate).mockResolvedValue({ ok: true, data: added });
+  await mount(board); fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
+  fireEvent.change(screen.getByLabelText("Correo electrónico"), { target: { value: "maria@test.com" } }); fireEvent.blur(screen.getByLabelText("Correo electrónico"));
+  fireEvent.click(await screen.findByRole("button", { name: "Usar el existente" }));
+  fireEvent.change(screen.getByLabelText("CV"), { target: { files: [new File(["pdf"], "cv.pdf", { type: "application/pdf" })] } });
+  fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Agregar" })); });
+  const card = await screen.findByRole("button", { name: "Ver detalle de María Nueva" });
+  await waitFor(() => expect(card.closest('[data-slot="card"]')).toHaveFocus());
+  expect(screen.getByText("Ingreso manual")).toBeVisible(); expect(loadBoardAction).toHaveBeenCalledOnce();
+  expect(screen.getByRole("region", { name: "Entrada: 2 candidatos" })).toContainElement(card);
+  vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: { ...added, screening: [], comment: null, candidate_message: null } });
+  fireEvent.click(card); const sheet = await screen.findByRole("dialog", { name: "María Nueva" });
+  await waitFor(() => expect(within(sheet).queryByText("Cargando detalle e historial")).not.toBeInTheDocument());
+  expect(within(sheet).getByText(/Agregado por Luis López el/)).toBeVisible();
+  expect(within(sheet).queryByText(/postul/i)).not.toBeInTheDocument();
 });
 it("E2 uses singular candidate counts", async () => {
  await mount();
@@ -382,7 +432,7 @@ it("restores keyboard focus to the moved card's menu", async () => {
 });
 it.each(["success", "uncertain"])("pending confirmation prevents overlapping UI moves and preserves %s reconciliation", async outcome => {
   const board = boardFixture();
-  board.participations.push({ ...board.participations[0], id: "second", candidate: { id: "second-candidate", full_name: "Eva Ruiz" } });
+  board.participations.push({ ...board.participations[0], id: "second", candidate: { id: "second-candidate", full_name: "Eva Ruiz", kind: "organic" } });
   let resolve!: (value: Result<Move>) => void;
   vi.mocked(moveParticipationAction).mockReturnValueOnce(new Promise(yes => { resolve = yes; }));
   await mount(board); move();
@@ -427,7 +477,7 @@ it("card radio options follow catalog order, share the write path and update the
   expect(document.querySelector('.pf-candidate-card [data-slot="badge"]')).toBeNull();
 });
 it("toolbar filter wires OR selections, excludes other stages and clears without a read", async () => {
-  const board = activeSubstateBoard(); board.participations.push({ ...board.participations[0], id: "null", substate_id: null, candidate: { id: "second", full_name: "Eva Ruiz" } }, { ...board.participations[0], id: "outside", stage_id: "new", substate_id: null, candidate: { id: "third", full_name: "Sol Díaz" } });
+  const board = activeSubstateBoard(); board.participations.push({ ...board.participations[0], id: "null", substate_id: null, candidate: { id: "second", full_name: "Eva Ruiz", kind: "organic" } }, { ...board.participations[0], id: "outside", stage_id: "new", substate_id: null, candidate: { id: "third", full_name: "Sol Díaz", kind: "organic" } });
   vi.stubGlobal("PointerEvent", MouseEvent);
   await mount(board); fireEvent.click(screen.getByRole("button", { name: "Filtros" }));
   fireEvent.click(screen.getByRole("button", { name: "Subestado" }));

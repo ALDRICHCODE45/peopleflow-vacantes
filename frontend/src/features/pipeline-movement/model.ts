@@ -23,7 +23,8 @@ const discardSchema = z.object({ reason: discardReasonSchema, discarded_at: time
 // Writes retain their original allowlist; snapshot fields belong only to reads.
 const mutationParticipationSchema = z.object({
   id: uuidSchema, stage_id: uuidSchema, version: z.string().regex(/^(0|[1-9][0-9]*)$(?![\s\S])/), etag: etagSchema,
-  candidate: z.object({ id: uuidSchema, full_name: text }).strict(), applied_at: timestamp, source: z.literal("organic"),
+  candidate: z.object({ id: uuidSchema, full_name: text, kind: z.enum(["organic", "manual"]) }).strict(), applied_at: timestamp, source: z.enum(["organic", "manual"]),
+  added_by: z.object({ id: uuidSchema, name: text }).strict().nullable(),
   cv: z.object({ id: uuidSchema, name: text }).strict(), moved_at: timestamp, discard: discardSchema.nullable(), substate_id: uuidSchema.nullable(),
 }).strict();
 export const profileSchema = z.object({

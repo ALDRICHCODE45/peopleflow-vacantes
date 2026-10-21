@@ -26,6 +26,8 @@ describe("single application-facing request path", () => {
       "features/candidate-cvs/file-client.ts",
       "features/candidate-cvs/upload.ts",
       "features/geo/use-geo-catalog.ts",
+      "features/manual-intake/file-client.ts",
+      "features/manual-intake/upload.ts",
       "features/pipeline-movement/file-client.ts",
       "lib/api/requestJson.ts",
     ]);
@@ -69,6 +71,17 @@ describe("single application-facing request path", () => {
     expect(adapter).toContain('cache: "no-store"');
   });
 
+  it("keeps the manual-intake upload fixed to its same-origin route and the backend call server-only", () => {
+    const upload = source(join(SRC, "features/manual-intake/upload.ts"));
+    expect(upload).toContain("fetch(`/api/company/manual-candidates/${encodeURIComponent(vacancyId)}`");
+    expect(upload).not.toMatch(/https?:\/\/|lib\/auth|authorization|cookie:/);
+    const adapter = source(join(SRC, "features/manual-intake/file-client.ts"));
+    expect(adapter).toContain('import "server-only"');
+    expect(adapter).toContain('redirect: "error"');
+    expect(adapter).toContain('cache: "no-store"');
+    expect(source(join(SRC, "app/api/company/manual-candidates/[vacancyId]/route.ts"))).not.toMatch(/\bfetch\(/);
+  });
+
   it("reaches the transport only through the guarded API functions", () => {
     const importers = files.filter((file) =>
       /lib\/api\/server"/.test(source(file)),
@@ -92,6 +105,7 @@ describe("single application-facing request path", () => {
       "features/jobs/drafts/pipeline/publication-client.ts",
       "features/jobs/drafts/pipeline/substates-client.ts",
       "features/jobs/drafts/requesters/client.ts",
+      "features/manual-intake/client.ts",
       "features/pipeline-movement/client.ts",
       "features/vacancy-lifecycle/client.ts",
       "lib/auth/backend-check.ts",
@@ -121,6 +135,7 @@ describe("single application-facing request path", () => {
       "features/jobs/drafts/pipeline/publication-client.ts",
       "features/jobs/drafts/pipeline/substates-client.ts",
       "features/jobs/drafts/requesters/client.ts",
+      "features/manual-intake/client.ts",
       "features/pipeline-movement/client.ts",
       "features/vacancy-lifecycle/client.ts",
       "lib/api/server.ts",
@@ -139,6 +154,7 @@ describe("single application-facing request path", () => {
       "app/api/auth/local-bootstrap/stage/route.ts",
       "app/api/candidate/cvs/[id]/file/route.ts",
       "app/api/candidate/cvs/route.ts",
+      "app/api/company/manual-candidates/[vacancyId]/route.ts",
       "app/api/company/vacancies/[vacancyId]/participations/[participationId]/cv/route.ts",
       "app/api/geo/countries/mx/postal-codes/[cp]/route.ts",
       "app/api/geo/countries/mx/states/[state]/municipalities/route.ts",
