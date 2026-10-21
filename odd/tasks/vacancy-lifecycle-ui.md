@@ -15,9 +15,10 @@ Rules: `docs/frontend-ui-design-rules.md` (§13.8 dialogs, §18 ConfirmActionDia
 ## Tasks
 
 - [x] T1 — S6: lifecycle model, strict decoders, server actions (view, pause, resume, close{process}, finish-process, reopen), error mapping (409/412/428/422 missing) | route: writer | commit: b1deace
-- [ ] T2 — S1–S5: company vacancy list badges and per-state actions with ConfirmActionDialog (close dialog with the process choice) | commit: —
+- [x] T2 — S1–S5: company vacancy list badges and per-state actions with ConfirmActionDialog (close dialog with the process choice) | route: writer | commit: 1f1a843
 - [ ] T3 — S2, S5, S6: pipeline/board header state badge + last transition date + actions; read-only board when process finished; 409 refresh | commit: —
-- [ ] T4 — S1, S6: public detail/apply for paused/closed: «Vacante pausada»/«Vacante cerrada» StateCard with noindex; apply 409 message | commit: —
+- [x] T4 — S1, S6: public detail/apply for paused/closed: «Vacante pausada»/«Vacante cerrada» StateCard with noindex; apply 409 message | route: writer | commit: 358a6ad
+- [ ] T3b — S2, S6: configuration screens (pipeline, substates, delivery, management) read-only when the process is finished; 409 `process_finished` handling | commit: —
 - [x] T5 — S2: candidate applications show «Vacante cerrada» when `vacancy.state` is closed (a discard keeps «Finalizada») | route: inline | commit: 6e240c5
 - [ ] T6 — guide steps, review queue, rules learnings; browser verification against backend L1/L2 | commit: —
 
