@@ -85,7 +85,8 @@ export function LocationField({ value, onChange, depth, postalCode, required = [
     applied.current = value.postal_code;
     if (postal.data.matches.length === 1) {
       const match = postal.data.matches[0];
-      onChange({ ...value, state: match.state.id, municipality: match.municipality.id });
+      // A saved location already matching its postal code must stay untouched (no false dirty state).
+      if (value.state !== match.state.id || value.municipality !== match.municipality.id) onChange({ ...value, state: match.state.id, municipality: match.municipality.id });
     }
   }, [showPostal, value, disabled, postal.data, onChange]);
   function subdivision(field: "state" | "municipality", code: string | null) {

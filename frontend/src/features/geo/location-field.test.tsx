@@ -199,3 +199,13 @@ it("lets the state/municipality columns shrink so narrow containers never scroll
   const grid = state.closest('[data-slot="field-group"]')!;
   expect(grid).toHaveClass("[&>*]:min-w-0");
 });
+
+it("never rewrites a saved location whose postal code already matches its state and municipality", async () => {
+  // Opening a saved on-site vacancy showed «Cambios sin guardar» with no input (QA D8).
+  const onChange = vi.fn();
+  render(<LocationField depth="municipality" postalCode label="Ubicación" value={{ country: "MX", state: "01", municipality: "01001", postal_code: "01000" }} onChange={onChange} />);
+  await screen.findByLabelText("Código postal");
+  await waitFor(() => expect(fetcher).toHaveBeenCalledWith(expect.stringContaining("01000"), expect.anything()));
+  await new Promise(resolve => setTimeout(resolve, 50));
+  expect(onChange).not.toHaveBeenCalled();
+});
