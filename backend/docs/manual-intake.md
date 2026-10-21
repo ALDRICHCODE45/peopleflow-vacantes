@@ -5,7 +5,9 @@ B3b multipart creation is not implemented. Its request-envelope and
 stage-validation helpers are tested but are not wired to HTTP; the create
 sections below remain the target contract. B3b-1 adds unwired field-validation and
 fingerprinting helpers plus company-owned CV retention in shared reconciliation;
-it does not implement the create route.
+it does not implement the create route. B3b-2 currently adds only a tested,
+unwired streaming multipart parser; endpoint orchestration, persistence, routing,
+and integration coverage remain unimplemented.
 
 ## Routes and privacy
 
@@ -168,7 +170,24 @@ Reconciliation unit coverage: `TestReconcileRetainsCompanyCVAndRemovesOrphan` an
 `TestReconcileLookupFailureKeepsFiles`. The integration-tag
 `TestReconcileRetainsCompanyOwnedManualCV` requires parent-run database execution.
 
-Still required before shipping B3b: create HTTP wiring and multipart limits;
+B3b-2 transport-helper coverage (not endpoint coverage):
+- `TestManualMultipartBoundary`: exactly one data and CV part, either order,
+  missing-CV validation, duplicate/unknown parts, file-part shape, transfer
+  encoding rejection, per-part and total request limits.
+- `TestManualMultipartMalformedAndRawBudget`: malformed content type, missing
+  boundary, truncated multipart, and invalid preamble.
+- `TestManualMultipartEpilogueCountsAgainstBudget`: bytes after the final
+  boundary cannot bypass the raw request budget.
+- `TestManualMultipartPreservesUninspectedBytesAndNormalizesBasename`: preserves
+  CV bytes for later ordered inspection and strips filename directories.
+
+The parser never spools temporary files. Its transport-local too-large error
+still needs mapping to `cv_too_large` when wired. Architecture rules prohibit
+applications infrastructure importing candidates/application/cvs directly;
+composition-root injection is needed to reuse `cvs.Inspect` without changing
+archguard.
+
+Still required before shipping B3b: create HTTP wiring and error/header handling;
 complete candidate/geo validation boundaries; confirmed-distinct and existing
 manual/organic reuse; already-in-process;
 idempotent replay/conflict; rejection side-effect invariants; storage compensation;
