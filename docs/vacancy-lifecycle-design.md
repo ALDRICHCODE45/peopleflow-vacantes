@@ -1,6 +1,6 @@
 # §21 Vacancy lifecycle: pause, close, finish process, reopen (proposal, for frontend review)
 
-Status: design only, no code yet. Tracking: `odd/tasks/vacancy-lifecycle.md` (S1–S7).
+Status: agreed with the frontend (L3, L4); implementation in cuts L1–L2. Tracking: `odd/tasks/vacancy-lifecycle.md` (S1–S7).
 Code map that grounds this design: L2 in that file.
 
 ## 21.1 Two axes
@@ -53,9 +53,9 @@ There is **no automatic close** (S5): every transition is manual.
 
 **Recommended (frontend asked):** reopening a *finished* vacancy is allowed and reactivates its process. S4 says reopening restores everything, and finishing is the user's own choice, reversible like closing.
 
-## 21.3 Who can act — OPEN DECISION (user)
+## 21.3 Who can act (decided)
 
-**Recommended:** the same people who can publish today, which is the company owner or the vacancy's principal recruiter.
+User: «Los mismos que pueden publicar (Recomendado)» — the same people who can publish today, which is the company owner or the vacancy's principal recruiter.
 - Same live gates as publish: live user, active company, current membership.
 - Anyone else gets the existing 404 `not_found`, as for every vacancy-scoped write.
 
