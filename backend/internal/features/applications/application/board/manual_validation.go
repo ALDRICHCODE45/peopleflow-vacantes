@@ -10,6 +10,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	catalog "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/languages"
+
 	geoapp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/application"
 	geo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/domain"
 	identityvo "github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/domain/valueobjects"
@@ -21,15 +23,21 @@ type ManualExisting struct {
 	Kind string
 	ID   uuid.UUID
 }
-type ManualLanguage struct{ Language, Level string }
+type ManualLanguage = catalog.Proficiency
+type ManualEducation struct {
+	Level, Status      string
+	Institution, Field *string
+	StartYear, EndYear *int
+}
 type ManualCandidate struct {
-	FullName, EducationLevel                                                            string
-	Email, EmailNormalized, Phone                                                       *string
-	Residence                                                                           *geo.Value
-	ProfessionalTitle, CurrentCompany, FieldOfStudy, Summary, LinkedInURL, PortfolioURL *string
-	ExperienceYears                                                                     *int
-	Skills                                                                              []string
-	Languages                                                                           []ManualLanguage
+	FullName                                                              string
+	Education                                                             []ManualEducation
+	Seniority, YearsOfExperience                                          *string
+	Email, EmailNormalized, Phone                                         *string
+	Residence                                                             *geo.Value
+	ProfessionalTitle, CurrentCompany, Summary, LinkedInURL, PortfolioURL *string
+	Skills                                                                []string
+	Languages                                                             []ManualLanguage
 }
 type ValidatedManualRequest struct {
 	StageID           uuid.UUID
@@ -111,7 +119,7 @@ func (r ManualRequest) Validate(ctx context.Context, lookup geoapp.Lookup, hasCV
 	var candidate, existing map[string]json.RawMessage
 	var err error
 	if !manualNull(r.Candidate) {
-		candidate, err = manualObject(r.Candidate, "full_name", "education_level", "email", "phone", "residence", "professional_title", "current_company", "field_of_study", "experience_years", "summary", "skills", "languages", "linkedin_url", "portfolio_url")
+		candidate, err = manualObject(r.Candidate, "full_name", "education", "email", "phone", "residence", "professional_title", "current_company", "seniority", "years_of_experience", "summary", "skills", "languages", "linkedin_url", "portfolio_url")
 		if err != nil {
 			return out, nil, err
 		}
@@ -171,14 +179,10 @@ func validateManualCandidate(ctx context.Context, lookup geoapp.Lookup, raw map[
 			out.FullName = full.Value()
 		}
 	}
-	if education := fields.text(raw["education_level"], "candidate.education_level", true, 0); education != nil && *education != "" {
-		level, ok := manualEducationLevel(*education)
-		if !ok {
-			fields.add("candidate.education_level", "invalid")
-		} else {
-			out.EducationLevel = level
-		}
+	if err := validateManualStudies(raw["education"], out, fields); err != nil {
+		return nil, err
 	}
+	out.Seniority = manualLiteral(raw["seniority"], "candidate.seniority", false, catalog.ValidSeniority, fields)
 	out.Email = fields.text(raw["email"], "candidate.email", false, 0)
 	if out.Email != nil {
 		if _, err := identityvo.NewEmail(*out.Email); err != nil {
@@ -207,7 +211,7 @@ func validateManualCandidate(ctx context.Context, lookup geoapp.Lookup, raw map[
 		target **string
 		limit  int
 	}{
-		{"professional_title", &out.ProfessionalTitle, 120}, {"current_company", &out.CurrentCompany, 120}, {"field_of_study", &out.FieldOfStudy, 120},
+		{"professional_title", &out.ProfessionalTitle, 120}, {"current_company", &out.CurrentCompany, 120},
 		{"summary", &out.Summary, 2000}, {"linkedin_url", &out.LinkedInURL, 2048}, {"portfolio_url", &out.PortfolioURL, 2048},
 	} {
 		*entry.target = fields.text(raw[entry.key], "candidate."+entry.key, false, entry.limit)
@@ -219,13 +223,10 @@ func validateManualCandidate(ctx context.Context, lookup geoapp.Lookup, raw map[
 			}
 		}
 	}
-	if !manualNull(raw["experience_years"]) {
-		var years int
-		if json.Unmarshal(raw["experience_years"], &years) != nil || years < 0 || years > 60 {
-			fields.add("candidate.experience_years", "invalid")
-		} else {
-			out.ExperienceYears = &years
-		}
+	out.YearsOfExperience = manualLiteral(raw["years_of_experience"], "candidate.years_of_experience", false, catalog.ValidYears, fields)
+	if out.YearsOfExperience != nil {
+		normalized, _ := catalog.NormalizeYears(*out.YearsOfExperience)
+		out.YearsOfExperience = &normalized
 	}
 	if !manualNull(raw["skills"]) {
 		var skills []json.RawMessage
@@ -266,30 +267,22 @@ func validateManualCandidate(ctx context.Context, lookup geoapp.Lookup, raw map[
 					fields.add(path, "invalid")
 					continue
 				}
-				language, err := manualObject(raw, "language", "level")
+				language, err := manualObject(raw, catalog.CodeField, "level")
 				if err != nil {
 					return nil, err
 				}
-				name := fields.text(language["language"], path+".language", true, 120)
-				level := fields.text(language["level"], path+".level", true, 0)
+				name := manualLiteral(language[catalog.CodeField], path+".code", true, manualCatalogCode, fields)
+				level := manualLiteral(language["level"], path+".level", true, catalog.ValidLanguageLevel, fields)
 				item := ManualLanguage{}
 				if name != nil && *name != "" {
-					item.Language = strings.ToLower(*name)
-					if seen[item.Language] {
-						fields.add(path+".language", "duplicate")
+					item.Code = *name
+					if seen[item.Code] {
+						fields.add(path+".code", "duplicate")
 					}
-					seen[item.Language] = true
+					seen[item.Code] = true
 				}
 				if level != nil && *level != "" {
-					// CEFR is case/whitespace-sensitive; do not normalize user input.
-					var original string
-					_ = json.Unmarshal(language["level"], &original)
-					parsed, ok := manualCEFRLevel(original)
-					if !ok {
-						fields.add(path+".level", "invalid")
-					} else {
-						item.Level = parsed
-					}
+					item.Level = *level
 				}
 				out.Languages = append(out.Languages, item)
 			}

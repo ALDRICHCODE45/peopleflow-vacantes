@@ -30,7 +30,7 @@ func (g manualGeo) PostalMatches(context.Context, string, string) ([]geo.PostalM
 
 func validManualCandidate() map[string]any {
 	return map[string]any{
-		"full_name": "Ana Pérez", "education_level": "bachelor", "email": " ANA@example.com ", "phone": nil,
+		"full_name": "Ana Pérez", "education": []any{map[string]any{"level": "bachelor", "institution": nil, "field": nil, "status": "completed", "start_year": nil, "end_year": nil}}, "email": " ANA@example.com ", "phone": nil,
 		"residence": map[string]any{"country": "MX", "state": "14", "municipality": "14039", "postal_code": nil},
 	}
 }
@@ -56,8 +56,8 @@ func TestManualCandidateValidation(t *testing.T) {
 		{"single rune name", "full_name", "é", "candidate.full_name", "invalid"},
 		{"long name", "full_name", strings.Repeat("é", 121), "candidate.full_name", "too_long"},
 		{"name wrong type", "full_name", 42, "candidate.full_name", "invalid"},
-		{"education required", "education_level", nil, "candidate.education_level", "required"},
-		{"education invalid", "education_level", "none", "candidate.education_level", "invalid"},
+		{"education required", "education", nil, "candidate.education", "required"},
+		{"education invalid", "education", "none", "candidate.education", "invalid"},
 		{"email invalid", "email", "bad", "candidate.email", "invalid"},
 		{"MX nine digits", "phone", "+52123456789", "candidate.phone", "invalid"},
 		{"MX eleven digits", "phone", "+5212345678901", "candidate.phone", "invalid"},
@@ -65,21 +65,20 @@ func TestManualCandidateValidation(t *testing.T) {
 		{"short text max", "professional_title", strings.Repeat("x", 120), "", ""},
 		{"short text over", "professional_title", strings.Repeat("x", 121), "candidate.professional_title", "too_long"},
 		{"company over", "current_company", strings.Repeat("x", 121), "candidate.current_company", "too_long"},
-		{"study over", "field_of_study", strings.Repeat("x", 121), "candidate.field_of_study", "too_long"},
 		{"summary max", "summary", strings.Repeat("x", 2000), "", ""},
 		{"summary over", "summary", strings.Repeat("x", 2001), "candidate.summary", "too_long"},
-		{"experience negative", "experience_years", -1, "candidate.experience_years", "invalid"},
-		{"experience over", "experience_years", 61, "candidate.experience_years", "invalid"},
-		{"experience fraction", "experience_years", 1.5, "candidate.experience_years", "invalid"},
-		{"experience max", "experience_years", 60, "", ""},
+		{"experience negative", "years_of_experience", "-1", "candidate.years_of_experience", "invalid"},
+		{"experience over", "years_of_experience", "60.1", "candidate.years_of_experience", "invalid"},
+		{"experience number", "years_of_experience", 1.5, "candidate.years_of_experience", "invalid"},
+		{"experience max", "years_of_experience", "60", "", ""},
 		{"skills count", "skills", make([]string, 31), "candidate.skills", "too_long"},
 		{"skill size", "skills", []string{strings.Repeat("x", 61)}, "candidate.skills[0]", "too_long"},
 		{"skill empty", "skills", []string{" "}, "candidate.skills[0]", "required"},
 		{"skill duplicate", "skills", []string{" Go ", "go"}, "candidate.skills[1]", "duplicate"},
 		{"language count", "languages", make([]any, 11), "candidate.languages", "too_long"},
-		{"language level", "languages", []any{map[string]any{"language": "English", "level": "b1"}}, "candidate.languages[0].level", "invalid"},
-		{"language required", "languages", []any{map[string]any{"language": "", "level": "B1"}}, "candidate.languages[0].language", "required"},
-		{"language duplicate", "languages", []any{map[string]any{"language": "English", "level": "B1"}, map[string]any{"language": " english ", "level": "C1"}}, "candidate.languages[1].language", "duplicate"},
+		{"language level", "languages", []any{map[string]any{"code": "en", "level": "b1"}}, "candidate.languages[0].level", "invalid"},
+		{"language required", "languages", []any{map[string]any{"code": "", "level": "B1"}}, "candidate.languages[0].code", "required"},
+		{"language duplicate", "languages", []any{map[string]any{"code": "en", "level": "B1"}, map[string]any{"code": "en", "level": "C1"}}, "candidate.languages[1].code", "duplicate"},
 		{"http URL", "linkedin_url", "http://example.com", "candidate.linkedin_url", "invalid"},
 		{"relative URL", "portfolio_url", "/hello", "candidate.portfolio_url", "invalid"},
 		{"URL over", "portfolio_url", "https://example.com/" + strings.Repeat("x", 2048), "candidate.portfolio_url", "too_long"},
@@ -120,12 +119,12 @@ func TestManualValidationCollectsFieldsAndNormalizes(t *testing.T) {
 	}
 	candidate["full_name"] = nil
 	candidate["email"] = nil
-	candidate["education_level"] = "bad"
+	candidate["education"] = "bad"
 	_, fields, err = manualValidationRequest(t, candidate).Validate(context.Background(), manualGeo{}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []ManualFieldError{{"candidate.full_name", "required"}, {"candidate.contact", "required"}, {"candidate.education_level", "invalid"}, {"cv", "required"}} {
+	for _, want := range []ManualFieldError{{"candidate.full_name", "required"}, {"candidate.contact", "required"}, {"candidate.education", "invalid"}, {"cv", "required"}} {
 		found := false
 		for _, got := range fields {
 			if got == want {
@@ -138,7 +137,7 @@ func TestManualValidationCollectsFieldsAndNormalizes(t *testing.T) {
 	}
 }
 func TestManualCandidateUnknownAndDuplicateKeys(t *testing.T) {
-	for _, candidate := range []string{`{"salary":1}`, `{"birth_date":"2000-01-01"}`, `{"full_name":"Ana","full_name":"Eva"}`, `{"residence":{"country":"MX","country":"US"}}`, `{"residence":{"extra":1}}`, `{"languages":[{"language":"en","level":"B1","extra":1}]}`} {
+	for _, candidate := range []string{`{"salary":1}`, `{"birth_date":"2000-01-01"}`, `{"full_name":"Ana","full_name":"Eva"}`, `{"residence":{"country":"MX","country":"US"}}`, `{"residence":{"extra":1}}`, `{"languages":[{"code":"en","level":"B1","extra":1}]}`, `{"education_level":"bachelor"}`, `{"field_of_study":null}`, `{"experience_years":1}`} {
 		t.Run(candidate, func(t *testing.T) {
 			r := manualValidationRequest(t, nil)
 			r.Candidate = json.RawMessage(candidate)

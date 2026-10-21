@@ -61,7 +61,7 @@ func TestManualCreateHTTPFlow(t *testing.T) {
 	base := draftFlowV2Path + "/" + id
 	// publicationFlowReady configures stage 3 as the delivery cutoff.
 	stage := pipelineconfig.Defaults(uuid.MustParse(id)).Stages[3].ID
-	data := fmt.Sprintf(`{"stage_id":%q,"existing":null,"confirmed_distinct":false,"candidate":{"full_name":"Manual Candidate","education_level":"bachelor","email":"manual-http@example.test","phone":null,"residence":{"country":"US"}}}`, stage)
+	data := fmt.Sprintf(`{"stage_id":%q,"existing":null,"confirmed_distinct":false,"candidate":{"full_name":"Manual Candidate","education":[{"level":"bachelor","institution":null,"field":null,"status":"completed","start_year":null,"end_year":null}],"years_of_experience":"1.5","seniority":"junior","languages":[{"code":"es","level":"native"}],"email":"manual-http@example.test","phone":null,"residence":{"country":"US"}}}`, stage)
 	cv := []byte("%PDF-1 manual HTTP upload")
 	post := func(data string, content []byte, key string) draftFlowResponse {
 		t.Helper()

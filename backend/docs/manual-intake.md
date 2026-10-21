@@ -1,6 +1,6 @@
 # Recruiter manual intake contract
 
-Status: implementation complete (B1–B3b-4). Both routes are registered with
+Status: implementation complete (B1–B3b-4 and H2). Both routes are registered with
 company/recruiter authorization. The create handler reuses the bounded multipart
 parser and transactional store; `cmd/api` composes the real `cvs.Inspect` policy
 and private local storage. Integration-tag store and real-router coverage require
@@ -55,7 +55,7 @@ retries, with unchanged JSON and CV bytes):
 curl -i -X POST "$API/v2/me/company/job-drafts/$DRAFT_ID/pipeline/candidates/manual" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Idempotency-Key: $INTAKE_KEY" \
-  --form-string "data={\"stage_id\":\"$STAGE_ID\",\"existing\":null,\"confirmed_distinct\":false,\"candidate\":{\"full_name\":\"Ana Pérez\",\"education_level\":\"bachelor\",\"email\":\"ana@example.com\",\"phone\":null,\"residence\":{\"country\":\"US\"}}}" \
+  --form-string "data={\"stage_id\":\"$STAGE_ID\",\"existing\":null,\"confirmed_distinct\":false,\"candidate\":{\"full_name\":\"Ana Pérez\",\"education\":[{\"level\":\"bachelor\",\"institution\":null,\"field\":null,\"status\":\"completed\",\"start_year\":null,\"end_year\":null}],\"email\":\"ana@example.com\",\"phone\":null,\"residence\":{\"country\":\"US\"}}}" \
   -F 'cv=@./resume.pdf'
 ```
 
@@ -67,7 +67,7 @@ No response, including authentication or parsing failures, is cacheable.
 The JSON object must contain exactly these four keys, each once:
 
 ```json
-{"stage_id":"10000000-0000-0000-0000-000000000003","existing":null,"confirmed_distinct":false,"candidate":{"full_name":"Ana Pérez","education_level":"bachelor","email":"ana@example.com","phone":null,"residence":{"country":"MX","state":"14","municipality":"14039","postal_code":null}}}
+{"stage_id":"10000000-0000-0000-0000-000000000003","existing":null,"confirmed_distinct":false,"candidate":{"full_name":"Ana Pérez","education":[{"level":"bachelor","institution":"UNAM","field":"Computación","status":"completed","start_year":2015,"end_year":2020}],"years_of_experience":"1.5","seniority":"junior","languages":[{"code":"es","level":"native"}],"email":"ana@example.com","phone":null,"residence":{"country":"MX","state":"14","municipality":"14039","postal_code":null}}}
 ```
 
 Residence identifiers must be valid catalog values; the example illustrates the
@@ -94,9 +94,8 @@ All validation field entries use `{"field":"path","code":"code"}` in a
 
 ### Candidate fields (S5)
 
-Required: full name (identity rules, valid UTF-8, 2–120 runes), education
-(`high_school`, `bachelor`, `master`, `phd`), at least one email/phone, residence,
-and CV. Email uses the shared email value object and separate normalized value.
+Required: full name (identity rules, valid UTF-8, 2–120 runes), `education`
+(1–10 records), at least one email/phone, residence, and CV. Email uses the shared email value object and separate normalized value.
 Phone is E.164: +52 followed by exactly ten digits; non-MX bounds follow the
 shared phone value object (`+` then 8–15 digits, E.164; `+52` requires exactly ten national digits), matching the `company_candidates` CHECK.
 
@@ -104,13 +103,37 @@ Use the geo validator with `Required`, `RequireState`, `RequireMunicipality`, an
 `AllowPostalCode` enabled: MX requires state and municipality, with optional
 coherent five-digit CP; other countries prohibit subdivisions.
 
-Optional profile fields: professional_title, current_company, field_of_study
-(short text ≤120), experience_years (integer 0–60), summary (≤2000), skills
-(≤30 entries, each ≤60), languages (≤10 entries, CEFR A1–C2), linkedin_url and
-portfolio_url (HTTPS, ≤2048). Intake-local education, CEFR, and skills rules match
-the candidate profile vocabulary without crossing the candidate domain boundary:
-education trims/lowercases, CEFR is exact, and accepted skills trim/lowercase while
-preserving order. Empty/duplicate skills remain intake field errors.
+Optional profile fields: professional_title and current_company (short text ≤120),
+summary (≤2000), skills (≤30 entries, each ≤60), linkedin_url and portfolio_url
+(HTTPS, ≤2048). Accepted skills trim/lowercase while preserving order;
+empty/duplicate skills remain field errors.
+
+H2 profile fields use the shared vocabulary without importing the candidates feature:
+
+- `years_of_experience`: decimal string or null, 0–60, at most one fractional
+  digit, no leading zeroes or whitespace. `"1.5"` is valid; numeric `1.5`,
+  `"01"`, `"1.50"`, and `"60.1"` are invalid. `"2.0"` normalizes to `"2"`.
+- `seniority`: null or `intern|junior|semi_senior|senior|lead|manager|director`.
+- `education`: 1–10 records, each with exactly six keys: `level`, `institution`,
+  `field`, `status`, `start_year`, `end_year`. Duplicates are allowed.
+  Levels: `secondary|high_school|technical|tsu|bachelor|specialty|master|phd`.
+  Statuses: `in_progress|paused|completed|incomplete`.
+  Institution and field are null or trimmed text of 1–120 code points.
+  Years are null or integers 1950–2100; start must not exceed end when both exist.
+  `end_year:null` is valid for every status and mandatory for `in_progress`.
+- `languages`: up to 10 `{code,level}` objects. Codes must be unique exact
+  identifiers from `GET /v2/catalogs/languages`; levels are
+  `A1|A2|B1|B2|C1|C2|native`. No free-text names or enum normalization.
+
+Removed candidate keys `education_level`, `field_of_study`, and `experience_years`
+produce 400 `invalid_request`, as do unknown or repeated keys in study records.
+Missing/null/empty education produces `candidate.education` / `required`.
+A missing study key produces `candidate.education[i].<key>` / `required`;
+invalid values use that same path with `invalid` (text over 120 uses `too_long`).
+An in-progress end year uses `candidate.education[i].end_year` / `not_allowed`.
+Unknown language codes use `candidate.languages[i].code` / `invalid` and repeated
+codes use `duplicate`. Years/seniority errors use `candidate.years_of_experience`
+and `candidate.seniority` / `invalid`.
 No birth date, salary, or CV/LinkedIn/OCC extraction belongs in this cut (S8).
 
 ## Ordering and effects
@@ -142,7 +165,8 @@ uncertain: retain the file even if Commit returns an error. Reconciliation keeps
 files referenced by committed company_candidate_cvs rows and removes true orphans.
 Cleanup failures are returned alongside the original error rather than hidden.
 
-The transaction creates company_candidates and languages only for new identities.
+The transaction creates company_candidates, ordered education records, and languages
+only for new identities. Reuse never rewrites the existing profile.
 CV ownership is always the company: company_candidate_cvs.company_id is required;
 company_candidate_id is null when reusing an organic account. Such a CV must never
 appear in that account's candidate CV library. Shared reconciliation retains all
@@ -151,7 +175,12 @@ files referenced by `company_candidate_cvs.storage_key`, including rows with nul
 Manual file-first writes must use the matching shared advisory lock.
 Participation identity is XOR
 candidate_id/company_candidate_id, source is manual, added_by is the recruiter,
-version is 1, and profile snapshot comes from the selected record. Intake history
+version is 1, and profile snapshot comes from the selected record.
+Until H4, both stored snapshots and live manual board profiles retain exactly
+`location`, `skills`, `years_of_experience`, `education_level`. Years are truncated
+to an integer; education is the highest completed record among the four legacy
+levels (`high_school`, `bachelor`, `master`, `phd`), or null. In-progress studies
+never count. New seniority/languages are persisted but not added to this snapshot. Intake history
 has the recruiter actor and null from-stage. Record delivery using the existing
 move path when entering at or beyond the cutoff. Emit
 `VacancyCandidateAddedManually` without PII metadata. No notification, account
@@ -166,6 +195,21 @@ ETag with `Idempotency-Replayed:true`; changed fingerprint returns 409
 `idempotency_conflict`.
 
 ## Test-to-contract map
+
+H2 coverage:
+- `TestManualHarmonizationDefinition`: schema and frozen catalog transcription.
+- `TestManualHarmonizationBackfillChecksAndGuardedDown` (integration): backfill,
+  collisions, unmatched notices, CHECKs, guarded rollback, exact clean round trip.
+- `TestManualHarmonizationContract`, `TestManualEducationProfileParity`,
+  `TestManualEducationShapeAndCount`, `TestManualYearsSeniorityAndLanguagesParity`:
+  exact shape, six required study keys, enum/value boundaries and profile parity.
+- `TestManualLegacyProfileProjection`: integer truncation and highest completed
+  legacy education, including null when no legacy qualification exists.
+- `TestManualHarmonizationPersistenceReuseAndLegacySnapshot` (integration):
+  persisted decimal/seniority/education/languages, manual reuse, live board
+  projection and 201/GET equality.
+- Existing create/reuse/read and HTTP-flow integration fixtures use harmonized
+  fields and retain 201/GET-board-item equality.
 
 Implemented unit coverage:
 

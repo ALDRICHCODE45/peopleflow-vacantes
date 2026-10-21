@@ -1,24 +1,34 @@
 package board
 
-import "strings"
+import (
+	"encoding/json"
 
-// Keep the intake vocabulary aligned with candidate profiles without importing
-// another feature's domain. Education normalizes; CEFR is deliberately exact.
-func manualEducationLevel(raw string) (string, bool) {
-	value := strings.ToLower(strings.TrimSpace(raw))
-	switch value {
-	case "high_school", "bachelor", "master", "phd":
-		return value, true
-	default:
-		return "", false
-	}
-}
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/languages"
+)
 
-func manualCEFRLevel(raw string) (string, bool) {
-	switch raw {
-	case "A1", "A2", "B1", "B2", "C1", "C2":
-		return raw, true
-	default:
-		return "", false
+func manualCatalogCode(value string) bool { _, ok := languages.Lookup(value); return ok }
+
+// Enum and decimal literals are exact: unlike free text they are never trimmed
+// or case-folded. Validation paths remain owned by the intake contract.
+func manualLiteral(raw []byte, path string, required bool, valid func(string) bool, fields *manualFields) *string {
+	if manualNull(raw) {
+		if required {
+			fields.add(path, "required")
+		}
+		return nil
 	}
+	var value string
+	if json.Unmarshal(raw, &value) != nil {
+		fields.add(path, "invalid")
+		return nil
+	}
+	if value == "" && required {
+		fields.add(path, "required")
+		return nil
+	}
+	if !valid(value) {
+		fields.add(path, "invalid")
+		return nil
+	}
+	return &value
 }

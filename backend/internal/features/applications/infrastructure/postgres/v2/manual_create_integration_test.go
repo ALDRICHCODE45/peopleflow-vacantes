@@ -88,7 +88,7 @@ func setupManualIntake(t *testing.T) intakeFixture {
 	return intakeFixture{m, &intakeFiles{local: local}, &intakeInspector{}}
 }
 func (f intakeFixture) input(stage string) board.ManualInput {
-	data, _ := json.Marshal(map[string]any{"stage_id": stage, "existing": nil, "confirmed_distinct": false, "candidate": map[string]any{"full_name": "Manual Candidate", "education_level": "bachelor", "email": "intake@example.test", "phone": nil, "residence": map[string]any{"country": "US"}, "skills": []string{"Go"}, "languages": []map[string]string{{"language": "English", "level": "C1"}}}})
+	data, _ := json.Marshal(map[string]any{"stage_id": stage, "existing": nil, "confirmed_distinct": false, "candidate": map[string]any{"full_name": "Manual Candidate", "education": []any{map[string]any{"level": "bachelor", "institution": nil, "field": nil, "status": "completed", "start_year": nil, "end_year": nil}}, "years_of_experience": "7.9", "seniority": "senior", "email": "intake@example.test", "phone": nil, "residence": map[string]any{"country": "US"}, "skills": []string{"Go"}, "languages": []map[string]string{{"code": "en", "level": "native"}}}})
 	return board.ManualInput{Data: data, CV: []byte("%PDF-1 manual intake"), FileName: "resume.pdf", IdempotencyKey: uuid.New()}
 }
 func intakeChange(t *testing.T, in board.ManualInput, key string, value any) board.ManualInput {
@@ -147,7 +147,8 @@ func (f intakeFixture) effects(t *testing.T) string {
 	var out string
 	err := f.pool.QueryRow(context.Background(), `SELECT jsonb_build_array(
  (SELECT jsonb_agg(to_jsonb(c) ORDER BY id) FROM company_candidates c WHERE company_id=$1),
- (SELECT jsonb_agg(to_jsonb(l) ORDER BY company_candidate_id,language) FROM company_candidate_languages l WHERE company_candidate_id IN (SELECT id FROM company_candidates WHERE company_id=$1)),
+ (SELECT jsonb_agg(to_jsonb(l) ORDER BY company_candidate_id,code) FROM company_candidate_languages l WHERE company_candidate_id IN (SELECT id FROM company_candidates WHERE company_id=$1)),
+ (SELECT jsonb_agg(to_jsonb(e) ORDER BY company_candidate_id,position) FROM company_candidate_educations e WHERE company_candidate_id IN (SELECT id FROM company_candidates WHERE company_id=$1)),
  (SELECT jsonb_agg(to_jsonb(c) ORDER BY id) FROM company_candidate_cvs c WHERE company_id=$1),
  (SELECT jsonb_agg(to_jsonb(p) ORDER BY id) FROM process_participations p WHERE process_id IN(SELECT id FROM vacancy_processes WHERE company_id=$1)),
  (SELECT jsonb_agg(to_jsonb(h) ORDER BY id) FROM participation_stage_history h WHERE participation_id IN(SELECT id FROM process_participations WHERE process_id IN(SELECT id FROM vacancy_processes WHERE company_id=$1))),

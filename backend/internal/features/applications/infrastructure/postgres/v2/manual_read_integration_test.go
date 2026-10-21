@@ -97,8 +97,11 @@ func manualReadFixture(t *testing.T, reuse bool) movementFixture {
 		if _, err := m.pool.Exec(ctx, `INSERT INTO geo_postal_codes(country_code,postal_code,municipality_code) VALUES('MX','44100','14039') ON CONFLICT DO NOTHING`); err != nil {
 			t.Fatal(err)
 		}
-		_, err = m.pool.Exec(ctx, `INSERT INTO company_candidates(id,company_id,full_name,email,email_normalized,education_level,country_code,state_code,municipality_code,postal_code,experience_years,skills,created_by) SELECT $1,$2,'Manual Person','manual@example.test','manual@example.test','bachelor',country_code,left(municipality_code,2),municipality_code,postal_code,7,ARRAY['Go'],$3 FROM geo_postal_codes WHERE country_code='MX' AND postal_code='44100' AND municipality_code='14039'`, cc, m.company, m.recruiter)
+		_, err = m.pool.Exec(ctx, `INSERT INTO company_candidates(id,company_id,full_name,email,email_normalized,country_code,state_code,municipality_code,postal_code,years_of_experience,skills,created_by) SELECT $1,$2,'Manual Person','manual@example.test','manual@example.test',country_code,left(municipality_code,2),municipality_code,postal_code,7.9,ARRAY['Go'],$3 FROM geo_postal_codes WHERE country_code='MX' AND postal_code='44100' AND municipality_code='14039'`, cc, m.company, m.recruiter)
 		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := m.pool.Exec(ctx, `INSERT INTO company_candidate_educations(company_candidate_id,position,level,status) VALUES($1,0,'bachelor','completed'),($1,1,'phd','in_progress')`, cc); err != nil {
 			t.Fatal(err)
 		}
 	}

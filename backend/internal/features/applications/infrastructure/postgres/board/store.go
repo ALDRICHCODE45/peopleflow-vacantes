@@ -100,7 +100,7 @@ const itemSQL = `SELECT p.id,p.stage_id,p.version,COALESCE(cc.id,u.id),COALESCE(
  LEFT JOIN users ad ON ad.id=p.added_by AND p.source='manual'
  CROSS JOIN LATERAL (SELECT CASE WHEN p.company_candidate_id IS NULL THEN p.profile_snapshot ELSE jsonb_build_object(
  'location',jsonb_build_object('country',cc.country_code,'state',cc.state_code,'municipality',cc.municipality_code),
- 'skills',cc.skills,'years_of_experience',cc.experience_years,'education_level',cc.education_level) END AS profile) snap
+ 'skills',cc.skills,'years_of_experience',trunc(cc.years_of_experience)::integer,'education_level',(SELECT level FROM company_candidate_educations e WHERE e.company_candidate_id=cc.id AND e.status='completed' AND e.level IN ('high_school','bachelor','master','phd') ORDER BY CASE e.level WHEN 'phd' THEN 4 WHEN 'master' THEN 3 WHEN 'bachelor' THEN 2 ELSE 1 END DESC,e.position,e.id LIMIT 1)) END AS profile) snap
  LEFT JOIN geo_countries gc ON gc.code=snap.profile->'location'->>'country'
  LEFT JOIN geo_states gs ON gs.country_code=gc.code AND gs.code=snap.profile->'location'->>'state'
  LEFT JOIN geo_municipalities gm ON gm.country_code=gc.code AND gm.state_code=gs.code AND gm.code=snap.profile->'location'->>'municipality' `
