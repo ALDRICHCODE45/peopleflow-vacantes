@@ -101,7 +101,7 @@ func TestSubstateSetClearNoOpWireSnapshotsAndCatalog(t *testing.T) {
 	}
 	detail := movementRequest(t, m, "GET", m.vacancy, m.item.ID, "", "", "")
 	d := movementObject(t, detail.Body.Bytes())
-	movementItemKeys(t, d, "screening", "comment", "candidate_message")
+	movementItemKeys(t, d, "screening", "comment", "candidate_message", "contact")
 	if d["substate_id"] != id {
 		t.Fatal(d)
 	}

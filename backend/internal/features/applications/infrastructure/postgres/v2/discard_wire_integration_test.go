@@ -22,7 +22,7 @@ func TestDiscardRecoveryExactWireAndCandidatePrivacy(t *testing.T) {
 			t.Fatal(rec.Code, rec.Body.String())
 		}
 		detail := movementObject(t, rec.Body.Bytes())
-		movementItemKeys(t, detail, "screening", "comment", "candidate_message")
+		movementItemKeys(t, detail, "screening", "comment", "candidate_message", "contact")
 		if discarded {
 			d := movementKeys(t, detail["discard"], "reason", "previous_stage_id", "discarded_at", "recovery_stage_id")
 			movementKeys(t, d["reason"], "group", "key")

@@ -182,7 +182,7 @@ func TestFilterDataBoardDetailLegacyCurrentQuestionnaireAndPrivacy(t *testing.T)
 		t.Fatal(detail.Code)
 	}
 	d := movementObject(t, detail.Body.Bytes())
-	movementItemKeys(t, d, "screening", "comment", "candidate_message")
+	movementItemKeys(t, d, "screening", "comment", "candidate_message", "contact")
 	if !reflect.DeepEqual(d["profile"], profile) || !reflect.DeepEqual(d["screening_answers"], gotAnswers) {
 		t.Fatal("detail projection differs")
 	}

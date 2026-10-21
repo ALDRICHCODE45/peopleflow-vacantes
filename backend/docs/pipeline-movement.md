@@ -141,7 +141,7 @@ reports the first. Headcount edits alone do not synthesize hire milestones.
 | Route | 200 response |
 | --- | --- |
 | `GET …/participations/{participationId}/history` | `{items:[entry]}`, oldest first, then history ID |
-| `GET …/participations/{participationId}` | Item plus `screening:[{question_id,prompt,type,answer}]`, `comment`, `candidate_message` (last two null unless currently discarded) |
+| `GET …/participations/{participationId}` | Item plus `screening:[{question_id,prompt,type,answer}]`, `comment`, `candidate_message` (last two null unless currently discarded), and always-present `contact:{email,phone}` (each string or null): the company record for manual candidates, the account email and profile phone for organic ones, including organic reuse. Contact appears only on this detail, never on board list items or mutation responses |
 | `GET …/participations/{participationId}/cv` | Exact referenced CV version as an attachment with its stored content type |
 
 History entries are exactly `{kind, from_stage_id, to_stage_id, hire, departure,

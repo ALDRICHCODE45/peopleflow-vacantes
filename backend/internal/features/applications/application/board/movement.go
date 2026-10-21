@@ -178,6 +178,15 @@ type Detail struct {
 	Screening        []Screening `json:"screening"`
 	Comment          *string     `json:"comment"`
 	CandidateMessage *string     `json:"candidate_message"`
+	Contact          Contact     `json:"contact"`
+}
+
+// Contact is every available way to reach the candidate, shown only on the
+// participation detail: the company record for manual candidates, the account
+// email and profile phone for organic ones (including organic reuse).
+type Contact struct {
+	Email *string `json:"email"`
+	Phone *string `json:"phone"`
 }
 type File struct {
 	Name, ContentType string

@@ -266,3 +266,12 @@ B3b-4 endpoint and composition coverage:
 
 Parent-run isolated database execution remains a release validation step. No
 integration execution is implied by unit-test or integration-tag vet results.
+
+## Contact on the participation detail
+
+By user decision, `GET …/participations/{participationId}` always includes
+`contact: {"email": string|null, "phone": string|null}` for both origins: manual
+rows read the company record; organic rows (including organic accounts reused
+through manual intake) read the account email and the profile phone (blank →
+null). It is never added to board list items or mutation responses. Covered by
+`TestDetailContactManualOrganicAndReuse`.

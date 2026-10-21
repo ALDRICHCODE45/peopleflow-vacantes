@@ -377,7 +377,17 @@ func (s *Store) Detail(ctx context.Context, company, actor, id, pid uuid.UUID) (
 	}
 	var questions, answers []byte
 	var comment, candidateMessage *string
-	if err = tx.QueryRow(ctx, `SELECT questions_snapshot,answers_snapshot,comment,candidate_message FROM process_participations WHERE process_id=$1 AND id=$2`, id, pid).Scan(&questions, &answers, &comment, &candidateMessage); err != nil {
+	var contact app.Contact
+	// Company records are read only through this process's company.
+	if err = tx.QueryRow(ctx, `SELECT p.questions_snapshot,p.answers_snapshot,p.comment,p.candidate_message,
+ CASE WHEN p.company_candidate_id IS NOT NULL THEN cc.email ELSE u.email END,
+ CASE WHEN p.company_candidate_id IS NOT NULL THEN cc.phone ELSE NULLIF(btrim(cp.phone),'') END
+ FROM process_participations p
+ JOIN vacancy_processes vp ON vp.id=p.process_id
+ LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=vp.company_id
+ LEFT JOIN users u ON u.id=p.candidate_id
+ LEFT JOIN candidate_profiles cp ON cp.user_id=p.candidate_id
+ WHERE p.process_id=$1 AND p.id=$2`, id, pid).Scan(&questions, &answers, &comment, &candidateMessage, &contact.Email, &contact.Phone); err != nil {
 		return app.Detail{}, err
 	}
 	var qs []intake.Question
@@ -388,7 +398,7 @@ func (s *Store) Detail(ctx context.Context, company, actor, id, pid uuid.UUID) (
 	if err = json.Unmarshal(answers, &as); err != nil {
 		return app.Detail{}, err
 	}
-	out := app.Detail{Item: item, Screening: []app.Screening{}}
+	out := app.Detail{Item: item, Screening: []app.Screening{}, Contact: contact}
 	if item.Discard != nil {
 		out.Comment, out.CandidateMessage = comment, candidateMessage
 	}

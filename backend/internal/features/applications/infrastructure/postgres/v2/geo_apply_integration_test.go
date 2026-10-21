@@ -246,7 +246,7 @@ func TestGeoSnapshotCurrentCodesAndExpandedBoardDetailWire(t *testing.T) {
 				t.Fatal(detail.Code, detail.Body.String())
 			}
 			d := movementObject(t, detail.Body.Bytes())
-			movementItemKeys(t, d, "screening", "comment", "candidate_message")
+			movementItemKeys(t, d, "screening", "comment", "candidate_message", "contact")
 			if !reflect.DeepEqual(d["profile"], want) {
 				t.Fatal(d["profile"])
 			}
