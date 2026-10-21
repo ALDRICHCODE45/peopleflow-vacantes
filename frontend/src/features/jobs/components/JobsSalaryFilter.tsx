@@ -30,8 +30,12 @@ export function hasSalaryFilter(query: JobsQuery): boolean {
   return Boolean(query.salary_min || query.salary_max);
 }
 
+// The trigger shows the currency code so it fits the narrow sidebar; the list
+// still names each currency in full.
+const CURRENCY_CODES = CURRENCY_OPTIONS.map(option => ({ value: option.value, label: option.value, name: option.label }));
+
 const UNIT_FIELDS = [
-  { key: "salary_currency", label: "Moneda", options: CURRENCY_OPTIONS },
+  { key: "salary_currency", label: "Moneda", options: CURRENCY_CODES },
   { key: "salary_period", label: "Periodo de pago", options: PAY_PERIOD_OPTIONS },
   { key: "salary_basis", label: "Base salarial", options: BASIS_OPTIONS },
 ] as const;
@@ -62,7 +66,7 @@ export function JobsSalaryFilter({ idPrefix, query, onChange, errors }: {
         <FieldLabel htmlFor={`${idPrefix}${key}`}>{label}</FieldLabel>
         <Select name={key} items={options} value={query[key] || DEFAULT_SALARY_UNITS[key]} onValueChange={value => onChange({ [key]: value ?? DEFAULT_SALARY_UNITS[key] })}>
           <SelectTrigger id={`${idPrefix}${key}`} className="min-h-10 w-full"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectGroup>{options.map(option => <SelectItem key={option.value} value={option.value} className="min-h-10">{option.label}</SelectItem>)}</SelectGroup></SelectContent>
+          <SelectContent className="min-w-max"><SelectGroup>{options.map(option => <SelectItem key={option.value} value={option.value} className="min-h-10">{"name" in option ? option.name : option.label}</SelectItem>)}</SelectGroup></SelectContent>
         </Select>
       </Field>)}
     </FieldGroup>

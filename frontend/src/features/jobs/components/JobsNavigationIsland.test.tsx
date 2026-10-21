@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -76,6 +76,23 @@ describe("salary filter commits", () => {
     expect(screen.getByRole("button", { name: "Filtros (1)" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Quitar filtro Salario:.*30,000.*40,000.*MXN.*mensual.*bruto/ }));
     expect(push).toHaveBeenCalledWith("/vacantes");
+  });
+  it("keeps the salary chip inside the active filters group, after the other chips", () => {
+    setup({ work_mode: "remote", salary_min: "30000" });
+    const chips = within(screen.getByLabelText("Filtros activos")).getAllByRole("button");
+    expect(chips.map(chip => chip.getAttribute("aria-label"))).toEqual(["Quitar filtro Modalidad: Remoto", expect.stringMatching(/^Quitar filtro Salario: Desde \$30,000 MXN/)]);
+  });
+  it("lets every filter list grow to its longest option instead of clipping it in the narrow sidebar", () => {
+    const salarySource = readFileSync(join(process.cwd(), "src/features/jobs/components/JobsSalaryFilter.tsx"), "utf8");
+    for (const text of [source, salarySource]) {
+      const lists = text.match(/<SelectContent[^>]*>/gu) ?? [];
+      expect(lists.length).toBeGreaterThan(0);
+      for (const list of lists) expect(list).toContain('className="min-w-max"');
+    }
+  });
+  it("shows currency codes in the narrow trigger", () => {
+    setup();
+    expect(within(screen.getByRole("combobox", { name: "Moneda" })).getAllByRole("option").map(option => option.textContent)).toEqual(["MXN", "USD"]);
   });
   it("clears salary through Todas", () => {
     setup({ salary_min: "30000" });

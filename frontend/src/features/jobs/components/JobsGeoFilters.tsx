@@ -81,7 +81,8 @@ export function JobsGeoFields({ idPrefix, query, onChange, geo }: { idPrefix: st
     </Field>
   </>;
 }
-export function JobsFilterChips({ query, geo, onRemove }: { query: JobsQuery; geo: JobsGeo; onRemove: (patch: JobsFilterPatch) => void }) {
+/** `children` are further chips (such as salary) that belong to the same active-filters group. */
+export function JobsFilterChips({ query, geo, onRemove, children }: { query: JobsQuery; geo: JobsGeo; onRemove: (patch: JobsFilterPatch) => void; children?: React.ReactNode }) {
   const dimensions = [
     { key: "state", label: "Estado", options: geo.states.data?.items ?? [] },
     { key: "municipality", label: "Municipio", options: Object.values(geo.municipalities).flatMap(data => data.items) },
@@ -97,5 +98,6 @@ export function JobsFilterChips({ query, geo, onRemove }: { query: JobsQuery; ge
       const text = `${label}: ${name ?? "Nombre no disponible"}`;
       return <Tooltip key={`${key}-${code}`}><TooltipTrigger render={<Button type="button" variant="outline" className="h-8 max-w-[300px] shrink-0" aria-label={`Quitar filtro ${text}`} onClick={() => onRemove(key === "state" ? statePatch(query, selectedValues(query.state).filter(value => value !== code)) : { [key]: ["municipality", "work_mode"].includes(key) ? selectedValues(query[key as keyof JobsQuery]).filter(value => value !== code) : "" })} />}><MapPinIcon aria-hidden="true" data-icon="inline-start" /><span className="min-w-0 truncate">{text}</span><XIcon aria-hidden="true" data-icon="inline-end" /></TooltipTrigger><TooltipContent>{text}</TooltipContent></Tooltip>;
     }))}
+    {children}
   </div>;
 }

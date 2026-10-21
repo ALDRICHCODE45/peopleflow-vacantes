@@ -116,10 +116,9 @@ export function JobsNavigationIsland({ children, routeKey, query }: { children: 
       <ToggleGroup multiple value={QUICK_FILTERS.filter((item) => item.isActive(query)).map((item) => item.label)} variant="outline" aria-label="Filtros rápidos" className="max-w-full flex-wrap">
         {QUICK_FILTERS.map((item) => <ToggleGroupItem key={item.label} value={item.label} className="min-h-10" onClick={(event) => startNavigation(buildFilterCommitUrl(routeKey, item.patch), event.currentTarget, null)}>{item.label}</ToggleGroupItem>)}
       </ToggleGroup>
-      <div className="flex min-w-0 gap-2 overflow-x-auto">
-        <JobsFilterChips query={query} geo={geo} onRemove={patch => startNavigation(buildFilterCommitUrl(routeKey, patch), null, null)} />
+      <JobsFilterChips query={query} geo={geo} onRemove={patch => startNavigation(buildFilterCommitUrl(routeKey, patch), null, null)}>
         <JobsSalaryFilterChip query={query} onRemove={patch => startNavigation(buildFilterCommitUrl(routeKey, patch), null, null)} />
-      </div>
+      </JobsFilterChips>
       {geo.loaders}
       <div className="flex flex-col gap-6 md:flex-row md:items-start">
         <div className="hidden w-full shrink-0 md:sticky md:top-24 md:block md:w-60">
@@ -189,7 +188,7 @@ function FilterFields({ idPrefix, query, onChange }: { idPrefix: string; query: 
         <FieldLabel htmlFor={`${idPrefix}${key}`}>{label}</FieldLabel>
         <Select name={key} value={query[key] || null} onValueChange={value => onChange({ [key]: value ?? "" })} items={items}>
           <SelectTrigger id={`${idPrefix}${key}`} className="min-h-10 w-full"><SelectValue placeholder="Todas las opciones" /></SelectTrigger>
-          <SelectContent><SelectGroup>{items.map((item) => <SelectItem key={item.label} value={item.value} className="min-h-10">{item.label}</SelectItem>)}</SelectGroup></SelectContent>
+          <SelectContent className="min-w-max"><SelectGroup>{items.map((item) => <SelectItem key={item.label} value={item.value} className="min-h-10">{item.label}</SelectItem>)}</SelectGroup></SelectContent>
         </Select>
       </Field>;
     })}
