@@ -357,6 +357,14 @@ func TestToApplicationEntity(t *testing.T) {
 // TestToApplicationWithCandidate covers the row → ApplicationWithCandidate
 // mapping (GetApplicationByIDRow / ListApplicationsByJobRow), with
 // candidate-without-profile → nil ProfessionalTitle / YearsOfExperience.
+func testNumericYears(s string) pgtype.Numeric {
+	var n pgtype.Numeric
+	if err := n.Scan(s); err != nil {
+		panic(err)
+	}
+	return n
+}
+
 func TestToApplicationWithCandidate(t *testing.T) {
 	id := uuid.MustParse("018e0000-0000-7000-8000-000000000141")
 	jobID := uuid.MustParse("018e0000-0000-7000-8000-000000000142")
@@ -373,7 +381,7 @@ func TestToApplicationWithCandidate(t *testing.T) {
 			UpdatedAt:                  pgtype.Timestamptz{Time: pub, Valid: true},
 			CandidateFullName:          "Alice Engineer",
 			CandidateProfessionalTitle: pgtype.Text{String: "Senior", Valid: true},
-			CandidateYearsOfExperience: pgtype.Int2{Int16: 7, Valid: true},
+			CandidateYearsOfExperience: testNumericYears("7.9"),
 		}
 		got, err := toApplicationWithCandidate(row)
 		if err != nil {
@@ -406,7 +414,7 @@ func TestToApplicationWithCandidate(t *testing.T) {
 			UpdatedAt:                  pgtype.Timestamptz{Time: pub, Valid: true},
 			CandidateFullName:          "No Profile",
 			CandidateProfessionalTitle: pgtype.Text{Valid: false},
-			CandidateYearsOfExperience: pgtype.Int2{Valid: false},
+			CandidateYearsOfExperience: pgtype.Numeric{Valid: false},
 		}
 		got, err := toApplicationWithCandidate(row)
 		if err != nil {

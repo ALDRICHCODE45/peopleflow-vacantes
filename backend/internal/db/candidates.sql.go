@@ -12,9 +12,17 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const deleteCandidateEducations = `-- name: DeleteCandidateEducations :exec
+DELETE FROM candidate_educations WHERE user_id=$1
+`
+
+func (q *Queries) DeleteCandidateEducations(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteCandidateEducations, userID)
+	return err
+}
+
 const deleteCandidateLanguagesByUserID = `-- name: DeleteCandidateLanguagesByUserID :exec
-DELETE FROM candidate_languages
-WHERE user_id = $1
+DELETE FROM candidate_languages WHERE user_id=$1
 `
 
 func (q *Queries) DeleteCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) error {
@@ -22,9 +30,17 @@ func (q *Queries) DeleteCandidateLanguagesByUserID(ctx context.Context, userID u
 	return err
 }
 
+const deleteLegacyCandidateLanguageNames = `-- name: DeleteLegacyCandidateLanguageNames :exec
+DELETE FROM candidate_language_0039_backup WHERE user_id=$1
+`
+
+func (q *Queries) DeleteLegacyCandidateLanguageNames(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteLegacyCandidateLanguageNames, userID)
+	return err
+}
+
 const getCandidateProfileByUserID = `-- name: GetCandidateProfileByUserID :one
-SELECT user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, birth_date, education_level, field_of_study, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code FROM candidate_profiles
-WHERE user_id = $1
+SELECT user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, birth_date, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code, seniority FROM candidate_profiles WHERE user_id=$1
 `
 
 func (q *Queries) GetCandidateProfileByUserID(ctx context.Context, userID uuid.UUID) (CandidateProfile, error) {
@@ -40,8 +56,6 @@ func (q *Queries) GetCandidateProfileByUserID(ctx context.Context, userID uuid.U
 		&i.YearsOfExperience,
 		&i.ProfileSummary,
 		&i.BirthDate,
-		&i.EducationLevel,
-		&i.FieldOfStudy,
 		&i.Skills,
 		&i.CurrentSalaryGross,
 		&i.CurrentSalaryNet,
@@ -55,45 +69,109 @@ func (q *Queries) GetCandidateProfileByUserID(ctx context.Context, userID uuid.U
 		&i.CountryCode,
 		&i.StateCode,
 		&i.MunicipalityCode,
+		&i.Seniority,
 	)
 	return i, err
 }
 
+const getLegacyCandidateEducation = `-- name: GetLegacyCandidateEducation :one
+SELECT level, field FROM candidate_educations
+WHERE user_id=$1 AND status='completed' AND level IN ('high_school','bachelor','master','phd')
+ORDER BY CASE level WHEN 'phd' THEN 4 WHEN 'master' THEN 3 WHEN 'bachelor' THEN 2 ELSE 1 END DESC, position, id
+LIMIT 1
+`
+
+type GetLegacyCandidateEducationRow struct {
+	Level string      `json:"level"`
+	Field pgtype.Text `json:"field"`
+}
+
+func (q *Queries) GetLegacyCandidateEducation(ctx context.Context, userID uuid.UUID) (GetLegacyCandidateEducationRow, error) {
+	row := q.db.QueryRow(ctx, getLegacyCandidateEducation, userID)
+	var i GetLegacyCandidateEducationRow
+	err := row.Scan(&i.Level, &i.Field)
+	return i, err
+}
+
 const insertCandidateLanguage = `-- name: InsertCandidateLanguage :exec
-INSERT INTO candidate_languages (user_id, language, level)
-VALUES ($1, $2, $3)
+INSERT INTO candidate_languages(user_id,code,level) VALUES($1,$2,$3)
 `
 
 type InsertCandidateLanguageParams struct {
-	UserID   uuid.UUID `json:"user_id"`
-	Language string    `json:"language"`
-	Level    string    `json:"level"`
+	UserID uuid.UUID `json:"user_id"`
+	Code   string    `json:"code"`
+	Level  string    `json:"level"`
 }
 
-// Used inside the atomic replace transaction. Composite PK (user_id, language)
-// prevents duplicate languages for the same user — the adapter surfaces a
-// 23505 as ErrDuplicateLanguage.
 func (q *Queries) InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error {
-	_, err := q.db.Exec(ctx, insertCandidateLanguage, arg.UserID, arg.Language, arg.Level)
+	_, err := q.db.Exec(ctx, insertCandidateLanguage, arg.UserID, arg.Code, arg.Level)
+	return err
+}
+
+const insertLegacyCandidateEducation = `-- name: InsertLegacyCandidateEducation :exec
+INSERT INTO candidate_educations(user_id,position,level,field,status) VALUES($1,0,$2,$3,'completed')
+`
+
+type InsertLegacyCandidateEducationParams struct {
+	UserID uuid.UUID   `json:"user_id"`
+	Level  string      `json:"level"`
+	Field  pgtype.Text `json:"field"`
+}
+
+func (q *Queries) InsertLegacyCandidateEducation(ctx context.Context, arg InsertLegacyCandidateEducationParams) error {
+	_, err := q.db.Exec(ctx, insertLegacyCandidateEducation, arg.UserID, arg.Level, arg.Field)
+	return err
+}
+
+const insertLegacyCandidateLanguageName = `-- name: InsertLegacyCandidateLanguageName :exec
+INSERT INTO candidate_language_0039_backup(user_id,language,level,code) VALUES($1,$2,$3,$4)
+`
+
+type InsertLegacyCandidateLanguageNameParams struct {
+	UserID   uuid.UUID   `json:"user_id"`
+	Language string      `json:"language"`
+	Level    string      `json:"level"`
+	Code     pgtype.Text `json:"code"`
+}
+
+func (q *Queries) InsertLegacyCandidateLanguageName(ctx context.Context, arg InsertLegacyCandidateLanguageNameParams) error {
+	_, err := q.db.Exec(ctx, insertLegacyCandidateLanguageName,
+		arg.UserID,
+		arg.Language,
+		arg.Level,
+		arg.Code,
+	)
 	return err
 }
 
 const listCandidateLanguagesByUserID = `-- name: ListCandidateLanguagesByUserID :many
-SELECT user_id, language, level FROM candidate_languages
-WHERE user_id = $1
-ORDER BY language
+SELECT l.user_id,l.code,l.level,
+ coalesce((SELECT b.language FROM candidate_language_0039_backup b WHERE b.user_id=l.user_id AND b.code=l.code ORDER BY b.level DESC,b.language LIMIT 1),'')::text AS legacy_name
+FROM candidate_languages l WHERE l.user_id=$1 ORDER BY legacy_name,l.code
 `
 
-func (q *Queries) ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error) {
+type ListCandidateLanguagesByUserIDRow struct {
+	UserID     uuid.UUID `json:"user_id"`
+	Code       string    `json:"code"`
+	Level      string    `json:"level"`
+	LegacyName string    `json:"legacy_name"`
+}
+
+func (q *Queries) ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]ListCandidateLanguagesByUserIDRow, error) {
 	rows, err := q.db.Query(ctx, listCandidateLanguagesByUserID, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []CandidateLanguage
+	var items []ListCandidateLanguagesByUserIDRow
 	for rows.Next() {
-		var i CandidateLanguage
-		if err := rows.Scan(&i.UserID, &i.Language, &i.Level); err != nil {
+		var i ListCandidateLanguagesByUserIDRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.Code,
+			&i.Level,
+			&i.LegacyName,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -106,75 +184,49 @@ func (q *Queries) ListCandidateLanguagesByUserID(ctx context.Context, userID uui
 
 const upsertCandidateProfile = `-- name: UpsertCandidateProfile :one
 INSERT INTO candidate_profiles (
-    user_id, phone, linkedin_url, portfolio_url, professional_title,
-    current_company, years_of_experience, profile_summary, birth_date,
-    country_code, state_code, municipality_code, education_level, field_of_study, skills,
-    current_salary_gross, current_salary_net, expected_salary,
-    salary_currency, expected_salary_period,
-    created_at, updated_at
-)
-VALUES (
-    $1, $2, $3, $4, $5,
-    $6, $7, $8, $9,
-    $10, $11, $12, $13, $14, $15,
-    $16, $17, $18,
-    $19, $20,
-    now(), now()
+ user_id, phone, linkedin_url, portfolio_url, professional_title,
+ current_company, years_of_experience, profile_summary, birth_date,
+ country_code, state_code, municipality_code, skills,
+ current_salary_gross, current_salary_net, expected_salary,
+ salary_currency, expected_salary_period, created_at, updated_at
+) VALUES (
+ $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,now(),now()
 )
 ON CONFLICT (user_id) DO UPDATE SET
-    phone                  = EXCLUDED.phone,
-    linkedin_url           = EXCLUDED.linkedin_url,
-    portfolio_url          = EXCLUDED.portfolio_url,
-    professional_title     = EXCLUDED.professional_title,
-    current_company        = EXCLUDED.current_company,
-    years_of_experience    = EXCLUDED.years_of_experience,
-    profile_summary        = EXCLUDED.profile_summary,
-    birth_date             = EXCLUDED.birth_date,
-    country_code           = EXCLUDED.country_code,
-    state_code             = EXCLUDED.state_code,
-    municipality_code      = EXCLUDED.municipality_code,
-    education_level        = EXCLUDED.education_level,
-    field_of_study         = EXCLUDED.field_of_study,
-    skills                 = EXCLUDED.skills,
-    current_salary_gross   = EXCLUDED.current_salary_gross,
-    current_salary_net     = EXCLUDED.current_salary_net,
-    expected_salary        = EXCLUDED.expected_salary,
-    salary_currency        = EXCLUDED.salary_currency,
-    expected_salary_period = EXCLUDED.expected_salary_period,
-    updated_at             = now()
-RETURNING user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, birth_date, education_level, field_of_study, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code
+ phone=EXCLUDED.phone, linkedin_url=EXCLUDED.linkedin_url,
+ portfolio_url=EXCLUDED.portfolio_url, professional_title=EXCLUDED.professional_title,
+ current_company=EXCLUDED.current_company, years_of_experience=EXCLUDED.years_of_experience,
+ profile_summary=EXCLUDED.profile_summary, birth_date=EXCLUDED.birth_date,
+ country_code=EXCLUDED.country_code,state_code=EXCLUDED.state_code,municipality_code=EXCLUDED.municipality_code,
+ skills=EXCLUDED.skills,current_salary_gross=EXCLUDED.current_salary_gross,
+ current_salary_net=EXCLUDED.current_salary_net,expected_salary=EXCLUDED.expected_salary,
+ salary_currency=EXCLUDED.salary_currency,expected_salary_period=EXCLUDED.expected_salary_period,
+ updated_at=now()
+RETURNING user_id, phone, linkedin_url, portfolio_url, professional_title, current_company, years_of_experience, profile_summary, birth_date, skills, current_salary_gross, current_salary_net, expected_salary, salary_currency, expected_salary_period, cv_s3_key, created_at, updated_at, search_vector, country_code, state_code, municipality_code, seniority
 `
 
 type UpsertCandidateProfileParams struct {
-	UserID               uuid.UUID   `json:"user_id"`
-	Phone                pgtype.Text `json:"phone"`
-	LinkedinUrl          pgtype.Text `json:"linkedin_url"`
-	PortfolioUrl         pgtype.Text `json:"portfolio_url"`
-	ProfessionalTitle    pgtype.Text `json:"professional_title"`
-	CurrentCompany       pgtype.Text `json:"current_company"`
-	YearsOfExperience    pgtype.Int2 `json:"years_of_experience"`
-	ProfileSummary       pgtype.Text `json:"profile_summary"`
-	BirthDate            pgtype.Date `json:"birth_date"`
-	CountryCode          pgtype.Text `json:"country_code"`
-	StateCode            pgtype.Text `json:"state_code"`
-	MunicipalityCode     pgtype.Text `json:"municipality_code"`
-	EducationLevel       pgtype.Text `json:"education_level"`
-	FieldOfStudy         pgtype.Text `json:"field_of_study"`
-	Skills               []string    `json:"skills"`
-	CurrentSalaryGross   pgtype.Int4 `json:"current_salary_gross"`
-	CurrentSalaryNet     pgtype.Int4 `json:"current_salary_net"`
-	ExpectedSalary       pgtype.Int4 `json:"expected_salary"`
-	SalaryCurrency       string      `json:"salary_currency"`
-	ExpectedSalaryPeriod pgtype.Text `json:"expected_salary_period"`
+	UserID               uuid.UUID      `json:"user_id"`
+	Phone                pgtype.Text    `json:"phone"`
+	LinkedinUrl          pgtype.Text    `json:"linkedin_url"`
+	PortfolioUrl         pgtype.Text    `json:"portfolio_url"`
+	ProfessionalTitle    pgtype.Text    `json:"professional_title"`
+	CurrentCompany       pgtype.Text    `json:"current_company"`
+	YearsOfExperience    pgtype.Numeric `json:"years_of_experience"`
+	ProfileSummary       pgtype.Text    `json:"profile_summary"`
+	BirthDate            pgtype.Date    `json:"birth_date"`
+	CountryCode          pgtype.Text    `json:"country_code"`
+	StateCode            pgtype.Text    `json:"state_code"`
+	MunicipalityCode     pgtype.Text    `json:"municipality_code"`
+	Skills               []string       `json:"skills"`
+	CurrentSalaryGross   pgtype.Int4    `json:"current_salary_gross"`
+	CurrentSalaryNet     pgtype.Int4    `json:"current_salary_net"`
+	ExpectedSalary       pgtype.Int4    `json:"expected_salary"`
+	SalaryCurrency       string         `json:"salary_currency"`
+	ExpectedSalaryPeriod pgtype.Text    `json:"expected_salary_period"`
 }
 
-// Idempotent upsert keyed on the PK (user_id). First PUT creates the row;
-// subsequent PUTs replace the editable columns with the fresh entity
-// (full-replacement semantics: omitted nullable fields become NULL).
-// search_vector is a STORED generated column owned by Postgres and MUST
-// NOT be touched here. cv_s3_key is RESERVED for the future CV slice and
-// MUST NOT be written here: it stays out of both the INSERT and the DO
-// UPDATE SET list, so a preexisting reserved value survives every upsert.
+// Reserved cv_s3_key and search_vector remain database-owned.
 func (q *Queries) UpsertCandidateProfile(ctx context.Context, arg UpsertCandidateProfileParams) (CandidateProfile, error) {
 	row := q.db.QueryRow(ctx, upsertCandidateProfile,
 		arg.UserID,
@@ -189,8 +241,6 @@ func (q *Queries) UpsertCandidateProfile(ctx context.Context, arg UpsertCandidat
 		arg.CountryCode,
 		arg.StateCode,
 		arg.MunicipalityCode,
-		arg.EducationLevel,
-		arg.FieldOfStudy,
 		arg.Skills,
 		arg.CurrentSalaryGross,
 		arg.CurrentSalaryNet,
@@ -209,8 +259,6 @@ func (q *Queries) UpsertCandidateProfile(ctx context.Context, arg UpsertCandidat
 		&i.YearsOfExperience,
 		&i.ProfileSummary,
 		&i.BirthDate,
-		&i.EducationLevel,
-		&i.FieldOfStudy,
 		&i.Skills,
 		&i.CurrentSalaryGross,
 		&i.CurrentSalaryNet,
@@ -224,6 +272,7 @@ func (q *Queries) UpsertCandidateProfile(ctx context.Context, arg UpsertCandidat
 		&i.CountryCode,
 		&i.StateCode,
 		&i.MunicipalityCode,
+		&i.Seniority,
 	)
 	return i, err
 }

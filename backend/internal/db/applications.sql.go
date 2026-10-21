@@ -133,7 +133,7 @@ type GetApplicationByIDRow struct {
 	UpdatedAt                  pgtype.Timestamptz `json:"updated_at"`
 	CandidateFullName          string             `json:"candidate_full_name"`
 	CandidateProfessionalTitle pgtype.Text        `json:"candidate_professional_title"`
-	CandidateYearsOfExperience pgtype.Int2        `json:"candidate_years_of_experience"`
+	CandidateYearsOfExperience pgtype.Numeric     `json:"candidate_years_of_experience"`
 }
 
 // Recruiter detail endpoint (design D5 / spec scenario "recruiter gets
@@ -220,7 +220,7 @@ type ListApplicationsByJobRow struct {
 	UpdatedAt                  pgtype.Timestamptz `json:"updated_at"`
 	CandidateFullName          string             `json:"candidate_full_name"`
 	CandidateProfessionalTitle pgtype.Text        `json:"candidate_professional_title"`
-	CandidateYearsOfExperience pgtype.Int2        `json:"candidate_years_of_experience"`
+	CandidateYearsOfExperience pgtype.Numeric     `json:"candidate_years_of_experience"`
 }
 
 // Recruiter queue read (design D5 second step). Same-company scope

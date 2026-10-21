@@ -429,7 +429,7 @@ func toApplicationWithCandidateFromFields(
 	snippetUserID uuid.UUID,
 	snippetFullName string,
 	snippetTitle pgtype.Text,
-	snippetYears pgtype.Int2,
+	snippetYears pgtype.Numeric,
 ) (entities.ApplicationWithCandidate, error) {
 	app, err := toApplicationFromFields(
 		id, jobID, candidateID, status,
@@ -448,7 +448,12 @@ func toApplicationWithCandidateFromFields(
 		snippet.ProfessionalTitle = &v
 	}
 	if snippetYears.Valid {
-		v := int(snippetYears.Int16)
+		decimal, err := snippetYears.Float64Value()
+		if err != nil {
+			return entities.ApplicationWithCandidate{}, err
+		}
+		// Preserve the legacy integer response until H4 switches the wire shape.
+		v := int(decimal.Float64)
 		snippet.YearsOfExperience = &v
 	}
 	return entities.ApplicationWithCandidate{

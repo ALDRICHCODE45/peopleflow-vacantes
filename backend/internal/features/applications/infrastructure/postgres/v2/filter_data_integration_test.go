@@ -30,7 +30,7 @@ func TestFilterDataApplySnapshotNormalizationAndReplay(t *testing.T) {
 			f := setup(t)
 			ctx := context.Background()
 			if tc.profile {
-				if _, err := f.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,skills,years_of_experience,education_level) VALUES($1,ARRAY['Go','SQL','Go'],5,'master')`, f.actor); err != nil {
+				if _, err := f.pool.Exec(ctx, `WITH p AS (INSERT INTO candidate_profiles(user_id,skills,years_of_experience) VALUES($1,ARRAY['Go','SQL','Go'],5.9) RETURNING user_id) INSERT INTO candidate_educations(user_id,position,level,status) SELECT user_id,0,'master','completed' FROM p`, f.actor); err != nil {
 					t.Fatal(err)
 				}
 				t.Cleanup(func() {
@@ -92,7 +92,7 @@ func TestFilterDataApplySnapshotNormalizationAndReplay(t *testing.T) {
 			if !reflect.DeepEqual(obj, want) {
 				t.Fatal("snapshot does not match normalized allowlist")
 			}
-			if _, err = f.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,skills,years_of_experience,education_level) VALUES($1,ARRAY['Rust'],1,'phd') ON CONFLICT(user_id) DO UPDATE SET skills=EXCLUDED.skills,years_of_experience=EXCLUDED.years_of_experience,education_level=EXCLUDED.education_level`, f.actor); err != nil {
+			if _, err = f.pool.Exec(ctx, `WITH p AS (INSERT INTO candidate_profiles(user_id,skills,years_of_experience) VALUES($1,ARRAY['Rust'],1) ON CONFLICT(user_id) DO UPDATE SET skills=EXCLUDED.skills,years_of_experience=EXCLUDED.years_of_experience RETURNING user_id) INSERT INTO candidate_educations(user_id,position,level,status) SELECT user_id,0,'phd','completed' FROM p ON CONFLICT(user_id,position) DO UPDATE SET level=EXCLUDED.level`, f.actor); err != nil {
 				t.Fatal(err)
 			}
 			if !tc.profile {
@@ -200,7 +200,7 @@ func TestFilterDataBoardDetailLegacyCurrentQuestionnaireAndPrivacy(t *testing.T)
 	if err = m.pool.QueryRow(ctx, `SELECT id FROM users WHERE cognito_sub=$1`, m.other).Scan(&otherID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = m.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,skills,years_of_experience,education_level) VALUES($1,ARRAY['Go','SQL'],0,'bachelor')`, otherID); err != nil {
+	if _, err = m.pool.Exec(ctx, `WITH p AS (INSERT INTO candidate_profiles(user_id,skills,years_of_experience) VALUES($1,ARRAY['Go','SQL'],0) RETURNING user_id) INSERT INTO candidate_educations(user_id,position,level,status) SELECT user_id,0,'bachelor','completed' FROM p`, otherID); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
@@ -239,7 +239,7 @@ func TestFilterDataBoardDetailLegacyCurrentQuestionnaireAndPrivacy(t *testing.T)
 	if !reflect.DeepEqual(readProfile(), expected) {
 		t.Fatal("detail lost applied profile")
 	}
-	if _, err = m.pool.Exec(ctx, `UPDATE candidate_profiles SET skills=ARRAY['Rust'],years_of_experience=7,education_level='phd' WHERE user_id=$1`, otherID); err != nil {
+	if _, err = m.pool.Exec(ctx, `WITH p AS (UPDATE candidate_profiles SET skills=ARRAY['Rust'],years_of_experience=7 WHERE user_id=$1 RETURNING user_id) UPDATE candidate_educations SET level='phd' WHERE user_id IN (SELECT user_id FROM p)`, otherID); err != nil {
 		t.Fatal(err)
 	}
 	replay, err := m.store.Apply(ctx, m.other, m.vacancy, key, req)

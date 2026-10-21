@@ -197,7 +197,7 @@ func TestGeoSnapshotCurrentCodesAndExpandedBoardDetailWire(t *testing.T) {
 			if err := m.pool.QueryRow(ctx, `SELECT id FROM users WHERE cognito_sub=$1`, m.other).Scan(&candidate); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := m.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,country_code,state_code,municipality_code,skills,years_of_experience,education_level) VALUES($1,$2,$3,$4,ARRAY['Go','SQL','Go'],0,'master')`, candidate, tc.country, tc.state, tc.municipality); err != nil {
+			if _, err := m.pool.Exec(ctx, `WITH p AS (INSERT INTO candidate_profiles(user_id,country_code,state_code,municipality_code,skills,years_of_experience) VALUES($1,$2,$3,$4,ARRAY['Go','SQL','Go'],0) RETURNING user_id) INSERT INTO candidate_educations(user_id,position,level,status) SELECT user_id,0,'master','completed' FROM p`, candidate, tc.country, tc.state, tc.municipality); err != nil {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() {

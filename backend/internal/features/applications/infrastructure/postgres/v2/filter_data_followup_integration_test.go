@@ -44,7 +44,7 @@ func TestFilterDataPopulatedSnapshotsNeverReachRequestLogsOrAuditMetadata(t *tes
 	if err = m.pool.QueryRow(ctx, `SELECT id FROM users WHERE cognito_sub=$1`, m.other).Scan(&candidate); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = m.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,country_code,state_code,municipality_code,skills,years_of_experience,education_level) VALUES($1,'MX','14','14039',ARRAY[$2]::text[],7,'master')`, candidate, skill); err != nil {
+	if _, err = m.pool.Exec(ctx, `WITH p AS (INSERT INTO candidate_profiles(user_id,country_code,state_code,municipality_code,skills,years_of_experience) VALUES($1,'MX','14','14039',ARRAY[$2]::text[],7) RETURNING user_id) INSERT INTO candidate_educations(user_id,position,level,status) SELECT user_id,0,'master','completed' FROM p`, candidate, skill); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {

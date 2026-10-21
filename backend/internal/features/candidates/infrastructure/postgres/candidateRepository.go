@@ -8,7 +8,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
+
+	catalog "github.com/aldrichcode45/peopleflow-vacantes/internal/shared/languages"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/domain/entities"
@@ -47,11 +51,33 @@ var _ candidaterepositories.CandidateRepository = (*CandidateRepository)(nil)
 // search_vector column is a STORED generated column owned by Postgres
 // and MUST NOT be touched from application code (design decision #9).
 func (r *CandidateRepository) UpsertProfile(ctx context.Context, profile *entities.CandidateProfile) (*entities.CandidateProfile, error) {
-	row, err := db.New(r.pool).UpsertCandidateProfile(ctx, buildUpsertParams(profile))
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	q := db.New(tx)
+	row, err := q.UpsertCandidateProfile(ctx, buildUpsertParams(profile))
 	if err != nil {
 		return nil, mapCreateError(err)
 	}
-	return toEntity(row)
+	if err = q.DeleteCandidateEducations(ctx, row.UserID); err != nil {
+		return nil, err
+	}
+	if profile.EducationLevel != nil {
+		err = q.InsertLegacyCandidateEducation(ctx, db.InsertLegacyCandidateEducationParams{UserID: row.UserID, Level: profile.EducationLevel.String(), Field: textPtrToPgText(profile.FieldOfStudy)})
+		if err != nil {
+			return nil, err
+		}
+	}
+	out, err := profileWithEducation(ctx, q, row)
+	if err != nil {
+		return nil, err
+	}
+	if err = tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // GetProfileByUserID fetches the caller's profile. The pgx "no rows"
@@ -65,7 +91,28 @@ func (r *CandidateRepository) GetProfileByUserID(ctx context.Context, userID uui
 		}
 		return nil, err
 	}
-	return toEntity(row)
+	return profileWithEducation(ctx, db.New(r.pool), row)
+}
+
+func profileWithEducation(ctx context.Context, q *db.Queries, row db.CandidateProfile) (*entities.CandidateProfile, error) {
+	out, err := toEntity(row)
+	if err != nil {
+		return nil, err
+	}
+	education, err := q.GetLegacyCandidateEducation(ctx, row.UserID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return out, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	level, err := valueobjects.ParseEducationLevel(education.Level)
+	if err != nil {
+		return nil, err
+	}
+	out.EducationLevel = &level
+	out.FieldOfStudy = pgTextToTextPtr(education.Field)
+	return out, nil
 }
 
 // ListLanguagesByUserID returns the caller's candidate_languages rows
@@ -85,7 +132,15 @@ func (r *CandidateRepository) ListLanguagesByUserID(ctx context.Context, userID 
 			// silently substituting UnknownCefrLevel.
 			return nil, fmt.Errorf("invalid CEFR level in candidate_languages: %w", err)
 		}
-		out = append(out, entities.Language{Name: row.Language, Level: level})
+		name, ok := catalog.Lookup(row.Code)
+		if !ok {
+			return nil, fmt.Errorf("unknown stored language code %q", row.Code)
+		}
+		// Keep the old API's spelling where one name can represent the code.
+		if row.LegacyName != "" {
+			name = row.LegacyName
+		}
+		out = append(out, entities.Language{Name: name, Level: level})
 	}
 	return out, nil
 }
@@ -110,16 +165,26 @@ func (r *CandidateRepository) ReplaceLanguagesByUserID(ctx context.Context, user
 		return fmt.Errorf("delete existing languages: %w", err)
 	}
 
+	if err := queries.DeleteLegacyCandidateLanguageNames(ctx, userID); err != nil {
+		return err
+	}
 	for _, l := range languages {
+		code, ok := catalog.CodeForLegacyName(l.Name)
+		if !ok {
+			return fmt.Errorf("unknown legacy language name %q", l.Name)
+		}
 		if err := queries.InsertCandidateLanguage(ctx, db.InsertCandidateLanguageParams{
-			UserID:   userID,
-			Language: l.Name,
-			Level:    l.Level.String(),
+			UserID: userID,
+			Code:   code,
+			Level:  l.Level.String(),
 		}); err != nil {
 			// The unique PK (user_id, language) catches any duplicate
 			// the use case let through; surface a domain sentinel so
 			// the HTTP layer can map to 400.
 			return mapCreateError(err)
+		}
+		if err := queries.InsertLegacyCandidateLanguageName(ctx, db.InsertLegacyCandidateLanguageNameParams{UserID: userID, Language: l.Name, Level: l.Level.String(), Code: pgtype.Text{String: code, Valid: true}}); err != nil {
+			return err
 		}
 	}
 
@@ -153,14 +218,12 @@ func buildUpsertParams(p *entities.CandidateProfile) db.UpsertCandidateProfilePa
 		PortfolioUrl:         textPtrToPgText(p.PortfolioURL),
 		ProfessionalTitle:    textPtrToPgText(p.ProfessionalTitle),
 		CurrentCompany:       textPtrToPgText(p.CurrentCompany),
-		YearsOfExperience:    intPtrToInt2(p.YearsOfExperience),
+		YearsOfExperience:    legacyYearsToNumeric(p.YearsOfExperience),
 		ProfileSummary:       textPtrToPgText(p.ProfileSummary),
 		BirthDate:            birthDate,
 		CountryCode:          country,
 		StateCode:            state,
 		MunicipalityCode:     municipality,
-		EducationLevel:       educationLevelToPgText(p.EducationLevel),
-		FieldOfStudy:         textPtrToPgText(p.FieldOfStudy),
 		Skills:               p.Skills,
 		CurrentSalaryGross:   intPtrToInt4(p.CurrentSalaryGross),
 		CurrentSalaryNet:     intPtrToInt4(p.CurrentSalaryNet),
@@ -174,13 +237,9 @@ func buildUpsertParams(p *entities.CandidateProfile) db.UpsertCandidateProfilePa
 // reconstructed via their parsers so unrecognized values fail loudly
 // instead of silently producing a zero-valued aggregate.
 func toEntity(row db.CandidateProfile) (*entities.CandidateProfile, error) {
-	var edu *valueobjects.EducationLevel
-	if row.EducationLevel.Valid {
-		parsed, err := valueobjects.ParseEducationLevel(row.EducationLevel.String)
-		if err != nil {
-			return nil, err
-		}
-		edu = &parsed
+	years, err := numericToLegacyYears(row.YearsOfExperience)
+	if err != nil {
+		return nil, err
 	}
 
 	var period *valueobjects.SalaryPeriod
@@ -203,12 +262,10 @@ func toEntity(row db.CandidateProfile) (*entities.CandidateProfile, error) {
 		PortfolioURL:         pgTextToTextPtr(row.PortfolioUrl),
 		ProfessionalTitle:    pgTextToTextPtr(row.ProfessionalTitle),
 		CurrentCompany:       pgTextToTextPtr(row.CurrentCompany),
-		YearsOfExperience:    int2ToIntPtr(row.YearsOfExperience),
+		YearsOfExperience:    years,
 		ProfileSummary:       pgTextToTextPtr(row.ProfileSummary),
 		BirthDate:            pgDateToTimePtr(row.BirthDate),
 		Location:             location,
-		EducationLevel:       edu,
-		FieldOfStudy:         pgTextToTextPtr(row.FieldOfStudy),
 		Skills:               row.Skills,
 		CurrentSalaryGross:   int4ToIntPtr(row.CurrentSalaryGross),
 		CurrentSalaryNet:     int4ToIntPtr(row.CurrentSalaryNet),
@@ -240,19 +297,33 @@ func pgTextToTextPtr(t pgtype.Text) *string {
 	return &v
 }
 
-func intPtrToInt2(i *int) pgtype.Int2 {
-	if i == nil {
-		return pgtype.Int2{}
+// Decimal storage is decoded as text; only the legacy HTTP projection truncates.
+func numericToLegacyYears(n pgtype.Numeric) (*int, error) {
+	if !n.Valid {
+		return nil, nil
 	}
-	return pgtype.Int2{Int16: int16(*i), Valid: true}
+	value, err := n.Value()
+	if err != nil {
+		return nil, err
+	}
+	text, ok := value.(string)
+	if !ok {
+		return nil, fmt.Errorf("invalid numeric years")
+	}
+	integer, _, _ := strings.Cut(text, ".")
+	years, err := strconv.Atoi(integer)
+	if err != nil {
+		return nil, err
+	}
+	return &years, nil
 }
 
-func int2ToIntPtr(i pgtype.Int2) *int {
-	if !i.Valid {
-		return nil
+func legacyYearsToNumeric(years *int) pgtype.Numeric {
+	var n pgtype.Numeric
+	if years != nil {
+		_ = n.Scan(strconv.Itoa(*years))
 	}
-	v := int(i.Int16)
-	return &v
+	return n
 }
 
 func intPtrToInt4(i *int) pgtype.Int4 {
@@ -283,13 +354,6 @@ func pgTimestamptzToTime(t pgtype.Timestamptz) time.Time {
 		return time.Time{}
 	}
 	return t.Time
-}
-
-func educationLevelToPgText(e *valueobjects.EducationLevel) pgtype.Text {
-	if e == nil {
-		return pgtype.Text{}
-	}
-	return pgtype.Text{String: e.String(), Valid: true}
 }
 
 func salaryPeriodToPgText(s *valueobjects.SalaryPeriod) pgtype.Text {

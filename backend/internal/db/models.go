@@ -50,10 +50,29 @@ type CandidateCvVersion struct {
 	UploadedAt  pgtype.Timestamptz `json:"uploaded_at"`
 }
 
+type CandidateEducation struct {
+	ID          uuid.UUID   `json:"id"`
+	UserID      uuid.UUID   `json:"user_id"`
+	Position    int16       `json:"position"`
+	Level       string      `json:"level"`
+	Institution pgtype.Text `json:"institution"`
+	Field       pgtype.Text `json:"field"`
+	Status      string      `json:"status"`
+	StartYear   pgtype.Int2 `json:"start_year"`
+	EndYear     pgtype.Int2 `json:"end_year"`
+}
+
 type CandidateLanguage struct {
-	UserID   uuid.UUID `json:"user_id"`
-	Language string    `json:"language"`
-	Level    string    `json:"level"`
+	UserID uuid.UUID `json:"user_id"`
+	Code   string    `json:"code"`
+	Level  string    `json:"level"`
+}
+
+type CandidateLanguage0039Backup struct {
+	UserID   uuid.UUID   `json:"user_id"`
+	Language string      `json:"language"`
+	Level    string      `json:"level"`
+	Code     pgtype.Text `json:"code"`
 }
 
 type CandidateProfile struct {
@@ -63,11 +82,9 @@ type CandidateProfile struct {
 	PortfolioUrl         pgtype.Text        `json:"portfolio_url"`
 	ProfessionalTitle    pgtype.Text        `json:"professional_title"`
 	CurrentCompany       pgtype.Text        `json:"current_company"`
-	YearsOfExperience    pgtype.Int2        `json:"years_of_experience"`
+	YearsOfExperience    pgtype.Numeric     `json:"years_of_experience"`
 	ProfileSummary       pgtype.Text        `json:"profile_summary"`
 	BirthDate            pgtype.Date        `json:"birth_date"`
-	EducationLevel       pgtype.Text        `json:"education_level"`
-	FieldOfStudy         pgtype.Text        `json:"field_of_study"`
 	Skills               []string           `json:"skills"`
 	CurrentSalaryGross   pgtype.Int4        `json:"current_salary_gross"`
 	CurrentSalaryNet     pgtype.Int4        `json:"current_salary_net"`
@@ -81,6 +98,12 @@ type CandidateProfile struct {
 	CountryCode          pgtype.Text        `json:"country_code"`
 	StateCode            pgtype.Text        `json:"state_code"`
 	MunicipalityCode     pgtype.Text        `json:"municipality_code"`
+	Seniority            pgtype.Text        `json:"seniority"`
+}
+
+type CandidateProfile0039Field struct {
+	UserID       uuid.UUID   `json:"user_id"`
+	FieldOfStudy pgtype.Text `json:"field_of_study"`
 }
 
 type Company struct {
@@ -357,6 +380,11 @@ type ProcessParticipation struct {
 	CompanyCandidateID   pgtype.UUID        `json:"company_candidate_id"`
 	CompanyCandidateCvID pgtype.UUID        `json:"company_candidate_cv_id"`
 	AddedBy              pgtype.UUID        `json:"added_by"`
+}
+
+type ProfileLanguageName struct {
+	Code pgtype.Text `json:"code"`
+	Name pgtype.Text `json:"name"`
 }
 
 type User struct {

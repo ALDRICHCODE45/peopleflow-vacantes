@@ -212,7 +212,7 @@ ON CONFLICT (id) DO NOTHING;
 INSERT INTO candidate_profiles
     (user_id, professional_title, years_of_experience, current_salary_gross, birth_date)
 VALUES
-    ('01900000-0000-7000-8000-0000000000c1', 'Senior Go Engineer', 7, 120000, '1990-01-01')
+    ('01900000-0000-7000-8000-0000000000c1', 'Senior Go Engineer', 7.9, 120000, '1990-01-01')
 ON CONFLICT (user_id) DO NOTHING;
 `
 
@@ -1359,6 +1359,18 @@ func TestListByJob_OwnCompanyEmpty(t *testing.T) {
 // PII-minimized candidate snippet.
 func TestListByJob_WithRowsDescOrder(t *testing.T) {
 	ctx, f := setupApplicationFixture(t)
+	var original string
+	if err := f.pool.QueryRow(ctx, `SELECT years_of_experience::text FROM candidate_profiles WHERE user_id=$1`, f.userC1).Scan(&original); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.pool.Exec(ctx, `UPDATE candidate_profiles SET years_of_experience=7.9 WHERE user_id=$1`, f.userC1); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := f.pool.Exec(context.Background(), `UPDATE candidate_profiles SET years_of_experience=$2::numeric WHERE user_id=$1`, f.userC1, original); err != nil {
+			t.Error(err)
+		}
+	})
 
 	base := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	appOld := uuid.New() // userC1 applied first
@@ -1382,7 +1394,13 @@ func TestListByJob_WithRowsDescOrder(t *testing.T) {
 		}
 	}
 
-	// The newest row belongs to userC1 (has a profile) — spot-check the
+	if got[2].Candidate.YearsOfExperience == nil || *got[2].Candidate.YearsOfExperience != 7 {
+		t.Fatal("decimal years must truncate in legacy recruiter list")
+	}
+	if got[0].Candidate.YearsOfExperience != nil {
+		t.Fatal("missing profile must remain null")
+	}
+	// The oldest row belongs to userC1 (has a profile) — spot-check the
 	// snippet projection.
 	if got[2].Candidate.ProfessionalTitle == nil || *got[2].Candidate.ProfessionalTitle != "Senior Go Engineer" {
 		t.Errorf("oldest row snippet: want professional_title %q, got %v", "Senior Go Engineer", got[2].Candidate.ProfessionalTitle)

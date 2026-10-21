@@ -397,7 +397,7 @@ func TestUpsertProfile_FullReplacementPersists(t *testing.T) {
 	var city, fos, currency sql.NullString
 	var skills string
 	if err := pool.QueryRow(ctx,
-		`SELECT country_code, field_of_study, skills::text, salary_currency FROM candidate_profiles WHERE user_id = $1`, userID,
+		`SELECT country_code, (SELECT field FROM candidate_educations e WHERE e.user_id=p.user_id ORDER BY position LIMIT 1), skills::text, salary_currency FROM candidate_profiles p WHERE user_id = $1`, userID,
 	).Scan(&city, &fos, &skills, &currency); err != nil {
 		t.Fatalf("read back first row: %v", err)
 	}
@@ -415,7 +415,7 @@ func TestUpsertProfile_FullReplacementPersists(t *testing.T) {
 	}
 
 	if err := pool.QueryRow(ctx,
-		`SELECT country_code, field_of_study, skills::text, salary_currency FROM candidate_profiles WHERE user_id = $1`, userID,
+		`SELECT country_code, (SELECT field FROM candidate_educations e WHERE e.user_id=p.user_id ORDER BY position LIMIT 1), skills::text, salary_currency FROM candidate_profiles p WHERE user_id = $1`, userID,
 	).Scan(&city, &fos, &skills, &currency); err != nil {
 		t.Fatalf("read back replaced row: %v", err)
 	}

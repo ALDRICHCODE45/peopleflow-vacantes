@@ -271,6 +271,16 @@ func TestManualCreateExistingReuseAndAlreadyInProcess(t *testing.T) {
 		t.Run(kind, func(t *testing.T) {
 			f := setupManualIntake(t)
 			identity := f.actor
+			if kind == "organic" {
+				ctx := context.Background()
+				if _, err := f.pool.Exec(ctx, `INSERT INTO candidate_profiles(user_id,years_of_experience) VALUES($1,7.9)`, identity); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _, _ = f.pool.Exec(ctx, `DELETE FROM candidate_profiles WHERE user_id=$1`, identity) })
+				if _, err := f.pool.Exec(ctx, `INSERT INTO candidate_educations(user_id,position,level,status) VALUES($1,0,'bachelor','completed'),($1,1,'master','completed'),($1,2,'phd','in_progress'),($1,3,'specialty','completed')`, identity); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if kind == "manual" {
 				result, err := f.create(f.input(pipelineconfig.Defaults(f.vacancy).Stages[0].ID))
 				if err != nil {
@@ -292,6 +302,16 @@ func TestManualCreateExistingReuseAndAlreadyInProcess(t *testing.T) {
 			}
 			item := intakeItem(t, result)
 			assertManualGETItem(t, f, other, result)
+			if kind == "organic" {
+				var raw []byte
+				if err := f.pool.QueryRow(context.Background(), `SELECT profile_snapshot FROM process_participations WHERE id=$1`, item.ID).Scan(&raw); err != nil {
+					t.Fatal(err)
+				}
+				snapshot := movementKeys(t, movementObject(t, raw), "location", "skills", "years_of_experience", "education_level")
+				if snapshot["years_of_experience"] != float64(7) || snapshot["education_level"] != "master" {
+					t.Fatal(snapshot)
+				}
+			}
 			if item.Candidate.ID != identity || item.Candidate.Kind != kind {
 				t.Fatal(item)
 			}

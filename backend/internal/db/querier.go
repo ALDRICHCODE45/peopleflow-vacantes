@@ -113,7 +113,9 @@ type Querier interface {
 	// On conflict, `RETURNING *` produces zero rows so pgx returns pgx.ErrNoRows;
 	// the adapter re-fetches by cognito_sub to return the existing entity.
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteCandidateEducations(ctx context.Context, userID uuid.UUID) error
 	DeleteCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) error
+	DeleteLegacyCandidateLanguageNames(ctx context.Context, userID uuid.UUID) error
 	GeoCountries(ctx context.Context) ([]GeoCountriesRow, error)
 	GeoCountryExists(ctx context.Context, code string) (bool, error)
 	GeoLatestImport(ctx context.Context) (int64, error)
@@ -166,6 +168,7 @@ type Querier interface {
 	// included so the use case can run the transition table; `j.updated_at`
 	// so the use case can CAS-compare against `If-Unmodified-Since`.
 	GetJobForUpdate(ctx context.Context, arg GetJobForUpdateParams) (GetJobForUpdateRow, error)
+	GetLegacyCandidateEducation(ctx context.Context, userID uuid.UUID) (GetLegacyCandidateEducationRow, error)
 	// Single membership lookup for the membership-resolver chain
 	// (`sub → users.id → company_members`) — see design D6. Returns
 	// pgx.ErrNoRows when the user has no membership, which the service maps to
@@ -182,10 +185,9 @@ type Querier interface {
 	// actor_id is sqlc.narg (nullable): 'user' events carry the actor's
 	// users.id; 'system' events (not emitted this slice) carry SQL NULL.
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) error
-	// Used inside the atomic replace transaction. Composite PK (user_id, language)
-	// prevents duplicate languages for the same user — the adapter surfaces a
-	// 23505 as ErrDuplicateLanguage.
 	InsertCandidateLanguage(ctx context.Context, arg InsertCandidateLanguageParams) error
+	InsertLegacyCandidateEducation(ctx context.Context, arg InsertLegacyCandidateEducationParams) error
+	InsertLegacyCandidateLanguageName(ctx context.Context, arg InsertLegacyCandidateLanguageNameParams) error
 	// Atomic liveness probe for the RequireCompanyRole middleware
 	// (require-company-role-tombstone-gate slice). Returns `deleted_at IS NULL`
 	// for the exact company id WITHOUT filtering away tombstones:
@@ -224,7 +226,7 @@ type Querier interface {
 	// row. Ordered by created_at for stable rendering; backed by
 	// `company_members_company_id_idx` B-tree.
 	ListByCompanyID(ctx context.Context, companyID uuid.UUID) ([]ListByCompanyIDRow, error)
-	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]CandidateLanguage, error)
+	ListCandidateLanguagesByUserID(ctx context.Context, userID uuid.UUID) ([]ListCandidateLanguagesByUserIDRow, error)
 	// Candidate's GET /me/applications list. Joins jobs (title) + companies
 	// (id, name) to render the embedded job summary. NOT redacted by
 	// jobs.deleted_at on purpose: the candidate's own history persists
@@ -458,13 +460,7 @@ type Querier interface {
 	// `updated_at` is touched here so downstream callers never have to remember
 	// to do it.
 	UpdateMemberRole(ctx context.Context, arg UpdateMemberRoleParams) (int64, error)
-	// Idempotent upsert keyed on the PK (user_id). First PUT creates the row;
-	// subsequent PUTs replace the editable columns with the fresh entity
-	// (full-replacement semantics: omitted nullable fields become NULL).
-	// search_vector is a STORED generated column owned by Postgres and MUST
-	// NOT be touched here. cv_s3_key is RESERVED for the future CV slice and
-	// MUST NOT be written here: it stays out of both the INSERT and the DO
-	// UPDATE SET list, so a preexisting reserved value survives every upsert.
+	// Reserved cv_s3_key and search_vector remain database-owned.
 	UpsertCandidateProfile(ctx context.Context, arg UpsertCandidateProfileParams) (CandidateProfile, error)
 	UpsertVacancyPublicProjection(ctx context.Context, arg UpsertVacancyPublicProjectionParams) error
 	VacancyLocationRead(ctx context.Context, arg VacancyLocationReadParams) ([]byte, error)

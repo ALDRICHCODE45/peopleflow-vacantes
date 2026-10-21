@@ -113,7 +113,7 @@ func (s *Store) Apply(ctx context.Context, sub string, vacancy, key uuid.UUID, r
 	var country, state, municipality, education *string
 	var skills []string
 	var years *int
-	err = tx.QueryRow(ctx, `SELECT country_code,state_code,municipality_code,skills,years_of_experience,education_level FROM candidate_profiles WHERE user_id=$1 FOR SHARE`, candidate).Scan(&country, &state, &municipality, &skills, &years, &education)
+	err = tx.QueryRow(ctx, `SELECT country_code,state_code,municipality_code,skills,trunc(years_of_experience)::integer,(SELECT level FROM candidate_educations e WHERE e.user_id=cp.user_id AND e.status='completed' AND e.level IN ('high_school','bachelor','master','phd') ORDER BY CASE e.level WHEN 'phd' THEN 4 WHEN 'master' THEN 3 WHEN 'bachelor' THEN 2 ELSE 1 END DESC,e.position,e.id LIMIT 1) FROM candidate_profiles cp WHERE user_id=$1 FOR SHARE`, candidate).Scan(&country, &state, &municipality, &skills, &years, &education)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return app.Result{}, err
 	}
