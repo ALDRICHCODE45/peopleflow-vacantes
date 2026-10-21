@@ -46,7 +46,7 @@ describe("v2 list query", () => {
   it("drops stale keys and invalid values even on direct calls", async () => {
     const fetchMock = vi.fn().mockResolvedValue(response(payload));
     vi.stubGlobal("fetch", fetchMock);
-    await listJobs({ q: " Go ", location: " ", work_mode: "bad", contract_type: "contract", salary_min: "1", language: "en", employment_type: "full_time", seniority: "senior", currency: "MXN", limit: "1000", cursor: "" } as Parameters<typeof listJobs>[0]);
+    await listJobs({ q: " Go ", location: " ", work_mode: "bad", contract_type: "contract", salary_min: "1e3", language: "en", employment_type: "full_time", seniority: "senior", currency: "MXN", limit: "1000", cursor: "" } as Parameters<typeof listJobs>[0]);
     expect(fetchMock.mock.calls[0][0]).toBe("http://127.0.0.1:8080/v2/jobs?q=Go");
   });
   it.each([[400, false], [404, false], [503, true]])("preserves status %i without detail not-found mapping", async (status, retryable) => {

@@ -52,7 +52,12 @@ describe("sample public v2 reads", () => {
     expect(listSampleJobs(query).items).toEqual([]);
   });
   it("ignores invalid or obsolete filters using the shared canonical model", () => {
-    expect(listSampleJobs({ contract_type: "contract", salary_min: "1", language: "en" } as Parameters<typeof listSampleJobs>[0])).toEqual(listSampleJobs({}));
+    expect(listSampleJobs({ contract_type: "contract", salary_min: "bad", language: "en" } as Parameters<typeof listSampleJobs>[0])).toEqual(listSampleJobs({}));
+  });
+  it("excludes the legacy samples, which publish no pay period or basis, while a salary filter is active", () => {
+    expect(listSampleJobs({}).items.length).toBeGreaterThan(0);
+    expect(listSampleJobs({ salary_min: "1" }).items).toEqual([]);
+    expect(listSampleJobs({ salary_max: "999999999", salary_currency: "USD" }).items).toEqual([]);
   });
   it("validates cursors and selects only a safe deterministic sample offset", () => {
     const page = listSampleJobs({});

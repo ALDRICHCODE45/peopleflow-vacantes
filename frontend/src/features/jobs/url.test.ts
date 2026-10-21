@@ -12,7 +12,7 @@ describe("canonical v2 public query", () => {
     expect(buildJobsUrl({})).toBe("/vacantes");
   });
   it("omits unknown, obsolete, invalid, empty and repeated values", () => {
-    expect(parseJobsQuery("foo=bar&seniority=senior&currency=MXN&employment_type=full_time&salary_min=1&language=en&q=&work_mode=remote&contract_type=bad&work_schedule=bad&professional_area=bad")).toEqual({ work_mode: ["remote"] });
+    expect(parseJobsQuery("foo=bar&seniority=senior&currency=MXN&employment_type=full_time&language=en&q=&work_mode=remote&contract_type=bad&work_schedule=bad&professional_area=bad")).toEqual({ work_mode: ["remote"] });
     for (const [key, value] of Object.entries(filters)) {
       expect(parseJobsQuery(`${key}=${value}&${key}=${value}`)).toEqual(["state", "work_mode"].includes(key) ? { [key]: [value] } : {});
     }
@@ -50,5 +50,46 @@ describe("canonical v2 public query", () => {
       }
       expect(buildFilterCommitUrl(cleared, { [key]: newValue })).toBe(changed);
     }
+  });
+});
+
+describe("public salary filter in the URL", () => {
+  const units = "salary_currency=MXN&salary_period=monthly&salary_basis=gross";
+  it("serializes amounts then currency, period and basis after the six filters and before the cursor", () => {
+    expect(buildJobsUrl({ q: "Go", professional_area: "engineering", salary_min: "30000", salary_max: "40000", salary_currency: "USD", salary_period: "yearly", salary_basis: "net", cursor: "c" }))
+      .toBe("/vacantes?q=Go&professional_area=engineering&salary_min=30000&salary_max=40000&salary_currency=USD&salary_period=yearly&salary_basis=net&cursor=c");
+  });
+  it("accepts one end alone in either direction", () => {
+    expect(parseJobsQuery(`salary_min=30000&${units}`)).toEqual({ salary_min: "30000", salary_currency: "MXN", salary_period: "monthly", salary_basis: "gross" });
+    expect(parseJobsQuery(`salary_max=40000&${units}`)).toEqual({ salary_max: "40000", salary_currency: "MXN", salary_period: "monthly", salary_basis: "gross" });
+  });
+  it("fills MXN, monthly and gross for an amount without units, and drops units without an amount", () => {
+    expect(buildJobsUrl({ salary_min: "30000" })).toBe(`/vacantes?salary_min=30000&${units}`);
+    expect(buildJobsUrl({ salary_min: "30000", salary_currency: "bad", salary_period: "daily", salary_basis: "x" })).toBe(`/vacantes?salary_min=30000&${units}`);
+    expect(parseJobsQuery("salary_currency=USD&salary_period=yearly&salary_basis=net")).toEqual({});
+    expect(isCanonicalJobsQuery("salary_min=30000")).toBe(false);
+    expect(isCanonicalJobsQuery(`salary_min=30000&${units}`)).toBe(true);
+  });
+  it("accepts every currency, period and basis of the compensation catalog", () => {
+    for (const currency of ["MXN", "USD"]) for (const period of ["hourly", "weekly", "semimonthly", "monthly", "yearly"]) for (const basis of ["gross", "net"]) {
+      expect(parseJobsQuery(`salary_min=1&salary_currency=${currency}&salary_period=${period}&salary_basis=${basis}`)).toEqual({ salary_min: "1", salary_currency: currency, salary_period: period, salary_basis: basis });
+    }
+  });
+  it("keeps decimal amounts on the money pattern and drops malformed ones", () => {
+    expect(parseJobsQuery(`salary_min=0&salary_max=999999999999.99&${units}`)).toMatchObject({ salary_min: "0", salary_max: "999999999999.99" });
+    expect(parseJobsQuery(`salary_min=30000.5&${units}`)).toMatchObject({ salary_min: "30000.5" });
+    for (const bad of ["-1", "1e5", "30,000", " 30000", "030000", "1.234", "1000000000000", "", "abc"]) {
+      expect(parseJobsQuery(`salary_min=${encodeURIComponent(bad)}&${units}`)).toEqual({});
+    }
+    expect(parseJobsQuery(`salary_min=1&salary_min=2&${units}`)).toEqual({});
+  });
+  it("drops the whole salary filter when the minimum exceeds the maximum, keeping equal bounds", () => {
+    expect(parseJobsQuery(`q=Go&salary_min=40000&salary_max=30000&${units}`)).toEqual({ q: "Go" });
+    expect(parseJobsQuery(`salary_min=40000&salary_max=40000.00&${units}`)).toMatchObject({ salary_min: "40000", salary_max: "40000.00" });
+  });
+  it("clears the cursor when the salary filter changes or clears, preserving other filters", () => {
+    const current = `/vacantes?q=Go&salary_min=30000&${units}&cursor=old`;
+    expect(buildFilterCommitUrl(current, { salary_min: "35000" })).toBe(`/vacantes?q=Go&salary_min=35000&${units}`);
+    expect(buildFilterCommitUrl(current, { salary_min: "", salary_max: "" })).toBe("/vacantes?q=Go");
   });
 });

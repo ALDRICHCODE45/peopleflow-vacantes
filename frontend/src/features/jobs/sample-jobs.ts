@@ -1,4 +1,5 @@
 import { publicJobDetailSchema, publicJobsListSchema } from "./schemas";
+import { matchesSalaryFilter } from "./salary-filter";
 import type { JobItem, PublicJobDetail, PublicJobItem, PublicJobsList } from "./types";
 import { buildJobsUrl, parseJobsQuery, selectedValues } from "./url";
 import type { JobsQuery } from "./url";
@@ -246,7 +247,7 @@ function matchesFilters(job: PublicJobDetail, query: JobsQuery): boolean {
     const scope = job.remote_scope;
     if (!scope || (scope.kind === "countries" && !scope.countries.some(country => country.id === query.applicant_country))) return false;
   }
-  return true;
+  return matchesSalaryFilter(job.compensation, query);
 }
 
 /**
