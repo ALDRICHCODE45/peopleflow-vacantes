@@ -26,9 +26,18 @@ it.each([
  [400, { error: "validation failed", code: "validation_error", fields: [{ field: "candidate.phone", code: "invalid" }] }],
  [409, { error: "already present", code: "candidate_already_in_process", data: { participation_id: id(10) } }],
  [409, { error: "possible duplicates", code: "possible_duplicates", data: { matches: [] } }],
-] as const)("preserves the contracted %s error body", async (status, body) => {
+] as const)("forwards the contracted %s error code and data, never the backend message", async (status, body) => {
  fetcher.mockResolvedValue(Response.json(body, { status })); const response = await POST(request(), context);
- expect(response.status).toBe(status); expect(await response.json()).toEqual(body);
+ const contracted = Object.fromEntries(Object.entries(body).filter(([key]) => key !== "error"));
+ expect(response.status).toBe(status); expect(await response.json()).toEqual({ error: body.code, ...contracted });
+});
+it("never echoes backend text or unknown internal details to the browser", async () => {
+ fetcher.mockResolvedValue(Response.json({ error: "pq: insert into company_candidate_cvs failed at /srv/cv", code: "cv_storage_unavailable", data: { path: "/srv/cv/abc", participation_id: id(10) } }, { status: 503 }));
+ const response = await POST(request(), context);
+ expect(response.status).toBe(503);
+ const text = await response.text();
+ expect(text).not.toMatch(/pq:|\/srv\/cv|path/);
+ expect(JSON.parse(text)).toEqual({ error: "cv_storage_unavailable", code: "cv_storage_unavailable", data: { participation_id: id(10) } });
 });
 it("requires session and a UUID idempotency key", async () => {
  vi.mocked(getActionAccessToken).mockResolvedValueOnce(null); expect((await POST(request(), context)).status).toBe(401);

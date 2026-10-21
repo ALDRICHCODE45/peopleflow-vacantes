@@ -48,6 +48,10 @@ export async function POST(request: Request, context: { params: Promise<{ vacanc
   }
   const failure = errorSchema.safeParse(value);
   if (!failure.success || response.status < 400 || response.status > 599) return error(502, "unrecognized_response");
-  return Response.json(failure.data, { status: response.status, headers });
+  // Only the contracted code, field issues and known data keys reach the browser; the backend's
+  // human-readable message is replaced by its code, like the CV route.
+  const { code, fields, data: failureData } = failure.data;
+  const known = failureData && { ...(failureData.matches ? { matches: failureData.matches } : {}), ...(failureData.participation_id ? { participation_id: failureData.participation_id } : {}) };
+  return Response.json({ error: code, code, ...(fields ? { fields } : {}), ...(known && Object.keys(known).length ? { data: known } : {}) }, { status: response.status, headers });
  } catch { return error(503, "no_response"); }
 }
