@@ -14,11 +14,11 @@ Rules: `docs/frontend-ui-design-rules.md` (§13.8 dialogs, §18 ConfirmActionDia
 
 ## Tasks
 
-- [ ] T1 — S6: lifecycle model, strict decoders, server actions (view, pause, resume, close{process}, finish-process, reopen), error mapping (409/412/428/422 missing) | route: inline or writer | commit: —
+- [x] T1 — S6: lifecycle model, strict decoders, server actions (view, pause, resume, close{process}, finish-process, reopen), error mapping (409/412/428/422 missing) | route: writer | commit: b1deace
 - [ ] T2 — S1–S5: company vacancy list badges and per-state actions with ConfirmActionDialog (close dialog with the process choice) | commit: —
 - [ ] T3 — S2, S5, S6: pipeline/board header state badge + last transition date + actions; read-only board when process finished; 409 refresh | commit: —
 - [ ] T4 — S1, S6: public detail/apply for paused/closed: «Vacante pausada»/«Vacante cerrada» StateCard with noindex; apply 409 message | commit: —
-- [ ] T5 — S2: candidate applications show «Vacante cerrada» when `vacancy.state` is closed | commit: —
+- [x] T5 — S2: candidate applications show «Vacante cerrada» when `vacancy.state` is closed (a discard keeps «Finalizada») | route: inline | commit: 6e240c5
 - [ ] T6 — guide steps, review queue, rules learnings; browser verification against backend L1/L2 | commit: —
 
 ## Log
@@ -27,3 +27,4 @@ Rules: `docs/frontend-ui-design-rules.md` (§13.8 dialogs, §18 ConfirmActionDia
 - **L2** Backend recommended lifecycle next (no unpublish/close route exists; SEO depends on it); user answered S1–S5.
 - **L3** (user): «pero eso ya lo revisaste tu no? y la mayoria tambien ya lo revise. adelante, integrar todo y yo hago push.» — geo + vacancy-form stack integrated to main 96caec9 (tsc OK, 5897/5897 vitest, backend build/vet/test + -race green).
 - **L4** Contract §21 agreed with four frontend clarifications (lifecycle on board/pipeline/editor GETs, 422 `missing` like publish, no saved vacancies in backend, no history view this cut).
+- **L5** Close-process choice uses the vertical outline `ToggleGroup` (same single-choice composition as the CV picker and screening questions); `RadioGroup` is not installed and `components/ui/*` stays untouched.
