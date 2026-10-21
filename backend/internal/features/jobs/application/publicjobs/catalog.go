@@ -83,8 +83,16 @@ type Position struct {
 type Query struct {
 	Q, WorkSchedule, ContractType, ProfessionalArea, ApplicantCountry string
 	States, Municipalities, WorkModes                                 []string
+	Salary                                                            *SalaryFilter
 	Limit                                                             int
 	After                                                             *Position
+}
+
+// SalaryFilter is an active public salary filter (SAL-5..SAL-8). Min and Max
+// are canonical two-decimal amounts; an empty bound is open. Currency, Period
+// and Basis are always set: published salaries match only in the same units.
+type SalaryFilter struct {
+	Min, Max, Currency, Period, Basis string
 }
 type Row struct {
 	Detail Detail
@@ -143,7 +151,7 @@ func ParseQuery(raw string) (Query, error) {
 		for _, pair := range strings.Split(raw, "&") {
 			key, value, _ := strings.Cut(pair, "=")
 			key, _ = url.QueryUnescape(key)
-			if isGeoFilter(key) {
+			if isGeoFilter(key) || isSalaryFilter(key) {
 				if _, err := url.QueryUnescape(value); err != nil || strings.Contains(pair, ";") {
 					return Query{}, ErrInvalidFilter
 				}
@@ -152,7 +160,15 @@ func ParseQuery(raw string) (Query, error) {
 		return Query{}, ErrInvalidRequest
 	}
 	q := Query{Limit: 20}
+	salary := map[string]string{}
 	for key, vs := range values {
+		if isSalaryFilter(key) {
+			if len(vs) != 1 || vs[0] == "" || !utf8.ValidString(vs[0]) || strings.ContainsRune(vs[0], 0) {
+				return Query{}, ErrInvalidFilter
+			}
+			salary[key] = vs[0]
+			continue
+		}
 		if isGeoFilter(key) {
 			if err := parseFilter(&q, key, vs); err != nil {
 				return Query{}, err
@@ -192,6 +208,13 @@ func ParseQuery(raw string) (Query, error) {
 			return Query{}, ErrInvalidRequest
 		}
 	}
+	if len(salary) > 0 {
+		filter, err := parseSalary(salary)
+		if err != nil {
+			return Query{}, err
+		}
+		q.Salary = &filter
+	}
 	if raw, ok := values["cursor"]; ok {
 		p, err := decodeCursor(q, raw[0])
 		if err != nil {
@@ -204,6 +227,58 @@ func ParseQuery(raw string) (Query, error) {
 
 func isGeoFilter(key string) bool {
 	return key == "state" || key == "municipality" || key == "work_mode" || key == "applicant_country"
+}
+
+func isSalaryFilter(key string) bool {
+	switch key {
+	case "salary_min", "salary_max", "salary_currency", "salary_period", "salary_basis":
+		return true
+	}
+	return false
+}
+
+// parseSalary requires at least one amount and all three units whenever any
+// salary key is present (SAL-8: one-sided input is allowed, bounds inclusive).
+func parseSalary(values map[string]string) (SalaryFilter, error) {
+	var f SalaryFilter
+	var minCents, maxCents uint64
+	for key, target := range map[string]*string{"salary_min": &f.Min, "salary_max": &f.Max} {
+		raw, ok := values[key]
+		if !ok {
+			continue
+		}
+		normalized, cents, valid := draftfields.NormalizeMoney(raw)
+		if !valid {
+			return SalaryFilter{}, ErrInvalidFilter
+		}
+		*target = normalized
+		if key == "salary_min" {
+			minCents = cents
+		} else {
+			maxCents = cents
+		}
+	}
+	if f.Min == "" && f.Max == "" {
+		return SalaryFilter{}, ErrInvalidFilter
+	}
+	if f.Min != "" && f.Max != "" && minCents > maxCents {
+		return SalaryFilter{}, ErrInvalidFilter
+	}
+	for key, unit := range map[string]struct {
+		target *string
+		enum   string
+	}{
+		"salary_currency": {&f.Currency, "currency"},
+		"salary_period":   {&f.Period, "pay_period"},
+		"salary_basis":    {&f.Basis, "basis"},
+	} {
+		raw, ok := values[key]
+		if !ok || !draftfields.CompensationEnumAllowed(unit.enum, raw) {
+			return SalaryFilter{}, ErrInvalidFilter
+		}
+		*unit.target = raw
+	}
+	return f, nil
 }
 
 func parseFilter(q *Query, key string, values []string) error {
@@ -268,7 +343,13 @@ func filterHash(q Query) string {
 		slices.Sort(out)
 		return out
 	}
-	raw, _ := json.Marshal([]any{q.Q, canonical(q.States), canonical(q.Municipalities), canonical(q.WorkModes), q.ApplicantCountry, q.WorkSchedule, q.ContractType, q.ProfessionalArea})
+	filters := []any{q.Q, canonical(q.States), canonical(q.Municipalities), canonical(q.WorkModes), q.ApplicantCountry, q.WorkSchedule, q.ContractType, q.ProfessionalArea}
+	// Appended only when active, so cursors issued without a salary filter keep
+	// their binding.
+	if s := q.Salary; s != nil {
+		filters = append(filters, []string{s.Min, s.Max, s.Currency, s.Period, s.Basis})
+	}
+	raw, _ := json.Marshal(filters)
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
 }

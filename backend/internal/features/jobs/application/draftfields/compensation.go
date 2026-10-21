@@ -231,6 +231,28 @@ func DefaultCompensation() Compensation {
 	}
 }
 
+// NormalizeMoney validates value against the compensation money grammar and
+// returns its canonical two-decimal form and exact cents. Public salary filters
+// reuse it so a filter amount is accepted exactly when a stored one would be.
+func NormalizeMoney(value string) (normalized string, cents uint64, ok bool) {
+	return scanCompensationAmount(value)
+}
+
+// CompensationEnumAllowed reports whether value is an allowed literal for the
+// currency, pay_period or basis compensation key.
+func CompensationEnumAllowed(key, value string) bool {
+	switch key {
+	case compensationKeyCurrency:
+		return compensationContainsLiteral(allowedCompensationCurrencies, value)
+	case compensationKeyPayPeriod:
+		return compensationContainsLiteral(allowedCompensationPayPeriods, value)
+	case compensationKeyBasis:
+		return compensationContainsLiteral(allowedCompensationBases, value)
+	default:
+		return false
+	}
+}
+
 // isCompensationKey reports whether key names one of the eight compensation
 // fields.
 func isCompensationKey(key string) bool {
