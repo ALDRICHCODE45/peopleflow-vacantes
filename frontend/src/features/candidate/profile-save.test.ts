@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { saveProfileParts, type ProfileSavePort } from "./profile-save";
 import type { ProfileFailure, ProfileRead } from "./profile-api";
 const profile: ProfileRead = { user_id: "11111111-1111-4111-8111-111111111111", location: null, salary_currency: "MXN", created_at: "2026-10-01T00:00:00Z", updated_at: "2026-10-01T00:00:00Z" };
-const languages = { languages: [{ name: "english", level: "B2" as const }] };
+const languages = { languages: [{ code: "en", level: "B2" as const }] };
 const failure: ProfileFailure = { ok: false, reason: "invalid_request", reference: { status: 400 } };
 function port() {
   return { putProfile: vi.fn<ProfileSavePort["putProfile"]>().mockResolvedValue({ ok: true, data: profile }), putLanguages: vi.fn<ProfileSavePort["putLanguages"]>().mockResolvedValue({ ok: true, data: languages }) };
@@ -29,7 +29,7 @@ describe("profile save sequencing without retries", () => {
   });
   it("validates both blocks before any write, including an empty language level", async () => {
     const api = port();
-    expect((await saveProfileParts({ profile: {}, languages: { languages: [{ name: "English", level: "" }] } }, api)).kind).toBe("invalid");
+    expect((await saveProfileParts({ profile: {}, languages: { languages: [{ code: "en", level: "" }] } }, api)).kind).toBe("invalid");
     expect((await saveProfileParts({ profile: { location: { country: "MX", postal_code: null } }, languages }, api)).kind).toBe("invalid");
     expect(api.putProfile).not.toHaveBeenCalled();
     expect(api.putLanguages).not.toHaveBeenCalled();

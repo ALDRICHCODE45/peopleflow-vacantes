@@ -72,30 +72,29 @@ describe("candidate identity and profile model", () => {
     }
   });
 
-  it("normalizes skills and language names exactly like the backend", () => {
+  it("normalizes skills and preserves opaque language codes",  () => {
     const parsed = candidateProfileSchema.parse({
       ...PROFILE_INPUT,
       skills: [" React ", "react", "TYPESCRIPT", "", "  ", "Node.js", "typescript"],
-      languages: [{ name: " Español ", level: "C2" }, { name: "INGLÉS", level: "B2" }],
-      educationLevel: " Bachelor ",
+      languages: [{ code: "es", level: "C2" }, { code: "en", level: "B2" }],
       expectedSalaryPeriod: " Monthly ",
     });
     expect(parsed.skills).toEqual(["react", "typescript", "node.js"]);
-    expect(parsed.languages).toEqual([{ name: "español", level: "C2" }, { name: "inglés", level: "B2" }]);
-    expect(parsed.educationLevel).toBe("bachelor");
+    expect(parsed.languages).toEqual([{ code: "es", level: "C2" }, { code: "en", level: "B2" }]);
+    expect(parsed.education[0].level).toBe("bachelor");
     expect(parsed.expectedSalaryPeriod).toBe("monthly");
   });
 
   it("pins the closed education, salary-period, and CEFR vocabularies", () => {
-    expectTypeOf<EducationLevel>().toEqualTypeOf<"high_school" | "bachelor" | "master" | "phd">();
+    expectTypeOf<EducationLevel>().toEqualTypeOf<"secondary" | "high_school" | "technical" | "tsu" | "bachelor" | "specialty" | "master" | "phd">();
     expectTypeOf<SalaryPeriod>().toEqualTypeOf<"monthly" | "annual">();
-    expectTypeOf<CefrLevel>().toEqualTypeOf<"A1" | "A2" | "B1" | "B2" | "C1" | "C2">();
-    expect(EDUCATION_LEVELS).toEqual(["high_school", "bachelor", "master", "phd"]);
+    expectTypeOf<CefrLevel>().toEqualTypeOf<"A1" | "A2" | "B1" | "B2" | "C1" | "C2" | "native">();
+    expect(EDUCATION_LEVELS).toEqual(["secondary", "high_school", "technical", "tsu", "bachelor", "specialty", "master", "phd"]);
     expect(SALARY_PERIODS).toEqual(["monthly", "annual"]);
-    expect(CEFR_LEVELS).toEqual(["A1", "A2", "B1", "B2", "C1", "C2"]);
-    expect(EDUCATION_LEVEL_LABELS).toEqual({ high_school: "Preparatoria", bachelor: "Licenciatura", master: "Maestría", phd: "Doctorado" });
+    expect(CEFR_LEVELS).toEqual(["A1", "A2", "B1", "B2", "C1", "C2", "native"]);
+    expect(EDUCATION_LEVEL_LABELS).toEqual({ secondary: "Secundaria", high_school: "Bachillerato o Preparatoria", technical: "Carrera técnica", tsu: "Técnico Superior Universitario (TSU)", bachelor: "Licenciatura o Ingeniería", specialty: "Especialidad", master: "Maestría", phd: "Doctorado" });
     expect(SALARY_PERIOD_LABELS).toEqual({ monthly: "Mensual", annual: "Anual" });
-    expect(CEFR_LEVEL_LABELS).toEqual({ A1: "Principiante", A2: "Elemental", B1: "Intermedio", B2: "Intermedio alto", C1: "Avanzado", C2: "Dominio" });
+    expect(CEFR_LEVEL_LABELS).toEqual({ A1: "A1 · Principiante", A2: "A2 · Básico", B1: "B1 · Intermedio", B2: "B2 · Intermedio alto", C1: "C1 · Avanzado", C2: "C2 · Dominio", native: "Nativo" });
     for (const dictionary of DICTIONARIES) {
       for (const label of Object.values(dictionary)) expect(label.length).toBeGreaterThan(0);
       expect(Object.isFrozen(dictionary)).toBe(true);
@@ -105,8 +104,8 @@ describe("candidate identity and profile model", () => {
   it("mirrors the self-service profile fields without the reserved CV key", () => {
     expect(Object.keys(CANDIDATE_PROFILE).sort()).toEqual([
       "birthDate", "createdAt", "currentCompany", "currentSalaryGross", "currentSalaryNet",
-      "educationLevel", "expectedSalary", "expectedSalaryPeriod", "fieldOfStudy", "languages", "linkedinUrl", "location",
-      "phone", "portfolioUrl", "professionalTitle", "salaryCurrency", "skills", "summary", "updatedAt",
+      "education", "expectedSalary", "expectedSalaryPeriod", "languages", "linkedinUrl", "location",
+      "phone", "portfolioUrl", "professionalTitle", "salaryCurrency", "seniority", "skills", "summary", "updatedAt",
       "yearsOfExperience",
     ]);
     expect(CANDIDATE_PROFILE.salaryCurrency).toBe("MXN");
@@ -125,9 +124,9 @@ describe("candidate identity and profile model", () => {
       { portfolioUrl: "" }, { salaryCurrency: "MX" },
       { salaryCurrency: "MXNN" }, { phone: "123" },
       { summary: "" }, { skills: "react" },
-      { skills: [1] }, { languages: [{ name: "español", level: "b2" }] },
-      { languages: [{ name: "   ", level: "A1" }] }, { languages: [{ name: "español", level: "Z9" }] },
-      { languages: [{ name: "español", level: "B1", extra: true }] }, { createdAt: "2026-02-01" },
+      { skills: [1] }, { languages: [{ code: "es", level: "b2" }] },
+      { languages: [{ code: "", level: "A1" }] }, { languages: [{ code: "es", level: "Z9" }] },
+      { languages: [{ code: "es", level: "B1", extra: true }] }, { createdAt: "2026-02-01" },
       { extra: true },
     ];
     for (const [index, patch] of invalid.entries()) {
@@ -137,12 +136,12 @@ describe("candidate identity and profile model", () => {
     expect(() => parseCandidateProfile({ ...PROFILE_INPUT, educationLevel: "vocational" })).toThrow();
   });
 
-  it("rejects language names that duplicate case-insensitively", () => {
-    expect(candidateLanguageSchema.safeParse({ name: "Inglés", level: "C1" }).success).toBe(true);
+  it("rejects duplicate opaque language codes", () => {
+    expect(candidateLanguageSchema.safeParse({ code: "en", level: "C1" }).success).toBe(true);
     expect(
       candidateProfileSchema.safeParse({
         ...PROFILE_INPUT,
-        languages: [{ name: "Español", level: "C2" }, { name: "español", level: "B1" }],
+        languages: [{ code: "es", level: "C2" }, { code: "es", level: "B1" }],
       }).success,
     ).toBe(false);
   });

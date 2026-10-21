@@ -12,17 +12,18 @@ import type { CandidateProfileDraft, ProfileDraftIssue } from "./profile-draft";
 import { draftValueFromSelect, ProfileFormFields, toSelectItems } from "./profile-form-fields";
 
 const locationSpy = vi.hoisted(() => vi.fn());
+vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "es", name: "Español" }, { code: "en", name: "Inglés" }] }, retry: vi.fn() }) }));
 vi.mock("@/features/geo/optional-location-field", () => ({ OptionalLocationField: (props: unknown) => { locationSpy(props); return null; } }));
 
 // Source as text, so the coupling, token and side-effect contracts stay asserted here.
 const SOURCE = readFileSync(join(process.cwd(), "src/features/candidate", "profile-form-fields.tsx"), "utf8");
 const RAW_COLOR = /#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|oklch|color-mix)\(/u;
 /** The 18 scalar draft fields in canonical group order; `languages` is the 19th. */
-const SCALARS = ["professionalTitle", "currentCompany", "yearsOfExperience", "summary", "phone", "linkedinUrl", "portfolioUrl", "birthDate", "educationLevel", "fieldOfStudy", "skills", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "salaryCurrency", "expectedSalaryPeriod"] as const;
+const SCALARS = ["professionalTitle", "currentCompany", "yearsOfExperience", "summary", "phone", "linkedinUrl", "portfolioUrl", "birthDate", "seniority", "skills", "currentSalaryGross", "currentSalaryNet", "expectedSalary", "salaryCurrency", "expectedSalaryPeriod"] as const;
 const LABELS: Readonly<Record<(typeof SCALARS)[number], string>> = {
   professionalTitle: "Título profesional", currentCompany: "Empresa actual o última", yearsOfExperience: "Años de experiencia", summary: "Resumen profesional",
   phone: "Teléfono", linkedinUrl: "Perfil de LinkedIn", portfolioUrl: "Portafolio o sitio web", birthDate: "Fecha de nacimiento",
-  educationLevel: "Nivel máximo de estudios", fieldOfStudy: "Campo de estudio", skills: "Habilidades",
+  seniority: "Seniority", skills: "Habilidades",
   currentSalaryGross: "Salario bruto actual", currentSalaryNet: "Salario neto actual", expectedSalary: "Salario esperado", salaryCurrency: "Moneda", expectedSalaryPeriod: "Periodo del salario esperado",
 };
 const GROUPS = [["contact", "Contacto"], ["location", "Ubicación"], ["professional", "Perfil profesional"], ["trajectory", "Trayectoria"], ["education", "Formación académica"], ["skills", "Habilidades"], ["compensation", "Salario actual"], ["expectation", "Expectativas salariales"], ["languages", "Idiomas"]] as const;
@@ -61,7 +62,7 @@ describe("profile form fields inventory", () => {
       expect(card.className.split(/\s+/u)).not.toEqual(expect.arrayContaining(["py-0", "gap-0"]));
       expect(card.querySelector(':scope > [data-slot="card-header"] > [data-slot="card-title"] h3')).not.toBeNull();
     }
-    expect(screen.getByRole("button", { name: "Agregar idioma" }).closest('[data-slot="card-footer"]')).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Agregar idioma" }).closest('[data-pf-profile-group="languages"]')).not.toBeNull();
     for (const row of container.querySelectorAll('[data-pf-profile-language-row]')) {
       expect(row).toHaveAttribute("data-slot", "field-set");
       expect(row.className).not.toMatch(/rounded|bg-muted|border-border/u);
@@ -73,7 +74,7 @@ describe("profile form fields inventory", () => {
     const groups = Array.from(container.querySelectorAll("[data-pf-profile-group]"));
     expect(groups.map((group) => group.getAttribute("data-pf-profile-group"))).toEqual(GROUPS.map(([slug]) => slug));
     const rendered = Array.from(container.querySelectorAll("[data-pf-profile-field]")).map((node) => node.getAttribute("data-pf-profile-field") as string);
-    expect([...rendered].sort()).toEqual([...SCALARS, "languages", "location"].sort());
+    expect([...rendered].sort()).toEqual([...SCALARS, "location", "education.0.level", "education.0.institution", "education.0.field", "education.0.status", "education.0.start_year", "education.0.end_year", "languages.0.code", "languages.0.level", "languages.1.code", "languages.1.level"].sort());
     const sectionCards = Array.from(container.querySelectorAll("[data-pf-profile-section-card]"));
     expect(sectionCards).toHaveLength(9);
     expect(sectionCards.every((card) => card.getAttribute("data-slot") === "card")).toBe(true);
@@ -101,7 +102,7 @@ describe("profile form fields inventory", () => {
     expect(input(container, "salaryCurrency")).toHaveValue("MXN");
     for (const [path, max] of BOUNDED) {
       const node = input(container, path);
-      expect([node.type, node.getAttribute("min"), node.getAttribute("max"), node.getAttribute("step")], path).toEqual(["number", "0", max, "1"]);
+      expect([node.type, node.getAttribute("min"), node.getAttribute("max"), node.getAttribute("step")], path).toEqual(["number", "0", max, path === "yearsOfExperience" ? "0.1" : "1"]);
     }
     expect(input(container, "yearsOfExperience")).toHaveValue(9);
     expect(input(container, "expectedSalary")).toHaveValue(75000);
@@ -125,12 +126,12 @@ describe("profile form fields inventory", () => {
     // Birth dates need the past-date mode; the vacancy closing date keeps its default.
     expect(SOURCE).toMatch(/allowPast/u);
     expect(SOURCE).not.toMatch(/type:\s*"date"|type="date"/u);
-    expect(SOURCE).not.toContain("FieldDescription");
+    expect(screen.getByText("Puedes usar decimales, por ejemplo 1.5.")).toBeInTheDocument();
   });
 
   it("offers the exact closed vocabularies through the full shadcn Select composition", () => {
     const { container } = renderFields();
-    const education = field(container, "educationLevel");
+    const education = field(container, "education.0.level");
     const period = field(container, "expectedSalaryPeriod");
     const cefr = screen.getByLabelText("Nivel del idioma 1");
     for (const trigger of [education, period, cefr]) {
@@ -184,22 +185,14 @@ describe("profile form fields emissions", () => {
     expect(JSON.stringify(base)).toBe(before);
   });
 
-  it("edits, appends and removes language rows by position without mutating any row or array", () => {
+  it("appends and removes language rows by position without mutating any row or array", () => {
     const base = draft();
     const before = JSON.stringify(base);
     const { onChange } = renderFields({ draft: base });
-    expect(screen.getAllByRole("button", { name: /^Quitar idioma \d$/u }).map((button) => button.textContent)).toEqual(["Quitar idioma 1", "Quitar idioma 2"]);
-    fireEvent.change(screen.getByLabelText("Nombre del idioma 2"), { target: { value: `${base.languages[1].name}!` } });
-    const edited = emitted(onChange);
-    expect(edited.languages[1]).toEqual({ name: `${base.languages[1].name}!`, level: "B2" });
-    expect(edited.languages[0]).toBe(base.languages[0]);
-    expect(edited.languages).not.toBe(base.languages);
-    expect(draftValueFromSelect(null)).toBe("");
-    expect(draftValueFromSelect("A1")).toBe("A1");
-    expect(SOURCE).toContain("level: draftValueFromSelect(next)");
+    expect(screen.getAllByRole("button", { name: /^Quitar idioma \d$/u })).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" }));
     const added = emitted(onChange);
-    expect(added.languages).toEqual([...base.languages, { name: "", level: "" }]);
+    expect(added.languages).toEqual([...base.languages, { code: "", level: "" }]);
     expect(added.languages.at(-1)?.level).toBe("");
     expect(added.languages.at(-1)).not.toBe(base.languages[1]);
     fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 1" }));
@@ -227,25 +220,24 @@ describe("profile form fields error wiring", () => {
     expect(container.querySelector("#profile-phone-error")).not.toHaveTextContent("Mensaje duplicado");
     expect(input(container, "linkedinUrl")).not.toHaveAttribute("aria-invalid");
     expect(input(container, "linkedinUrl").getAttribute("aria-describedby")).toBeNull();
-    expect(container.querySelectorAll('[id$="-error"]')).toHaveLength(5);
+    expect(container.querySelectorAll('[id$="-error"]')).toHaveLength(4);
     // Without helper lines the adjacent error is the only described-by target.
     const birthDate = container.querySelector("#profile-birthDate") as HTMLElement;
     expect([birthDate.tagName, birthDate.getAttribute("aria-invalid"), birthDate.getAttribute("aria-describedby")]).toEqual(["BUTTON", "true", "profile-birthDate-error"]);
     expect(container.querySelector("#profile-birthDate-error")).toHaveTextContent(issues[5].message);
-    expect(container.querySelector('[data-pf-profile-group="languages"]')?.getAttribute("aria-describedby")).toBe("profile-languages-error");
-    expect(container.querySelector("#profile-languages-error")).toHaveTextContent("Puedes registrar hasta 20 idiomas.");
+    expect(screen.getByText("Puedes registrar hasta 20 idiomas.")).toHaveAttribute("data-slot", "field-error");
     const level = screen.getByLabelText("Nivel del idioma 2");
     expect(level).toHaveAttribute("aria-invalid", "true");
     expect(level.getAttribute("aria-describedby")).toBe("profile-language-1-level-error");
     expect(container.querySelector("#profile-language-1-level-error")).toHaveTextContent(issues[4].message);
-    expect(screen.getByLabelText("Nombre del idioma 1")).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByLabelText("Idioma 1")).not.toHaveAttribute("aria-invalid", "true");
     expect(field(container, "summary")).toHaveAttribute("aria-invalid", "true");
   });
 
   it("renders no error affordance and no invented validation when there are no issues", () => {
     const { container } = renderFields({ issues: [] });
     expect(container.querySelectorAll('[id$="-error"]')).toHaveLength(0);
-    expect(container.querySelectorAll("[aria-invalid]")).toHaveLength(0);
+    expect(container.querySelectorAll('[aria-invalid="true"]')).toHaveLength(0);
     expect(field(container, "summary").getAttribute("aria-describedby")).toBeNull();
   });
 });
@@ -257,12 +249,12 @@ describe("profile form fields composition", () => {
     expect(sections).toHaveLength(9);
     expect(container.querySelectorAll("[data-pf-profile-section-icon]")).toHaveLength(0);
     expect(container.querySelectorAll("[data-pf-profile-section-hint]")).toHaveLength(0);
-    expect(container.querySelectorAll('[data-slot="field-description"]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-slot="field-description"]')).toHaveLength(1);
     for (const label of container.querySelectorAll('[data-slot="field-label"]')) expect(label.querySelector("svg")).toBeNull();
     expect(SOURCE).not.toMatch(/PhoneIcon|Link2Icon|Globe2Icon|CalendarDaysIcon|MapPinnedIcon|EarthIcon|BadgeCheckIcon|Building2Icon|AwardIcon|ScrollTextIcon|GraduationCapIcon|BookOpenIcon|SparklesIcon|BanknoteIcon|CoinsIcon|HashIcon|WalletIcon|CalendarClockIcon|LanguagesIcon/u);
     expect(SOURCE).not.toContain("blurb");
-    expect(SOURCE).toContain("PlusIcon");
-    expect(SOURCE).toContain("Trash2Icon");
+    expect(SOURCE).toContain("LanguageListEditor");
+    expect(SOURCE).toContain("EducationFields");
     // Every section Card shares one neutral ring: no accent/neutral split and no hover paint.
     const sectionCards = Array.from(container.querySelectorAll("[data-pf-profile-section-card]"));
     expect(sectionCards).toHaveLength(9);
@@ -306,7 +298,7 @@ describe("profile form fields composition", () => {
     expect(container.querySelectorAll("[data-slot='card-title']")).toHaveLength(9);
     expect(container.querySelectorAll("[data-slot='card-description']")).toHaveLength(0);
     for (const header of headers) expect(header.querySelector("svg")).toBeNull();
-    for (const legend of container.querySelectorAll("[data-slot='field-legend']")) expect(classes(legend)).toContain("sr-only");
+    for (const legend of container.querySelectorAll("[data-pf-profile-group] > [data-slot='field-legend']")) expect(classes(legend)).toContain("sr-only");
     expect(SOURCE).toContain("CardHeader");
     expect(SOURCE).toContain("CardTitle");
   });
@@ -327,17 +319,17 @@ describe("profile form fields composition", () => {
 
   it("keeps controls on shadcn fields and language row numbers as text, with one divider and date picker", () => {
     const { container } = renderFields();
-    expect(container.querySelectorAll('[data-slot="field-set"]')).toHaveLength(9 + draft().languages.length);
-    expect(container.querySelectorAll('[data-slot="field"]')).toHaveLength(SCALARS.length + 2 * draft().languages.length);
-    expect(container.querySelectorAll('[data-slot="field-legend"]')).toHaveLength(9);
-    expect(container.querySelectorAll('[data-slot="field-description"]')).toHaveLength(0);
-    expect(container.querySelectorAll('[data-slot="field-label"]')).toHaveLength(SCALARS.length + 2 * draft().languages.length);
-    expect(container.querySelectorAll('[data-slot="input-group"]')).toHaveLength(SCALARS.length - 1);
+    expect(container.querySelectorAll('[data-slot="field-set"]')).toHaveLength(9 + draft().languages.length + draft().education.length);
+    expect(container.querySelectorAll('[data-slot="field"]')).toHaveLength(SCALARS.length + 2 * draft().languages.length + 6 * draft().education.length);
+    expect(container.querySelectorAll('[data-slot="field-legend"]')).toHaveLength(9 + draft().languages.length + draft().education.length);
+    expect(container.querySelectorAll('[data-slot="field-description"]')).toHaveLength(1);
+    expect(container.querySelectorAll('[data-slot="field-label"]')).toHaveLength(SCALARS.length + 2 * draft().languages.length + 6 * draft().education.length);
+    expect(container.querySelectorAll('[data-slot="input-group"]')).toHaveLength(SCALARS.length + 3);
     expect(container.querySelectorAll('[data-slot="date-picker-field"]')).toHaveLength(1);
     expect(container.querySelectorAll('[data-slot="badge"]')).toHaveLength(0);
     expect(container.querySelector('[data-pf-profile-fields]')).toHaveClass("grid-cols-1", "xl:grid-cols-2");
-    expect(container.querySelectorAll("[data-pf-profile-divider]")).toHaveLength(1);
-    expect(container.querySelectorAll('[data-slot="select-trigger"]')).toHaveLength(2 + draft().languages.length);
+    expect(container.querySelectorAll("[data-pf-profile-divider]")).toHaveLength(0);
+    expect(container.querySelectorAll('[data-slot="select-trigger"]')).toHaveLength(2 + draft().languages.length + 2 * draft().education.length);
     for (const trigger of container.querySelectorAll('[data-slot="select-trigger"]')) expect(trigger.querySelector('[data-slot="select-value"]')).not.toBeNull();
     expect(container.querySelectorAll('[style]:not([aria-hidden="true"])')).toHaveLength(0);
   });
@@ -346,7 +338,7 @@ describe("profile form fields composition", () => {
 describe("profile form fields contract", () => {
   it("keeps 40px targets, visible focus, token-only paint and responsive grids", () => {
     const { container } = renderFields();
-    for (const node of container.querySelectorAll("input:not([aria-hidden='true']), button")) expect(classes(node)).toContain("min-h-10");
+    for (const node of container.querySelectorAll("input:not([aria-hidden='true']), button")) expect(`${classes(node)} ${classes(node.closest('[data-slot="input-group"]'))}`).toContain("min-h-10");
     for (const node of container.querySelectorAll("textarea")) expect(classes(node)).toContain("min-h-24");
     // Every editable control carries the visible focus ring itself, or inherits it from its input-group frame.
     for (const node of container.querySelectorAll("input:not([aria-hidden='true']), textarea, button")) {
@@ -368,7 +360,7 @@ describe("profile form fields contract", () => {
     expect([classes(rowGrid).includes("grid-cols-1"), classes(rowGrid).includes("sm:grid-cols-2")]).toEqual([true, true]);
     expect(SOURCE).toContain("motion-reduce:transition-none");
     expect(container.querySelector("[data-pf-profile-language-add]")).toHaveTextContent("Agregar idioma");
-    expect(container.querySelectorAll("[data-slot='select-trigger']")).toHaveLength(2 + draft().languages.length);
+    expect(container.querySelectorAll("[data-slot='select-trigger']")).toHaveLength(2 + draft().languages.length + 2 * draft().education.length);
     expect(container.querySelectorAll("[data-pf-profile-language-remove], [data-pf-profile-language-add]")).toHaveLength(3);
     expect(RAW_COLOR.test(Array.from(container.querySelectorAll("[class]")).map(classes).join(" "))).toBe(false);
     expect(container.querySelectorAll('[style]:not([aria-hidden="true"])')).toHaveLength(0);
@@ -382,7 +374,7 @@ describe("profile form fields contract", () => {
     expect(container.querySelectorAll('[role="alert"]')).toHaveLength(0);
     expect(container.querySelectorAll('[role="group"]').length).toBeGreaterThan(0);
     expect(container.querySelectorAll('[type="submit"], [type="reset"]')).toHaveLength(0);
-    expect(modulesOf(SOURCE)).toEqual(["./model", "./profile-draft", "@/components/ui/button", "@/components/ui/card", "@/components/ui/date-picker-field", "@/components/ui/field", "@/components/ui/input-group", "@/components/ui/select", "@/components/ui/separator", "@/features/geo/model", "@/features/geo/optional-location-field", "lucide-react"]);
+    expect(modulesOf(SOURCE)).toEqual(["./model", "./profile-draft", "@/components/ui/card", "@/components/ui/date-picker-field", "@/components/ui/field", "@/components/ui/input-group", "@/components/ui/select", "@/features/candidate/education-fields", "@/features/geo/model", "@/features/geo/optional-location-field", "@/features/languages/language-field"]);
     expect(SOURCE).toMatch(/^"use client";/u);
     for (const forbidden of ["email", "fullName", "userId", "createdAt", "updatedAt", "cv", "auth", "password", "useState", "useReducer", "useEffect", "useRef", "<form", "onSubmit", "submit", "reset", "fetch(", "XMLHttpRequest", "localStorage", "sessionStorage", "indexedDB", "navigator.", "document.", "window.", "useRouter", "next/navigation", "setTimeout", "setInterval", "Math.random", "Date.now", "prototype-", "profile-draft.test", "parseProfileDraft", "safeParse", "validate"]) {
       expect(SOURCE, `profile-form-fields.tsx must not declare ${forbidden}`).not.toContain(forbidden);

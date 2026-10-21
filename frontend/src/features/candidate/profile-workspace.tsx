@@ -24,6 +24,7 @@ import { loadProfileAction, saveProfileAction } from "./profile-actions";
 import { profileFromWire, profileToWrite } from "./profile-adapter";
 import type { ProfileFailure, ProfileLanguages, ProfileRead } from "./profile-api";
 import type { ProfileSaveOutcome } from "./profile-save";
+import { profileFieldIssues, sortProfileIssues } from "./profile-field-errors";
 
 const CATEGORIES = [{ value: "personal", label: "Personal" }, { value: "experience", label: "Experiencia" }, { value: "education", label: "Educación" }, { value: "compensation", label: "Compensación" }, { value: "languages", label: "Idiomas" }] as const;
 const TAB_LIST = "max-w-full justify-start overflow-x-auto overflow-y-hidden focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
@@ -57,14 +58,14 @@ function categoryOf(path: string): ProfileCategory {
   if (path.startsWith("languages")) return "languages";
   if (path.startsWith("location") || ["phone", "linkedinUrl", "portfolioUrl", "birthDate"].includes(path)) return "personal";
   if (["currentSalaryGross", "currentSalaryNet", "expectedSalary", "salaryCurrency", "expectedSalaryPeriod"].includes(path)) return "compensation";
-  if (["educationLevel", "fieldOfStudy", "skills"].includes(path)) return "education";
+  if (path.startsWith("education") || path === "skills") return "education";
   return "experience";
 }
 function focusSelector(path: string) {
   if (path.startsWith("location.")) return '[data-pf-profile-field="location"] [aria-invalid="true"]';
   if (path === "languages") return "[data-pf-profile-language-add]";
-  const language = /^languages\.(\d+)\.(name|level)$/.exec(path);
-  return language ? `#profile-language-${language[1]}-${language[2]}` : `[data-pf-profile-field="${path}"]`;
+  if (path === "education") return "[data-pf-profile-education-add]";
+  return `[data-pf-profile-field="${path}"]`;
 }
 export function ProfileSkeleton() {
   return <DashboardPageContent data-pf-profile-workspace width="screen-2xl"><div aria-busy="true" className="flex flex-col gap-5"><span role="status" className="sr-only">Cargando perfil</span>
@@ -109,7 +110,7 @@ function editorBaseline(profile: ProfileRead | null, languages: ProfileLanguages
   return {
     phone: null, linkedinUrl: null, portfolioUrl: null, professionalTitle: null,
     currentCompany: null, yearsOfExperience: null, summary: null, birthDate: null,
-    location: null, educationLevel: null, fieldOfStudy: null, skills: [],
+    location: null, seniority: null, education: [], skills: [],
     currentSalaryGross: null, currentSalaryNet: null, expectedSalary: null,
     salaryCurrency: "MXN", expectedSalaryPeriod: null, languages: languages.languages,
     createdAt: null, updatedAt: null,
@@ -148,8 +149,9 @@ function ProfileEditor({ identity, initial, initiallyNew }: { identity: Candidat
   const dirty = !equal(draft, baseDraft);
   React.useEffect(() => { if (focus) form.current?.querySelector<HTMLElement>(focusSelector(focus.path))?.focus(); }, [focus]);
   function markIssues(next: readonly ProfileDraftIssue[]) {
-    setIssues(next);
-    if (next[0]) { setActiveTab(categoryOf(next[0].path)); setFocus({ path: next[0].path }); }
+    const ordered = sortProfileIssues(next);
+    setIssues(ordered);
+    if (ordered[0]) { setActiveTab(categoryOf(ordered[0].path)); setFocus({ path: ordered[0].path }); }
   }
   function announce(text: string, tone: "success" | "error" | "warning" | "info", failure?: ProfileFailure) {
     setStatus({ text, tone });
@@ -182,10 +184,14 @@ function ProfileEditor({ identity, initial, initiallyNew }: { identity: Candidat
     busy.current = false; setPending(false);
     adopt(outcome);
     if (outcome.kind === "saved") announce(isNew ? "Perfil creado." : "Perfil guardado.", "success");
-    else if (outcome.kind === "partial") announce(PARTIAL, "warning", outcome.failure);
+    else if (outcome.kind === "partial") {
+      if (outcome.failure.fields) markIssues(profileFieldIssues(outcome.failure.fields));
+      announce(PARTIAL, "warning", outcome.failure);
+    }
     else if (outcome.kind === "uncertain") { setUncertain(true); announce(UNCERTAIN, "error", outcome.failure); }
     else if (outcome.kind === "invalid") { markIssues(outcome.issues); announce("Revisa los datos marcados", "error"); }
     else if (outcome.kind === "failed") {
+      if (outcome.failure.fields) markIssues(profileFieldIssues(outcome.failure.fields));
       if (outcome.failure.locationIssues) markIssues(outcome.failure.locationIssues.map(issue => ({ path: `location.${issue.field}`, message: locationErrorMessages[issue.reason] })));
       announce(outcome.failure.reason === "unauthenticated" ? "Tu sesión expiró" : "No se guardó el perfil", "error", outcome.failure);
     } else { setDraft(baseDraft); announce("No hay cambios para guardar", "info"); }
@@ -203,7 +209,7 @@ function ProfileEditor({ identity, initial, initiallyNew }: { identity: Candidat
     } catch { announce(UNCERTAIN, "error"); }
     finally { busy.current = false; setPending(false); }
   }
-  const signals = [draft.professionalTitle, draft.currentCompany, draft.yearsOfExperience, draft.summary, draft.phone, draft.location.country, draft.educationLevel && draft.fieldOfStudy, draft.skills, draft.expectedSalary, draft.languages.some(row => row.name.trim() && row.level)];
+  const signals = [draft.professionalTitle, draft.currentCompany, draft.yearsOfExperience, draft.summary, draft.phone, draft.location.country, draft.education.some(study => study.level && study.status), draft.skills, draft.expectedSalary, draft.languages.some(row => row.code && row.level)];
   const done = signals.filter(Boolean).length;
   const initials = identity.fullName.split(/\s+/).slice(0, 2).map(part => part[0]).join("");
   return <DashboardPageContent data-pf-profile-workspace width="screen-2xl">{isNew && <p className="mb-5 text-sm text-muted-foreground">Completa tu perfil para postularte más rápido. Se crea al guardar por primera vez.</p>}<form ref={form} noValidate data-pf-profile-form onSubmit={submit} className="flex flex-col gap-5">

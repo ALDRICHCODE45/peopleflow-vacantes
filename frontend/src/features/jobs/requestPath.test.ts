@@ -26,6 +26,7 @@ describe("single application-facing request path", () => {
       "features/candidate-cvs/file-client.ts",
       "features/candidate-cvs/upload.ts",
       "features/geo/use-geo-catalog.ts",
+      "features/languages/use-language-catalog.ts",
       "features/manual-intake/file-client.ts",
       "features/manual-intake/upload.ts",
       "features/pipeline-movement/file-client.ts",
@@ -40,6 +41,15 @@ describe("single application-facing request path", () => {
     expect(hook).not.toMatch(/https?:\/\/|lib\/api\/|lib\/auth|authorization|cookie:/i);
     const client = source(join(SRC, "features/geo/client.ts"));
     expect(client).toContain('import "server-only"');
+  });
+
+  it("lets the browser read languages only through its fixed same-origin route without credentials", () => {
+    const hook = source(join(SRC, "features/languages/use-language-catalog.ts"));
+    expect(hook).toContain('fetch("/api/catalogs/languages"');
+    expect(hook).toContain('credentials: "omit"');
+    expect(hook).not.toMatch(/https?:\/\/|lib\/api\/|lib\/auth|authorization|cookie:/i);
+    expect(source(join(SRC, "features/languages/client.ts"))).toContain('import "server-only"');
+    expect(source(join(SRC, "app/api/catalogs/languages/route.ts"))).not.toMatch(/\bfetch\(|lib\/auth/);
   });
 
   it("lets the temporary bootstrap panel fetch only its same-origin identity routes", () => {
@@ -105,6 +115,7 @@ describe("single application-facing request path", () => {
       "features/jobs/drafts/pipeline/publication-client.ts",
       "features/jobs/drafts/pipeline/substates-client.ts",
       "features/jobs/drafts/requesters/client.ts",
+      "features/languages/client.ts",
       "features/manual-intake/client.ts",
       "features/pipeline-movement/client.ts",
       "features/vacancy-lifecycle/client.ts",
@@ -135,6 +146,7 @@ describe("single application-facing request path", () => {
       "features/jobs/drafts/pipeline/publication-client.ts",
       "features/jobs/drafts/pipeline/substates-client.ts",
       "features/jobs/drafts/requesters/client.ts",
+      "features/languages/client.ts",
       "features/manual-intake/client.ts",
       "features/pipeline-movement/client.ts",
       "features/vacancy-lifecycle/client.ts",
@@ -154,6 +166,7 @@ describe("single application-facing request path", () => {
       "app/api/auth/local-bootstrap/stage/route.ts",
       "app/api/candidate/cvs/[id]/file/route.ts",
       "app/api/candidate/cvs/route.ts",
+      "app/api/catalogs/languages/route.ts",
       "app/api/company/manual-candidates/[vacancyId]/route.ts",
       "app/api/company/vacancies/[vacancyId]/participations/[participationId]/cv/route.ts",
       "app/api/geo/countries/mx/postal-codes/[cp]/route.ts",

@@ -1,19 +1,17 @@
 "use client";
 
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import { LanguageListEditor } from "@/features/languages/language-field";
+import { EducationFields } from "@/features/candidate/education-fields";
 import { OptionalLocationField } from "@/features/geo/optional-location-field";
 import { locationErrorMessages, type LocationIssue } from "@/features/geo/model";
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
-import { Field, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@/components/ui/field";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText, InputGroupTextarea } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { CEFR_LEVELS, CEFR_LEVEL_LABELS, EDUCATION_LEVELS, EDUCATION_LEVEL_LABELS, SALARY_PERIOD_LABELS, SALARY_PERIODS } from "./model";
-import type { CefrLevel } from "./model";
-import type { CandidateLanguageDraft, CandidateProfileDraft, ProfileDraftIssue } from "./profile-draft";
+import { SENIORITIES, SENIORITY_LABELS, SALARY_PERIOD_LABELS, SALARY_PERIODS } from "./model";
+import type { CandidateProfileDraft, ProfileDraftIssue } from "./profile-draft";
 
 /**
  * Controlled, presentation-only editor for profile fields and structured location.
@@ -35,7 +33,7 @@ export type ProfileFormFieldsProps = Readonly<{
 }>;
 
 /** Every draft key a scalar control owns; languages render as indexed rows. */
-type ScalarPath = Exclude<keyof CandidateProfileDraft, "languages" | "location">;
+type ScalarPath = Exclude<keyof CandidateProfileDraft, "languages" | "location" | "education">;
 /** One selectable option: the exact closed-vocabulary value plus its Spanish label. */
 type Option = Readonly<{ value: string; label: string }>;
 /** One labelled scalar control: native metadata, rhythm and optional unit adornment. */
@@ -57,8 +55,6 @@ export const toSelectItems = (options: readonly Option[]): readonly SelectOption
   options.map((option) => ({ value: option.value === "" ? null : option.value, label: option.label }));
 /** Converts the primitive's nullable value back to the draft's stable empty-string boundary. */
 export const draftValueFromSelect = (value: string | null): string => value ?? "";
-const CEFR_OPTIONS = optionsOf(CEFR_LEVELS, CEFR_LEVEL_LABELS);
-const CEFR_ITEMS = toSelectItems(CEFR_OPTIONS);
 
 /** The declared currency code, or a neutral phrase while the draft carries none. */
 const currencyOf = (draft: CandidateProfileDraft): string => (draft.salaryCurrency.trim() === "" ? "sin moneda" : draft.salaryCurrency.trim().toUpperCase());
@@ -76,14 +72,14 @@ const SECTIONS: readonly Section[] = [
   { slug: "professional", legend: "Perfil profesional", category: "experience", grid: "grid grid-cols-1 gap-4 sm:grid-cols-6", fields: [
     { path: "professionalTitle", label: "Título profesional", maxLength: 120, span: "sm:col-span-6" },
     { path: "currentCompany", label: "Empresa actual o última", maxLength: 120, span: "sm:col-span-4" },
-    { path: "yearsOfExperience", label: "Años de experiencia", type: "number", min: 0, max: 60, step: 1, span: "sm:col-span-2", unit: () => "años" },
+    { path: "yearsOfExperience", label: "Años de experiencia", type: "number", min: 0, max: 60, step: 0.1, span: "sm:col-span-2", unit: () => "años" },
+    { path: "seniority", label: "Seniority", options: optionsOf(SENIORITIES, SENIORITY_LABELS), span: "sm:col-span-6" },
   ] },
   { slug: "trajectory", legend: "Trayectoria", category: "experience", grid: "grid grid-cols-1 gap-4 sm:grid-cols-1", fields: [
     { path: "summary", label: "Resumen profesional", multiline: true, maxLength: 2000 },
   ] },
   { slug: "education", legend: "Formación académica", category: "education", grid: "grid grid-cols-1 gap-4 sm:grid-cols-5", fields: [
-    { path: "educationLevel", label: "Nivel máximo de estudios", options: optionsOf(EDUCATION_LEVELS, EDUCATION_LEVEL_LABELS), span: "sm:col-span-2" },
-    { path: "fieldOfStudy", label: "Campo de estudio", maxLength: 120, span: "sm:col-span-3" },
+
   ] },
   { slug: "skills", legend: "Habilidades", category: "education", grid: "grid grid-cols-1 gap-4 sm:grid-cols-1", fields: [
     { path: "skills", label: "Habilidades", multiline: true },
@@ -101,8 +97,6 @@ const SECTIONS: readonly Section[] = [
 
 /** Token-only paint: one 40px target baseline, one visible focus ring and calm transitions. */
 const TARGET = "min-h-10";
-const CALM = "transition-colors duration-200 motion-reduce:transition-none";
-const CONTROLS = `${TARGET} focus-visible:outline-hidden focus-visible:ring-3 focus-visible:ring-ring/50`;
 const FRAME = "min-h-10 transition-[color,box-shadow] duration-200 motion-reduce:transition-none";
 /** Full-width Select trigger: 40px target, visible focus and the primitive's token-only paint. */
 const SELECT_TRIGGER = `${TARGET} w-full motion-reduce:transition-none`;
@@ -111,8 +105,6 @@ const SECTION = "gap-4";
 const SECTION_HEADER = "border-b";
 const SECTION_CONTENT = "flex flex-col gap-4";
 const LEGEND = "sr-only";
-const ROW = "gap-3";
-const ROW_GRID = "grid grid-cols-1 gap-3 sm:grid-cols-2";
 
 /** One labelled control: schema-aligned frame, optional adornment and error-only aria wiring. */
 function ScalarField({ spec, draft, error, onChange }: Readonly<{ spec: ScalarSpec; draft: CandidateProfileDraft; error: string | null; onChange: (value: string) => void }>) {
@@ -143,6 +135,7 @@ function ScalarField({ spec, draft, error, onChange }: Readonly<{ spec: ScalarSp
               </SelectGroup>
             </SelectContent>
           </Select>}
+      {spec.path === "yearsOfExperience" && <FieldDescription>Puedes usar decimales, por ejemplo 1.5.</FieldDescription>}
       {error === null || isBirthDate ? null : <FieldError id={`${id}-error`}>{error}</FieldError>}
     </Field>
   );
@@ -175,77 +168,27 @@ export function ProfileFormFields({ draft, issues, onChange, category, disabled 
   const byPath = new Map<string, string>();
   for (const issue of issues) if (!byPath.has(issue.path)) byPath.set(issue.path, issue.message);
   const errorFor = (path: string): string | null => byPath.get(path) ?? null;
-  const languagesError = errorFor("languages");
+
   /** Immutable scalar edit: a shallow clone carrying the one changed key. */
   const updateScalar = (path: ScalarPath, value: string): void => { onChange({ ...draft, [path]: value }); };
-  /** Immutable row edit: only the addressed row is cloned, the rest are reused. */
-  const updateLanguage = (index: number, patch: Partial<CandidateLanguageDraft>): void => {
-    onChange({ ...draft, languages: draft.languages.map((row, position) => (position === index ? { ...row, ...patch } : row)) });
-  };
-  const addLanguage = (): void => { onChange({ ...draft, languages: [...draft.languages, { name: "", level: "" }] }); };
-  const removeLanguage = (index: number): void => { onChange({ ...draft, languages: draft.languages.filter((_, position) => position !== index) }); };
-  const languageRow = (row: CandidateLanguageDraft, index: number) => {
-    const nameId = `profile-language-${index}-name`;
-    const levelId = `profile-language-${index}-level`;
-    const nameError = errorFor(`languages.${index}.name`);
-    const levelError = errorFor(`languages.${index}.level`);
-    return (
-      <FieldSet key={index} data-pf-profile-language-row={index} role="group" aria-label={`Idioma ${index + 1}`} className={ROW}>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium">{`Idioma ${index + 1}`}</p>
-          <Button type="button" variant="ghost" size="sm" data-pf-profile-language-remove className={`${CONTROLS} ${CALM}`} onClick={() => removeLanguage(index)}>
-            <Trash2Icon data-icon="inline-start" />{`Quitar idioma ${index + 1}`}
-          </Button>
-        </div>
-        <div data-pf-profile-language-grid="" className={ROW_GRID}>
-          <Field data-invalid={nameError === null ? undefined : true}>
-            <FieldLabel htmlFor={nameId}>{`Nombre del idioma ${index + 1}`}</FieldLabel>
-            <InputGroup className={FRAME}>
-              <InputGroupInput id={nameId} data-pf-profile-language-name type="text" maxLength={60} value={row.name} className={TARGET} aria-invalid={nameError === null ? undefined : true} aria-describedby={nameError === null ? undefined : `${nameId}-error`} onChange={(event) => updateLanguage(index, { name: event.target.value })} />
-            </InputGroup>
-            {nameError === null ? null : <FieldError id={`${nameId}-error`}>{nameError}</FieldError>}
-          </Field>
-          <Field data-invalid={levelError === null ? undefined : true}>
-            <FieldLabel htmlFor={levelId}>{`Nivel del idioma ${index + 1}`}</FieldLabel>
-            <Select items={CEFR_ITEMS} value={row.level === "" ? null : row.level} onValueChange={(next) => updateLanguage(index, { level: draftValueFromSelect(next) as "" | CefrLevel })}>
-              <SelectTrigger id={levelId} data-pf-profile-language-level className={SELECT_TRIGGER} aria-invalid={levelError === null ? undefined : true} aria-describedby={levelError === null ? undefined : `${levelId}-error`}><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {CEFR_ITEMS.map((item) => (<SelectItem key={item.value ?? "blank"} value={item.value}>{item.label}</SelectItem>))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            {levelError === null ? null : <FieldError id={`${levelId}-error`}>{levelError}</FieldError>}
-          </Field>
-        </div>
-      </FieldSet>
-    );
-  };
   const languagesCard = (
     <Card size="sm" data-pf-profile-section-card="" className={`${SECTION_CARD} xl:col-span-2`}>
       <CardHeader className={SECTION_HEADER}>
         <CardTitle aria-hidden="true"><h3>{"Idiomas"}</h3></CardTitle>
       </CardHeader>
       <CardContent className={SECTION_CONTENT}>
-        <FieldSet data-pf-profile-group="languages" data-pf-profile-field="languages" className={SECTION} aria-describedby={languagesError === null ? undefined : "profile-languages-error"}>
-          <FieldLegend className={LEGEND}>{"Idiomas"}</FieldLegend>
-          {languagesError === null ? null : <FieldError id="profile-languages-error">{languagesError}</FieldError>}
-          <Separator data-pf-profile-divider="" />
-          <FieldGroup className="gap-3">{draft.languages.map(languageRow)}</FieldGroup>
+        <FieldSet data-pf-profile-group="languages" className={SECTION}>
+          <FieldLegend className={LEGEND}>Idiomas</FieldLegend>
+          <LanguageListEditor value={draft.languages} onChange={languages => onChange({ ...draft, languages })} issues={issues} disabled={disabled} />
         </FieldSet>
       </CardContent>
-      <CardFooter>
-        <Button type="button" variant="outline" data-pf-profile-language-add className={`${CONTROLS} ${CALM} w-fit`} onClick={addLanguage}>
-          <PlusIcon data-icon="inline-start" />Agregar idioma
-        </Button>
-      </CardFooter>
     </Card>
   );
   const sections = category === undefined ? SECTIONS : SECTIONS.filter((section) => section.category === category);
   const withLanguages = category === undefined || category === "languages";
   return (
     <FieldGroup data-pf-profile-fields="" className="grid grid-cols-1 items-start gap-5 xl:grid-cols-2">
-      {sections.map((section) => (
+      {sections.map((section) => section.slug === "education" ? <EducationFields key={section.slug} value={draft.education} onChange={education => onChange({ ...draft, education })} issues={issues} disabled={disabled} /> : (
         <ScalarSection key={section.slug} section={section} draft={draft} errorFor={errorFor} onChange={updateScalar} location={<div className="sm:col-span-2" data-pf-profile-field="location"><OptionalLocationField value={draft.location} onChange={location => onChange({ ...draft, location })} depth="municipality" postalCode={false} label="Ubicación" hideLegend description="Opcional. Algunas vacantes solo aceptan postulantes de ciertos países." disabled={disabled} errors={issues.filter(issue => issue.path.startsWith("location.")).map(issue => ({ field: issue.path.slice(9) as LocationIssue["field"], reason: (Object.keys(locationErrorMessages) as LocationIssue["reason"][]).find(reason => locationErrorMessages[reason] === issue.message) ?? "unknown" }))} /></div>} />
       ))}
       {withLanguages ? languagesCard : null}

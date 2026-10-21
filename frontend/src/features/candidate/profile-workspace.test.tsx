@@ -13,6 +13,7 @@ vi.mock("@/features/geo/use-geo-catalog", () => ({
   useGeoCatalog: () => ({ countries: { status: "success", data: { items: [{ id: "MX", name: "México" }] }, retry: vi.fn() }, states: { status: "success", data: { items: [{ id: "09", name: "Ciudad de México" }] }, retry: vi.fn() }, municipalities: { status: "success", data: { items: [] }, retry: vi.fn() } }),
   useGeoPostalCode: () => ({ status: "idle" }),
 }));
+vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "es", name: "Español" }, { code: "en", name: "Inglés" }, { code: "fr", name: "Francés" }] }, retry: vi.fn() }) }));
 const valid = parseProfileDraft(profileToDraft(CANDIDATE_PROFILE), CANDIDATE_PROFILE);
 if (!valid.ok) throw new Error("Invalid fixture");
 const wire = { ...profileToWrite(valid.profile), user_id: CANDIDATE_IDENTITY.userId, location: CANDIDATE_PROFILE.location, created_at: CANDIDATE_PROFILE.createdAt, updated_at: CANDIDATE_PROFILE.updatedAt };
@@ -41,19 +42,19 @@ describe("live candidate profile", () => {
     expect(mocks.notify).not.toHaveBeenCalled();
   });
   it("opens an empty editor for a missing profile and creates it even with only language changes", async () => {
-    mocks.load.mockResolvedValue({ ok: true, data: { profile: null, languages: { languages: [{ name: "english", level: "B2" }] } } });
-    const empty = Object.fromEntries(Object.keys(profileToWrite(valid.profile)).map(key => [key, key === "skills" ? [] : key === "salary_currency" ? "MXN" : null]));
+    mocks.load.mockResolvedValue({ ok: true, data: { profile: null, languages: { languages: [{ code: "en", level: "B2" }] } } });
+    const empty = Object.fromEntries(Object.keys(profileToWrite(valid.profile)).map(key => [key, key === "skills" || key === "education" ? [] : key === "salary_currency" ? "MXN" : null]));
     const created = { ...wire, ...empty };
-    mocks.save.mockResolvedValueOnce({ kind: "saved", profile: created, languages: { languages: [{ name: "french", level: "B2" }] } });
+    mocks.save.mockResolvedValueOnce({ kind: "saved", profile: created, languages: { languages: [] } });
     await ready();
     expect(screen.getByText("Completa tu perfil para postularte más rápido. Se crea al guardar por primera vez.")).toBeInTheDocument();
     expect(screen.queryByText("Todavía no tienes perfil")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Teléfono")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeEnabled();
     tab("Compensación"); expect(screen.getByLabelText("Moneda")).toHaveValue("MXN");
-    tab("Idiomas"); change("Nombre del idioma 1", "French"); save();
+    tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 1" })); save();
     await screen.findByText("Perfil creado.");
-    expect(mocks.save).toHaveBeenCalledWith({ profile: empty, languages: { languages: [{ name: "french", level: "B2" }] } });
+    expect(mocks.save).toHaveBeenCalledWith({ profile: empty, languages: { languages: [] } });
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title: "Perfil creado." }));
     expect(screen.queryByText(/Se crea al guardar por primera vez/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
@@ -106,10 +107,10 @@ describe("live candidate profile", () => {
     expect(container.querySelector('[data-pf-profile-completeness-value]')).toHaveTextContent("10 de 10 datos clave");
     const expected = [
       ["Personal", ["phone", "linkedinUrl", "portfolioUrl", "birthDate", "location"]],
-      ["Experiencia", ["professionalTitle", "currentCompany", "yearsOfExperience", "summary"]],
-      ["Educación", ["educationLevel", "fieldOfStudy", "skills"]],
+      ["Experiencia", ["professionalTitle", "currentCompany", "yearsOfExperience", "seniority", "summary"]],
+      ["Educación", ["education.0.level", "education.0.institution", "education.0.field", "education.0.status", "education.0.start_year", "education.0.end_year", "skills"]],
       ["Compensación", ["currentSalaryGross", "currentSalaryNet", "salaryCurrency", "expectedSalary", "expectedSalaryPeriod"]],
-      ["Idiomas", ["languages"]],
+      ["Idiomas", ["languages.0.code", "languages.0.level", "languages.1.code", "languages.1.level"]],
     ] as const;
     for (const [name, fields] of expected) {
       tab(name);
@@ -145,10 +146,10 @@ describe("live candidate profile", () => {
     expect(screen.getByLabelText("Perfil de LinkedIn")).toHaveAttribute("aria-invalid", "true");
     expect(mocks.save).not.toHaveBeenCalled();
   });
-  it("rejects a language with empty level before writing either block", async () => {
-    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" })); change("Nombre del idioma 3", "French"); save();
+  it("rejects a language with empty code and level before writing either block", async () => {
+    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" })); save();
     expect(screen.getByLabelText("Nivel del idioma 3")).toHaveAttribute("aria-invalid", "true");
-    expect(document.querySelector("#profile-language-2-level")).toHaveFocus(); expect(mocks.save).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Idioma 3")).toHaveFocus(); expect(mocks.save).not.toHaveBeenCalled();
   });
   it("locks controls and double submissions during a write", async () => {
     let resolve!: (value: unknown) => void; mocks.save.mockReturnValue(new Promise(r => { resolve = r; }));
@@ -159,45 +160,47 @@ describe("live candidate profile", () => {
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
   it("keeps only language edits dirty after partial success and retries only that block", async () => {
-    mocks.save.mockResolvedValueOnce({ kind: "partial", profile: { ...wire, phone: "12345678" }, failure: { ok: false, reason: "invalid_request", reference: { status: 400 } } }).mockResolvedValueOnce({ kind: "saved", languages: { languages: [{ name: "español", level: "C2" }, { name: "english", level: "B2" }] } });
-    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); change("Nombre del idioma 2", "english"); save();
+    const languages = { languages: [CANDIDATE_PROFILE.languages[0]] };
+    mocks.save.mockResolvedValueOnce({ kind: "partial", profile: { ...wire, phone: "12345678" }, failure: { ok: false, reason: "invalid_request", reference: { status: 400 } } }).mockResolvedValueOnce({ kind: "saved", languages });
+    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("Guardamos tu perfil, pero no los idiomas. Revisa y vuelve a guardar.");
-    expect(screen.getByLabelText("Nombre del idioma 2")).toHaveValue("english");
+    expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeEnabled();
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ type: "warning" }));
     save(); await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(2));
-    expect(mocks.save.mock.calls[1][0]).toEqual({ languages: { languages: [{ name: "español", level: "C2" }, { name: "english", level: "B2" }] } });
+    expect(mocks.save.mock.calls[1][0]).toEqual({ languages });
     await screen.findByText("Perfil guardado.");
   });
   it("saves language-only changes without sending a profile replacement", async () => {
-    mocks.save.mockResolvedValue({ kind: "saved", languages: { languages: [{ name: "español", level: "C2" }, { name: "english", level: "B2" }] } });
-    await ready(); tab("Idiomas"); change("Nombre del idioma 2", "English"); save();
+    const languages = { languages: [CANDIDATE_PROFILE.languages[0]] };
+    mocks.save.mockResolvedValue({ kind: "saved", languages });
+    await ready(); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("Perfil guardado.");
-    expect(mocks.save.mock.calls[0][0]).toEqual({ languages: { languages: [{ name: "español", level: "C2" }, { name: "english", level: "B2" }] } });
-    expect(screen.getByLabelText("Nombre del idioma 2")).toHaveValue("english");
+    expect(mocks.save.mock.calls[0][0]).toEqual({ languages });
+    expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
   });
   it("preserves both edited blocks after a definite profile failure", async () => {
     mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: { status: 400 } } });
-    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); change("Nombre del idioma 2", "english"); save();
+    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("No se guardó el perfil");
-    expect(screen.getByLabelText("Nombre del idioma 2")).toHaveValue("english");
+    expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
     tab("Personal"); expect(screen.getByLabelText("Teléfono")).toHaveValue("12345678");
     fireEvent.click(screen.getByRole("button", { name: "Restaurar copia original" }));
     expect(screen.getByLabelText("Teléfono")).toHaveValue(CANDIDATE_PROFILE.phone);
-    tab("Idiomas"); expect(screen.getByLabelText("Nombre del idioma 2")).toHaveValue("inglés");
+    tab("Idiomas"); expect(screen.getByLabelText("Idioma 2")).toHaveValue("Inglés");
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
   it("reconciles uncertain language writes without discarding rows that were not saved", async () => {
     mocks.save.mockResolvedValue({ kind: "uncertain", part: "languages", profile: { ...wire, phone: "12345678" }, failure: { ok: false, reason: "no_response", reference: {} } });
-    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); change("Nombre del idioma 2", "english"); save();
+    await ready(); change("Teléfono", "12345678"); tab("Idiomas"); fireEvent.click(screen.getByRole("button", { name: "Quitar idioma 2" })); save();
     await screen.findByText("No pudimos confirmar si se guardó");
     mocks.load.mockResolvedValue({ ok: true, data: { ...loaded.data, profile: { ...wire, phone: "12345678" } } });
     fireEvent.click(screen.getByRole("button", { name: "Comprobar" }));
     await screen.findByText("Perfil comprobado.");
-    expect(screen.getByLabelText("Nombre del idioma 2")).toHaveValue("english");
+    expect(screen.queryByLabelText("Idioma 2")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeEnabled();
-    mocks.save.mockResolvedValue({ kind: "saved", languages: { languages: [{ name: "español", level: "C2" }, { name: "english", level: "B2" }] } });
+    mocks.save.mockResolvedValue({ kind: "saved", languages: { languages: [CANDIDATE_PROFILE.languages[0]] } });
     save(); await screen.findByText("Perfil guardado.");
     expect(mocks.save.mock.calls[1][0]).not.toHaveProperty("profile");
   });
@@ -225,6 +228,14 @@ describe("live candidate profile", () => {
     expect(screen.getByRole("button", { name: "Guardar perfil" })).toBeDisabled();
     expect(mocks.save).toHaveBeenCalledTimes(1);
   });
+});
+
+it("maps bracketed server paths and focuses the first invalid field in visual order", async () => {
+  mocks.save.mockResolvedValue({ kind: "failed", part: "profile", failure: { ok: false, reason: "invalid_request", reference: { status: 400, code: "validation_error" }, fields: [{ field: "education[0].status", code: "invalid" }, { field: "years_of_experience", code: "invalid" }] } });
+  await ready(); change("Teléfono", "12345678"); save();
+  expect(await screen.findByLabelText("Años de experiencia")).toHaveFocus();
+  expect(screen.getByLabelText("Años de experiencia")).toHaveAttribute("aria-invalid", "true");
+  tab("Educación"); expect(screen.getByLabelText("Estado")).toHaveAttribute("aria-invalid", "true");
 });
 
 it("lets the section tabs scroll sideways only (no 1px vertical scrollbar next to «Idiomas»)", async () => {

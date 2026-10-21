@@ -14,8 +14,8 @@ const editable = {
   years_of_experience: fields.yearsOfExperience.optional(),
   profile_summary: fields.summary.optional(),
   birth_date: fields.birthDate.optional(),
-  education_level: fields.educationLevel.optional(),
-  field_of_study: fields.fieldOfStudy.optional(),
+  seniority: fields.seniority.optional(),
+  education: fields.education.optional(),
   skills: fields.skills.optional(),
   current_salary_gross: fields.currentSalaryGross.optional(),
   current_salary_net: fields.currentSalaryNet.optional(),
@@ -45,8 +45,11 @@ const locationEnvelope = z.object({
   error: z.string(), code: z.literal("invalid_location"),
   details: z.array(z.object({ field: z.string().regex(/^location\.(country|state|municipality|postal_code)$/), reason: z.enum(["required", "unknown", "mismatch", "not_allowed"]) }).strict()).min(1),
 }).strict();
+const fieldIssueSchema = z.object({ field: z.string(), code: z.enum(["required", "invalid", "too_long", "not_allowed", "duplicate"]) }).strict();
+const validationEnvelope = z.object({ error: z.string(), code: z.literal("validation_error"), fields: z.array(fieldIssueSchema) }).strict();
 export const profileErrorSchema = z.union([
   locationEnvelope,
+  validationEnvelope,
   z.object({ error: z.string(), code: z.string() }).strict(),
 ]);
 export function profileLocationErrors(status: number | undefined, body: unknown): LocationIssue[] {
@@ -60,14 +63,16 @@ export type ProfileFailure = {
   reason: "unauthenticated" | "forbidden" | "not_found" | "invalid_request" | "invalid_location" | "no_response" | "server_error" | "unrecognized_response";
   reference: { status?: number; code?: string };
   locationIssues?: LocationIssue[];
+  fields?: z.infer<typeof fieldIssueSchema>[];
 };
 export type ProfileResult<T> = { ok: true; data: T } | ProfileFailure;
-const safeCodes = new Set(["unauthenticated", "account_required", "wrong_role", "forbidden", "not_found", "invalid_request", "invalid_location", "internal_error"]);
+const safeCodes = new Set(["unauthenticated", "account_required", "wrong_role", "forbidden", "not_found", "invalid_request", "invalid_location", "validation_error", "internal_error"]);
 export function profileFailure(result: { error: { kind: string; status?: number }; envelope?: unknown }): ProfileFailure {
   const { kind, status } = result.error;
   const envelope = profileErrorSchema.safeParse(result.envelope);
   const code = envelope.success && safeCodes.has(envelope.data.code) ? envelope.data.code : undefined;
   const locationIssues = profileLocationErrors(status, result.envelope);
+  const validation = status === 400 ? validationEnvelope.safeParse(result.envelope) : null;
   let reason: ProfileFailure["reason"] = "unrecognized_response";
   if (kind === "missing_token" || status === 401) reason = "unauthenticated";
   else if (kind === "invalid_request" || status === 400) reason = "invalid_request";
@@ -76,5 +81,5 @@ export function profileFailure(result: { error: { kind: string; status?: number 
   else if (status === 404) reason = "not_found";
   else if (locationIssues.length) reason = "invalid_location";
   else if (status !== undefined && status >= 500) reason = "server_error";
-  return { ok: false, reason, reference: { ...(status === undefined ? {} : { status }), ...(code ? { code } : {}) }, ...(locationIssues.length ? { locationIssues } : {}) };
+  return { ok: false, reason, reference: { ...(status === undefined ? {} : { status }), ...(code ? { code } : {}) }, ...(locationIssues.length ? { locationIssues } : {}), ...(validation?.success ? { fields: validation.data.fields } : {}) };
 }
