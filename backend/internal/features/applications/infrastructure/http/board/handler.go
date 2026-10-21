@@ -15,9 +15,19 @@ import (
 	"github.com/google/uuid"
 )
 
-type Handler struct{ store app.Store }
+type Handler struct {
+	store     app.Store
+	inspector app.ManualCVInspector
+	storage   app.ManualFileStorage
+}
 
-func NewHandler(store app.Store) *Handler { return &Handler{store} }
+func NewHandler(store app.Store) *Handler { return &Handler{store: store} }
+
+// WithManualCVPorts supplies composition-root adapters without coupling features.
+func (h *Handler) WithManualCVPorts(inspector app.ManualCVInspector, storage app.ManualFileStorage) *Handler {
+	h.inspector, h.storage = inspector, storage
+	return h
+}
 func writeError(w http.ResponseWriter, err error) {
 	code := httpjson.CodeInternalError
 	var finished *app.ProcessFinished

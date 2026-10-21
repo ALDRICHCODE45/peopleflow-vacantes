@@ -42,6 +42,7 @@ import (
 	movementpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/postgres/board"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	auditpostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/infrastructure/postgres"
+	cvstorage "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/storage"
 	companiesvalueobjects "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/domain/valueobjects"
 	companiespostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/postgres"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/identity/infrastructure/auth"
@@ -245,7 +246,7 @@ type draftFlowHarness struct {
 // newDraftFlowHarness builds the real production router with the real auth and
 // membership middleware, the real draft store over the isolated pool, and the
 // real legacy job handler, then serves it over a real loopback listener.
-func newDraftFlowHarness(t *testing.T) *draftFlowHarness {
+func newDraftFlowHarness(t *testing.T, cvFiles ...*cvstorage.Local) *draftFlowHarness {
 	t.Helper()
 	pool := requireDraftFlowPool(t)
 	signer := newDraftFlowSigner(t)
@@ -265,6 +266,12 @@ func newDraftFlowHarness(t *testing.T) *draftFlowHarness {
 	requireRecruiter := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, companyRepo, companiesvalueobjects.RecruiterRole)
 	requireOwner := identityhttp.RequireCompanyRole(identityUserRepo, memberRepo, companyRepo, companiesvalueobjects.OwnerRole)
 
+	var files movementpostgres.Storage
+	var manualFiles manualCVStorage
+	if len(cvFiles) > 0 && cvFiles[0] != nil {
+		files = cvFiles[0]
+		manualFiles = manualCVStorage{local: cvFiles[0]}
+	}
 	router := newRouter(routerDeps{
 		requireAuth:        requireAuth,
 		requireRecruiter:   requireRecruiter,
@@ -279,9 +286,8 @@ func newDraftFlowHarness(t *testing.T) *draftFlowHarness {
 		managementHandler:  jobshttp.NewManagementHandler(store),
 		publicationHandler: jobshttp.NewPublicationHandler(store),
 		lifecycleHandler:   jobshttp.NewLifecycleHandler(store),
-		// Match main.go's production composition. No CV storage is necessary for
-		// board reads, but a missing movement handler returns 500 before any DB read.
-		movementHandler:   movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{store}, nil, draftjson.Decode)),
+		// Match main.go; tests that upload CVs supply their own temporary storage.
+		movementHandler:   movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{store}, files, draftjson.Decode)).WithManualCVPorts(manualCVInspector{}, manualFiles),
 		publicJobsHandler: jobshttp.NewPublicJobsHandler(publicjobs.NewCatalog(publicjobsstore.NewStore(queries))),
 		requesterHandler:  jobshttp.NewRequesterHandler(store),
 		queries:           queries,

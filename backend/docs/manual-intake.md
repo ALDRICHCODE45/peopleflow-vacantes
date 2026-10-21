@@ -1,12 +1,11 @@
 # Recruiter manual intake contract
 
-Status: B1 storage, B2 reads, and B3a duplicates-check are implemented.
-B3b-1 provides field-validation and fingerprinting helpers plus company-owned CV
-retention in shared reconciliation. B3b-2 provides the streaming multipart parser.
-B3b-3 implements the transactional `board.Store.CreateManual` operation and its
-application-owned inspector/storage ports. HTTP orchestration and routing remain
-unimplemented; the create route below is still the target HTTP contract.
-Integration-tag store coverage is provided for parent-run database validation.
+Status: implementation complete (B1–B3b-4). Both routes are registered with
+company/recruiter authorization. The create handler reuses the bounded multipart
+parser and transactional store; `cmd/api` composes the real `cvs.Inspect` policy
+and private local storage. Integration-tag store and real-router coverage require
+parent-run validation against the isolated database; unit results do not prove
+that database execution.
 
 ## Routes and privacy
 
@@ -45,6 +44,25 @@ its title is the published (public projection) title.
 `POST …/manual` requires a UUID `Idempotency-Key` and multipart parts `data` (JSON)
 and `cv` (file). Stream with a 5,242,880-byte CV limit plus a 64 KiB envelope
 allowance. Unknown or repeated parts produce 400 `invalid_request`.
+Missing Idempotency-Key produces 400 `idempotency_key_required`; malformed or
+multiple keys produce 400 `invalid_idempotency_key`. Missing CV produces 400
+`validation_error` with `cv` / `required`.
+
+Example (use a real eligible stage and valid residence; retain the same key for
+retries, with unchanged JSON and CV bytes):
+
+```sh
+curl -i -X POST "$API/v2/me/company/job-drafts/$DRAFT_ID/pipeline/candidates/manual" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Idempotency-Key: $INTAKE_KEY" \
+  --form-string "data={\"stage_id\":\"$STAGE_ID\",\"existing\":null,\"confirmed_distinct\":false,\"candidate\":{\"full_name\":\"Ana Pérez\",\"education_level\":\"bachelor\",\"email\":\"ana@example.com\",\"phone\":null,\"residence\":{\"country\":\"US\"}}}" \
+  -F 'cv=@./resume.pdf'
+```
+
+CV failures have no `fields`: 400 `cv_content_mismatch`, 415
+`cv_unsupported_type`, 413 `cv_too_large`, 503 `cv_storage_unavailable`.
+Missing/foreign resources and identity failures follow board writes (404/401/403).
+No response, including authentication or parsing failures, is cacheable.
 
 The JSON object must contain exactly these four keys, each once:
 
@@ -97,9 +115,10 @@ No birth date, salary, or CV/LinkedIn/OCC extraction belongs in this cut (S8).
 
 ## Ordering and effects
 
-1. Authorize company/recruiter access.
-2. Resolve replay or fingerprint conflict.
-3. Validate multipart/JSON shape.
+1. Authorize company/recruiter access at the router; validate the key and parse
+   bounded multipart in memory (no disk writes).
+2. Inside the store, reauthorize and resolve replay or fingerprint conflict.
+3. Validate JSON shape.
 4. Collect field validation errors (400 `validation_error`).
 5. Check process state: never published → 409 `vacancy_not_published`; finished →
    409 `process_finished`, using existing lifecycle envelopes.
@@ -140,7 +159,8 @@ creation, global-search entry, or candidate-panel entry is created (S4, S6, S7).
 
 Success is 201: the full board item including profile/screening_answers, always
 present source/added_by/candidate.kind, plus flattened coverage and delivery;
-headers include ETag and no-store. Idempotency fingerprints include canonical
+headers include ETag, no-store, and `Idempotency-Replayed:false` on initial
+creation. Idempotency fingerprints include canonical
 JSON and the CV bytes' SHA-256. A matching replay returns the original body and
 ETag with `Idempotency-Replayed:true`; changed fingerprint returns 409
 `idempotency_conflict`.
@@ -184,11 +204,10 @@ B3b-2 transport-helper coverage (not endpoint coverage):
 - `TestManualMultipartPreservesUninspectedBytesAndNormalizesBasename`: preserves
   CV bytes for later ordered inspection and strips filename directories.
 
-The parser never spools temporary files. Its transport-local too-large error
-still needs mapping to `cv_too_large` when wired. Architecture rules prohibit
-applications infrastructure importing candidates/application/cvs directly;
-composition-root injection is needed to reuse `cvs.Inspect` without changing
-archguard.
+The parser never spools temporary files. The handler maps its transport-local
+too-large error to `cv_too_large`. Architecture rules prohibit applications
+infrastructure importing candidates/application/cvs directly; composition-root
+injection reuses `cvs.Inspect` without changing archguard.
 
 B3b-3 store coverage:
 - `TestManualCreatedBodyUsesGETItem`: exact full GET item key order and values,
@@ -215,16 +234,35 @@ B3b-3 store coverage:
 `CreateManual` accepts the four parsed inputs in `ManualInput`; its injected
 `ManualCVInspector` maps candidate-inspector errors to the applications-owned
 `ErrManualCVContentMismatch`, `ErrManualCVUnsupportedType`, and
-`ErrManualCVTooLarge` sentinels. The composition adapter must translate those
-errors, and adapt context-aware local storage to `ManualFileStorage`'s context-free
-Put/Delete methods (cleanup must not inherit request cancellation).
-The operation returns frozen response bytes, ETag, and a replay flag; a future
-handler owns status/header/error serialization. No HTTP handler or router is added.
+`ErrManualCVTooLarge` sentinels. The composition adapter translates those
+errors, and adapts context-aware local storage to `ManualFileStorage`'s context-free
+Put/Delete methods (cleanup does not inherit request cancellation).
+The operation returns frozen response bytes, ETag, and a replay flag; the HTTP
+handler writes those bytes verbatim and owns status/header/error serialization.
 Company-wide manual intake serialization prevents duplicate-check/create races
 between vacancies. Replay keys are company/actor/operation scoped; fingerprints
 also bind the target vacancy. Intake history beyond the cutoff counts toward
 delivery; ordinary move/recovery counting retains exact-cutoff semantics.
 
-Still required before shipping B3b: create HTTP wiring and error/header handling,
-composition-root port adapters, parent-run database integration validation, and
-endpoint-level tests. No integration execution is implied by unit-test results.
+B3b-4 endpoint and composition coverage:
+- `TestManualCreateHandler`: every store error mapping, validation fields,
+  conflict data envelopes, exact success bytes/ETag and false/true replay headers;
+  no-store on successes and errors (L7).
+- `TestManualCreateTransportErrors` and `TestManualCreateMultipartErrors`:
+  missing/invalid/multiple keys, malformed multipart, missing CV and oversized
+  uploads rejected before the store (S9).
+- `TestManualCreateRouteGates` and `TestRouteTopology_ExactRegistrations`: route
+  registration, recruiter/auth gates and no-store even on gate failures.
+- `TestManualCVComposition`: real inspection/error translation, private disk
+  round trip and compensation adapter, disabled storage (S5/S9).
+- `TestManualIntakeCatalogAndData`: additive 409 catalog entries and restricted
+  data serialization.
+- `TestManualCreateHTTPFlow` (integration tag): real router/auth/store/Inspect
+  with temporary private disk storage; 201 equals GET board item plus coverage
+  and delivery (including cutoff counting); exact replay without side effects,
+  duplicates then confirmed-distinct creation,
+  validation fields, content mismatch without writes, and original uploaded
+  bytes downloaded through the board participation CV route (S4–S7/S9).
+
+Parent-run isolated database execution remains a release validation step. No
+integration execution is implied by unit-test or integration-tag vet results.

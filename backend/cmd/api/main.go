@@ -179,6 +179,7 @@ func run() error {
 	// An absent root disables only CV routes, after their usual identity gates.
 	var cvHandler *cvshttp.Handler
 	var movementStorage movementpostgres.Storage
+	var manualStorage manualCVStorage
 	if cvConfig.Root != "" {
 		privateCVStorage, err := cvstorage.NewLocal(cvConfig.Root)
 		if err != nil {
@@ -186,6 +187,7 @@ func run() error {
 		}
 		defer privateCVStorage.Close()
 		movementStorage = privateCVStorage
+		manualStorage = manualCVStorage{local: privateCVStorage}
 		cvHandler = cvshttp.NewHandler(cvspostgres.NewLibrary(pool, privateCVStorage), draftjson.Decode)
 	}
 	draftStore := draftstore.NewStore(pool, auditRepo)
@@ -208,7 +210,7 @@ func run() error {
 	// event and (for create) the idempotency record commit atomically. The
 	// store owns the owner-or-principal rule and every precondition; the HTTP
 	// adapter is a thin transport over drafts.Store.
-	movementHandler := movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{draftStore}, movementStorage, draftjson.Decode))
+	movementHandler := movementhttp.NewHandler(movementpostgres.NewStore(pool, auditRepo, movementContext{draftStore}, movementStorage, draftjson.Decode)).WithManualCVPorts(manualCVInspector{}, manualStorage)
 	draftHandler := jobshttp.NewDraftHandler(draftStore)
 	draftV2Handler := jobshttp.NewDraftV2Handler(draftStore, draftStore, draftStore)
 	draftListHandler := jobshttp.NewDraftListHandler(draftStore)
