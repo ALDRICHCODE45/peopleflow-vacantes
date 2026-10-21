@@ -47,6 +47,8 @@ export type PrototypeJobEnrichment = {
 export type PrototypeJobView = JobItem & {
   readonly prototype?: PrototypeJobEnrichment;
 };
+/** Public v2 seniority remains intact in the legacy application presentation. */
+export type ApplicationJobView = Omit<PrototypeJobView, "seniority"> & { seniority: JobItem["seniority"] | PublicJobDetail["seniority"] };
 const FRONTEND_JOB_ENRICHMENT: PrototypeJobEnrichment = {
   department: "Ingeniería",
   skills: ["React", "TypeScript", "Accesibilidad web"],
@@ -125,8 +127,8 @@ export function enrichJob(job: JobItem): PrototypeJobView {
   return prototype === undefined ? { ...job } : { ...job, prototype };
 }
 /** Adapter for the unchanged legacy-only application flow, never for public reads. */
-export function legacyApplicationJob(job: Extract<PublicJobDetail, { source: "legacy" }>): PrototypeJobView {
-  return enrichJob({
+export function legacyApplicationJob(job: Extract<PublicJobDetail, { source: "legacy" }>): ApplicationJobView {
+  return {
     id: job.id, title: job.title, company: job.company,
     description: job.description_plain, work_mode: job.work_mode,
     employment_type: job.legacy_employment_type, seniority: job.seniority,
@@ -134,7 +136,8 @@ export function legacyApplicationJob(job: Extract<PublicJobDetail, { source: "le
     salary_currency: job.legacy_salary?.currency ?? "MXN",
     salary_min: job.legacy_salary?.min == null ? undefined : Number(job.legacy_salary.min),
     salary_max: job.legacy_salary?.max == null ? undefined : Number(job.legacy_salary.max),
-  });
+    ...(enrichmentForJob(job.id) ? { prototype: enrichmentForJob(job.id) } : {}),
+  };
 }
 
 /** Keeps the vacancies of `profile` by exact id or source name, in caller order. */

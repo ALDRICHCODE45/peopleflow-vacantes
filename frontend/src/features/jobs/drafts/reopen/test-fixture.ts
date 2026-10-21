@@ -13,11 +13,12 @@ export function filledDraftRead() {
     fields: {
       title: "Desarrollador backend", location: mexicoLocationRead, remote_scope: null, work_mode: "hybrid",
       work_schedule: "full_time", contract_type: "indefinite", seniority: "senior",
+      min_years_of_experience: "1.5", min_education_level: "bachelor", accepts_in_progress_education: true,
       professional_area: "technology_systems", required_requirements: "Cinco años con Go.",
       preferred_requirements: "Experiencia con AWS.", skills: ["Go", "SQL"],
       custom_benefits: ["Bono de transporte"], benefits: ["health_insurance", "flexible_schedule"],
       requester: { kind: "client", id: other, name: "Acme S.A." },
-      languages: [{ language: "es", custom_name: null, level: "native" }, { language: "other", custom_name: "Portugués", level: "basic" }],
+      languages: [{ code: "es", min_level: "native" }, { code: "pt", min_level: "A2" }],
       compensation: { mode: "range", amount: null, min: "30000.00", max: "45000.50", currency: "MXN", pay_period: "monthly", basis: "gross", public_visible: true },
       description: { schema_version: 1, document: { type: "doc", content: [
         { type: "paragraph", content: [{ type: "text", text: "Buscamos talento", marks: [{ type: "bold" }] }] },

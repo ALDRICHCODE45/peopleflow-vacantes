@@ -12,7 +12,6 @@ import {
   DESCRIPTION_ERROR,
   ENUM_ERROR,
   GENERIC_ERROR,
-  LANGUAGE_NAME_TOO_LONG_ERROR,
   LANGUAGE_REQUIRED_ERROR,
   LIST_ITEM_DUPLICATE_ERROR,
   LIST_ITEM_EMPTY_ERROR,
@@ -62,9 +61,8 @@ export type DraftRequesterState = {
 /** One repeatable language row; `customName` is a buffer for `other`. */
 export type DraftLanguageRow = {
   id: string;
-  language: string;
-  customName: string;
-  level: string;
+  code: string;
+  min_level: string;
 };
 
 /** Raw compensation controls; every money value is the exact typed string. */
@@ -90,6 +88,9 @@ export type DraftFormState = {
   work_schedule: string;
   contract_type: string;
   seniority: string;
+  min_years_of_experience: string;
+  min_education_level: string;
+  accepts_in_progress_education: boolean;
   professional_area: string;
   required_requirements: string;
   preferred_requirements: string;
@@ -137,6 +138,9 @@ export function initialDraftFormState(model: DraftModel): DraftFormState {
     work_schedule: fields.work_schedule ?? "",
     contract_type: fields.contract_type ?? "",
     seniority: fields.seniority ?? "",
+    min_years_of_experience: fields.min_years_of_experience ?? "",
+    min_education_level: fields.min_education_level ?? "",
+    accepts_in_progress_education: fields.accepts_in_progress_education,
     professional_area: fields.professional_area ?? "",
     required_requirements: fields.required_requirements ?? "",
     preferred_requirements: fields.preferred_requirements ?? "",
@@ -157,9 +161,8 @@ export function initialDraftFormState(model: DraftModel): DraftFormState {
     },
     languages: fields.languages.map((item, index) => ({
       id: `language-${index + 1}`,
-      language: item.language,
-      customName: item.custom_name ?? "",
-      level: item.level ?? "",
+      code: item.code,
+      min_level: item.min_level,
     })),
     compensation: {
       mode: fields.compensation.mode ?? "",
@@ -186,6 +189,9 @@ export function composeDraftFields(state: DraftFormState): Record<string, unknow
     work_schedule: state.work_schedule === "" ? null : state.work_schedule,
     contract_type: state.contract_type === "" ? null : state.contract_type,
     seniority: state.seniority === "" ? null : state.seniority,
+    min_years_of_experience: state.min_years_of_experience === "" ? null : state.min_years_of_experience,
+    min_education_level: state.min_education_level === "" ? null : state.min_education_level,
+    accepts_in_progress_education: state.accepts_in_progress_education,
     professional_area: state.professional_area === "" ? null : state.professional_area,
     required_requirements: state.required_requirements,
     preferred_requirements: state.preferred_requirements,
@@ -195,10 +201,8 @@ export function composeDraftFields(state: DraftFormState): Record<string, unknow
     screening_questions: state.screening_questions.map((row) => ({ prompt: row.value })),
     requester: composeRequester(state.requester),
     languages: state.languages.map((row) => ({
-      language: row.language,
-      // Buffer only becomes wire data for `other`; otherwise it stays local.
-      custom_name: row.language === "other" ? row.customName : null,
-      level: row.level === "" ? null : row.level,
+      code: row.code,
+      min_level: row.min_level,
     })),
     compensation: composeCompensation(state.compensation),
     description: state.description,
@@ -307,10 +311,9 @@ function issueMessage(key: string, issue: z.ZodIssue): string {
   }
   if (key.startsWith("benefits")) return BENEFITS_ERROR;
   if (key.startsWith("requester")) return REQUESTER_ERROR;
-  if (key.startsWith("languages.")) {
-    if (key.endsWith(".custom_name")) return LANGUAGE_NAME_TOO_LONG_ERROR;
-    return LANGUAGE_REQUIRED_ERROR;
-  }
+  if (key.startsWith("languages")) return issue.message.includes("ya está") ? issue.message : LANGUAGE_REQUIRED_ERROR;
+  if (key === "min_years_of_experience") return "Usa un número de 0 a 60 con hasta un decimal, por ejemplo 1.5.";
+  if (key === "min_education_level" || key === "accepts_in_progress_education") return ENUM_ERROR;
   if (key.startsWith("compensation")) {
     if (key.endsWith(".min") || key.endsWith(".max")) {
       return issue.message.includes("greater than or equal")
@@ -361,7 +364,7 @@ export function removeListRow(rows: readonly DraftListRow[], id: string): DraftL
 export function addLanguageRow(rows: readonly DraftLanguageRow[]): DraftLanguageRow[] {
   return [
     ...rows,
-    { id: nextRowId("language", rows), language: "", customName: "", level: "" },
+    { id: nextRowId("language", rows), code: "", min_level: "" },
   ];
 }
 

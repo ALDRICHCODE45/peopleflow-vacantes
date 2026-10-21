@@ -27,11 +27,14 @@ const SENIORITY_LABELS = {
  mid: "Medio",
  senior: "Senior",
  lead: "Líder",
-} as const satisfies Record<JobItem["seniority"], string>;
+ semi_senior: "Semi-senior",
+ manager: "Gerente",
+ director: "Director",
+} as const satisfies Record<NonNullable<JobItem["seniority"] | PublicJobItem["seniority"]>, string>;
 
 export type WorkMode = JobItem["work_mode"];
 export type EmploymentType = JobItem["employment_type"];
-export type Seniority = JobItem["seniority"];
+export type Seniority = NonNullable<JobItem["seniority"] | PublicJobItem["seniority"]>;
 export type PayFrequency = JobPayFrequency;
 
 /**
@@ -58,8 +61,8 @@ export function employmentTypeLabel(value: EmploymentType): string {
  return EMPLOYMENT_TYPE_LABELS[value];
 }
 
-export function seniorityLabel(value: Seniority): string {
- return SENIORITY_LABELS[value];
+export function seniorityLabel(value: Seniority | null): string {
+ return value === null ? "Sin definir" : SENIORITY_LABELS[value];
 }
 
 /** Deterministic long-form Mexico Spanish date, always rendered in UTC. */

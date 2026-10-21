@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { EDUCATION_LEVELS, yearsOfExperienceSchema, SENIORITIES } from "@/features/candidate/model";
+export { SENIORITIES } from "@/features/candidate/model";
 import { locationWriteSchema, remoteScopeWriteSchema } from "@/features/geo/model";
 import { trimUnicodeWhiteSpace } from "./text";
 
@@ -65,7 +67,8 @@ export const CONTRACT_TYPES = [
   "internship",
 ] as const;
 /** Accepted `seniority` literals; `null` is allowed. No years mapping. */
-export const SENIORITIES = ["intern", "junior", "mid", "senior", "lead"] as const;
+export const draftMinYearsSchema = yearsOfExperienceSchema.refine(value => !/\s/u.test(value)).nullable();
+export const draftMinEducationSchema = z.enum(EDUCATION_LEVELS).nullable();
 /** Accepted `professional_area` codes (§4.1, REQ-7); `null` is allowed. */
 export const PROFESSIONAL_AREAS = [
   "technology_systems",
@@ -117,6 +120,9 @@ export const draftScalarFieldSchemas = {
   work_schedule: draftWorkScheduleSchema,
   contract_type: draftContractTypeSchema,
   seniority: draftSenioritySchema,
+  min_years_of_experience: draftMinYearsSchema,
+  min_education_level: draftMinEducationSchema,
+  accepts_in_progress_education: z.boolean(),
   professional_area: draftProfessionalAreaSchema,
   required_requirements: draftRequiredRequirementsSchema,
   preferred_requirements: draftPreferredRequirementsSchema,

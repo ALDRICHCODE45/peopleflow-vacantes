@@ -1,4 +1,5 @@
 import * as React from "react";
+vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "es", name: "Español" }, { code: "en", name: "Inglés" }, { code: "fr", name: "Francés" }, { code: "pt", name: "Portugués" }, { code: "nah", name: "Náhuatl" }, { code: "de", name: "Alemán" }] }, retry: vi.fn() }) }));
 import { mexicoLocationRead, mexicoLocationWrite } from "../geography-fixture";
 vi.mock("@/features/geo/use-geo-catalog", () => ({ useGeoCatalog: () => ({ countries: { status: "success", data: { items: [{ id: "MX", name: "México" }, { id: "CO", name: "Colombia" }] }, retry: vi.fn() }, states: { status: "success", data: { items: [{ id: "09", name: "Ciudad de México" }] } }, municipalities: { status: "success", data: { items: [] } } }), useGeoPostalCode: () => ({ status: "idle" }) }));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -169,6 +170,7 @@ function populatedInitialModel(): DraftModel {
       work_schedule: "full_time",
       contract_type: "indefinite",
       seniority: "senior",
+      min_years_of_experience: "1.5", min_education_level: "bachelor", accepts_in_progress_education: true,
       professional_area: "technology_systems",
       required_requirements: "Go y PostgreSQL",
       preferred_requirements: "Kubernetes",
@@ -186,12 +188,12 @@ function populatedInitialModel(): DraftModel {
       })),
       requester: { kind: "client", id: ID, name: "Cliente Ejemplo" },
       languages: [
-        { language: "es", custom_name: null, level: "native" },
-        { language: "en", custom_name: null, level: "advanced" },
-        { language: "other", custom_name: "Francés", level: "basic" },
-        { language: "other", custom_name: null, level: null },
-        { language: "en", custom_name: null, level: null },
-        { language: "other", custom_name: "Alemán", level: "intermediate" },
+        { code: "es", min_level: "native" },
+        { code: "en", min_level: "C1" },
+        { code: "fr", min_level: "A2" },
+        { code: "pt", min_level: "A1" },
+        { code: "nah", min_level: "B2" },
+        { code: "de", min_level: "B1" },
       ],
       compensation: {
         mode: "range",
@@ -858,58 +860,21 @@ describe("LocalDraftForm compensation", () => {
   });
 });
 
-describe("LocalDraftForm languages without CEFR mapping", () => {
-  it("sends custom_name only for other and keeps the levels exact", () => {
-    render(<LocalDraftForm initialModel={createDraftModel()} />);
-    goToStep(2);
-
-    fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Idioma 1" }), {
-      target: { value: "other" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "Nombre del idioma 1" }), {
-      target: { value: "Francés" },
-    });
-    fireEvent.change(screen.getByRole("combobox", { name: "Nivel del idioma 1" }), {
-      target: { value: "advanced" },
-    });
-
-    fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Idioma 2" }), {
-      target: { value: "en" },
-    });
-
+describe("LocalDraftForm catalog language minima", () => {
+  it("preserves migrated codes and exact CEFR minima", () => {
+    const model = populatedInitialModel();
+    render(<LocalDraftForm initialModel={model} />);
     validateDraft();
-
-    expect(normalizedFields(0).languages).toEqual([
-      { language: "other", custom_name: "Francés", level: "advanced" },
-      { language: "en", custom_name: null, level: null },
-    ]);
-    expect(SOURCE).not.toMatch(/CEFR|[ABC][12]\b/);
+    expect(normalizedFields(0).languages).toEqual(model.fields.languages);
   });
 
-  it("keeps a custom-name buffer when the row language changes", () => {
-    render(<LocalDraftForm />);
+  it("changes the minimum level without any custom-name control", () => {
+    render(<LocalDraftForm initialModel={populatedInitialModel()} />);
     goToStep(2);
-
-    fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Idioma 1" }), {
-      target: { value: "other" },
-    });
-    fireEvent.change(screen.getByRole("textbox", { name: "Nombre del idioma 1" }), {
-      target: { value: "Alemán" },
-    });
-    fireEvent.change(screen.getByRole("combobox", { name: "Idioma 1" }), {
-      target: { value: "en" },
-    });
+    fireEvent.change(screen.getByRole("combobox", { name: "Nivel mínimo del idioma 1" }), { target: { value: "C2" } });
     expect(screen.queryByRole("textbox", { name: "Nombre del idioma 1" })).toBeNull();
-
-    fireEvent.change(screen.getByRole("combobox", { name: "Idioma 1" }), {
-      target: { value: "other" },
-    });
-    expect(screen.getByRole("textbox", { name: "Nombre del idioma 1" })).toHaveValue(
-      "Alemán",
-    );
+    validateDraft();
+    expect(normalizedFields(0).languages[0]).toEqual({ code: "es", min_level: "C2" });
   });
 
   it("rejects a row without a language", () => {
@@ -920,7 +885,7 @@ describe("LocalDraftForm languages without CEFR mapping", () => {
     validateDraft();
 
     expect(currentStep()).toBe(2);
-    expect(screen.getByText("Elige un idioma.")).toBeVisible();
+    expect(screen.getAllByText("Elige un idioma.").length).toBeGreaterThan(0);
     expect(hoisted.serialized).toHaveLength(0);
   });
 });

@@ -54,6 +54,7 @@ import { publicationErrorEnvelopeSchema } from "../pipeline/failure";
  * claim. The underlying server `fetch` has no ambient cookie jar; redirect
  * behavior is the transport default and is left unchanged.
  */
+import { draftValidationEnvelopeSchema, type DraftValidationIssue } from "../validation-errors";
 const DRAFTS_V2_PATH = "/v2/me/company/job-drafts";
 const CREATE_STATUS = 201;
 const READ_STATUS = 200;
@@ -67,7 +68,7 @@ const draftV2ErrorEnvelopeSchema = z.object({
   error: z.string().min(1),
   code: z.string().min(1),
 });
-export type DraftV2ErrorEnvelope = z.infer<typeof draftV2ErrorEnvelopeSchema> & { missing?: string[]; geography?: GeographyErrors };
+export type DraftV2ErrorEnvelope = z.infer<typeof draftV2ErrorEnvelopeSchema> & { missing?: string[]; geography?: GeographyErrors; fields?: DraftValidationIssue[] };
 
 /**
  * Every v2 draft-client failure. Shaped like `RequestJsonError` so read callers
@@ -166,6 +167,7 @@ function decodeWriteEnvelopeV2(expectedId: string) {
 
 const decodeErrorEnvelope = (value: unknown): DraftV2ErrorEnvelope => {
   const envelope = draftV2ErrorEnvelopeSchema.parse(value);
+  if (envelope.code === "validation_error") return draftValidationEnvelopeSchema.parse(value);
   if (envelope.code === "invalid_location" || envelope.code === "invalid_remote_scope") {
     const geography = parseGeographyErrors(422, value);
     if (!geography) throw new Error("Invalid geography error envelope");

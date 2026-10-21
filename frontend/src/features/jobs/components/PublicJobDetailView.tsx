@@ -16,6 +16,7 @@ import { PublicCompanyAvatar } from "./PublicCompanyAvatar";
 import { PublicApplicants, PublicScreeningInfo } from "./public-application-info";
 import { PublicJobFacts, publicJobHeroFacts } from "./public-job-facts";
 import { publicDetailBenefits, publicDetailSections } from "./public-detail-content";
+import { PublicRequirementsProfile } from "./public-requirements-profile";
 import { PublicSalary } from "./public-salary";
 import { PublicShareButton } from "./public-share-button";
 import { PUBLIC_ACTION_CARD, PUBLIC_COMPANY_FOOTER, PUBLIC_DETAIL_ASIDE, PUBLIC_DETAIL_BENEFITS, PUBLIC_DETAIL_BODY, PUBLIC_DETAIL_CARD, PUBLIC_DETAIL_GRID, PUBLIC_DETAIL_HEADER, PUBLIC_DETAIL_HERO, PUBLIC_DETAIL_SECTION } from "./public-vacancy-layout";
@@ -79,6 +80,7 @@ export function PublicJobDetailView({ job, preview = false, companyLoading = fal
                 </>}
                 {id === "requisitos" && <>
                   <div className="flex flex-col gap-2"><h2 className="text-xl font-semibold tracking-tight">Lo que buscamos</h2><p className="text-muted-foreground">Conocimientos y experiencia para este puesto.</p></div>
+                  <PublicRequirementsProfile profile={job.requirements_profile} />
                   {job.requirements.required?.trim() && <div className="flex max-w-prose flex-col gap-4"><h3 className="font-semibold">Requisitos indispensables</h3><p className="whitespace-pre-wrap break-words">{job.requirements.required}</p></div>}
                   {job.requirements.preferred?.trim() && <div className="flex max-w-prose flex-col gap-4"><h3 className="font-semibold">También valoramos</h3><p className="whitespace-pre-wrap break-words">{job.requirements.preferred}</p></div>}
                 </>}

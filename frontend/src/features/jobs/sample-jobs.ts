@@ -195,7 +195,8 @@ const PUBLIC_SAMPLE_DETAILS: readonly PublicJobDetail[] = SAMPLE_JOBS.map((job) 
   id: job.id, source: "legacy", title: job.title, company: { ...job.company, logo_url: null },
   location: null, location_label: job.location ?? null, remote_scope: null, work_mode: job.work_mode,
   work_schedule: null, contract_type: null, professional_area: null,
-  seniority: job.seniority, legacy_employment_type: job.employment_type,
+  seniority: job.seniority === "mid" ? "semi_senior" : job.seniority, legacy_employment_type: job.employment_type,
+  requirements_profile: { languages: [], min_years_of_experience: null, min_education_level: null, accepts_in_progress_education: false },
   compensation: null,
   legacy_salary: job.salary_min === undefined && job.salary_max === undefined ? null : {
     min: job.salary_min?.toFixed(2) ?? null, max: job.salary_max?.toFixed(2) ?? null, currency: job.salary_currency,

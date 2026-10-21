@@ -14,6 +14,10 @@ export const vacancyDetail = {
   contract_type: "indefinite",
   professional_area: "technology_systems",
   seniority: null,
+  requirements_profile: {
+    languages: [], min_years_of_experience: null,
+    min_education_level: null, accepts_in_progress_education: false,
+  },
   legacy_employment_type: null,
   compensation: { mode: "range", amount: null, min: "30000.00", max: "40000.00", currency: "MXN", pay_period: "monthly", basis: "gross" },
   legacy_salary: null,

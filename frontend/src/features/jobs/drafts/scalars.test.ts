@@ -46,7 +46,7 @@ describe("draft scalar literal catalogs", () => {
       "temporary",
       "internship",
     ]);
-    expect(SENIORITIES).toEqual(["intern", "junior", "mid", "senior", "lead"]);
+    expect(SENIORITIES).toEqual(["intern", "junior", "semi_senior", "senior", "lead", "manager", "director"]);
     expect(PROFESSIONAL_AREAS).toHaveLength(16);
     expect(PROFESSIONAL_AREAS).toEqual([
       "technology_systems",
@@ -223,8 +223,11 @@ describe("draft scalar enums are exact, nullable and uncoerced", () => {
 describe("draftScalarFieldSchemas map", () => {
   it("exposes exactly the nine contract scalar fields", () => {
     expect(Object.keys(draftScalarFieldSchemas).sort()).toEqual([
+      "accepts_in_progress_education",
       "contract_type",
       "location",
+      "min_education_level",
+      "min_years_of_experience",
       "preferred_requirements",
       "professional_area",
       "remote_scope",
@@ -237,11 +240,11 @@ describe("draftScalarFieldSchemas map", () => {
   });
 
   it("maps each field to a schema that rejects undefined and non-strings", () => {
-    for (const schema of Object.values(draftScalarFieldSchemas)) {
+    for (const [key, schema] of Object.entries(draftScalarFieldSchemas)) {
       expect(ok(schema, undefined)).toBe(false);
       expect(ok(schema, 1)).toBe(false);
       expect(ok(schema, {})).toBe(false);
-      expect(ok(schema, null)).toBe(true);
+      expect(ok(schema, null)).toBe(key !== "accepts_in_progress_education");
     }
   });
 });
@@ -269,6 +272,9 @@ describe("draft scalar types", () => {
       | "work_schedule"
       | "contract_type"
       | "seniority"
+      | "min_years_of_experience"
+      | "min_education_level"
+      | "accepts_in_progress_education"
       | "professional_area"
       | "required_requirements"
       | "preferred_requirements"

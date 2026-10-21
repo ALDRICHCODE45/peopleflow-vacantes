@@ -5,7 +5,8 @@ import {
   COMPENSATION_PAY_PERIODS,
 } from "../compensation";
 import { BENEFITS } from "../lists";
-import { LANGUAGE_CODES, LANGUAGE_LEVELS, REQUESTER_KINDS } from "../nested";
+import { REQUESTER_KINDS } from "../nested";
+import { SENIORITY_LABELS, CEFR_LEVELS, CEFR_LEVEL_LABELS } from "@/features/candidate/model";
 import {
   CONTRACT_TYPES,
   PROFESSIONAL_AREAS,
@@ -52,14 +53,6 @@ const CONTRACT_TYPE_LABELS = {
   internship: "Becas",
 } as const satisfies Record<(typeof CONTRACT_TYPES)[number], string>;
 
-const SENIORITY_LABELS = {
-  intern: "Prácticas",
-  junior: "Junior",
-  mid: "Intermedio",
-  senior: "Senior",
-  lead: "Líder",
-} as const satisfies Record<(typeof SENIORITIES)[number], string>;
-
 const PROFESSIONAL_AREA_LABELS = {
   technology_systems: "Tecnología y sistemas",
   engineering: "Ingeniería",
@@ -89,19 +82,6 @@ const BENEFIT_LABELS = {
   wellness: "Bienestar",
   annual_bonus: "Bono anual",
 } as const satisfies Record<(typeof BENEFITS)[number], string>;
-
-const LANGUAGE_LABELS = {
-  es: "Español",
-  en: "Inglés",
-  other: "Otro",
-} as const satisfies Record<(typeof LANGUAGE_CODES)[number], string>;
-
-const LANGUAGE_LEVEL_LABELS = {
-  basic: "Básico",
-  intermediate: "Intermedio",
-  advanced: "Avanzado",
-  native: "Nativo",
-} as const satisfies Record<(typeof LANGUAGE_LEVELS)[number], string>;
 
 const REQUESTER_KIND_LABELS = {
   internal_area: "Área interna",
@@ -140,8 +120,7 @@ export const PROFESSIONAL_AREA_OPTIONS = optionsFrom(
   PROFESSIONAL_AREAS,
 );
 export const REQUESTER_KIND_OPTIONS = optionsFrom(REQUESTER_KIND_LABELS, REQUESTER_KINDS);
-export const LANGUAGE_OPTIONS = optionsFrom(LANGUAGE_LABELS, LANGUAGE_CODES);
-export const LANGUAGE_LEVEL_OPTIONS = optionsFrom(LANGUAGE_LEVEL_LABELS, LANGUAGE_LEVELS);
+export const LANGUAGE_LEVEL_OPTIONS = optionsFrom(CEFR_LEVEL_LABELS, CEFR_LEVELS);
 export const COMPENSATION_MODE_OPTIONS = optionsFrom(
   COMPENSATION_MODE_LABELS,
   COMPENSATION_MODES,

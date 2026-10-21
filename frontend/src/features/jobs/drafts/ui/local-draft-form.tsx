@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { GeographyErrors, LocationValue } from "@/features/geo/model";
+import { draftValidationErrors } from "../validation-errors";
 import { DraftGeographyField } from "./draft-geography-field";
 import {
   CheckCircle2Icon,
@@ -45,6 +46,8 @@ import {
   FieldTitle,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { EDUCATION_LEVELS, EDUCATION_LEVEL_LABELS } from "@/features/candidate/model";
 import { DraftEditorShell, EDITOR_SECTIONS, EDITOR_DESCRIPTIONS } from "./draft-editor-shell";
 import { DraftLeaveGuard, type DraftLeaveGuardHandle } from "./draft-leave-guard";
 import { editorReadiness, editorPublicationRequirements } from "../pipeline/publication-model";
@@ -151,7 +154,7 @@ const STEP_ERROR_PREFIXES: readonly (readonly string[])[] = [
     "professional_area",
     "requester",
   ],
-  ["required_requirements", "preferred_requirements", "skills", "languages", "description"],
+  ["required_requirements", "preferred_requirements", "skills", "languages", "description", "min_years_of_experience", "min_education_level", "accepts_in_progress_education"],
   ["compensation", "benefits", "custom_benefits"],
   ["screening_questions"],
   [],
@@ -564,6 +567,12 @@ export function LocalDraftForm({
       }
       setErrors({});
       void draftSave.save(result.model).then(response => {
+        if (response && !response.ok && "fields" in response && response.fields) {
+          const mapped = draftValidationErrors(response.fields);
+          setErrors(mapped);
+          setStep(firstErrorStep(mapped));
+          setFocusRevision(revision => revision + 1);
+        }
         if (response && !response.ok && "geography" in response && response.geography) {
           setGeographyErrors(response.geography);
           focusTarget.current = '[data-pf-draft-step="1"] [aria-invalid="true"]';
@@ -641,10 +650,10 @@ export function LocalDraftForm({
                 <FieldGroup className="grid gap-6 sm:grid-cols-2 [&>*]:min-w-0">
                   {([
                     ["professional_area", "draft-professional-area", "Área profesional", PROFESSIONAL_AREA_OPTIONS, "Elige un área"],
-                    ["seniority", "draft-seniority", "Nivel", SENIORITY_OPTIONS, "Elige un nivel"],
+                    ["seniority", "draft-seniority", "Nivel", [{ value: "", label: "Sin especificar" }, ...SENIORITY_OPTIONS], "Elige un nivel"],
                     ["work_schedule", "draft-work-schedule", "Jornada", WORK_SCHEDULE_OPTIONS, "Elige una jornada"],
                     ["contract_type", "draft-contract-type", "Tipo de contrato", CONTRACT_TYPE_OPTIONS, "Elige un tipo de contrato"],
-                  ] as const).map(([key, id, label, options, placeholder]) => <DraftSelectField key={key} id={id} label={label} options={options} placeholder={placeholder} value={state[key]} error={errors[key]} publicationRequired={publicationRequired.scalarFields.some(field => field === key)} onChange={value => applyState(previous => ({ ...previous, [key]: value }), [key])} />)}
+                  ] as const).map(([key, id, label, options, placeholder]) => <DraftSelectField key={key} id={id} label={label} options={[...options]} placeholder={placeholder} value={state[key]} error={errors[key]} publicationRequired={publicationRequired.scalarFields.some(field => field === key)} onChange={value => applyState(previous => ({ ...previous, [key]: value }), [key])} />)}
                 </FieldGroup>
               </FieldGroup>
             </DraftStepSection>
@@ -730,6 +739,23 @@ export function LocalDraftForm({
                       )
                     }
                   />
+                  <FieldDescription>Estos requisitos informan y ayudan a filtrar; nunca rechazan automáticamente una postulación.</FieldDescription>
+                  <FieldGroup className="grid gap-6 sm:grid-cols-2 [&>*]:min-w-0">
+                    <Field data-invalid={!!errors.min_years_of_experience}>
+                      <FieldLabel htmlFor="draft-min-years">Experiencia mínima (años)</FieldLabel>
+                      <Input id="draft-min-years" className="min-h-10" inputMode="decimal" value={state.min_years_of_experience} aria-invalid={!!errors.min_years_of_experience} aria-describedby="draft-min-years-help draft-min-years-error" onChange={event => applyState(previous => ({ ...previous, min_years_of_experience: event.target.value }), ["min_years_of_experience"])} />
+                      <FieldDescription id="draft-min-years-help">Mínimo requerido; puedes usar decimales, por ejemplo 1.5.</FieldDescription>
+                      <FieldError id="draft-min-years-error">{errors.min_years_of_experience}</FieldError>
+                    </Field>
+                    <DraftSelectField id="draft-min-education" label="Estudios mínimos" placeholder="Sin especificar" options={[{ value: "", label: "Sin especificar" }, ...EDUCATION_LEVELS.map(value => ({ value, label: EDUCATION_LEVEL_LABELS[value] }))]} value={state.min_education_level} error={errors.min_education_level} onChange={value => applyState(previous => ({ ...previous, min_education_level: value }), ["min_education_level"])} />
+                  </FieldGroup>
+                  <Field data-invalid={!!errors.accepts_in_progress_education}>
+                    <Field orientation="horizontal">
+                      <Checkbox id="draft-accepts-in-progress" checked={state.accepts_in_progress_education} aria-invalid={!!errors.accepts_in_progress_education} aria-describedby="draft-accepts-in-progress-error" onCheckedChange={checked => applyState(previous => ({ ...previous, accepts_in_progress_education: checked }), ["accepts_in_progress_education"])} />
+                      <FieldLabel htmlFor="draft-accepts-in-progress">Acepta estudios en curso</FieldLabel>
+                    </Field>
+                    <FieldError id="draft-accepts-in-progress-error">{errors.accepts_in_progress_education}</FieldError>
+                  </Field>
                 </FieldGroup>
               </DraftStepSection>
 

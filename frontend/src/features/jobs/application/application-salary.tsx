@@ -1,8 +1,8 @@
 import { previewSalaryParts } from "../create/form/preview-salary";
-import type { PrototypeJobView } from "../enrich";
+import type { ApplicationJobView } from "../enrich";
 
 /** Legacy jobs have no contractual cadence or net/gross basis. Do not use demo enrichment. */
-export function ApplicationSalary({ job }: { job: PrototypeJobView }) {
+export function ApplicationSalary({ job }: { job: ApplicationJobView }) {
   const salary = previewSalaryParts({ source: "legacy", legacy_salary: job.salary_min === undefined && job.salary_max === undefined ? null : {
     min: job.salary_min === undefined ? null : String(job.salary_min),
     max: job.salary_max === undefined ? null : String(job.salary_max),

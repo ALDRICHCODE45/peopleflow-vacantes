@@ -12,6 +12,13 @@ beforeEach(() => {
   vi.mocked(getActionAccessToken).mockResolvedValue("secret-access-token");
 });
 describe("saveDraftV2Action", () => {
+  it.each([false, true])("carries validation field paths without raw messages (existing=%s)", async existing => {
+    const fields = [{ field: "fields.languages[1].min_level", code: "invalid" as const }];
+    const failure = { ok: false, error: { kind: "status", status: 400, retryable: false }, envelope: { code: "validation_error", error: "unsafe", fields } } as const;
+    vi.mocked(createDraftV2).mockResolvedValue({ ...failure, envelope: { ...failure.envelope, fields } });
+    vi.mocked(saveDraftV2).mockResolvedValue({ ...failure, envelope: { ...failure.envelope, fields } });
+    expect(await saveDraftV2Action({ ...input, ...(existing ? { draftId: "draft", etag: "tag" } : {}) })).toEqual({ ok: false, reason: "invalid_request", fields, reference: { status: 400, code: "validation_error" } });
+  });
   it("carries safe geography issues to the matching controls for 422", async () => {
     const geography = { location: [{ field: "municipality", reason: "unknown" }], remoteScope: [] } as const;
     vi.mocked(saveDraftV2).mockResolvedValue({ ok: false, error: { kind: "status", status: 422, retryable: false }, envelope: { code: "invalid_location", error: "unsafe", geography } } as never);

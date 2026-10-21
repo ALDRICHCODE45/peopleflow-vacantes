@@ -133,7 +133,7 @@ it("creates the validated v2 body, guards pending, then PATCHes the same draft w
   expect(screen.getByRole("button", {name:"Guardando…"}).querySelector('[data-slot="spinner"]')).not.toBeNull();
   const input = vi.mocked(saveDraftV2Action).mock.calls[0][0];
   expect(input).toEqual({idempotencyKey:key,body:{fields:expect.objectContaining({title:"Backend",screening_questions:[]})}});
-  expect(Object.keys((input.body as {fields:object}).fields)).toHaveLength(18);
+  expect(Object.keys((input.body as {fields:object}).fields)).toHaveLength(21);
   expect(JSON.stringify(input.body)).not.toMatch(/description_plain|requesterName|schema_version/);
   fireEvent.submit(saveDraftForm());
   expect(saveDraftV2Action).toHaveBeenCalledTimes(1);

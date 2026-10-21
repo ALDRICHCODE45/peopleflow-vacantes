@@ -33,6 +33,15 @@ it("searches Spanish names, stores opaque codes, prevents duplicates and removes
   await user.click(screen.getByRole("button", { name: "Quitar idioma 1" }));
   expect(screen.getByRole("status", { name: "Valores" }).textContent).not.toContain("local:any");
 });
+it("overrides the vacancy limit and gives each minimum level a unique name", () => {
+  const rows = Array.from({ length: 20 }, (_, i) => ({ code: String(i), level: "A1" as const }));
+  const { rerender } = render(<LanguageListEditor value={rows.slice(0, 10)} onChange={vi.fn()} maxItems={20} levelLabel="Nivel mínimo del idioma" />);
+  expect((screen.getByRole("button", { name: "Agregar idioma" }) as HTMLButtonElement).disabled).toBe(false);
+  expect(screen.getByRole("combobox", { name: "Nivel mínimo del idioma 1" })).toBeTruthy();
+  expect(screen.getByRole("combobox", { name: "Nivel mínimo del idioma 10" })).toBeTruthy();
+  rerender(<LanguageListEditor value={rows} onChange={vi.fn()} maxItems={20} levelLabel="Nivel mínimo del idioma" />);
+  expect((screen.getByRole("button", { name: "Agregar idioma" }) as HTMLButtonElement).disabled).toBe(true);
+});
 it("disables adding at ten languages", () => {
   render(<LanguageListEditor value={Array.from({ length: 10 }, (_, i) => ({ code: String(i), level: "A1" }))} onChange={vi.fn()} />);
   expect((screen.getByRole("button", { name: "Agregar idioma" }) as HTMLButtonElement).disabled).toBe(true);

@@ -34,8 +34,8 @@ describe("public v2 inferred types", () => {
     expectTypeOf<PublicJobItem["applicants"]>().toEqualTypeOf<"under_10" | "10_plus" | "25_plus" | "50_plus" | null>();
     expectTypeOf<PublicJobItem["screening_questions"]>().toEqualTypeOf<number | null>();
     expectTypeOf<PublicJobsList["next_cursor"]>().toEqualTypeOf<string | null>();
-    expectTypeOf<Extract<PublicJobItem, { source: "legacy" }>["seniority"]>().toEqualTypeOf<"intern" | "junior" | "mid" | "senior" | "lead">();
-    expectTypeOf<Extract<PublicJobItem, { source: "vacancy" }>["seniority"]>().toEqualTypeOf<"intern" | "junior" | "mid" | "senior" | "lead" | null>();
+    expectTypeOf<Extract<PublicJobItem, { source: "legacy" }>["seniority"]>().toEqualTypeOf<"intern" | "junior" | "semi_senior" | "senior" | "lead" | "manager" | "director">();
+    expectTypeOf<Extract<PublicJobItem, { source: "vacancy" }>["seniority"]>().toEqualTypeOf<"intern" | "junior" | "semi_senior" | "senior" | "lead" | "manager" | "director" | null>();
   });
 });
 

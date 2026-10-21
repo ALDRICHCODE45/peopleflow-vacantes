@@ -81,9 +81,9 @@ export const STAGE_VARIANT: Readonly<Record<VacancyPipelineStage, BadgeVariant>>
 export const META = "text-[12px] text-muted-foreground";
 export const CARD_META = "text-[11.5px] text-muted-foreground";
 
-/** Spanish count agreement: singular for exactly one, plural otherwise. */
-export const plural = (count: number, singular: string, pluralForm: string) =>
-  `${count} ${count === 1 ? singular : pluralForm}`;
+// Keep existing consumers compatible; public requirement copy imports the pure helper.
+import { plural } from "./plural";
+export { plural } from "./plural";
 
 /** Honest zero-comment copy, shared by both representations. */
 export const commentCopy = (count: number) =>

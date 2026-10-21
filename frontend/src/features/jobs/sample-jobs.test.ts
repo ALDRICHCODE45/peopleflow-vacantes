@@ -39,7 +39,7 @@ describe("sample public v2 reads", () => {
     for (const item of page.items) {
       for (const key of ["description", "description_plain", "requirements", "benefits", "skills"]) expect(item).not.toHaveProperty(key);
       expect(item).toMatchObject({ company: { logo_url: null }, skills_preview: [], applicants: null, screening_questions: null });
-      expect(Object.keys(item)).toHaveLength(24);
+      expect(Object.keys(item)).toHaveLength(25);
     }
   });
   it("applies text and modality conjunctively", () => {

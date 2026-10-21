@@ -20,8 +20,8 @@ const enrichedItem = { ...listItem(vacancyDetail), ...enrichment, company: enric
 it("accepts every enrichment key without stripping ordered previews or the full detail skills", () => {
   expect(publicJobItemSchema.parse(enrichedItem)).toEqual(enrichedItem);
   expect(publicJobDetailSchema.parse(enriched)).toEqual(enriched);
-  expect(Object.keys(publicJobItemSchema.parse(enrichedItem))).toHaveLength(24);
-  expect(Object.keys(publicJobDetailSchema.parse(enriched))).toHaveLength(29);
+  expect(Object.keys(publicJobItemSchema.parse(enrichedItem))).toHaveLength(25);
+  expect(Object.keys(publicJobDetailSchema.parse(enriched))).toHaveLength(30);
 });
 
 it.each(["excerpt", "excerpt_truncated", "benefits_preview", "benefits_total", "skills_preview", "skills_total", "applicants", "screening_questions"])("requires enrichment key %s in list and detail", (key) => {

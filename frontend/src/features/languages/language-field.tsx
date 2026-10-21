@@ -15,9 +15,9 @@ type Issue = { path: string; message: string };
 const levels = [{ value: null, label: "Sin especificar" }, ...CEFR_LEVELS.map(value => ({ value, label: CEFR_LEVEL_LABELS[value] }))];
 
 /** Simple Combobox composition, matching LocationField: input text filters only. */
-export function LanguageField({ value, onChange, excludedCodes = [], index = 0, disabled, issues = [], idPrefix }: {
+export function LanguageField({ value, onChange, excludedCodes = [], index = 0, disabled, issues = [], idPrefix, levelLabel = "Nivel del idioma" }: {
   value: LanguageValue; onChange: (next: LanguageValue) => void; excludedCodes?: readonly string[];
-  index?: number; disabled?: boolean; issues?: readonly Issue[]; idPrefix?: string;
+  index?: number; disabled?: boolean; issues?: readonly Issue[]; idPrefix?: string; levelLabel?: string;
 }) {
   const generatedId = useId();
   const id = idPrefix ?? generatedId;
@@ -43,7 +43,7 @@ export function LanguageField({ value, onChange, excludedCodes = [], index = 0, 
       {error("code") && <FieldError id={`${id}-code-error`}>{error("code")}</FieldError>}
     </Field>
     <Field data-invalid={!!error("level")}>
-      <FieldLabel htmlFor={`${id}-level`}>Nivel del idioma {index + 1}</FieldLabel>
+      <FieldLabel htmlFor={`${id}-level`}>{levelLabel} {index + 1}</FieldLabel>
       <Select items={levels} value={value.level || null} disabled={disabled} onValueChange={level => onChange({ ...value, level: level ?? "" })}>
         <SelectTrigger id={`${id}-level`} data-pf-profile-field={`languages.${index}.level`} className="min-h-10 w-full" aria-invalid={!!error("level")} aria-describedby={error("level") ? `${id}-level-error` : undefined}><SelectValue /></SelectTrigger>
         <SelectContent><SelectGroup>{levels.map(item => <SelectItem key={item.value ?? "blank"} value={item.value}>{item.label}</SelectItem>)}</SelectGroup></SelectContent>
@@ -52,15 +52,15 @@ export function LanguageField({ value, onChange, excludedCodes = [], index = 0, 
     </Field>
   </FieldGroup>;
 }
-export function LanguageListEditor({ value, onChange, disabled, issues = [] }: { value: readonly LanguageValue[]; onChange: (next: LanguageValue[]) => void; disabled?: boolean; issues?: readonly Issue[] }) {
+export function LanguageListEditor({ value, onChange, disabled, issues = [], maxItems = 10, levelLabel }: { value: readonly LanguageValue[]; onChange: (next: LanguageValue[]) => void; disabled?: boolean; issues?: readonly Issue[]; maxItems?: number; levelLabel?: string }) {
   return <FieldGroup>
     {!value.length && <p className="text-sm text-muted-foreground">Sin idiomas agregados.</p>}
     {issues.find(issue => issue.path === "languages") && <FieldError>{issues.find(issue => issue.path === "languages")!.message}</FieldError>}
     {value.map((row, index) => <FieldSet key={index} data-pf-profile-language-row={index} disabled={disabled}>
       <FieldLegend className="sr-only">Idioma {index + 1}</FieldLegend>
-      <LanguageField value={row} index={index} disabled={disabled} issues={issues} idPrefix={`profile-language-${index}`} excludedCodes={value.filter((_, i) => i !== index).map(item => item.code)} onChange={next => onChange(value.map((item, i) => i === index ? next : item))} />
+      <LanguageField value={row} index={index} levelLabel={levelLabel} disabled={disabled} issues={issues} idPrefix={`profile-language-${index}`} excludedCodes={value.filter((_, i) => i !== index).map(item => item.code)} onChange={next => onChange(value.map((item, i) => i === index ? next : item))} />
       <Button type="button" variant="ghost" className="min-h-10 w-fit" aria-label={`Quitar idioma ${index + 1}`} data-pf-profile-language-remove disabled={disabled} onClick={() => onChange(value.filter((_, i) => i !== index))}>Quitar</Button>
     </FieldSet>)}
-    <Button type="button" variant="outline" className="min-h-10 w-fit" data-pf-profile-language-add disabled={disabled || value.length >= 10} onClick={() => onChange([...value, { code: "", level: "" }])}>Agregar idioma</Button>
+    <Button type="button" variant="outline" className="min-h-10 w-fit" data-pf-profile-language-add disabled={disabled || value.length >= maxItems} onClick={() => onChange([...value, { code: "", level: "" }])}>Agregar idioma</Button>
   </FieldGroup>;
 }

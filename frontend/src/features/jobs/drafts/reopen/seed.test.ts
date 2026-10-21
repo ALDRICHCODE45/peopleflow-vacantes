@@ -63,6 +63,7 @@ const fullFields = {
   work_schedule: "full_time",
   contract_type: "indefinite",
   seniority: "senior",
+  min_years_of_experience: "1.5", min_education_level: "bachelor", accepts_in_progress_education: true,
   professional_area: "technology_systems",
   required_requirements: "Cinco años con Go.",
   preferred_requirements: "Experiencia con AWS.",
@@ -72,8 +73,8 @@ const fullFields = {
   screening_questions: questions,
   requester: { kind: "client", id: REQUESTER_ID, name: "Acme S.A." },
   languages: [
-    { language: "es", custom_name: null, level: "native" },
-    { language: "other", custom_name: "Portugués", level: "basic" },
+    { code: "es", min_level: "native" },
+    { code: "pt", min_level: "A2" },
   ],
   compensation: {
     mode: "range",
@@ -97,6 +98,7 @@ const emptyFields = {
   work_schedule: null,
   contract_type: null,
   seniority: null,
+  min_years_of_experience: null, min_education_level: null, accepts_in_progress_education: false,
   professional_area: null,
   required_requirements: null,
   preferred_requirements: null,
@@ -262,8 +264,8 @@ describe("draftEditSeedFromRead with unusual stored values", () => {
     custom_benefits: ["Día libre 🎂", "Comedor"],
     benefits: ["annual_bonus", "health_insurance", "wellness"],
     languages: [
-      { language: "other", custom_name: "Náhuatl", level: null },
-      { language: "en", custom_name: null, level: "intermediate" },
+      { code: "nah", min_level: "A1" },
+      { code: "en", min_level: "B1" },
     ],
     compensation: { ...fullFields.compensation, min: "999999999999.99", max: "999999999999.99", currency: "USD", pay_period: "yearly", basis: "net", public_visible: false },
     requester: { kind: "internal_area", id: null, name: null },
