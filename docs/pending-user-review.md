@@ -18,7 +18,7 @@ el backend va en su rama indicada, con `make db-migrate`.
 
 > **2026-10-21:** el usuario aprobó el filtro de salario en la búsqueda pública (SAL-5…SAL-8): «2. Si, por favor.» Verificado antes por el agente en Chromium contra el backend real (escritorio, celular, claro y oscuro) y auditado contra `docs/frontend-ui-design-rules.md`; arreglos 51cf893 (chip dentro de «Filtros activos», moneda con código, listas que no cortan opciones largas). Integrado al `main` local por fast-forward desde `integrate/public-salary-filters` (backend `feat/public-salary-filters` acd89d8, sin migración); el push lo hace el usuario.
 
-**No hay ítems pendientes de revisión.**
+1. **Motivo de cierre, fecha de publicación y CV obligatorio (corte A)** — frontend `feat/intake-prep-ui`, backend `feat/intake-prep` (4848e8a, migración 00035). Guía: paso 84 de `docs/employer-manual-test.md`. Revisado por el agente en Chromium contra el backend real (claro, oscuro y celular) con 7 arreglos de diseño; ver L10 en `odd/tasks/recruiter-manual-intake-ui.md`.
 
 Cuando el usuario pruebe un ítem, sus comentarios se anotan en el documento de la
 feature (`odd/tasks/…`) y el ítem sale de esta lista al integrarse.

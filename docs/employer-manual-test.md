@@ -672,3 +672,18 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     todo el filtro; el contador de «Filtros» lo cuenta una vez y aparece el aviso de que las
     vacantes del catálogo anterior no aparecen con este filtro. Sin monto, el salario no
     filtra nada. Probalo también en el Sheet de celular.
+
+84. **Motivo de cierre, fecha de publicación que no se reinicia y CV siempre obligatorio.**
+    Frontend en `feat/intake-prep-ui`, backend en `feat/intake-prep` (migración 00035;
+    `make db-migrate`). En «Tus vacantes», «Acciones» → «Cerrar» de una vacante activa.
+    **Esperado:** «Motivo de cierre» con «Cubierta», «Cancelada» y «Otro»; sin elegir uno,
+    «Cerrar vacante» muestra «Elige un motivo de cierre.». «Cubierta» solo se puede usar con
+    las posiciones cubiertas: si no, queda deshabilitada o explica «Hay 0 de 1 posición
+    cubierta.» sin cerrar nada. «Otro» pide un motivo de hasta 200 caracteres con contador.
+    Al cerrar, la fila dice «Cerrada · Cancelada» (o «Cerrada · Otro» con el motivo cortado
+    con «…» y completo al pasar el mouse), «Proceso en curso» o «Proceso finalizado» y
+    «Cerrada el …»; las vacantes cerradas antes de este cambio dicen «Sin motivo
+    registrado». Reabrí o reanudá una vacante: conserva su «Publicada el …» original. En
+    Configuración → Reclutamiento ya no existe «Permitir postulaciones sin CV». Probá el
+    diálogo en celular (entra completo en la pantalla, solo el centro hace scroll) y en
+    modo oscuro (el motivo elegido se ve resaltado).
