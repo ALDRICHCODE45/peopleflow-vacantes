@@ -335,6 +335,8 @@ type VacancyLifecycleEvent struct {
 	ActorID          uuid.UUID          `json:"actor_id"`
 	ActorName        string             `json:"actor_name"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	Reason           pgtype.Text        `json:"reason"`
+	ReasonNote       pgtype.Text        `json:"reason_note"`
 }
 
 type VacancyProcess struct {
