@@ -93,6 +93,7 @@ describe("single application-facing request path", () => {
       "features/jobs/drafts/pipeline/substates-client.ts",
       "features/jobs/drafts/requesters/client.ts",
       "features/pipeline-movement/client.ts",
+      "features/vacancy-lifecycle/client.ts",
       "lib/auth/backend-check.ts",
     ]);
     // The transport module is imported only by guarded API functions and the guarded façade.
@@ -121,6 +122,7 @@ describe("single application-facing request path", () => {
       "features/jobs/drafts/pipeline/substates-client.ts",
       "features/jobs/drafts/requesters/client.ts",
       "features/pipeline-movement/client.ts",
+      "features/vacancy-lifecycle/client.ts",
       "lib/api/server.ts",
       "lib/auth/backend-check.ts",
     ]);
