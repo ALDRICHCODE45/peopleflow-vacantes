@@ -58,20 +58,26 @@ describe("employer settings", () => {
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
     const { unmount } = render(<EmployerSettingsWorkspace />);
-    const cv = screen.getByRole("switch", { name: "Permitir postulaciones sin CV" });
+    const screening = screen.getByRole("switch", { name: "Incluir preguntas de filtro" });
     const alerts = screen.getByRole("switch", { name: "Nuevas postulaciones" });
-    expect(cv).toBeChecked();
+    expect(screening).not.toBeChecked();
     expect(alerts).toBeChecked();
-    fireEvent.click(cv);
+    fireEvent.click(screening);
     fireEvent.click(alerts);
-    expect(cv).not.toBeChecked();
+    expect(screening).toBeChecked();
     expect(alerts).not.toBeChecked();
     expect(persist).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
     unmount();
     render(<EmployerSettingsWorkspace />);
-    expect(screen.getByRole("switch", { name: "Permitir postulaciones sin CV" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "Incluir preguntas de filtro" })).not.toBeChecked();
     expect(screen.getByRole("switch", { name: "Nuevas postulaciones" })).toBeChecked();
+  });
+
+  it("offers no exemption from the CV: every application requires one (INT-17)", () => {
+    render(<EmployerSettingsWorkspace />);
+    expect(screen.queryByText("Permitir postulaciones sin CV")).toBeNull();
+    expect(screen.queryByText(/sin un CV/)).toBeNull();
   });
 
   it("uses the shared persistent theme preference without adding a company theme", () => {
