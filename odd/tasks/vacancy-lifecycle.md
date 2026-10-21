@@ -12,6 +12,7 @@ Branch `feat/vacancy-lifecycle` from `feat/geo-search` a64689f. Same delivery ru
 - **S5.** CIERRE AUTOMÁTICO: «No, solo manual por ahora (Recomendado)».
 - **S6.** Who can act: «Los mismos que pueden publicar (Recomendado)» — owner or the vacancy's principal recruiter.
 - **S8.** User-approved design fix (frontend QA): the company list showed a hardcoded «Sin candidatos todavía»; add live counts. Contract agreed with the frontend: `candidates` null for never-published drafts, else {total, in_process, discarded, by_stage:[{id,kind,name,count}]} in current pipeline order including zero stages.
+- **S9.** User-approved design fix (frontend QA): a paused/closed vacancy showed «Publicada el …»; the list needs the date of its current state. Agreed: flat `paused_at`, `closed_at`, `process_finished_at` (lifecycle view semantics).
 - **S7.** Design document first, no code; the frontend reviews the contract before implementation.
 
 ## Tasks
@@ -19,6 +20,7 @@ Branch `feat/vacancy-lifecycle` from `feat/geo-search` a64689f. Same delivery ru
 - [x] T1 — S1–S7: §21 design + frontend review + S6 user answer (parent) — dd2f54b, 8e1e850 + this commit
 - [x] T2 — L1: migration 00034, lifecycle GET/actions/history, transitions, ETag, idempotency, audit (worker) — 6cf07e7 (00034), 6c2616f; verified (L6)
 - [x] T4 — S8: candidate counts in the company vacancy list (worker) — 7908f4f
+- [x] T5 — S9: lifecycle dates in the company vacancy list (worker) — 8019929
 - [x] T3 — L2: effects on public detail, screening/apply, board/configuration, candidate list, company list (worker) — 9a8bc32, 9d3a21e; verified (L8, L9)
 
 ## Log
@@ -33,3 +35,4 @@ Branch `feat/vacancy-lifecycle` from `feat/geo-search` a64689f. Same delivery ru
 - **L8.** L2 verify (mvhgnlwk-7-n7d9): no production defect. Public tombstones and 404 gates, apply order with fresh availability and genuine forced pause/close/resume interleavings, board active-under-any-publication with finished conflicts, move vs finish_process both orders, GET-only exact embedding, list states, test-harness fixes and additive httpjson — code + tests. Gap: configuration writes vs concurrent finish_process and successful paused/closed configuration writes are code-only; routed to a tests-only follow-up. Parent stopped the user's API on :8080, migrated the user's local DB to 00034 (geo catalog already imported) and served L2 for the frontend's Chromium check; then stopped it at the user's request so the user runs it.
 - **L9.** Gap closed in 9d3a21e (tests only, worker mvhgucon-8-u67u): forced finish_process vs pipeline/delivery/substates/management PUT in both lock orders (pg_blocking_pids), successful configuration writes and pure previews while paused and closed-with-active-process. Parent integration `-race`: 0 failures, 0 races. Backend L1+L2 complete; row 17 awaits the user's browser check, then a joint merge with `feat/vacancy-lifecycle-ui`.
 - **L10.** Row 18 (worker mvhiee90-9-opga → mvhin0ih-a-kxfj) committed as 7908f4f: one page-scoped SQL statement aggregates participations per process/stage, current pipeline order from the stored configuration (board defaults when absent); requester names now joined in the same statement (no per-item queries). Visibility, paging, order and existing keys unchanged; existing exact-shape tests extended additively. Parent integration `-race` over all packages except cmd/migrate, identity/localbootstrap: 0 failures, 0 races, incl. the real-router counts/visibility/paging flow and the constant query-count test. Commit passes alone. Risk: none (read-only additive field; the requester-name join is covered by the existing visibility/paging/parity flow). No separate verifier (not high risk).
+- **L11.** 8019929 (worker mvhk9tn6-b-yjpa): list items add `paused_at`/`closed_at`/`process_finished_at` from the same process join (no extra queries), RFC3339 UTC or null; real-router parity test against the lifecycle GET across two full cycles. Parent integration `-race`: 0 failures, 0 races; commit passes alone. Risk: none (read-only additive).
