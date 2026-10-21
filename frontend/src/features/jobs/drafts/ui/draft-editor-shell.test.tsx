@@ -85,7 +85,7 @@ it("counts readiness rather than visited sections and discloses unknown server r
   fireEvent.click(nav("Información básica"));
   fireEvent.change(screen.getByRole("textbox", { name: "Título" }), { target: { value: "Backend" } });
   expect(Number(progress.getAttribute("aria-valuenow"))).toBeGreaterThan(Number(before));
-  expect(screen.getByText("El progreso muestra los datos del editor. La solicitud y la entrega se incluyen cuando se consulta su estado después de guardar el borrador.")).toBeVisible();
+  expect(screen.getByText("La solicitud y la entrega se suman al progreso cuando guardas el borrador.")).toBeVisible();
   expect(nav("Información básica")).not.toHaveAttribute("data-complete", "true");
 });
 it("saves from any section and routes invalid values to the first field", async () => {

@@ -100,7 +100,7 @@ export function DraftEditorShell({ state, published, publication = published ===
         <div className="flex flex-col gap-3">
           <Progress value={readiness.percent} aria-label="Lista para publicar"><ProgressLabel>Lista para publicar</ProgressLabel><ProgressValue /></Progress>
           <p className="text-sm leading-6 text-muted-foreground">{readiness.pending ? pendingCopy(readiness.pending) : readiness.serverKnown ? "Todo listo. Tu próxima contratación está a un paso." : "Los datos del editor están completos."}</p>
-          {!readiness.serverKnown && <p className="text-xs text-muted-foreground">El progreso muestra los datos del editor. La solicitud y la entrega se incluyen cuando se consulta su estado después de guardar el borrador.</p>}
+          {!readiness.serverKnown && <p className="text-xs text-muted-foreground">La solicitud y la entrega se suman al progreso cuando guardas el borrador.</p>}
           <Button type="button" variant="link" className="min-h-10 self-start" onClick={() => onStep(4)}>Ver qué falta<ArrowRight aria-hidden="true" data-icon="inline-end" /></Button>
         </div>
         <Card size="sm" className="hidden lg:flex"><CardHeader><CardTitle><h2 className="flex items-center gap-2"><Info aria-hidden="true" className="size-4" />A tu ritmo</h2></CardTitle><CardDescription>{status.notice}</CardDescription></CardHeader></Card>
