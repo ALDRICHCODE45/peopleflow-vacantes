@@ -82,6 +82,12 @@ function readEnvelopeV2(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** Create/save responses keep the write shape: only GETs embed `lifecycle`. */
+function writeEnvelopeV2(overrides: Record<string, unknown> = {}) {
+  const { lifecycle: _lifecycle, ...envelope } = readEnvelopeV2(overrides);
+  return envelope;
+}
+
 function response(status: number, body: unknown, headers: Record<string, string> = {}) {
   return {
     ok: status < 300,
@@ -175,7 +181,7 @@ describe("createDraftV2", () => {
   it("POSTs the validated v2 body to the exact v2 route with explicit credentials and idempotency key", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(response(201, readEnvelopeV2(), { ETag: ETAG, "Idempotency-Replayed": "false" }));
+      .mockResolvedValue(response(201, writeEnvelopeV2(), { ETag: ETAG, "Idempotency-Replayed": "false" }));
     vi.stubGlobal("fetch", fetchMock);
 
     const body = { fields: { screening_questions: v2Questions() } };
@@ -184,7 +190,7 @@ describe("createDraftV2", () => {
 
     await expect(createDraftV2(input)).resolves.toEqual({
       ok: true,
-      data: readEnvelopeV2(),
+      data: writeEnvelopeV2(),
       etag: ETAG,
       idempotencyReplayed: "false",
     });
@@ -212,7 +218,7 @@ describe("createDraftV2", () => {
   it("preserves the raw replay flag `true` without converting it to a boolean", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(response(201, readEnvelopeV2(), { ETag: ETAG, "Idempotency-Replayed": "true" })),
+      vi.fn().mockResolvedValue(response(201, writeEnvelopeV2(), { ETag: ETAG, "Idempotency-Replayed": "true" })),
     );
     const result = await createDraftV2({ token: TOKEN, idempotencyKey: IDEMPOTENCY_KEY, body: { fields: {} } });
     expect(result).toMatchObject({ ok: true, idempotencyReplayed: "true" });
@@ -229,7 +235,7 @@ describe("createDraftV2", () => {
       { ETag: ETAG, "Idempotency-Replayed": "" },
     ];
     for (const headers of scenarios) {
-      const fetchMock = vi.fn().mockResolvedValue(response(201, readEnvelopeV2(), headers));
+      const fetchMock = vi.fn().mockResolvedValue(response(201, writeEnvelopeV2(), headers));
       vi.stubGlobal("fetch", fetchMock);
       const result = await createDraftV2({ token: TOKEN, idempotencyKey: IDEMPOTENCY_KEY, body: { fields: {} } });
       expect(result).toEqual({ ok: false, error: { kind: "invalid_response", retryable: false } });
@@ -240,7 +246,7 @@ describe("createDraftV2", () => {
   });
 
   it("rejects any success-class status other than 201 without reading the body", async () => {
-    const json = vi.fn(async () => readEnvelopeV2());
+    const json = vi.fn(async () => writeEnvelopeV2());
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue({
@@ -297,7 +303,7 @@ describe("createDraftV2", () => {
       "fetch",
       vi.fn((_url: string, init: RequestInit) =>
         Promise.resolve({
-          ...response(201, readEnvelopeV2(), { ETag: ETAG, "Idempotency-Replayed": "false" }),
+          ...response(201, writeEnvelopeV2(), { ETag: ETAG, "Idempotency-Replayed": "false" }),
           json: () =>
             new Promise((_resolve, reject) => {
               init.signal?.addEventListener("abort", () => reject(new Error("aborted")));
@@ -347,7 +353,7 @@ describe("createDraftV2", () => {
 
     const success = vi
       .fn()
-      .mockResolvedValue(response(201, readEnvelopeV2(), { ETag: ETAG, "Idempotency-Replayed": "true" }));
+      .mockResolvedValue(response(201, writeEnvelopeV2(), { ETag: ETAG, "Idempotency-Replayed": "true" }));
     vi.stubGlobal("fetch", success);
     await expect(createDraftV2({ token: TOKEN, idempotencyKey: IDEMPOTENCY_KEY, body })).resolves.toMatchObject({
       ok: true,
@@ -367,7 +373,7 @@ describe("createDraftV2", () => {
   it("never leaks the credential through a successful result", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(response(201, readEnvelopeV2(), { ETag: ETAG, "Idempotency-Replayed": "false" })),
+      vi.fn().mockResolvedValue(response(201, writeEnvelopeV2(), { ETag: ETAG, "Idempotency-Replayed": "false" })),
     );
     const result = await createDraftV2({ token: TOKEN, idempotencyKey: IDEMPOTENCY_KEY, body: { fields: {} } });
     expect(JSON.stringify(result)).not.toContain(TOKEN);
@@ -495,8 +501,16 @@ describe("getDraftV2", () => {
 });
 
 describe("saveDraftV2", () => {
+  it("decodes write responses without lifecycle: only GETs embed it (§21 L2)", async () => {
+    const { lifecycle: _omit, ...writeEnvelope } = writeEnvelopeV2({ version: "2" });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(200, writeEnvelope, { ETag: ETAG })));
+    await expect(saveDraftV2({ token: TOKEN, id: ID, ifMatch: ETAG, body: { fields: { title: "x" } } })).resolves.toMatchObject({ ok: true, data: { version: "2" } });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(201, writeEnvelope, { ETag: ETAG, "Idempotency-Replayed": "false" })));
+    await expect(createDraftV2({ token: TOKEN, idempotencyKey: IDEMPOTENCY_KEY, body: { fields: {} } })).resolves.toMatchObject({ ok: true });
+  });
+
   it("PATCHes the exact v2 draft path with the explicit credential, opaque If-Match and validated v2 patch body", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(response(200, readEnvelopeV2({ version: "2" }), { ETag: ETAG }));
+    const fetchMock = vi.fn().mockResolvedValue(response(200, writeEnvelopeV2({ version: "2" }), { ETag: ETAG }));
     vi.stubGlobal("fetch", fetchMock);
 
     const body = { fields: { screening_questions: v2Questions() } };
@@ -556,13 +570,13 @@ describe("saveDraftV2", () => {
   it("rejects a mismatched read DTO identity and a missing success ETag as invalid_response", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(response(200, readEnvelopeV2({ id: OTHER_ID }), { ETag: ETAG })),
+      vi.fn().mockResolvedValue(response(200, writeEnvelopeV2({ id: OTHER_ID }), { ETag: ETAG })),
     );
     await expect(
       saveDraftV2({ token: TOKEN, id: ID, ifMatch: ETAG, body: { fields: { title: "x" } } }),
     ).resolves.toEqual({ ok: false, error: { kind: "invalid_response", retryable: false } });
 
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(200, readEnvelopeV2())));
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(200, writeEnvelopeV2())));
     await expect(
       saveDraftV2({ token: TOKEN, id: ID, ifMatch: ETAG, body: { fields: { title: "x" } } }),
     ).resolves.toEqual({ ok: false, error: { kind: "invalid_response", retryable: false } });

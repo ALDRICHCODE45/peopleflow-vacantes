@@ -92,3 +92,10 @@ export const draftReadEnvelopeV2Schema = z.object({
 }).strict();
 
 export type DraftReadEnvelopeV2 = z.output<typeof draftReadEnvelopeV2Schema>;
+
+/**
+ * Create and save responses (and their replays) keep the pre-lifecycle write
+ * shape: only GETs embed `lifecycle` (§21 L2), so writes decode without it.
+ */
+export const draftWriteEnvelopeV2Schema = draftReadEnvelopeV2Schema.omit({ lifecycle: true });
+export type DraftWriteEnvelopeV2 = z.output<typeof draftWriteEnvelopeV2Schema>;

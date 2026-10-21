@@ -4,8 +4,8 @@ import { parseGeographyErrors, type GeographyErrors } from "@/features/geo/model
 import { requestJson } from "../../../../lib/api/server";
 import type { RequestJsonError } from "../../../../lib/api/server";
 import { isValidJobId } from "../../jobId";
-import { draftReadEnvelopeV2Schema } from "../read-v2";
-import type { DraftReadEnvelopeV2 } from "../read-v2";
+import { draftReadEnvelopeV2Schema, draftWriteEnvelopeV2Schema } from "../read-v2";
+import type { DraftReadEnvelopeV2, DraftWriteEnvelopeV2 } from "../read-v2";
 import { draftV2PatchBodySchema, draftV2PostBodySchema } from "../screening-v2/wire";
 import type { DraftV2PatchBody, DraftV2PostBody } from "../screening-v2/wire";
 import { publicationErrorEnvelopeSchema } from "../pipeline/failure";
@@ -94,14 +94,15 @@ export type DraftV2Failure = {
 };
 export type DraftV2CreateSuccess = {
   ok: true;
-  data: DraftReadEnvelopeV2;
+  data: DraftWriteEnvelopeV2;
   etag: string;
   idempotencyReplayed: "true" | "false";
 };
 export type DraftV2ReadSuccess = { ok: true; data: DraftReadEnvelopeV2; etag: string };
 export type CreateDraftV2Result = DraftV2CreateSuccess | DraftV2Failure;
 export type GetDraftV2Result = DraftV2ReadSuccess | DraftV2Failure;
-export type SaveDraftV2Result = DraftV2ReadSuccess | DraftV2Failure;
+export type DraftV2SaveSuccess = { ok: true; data: DraftWriteEnvelopeV2; etag: string };
+export type SaveDraftV2Result = DraftV2SaveSuccess | DraftV2Failure;
 
 function failure(error: DraftV2ClientError, envelope?: DraftV2ErrorEnvelope): DraftV2Failure {
   return envelope === undefined ? { ok: false, error } : { ok: false, error, envelope };
@@ -152,6 +153,17 @@ function decodeReadEnvelopeV2(expectedId: string) {
   };
 }
 
+/** Same identity guard for create/save responses, which carry no `lifecycle`. */
+function decodeWriteEnvelopeV2(expectedId: string) {
+  return (value: unknown): DraftWriteEnvelopeV2 => {
+    const envelope = draftWriteEnvelopeV2Schema.parse(value);
+    if (envelope.id.toLowerCase() !== expectedId.toLowerCase()) {
+      throw new Error("draft response id does not match the requested draft");
+    }
+    return envelope;
+  };
+}
+
 const decodeErrorEnvelope = (value: unknown): DraftV2ErrorEnvelope => {
   const envelope = draftV2ErrorEnvelopeSchema.parse(value);
   if (envelope.code === "invalid_location" || envelope.code === "invalid_remote_scope") {
@@ -186,10 +198,10 @@ export async function createDraftV2(input: CreateDraftV2Input): Promise<CreateDr
   // Imported lazily so every guard above runs without environment validation.
   const { serverEnv } = await import("../../../../lib/env/server");
 
-  const result = await requestJson<DraftReadEnvelopeV2, DraftV2ErrorEnvelope>(
+  const result = await requestJson<DraftWriteEnvelopeV2, DraftV2ErrorEnvelope>(
     new URL(DRAFTS_V2_PATH, serverEnv.apiBaseUrl).toString(),
     {
-      decoder: (value: unknown) => draftReadEnvelopeV2Schema.parse(value),
+      decoder: (value: unknown) => draftWriteEnvelopeV2Schema.parse(value),
       errorDecoder: decodeErrorEnvelope,
       method: "POST",
       redirect: "error",
@@ -257,10 +269,10 @@ export async function saveDraftV2(input: SaveDraftV2Input): Promise<SaveDraftV2R
 
   const { serverEnv } = await import("../../../../lib/env/server");
 
-  const result = await requestJson<DraftReadEnvelopeV2, DraftV2ErrorEnvelope>(
+  const result = await requestJson<DraftWriteEnvelopeV2, DraftV2ErrorEnvelope>(
     new URL(`${DRAFTS_V2_PATH}/${input.id}`, serverEnv.apiBaseUrl).toString(),
     {
-      decoder: decodeReadEnvelopeV2(input.id),
+      decoder: decodeWriteEnvelopeV2(input.id),
       errorDecoder: decodeSaveErrorEnvelope,
       method: "PATCH",
       redirect: "error",
