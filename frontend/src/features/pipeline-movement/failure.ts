@@ -1,6 +1,6 @@
 import "server-only";
 import type { ClientFailure } from "./client";
-import type { Failure, FailureReason } from "./model";
+import { processFinishedSchema, type Failure, type FailureReason } from "./model";
 const codes: Record<string, { status: number; reason: FailureReason }> = {
   board_too_large: { status: 422, reason: "board_too_large" }, vacancy_not_published: { status: 409, reason: "vacancy_not_published" },
   stage_skip_not_allowed: { status: 409, reason: "stage_skip_not_allowed" }, placement_exit_confirmation_required: { status: 409, reason: "placement_exit_confirmation_required" },
@@ -16,6 +16,8 @@ const codes: Record<string, { status: number; reason: FailureReason }> = {
 };
 export function movementFailure({ error, envelope }: ClientFailure, write = false): Failure {
   const status = error.status, code = envelope?.code;
+  const finished = processFinishedSchema.safeParse(envelope);
+  if (write && status === 409 && finished.success) return { ok: false, reason: "process_finished", lifecycle: finished.data.data.lifecycle, reference: { status, code: "process_finished" } };
   const known = code && Object.hasOwn(codes, code) ? codes[code] : undefined;
   let reason: FailureReason = "unrecognized_response";
   if (error.kind === "missing_token" || status === 401) reason = "unauthenticated";

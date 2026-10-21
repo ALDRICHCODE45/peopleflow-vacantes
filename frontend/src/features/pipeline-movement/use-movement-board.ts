@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { loadDeliveryStatusAction } from "@/features/jobs/drafts/pipeline/delivery-actions";
 import { fulfillmentToast, type DeliveryStatus } from "@/features/jobs/drafts/pipeline/fulfillment-model";
 import { notifyActionResult } from "@/components/feedback/notify";
@@ -56,7 +57,7 @@ export function useMovementBoard(vacancyId: string) {
   // Concurrent responses have no shared coverage version: one final GET avoids
   // letting a late, older response overwrite the global coverage/milestone.
   const overlapping = useRef(false);
-  const columns = useBoardColumnOrder(vacancyId, board, stale || reading || pending.size > 0 || !!confirmation || !!disposition || !!substateConfirmation, reloadOrder);
+  const columns = useBoardColumnOrder(vacancyId, board, board?.lifecycle.process === "finished" || stale || reading || pending.size > 0 || !!confirmation || !!disposition || !!substateConfirmation, reloadOrder);
   async function reloadOrder() {
     if (readBusy.current || locks.current.size) return false;
     readBusy.current = true; mustRead.current = true; setStale(true); setReading(true);
@@ -67,7 +68,19 @@ export function useMovementBoard(vacancyId: string) {
     readBusy.current = false; setReading(false);
     return result.ok;
   }
+  function updateLifecycle(lifecycle: Lifecycle) {
+    const current = snapshot.current;
+    if (!current || BigInt(lifecycle.version) < BigInt(current.lifecycle.version)) return;
+    snapshot.current = { ...current, lifecycle }; setBoard(snapshot.current);
+    if (lifecycle.process === "finished") {
+      confirming.current = null; setConfirmation(null);
+      disposing.current = null; setDisposition(null);
+      substateIntent.current = null; setSubstateConfirmation(null);
+      reconcile.current.clear(); overlapping.current = false;
+    }
+  }
   function adopt(value: Board, readStatus = true) {
+    if (snapshot.current && BigInt(snapshot.current.lifecycle.version) > BigInt(value.lifecycle.version)) value = { ...value, lifecycle: snapshot.current.lifecycle };
     snapshot.current = value; setBoard(value); if (readStatus) void refreshDelivery();
     if (disposing.current?.recoveryRequired) {
       const item = value.participations.find(item => item.id === disposing.current?.item.id);
@@ -122,7 +135,7 @@ export function useMovementBoard(vacancyId: string) {
   }
   async function submit(item: Participation, write: BoardWrite) {
     const actionBoard = snapshot.current;
-    if (!actionBoard || locks.current.has(item.id) || mustRead.current || readBusy.current) return;
+    if (!actionBoard || actionBoard.lifecycle.process === "finished" || locks.current.has(item.id) || mustRead.current || readBusy.current) return;
     if (locks.current.size) overlapping.current = true;
     locks.current.add(item.id); setPending(new Set(locks.current));
     setNotices(previous => { const next = { ...previous }; delete next[item.id]; return next; });
@@ -149,6 +162,8 @@ export function useMovementBoard(vacancyId: string) {
       report(item.id, { tone: "success", text: copy.description }, copy.title);
       if (confirming.current?.item.id === item.id) { confirming.current = null; setConfirmation(null); }
       if (disposing.current?.item.id === item.id) { disposing.current = null; setDisposition(null); }
+    } else if (result.reason === "process_finished" && result.lifecycle) {
+      updateLifecycle(result.lifecycle);
     } else if (write.kind === "move" && result.reason === "placement_exit_confirmation_required") {
       const next = { item, target: write.target, placementExit: true }; confirming.current = next; setConfirmation(next);
     } else if ((write.kind === "discard" || write.kind === "recover") && (result.reason === "placement_exit_confirmation_required" || result.reason === "placement_reentry_confirmation_required")) {
@@ -175,7 +190,7 @@ export function useMovementBoard(vacancyId: string) {
     await reconcileOnce();
   }
   function setSubstate(id: string, substateId: string | null) {
-    if (columns.busy || columns.confirmation) return;
+    if (snapshot.current?.lifecycle.process === "finished" || columns.busy || columns.confirmation) return;
     const current = snapshot.current;
     const item = current?.participations.find(item => item.id === id);
     if (!current || !item || !isInProcess(current, item) || confirming.current || disposing.current || substateIntent.current || locks.current.has(id) || mustRead.current || readBusy.current) return;
@@ -183,7 +198,7 @@ export function useMovementBoard(vacancyId: string) {
     const next = { item, value: substateId }; substateIntent.current = next; setSubstateConfirmation(next);
   }
   function requestMove(id: string, target: string) {
-    if (columns.busy || columns.confirmation) return;
+    if (snapshot.current?.lifecycle.process === "finished" || columns.busy || columns.confirmation) return;
     const current = snapshot.current;
     const item = current?.participations.find(item => item.id === id);
     if (!current || !item || locks.current.has(id) || mustRead.current || readBusy.current || (confirming.current && !locks.current.has(confirming.current.item.id)) || disposing.current) return;
@@ -208,7 +223,7 @@ export function useMovementBoard(vacancyId: string) {
     if (current) void submit(current.item, { kind: "substate", substateId: current.value });
   }
   function requestDisposition(id: string, kind: Disposition["kind"]) {
-    if (columns.busy || columns.confirmation) return;
+    if (snapshot.current?.lifecycle.process === "finished" || columns.busy || columns.confirmation) return;
     if (substateIntent.current) return;
     const current = snapshot.current;
     const item = current?.participations.find(item => item.id === id);
@@ -234,5 +249,5 @@ export function useMovementBoard(vacancyId: string) {
       void submit(current.item, { kind: "recover", confirmed: current.placementConfirmation, ...(recovery.required ? { target } : {}) });
     }
   }
-  return { board: columns.board, deliveryStatus, columns, failure, reading, stale, pending, notices, readNotice, confirmation, substateConfirmation, closeSubstateConfirmation, confirmSubstate, disposition, retry, setSubstate, requestMove, closeConfirmation, confirmMove, requestDisposition, closeDisposition, confirmDisposition };
+  return { updateLifecycle, board: columns.board, deliveryStatus, columns, failure, reading, stale, pending, notices, readNotice, confirmation, substateConfirmation, closeSubstateConfirmation, confirmSubstate, disposition, retry, setSubstate, requestMove, closeConfirmation, confirmMove, requestDisposition, closeDisposition, confirmDisposition };
 }

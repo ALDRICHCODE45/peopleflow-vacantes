@@ -8,6 +8,8 @@ import { loadBoardAction, loadHistoryAction, loadParticipationAction, movePartic
 import { notifyActionResult } from "@/components/feedback/notify";
 import { boardFixture, detailFixture, historyFixture, vacancyId } from "./board-fixture";
 import type { Board, FailureReason, Move, Result } from "./model";
+import { getLifecycleAction, transitionLifecycleAction } from "@/features/vacancy-lifecycle/actions";
+vi.mock("@/features/vacancy-lifecycle/actions", () => ({ getLifecycleAction: vi.fn(), transitionLifecycleAction: vi.fn() }));
 
 vi.mock("./actions", () => ({ loadBoardAction: vi.fn(), loadHistoryAction: vi.fn(), loadParticipationAction: vi.fn(), moveParticipationAction: vi.fn(), discardParticipationAction: vi.fn(), recoverParticipationAction: vi.fn(), setParticipationSubstateAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
@@ -18,7 +20,7 @@ vi.mock("@/components/ui/dropdown-menu", async () => {
   const Menu = React.createContext(false);
   const Radio = React.createContext({ value: "", change: (value: string) => { void value; } });
   return {
-    DropdownMenu: ({ children }: { children: ReactNode }) => { const [open, setOpen] = React.useState(false); return <Menu.Provider value={open}><div onKeyDown={event => { if (event.key === "Escape") setOpen(false); }} onClick={() => setOpen(true)}>{children}</div></Menu.Provider>; },
+    DropdownMenu: ({ children, onOpenChange }: { children: ReactNode; onOpenChange?: (open: boolean) => void }) => { const [open, setOpen] = React.useState(false); return <Menu.Provider value={open}><div onKeyDown={event => { if (event.key === "Escape") setOpen(false); }} onClick={() => { if (!open) onOpenChange?.(true); setOpen(true); }}>{children}</div></Menu.Provider>; },
     DropdownMenuTrigger: ({ render: trigger, children }: { render: React.ReactElement; children: ReactNode }) => React.cloneElement(trigger, { "aria-haspopup": "menu", children } as ComponentProps<"button">),
     DropdownMenuContent: ({ children }: { children: ReactNode }) => React.useContext(Menu) ? <div role="menu">{children}</div> : null,
     DropdownMenuSeparator: () => <div role="separator" />,
@@ -37,11 +39,11 @@ vi.mock("@/components/ui/dropdown-menu", async () => {
 // delivery-config). Preserve the product's groups, labels and controlled values.
 vi.mock("@/components/ui/select", async () => {
   const React = await import("react");
-  type Value = { value: string | null; items: { value: string; label: string }[]; change: (value: string) => void };
+  type Value = { disabled?: boolean; value: string | null; items: { value: string; label: string }[]; change: (value: string) => void };
   const Context = React.createContext<Value>({ value: null, items: [], change: () => {} });
   return {
-    Select: ({ value, items, onValueChange, children }: Value & { onValueChange: Value["change"]; children: ReactNode }) => <Context.Provider value={{ value, items, change: onValueChange }}>{children}</Context.Provider>,
-    SelectTrigger: ({ children, ...props }: ComponentProps<"button">) => <button role="combobox" aria-expanded="true" aria-controls="discard-options" {...props}>{children}</button>,
+    Select: ({ value, items, onValueChange, children, disabled }: Value & { onValueChange: Value["change"]; children: ReactNode }) => <Context.Provider value={{ value, items, change: onValueChange, disabled }}>{children}</Context.Provider>,
+    SelectTrigger: ({ children, ...props }: ComponentProps<"button">) => <button role="combobox" disabled={React.useContext(Context).disabled} aria-expanded="true" aria-controls="discard-options" {...props}>{children}</button>,
     SelectValue: () => { const context = React.useContext(Context); return context.items.find(item => item.value === context.value)?.label; },
     SelectContent: ({ children }: { children: ReactNode }) => <div role="listbox" id="discard-options">{children}</div>,
     SelectGroup: ({ children }: { children: ReactNode }) => <div role="group">{children}</div>,
@@ -71,6 +73,104 @@ async function mount(board?: Board) {
   await screen.findByRole("heading", { name: "Entrada" });
   return view;
 }
+const finishedLifecycle = { publication: "closed" as const, process: "finished" as const, version: "2", published_at: null, paused_at: null, closed_at: "2026-10-19T12:00:00Z", process_finished_at: "2026-10-20T12:00:00Z", allowed_actions: ["reopen" as const] };
+const readOnlyNotice = "El proceso de esta vacante finalizó. El tablero está en solo lectura.";
+it.each([
+  ["published", "active", "Publicada", "Publicada el"],
+  ["paused", "active", "Pausada", "Pausada el"],
+  ["closed", "active", "Cerrada · proceso en curso", "Cerrada el"],
+  ["closed", "finished", "Cerrada · proceso finalizado", "Proceso finalizado el"],
+] as const)("renders the lifecycle state and transition date for %s/%s", async (publication, process, label, prefix) => {
+  const board = boardFixture();
+  board.lifecycle = { ...finishedLifecycle, publication, process, published_at: "2026-10-20T12:00:00Z", paused_at: "2026-10-20T12:00:00Z", closed_at: "2026-10-20T12:00:00Z", allowed_actions: [] };
+  await mount(board);
+  // A published vacancy keeps the validated «Publicada el …» line without a badge.
+  if (publication === "published") expect(screen.queryByText(label, { selector: '[data-slot="badge"]' })).toBeNull();
+  else expect(screen.getByText(label, { selector: '[data-slot="badge"]' })).toBeVisible();
+  expect(screen.getByText(new RegExp(prefix))).toHaveTextContent(/20 oct 2026/);
+  expect(screen.queryByRole("button", { name: "Acciones de la vacante" })).not.toBeInTheDocument();
+  if (process === "active") expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeEnabled();
+});
+it("keeps finished boards readable but disables card, sheet and drag writes", async () => {
+  const board = boardFixture(); board.lifecycle = finishedLifecycle;
+  await mount(board);
+  expect(screen.getByText(readOnlyNotice)).toBeVisible();
+  expect(screen.getByText(/Reabrir.*editar/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeDisabled();
+  for (const target of within(menu()).getAllByRole("menuitem").filter(item => item.textContent !== "Ver ficha")) expect(target).toBeDisabled();
+  act(() => drag.props.onDragEnd({ active: { id: "person" }, over: { id: "screen" } }));
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Ana Pérez" }));
+  const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
+  expect(within(sheet).getByRole("button", { name: "Mover a…" })).toBeDisabled();
+  expect(within(sheet).getByRole("button", { name: "Descartar" })).toBeDisabled();
+  expect(await within(sheet).findByRole("link", { name: "Descargar CV" })).toBeVisible();
+  expect(within(sheet).getByRole("tab", { name: /Historial/ })).toBeEnabled();
+  expect(moveParticipationAction).not.toHaveBeenCalled();
+});
+it("adopts a process_finished move conflict without reload or retry", async () => {
+  vi.mocked(moveParticipationAction).mockResolvedValue({ ok: false, reason: "process_finished", lifecycle: finishedLifecycle, reference: { status: 409 } });
+  await mount(); move();
+  expect(await screen.findByText(readOnlyNotice)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeDisabled();
+  expect(loadBoardAction).toHaveBeenCalledTimes(1); expect(moveParticipationAction).toHaveBeenCalledTimes(1);
+});
+it("wires lifecycle actions and adopts their response without reloading candidates", async () => {
+  const board = boardFixture(); board.lifecycle.allowed_actions = ["pause"];
+  vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, data: board.lifecycle, etag: "lifecycle-tag" });
+  vi.mocked(transitionLifecycleAction).mockResolvedValue({ ok: true, data: { ...board.lifecycle, publication: "paused", paused_at: "2026-10-20T12:00:00Z", version: "2", allowed_actions: ["resume"] }, etag: "next" });
+  await mount(board); fireEvent.click(screen.getByRole("button", { name: "Acciones de la vacante" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Pausar" }));
+  fireEvent.click(screen.getByRole("button", { name: "Pausar" }));
+  expect(await screen.findByText("Pausada", { selector: '[data-slot="badge"]' })).toBeVisible();
+  expect(loadBoardAction).toHaveBeenCalledTimes(1);
+  expect(transitionLifecycleAction).toHaveBeenCalledWith(expect.objectContaining({ draftId: vacancyId, action: "pause", ifMatch: "lifecycle-tag" }));
+});
+it("reopening restores editing in place and absent publication time stays absent", async () => {
+  const board = boardFixture(); board.lifecycle = finishedLifecycle;
+  vi.mocked(getLifecycleAction).mockResolvedValue({ ok: true, data: finishedLifecycle, etag: "finished-tag" });
+  vi.mocked(transitionLifecycleAction).mockResolvedValue({ ok: true, data: { ...boardFixture().lifecycle, version: "3", allowed_actions: ["pause"] }, etag: "reopened-tag" });
+  await mount(board);
+  fireEvent.click(screen.getByRole("button", { name: "Acciones de la vacante" }));
+  fireEvent.click(await screen.findByRole("menuitem", { name: "Reabrir" }));
+  fireEvent.click(screen.getByRole("button", { name: "Reabrir" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeEnabled());
+  expect(screen.queryByText(readOnlyNotice)).not.toBeInTheDocument();
+  expect(screen.queryByText(/Publicada el/)).not.toBeInTheDocument();
+  expect(loadBoardAction).toHaveBeenCalledTimes(1);
+});
+it.each(["discard", "recover", "substate"] as const)("adopts process_finished from %s and closes the pending dialog", async operation => {
+  const failure = { ok: false as const, reason: "process_finished" as const, lifecycle: finishedLifecycle, reference: { status: 409 } };
+  vi.mocked(discardParticipationAction).mockResolvedValue(failure);
+  vi.mocked(recoverParticipationAction).mockResolvedValue(failure);
+  vi.mocked(setParticipationSubstateAction).mockResolvedValue(failure);
+  await mount(operation === "recover" ? discardedBoard() : operation === "substate" ? activeSubstateBoard() : boardFixture());
+  if (operation === "substate") {
+    fireEvent.click(within(menu()).getByRole("menuitemradio", { name: "Oferta" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cambiar subestado" }));
+  } else {
+    fireEvent.click(within(menu()).getByRole("menuitem", { name: operation === "discard" ? "Descartar" : "Recuperar" }));
+    if (operation === "discard") fireEvent.click(await screen.findByRole("option", { name: "No cumple requisitos" }));
+    fireEvent.click(screen.getByRole("button", { name: operation === "discard" ? "Descartar candidato" : "Recuperar" }));
+  }
+  expect(await screen.findByText(readOnlyNotice)).toBeVisible();
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(loadBoardAction).toHaveBeenCalledTimes(1);
+  expect(operation === "discard" ? discardParticipationAction : operation === "recover" ? recoverParticipationAction : setParticipationSubstateAction).toHaveBeenCalledTimes(1);
+});
+it.each(["substate", "recover"] as const)("finished %s controls remain disabled in cards and sheet", async operation => {
+  const board = operation === "recover" ? discardedBoard() : activeSubstateBoard();
+  board.lifecycle = { ...finishedLifecycle, allowed_actions: [] };
+  await mount(board);
+  expect(screen.queryByText(/Reabrir.*editar/)).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Filtros" })).toBeEnabled();
+  const actions = menu();
+  if (operation === "substate") for (const option of within(actions).getAllByRole("menuitemradio")) expect(option).toBeDisabled();
+  else expect(within(actions).getByRole("menuitem", { name: "Recuperar" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Ver detalle de Ana Pérez" }));
+  const sheet = await screen.findByRole("dialog", { name: "Ana Pérez" });
+  expect(operation === "recover" ? within(sheet).getByRole("button", { name: "Recuperar" }) : within(sheet).getByRole("combobox", { name: "Subestado" })).toBeDisabled();
+});
 function menu() { fireEvent.click(screen.getByRole("button", { name: "Acciones de Ana Pérez" })); return screen.getByRole("menu"); }
 function move(label = "Revisión", confirm = true) {
   fireEvent.click(within(menu()).getByRole("menuitem", { name: label }));

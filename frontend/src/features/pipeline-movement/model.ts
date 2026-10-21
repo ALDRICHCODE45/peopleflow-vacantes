@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { lifecycleSchema, type Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { locationReadSchema } from "@/features/geo/model";
 import { deliverySummarySchema } from "@/features/jobs/drafts/pipeline/fulfillment-model";
 import { validateDiscardText } from "./discard-text";
@@ -36,6 +37,7 @@ export const participationSchema = mutationParticipationSchema.extend({
 }).strict();
 export const coverageSchema = z.object({ covered: count, required: z.number().int().positive().safe().nullable(), full_coverage_reached_at: timestamp.nullable() }).strict();
 export const boardSchema = z.object({
+  lifecycle: lifecycleSchema,
   screening_filters: z.array(z.object({ question_id: uuidSchema, prompt: text, options: z.array(z.object({ id: uuidSchema, label: text }).strict()) }).strict()),
   retired_stages: z.array(z.object({ id: uuidSchema, kind: stageKindSchema, name: text }).strict()),
   stages: z.array(z.object({ id: uuidSchema, kind: stageKindSchema, name: text, count }).strict()),
@@ -70,7 +72,11 @@ export const historySchema = z.object({ items: z.array(z.discriminatedUnion("kin
   z.object({ ...historyBase, kind: z.literal("recovery"), from_stage_id: uuidSchema, departure: z.literal(false) }).strict(),
 ])) }).strict().refine(history => history.items.every(entry => entry.kind !== "substate" ||
   ((entry.from_substate_id === null) === (entry.from_substate_name === null) && (entry.to_substate_id === null) === (entry.to_substate_name === null))));
-export const errorEnvelopeSchema = z.object({ error: text, code: text }).strict();
+export const processFinishedSchema = z.object({ error: text, code: z.literal("process_finished"), data: z.object({ lifecycle: lifecycleSchema }).strict() }).strict();
+export const errorEnvelopeSchema = z.union([
+  processFinishedSchema,
+  z.object({ error: text, code: text.refine(code => code !== "process_finished") }).strict(),
+]);
 export type Board = z.infer<typeof boardSchema>;
 export type Participation = z.infer<typeof participationSchema>;
 export type MoveBody = z.infer<typeof moveBodySchema>;
@@ -78,7 +84,7 @@ export type Move = z.infer<typeof moveSchema>;
 export type ParticipationDetail = z.infer<typeof detailSchema>;
 export type History = z.infer<typeof historySchema>;
 export type Result<T> = { ok: true; data: T } | Failure;
-export type FailureReason = "unauthenticated" | "forbidden" | "company_inactive" | "company_not_active" | "board_too_large" |
+export type FailureReason = "process_finished" | "unauthenticated" | "forbidden" | "company_inactive" | "company_not_active" | "board_too_large" |
   "vacancy_not_published" | "not_found" | "stage_skip_not_allowed" | "placement_exit_confirmation_required" | "validation_error" |
   "recovery_stage_required" | "substate_requires_in_process" | "already_discarded" | "not_discarded" | "placement_reentry_confirmation_required" | "invalid_request" | "version_conflict" | "precondition_required" | "cv_storage_unavailable" | "no_response" | "uncertain" | "unrecognized_response" | "server_error";
-export type Failure = { ok: false; reason: FailureReason; reference: { status?: number; code?: string } };
+export type Failure = { ok: false; reason: FailureReason; lifecycle?: Lifecycle; reference: { status?: number; code?: string } };

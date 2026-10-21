@@ -27,6 +27,12 @@ export function useBoardColumnOrder(vacancyId: string, board: Board | null, disa
   const mutex = useRef(false);
   const intent = useRef<Confirmation | null>(null);
   const alive = useRef(false);
+  const finished = board?.lifecycle.process === "finished";
+  const finishedRef = useRef(finished);
+  finishedRef.current = finished;
+  useEffect(() => {
+    if (finished) { intent.current = null; setConfirmation(null); }
+  }, [finished]);
   useEffect(() => {
     alive.current = true;
     let current = true;
@@ -43,7 +49,7 @@ export function useBoardColumnOrder(vacancyId: string, board: Board | null, disa
   const matches = !!board && !!editor && board.exit.id === editor.exit.id
     && board.stages.length === editor.stages.length
     && board.stages.every((stage, index) => stage.id === editor.stages[index].id);
-  const locked = disabled || busy || unavailable || !matches;
+  const locked = finished || disabled || busy || unavailable || !matches;
   function report(value: ColumnNotice, title: string, reference?: { status?: number; code?: string }) {
     setNotice(value);
     notifyActionResult({ key: "pipeline-column-order", type: value.tone,
@@ -90,6 +96,7 @@ export function useBoardColumnOrder(vacancyId: string, board: Board | null, disa
     try { result = await previewPipelineAction({ draftId: vacancyId, body: toPutBody(next) }); }
     catch { result = noResponse; }
     if (!alive.current) return;
+    if (finishedRef.current) { setPending(null); mutex.current = false; return; }
     if (result.ok) {
       const position = targetIndex === 1 ? `antes de ${next.stages[targetIndex + 1].name}` : `después de ${next.stages[targetIndex - 1].name}`;
       const value = { key, name: next.stages[targetIndex].name, position, next, etag: loaded.etag, preview: result.preview };

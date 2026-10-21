@@ -101,7 +101,7 @@ export function BoardColumns({ board, pending, locked, notices, onMove, onDetail
   const finish = () => { setActiveId(null); setColumnId(null); setOverId(null); window.setTimeout(() => { suppressClick.current = false; }, 0); };
   function end(event: DragEndEvent) {
     finish();
-    if (!event.over) return;
+    if (!event.over || locked || board.lifecycle.process === "finished") return;
     if (event.active.data?.current?.type === "column") void columnOrder?.move(String(event.active.id), columnIndex(String(event.over.id)));
     else onMove(String(event.active.id), String(event.over.id));
   }

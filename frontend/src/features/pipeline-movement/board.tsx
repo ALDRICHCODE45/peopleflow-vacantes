@@ -10,6 +10,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Separator } from "@/components/ui/separator";
 import { Hint } from "./pipeline-presentation";
 import { BoardDelivery } from "./board-delivery";
+import { BoardLifecycle } from "./board-lifecycle";
+import { LifecycleActionsMenu } from "@/features/vacancy-lifecycle/ui/lifecycle-actions-menu";
 import { BoardColumns } from "./board-columns";
 import { BoardCoverage, BoardError, BoardSkeleton, MovementDate } from "./board-states";
 import { CandidateSheet } from "./candidate-sheet";
@@ -29,6 +31,7 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
   const [filters, setFilters] = useState<FilterSelection>({});
   const [selected, setSelected] = useState<string | null>(null);
   const { board, confirmation, pending, stale } = state;
+  const readOnly = board?.lifecycle.process === "finished";
   const dimensions = board ? boardFilterDimensions(board) : [];
   const visibleItems = applyFilters(board?.participations ?? [], dimensions, filters);
   const restoreFocus = useRef<string | null>(null);
@@ -53,8 +56,8 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
   const from = board?.stages.find(stage => stage.id === confirmation?.item.stage_id)?.name ?? "Placement";
   const to = board?.stages.find(stage => stage.id === confirmation?.target)?.name ?? "la etapa seleccionada";
   const confirming = !!confirmation && state.pending.has(confirmation.item.id);
-  const dispositionDialog = board && state.disposition && <DispositionDialog key={`${state.disposition.kind}-${state.disposition.item.id}`} disposition={state.disposition} board={board} pending={pending.has(state.disposition.item.id)} stale={stale} reading={state.reading} notice={state.notices[state.disposition.item.id]} onClose={state.closeDisposition} onConfirm={state.confirmDisposition} finalFocus={() => document.getElementById(`${selectedItem ? "candidate-disposition" : "candidate-move"}-${state.disposition!.item.id}`)} />;
-  const placementDialog = confirmation && <ConfirmActionDialog icon={confirmation.placementExit ? BadgeCheck : ArrowRightLeft} open onOpenChange={open => { if (!open) state.closeConfirmation(); }}
+  const dispositionDialog = !readOnly && board && state.disposition && <DispositionDialog key={`${state.disposition.kind}-${state.disposition.item.id}`} disposition={state.disposition} board={board} pending={pending.has(state.disposition.item.id)} stale={stale} reading={state.reading} notice={state.notices[state.disposition.item.id]} onClose={state.closeDisposition} onConfirm={state.confirmDisposition} finalFocus={() => document.getElementById(`${selectedItem ? "candidate-disposition" : "candidate-move"}-${state.disposition!.item.id}`)} />;
+  const placementDialog = !readOnly && confirmation && <ConfirmActionDialog icon={confirmation.placementExit ? BadgeCheck : ArrowRightLeft} open onOpenChange={open => { if (!open) state.closeConfirmation(); }}
     finalFocus={() => document.getElementById(`${selectedItem ? "candidate-sheet-move" : "candidate-move"}-${confirmation.item.id}`)}
     title={`¿Mover a ${confirmation.item.candidate.full_name} a ${to}?`}
     description={`Pasa de ${from} a ${to}. El cambio queda en su historial.${confirmation.placementExit ? " Las plazas cubiertas disminuyen en una y se conserva el historial de contratación." : ""}`}
@@ -63,7 +66,7 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
   </ConfirmActionDialog>;
   const substate = state.substateConfirmation;
   const substateName = (id: string | null) => board?.substates.find(item => item.id === id)?.name ?? "Sin subestado";
-  const substateDialog = substate && <ConfirmActionDialog icon={Tags} open onOpenChange={open => { if (!open) state.closeSubstateConfirmation(); }}
+  const substateDialog = !readOnly && substate && <ConfirmActionDialog icon={Tags} open onOpenChange={open => { if (!open) state.closeSubstateConfirmation(); }}
     finalFocus={() => document.getElementById(selectedItem ? `candidate-substate-${substate.item.id}` : `candidate-move-${substate.item.id}`)}
     title={`¿Cambiar el subestado de ${substate.item.candidate.full_name}?`} description={`Pasa de ${substateName(substate.item.substate_id)} a ${substateName(substate.value)}.`}
     confirmLabel="Cambiar subestado" pendingLabel="Cambiando subestado…" pending={pending.has(substate.item.id)} confirmDisabled={state.reading || stale} onConfirm={state.confirmSubstate} />;
@@ -77,9 +80,10 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
   </ConfirmActionDialog>;
   return <section aria-label="Tablero de candidatos" className="flex min-h-0 min-w-0 flex-1 flex-col gap-4" aria-busy={state.reading}>
     <div className="flex shrink-0 flex-col items-start justify-between gap-4 pb-2 lg:flex-row lg:items-center">
-      <div className="flex flex-col gap-1.5"><h2 className="text-xl font-semibold tracking-tight">Pipeline</h2>{publishedAt && <p className="text-xs text-muted-foreground">Publicada el <MovementDate value={publishedAt} /></p>}</div>
-      <div className="flex w-full flex-wrap items-center gap-4 lg:w-auto">{board && <div role="group" aria-label="Progreso de la vacante" className="flex min-w-0 flex-wrap items-start gap-4"><BoardCoverage coverage={board.coverage} /><Separator orientation="vertical" className="hidden sm:block" /><BoardDelivery delivery={board.delivery} status={state.deliveryStatus} /></div>}<Hint text="Configuración de la vacante"><Button nativeButton={false} role="link" variant="outline" size="icon" className="size-10 bg-card" aria-label="Configuración de la vacante" render={<Link href={`/empresa/vacantes/${vacancyId}/configuracion/columnas`} />}><Settings2 aria-hidden="true" /></Button></Hint></div>
+      <div className="flex flex-col gap-1.5"><h2 className="text-xl font-semibold tracking-tight">Pipeline</h2>{board ? <BoardLifecycle lifecycle={board.lifecycle} publishedAt={publishedAt} /> : publishedAt && <p className="text-xs text-muted-foreground">Publicada el <MovementDate value={publishedAt} /></p>}</div>
+      <div className="flex w-full flex-wrap items-center gap-4 lg:w-auto">{board && board.lifecycle.allowed_actions.some(action => action !== "publish") && <LifecycleActionsMenu draftId={vacancyId} title={vacancyTitle ?? "la vacante"} onChanged={state.updateLifecycle} />}{board && <div role="group" aria-label="Progreso de la vacante" className="flex min-w-0 flex-wrap items-start gap-4"><BoardCoverage coverage={board.coverage} /><Separator orientation="vertical" className="hidden sm:block" /><BoardDelivery delivery={board.delivery} status={state.deliveryStatus} /></div>}<Hint text="Configuración de la vacante"><Button nativeButton={false} role="link" variant="outline" size="icon" className="size-10 bg-card" aria-label="Configuración de la vacante" render={<Link href={`/empresa/vacantes/${vacancyId}/configuracion/columnas`} />}><Settings2 aria-hidden="true" /></Button></Hint></div>
     </div>
+    {readOnly && <div role="status"><ActionStatus id="board-process-finished" tone="info" text="El proceso de esta vacante finalizó. El tablero está en solo lectura." />{board.lifecycle.allowed_actions.includes("reopen") && <p className="text-sm text-muted-foreground">Reabrir la vacante permite volver a editar el tablero.</p>}</div>}
     {!board && state.reading && !state.failure && <BoardSkeleton columnCount={state.columns.editor ? state.columns.editor.stages.length + 1 : undefined} />}
     {state.failure && <BoardError failure={state.failure} reading={state.reading} notice={state.readNotice} retry={() => void state.retry()} />}
     {!state.failure && state.readNotice && <ActionStatusSlot><ActionStatus id="board-read-status" tone={state.readNotice.tone} text={state.readNotice.text} /></ActionStatusSlot>}
@@ -92,13 +96,13 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
         </ActionStatusSlot>{state.columns.unavailable && <Button type="button" variant="outline" className="min-h-10" disabled={state.columns.busy} onClick={() => void state.columns.refresh()}>Actualizar columnas</Button>}</div>
       </div>
       <BoardFilters items={board.participations} dimensions={dimensions} selection={filters} onChange={setFilters} resultCount={visibleItems.length} />
-      <BoardColumns visibleItems={visibleItems} filtered={activeFilterCount(filters) > 0} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={state.stale || state.columns.busy || !!confirmation || !!substate || !!column || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
+      <BoardColumns visibleItems={visibleItems} filtered={activeFilterCount(filters) > 0} onSubstate={setSubstate} columnOrder={state.columns} board={board} pending={state.pending} locked={readOnly || state.stale || state.columns.busy || !!confirmation || !!substate || !!column || !!state.disposition} notices={state.notices} onMove={requestMove} onDetail={setSelected} onDisposition={state.requestDisposition} />
       {Object.entries(state.notices).filter(([id]) => !visibleItems.some(item => item.id === id)).map(([id, notice]) => <ActionStatusSlot key={id}><ActionStatus id={`move-status-${id}`} tone={notice.tone} text={notice.text} /></ActionStatusSlot>)}
-      {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} onClose={() => setSelected(null)} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={stale || state.columns.busy || !!column || pending.has(selectedItem.id) || !!confirmation || !!substate || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}{substateDialog}</CandidateSheet>}
+      {selectedItem && <CandidateSheet vacancyId={vacancyId} vacancyTitle={vacancyTitle} item={selectedItem} board={board} onClose={() => setSelected(null)} onSubstate={setSubstate} onMove={requestMove} onDisposition={state.requestDisposition} locked={readOnly || stale || state.columns.busy || !!column || pending.has(selectedItem.id) || !!confirmation || !!substate || !!state.disposition} notice={state.notices[selectedItem.id]}>{dispositionDialog}{placementDialog}{substateDialog}</CandidateSheet>}
       {!selectedItem && dispositionDialog}
     </>}
     {!selectedItem && placementDialog}
     {!selectedItem && substateDialog}
-    {columnDialog}
+    {!readOnly && columnDialog}
   </section>;
 }

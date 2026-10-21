@@ -71,6 +71,17 @@ async function confirm() {
   await act(async () => { fireEvent.click(button); });
   return button;
 }
+it.each([false, true])("finished process disables column menu and pointer/keyboard ordering (keyboard=%s)", async keyboard => {
+  const current = board(); current.lifecycle = { ...current.lifecycle, publication: "closed", process: "finished" };
+  vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: current });
+  await mount();
+  expect(screen.getByRole("button", { name: "Reordenar Screening" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Orden de Screening" })).toBeDisabled();
+  expect(dnd.drags.get("screen")).toBe(true);
+  drop("screen", "ok", keyboard);
+  expect(previewPipelineAction).not.toHaveBeenCalled(); expect(saveDraftPipelineAction).not.toHaveBeenCalled();
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+});
 const order = () => screen.getAllByRole("heading", { level: 3, hidden: true }).map(heading => heading.textContent);
 it.each(["drop", "keyboard", "menu"])("%s with candidates previews, keeps order, cancels without PUT and confirms once", async source => {
   vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: board(pipeline(), true) });

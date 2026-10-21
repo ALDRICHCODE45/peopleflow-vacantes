@@ -2,6 +2,7 @@ import type { Board, History, ParticipationDetail } from "./model";
 export const vacancyId = "123e4567-e89b-42d3-a456-426614174000";
 export function boardFixture(): Board {
   return {
+    lifecycle: { publication: "published", process: "active", version: "1", published_at: null, paused_at: null, closed_at: null, process_finished_at: null, allowed_actions: [] },
     screening_filters: [],
     retired_stages: [],
     delivery: { state: "pending", delivered: 0, target: 3 },
