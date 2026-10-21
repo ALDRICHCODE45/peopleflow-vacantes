@@ -9,11 +9,9 @@ import type { EducationDraft, ProfileDraftIssue } from "./profile-draft";
 const labels = { level: "Nivel", institution: "Institución", field: "Carrera o campo", status: "Estado", start_year: "Año de inicio", end_year: "Año de fin" } as const;
 const keys = Object.keys(labels) as (keyof EducationDraft)[];
 const options = { level: EDUCATION_LEVELS.map(value => ({ value, label: EDUCATION_LEVEL_LABELS[value] })), status: EDUCATION_STATUSES.map(value => ({ value, label: EDUCATION_STATUS_LABELS[value] })) };
-export function EducationFields({ value, onChange, issues, disabled }: { value: readonly EducationDraft[]; onChange: (value: EducationDraft[]) => void; issues: readonly ProfileDraftIssue[]; disabled?: boolean }) {
+export function EducationFields({ value, onChange, issues, disabled, embedded = false }: { value: readonly EducationDraft[]; onChange: (value: EducationDraft[]) => void; issues: readonly ProfileDraftIssue[]; disabled?: boolean; embedded?: boolean }) {
   const errorFor = (path: string) => issues.find(issue => issue.path === path)?.message;
-  return <Card size="sm" data-pf-profile-section-card="" className="shadow-none ring-border/70">
-    <CardHeader className="border-b"><CardTitle aria-hidden="true"><h3>Formación académica</h3></CardTitle></CardHeader>
-    <CardContent className="flex flex-col gap-4"><FieldSet data-pf-profile-group="education" disabled={disabled} className="gap-4">
+  const fields = <FieldSet data-pf-profile-group="education" disabled={disabled} className="gap-4">
       <FieldLegend className="sr-only">Formación académica</FieldLegend>
       {errorFor("education") && <FieldError>{errorFor("education")}</FieldError>}
       <FieldGroup>{value.map((study, index) => <FieldSet key={index}>
@@ -37,6 +35,10 @@ export function EducationFields({ value, onChange, issues, disabled }: { value: 
         <Button type="button" variant="ghost" className="min-h-10 w-fit" aria-label={`Quitar estudio ${index + 1}`} disabled={disabled} onClick={() => onChange(value.filter((_, i) => i !== index))}>Quitar estudio</Button>
       </FieldSet>)}</FieldGroup>
       <Button type="button" variant="outline" data-pf-profile-education-add className="min-h-10 w-fit" disabled={disabled || value.length >= 10} onClick={() => onChange([...value, { level: "", institution: "", field: "", status: "", start_year: "", end_year: "" }])}>Agregar estudio</Button>
-    </FieldSet></CardContent>
+    </FieldSet>;
+  if (embedded) return fields;
+  return <Card size="sm" data-pf-profile-section-card="" className="shadow-none ring-border/70">
+    <CardHeader className="border-b"><CardTitle aria-hidden="true"><h3>Formación académica</h3></CardTitle></CardHeader>
+    <CardContent className="flex flex-col gap-4">{fields}</CardContent>
   </Card>;
 }

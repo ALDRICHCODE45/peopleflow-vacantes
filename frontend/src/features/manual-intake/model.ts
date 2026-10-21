@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { CEFR_LEVELS, EDUCATION_LEVELS } from "@/features/candidate/model";
+import { candidateLanguageSchema, educationSchema, SENIORITIES, yearsOfExperienceSchema } from "@/features/candidate/model";
 import { CONTENT_TYPES, HARD_MAX_BYTES } from "@/features/candidate-cvs/model";
 import { participationSchema, coverageSchema, uuidSchema } from "@/features/pipeline-movement/model";
 import { deliverySummarySchema } from "@/features/jobs/drafts/pipeline/fulfillment-model";
@@ -23,11 +23,17 @@ export type IntakeResult<T> = { ok: true; data: T } | IntakeFailure;
 const short = z.string().trim().min(1).max(120);
 const url = z.string().trim().url().max(2048).refine(value => value.startsWith("https://"));
 export const candidateSchema = z.object({
-  full_name: short, education_level: z.enum(EDUCATION_LEVELS), email: z.string().trim().email().nullable(), phone: phoneSchema.nullable(),
+  full_name: short, education: z.array(educationSchema).min(1).max(10), email: z.string().trim().email().nullable(), phone: phoneSchema.nullable(),
   residence: z.object({ country: z.string().regex(/^[A-Z]{2}$/), state: z.string().regex(/^\d{2}$/).nullable(), municipality: z.string().regex(/^\d{5}$/).nullable(), postal_code: z.string().regex(/^\d{5}$/).nullable() }).strict(),
-  professional_title: short.optional(), current_company: short.optional(), field_of_study: short.optional(), experience_years: z.number().int().min(0).max(60).optional(),
+  professional_title: short.optional(), current_company: short.optional(), years_of_experience: yearsOfExperienceSchema.nullable(), seniority: z.enum(SENIORITIES).nullable(),
   summary: z.string().trim().min(1).max(2000).optional(), skills: z.array(z.string().trim().min(1).max(60)).max(30).optional(),
-  languages: z.array(z.object({ language: z.string().trim().min(1).max(60), level: z.enum(CEFR_LEVELS) }).strict()).max(10).optional(),
+  languages: z.array(candidateLanguageSchema).max(10).superRefine((rows, context) => {
+    const seen = new Set<string>();
+    rows.forEach((row, index) => {
+      if (seen.has(row.code)) context.addIssue({ code: "custom", path: [index, "code"], message: "Quita el idioma repetido." });
+      seen.add(row.code);
+    });
+  }),
   linkedin_url: url.optional(), portfolio_url: url.optional(),
 }).strict();
 export type Candidate = z.infer<typeof candidateSchema>;

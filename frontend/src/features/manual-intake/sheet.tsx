@@ -72,7 +72,12 @@ export function ManualIntakeSheet({ vacancyId, stages, onClose, onSuccess, onVie
    else setCheckNote("No pudimos comprobar coincidencias. Se revisarán al guardar.");
   }, 300);
  }
- function focusInvalid() { requestAnimationFrame(() => bodyRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()); }
+ function firstInvalid() {
+  const first = bodyRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+  // Collection errors belong at the editor's first actionable control, before later sections.
+  return first?.matches("[data-intake-education], [data-intake-languages]") ? first.querySelector<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled)') ?? first : first;
+ }
+ function focusInvalid() { requestAnimationFrame(() => firstInvalid()?.focus()); }
  function validate() {
   const result = prepare(draft, stage, existing ? { id: existing.id, kind: existing.kind } : null, distinct, file, stages.filter(stage => stage.kind !== "placement").map(stage => stage.id));
   setErrors(result.errors);
@@ -125,6 +130,6 @@ export function ManualIntakeSheet({ vacancyId, stages, onClose, onSuccess, onVie
   </div>
   <SheetFooter className="shrink-0 border-t max-sm:[&_[data-pf-action-bar]]:flex-col max-sm:[&_[data-pf-action-bar-actions]]:self-end"><ActionBar status={pending ? <ActionStatus id="manual-intake-status" tone="info" text="Agregando candidato…" /> : Object.keys(errors).length ? <ActionStatus id="manual-intake-status" tone="error" text={Object.keys(errors).length === 1 ? "Revisa 1 dato marcado." : `Revisa ${Object.keys(errors).length} datos marcados.`} /> : failure ? <ActionStatus id="manual-intake-status" tone="error" text={failureMessage(failure.reason)} action={failure.participationId ? <Button type="button" variant="link" className="min-h-10" onClick={() => onViewExisting(failure.participationId!)}>Ver ficha</Button> : undefined} /> : null}><Button type="button" variant="outline" className="min-h-10" disabled={pending} onClick={close}>Cancelar</Button><Button id="manual-intake-submit" type="submit" form="manual-intake-form" className="min-h-10" disabled={pending || disabled} aria-describedby="manual-intake-status">{pending && <Spinner aria-hidden="true" />}{pending ? "Agregando…" : "Agregar candidato"}</Button></ActionBar></SheetFooter>
   <ConfirmActionDialog open={discard} onOpenChange={setDiscard} icon={Trash2} title="Tienes cambios sin guardar" description="Si cierras, perderás los datos que capturaste." cancelLabel="Seguir editando" confirmLabel="Descartar" tone="destructive" onConfirm={onClose} />
-  <ConfirmActionDialog open={confirm} finalFocus={() => succeeded.current ? false : bodyRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]') ?? document.getElementById("manual-intake-submit")} onOpenChange={open => { if (!busy.current) setConfirm(open); }} icon={UserPlus} title={`¿Agregar a ${existing?.full_name ?? draft.full_name.trim()}?`} description={`Entrará a ${stages.find(value => value.id === stage)?.name ?? "la etapa elegida"}. No recibe ningún aviso.`} confirmLabel="Agregar" pendingLabel="Agregando…" pending={pending} confirmDisabled={disabled} onConfirm={() => void submit()} />
+  <ConfirmActionDialog open={confirm} finalFocus={() => succeeded.current ? false : firstInvalid() ?? document.getElementById("manual-intake-submit")} onOpenChange={open => { if (!busy.current) setConfirm(open); }} icon={UserPlus} title={`¿Agregar a ${existing?.full_name ?? draft.full_name.trim()}?`} description={`Entrará a ${stages.find(value => value.id === stage)?.name ?? "la etapa elegida"}. No recibe ningún aviso.`} confirmLabel="Agregar" pendingLabel="Agregando…" pending={pending} confirmDisabled={disabled} onConfirm={() => void submit()} />
  </SheetContent></Sheet>;
 }

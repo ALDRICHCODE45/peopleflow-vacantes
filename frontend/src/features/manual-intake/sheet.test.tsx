@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ComponentProps, ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen as queries, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen as queries, waitFor, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ManualIntakeSheet } from "./sheet";
 import { submitManualCandidate } from "./upload";
@@ -21,14 +21,15 @@ vi.mock("@/components/ui/select", async () => {
 });
 vi.mock("@/components/ui/combobox", async () => {
  const React = await import("react");
- type Item = { id: string; name: string };
+ type Item = { id?: string; code?: string; name: string };
  const Context = React.createContext({ value: null as Item | null, items: [] as Item[], change: (item: Item | null) => { void item; } });
  return {
   Combobox: ({ value, items, onValueChange, children }: { value: Item | null; items: Item[]; onValueChange: (item: Item | null) => void; children: ReactNode }) => <Context.Provider value={{ value, items, change: onValueChange }}>{children}</Context.Provider>,
-  ComboboxInput: ({ id, disabled, ...props }: { id: string; disabled: boolean; "aria-invalid": boolean }) => { const state = React.useContext(Context); return <select id={id} disabled={disabled} aria-invalid={props["aria-invalid"]} value={state.value?.id ?? ""} onChange={event => state.change(state.items.find(item => item.id === event.target.value) ?? null)}><option value="">Elige</option>{state.items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>; },
+  ComboboxInput: ({ id, disabled, ...props }: { id: string; disabled: boolean; "aria-invalid": boolean }) => { const state = React.useContext(Context); return <select id={id} disabled={disabled} aria-invalid={props["aria-invalid"]} value={state.value?.id ?? state.value?.code ?? ""} onChange={event => state.change(state.items.find(item => (item.id ?? item.code) === event.target.value) ?? null)}><option value="">Elige</option>{state.items.map(item => <option key={item.id ?? item.code} value={item.id ?? item.code}>{item.name}</option>)}</select>; },
   ComboboxContent: () => null, ComboboxEmpty: () => null, ComboboxList: () => null, ComboboxItem: () => null,
  };
 });
+vi.mock("@/features/languages/use-language-catalog", () => ({ useLanguageCatalog: () => ({ status: "success", data: { items: [{ code: "es", name: "Español" }, { code: "nah", name: "Náhuatl" }] } }) }));
 vi.mock("./upload", () => ({ submitManualCandidate: vi.fn() }));
 vi.mock("./actions", () => ({ checkDuplicatesAction: vi.fn() }));
 vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }));
@@ -46,7 +47,8 @@ function mount() { return render(<ManualIntakeSheet vacancyId={vacancyId} stages
 const change = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 function fill(country = "US") {
  change("Nombre completo", "Ana Nueva"); change("Correo electrónico", "ana@example.com"); change("País", country);
- change("Nivel máximo de estudios", "bachelor");
+ fireEvent.click(screen.getByRole("button", { name: "Agregar estudio" }));
+ change("Nivel", "bachelor"); fireEvent.change(within(screen.getByRole("group", { name: "Estudio 1" })).getByLabelText("Estado"), { target: { value: "completed" } });
  fireEvent.change(screen.getByLabelText("CV"), { target: { files: [new File(["%PDF"], "cv.pdf", { type: "application/pdf" })] } });
 }
 async function submit() {
@@ -73,7 +75,7 @@ it("composes the CV picker with change and remove actions", () => {
 });
 it("starts with an optional collapsed profile and labels required inputs", () => {
  mount(); expect(screen.getByText("* Obligatorio")).toBeVisible();
- for (const label of ["Nombre completo", "Correo electrónico", "Teléfono", "País", "Nivel máximo de estudios", "CV", "Etapa de ingreso"]) {
+ for (const label of ["Nombre completo", "Correo electrónico", "Teléfono", "País", "CV", "Etapa de ingreso"]) {
   const control = screen.getByLabelText(label);
   expect(document.querySelector(`label[for="${control.id}"]`)).toHaveTextContent(/\*/);
  }
@@ -115,7 +117,7 @@ it("validates required controls and focuses name without sending", async () => {
  await waitFor(() => expect(screen.getByLabelText("Nombre completo")).toHaveFocus());
  expect(screen.getByText("Escribe el nombre completo.")).toBeVisible();
  expect(screen.getByText("Agrega un correo o un teléfono.")).toBeVisible();
- expect(screen.getByText("Selecciona el nivel de estudios.")).toBeVisible();
+ expect(screen.getByText("Agrega al menos un estudio.")).toBeVisible();
  expect(screen.getByText("Selecciona un CV.")).toBeVisible();
  expect(submitManualCandidate).not.toHaveBeenCalled();
 });
@@ -151,8 +153,9 @@ it("checks a valid blurred contact and allows explicit existing selection", asyn
 });
 it("validates Mexican state and municipality but not subdivisions abroad", async () => {
  mount(); fill("MX"); fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
- await waitFor(() => expect(screen.getByLabelText("Estado")).toHaveFocus());
- expect(screen.getByLabelText("Estado")).toHaveAttribute("aria-invalid", "true");
+ const state = within(screen.getAllByRole("group", { name: "Residencia" })[0]).getByLabelText("Estado", { normalizer });
+ await waitFor(() => expect(state).toHaveFocus());
+ expect(state).toHaveAttribute("aria-invalid", "true");
  expect(screen.getByLabelText("Municipio")).toHaveAttribute("aria-invalid", "true");
  change("País", "US");
  vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
@@ -184,9 +187,9 @@ it("existing selection sends candidate null and confirmed_distinct false", async
  expect(vi.mocked(submitManualCandidate).mock.calls[0][1]).toEqual({ stage_id: "new", existing: { kind: "manual", id: vacancyId }, candidate: null, confirmed_distinct: false });
 });
 it("maps 400 fields and focuses the first invalid in visual order", async () => {
- mount(); fill(); vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "validation_error", reference: { status: 400 }, fields: [{ field: "candidate.education_level", code: "invalid" }, { field: "candidate.full_name", code: "too_long" }] });
+ mount(); fill(); vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "validation_error", reference: { status: 400 }, fields: [{ field: "candidate.education[0].level", code: "invalid" }, { field: "candidate.full_name", code: "too_long" }] });
  await submit(); await waitFor(() => expect(screen.getByLabelText("Nombre completo")).toHaveFocus());
- expect(screen.getByLabelText("Nivel máximo de estudios")).toHaveAttribute("aria-invalid", "true");
+ expect(screen.getByLabelText("Nivel")).toHaveAttribute("aria-invalid", "true");
 });
 it("offers Ver ficha with participation_id for an already present candidate", async () => {
  mount(); fill(); vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "candidate_already_in_process", reference: { status: 409 }, participationId: "existing-participation" });
@@ -215,9 +218,114 @@ it.each([["cv.exe", "application/x-msdownload", 5], ["cv.pdf", "application/pdf"
  mount(); fill(); const file = new File([new Uint8Array(size)], name, { type }); fireEvent.change(screen.getByLabelText("CV"), { target: { files: [file] } });
  fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" })); await waitFor(() => expect(screen.getByRole("button", { name: "Cambiar" })).toHaveFocus()); expect(submitManualCandidate).not.toHaveBeenCalled();
 });
-it.each(["0.5", "61", "-1"])("rejects experience %s", async value => {
+it.each(["01", "1.50", "60.5", "61", "-1", "1e1"])("rejects experience %s", async value => {
  mount(); fill(); fireEvent.click(screen.getByRole("button", { name: /Perfil profesional \(opcional\)/ })); change("Años de experiencia", value); fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
  await waitFor(() => expect(screen.getByLabelText("Años de experiencia")).toHaveFocus()); expect(submitManualCandidate).not.toHaveBeenCalled();
+});
+it("sends harmonized studies, decimal experience, seniority and catalog languages", async () => {
+ mount(); fill();
+ expect(screen.queryByLabelText("Nivel máximo de estudios")).toBeNull();
+ expect(screen.getByText("Estudios")).toHaveTextContent("Estudios *");
+ expect(document.querySelector('[data-slot="card"]')).toBeNull();
+ change("Institución", " UNAM "); change("Carrera o campo", " Computación "); change("Año de inicio", "2015"); change("Año de fin", "2020");
+ fireEvent.click(screen.getByRole("button", { name: /Perfil profesional \(opcional\)/ }));
+ expect(screen.queryByLabelText("Campo de estudio")).toBeNull();
+ expect(screen.getByText("Puedes usar decimales, por ejemplo 1.5.")).toBeVisible();
+ change("Años de experiencia", "1.5"); change("Seniority", "semi_senior");
+ fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" }));
+ change("Idioma 1", "nah"); change("Nivel del idioma 1", "native");
+ expect(screen.getByRole("button", { name: /Perfil profesional/ })).toHaveTextContent("3 datos");
+ vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
+ await submit();
+ const candidate = vi.mocked(submitManualCandidate).mock.calls[0][1].candidate!;
+ expect(candidate).toMatchObject({ years_of_experience: "1.5", seniority: "semi_senior", education: [{ level: "bachelor", institution: "UNAM", field: "Computación", status: "completed", start_year: 2015, end_year: 2020 }], languages: [{ code: "nah", level: "native" }] });
+ for (const key of ["education_level", "field_of_study", "experience_years"]) expect(candidate).not.toHaveProperty(key);
+});
+it("focuses the education add action when there are no studies", async () => {
+ mount(); fill(); fireEvent.click(screen.getByRole("button", { name: "Quitar estudio 1" }));
+ fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
+ expect(screen.getByText("Agrega al menos un estudio.")).toBeVisible();
+ await waitFor(() => expect(screen.getByRole("button", { name: "Agregar estudio" })).toHaveFocus());
+});
+it.each(["candidate.education[0].status", "candidate.languages[0].code", "candidate.languages[0].level", "candidate.years_of_experience", "candidate.seniority"])("maps H2 server error %s", async field => {
+ mount(); fill(); fireEvent.click(screen.getByRole("button", { name: /Perfil profesional/ }));
+ fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" })); change("Idioma 1", "es"); change("Nivel del idioma 1", "native");
+ fireEvent.click(screen.getByRole("button", { name: /Perfil profesional/ }));
+ vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "validation_error", reference: { status: 400 }, fields: [{ field, code: "invalid" }] });
+ await submit();
+ const label = field.includes("education") ? "Estado" : field.endsWith(".code") ? "Idioma 1" : field.endsWith(".level") ? "Nivel del idioma 1" : field.endsWith("seniority") ? "Seniority" : "Años de experiencia";
+ await waitFor(() => expect(screen.getByLabelText(label)).toHaveFocus());
+ expect(screen.getByLabelText(label)).toHaveAttribute("aria-invalid", "true");
+ if (!field.includes("education")) expect(screen.getByRole("button", { name: /Perfil profesional/ })).toHaveAttribute("aria-expanded", "true");
+});
+it("limits studies to ten and lets a removed slot be reused", () => {
+ mount();
+ for (let i = 0; i < 10; i++) fireEvent.click(screen.getByRole("button", { name: "Agregar estudio" }));
+ expect(screen.getByRole("button", { name: "Agregar estudio" })).toBeDisabled();
+ expect(screen.getAllByRole("group", { name: /^Estudio \d+$/ })).toHaveLength(10);
+ fireEvent.click(screen.getByRole("button", { name: "Quitar estudio 3" }));
+ expect(screen.getByRole("button", { name: "Agregar estudio" })).toBeEnabled();
+});
+it.each([
+ ["in_progress", "2024", "2025"], ["completed", "2025", "2020"], ["paused", "1949", ""], ["incomplete", "", "2101"],
+])("rejects invalid study dates for %s (%s–%s)", async (status, start, end) => {
+ mount(); fill(); change("Estado", status); change("Año de inicio", start); change("Año de fin", end);
+ fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
+ const label = start === "1949" ? "Año de inicio" : "Año de fin";
+ await waitFor(() => expect(screen.getByLabelText(label)).toHaveFocus());
+ expect(submitManualCandidate).not.toHaveBeenCalled();
+});
+it.each(["0", "0.5", "60", "60.0"])("sends valid decimal string %s unchanged", async value => {
+ mount(); fill(); fireEvent.click(screen.getByRole("button", { name: /Perfil profesional/ })); change("Años de experiencia", value);
+ vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
+ await submit(); expect(vi.mocked(submitManualCandidate).mock.calls[0][1].candidate?.years_of_experience).toBe(value);
+});
+it("sends two independent studies with optional values as null", async () => {
+ mount(); fill(); fireEvent.click(screen.getByRole("button", { name: "Agregar estudio" }));
+ const study = within(screen.getByRole("group", { name: "Estudio 2" }));
+ fireEvent.change(study.getByLabelText("Nivel"), { target: { value: "tsu" } });
+ fireEvent.change(study.getByLabelText("Estado"), { target: { value: "paused" } });
+ vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "no_response", reference: {} });
+ await submit();
+ expect(vi.mocked(submitManualCandidate).mock.calls[0][1].candidate).toMatchObject({ years_of_experience: null, seniority: null, languages: [], education: [{ level: "bachelor", institution: null, field: null, status: "completed", start_year: null, end_year: null }, { level: "tsu", institution: null, field: null, status: "paused", start_year: null, end_year: null }] });
+});
+it("maps a required education collection error to the editor action", async () => {
+ mount(); fill(); vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "validation_error", reference: { status: 400 }, fields: [{ field: "candidate.education", code: "required" }] });
+ await submit(); expect(screen.getByText("Agrega al menos un estudio.")).toBeVisible();
+ await waitFor(() => expect(screen.getByLabelText("Nivel")).toHaveFocus());
+});
+it("focuses years before seniority regardless of server declaration order", async () => {
+ mount(); fill(); vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "validation_error", reference: { status: 400 }, fields: [{ field: "candidate.seniority", code: "invalid" }, { field: "candidate.years_of_experience", code: "invalid" }] });
+ await submit(); await waitFor(() => expect(screen.getByLabelText("Años de experiencia")).toHaveFocus());
+ expect(screen.getByLabelText("Seniority")).toHaveAttribute("aria-invalid", "true");
+});
+it("maps indexed errors to the second study without marking the first", async () => {
+ mount(); fill(); fireEvent.click(screen.getByRole("button", { name: "Agregar estudio" }));
+ const second = within(screen.getByRole("group", { name: "Estudio 2" }));
+ fireEvent.change(second.getByLabelText("Nivel"), { target: { value: "master" } });
+ fireEvent.change(second.getByLabelText("Estado"), { target: { value: "in_progress" } });
+ vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "validation_error", reference: { status: 400 }, fields: [{ field: "candidate.education[1].status", code: "invalid" }] });
+ await submit(); await waitFor(() => expect(second.getByLabelText("Estado")).toHaveFocus());
+ expect(within(screen.getByRole("group", { name: "Estudio 1" })).getByLabelText("Estado")).toHaveAttribute("aria-invalid", "false");
+});
+it("validates partial language rows and excludes already selected catalog codes", async () => {
+ mount(); fill(); fireEvent.click(screen.getByRole("button", { name: /Perfil profesional/ }));
+ fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" })); change("Idioma 1", "es"); change("Nivel del idioma 1", "native");
+ fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" }));
+ expect(screen.getByLabelText("Idioma 2")).not.toHaveTextContent("Español");
+ fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
+ await waitFor(() => expect(screen.getByLabelText("Idioma 2")).toHaveFocus());
+ expect(screen.getByLabelText("Nivel del idioma 2")).toHaveAttribute("aria-invalid", "true");
+ expect(submitManualCandidate).not.toHaveBeenCalled();
+});
+it("maps second-language server errors and opens the collapsed profile", async () => {
+ mount(); fill(); fireEvent.click(screen.getByRole("button", { name: /Perfil profesional/ }));
+ fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" })); change("Idioma 1", "es"); change("Nivel del idioma 1", "native");
+ fireEvent.click(screen.getByRole("button", { name: "Agregar idioma" })); change("Idioma 2", "nah"); change("Nivel del idioma 2", "B2");
+ fireEvent.click(screen.getByRole("button", { name: /Perfil profesional/ }));
+ vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "validation_error", reference: { status: 400 }, fields: [{ field: "candidate.languages[1].code", code: "invalid" }] });
+ await submit(); await waitFor(() => expect(screen.getByLabelText("Idioma 2")).toHaveFocus());
+ expect(screen.getByLabelText("Idioma 1")).toHaveAttribute("aria-invalid", "false");
 });
 it("excludes Placement and Descartados from stage choices", () => {
  mount(); expect(screen.getByLabelText("Etapa de ingreso")).not.toHaveTextContent(/Contratación|Descartados/);
