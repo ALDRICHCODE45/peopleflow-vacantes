@@ -326,12 +326,28 @@ type User struct {
 	DeletedAt  pgtype.Timestamptz `json:"deleted_at"`
 }
 
+type VacancyLifecycleEvent struct {
+	ID               uuid.UUID          `json:"id"`
+	ProcessID        uuid.UUID          `json:"process_id"`
+	LifecycleVersion int64              `json:"lifecycle_version"`
+	Action           string             `json:"action"`
+	Process          pgtype.Text        `json:"process"`
+	ActorID          uuid.UUID          `json:"actor_id"`
+	ActorName        string             `json:"actor_name"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
 type VacancyProcess struct {
-	ID          uuid.UUID          `json:"id"`
-	CompanyID   uuid.UUID          `json:"company_id"`
-	Status      string             `json:"status"`
-	PublishedAt pgtype.Timestamptz `json:"published_at"`
-	PublishedBy uuid.UUID          `json:"published_by"`
+	ID                uuid.UUID          `json:"id"`
+	CompanyID         uuid.UUID          `json:"company_id"`
+	Status            string             `json:"status"`
+	PublishedAt       pgtype.Timestamptz `json:"published_at"`
+	PublishedBy       uuid.UUID          `json:"published_by"`
+	ProcessStatus     string             `json:"process_status"`
+	LifecycleVersion  int64              `json:"lifecycle_version"`
+	PausedAt          pgtype.Timestamptz `json:"paused_at"`
+	ClosedAt          pgtype.Timestamptz `json:"closed_at"`
+	ProcessFinishedAt pgtype.Timestamptz `json:"process_finished_at"`
 }
 
 type VacancyPublicProjection struct {
