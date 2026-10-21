@@ -114,7 +114,7 @@ Draft v2 `fields` changes (schema version stays 2; migration rewrites drafts):
 - None of these block publication (INT-22: inform and filter, never reject).
 - Public detail and list items expose `seniority` and a new `requirements_profile`
   `{languages, min_years_of_experience, min_education_level, accepts_in_progress_education}`.
-  Public search filters on these dimensions are **not** in this cut unless requested.
+  Public search filters on these dimensions are cut H5 (§6b).
 
 ## 6. Board snapshot and filters (H4)
 
@@ -130,6 +130,28 @@ Participation `profile` (snapshot for organic, live record for manual — unchan
 client-side filters gain seniority, languages (code + minimum level, CEFR order with
 `native` highest) and education (highest completed ≥ X, optionally counting
 in-progress), and experience buckets become decimal-aware.
+
+## 6b. Public search filters (H5, user decision)
+
+`GET /v2/jobs` gains four optional filter keys, combined with AND across dimensions
+and with every existing filter; repeated values combine with OR within a dimension,
+exactly like `state` and `work_mode`. All errors are `400 invalid_filter`.
+
+| Key | Values | Match |
+| --- | --- | --- |
+| `language` | repeatable catalog code, distinct | vacancy requires **any** of the codes (any `min_level`); vacancies without languages and legacy rows are excluded |
+| `seniority` | repeatable §1 literal, distinct | vacancy seniority is one of them; legacy rows match through their mapped seniority (`mid` → `semi_senior`); null seniority excluded |
+| `years_of_experience` | one decimal string as §1 ("what I have") | `min_years_of_experience` is null or ≤ value; legacy rows match |
+| `education_level` | one §1 education level ("what I have") | `min_education_level` is null or ≤ value in §1 order; legacy rows match |
+
+```
+GET /v2/jobs?language=en&language=fr&seniority=junior&seniority=semi_senior&years_of_experience=1.5&education_level=bachelor
+```
+
+`accepts_in_progress_education` does not participate in public search. Values are
+canonicalized (sorted distinct codes/literals; years normalized to one decimal, so
+`2` and `2.0` bind the same cursor) and appended to the cursor binding only when
+present, so existing cursors stay valid.
 
 ## 7. Data migration (dev data; Risk item 1)
 
@@ -149,4 +171,4 @@ Legacy `jobs.seniority` (v1) is untouched; the public v2 UNION maps legacy `mid`
 ## 8. Cuts
 
 H1 catalog + profile · H2 manual intake · H3 vacancy + public exposure · H4 snapshot +
-board filters. Each cut: migration in its own commit, contract test map in its doc.
+board filters · H5 public search filters. Each cut: migration in its own commit, contract test map in its doc.
