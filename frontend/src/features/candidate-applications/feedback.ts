@@ -2,6 +2,7 @@ import type { Failure } from "./model";
 export function uncertain(failure: Failure) { return ["no_response", "server_error", "unrecognized_response"].includes(failure.reason); }
 export function failureCopy(failure: Failure) {
   const reason = failure.reason;
+  if (reason === "vacancy_not_accepting_applications") return { title: "Esta vacante dejó de recibir postulaciones.", description: "Puedes explorar otras vacantes." };
   if (reason === "applicant_country_required") return { title: "Completa tu país de residencia", description: "No se envió la postulación. Conservamos tus datos; agrega tu país en tu perfil." };
   if (reason === "applicant_country_not_allowed") return { title: "Tu país no está permitido", description: "No se envió la postulación. Conservamos tus datos; revisa los países aceptados por esta vacante." };
   if (reason === "unauthenticated") return { title: "Tu sesión expiró", description: "Tus datos siguen aquí. Ingresa como candidato para continuar." };

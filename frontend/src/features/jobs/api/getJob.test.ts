@@ -16,6 +16,7 @@ vi.mock("../../../lib/env/server", () => ({
   },
 }));
 
+import type { VacancyUnavailableEnvelope } from "./vacancy-availability";
 import type { RequestJsonResult } from "../../../lib/api/server";
 import { serverEnv } from "../../../lib/env/server";
 import { findSampleJob, SAMPLE_JOBS } from "../sample-jobs";
@@ -47,6 +48,17 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("getJob detail read", () => {
+  it.each(["paused", "closed"])("decodes a %s 410 envelope", async availability => {
+    const data = { id: wireJob.id, title: wireJob.title, company: { id: wireJob.company.id, name: wireJob.company.name }, availability };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(410, { error: "Unavailable", code: "vacancy_unavailable", data })));
+    expect(await getJob(wireJob.id)).toMatchObject({ ok: false, envelope: { code: "vacancy_unavailable", data } });
+  });
+  it.each([{}, { availability: "published" }, { title: " " }, { company: { id: "bad", name: "Company" } }, { extra: true }])("rejects malformed 410 data %j", async patch => {
+    const data = { id: wireJob.id, title: wireJob.title, company: { id: wireJob.company.id, name: wireJob.company.name }, availability: "paused", ...patch };
+    if (!Object.keys(patch).length) delete (data as Partial<typeof data>).id;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(ok(410, { error: "Unavailable", code: "vacancy_unavailable", data })));
+    expect(await getJob(wireJob.id)).not.toHaveProperty("envelope");
+  });
   it("rejects malformed identifiers before any environment or transport access", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -109,6 +121,6 @@ describe("getJob detail read", () => {
     await expect(
       (options.queryFn as () => Promise<RequestJsonResult<PublicJobDetail>>)(),
     ).resolves.toEqual({ ok: true, data: publicJobDetailSchema.parse(wireJob) });
-    expectTypeOf(getJob(wireJob.id)).toEqualTypeOf<Promise<RequestJsonResult<PublicJobDetail>>>();
+    expectTypeOf(getJob(wireJob.id)).toEqualTypeOf<Promise<RequestJsonResult<PublicJobDetail, VacancyUnavailableEnvelope>>>();
   });
 });

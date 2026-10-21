@@ -16,6 +16,22 @@ const response = (body: unknown, status = 200) => ({ ok: status < 300, status, j
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("public detail route", () => {
+  it.each(["paused", "closed"])("renders and noindexes %s vacancies", async availability => {
+    const data = { id: vacancyDetail.id, title: vacancyDetail.title, company: { id: vacancyDetail.company.id, name: vacancyDetail.company.name }, availability };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ error: "Unavailable", code: "vacancy_unavailable", data }, 410)));
+    expect(await createVacanteDetailScope().read(data.id)).toEqual({ kind: "unavailable_vacancy", vacancy: data });
+    expect(await generateMetadata({ params: params(data.id) })).toEqual({ title: data.title, robots: { index: false, follow: true } });
+    render(await Page({ params: params(data.id) }));
+    expect(screen.getByRole("heading", { name: availability === "paused" ? "Vacante pausada" : "Vacante cerrada" }).closest('[data-slot="card"]')).not.toBeNull();
+    expect(screen.getByText(new RegExp(data.title))).toBeVisible();
+    expect(screen.getByRole("link", { name: "Ver otras vacantes" })).toHaveAttribute("href", "/vacantes");
+  });
+  it.each([409, 500])("does not treat a lifecycle envelope on HTTP %i as an unavailable vacancy", async status => {
+    const data = { id: vacancyDetail.id, title: "Backend Go", company: { id: vacancyDetail.company.id, name: "Acme" }, availability: "paused" };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response({ error: "Unavailable", code: "vacancy_unavailable", data }, status)));
+    expect(await createVacanteDetailScope().read(data.id)).toMatchObject({ kind: "unavailable" });
+    expect(await generateMetadata({ params: params(data.id) })).toEqual({});
+  });
   it("stays a dynamic server page with a local not-found mapping and no enrichment", () => {
     const source = readFileSync(join(process.cwd(), "src/app/(public)/vacantes/[jobId]/page.tsx"), "utf8");
     expect(source).toMatch(/dynamic\s*=\s*"force-dynamic"/);

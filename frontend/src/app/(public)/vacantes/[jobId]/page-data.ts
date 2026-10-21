@@ -4,6 +4,7 @@ import {
    getJob,
    getJobQueryOptions,
 } from "../../../../features/jobs/api/getJob";
+import type { UnavailableVacancy } from "@/features/jobs/api/vacancy-availability";
 import type { PublicJobDetail } from "../../../../features/jobs/types";
 
 /** Validated detail failure shape, derived without importing the transport façade. */
@@ -19,6 +20,7 @@ type GetJobError = Extract<GetJobResult, { ok: false }>["error"];
 export type VacanteDetailResult =
    | { kind: "found"; job: PublicJobDetail }
    | { kind: "notFound" }
+   | { kind: "unavailable_vacancy"; vacancy: UnavailableVacancy }
    | { kind: "unavailable"; error: GetJobError };
 
 /**
@@ -41,6 +43,9 @@ export function createVacanteDetailScope() {
       // rejection and a backend 404.
       if (result.error.kind === "not_found") {
          return { kind: "notFound" };
+      }
+      if (result.error.kind === "status" && result.error.status === 410 && result.envelope) {
+         return { kind: "unavailable_vacancy", vacancy: result.envelope.data };
       }
       return { kind: "unavailable", error: result.error };
    };

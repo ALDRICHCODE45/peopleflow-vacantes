@@ -1,4 +1,5 @@
 import * as React from "react";
+import { UnavailableVacancyCard } from "@/features/candidate-applications/unavailable-vacancy";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -31,6 +32,7 @@ export async function generateMetadata({
   const { jobId } = await params;
   const result = await getApplicationScope().metadata(jobId);
 
+  if (result.kind === "unavailable_vacancy") return { title: result.vacancy.title, robots: { index: false, follow: true } };
   if (result.kind === "found") {
     // Loaded lazily so route collection during offline builds never triggers
     // the eager environment validation.
@@ -73,6 +75,7 @@ export default async function VacanteApplicationPage({
     throw new Error("La postulación no pudo cargarse");
   }
 
+  if (result.kind === "unavailable_vacancy") return <UnavailableVacancyCard vacancy={result.vacancy} headingLevel={1} />;
   if (result.job.source === "vacancy") return <VacancyApplicationShell job={result.job}><CandidateApplicationWizard job={result.job} /></VacancyApplicationShell>;
   const job = legacyApplicationJob(result.job);
   return (

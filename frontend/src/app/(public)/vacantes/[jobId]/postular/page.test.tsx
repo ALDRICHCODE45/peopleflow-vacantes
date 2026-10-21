@@ -82,6 +82,15 @@ afterEach(() => {
 });
 
 describe("/vacantes/[jobId]/postular route boundaries", () => {
+  it.each(["paused", "closed"])("renders the %s detail StateCard instead of a wizard", async availability => {
+    const data = { id: jobId, title: "Backend Go", company: { id: jobId, name: "Acme" }, availability };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 410, json: async () => ({ error: "Unavailable", code: "vacancy_unavailable", data }) }));
+    const route = await load("page.tsx");
+    render(await route.default({ params: paramsFor(jobId) }));
+    expect(screen.getByRole("heading", { name: availability === "paused" ? "Vacante pausada" : "Vacante cerrada" }).closest('[data-slot="card"]')).not.toBeNull();
+    expect(screen.queryByText("Datos de candidato")).toBeNull();
+    expect(await route.generateMetadata({ params: paramsFor(jobId) })).toEqual({ title: data.title, robots: { index: false, follow: true } });
+  });
   it("stays a dynamic nodejs server component reusing the request-scoped detail scope", () => {
     const source = readRoute();
     expect(source).toMatch(/runtime\s*=\s*"nodejs"/);

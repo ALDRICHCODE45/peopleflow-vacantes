@@ -10,6 +10,25 @@ const fetchMock = vi.fn();
 beforeEach(() => { vi.stubGlobal("fetch", fetchMock); fetchMock.mockReset(); vi.mocked(getActionAccessToken).mockResolvedValue("private-token"); });
 afterEach(() => vi.unstubAllGlobals());
 describe("candidate application contracts", () => {
+  it.each(["paused", "closed"])("maps lifecycle screening and submit failures for %s", async availability => {
+    const data = { id, title: "Backend Go", company: { id, name: "Acme" }, availability };
+    fetchMock.mockImplementation(() => Promise.resolve(Response.json({ error: "Unavailable", code: "vacancy_unavailable", data }, { status: 410 })));
+    expect(await loadScreeningAction(id)).toMatchObject({ reason: "vacancy_unavailable", vacancy: data });
+    fetchMock.mockImplementation(() => Promise.resolve(Response.json({ error: "Unavailable", code: "vacancy_not_accepting_applications", data: { availability } }, { status: 409 })));
+    expect(await submitApplicationAction(id, key, body)).toMatchObject({ reason: "vacancy_not_accepting_applications", availability });
+    fetchMock.mockResolvedValue(Response.json(submitted, { status: 201, headers: { "Idempotency-Replayed": "true" } }));
+    expect(await submitApplicationAction(id, key, body)).toEqual({ ok: true, data: submitted });
+  });
+  it.each([{}, { availability: "published" }, { company: { id, name: " " } }, { extra: true }])("rejects malformed screening availability %j", async patch => {
+    const data = { id, title: "Backend Go", company: { id, name: "Acme" }, availability: "paused", ...patch };
+    if (!Object.keys(patch).length) delete (data as Partial<typeof data>).id;
+    fetchMock.mockResolvedValue(Response.json({ error: "Unavailable", code: "vacancy_unavailable", data }, { status: 410 }));
+    expect(await loadScreeningAction(id)).toMatchObject({ reason: "unrecognized_response" });
+  });
+  it.each([{}, { availability: "published" }, { availability: "paused", extra: true }])("rejects malformed apply availability %j", async data => {
+    fetchMock.mockResolvedValue(Response.json({ error: "Unavailable", code: "vacancy_not_accepting_applications", data }, { status: 409 }));
+    expect(await submitApplicationAction(id, key, body)).toMatchObject({ reason: "unrecognized_response" });
+  });
   it("loads public screening without credentials", async () => {
     fetchMock.mockResolvedValue(Response.json(screening));
     expect(await loadScreening(id)).toEqual({ ok: true, data: screening });

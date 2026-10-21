@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { loadScreeningAction, submitApplicationAction } from "./actions";
 import { CvPicker } from "./cv-picker";
+import { UnavailableVacancyCard } from "./unavailable-vacancy";
 import { failureCopy, uncertain } from "./feedback";
 import type { ApplicationBody, Failure, Result, Screening } from "./model";
 
@@ -101,13 +102,14 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
     void Promise.all([loadScreeningAction(job.id), loadCvsAction()]).then(([form, cvs]) => {
       if (!active) return;
       if (form.ok) setScreening(form.data); else setFailure(form);
-      if (cvs.ok) setLibrary(cvs.data); else { setLibraryError(cvs); if (cvs.reason !== "storage_unavailable") setFailure(libraryFailure(cvs)); }
+      if (cvs.ok) setLibrary(cvs.data); else { setLibraryError(cvs); if (form.ok && cvs.reason !== "storage_unavailable") setFailure(libraryFailure(cvs)); }
     }).catch(() => { if (active) setFailure(noResponse); });
     return () => { active = false; };
   }, [candidate, job.id]);
   const countryGate = useCountryGate(job, !!candidate, failure);
   const steps: Step[] = screening?.questions.length === 0 ? ["Datos", "CV", "Resumen"] : ["Datos", "CV", "Preguntas", "Resumen"];
   const copy = failure ? failureCopy(failure) : undefined;
+  const notAccepting = failure?.reason === "vacancy_not_accepting_applications";
   const isUncertain = !!failure && uncertain(failure) && snapshot.current !== null;
   function report(result: Failure) {
     setFailure(result);
@@ -174,7 +176,7 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
     }
   }
   async function submit() {
-    if (locked.current || !screening || !selected || (!isUncertain && countryGate.blocked)) return;
+    if (locked.current || notAccepting || !screening || !selected || (!isUncertain && countryGate.blocked)) return;
     locked.current = true; setPending(true);
     const body: ApplicationBody = isUncertain && snapshot.current ? snapshot.current : { cv_id: selected, questionnaire_revision: screening.questionnaire_revision, answers: screening.questions.map(question => question.type === "open" ? { question_id: question.id, text: (answers[question.id] ?? "").trim() } : { question_id: question.id, option_id: answers[question.id] ?? "" }) };
     key.current ??= crypto.randomUUID(); snapshot.current = body; setFailure(undefined); setNotice(undefined);
@@ -200,6 +202,7 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
   }
   const applicationsLink = <Link href="/candidato/postulaciones" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Mis postulaciones</Link>;
   if (success) return <ResultCard title="Postulación enviada" state="Enviada" tone="success" description="El equipo recibió tu postulación. Puedes consultarla en Mis postulaciones.">{applicationsLink}</ResultCard>;
+  if (failure?.reason === "vacancy_unavailable" && failure.vacancy) return <UnavailableVacancyCard vacancy={failure.vacancy} />;
   if (failure?.reason === "already_applied") return <ResultCard title="Ya te postulaste a esta vacante" state="Ya enviada" tone="info" description="Consulta tu postulación en Mis postulaciones.">{applicationsLink}</ResultCard>;
   if (failure?.reason === "not_found") return <ResultCard title="Esta vacante ya no está disponible" state="No disponible" description="No puedes enviar una postulación a esta vacante. Puedes explorar otras oportunidades."><Link href="/vacantes" className={buttonVariants({ className: "min-h-10 w-full sm:w-auto" })}>Explorar vacantes</Link></ResultCard>;
   if (!identity) return <Loading />;
@@ -213,7 +216,7 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
   }
   const cv = library.items.find(item => item.id === selected);
   const busy = pending || uploading || loading;
-  const forwardAction = <Button disabled={busy || (step === "Resumen" && !isUncertain && countryGate.blocked)} aria-busy={pending} aria-describedby={copy ? "application-status" : undefined} className="min-h-10 w-full sm:w-auto" onClick={() => step === "Resumen" ? void submit() : next()}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending ? "Enviando…" : step === "Resumen" ? isUncertain ? "Reintentar" : "Enviar postulación" : "Continuar"}</Button>;
+  const forwardAction = <Button disabled={busy || notAccepting || (step === "Resumen" && !isUncertain && countryGate.blocked)} aria-busy={pending} aria-describedby={copy ? "application-status" : undefined} className="min-h-10 w-full sm:w-auto" onClick={() => step === "Resumen" ? void submit() : next()}>{pending && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending ? "Enviando…" : step === "Resumen" ? isUncertain ? "Reintentar" : "Enviar postulación" : "Continuar"}</Button>;
   return <div ref={root} className="flex min-w-0 flex-col gap-6">
     <Progress value={steps.indexOf(step) + 1} max={steps.length} aria-valuetext={`Paso ${steps.indexOf(step) + 1} de ${steps.length}`}><ProgressLabel>{steps.join(" → ")}</ProgressLabel></Progress>
     <Card>
@@ -239,7 +242,7 @@ export function CandidateApplicationWizard({ job }: { job: Job }) {
           <p className="flex items-start gap-2 text-sm text-muted-foreground"><Building2 aria-hidden="true" className="mt-0.5 size-4 shrink-0" /><span className="min-w-0 break-words">{job.company.name}</span></p>
         </div>}
         {step !== "Datos" && !isUncertain && <Button variant="outline" disabled={busy} className="min-h-10 w-full sm:w-auto" onClick={() => go(steps[steps.indexOf(step) - 1])}>Atrás</Button>}
-        {step === "Resumen" || copy ? <ActionBar status={copy ? <ActionStatus id="application-status" tone={failure?.reason === "questionnaire_changed" ? "warning" : "error"} text={copy.title} /> : null}>{forwardAction}</ActionBar> : <div className="flex w-full justify-end sm:ml-auto sm:w-auto">{forwardAction}</div>}
+        {step === "Resumen" || copy ? <ActionBar status={copy ? <ActionStatus id="application-status" tone={failure?.reason === "questionnaire_changed" ? "warning" : "error"} text={copy.title} /> : null}>{forwardAction}{notAccepting && <Link href="/vacantes" className={buttonVariants({ variant: "outline", className: "min-h-10 w-full sm:w-auto" })}>Ver otras vacantes</Link>}</ActionBar> : <div className="flex w-full justify-end sm:ml-auto sm:w-auto">{forwardAction}</div>}
       </CardFooter>
     </Card>
   </div>;

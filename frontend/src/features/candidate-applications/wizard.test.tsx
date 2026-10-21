@@ -97,6 +97,21 @@ it.each(["onsite", "hybrid"])("does not gate %s vacancies", async work_mode => {
   expect(screen.getByRole("button", { name: "Enviar postulación" })).toBeEnabled();
   expect(screen.queryByRole("region", { name: "Países de postulación" })).not.toBeInTheDocument();
 });
+it.each(["paused", "closed"] as const)("replaces screening with the %s StateCard", async availability => {
+  vi.mocked(loadScreeningAction).mockResolvedValue({ ok: false, reason: "vacancy_unavailable", vacancy: { id, title: "Backend Go", company: { id, name: "Acme" }, availability }, reference: {} });
+  mount();
+  expect((await screen.findByRole("heading", { name: availability === "paused" ? "Vacante pausada" : "Vacante cerrada" })).closest('[data-slot="card"]')).not.toBeNull();
+  expect(screen.getByRole("link", { name: "Ver otras vacantes" })).toHaveAttribute("href", "/vacantes");
+  expect(screen.queryByRole("button", { name: "Continuar" })).toBeNull();
+});
+it("disables submission after the vacancy stops accepting applications", async () => {
+  vi.mocked(submitApplicationAction).mockResolvedValue({ ok: false, reason: "vacancy_not_accepting_applications", reference: { status: 409 } });
+  mount(); await toSummary();
+  await user().click(screen.getByRole("button", { name: "Enviar postulación" }));
+  expect(await screen.findByText("Esta vacante dejó de recibir postulaciones.")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Enviar postulación" })).toBeDisabled();
+  expect(screen.getByRole("link", { name: "Ver otras vacantes" })).toHaveAttribute("href", "/vacantes");
+});
 const mount = () => render(<CandidateApplicationWizard job={{ id, title: "Backend Go", company: { name: "Acme" } }} />);
 async function toCv() { await screen.findByDisplayValue("Ana Pérez"); await user().click(screen.getByRole("button", { name: "Continuar" })); await screen.findByRole("button", { name: cv.name }); }
 async function toQuestions() { await toCv(); await user().click(screen.getByRole("button", { name: cv.name })); await user().click(screen.getByRole("button", { name: "Continuar" })); }

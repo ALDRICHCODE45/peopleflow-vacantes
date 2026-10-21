@@ -7,6 +7,8 @@ import { findSampleJob } from "../sample-jobs";
 import { publicJobDetailSchema } from "../schemas";
 import type { PublicJobDetail } from "../types";
 
+import { vacancyUnavailableEnvelopeSchema, type VacancyUnavailableEnvelope } from "./vacancy-availability";
+
 const NOT_FOUND_STATUS = 404;
 
 /**
@@ -32,7 +34,7 @@ export function getJobQueryOptions(jobId: string) {
  */
 export async function getJob(
  jobId: string,
-): Promise<RequestJsonResult<PublicJobDetail>> {
+): Promise<RequestJsonResult<PublicJobDetail, VacancyUnavailableEnvelope>> {
  if (!isValidJobId(jobId)) {
   return {
    ok: false,
@@ -63,6 +65,11 @@ export async function getJob(
 
  return requestJson(url.toString(), {
   decoder: (value: unknown) => publicJobDetailSchema.parse(value),
+  errorDecoder: (value: unknown) => {
+   const envelope = vacancyUnavailableEnvelopeSchema.parse(value);
+   if (envelope.data.id.toLowerCase() !== jobId.toLowerCase()) throw new Error("Unexpected vacancy");
+   return envelope;
+  },
   notFoundStatus: NOT_FOUND_STATUS,
   timeoutMs: serverEnv.apiTimeoutMs,
  });
