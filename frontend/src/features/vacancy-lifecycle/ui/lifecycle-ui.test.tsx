@@ -62,3 +62,15 @@ it("refreshes the parent on a 409 without retrying", async () => {
  await waitFor(() => expect(changed).toHaveBeenCalledWith(lifecycle));
  expect(await screen.findByText("El estado cambió")).toBeVisible(); expect(transitionLifecycleAction).toHaveBeenCalledTimes(1);
 });
+
+it("marks the chosen close option visibly and left-aligns both options (seen in Chromium dark mode)", () => {
+  mount();
+  const keep = screen.getByRole("button", { name: "Seguir con el proceso" });
+  const finish = screen.getByRole("button", { name: "Finalizar el proceso" });
+  for (const option of [keep, finish]) expect(option).toHaveClass("text-left");
+  expect(keep.querySelector('[data-pf-close-choice-check]')).not.toBeNull();
+  expect(finish.querySelector('[data-pf-close-choice-check]')).toBeNull();
+  fireEvent.click(finish);
+  expect(finish.querySelector('[data-pf-close-choice-check]')).not.toBeNull();
+  expect(keep.querySelector('[data-pf-close-choice-check]')).toBeNull();
+});

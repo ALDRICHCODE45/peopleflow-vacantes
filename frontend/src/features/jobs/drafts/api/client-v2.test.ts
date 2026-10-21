@@ -502,7 +502,7 @@ describe("getDraftV2", () => {
 
 describe("saveDraftV2", () => {
   it("decodes write responses without lifecycle: only GETs embed it (§21 L2)", async () => {
-    const { lifecycle: _omit, ...writeEnvelope } = writeEnvelopeV2({ version: "2" });
+    const writeEnvelope = writeEnvelopeV2({ version: "2" });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(200, writeEnvelope, { ETag: ETAG })));
     await expect(saveDraftV2({ token: TOKEN, id: ID, ifMatch: ETAG, body: { fields: { title: "x" } } })).resolves.toMatchObject({ ok: true, data: { version: "2" } });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response(201, writeEnvelope, { ETag: ETAG, "Idempotency-Replayed": "false" })));

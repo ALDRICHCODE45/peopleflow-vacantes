@@ -28,6 +28,13 @@ export const LIFECYCLE_ACTION_UI = {
 type Props = { draftId: string; title: string; action: TransitionAction; snapshot: LifecycleSnapshot; open: boolean; onOpenChange: (open: boolean) => void; onChanged: (view: Lifecycle) => void };
 
 /** A mounted session owns one confirmed intent, including its exact retry headers/body. */
+// Dark mode makes the outline toggle's pressed background nearly invisible on a dialog:
+// the chosen option also gets a primary border and a check.
+const CLOSE_CHOICES = [
+  { value: "continue", label: "Seguir con el proceso", description: "El tablero sigue funcionando; puedes finalizarlo después." },
+  { value: "finish", label: "Finalizar el proceso", description: "El tablero queda en solo lectura y los candidatos activos verán «Vacante cerrada»." },
+] as const;
+
 export function LifecycleActionDialog(props: Props) {
   return props.open ? <ActionSession key={`${props.draftId}-${props.action}`} {...props} /> : null;
 }
@@ -96,8 +103,10 @@ function ActionSession({ draftId, title, action, snapshot, onOpenChange, onChang
   </Dialog>;
   return <ConfirmActionDialog open onOpenChange={onOpenChange} onConfirm={() => void confirm()} icon={ui.icon} title={`¿${ui.label} ${title}?`} description={ui.description} confirmLabel={action === "close" ? "Cerrar vacante" : ui.label} pendingLabel="Aplicando…" pending={pending} confirmDisabled={!snapshot.data.allowed_actions.includes(action)} finalFocus={() => heading.current ?? true} tone={action === "finish_process" || (action === "close" && process === "finish") ? "destructive" : "default"}>
     {action === "close" && <FieldSet><FieldLegend>Proceso interno</FieldLegend><Field><ToggleGroup aria-label="Proceso interno al cerrar" variant="outline" orientation="vertical" className="w-full" value={[process]} onValueChange={values => { if (values[0] === "continue" || values[0] === "finish") setProcess(values[0]); }} disabled={pending}>
-      <ToggleGroupItem value="continue" aria-label="Seguir con el proceso" className="h-auto min-h-10 flex-col items-start whitespace-normal"><span>Seguir con el proceso</span><span>El tablero sigue funcionando; puedes finalizarlo después.</span></ToggleGroupItem>
-      <ToggleGroupItem value="finish" aria-label="Finalizar el proceso" className="h-auto min-h-10 flex-col items-start whitespace-normal"><span>Finalizar el proceso</span><span>El tablero queda en solo lectura y los candidatos activos verán «Vacante cerrada».</span></ToggleGroupItem>
+      {CLOSE_CHOICES.map(choice => <ToggleGroupItem key={choice.value} value={choice.value} aria-label={choice.label} className={`h-auto min-h-10 flex-col items-start gap-1 py-2 text-left whitespace-normal ${process === choice.value ? "border-primary" : ""}`}>
+        <span className="flex w-full items-center justify-between gap-2 font-medium">{choice.label}{process === choice.value && <CircleCheck data-pf-close-choice-check aria-hidden="true" className="text-primary" />}</span>
+        <span className="text-xs font-normal text-muted-foreground">{choice.description}</span>
+      </ToggleGroupItem>)}
     </ToggleGroup></Field></FieldSet>}
   </ConfirmActionDialog>;
 }
