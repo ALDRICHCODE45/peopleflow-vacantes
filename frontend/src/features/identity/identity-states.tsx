@@ -66,7 +66,7 @@ export function RoleBlocked({ kind, area = "candidate" }: { kind: "recruiter" | 
   const label = kind === "candidate" ? "Ir a mi área de candidato" : kind === "no-company" ? "Ir a candidatos" : "Ir a empresa";
   return <StateCard icon={ShieldLock} tone="forbidden" title={title}
     description="Una cuenta tiene un solo rol. Tu cuenta no cambió; para usar otra área necesitas una cuenta con otro email.">
-    <div className="flex w-full flex-col justify-center gap-2 sm:flex-row [&>[data-pf-action-bar]]:w-full sm:[&>[data-pf-action-bar]]:w-auto [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink [&_[data-pf-action-bar-actions]]:max-sm:flex-1"><Button nativeButton={false} role="link" className="h-auto min-h-10 w-full max-w-full whitespace-normal sm:w-auto" render={<Link href={href} />}>{label}</Button><LogoutButton area={area} /></div>
+    <div className="flex w-full flex-col justify-center gap-2 sm:flex-row max-sm:[&_[data-pf-action-bar]]:flex-col-reverse [&_[data-pf-action-bar-actions]]:w-full sm:[&_[data-pf-action-bar-actions]]:w-auto [&>[data-pf-action-bar]]:w-full sm:[&>[data-pf-action-bar]]:w-auto [&_[data-pf-action-bar-actions]]:min-w-0 [&_[data-pf-action-bar-actions]]:shrink [&_[data-pf-action-bar-actions]]:max-sm:flex-1"><Button nativeButton={false} role="link" className="h-auto min-h-10 w-full max-w-full whitespace-normal sm:w-auto" render={<Link href={href} />}>{label}</Button><LogoutButton area={area} /></div>
   </StateCard>;
 }
 

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 
 import { PeopleFlowSidebarLogo } from "@/components/brand/logo"
+import { useIdentity } from "@/features/identity/identity-session"
 import { NavUser } from "./nav-user"
 import {
   Sidebar,
@@ -142,6 +143,8 @@ const ACCOUNT_MENU = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const { result } = useIdentity()
+  const showNavigation = !result?.ok || result.data.role === "recruiter"
   const { state, isMobile } = useSidebar()
 
   return (
@@ -159,6 +162,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
+        {showNavigation && <>
         <SidebarGroup>
           <SidebarGroupLabel>Principal</SidebarGroupLabel>
           <SidebarGroupContent className="flex flex-col gap-2">
@@ -198,6 +202,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           items={data.navOrganization}
           pathname={pathname}
         />
+        </>}
       </SidebarContent>
       <SidebarFooter>
         <NavUser user={data.user} menuItems={ACCOUNT_MENU} />
