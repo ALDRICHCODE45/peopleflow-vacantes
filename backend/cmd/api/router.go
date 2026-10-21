@@ -13,6 +13,7 @@ import (
 	applicationsv2http "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/infrastructure/http/v2"
 	candidateshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http"
 	cvshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/candidates/infrastructure/http/cvs"
+	catalogshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/catalogs/infrastructure/http"
 	companieshttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/companies/infrastructure/http"
 	geohttp "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/http"
 	geopostgres "github.com/aldrichcode45/peopleflow-vacantes/internal/features/geo/infrastructure/postgres"
@@ -93,6 +94,7 @@ func newRouter(d routerDeps) chi.Router {
 	industrieshttp.RegisterRoutes(r, d.queries)
 	// Public reference lookups stay outside authentication and NoStore groups.
 	geohttp.RegisterRoutes(r, geopostgres.NewReader(d.queries))
+	r.Get("/v2/catalogs/languages", catalogshttp.Languages)
 
 	// GET /{id} is a public profile; POST behind RequireAuth (creator becomes owner).
 	companyHandlers := d.companyHandler.CompanyHandlers()
