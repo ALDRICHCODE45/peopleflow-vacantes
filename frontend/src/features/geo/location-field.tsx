@@ -23,7 +23,7 @@ export type LocationFieldProps = {
   defaultCountry?: "MX" | null;
   description?: string;
   disabled?: boolean;
-  errors?: readonly { field: string; reason: "required" | "unknown" | "mismatch" | "not_allowed" }[];
+  errors?: readonly { field: string; reason: "required" | "unknown" | "mismatch" | "not_allowed"; message?: string }[];
 };
 const removedPostal = "Quitamos el código postal porque no corresponde al municipio elegido.";
 type CatalogState = { status: string; data?: Catalog; retry: () => void };
@@ -71,7 +71,7 @@ export function LocationField({ value, onChange, depth, postalCode, required = [
   const defaulted = useRef(value.country !== null);
   const error = (field: keyof LocationValue) => {
     const issue = errors.find(issue => issue.field.split(".").at(-1) === field);
-    return issue ? locationErrorMessages[issue.reason] : undefined;
+    return issue ? issue.message ?? locationErrorMessages[issue.reason] : undefined;
   };
   useEffect(() => {
     if (defaultCountry && !defaulted.current && !value.country && !disabled && catalog.countries.data?.items.some(item => item.id === "MX")) {

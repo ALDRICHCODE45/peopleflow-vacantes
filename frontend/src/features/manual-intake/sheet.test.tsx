@@ -1,6 +1,6 @@
 import type { ComponentProps, ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen as queries, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ManualIntakeSheet } from "./sheet";
 import { submitManualCandidate } from "./upload";
@@ -34,6 +34,9 @@ vi.mock("@/features/geo/use-geo-catalog", () => ({
  useGeoCatalog: () => ({ countries: { status: "success", data: { items: [{ id: "MX", name: "México" }, { id: "US", name: "Estados Unidos" }] } }, states: { status: "success", data: { items: [{ id: "09", name: "Ciudad de México" }] } }, municipalities: { status: "success", data: { items: [{ id: "09002", name: "Azcapotzalco" }] } } }),
  useGeoPostalCode: () => ({ status: "idle" }),
 }));
+// Required markers are visual; keep label assertions focused on their wording.
+const normalizer = (value: string) => value.replace(/\s*\*$/, "").trim();
+const screen = { ...queries, getByLabelText: (label: string | RegExp) => queries.getByLabelText(label, { normalizer }), queryByLabelText: (label: string | RegExp) => queries.queryByLabelText(label, { normalizer }) };
 afterEach(cleanup);
 beforeEach(() => { vi.resetAllMocks(); vi.mocked(checkDuplicatesAction).mockResolvedValue({ ok: true, data: { matches: [] } }); });
 const success = vi.fn(); const viewExisting = vi.fn();
@@ -51,6 +54,60 @@ async function submit() {
 }
 const match = { kind: "manual" as const, id: vacancyId, full_name: "Ana anterior", email_masked: "a***@example.com", phone_masked: null, last_vacancy: "Ventas", last_added_at: "2026-10-21T12:00:00Z", in_this_process: false };
 
+it("focuses the visible picker when CV is the only missing requirement", async () => {
+ mount(); fill(); fireEvent.click(screen.getByRole("button", { name: "Quitar" }));
+ fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
+ await waitFor(() => expect(screen.getByRole("button", { name: "Elegir archivo" })).toHaveFocus());
+ expect(screen.getByText("Revisa 1 dato marcado.")).toBeVisible();
+});
+it("composes the CV picker with change and remove actions", () => {
+ mount(); expect(screen.getByRole("button", { name: "Elegir archivo" })).toBeVisible();
+ expect(screen.getByText("PDF o Word (.docx), máximo 5 MB.")).toBeVisible();
+ fill(); expect(screen.getByText("cv.pdf").closest('[data-slot="item"]')).not.toBeNull();
+ expect(screen.getByRole("button", { name: "Cambiar" })).toBeVisible();
+ fireEvent.click(screen.getByRole("button", { name: "Quitar" }));
+ expect(screen.queryByText("cv.pdf")).not.toBeInTheDocument();
+ expect(screen.getByRole("button", { name: "Elegir archivo" })).toBeVisible();
+});
+it("starts with an optional collapsed profile and labels required inputs", () => {
+ mount(); expect(screen.getByText("* Obligatorio")).toBeVisible();
+ for (const label of ["Nombre completo", "Correo electrónico", "Teléfono", "País", "Nivel máximo de estudios", "CV", "Etapa de ingreso"]) {
+  const control = screen.getByLabelText(label);
+  expect(document.querySelector(`label[for="${control.id}"]`)).toHaveTextContent(/\*/);
+ }
+ const trigger = screen.getByRole("button", { name: /Perfil profesional \(opcional\)/ });
+ expect(trigger).toHaveAttribute("aria-expanded", "false");
+ // No count while nothing is filled: «0 datos» is noise.
+ expect(trigger).not.toHaveTextContent(/\d+ datos?/);
+ fireEvent.click(trigger);
+ // The trigger already says «(opcional)»; no repeated description inside.
+ expect(screen.queryByText("Estos datos son opcionales.")).toBeNull();
+ expect(screen.getByText("Sin idiomas agregados.")).toBeVisible();
+ expect(screen.getByText("Idiomas").closest("fieldset")).not.toBeNull();
+ change("Título profesional", "Ingeniera");
+ expect(trigger).toHaveTextContent("1 dato");
+ change("Empresa actual o última", "Empresa");
+ expect(trigger).toHaveTextContent("2 datos");
+});
+it.each(["required", "invalid", "not_allowed"] as const)("maps data.stage_id %s to the stage control", async code => {
+ mount(); fill(); vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "validation_error", reference: { status: 400 }, fields: [{ field: "data.stage_id", code }] });
+ await submit(); await waitFor(() => expect(screen.getByLabelText("Etapa de ingreso")).toHaveFocus());
+ expect(screen.getByLabelText("Etapa de ingreso")).toHaveAttribute("aria-invalid", "true");
+});
+it("opens the optional profile before focusing a server-invalid field", async () => {
+ mount(); fill(); vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason: "validation_error", reference: { status: 400 }, fields: [{ field: "candidate.professional_title", code: "invalid" }] });
+ await submit();
+ await waitFor(() => expect(screen.getByLabelText("Título profesional")).toHaveFocus());
+ expect(screen.getByRole("button", { name: /Perfil profesional \(opcional\)/ })).toHaveAttribute("aria-expanded", "true");
+});
+it("shows one shared contact error, specific residence copy and a validation count", async () => {
+ mount(); fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
+ expect(screen.getByLabelText("Correo electrónico")).toHaveAttribute("aria-invalid", "true");
+ expect(screen.getByLabelText("Teléfono")).toHaveAttribute("aria-invalid", "true");
+ expect(screen.getAllByText("Agrega un correo o un teléfono.")).toHaveLength(1);
+ expect(screen.getByText("Elige un país.")).toBeVisible();
+ expect(screen.getByText(/Revisa \d+ datos marcados\./)).toBeVisible();
+});
 it("validates required controls and focuses name without sending", async () => {
  mount(); fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
  await waitFor(() => expect(screen.getByLabelText("Nombre completo")).toHaveFocus());
@@ -59,6 +116,13 @@ it("validates required controls and focuses name without sending", async () => {
  expect(screen.getByText("Selecciona el nivel de estudios.")).toBeVisible();
  expect(screen.getByText("Selecciona un CV.")).toBeVisible();
  expect(submitManualCandidate).not.toHaveBeenCalled();
+});
+it("clears the CV error as soon as a file is chosen", async () => {
+ mount(); fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
+ await waitFor(() => expect(screen.getByText("Selecciona un CV.")).toBeVisible());
+ fireEvent.change(screen.getByLabelText("CV"), { target: { files: [new File(["%PDF"], "cv.pdf", { type: "application/pdf" })] } });
+ expect(screen.queryByText("Selecciona un CV.")).toBeNull();
+ expect(screen.getByText("Revisa 4 datos marcados.")).toBeVisible();
 });
 it("defaults to the first stage and exposes no private profile fields", () => {
  mount(); expect(screen.getByLabelText("Etapa de ingreso")).toHaveTextContent("Entrada");
@@ -144,10 +208,10 @@ it.each([["+52", "123456789"], ["+1", "12345"], ["52", "5512345678"]])("rejects 
 });
 it.each([["cv.exe", "application/x-msdownload", 5], ["cv.pdf", "application/pdf", 5_242_881], ["cv.pdf", "application/pdf", 0]])("validates CV %s/%s/%s before submission", async (name, type, size) => {
  mount(); fill(); const file = new File([new Uint8Array(size)], name, { type }); fireEvent.change(screen.getByLabelText("CV"), { target: { files: [file] } });
- fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" })); await waitFor(() => expect(screen.getByLabelText("CV")).toHaveFocus()); expect(submitManualCandidate).not.toHaveBeenCalled();
+ fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" })); await waitFor(() => expect(screen.getByRole("button", { name: "Cambiar" })).toHaveFocus()); expect(submitManualCandidate).not.toHaveBeenCalled();
 });
 it.each(["0.5", "61", "-1"])("rejects experience %s", async value => {
- mount(); fill(); change("Años de experiencia", value); fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
+ mount(); fill(); fireEvent.click(screen.getByRole("button", { name: /Perfil profesional \(opcional\)/ })); change("Años de experiencia", value); fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
  await waitFor(() => expect(screen.getByLabelText("Años de experiencia")).toHaveFocus()); expect(submitManualCandidate).not.toHaveBeenCalled();
 });
 it("excludes Placement and Descartados from stage choices", () => {
@@ -163,4 +227,10 @@ it.each([
 ])("shows the dedicated %s message", async (reason, message) => {
  mount(); fill(); vi.mocked(submitManualCandidate).mockResolvedValue({ ok: false, reason, reference: { code: reason } }); await submit();
  await waitFor(() => expect(screen.getAllByText(message).length).toBeGreaterThan(0));
+});
+it("stacks the footer status above the actions on small screens instead of squeezing it", () => {
+ mount();
+ const footer = document.querySelector('[data-slot="sheet-footer"]')!;
+ expect(footer.className).toContain("max-sm:[&_[data-pf-action-bar]]:flex-col");
+ expect(footer.className).not.toContain("wrap-anywhere");
 });

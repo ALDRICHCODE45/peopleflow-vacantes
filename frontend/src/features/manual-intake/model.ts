@@ -7,7 +7,8 @@ import { deliverySummarySchema } from "@/features/jobs/drafts/pipeline/fulfillme
 export const cvLimits = { max_cvs: 1, max_bytes: HARD_MAX_BYTES, content_types: [...CONTENT_TYPES] };
 export const intakeResponseSchema = participationSchema.extend({ coverage: coverageSchema, delivery: deliverySummarySchema }).strict();
 export type IntakeResponse = z.infer<typeof intakeResponseSchema>;
-export const contactSchema = z.object({ email: z.string().trim().email().nullable(), phone: z.string().regex(/^\+[1-9]\d{6,14}$/).nullable() }).strict().refine(value => value.email !== null || value.phone !== null);
+export const phoneSchema = z.string().regex(/^\+[1-9]\d{7,14}$/).refine(value => !value.startsWith("+52") || value.length === 13);
+export const contactSchema = z.object({ email: z.string().trim().email().nullable(), phone: phoneSchema.nullable() }).strict().refine(value => value.email !== null || value.phone !== null);
 export const matchSchema = z.object({
   kind: z.enum(["manual", "organic"]), id: uuidSchema, full_name: z.string(), email_masked: z.string().nullable(), phone_masked: z.string().nullable(),
   last_vacancy: z.string().nullable(), last_added_at: z.string().datetime({ offset: true }), in_this_process: z.boolean(),
@@ -22,7 +23,7 @@ export type IntakeResult<T> = { ok: true; data: T } | IntakeFailure;
 const short = z.string().trim().min(1).max(120);
 const url = z.string().trim().url().max(2048).refine(value => value.startsWith("https://"));
 export const candidateSchema = z.object({
-  full_name: short, education_level: z.enum(EDUCATION_LEVELS), email: z.string().trim().email().nullable(), phone: z.string().regex(/^\+[1-9]\d{6,14}$/).nullable(),
+  full_name: short, education_level: z.enum(EDUCATION_LEVELS), email: z.string().trim().email().nullable(), phone: phoneSchema.nullable(),
   residence: z.object({ country: z.string().regex(/^[A-Z]{2}$/), state: z.string().regex(/^\d{2}$/).nullable(), municipality: z.string().regex(/^\d{5}$/).nullable(), postal_code: z.string().regex(/^\d{5}$/).nullable() }).strict(),
   professional_title: short.optional(), current_company: short.optional(), field_of_study: short.optional(), experience_years: z.number().int().min(0).max(60).optional(),
   summary: z.string().trim().min(1).max(2000).optional(), skills: z.array(z.string().trim().min(1).max(60)).max(30).optional(),

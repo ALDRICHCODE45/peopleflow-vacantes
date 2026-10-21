@@ -1,6 +1,6 @@
 import type { LocationValue } from "@/features/geo/model";
 import { uploadValidation } from "@/features/candidate-cvs/model";
-import { candidateSchema, cvLimits, type Candidate, type FieldIssue, type IntakeBody } from "./model";
+import { candidateSchema, phoneSchema, cvLimits, type Candidate, type FieldIssue, type IntakeBody } from "./model";
 export type Draft = {
   full_name: string; email: string; phone: string; dial: string; education_level: string; residence: LocationValue;
   professional_title: string; current_company: string; field_of_study: string; experience_years: string; summary: string; skills: string;
@@ -10,7 +10,7 @@ export const emptyDraft = (): Draft => ({ full_name: "", email: "", phone: "", d
 export function phoneValue(dial: string, phone: string): string | null {
   if (!phone.trim()) return null;
   const digits = phone.replace(/[\s()-]/g, "");
-  if (!/^\+[1-9]\d{0,2}$/.test(dial) || !(dial === "+52" ? /^\d{10}$/ : /^\d{6,14}$/).test(digits) || dial.length - 1 + digits.length > 15) return null;
+  if (!/^\+[1-9]\d{0,2}$/.test(dial) || !/^\d+$/.test(digits) || !phoneSchema.safeParse(dial + digits).success) return null;
   return dial + digits;
 }
 export function contact(draft: Draft) { return { email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim()) ? draft.email.trim() : null, phone: phoneValue(draft.dial, draft.phone) }; }
@@ -19,12 +19,17 @@ export function serverErrors(issues: FieldIssue[]): Errors {
  const messages = { required: "Completa este dato.", invalid: "Revisa este dato.", too_long: "Este dato es demasiado largo.", not_allowed: "Este dato no se permite aquí.", duplicate: "Quita el valor repetido." };
  const errors: Errors = {};
  for (const issue of issues) {
-  let path = issue.field.replace(/^candidate\./, "");
+  let path = issue.field.replace(/^data\./, "").replace(/^candidate\./, "");
+  if (path === "stage_id") {
+   errors.stage_id = issue.code === "required" ? "Elige una etapa de ingreso." : issue.code === "not_allowed" ? "Esta etapa no permite ingresos. Elige otra." : "Elige una etapa de ingreso válida.";
+   continue;
+  }
   if (path === "candidate") path = "full_name";
-  if (path === "contact") path = "email";
+  if (path === "contact") { errors.contact = "Agrega un correo o un teléfono."; continue; }
   if (path === "residence") path = "residence.country";
   if (path.startsWith("skills[")) path = "skills";
-  errors[path] ??= messages[issue.code];
+  const residenceRequired: Errors = { "residence.country": "Elige un país.", "residence.state": "Elige un estado.", "residence.municipality": "Elige un municipio." };
+  errors[path] ??= (issue.code === "required" ? residenceRequired[path] : undefined) ?? messages[issue.code];
  }
  return errors;
 }
@@ -38,8 +43,8 @@ export function prepare(draft: Draft, stage: string, existing: IntakeBody["exist
  if (draft.languages.length) raw.languages = draft.languages.map(row => ({ language: row.language.trim(), level: row.level }));
  if (!existing) {
   if (!raw.full_name) errors.full_name = "Escribe el nombre completo.";
-  if (!draft.email.trim() && !draft.phone.trim()) errors.email = "Agrega un correo o un teléfono.";
-  if (draft.phone.trim() && !raw.phone) errors.phone = draft.dial === "+52" ? "Escribe los 10 dígitos del teléfono en México." : "Escribe una lada válida y entre 6 y 14 dígitos.";
+  if (!draft.email.trim() && !draft.phone.trim()) errors.contact = "Agrega un correo o un teléfono.";
+  if (draft.phone.trim() && !raw.phone) errors.phone = draft.dial === "+52" ? "Escribe los 10 dígitos del teléfono en México." : "Escribe una lada y un número válidos, de 8 a 15 dígitos en total.";
   if (!draft.education_level) errors.education_level = "Selecciona el nivel de estudios.";
   if (!draft.residence.country) errors["residence.country"] = "Elige un país.";
   if (draft.residence.country === "MX") {

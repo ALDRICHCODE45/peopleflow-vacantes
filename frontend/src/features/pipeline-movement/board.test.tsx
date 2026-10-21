@@ -125,9 +125,9 @@ it("adds a manual card in place, focuses it and shows its origin in the sheet", 
   vi.mocked(checkDuplicatesAction).mockResolvedValue({ ok: true, data: { matches: [{ kind: "manual", id: "new-person", full_name: "María Nueva", email_masked: "m***@test.com", phone_masked: null, last_vacancy: "Ventas", last_added_at: added.applied_at, in_this_process: false }] } });
   vi.mocked(submitManualCandidate).mockResolvedValue({ ok: true, data: added });
   await mount(board); fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
-  fireEvent.change(screen.getByLabelText("Correo electrónico"), { target: { value: "maria@test.com" } }); fireEvent.blur(screen.getByLabelText("Correo electrónico"));
+  fireEvent.change(screen.getByRole("textbox", { name: "Correo electrónico" }), { target: { value: "maria@test.com" } }); fireEvent.blur(screen.getByRole("textbox", { name: "Correo electrónico" }));
   fireEvent.click(await screen.findByRole("button", { name: "Usar el existente" }));
-  fireEvent.change(screen.getByLabelText("CV"), { target: { files: [new File(["pdf"], "cv.pdf", { type: "application/pdf" })] } });
+  fireEvent.change(screen.getByLabelText(/^CV/), { target: { files: [new File(["pdf"], "cv.pdf", { type: "application/pdf" })] } });
   fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
   await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Agregar" })); });
   const card = await screen.findByRole("button", { name: "Ver detalle de María Nueva" });
