@@ -77,9 +77,10 @@ func TestPublicationPureReadPublishReplayFrozenAuditAndVersions(t *testing.T) {
 	}
 	for i, read := range reads {
 		after, err := read(ctx, p.companyID, p.ownerID, id)
-		if err != nil || !reflect.DeepEqual(after, originals[i]) {
-			t.Fatalf("publish changed resource %d: %v", i, err)
+		if err != nil {
+			t.Fatalf("read resource %d after publication: %v", i, err)
 		}
+		assertPublicationResourceUnchanged(t, originals[i], after, i < 2)
 	}
 	var actor uuid.UUID
 	var at time.Time

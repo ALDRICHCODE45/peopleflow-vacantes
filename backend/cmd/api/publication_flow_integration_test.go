@@ -73,7 +73,7 @@ func TestPublicationFlowReadyPublishReplayVersionsAuditAndList(t *testing.T) {
 	}
 	for suffix, original := range originals {
 		got := h.do(t, "GET", base+suffix, "", owner.token, nil)
-		if got.status != 200 || !bytes.Equal(got.body, original.body) || got.header.Get("ETag") != original.header.Get("ETag") {
+		if got.status != 200 || !bytes.Equal(lifecycleFlowWithoutView(t, got.body), lifecycleFlowWithoutView(t, original.body)) || got.header.Get("ETag") != original.header.Get("ETag") {
 			t.Fatalf("publish changed %s", suffix)
 		}
 	}
@@ -103,9 +103,15 @@ func TestPublicationFlowReadyPublishReplayVersionsAuditAndList(t *testing.T) {
 	_ = json.Unmarshal(listAfter.body, &pageAfter)
 	items := pageBefore["items"].([]any)
 	items[0].(map[string]any)["status"] = "published"
+	items[0].(map[string]any)["process"] = "active"
 	items[0].(map[string]any)["published_at"] = obj["publishedAt"]
+	stages := []any{}
+	for _, stage := range pipelineconfig.Defaults(uuid.MustParse(id)).Stages {
+		stages = append(stages, map[string]any{"id": stage.ID, "kind": stage.Kind, "name": stage.Name, "count": float64(0)})
+	}
+	items[0].(map[string]any)["candidates"] = map[string]any{"total": float64(0), "in_process": float64(0), "discarded": float64(0), "by_stage": stages}
 	if listAfter.status != 200 || !reflect.DeepEqual(pageBefore, pageAfter) {
-		t.Fatalf("list changed beyond two keys: %s", listAfter.body)
+		t.Fatalf("list changed beyond lifecycle list keys: %s", listAfter.body)
 	}
 	// Edit after publication, then replay without If-Match: frozen original 201.
 	changed := h.do(t, "PATCH", base, `{"fields":{"title":"Updated offer"}}`, owner.token, map[string]string{"If-Match": published.header.Get("ETag")})

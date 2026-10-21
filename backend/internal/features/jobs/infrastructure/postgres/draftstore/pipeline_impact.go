@@ -19,6 +19,9 @@ func (s *Store) PreviewPipeline(ctx context.Context, company, actor, id uuid.UUI
 	if err = s.authorizePipeline(ctx, tx, company, actor, id, true); err != nil {
 		return pc.Preview{}, err
 	}
+	if err = requireActiveProcess(ctx, tx, id); err != nil {
+		return pc.Preview{}, err
+	}
 	if _, err = lockDeliveryProcess(ctx, tx, id); err != nil {
 		return pc.Preview{}, err
 	}

@@ -90,7 +90,7 @@ func TestSubstateSetClearNoOpWireSnapshotsAndCatalog(t *testing.T) {
 	}
 	assertBoardMatchesMutationItem(t, view.Participations[0], m.item, initial)
 	raw, _ := json.Marshal(view)
-	obj := movementKeys(t, movementObject(t, raw), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages", "screening_filters")
+	obj := movementKeys(t, movementObject(t, raw), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages", "screening_filters", "lifecycle")
 	entries := obj["substates"].([]any)
 	if len(entries) != 2 {
 		t.Fatal(obj)

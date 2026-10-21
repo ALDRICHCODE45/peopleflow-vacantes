@@ -18,7 +18,7 @@ import (
 // from intake/movement transactions through application-owned composition ports.
 func lockDeliveryProcess(ctx context.Context, tx pgx.Tx, id uuid.UUID) (bool, error) {
 	var found uuid.UUID
-	err := tx.QueryRow(ctx, `SELECT id FROM vacancy_processes WHERE id=$1 AND status='published' FOR UPDATE`, id).Scan(&found)
+	err := tx.QueryRow(ctx, `SELECT id FROM vacancy_processes WHERE id=$1 FOR UPDATE`, id).Scan(&found)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}

@@ -80,6 +80,9 @@ func TestColumnsPreviewAppliedEchoAtomicityAndDeliveryReach(t *testing.T) {
 	}
 	raw, _ := json.Marshal(preview)
 	obj := movementKeys(t, movementObject(t, raw), "stages", "not_applicable", "recovery_reassigned", "has_impact")
+	if _, present := obj["lifecycle"]; present {
+		t.Fatal("preview must not embed lifecycle")
+	}
 	movementKeys(t, obj["not_applicable"].([]any)[0], "participation_id", "candidate", "stage_id")
 	for _, s := range obj["stages"].([]any) {
 		movementKeys(t, s, "id", "kind", "name")
@@ -108,6 +111,9 @@ func TestColumnsPreviewAppliedEchoAtomicityAndDeliveryReach(t *testing.T) {
 		t.Fatal(applied, preview)
 	}
 	obj = movementKeys(t, movementObject(t, saved.Body), "version", "structure_locked", "stages", "exit", "limits", "retired", "applied_impact")
+	if _, present := obj["lifecycle"]; present {
+		t.Fatal("PUT must not embed lifecycle")
+	}
 	movementKeys(t, obj["applied_impact"], "not_applicable", "recovery_reassigned")
 	afterBoard, err := m.board.Board(ctx, m.company, m.recruiter, m.vacancy)
 	if err != nil || !reflect.DeepEqual(afterBoard.Participations[0], m.item) || !reflect.DeepEqual(afterBoard.Coverage, beforeBoard.Coverage) || afterBoard.Delivery != beforeBoard.Delivery {
@@ -150,7 +156,7 @@ func TestColumnsPreviewAppliedEchoAtomicityAndDeliveryReach(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	movementKeys(t, movementObject(t, get.Body), "version", "structure_locked", "stages", "exit", "limits", "retired")
+	movementKeys(t, movementObject(t, get.Body), "version", "structure_locked", "stages", "exit", "limits", "retired", "lifecycle")
 	current.Stages[1].Name = "Renamed"
 	if _, err = m.drafts.PutPipeline(ctx, m.company, m.recruiter, m.vacancy, saved.ETag, true, movementPipelineBody(t, current)); err != nil {
 		t.Fatal(err)
@@ -415,7 +421,7 @@ func TestColumnsRemoveOccupiedCutoffAndDiscardedRecovery(t *testing.T) {
 				t.Fatal(view, err)
 			}
 			rawBoard, _ := json.Marshal(view)
-			boardWire := movementKeys(t, movementObject(t, rawBoard), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages", "screening_filters")
+			boardWire := movementKeys(t, movementObject(t, rawBoard), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages", "screening_filters", "lifecycle")
 			movementKeys(t, boardWire["retired_stages"].([]any)[0], "id", "kind", "name")
 			movementKeys(t, boardWire["participations"].([]any)[0].(map[string]any)["discard"], "reason", "discarded_at", "previous_stage_id", "recovery_stage_id")
 			for _, tc := range []struct {

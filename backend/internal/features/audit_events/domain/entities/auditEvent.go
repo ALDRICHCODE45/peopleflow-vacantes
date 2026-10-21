@@ -53,6 +53,12 @@ const (
 	// EventJobDraftRequesterCreated records one immutable requester catalog
 	// entry, emitted inside the catalog insert transaction.
 	EventJobDraftRequesterCreated = "JobDraftRequesterCreated"
+	// Vacancy lifecycle events are co-written with state and vacancy-level history.
+	EventVacancyPaused          = "VacancyPaused"
+	EventVacancyResumed         = "VacancyResumed"
+	EventVacancyClosed          = "VacancyClosed"
+	EventVacancyProcessFinished = "VacancyProcessFinished"
+	EventVacancyReopened        = "VacancyReopened"
 )
 
 // Entity-type constants — companion to the closed event set.

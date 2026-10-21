@@ -100,7 +100,7 @@ func TestPipeline_DefaultReadSaveNoOpAuditAndIndependentVersions(t *testing.T) {
 		t.Fatalf("audit actor=%s metadata=%s", actor, raw)
 	}
 	draft, err := s.GetV2(ctx, p.companyID, p.ownerID, id)
-	if err != nil || draft.ETag != created.ETag || !bytes.Equal(draft.Body, created.Body) {
+	if err != nil || draft.ETag != created.ETag || !bytes.Equal(withoutLifecycle(t, draft.Body), created.Body) {
 		t.Fatalf("pipeline PUT changed draft: %+v %v", draft, err)
 	}
 	before = pipelineSnapshot(t, pool, id)

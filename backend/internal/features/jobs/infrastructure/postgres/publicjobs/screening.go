@@ -10,6 +10,9 @@ import (
 )
 
 func (s *Store) Screening(ctx context.Context, id uuid.UUID) (catalog.Screening, error) {
+	if err := s.unavailable(ctx, id); err != nil {
+		return catalog.Screening{}, err
+	}
 	source, err := s.queries.GetPublishedScreeningSource(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return catalog.Screening{}, catalog.ErrNotFound

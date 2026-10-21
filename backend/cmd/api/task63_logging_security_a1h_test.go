@@ -22,6 +22,11 @@ const (
 )
 
 func TestTask63A1h_RuntimeHandlerSlogCallCensus(t *testing.T) {
+	// Lifecycle transport adds no terminal logging: completion middleware owns
+	// the single bounded record, not request bodies, history names or errors.
+	if calls := t63A1hScanFile(t, "../../internal/features/jobs/infrastructure/http/lifecycleHandler.go", "lifecycleHandler.go"); len(calls) != 0 {
+		t.Fatalf("lifecycle must add zero handler log calls: %+v", calls)
+	}
 	calls := t63A1hProductCensus(t)
 	if len(calls) != 17 {
 		t.Fatalf("slog terminal calls = %d, want 17", len(calls))

@@ -32,7 +32,7 @@ func (s *Store) Recover(ctx context.Context, company, actor, id, pid uuid.UUID, 
 func (s *Store) discardOrRecover(ctx context.Context, company, actor, id, pid uuid.UUID, tag string, present bool, body []byte, recovering bool) (app.Moved, error) {
 	// Same live authorization and fixed draft -> process -> participation lock order
 	// as moves. Preconditions are checked against the locked item, before state guards.
-	tx, p, err := s.begin(ctx, company, actor, id)
+	tx, p, err := s.beginMutation(ctx, company, actor, id)
 	if err != nil {
 		return app.Moved{}, err
 	}

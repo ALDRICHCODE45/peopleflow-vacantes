@@ -27,6 +27,10 @@ import (
 
 type movementContext struct{ s *draftstore.Store }
 
+func (m movementContext) Lifecycle(ctx context.Context, tx pgx.Tx, id uuid.UUID) (json.RawMessage, error) {
+	return m.s.LifecycleView(ctx, tx, id)
+}
+
 func (m movementContext) Screening(fields []byte) (app.Screening, error) {
 	return (testVacancyRules{}).Screening(fields)
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/lifecycle"
 	pc "github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/pipelineconfig"
 	"github.com/google/uuid"
 )
@@ -22,14 +23,19 @@ func TestColumnPipelineGetPutExactWireKeys(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// The base configuration renderer is shared with PUT; GET alone embeds
+		// the L1 lifecycle view after reading it in the surrounding transaction.
+		if !put {
+			result.Body, err = renderWithLifecycle(result.Body, lifecycle.View{Version: "0", AllowedActions: []string{"publish"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
 		var obj map[string]any
 		if err = json.Unmarshal(result.Body, &obj); err != nil {
 			t.Fatal(err)
 		}
-		want := 6
-		if put {
-			want++
-		}
+		want := 7
 		if len(obj) != want || obj["version"] != "4" || obj["structure_locked"] != true || obj["stages"] == nil || obj["exit"] == nil || obj["limits"] == nil || obj["retired"] == nil {
 			t.Fatal(string(result.Body))
 		}
@@ -48,6 +54,10 @@ func TestColumnPipelineGetPutExactWireKeys(t *testing.T) {
 				t.Fatal(impact)
 			}
 		} else {
+			view := obj["lifecycle"].(map[string]any)
+			if len(view) != 8 || view["publication"] != nil || view["process"] != nil || view["version"] != "0" {
+				t.Fatal(view)
+			}
 			if _, present := obj["applied_impact"]; present {
 				t.Fatal(obj)
 			}

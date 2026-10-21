@@ -441,7 +441,7 @@ func TestSaveV2_ConcurrentSameTagOneWinner(t *testing.T) {
 	}
 	// The winner's response is exactly the current read projection.
 	current, err := s.GetV2(context.Background(), p.companyID, p.ownerID, id)
-	if err != nil || !bytes.Equal(current.Body, winner.Body) || current.ETag != winner.ETag {
+	if err != nil || !bytes.Equal(withoutLifecycle(t, current.Body), winner.Body) || current.ETag != winner.ETag {
 		t.Fatalf("winner response != GetV2: current=%+v err=%v", current, err)
 	}
 	if winner.ETag != ifMatchV2For(t, id, 2) {

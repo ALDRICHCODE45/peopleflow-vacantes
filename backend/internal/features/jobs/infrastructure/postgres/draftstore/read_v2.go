@@ -46,6 +46,10 @@ func (s *Store) GetV2(ctx context.Context, companyID, actorID, id uuid.UUID) (dr
 	if err != nil {
 		return drafts.Result{}, err
 	}
+	body, err = embedLifecycle(ctx, tx, id, body)
+	if err != nil {
+		return drafts.Result{}, err
+	}
 	etag, err := draftversion.FormatETagV2(record.id.String(), record.version)
 	if err != nil {
 		return drafts.Result{}, fmt.Errorf("format get v2 etag: %w", err)

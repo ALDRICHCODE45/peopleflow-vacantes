@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	intake "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
@@ -14,6 +15,10 @@ import (
 
 // Composition bridge keeps participation views independent of jobs internals.
 type movementContext struct{ store *draftstore.Store }
+
+func (m movementContext) Lifecycle(ctx context.Context, tx pgx.Tx, id uuid.UUID) (json.RawMessage, error) {
+	return m.store.LifecycleView(ctx, tx, id)
+}
 
 func (m movementContext) Screening(fields []byte) (intake.Screening, error) {
 	return (participationRules{}).Screening(fields)

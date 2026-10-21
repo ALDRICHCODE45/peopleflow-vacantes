@@ -72,7 +72,12 @@ without a cursor shows it again.
       "principal_recruiter": { "id": "0192a000-0000-7000-8000-000000000002", "name": "Ana Pérez" },
       "version": "7",
       "status": "draft",
+      "process": null,
       "published_at": null,
+      "paused_at": null,
+      "closed_at": null,
+      "process_finished_at": null,
+      "candidates": null,
       "created_at": "2026-10-01T09:00:00.000001Z",
       "updated_at": "2026-10-15T12:30:45.123456Z"
     }
@@ -90,15 +95,92 @@ without a cursor shows it again.
 | `requester` | `null` when the draft has no requester. Otherwise `kind`, `id` (`null` when only the kind was chosen) and `name` (catalog name; `null` exactly when `id` is `null`). |
 | `principal_recruiter` | `id` of the principal recruiter and `name` (`users.full_name`), `null` only when that user was deleted. |
 | `version` | Decimal string, the same value as the draft read envelope. It is for display only: save with the `ETag` of `GET /v2/me/company/job-drafts/{id}`. |
-| `status` | Strict enum `draft` or `published`, derived from the process record; published vacancies remain in this list. |
-| `published_at` | Publication instant as RFC 3339 UTC (six fractional digits), or `null` when still draft. |
+| `status` | Strict enum `draft`, `published`, `paused` or `closed`, derived from the process record; all states remain in this list. |
+| `process` | Always present: `null` for never-published drafts, otherwise `active` or `finished`. Finished implies closed publication. |
+| `published_at` | Latest publication, resume or reopen instant as RFC 3339 UTC (six fractional digits), or `null` for a never-published draft. |
+| `paused_at` | Latest pause instant in the same format, or `null` if never paused. Retained after resume/reopen. |
+| `closed_at` | Latest close instant in the same format, or `null` if never closed. Retained after reopen. |
+| `process_finished_at` | Latest process-finish instant (separate finish or close-and-finish) in the same format, or `null` if never finished. Retained after reopen. |
+| `candidates` | Always present: `null` without a `vacancy_processes` row; otherwise live participation counts, described below. |
 | `created_at`, `updated_at` | UTC, six fractional digits, the same values as the draft read envelope. |
 
-P1 adds exactly `status` and `published_at` to each item. Publication does not
-change the draft version, timestamps, ordering, cursor or visibility/filtering
-rules. The frontend labels published rows “Activa” and removes them from its
-Borradores tab; the backend still returns both states. See
-[vacancy-publication.md](vacancy-publication.md) for readiness and publication.
+P1 added `status` and `published_at`; L2 adds `process`; the candidate-summary
+addition adds `candidates`; the lifecycle-date addition adds `paused_at`,
+`closed_at` and `process_finished_at` (16 keys per item).
+Lifecycle transitions do not change draft versions, `created_at`/`updated_at`, ordering, cursors
+or visibility/filtering. Badges: Borrador, Publicada, Pausada, Cerrada · proceso en
+curso, Cerrada · proceso finalizado. The backend returns every state; see
+[vacancy-lifecycle.md](vacancy-lifecycle.md) for actions and the two axes.
+
+## Lifecycle dates for list display
+
+The flat date fields come from the same `vacancy_processes` row and have exactly
+the values returned by `GET /v2/me/company/job-drafts/{id}/lifecycle`. All four
+are `null` for never-published drafts. Each records the **latest** transition of
+its kind, not the first one. Resume/reopen refreshes `published_at` but retains
+historical `paused_at`, `closed_at` and `process_finished_at`; do not infer the
+current state from whether a historical timestamp is present.
+
+Choose the displayed date using both current axes:
+
+| Current state | Display date |
+| --- | --- |
+| `draft` | None (all lifecycle dates are `null`). |
+| `published` | `published_at` |
+| `paused` | `paused_at` |
+| `closed` + `active` process | `closed_at` |
+| `closed` + `finished` process | `process_finished_at` |
+
+The date columns are selected in the existing single page-scoped statement;
+there are no extra queries or migrations.
+
+## Live candidate summary
+
+For a published-once vacancy, including paused, closed and finished processes,
+`candidates` is an object even when all counts are zero. For example:
+
+```json
+{
+  "total": 4,
+  "in_process": 2,
+  "discarded": 1,
+  "by_stage": [
+    { "id": "0192a000-0000-7000-8000-000000000010", "kind": "new", "name": "Nuevos", "count": 1 },
+    { "id": "0192a000-0000-7000-8000-000000000011", "kind": "screening", "name": "Screening", "count": 0 },
+    { "id": "0192a000-0000-7000-8000-000000000012", "kind": "screening_ok", "name": "Screening OK", "count": 0 },
+    { "id": "0192a000-0000-7000-8000-000000000013", "kind": "custom", "name": "Prueba técnica", "count": 2 },
+    { "id": "0192a000-0000-7000-8000-000000000014", "kind": "in_process", "name": "En proceso", "count": 0 },
+    { "id": "0192a000-0000-7000-8000-000000000015", "kind": "placement", "name": "Placement", "count": 0 }
+  ]
+}
+```
+
+- `total`: every participation of this vacancy, active plus discarded.
+- `discarded`: participations with a current discard (`discarded_at` is non-null).
+- `in_process`: active participations in **any** current progression stage other
+  than kind `new`; this is not just the stage whose kind is `in_process`.
+- `by_stage`: active counts for **every** current progression stage, including
+  zeros, with the board's IDs, semantic kinds, current names and current order.
+  The discarded exit and retired/removed stages are not listed. Without a stored
+  configuration the same deterministic defaults as the board apply.
+
+Discard removes a candidate from their progression count, not from `total`;
+recovery counts them in the selected current recovery stage. Cut 7 prevents
+retiring an occupied stage: a discarded candidate may reference a retired stage
+as their *previous* stage, but never occupies it. An active participation outside
+the current pipeline is an invariant failure, not a silently omitted candidate.
+Counts are read live, never from delivery/coverage history or a frozen fulfillment
+snapshot, even after the process finishes. No candidate identities, CVs, answers,
+profiles, discard reasons or messages are returned.
+
+The existing live gates and owner-or-principal visibility are unchanged. One SQL
+statement materializes the visible keyset page (plus one lookahead), groups
+participations by that page's draft IDs and stages, and calculates total,
+discarded and active-stage counts. The projection sums non-`new` active counts
+into `in_process` and emits current pipeline order/zeros. Pipeline configuration
+and requester names are joined into that statement; there are no per-item
+queries. The three existing transactional gate reads remain. No migration is
+required; ordering, cursors, versions and draft timestamps are unchanged.
 
 ## Status codes
 
@@ -134,3 +216,9 @@ recruiter's drafts for a recruiter) are read and skipped. Run `make db-migrate` 
 - `internal/features/jobs/infrastructure/http/draftListHandler.go` — HTTP adapter.
 - `cmd/api/router.go` — route in the v2 draft group.
 - `db/migrations/00014_index_job_drafts_company_updated.sql` — list index.
+- `cmd/api/draft_list_dates_integration_test.go` — list/lifecycle GET date parity
+  through pause, resume, close, finish and reopen, including repeated transitions.
+- `cmd/api/draft_list_candidates_integration_test.go` — live counts, real moves,
+  discard/recovery, retirement guards, fulfillment/finished reads and visibility.
+- `internal/features/jobs/infrastructure/postgres/draftstore/list_candidates_integration_test.go`
+  — one page aggregation, constant query count for 1/50 items including requesters.

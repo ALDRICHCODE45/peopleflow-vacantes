@@ -47,6 +47,7 @@ type routerDeps struct {
 	deliveryHandler      *jobshttp.DeliveryHandler
 	managementHandler    *jobshttp.ManagementHandler
 	publicationHandler   *jobshttp.PublicationHandler
+	lifecycleHandler     *jobshttp.LifecycleHandler
 	requesterHandler     *jobshttp.RequesterHandler
 	applicationHandler   *applicationshttp.ApplicationHandler
 	cvHandler            *cvshttp.Handler
@@ -187,6 +188,7 @@ func newRouter(d routerDeps) chi.Router {
 	deliveryHandlers := d.deliveryHandler.DeliveryHandlers()
 	managementHandlers := d.managementHandler.ManagementHandlers()
 	publicationHandlers := d.publicationHandler.PublicationHandlers()
+	lifecycleHandlers := d.lifecycleHandler.LifecycleHandlers()
 	r.Group(func(r chi.Router) {
 		r.Use(jobshttp.NoStore, d.requireAuth, d.requireRecruiter)
 		r.Post("/v2/me/company/job-drafts", draftV2Handlers.CreateDraft)
@@ -215,6 +217,13 @@ func newRouter(d routerDeps) chi.Router {
 		r.Put("/v2/me/company/job-drafts/{id}/management", managementHandlers.PutManagement)
 		r.Get("/v2/me/company/job-drafts/{id}/publication", publicationHandlers.GetPublication)
 		r.Post("/v2/me/company/job-drafts/{id}/publication", publicationHandlers.Publish)
+		r.Get("/v2/me/company/job-drafts/{id}/lifecycle", lifecycleHandlers.Get)
+		r.Get("/v2/me/company/job-drafts/{id}/lifecycle/history", lifecycleHandlers.History)
+		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/pause", lifecycleHandlers.Pause)
+		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/resume", lifecycleHandlers.Resume)
+		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/close", lifecycleHandlers.Close)
+		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/finish-process", lifecycleHandlers.FinishProcess)
+		r.Post("/v2/me/company/job-drafts/{id}/lifecycle/reopen", lifecycleHandlers.Reopen)
 	})
 	// Requester catalog (contract §7): private like the drafts, so NoStore runs
 	// before both gates. The store re-checks user, company and membership.

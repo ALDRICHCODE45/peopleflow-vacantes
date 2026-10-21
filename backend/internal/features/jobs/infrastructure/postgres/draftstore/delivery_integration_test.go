@@ -151,7 +151,7 @@ func TestDelivery_ChangesDateOnChangeAndFourWayVersionIsolation(t *testing.T) {
 		t.Fatalf("configured no-op=%+v %v", noop, err)
 	}
 	draftAfter, err := s.GetV2(ctx, p.companyID, p.ownerID, id)
-	if err != nil || !reflect.DeepEqual(draftAfter, created) {
+	if err != nil || !reflect.DeepEqual(withoutLifecycleResult(t, draftAfter), created) {
 		t.Fatalf("delivery changed draft: %v", err)
 	}
 	pipelineAfter, err := s.GetPipeline(ctx, p.companyID, p.ownerID, id)

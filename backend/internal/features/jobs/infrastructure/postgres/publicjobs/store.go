@@ -46,7 +46,24 @@ func (s *Store) MunicipalityState(ctx context.Context, country, municipality str
 	}
 	return state, err
 }
+func (s *Store) unavailable(ctx context.Context, id uuid.UUID) error {
+	row, err := s.queries.GetUnavailableVacancy(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("read unavailable vacancy: %w", err)
+	}
+	out := &catalog.Unavailable{ID: row.ID, Title: row.Title, Availability: row.Availability}
+	out.Company.ID = row.CompanyID
+	out.Company.Name = row.CompanyName
+	return out
+}
+
 func (s *Store) Get(ctx context.Context, id uuid.UUID) (catalog.Detail, error) {
+	if err := s.unavailable(ctx, id); err != nil {
+		return catalog.Detail{}, err
+	}
 	rows, err := s.search(ctx, db.SearchPublicJobsParams{DetailID: pgtype.UUID{Bytes: id, Valid: true}, PageLimit: 1})
 	if err != nil {
 		return catalog.Detail{}, err

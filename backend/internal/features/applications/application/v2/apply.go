@@ -54,6 +54,7 @@ type Result struct {
 	Replayed bool
 }
 type Vacancy struct {
+	State string    `json:"state"`
 	ID    uuid.UUID `json:"id"`
 	Title string    `json:"title"`
 }

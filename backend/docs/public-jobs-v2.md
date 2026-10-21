@@ -168,7 +168,17 @@ state, discard reason or answer is serialized.
 | `benefits` | Full `{predefined:[codes],custom:[strings]}` (not the preview) | Both empty arrays |
 | `skills` | Full skill array, entered order | `[]` |
 
-Unknown, unpublished, malformed or inactive-company ids return `404 not_found`.
+Unknown, never-published, malformed or inactive-company ids return `404 not_found`.
+Paused/closed vacancy detail and `/screening` return **410 `vacancy_unavailable`**:
+
+```json
+{"error":"vacancy unavailable","code":"vacancy_unavailable","data":{"id":"…","title":"Backend Go","company":{"id":"…","name":"Acme"},"availability":"paused"}}
+```
+
+`availability` is exactly `paused|closed`. These are the only four data keys;
+company has only `id,name` (no logo). No description, compensation or screening
+content is returned. List/search still exclude these vacancies. The frontend can
+render the unavailable page with `noindex`; see [lifecycle effects](vacancy-lifecycle.md).
 The id remains the draft/process UUID, preserving existing public page links.
 No requester, hiring headcount, request date, delivery, pipeline, screening
 question content, answer keys or hidden salary enters either public response.
@@ -176,7 +186,8 @@ Only the screening question count is added to these routes; the separate safe
 `/screening` endpoint is unchanged.
 
 Public errors have exactly `{error,code}`: `400 invalid_request` / `invalid_filter`,
-`404 not_found`, or unexpected `500 internal_error`. No public response has
+`404 not_found`, or unexpected `500 internal_error`; only `410 vacancy_unavailable`
+adds the exact tombstone `data` above. No public response has
 an ETag or `Cache-Control: no-store`; no new caching policy is introduced.
 
 ## Projection and published-write guard

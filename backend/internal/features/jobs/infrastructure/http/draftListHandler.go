@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftlist"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
@@ -35,18 +36,37 @@ type draftListPrincipal struct {
 	Name *string `json:"name"`
 }
 
+type draftListCandidateStage struct {
+	ID    string `json:"id"`
+	Kind  string `json:"kind"`
+	Name  string `json:"name"`
+	Count int64  `json:"count"`
+}
+
+type draftListCandidates struct {
+	Total     int64                     `json:"total"`
+	InProcess int64                     `json:"in_process"`
+	Discarded int64                     `json:"discarded"`
+	ByStage   []draftListCandidateStage `json:"by_stage"`
+}
+
 type draftListItem struct {
-	ID                 string              `json:"id"`
-	Title              *string             `json:"title"`
-	WorkMode           *string             `json:"work_mode"`
-	WorkSchedule       *string             `json:"work_schedule"`
-	Requester          *draftListRequester `json:"requester"`
-	PrincipalRecruiter draftListPrincipal  `json:"principal_recruiter"`
-	Version            string              `json:"version"`
-	Status             string              `json:"status"`
-	PublishedAt        *string             `json:"published_at"`
-	CreatedAt          string              `json:"created_at"`
-	UpdatedAt          string              `json:"updated_at"`
+	ID                 string               `json:"id"`
+	Title              *string              `json:"title"`
+	WorkMode           *string              `json:"work_mode"`
+	WorkSchedule       *string              `json:"work_schedule"`
+	Requester          *draftListRequester  `json:"requester"`
+	PrincipalRecruiter draftListPrincipal   `json:"principal_recruiter"`
+	Version            string               `json:"version"`
+	Process            *string              `json:"process"`
+	Status             string               `json:"status"`
+	PublishedAt        *string              `json:"published_at"`
+	PausedAt           *string              `json:"paused_at"`
+	ClosedAt           *string              `json:"closed_at"`
+	ProcessFinishedAt  *string              `json:"process_finished_at"`
+	Candidates         *draftListCandidates `json:"candidates"`
+	CreatedAt          string               `json:"created_at"`
+	UpdatedAt          string               `json:"updated_at"`
 }
 
 type draftListPage struct {
@@ -98,18 +118,34 @@ func toDraftListItem(item draftlist.Item) draftListItem {
 		WorkSchedule:       item.Schedule,
 		PrincipalRecruiter: draftListPrincipal{ID: item.Principal.ID.String(), Name: item.Principal.Name},
 		Version:            strconv.FormatInt(item.Version, 10),
+		Process:            item.Process,
 		Status:             item.Status,
+		PublishedAt:        draftListTimestamp(item.PublishedAt),
+		PausedAt:           draftListTimestamp(item.PausedAt),
+		ClosedAt:           draftListTimestamp(item.ClosedAt),
+		ProcessFinishedAt:  draftListTimestamp(item.ProcessFinishedAt),
 		CreatedAt:          item.CreatedAt.UTC().Format(draftListTimestampLayout),
 		UpdatedAt:          item.UpdatedAt.UTC().Format(draftListTimestampLayout),
 	}
-	if item.PublishedAt != nil {
-		at := item.PublishedAt.UTC().Format(draftListTimestampLayout)
-		out.PublishedAt = &at
+	if item.Candidates != nil {
+		c := item.Candidates
+		out.Candidates = &draftListCandidates{Total: c.Total, InProcess: c.InProcess, Discarded: c.Discarded, ByStage: make([]draftListCandidateStage, len(c.ByStage))}
+		for i, stage := range c.ByStage {
+			out.Candidates.ByStage[i] = draftListCandidateStage{ID: stage.ID, Kind: stage.Kind, Name: stage.Name, Count: stage.Count}
+		}
 	}
 	if item.Requester != nil {
 		out.Requester = &draftListRequester{Kind: item.Requester.Kind, ID: item.Requester.ID, Name: item.Requester.Name}
 	}
 	return out
+}
+
+func draftListTimestamp(at *time.Time) *string {
+	if at == nil {
+		return nil
+	}
+	value := at.UTC().Format(draftListTimestampLayout)
+	return &value
 }
 
 // parseDraftListRequest validates limit and cursor against the session scope.

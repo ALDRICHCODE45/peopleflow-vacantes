@@ -20,7 +20,11 @@ type Handler struct{ store app.Store }
 func NewHandler(store app.Store) *Handler { return &Handler{store} }
 func writeError(w http.ResponseWriter, err error) {
 	code := httpjson.CodeInternalError
+	var finished *app.ProcessFinished
 	switch {
+	case errors.As(err, &finished):
+		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeProcessFinished), finished)
+		return
 	case errors.Is(err, app.ErrNotFound):
 		code = httpjson.CodeNotFound
 	case errors.Is(err, app.ErrUnauthenticated):

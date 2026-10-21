@@ -52,6 +52,9 @@ func (s *Store) PutSubstates(ctx context.Context, companyID, actorID, id uuid.UU
 	if err := s.authorizePipeline(ctx, tx, companyID, actorID, id, true); err != nil {
 		return drafts.Result{}, err
 	}
+	if err := requireActiveProcess(ctx, tx, id); err != nil {
+		return drafts.Result{}, err
+	}
 	previous, version, err := readSubstates(ctx, tx, id)
 	if err != nil {
 		return drafts.Result{}, err

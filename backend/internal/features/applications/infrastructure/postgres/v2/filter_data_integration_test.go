@@ -151,7 +151,7 @@ func TestFilterDataBoardDetailLegacyCurrentQuestionnaireAndPrivacy(t *testing.T)
 	if rec.Code != 200 {
 		t.Fatal(rec.Code, rec.Body.String())
 	}
-	root := movementKeys(t, movementObject(t, rec.Body.Bytes()), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages", "screening_filters")
+	root := movementKeys(t, movementObject(t, rec.Body.Bytes()), "stages", "exit", "coverage", "participations", "substates", "delivery", "retired_stages", "screening_filters", "lifecycle")
 	item := root["participations"].([]any)[0].(map[string]any)
 	movementItemKeys(t, item)
 	profile := movementKeys(t, item["profile"], "location", "skills", "years_of_experience", "education_level")

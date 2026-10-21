@@ -66,7 +66,7 @@ func TestPipelineFlow_DefaultsReplaceOrderNoOpAndVersionIsolation(t *testing.T) 
 		}
 		obj := draftFlowObject(t, response.body)
 		limits := obj["limits"].(map[string]any)
-		if len(obj) != 6 || obj["retired"] == nil || obj["applied_impact"] != nil || obj["structure_locked"] != false || obj["version"] != "0" || limits["maxCustomStages"] != float64(3) || limits["nameMaxLength"] != float64(40) {
+		if len(obj) != 7 || obj["lifecycle"] == nil || obj["retired"] == nil || obj["applied_impact"] != nil || obj["structure_locked"] != false || obj["version"] != "0" || limits["maxCustomStages"] != float64(3) || limits["nameMaxLength"] != float64(40) {
 			t.Fatalf("envelope: %s", response.body)
 		}
 	}

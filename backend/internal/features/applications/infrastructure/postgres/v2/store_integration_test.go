@@ -224,20 +224,23 @@ func setup(t *testing.T) fixture {
 			return
 		}
 		defer tx.Rollback(cleanupCtx)
-		for _, sql := range []string{
+		for step, sql := range []string{
 			`DELETE FROM audit_events WHERE entity_type='process_participation' AND entity_id IN (SELECT p.id FROM process_participations p JOIN vacancy_processes v ON v.id=p.process_id WHERE v.company_id=$1)`,
 			`DELETE FROM participation_stage_history WHERE participation_id IN (SELECT p.id FROM process_participations p JOIN vacancy_processes v ON v.id=p.process_id WHERE v.company_id=$1)`,
 			`DELETE FROM participation_idempotency WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM process_participations WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM process_delivery_fulfillments WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM audit_events WHERE event_type='VacancyDeliveryFulfilled' AND entity_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
+			`DELETE FROM vacancy_lifecycle_events WHERE process_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
+			`DELETE FROM job_draft_idempotency WHERE company_id=$1`,
+			`DELETE FROM audit_events WHERE entity_id IN (SELECT id FROM vacancy_processes WHERE company_id=$1)`,
 			`DELETE FROM vacancy_public_projections WHERE company_id=$1`,
 			`DELETE FROM vacancy_processes WHERE company_id=$1`,
 			`DELETE FROM job_drafts WHERE company_id=$1`,
 			`DELETE FROM companies WHERE id=$1`,
 		} {
 			if _, err = tx.Exec(cleanupCtx, sql, f.company); err != nil {
-				t.Error("fixture cleanup failed")
+				t.Errorf("fixture cleanup step %d failed: %v", step, err)
 				return
 			}
 		}

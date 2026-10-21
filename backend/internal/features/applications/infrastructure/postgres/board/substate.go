@@ -53,7 +53,7 @@ func sameSubstate(a, b *string) bool {
 }
 
 func (s *Store) SetSubstate(ctx context.Context, company, actor, id, pid uuid.UUID, tag string, present bool, body []byte) (app.Moved, error) {
-	tx, p, err := s.begin(ctx, company, actor, id)
+	tx, p, err := s.beginMutation(ctx, company, actor, id)
 	if err != nil {
 		return app.Moved{}, err
 	}
