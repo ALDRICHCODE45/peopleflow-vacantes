@@ -178,9 +178,11 @@ it("filters countries by name while MX is the defaulted selection", async () => 
   await waitFor(() => expect(value().country).toBe("MX"));
   const user = userEvent.setup();
   await user.click(input); await user.clear(input); await user.type(input, "Esta");
-  expect(await screen.findByRole("option", { name: "Estados Unidos" })).toBeVisible();
-  // Under full-suite load the empty state can lag one commit behind the filtered list.
-  await waitFor(() => expect(screen.queryByText("Sin coincidencias.")).not.toBeInTheDocument());
+  const option = await screen.findByRole("option", { name: "Estados Unidos" });
+  expect(option).toBeVisible();
+  // «Sin coincidencias.» is always mounted and only shown by CSS when its own list is empty, and
+  // other comboboxes may keep theirs mounted: assert the country list itself is not empty.
+  await waitFor(() => expect(option.closest('[data-slot="combobox-content"]')).not.toHaveAttribute("data-empty"));
 });
 
 it("replaces the shown selection when typing into a filled catalog field", async () => {
