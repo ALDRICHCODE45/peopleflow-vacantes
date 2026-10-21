@@ -1,6 +1,8 @@
 import "server-only";
 
 import { z } from "zod";
+import { lifecycleSchema, type Lifecycle } from "@/features/vacancy-lifecycle/model";
+import { processFinishedSchema } from "./lifecycle-contract";
 import { isValidJobId } from "@/features/jobs/jobId";
 import { requestJson, type RequestJsonError } from "@/lib/api/server";
 
@@ -16,6 +18,7 @@ const pipelineSchema = z.object({
   exit: z.object({ id: uuid, kind: z.literal("discarded"), name: z.string() }).strict(),
   limits: z.object({ maxCustomStages: z.number().int().positive(), nameMaxLength: z.number().int().positive() }).strict(),
 }).strict();
+const pipelineReadSchema = pipelineSchema.extend({ lifecycle: lifecycleSchema }).strict();
 const previewBodySchema = z.object({
   stages: z.array(z.object({ id: uuid.optional(), name: z.string() }).strict()),
   exit: z.object({ id: uuid, name: z.string() }).strict(),
@@ -30,14 +33,15 @@ const impactSchema = z.object(impactFields).strict();
 const previewSchema = z.object({ stages: z.array(stageSchema), ...impactFields, has_impact: z.boolean() }).strict();
 const savedPipelineSchema = pipelineSchema.extend({ applied_impact: impactSchema }).strict();
 const envelopeSchema = z.union([
+  processFinishedSchema,
   z.object({ error: z.string().min(1), code: z.literal("stage_occupied"), details: z.array(z.object({ stage_id: uuid }).strict()) }).strict(),
-  z.object({ error: z.string().min(1), code: z.string().min(1).refine(code => code !== "stage_occupied") }).strict(),
+  z.object({ error: z.string().min(1), code: z.string().min(1).refine(code => code !== "stage_occupied" && code !== "process_finished") }).strict(),
 ]);
 export type PipelineImpact = z.infer<typeof impactSchema>;
 export type PipelineImpactPreview = z.infer<typeof previewSchema>;
 export type PipelinePreviewResult = { ok: true; data: PipelineImpactPreview } | DraftPipelineFailure;
 
-export type DraftPipeline = z.infer<typeof pipelineSchema> & { applied_impact?: PipelineImpact };
+export type DraftPipeline = z.infer<typeof pipelineSchema> & { applied_impact?: PipelineImpact; lifecycle?: Lifecycle };
 export type DraftPipelineStage = z.infer<typeof stageSchema>;
 export type PipelineStageKind = z.infer<typeof stageKindSchema>;
 export type DraftPipelinePutBody = z.infer<typeof putBodySchema>;
@@ -80,7 +84,7 @@ async function requestPipeline(
       captureResponseHeaders: ["etag"],
       timeoutMs: serverEnv.apiTimeoutMs,
       maxErrorBodyBytes: 8192,
-      decoder: value => write ? savedPipelineSchema.parse(value) : pipelineSchema.parse(value),
+      decoder: value => write ? savedPipelineSchema.parse(value) : pipelineReadSchema.parse(value),
       errorDecoder: value => envelopeSchema.parse(value),
     },
   );

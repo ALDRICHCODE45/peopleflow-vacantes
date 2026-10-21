@@ -1,7 +1,10 @@
+import { activeLifecycle } from "@/features/jobs/drafts/lifecycle-fixture";
+import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
 import type { EditorPipeline } from "@/features/jobs/drafts/pipeline/editor-model";
 
-export function pipelineFixture(): EditorPipeline & { retired: EditorPipeline["stages"] } {
+export function pipelineFixture(): EditorPipeline & { retired: EditorPipeline["stages"]; lifecycle: Lifecycle } {
   return {
+    lifecycle: activeLifecycle,
     version: "0",
     retired: [],
     structure_locked: false,

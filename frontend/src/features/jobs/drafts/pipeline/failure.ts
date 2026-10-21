@@ -2,14 +2,16 @@ import "server-only";
 
 import { z } from "zod";
 import type { DraftPipelineFailure } from "./client";
+import { processFinishedSchema, type ProcessFinishedFailure } from "./lifecycle-contract";
 
 /** A missing list is legal only for publication_incomplete, on publish or save. */
 export const publicationErrorEnvelopeSchema = z.union([
+  processFinishedSchema,
   z.object({ error: z.string().min(1), code: z.literal("publication_incomplete"), missing: z.array(z.string().refine(value => value.trim().length > 0)) }).strict(),
-  z.object({ error: z.string().min(1), code: z.string().min(1).refine(code => code !== "publication_incomplete") }).strict(),
+  z.object({ error: z.string().min(1), code: z.string().min(1).refine(code => code !== "publication_incomplete" && code !== "process_finished") }).strict(),
 ]);
 
-export type DraftPipelineActionFailure = {
+export type DraftPipelineActionFailure = ProcessFinishedFailure | {
   ok: false;
   reason: "unauthenticated" | "forbidden" | "company_inactive" | "not_found" | "company_not_active" |
     "invalid_request" | "validation_error" | "version_conflict" | "precondition_required" |
@@ -39,8 +41,10 @@ const safeCodes = new Set([
 ]);
 
 /** Only public classifications and allowlisted references cross the action boundary. */
-export function mapDraftPipelineFailure({ error, envelope }: Omit<DraftPipelineFailure, "envelope"> & { envelope?: { error: string; code: string; missing?: string[]; details?: unknown } }): DraftPipelineActionFailure {
+export function mapDraftPipelineFailure({ error, envelope }: Omit<DraftPipelineFailure, "envelope"> & { envelope?: { error: string; code: string; missing?: string[]; details?: unknown; data?: unknown } }): DraftPipelineActionFailure {
   const status = error.status;
+  const finished = processFinishedSchema.safeParse(envelope);
+  if (status === 409 && finished.success) return { ok: false, reason: "process_finished", lifecycle: finished.data.data.lifecycle, reference: { status, code: "process_finished" } };
   const code = envelope && safeCodes.has(envelope.code) ? envelope.code : undefined;
   let reason: DraftPipelineActionFailure["reason"] = "unrecognized_response";
   if (error.kind === "missing_token" || status === 401) reason = "unauthenticated";

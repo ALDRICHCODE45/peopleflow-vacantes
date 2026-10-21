@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
+import { ConfigReadOnlyNotice, useConfigLifecycle } from "../vacancy-config/lifecycle";
 import Link from "next/link";
 import { Users } from "lucide-react";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
@@ -17,10 +19,12 @@ import { conflictNotice, managementFailureNotice, invalidNotice, recoveryLabels,
 
 type Session = { editor: ManagementState; etag: string };
 const noResponse = (): DraftManagementActionResult => ({ ok: false, reason: "no_response", reference: {} });
-export function ManagementEditor({ draftId, management, etag }: { draftId: string; management: Management; etag: string }) {
+export function ManagementEditor({ draftId, management, etag, lifecycle }: { draftId: string; management: Management; etag: string; lifecycle?: Lifecycle }) {
+  const { readOnly, updateLifecycle } = useConfigLifecycle(lifecycle);
   const [session, setSession] = useState<Session>(() => ({ editor: fromManagement(management), etag }));
   const current = useRef(session);
-  const [pending, setPending] = useState<"save" | "reload" | "check" | null>(null);
+  const [operation, setPending] = useState<"save" | "reload" | "check" | null>(null);
+  const pending = readOnly ? "readonly" : operation;
   const busy = useRef(false);
   const mounted = useRef(true);
   const [notice, setNotice] = useState<PipelineNotice | null>(null);
@@ -37,7 +41,7 @@ export function ManagementEditor({ draftId, management, etag }: { draftId: strin
   function replace(editor: ManagementState, nextEtag = current.current.etag) {
     const next = { editor, etag: nextEtag }; current.current = next; setSession(next);
   }
-  function edit(editor: ManagementState) { if (!busy.current) replace(editor); }
+  function edit(editor: ManagementState) { if (!busy.current && !readOnly) replace(editor); }
   function resetErrors() { setAttempted(false); setHeadcountTouched(false); }
   function report(next: PipelineNotice, reference?: { status?: number; code?: string }) {
     setNotice(next);
@@ -50,7 +54,7 @@ export function ManagementEditor({ draftId, management, etag }: { draftId: strin
     replace(adoptSaved(attemptedState, result.management), result.etag); resetErrors();
   }
   async function persist() {
-    if (busy.current || !isDirty(current.current.editor)) return;
+    if (readOnly || busy.current || !isDirty(current.current.editor)) return;
     setAttempted(true);
     const snapshot = current.current;
     const validation = validate(snapshot.editor);
@@ -67,11 +71,12 @@ export function ManagementEditor({ draftId, management, etag }: { draftId: strin
     if (result.ok) {
       adopt(result, snapshot.editor);
       report(result.management.version === snapshot.editor.baseline.version ? { tone: "info", title: "No había cambios que guardar", text: "Guardado" } : savedNotice);
-    } else report(managementFailureNotice(result), result.reference);
+    } else if (result.reason === "process_finished") { updateLifecycle(result.lifecycle); setNotice(null); }
+    else report(managementFailureNotice(result), result.reference);
     busy.current = false; setPending(null);
   }
   async function recover(mode: "reload" | "check") {
-    if (busy.current || !mounted.current) return;
+    if (readOnly || busy.current || !mounted.current) return;
     busy.current = true; setPending(mode);
     const snapshot = current.current;
     const result = await loadDraftManagementAction(draftId).catch(noResponse);
@@ -100,6 +105,7 @@ export function ManagementEditor({ draftId, management, etag }: { draftId: strin
     </CardHeader>
     <CardContent>
       <FieldGroup>
+        {readOnly && <ConfigReadOnlyNotice />}
         <ManagementDateField state={state} disabled={pending !== null} error={errors.requestDate} onChange={value => edit(setRequestDate(current.current.editor, value))} />
         <Field data-invalid={!!headcountMessage} data-disabled={pending !== null}>
           <FieldLabel htmlFor="management-headcount"><Users aria-hidden="true" className="size-3.5" />Plazas a cubrir</FieldLabel>

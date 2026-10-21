@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { lifecycleSchema } from "@/features/vacancy-lifecycle/model";
 import { locationReadSchema, remoteScopeReadSchema } from "@/features/geo/model";
 
 import { compensationSchema } from "./compensation";
@@ -80,6 +81,7 @@ const timestampSchema = z.string().datetime({ precision: 6 });
  */
 export const draftReadEnvelopeV2Schema = z.object({
   schema_version: z.literal(2),
+  lifecycle: lifecycleSchema,
   id: z.string().uuid(),
   status: z.literal("draft"),
   principal_recruiter_id: z.string().uuid(),

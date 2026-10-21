@@ -16,6 +16,7 @@ import type { DraftPublication } from "@/features/jobs/drafts/pipeline/publicati
 import { PipelineEditorSkeleton } from "../stage-config/loading";
 import { DeliverySkeleton } from "../delivery-config/loading";
 import { ManagementSkeleton } from "../management-config/loading";
+import { ConfigLifecycleProvider } from "./lifecycle";
 
 export const VACANCY_CONFIG_MODULES = [
   { slug: "columnas", title: "Columnas del pipeline", description: "Nombres, orden y columnas propias.", icon: Columns3 },
@@ -76,7 +77,7 @@ export function VacancyConfigShell({ draftId, children }: { draftId: string; chi
                       })}
                     </ul>
                   </nav>
-                  <div className="flex min-w-0 flex-col gap-5">{children}</div>
+                  <div className="flex min-w-0 flex-col gap-5"><ConfigLifecycleProvider key={draftId} lifecycle={result.seed.lifecycle}>{children}</ConfigLifecycleProvider></div>
                 </div>
               )}
             </>

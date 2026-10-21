@@ -392,7 +392,7 @@ it.each([
   ["invalid_request", "Revisa los datos marcados", undefined],
   ["payload_too_large", "El pipeline supera el tamaño permitido", undefined],
 ] as const)("%s preserves edits and uses cause-specific feedback/reference", async (reason, title, href) => {
-  vi.mocked(saveDraftPipelineAction).mockResolvedValue({ ok: false, reason: reason as DraftPipelineActionFailure["reason"], reference: { status: 400, code: reason } });
+  vi.mocked(saveDraftPipelineAction).mockResolvedValue({ ok: false, reason, reference: { status: 400, code: reason } });
   mount(); edit(); confirmSave();
   await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ key: "pipeline-save", type: "error", title, reference: expect.objectContaining({ status: 400, code: reason, at: expect.any(String) }) })));
   expect(field(2)).toHaveValue("Filtro"); expect(saveDraftPipelineAction).toHaveBeenCalledTimes(1);

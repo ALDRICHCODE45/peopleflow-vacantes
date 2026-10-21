@@ -1,6 +1,8 @@
 "use client";
 
 import { Fragment, useEffect, useRef, useState } from "react";
+import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
+import { ConfigReadOnlyNotice, useConfigLifecycle } from "../vacancy-config/lifecycle";
 import Link from "next/link";
 import { Plus, X } from "lucide-react";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
@@ -24,6 +26,8 @@ import { CustomSubstateInput } from "./custom-input";
 import { SubstatesReorder } from "./reorder";
 
 type Props = {
+  lifecycle?: Lifecycle;
+  onLifecycleChange?: (lifecycle: Lifecycle) => void;
   draftId: string;
   inProcessName: string;
   catalog: SubstatesCatalog;
@@ -41,10 +45,12 @@ export function SubstatesSheet({ open, ...props }: Props) {
   return open ? <SubstatesSheetSession {...props} /> : null;
 }
 
-function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenChange, onSaved }: Omit<Props, "open">) {
+function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenChange, onSaved, lifecycle, onLifecycleChange }: Omit<Props, "open">) {
+  const { readOnly, updateLifecycle } = useConfigLifecycle(lifecycle);
   const [session, setSession] = useState<Session>(() => ({ editor: fromCatalog(catalog), etag }));
   const current = useRef(session);
-  const [pending, setPending] = useState<"save" | "reload" | "check" | null>(null);
+  const [operation, setPending] = useState<"save" | "reload" | "check" | null>(null);
+  const pending = readOnly ? "readonly" : operation;
   const busy = useRef(false);
   const dragging = useRef(false);
   const mounted = useRef(true);
@@ -62,10 +68,10 @@ function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenCh
   function replace(editor: SubstatesEditorState, nextEtag = current.current.etag) {
     const next = { editor, etag: nextEtag }; current.current = next; setSession(next);
   }
-  function edit(editor: SubstatesEditorState) { if (!busy.current) replace(editor); }
+  function edit(editor: SubstatesEditorState) { if (!readOnly && !busy.current) replace(editor); }
   function requestClose() {
     if (busy.current) return;
-    if (isDirty(current.current.editor)) setConfirmingDiscard(true);
+    if (!readOnly && isDirty(current.current.editor)) setConfirmingDiscard(true);
     else onOpenChange(false);
   }
   function report(next: PipelineNotice, reference?: { status?: number; code?: string }) {
@@ -80,7 +86,7 @@ function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenCh
     onSaved(response.catalog, response.etag);
   }
   async function persist() {
-    if (busy.current) return;
+    if (readOnly || busy.current) return;
     const snapshot = current.current; busy.current = true; setPending("save"); setNotice(null);
     const result = await saveDraftSubstatesAction({ draftId, ifMatch: snapshot.etag, body: toPutBody(snapshot.editor) }).catch(noResponse);
     if (!mounted.current) return;
@@ -88,6 +94,8 @@ function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenCh
       adopt(result, snapshot.editor);
       report(result.catalog.version === snapshot.editor.baseline.version ? { tone: "info", title: "No había cambios que guardar", text: "Guardado" } : savedNotice);
       onOpenChange(false);
+    } else if (result.reason === "process_finished") {
+      updateLifecycle(result.lifecycle); onLifecycleChange?.(result.lifecycle); setNotice(null);
     } else if (result.reason === "substate_in_use") {
       replace(markSubstatesInUse(snapshot.editor, result.details));
       report({ tone: "error", title: "Hay subestados con candidatos", text: "No se guardó: reasigna los candidatos de los subestados marcados.", description: "Tus cambios siguen aquí. Los subestados marcados tienen candidatos asignados; reasígnalos antes de quitarlos." }, result.reference);
@@ -95,7 +103,7 @@ function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenCh
     busy.current = false; setPending(null);
   }
   function requestSave() {
-    if (busy.current || !isDirty(current.current.editor)) return;
+    if (readOnly || busy.current || !isDirty(current.current.editor)) return;
     setAttempted(true);
     const validation = validate(current.current.editor);
     if (!validation.ok) {
@@ -107,7 +115,7 @@ function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenCh
     void persist();
   }
   async function recover(mode: "reload" | "check") {
-    if (busy.current || !mounted.current) return;
+    if (readOnly || busy.current || !mounted.current) return;
     busy.current = true; setPending(mode);
     const snapshot = current.current;
     const result = await loadDraftSubstatesAction(draftId).catch(noResponse);
@@ -129,7 +137,7 @@ function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenCh
     busy.current = false; setPending(null);
   }
   function addEntry(name = "") {
-    if (busy.current) return;
+    if (readOnly || busy.current) return;
     const next = add(current.current.editor, name);
     const added = next.entries.find(entry => !current.current.editor.entries.some(previous => previous.key === entry.key));
     replace(next);
@@ -161,8 +169,9 @@ function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenCh
         <SheetDescription>Identifica en qué punto está cada candidato. Son etiquetas flexibles, no pasos obligatorios.</SheetDescription>
         <p className="text-sm tabular-nums text-muted-foreground">{state.entries.length} de {state.limits.maxSubstates} subestados</p>
       </SheetHeader>
-      <SheetClose disabled={pending !== null} render={<Button type="button" variant="ghost" size="icon" className="absolute right-4 top-4 size-10" aria-label="Cerrar subestados" />}><X aria-hidden="true" /></SheetClose>
+      <SheetClose disabled={operation !== null} render={<Button type="button" variant="ghost" size="icon" className="absolute right-4 top-4 size-10" aria-label="Cerrar subestados" />}><X aria-hidden="true" /></SheetClose>
       <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto p-6">
+        {readOnly && <ConfigReadOnlyNotice />}
         {suggestions.length > 0 && <section aria-labelledby="substates-suggestions-heading" className="flex flex-col gap-2">
           <h3 id="substates-suggestions-heading" className="font-heading text-sm font-medium">Empieza con una sugerencia</h3>
           <p className="text-sm text-muted-foreground">Agrega las que encajen con tu proceso.</p>
@@ -190,7 +199,7 @@ function SubstatesSheetSession({ draftId, inProcessName, catalog, etag, onOpenCh
       {/* Compact action footer (rules §12): ActionBar keeps the status left of the actions. */}
       <SheetFooter className="border-t">
         <ActionBar status={notice && <ActionStatus id="substates-save-status" tone={dirty && notice.text === "Guardado" ? "info" : notice.tone} text={dirty && notice.text === "Guardado" ? "Cambios sin guardar" : notice.text} action={statusAction} />}>
-          <Button type="button" variant="ghost" className="min-h-10" disabled={pending !== null} onClick={requestClose}>Cancelar</Button>
+          <Button type="button" variant="ghost" className="min-h-10" disabled={operation !== null} onClick={requestClose}>Cancelar</Button>
           <Button type="button" className="min-h-10" disabled={!dirty || pending !== null} aria-busy={pending === "save"} aria-describedby={notice ? "substates-save-status" : undefined} onClick={requestSave}>
             {pending === "save" && <Spinner aria-hidden="true" data-icon="inline-start" />}{pending === "save" ? "Guardando…" : "Guardar subestados"}
           </Button>

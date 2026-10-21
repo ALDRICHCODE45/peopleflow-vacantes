@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { activeLifecycle } from "./lifecycle-fixture";
 
 import { draftPostBodySchema } from "./fields";
 import { draftReadEnvelopeSchema } from "./read";
@@ -86,6 +87,7 @@ const evaluatedWithOptions = (count: number) => {
 /** Complete v2 read envelope: required metadata plus every field, no defaults. */
 const response = (questions: unknown = v2Questions()) => ({
   schema_version: 2,
+  lifecycle: activeLifecycle,
   id: UUID,
   status: "draft",
   principal_recruiter_id: UUID,

@@ -120,9 +120,11 @@ const emptyFields = {
   description_plain: null,
 };
 
+import { activeLifecycle } from "../lifecycle-fixture";
 function envelope(fields: Record<string, unknown>): DraftReadEnvelopeV2 {
   return draftReadEnvelopeV2Schema.parse({
     schema_version: 2,
+    lifecycle: activeLifecycle,
     id: ID,
     status: "draft",
     principal_recruiter_id: ID,

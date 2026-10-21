@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
+import { ConfigReadOnlyNotice, useConfigLifecycle } from "../vacancy-config/lifecycle";
 import Link from "next/link";
 import { CalendarDays, Flag, Target, CircleCheckBig } from "lucide-react";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
@@ -21,14 +23,16 @@ import { conflictNotice, deliveryFailureNotice, invalidNotice, recoveryLabels, s
 
 type Session = { editor: DeliveryState; etag: string };
 const noResponse = (): DraftDeliveryActionResult => ({ ok: false, reason: "no_response", reference: {} });
-export function DeliveryEditor({ draftId, delivery, etag, stages }: {
-  draftId: string; delivery: Delivery; etag: string; stages: { id: string; name: string }[];
+export function DeliveryEditor({ draftId, delivery, etag, stages, lifecycle }: {
+  draftId: string; delivery: Delivery; etag: string; stages: { id: string; name: string }[]; lifecycle?: Lifecycle;
 }) {
+  const { readOnly, updateLifecycle } = useConfigLifecycle(lifecycle);
   const [frozen, setFrozen] = useState(false);
   const [confirmation, setConfirmation] = useState<{ snapshot: Session; preview: DeliveryPreview } | null>(null);
   const [session, setSession] = useState<Session>(() => ({ editor: fromDelivery(delivery), etag }));
   const current = useRef(session);
-  const [pending, setPending] = useState<"save" | "reload" | "check" | null>(null);
+  const [operation, setPending] = useState<"save" | "reload" | "check" | null>(null);
+  const pending = readOnly ? "readonly" : operation;
   const busy = useRef(false);
   const mounted = useRef(true);
   const [notice, setNotice] = useState<PipelineNotice | null>(null);
@@ -48,7 +52,7 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
   function replace(editor: DeliveryState, nextEtag = current.current.etag) {
     const next = { editor, etag: nextEtag }; current.current = next; setSession(next);
   }
-  function edit(editor: DeliveryState) { if (!busy.current && !confirmation) replace(editor); }
+  function edit(editor: DeliveryState) { if (!readOnly && !busy.current && !confirmation) replace(editor); }
   function resetErrors() { setAttempted(false); setTargetTouched(false); setDateRejected(false); }
   function report(next: PipelineNotice, reference?: { status?: number; code?: string }) {
     setNotice(next);
@@ -62,7 +66,7 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
     replace(adoptSaved(attemptedState, result.delivery), result.etag); resetErrors();
   }
   async function persist(confirmed = false) {
-    if (busy.current || frozen || current.current.editor.baseline.fulfilled || (!confirmed && confirmation) || !isDirty(current.current.editor)) return;
+    if (readOnly || busy.current || frozen || current.current.editor.baseline.fulfilled || (!confirmed && confirmation) || !isDirty(current.current.editor)) return;
     setAttempted(true);
     const snapshot = confirmed && confirmation ? confirmation.snapshot : current.current;
     const validation = validate(snapshot.editor, stages.map(stage => stage.id));
@@ -84,7 +88,8 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
       }
       // Unpublished drafts cannot fulfill; their configuration remains editable.
       if (!preview.ok && preview.reason !== "vacancy_not_published") {
-        if (preview.reason === "delivery_fulfilled") await reloadFulfilled();
+        if (preview.reason === "process_finished") { updateLifecycle(preview.lifecycle); setConfirmation(null); setNotice(null); }
+        else if (preview.reason === "delivery_fulfilled") await reloadFulfilled();
         else {
           if (preview.reason === "non_business_date") setDateRejected(true);
           report({ ...deliveryFailureNotice(preview), description: "No se guardó la entrega. Tus cambios siguen aquí; revisa el aviso antes de volver a guardar.", recovery: undefined }, preview.reference);
@@ -98,12 +103,15 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
       setConfirmation(null);
       adopt(result, snapshot.editor);
       report(result.delivery.fulfilled ? { tone: "success", title: "Entrega cumplida", description: "Se alcanzó el objetivo de entrega. La configuración ya no se puede cambiar.", text: "Entrega cumplida" } : result.delivery.version === snapshot.editor.baseline.version ? { tone: "info", title: "No había cambios que guardar", text: "Guardado" } : savedNotice);
+    } else if (result.reason === "process_finished") {
+      updateLifecycle(result.lifecycle); setConfirmation(null); setNotice(null);
     } else if (result.reason === "delivery_fulfilled") {
       setConfirmation(null); await reloadFulfilled();
     } else if (result.reason === "fulfillment_confirmation_required") {
       const fresh = await previewDraftDeliveryAction({ draftId, body }).catch(noResponse);
       if (!mounted.current) return;
       if (fresh.ok && "preview" in fresh) { setConfirmation({ snapshot, preview: fresh.preview }); report(deliveryFailureNotice(result)); }
+      else if (!fresh.ok && fresh.reason === "process_finished") { updateLifecycle(fresh.lifecycle); setConfirmation(null); setNotice(null); }
       else if (!fresh.ok && fresh.reason === "delivery_fulfilled") { setConfirmation(null); await reloadFulfilled(); }
       else if (!fresh.ok) { setConfirmation(null); report({ ...deliveryFailureNotice(fresh), description: "No se guardó. No pudimos actualizar la vista previa; tus cambios siguen aquí.", recovery: undefined }, fresh.reference); }
     } else {
@@ -121,7 +129,7 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
     report({ tone: "info", title: "La entrega ya se cumplió", text: "La entrega ya se cumplió; no se guardaron tus cambios.", description: "La configuración quedó bloqueada. Revisa el resultado de la entrega." });
   }
   async function recover(mode: "reload" | "check") {
-    if (busy.current || !mounted.current) return;
+    if (readOnly || busy.current || !mounted.current) return;
     busy.current = true; setPending(mode);
     const snapshot = current.current;
     const result = await loadDraftDeliveryAction(draftId).catch(noResponse);
@@ -147,7 +155,7 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
     {pending === recovery && <Spinner aria-hidden="true" data-icon="inline-start" />}{recoveryLabels[recovery]}
   </Button> : notice?.link ? <Button nativeButton={false} role="link" variant="outline" className="min-h-10" render={<Link ref={statusLink} href={notice.link.href} target="_blank" rel="noopener noreferrer" />}>{notice.link.title}</Button> : undefined;
   const options = [{ value: "undefined", label: "Sin definir" }, ...stages.map(stage => ({ value: stage.id, label: stage.name }))];
-  if (state.baseline.fulfilled || frozen) return <FulfilledDelivery draftId={draftId} message={notice?.text} />;
+  if (state.baseline.fulfilled || frozen) return <>{readOnly && <ConfigReadOnlyNotice />}<FulfilledDelivery draftId={draftId} message={notice?.text} /></>;
   return <><Card aria-labelledby="delivery-heading">
     <CardHeader className="border-b">
       <CardTitle><h3 id="delivery-heading">Entrega</h3></CardTitle>
@@ -155,6 +163,7 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
     </CardHeader>
     <CardContent>
       <FieldGroup>
+        {readOnly && <ConfigReadOnlyNotice />}
         <Field data-invalid={!!cutoffMessage} data-disabled={pending !== null}>
           <FieldLabel htmlFor="delivery-cutoff"><Flag aria-hidden="true" className="size-3.5" />Columna de corte</FieldLabel>
           <Select items={options} value={state.cutoffStageId ?? "undefined"} disabled={pending !== null} onValueChange={value => edit(setCutoffStageId(current.current.editor, value === "undefined" ? null : value))}>
@@ -184,7 +193,7 @@ export function DeliveryEditor({ draftId, delivery, etag, stages }: {
       </ActionBar>
     </CardFooter>
   </Card>
-  <ConfirmActionDialog open={!!confirmation} finalFocus={saveButton} onOpenChange={open => { if (!open && !busy.current) setConfirmation(null); }}
+  <ConfirmActionDialog open={!readOnly && !!confirmation} finalFocus={saveButton} onOpenChange={open => { if (!open && !busy.current) setConfirmation(null); }}
     icon={CircleCheckBig} title="¿Guardar y cumplir la entrega?" description="Con este cambio la entrega queda cumplida y su configuración se congela."
     confirmLabel="Guardar y cumplir" pendingLabel="Guardando…" pending={pending !== null} onConfirm={() => void persist(true)}>
     {confirmation && <>

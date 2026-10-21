@@ -49,12 +49,13 @@ const ACTION_ICONS = { up: ArrowUp, down: ArrowDown, remove: Trash2, substates: 
 export function StageKindBadge({ kind }: { kind: StageKind }) {
   return <Badge variant={STAGE_VARIANTS[kind]}>{STAGE_KIND_LABELS[kind]}</Badge>;
 }
-export function StageRow({ stage, position, state, error, disabled, inputRef, onRename, onBlur, onMove, onRemove, substateCount, onSubstates, cutoffStageId, cutoffError }:  {
+export function StageRow({ stage, position, state, error, disabled, inputRef, onRename, onBlur, onMove, onRemove, substateCount, onSubstates, cutoffStageId, cutoffError, readOnly = false }:  {
   stage: EditorStage | EditorExit;
   position: number;
   state: PipelineEditorState;
   error?: EditorError;
   disabled: boolean;
+  readOnly?: boolean;
   inputRef: (node: HTMLInputElement | null) => void;
   onRename: (name: string) => void;
   onBlur: () => void;
@@ -79,7 +80,7 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
     const Icon = ACTION_ICONS[action.id];
     const remove = action.id === "remove";
     return (
-      <DropdownMenuItem key={action.id} className="min-h-10" variant={remove ? "destructive" : "default"} disabled={action.disabled}
+      <DropdownMenuItem key={action.id} className="min-h-10" variant={remove ? "destructive" : "default"} disabled={action.disabled || (readOnly && action.id !== "substates")}
         onClick={() => { if (action.id === "remove") onRemove(); else if (action.id === "substates") onSubstates?.(); else onMove(action.id); }}>
         <Icon aria-hidden="true" />{action.label}
       </DropdownMenuItem>
@@ -119,7 +120,7 @@ export function StageRow({ stage, position, state, error, disabled, inputRef, on
         {fixed ? <span className="flex items-center gap-1.5 text-xs text-muted-foreground"><Lock className="size-3.5" aria-hidden="true" />Posición fija</span> : (
           // Moving and removing are peer actions of one row, so they share one menu (rules §6).
           <DropdownMenu>
-            <DropdownMenuTrigger disabled={disabled} render={<Button type="button" variant="ghost" size="icon" className="size-10" aria-label={`Acciones de ${stage.name}`} />}>
+            <DropdownMenuTrigger disabled={disabled && !(readOnly && stage.kind === "in_process")} render={<Button type="button" variant="ghost" size="icon" className="size-10" aria-label={`Acciones de ${stage.name}`} />}>
               <Ellipsis aria-hidden="true" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-44">

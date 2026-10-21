@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
+import { ConfigReadOnlyNotice, useConfigLifecycle } from "../vacancy-config/lifecycle";
 import Link from "next/link";
 import { Columns3, Plus } from "lucide-react";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
@@ -33,16 +35,18 @@ type Session = { editor: PipelineEditorState; etag: string };
 const noResponse = (): DraftPipelineActionResult => ({ ok: false, reason: "no_response", reference: {} });
 
 /** An isolated, in-memory editing session. No autosave and no automatic mutation retry. */
-export function PipelineStageEditor({ draftId, pipeline, etag, substates, substatesEtag, cutoffStageId: initialCutoffStageId = null }: {
-  draftId: string; pipeline: EditorPipeline; etag: string; substates?: SubstatesCatalog; substatesEtag?: string; cutoffStageId?: string | null;
+export function PipelineStageEditor({ draftId, pipeline, etag, substates, substatesEtag, cutoffStageId: initialCutoffStageId = null, lifecycle: initialLifecycle }: {
+  draftId: string; pipeline: EditorPipeline; etag: string; substates?: SubstatesCatalog; substatesEtag?: string; cutoffStageId?: string | null; lifecycle?: Lifecycle;
 }) {
+  const { lifecycle, readOnly, updateLifecycle } = useConfigLifecycle(initialLifecycle);
   const [cutoffStageId, setCutoffStageId] = useState(initialCutoffStageId);
   const [cutoffRejected, setCutoffRejected] = useState(false);
   const [savedSubstates, setSavedSubstates] = useState(() => substates && substatesEtag ? { catalog: substates, etag: substatesEtag } : null);
   const [substatesOpen, setSubstatesOpen] = useState(false);
   const [session, setSession] = useState<Session>(() => ({ editor: editorFromPipeline(pipeline), etag }));
   const current = useRef(session);
-  const [pending, setPending] = useState<"save" | "preview" | "reload" | "check" | null>(null);
+  const [operation, setPending] = useState<"save" | "preview" | "reload" | "check" | null>(null);
+  const pending = readOnly ? "readonly" : operation;
   const busy = useRef(false);
   const mounted = useRef(true);
   const [notice, setNotice] = useState<PipelineNotice | null>(null);
@@ -68,7 +72,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
     setSession(next);
   }
   function edit(editor: PipelineEditorState) {
-    if (!busy.current) replace(editor);
+    if (!readOnly && !busy.current) replace(editor);
   }
   function report(next: PipelineNotice, reference?: { status?: number; code?: string }) {
     setNotice(next);
@@ -86,6 +90,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
   }
   async function reportFailure(result: DraftPipelineActionFailure, snapshot: Session) {
     setConfirming(false);
+    if (result.reason === "process_finished") { updateLifecycle(result.lifecycle); setNotice(null); setImpactPreview(null); return; }
     if (result.reason === "impact_confirmation_required") {
       setImpactPreview(null); setRequiresPreview(true);
     }
@@ -104,7 +109,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
     } else report(pipelineFailureNotice(result.reason), result.reference);
   }
   async function reviewImpact() {
-    if (busy.current) return;
+    if (readOnly || busy.current) return;
     busy.current = true; setPending("preview"); setNotice(null); setImpactPreview(null);
     const snapshot = current.current;
     const result = await previewPipelineAction({ draftId, body: toPutBody(snapshot.editor) }).catch((): PipelinePreviewActionResult => ({ ok: false, reason: "no_response", reference: {} }));
@@ -117,7 +122,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
     busy.current = false; setPending(null);
   }
   async function persist() {
-    if (busy.current) return;
+    if (readOnly || busy.current) return;
     const snapshot = current.current;
     busy.current = true; setPending("save"); setNotice(null);
     const result = await saveDraftPipelineAction({ draftId, ifMatch: snapshot.etag, body: { ...toPutBody(snapshot.editor), confirm_impact: true } }).catch(noResponse);
@@ -131,7 +136,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
     busy.current = false; setPending(null);
   }
   function requestSave() {
-    if (busy.current || !isEditorDirty(current.current.editor)) return;
+    if (readOnly || busy.current || !isEditorDirty(current.current.editor)) return;
     setAttempted(true);
     const validation = validateEditor(current.current.editor);
     if (!validation.ok) {
@@ -144,7 +149,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
     else { setImpactPreview(null); setConfirming(true); }
   }
   async function recover(mode: "reload" | "check") {
-    if (busy.current || !mounted.current) return;
+    if (readOnly || busy.current || !mounted.current) return;
     busy.current = true; setPending(mode);
     const snapshot = current.current;
     const result = await loadDraftPipelineAction(draftId).catch(noResponse);
@@ -152,6 +157,8 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
     if (!result.ok) {
       const failure = pipelineFailureNotice(result.reason);
       report({ ...failure, description: "No pudimos cargar la versión guardada. Tus cambios siguen aquí. Puedes volver a comprobarla; no se enviará otro guardado.", text: "No se pudo cargar · tus cambios siguen aquí", recovery: mode }, result.reference);
+    } else if (result.pipeline.lifecycle?.process === "finished") {
+      updateLifecycle(result.pipeline.lifecycle); setNotice(null); setConfirming(false);
     } else if (mode === "reload") {
       // A deliberate replacement may have a different order; do not reuse positional keys.
       replace(editorFromPipeline(result.pipeline), result.etag);
@@ -166,7 +173,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
     busy.current = false; setPending(null);
   }
   function add() {
-    if (busy.current) return;
+    if (readOnly || busy.current) return;
     const next = addCustomStage(current.current.editor);
     const added = next.stages.find(entry => !current.current.editor.stages.some(previous => previous.key === entry.key));
     replace(next);
@@ -176,7 +183,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
     }
   }
   function row(stage: PipelineEditorState["stages"][number] | PipelineEditorState["exit"], position: number) {
-    return <StageRow key={stage.key} stage={stage} position={position} state={state} disabled={pending !== null}
+    return <StageRow key={stage.key} stage={stage} position={position} state={state} disabled={pending !== null} readOnly={readOnly}
       error={attempted || touched.has(stage.key) ? errors[stage.key] : undefined}
       inputRef={node => {
         if (node) {
@@ -207,6 +214,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
           <CardAction className="col-start-1 row-span-1 row-start-auto justify-self-start sm:col-start-2 sm:row-span-2 sm:row-start-1 sm:justify-self-end"><p className="text-sm tabular-nums text-muted-foreground">{state.stages.filter(entry => entry.kind === "custom").length} de {state.limits.maxCustomStages} columnas propias</p></CardAction>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
+          {readOnly && !substatesOpen && <ConfigReadOnlyNotice />}
           {removedCutoff && <div className="flex flex-col items-start gap-2">
             <Badge variant="info">Corte de entrega</Badge>
             <FieldError>{removedCutoff.name} es el corte de entrega. Cámbiala en Entrega antes de quitarla.</FieldError>
@@ -242,12 +250,12 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
         </CardFooter>
       </Card>
       <PipelinePreview state={state} />
-      <ConfirmActionDialog open={confirming} onOpenChange={setConfirming} icon={Columns3}
+      <ConfirmActionDialog open={!readOnly && confirming} onOpenChange={setConfirming} icon={Columns3}
         title="¿Guardar los cambios de columnas?" description="Ningún candidato cambia de columna. El nuevo orden aplica a los próximos movimientos."
         confirmLabel="Guardar" pendingLabel="Guardando…" pending={pending === "save"} onConfirm={() => void persist()}>
         {impactPreview?.has_impact ? <ImpactDetails preview={impactPreview} baseline={state.baseline} /> : undefined}
       </ConfirmActionDialog>
-      {savedSubstates && <SubstatesSheet draftId={draftId} inProcessName={state.stages.find(stage => stage.kind === "in_process")?.name ?? ""}
+      {savedSubstates && <SubstatesSheet lifecycle={lifecycle} onLifecycleChange={updateLifecycle} draftId={draftId} inProcessName={state.stages.find(stage => stage.kind === "in_process")?.name ?? ""}
         catalog={savedSubstates.catalog} etag={savedSubstates.etag} open={substatesOpen} onOpenChange={setSubstatesOpen}
         onSaved={(catalog: SubstatesCatalog, etag: string) => setSavedSubstates({ catalog, etag })} />}
     </>

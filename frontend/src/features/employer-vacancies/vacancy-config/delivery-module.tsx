@@ -24,5 +24,5 @@ export function VacancyDeliveryModule({ draftId }: { draftId: string }) {
   if (result === null) return <DeliverySkeleton />;
   if (!result.pipeline.ok) return <DraftEditErrorState reason={pipelineLoadReason(result.pipeline.reason)} onRetry={retry} />;
   if (!result.delivery.ok) return <DraftEditErrorState reason={pipelineLoadReason(result.delivery.reason)} onRetry={retry} />;
-  return <DeliveryEditor key={draftId} draftId={draftId} delivery={result.delivery.delivery} etag={result.delivery.etag} stages={result.pipeline.pipeline.stages} />;
+  return <DeliveryEditor key={draftId} draftId={draftId} delivery={result.delivery.delivery} lifecycle={result.pipeline.pipeline.lifecycle} etag={result.delivery.etag} stages={result.pipeline.pipeline.stages} />;
 }

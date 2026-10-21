@@ -62,9 +62,11 @@ const evaluatedQuestion = () => ({
 
 const v2Questions = () => [openQuestion(), evaluatedQuestion()];
 
+import { activeLifecycle } from "../lifecycle-fixture";
 function readEnvelopeV2(overrides: Record<string, unknown> = {}) {
   return {
     schema_version: 2,
+    lifecycle: activeLifecycle,
     id: ID,
     status: "draft",
     principal_recruiter_id: OTHER_ID,

@@ -44,7 +44,7 @@ it.each([
   ["no_response", "No hubo respuesta del servidor"], ["validation_error", "No pudimos confirmar el resultado"],
   ["unrecognized_response", "No pudimos confirmar el resultado"], ["future_reason", "No pudimos confirmar el resultado"],
 ])("maps pipeline load %s to the Empty error with explicit retry", async (reason, title) => {
-  vi.mocked(loadDraftPipelineAction).mockResolvedValueOnce({ ok: false, reason: reason as DraftPipelineActionFailure["reason"], reference: {} });
+  vi.mocked(loadDraftPipelineAction).mockResolvedValueOnce({ ok: false, reason: reason as Exclude<DraftPipelineActionFailure["reason"], "process_finished">, reference: {} });
   render(<VacancyColumnsModule draftId={id} />);
   expect(await screen.findByRole("heading", { name: title })).toBeVisible();
   expect(screen.queryByRole("textbox")).not.toBeInTheDocument();

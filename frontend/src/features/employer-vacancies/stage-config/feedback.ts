@@ -37,6 +37,7 @@ const uncertain = (title: string): PipelineNotice => ({
   text: "Guardado sin confirmar · comprueba la versión", recovery: "check",
 });
 const failures: Record<DraftPipelineActionFailure["reason"], PipelineNotice> = {
+  process_finished: { tone: "info", title: "Proceso finalizado", text: "El proceso de esta vacante finalizó. La configuración está en solo lectura." },
   version_conflict: conflictNotice,
   stage_change_requires_empty_pipeline: conflictNotice,
   stage_occupied: {

@@ -38,6 +38,6 @@ export function VacancyColumnsModule({ draftId }: { draftId: string }) {
   if (!result.pipeline.ok) return <DraftEditErrorState reason={pipelineLoadReason(result.pipeline.reason)} onRetry={retry} />;
   if (!result.substates.ok) return <DraftEditErrorState reason={pipelineLoadReason(result.substates.reason)} onRetry={retry} />;
   if (!result.delivery.ok) return <DraftEditErrorState reason={pipelineLoadReason(result.delivery.reason)} onRetry={retry} />;
-  return <PipelineStageEditor key={draftId} draftId={draftId} pipeline={result.pipeline.pipeline} etag={result.pipeline.etag}
+  return <PipelineStageEditor key={draftId} draftId={draftId} pipeline={result.pipeline.pipeline} lifecycle={result.pipeline.pipeline.lifecycle} etag={result.pipeline.etag}
     substates={result.substates.catalog} substatesEtag={result.substates.etag} cutoffStageId={result.delivery.delivery.cutoffStageId} />;
 }

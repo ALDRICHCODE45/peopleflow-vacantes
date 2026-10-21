@@ -11,6 +11,7 @@ vi.mock("@/lib/env/server", () => ({
 }));
 
 import { getDraftPipeline, saveDraftPipeline } from "./client";
+import { activeLifecycle } from "../lifecycle-fixture";
 
 const draftId = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const etag = '"opaque-pipeline-tag+/="';
@@ -42,7 +43,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); env.reads = 0; });
 
 for (const method of ["GET", "PUT"] as const) {
   describe(method, () => {
-    const wire = (value: typeof pipeline) => method === "PUT" ? { ...value, applied_impact: { not_applicable: [], recovery_reassigned: [] } } : value;
+    const wire = (value: typeof pipeline) => method === "PUT" ? { ...value, applied_impact: { not_applicable: [], recovery_reassigned: [] } } : { ...value, lifecycle: activeLifecycle };
     const call = () => method === "GET"
       ? getDraftPipeline({ token: " secret ", draftId })
       : saveDraftPipeline({ token: " secret ", draftId, ifMatch: etag, body });

@@ -6,6 +6,7 @@ import type { ScreeningQuestionV2 } from "../screening-v2/model";
 
 /** Editor input for a saved v2 draft. */
 export type DraftEditSeed = {
+  lifecycle: DraftReadEnvelopeV2["lifecycle"];
   model: DraftModel;
   screeningQuestionsV2: ScreeningQuestionV2[];
 };
@@ -38,6 +39,7 @@ export function draftEditSeedFromRead(read: DraftReadEnvelopeV2): DraftEditSeed 
     },
   }).fields;
   return {
+    lifecycle: structuredClone(read.lifecycle),
     model: {
       fields: structuredClone(fields),
       locationRead: structuredClone(rest.location),
