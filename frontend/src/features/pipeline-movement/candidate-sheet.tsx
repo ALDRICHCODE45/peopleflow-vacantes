@@ -187,16 +187,22 @@ function CandidateProfile({ profile, manual }: { profile: Participation["profile
     <p className="text-xs text-muted-foreground">{manual ? "Registrado al agregar al candidato." : "Copiado del perfil al postularse."}</p>
   </section>;
 }
-/** E.164 for display: «+52 55 1234 5678» for Mexico; other countries stay as entered. */
+/** E.164 for display: «+52 55 1234 5678» for Mexico; anything else (other countries, or the free-text
+ * phone of organic profiles) stays as written. The tel: link keeps only digits and «+». */
 function displayPhone(phone: string) {
   const mx = /^\+52(\d{2})(\d{4})(\d{4})$/.exec(phone);
   return mx ? `+52 ${mx[1]} ${mx[2]} ${mx[3]}` : phone;
 }
+/** Narrow sheets: let a long address wrap after «@» instead of mid-word. */
+function emailWithBreak(email: string) {
+  const at = email.lastIndexOf("@");
+  return at < 0 ? email : <>{email.slice(0, at + 1)}<wbr />{email.slice(at + 1)}</>;
+}
 function CandidateContact({ contact }: { contact: ParticipationDetail["contact"] }) {
   const missing = <span className="text-muted-foreground">Sin dato</span>;
   const rows = [
-    { label: "Correo", icon: Mail, value: contact.email ? <a className="underline-offset-4 hover:underline" href={`mailto:${contact.email}`}>{contact.email}</a> : missing },
-    { label: "Teléfono", icon: Phone, value: contact.phone ? <a className="tabular-nums underline-offset-4 hover:underline" href={`tel:${contact.phone}`}>{displayPhone(contact.phone)}</a> : missing },
+    { label: "Correo", icon: Mail, value: contact.email ? <a className="underline decoration-muted-foreground/50 underline-offset-4 hover:decoration-foreground" href={`mailto:${contact.email}`} aria-label={contact.email}>{emailWithBreak(contact.email)}</a> : missing },
+    { label: "Teléfono", icon: Phone, value: contact.phone ? <a className="tabular-nums underline decoration-muted-foreground/50 underline-offset-4 hover:decoration-foreground" href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`}>{displayPhone(contact.phone)}</a> : missing },
   ];
   return <section aria-label="Contacto" className="flex flex-col gap-5"><SectionTitle>Contacto</SectionTitle>
     <dl className="grid grid-cols-2 items-center gap-x-4 gap-y-5">{rows.map(({ label, icon: Icon, value }) => <div key={label} className="contents">

@@ -702,4 +702,6 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     correo otra vez: bajo el contacto aparece «Posibles coincidencias» con el contacto
     enmascarado y la última vacante; en la misma vacante dice «Ya está en este proceso». En
     otra vacante, «Usar el existente» deja solo etapa y CV y reutiliza a la persona. Cerrar
-    el panel con datos pide «Tienes cambios sin guardar». Probalo en celular y en oscuro.
+    el panel con datos pide «Tienes cambios sin guardar». En la ficha de cualquier candidato
+    (manual u orgánico) la sección «Contacto» muestra «Correo» y «Teléfono» como enlaces
+    (o «Sin dato»). Probalo en celular y en oscuro.

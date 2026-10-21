@@ -75,6 +75,7 @@ it("shows the candidate's available contact as mail and phone links (user decisi
   render(<SheetHarness />);
   const contact = await screen.findByRole("region", { name: "Contacto" });
   expect(within(contact).getByRole("link", { name: "ana.perez@ejemplo.com" })).toHaveAttribute("href", "mailto:ana.perez@ejemplo.com");
+  expect(within(contact).getByRole("link", { name: "ana.perez@ejemplo.com" }).querySelector("wbr")).not.toBeNull();
   expect(within(contact).getByRole("link", { name: "+52 55 1234 5678" })).toHaveAttribute("href", "tel:+525512345678");
   expect(Array.from(contact.querySelectorAll("dt")).map(dt => dt.textContent)).toEqual(["Correo", "Teléfono"]);
 });
@@ -85,4 +86,11 @@ it("says honestly when a contact channel is missing", async () => {
   const contact = await screen.findByRole("region", { name: "Contacto" });
   expect(within(contact).getByText("Sin dato")).toHaveClass("text-muted-foreground");
   expect(within(contact).getByRole("link", { name: "+14155550123" })).toHaveAttribute("href", "tel:+14155550123");
+});
+it("keeps a free-text organic phone as written but dials only its digits", async () => {
+  const detail = { ...detailFixture(), contact: { email: "ana@example.com", phone: "33 1234 5678" } };
+  vi.mocked(loadParticipationAction).mockResolvedValue({ ok: true, data: detail });
+  render(<SheetHarness />);
+  const contact = await screen.findByRole("region", { name: "Contacto" });
+  expect(within(contact).getByRole("link", { name: "33 1234 5678" })).toHaveAttribute("href", "tel:3312345678");
 });
