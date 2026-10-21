@@ -31,7 +31,7 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 	// Materialize the existing visible keyset page first. All participation
 	// aggregation is restricted to those IDs, in this same SQL statement/snapshot.
 	query := `WITH page AS MATERIALIZED (SELECT d.id, d.fields, d.principal_recruiter_id, u.full_name,
- d.version, d.created_at, d.updated_at, COALESCE(p.status,'draft') AS status, p.process_status, p.published_at,
+ d.version, d.created_at, d.updated_at, COALESCE(p.status,'draft') AS status, p.process_status, p.published_at, p.paused_at, p.closed_at, p.process_finished_at,
  c.configuration, c.version AS pipeline_version
  FROM job_drafts d
  LEFT JOIN users u ON u.id = d.principal_recruiter_id AND u.deleted_at IS NULL
@@ -79,7 +79,7 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 	for rows.Next() {
 		var item draftlist.Item
 		var p projection
-		if err := rows.Scan(&item.ID, &p.document, &item.Principal.ID, &item.Principal.Name, &item.Version, &item.CreatedAt, &item.UpdatedAt, &item.Status, &item.Process, &item.PublishedAt, &p.pipeline, &p.pipelineVersion, &p.counts, &p.requesterName); err != nil {
+		if err := rows.Scan(&item.ID, &p.document, &item.Principal.ID, &item.Principal.Name, &item.Version, &item.CreatedAt, &item.UpdatedAt, &item.Status, &item.Process, &item.PublishedAt, &item.PausedAt, &item.ClosedAt, &item.ProcessFinishedAt, &p.pipeline, &p.pipelineVersion, &p.counts, &p.requesterName); err != nil {
 			rows.Close()
 			return draftlist.Page{}, fmt.Errorf("scan list v2 draft: %w", err)
 		}

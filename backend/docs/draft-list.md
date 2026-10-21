@@ -74,6 +74,9 @@ without a cursor shows it again.
       "status": "draft",
       "process": null,
       "published_at": null,
+      "paused_at": null,
+      "closed_at": null,
+      "process_finished_at": null,
       "candidates": null,
       "created_at": "2026-10-01T09:00:00.000001Z",
       "updated_at": "2026-10-15T12:30:45.123456Z"
@@ -94,16 +97,42 @@ without a cursor shows it again.
 | `version` | Decimal string, the same value as the draft read envelope. It is for display only: save with the `ETag` of `GET /v2/me/company/job-drafts/{id}`. |
 | `status` | Strict enum `draft`, `published`, `paused` or `closed`, derived from the process record; all states remain in this list. |
 | `process` | Always present: `null` for never-published drafts, otherwise `active` or `finished`. Finished implies closed publication. |
-| `published_at` | Publication instant as RFC 3339 UTC (six fractional digits), or `null` when still draft. |
+| `published_at` | Latest publication, resume or reopen instant as RFC 3339 UTC (six fractional digits), or `null` for a never-published draft. |
+| `paused_at` | Latest pause instant in the same format, or `null` if never paused. Retained after resume/reopen. |
+| `closed_at` | Latest close instant in the same format, or `null` if never closed. Retained after reopen. |
+| `process_finished_at` | Latest process-finish instant (separate finish or close-and-finish) in the same format, or `null` if never finished. Retained after reopen. |
 | `candidates` | Always present: `null` without a `vacancy_processes` row; otherwise live participation counts, described below. |
 | `created_at`, `updated_at` | UTC, six fractional digits, the same values as the draft read envelope. |
 
 P1 added `status` and `published_at`; L2 adds `process`; the candidate-summary
-addition adds `candidates` (13 keys per item).
-Lifecycle transitions do not change draft versions, timestamps, ordering, cursors
+addition adds `candidates`; the lifecycle-date addition adds `paused_at`,
+`closed_at` and `process_finished_at` (16 keys per item).
+Lifecycle transitions do not change draft versions, `created_at`/`updated_at`, ordering, cursors
 or visibility/filtering. Badges: Borrador, Publicada, Pausada, Cerrada · proceso en
 curso, Cerrada · proceso finalizado. The backend returns every state; see
 [vacancy-lifecycle.md](vacancy-lifecycle.md) for actions and the two axes.
+
+## Lifecycle dates for list display
+
+The flat date fields come from the same `vacancy_processes` row and have exactly
+the values returned by `GET /v2/me/company/job-drafts/{id}/lifecycle`. All four
+are `null` for never-published drafts. Each records the **latest** transition of
+its kind, not the first one. Resume/reopen refreshes `published_at` but retains
+historical `paused_at`, `closed_at` and `process_finished_at`; do not infer the
+current state from whether a historical timestamp is present.
+
+Choose the displayed date using both current axes:
+
+| Current state | Display date |
+| --- | --- |
+| `draft` | None (all lifecycle dates are `null`). |
+| `published` | `published_at` |
+| `paused` | `paused_at` |
+| `closed` + `active` process | `closed_at` |
+| `closed` + `finished` process | `process_finished_at` |
+
+The date columns are selected in the existing single page-scoped statement;
+there are no extra queries or migrations.
 
 ## Live candidate summary
 
@@ -187,6 +216,8 @@ recruiter's drafts for a recruiter) are read and skipped. Run `make db-migrate` 
 - `internal/features/jobs/infrastructure/http/draftListHandler.go` — HTTP adapter.
 - `cmd/api/router.go` — route in the v2 draft group.
 - `db/migrations/00014_index_job_drafts_company_updated.sql` — list index.
+- `cmd/api/draft_list_dates_integration_test.go` — list/lifecycle GET date parity
+  through pause, resume, close, finish and reopen, including repeated transitions.
 - `cmd/api/draft_list_candidates_integration_test.go` — live counts, real moves,
   discard/recovery, retirement guards, fulfillment/finished reads and visibility.
 - `internal/features/jobs/infrastructure/postgres/draftstore/list_candidates_integration_test.go`

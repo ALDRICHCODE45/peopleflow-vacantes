@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"time"
 
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftlist"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/shared/httpjson"
@@ -60,6 +61,9 @@ type draftListItem struct {
 	Process            *string              `json:"process"`
 	Status             string               `json:"status"`
 	PublishedAt        *string              `json:"published_at"`
+	PausedAt           *string              `json:"paused_at"`
+	ClosedAt           *string              `json:"closed_at"`
+	ProcessFinishedAt  *string              `json:"process_finished_at"`
 	Candidates         *draftListCandidates `json:"candidates"`
 	CreatedAt          string               `json:"created_at"`
 	UpdatedAt          string               `json:"updated_at"`
@@ -116,6 +120,10 @@ func toDraftListItem(item draftlist.Item) draftListItem {
 		Version:            strconv.FormatInt(item.Version, 10),
 		Process:            item.Process,
 		Status:             item.Status,
+		PublishedAt:        draftListTimestamp(item.PublishedAt),
+		PausedAt:           draftListTimestamp(item.PausedAt),
+		ClosedAt:           draftListTimestamp(item.ClosedAt),
+		ProcessFinishedAt:  draftListTimestamp(item.ProcessFinishedAt),
 		CreatedAt:          item.CreatedAt.UTC().Format(draftListTimestampLayout),
 		UpdatedAt:          item.UpdatedAt.UTC().Format(draftListTimestampLayout),
 	}
@@ -126,14 +134,18 @@ func toDraftListItem(item draftlist.Item) draftListItem {
 			out.Candidates.ByStage[i] = draftListCandidateStage{ID: stage.ID, Kind: stage.Kind, Name: stage.Name, Count: stage.Count}
 		}
 	}
-	if item.PublishedAt != nil {
-		at := item.PublishedAt.UTC().Format(draftListTimestampLayout)
-		out.PublishedAt = &at
-	}
 	if item.Requester != nil {
 		out.Requester = &draftListRequester{Kind: item.Requester.Kind, ID: item.Requester.ID, Name: item.Requester.Name}
 	}
 	return out
+}
+
+func draftListTimestamp(at *time.Time) *string {
+	if at == nil {
+		return nil
+	}
+	value := at.UTC().Format(draftListTimestampLayout)
+	return &value
 }
 
 // parseDraftListRequest validates limit and cursor against the session scope.

@@ -97,7 +97,7 @@ func TestLifecycleEffectsPublicPrivacyEmbeddingsAndConfigurationWire(t *testing.
 		}
 		list := h.do(t, "GET", draftFlowV2Path, "", owner.token, nil)
 		item := draftFlowObject(t, list.body)["items"].([]any)[0].(map[string]any)
-		if list.status != 200 || len(item) != 13 || item["status"] != step.state || item["process"] != step.process {
+		if list.status != 200 || len(item) != 16 || item["status"] != step.state || item["process"] != step.process {
 			t.Fatal("company list", string(list.body))
 		}
 		if step.process == "finished" {
