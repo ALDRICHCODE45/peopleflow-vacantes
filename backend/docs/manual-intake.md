@@ -1,13 +1,12 @@
 # Recruiter manual intake contract
 
 Status: B1 storage, B2 reads, and B3a duplicates-check are implemented.
-B3b multipart creation is not implemented. Its request-envelope and
-stage-validation helpers are tested but are not wired to HTTP; the create
-sections below remain the target contract. B3b-1 adds unwired field-validation and
-fingerprinting helpers plus company-owned CV retention in shared reconciliation;
-it does not implement the create route. B3b-2 currently adds only a tested,
-unwired streaming multipart parser; endpoint orchestration, persistence, routing,
-and integration coverage remain unimplemented.
+B3b-1 provides field-validation and fingerprinting helpers plus company-owned CV
+retention in shared reconciliation. B3b-2 provides the streaming multipart parser.
+B3b-3 implements the transactional `board.Store.CreateManual` operation and its
+application-owned inspector/storage ports. HTTP orchestration and routing remain
+unimplemented; the create route below is still the target HTTP contract.
+Integration-tag store coverage is provided for parent-run database validation.
 
 ## Routes and privacy
 
@@ -118,7 +117,11 @@ Already participating: 409 `candidate_already_in_process`,
 produces `validation_error`, field `existing`, code `invalid`.
 
 Rejects must leave rows, files, audit and counters unchanged. Compensate a stored
-file if the database transaction fails, following candidate CV upload behavior.
+file on definite pre-commit failures, including insert or audit errors, following
+candidate CV upload behavior. Once Commit is attempted, its outcome may be
+uncertain: retain the file even if Commit returns an error. Reconciliation keeps
+files referenced by committed company_candidate_cvs rows and removes true orphans.
+Cleanup failures are returned alongside the original error rather than hidden.
 
 The transaction creates company_candidates and languages only for new identities.
 CV ownership is always the company: company_candidate_cvs.company_id is required;
@@ -187,9 +190,41 @@ applications infrastructure importing candidates/application/cvs directly;
 composition-root injection is needed to reuse `cvs.Inspect` without changing
 archguard.
 
-Still required before shipping B3b: create HTTP wiring and error/header handling;
-complete candidate/geo validation boundaries; confirmed-distinct and existing
-manual/organic reuse; already-in-process;
-idempotent replay/conflict; rejection side-effect invariants; storage compensation;
-atomic history/audit/delivery at the cutoff. These require focused unit tests and
-integration-tag tests using the isolated database harness.
+B3b-3 store coverage:
+- `TestManualCreatedBodyUsesGETItem`: exact full GET item key order and values,
+  including profile and empty screening answers, followed by coverage/delivery.
+  Intake uses `ManualCreatedBody`, never the restricted `Moved.MarshalJSON` shape.
+- `TestManualFileCompensation`: Put failure, definite pre-commit failure (Delete),
+  success, and simulated uncertain Commit failure (retain file).
+- `TestManualCreateFirstStageReplayAndConflict`: GET-shaped response, languages,
+  history, audit, byte-equality with GET board plus coverage/delivery, exact
+  replay, and changed-CV fingerprint conflict.
+- `TestManualCreateAtDeliveryCutoff`: intake at and after the delivery cutoff.
+- `TestManualCreateDuplicatesAndConfirmedDistinct`: warning without writes and
+  explicitly distinct creation.
+- `TestManualCreateExistingReuseAndAlreadyInProcess`: manual and organic reuse,
+  company-owned CVs, unchanged organic CV library, and existing participation ID.
+- `TestManualCreateRejectionsHaveNoEffects`: process state, stage, field, company
+  scope, authorization, and all three inspector errors, with row/audit/replay
+  invariants.
+- `TestManualCreateValidationOrdering`: authorization before parsing, collected
+  field errors before state, and state before stage checks.
+- `TestManualCreateTransactionFailureDeletesFile`: audit failure rolls back rows
+  and deletes the private file.
+
+`CreateManual` accepts the four parsed inputs in `ManualInput`; its injected
+`ManualCVInspector` maps candidate-inspector errors to the applications-owned
+`ErrManualCVContentMismatch`, `ErrManualCVUnsupportedType`, and
+`ErrManualCVTooLarge` sentinels. The composition adapter must translate those
+errors, and adapt context-aware local storage to `ManualFileStorage`'s context-free
+Put/Delete methods (cleanup must not inherit request cancellation).
+The operation returns frozen response bytes, ETag, and a replay flag; a future
+handler owns status/header/error serialization. No HTTP handler or router is added.
+Company-wide manual intake serialization prevents duplicate-check/create races
+between vacancies. Replay keys are company/actor/operation scoped; fingerprints
+also bind the target vacancy. Intake history beyond the cutoff counts toward
+delivery; ordinary move/recovery counting retains exact-cutoff semantics.
+
+Still required before shipping B3b: create HTTP wiring and error/header handling,
+composition-root port adapters, parent-run database integration validation, and
+endpoint-level tests. No integration execution is implied by unit-test results.

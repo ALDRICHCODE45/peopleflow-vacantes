@@ -5,6 +5,7 @@ import (
 
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 var _ app.DuplicateStore = (*Store)(nil)
@@ -52,7 +53,12 @@ func (s *Store) DuplicatesCheck(ctx context.Context, company, actor, id uuid.UUI
 	if fields := request.Validate(); len(fields) > 0 {
 		return out, &app.ManualValidationError{Fields: fields}
 	}
-	rows, err := tx.Query(ctx, duplicatesSQL, company, id, request.Email, request.Phone)
+	return readManualDuplicates(ctx, tx, company, id, request.Email, request.Phone)
+}
+
+func readManualDuplicates(ctx context.Context, tx pgx.Tx, company, id uuid.UUID, email, phone *string) (app.DuplicateMatches, error) {
+	out := app.DuplicateMatches{Matches: []app.DuplicateMatch{}}
+	rows, err := tx.Query(ctx, duplicatesSQL, company, id, email, phone)
 	if err != nil {
 		return out, err
 	}

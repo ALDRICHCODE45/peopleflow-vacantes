@@ -51,14 +51,18 @@ func reachedCandidates(ctx context.Context, tx pgx.Tx, id uuid.UUID, cutoff *str
 	if cutoff == nil {
 		return out, nil
 	}
+	intakeStages, err := manualDeliveryStages(ctx, tx, id, *cutoff)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := tx.Query(ctx, `SELECT p.id,COALESCE(cc.id,u.id),COALESCE(cc.full_name,u.full_name),min(h.created_at) AS reached_at
  FROM process_participations p
  JOIN vacancy_processes vp ON vp.id=p.process_id
  LEFT JOIN users u ON u.id=p.candidate_id
  LEFT JOIN company_candidates cc ON cc.id=p.company_candidate_id AND cc.company_id=vp.company_id
  JOIN participation_stage_history h ON h.participation_id=p.id
- WHERE p.process_id=$1 AND h.stage_id=$2::uuid AND h.event_kind IN ('intake','move','recovery')
- GROUP BY p.id,u.id,u.full_name,cc.id,cc.full_name ORDER BY reached_at,p.id`, id, *cutoff)
+ WHERE p.process_id=$1 AND (h.stage_id=$2::uuid OR (p.source='manual' AND h.event_kind='intake' AND h.stage_id=ANY($3::uuid[]))) AND h.event_kind IN ('intake','move','recovery')
+ GROUP BY p.id,u.id,u.full_name,cc.id,cc.full_name ORDER BY reached_at,p.id`, id, *cutoff, intakeStages)
 	if err != nil {
 		return nil, err
 	}
@@ -83,8 +87,9 @@ func completeDelivery(c deliveryconfig.Configuration) bool {
 	return c.CutoffStageID != nil && c.TargetQuantity != nil && c.CommitmentDate != nil
 }
 
-// RecordDelivery evaluates only actual entries into the configured cutoff. It
-// neither opens nor commits a transaction; audit failure aborts the caller too.
+// RecordDelivery evaluates actual cutoff entries and manual intake at or beyond
+// the cutoff. It neither opens nor commits a transaction; audit failure aborts
+// the caller too.
 func (s *Store) RecordDelivery(ctx context.Context, tx pgx.Tx, id, actor, entered uuid.UUID, at time.Time) error {
 	c, _, err := readDelivery(ctx, tx, id)
 	if err != nil {
@@ -94,11 +99,47 @@ func (s *Store) RecordDelivery(ctx context.Context, tx pgx.Tx, id, actor, entere
 		return errors.New("published delivery configuration incomplete")
 	}
 	if *c.CutoffStageID != entered.String() {
-		return nil
+		stages, err := manualDeliveryStages(ctx, tx, id, *c.CutoffStageID)
+		if err != nil {
+			return err
+		}
+		var intake bool
+		err = tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM participation_stage_history h JOIN process_participations p ON p.id=h.participation_id WHERE p.process_id=$1 AND p.source='manual' AND h.event_kind='intake' AND h.actor_id=$2 AND h.stage_id=$3 AND h.created_at=$4 AND h.stage_id=ANY($5::uuid[]))`, id, actor, entered, at, stages).Scan(&intake)
+		if err != nil {
+			return err
+		}
+		if !intake {
+			return nil
+		}
 	}
 	_, err = s.recordFulfillment(ctx, tx, id, actor, c, at)
 	return err
 }
+
+// Only intake may start beyond the cutoff; normal moves retain their exact
+// historical cutoff-entry semantics.
+func manualDeliveryStages(ctx context.Context, tx pgx.Tx, id uuid.UUID, cutoff string) ([]uuid.UUID, error) {
+	pipeline, _, err := readPipeline(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := []uuid.UUID{}
+	found := false
+	for _, stage := range pipeline.Stages {
+		if stage.ID == cutoff {
+			found = true
+		}
+		if found {
+			parsed, err := uuid.Parse(stage.ID)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, parsed)
+		}
+	}
+	return out, nil
+}
+
 func (s *Store) recordFulfillment(ctx context.Context, tx pgx.Tx, id, actor uuid.UUID, c deliveryconfig.Configuration, at time.Time) (bool, error) {
 	saved, _, err := readFulfillment(ctx, tx, id)
 	if err != nil {
