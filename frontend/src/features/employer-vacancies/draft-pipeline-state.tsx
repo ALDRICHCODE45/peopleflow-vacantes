@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { ArrowLeft, ArrowRight, FilePen, GitBranch, SlidersHorizontal } from "lucide-react";
 import { SiteHeader } from "@/components/company-dashboard/site-header";
@@ -18,12 +18,15 @@ import type { DraftPublication } from "@/features/jobs/drafts/pipeline/publicati
 import { PublishButton } from "./publication/publish-dialog";
 import { MovementBoard } from "@/features/pipeline-movement/board";
 import { cn } from "@/lib/utils";
+import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
 
 /** Reads readiness alongside the draft; published processes load their real board independently. */
 export function DraftPipelineState({ draftId }: { draftId: string }) {
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<{ id: string; result: DraftEditResult; publication?: DraftPublication } | null>(null);
+  const [boardLifecycle, setBoardLifecycle] = useState<{ id: string; value: Lifecycle }>();
+  const onLifecycleChange = useCallback((value: Lifecycle) => setBoardLifecycle({ id: draftId, value }), [draftId]);
   const result = loaded?.id === draftId ? loaded.result : null;
   useEffect(() => {
     let current = true;
@@ -43,7 +46,8 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
   const published = loaded?.id === draftId && loaded.publication?.status === "published";
   const publishedAt = published ? loaded?.publication?.publishedAt : null;
   const title = result?.ok ? result.seed.model.fields.title || "Sin título" : "Pipeline";
-  const status = publicationStatus(result?.ok ? result.seed.lifecycle.publication : undefined);
+  const lifecycle = boardLifecycle?.id === draftId ? boardLifecycle.value : result?.ok ? result.seed.lifecycle : undefined;
+  const status = publicationStatus(lifecycle?.publication, "accent", lifecycle?.process);
   const configHref = `/empresa/vacantes/${draftId}/configuracion/columnas`;
   return (
     // The inset shell has 8px above and below it on desktop. Only the live
@@ -73,11 +77,11 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
               <Skeleton aria-hidden="true" className="h-10 w-40" />
             </>
           ) : !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : published ? (
-            <MovementBoard vacancyId={draftId} vacancyTitle={title} publishedAt={publishedAt} />
+            <MovementBoard vacancyId={draftId} vacancyTitle={title} publishedAt={publishedAt} onLifecycleChange={onLifecycleChange} />
           ) : (
             <>
               <DraftPipelineCard
-                state={<Badge variant="secondary" className="h-7 gap-1.5 px-3 font-normal"><FilePen aria-hidden="true" />Vacante en borrador</Badge>}
+                state={<span className="flex items-center gap-1.5"><FilePen aria-hidden="true" className="size-4" />Vacante en borrador</span>}
                 settings={<Button nativeButton={false} role="link" variant="ghost" render={<Link href={configHref} />} className="min-h-10"><SlidersHorizontal aria-hidden="true" data-icon="inline-start" />Configurar columnas</Button>}
                 icon={<GitBranch aria-hidden="true" />}
                 title="Esta vacante todavía no tiene pipeline"

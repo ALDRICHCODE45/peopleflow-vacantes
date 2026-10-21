@@ -20,8 +20,10 @@ export { ignoreEscapeClear };
  * two-choice primitive; RadioGroup is not installed. Values stay in the parent
  * when work mode hides this control, and display names never enter the write DTO.
  */
-export function DraftGeographyField({ state, onChange, errors, remoteError }: {
+export function DraftGeographyField({ state, onChange, errors, remoteError, defaultCountry = null }: {
   state: DraftFormState;
+  /** México only for a never-saved draft; a saved vacancy's empty location is never rewritten on load. */
+  defaultCountry?: "MX" | null;
   onChange: (patch: Partial<DraftFormState>) => void;
   errors?: GeographyErrors;
   remoteError?: string;
@@ -67,7 +69,7 @@ export function DraftGeographyField({ state, onChange, errors, remoteError }: {
     <section id="draft-location" tabIndex={-1} aria-label="Ubicación" className="flex flex-col gap-3">
       {/* key: Chromium did not lay out this grid after switching to Remoto (fields at 0px), while
           a fresh mount renders fine. Remount on the mode change; the value is controlled. */}
-      <LocationField key={remote ? "remote" : "onsite"} value={state.location} onChange={location => onChange({ location, locationLabel: null })} depth="municipality" postalCode label={remote ? "Ubicación (opcional)" : "Ubicación"} hideLegend={!remote} layout="grid" requiredIndicator={<PublicationRequired />} description={remote ? "Para vacantes remotas la ubicación es opcional." : undefined}
+      <LocationField defaultCountry={defaultCountry} key={remote ? "remote" : "onsite"} value={state.location} onChange={location => onChange({ location, locationLabel: null })} depth="municipality" postalCode label={remote ? "Ubicación (opcional)" : "Ubicación"} hideLegend={!remote} layout="grid" requiredIndicator={<PublicationRequired />} description={remote ? "Para vacantes remotas la ubicación es opcional." : undefined}
         required={required.location} errors={errors?.location} />
       {remote && state.location.country && <Button type="button" variant="ghost" className="min-h-10 self-start" onClick={() => onChange({ location: { country: null, state: null, municipality: null, postal_code: null }, locationLabel: null })}>Quitar ubicación</Button>}
     </section>

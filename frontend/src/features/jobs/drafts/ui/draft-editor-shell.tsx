@@ -33,11 +33,11 @@ function subscribeDesktop(onChange: () => void) {
 const desktopSnapshot = () => window.matchMedia?.(desktopQuery).matches ?? false;
 const serverSnapshot = () => false;
 
-export function DraftEditorShell({ state, published, publication = published === null ? undefined : published ? "published" : null, step, onStep, readiness, children }: {
-  state: DraftFormState; published: boolean | null; publication?: Lifecycle["publication"]; step: number; onStep: (step: number) => void;
+export function DraftEditorShell({ state, published, publication = published === null ? undefined : published ? "published" : null, process, step, onStep, readiness, children }: {
+  state: DraftFormState; published: boolean | null; publication?: Lifecycle["publication"]; process?: Lifecycle["process"]; step: number; onStep: (step: number) => void;
   readiness: ReturnType<typeof editorReadiness>; children: ReactNode;
 }) {
-  const status = publicationStatus(publication, "success");
+  const status = publicationStatus(publication, "success", process);
   const [preview, setPreview] = useState(false);
   const [company, setCompany] = useState<PublicJobDetail["company"] | null>(null);
   const [companyLoading, setCompanyLoading] = useState(false);

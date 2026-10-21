@@ -15,6 +15,8 @@ function Harness() {
 }
 it("allows clearing an optional remote location without re-defaulting it", () => {
   render(<Harness />);
+  expect(screen.getByRole("combobox", { name: "País" })).toHaveValue("");
+  fireEvent.click(screen.getByRole("option", { name: "México" }));
   fireEvent.click(screen.getByRole("button", { name: "Quitar ubicación" }));
   expect(JSON.parse(screen.getByTestId("state").textContent!).location.country).toBeNull();
 });
@@ -93,4 +95,16 @@ it("ignores Base UI's clear-on-Escape value changes for the countries chips", ()
   expect(apply).not.toHaveBeenCalled();
   handler([{ id: "CO", name: "Colombia" }], { reason: "item-press" });
   expect(apply).toHaveBeenCalledWith([{ id: "CO", name: "Colombia" }]);
+});
+
+it("defaults an on-site new draft to México but never rewrites a saved vacancy's empty location", () => {
+  // An existing vacancy rewritten to MX on load showed «Cambios sin guardar» without input (QA D8).
+  const state = { ...initialDraftFormState(createDraftModel()), work_mode: "onsite" as const };
+  const fresh = vi.fn();
+  const { unmount } = render(<DraftGeographyField state={state} onChange={fresh} defaultCountry="MX" />);
+  expect(fresh).toHaveBeenCalledWith(expect.objectContaining({ location: expect.objectContaining({ country: "MX" }) }));
+  unmount();
+  const saved = vi.fn();
+  render(<DraftGeographyField state={state} onChange={saved} defaultCountry={null} />);
+  expect(saved).not.toHaveBeenCalled();
 });

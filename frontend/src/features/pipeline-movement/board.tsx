@@ -10,6 +10,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Separator } from "@/components/ui/separator";
 import { Hint } from "./pipeline-presentation";
 import { BoardDelivery } from "./board-delivery";
+import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
 import { BoardLifecycle } from "./board-lifecycle";
 import { LifecycleActionsMenu } from "@/features/vacancy-lifecycle/ui/lifecycle-actions-menu";
 import { BoardColumns } from "./board-columns";
@@ -22,15 +23,16 @@ import { activeFilterCount, applyFilters, type FilterSelection } from "./filters
 import { boardFilterDimensions } from "./board-filter-dimensions";
 
 /** A keyed session prevents reads/writes from a previous vacancy reaching this one. */
-type Props = { vacancyId: string; vacancyTitle?: string; publishedAt?: string | null };
+type Props = { vacancyId: string; vacancyTitle?: string; publishedAt?: string | null; onLifecycleChange?: (lifecycle: Lifecycle) => void };
 export function MovementBoard(props: Props) {
   return <BoardSession key={props.vacancyId} {...props} />;
 }
-function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
+function BoardSession({ vacancyId, vacancyTitle, publishedAt, onLifecycleChange }: Props) {
   const state = useMovementBoard(vacancyId);
   const [filters, setFilters] = useState<FilterSelection>({});
   const [selected, setSelected] = useState<string | null>(null);
   const { board, confirmation, pending, stale } = state;
+  useEffect(() => { if (board) onLifecycleChange?.(board.lifecycle); }, [board?.lifecycle, onLifecycleChange]);
   const readOnly = board?.lifecycle.process === "finished";
   const dimensions = board ? boardFilterDimensions(board) : [];
   const visibleItems = applyFilters(board?.participations ?? [], dimensions, filters);
@@ -83,7 +85,7 @@ function BoardSession({ vacancyId, vacancyTitle, publishedAt }: Props) {
       <div className="flex flex-col gap-1.5"><h2 className="text-xl font-semibold tracking-tight">Pipeline</h2>{board ? <BoardLifecycle lifecycle={board.lifecycle} publishedAt={publishedAt} /> : publishedAt && <p className="text-xs text-muted-foreground">Publicada el <MovementDate value={publishedAt} /></p>}</div>
       <div className="flex w-full flex-wrap items-center gap-4 lg:w-auto">{board && board.lifecycle.allowed_actions.some(action => action !== "publish") && <LifecycleActionsMenu draftId={vacancyId} title={vacancyTitle ?? "la vacante"} onChanged={state.updateLifecycle} />}{board && <div role="group" aria-label="Progreso de la vacante" className="flex min-w-0 flex-wrap items-start gap-4"><BoardCoverage coverage={board.coverage} /><Separator orientation="vertical" className="hidden sm:block" /><BoardDelivery delivery={board.delivery} status={state.deliveryStatus} /></div>}<Hint text="Configuración de la vacante"><Button nativeButton={false} role="link" variant="outline" size="icon" className="size-10 bg-card" aria-label="Configuración de la vacante" render={<Link href={`/empresa/vacantes/${vacancyId}/configuracion/columnas`} />}><Settings2 aria-hidden="true" /></Button></Hint></div>
     </div>
-    {readOnly && <div role="status"><ActionStatus id="board-process-finished" tone="info" text="El proceso de esta vacante finalizó. El tablero está en solo lectura." />{board.lifecycle.allowed_actions.includes("reopen") && <p className="text-sm text-muted-foreground">Reabrir la vacante permite volver a editar el tablero.</p>}</div>}
+    {readOnly && <ActionStatus id="board-process-finished" tone="info" text={`El proceso de esta vacante finalizó. El tablero está en solo lectura${board.lifecycle.allowed_actions.includes("reopen") ? "; reábrela para volver a editarlo." : "."}`} />}
     {!board && state.reading && !state.failure && <BoardSkeleton columnCount={state.columns.editor ? state.columns.editor.stages.length + 1 : undefined} />}
     {state.failure && <BoardError failure={state.failure} reading={state.reading} notice={state.readNotice} retry={() => void state.retry()} />}
     {!state.failure && state.readNotice && <ActionStatusSlot><ActionStatus id="board-read-status" tone={state.readNotice.tone} text={state.readNotice.text} /></ActionStatusSlot>}

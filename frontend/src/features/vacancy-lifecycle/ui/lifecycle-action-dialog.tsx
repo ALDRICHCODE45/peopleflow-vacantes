@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { CirclePause, Play, CircleCheck, RotateCcw, Square } from "lucide-react";
+import { CirclePause, Play, CircleCheck, RotateCcw, Archive } from "lucide-react";
 import { ConfirmActionDialog } from "@/components/feedback/confirm-action-dialog";
 import { ActionBar, ActionStatus } from "@/components/feedback/action-status";
 import { notifyActionResult } from "@/components/feedback/notify";
@@ -21,10 +21,11 @@ export type LifecycleSnapshot = Extract<LifecycleActionResult, { ok: true }>;
 export const LIFECYCLE_ACTION_UI = {
   pause: { label: "Pausar", icon: CirclePause, description: "Se oculta del listado y deja de recibir postulaciones. El tablero sigue funcionando." },
   resume: { label: "Reanudar", icon: Play, description: "Vuelve a aparecer en el listado y a recibir postulaciones. El proceso sigue como estaba." },
-  close: { label: "Cerrar", icon: Square, description: "Deja de aparecer en el listado y de recibir postulaciones. Elige qué pasa con el proceso interno." },
+  close: { label: "Cerrar", icon: Archive, description: "Deja de aparecer en el listado y de recibir postulaciones. Elige qué pasa con el proceso interno." },
   finish_process: { label: "Finalizar proceso", icon: CircleCheck, description: "El tablero queda en solo lectura y los candidatos activos verán «Vacante cerrada»." },
   reopen: { label: "Reabrir", icon: RotateCcw, description: "Vuelve a publicarse tal como quedó. Se conservan el pipeline, los candidatos y el historial; el proceso vuelve a estar activo." },
 } as const;
+const SUCCESS_TITLES = { pause: "Vacante pausada", resume: "Vacante reanudada", close: "Vacante cerrada", finish_process: "Proceso finalizado", reopen: "Vacante reabierta" } as const;
 type Props = { draftId: string; title: string; action: TransitionAction; snapshot: LifecycleSnapshot; open: boolean; onOpenChange: (open: boolean) => void; onChanged: (view: Lifecycle) => void };
 
 /** A mounted session owns one confirmed intent, including its exact retry headers/body. */
@@ -76,7 +77,7 @@ function ActionSession({ draftId, title, action, snapshot, onOpenChange, onChang
       const result = await transitionLifecycleAction(intent.current);
       if (!alive.current) return;
       if (result.ok) {
-        notifyActionResult({ key: `lifecycle-${draftId}`, type: "success", title: "Estado de la vacante actualizado", description: ui.description });
+        notifyActionResult({ key: `lifecycle-${draftId}`, type: "success", title: SUCCESS_TITLES[action], description: action === "close" ? intent.current.body.process === "finish" ? "El proceso finalizó y el tablero quedó en solo lectura." : "El proceso continúa y el tablero sigue funcionando." : ui.description });
         onChanged(result.data); onOpenChange(false);
       } else {
         report(result);

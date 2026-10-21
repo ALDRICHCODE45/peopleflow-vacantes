@@ -55,6 +55,20 @@ it.each([
   await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Guardado · versión 1"));
   expect(save()).toHaveAttribute("aria-describedby", "draft-save-status");
 });
+it("keeps a published remote seed clean after catalog effects settle without input", async () => {
+  const read = filledDraftRead();
+  read.fields.work_mode = "remote";
+  read.fields.location = null;
+  read.fields.remote_scope = { kind: "anywhere" };
+  const seed = draftEditSeedFromRead(read);
+  vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "published", publishedAt: "2026-10-20T12:00:00Z", missing: [] } });
+  render(<LocalDraftForm initialModel={seed.model} initialScreeningQuestionsV2={seed.screeningQuestionsV2} initialIdentity={{ draftId: read.id, etag: '"published"' }} initialLifecycle={seed.lifecycle} />);
+  await act(async () => { await new Promise(resolve => setTimeout(resolve, 2500)); });
+  expect(screen.getByText("Sin cambios pendientes")).toBeVisible();
+  expect(screen.queryByText("Cambios sin guardar")).toBeNull();
+  expect(screen.getByRole("combobox", { name: "País" })).toHaveValue("");
+  expect(saveDraftV2Action).not.toHaveBeenCalled();
+});
 it("reopens all stored fields and PATCHes unchanged with the GET identity, not the list version", async () => {
   const read = filledDraftRead();
   const seed = draftEditSeedFromRead(read);
@@ -261,7 +275,7 @@ it("keeps edits made during an in-flight save dirty and sends them only on the n
   vi.mocked(saveDraftV2Action).mockReturnValueOnce(new Promise(r => {resolve=r;}));
   const replace = vi.spyOn(window.history, "replaceState");
   render(<LocalDraftForm />); review(); fireEvent.click(save());
-  // The editor's initial normalization is dirty: only its sentinel is marked.
+  // A new draft's México default is its initial normalization: only its sentinel is marked.
   expect(replace).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole("tab", { name: "Información básica" }));
   fireEvent.change(screen.getByRole("textbox",{name:"Título"}),{target:{value:"Edición posterior"}});
@@ -277,6 +291,7 @@ it("keeps edits made during an in-flight save dirty and sends them only on the n
   fireEvent.click(save());
   await waitFor(() => expect(saveDraftV2Action).toHaveBeenCalledTimes(2));
   expect(vi.mocked(saveDraftV2Action).mock.calls[1][0]).toEqual({draftId:"saved-id",etag:'"v1"',body:{fields:expect.objectContaining({title:"Edición posterior"})}});
+  await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Guardado · versión 1"));
 });
 it("treats a disconnected action as uncertain and retries with the original create key", async () => {
   vi.mocked(saveDraftV2Action).mockRejectedValueOnce(new Error("disconnected"));

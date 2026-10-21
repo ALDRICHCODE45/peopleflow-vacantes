@@ -64,12 +64,12 @@ function VacancyRow({ vacancy, onPublished, onLifecycleChanged }: { vacancy: Por
         <p className={META}>{meta}</p>
       </div>
       <div data-pf-vacancy-zone="complement" className="flex min-w-0 flex-col gap-2">
-        <p className={cn(META, "tabular-nums")}>{prototype ? `${vacancyCandidateTotal(prototype.candidateCounts)} candidatos · ${vacancyInProcessCount(prototype.candidateCounts)} en proceso` : "Sin candidatos todavía"}</p>
+        {prototype && <p className={cn(META, "tabular-nums")}>{`${vacancyCandidateTotal(prototype.candidateCounts)} candidatos · ${vacancyInProcessCount(prototype.candidateCounts)} en proceso`}</p>}
         <div className="flex flex-col gap-1">
           <div aria-hidden="true" className="flex items-center gap-1">
             {VACANCY_PIPELINE_STAGES.map(stage => <span key={stage} className={cn("h-1.5 w-6 rounded-full", draft ? "bg-muted" : PIPELINE_BAR[stage])} />)}
           </div>
-          <p className={META}>{vacancy.state === "draft" ? "Sin pipeline · en borrador" : prototype ? VACANCY_PIPELINE_STAGES.map(stage => `${STAGE_LABELS[stage]}: ${prototype.candidateCounts[stage]}`).join(" · ") : "Sin candidatos todavía"}</p>
+          <p className={META}>{vacancy.state === "draft" ? "Sin pipeline · en borrador" : prototype ? VACANCY_PIPELINE_STAGES.map(stage => `${STAGE_LABELS[stage]}: ${prototype.candidateCounts[stage]}`).join(" · ") : null}</p>
         </div>
         <div className={META}>
           {draft ? draft.status === "draft" ? <div className="flex flex-col gap-1"><span>Sin publicar</span><time dateTime={draft.updated_at}>Editado {formatDate(draft.updated_at)}</time></div> : draft.published_at ? <time dateTime={draft.published_at}>Publicada el {formatDate(draft.published_at)}</time> : "Fecha no disponible" : prototype && <time dateTime={prototype.publishedAt}><span className="sr-only">Publicada el </span>{formatDate(prototype.publishedAt)}</time>}

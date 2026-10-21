@@ -37,6 +37,7 @@ it.each([
  vi.mocked(listDraftsAction).mockResolvedValue({ ok: true, items: [{ ...row, status, process }], nextCursor: null });
  render(<VacancyPortfolio vacancies={[]} />); await screen.findByText(row.title);
  expect(screen.getByText(label)).toBeVisible();
+ expect(screen.queryByText("Sin candidatos todavía")).not.toBeInTheDocument();
  fireEvent.click(screen.getByRole("tab", { name: `${filter} 1` })); expect(screen.getByText(row.title)).toBeVisible();
 });
 it("composes honest draft rows before prototypes, newest first, with both real actions", async () => {
@@ -45,7 +46,7 @@ it("composes honest draft rows before prototypes, newest first, with both real a
  const rows = container.querySelectorAll("[data-pf-vacancy-row]");
  expect(Array.from(rows).slice(0, 2).map(node => node.getAttribute("data-pf-vacancy-row"))).toEqual([unnamed.id, id]);
  const draft = rows[1] as HTMLElement;
- for (const text of ["Remoto · Tiempo completo", "Sin candidatos todavía", "Ana", "Acme", "Borrador", "Sin pipeline · en borrador", "Sin publicar", "Editado 15 de octubre de 2026"]) expect(draft).toHaveTextContent(text);
+ for (const text of ["Remoto · Tiempo completo", "Ana", "Acme", "Borrador", "Sin pipeline · en borrador", "Sin publicar", "Editado 15 de octubre de 2026"]) expect(draft).toHaveTextContent(text);
  expect(draft.querySelector('[data-slot="badge"]')).toHaveAttribute("data-variant", "info");
  expect(draft.querySelector('[data-slot="badge"]')).toHaveAttribute("data-dot");
  expect(within(draft).queryByRole("link", { name: /Ver pipeline/ })).not.toBeInTheDocument();

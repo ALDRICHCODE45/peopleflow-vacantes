@@ -62,6 +62,10 @@ for (const [name, mount] of Object.entries(mounts)) {
     expect(screen.getAllByRole("textbox")[0]).toBeEnabled();
   });
 }
+it("hides the structural impact hint for finished processes", () => {
+  mounts.columns(finishedLifecycle, true);
+  expect(screen.queryByText(/Esta vacante ya tiene candidatos/)).not.toBeInTheDocument();
+});
 it.each([false, true])("columns switch on %s preview/write rejection", async locked => {
   mounts.columns(activeLifecycle, locked);
   fireEvent.change(screen.getAllByRole("textbox")[0], { target: { value: "Entrada" } });

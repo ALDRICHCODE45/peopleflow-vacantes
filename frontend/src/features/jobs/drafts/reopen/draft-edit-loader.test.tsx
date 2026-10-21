@@ -36,7 +36,7 @@ it.each(["paused", "closed"] as const)("labels the disabled primary action for %
   vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication, process: "active" } } });
   render(<DraftEditLoader draftId={read.id} />);
   await screen.findByRole("textbox", { name: "Título" });
-  expect(screen.getByRole("button", { name: publication === "paused" ? "Pausada" : "Cerrada" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: publication === "paused" ? "Pausada" : "Cerrada · proceso en curso" })).toBeDisabled();
 });
 it.each([
   ["paused", "Esta vacante está pausada. Los cambios se guardan y se verán al reanudarla."],

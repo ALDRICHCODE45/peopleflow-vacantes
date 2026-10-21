@@ -33,7 +33,7 @@ it.each([read.fields.title, null])("owns one header with the draft title %s, bad
   expect(screen.getByText("Ajusta cómo funciona esta vacante. Los cambios de cada apartado se guardan por separado.")).toBeVisible();
   expect(screen.getByText("Contenido del apartado")).toBeVisible();
 });
-it.each([["paused", "Pausada", "review"], ["closed", "Cerrada", "neutral"]] as const)("uses %s lifecycle in the header", async (publication, label, variant) => {
+it.each([["paused", "Pausada", "review"], ["closed", "Cerrada · proceso en curso", "neutral"]] as const)("uses %s lifecycle in the header", async (publication, label, variant) => {
   vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication, process: "active" } } });
   render(shell());
   expect(await screen.findByText(label)).toHaveAttribute("data-variant", variant);

@@ -74,9 +74,10 @@ it.each([read.fields.title, null])("renders title %s, badge, empty state and con
   expect(container.querySelector('[data-slot="badge"]')).toHaveAttribute("data-dot");
   expect(container.querySelector('[data-slot="badge"]')).toHaveAttribute("data-variant", "info");
   expect(container.querySelectorAll("header")).toHaveLength(1);
+  expect(container.querySelectorAll('[data-slot="badge"]')).toHaveLength(1);
   expect(container.firstElementChild).not.toHaveClass("md:h-[calc(100dvh-1rem)]", "md:overflow-hidden");
 });
-it.each([["paused", "Pausada", "review"], ["closed", "Cerrada", "neutral"]] as const)("uses %s lifecycle in the header", async (publication, label, variant) => {
+it.each([["paused", "Pausada", "review"], ["closed", "Cerrada · proceso en curso", "neutral"]] as const)("uses %s lifecycle in the header", async (publication, label, variant) => {
   vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication, process: "active" } } });
   render(<DraftPipelineState draftId={read.id} />);
   expect(await screen.findByText(label)).toHaveAttribute("data-variant", variant);

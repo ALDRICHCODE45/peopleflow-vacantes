@@ -219,7 +219,7 @@ export function PipelineStageEditor({ draftId, pipeline, etag, substates, substa
             <Badge variant="info">Corte de entrega</Badge>
             <FieldError>{removedCutoff.name} es el corte de entrega. Cámbiala en Entrega antes de quitarla.</FieldError>
           </div>}
-          {state.baseline.structure_locked && <FieldDescription>Esta vacante ya tiene candidatos: antes de guardar cambios de estructura verás a quién afecta. Nadie cambia de columna.</FieldDescription>}
+          {state.baseline.structure_locked && !readOnly && <FieldDescription>Esta vacante ya tiene candidatos: antes de guardar cambios de estructura verás a quién afecta. Nadie cambia de columna.</FieldDescription>}
           <StageReorder state={state} disabled={pending !== null}
             onMove={(key, targetIndex) => edit(moveStageTo(current.current.editor, key, targetIndex))}>
             <ol aria-label="Columnas del pipeline" className="flex flex-col gap-3">{state.stages.map((stage, index) => row(stage, index + 1))}</ol>

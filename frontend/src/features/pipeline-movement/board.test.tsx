@@ -74,7 +74,7 @@ async function mount(board?: Board) {
   return view;
 }
 const finishedLifecycle = { publication: "closed" as const, process: "finished" as const, version: "2", published_at: null, paused_at: null, closed_at: "2026-10-19T12:00:00Z", process_finished_at: "2026-10-20T12:00:00Z", allowed_actions: ["reopen" as const] };
-const readOnlyNotice = "El proceso de esta vacante finalizó. El tablero está en solo lectura.";
+const readOnlyNotice = "El proceso de esta vacante finalizó. El tablero está en solo lectura; reábrela para volver a editarlo.";
 it.each([
   ["published", "active", "Publicada", "Publicada el"],
   ["paused", "active", "Pausada", "Pausada el"],
@@ -84,18 +84,28 @@ it.each([
   const board = boardFixture();
   board.lifecycle = { ...finishedLifecycle, publication, process, published_at: "2026-10-20T12:00:00Z", paused_at: "2026-10-20T12:00:00Z", closed_at: "2026-10-20T12:00:00Z", allowed_actions: [] };
   await mount(board);
-  // A published vacancy keeps the validated «Publicada el …» line without a badge.
-  if (publication === "published") expect(screen.queryByText(label, { selector: '[data-slot="badge"]' })).toBeNull();
-  else expect(screen.getByText(label, { selector: '[data-slot="badge"]' })).toBeVisible();
+  // The shell owns the sole lifecycle badge; the board only owns the date.
+  expect(screen.queryByText(label, { selector: '[data-slot="badge"]' })).toBeNull();
   expect(screen.getByText(new RegExp(prefix))).toHaveTextContent(/20 oct 2026/);
   expect(screen.queryByRole("button", { name: "Acciones de la vacante" })).not.toBeInTheDocument();
   if (process === "active") expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeEnabled();
+});
+it("sends the authoritative board lifecycle to the header owner", async () => {
+  const onLifecycleChange = vi.fn();
+  render(<MovementBoard vacancyId={vacancyId} onLifecycleChange={onLifecycleChange} />);
+  await waitFor(() => expect(onLifecycleChange).toHaveBeenCalledWith(boardFixture().lifecycle));
+});
+it("does not suggest reopening without permission", async () => {
+  const board = boardFixture(); board.lifecycle = { ...finishedLifecycle, allowed_actions: [] };
+  await mount(board);
+  expect(screen.getByText("El proceso de esta vacante finalizó. El tablero está en solo lectura.")).toBeVisible();
+  expect(screen.queryByText(/reábrela/)).toBeNull();
 });
 it("keeps finished boards readable but disables card, sheet and drag writes", async () => {
   const board = boardFixture(); board.lifecycle = finishedLifecycle;
   await mount(board);
   expect(screen.getByText(readOnlyNotice)).toBeVisible();
-  expect(screen.getByText(/Reabrir.*editar/)).toBeVisible();
+  expect(screen.getByText(readOnlyNotice).closest('[role="status"]')).toHaveTextContent(readOnlyNotice);
   expect(screen.getByRole("button", { name: "Arrastrar Ana Pérez" })).toBeDisabled();
   for (const target of within(menu()).getAllByRole("menuitem").filter(item => item.textContent !== "Ver ficha")) expect(target).toBeDisabled();
   act(() => drag.props.onDragEnd({ active: { id: "person" }, over: { id: "screen" } }));
@@ -122,7 +132,7 @@ it("wires lifecycle actions and adopts their response without reloading candidat
   await mount(board); fireEvent.click(screen.getByRole("button", { name: "Acciones de la vacante" }));
   fireEvent.click(await screen.findByRole("menuitem", { name: "Pausar" }));
   fireEvent.click(screen.getByRole("button", { name: "Pausar" }));
-  expect(await screen.findByText("Pausada", { selector: '[data-slot="badge"]' })).toBeVisible();
+  expect(await screen.findByText(/Pausada el/)).toBeVisible();
   expect(loadBoardAction).toHaveBeenCalledTimes(1);
   expect(transitionLifecycleAction).toHaveBeenCalledWith(expect.objectContaining({ draftId: vacancyId, action: "pause", ifMatch: "lifecycle-tag" }));
 });

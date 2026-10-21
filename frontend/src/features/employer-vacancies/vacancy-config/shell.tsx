@@ -44,7 +44,7 @@ export function VacancyConfigShell({ draftId, children }: { draftId: string; chi
   const retry = () => { setLoaded(null); setAttempt(value => value + 1); };
   const title = result?.ok ? result.seed.model.fields.title || "Sin título" : "Configuración";
   const publication = loaded?.id === draftId ? loaded.publication : null;
-  const status = publicationStatus(result?.ok ? result.seed.lifecycle.publication : undefined);
+  const status = publicationStatus(result?.ok ? result.seed.lifecycle.publication : undefined, "accent", result?.ok ? result.seed.lifecycle.process : undefined);
   return (
     <div className="flex flex-1 flex-col" aria-busy={result === null}>
       <SiteHeader title={title} parent={{ label: "Pipeline", href: `/empresa/vacantes/${draftId}/pipeline` }} status={result?.ok && publication ? <Badge variant={status.variant} dot>{status.label}</Badge> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />

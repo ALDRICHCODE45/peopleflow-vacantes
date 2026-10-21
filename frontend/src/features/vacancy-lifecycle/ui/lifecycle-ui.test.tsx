@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import { notifyActionResult } from "@/components/feedback/notify";
 import { LifecycleActionDialog } from "./lifecycle-action-dialog";
 import { getLifecycleAction, transitionLifecycleAction } from "../actions";
 import type { Lifecycle } from "../model";
@@ -12,6 +13,21 @@ const changed = vi.fn();
 function mount(action: "close" | "pause" | "reopen" | "resume" | "finish_process" = "close") { return render(<LifecycleActionDialog draftId="id" title="Analista" action={action} snapshot={{ ...snapshot, data: { ...view, allowed_actions: [action] } }} open onOpenChange={vi.fn()} onChanged={changed} />); }
 beforeEach(() => { vi.resetAllMocks(); vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }))); vi.mocked(getLifecycleAction).mockResolvedValue(snapshot); vi.mocked(transitionLifecycleAction).mockResolvedValue({ ...snapshot, data: { ...view, publication: "closed" } }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it.each([
+ ["pause", "Pausar", "Vacante pausada"],
+ ["resume", "Reanudar", "Vacante reanudada"],
+ ["close", "Cerrar vacante", "Vacante cerrada"],
+ ["finish_process", "Finalizar proceso", "Proceso finalizado"],
+ ["reopen", "Reabrir", "Vacante reabierta"],
+] as const)("announces the result of %s", async (action, button, title) => {
+ mount(action);
+ fireEvent.click(screen.getByRole("button", { name: button }));
+ await waitFor(() => expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ type: "success", title })));
+});
+it("uses an archive icon for close", () => {
+ mount();
+ expect(screen.getByRole("alertdialog").querySelector(".lucide-archive")).not.toBeNull();
+});
 it.each([412, 428])("reloads on %s without another write", async status => {
  vi.mocked(transitionLifecycleAction).mockResolvedValue({ ok: false, reason: "version_conflict", reload: true, message: "Recarga el estado", reference: { status } });
  mount("pause"); fireEvent.click(screen.getByRole("button", { name: "Pausar" }));
@@ -36,6 +52,7 @@ it.each(["continue", "finish"] as const)("confirms close with %s process choice"
  fireEvent.click(screen.getByRole("button", { name: "Cerrar vacante" }));
  await waitFor(() => expect(transitionLifecycleAction).toHaveBeenCalledWith(expect.objectContaining({ action: "close", body: { process }, ifMatch: snapshot.etag, idempotencyKey: expect.any(String) })));
  expect(changed).toHaveBeenCalled();
+ expect(notifyActionResult).toHaveBeenCalledWith(expect.objectContaining({ title: "Vacante cerrada", description: process === "finish" ? "El proceso finalizó y el tablero quedó en solo lectura." : "El proceso continúa y el tablero sigue funcionando." }));
 });
 it.each(["pause", "close"] as const)("checks an uncertain %s and replays the exact intent with the same key", async action => {
  vi.mocked(transitionLifecycleAction).mockResolvedValueOnce({ ok: false, reason: "no_response", uncertain: true, message: "Resultado incierto", reference: {} });

@@ -420,7 +420,7 @@ export function LocalDraftForm({
   const [savedDraftId, setSavedDraftId] = React.useState(initialIdentity?.draftId);
   const [published, setPublished] = React.useState<boolean | null>(initialLifecycle ? initialLifecycle.publication !== null : initialIdentity ? null : false);
   const publication = initialLifecycle?.publication ?? (published === null ? undefined : published ? "published" : null);
-  const status = publicationStatus(publication, "success");
+  const status = publicationStatus(publication, "success", initialLifecycle?.process);
   const [serverMissing, setServerMissing] = React.useState<readonly string[] | null>(null);
   const [publishNotice, setPublishNotice] = React.useState(false);
   const readiness = editorReadiness(state, serverMissing);
@@ -598,7 +598,7 @@ export function LocalDraftForm({
       </div>}
 
       <form noValidate aria-describedby="draft-publication-footnote" onSubmit={handleValidate} className="flex flex-col gap-6">
-        <DraftEditorShell state={state} published={published} publication={publication} step={step} onStep={goToStep} readiness={readiness}>
+        <DraftEditorShell state={state} published={published} publication={publication} process={initialLifecycle?.process} step={step} onStep={goToStep} readiness={readiness}>
 
         <TabsContent value={0} keepMounted
           data-pf-draft-step="1"
@@ -664,6 +664,7 @@ export function LocalDraftForm({
                 />
                 <DraftGeographyField
                   state={state}
+                  defaultCountry={savedDraftId ? null : "MX"}
                   errors={geographyErrors ?? {
                     location: Object.keys(errors).filter(key => key.startsWith("location.")).map(key => ({ field: key.split(".")[1] as keyof LocationValue, reason: "unknown" })),
                     remoteScope: [],
