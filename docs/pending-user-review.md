@@ -14,7 +14,9 @@ el backend va en su rama indicada, con `make db-migrate`.
 
 > **2026-10-20:** el usuario aprobó integrar el stack de geografía y el formulario de vacante rediseñado (ítems 1–6, filas 12–16 del backend): «pero eso ya lo revisaste tu no? y la mayoria tambien ya lo revise. adelante, integrar todo y yo hago push.» Revisado antes en Chromium por el agente (QA de empresa y candidato, con los arreglos 564ea9b, 8bb9ca5, 60137af, c565f7c, 4ffcd4d y 3e2c28f). Integrado al `main` local por fast-forward (81a4f83); el push lo hace el usuario. En la base local hay que correr, desde `backend/`, `make db-migrate` (00030–00033) y `DATABASE_URL=<la de backend/.env> make geo-import`. Pendientes menores postergados por el usuario: filtros Estado/Municipio del tablero con una postulación nueva, URLs de cierre de sesión en Cognito y dos tests inestables con la suite completa.
 
-**No hay ítems pendientes de revisión.**
+| # | Feature | Rama frontend | Rama backend | Pasos de la guía | Qué mirar especialmente |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Ciclo de vida de la vacante (pausar, cerrar con «Seguir/Finalizar el proceso», finalizar, reabrir) en la lista, el tablero, la configuración, el editor, la página pública y las postulaciones del candidato; conteos reales y fechas por estado en la lista; arreglos de la revisión de diseño (D1–D8, E1–E7) | `feat/vacancy-lifecycle-ui` (sobre `main` 96caec9) | `feat/vacancy-lifecycle` (filas 17–18; migración 00034) | 82 | Ya verificado por el agente en Chromium (claro, oscuro, móvil). Pendiente: ver como candidato «Vacante cerrada». Fuera de esta feature: el usuario del menú lateral muestra un perfil de ejemplo («Tomás Ríos · Nexo Labs»). |
 
 Cuando el usuario pruebe un ítem, sus comentarios se anotan en el documento de la
 feature (`odd/tasks/…`) y el ítem sale de esta lista al integrarse.

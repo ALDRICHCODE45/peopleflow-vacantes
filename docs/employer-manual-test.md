@@ -637,3 +637,24 @@ Si todo pasa, el siguiente paso es integrar `feat/vacancy-publication-ui` en
     «Configurar solicitud y entrega», «Revisión interna», «Revisar vista previa pública» y
     «Revisar y publicar» (mismo flujo de publicación). En celular: una columna, la vista
     previa con el botón «Vista previa».
+82. **Ciclo de vida de la vacante: pausar, cerrar, finalizar el proceso y reabrir (fila 17) +
+    conteos de candidatos en la lista (fila 18).** Frontend en `feat/vacancy-lifecycle-ui`,
+    backend en `feat/vacancy-lifecycle` (migración 00034; `make db-migrate`). Con una vacante
+    publicada de prueba:
+    - En «Tus vacantes», «Acciones» muestra solo lo permitido: publicada → «Pausar», «Cerrar»;
+      pausada → «Reanudar», «Cerrar»; cerrada con proceso en curso → «Finalizar proceso»,
+      «Reabrir»; finalizada → «Reabrir». La fila muestra «Activa / Pausada / Cerrada · proceso en
+      curso / Cerrada · proceso finalizado», la fecha de su estado y los conteos reales
+      («N candidato(s) · N en proceso», desglose por etapa; sin «en proceso» si finalizó).
+    - Pausar: confirmación con su consecuencia, aviso «Vacante pausada»; sale del listado público
+      y su enlace (y «Postularme») muestran «Vacante pausada» (sin indexar).
+    - Cerrar: el diálogo pide «Seguir con el proceso» (tablero normal) o «Finalizar el proceso»
+      (tablero y configuración en solo lectura, los candidatos activos ven «Vacante cerrada»).
+    - Tablero: una sola etiqueta de estado arriba, la fecha bajo «Pipeline», acciones en
+      «Acciones»; finalizado → aviso de solo lectura, sin arrastrar ni mover, sin cuenta
+      regresiva de entrega; ver ficha, historial y CV sigue disponible.
+    - Reanudar/Reabrir pasan el mismo control que publicar: si falta algo (por ejemplo «desde
+      dónde pueden postular» en vacantes remotas anteriores a la geografía) sale «Te falta para
+      publicar» con «Completar».
+    - Reabrir: vuelve a «Activa» con pipeline, candidatos e historial intactos.
+    - Abrir el editor de una vacante guardada no marca «Cambios sin guardar» sin tocar nada.
