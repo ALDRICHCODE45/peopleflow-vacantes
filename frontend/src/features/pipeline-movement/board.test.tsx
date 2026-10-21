@@ -122,7 +122,7 @@ it("labels manual cards without claiming an application", async () => {
 it("adds a manual card in place, focuses it and shows its origin in the sheet", async () => {
   const board = boardFixture();
   const added = { ...board.participations[0], id: "added", source: "manual" as const, added_by: { id: "recruiter", name: "Luis López" }, candidate: { id: "new-person", kind: "manual" as const, full_name: "María Nueva" }, coverage: board.coverage, delivery: board.delivery };
-  vi.mocked(checkDuplicatesAction).mockResolvedValue({ ok: true, data: { matches: [{ kind: "manual", id: "new-person", full_name: "María Nueva", email_masked: "m***@test.com", phone_masked: null, last_vacancy: "Ventas", last_added_at: added.applied_at, in_this_process: false }] } });
+  vi.mocked(checkDuplicatesAction).mockResolvedValue({ ok: true, data: { matches: [{ kind: "manual", id: "new-person", full_name: "María Nueva", email_masked: "m***@test.com", phone_masked: null, last_vacancy: { id: "7d1e0c2a-1b2c-4d3e-8f9a-0b1c2d3e4f50", title: "Ventas" }, last_added_at: added.applied_at, in_this_process: false }] } });
   vi.mocked(submitManualCandidate).mockResolvedValue({ ok: true, data: added });
   await mount(board); fireEvent.click(screen.getByRole("button", { name: "Agregar candidato" }));
   fireEvent.change(screen.getByRole("textbox", { name: "Correo electrónico" }), { target: { value: "maria@test.com" } }); fireEvent.blur(screen.getByRole("textbox", { name: "Correo electrónico" }));

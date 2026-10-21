@@ -29,7 +29,7 @@ export function Choice({ name, label, value, options, onChange, error }: { name:
 }
 /** ProfileFormFields owns Card surfaces (and private scalar helpers); this Sheet
  * composes the same labels/vocabularies without nesting Cards inside a modal. */
-export function IntakeFields({ draft, onChange, errors, stages, stage, onStage, existing, file, onFile, onContactBlur }: { draft: Draft; onChange: (draft: Draft) => void; errors: Errors; stages: Board["stages"]; stage: string; onStage: (value: string) => void; existing: boolean; file: File | null; onFile: (file: File | null) => void; onContactBlur: () => void }) {
+export function IntakeFields({ draft, onChange, errors, stages, stage, onStage, existing, file, onFile, onContactBlur, contactNotice }: { draft: Draft; onChange: (draft: Draft) => void; errors: Errors; stages: Board["stages"]; stage: string; onStage: (value: string) => void; existing: boolean; file: File | null; onFile: (file: File | null) => void; onContactBlur: () => void; contactNotice?: ReactNode }) {
  const fileInput = useRef<HTMLInputElement>(null);
  const [profileOpen, setProfileOpen] = useState<string[]>([]);
  const profileInvalid = Object.keys(errors).some(key => profileKeys.some(name => key === name) || key.startsWith("languages"));
@@ -48,6 +48,8 @@ export function IntakeFields({ draft, onChange, errors, stages, stage, onStage, 
     <FieldGroup className="grid grid-cols-[7rem_minmax(0,1fr)] gap-3">{scalar("dial", "Lada de país", "tel")}{scalar("phone", "Teléfono", "tel")}</FieldGroup>
     {errors.contact && <FieldError id="intake-contact-error">{errors.contact}</FieldError>}
     <FieldDescription>México: +52 y 10 dígitos. Otros países: lada y número, de 8 a 15 dígitos en total.</FieldDescription>
+    {/* Duplicate notice lives with the contact data that triggered it. */}
+    {contactNotice}
   </Section><Separator /><Section title="Residencia" icon={MapPin}>
     <LocationField requiredIndicator={<Required />} label="Residencia" hideLegend value={draft.residence} onChange={residence => onChange({ ...draft, residence })} depth="municipality" postalCode defaultCountry={null} required={draft.residence.country === "MX" ? ["country", "state", "municipality"] : ["country"]}
       errors={Object.keys(errors).filter(key => key.startsWith("residence.")).map(key => ({ field: key.slice(10), message: errors[key], reason: errors[key] === "Revisa este dato." ? "unknown" as const : errors[key] === "Este dato no se permite aquí." ? "not_allowed" as const : "required" as const }))} />

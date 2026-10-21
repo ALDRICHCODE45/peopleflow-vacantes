@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { ComponentProps, ReactNode } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen as queries, waitFor } from "@testing-library/react";
@@ -52,7 +54,7 @@ async function submit() {
  const button = await screen.findByRole("button", { name: "Agregar" });
  await act(async () => { fireEvent.click(button); });
 }
-const match = { kind: "manual" as const, id: vacancyId, full_name: "Ana anterior", email_masked: "a***@example.com", phone_masked: null, last_vacancy: "Ventas", last_added_at: "2026-10-21T12:00:00Z", in_this_process: false };
+const match = { kind: "manual" as const, id: vacancyId, full_name: "Ana anterior", email_masked: "a***@example.com", phone_masked: null, last_vacancy: { id: vacancyId, title: "Ventas" }, last_added_at: "2026-10-21T12:00:00Z", in_this_process: false };
 
 it("focuses the visible picker when CV is the only missing requirement", async () => {
  mount(); fill(); fireEvent.click(screen.getByRole("button", { name: "Quitar" }));
@@ -136,10 +138,13 @@ it("confirms discarding unsaved data", async () => {
  expect(screen.getByRole("button", { name: "Descartar" })).toBeVisible();
 });
 it("checks a valid blurred contact and allows explicit existing selection", async () => {
- vi.mocked(checkDuplicatesAction).mockResolvedValue({ ok: true, data: { matches: [{ kind: "manual", id: vacancyId, full_name: "Ana anterior", email_masked: "a***@example.com", phone_masked: null, last_vacancy: "Ventas", last_added_at: "2026-10-21T12:00:00Z", in_this_process: false }] } });
+ vi.mocked(checkDuplicatesAction).mockResolvedValue({ ok: true, data: { matches: [{ kind: "manual", id: vacancyId, full_name: "Ana anterior", email_masked: "a***@example.com", phone_masked: null, last_vacancy: { id: vacancyId, title: "Ventas" }, last_added_at: "2026-10-21T12:00:00Z", in_this_process: false }] } });
  mount(); const email = screen.getByLabelText("Correo electrónico");
  fireEvent.change(email, { target: { value: "ana@example.com" } }); fireEvent.blur(email);
  expect(await screen.findByText("Ana anterior")).toBeVisible();
+ expect(screen.getByText("a***@example.com · Última vacante: Ventas")).toBeVisible();
+ // The notice sits with the contact fields that triggered it, not after the CV at the end of the form.
+ expect(screen.getByText("Posibles coincidencias").closest("fieldset")?.querySelector("legend")).toHaveTextContent("Datos de contacto");
  fireEvent.click(screen.getByRole("button", { name: "Usar el existente" }));
  expect(screen.queryByLabelText("Nombre completo")).not.toBeInTheDocument();
  expect(screen.getByLabelText("CV")).toBeVisible();
@@ -233,4 +238,9 @@ it("stacks the footer status above the actions on small screens instead of squee
  const footer = document.querySelector('[data-slot="sheet-footer"]')!;
  expect(footer.className).toContain("max-sm:[&_[data-pf-action-bar]]:flex-col");
  expect(footer.className).not.toContain("wrap-anywhere");
+});
+it("remounts the field block on the new/existing switch so Chromium lays out stage and CV again", () => {
+ // jsdom has no layout: the browser bug (stage and CV at zero height after «Usar el existente») is pinned by source.
+ const source = readFileSync(join(process.cwd(), "src/features/manual-intake/sheet.tsx"), "utf8");
+ expect(source).toContain('<IntakeFields key={existing ? "existing" : "new"}');
 });
