@@ -20,7 +20,12 @@ Rules: `docs/frontend-ui-design-rules.md` (§13.8 dialogs, §18 ConfirmActionDia
 - [x] T4 — S1, S6: public detail/apply for paused/closed: «Vacante pausada»/«Vacante cerrada» StateCard with noindex; apply 409 message | route: writer | commit: 358a6ad
 - [x] T3b — S2, S6: configuration screens (pipeline, substates, delivery, management) read-only when the process is finished; 409 `process_finished` handling; `lifecycle` in shared v2 read + reopen seed | route: writer | commit: (this)
 - [x] T5 — S2: candidate applications show «Vacante cerrada» when `vacancy.state` is closed (a discard keeps «Finalizada») | route: inline | commit: 6e240c5
+- [ ] T7 — S7 (L7–L8) design review fixes: D1 one state badge in the header bar with the full lifecycle label, date line under «Pipeline» only; D2 list date follows the state («Pausada el …», «Cerrada el …»); D3 real vacancy list shows «Sin candidatos todavía» despite applications; D4 hide the «ya tiene candidatos… verás a quién afecta» hint when configuration is read-only; D5 toast title per action («Vacante pausada», «Vacante reanudada», «Vacante cerrada», «Proceso finalizado», «Vacante reabierta»); D6 close icon that reads as close/archive, not a checkbox; D7 read-only notice as one consistent block; D8 editor shows «Cambios sin guardar» on open without edits (verify) | commit: —
 - [ ] T6 — guide steps, review queue, rules learnings; browser verification against backend L1/L2 | commit: —
+
+## Specs addendum
+
+- **S7.** Visual QA covers UI consistency, UX practices, confusing copy and design improvements, not only defects (L7); approved fixes from that review are implemented (L8).
 
 ## Log
 
@@ -30,3 +35,5 @@ Rules: `docs/frontend-ui-design-rules.md` (§13.8 dialogs, §18 ConfirmActionDia
 - **L4** Contract §21 agreed with four frontend clarifications (lifecycle on board/pipeline/editor GETs, 422 `missing` like publish, no saved vacancies in backend, no history view this cut).
 - **L5** Close-process choice uses the vertical outline `ToggleGroup` (same single-choice composition as the CV picker and screening questions); `RadioGroup` is not installed and `components/ui/*` stays untouched.
 - **L6** Backend confirmed (msg 170343f9): `lifecycle` always embedded in editor v2 and pipeline GETs (drafts: publication/process null, version "0", allowed_actions ["publish"]); create/PATCH/pipeline PUT and replays never carry it. Found before browser QA that create/save decoded with the read schema (would reject every save under L2): fixed test-first with a write schema (commit below).
+- **L7** (user): «Bien hermano, recuerda que ya tienes ojos, es decir, cuando ejecutes las pruebas visuales, no solamente busques "errores" o cosas que no funcionen como tal, busca inconsistencias en la ui, malas practicas de ux/ui, textos confusos, verifica que se vea correctamente, si algo se puede mejorar a nivel de diseno, etc.. me sigues?»
+- **L8** (user): «Si hermano, implementemos todo lo que recomiendes.» — approved design-review fixes D1–D8 (T7 below).
