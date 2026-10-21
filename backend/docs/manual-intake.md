@@ -1,9 +1,9 @@
 # Recruiter manual intake contract
 
-Status: B1 storage and B2 reads are implemented. B3 write routes are not yet
-implemented. The request-envelope and stage-validation helpers described below
-are tested but are not wired to HTTP. This document records the target contract,
-not a claim that the endpoints are available.
+Status: B1 storage, B2 reads, and B3a duplicates-check are implemented.
+B3b multipart creation is not implemented. Its request-envelope and
+stage-validation helpers are tested but are not wired to HTTP; the create
+sections below remain the target contract.
 
 ## Routes and privacy
 
@@ -11,8 +11,10 @@ Base: `/v2/me/company/job-drafts/{id}/pipeline/candidates/manual`.
 Both POST routes use the same company/recruiter authorization as board writes.
 All responses use `Cache-Control: no-store`.
 
-`POST …/duplicates-check` accepts only `email` and `phone`, each string or null,
-and requires at least one contact. Empty contact produces 400
+`POST …/duplicates-check` requires exactly `email` and `phone`, each string or
+null. Missing, unknown, or repeated keys, non-object roots, wrong value types,
+and trailing JSON produce 400 `invalid_request`. The body limit is 1 MiB
+(413 `payload_too_large` above it). Both contacts null produces 400
 `validation_error`, field `contact`, code `required`; invalid supplied contact
 uses field `email` or `phone`, code `invalid`.
 
@@ -32,6 +34,8 @@ present participation in that company's processes, including finished/discarded
 participations. Never query global candidates to reveal matches. Order by
 `last_added_at DESC`, then id. Mask email as `a***@dominio.com`; phone reveals only
 its country prefix and last four digits, e.g. `+52 •••• ••12 34`.
+`last_vacancy` is the most recent participation of that identity in the company;
+its title is the published (public projection) title.
 
 ## Create request
 
@@ -137,10 +141,19 @@ Implemented unit coverage:
 - `TestManualStageEligibility`: active stage, Placement, exit, unknown stage
   (S4/S9).
 
-Still required before shipping B3: HTTP wiring and multipart limits; complete
-candidate/geo/contact validation boundaries; company-scoped masked duplicates;
-confirmed-distinct and existing manual/organic reuse; already-in-process;
+B3a unit coverage: `TestDuplicateRequestShapeAndValidation`,
+`TestDuplicateContactMasks`, `TestWriteValidationErrorFields`, and
+`TestManualDuplicatesRoute` (including auth gates, no-store, budget, and fields).
+
+B3a isolated integration coverage (integration tag; database execution by parent):
+- `TestManualDuplicatesExactMatchesMasksOrderingAndScope`
+- `TestManualDuplicatesLatestCompanyParticipationAndAbsentContacts`
+- `TestManualDuplicatesReusedOrganicAndFinishedProcess`
+- `TestManualDuplicatesAuthorizationAndErrorBodies`
+
+Still required before shipping B3b: create HTTP wiring and multipart limits;
+complete candidate/geo validation boundaries; confirmed-distinct and existing
+manual/organic reuse; already-in-process;
 idempotent replay/conflict; rejection side-effect invariants; storage compensation;
 atomic history/audit/delivery at the cutoff. These require focused unit tests and
-integration-tag tests using the isolated database harness. No B3 integration tests
-have been added yet.
+integration-tag tests using the isolated database harness.
