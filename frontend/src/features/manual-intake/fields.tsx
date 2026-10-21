@@ -58,7 +58,7 @@ export function IntakeFields({ draft, onChange, errors, stages, stage, onStage, 
   </Section><Separator /><Section title="Estudios" icon={GraduationCap}>
     <div data-intake-education aria-invalid={!!errors.education} tabIndex={errors.education ? -1 : undefined} aria-describedby={errors.education ? "intake-education-error" : undefined}>
     {errors.education && <FieldError id="intake-education-error">{errors.education}</FieldError>}
-    <EducationFields embedded value={draft.education} issues={issues.filter(issue => issue.path !== "education")} onChange={education => onChange({ ...draft, education })} />
+    <EducationFields embedded requiredMarker={<Required />} value={draft.education} issues={issues.filter(issue => issue.path !== "education")} onChange={education => onChange({ ...draft, education })} />
     </div>
   </Section><Separator /><Accordion value={profileInvalid ? ["profile"] : profileOpen} onValueChange={setProfileOpen}><AccordionItem value="profile"><AccordionTrigger>Perfil profesional (opcional){filled > 0 && <Badge variant="secondary">{dataCount(filled)}</Badge>}</AccordionTrigger><AccordionContent><FieldGroup>
     {scalar("professional_title", "Título profesional")}{scalar("current_company", "Empresa actual o última")}{scalar("years_of_experience", "Años de experiencia")}<Choice name="seniority" label="Seniority" value={draft.seniority} error={errors.seniority} onChange={seniority => onChange({ ...draft, seniority })} options={[{ value: "", label: "Sin especificar" }, ...SENIORITIES.map(value => ({ value, label: SENIORITY_LABELS[value] }))]} />{scalar("summary", "Resumen profesional", "text", true)}{scalar("skills", "Habilidades", "text", true)}

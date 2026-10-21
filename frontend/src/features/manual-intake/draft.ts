@@ -8,7 +8,7 @@ export type Draft = {
   professional_title: string; current_company: string; years_of_experience: string; seniority: string; summary: string; skills: string;
   languages: LanguageValue[]; linkedin_url: string; portfolio_url: string;
 };
-export const emptyDraft = (): Draft => ({ full_name: "", email: "", phone: "", dial: "+52", education: [], residence: { country: null, state: null, municipality: null, postal_code: null }, professional_title: "", current_company: "", years_of_experience: "", seniority: "", summary: "", skills: "", languages: [], linkedin_url: "", portfolio_url: "" });
+export const emptyDraft = (): Draft => ({ full_name: "", email: "", phone: "", dial: "+52", education: [{ level: "", institution: "", field: "", status: "", start_year: "", end_year: "" }], residence: { country: null, state: null, municipality: null, postal_code: null }, professional_title: "", current_company: "", years_of_experience: "", seniority: "", summary: "", skills: "", languages: [], linkedin_url: "", portfolio_url: "" });
 export function phoneValue(dial: string, phone: string): string | null {
   if (!phone.trim()) return null;
   const digits = phone.replace(/[\s()-]/g, "");
