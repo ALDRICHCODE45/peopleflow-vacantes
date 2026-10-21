@@ -137,6 +137,10 @@ type Requester struct {
 // custom name and otherwise points to a freshly allocated, end-trimmed value;
 // Level is nil for a null level and otherwise points to the exact literal.
 type Language struct {
+	// Code and MinLevel are the schema-2 catalog requirement. The remaining
+	// members belong only to the historical schema-1 codec.
+	Code       string
+	MinLevel   string
 	Language   string
 	CustomName *string
 	Level      *string

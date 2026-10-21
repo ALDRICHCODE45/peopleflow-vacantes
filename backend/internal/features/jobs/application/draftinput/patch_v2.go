@@ -48,7 +48,7 @@ func DecodePatchV2(body []byte) (PatchV2, error) {
 	}
 
 	for _, key := range slices.Sorted(maps.Keys(fieldsObject)) {
-		if !slices.Contains(writableFieldKeys, key) {
+		if !slices.Contains(writableFieldKeysV2, key) {
 			return PatchV2{}, fmt.Errorf("%w: unknown or read-only key %q", ErrInvalidRequest, key)
 		}
 	}
@@ -71,7 +71,7 @@ func (p PatchV2) Fingerprint() []byte { return bytes.Clone(p.canonical) }
 func composePatchV2(object map[string]any) (PatchV2, error) {
 	var out PatchV2
 
-	scalars, err := draftfields.ValidateScalars(scalarSubmap(object))
+	scalars, err := validateScalarsV2(object)
 	if err != nil {
 		return PatchV2{}, validationError(err)
 	}
@@ -109,7 +109,7 @@ func composePatchV2(object map[string]any) (PatchV2, error) {
 		out.Benefits = presentCollection(items)
 	}
 	if raw, present := object["languages"]; present {
-		items, err := draftfields.ValidateLanguages(raw)
+		items, err := draftfields.ValidateLanguagesV2(raw)
 		if err != nil {
 			return PatchV2{}, validationError(err)
 		}
@@ -156,7 +156,10 @@ func composePatchV2(object map[string]any) (PatchV2, error) {
 		out.Description = shared.Optional[*draftrich.Document]{Set: true, Valid: document != nil, Value: document}
 	}
 
-	projected := canonicalFields(out.Fields, descriptionValue)
+	if err := composeRequirementsV2(object, &out.Fields); err != nil {
+		return PatchV2{}, err
+	}
+	projected := canonicalFieldsV2(out.Fields, descriptionValue)
 	if out.ScreeningQuestionsV2.Set {
 		projected["screening_questions"] = screeningV2Values(out.ScreeningQuestionsV2.Value)
 	}

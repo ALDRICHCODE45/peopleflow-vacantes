@@ -132,11 +132,11 @@ func ValidatePersistedDraftV2(canonical []byte) error {
 // stored fields object: no unknown/read-only key and no missing required key.
 func persistedFieldsShape(fields map[string]any) error {
 	for _, key := range slices.Sorted(maps.Keys(fields)) {
-		if !slices.Contains(writableFieldKeys, key) {
+		if !slices.Contains(writableFieldKeysV2, key) {
 			return persistedRootError("unknown or read-only key %q in fields", key)
 		}
 	}
-	for _, key := range writableFieldKeys {
+	for _, key := range writableFieldKeysV2 {
 		if _, present := fields[key]; !present {
 			return persistedRootError("missing required field %q", key)
 		}
@@ -150,7 +150,7 @@ func persistedFieldsShape(fields map[string]any) error {
 // ValidatePersistedScreeningQuestionsV2 and must never be projected through the
 // v1 prompt-only helper.
 func persistedValidateFields(fields map[string]any) error {
-	scalars, err := draftfields.ValidateScalars(scalarSubmap(fields))
+	scalars, err := validateScalarsV2(fields)
 	if err != nil {
 		return persistedFieldError("fields", err)
 	}
@@ -162,7 +162,7 @@ func persistedValidateFields(fields map[string]any) error {
 	if err != nil {
 		return persistedFieldError("fields.skills", err)
 	}
-	languages, err := draftfields.ValidateLanguages(fields["languages"])
+	languages, err := draftfields.ValidateLanguagesV2(fields["languages"])
 	if err != nil {
 		return persistedFieldError("fields.languages", err)
 	}
@@ -210,8 +210,11 @@ func persistedValidateFields(fields map[string]any) error {
 	projected.Compensation = shared.Optional[draftfields.Compensation]{Set: true, Valid: true, Value: compensation}
 	projected.Description = shared.Optional[*draftrich.Document]{Set: true, Valid: document != nil, Value: document}
 
-	projectedValues := canonicalFields(projected, fields["description"])
-	for _, key := range writableFieldKeys {
+	if err := composeRequirementsV2(fields, &projected); err != nil {
+		return persistedFieldError("fields", err)
+	}
+	projectedValues := canonicalFieldsV2(projected, fields["description"])
+	for _, key := range writableFieldKeysV2 {
 		if key == "screening_questions" {
 			continue
 		}

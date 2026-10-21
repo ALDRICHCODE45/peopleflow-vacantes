@@ -447,8 +447,8 @@ func TestSaveV2_ConcurrentSameTagOneWinner(t *testing.T) {
 	if winner.ETag != ifMatchV2For(t, id, 2) {
 		t.Fatalf("winner etag: %s", winner.ETag)
 	}
-	// The final stored document is the canonical schema-2 full-17 document
-	// carrying the winning title.
+	// The final stored document includes min_years_of_experience,
+	// min_education_level and accepts_in_progress_education (21 keys total).
 	var stored []byte
 	if err := pool.QueryRow(context.Background(), `SELECT fields FROM job_drafts WHERE id=$1`, id).Scan(&stored); err != nil {
 		t.Fatal(err)
@@ -460,8 +460,8 @@ func TestSaveV2_ConcurrentSameTagOneWinner(t *testing.T) {
 	if storedFields["title"] != title {
 		t.Fatalf("stored title: %#v want %q", storedFields["title"], title)
 	}
-	if got := len(storedFields); got != 18 {
-		t.Fatalf("stored fields: want 18 keys (remote_scope added in G2), got %d", got)
+	if got := len(storedFields); got != 21 {
+		t.Fatalf("stored fields: want 21 keys (three profile requirements added), got %d", got)
 	}
 	if got := auditCount(t, pool, id, entities.EventJobDraftSaved); got != 1 {
 		t.Fatalf("concurrent save must audit exactly once, got %d", got)

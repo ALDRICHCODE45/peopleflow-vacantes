@@ -24,7 +24,7 @@ const (
 	emptyCreateFieldsCanonical = `"fields":{"benefits":[],"compensation":{"amount":null,"basis":null,"currency":"MXN","max":null,"min":null,"mode":null,"pay_period":"monthly","public_visible":false},"contract_type":null,"custom_benefits":[],"description":null,"languages":[],"location":null,"preferred_requirements":null,"professional_area":null,"remote_scope":null,"requester":null,"required_requirements":null,"screening_questions":[],"seniority":null,"skills":[],"title":null,"work_mode":null,"work_schedule":null}`
 
 	v1CreateGolden = `{` + emptyCreateFieldsCanonical + `,"schema_version":1}`
-	v2CreateGolden = `{` + emptyCreateFieldsCanonical + `,"schema_version":2}`
+	v2CreateGolden = `{"fields":{"accepts_in_progress_education":false,"benefits":[],"compensation":{"amount":null,"basis":null,"currency":"MXN","max":null,"min":null,"mode":null,"pay_period":"monthly","public_visible":false},"contract_type":null,"custom_benefits":[],"description":null,"languages":[],"location":null,"min_education_level":null,"min_years_of_experience":null,"preferred_requirements":null,"professional_area":null,"remote_scope":null,"requester":null,"required_requirements":null,"screening_questions":[],"seniority":null,"skills":[],"title":null,"work_mode":null,"work_schedule":null},"schema_version":2}`
 )
 
 // Screening v2 fixture identifiers.
@@ -61,7 +61,7 @@ const createV2AllBody = `{"fields":{` +
 	`"professional_area":"technology_systems",` +
 	`"requester":{"kind":"client","id":"11111111-2222-3333-4444-555555555555"},` +
 	`"skills":["Go","Postgres"],` +
-	`"languages":[{"language":"es","custom_name":null,"level":"native"}],` +
+	`"languages":[{"code":"es","min_level":"native"}],` +
 	`"benefits":["health_insurance"],` +
 	`"custom_benefits":["Viajes"],` +
 	`"required_requirements":"5 años",` +
@@ -207,21 +207,24 @@ func expectedCreateV2AllDocument() map[string]any {
 	return map[string]any{
 		"schema_version": int64(2),
 		"fields": map[string]any{
-			"title":                  "Backend Go",
-			"location":               map[string]any{"country": "MX"},
-			"remote_scope":           nil,
-			"work_mode":              "remote",
-			"work_schedule":          "full_time",
-			"contract_type":          "indefinite",
-			"seniority":              "senior",
-			"professional_area":      "technology_systems",
-			"requester":              map[string]any{"kind": "client", "id": "11111111-2222-3333-4444-555555555555"},
-			"skills":                 []any{"Go", "Postgres"},
-			"languages":              []any{map[string]any{"language": "es", "custom_name": nil, "level": "native"}},
-			"benefits":               []any{"health_insurance"},
-			"custom_benefits":        []any{"Viajes"},
-			"required_requirements":  "5 años",
-			"preferred_requirements": "Kubernetes",
+			"title":                         "Backend Go",
+			"location":                      map[string]any{"country": "MX"},
+			"remote_scope":                  nil,
+			"work_mode":                     "remote",
+			"work_schedule":                 "full_time",
+			"contract_type":                 "indefinite",
+			"seniority":                     "senior",
+			"professional_area":             "technology_systems",
+			"requester":                     map[string]any{"kind": "client", "id": "11111111-2222-3333-4444-555555555555"},
+			"skills":                        []any{"Go", "Postgres"},
+			"languages":                     []any{map[string]any{"code": "es", "min_level": "native"}},
+			"min_years_of_experience":       nil,
+			"min_education_level":           nil,
+			"accepts_in_progress_education": false,
+			"benefits":                      []any{"health_insurance"},
+			"custom_benefits":               []any{"Viajes"},
+			"required_requirements":         "5 años",
+			"preferred_requirements":        "Kubernetes",
 			"screening_questions": []any{
 				map[string]any{"id": v2OpenID, "type": "open", "prompt": "¿Disponibilidad?"},
 				map[string]any{"id": v2InfoID, "type": "single_choice_informative", "prompt": "Modalidad", "options": []any{

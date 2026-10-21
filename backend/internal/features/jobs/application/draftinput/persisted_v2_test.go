@@ -24,7 +24,7 @@ import (
 // persistedV2DefaultDoc is a complete canonical schema-2 document whose
 // nullable fields are null, arrays are empty and compensation carries the
 // contract defaults.
-const persistedV2DefaultDoc = `{"schema_version":2,"fields":{` +
+const persistedV2DefaultDoc = `{"schema_version":2,"fields":{"min_years_of_experience":null,"min_education_level":null,"accepts_in_progress_education":false,` +
 	`"title":null,"location":null,"remote_scope":null,"work_mode":null,"work_schedule":null,"contract_type":null,"seniority":null,"professional_area":null,` +
 	`"requester":null,` +
 	`"skills":[],"languages":[],"benefits":[],"custom_benefits":[],` +
@@ -36,6 +36,7 @@ const persistedV2DefaultDoc = `{"schema_version":2,"fields":{` +
 // persistedV2PopulatedDoc is a complete canonical schema-2 document exercising
 // all 17 field groups and all three screening v2 question types.
 const persistedV2PopulatedDoc = `{"schema_version":2,"fields":{
+ "min_years_of_experience":"1.5","min_education_level":"bachelor","accepts_in_progress_education":true,
 	"title":"Backend Go",
 	"location":{"country":"MX"},
 	"remote_scope":null,
@@ -46,7 +47,7 @@ const persistedV2PopulatedDoc = `{"schema_version":2,"fields":{
 	"professional_area":"technology_systems",
 	"requester":{"kind":"client","id":"11111111-2222-3333-4444-555555555555"},
 	"skills":["Go","Postgres"],
-	"languages":[{"language":"es","custom_name":null,"level":"native"},{"language":"other","custom_name":"Náhuatl","level":null}],
+	"languages":[{"code":"es","min_level":"native"},{"code":"nah","min_level":"B2"}],
 	"benefits":["health_insurance","remote_stipend"],
 	"custom_benefits":["Viajes"],
 	"required_requirements":"5 años",
@@ -66,6 +67,7 @@ const persistedV2PopulatedDoc = `{"schema_version":2,"fields":{
 // JSON bytes, key order or spacing.
 const persistedV2ReorderedDoc = `{
 	"fields" : {
+        "accepts_in_progress_education": false, "min_education_level": null, "min_years_of_experience": null,
 		"description" : null ,
 		"compensation" : { "public_visible" : false , "basis" : null , "pay_period" : "monthly" , "currency" : "MXN" , "max" : null , "min" : null , "amount" : null , "mode" : null } ,
 		"screening_questions" : [ ] ,
@@ -91,6 +93,7 @@ const persistedV2ReorderedDoc = `{
 // persistedV2NullableKeys lists every nullable persisted field in contract
 // order: the nine scalars plus requester and description.
 var persistedV2NullableKeys = []string{
+	"min_years_of_experience", "min_education_level",
 	"title",
 	"location",
 	"remote_scope",

@@ -41,7 +41,7 @@ func (s *recordingDraftV2) SaveV2(ctx context.Context, company, actor, id uuid.U
 const draftV2Path = "/v2/me/company/job-drafts"
 const draftV2ID = "11111111-1111-1111-1111-111111111111"
 const draftV2Tag = `"jd-r2-11111111-1111-1111-1111-111111111111-v1"`
-const draftV2Response = `{"schema_version":2,"fields":{"screening_questions":[{"correct_option_id":"private-answer"}]}}`
+const draftV2Response = `{"schema_version":2,"fields":{"screening_questions":[{"correct_option_id":"private-answer"}],"seniority":"semi_senior","languages":[{"code":"en","min_level":"B2"}],"min_years_of_experience":"1.5","min_education_level":"bachelor","accepts_in_progress_education":true}}`
 
 // Test-only registration does not change the production router.
 func draftV2Router(s *recordingDraftV2, cc *security.CompanyContext, gate http.HandlerFunc) http.Handler {
@@ -77,7 +77,7 @@ func TestDraftV2Handler_ExactSuccessAndForwarding(t *testing.T) {
 				result := drafts.Result{Body: []byte(draftV2Response), ETag: draftV2Tag, Replayed: replay}
 				s := &recordingDraftV2{state: recordingDraftStore{createResult: result, getResult: result, saveResult: result}}
 				cc := draftTestContext()
-				body := []byte(`{"fields":{"title":" Go "}}`)
+				body := []byte(`{"fields":{"title":" Go ","seniority":"semi_senior","languages":[{"code":"en","min_level":"B2"}],"min_years_of_experience":"1.5","min_education_level":"bachelor","accepts_in_progress_education":true}}`)
 				req := httptest.NewRequest(method, v2RequestPath(method), bytes.NewReader(body))
 				req.Header.Set("Idempotency-Key", " Raw-Key ")
 				req.Header.Set("If-Match", " \t"+draftV2Tag+"\t ")

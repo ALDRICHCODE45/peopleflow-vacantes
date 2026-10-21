@@ -216,6 +216,54 @@ func TestMigration00031RealV1V2CreateAndSaveDocuments(t *testing.T) {
 	assertStored(false, 4)
 }
 
+const geographyDefaultRequirementsPatch = `{"fields":{"min_years_of_experience":null,"min_education_level":null,"accepts_in_progress_education":false}}`
+
+// Reproduce the exact CreateV2 -> requester SaveV2 path used by the 00031
+// lifecycle test, then explicitly reset the shared fixture's non-default
+// requirements. A post-Up row in this shape must reverse-map without a backup.
+func TestMigration00041GeographyCreateDefaultsRollback(t *testing.T) {
+	pool := requireDraftPool(t)
+	s, p, draft := readyPublication(t, pool)
+	ctx := context.Background()
+	id := draftIDOf(t, draft)
+	original := envelopeOf(t, draft.Body)["fields"].(map[string]any)
+	if original["min_years_of_experience"] != "1.5" || original["min_education_level"] != "bachelor" || original["accepts_in_progress_education"] != true {
+		t.Fatalf("shared fixture no longer reproduces non-default requirements: %v", original)
+	}
+	if _, err := s.SaveV2(ctx, p.companyID, p.ownerID, id, draft.ETag, true, []byte(geographyDefaultRequirementsPatch)); err != nil {
+		t.Fatal(err)
+	}
+	var stored []byte
+	var beforeVersion int64
+	if err := pool.QueryRow(ctx, `SELECT fields,version FROM job_drafts WHERE id=$1`, id).Scan(&stored, &beforeVersion); err != nil {
+		t.Fatal(err)
+	}
+	expected := envelopeOf(t, stored)
+	fields := expected["fields"].(map[string]any)
+	if fields["min_years_of_experience"] != nil || fields["min_education_level"] != nil || fields["accepts_in_progress_education"] != false {
+		t.Fatal("reset did not persist defaults")
+	}
+	for _, key := range []string{"min_years_of_experience", "min_education_level", "accepts_in_progress_education"} {
+		delete(fields, key)
+	}
+	fields["languages"] = []any{map[string]any{"language": "es", "custom_name": nil, "level": "native"}}
+	sqlDB := stdlib.OpenDBFromPool(pool)
+	defer sqlDB.Close()
+	goose.SetBaseFS(migrations.MigrationsFS)
+	defer func() {
+		if err := goose.UpContext(ctx, sqlDB, "."); err != nil {
+			t.Error(err)
+		}
+	}()
+	if err := goose.DownToContext(ctx, sqlDB, ".", 40); err != nil {
+		t.Fatal(err)
+	}
+	var version int64
+	if err := pool.QueryRow(ctx, `SELECT fields,version FROM job_drafts WHERE id=$1`, id).Scan(&stored, &version); err != nil || version != beforeVersion+1 || !bytes.Equal(stored, mustCanonical(t, expected)) {
+		t.Fatalf("reverse mapping actual geography fixture: version=%d got=%s want=%s err=%v", version, stored, mustCanonical(t, expected), err)
+	}
+}
+
 func TestMigration00031RewrittenDraftReadsNoopPatchesAndPublishes(t *testing.T) {
 	for _, retainedNUL := range []bool{false, true} {
 		name := "old_location_NUL_only"
@@ -232,6 +280,14 @@ func assertMigration00031DraftLifecycle(t *testing.T, retainedNUL bool) {
 	s, p, draft := readyPublication(t, pool)
 	id := draftIDOf(t, draft)
 	ctx := context.Background()
+	// readyPublication submits readV2Document through CreateV2: it explicitly
+	// sets "1.5"/"bachelor"/true, not defaults. This geography-only migration
+	// fixture must not carry requirements that cannot roll back through 00041.
+	var err error
+	draft, err = s.SaveV2(ctx, p.companyID, p.ownerID, id, draft.ETag, true, []byte(geographyDefaultRequirementsPatch))
+	if err != nil {
+		t.Fatal(err)
+	}
 	sqlDB := stdlib.OpenDBFromPool(pool)
 	defer sqlDB.Close()
 	goose.SetBaseFS(migrations.MigrationsFS)
@@ -268,6 +324,11 @@ func assertMigration00031DraftLifecycle(t *testing.T, retainedNUL bool) {
 			fields[key] = baseline[key]
 		}
 		description = "Hello"
+		fields["languages"] = []any{map[string]any{"language": "es", "custom_name": nil, "level": "native"}}
+	}
+	// Seed the real pre-00041 contract while the database is at version 30.
+	for _, key := range []string{"min_years_of_experience", "min_education_level", "accepts_in_progress_education"} {
+		delete(fields, key)
 	}
 	fields["requester"] = envelopeOf(t, draft.Body)["fields"].(map[string]any)["requester"]
 	delete(fields, "remote_scope")
@@ -311,15 +372,24 @@ func assertMigration00031DraftLifecycle(t *testing.T, retainedNUL bool) {
 	if err := pool.QueryRow(ctx, `SELECT fields,version FROM job_drafts WHERE id=$1`, id).Scan(&stored, &version); err != nil || version != 11 || !bytes.Equal(stored, want) {
 		t.Fatalf("version=%d stored=%s want=%s err=%v", version, stored, want, err)
 	}
-	if err := draftinput.ValidatePersistedDraftV2(stored); err != nil {
-		t.Fatal(err)
-	}
+	// This is the old field contract: current persisted validation belongs
+	// after 00041, not immediately after the geography-only rewrite.
 	// The exact 00031 rewrite was asserted above. Exercise current application
 	// reads against the current schema: editor GET now needs 00034's lifecycle
 	// columns. Later migrations must not be bypassed by an old migration test.
 	if err := goose.UpContext(ctx, sqlDB, "."); err != nil {
 		t.Fatal(err)
 	}
+	if err := pool.QueryRow(ctx, `SELECT fields FROM job_drafts WHERE id=$1`, id).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if err := draftinput.ValidatePersistedDraftV2(stored); err != nil {
+		t.Fatal(err)
+	}
+	// 00041 adds default requirements and drops the unknown/null-level legacy
+	// language; retain its current shape for the later edited-row Down check.
+	doc = envelopeOf(t, stored)
+	fields = doc["fields"].(map[string]any)
 	read, err := s.GetV2(ctx, p.companyID, p.ownerID, id)
 	if err != nil {
 		t.Fatal(err)
@@ -336,6 +406,7 @@ func assertMigration00031DraftLifecycle(t *testing.T, retainedNUL bool) {
 	// to publishable text is deliberate; migration/read/no-op above retain it.
 	publishable := envelopeOf(t, []byte(readV2Document))["fields"].(map[string]any)
 	publishable["requester"] = fields["requester"]
+	publishable["min_years_of_experience"], publishable["min_education_level"], publishable["accepts_in_progress_education"] = nil, nil, false
 	patched, err := s.SaveV2(ctx, p.companyID, p.ownerID, id, read.ETag, true, mustCanonical(t, map[string]any{"fields": publishable}))
 	if err != nil {
 		t.Fatal(err)
@@ -355,7 +426,15 @@ func assertMigration00031DraftLifecycle(t *testing.T, retainedNUL bool) {
 	}
 	fields["location"] = nil
 	delete(fields, "remote_scope")
-	if err := pool.QueryRow(ctx, `SELECT fields,version FROM job_drafts WHERE id=$1`, id).Scan(&stored, &version); err != nil || version != 21 || !bytes.Equal(stored, mustCanonical(t, doc)) {
+	for _, key := range []string{"min_years_of_experience", "min_education_level", "accepts_in_progress_education"} {
+		delete(fields, key)
+	}
+	fields["languages"] = []any{}
+	if !retainedNUL {
+		fields["languages"] = []any{map[string]any{"language": "es", "custom_name": nil, "level": "native"}}
+	}
+	// Both 00041 and 00031 rewrite the document and advance its version once.
+	if err := pool.QueryRow(ctx, `SELECT fields,version FROM job_drafts WHERE id=$1`, id).Scan(&stored, &version); err != nil || version != 22 || !bytes.Equal(stored, mustCanonical(t, doc)) {
 		t.Fatalf("down version=%d stored=%s want=%s err=%v", version, stored, mustCanonical(t, doc), err)
 	}
 	var restored string

@@ -421,6 +421,22 @@ type User struct {
 	DeletedAt  pgtype.Timestamptz `json:"deleted_at"`
 }
 
+type VacancyDraft0041Backup struct {
+	ID             uuid.UUID `json:"id"`
+	OriginalFields []byte    `json:"original_fields"`
+	MigratedFields []byte    `json:"migrated_fields"`
+}
+
+type VacancyLanguage0041Catalog struct {
+	Code pgtype.Text `json:"code"`
+	Name pgtype.Text `json:"name"`
+}
+
+type VacancyLanguageName struct {
+	Code pgtype.Text `json:"code"`
+	Name pgtype.Text `json:"name"`
+}
+
 type VacancyLifecycleEvent struct {
 	ID               uuid.UUID          `json:"id"`
 	ProcessID        uuid.UUID          `json:"process_id"`

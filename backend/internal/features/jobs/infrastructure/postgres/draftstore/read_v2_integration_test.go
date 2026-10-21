@@ -17,9 +17,10 @@ import (
 )
 
 const readV2Document = `{"schema_version":2,"fields":{
+"min_years_of_experience":"1.5","min_education_level":"bachelor","accepts_in_progress_education":true,
 "title":"Backend Go","location":null,"remote_scope":{"kind":"anywhere"},"work_mode":"remote","work_schedule":"full_time",
 "contract_type":"indefinite","seniority":"senior","professional_area":"technology_systems",
-"requester":null,"skills":["Go"],"languages":[{"language":"es","custom_name":null,"level":"native"}],
+"requester":null,"skills":["Go"],"languages":[{"code":"es","min_level":"native"}],
 "benefits":["health_insurance"],"custom_benefits":["Travel"],
 "required_requirements":"Go","preferred_requirements":"SQL",
 "screening_questions":[

@@ -109,7 +109,7 @@ func DecodeCreateV2(body []byte) (CreateV2, error) {
 	}
 
 	for _, key := range slices.Sorted(maps.Keys(fieldsObject)) {
-		if !slices.Contains(writableFieldKeys, key) {
+		if !slices.Contains(writableFieldKeysV2, key) {
 			return CreateV2{}, fmt.Errorf("%w: unknown or read-only key %q", ErrInvalidRequest, key)
 		}
 	}
@@ -161,7 +161,7 @@ func firstNestedKeyViolationV2(fields map[string]any) error {
 	if raw, present := fields["languages"]; present {
 		if items, ok := raw.([]any); ok {
 			for i, item := range items {
-				if key, bad := unknownObjectKey(item, languageFieldKeys); bad {
+				if key, bad := unknownObjectKey(item, languageFieldKeysV2); bad {
 					return fmt.Errorf("%w: unknown or read-only key %s", ErrInvalidRequest, fmt.Sprintf("languages[%d].%s", i, key))
 				}
 			}
@@ -294,7 +294,7 @@ func screeningStructuralOptionViolation(raw any, questionIndex int) error {
 func composeV2(object map[string]any) (CreateV2, error) {
 	var out CreateV2
 
-	scalars, err := draftfields.ValidateScalars(scalarSubmap(object))
+	scalars, err := validateScalarsV2(object)
 	if err != nil {
 		return CreateV2{}, validationError(err)
 	}
@@ -332,7 +332,7 @@ func composeV2(object map[string]any) (CreateV2, error) {
 		out.Benefits = presentCollection(items)
 	}
 	if raw, present := object["languages"]; present {
-		items, err := draftfields.ValidateLanguages(raw)
+		items, err := draftfields.ValidateLanguagesV2(raw)
 		if err != nil {
 			return CreateV2{}, validationError(err)
 		}
@@ -379,7 +379,11 @@ func composeV2(object map[string]any) (CreateV2, error) {
 		out.Description = shared.Optional[*draftrich.Document]{Set: true, Valid: document != nil, Value: document}
 	}
 
+	if err := composeRequirementsV2(object, &out.Fields); err != nil {
+		return CreateV2{}, err
+	}
 	applyCreateDefaults(&out.Fields)
+	applyRequirementsDefaultsV2(&out.Fields)
 	// The v1 screening projection is never populated: the typed v2 questions
 	// are carried by ScreeningQuestionsV2 and projected with their exact
 	// per-variant keys below.
@@ -388,7 +392,7 @@ func composeV2(object map[string]any) (CreateV2, error) {
 		out.ScreeningQuestionsV2 = []draftfields.ScreeningQuestionV2{}
 	}
 
-	projected := canonicalFields(out.Fields, descriptionValue)
+	projected := canonicalFieldsV2(out.Fields, descriptionValue)
 	projected["screening_questions"] = screeningV2Values(out.ScreeningQuestionsV2)
 	canonical, err := draftjson.EncodeValidatedValue(canonicalDocumentV2(projected))
 	if err != nil {

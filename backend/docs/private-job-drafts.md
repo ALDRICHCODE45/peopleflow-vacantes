@@ -60,6 +60,89 @@ The body is always exactly `{ "fields": { ... } }`.
 - Unknown or read-only keys, duplicate JSON keys and invalid UTF-8 are
   `400 invalid_request`. Field-value violations are `400 validation_error`.
 
+## V2 profile requirements (H3a-1)
+
+`POST`, `GET` and `PATCH /v2/me/company/job-drafts[/{id}]` use these
+requirements inside `fields` (the stored/read `schema_version` remains **2**):
+
+```json
+{"seniority":"semi_senior","languages":[{"code":"en","min_level":"B2"}],"min_years_of_experience":"1.5","min_education_level":"bachelor","accepts_in_progress_education":true}
+```
+
+- `seniority`: null or exactly `intern|junior|semi_senior|senior|lead|manager|director`.
+- `languages`: at most 20 entries, unique catalog `code` (see
+  [language-catalog.md](language-catalog.md)), each with exactly `code` and
+  `min_level`. Both keys are required and non-null. Levels are
+  `A1|A2|B1|B2|C1|C2|native`; code/level spelling is never trimmed or case-folded.
+  The old `{language,custom_name,level}` shape is rejected.
+- `min_years_of_experience`: null or a decimal string matching
+  `^(0|[1-9][0-9]?)(\.[0-9])?$`, range 0–60 inclusive. `"60.1"`, `"01"`,
+  `"1.50"` and JSON numbers are invalid. A zero fraction is normalized:
+  `"2.0"` becomes `"2"` on writes and reads.
+- `min_education_level`: null or exactly
+  `secondary|high_school|technical|tsu|bachelor|specialty|master|phd`.
+- `accepts_in_progress_education`: boolean, never null; meaningful only with
+  a minimum education level, but accepted independently.
+
+Create defaults: `seniority`, minimum years and minimum education are null;
+`languages` is `[]`; the education flag is `false`. PATCH omission preserves the
+stored value; each present field replaces it completely. All keys are present
+in stored documents and GET responses. Persisted validation rejects missing
+keys and noncanonical values rather than silently repairing them.
+
+Unknown keys are `400 invalid_request`; invalid values (including missing
+language entry keys, duplicates and list overflow) use the existing draft
+`400 validation_error` two-key envelope, not the candidate-profile field-error
+extension. **None of these requirements block publication** (INT-22).
+Legacy `/jobs` and historical draft v1 codecs remain unchanged.
+
+### Migration 00041 (H3a-2)
+
+Deploy `00041_vacancy_harmonization.sql` before serving the new codecs. It rewrites
+stored draft BYTEA with 00031's canonical encoder and escaped-NUL masking,
+preserving unrelated content and the schema marker. Every row advances `version`
+once and receives `updated_at=now()` (including unchanged/partial historical
+fixtures), invalidating previous draft ETags. Historical incomplete fixtures
+remain incomplete; the migration does not invent unrelated missing fields.
+
+Seniority `mid` becomes `semi_senior`. Languages keep `es`/`en`, or resolve `other`
+against frozen Spanish catalog names and English aliases using NFC, case and
+accent folding. Levels map `basic→A2`, `intermediate→B1`, `advanced→C1`,
+`native→native`; null levels and unmatched names are dropped. Duplicate codes
+retain their highest level and their first occurrence's order. If more than 20
+distinct codes survive, only the first 20 remain; later duplicates still strengthen
+retained codes. PostgreSQL NOTICE reports dropped, collapsed and distinct overflow
+counts per draft. The three new fields default to null/null/false.
+
+Only the existing public projection seniority column/check changes (`mid` is
+rewritten); its source version stays unchanged. No new projection columns or
+public API/search changes are included. Legacy `jobs` is untouched. **Frozen
+idempotency/replay response bytes, fingerprints and original ETags are untouched**,
+matching 00031's precedent: they describe the original request, not current state.
+
+Like 00039, rollback metadata preserves data discarded by best-effort mapping.
+`vacancy_draft_0041_backup` retains both original canonical bytes and the migrated
+bytes (two documents per migrated draft, cascading on draft deletion).
+`vacancy_language_0041_catalog` freezes Spanish names for rollback of new/edited
+rows; neither metadata table is used by runtime reads/writes.
+
+Down restores unchanged migrated rows from the backup, retaining dropped names,
+duplicates and overflow. New or edited rows are reverse-mapped: `semi_senior→mid`,
+`A2→basic`, `B1→intermediate`, `C1→advanced`, `native→native`. Other language codes
+become `other` with the catalog Spanish name; their remaining CEFR levels become
+null. For `es`/`en`, an unmappable level is refused. Non-null minimum years or
+education, a non-false education flag, and `manager`/`director` seniority are also
+refused (including projection seniority), atomically. The three requirement keys
+are removed and unrelated edits are retained. Both directions use the identical
+00031 canonical encoder and NUL-safe scanner, including on a fresh Down connection.
+Versions advance again rather than rewinding. Both directions lock drafts and
+projections; a version overflow aborts the transaction rather than wrapping.
+
+Tests: `TestVacancyHarmonizationDefinition` pins the frozen catalog and canonical
+encoder. Integration-tag tests cover stored mapping/projections/rollback,
+overflow NOTICE, guarded Down, representable new/edited drafts, and canonical/historical envelopes. The DB tests
+must be run against the dedicated disposable draft database.
+
 ## Structured geography (G2)
 
 Both draft codecs now use a nullable structured `location` and nullable
