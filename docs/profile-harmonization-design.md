@@ -164,7 +164,7 @@ present, so existing cursors stay valid.
 | --- | --- |
 | `candidate_profiles.years_of_experience` SMALLINT | NUMERIC(3,1) → string on wire |
 | `candidate_profiles.education_level` + `field_of_study` | one record `{level, field, status:"completed"}` (old literals keep their name) |
-| `candidate_languages.language` free text | code via exact Spanish/English name match (case/accents-insensitive) against the catalog; unmatched rows dropped and counted in the migration log |
+| `candidate_languages.language` free text | code via exact Spanish/English name match (case/accents-insensitive) against the catalog; unmatched rows dropped and counted in the migration log; when several legacy names of one user map to the same code (e.g. Español B1 + Spanish C1), the highest level is kept and the collapsed rows are counted |
 | `company_candidates` (unmerged branch) | same as profiles |
 | Draft `seniority` `intern`, `junior`, `mid`, `senior`, `lead` | `intern`, `junior`, `semi_senior`, `senior`, `lead` |
 | Draft `languages` `{language: es, en or other, …}` | `es`/`en` kept with level `basic→A2`, `intermediate→B1`, `advanced→C1`, `native→native`, null level dropped; `other` → catalog match on `custom_name` or dropped |
