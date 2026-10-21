@@ -217,6 +217,7 @@ func run() error {
 	deliveryHandler := jobshttp.NewDeliveryHandler(draftStore)
 	managementHandler := jobshttp.NewManagementHandler(draftStore)
 	publicationHandler := jobshttp.NewPublicationHandler(draftStore)
+	lifecycleHandler := jobshttp.NewLifecycleHandler(draftStore)
 	// The requester catalog shares the draft store's transactional gates.
 	requesterHandler := jobshttp.NewRequesterHandler(draftStore)
 
@@ -286,6 +287,7 @@ func run() error {
 		deliveryHandler:    deliveryHandler,
 		managementHandler:  managementHandler,
 		publicationHandler: publicationHandler,
+		lifecycleHandler:   lifecycleHandler,
 		publicJobsHandler:  publicJobsHandler,
 		requesterHandler:   requesterHandler, queries: queries, pool: poolPinger, readinessTimeout: cfg.ReadinessTimeout,
 		// Task 6.3 (design §8.3): compose the no-op HTTP metrics default —

@@ -80,6 +80,11 @@ func TestEventVocabularyIsClosed(t *testing.T) {
 		EventCompanyDeleted:          true,
 		EventJobDraftCreated:         true,
 		EventJobDraftSaved:           true,
+		EventVacancyPaused:           true,
+		EventVacancyResumed:          true,
+		EventVacancyClosed:           true,
+		EventVacancyProcessFinished:  true,
+		EventVacancyReopened:         true,
 		// requester-catalog: one immutable catalog insert event and its entity.
 		EventJobDraftRequesterCreated: true,
 		EntityApplication:             true,
