@@ -55,7 +55,7 @@ func TestColumnPipelineGetPutExactWireKeys(t *testing.T) {
 			}
 		} else {
 			view := obj["lifecycle"].(map[string]any)
-			if len(view) != 8 || view["publication"] != nil || view["process"] != nil || view["version"] != "0" {
+			if len(view) != 10 || view["publication"] != nil || view["process"] != nil || view["version"] != "0" {
 				t.Fatal(view)
 			}
 			if _, present := obj["applied_impact"]; present {

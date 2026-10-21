@@ -31,8 +31,8 @@ Base: `/v2/me/company/job-drafts/{id}/lifecycle`.
 | GET `/history` | — | Any authorized v2 draft | `{ "items": […] }`, newest first |
 | POST `/pause` | `{}` | published / active | paused / active |
 | POST `/resume` | `{}` | paused / active | published / active |
-| POST `/close` | `{"process":"continue"}` | published or paused / active | closed / active |
-| POST `/close` | `{"process":"finish"}` | published or paused / active | closed / finished |
+| POST `/close` | `{"process":"continue","reason":"cancelled","reason_note":null}` | published or paused / active | closed / active |
+| POST `/close` | `{"process":"finish","reason":"filled","reason_note":null}` | published or paused / active | closed / finished |
 | POST `/finish-process` | `{}` | closed / active | closed / finished |
 | POST `/reopen` | `{}` | closed / active **or** finished | published / active |
 
@@ -41,20 +41,40 @@ or lifecycle `publish` action. Publish remains on its existing route. Unknown
 keys, duplicate keys, non-object/null bodies and invalid close choices are
 400 `invalid_request`. The existing bounded-body transport also applies.
 
+Close requires all three keys: `process: "continue"|"finish"`,
+`reason: "filled"|"cancelled"|"other"`, and `reason_note: string|null`.
+For `other`, the note must be non-blank after trimming Unicode whitespace and
+at most 200 Unicode code points after trimming; the stored note is trimmed.
+For `filled`/`cancelled`, it must be null. Shape failures are 400 `invalid_request`.
+
+«Cubierta is allowed only when the required positions are filled.» `filled`
+requires a non-null current hiring headcount and current Placement coverage
+at least that headcount, using the same query as the board (not historical
+milestones or delivery fulfillment). Otherwise the response is 422:
+
+```json
+{"error":"close reason not covered","code":"close_reason_not_covered","data":{"covered":0,"required":2}}
+```
+
+`required` is null when no headcount is configured. No rejected close writes
+state, versions, history, audit or idempotency.
+
 ### View
 
 ```json
 {"publication":"closed","process":"active","version":"4",
  "published_at":"2026-10-16T18:00:00.000000Z","paused_at":null,
  "closed_at":"2026-10-20T18:00:00.000000Z","process_finished_at":null,
- "allowed_actions":["finish_process","reopen"]}
+ "allowed_actions":["finish_process","reopen"],"close_reason":"cancelled","close_reason_note":null}
 ```
 
-Exactly eight root keys. Versions are decimal strings, not JSON numbers.
-Timestamps are UTC strings with microsecond precision, or null; each keeps the
-latest occurrence of that transition, even after leaving its state.
-`published_at` is refreshed on resume/reopen. Reopening does not erase the
-historical `process_finished_at`.
+Exactly ten root keys. Versions are decimal strings, not JSON numbers.
+Timestamps are UTC strings with microsecond precision, or null. `published_at`
+is the **first publication** and never changes on resume/reopen. Other dates
+retain the latest occurrence, even after leaving their state. Reopening does
+not erase historical pause, close or process-finish timestamps.
+`close_reason` and `close_reason_note` are always present: the latest close's
+values while publication is closed, null otherwise (also null for legacy closes).
 
 | State | `allowed_actions` (ordered) |
 | --- | --- |
@@ -74,13 +94,15 @@ configuration versions/timestamps.
 ### Preconditions, replay and errors
 
 Store order: **authorization → key/replay → precondition → transition validity
-→ body validation → readiness → atomic state/history/idempotency/audit write**.
+→ body validation → coverage (close) or readiness (resume/reopen)
+→ atomic state/history/idempotency/audit write**.
 Transport checks (e.g. the request body size cap or malformed path ID) happen
 before the store, as on publication.
 
 - UUID key required: 400 `idempotency_key_required` / `invalid_idempotency_key`.
 - Scope: company + actor + `vacancy-lifecycle:r1` + normalized UUID key.
-  Fingerprints include the draft ID, action and canonical body. Whitespace is
+  Fingerprints include the draft ID, action and canonical body (including the
+  trimmed close note). JSON whitespace is
   immaterial; a changed action, draft or valid-JSON body gives 409
   `idempotency_conflict`. Malformed JSON is still 400. Authorization is always
   rechecked before replay; old successes never bypass revoked access.
@@ -92,7 +114,7 @@ before the store, as on publication.
 
   ```json
   {"error":"lifecycle transition invalid","code":"lifecycle_transition_invalid",
-   "data":{"action":"pause","lifecycle":{"publication":"closed","process":"active","version":"4","published_at":"2026-10-16T18:00:00.000000Z","paused_at":null,"closed_at":"2026-10-20T18:00:00.000000Z","process_finished_at":null,"allowed_actions":["finish_process","reopen"]}}}
+   "data":{"action":"pause","lifecycle":{"publication":"closed","process":"active","version":"4","published_at":"2026-10-16T18:00:00.000000Z","paused_at":null,"closed_at":"2026-10-20T18:00:00.000000Z","process_finished_at":null,"allowed_actions":["finish_process","reopen"],"close_reason":"cancelled","close_reason_note":null}}}
   ```
 
 - Resume/reopen run the shared published-write readiness guard: every readiness
@@ -117,11 +139,12 @@ History has no publication entry and is separate from participation history:
 ```json
 {"items":[{"id":"<event UUID>","action":"close","process":"finish",
  "actor":{"id":"<user UUID>","name":"Recruiter name at transition"},
- "created_at":"2026-10-20T18:00:00.000000Z"}]}
+ "created_at":"2026-10-20T18:00:00.000000Z","reason":"filled","reason_note":null}]}
 ```
 
-`process` is the explicit `continue|finish` choice on close, null on other
-entries. `action` uses `finish_process` (underscore); its URL uses
+Each item has seven keys. `reason` and `reason_note` are always present, null
+except on close (and null on legacy closes). `process` is the explicit
+`continue|finish` choice on close, null on other entries. `action` uses `finish_process` (underscore); its URL uses
 `finish-process`. Names are retained snapshots, unaffected by later renames.
 Ordering is timestamp descending, then lifecycle version descending for ties.
 Never-published drafts have `items: []`. History has no ETag/replay header.
@@ -130,8 +153,9 @@ One audit event is emitted per transition: `VacancyPaused`, `VacancyResumed`,
 `VacancyClosed`, `VacancyProcessFinished`, `VacancyReopened`, respectively.
 Close-with-finish emits `VacancyClosed` with resulting process `finished`;
 `VacancyProcessFinished` belongs to the separate action. Entity is
-`vacancy_process`; metadata contains only `version`, `publication`, `process`,
-with actor ID in the audit actor column. Actor names stay out of audit/logs.
+`vacancy_process`; metadata contains `version`, `publication`, `process`, plus
+`reason` on close, never the note. Actor ID is in the audit actor column;
+actor names stay out of audit/logs.
 Audit failure rolls back all transition writes.
 
 Reopen retains pipeline, candidates, participation history, coverage and frozen
@@ -146,6 +170,16 @@ positive versions, close-choice shape and **finished ⇒ closed**. Existing rows
 become published / active / v1 without changing their publication data.
 Down refuses any non-published/active row **or any lifecycle history**, locking
 the affected tables before checking. It does not silently erase lifecycle data.
+
+Migration **00035** adds nullable reason/note to lifecycle events with vocabulary,
+non-close-null, other-note-required and 200-character constraints. It restores
+process `published_at` from `vacancy_public_projections.published_at`: the
+projection upsert (`db/queries/vacancy_public_projections.sql`) deliberately
+excludes that column from content updates. Public listing order is unchanged.
+Current close reasons are read from the latest close event by lifecycle version,
+only while closed, avoiding duplicated state on the process row. Down locks
+history and refuses recorded reasons; clean rollback removes the columns but
+retains repaired first-publication dates.
 
 ## L2 — effects on existing endpoints
 
@@ -162,7 +196,7 @@ the affected tables before checking. It does not silently erase lifecycle data.
 | Company draft list | `status: draft|published|paused|closed`; new always-present `process:null|"active"|"finished"`. Paging/order unchanged |
 
 Editor `GET /v2/me/company/job-drafts/{id}`, board GET and pipeline GET embed the
-same eight-key view as root `lifecycle`. Their existing ETags (or absence for the
+same ten-key view as root `lifecycle`. Their existing ETags (or absence for the
 board) are unchanged; use lifecycle GET for the lifecycle precondition tag.
 Create/PATCH and pipeline PUT response/replay shapes stay unchanged.
 

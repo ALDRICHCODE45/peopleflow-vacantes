@@ -60,10 +60,10 @@ func lifecycleFixture(t *testing.T, pool *pgxpool.Pool, state string) (*Store, p
 		action = "pause"
 	case "closed active":
 		action = "close"
-		body = `{"process":"continue"}`
+		body = `{"process":"continue","reason":"cancelled","reason_note":null}`
 	case "closed finished":
 		action = "close"
-		body = `{"process":"finish"}`
+		body = `{"process":"finish","reason":"cancelled","reason_note":null}`
 	}
 	if action != "" {
 		current, err = s.TransitionLifecycle(ctx, p.companyID, p.ownerID, id, action, uuid.NewString(), true, current.ETag, true, []byte(body))
@@ -78,7 +78,7 @@ func TestLifecycleDBEveryTransitionAndRejectionAtomic(t *testing.T) {
 	ctx := context.Background()
 	for _, state := range []string{"draft", "published", "paused", "closed active", "closed finished"} {
 		t.Run(state, func(t *testing.T) {
-			for _, test := range []struct{ action, body string }{{"pause", `{}`}, {"resume", `{}`}, {"close", `{"process":"continue"}`}, {"close", `{"process":"finish"}`}, {"finish_process", `{}`}, {"reopen", `{}`}} {
+			for _, test := range []struct{ action, body string }{{"pause", `{}`}, {"resume", `{}`}, {"close", `{"process":"continue","reason":"cancelled","reason_note":null}`}, {"close", `{"process":"finish","reason":"cancelled","reason_note":null}`}, {"finish_process", `{}`}, {"reopen", `{}`}} {
 				t.Run(test.action+test.body, func(t *testing.T) {
 					s, p, id, current := lifecycleFixture(t, pool, state)
 					view := lifecycleViewOf(t, current)
@@ -105,6 +105,12 @@ func TestLifecycleDBEveryTransitionAndRejectionAtomic(t *testing.T) {
 						}
 					}
 					want, errWant := lifecycle.Transition(view, test.action, choice, fixedDeliveryClock())
+					metadataKeys := 3
+					if test.action == "close" {
+						reason := "cancelled"
+						want.CloseReason = &reason
+						metadataKeys++
+					}
 					if err != nil || errWant != nil || got.Replayed || !reflect.DeepEqual(lifecycleViewOf(t, got), want) {
 						t.Fatalf("got=%s %v want=%+v %v", got.Body, err, want, errWant)
 					}
@@ -122,7 +128,7 @@ func TestLifecycleDBEveryTransitionAndRejectionAtomic(t *testing.T) {
 					if err := json.Unmarshal(raw, &metadata); err != nil {
 						t.Fatal(err)
 					}
-					if actor != p.ownerID || entity != "vacancy_process" || len(metadata) != 3 || metadata["version"] != want.Version || metadata["publication"] != *want.Publication || metadata["process"] != *want.Process {
+					if actor != p.ownerID || entity != "vacancy_process" || len(metadata) != metadataKeys || metadata["version"] != want.Version || metadata["publication"] != *want.Publication || metadata["process"] != *want.Process {
 						t.Fatalf("audit=%s %s %s", actor, entity, raw)
 					}
 				})
@@ -290,9 +296,9 @@ func TestLifecycleDBHistoryActorSnapshotAndPreservedAuthoring(t *testing.T) {
 	for i, action := range actions {
 		body := `{}`
 		if action == "close" {
-			body = `{"process":"continue"}`
+			body = `{"process":"continue","reason":"cancelled","reason_note":null}`
 			if i == 5 {
-				body = `{"process":"finish"}`
+				body = `{"process":"finish","reason":"cancelled","reason_note":null}`
 			}
 		}
 		// Same timestamp deliberately exercises lifecycle-version tie ordering.

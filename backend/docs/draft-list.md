@@ -73,6 +73,8 @@ without a cursor shows it again.
       "version": "7",
       "status": "draft",
       "process": null,
+      "close_reason": null,
+      "close_reason_note": null,
       "published_at": null,
       "paused_at": null,
       "closed_at": null,
@@ -97,7 +99,8 @@ without a cursor shows it again.
 | `version` | Decimal string, the same value as the draft read envelope. It is for display only: save with the `ETag` of `GET /v2/me/company/job-drafts/{id}`. |
 | `status` | Strict enum `draft`, `published`, `paused` or `closed`, derived from the process record; all states remain in this list. |
 | `process` | Always present: `null` for never-published drafts, otherwise `active` or `finished`. Finished implies closed publication. |
-| `published_at` | Latest publication, resume or reopen instant as RFC 3339 UTC (six fractional digits), or `null` for a never-published draft. |
+| `close_reason`, `close_reason_note` | Always present: latest close's reason/note while closed; null otherwise, including legacy closes without a recorded reason. |
+| `published_at` | First publication instant (unchanged on resume/reopen) as RFC 3339 UTC (six fractional digits), or `null` for a never-published draft. |
 | `paused_at` | Latest pause instant in the same format, or `null` if never paused. Retained after resume/reopen. |
 | `closed_at` | Latest close instant in the same format, or `null` if never closed. Retained after reopen. |
 | `process_finished_at` | Latest process-finish instant (separate finish or close-and-finish) in the same format, or `null` if never finished. Retained after reopen. |
@@ -106,7 +109,8 @@ without a cursor shows it again.
 
 P1 added `status` and `published_at`; L2 adds `process`; the candidate-summary
 addition adds `candidates`; the lifecycle-date addition adds `paused_at`,
-`closed_at` and `process_finished_at` (16 keys per item).
+`closed_at` and `process_finished_at`; close reasons add `close_reason` and
+`close_reason_note` (18 keys per item).
 Lifecycle transitions do not change draft versions, `created_at`/`updated_at`, ordering, cursors
 or visibility/filtering. Badges: Borrador, Publicada, Pausada, Cerrada · proceso en
 curso, Cerrada · proceso finalizado. The backend returns every state; see
@@ -116,9 +120,9 @@ curso, Cerrada · proceso finalizado. The backend returns every state; see
 
 The flat date fields come from the same `vacancy_processes` row and have exactly
 the values returned by `GET /v2/me/company/job-drafts/{id}/lifecycle`. All four
-are `null` for never-published drafts. Each records the **latest** transition of
-its kind, not the first one. Resume/reopen refreshes `published_at` but retains
-historical `paused_at`, `closed_at` and `process_finished_at`; do not infer the
+are `null` for never-published drafts. `published_at` records the **first**
+publication; other dates record the **latest** transition of their kind.
+Resume/reopen retains all historical dates, including `published_at`; do not infer the
 current state from whether a historical timestamp is present.
 
 Choose the displayed date using both current axes:
@@ -132,7 +136,9 @@ Choose the displayed date using both current axes:
 | `closed` + `finished` process | `process_finished_at` |
 
 The date columns are selected in the existing single page-scoped statement;
-there are no extra queries or migrations.
+there are no extra round trips. Migration 00035 repairs the first publication
+and adds close reasons to history. A lateral lookup in the same list statement
+selects the latest close event by lifecycle version only while closed.
 
 ## Live candidate summary
 

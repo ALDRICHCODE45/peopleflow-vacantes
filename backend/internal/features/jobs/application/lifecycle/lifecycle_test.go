@@ -26,7 +26,8 @@ func TestTransitionMatrix(t *testing.T) {
 	now := time.Date(2026, 10, 16, 18, 0, 0, 0, time.UTC)
 	for _, state := range states {
 		t.Run(state.name, func(t *testing.T) {
-			current := View{Version: "1"}
+			first := "2026-01-01T00:00:00.000000Z"
+			current := View{Version: "1", PublishedAt: &first}
 			if state.publication != "" {
 				current.Publication = &state.publication
 				current.Process = &state.process
@@ -62,8 +63,8 @@ func TestTransitionMatrix(t *testing.T) {
 						}
 					case "resume", "reopen":
 						pub = "published"
-						if next.PublishedAt == nil {
-							t.Fatal("published timestamp")
+						if next.PublishedAt == nil || *next.PublishedAt != first {
+							t.Fatal("must preserve first publication timestamp")
 						}
 					case "close":
 						pub = "closed"

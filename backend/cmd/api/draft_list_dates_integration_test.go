@@ -71,15 +71,15 @@ func TestDraftListDatesFlow_MatchesLifecycleAcrossTransitions(t *testing.T) {
 			t.Fatalf("before transition %s=%v", key, published[key])
 		}
 	}
-	// Repeat the journey to prove latest-occurrence semantics, not first-event
-	// timestamps. Reopen/resume must retain every other historical date.
+	// Publication retains the first event; all other dates retain the latest
+	// occurrence. Resume/reopen must not change any historical date.
 	for _, cycle := range []string{"first", "latest"} {
 		for _, step := range []struct{ name, body, changed, status, process string }{
 			{"pause", `{}`, "paused_at", "paused", "active"},
-			{"resume", `{}`, "published_at", "published", "active"},
-			{"close", `{"process":"continue"}`, "closed_at", "closed", "active"},
+			{"resume", `{}`, "", "published", "active"},
+			{"close", `{"process":"continue","reason":"cancelled","reason_note":null}`, "closed_at", "closed", "active"},
 			{"finish-process", `{}`, "process_finished_at", "closed", "finished"},
-			{"reopen", `{}`, "published_at", "published", "active"},
+			{"reopen", `{}`, "", "published", "active"},
 		} {
 			t.Run(cycle+"/"+step.name, func(t *testing.T) {
 				before := draftFlowObject(t, current.body)

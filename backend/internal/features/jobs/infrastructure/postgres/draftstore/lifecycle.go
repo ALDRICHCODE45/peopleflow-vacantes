@@ -6,7 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
+	"unicode/utf8"
+
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 
 	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
 	"github.com/aldrichcode45/peopleflow-vacantes/internal/features/jobs/application/draftjson"
@@ -47,7 +51,7 @@ func (s *Store) GetLifecycleHistory(ctx context.Context, companyID, actorID, id 
 	if _, err = s.publicationDraft(ctx, tx, companyID, actorID, id, false); err != nil {
 		return drafts.Result{}, err
 	}
-	rows, err := tx.Query(ctx, `SELECT id::text,action,process,actor_id::text,actor_name,created_at FROM vacancy_lifecycle_events WHERE process_id=$1 ORDER BY created_at DESC,lifecycle_version DESC`, id)
+	rows, err := tx.Query(ctx, `SELECT id::text,action,process,actor_id::text,actor_name,created_at,reason,reason_note FROM vacancy_lifecycle_events WHERE process_id=$1 ORDER BY created_at DESC,lifecycle_version DESC`, id)
 	if err != nil {
 		return drafts.Result{}, fmt.Errorf("read lifecycle history: %w", err)
 	}
@@ -56,7 +60,7 @@ func (s *Store) GetLifecycleHistory(ctx context.Context, companyID, actorID, id 
 	for rows.Next() {
 		var e lifecycle.Event
 		var at time.Time
-		if err = rows.Scan(&e.ID, &e.Action, &e.Process, &e.Actor.ID, &e.Actor.Name, &at); err != nil {
+		if err = rows.Scan(&e.ID, &e.Action, &e.Process, &e.Actor.ID, &e.Actor.Name, &at, &e.Reason, &e.ReasonNote); err != nil {
 			return drafts.Result{}, err
 		}
 		e.CreatedAt = at.UTC().Format(timestampLayout)
@@ -137,6 +141,45 @@ func (s *Store) TransitionLifecycle(ctx context.Context, companyID, actorID, id 
 	if err != nil {
 		return drafts.Result{}, err
 	}
+	var reason, reasonNote *string
+	if action == "close" {
+		var closeBody struct {
+			Reason string  `json:"reason"`
+			Note   *string `json:"reason_note"`
+		}
+		if err = json.Unmarshal(body, &closeBody); err != nil {
+			return drafts.Result{}, drafts.ErrInvalidRequest
+		}
+		reason = &closeBody.Reason
+		if closeBody.Note != nil {
+			trimmed := strings.TrimSpace(*closeBody.Note)
+			reasonNote = &trimmed
+		}
+		if *reason == "filled" {
+			config, _, err := readPipeline(ctx, tx, id)
+			if err != nil {
+				return drafts.Result{}, err
+			}
+			management, _, err := readManagement(ctx, tx, id)
+			if err != nil {
+				return drafts.Result{}, err
+			}
+			var placement string
+			for _, stage := range config.Stages {
+				if stage.Kind == "placement" {
+					placement = stage.ID
+				}
+			}
+			covered, _, err := db.ReadPlacementCoverage(ctx, tx, id, placement)
+			if err != nil {
+				return drafts.Result{}, err
+			}
+			if management.HiringHeadcount == nil || covered < *management.HiringHeadcount {
+				return drafts.Result{}, &lifecycle.CloseReasonNotCovered{Covered: covered, Required: management.HiringHeadcount}
+			}
+		}
+		next.CloseReason, next.CloseReasonNote = reason, reasonNote
+	}
 	if action == "resume" || action == "reopen" {
 		// The shared guard exempts clock passage only. Reopening never resets
 		// pipeline, participation, fulfillment, authoring versions or history.
@@ -159,7 +202,7 @@ func (s *Store) TransitionLifecycle(ctx context.Context, companyID, actorID, id 
 	if action == "close" {
 		process = &choice
 	}
-	if _, err = tx.Exec(ctx, `INSERT INTO vacancy_lifecycle_events(id,process_id,lifecycle_version,action,process,actor_id,actor_name,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, uuid.Must(uuid.NewV7()), id, version+1, action, process, actorID, actorName, now); err != nil {
+	if _, err = tx.Exec(ctx, `INSERT INTO vacancy_lifecycle_events(id,process_id,lifecycle_version,action,process,actor_id,actor_name,created_at,reason,reason_note) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, uuid.Must(uuid.NewV7()), id, version+1, action, process, actorID, actorName, now, reason, reasonNote); err != nil {
 		return drafts.Result{}, fmt.Errorf("write lifecycle history: %w", err)
 	}
 	if _, err = tx.Exec(ctx, `INSERT INTO job_draft_idempotency(id,company_id,actor_id,operation,idem_key,fingerprint,fingerprint_algorithm,response_body,response_etag) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`, uuid.Must(uuid.NewV7()), companyID, actorID, lifecycleOperation, key, fingerprintDigest(fingerprint), FingerprintAlgorithmSHA256, result.Body, result.ETag); err != nil {
@@ -169,6 +212,9 @@ func (s *Store) TransitionLifecycle(ctx context.Context, companyID, actorID, id 
 	event.EntityType = "vacancy_process"
 	event.Metadata["publication"] = *next.Publication
 	event.Metadata["process"] = *next.Process
+	if reason != nil {
+		event.Metadata["reason"] = *reason
+	}
 	if err = s.audit.Append(ctx, tx, event); err != nil {
 		return drafts.Result{}, fmt.Errorf("co-write lifecycle audit: %w", err)
 	}
@@ -216,6 +262,12 @@ func readLifecycle(ctx context.Context, tx pgx.Tx, id uuid.UUID) (lifecycle.View
 		v := at.UTC().Format(timestampLayout)
 		return &v
 	}
+	if pub == "closed" {
+		err = tx.QueryRow(ctx, `SELECT reason,reason_note FROM vacancy_lifecycle_events WHERE process_id=$1 AND action='close' ORDER BY lifecycle_version DESC LIMIT 1`, id).Scan(&view.CloseReason, &view.CloseReasonNote)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return view, 0, err
+		}
+	}
 	view.Publication = &pub
 	view.Process = &process
 	view.Version = strconv.FormatInt(version, 10)
@@ -244,7 +296,36 @@ func lifecycleFingerprint(id uuid.UUID, action string, body []byte) ([]byte, err
 	if err != nil {
 		return nil, drafts.ErrInvalidRequest
 	}
+	if root, ok := value.(map[string]any); ok && action == "close" {
+		// Normalize valid close bodies identically on fresh requests and replay.
+		_ = normalizeCloseBody(root)
+	}
 	return draftjson.EncodeValidatedValue(map[string]any{"id": id.String(), "action": action, "body": value})
+}
+
+func normalizeCloseBody(root map[string]any) error {
+	choice, _ := root["process"].(string)
+	reason, _ := root["reason"].(string)
+	note, present := root["reason_note"]
+	if len(root) != 3 || !present || (choice != "continue" && choice != "finish") {
+		return drafts.ErrInvalidRequest
+	}
+	switch reason {
+	case "filled", "cancelled":
+		if note != nil {
+			return drafts.ErrInvalidRequest
+		}
+	case "other":
+		text, ok := note.(string)
+		text = strings.TrimSpace(text)
+		if !ok || text == "" || utf8.RuneCountInString(text) > 200 {
+			return drafts.ErrInvalidRequest
+		}
+		root["reason_note"] = text
+	default:
+		return drafts.ErrInvalidRequest
+	}
+	return nil
 }
 
 // Canonical fingerprints include both resource and action. One actor's key
@@ -264,7 +345,7 @@ func lifecyclePayload(id uuid.UUID, action string, body []byte) ([]byte, string,
 	choice := ""
 	if action == "close" {
 		choice, _ = root["process"].(string)
-		if len(root) != 1 || choice != "continue" && choice != "finish" {
+		if normalizeCloseBody(root) != nil {
 			return nil, "", drafts.ErrInvalidRequest
 		}
 	} else if len(root) != 0 {

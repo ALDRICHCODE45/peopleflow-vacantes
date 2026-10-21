@@ -72,7 +72,7 @@ func TestLifecycleEffectsConfigurationAndEmbeddedViews(t *testing.T) {
 					t.Fatal("embedded view drift", err, string(result.Body))
 				}
 				var keys map[string]any
-				if err = json.Unmarshal(root["lifecycle"], &keys); err != nil || len(keys) != 8 {
+				if err = json.Unmarshal(root["lifecycle"], &keys); err != nil || len(keys) != 10 {
 					t.Fatal("lifecycle wire keys", keys, err)
 				}
 			}

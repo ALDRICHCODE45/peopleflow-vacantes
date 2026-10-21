@@ -53,7 +53,7 @@ func TestLifecycleEffectsPublicPrivacyEmbeddingsAndConfigurationWire(t *testing.
 	}
 	for _, step := range []struct{ action, body, state, process string }{
 		{"pause", `{}`, "paused", "active"},
-		{"close", `{"process":"continue"}`, "closed", "active"},
+		{"close", `{"process":"continue","reason":"cancelled","reason_note":null}`, "closed", "active"},
 		{"finish-process", `{}`, "closed", "finished"},
 	} {
 		current := h.do(t, "GET", base+"/lifecycle", "", owner.token, nil)
@@ -97,7 +97,7 @@ func TestLifecycleEffectsPublicPrivacyEmbeddingsAndConfigurationWire(t *testing.
 		}
 		list := h.do(t, "GET", draftFlowV2Path, "", owner.token, nil)
 		item := draftFlowObject(t, list.body)["items"].([]any)[0].(map[string]any)
-		if list.status != 200 || len(item) != 16 || item["status"] != step.state || item["process"] != step.process {
+		if list.status != 200 || len(item) != 18 || item["status"] != step.state || item["process"] != step.process {
 			t.Fatal("company list", string(list.body))
 		}
 		if step.process == "finished" {

@@ -32,11 +32,16 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 	// aggregation is restricted to those IDs, in this same SQL statement/snapshot.
 	query := `WITH page AS MATERIALIZED (SELECT d.id, d.fields, d.principal_recruiter_id, u.full_name,
  d.version, d.created_at, d.updated_at, COALESCE(p.status,'draft') AS status, p.process_status, p.published_at, p.paused_at, p.closed_at, p.process_finished_at,
- c.configuration, c.version AS pipeline_version
+ c.configuration, c.version AS pipeline_version, last_close.reason, last_close.reason_note
  FROM job_drafts d
  LEFT JOIN users u ON u.id = d.principal_recruiter_id AND u.deleted_at IS NULL
  LEFT JOIN vacancy_processes p ON p.id = d.id AND p.company_id = d.company_id
  LEFT JOIN job_draft_pipeline_configs c ON c.draft_id = d.id
+ LEFT JOIN LATERAL (
+  SELECT reason, reason_note FROM vacancy_lifecycle_events
+  WHERE process_id = p.id AND action = 'close' AND p.status = 'closed'
+  ORDER BY lifecycle_version DESC LIMIT 1
+ ) last_close ON true
  WHERE d.company_id = $1 AND ($2::boolean OR d.principal_recruiter_id = $3)
  AND convert_from(d.fields,'UTF8')::jsonb->>'schema_version' = '2'`
 	// Same rule as authorized(): the owner sees every draft, others only
@@ -79,7 +84,7 @@ func (s *Store) ListV2(ctx context.Context, companyID, actorID uuid.UUID, req dr
 	for rows.Next() {
 		var item draftlist.Item
 		var p projection
-		if err := rows.Scan(&item.ID, &p.document, &item.Principal.ID, &item.Principal.Name, &item.Version, &item.CreatedAt, &item.UpdatedAt, &item.Status, &item.Process, &item.PublishedAt, &item.PausedAt, &item.ClosedAt, &item.ProcessFinishedAt, &p.pipeline, &p.pipelineVersion, &p.counts, &p.requesterName); err != nil {
+		if err := rows.Scan(&item.ID, &p.document, &item.Principal.ID, &item.Principal.Name, &item.Version, &item.CreatedAt, &item.UpdatedAt, &item.Status, &item.Process, &item.PublishedAt, &item.PausedAt, &item.ClosedAt, &item.ProcessFinishedAt, &p.pipeline, &p.pipelineVersion, &item.CloseReason, &item.CloseReasonNote, &p.counts, &p.requesterName); err != nil {
 			rows.Close()
 			return draftlist.Page{}, fmt.Errorf("scan list v2 draft: %w", err)
 		}

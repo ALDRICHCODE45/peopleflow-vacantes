@@ -12,11 +12,11 @@ import (
 
 func TestLifecyclePayloadShapeCanonicalizationAndScope(t *testing.T) {
 	id := uuid.New()
-	first, choice, err := lifecyclePayload(id, "close", []byte(`{"process":"continue"}`))
+	first, choice, err := lifecyclePayload(id, "close", []byte(`{"process":"continue","reason":"cancelled","reason_note":null}`))
 	if err != nil || choice != "continue" {
 		t.Fatal(choice, err)
 	}
-	same, _, err := lifecyclePayload(id, "close", []byte(" \n { \"process\" : \"continue\" } "))
+	same, _, err := lifecyclePayload(id, "close", []byte(" \n { \"process\" : \"continue\", \"reason_note\":null, \"reason\":\"cancelled\" } "))
 	if err != nil || !bytes.Equal(first, same) {
 		t.Fatal("not canonical", err)
 	}
@@ -25,7 +25,7 @@ func TestLifecyclePayloadShapeCanonicalizationAndScope(t *testing.T) {
 		id           uuid.UUID
 		action, body string
 	}{
-		{"other draft", uuid.New(), "close", `{"process":"continue"}`}, {"different choice", id, "close", `{"process":"finish"}`}, {"different action", id, "pause", `{}`},
+		{"other draft", uuid.New(), "close", `{"process":"continue","reason":"cancelled","reason_note":null}`}, {"different choice", id, "close", `{"process":"finish","reason":"cancelled","reason_note":null}`}, {"different action", id, "pause", `{}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			got, _, err := lifecyclePayload(tc.id, tc.action, []byte(tc.body))

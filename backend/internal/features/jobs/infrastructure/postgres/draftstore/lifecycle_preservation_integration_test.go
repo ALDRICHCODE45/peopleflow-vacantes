@@ -52,7 +52,7 @@ func TestLifecycleReopenPreservesCandidatesHistoryAndFrozenFulfillment(t *testin
 		return raw
 	}
 	before := snapshot()
-	for _, step := range []struct{ action, body string }{{"close", `{"process":"continue"}`}, {"finish_process", `{}`}, {"reopen", `{}`}, {"pause", `{}`}, {"close", `{"process":"finish"}`}, {"reopen", `{}`}} {
+	for _, step := range []struct{ action, body string }{{"close", `{"process":"continue","reason":"cancelled","reason_note":null}`}, {"finish_process", `{}`}, {"reopen", `{}`}, {"pause", `{}`}, {"close", `{"process":"finish","reason":"cancelled","reason_note":null}`}, {"reopen", `{}`}} {
 		var err error
 		current, err = s.TransitionLifecycle(ctx, p.companyID, p.ownerID, id, step.action, uuid.NewString(), true, current.ETag, true, []byte(step.body))
 		if err != nil {

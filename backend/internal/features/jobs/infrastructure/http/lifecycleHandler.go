@@ -79,6 +79,11 @@ func (h *LifecycleHandler) transition(action string) http.HandlerFunc {
 	}
 }
 func writeLifecycleError(w http.ResponseWriter, err error) {
+	var uncovered *lifecycle.CloseReasonNotCovered
+	if errors.As(err, &uncovered) {
+		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeCloseReasonNotCovered), uncovered)
+		return
+	}
 	var invalid *lifecycle.InvalidTransition
 	if errors.As(err, &invalid) {
 		httpjson.WriteLifecycleError(w, httpjson.Resolve(httpjson.CodeLifecycleTransitionInvalid), invalid)

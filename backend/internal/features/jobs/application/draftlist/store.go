@@ -57,6 +57,8 @@ type Item struct {
 	Version           int64
 	Process           *string
 	Status            string
+	CloseReason       *string
+	CloseReasonNote   *string
 	PublishedAt       *time.Time
 	PausedAt          *time.Time
 	ClosedAt          *time.Time

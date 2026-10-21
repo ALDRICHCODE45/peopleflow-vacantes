@@ -22,7 +22,17 @@ type View struct {
 	ClosedAt          *string  `json:"closed_at"`
 	ProcessFinishedAt *string  `json:"process_finished_at"`
 	AllowedActions    []string `json:"allowed_actions"`
+	CloseReason       *string  `json:"close_reason"`
+	CloseReasonNote   *string  `json:"close_reason_note"`
 }
+
+// CloseReasonNotCovered reports the same live coverage as the board.
+type CloseReasonNotCovered struct {
+	Covered  int64  `json:"covered"`
+	Required *int64 `json:"required"`
+}
+
+func (e *CloseReasonNotCovered) Error() string { return "lifecycle: close reason not covered" }
 
 type InvalidTransition struct {
 	Action    string `json:"action"`
@@ -79,7 +89,8 @@ func Transition(current View, action, choice string, now time.Time) (View, error
 	case "resume", "reopen":
 		pub = "published"
 		process = "active"
-		next.PublishedAt = &at
+		next.CloseReason = nil
+		next.CloseReasonNote = nil
 	case "close":
 		pub = "closed"
 		next.ClosedAt = &at
@@ -138,11 +149,13 @@ type Actor struct {
 	Name string `json:"name"`
 }
 type Event struct {
-	ID        string  `json:"id"`
-	Action    string  `json:"action"`
-	Process   *string `json:"process"`
-	Actor     Actor   `json:"actor"`
-	CreatedAt string  `json:"created_at"`
+	ID         string  `json:"id"`
+	Action     string  `json:"action"`
+	Process    *string `json:"process"`
+	Actor      Actor   `json:"actor"`
+	CreatedAt  string  `json:"created_at"`
+	Reason     *string `json:"reason"`
+	ReasonNote *string `json:"reason_note"`
 }
 
 // Store applies publish's live authorization gates before key/replay and

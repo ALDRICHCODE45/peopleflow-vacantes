@@ -20,7 +20,7 @@ func TestLifecycleMovementFixtureCleanupRemovesOwnedTransitionRows(t *testing.T)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err = m.drafts.TransitionLifecycle(ctx, m.company, m.recruiter, m.vacancy, "close", uuid.NewString(), true, current.ETag, true, []byte(`{"process":"finish"}`)); err != nil {
+		if _, err = m.drafts.TransitionLifecycle(ctx, m.company, m.recruiter, m.vacancy, "close", uuid.NewString(), true, current.ETag, true, []byte(`{"process":"finish","reason":"cancelled","reason_note":null}`)); err != nil {
 			t.Fatal(err)
 		}
 	})

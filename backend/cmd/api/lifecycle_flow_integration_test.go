@@ -31,7 +31,7 @@ func TestLifecycleFlowAuthorizationOrderReplayAndL1Effects(t *testing.T) {
 	path := base + "/lifecycle"
 	read := h.do(t, "GET", path, "", owner.token, nil)
 	obj := draftFlowObject(t, read.body)
-	if read.status != 200 || len(obj) != 8 || obj["publication"] != nil || obj["process"] != nil || obj["version"] != "0" || obj["allowed_actions"].([]any)[0] != "publish" || read.header.Get("ETag") != `"vl-`+id+`-v0"` {
+	if read.status != 200 || len(obj) != 10 || obj["publication"] != nil || obj["process"] != nil || obj["version"] != "0" || obj["allowed_actions"].([]any)[0] != "publish" || read.header.Get("ETag") != `"vl-`+id+`-v0"` {
 		t.Fatalf("draft=%d %s", read.status, read.body)
 	}
 	history := h.do(t, "GET", path+"/history", "", principal.token, nil)
@@ -118,7 +118,7 @@ func TestLifecycleFlowAuthorizationOrderReplayAndL1Effects(t *testing.T) {
 	if _, err := h.pool.Exec(context.Background(), `UPDATE job_draft_management_configs SET hiring_headcount=2 WHERE draft_id=$1`, id); err != nil {
 		t.Fatal(err)
 	}
-	closed := h.do(t, "POST", path+"/close", `{"process":"finish"}`, owner.token, map[string]string{"Idempotency-Key": uuid.NewString(), "If-Match": paused.header.Get("ETag")})
+	closed := h.do(t, "POST", path+"/close", `{"process":"finish","reason":"cancelled","reason_note":null}`, owner.token, map[string]string{"Idempotency-Key": uuid.NewString(), "If-Match": paused.header.Get("ETag")})
 	if closed.status != 200 {
 		t.Fatalf("close=%d %s", closed.status, closed.body)
 	}

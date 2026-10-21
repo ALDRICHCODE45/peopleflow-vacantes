@@ -8,7 +8,7 @@ import (
 )
 
 func TestLifecycleCatalogAndConflictData(t *testing.T) {
-	if !reflect.DeepEqual(LifecycleErrorCodes(), []Code{CodeLifecycleTransitionInvalid, CodeVacancyUnavailable, CodeVacancyNotAcceptingApplications, CodeProcessFinished}) {
+	if !reflect.DeepEqual(LifecycleErrorCodes(), []Code{CodeLifecycleTransitionInvalid, CodeVacancyUnavailable, CodeVacancyNotAcceptingApplications, CodeProcessFinished, CodeCloseReasonNotCovered}) {
 		t.Fatal(LifecycleErrorCodes())
 	}
 	for _, tc := range []struct {
@@ -19,6 +19,7 @@ func TestLifecycleCatalogAndConflictData(t *testing.T) {
 		data   bool
 	}{
 		{"transition", Resolve(CodeLifecycleTransitionInvalid), 409, CodeLifecycleTransitionInvalid, true},
+		{"coverage", Resolve(CodeCloseReasonNotCovered), 422, CodeCloseReasonNotCovered, true},
 		{"baseline cannot gain data", Resolve(CodeConflict), 409, CodeConflict, false},
 		{"forged status", Definition{Code: CodeLifecycleTransitionInvalid, Status: 200}, 500, CodeInternalError, false},
 		{"unknown", Definition{Code: "unknown", Status: 409}, 500, CodeInternalError, false},

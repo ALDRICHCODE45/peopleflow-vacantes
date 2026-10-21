@@ -53,7 +53,7 @@ func draftListCandidateItem(t *testing.T, h *draftFlowHarness, actor draftFlowAc
 	for _, raw := range draftFlowObject(t, response.body)["items"].([]any) {
 		item := raw.(map[string]any)
 		if item["id"] == id {
-			if len(item) != 16 {
+			if len(item) != 18 {
 				t.Fatalf("item keys: %v", item)
 			}
 			return item
@@ -252,7 +252,7 @@ func TestDraftListCandidatesFlow_LiveCountsCurrentPipelineAndVisibility(t *testi
 	}
 	assertCounts(3, 0, 0, map[string]int{newStage: 3})
 	lifecycle := h.do(t, "GET", base+"/lifecycle", "", owner.token, nil)
-	finished := h.do(t, "POST", base+"/lifecycle/close", `{"process":"finish"}`, owner.token, map[string]string{"If-Match": lifecycle.header.Get("ETag"), "Idempotency-Key": uuid.NewString()})
+	finished := h.do(t, "POST", base+"/lifecycle/close", `{"process":"finish","reason":"cancelled","reason_note":null}`, owner.token, map[string]string{"If-Match": lifecycle.header.Get("ETag"), "Idempotency-Key": uuid.NewString()})
 	if finished.status != 200 {
 		t.Fatalf("finish: %d %s", finished.status, finished.body)
 	}

@@ -21,7 +21,7 @@ func TestLifecycleHTTPFixtureCleanupRemovesOwnedStateAndHistory(t *testing.T) {
 		publicFlowPublish(t, h, id, owner)
 		path := draftFlowV2Path + "/" + id + "/lifecycle"
 		current := h.do(t, "GET", path, "", owner.token, nil)
-		closed := h.do(t, "POST", path+"/close", `{"process":"finish"}`, owner.token, map[string]string{"If-Match": current.header.Get("ETag"), "Idempotency-Key": uuid.NewString()})
+		closed := h.do(t, "POST", path+"/close", `{"process":"finish","reason":"cancelled","reason_note":null}`, owner.token, map[string]string{"If-Match": current.header.Get("ETag"), "Idempotency-Key": uuid.NewString()})
 		if closed.status != 200 {
 			t.Fatalf("close: %d %s", closed.status, closed.body)
 		}

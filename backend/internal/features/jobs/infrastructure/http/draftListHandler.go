@@ -60,6 +60,8 @@ type draftListItem struct {
 	Version            string               `json:"version"`
 	Process            *string              `json:"process"`
 	Status             string               `json:"status"`
+	CloseReason        *string              `json:"close_reason"`
+	CloseReasonNote    *string              `json:"close_reason_note"`
 	PublishedAt        *string              `json:"published_at"`
 	PausedAt           *string              `json:"paused_at"`
 	ClosedAt           *string              `json:"closed_at"`
@@ -120,6 +122,8 @@ func toDraftListItem(item draftlist.Item) draftListItem {
 		Version:            strconv.FormatInt(item.Version, 10),
 		Process:            item.Process,
 		Status:             item.Status,
+		CloseReason:        item.CloseReason,
+		CloseReasonNote:    item.CloseReasonNote,
 		PublishedAt:        draftListTimestamp(item.PublishedAt),
 		PausedAt:           draftListTimestamp(item.PausedAt),
 		ClosedAt:           draftListTimestamp(item.ClosedAt),

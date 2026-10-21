@@ -3,6 +3,7 @@ package httpjson
 import "net/http"
 
 const (
+	CodeCloseReasonNotCovered           Code = "close_reason_not_covered"
 	CodeLifecycleTransitionInvalid      Code = "lifecycle_transition_invalid"
 	CodeVacancyUnavailable              Code = "vacancy_unavailable"
 	CodeVacancyNotAcceptingApplications Code = "vacancy_not_accepting_applications"
@@ -10,10 +11,12 @@ const (
 )
 
 func LifecycleErrorCodes() []Code {
-	return []Code{CodeLifecycleTransitionInvalid, CodeVacancyUnavailable, CodeVacancyNotAcceptingApplications, CodeProcessFinished}
+	return []Code{CodeLifecycleTransitionInvalid, CodeVacancyUnavailable, CodeVacancyNotAcceptingApplications, CodeProcessFinished, CodeCloseReasonNotCovered}
 }
 func resolveLifecycleError(code Code) (Definition, bool) {
 	switch code {
+	case CodeCloseReasonNotCovered:
+		return Definition{code, 422, "close reason not covered"}, true
 	case CodeLifecycleTransitionInvalid:
 		return Definition{code, 409, "lifecycle transition invalid"}, true
 	case CodeVacancyUnavailable:

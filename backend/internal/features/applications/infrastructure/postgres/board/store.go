@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/aldrichcode45/peopleflow-vacantes/internal/db"
 	app "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/board"
 	intake "github.com/aldrichcode45/peopleflow-vacantes/internal/features/applications/application/v2"
 	audit "github.com/aldrichcode45/peopleflow-vacantes/internal/features/audit_events/domain/entities"
@@ -155,12 +156,8 @@ func placement(p app.Pipeline) string {
 }
 func coverage(ctx context.Context, tx pgx.Tx, id uuid.UUID, p app.Pipeline) (app.Coverage, error) {
 	c := app.Coverage{Required: p.Required}
-	err := tx.QueryRow(ctx, `SELECT (SELECT count(*) FROM process_participations WHERE process_id=$1 AND stage_id=$2::uuid),
- (SELECT min(reached_at) FROM process_coverage_milestones WHERE process_id=$1)`, id, placement(p)).Scan(&c.Covered, &c.FullCoverageReachedAt)
-	if c.FullCoverageReachedAt != nil {
-		v := c.FullCoverageReachedAt.UTC()
-		c.FullCoverageReachedAt = &v
-	}
+	var err error
+	c.Covered, c.FullCoverageReachedAt, err = db.ReadPlacementCoverage(ctx, tx, id, placement(p))
 	return c, err
 }
 func (s *Store) Board(ctx context.Context, company, actor, id uuid.UUID) (app.Board, error) {
