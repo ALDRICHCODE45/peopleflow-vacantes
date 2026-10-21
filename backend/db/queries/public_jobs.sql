@@ -30,6 +30,8 @@ WITH catalog AS (
    AND COALESCE(cardinality(sqlc.arg('states')::text[]),0)=0
    AND COALESCE(cardinality(sqlc.arg('municipalities')::text[]),0)=0
    AND (sqlc.arg('applicant_country')::text='' OR j.work_mode<>'remote')
+   -- Legacy salaries have no pay period or gross/net basis (SAL-6).
+   AND sqlc.arg('salary_currency')::text=''
  UNION ALL
  SELECT p.id, 'vacancy'::text AS source, p.published_at, COALESCE(gm.name || ', ' || gs.name, gs.name, gc.name_es) AS location_label,
         p.work_mode,p.work_schedule,p.contract_type,p.professional_area,p.search_vector,
@@ -77,6 +79,19 @@ WITH catalog AS (
    AND (sqlc.arg('applicant_country')::text='' OR p.work_mode<>'remote' OR
         p.remote_scope_kind='anywhere' OR
         (p.remote_scope_kind='countries' AND p.remote_countries @> ARRAY[sqlc.arg('applicant_country')::text::char(2)]))
+   -- SAL-5..SAL-8: compare only the published projection compensation, which
+   -- is NULL when hidden or incomplete, in identical units. Offer [lo,hi]
+   -- (fixed: lo=hi=amount) overlaps the requested bounds inclusively; an empty
+   -- bound is open. Amounts are canonical two-decimal strings.
+   AND (sqlc.arg('salary_currency')::text='' OR (
+        p.compensation->>'currency'=sqlc.arg('salary_currency')::text
+    AND p.compensation->>'pay_period'=sqlc.arg('salary_period')::text
+    AND p.compensation->>'basis'=sqlc.arg('salary_basis')::text
+    -- NULLIF, not OR, keeps an open bound from ever casting '' to numeric.
+    AND (NULLIF(sqlc.arg('salary_min')::text,'')::numeric IS NULL OR
+         COALESCE(p.compensation->>'max',p.compensation->>'amount')::numeric >= NULLIF(sqlc.arg('salary_min')::text,'')::numeric)
+    AND (NULLIF(sqlc.arg('salary_max')::text,'')::numeric IS NULL OR
+         COALESCE(p.compensation->>'min',p.compensation->>'amount')::numeric <= NULLIF(sqlc.arg('salary_max')::text,'')::numeric)))
 ), ranked AS (
  SELECT catalog.*, ts_rank(search_vector,websearch_to_tsquery('spanish',sqlc.arg('q')::text))::float8 AS search_rank
  FROM catalog

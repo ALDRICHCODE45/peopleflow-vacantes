@@ -23,6 +23,11 @@ repeat (one exact value per parameter, not comma-separated):
 | `work_schedule` | `full_time`, `part_time` |
 | `contract_type` | `project`, `indefinite`, `professional_services`, `temporary`, `internship` |
 | `professional_area` | One of the same 16 exact draft catalog codes |
+| `salary_min` | Amount, `^(0\|[1-9][0-9]{0,11})(\.[0-9]{1,2})?$`; “from X”, inclusive |
+| `salary_max` | Same grammar; “up to Y”, inclusive |
+| `salary_currency` | `MXN`, `USD` |
+| `salary_period` | `hourly`, `weekly`, `semimonthly`, `monthly`, `yearly` |
+| `salary_basis` | `gross`, `net` |
 | `limit` | Decimal integer 1–50, default 20 |
 | `cursor` | Opaque `next_cursor` from the previous page |
 
@@ -36,6 +41,31 @@ no whitespace trimming, case folding, comma splitting or coercion. `none` is
 reserved by §18 and is not an offered public-search option (400). Blank `q` means
 no text filter; omit an unselected dimension rather than sending a blank value.
 Catalog lookup failures return generic 500, never `invalid_filter` or empty 200.
+
+### Salary filter (SAL-5..SAL-8)
+
+The five `salary_*` keys are single-valued. The filter is active when at least
+one amount is present; then `salary_currency`, `salary_period` and `salary_basis`
+are all required. Each of these returns `400 invalid_filter`: a blank or repeated
+key (even identical), an amount outside the grammar (no sign, exponent,
+separators, whitespace or more than two decimals), an enum outside the exact
+literals, `salary_min` greater than `salary_max`, a missing unit with an amount,
+and units without any amount. `salary_min` equal to `salary_max` is valid.
+
+While active, only vacancy rows whose **published** compensation has the same
+currency, pay period and basis are compared; there is no currency, period or
+gross/net conversion. The published compensation is the projection value, which
+is null whenever the salary is hidden or incomplete (a range always has both
+bounds), so a filter never reads internal compensation. An offer `[lo, hi]`
+(fixed amount: `lo = hi = amount`) matches when `hi >= salary_min` and
+`lo <= salary_max`; an omitted bound is open. Example: `30000–40000` matches
+offers `35000–45000`, `40000–50000`, fixed `38000` and fixed `30000`. Legacy rows,
+hidden salaries and vacancies without a salary are excluded only while the filter
+is active; without salary keys they remain listed as before.
+
+Amounts are normalized to two decimals before cursor binding, so `30000`,
+`30000.0` and `30000.00` continue the same cursor. A query without salary keys
+binds exactly as before this filter existed, so earlier cursors stay valid.
 
 Repeated values combine with **OR** within each dimension; dimensions combine with
 **AND**. A municipality outside the selected states is valid but produces no
@@ -239,6 +269,8 @@ Paths below are relative to `backend/`.
 | `application/publication/published_write_test.go` | §10.2 stable missing-code order, only past-date exemption, input unchanged |
 | `application/publicjobs/catalog_test.go` | §10.3 strict params/default/boundaries; last-visible cursor across sources, exact rank/time, filter binding, limit+1; exact 24/29-key shape and nulls |
 | `infrastructure/http/publicJobsHandler_test.go` | §10.3 anonymous 200/400/404/500; exact envelopes; no ETag/no-store; invalid params do not reach reader; no raw internal error |
+| `application/publicjobs/salary_filter_test.go` | SAL-8 salary keys: accepted one-sided/two-sided/zero/max amounts and every unit, each `invalid_filter` case, normalized cursor binding, unchanged binding without salary keys |
+| `cmd/api/public_salary_search_integration_test.go` | SAL-5..SAL-8 over real SQL: the SAL-7 example, inclusive bounds, one-sided bounds, exact cents, identical units, hidden/absent/legacy excluded only while active, HTTP `invalid_filter`, paging with equivalent amounts and rejected changed or dropped filters |
 | `application/publicjobs/filters_test.go` | G5 imported-catalog membership, independent dimensions, fail-closed catalog outages |
 | `cmd/api/public_geo_search_integration_test.go` | G5 state/municipality/work-mode OR and dimension AND, applicant-country eligibility and conservative legacy/migrated behavior, invalid filters on empty results, canonical cursor continuation, actual generated SQL state/municipality index capability and GIN containment-arm capability |
 | `cmd/api/public_jobs_routes_test.go` | §10.3 real-router anonymous routes, strict error and public headers |
@@ -267,6 +299,7 @@ go tool sqlc generate
 go test ./internal/features/jobs/application/publicjobs ./internal/features/jobs/application/publication ./internal/features/jobs/infrastructure/postgres/draftstore ./internal/features/jobs/infrastructure/postgres/publicjobs ./internal/features/jobs/infrastructure/http ./cmd/api ./db/migrations -count=1
 go test -tags=integration ./internal/features/jobs/infrastructure/postgres/draftstore ./cmd/api -run 'TestPublicProjection|TestPublicJobsFlow|TestPublication' -count=1 -v
 go test -tags=integration ./cmd/api -run TestPublicListingEnrichment -count=1 -v
+go test -tags=integration ./cmd/api -run TestPublicSalarySearchFilters -count=1 -v
 go test -tags=integration ./db/migrations -run 'TestMigration00020|TestMigration00025' -count=1 -v
 go test ./... -count=1
 go vet ./...
