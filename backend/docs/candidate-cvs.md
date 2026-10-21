@@ -81,8 +81,12 @@ is uncertain: do not delete a possibly committed document; reconciliation resolv
 `(*cvs.Library).Reconcile(ctx)` is callable (not scheduled). It takes a database-wide
 exclusive advisory transaction lock; uploads hold the corresponding shared lock
 through file creation and commit. Thus it cannot remove an in-flight upload. It
-removes files with no live library reference and no participation reference, including
-retryable cleanup of removed unused CVs. Failed database lookups never authorize
+removes files with no live library reference, no participation reference, and no
+`company_candidate_cvs.storage_key` reference, including retryable cleanup of removed
+unused CVs. Company-owned manual CVs survive for the lifetime of their metadata row,
+including organic reuse where `company_candidate_id` is null. This retention does
+not expose them in the candidate library. Manual intake uploads must hold the same
+shared advisory lock through file creation and commit. Failed database lookups never authorize
 file deletion. Unused removal deletes the file after committing library removal;
 failed filesystem cleanup is surfaced and can be retried by reconciliation.
 Used versions remain private and retained after library removal. Final retention
@@ -106,6 +110,8 @@ Both migration down paths refuse while their new data exists; no silent data los
 | `TestCVLibraryNewestFirstAndInUseAfterApply` (integration) | deterministic newest-first library and in_use changes after apply |
 | `TestMigration00021CVDownRefusesDataAndSucceedsEmpty` (integration) | real down refusal retains data/schema/version; empty down succeeds |
 | `TestCandidateCVMigration` | additive schema definition |
+| `TestReconcileRetainsCompanyCVAndRemovesOrphan`, `TestReconcileLookupFailureKeepsFiles` | company-reference query, exclusive-lock ordering, orphan cleanup and fail-closed lookup |
+| `TestReconcileRetainsCompanyOwnedManualCV` (integration) | real company-owned file survives repeated reconciliation with null company candidate; true orphan is removed; metadata is unchanged |
 
 DB tests require loopback `draft_test` via `DRAFT_TEST_DATABASE_URL`; absent means
 explicit skip, not database evidence. They apply embedded migrations to an existing

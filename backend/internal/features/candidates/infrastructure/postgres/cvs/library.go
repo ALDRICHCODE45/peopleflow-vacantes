@@ -15,8 +15,12 @@ import (
 // reconciler. It is database-wide, protecting file-first writes across instances.
 const StorageLock int64 = 75210410021
 
+type transactionStarter interface {
+	Begin(context.Context) (pgx.Tx, error)
+}
+
 type Library struct {
-	pool    *pgxpool.Pool
+	pool    transactionStarter
 	storage app.Storage
 }
 
@@ -203,6 +207,7 @@ func (s *Library) File(ctx context.Context, sub string, id uuid.UUID) (app.CV, i
 
 // Reconcile removes both true orphans and files of removed, unused entries.
 // A failed lookup fails closed. Used versions survive removal indefinitely.
+// Company-owned CVs (including organic reuse) survive for their row's lifetime.
 func (s *Library) Reconcile(ctx context.Context) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -214,7 +219,7 @@ func (s *Library) Reconcile(ctx context.Context) error {
 	}
 	return app.ReconcileOrphans(ctx, s.storage, func(ctx context.Context, key string) (bool, error) {
 		var keep bool
-		err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM candidate_cv_versions v WHERE v.storage_key=$1 AND (EXISTS(SELECT 1 FROM candidate_cv_library l WHERE l.version_id=v.id AND l.removed_at IS NULL) OR EXISTS(SELECT 1 FROM process_participations p WHERE p.cv_version_id=v.id)))`, key).Scan(&keep)
+		err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM candidate_cv_versions v WHERE v.storage_key=$1 AND (EXISTS(SELECT 1 FROM candidate_cv_library l WHERE l.version_id=v.id AND l.removed_at IS NULL) OR EXISTS(SELECT 1 FROM process_participations p WHERE p.cv_version_id=v.id))) OR EXISTS(SELECT 1 FROM company_candidate_cvs c WHERE c.storage_key=$1)`, key).Scan(&keep)
 		return keep, err
 	})
 }
