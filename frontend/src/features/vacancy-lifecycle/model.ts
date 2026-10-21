@@ -1,5 +1,23 @@
 import { z } from "zod";
 
+export const closeReasonSchema = z.enum(["filled", "cancelled", "other"]);
+export type CloseReason = z.infer<typeof closeReasonSchema>;
+export type CloseCoverage = { covered: number; required: number | null };
+export const normalizeCloseNote = (value: string) => value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
+export const closeNoteLength = (value: string) => Array.from(normalizeCloseNote(value)).length;
+export const closeBodySchema = z.object({
+  process: z.enum(["continue", "finish"]),
+  reason: closeReasonSchema,
+  reason_note: z.string().transform(normalizeCloseNote).nullable(),
+}).strict().refine(body => body.reason === "other"
+  ? body.reason_note !== null && closeNoteLength(body.reason_note) > 0 && closeNoteLength(body.reason_note) <= 200
+  : body.reason_note === null, { path: ["reason_note"], message: "Escribe un motivo de hasta 200 caracteres." });
+export type CloseBody = z.infer<typeof closeBodySchema>;
+export const closeReasonLabel = (reason: CloseReason | null) => reason === null ? "Sin motivo registrado" : ({ filled: "Cubierta", cancelled: "Cancelada", other: "Otro" })[reason];
+export const closeCoverageMessage = (coverage: CloseCoverage) => coverage.required === null
+  ? "Esta vacante no tiene un objetivo de posiciones."
+  : `Cubiertas ${coverage.covered} de ${coverage.required} posiciones.`;
+
 export const lifecycleActionSchema = z.enum(["publish", "pause", "resume", "close", "finish_process", "reopen"]);
 export const lifecycleSchema = z.object({
   publication: z.enum(["published", "paused", "closed"]).nullable(),
@@ -8,6 +26,8 @@ export const lifecycleSchema = z.object({
   published_at: z.string().nullable(),
   paused_at: z.string().nullable(),
   closed_at: z.string().nullable(),
+  close_reason: closeReasonSchema.nullable(),
+  close_reason_note: z.string().nullable(),
   process_finished_at: z.string().nullable(),
   allowed_actions: z.array(lifecycleActionSchema),
 }).strict().refine(view =>

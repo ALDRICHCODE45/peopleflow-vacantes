@@ -10,13 +10,17 @@ import { getActionAccessToken } from "@/lib/auth/action-session";
 const id = "11111111-1111-4111-8111-111111111111";
 const key = "22222222-2222-4222-8222-222222222222";
 const etag = `"vl-${id}-v4"`;
-const view = { publication: "closed", process: "active", version: "4", published_at: null, paused_at: null, closed_at: null, process_finished_at: null, allowed_actions: ["reopen", "finish_process"] };
+const view = { close_reason: null, close_reason_note: null, publication: "closed", process: "active", version: "4", published_at: null, paused_at: null, closed_at: null, process_finished_at: null, allowed_actions: ["reopen", "finish_process"] };
 const input = { token: "token", draftId: id, ifMatch: etag, idempotencyKey: key };
 const fetchMock = vi.fn();
 beforeEach(() => { vi.stubGlobal("fetch", fetchMock); fetchMock.mockReset(); vi.mocked(getActionAccessToken).mockResolvedValue("token"); });
 function respond(data: unknown = view, status = 200, headers = { etag, "idempotency-replayed": "false" }) { fetchMock.mockImplementation(async () => new Response(JSON.stringify(data), { status, headers })); }
 
 describe("lifecycle contract", () => {
+  it.each([2, null])("maps close coverage rejection with target %s", async required => {
+    respond({ error: "private", code: "close_reason_not_covered", data: { covered: 1, required } }, 422);
+    expect(await transitionLifecycleAction({ ...input, action: "close", body: { process: "continue", reason: "filled", reason_note: null } })).toMatchObject({ ok: false, reason: "close_reason_not_covered", reload: true, coverage: { covered: 1, required }, message: required === null ? "Esta vacante no tiene un objetivo de posiciones." : "Cubiertas 1 de 2 posiciones." });
+  });
   it.each([
     [null, null, "Borrador"], ["published", "active", "Activa"], ["paused", "active", "Pausada"],
     ["closed", "active", "Cerrada · proceso en curso"], ["closed", "finished", "Cerrada · proceso finalizado"],
@@ -38,7 +42,7 @@ describe("lifecycle contract", () => {
     expect(fetchMock.mock.calls[0][0]).toBe(`https://api.example.test/v2/me/company/job-drafts/${id}/lifecycle`);
     expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: "GET", redirect: "error", cache: "no-store" });
   });
-  it.each([ ["pause", {}], ["resume", {}], ["close", { process: "continue" }], ["close", { process: "finish" }], ["finish_process", {}], ["reopen", {}] ] as const)("POST %s sends intent headers/body", async (action, body) => {
+  it.each([ ["pause", {}], ["resume", {}], ["close", { process: "continue", reason: "filled", reason_note: null }], ["close", { process: "finish", reason: "cancelled", reason_note: null }], ["close", { process: "continue", reason: "other", reason_note: "Cambio de planes" }], ["finish_process", {}], ["reopen", {}] ] as const)("POST %s sends intent headers/body", async (action, body) => {
     respond();
     for (let n = 0; n < 2; n++) expect(await transitionLifecycle({ ...input, action, body } as Parameters<typeof transitionLifecycle>[0])).toMatchObject({ ok: true, etag });
     for (const [url, init] of fetchMock.mock.calls) {

@@ -5,9 +5,19 @@ const env = vi.hoisted(() => ({ reads: 0 }));
 vi.mock("@/lib/env/server", () => ({ get serverEnv() { env.reads++; return { apiBaseUrl: "http://localhost:8080/api/v1/", apiTimeoutMs: 8000 }; } }));
 const id = "0198f5a2-7c1b-7ddd-9c2e-3f4a5b6c7d8e";
 const candidates = { total: 4, in_process: 2, discarded: 1, by_stage: [{ id, kind: "new", name: "Nuevos", count: 1 }, { id, kind: "custom", name: "Prueba", count: 2 }] };
-const row = { candidates: null, paused_at: null, closed_at: null, process_finished_at: null, id, status: "draft", process: null, published_at: null, title: "Analista", work_mode: null, work_schedule: null, requester: { kind: "client", id, name: "Acme" }, principal_recruiter: { id, name: "Ana" }, version: "9007199254740993", created_at: "2026-10-15T12:00:00Z", updated_at: "2026-10-15T06:30:00-06:00" };
+const row = { close_reason: null, close_reason_note: null, candidates: null, paused_at: null, closed_at: null, process_finished_at: null, id, status: "draft", process: null, published_at: null, title: "Analista", work_mode: null, work_schedule: null, requester: { kind: "client", id, name: "Acme" }, principal_recruiter: { id, name: "Ana" }, version: "9007199254740993", created_at: "2026-10-15T12:00:00Z", updated_at: "2026-10-15T06:30:00-06:00" };
 function response(body: unknown, status = 200) { const fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status })); vi.stubGlobal("fetch", fetch); return fetch; }
 afterEach(() => { vi.unstubAllGlobals(); env.reads = 0; });
+it.each([null, "filled", "cancelled", "other"])("accepts close reason %s in company list", async reason => {
+ const { listDrafts } = await import("./client");
+ response({ items: [{ ...row, close_reason: reason, close_reason_note: reason === "other" ? "Cambio" : null }], next_cursor: null });
+ expect(await listDrafts({ token: "x" })).toMatchObject({ ok: true });
+});
+it.each([{ close_reason: "bad" }, { close_reason: 1 }, { close_reason_note: 2 }, { close_reason: undefined }, { close_reason_note: undefined }])("rejects wrong close keys %j", async patch => {
+ const { listDrafts } = await import("./client");
+ response({ items: [{ ...row, close_reason: null, close_reason_note: null, ...patch }], next_cursor: null });
+ expect(await listDrafts({ token: "x" })).toMatchObject({ ok: false });
+});
 it.each([
  row, { ...row, candidates, status: "published", process: "active", paused_at: "2026-10-16T12:00:00.123456Z", closed_at: "2026-10-17T12:00:00Z", process_finished_at: "2026-10-18T12:00:00Z" }, { ...row, candidates: { total: 0, in_process: 0, discarded: 0, by_stage: ["new", "screening", "screening_ok", "custom", "in_process", "placement"].map(kind => ({ id, kind, name: kind, count: 0 })) }, status: "published", process: "active" }, { ...row, candidates, status: "paused", process: "active" }, { ...row, candidates, status: "closed", process: "active" }, { ...row, candidates, status: "closed", process: "finished" }, { ...row, candidates, status: "published", process: "active", published_at: "2026-10-16T12:00:00Z" }, ...["onsite", "remote", "hybrid"].map(work_mode => ({ ...row, work_mode })),
  ...["full_time", "part_time"].map(work_schedule => ({ ...row, work_schedule })), { ...row, title: null }, { ...row, requester: null },

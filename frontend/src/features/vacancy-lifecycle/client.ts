@@ -4,15 +4,20 @@ import { z } from "zod";
 import { requestJson } from "@/lib/api/server";
 import { isValidJobId } from "@/features/jobs/jobId";
 import { publicationErrorEnvelopeSchema } from "@/features/jobs/drafts/pipeline/failure";
-import { decodeLifecycleEtag, lifecycleActionSchema, lifecycleSchema, type Lifecycle } from "./model";
+import { closeBodySchema, type CloseBody, decodeLifecycleEtag, lifecycleActionSchema, lifecycleSchema, type Lifecycle } from "./model";
 
 export const conflictSchema = z.object({
   error: z.string().min(1),
   code: z.enum(["lifecycle_transition_invalid", "process_finished"]),
   data: z.object({ action: lifecycleActionSchema.optional(), lifecycle: lifecycleSchema }).strict(),
 }).strict().refine(value => value.code !== "lifecycle_transition_invalid" || value.data.action !== undefined);
+export const closeCoverageErrorSchema = z.object({
+  error: z.string().min(1), code: z.literal("close_reason_not_covered"),
+  data: z.object({ covered: z.number().int().nonnegative(), required: z.number().int().nonnegative().nullable() }).strict(),
+}).strict();
 export function decodeLifecycleError(value: unknown) {
   const code = z.object({ code: z.string() }).parse(value).code;
+  if (code === "close_reason_not_covered") return closeCoverageErrorSchema.parse(value);
   return code === "lifecycle_transition_invalid" || code === "process_finished"
     ? conflictSchema.parse(value) : publicationErrorEnvelopeSchema.parse(value);
 }
@@ -24,11 +29,11 @@ export type LifecycleFailure = {
 export type LifecycleResult = { ok: true; data: Lifecycle; etag: string; idempotencyReplayed?: "true" | "false" } | LifecycleFailure;
 type ReadInput = { token: string; draftId: string };
 export type TransitionInput = ReadInput & { ifMatch: string; idempotencyKey: string } & (
-  | { action: "close"; body: { process: "continue" | "finish" } }
+  | { action: "close"; body: CloseBody }
   | { action: "pause" | "resume" | "finish_process" | "reopen"; body: Record<string, never> }
 );
 const transitionSchema = z.union([
-  z.object({ action: z.literal("close"), body: z.object({ process: z.enum(["continue", "finish"]) }).strict() }),
+  z.object({ action: z.literal("close"), body: closeBodySchema }),
   z.object({ action: z.enum(["pause", "resume", "finish_process", "reopen"]), body: z.object({}).strict() }),
 ]);
 function invalid(kind: LifecycleFailure["error"]["kind"]): LifecycleFailure { return { ok: false, error: { kind, retryable: false } }; }
@@ -44,7 +49,7 @@ async function requestLifecycle(input: ReadInput, write?: TransitionInput): Prom
   const result = await requestJson(new URL(`/v2/me/company/job-drafts/${input.draftId}/lifecycle${suffix}`, serverEnv.apiBaseUrl).toString(), {
     method: write ? "POST" : "GET", redirect: "error", expectedStatus: 200,
     headers: { authorization: `Bearer ${input.token.trim()}`, ...(write ? { "if-match": write.ifMatch, "idempotency-key": write.idempotencyKey } : {}) },
-    ...(write ? { body: write.body } : {}),
+    ...(write ? { body: write.action === "close" ? closeBodySchema.parse(write.body) : write.body } : {}),
     captureResponseHeaders: ["etag", "idempotency-replayed"], timeoutMs: serverEnv.apiTimeoutMs,
     maxErrorBodyBytes: 8192, decoder: value => lifecycleSchema.parse(value), errorDecoder: decodeLifecycleError,
   });

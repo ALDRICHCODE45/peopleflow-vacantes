@@ -1,10 +1,11 @@
 import "server-only";
 
 import { publicationIncompleteFailure } from "@/features/jobs/drafts/pipeline/failure";
-import { conflictSchema, type LifecycleFailure } from "./client";
-import type { Lifecycle } from "./model";
+import { closeCoverageErrorSchema, conflictSchema, type LifecycleFailure } from "./client";
+import { closeCoverageMessage, type CloseCoverage, type Lifecycle } from "./model";
 
 const messages = {
+  close_reason_not_covered: "La cobertura no alcanza el objetivo de posiciones.",
   unauthenticated: "Inicia sesión para continuar.",
   forbidden: "No tienes permiso para cambiar el estado de esta vacante.",
   not_found: "No encontramos esta vacante o ya no tienes acceso.",
@@ -24,6 +25,7 @@ export type LifecycleActionFailure = {
   message: string;
   reference: { status?: number; code?: string };
   lifecycle?: Lifecycle;
+  coverage?: CloseCoverage;
   missing?: string[];
   reload?: boolean;
   uncertain?: boolean;
@@ -34,6 +36,11 @@ export function mapLifecycleFailure(input: LifecycleFailure): LifecycleActionFai
   if (incomplete) return { ...incomplete, message: messages.publication_incomplete };
   const status = error.status;
   const conflict = conflictSchema.safeParse(envelope);
+  const coverage = closeCoverageErrorSchema.safeParse(envelope);
+  if (status === 422 && coverage.success) return {
+    ok: false, reason: "close_reason_not_covered", message: closeCoverageMessage(coverage.data.data),
+    coverage: coverage.data.data, reload: true, reference: { status, code: "close_reason_not_covered" },
+  };
   let reason: LifecycleActionFailure["reason"] = "unrecognized_response";
   if (error.kind === "missing_token" || status === 401) reason = "unauthenticated";
   else if (error.kind === "invalid_request" || status === 400) reason = "invalid_request";

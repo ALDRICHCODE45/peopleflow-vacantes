@@ -73,7 +73,7 @@ async function mount(board?: Board) {
   await screen.findByRole("heading", { name: "Entrada" });
   return view;
 }
-const finishedLifecycle = { publication: "closed" as const, process: "finished" as const, version: "2", published_at: null, paused_at: null, closed_at: "2026-10-19T12:00:00Z", process_finished_at: "2026-10-20T12:00:00Z", allowed_actions: ["reopen" as const] };
+const finishedLifecycle = { close_reason: null, close_reason_note: null, publication: "closed" as const, process: "finished" as const, version: "2", published_at: null, paused_at: null, closed_at: "2026-10-19T12:00:00Z", process_finished_at: "2026-10-20T12:00:00Z", allowed_actions: ["reopen" as const] };
 const readOnlyNotice = "El proceso de esta vacante finalizó. El tablero está en solo lectura; reábrela para volver a editarlo.";
 it.each([
   ["published", "active", "Publicada", "Publicada el"],
