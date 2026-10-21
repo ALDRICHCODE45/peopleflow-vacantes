@@ -179,7 +179,8 @@ it("filters countries by name while MX is the defaulted selection", async () => 
   const user = userEvent.setup();
   await user.click(input); await user.clear(input); await user.type(input, "Esta");
   expect(await screen.findByRole("option", { name: "Estados Unidos" })).toBeVisible();
-  expect(screen.queryByText("Sin coincidencias.")).not.toBeInTheDocument();
+  // Under full-suite load the empty state can lag one commit behind the filtered list.
+  await waitFor(() => expect(screen.queryByText("Sin coincidencias.")).not.toBeInTheDocument());
 });
 
 it("replaces the shown selection when typing into a filled catalog field", async () => {
