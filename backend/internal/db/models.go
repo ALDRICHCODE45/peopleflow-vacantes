@@ -108,6 +108,47 @@ type Company struct {
 	PostalCode       pgtype.Text        `json:"postal_code"`
 }
 
+type CompanyCandidate struct {
+	ID                uuid.UUID          `json:"id"`
+	CompanyID         uuid.UUID          `json:"company_id"`
+	FullName          string             `json:"full_name"`
+	Email             pgtype.Text        `json:"email"`
+	EmailNormalized   pgtype.Text        `json:"email_normalized"`
+	Phone             pgtype.Text        `json:"phone"`
+	EducationLevel    string             `json:"education_level"`
+	CountryCode       string             `json:"country_code"`
+	StateCode         pgtype.Text        `json:"state_code"`
+	MunicipalityCode  pgtype.Text        `json:"municipality_code"`
+	PostalCode        pgtype.Text        `json:"postal_code"`
+	ProfessionalTitle pgtype.Text        `json:"professional_title"`
+	CurrentCompany    pgtype.Text        `json:"current_company"`
+	FieldOfStudy      pgtype.Text        `json:"field_of_study"`
+	ExperienceYears   pgtype.Int4        `json:"experience_years"`
+	Summary           pgtype.Text        `json:"summary"`
+	Skills            []string           `json:"skills"`
+	LinkedinUrl       pgtype.Text        `json:"linkedin_url"`
+	PortfolioUrl      pgtype.Text        `json:"portfolio_url"`
+	CreatedBy         uuid.UUID          `json:"created_by"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+}
+
+type CompanyCandidateCv struct {
+	ID                 uuid.UUID          `json:"id"`
+	CompanyID          uuid.UUID          `json:"company_id"`
+	CompanyCandidateID pgtype.UUID        `json:"company_candidate_id"`
+	StorageKey         string             `json:"storage_key"`
+	Size               int64              `json:"size"`
+	ContentType        string             `json:"content_type"`
+	FileName           string             `json:"file_name"`
+	UploadedAt         pgtype.Timestamptz `json:"uploaded_at"`
+}
+
+type CompanyCandidateLanguage struct {
+	CompanyCandidateID uuid.UUID `json:"company_candidate_id"`
+	Language           string    `json:"language"`
+	Level              string    `json:"level"`
+}
+
 type CompanyMember struct {
 	ID        uuid.UUID          `json:"id"`
 	UserID    uuid.UUID          `json:"user_id"`
@@ -295,24 +336,27 @@ type ProcessDeliveryFulfillment struct {
 }
 
 type ProcessParticipation struct {
-	ID                uuid.UUID          `json:"id"`
-	ProcessID         uuid.UUID          `json:"process_id"`
-	CandidateID       uuid.UUID          `json:"candidate_id"`
-	StageID           uuid.UUID          `json:"stage_id"`
-	CvVersionID       uuid.UUID          `json:"cv_version_id"`
-	QuestionsSnapshot []byte             `json:"questions_snapshot"`
-	AnswersSnapshot   []byte             `json:"answers_snapshot"`
-	Source            string             `json:"source"`
-	CreatedAt         pgtype.Timestamptz `json:"created_at"`
-	Version           int64              `json:"version"`
-	PreviousStageID   pgtype.UUID        `json:"previous_stage_id"`
-	ReasonGroup       pgtype.Text        `json:"reason_group"`
-	ReasonCode        pgtype.Text        `json:"reason_code"`
-	Comment           pgtype.Text        `json:"comment"`
-	CandidateMessage  pgtype.Text        `json:"candidate_message"`
-	DiscardedAt       pgtype.Timestamptz `json:"discarded_at"`
-	SubstateID        pgtype.UUID        `json:"substate_id"`
-	ProfileSnapshot   []byte             `json:"profile_snapshot"`
+	ID                   uuid.UUID          `json:"id"`
+	ProcessID            uuid.UUID          `json:"process_id"`
+	CandidateID          pgtype.UUID        `json:"candidate_id"`
+	StageID              uuid.UUID          `json:"stage_id"`
+	CvVersionID          pgtype.UUID        `json:"cv_version_id"`
+	QuestionsSnapshot    []byte             `json:"questions_snapshot"`
+	AnswersSnapshot      []byte             `json:"answers_snapshot"`
+	Source               string             `json:"source"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	Version              int64              `json:"version"`
+	PreviousStageID      pgtype.UUID        `json:"previous_stage_id"`
+	ReasonGroup          pgtype.Text        `json:"reason_group"`
+	ReasonCode           pgtype.Text        `json:"reason_code"`
+	Comment              pgtype.Text        `json:"comment"`
+	CandidateMessage     pgtype.Text        `json:"candidate_message"`
+	DiscardedAt          pgtype.Timestamptz `json:"discarded_at"`
+	SubstateID           pgtype.UUID        `json:"substate_id"`
+	ProfileSnapshot      []byte             `json:"profile_snapshot"`
+	CompanyCandidateID   pgtype.UUID        `json:"company_candidate_id"`
+	CompanyCandidateCvID pgtype.UUID        `json:"company_candidate_cv_id"`
+	AddedBy              pgtype.UUID        `json:"added_by"`
 }
 
 type User struct {
