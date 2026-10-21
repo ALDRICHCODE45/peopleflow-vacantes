@@ -93,7 +93,7 @@ it("retains an error and retries only explicitly", async () => {
   await userEvent.setup().click(await screen.findByRole("button", { name: "Reintentar" })); expect(await screen.findByRole("link", { name: "Backend Go" })).toHaveAttribute("href", `/vacantes/${id}`); expect(loadApplicationsAction).toHaveBeenCalledTimes(2);
 });
 it("shows only contract facts and status, then appends the next page", async () => {
-  vi.mocked(loadApplicationsAction).mockResolvedValueOnce({ ok: true, data: { ...page, next_cursor: "opaque" } }).mockResolvedValueOnce({ ok: true, data: { items: [{ ...page.items[0], id, vacancy: { id, title: "Frontend" } }], next_cursor: null } });
+  vi.mocked(loadApplicationsAction).mockResolvedValueOnce({ ok: true, data: { ...page, next_cursor: "opaque" } }).mockResolvedValueOnce({ ok: true, data: { items: [{ ...page.items[0], id, vacancy: { id, title: "Frontend", state: "open" as const } }], next_cursor: null } });
   const { container } = render(<ApplicationsWorkspace />); expect(await screen.findByText("Acme")).toBeVisible(); expect(screen.getAllByText("16 de octubre de 2026")[0]).toBeVisible();
   const badge = screen.getByText("Enviada"); expect(badge).toHaveAttribute("data-variant", "info"); expect(badge).toHaveAttribute("data-dot");
   await userEvent.setup().click(screen.getByRole("button", { name: "Cargar más" })); expect(loadApplicationsAction).toHaveBeenLastCalledWith({ cursor: "opaque" }); expect(await screen.findByRole("link", { name: "Frontend" })).toBeVisible(); expect(screen.getByRole("link", { name: "Backend Go" })).toBeVisible();
@@ -131,4 +131,19 @@ it("keeps the facts and vacancy footer when closed without a message, without an
 it("preserves loaded rows and the same cursor when loading more fails", async () => {
   vi.mocked(loadApplicationsAction).mockResolvedValueOnce({ ok: true, data: { ...page, next_cursor: "opaque" } }).mockResolvedValueOnce({ ok: false, reason: "server_error", reference: {} }).mockResolvedValueOnce({ ok: true, data: { items: [], next_cursor: null } });
   render(<ApplicationsWorkspace />); await userEvent.setup().click(await screen.findByRole("button", { name: "Cargar más" })); expect(await screen.findByRole("button", { name: "Reintentar" })).toBeVisible(); expect(screen.getByRole("link", { name: "Backend Go" })).toBeVisible(); await userEvent.setup().click(screen.getByRole("button", { name: "Reintentar" })); expect(loadApplicationsAction).toHaveBeenLastCalledWith({ cursor: "opaque" });
+});
+
+it("shows «Vacante cerrada» when the company finished the process of an active application", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { ...page, items: [{ ...page.items[0], status: "in_process", vacancy: { ...page.items[0].vacancy, state: "closed" } }] } });
+  render(<ApplicationsWorkspace />);
+  expect(await screen.findByText("Vacante cerrada")).toHaveAttribute("data-variant", "neutral");
+  expect(screen.queryByText("En proceso")).toBeNull();
+  expect(screen.getByText("La empresa cerró esta vacante y finalizó el proceso.")).toBeVisible();
+});
+it("keeps «Finalizada» and its message for a discarded application of a closed vacancy", async () => {
+  vi.mocked(loadApplicationsAction).mockResolvedValue({ ok: true, data: { ...page, items: [{ ...page.items[0], status: "closed", message: "Gracias", vacancy: { ...page.items[0].vacancy, state: "closed" } }] } });
+  render(<ApplicationsWorkspace />);
+  expect(await screen.findByText("Finalizada")).toBeVisible();
+  expect(screen.queryByText("Vacante cerrada")).toBeNull();
+  expect(screen.getByText("Gracias")).toBeVisible();
 });

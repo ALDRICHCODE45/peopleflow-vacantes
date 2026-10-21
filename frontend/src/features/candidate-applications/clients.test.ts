@@ -65,7 +65,7 @@ describe("candidate application contracts", () => {
     expect(await loadApplications({ token: "private-token", query: { cursor: "a+/=", limit: 10 } })).toEqual({ ok: true, data: page });
     expect(fetchMock.mock.calls[0][0]).toBe("https://api.example.test/v2/me/applications?cursor=a%2B%2F%3D&limit=10");
   });
-  it.each([{ ...page, extra: true }, { ...page, next_cursor: "" }, { ...page, items: [{ ...page.items[0], status: "hired" }] }, { ...page, items: [{ ...page.items[0], vacancy: { id, title: "x", private: true } }] }])("rejects malformed list %j", async value => {
+  it.each([{ ...page, extra: true }, { ...page, next_cursor: "" }, { ...page, items: [{ ...page.items[0], status: "hired" }] }, { ...page, items: [{ ...page.items[0], vacancy: { id, title: "x", state: "open", private: true } }] }, { ...page, items: [{ ...page.items[0], vacancy: { id, title: "x" } }] }, { ...page, items: [{ ...page.items[0], vacancy: { id, title: "x", state: "paused" } }] }])("rejects malformed list %j", async value => {
     fetchMock.mockResolvedValue(Response.json(value));
     expect(await loadApplications({ token: "private-token" })).toMatchObject({ ok: false });
   });

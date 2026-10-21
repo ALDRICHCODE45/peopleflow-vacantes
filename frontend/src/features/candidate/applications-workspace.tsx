@@ -29,6 +29,8 @@ const STATUS_EXPLANATION = {
 } satisfies Record<ApplicationsPage["items"][number]["status"], string>;
 
 function ApplicationCard({ item }: { item: ApplicationsPage["items"][number] }) {
+  // An active application of a vacancy whose process the company finished (§21.5); a discard keeps «Finalizada».
+  const vacancyClosed = item.vacancy.state === "closed";
   return <Card className="h-full min-w-0">
     <CardHeader className="border-b">
       <CardTitle className="flex min-w-0 items-start gap-3">
@@ -36,12 +38,12 @@ function ApplicationCard({ item }: { item: ApplicationsPage["items"][number] }) 
         <h3 className="min-w-0 font-heading text-base font-semibold"><Link href={`/vacantes/${item.vacancy.id}`} className="inline-flex min-h-10 items-center rounded-md break-words underline-offset-4 hover:underline focus-visible:outline-ring focus-visible:outline-2">{item.vacancy.title}</Link></h3>
       </CardTitle>
       <CardDescription className="flex min-w-0 items-center gap-1.5 pl-14"><Building2 aria-hidden="true" className="size-3.5 shrink-0" /><span className="min-w-0 break-words">{item.company.name}</span></CardDescription>
-      <CardAction><Badge variant={item.status === "submitted" ? "info" : item.status === "closed" ? "neutral" : "review"} dot>{item.status === "submitted" ? "Enviada" : item.status === "closed" ? "Finalizada" : "En proceso"}</Badge></CardAction>
+      <CardAction><Badge variant={item.status === "submitted" ? "info" : item.status === "closed" || vacancyClosed ? "neutral" : "review"} dot>{item.status === "closed" ? "Finalizada" : vacancyClosed ? "Vacante cerrada" : item.status === "submitted" ? "Enviada" : "En proceso"}</Badge></CardAction>
     </CardHeader>
     <CardContent className="flex flex-col gap-5">
       <dl className={APPLICATION_FACTS}>
         <div className="flex min-w-0 flex-col gap-1.5"><dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><CalendarDays aria-hidden="true" className="size-3.5" />Postulada</dt><dd><time dateTime={item.applied_at}>{date.format(new Date(item.applied_at))}</time></dd></div>
-        <div className="flex min-w-0 flex-col gap-1.5"><dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><CircleDot aria-hidden="true" className="size-3.5" />Estado</dt><dd>{STATUS_EXPLANATION[item.status]}</dd></div>
+        <div className="flex min-w-0 flex-col gap-1.5"><dt className="flex items-center gap-1.5 text-xs text-muted-foreground"><CircleDot aria-hidden="true" className="size-3.5" />Estado</dt><dd>{item.status !== "closed" && vacancyClosed ? "La empresa cerró esta vacante y finalizó el proceso." : STATUS_EXPLANATION[item.status]}</dd></div>
       </dl>
       {item.status === "closed" && item.message !== null && <div data-pf-application-message className="flex min-w-0 flex-col gap-2 border-l-2 border-border pl-4">
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><MessageSquare aria-hidden="true" className="size-3.5" />Mensaje de la empresa</p>

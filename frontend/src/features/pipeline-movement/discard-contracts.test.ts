@@ -109,7 +109,7 @@ it("rejects inconsistent discard placement, timestamp and previous stage in a bo
   ]) expect(boardSchema.safeParse({ ...board, participations: [invalid] }).success).toBe(false);
 });
 it("candidate applications require message and closed enum without leaking other facts", () => {
-  const application = { id: id(90), vacancy: { id: id(30), title: "Vacante" }, company: { id: id(31), name: "Empresa" }, applied_at: item.applied_at, status: "closed", message: "Gracias" };
+  const application = { id: id(90), vacancy: { id: id(30), title: "Vacante", state: "open" }, company: { id: id(31), name: "Empresa" }, applied_at: item.applied_at, status: "closed", message: "Gracias" };
   expect(applicationsSchema.safeParse({ items: [application], next_cursor: null }).success).toBe(true);
   for (const bad of [{ ...application, status: "rejected" }, { ...application, message: undefined }, { ...application, reason }, { ...application, status: "submitted" }]) expect(applicationsSchema.safeParse({ items: [bad], next_cursor: null }).success).toBe(false);
 });
