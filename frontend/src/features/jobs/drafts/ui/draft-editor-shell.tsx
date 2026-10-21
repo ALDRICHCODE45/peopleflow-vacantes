@@ -14,6 +14,8 @@ import type { DraftFormState } from "./draft-form-state";
 import { DraftPublicDetail } from "./draft-public-detail";
 import { loadCompanyStateAction } from "@/features/employer-company/actions";
 import type { PublicJobDetail } from "../../types";
+import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
+import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
 
 export const DraftPreviewContext = createContext<MouseEventHandler<HTMLButtonElement> | undefined>(undefined);
 
@@ -31,10 +33,11 @@ function subscribeDesktop(onChange: () => void) {
 const desktopSnapshot = () => window.matchMedia?.(desktopQuery).matches ?? false;
 const serverSnapshot = () => false;
 
-export function DraftEditorShell({ state, published, step, onStep, readiness, children }: {
-  state: DraftFormState; published: boolean | null; step: number; onStep: (step: number) => void;
+export function DraftEditorShell({ state, published, publication = published === null ? undefined : published ? "published" : null, step, onStep, readiness, children }: {
+  state: DraftFormState; published: boolean | null; publication?: Lifecycle["publication"]; step: number; onStep: (step: number) => void;
   readiness: ReturnType<typeof editorReadiness>; children: ReactNode;
 }) {
+  const status = publicationStatus(publication, "success");
   const [preview, setPreview] = useState(false);
   const [company, setCompany] = useState<PublicJobDetail["company"] | null>(null);
   const [companyLoading, setCompanyLoading] = useState(false);
@@ -73,7 +76,7 @@ export function DraftEditorShell({ state, published, step, onStep, readiness, ch
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-heading text-xl font-semibold">Construye tu próxima oportunidad</h1>
-          <Badge variant={published === null ? "neutral" : published ? "success" : "info"} dot={published !== null}>{published === null ? "Estado por confirmar" : published ? "Activa" : "Borrador"}</Badge>
+          <Badge variant={status.variant} dot={publication !== undefined}>{status.label}</Badge>
         </div>
         <p className="text-sm text-muted-foreground">Una buena contratación empieza con una vacante clara. Dale forma a la tuya.</p>
       </div>
@@ -100,7 +103,7 @@ export function DraftEditorShell({ state, published, step, onStep, readiness, ch
           {!readiness.serverKnown && <p className="text-xs text-muted-foreground">Solicitud y entrega aún no comprobadas: no se incluyen en el progreso.</p>}
           <Button type="button" variant="link" className="min-h-10 self-start" onClick={() => onStep(4)}>Ver qué falta<ArrowRight aria-hidden="true" data-icon="inline-end" /></Button>
         </div>
-        <Card size="sm" className="hidden lg:flex"><CardHeader><CardTitle><h2 className="flex items-center gap-2"><Info aria-hidden="true" className="size-4" />A tu ritmo</h2></CardTitle><CardDescription>{published === null ? "El estado de publicación está por confirmar. Recuerda guardar tus cambios." : published ? "Esta vacante está activa. Los cambios se publican al guardar." : "Guarda tu progreso, incluso si aún faltan detalles. Solo será pública cuando la publiques."}</CardDescription></CardHeader></Card>
+        <Card size="sm" className="hidden lg:flex"><CardHeader><CardTitle><h2 className="flex items-center gap-2"><Info aria-hidden="true" className="size-4" />A tu ritmo</h2></CardTitle><CardDescription>{status.notice}</CardDescription></CardHeader></Card>
       </aside>
       <div className="min-w-0"><DraftPreviewContext value={openPreview}>{children}</DraftPreviewContext></div>
     </Tabs>

@@ -14,7 +14,7 @@ vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: v
 vi.mock("@/features/jobs/drafts/pipeline/actions", () => ({ loadDraftPipelineAction: vi.fn(), saveDraftPipelineAction: vi.fn() }));
 vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: ({ title, parent, status }: { title: React.ReactNode; parent: { label: string; href: string }; status: React.ReactNode }) => <header><h1>{title}</h1><a href={parent.href}>{parent.label}</a>{status}</header> }));
 const read = filledDraftRead();
-const success = { ok: true, seed: draftEditSeedFromRead(read), identity: { draftId: read.id, etag: '"etag"' } } as const;
+const success = { ok: true, seed: { ...draftEditSeedFromRead(read), lifecycle: { ...read.lifecycle, publication: null, process: null } }, identity: { draftId: read.id, etag: '"etag"' } } as const;
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(loadDraftForEditAction).mockResolvedValue(success);
@@ -76,7 +76,13 @@ it.each([read.fields.title, null])("renders title %s, badge, empty state and con
   expect(container.querySelectorAll("header")).toHaveLength(1);
   expect(container.firstElementChild).not.toHaveClass("md:h-[calc(100dvh-1rem)]", "md:overflow-hidden");
 });
+it.each([["paused", "Pausada", "review"], ["closed", "Cerrada", "neutral"]] as const)("uses %s lifecycle in the header", async (publication, label, variant) => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication, process: "active" } } });
+  render(<DraftPipelineState draftId={read.id} />);
+  expect(await screen.findByText(label)).toHaveAttribute("data-variant", variant);
+});
 it("published state renders current column cards and hides publish", async () => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication: "published", process: "active" } } });
   vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "published", publishedAt: "2026-10-16T12:00:00Z", missing: [] } });
   vi.mocked(loadBoardAction).mockResolvedValue({ ok: true, data: { lifecycle: { publication: "published", process: "active", version: "1", published_at: "2026-10-16T12:00:00Z", paused_at: null, closed_at: null, process_finished_at: null, allowed_actions: [] }, screening_filters: [], retired_stages: [], delivery: { state: "pending", delivered: 0, target: 3 }, substates: [], stages: [{ id: read.id, kind: "new", name: "Entrada actual", count: 0 }, { id: "other", kind: "custom", name: "Prueba actual", count: 0 }], exit: { id: "exit", kind: "discarded", name: "Fuera actual", count: 0 }, coverage: { covered: 0, required: null, full_coverage_reached_at: null }, participations: [] } });
   const { container } = render(<DraftPipelineState draftId={read.id} />);

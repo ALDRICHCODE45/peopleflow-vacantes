@@ -17,6 +17,7 @@ import { PipelineEditorSkeleton } from "../stage-config/loading";
 import { DeliverySkeleton } from "../delivery-config/loading";
 import { ManagementSkeleton } from "../management-config/loading";
 import { ConfigLifecycleProvider } from "./lifecycle";
+import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
 
 export const VACANCY_CONFIG_MODULES = [
   { slug: "columnas", title: "Columnas del pipeline", description: "Nombres, orden y columnas propias.", icon: Columns3 },
@@ -43,10 +44,10 @@ export function VacancyConfigShell({ draftId, children }: { draftId: string; chi
   const retry = () => { setLoaded(null); setAttempt(value => value + 1); };
   const title = result?.ok ? result.seed.model.fields.title || "Sin título" : "Configuración";
   const publication = loaded?.id === draftId ? loaded.publication : null;
-  const published = publication?.status === "published";
+  const status = publicationStatus(result?.ok ? result.seed.lifecycle.publication : undefined);
   return (
     <div className="flex flex-1 flex-col" aria-busy={result === null}>
-      <SiteHeader title={title} parent={{ label: "Pipeline", href: `/empresa/vacantes/${draftId}/pipeline` }} status={result?.ok && publication ? <Badge variant={published ? "accent" : "info"} dot>{published ? "Activa" : "Borrador"}</Badge> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
+      <SiteHeader title={title} parent={{ label: "Pipeline", href: `/empresa/vacantes/${draftId}/pipeline` }} status={result?.ok && publication ? <Badge variant={status.variant} dot>{status.label}</Badge> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
       <div className="@container/main flex flex-1 flex-col">
         <DashboardPageContent width="screen-2xl" className="gap-5 md:gap-6">
           {result && !result.ok ? <DraftEditErrorState reason={result.reason} onRetry={retry} /> : (

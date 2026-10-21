@@ -12,7 +12,7 @@ vi.mock("@/features/jobs/drafts/reopen/load", () => ({ loadDraftForEditAction: v
 vi.mock("next/navigation", () => ({ usePathname: vi.fn(() => `/empresa/vacantes/${read.id}/configuracion/columnas`) }));
 vi.mock("@/components/company-dashboard/site-header", () => ({ SiteHeader: ({ title, parent, status }: { title: React.ReactNode; parent: { label: string; href: string }; status: React.ReactNode }) => <header><h1>{title}</h1><a href={parent.href}>{parent.label}</a>{status}</header> }));
 const read = filledDraftRead();
-const success = { ok: true, seed: draftEditSeedFromRead(read), identity: { draftId: read.id, etag: '"etag"' } } as const;
+const success = { ok: true, seed: { ...draftEditSeedFromRead(read), lifecycle: { ...read.lifecycle, publication: null, process: null } }, identity: { draftId: read.id, etag: '"etag"' } } as const;
 const shell = () => <VacancyConfigShell draftId={read.id}><p>Contenido del apartado</p></VacancyConfigShell>;
 beforeEach(() => {
   vi.resetAllMocks();
@@ -33,7 +33,13 @@ it.each([read.fields.title, null])("owns one header with the draft title %s, bad
   expect(screen.getByText("Ajusta cómo funciona esta vacante. Los cambios de cada apartado se guardan por separado.")).toBeVisible();
   expect(screen.getByText("Contenido del apartado")).toBeVisible();
 });
+it.each([["paused", "Pausada", "review"], ["closed", "Cerrada", "neutral"]] as const)("uses %s lifecycle in the header", async (publication, label, variant) => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication, process: "active" } } });
+  render(shell());
+  expect(await screen.findByText(label)).toHaveAttribute("data-variant", variant);
+});
 it("shows the confirmed published state instead of labelling an active vacancy as a draft", async () => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication: "published", process: "active" } } });
   vi.mocked(loadDraftPublicationAction).mockResolvedValue({ ok: true, publication: { status: "published", publishedAt: "2026-10-18T12:00:00Z", missing: [] } });
   render(shell());
   expect(await screen.findByText("Activa")).toHaveAttribute("data-variant", "accent");

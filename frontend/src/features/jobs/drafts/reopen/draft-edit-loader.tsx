@@ -72,5 +72,5 @@ export function DraftEditLoader({draftId}:{draftId:string}) {
   const result = loaded?.draftId === draftId && loaded.attempt === attempt ? loaded.result : null;
   if (!result) return <DraftEditorSkeleton />;
   if (!result.ok) return <DraftEditErrorState reason={result.reason} onRetry={() => setAttempt(previous => previous + 1)} />;
-  return <LocalDraftForm key={draftId} initialModel={result.seed.model} initialScreeningQuestionsV2={result.seed.screeningQuestionsV2} initialIdentity={result.identity} />;
+  return <LocalDraftForm key={draftId} initialModel={result.seed.model} initialScreeningQuestionsV2={result.seed.screeningQuestionsV2} initialIdentity={result.identity} initialLifecycle={result.seed.lifecycle} />;
 }

@@ -9,7 +9,7 @@ vi.mock("@/components/feedback/notify", () => ({ notifyActionResult: vi.fn() }))
 const view: Lifecycle = { publication: "published", process: "active", version: "1", published_at: null, paused_at: null, closed_at: null, process_finished_at: null, allowed_actions: ["pause", "close"] };
 const snapshot = { ok: true as const, data: view, etag: '"vl-id-v1"' };
 const changed = vi.fn();
-function mount(action: "close" | "pause" | "reopen" = "close") { return render(<LifecycleActionDialog draftId="id" title="Analista" action={action} snapshot={{ ...snapshot, data: { ...view, allowed_actions: [action] } }} open onOpenChange={vi.fn()} onChanged={changed} />); }
+function mount(action: "close" | "pause" | "reopen" | "resume" | "finish_process" = "close") { return render(<LifecycleActionDialog draftId="id" title="Analista" action={action} snapshot={{ ...snapshot, data: { ...view, allowed_actions: [action] } }} open onOpenChange={vi.fn()} onChanged={changed} />); }
 beforeEach(() => { vi.resetAllMocks(); vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: false, addEventListener: vi.fn(), removeEventListener: vi.fn() }))); vi.mocked(getLifecycleAction).mockResolvedValue(snapshot); vi.mocked(transitionLifecycleAction).mockResolvedValue({ ...snapshot, data: { ...view, publication: "closed" } }); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it.each([412, 428])("reloads on %s without another write", async status => {
@@ -48,6 +48,16 @@ it.each(["pause", "close"] as const)("checks an uncertain %s and replays the exa
  fireEvent.click(await screen.findByRole("button", { name: "Reintentar" }));
  await waitFor(() => expect(transitionLifecycleAction).toHaveBeenCalledTimes(2));
  expect(vi.mocked(transitionLifecycleAction).mock.calls[1]).toEqual(vi.mocked(transitionLifecycleAction).mock.calls[0]);
+});
+it("names the vacancy naturally when finishing its process", () => {
+ mount("finish_process");
+ expect(screen.getByRole("heading", { name: "¿Finalizar el proceso de Analista?" })).toBeVisible();
+});
+it.each(["resume", "reopen"] as const)("offers Volver after %s publication missing", async action => {
+ vi.mocked(transitionLifecycleAction).mockResolvedValue({ ok: false, reason: "publication_incomplete", missing: ["title_missing"], message: "Te falta para publicar", reference: { status: 422 } });
+ mount(action); fireEvent.click(screen.getByRole("button", { name: action === "resume" ? "Reanudar" : "Reabrir" }));
+ await screen.findByRole("heading", { name: "Te falta para publicar" });
+ expect(screen.getByRole("button", { name: "Volver" })).toBeVisible();
 });
 it("shows publication missing labels", async () => {
  vi.mocked(transitionLifecycleAction).mockResolvedValue({ ok: false, reason: "publication_incomplete", missing: ["title_missing", "delivery_target_missing"], message: "Te falta para publicar", reference: { status: 422 } });

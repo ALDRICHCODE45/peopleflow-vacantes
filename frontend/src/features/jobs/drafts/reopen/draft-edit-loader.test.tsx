@@ -25,6 +25,28 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+it.each(["paused", "closed"] as const)("passes %s lifecycle to the editor badge", async publication => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication, process: "active" } } });
+  const { container } = render(<DraftEditLoader draftId={read.id} />);
+  await screen.findByRole("textbox", { name: "Título" });
+  expect(container.querySelector('header [data-slot="badge"]')).toHaveTextContent(publication === "paused" ? "Pausada" : "Cerrada");
+  expect(container.querySelector('header [data-slot="badge"]')).toHaveAttribute("data-variant", publication === "paused" ? "review" : "neutral");
+});
+it.each(["paused", "closed"] as const)("labels the disabled primary action for %s", async publication => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication, process: "active" } } });
+  render(<DraftEditLoader draftId={read.id} />);
+  await screen.findByRole("textbox", { name: "Título" });
+  expect(screen.getByRole("button", { name: publication === "paused" ? "Pausada" : "Cerrada" })).toBeDisabled();
+});
+it.each([
+  ["paused", "Esta vacante está pausada. Los cambios se guardan y se verán al reanudarla."],
+  ["closed", "Esta vacante está cerrada. Los cambios se guardan y se verán si la reabres."],
+] as const)("explains saved changes for %s", async (publication, copy) => {
+  vi.mocked(loadDraftForEditAction).mockResolvedValue({ ...success, seed: { ...success.seed, lifecycle: { ...success.seed.lifecycle, publication, process: "active" } } });
+  render(<DraftEditLoader draftId={read.id} />);
+  await screen.findByRole("textbox", { name: "Título" });
+  expect(screen.getByText(copy)).toBeInTheDocument();
+});
 it("shows editor-shaped Skeletons with one accessible status while loading", async () => {
   const pending = deferred();
   vi.mocked(loadDraftForEditAction).mockReturnValue(pending.promise);

@@ -97,6 +97,8 @@ import {
 import { PublishButton } from "@/features/employer-vacancies/publication/publish-dialog";
 import { loadDraftPublicationAction } from "../pipeline/publication-actions";
 import type { ScreeningQuestionV2 } from "../screening-v2/model";
+import type { Lifecycle } from "@/features/vacancy-lifecycle/model";
+import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
 
 /**
  * Complete local private-draft editor over the accepted 17-field model, shown
@@ -113,6 +115,7 @@ import type { ScreeningQuestionV2 } from "../screening-v2/model";
  * Atrás/Continuar navigation remains unconditional. No autosave is performed.
  */
 export type LocalDraftFormProps = {
+  initialLifecycle?: Lifecycle;
   /**
    * Optional complete model whose populated fields must survive a no-op
    * validation. It selects the legacy v1 screening path unless an explicit v2
@@ -374,6 +377,7 @@ export function LocalDraftForm({
   initialModel,
   initialScreeningQuestionsV2,
   initialIdentity,
+  initialLifecycle,
 }: LocalDraftFormProps) {
   /**
    * Explicit ambiguity guard, evaluated before any state exists. A v1 model
@@ -414,7 +418,9 @@ export function LocalDraftForm({
   const leaveGuard = React.useRef<DraftLeaveGuardHandle>(null);
   const draftSave = useDraftSave(initialIdentity, leaveGuard);
   const [savedDraftId, setSavedDraftId] = React.useState(initialIdentity?.draftId);
-  const [published, setPublished] = React.useState<boolean | null>(initialIdentity ? null : false);
+  const [published, setPublished] = React.useState<boolean | null>(initialLifecycle ? initialLifecycle.publication !== null : initialIdentity ? null : false);
+  const publication = initialLifecycle?.publication ?? (published === null ? undefined : published ? "published" : null);
+  const status = publicationStatus(publication, "success");
   const [serverMissing, setServerMissing] = React.useState<readonly string[] | null>(null);
   const [publishNotice, setPublishNotice] = React.useState(false);
   const readiness = editorReadiness(state, serverMissing);
@@ -426,12 +432,12 @@ export function LocalDraftForm({
     let current = true;
     void loadDraftPublicationAction(savedDraftId).then(result => {
       if (current && result.ok) {
-        setPublished(result.publication.status === "published");
+        setPublished(initialLifecycle?.publication != null || result.publication.status === "published");
         setServerMissing(result.publication.missing);
       }
     }).catch(() => { /* The dialog will expose an explicit retry if the read remains unavailable. */ });
     return () => { current = false; };
-  }, [savedDraftId]);
+  }, [savedDraftId, initialLifecycle]);
   const [errors, setErrors] = React.useState<DraftFormErrors>({});
   const [geographyErrors, setGeographyErrors] = React.useState<GeographyErrors>();
   const [validated, setValidated] = React.useState<
@@ -592,7 +598,7 @@ export function LocalDraftForm({
       </div>}
 
       <form noValidate aria-describedby="draft-publication-footnote" onSubmit={handleValidate} className="flex flex-col gap-6">
-        <DraftEditorShell state={state} published={published} step={step} onStep={goToStep} readiness={readiness}>
+        <DraftEditorShell state={state} published={published} publication={publication} step={step} onStep={goToStep} readiness={readiness}>
 
         <TabsContent value={0} keepMounted
           data-pf-draft-step="1"
@@ -907,7 +913,7 @@ export function LocalDraftForm({
         <div className="mt-6 flex items-center justify-between gap-3">
           <Button type="button" variant="ghost" className="min-h-10" disabled={step === 0} onClick={() => goToStep(step - 1)}>Anterior</Button>
           {step < LAST_STEP && <Button type="button" variant="outline" className="min-h-10" onClick={() => goToStep(step + 1)}>Siguiente sección</Button>}
-          {step === LAST_STEP && isV2 && (savedDraftId && !published ? <PublishButton draftId={savedDraftId} label="Revisar y publicar" variant="default" unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={() => setPublished(true)} /> : <Button type="button" className="min-h-10" disabled={published === true} onClick={() => setPublishNotice(true)}>{published ? "Vacante activa" : "Revisar y publicar"}</Button>)}
+          {step === LAST_STEP && isV2 && (savedDraftId && !published ? <PublishButton draftId={savedDraftId} label="Revisar y publicar" variant="default" unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={() => setPublished(true)} /> : <Button type="button" className="min-h-10" disabled={published === true} onClick={() => setPublishNotice(true)}>{published ? publication === "published" ? "Vacante activa" : status.label : "Revisar y publicar"}</Button>)}
         </div>
         <p id="draft-publication-footnote" className="mt-5 text-center text-sm text-muted-foreground"><span className="text-primary">*</span> Necesario para publicar, no para guardar tu borrador.</p>
         </DraftEditorShell>
@@ -928,7 +934,7 @@ export function LocalDraftForm({
                 {draftSave.pending && <Spinner data-icon="inline-start" aria-hidden="true" />}
                 {draftSave.pending ? "Guardando…" : draftSave.saved ? "Guardar cambios" : "Guardar borrador"}
               </Button> : <Button type="submit" variant="outline" className="min-h-10">Validar borrador</Button>}
-              {isV2 && (savedDraftId && !published ? <PublishButton draftId={savedDraftId} label="Publicar vacante" variant="default" unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={() => setPublished(true)} /> : <Button type="button" className="min-h-10" disabled={published === true} onClick={() => setPublishNotice(true)}>{published ? "Activa" : "Publicar vacante"}</Button>)}
+              {isV2 && (savedDraftId && !published ? <PublishButton draftId={savedDraftId} label="Publicar vacante" variant="default" unsavedChanges={draftSave.dirty || draftSave.pending} onPublished={() => setPublished(true)} /> : <Button type="button" className="min-h-10" disabled={published === true} onClick={() => setPublishNotice(true)}>{published ? status.label : "Publicar vacante"}</Button>)}
             </div>
           </ActionBar>
           </CardContent>

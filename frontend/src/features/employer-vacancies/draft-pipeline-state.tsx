@@ -18,6 +18,7 @@ import type { DraftPublication } from "@/features/jobs/drafts/pipeline/publicati
 import { PublishButton } from "./publication/publish-dialog";
 import { MovementBoard } from "@/features/pipeline-movement/board";
 import { cn } from "@/lib/utils";
+import { publicationStatus } from "@/features/vacancy-lifecycle/publication-status";
 
 /** Reads readiness alongside the draft; published processes load their real board independently. */
 export function DraftPipelineState({ draftId }: { draftId: string }) {
@@ -42,12 +43,13 @@ export function DraftPipelineState({ draftId }: { draftId: string }) {
   const published = loaded?.id === draftId && loaded.publication?.status === "published";
   const publishedAt = published ? loaded?.publication?.publishedAt : null;
   const title = result?.ok ? result.seed.model.fields.title || "Sin título" : "Pipeline";
+  const status = publicationStatus(result?.ok ? result.seed.lifecycle.publication : undefined);
   const configHref = `/empresa/vacantes/${draftId}/configuracion/columnas`;
   return (
     // The inset shell has 8px above and below it on desktop. Only the live
     // board owns a viewport frame; drafts and mobile retain page scrolling.
     <div className={cn("flex min-h-0 flex-1 flex-col", published && "md:h-[calc(100dvh-1rem)] md:flex-none md:overflow-hidden")} aria-busy={result === null}>
-      <SiteHeader title={title} parent={{ label: "Vacantes", href: "/empresa/vacantes" }} status={result?.ok ? <Badge variant={published ? "accent" : "info"} dot>{published ? "Activa" : "Borrador"}</Badge> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
+      <SiteHeader title={title} parent={{ label: "Vacantes", href: "/empresa/vacantes" }} status={result?.ok ? <Badge variant={status.variant} dot>{status.label}</Badge> : result === null ? <Skeleton aria-hidden="true" className="h-5 w-20" /> : undefined} />
       <div className="@container/main flex min-h-0 flex-1 flex-col">
         <DashboardPageContent width="screen-2xl" className="min-h-0 flex-1 gap-5 md:gap-6">
           {!published && <section aria-labelledby="draft-pipeline-heading" className="flex items-start justify-between gap-4">
